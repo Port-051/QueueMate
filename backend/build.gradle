@@ -11,6 +11,10 @@ java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
 
 repositories { mavenCentral() }
 
+// Docker Engine 29는 구버전 Engine API를 끊었고 Spring Boot 3.4.5가 관리하는
+// Testcontainers 1.20.6은 /info에서 HTTP 400을 받는다. 호환 버전으로 올린다.
+ext['testcontainers.version'] = '1.21.3'
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
@@ -32,4 +36,9 @@ dependencies {
     testImplementation 'org.springframework.security:spring-security-test'
 }
 
-tasks.named('test') { useJUnitPlatform() }
+tasks.named('test') {
+    useJUnitPlatform()
+    // docker-java는 Engine API v1.32로 협상하는데 Docker 29의 최소 지원은 v1.40이라
+    // Testcontainers가 Docker를 못 찾는다. v1.41은 Docker 20.10~29에서 모두 통한다.
+    systemProperty 'api.version', System.getenv('DOCKER_API_VERSION') ?: '1.41'
+}
