@@ -81,3 +81,16 @@ QueueMate는 **조건 기반 팀원 자동 랜덤 매칭** 서비스다.
 4. 로그/metric 포인트 추가
 5. API contract 불일치 없음
 6. 해당 invariant 검증
+
+## 8. Commit convention
+AngularJS commit convention을 따른다. 형식: `type(scope): subject`
+
+- type: `feat` `fix` `docs` `style` `refactor` `perf` `test` `build` `ci` `chore` `revert`
+- scope: `auth` `user` `party` `social` `realtime` `common` `matching` `reservation` `gameconfig` `frontend` `infra` `contracts` `harness` `docs`
+- subject: 명령형 현재형, 50자 이내, 끝에 마침표 없음
+- body: 무엇을/왜를 쓴다. 어떻게는 코드가 말한다
+- footer: `BREAKING CHANGE: <설명>`, revert는 `revert: <원 subject>` + 원 commit hash
+
+규칙:
+- shared 파일(`contracts/**`, `docs/**`, `CLAUDE.md`) 변경과 feature 구현을 한 커밋에 섞지 않는다.
+- scope는 `docs/10_TEAM_PARALLEL_PLAN.md`의 owner directory와 일치시킨다.
