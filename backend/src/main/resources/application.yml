@@ -26,6 +26,11 @@ management:
         include: health,info,metrics,prometheus
 
 queuemate:
+  auth:
+    # 운영에서는 반드시 환경변수로 주입한다. 기본값은 local 전용이다.
+    jwt-secret: ${JWT_SECRET:local-development-only-secret-key-change-me-32b}
+    access-token-ttl-seconds: ${ACCESS_TOKEN_TTL_SECONDS:900}
+    refresh-token-ttl-seconds: ${REFRESH_TOKEN_TTL_SECONDS:1209600}
   proposal:
     ttl-seconds: ${PROPOSAL_TTL_SECONDS:20}
   reservation:
