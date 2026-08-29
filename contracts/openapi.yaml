@@ -255,29 +255,158 @@ paths:
     get:
       summary: Friend list
       responses:
-        '200': { description: OK }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/FriendView' }
+  /friends/{userId}:
+    delete:
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      summary: Remove a friend
+      responses:
+        '204': { description: Removed }
+        '404': { description: Not a friend }
   /friend-requests:
+    get:
+      summary: My friend requests
+      parameters:
+        - name: direction
+          in: query
+          required: false
+          schema: { type: string, enum: [RECEIVED, SENT], default: RECEIVED }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/FriendRequestView' }
     post:
       summary: Send friend request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateFriendRequest' }
       responses:
-        '201': { description: Created }
-  /blocks:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FriendRequestView' }
+        '409': { description: Already friends, request pending, or blocked }
+  /friend-requests/{id}/accept:
     post:
-      summary: Block user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      summary: Accept a received friend request
       responses:
-        '201': { description: Blocked }
+        '200':
+          description: Accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FriendView' }
+        '409': { description: Request is not pending }
+  /friend-requests/{id}/decline:
+    post:
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      summary: Decline a received friend request
+      responses:
+        '204': { description: Declined }
+        '409': { description: Request is not pending }
+  /friend-requests/{id}:
+    delete:
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      summary: Cancel a sent friend request
+      responses:
+        '204': { description: Cancelled }
+        '409': { description: Request is not pending }
+  /blocks:
     get:
       summary: Block list
       responses:
-        '200': { description: OK }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/BlockView' }
+    post:
+      summary: Block user
+      description: |
+        차단하면 기존 친구 관계와 대기 중인 친구 요청이 함께 제거되고,
+        이후 매칭 후보에서 양방향으로 즉시 제외된다 (docs/01 Block flow, INV-6).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateBlockRequest' }
+      responses:
+        '201':
+          description: Blocked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BlockView' }
+        '409': { description: Already blocked or self }
+  /blocks/{userId}:
+    delete:
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      summary: Unblock user
+      responses:
+        '204': { description: Unblocked }
+        '404': { description: Not blocked }
   /recent-players:
     get:
       summary: Recent party members
+      description: 완료된 party history에서 조회한다. 차단한 사용자는 제외된다.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
       responses:
-        '200': { description: OK }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RecentPlayerView' }
   /reports:
     post:
       summary: Report a user
+      description: |
+        서버가 음성/채팅을 저장하지 않으므로 category와 선택 설명, 식별자만 받는다
+        (docs/13 Reporting).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateReportRequest' }
       responses:
         '201': { description: Created }
 components:
@@ -340,6 +469,62 @@ components:
     GameKey:
       type: string
       enum: [LOL, VALORANT, PUBG]
+    FriendView:
+      type: object
+      required: [userId, nickname]
+      properties:
+        userId: { type: string, format: uuid }
+        nickname: { type: string }
+        avatarUrl: { type: string, nullable: true }
+        friendedAt: { type: string, format: date-time }
+    FriendRequestView:
+      type: object
+      required: [id, direction, counterpartUserId, status]
+      properties:
+        id: { type: string, format: uuid }
+        direction: { type: string, enum: [RECEIVED, SENT] }
+        counterpartUserId: { type: string, format: uuid }
+        counterpartNickname: { type: string }
+        status: { type: string, enum: [PENDING, ACCEPTED, DECLINED, CANCELLED] }
+        createdAt: { type: string, format: date-time }
+    CreateFriendRequest:
+      type: object
+      required: [targetUserId]
+      properties:
+        targetUserId: { type: string, format: uuid }
+    BlockView:
+      type: object
+      required: [userId]
+      properties:
+        userId: { type: string, format: uuid }
+        nickname: { type: string }
+        blockedAt: { type: string, format: date-time }
+    CreateBlockRequest:
+      type: object
+      required: [targetUserId]
+      properties:
+        targetUserId: { type: string, format: uuid }
+    RecentPlayerView:
+      type: object
+      required: [userId, nickname, lastPlayedAt]
+      properties:
+        userId: { type: string, format: uuid }
+        nickname: { type: string }
+        avatarUrl: { type: string, nullable: true }
+        lastPlayedAt: { type: string, format: date-time }
+        playCount: { type: integer }
+        friend: { type: boolean }
+    ReportReason:
+      type: string
+      enum: [ABUSIVE_LANGUAGE, HARASSMENT, CHEATING, TROLLING_OR_AFK, INAPPROPRIATE_PROFILE, OTHER]
+    CreateReportRequest:
+      type: object
+      required: [targetUserId, reason]
+      properties:
+        targetUserId: { type: string, format: uuid }
+        reason: { $ref: '#/components/schemas/ReportReason' }
+        description: { type: string, maxLength: 1000, nullable: true }
+        partyId: { type: string, format: uuid, nullable: true }
     VoicePreference:
       type: string
       enum: [REQUIRED, OPTIONAL, NO_VOICE]
