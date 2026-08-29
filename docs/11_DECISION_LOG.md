@@ -18,3 +18,10 @@
 13. 친구/차단/최근 함께한 사람/신고는 필수다.
 14. 커뮤니티/게시판/길드/피드/프리미엄은 범위 밖이다.
 15. modular monolith를 유지한다. 현재는 microservice로 나누지 않는다.
+16. 인증은 JWT access + refresh token을 사용한다. (2026-08-30)
+    - 근거: 서버 인스턴스를 N개로 늘려도 인증이 공유 상태를 타지 않고, WebSocket
+      핸드셰이크에 토큰을 그대로 실을 수 있다. Redis 장애가 인증까지 번지지 않아
+      INV-10의 fail-closed 범위를 새 매칭으로 한정할 수 있다.
+    - 영향: refresh rotation을 필수로 한다. 정지/삭제 계정 즉시 차단은 stateless로
+      불가능하므로 Redis denylist를 두고, denylist 조회 실패는 fail-closed 처리한다.
+      access token TTL은 짧게 잡아 무효화 지연을 줄인다.
