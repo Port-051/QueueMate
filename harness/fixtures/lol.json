@@ -1,0 +1,46 @@
+{
+  "cases": [
+    {
+      "name": "jungle-mid-compatible",
+      "a": {
+        "position": "JUNGLE",
+        "voice": "REQUIRED",
+        "purpose": "RANK_UP"
+      },
+      "b": {
+        "position": "MID",
+        "voice": "OPTIONAL",
+        "purpose": "RANK_UP"
+      },
+      "expected": "COMPATIBLE"
+    },
+    {
+      "name": "same-position-conflict",
+      "a": {
+        "position": "JUNGLE",
+        "voice": "OPTIONAL",
+        "purpose": "NORMAL"
+      },
+      "b": {
+        "position": "JUNGLE",
+        "voice": "OPTIONAL",
+        "purpose": "NORMAL"
+      },
+      "expected": "INCOMPATIBLE"
+    },
+    {
+      "name": "voice-conflict",
+      "a": {
+        "position": "JUNGLE",
+        "voice": "REQUIRED",
+        "purpose": "NORMAL"
+      },
+      "b": {
+        "position": "MID",
+        "voice": "NO_VOICE",
+        "purpose": "NORMAL"
+      },
+      "expected": "INCOMPATIBLE"
+    }
+  ]
+}

@@ -1,0 +1,310 @@
+openapi: 3.0.3
+info:
+  title: QueueMate API
+  version: 1.0.0
+servers:
+  - url: /api/v1
+paths:
+  /auth/signup:
+    post:
+      summary: Sign up
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignupRequest' }
+      responses:
+        '201':
+          description: Created
+  /auth/login:
+    post:
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Logged in
+  /users/me:
+    get:
+      summary: Current user
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+    patch:
+      summary: Update current user
+      responses:
+        '200': { description: OK }
+  /games:
+    get:
+      summary: Supported games
+      responses:
+        '200':
+          description: OK
+  /match-requests:
+    post:
+      summary: Start realtime matching
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateMatchRequest' }
+      responses:
+        '201':
+          description: Queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MatchRequestView' }
+        '409': { description: User already has active request }
+  /match-requests/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Match request status
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MatchRequestView' }
+    delete:
+      summary: Cancel realtime matching
+      responses:
+        '204': { description: Cancelled }
+  /proposals/{id}/accept:
+    post:
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      summary: Accept proposal
+      responses:
+        '200':
+          description: Acceptance updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProposalView' }
+  /proposals/{id}/decline:
+    post:
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      summary: Decline proposal
+      responses:
+        '200': { description: Declined }
+  /reservations:
+    post:
+      summary: Create reservation matching request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateReservationRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReservationView' }
+        '409': { description: Overlapping active reservation }
+    get:
+      summary: List my reservations
+      responses:
+        '200': { description: OK }
+  /reservations/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Reservation detail
+      responses:
+        '200': { description: OK }
+    patch:
+      summary: Edit active reservation
+      responses:
+        '200': { description: Updated }
+    delete:
+      summary: Cancel reservation
+      responses:
+        '204': { description: Cancelled }
+  /parties/{id}:
+    get:
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      summary: Party detail
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PartyView' }
+  /parties/{id}/ready:
+    post:
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      summary: Set ready state
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ready]
+              properties:
+                ready: { type: boolean }
+      responses:
+        '200': { description: Updated }
+  /friends:
+    get:
+      summary: Friend list
+      responses:
+        '200': { description: OK }
+  /friend-requests:
+    post:
+      summary: Send friend request
+      responses:
+        '201': { description: Created }
+  /blocks:
+    post:
+      summary: Block user
+      responses:
+        '201': { description: Blocked }
+    get:
+      summary: Block list
+      responses:
+        '200': { description: OK }
+  /recent-players:
+    get:
+      summary: Recent party members
+      responses:
+        '200': { description: OK }
+  /reports:
+    post:
+      summary: Report a user
+      responses:
+        '201': { description: Created }
+components:
+  schemas:
+    SignupRequest:
+      type: object
+      required: [email, password, nickname]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        nickname: { type: string, minLength: 2, maxLength: 16 }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+    UserProfile:
+      type: object
+      required: [id, nickname]
+      properties:
+        id: { type: string, format: uuid }
+        nickname: { type: string }
+        avatarUrl: { type: string, nullable: true }
+    GameKey:
+      type: string
+      enum: [LOL, VALORANT, PUBG]
+    VoicePreference:
+      type: string
+      enum: [REQUIRED, OPTIONAL, NO_VOICE]
+    PlayPurpose:
+      type: string
+      enum: [RANK_UP, NORMAL, FUN]
+    KeyCondition:
+      type: object
+      required: [type, value]
+      properties:
+        type:
+          type: string
+          enum: [POSITION, ROLE, PLAY_STYLE]
+        value: { type: string }
+    MatchCondition:
+      type: object
+      required: [game, modeKey, keyCondition, voicePreference, playPurpose]
+      properties:
+        game: { $ref: '#/components/schemas/GameKey' }
+        modeKey: { type: string }
+        keyCondition: { $ref: '#/components/schemas/KeyCondition' }
+        voicePreference: { $ref: '#/components/schemas/VoicePreference' }
+        playPurpose: { $ref: '#/components/schemas/PlayPurpose' }
+    CreateMatchRequest:
+      allOf:
+        - $ref: '#/components/schemas/MatchCondition'
+    MatchRequestView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [QUEUED, PROPOSED, MATCHED, CANCELLED, EXPIRED] }
+        queuedAt: { type: string, format: date-time }
+        proposalId: { type: string, format: uuid, nullable: true }
+    PlayAmount:
+      type: string
+      enum: [ONE_GAME, TWO_PLUS]
+    CreateReservationRequest:
+      type: object
+      required: [condition, availableFrom, availableTo, playAmount]
+      properties:
+        condition: { $ref: '#/components/schemas/MatchCondition' }
+        availableFrom: { type: string, format: date-time }
+        availableTo: { type: string, format: date-time }
+        playAmount: { $ref: '#/components/schemas/PlayAmount' }
+    ReservationView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [ACTIVE, PROPOSED, MATCHED, CANCELLED, EXPIRED, COMPLETED] }
+        scheduledStart: { type: string, format: date-time, nullable: true }
+    ProposalMember:
+      type: object
+      properties:
+        userId: { type: string, format: uuid }
+        nickname: { type: string }
+        acceptance: { type: string, enum: [PENDING, ACCEPTED, DECLINED] }
+    ProposalView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [PENDING, CONFIRMED, DECLINED, EXPIRED, CANCELLED] }
+        expiresAt: { type: string, format: date-time }
+        members:
+          type: array
+          items: { $ref: '#/components/schemas/ProposalMember' }
+        partyId: { type: string, format: uuid, nullable: true }
+    PartyView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        game: { $ref: '#/components/schemas/GameKey' }
+        modeKey: { type: string }
+        targetSize: { type: integer }
+        status: { type: string, enum: [OPEN, READY, PLAYING, CLOSED] }
+        members:
+          type: array
+          items:
+            type: object
+            properties:
+              userId: { type: string, format: uuid }
+              nickname: { type: string }
+              ready: { type: boolean }

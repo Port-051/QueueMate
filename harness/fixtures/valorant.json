@@ -1,0 +1,32 @@
+{
+  "cases": [
+    {
+      "name": "same-role-is-allowed",
+      "a": {
+        "role": "DUELIST",
+        "voice": "OPTIONAL",
+        "purpose": "NORMAL"
+      },
+      "b": {
+        "role": "DUELIST",
+        "voice": "OPTIONAL",
+        "purpose": "NORMAL"
+      },
+      "expected": "COMPATIBLE_LOWER_TIER"
+    },
+    {
+      "name": "diverse-role-higher-tier",
+      "a": {
+        "role": "DUELIST",
+        "voice": "REQUIRED",
+        "purpose": "RANK_UP"
+      },
+      "b": {
+        "role": "CONTROLLER",
+        "voice": "REQUIRED",
+        "purpose": "RANK_UP"
+      },
+      "expected": "COMPATIBLE_HIGHER_TIER"
+    }
+  ]
+}

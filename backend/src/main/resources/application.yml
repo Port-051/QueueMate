@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: queuemate
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/queuemate}
+    username: ${DB_USER:queuemate}
+    password: ${DB_PASSWORD:queuemate}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+queuemate:
+  proposal:
+    ttl-seconds: ${PROPOSAL_TTL_SECONDS:20}
+  reservation:
+    sweep-ms: ${RESERVATION_SWEEP_MS:30000}

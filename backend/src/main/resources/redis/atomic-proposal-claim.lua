@@ -1,0 +1,12 @@
+-- KEYS: alternating activeProposalKey, activeRequestKey for each user
+-- ARGV[1] proposalId
+-- ARGV[2] ttlSeconds
+-- ARGV[3...] expected requestIds, one per user
+--
+-- Claude/Member 2: implement all-or-nothing claim.
+-- Required behavior:
+-- 1. every active proposal key must not exist
+-- 2. every active request key must equal expected requestId
+-- 3. set all proposal keys with same TTL
+-- 4. return 1 success, 0 conflict
+return redis.error_reply('NOT_IMPLEMENTED')

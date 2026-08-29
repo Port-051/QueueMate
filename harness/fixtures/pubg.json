@@ -1,0 +1,32 @@
+{
+  "cases": [
+    {
+      "name": "same-style-exact",
+      "a": {
+        "style": "AGGRESSIVE",
+        "voice": "REQUIRED",
+        "purpose": "RANK_UP"
+      },
+      "b": {
+        "style": "AGGRESSIVE",
+        "voice": "REQUIRED",
+        "purpose": "RANK_UP"
+      },
+      "expected": "COMPATIBLE_HIGHER_TIER"
+    },
+    {
+      "name": "style-mismatch-soft",
+      "a": {
+        "style": "AGGRESSIVE",
+        "voice": "OPTIONAL",
+        "purpose": "NORMAL"
+      },
+      "b": {
+        "style": "SURVIVAL",
+        "voice": "OPTIONAL",
+        "purpose": "NORMAL"
+      },
+      "expected": "COMPATIBLE_LOWER_TIER"
+    }
+  ]
+}
