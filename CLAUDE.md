@@ -95,3 +95,12 @@ AngularJS commit convention을 따른다. 형식: `type(scope): subject`
 규칙:
 - shared 파일(`contracts/**`, `docs/**`, `CLAUDE.md`) 변경과 feature 구현을 한 커밋에 섞지 않는다.
 - scope는 `docs/10_TEAM_PARALLEL_PLAN.md`의 owner directory와 일치시킨다.
+
+커밋 단위:
+- 하나의 커밋은 하나의 목적만 담는다. 되돌릴 이유가 다르면 커밋도 다르다.
+- type이 다르면 나눈다. 의존성/설정(`build`)과 구현(`feat`)을 섞지 않는다.
+- scope가 다르면 나눈다. 한 커밋에 scope 두 개를 담지 않는다.
+- 기능과 그 기능의 테스트는 §7 Definition of done상 한 덩어리이므로 같은 커밋에 담는다.
+- 각 커밋 시점에서 빌드가 통과해야 한다 (`docs/10` merge policy: main always runnable).
+- migration 파일 하나는 원자 단위다. 절반만 적용된 스키마는 의미가 없으므로 쪼개지 않는다.
+- body에는 선택한 이유와 배제한 대안을 남긴다. 코드만 봐서는 보이지 않는 정보다.
