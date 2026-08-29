@@ -175,17 +175,31 @@ class SchemaMigrationTest {
     }
 
     @Test
-    void rejectsSelfFriendRequestAndUnnormalizedFriendship() throws SQLException {
-        UUID a = insertUser();
-        UUID b = insertUser();
-        assertThrows(SQLException.class, () -> exec(
-                "INSERT INTO friend_requests (sender_id, receiver_id) VALUES ('" + a + "', '" + a + "')"));
+    void rejectsSelfFriendRequest() throws SQLException {
+        UUID user = insertUser();
 
-        UUID low = a.compareTo(b) < 0 ? a : b;
-        UUID high = a.compareTo(b) < 0 ? b : a;
         assertThrows(SQLException.class, () -> exec(
-                "INSERT INTO friendships (user_low_id, user_high_id) VALUES ('" + high + "', '" + low + "')"));
-        exec("INSERT INTO friendships (user_low_id, user_high_id) VALUES ('" + low + "', '" + high + "')");
+                "INSERT INTO friend_requests (sender_id, receiver_id) VALUES ('" + user + "', '" + user + "')"));
+    }
+
+    /**
+     * friendship 정규화 순서는 PostgreSQL의 uuid 비교(바이트 순)를 따라야 한다.
+     * Java UUID.compareTo는 long 두 개를 부호 있는 값으로 비교해서 최상위 비트가 선
+     * UUID에서 결과가 뒤집힌다. 그 차이가 드러나는 값을 고정해서 쓴다.
+     */
+    @Test
+    void enforcesFriendshipPairOrderingByDatabaseComparison() throws SQLException {
+        UUID zeros = UUID.fromString("00000000-0000-4000-8000-000000000001");
+        UUID effs = UUID.fromString("ffffffff-0000-4000-8000-000000000001");
+        // Java는 부호 있는 비교라 effs를 더 작다고 본다. PostgreSQL은 반대다.
+        assertTrue(effs.compareTo(zeros) < 0, "전제가 깨졌다: Java 비교가 바뀌었다");
+
+        insertUser(zeros);
+        insertUser(effs);
+
+        assertThrows(SQLException.class, () -> exec(
+                "INSERT INTO friendships (user_low_id, user_high_id) VALUES ('" + effs + "', '" + zeros + "')"));
+        exec("INSERT INTO friendships (user_low_id, user_high_id) VALUES ('" + zeros + "', '" + effs + "')");
     }
 
     @Test
@@ -228,7 +242,10 @@ class SchemaMigrationTest {
     }
 
     private UUID insertUser() throws SQLException {
-        UUID id = UUID.randomUUID();
+        return insertUser(UUID.randomUUID());
+    }
+
+    private UUID insertUser(UUID id) throws SQLException {
         exec("INSERT INTO users (id, email, password_hash, nickname) VALUES ('"
                 + id + "', 'u" + shortId() + "@queuemate.test', 'hash', 'nick" + shortId() + "')");
         return id;

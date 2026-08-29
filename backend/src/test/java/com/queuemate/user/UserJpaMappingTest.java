@@ -63,8 +63,7 @@ class UserJpaMappingTest {
 
     @Test
     void savesAndReadsUserWithDbGeneratedTimestamps() {
-        User saved = users.save(User.create("a@queuemate.test", "hash", "nick"));
-        em.flush();
+        User saved = users.saveAndFlush(User.create("a@queuemate.test", "hash", "nick"));
         em.clear();
 
         User found = users.findByEmail("a@queuemate.test").orElseThrow();
@@ -77,26 +76,24 @@ class UserJpaMappingTest {
 
     @Test
     void rejectsDuplicateEmail() {
-        users.save(User.create("dup@queuemate.test", "hash", "nickA"));
-        em.flush();
+        users.saveAndFlush(User.create("dup@queuemate.test", "hash", "nickA"));
 
-        users.save(User.create("dup@queuemate.test", "hash", "nickB"));
-        assertThrows(DataIntegrityViolationException.class, em::flush);
+        // 운영 코드와 같은 경로로 저장해야 Spring이 DataIntegrityViolationException으로 변환한다.
+        User duplicate = User.create("dup@queuemate.test", "hash", "nickB");
+        assertThrows(DataIntegrityViolationException.class, () -> users.saveAndFlush(duplicate));
     }
 
     @Test
     void rejectsDuplicateNickname() {
-        users.save(User.create("x@queuemate.test", "hash", "sameNick"));
-        em.flush();
+        users.saveAndFlush(User.create("x@queuemate.test", "hash", "sameNick"));
 
-        users.save(User.create("y@queuemate.test", "hash", "sameNick"));
-        assertThrows(DataIntegrityViolationException.class, em::flush);
+        User duplicate = User.create("y@queuemate.test", "hash", "sameNick");
+        assertThrows(DataIntegrityViolationException.class, () -> users.saveAndFlush(duplicate));
     }
 
     @Test
     void existsChecksMatchSavedRows() {
-        users.save(User.create("e@queuemate.test", "hash", "nickE"));
-        em.flush();
+        users.saveAndFlush(User.create("e@queuemate.test", "hash", "nickE"));
 
         assertTrue(users.existsByEmail("e@queuemate.test"));
         assertTrue(users.existsByNickname("nickE"));
@@ -104,18 +101,16 @@ class UserJpaMappingTest {
 
     @Test
     void savesGameAccountAndBlocksDuplicateLink() {
-        UUID userId = users.save(User.create("g@queuemate.test", "hash", "nickG")).getId();
-        em.flush();
+        UUID userId = users.saveAndFlush(User.create("g@queuemate.test", "hash", "nickG")).getId();
 
-        gameAccounts.save(GameAccount.create(userId, GameKey.LOL, "Hide on bush#KR1", "KR"));
-        em.flush();
+        gameAccounts.saveAndFlush(GameAccount.create(userId, GameKey.LOL, "Hide on bush#KR1", "KR"));
         em.clear();
 
         assertEquals(1, gameAccounts.findAllByUserId(userId).size());
         assertTrue(gameAccounts.existsByUserIdAndProviderGameAndExternalGameId(
                 userId, GameKey.LOL, "Hide on bush#KR1"));
 
-        gameAccounts.save(GameAccount.create(userId, GameKey.LOL, "Hide on bush#KR1", "KR"));
-        assertThrows(DataIntegrityViolationException.class, em::flush);
+        GameAccount duplicate = GameAccount.create(userId, GameKey.LOL, "Hide on bush#KR1", "KR");
+        assertThrows(DataIntegrityViolationException.class, () -> gameAccounts.saveAndFlush(duplicate));
     }
 }

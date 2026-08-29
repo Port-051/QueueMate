@@ -244,6 +244,8 @@ CREATE INDEX friend_requests_receiver_pending_idx
     ON friend_requests (receiver_id) WHERE status = 'PENDING';
 
 -- (user_low_id, user_high_id)로 정규화해 방향 중복을 제거한다.
+-- 주의: 여기서의 순서는 PostgreSQL의 uuid 비교(바이트 순)다. Java UUID.compareTo는
+-- long 두 개를 부호 있는 값으로 비교해 결과가 다르므로 정규화에 그대로 쓰면 안 된다.
 CREATE TABLE friendships (
     user_low_id  UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     user_high_id UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
