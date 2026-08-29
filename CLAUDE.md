@@ -87,8 +87,9 @@ AngularJS commit convention을 따른다. 형식: `type(scope): subject`
 
 - type: `feat` `fix` `docs` `style` `refactor` `perf` `test` `build` `ci` `chore` `revert`
 - scope: `auth` `user` `party` `social` `realtime` `common` `matching` `reservation` `gameconfig` `frontend` `infra` `contracts` `harness` `docs`
-- subject: 명령형 현재형, 50자 이내, 끝에 마침표 없음
-- body: 무엇을/왜를 쓴다. 어떻게는 코드가 말한다
+- subject: **한글**로 쓴다. 50자 이내, 끝에 마침표 없음
+- body: **한글**로 무엇을/왜를 쓴다. 어떻게는 코드가 말한다
+- type/scope 키워드만 영어를 유지한다
 - footer: `BREAKING CHANGE: <설명>`, revert는 `revert: <원 subject>` + 원 commit hash
 
 규칙:
