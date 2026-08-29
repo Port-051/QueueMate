@@ -103,4 +103,5 @@ AngularJS commit convention을 따른다. 형식: `type(scope): subject`
 - 기능과 그 기능의 테스트는 §7 Definition of done상 한 덩어리이므로 같은 커밋에 담는다.
 - 각 커밋 시점에서 빌드가 통과해야 한다 (`docs/10` merge policy: main always runnable).
 - migration 파일 하나는 원자 단위다. 절반만 적용된 스키마는 의미가 없으므로 쪼개지 않는다.
-- body에는 선택한 이유와 배제한 대안을 남긴다. 코드만 봐서는 보이지 않는 정보다.
+- body는 3줄 이내로 압축한다. subject로 충분하면 생략한다.
+- 이유나 배제한 대안은 한 줄로 줄인다. 긴 설명은 코드 주석이나 `docs/`에 둔다.
