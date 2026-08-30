@@ -6,6 +6,8 @@ import { AuthPage } from './pages/AuthPage';
 import { HomePage } from './pages/HomePage';
 import { MatchConditionPage } from './pages/MatchConditionPage';
 import { MatchWaitingPage } from './pages/MatchWaitingPage';
+import { ReservationNewPage } from './pages/ReservationNewPage';
+import { ReservationsPage } from './pages/ReservationsPage';
 import { LandingPage } from './pages/LandingPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { SimplePage } from './pages/SimplePage';
@@ -23,8 +25,8 @@ export function App() {
         <Route path="home" element={<HomePage />} />
         <Route path="match" element={<MatchConditionPage />} />
         <Route path="match/waiting/:requestId" element={<MatchWaitingPage />} />
-        <Route path="reservations" element={<SimplePage title="예약 매칭 관리" />} />
-        <Route path="reservations/new" element={<SimplePage title="예약 매칭 설정" />} />
+        <Route path="reservations" element={<ReservationsPage />} />
+        <Route path="reservations/new" element={<ReservationNewPage />} />
         <Route path="proposals/:proposalId" element={<SimplePage title="매칭 제안" />} />
         <Route path="party" element={<SimplePage title="파티룸" />} />
         <Route path="party/:partyId" element={<SimplePage title="파티룸" />} />
