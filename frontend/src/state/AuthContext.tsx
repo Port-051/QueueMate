@@ -43,8 +43,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         setUser(me);
         setToken(stored.accessToken);
-        setStatus('authenticated');
+        // 연결된 게임 계정까지 채운 뒤 인증 완료로 바꾼다. 온보딩 판정이 깜빡이지 않아야 한다.
         await refreshGameAccounts();
+        if (cancelled) return;
+        setStatus('authenticated');
       } catch {
         if (cancelled) return;
         writeTokens(null);
@@ -61,8 +63,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(tokens.accessToken);
     const me = await api.getMe();
     setUser(me);
-    setStatus('authenticated');
     await refreshGameAccounts();
+    setStatus('authenticated');
   }, [refreshGameAccounts]);
 
   const signup = useCallback(async (email: string, password: string, nickname: string) => {
