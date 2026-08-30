@@ -117,3 +117,19 @@
 .member-card { display: grid; justify-items: center; gap: 10px; padding: 20px 14px; border-radius: var(--r-lg); border: 1px solid var(--line); background: rgba(255, 255, 255, 0.02); text-align: center; }
 .member-card.ok { border-color: rgba(61, 220, 151, 0.4); }
 .member-card b { font-size: 14px; }
+
+/* ---------- party room ---------- */
+.voice-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.voice-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px 8px 8px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); font-size: 13px; }
+.voice-chip.on { border-color: rgba(61, 220, 151, 0.45); }
+
+.chat-card { display: flex; flex-direction: column; min-height: 420px; }
+.chat-log { flex: 1; overflow-y: auto; max-height: 380px; display: grid; gap: 14px; align-content: start; padding-right: 6px; }
+.chat-line { display: flex; gap: 10px; align-items: flex-start; }
+.chat-meta { display: flex; align-items: baseline; gap: 8px; }
+.chat-meta b { font-size: 13.5px; }
+.chat-meta span { font-size: 11.5px; color: var(--muted); }
+.chat-line p { margin-top: 4px; font-size: 13.5px; color: var(--text-dim); line-height: 1.6; }
+.chat-system { text-align: center; font-size: 12px; color: var(--muted); }
+.chat-input { display: flex; gap: 10px; margin-top: 16px; }
+.chat-input .input { flex: 1; }
