@@ -6,13 +6,16 @@ import { AuthPage } from './pages/AuthPage';
 import { HomePage } from './pages/HomePage';
 import { MatchConditionPage } from './pages/MatchConditionPage';
 import { MatchWaitingPage } from './pages/MatchWaitingPage';
+import { FriendsPage } from './pages/FriendsPage';
+import { MyInfoPage } from './pages/MyInfoPage';
 import { PartyRoomPage } from './pages/PartyRoomPage';
+import { RecentPlayersPage } from './pages/RecentPlayersPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { ProposalPage } from './pages/ProposalPage';
 import { ReservationNewPage } from './pages/ReservationNewPage';
 import { ReservationsPage } from './pages/ReservationsPage';
 import { LandingPage } from './pages/LandingPage';
 import { OnboardingPage } from './pages/OnboardingPage';
-import { SimplePage } from './pages/SimplePage';
 
 export function App() {
   return (
@@ -32,10 +35,10 @@ export function App() {
         <Route path="proposals/:proposalId" element={<ProposalPage />} />
         <Route path="party" element={<PartyRoomPage />} />
         <Route path="party/:partyId" element={<PartyRoomPage />} />
-        <Route path="friends" element={<SimplePage title="친구" />} />
-        <Route path="recent" element={<SimplePage title="최근 함께한 사람" />} />
-        <Route path="me" element={<SimplePage title="내 정보" />} />
-        <Route path="settings" element={<SimplePage title="설정" />} />
+        <Route path="friends" element={<FriendsPage />} />
+        <Route path="recent" element={<RecentPlayersPage />} />
+        <Route path="me" element={<MyInfoPage />} />
+        <Route path="settings" element={<SettingsPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

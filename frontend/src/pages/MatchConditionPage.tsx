@@ -9,6 +9,7 @@ import { Button, Card, CardHead, Segmented, useToast } from '../components/ui';
 import { defaultCondition, targetPartySize } from '../domain/gameConfig';
 import { modeLabel } from '../domain/labels';
 import { useMatch } from '../state/MatchContext';
+import { readPreferences } from '../state/preferences';
 
 export function MatchConditionPage() {
   const location = useLocation();
@@ -19,7 +20,9 @@ export function MatchConditionPage() {
   const initial = useMemo<MatchCondition>(() => {
     const state = location.state as { condition?: MatchCondition; game?: GameKey } | null;
     if (state?.condition) return state.condition;
-    return defaultCondition(state?.game ?? 'LOL');
+    const prefs = readPreferences();
+    const base = defaultCondition(state?.game ?? 'LOL');
+    return { ...base, voicePreference: prefs.defaultVoice, playPurpose: prefs.defaultPurpose };
   }, [location.state]);
 
   const [condition, setCondition] = useState<MatchCondition>(initial);
