@@ -3,6 +3,9 @@ import { AppShell } from './components/AppShell';
 import { RequireAuth } from './components/RequireAuth';
 import { RequireOnboarding } from './components/RequireOnboarding';
 import { AuthPage } from './pages/AuthPage';
+import { HomePage } from './pages/HomePage';
+import { MatchConditionPage } from './pages/MatchConditionPage';
+import { MatchWaitingPage } from './pages/MatchWaitingPage';
 import { LandingPage } from './pages/LandingPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { SimplePage } from './pages/SimplePage';
@@ -17,9 +20,9 @@ export function App() {
 
       <Route path="/app" element={<RequireAuth><RequireOnboarding><AppShell /></RequireOnboarding></RequireAuth>}>
         <Route index element={<Navigate to="home" replace />} />
-        <Route path="home" element={<SimplePage title="홈" />} />
-        <Route path="match" element={<SimplePage title="매칭 조건 설정" />} />
-        <Route path="match/waiting/:requestId" element={<SimplePage title="매칭 대기" />} />
+        <Route path="home" element={<HomePage />} />
+        <Route path="match" element={<MatchConditionPage />} />
+        <Route path="match/waiting/:requestId" element={<MatchWaitingPage />} />
         <Route path="reservations" element={<SimplePage title="예약 매칭 관리" />} />
         <Route path="reservations/new" element={<SimplePage title="예약 매칭 설정" />} />
         <Route path="proposals/:proposalId" element={<SimplePage title="매칭 제안" />} />
