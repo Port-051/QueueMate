@@ -200,7 +200,13 @@ paths:
     get:
       summary: List my reservations
       responses:
-        '200': { description: OK }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ReservationView' }
   /reservations/{id}:
     parameters:
       - name: id
@@ -210,11 +216,25 @@ paths:
     get:
       summary: Reservation detail
       responses:
-        '200': { description: OK }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReservationView' }
     patch:
       summary: Edit active reservation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateReservationRequest' }
       responses:
-        '200': { description: Updated }
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReservationView' }
+        '409': { description: Overlapping active reservation }
     delete:
       summary: Cancel reservation
       responses:
@@ -233,6 +253,31 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PartyView' }
+  /parties/{id}/leave:
+    post:
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      summary: Leave party
+      responses:
+        '204': { description: Left }
+  /parties/{id}/invite/{friendUserId}:
+    post:
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: friendUserId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      summary: Invite a friend to the party
+      responses:
+        '202': { description: Invite sent }
+        '409': { description: Party is full, blocked, or already a member }
   /parties/{id}/ready:
     post:
       parameters:
@@ -571,10 +616,18 @@ components:
         playAmount: { $ref: '#/components/schemas/PlayAmount' }
     ReservationView:
       type: object
+      required: [id, status, condition, availableFrom, availableTo, playAmount]
       properties:
         id: { type: string, format: uuid }
         status: { type: string, enum: [ACTIVE, PROPOSED, MATCHED, CANCELLED, EXPIRED, COMPLETED] }
+        condition: { $ref: '#/components/schemas/MatchCondition' }
+        availableFrom: { type: string, format: date-time }
+        availableTo: { type: string, format: date-time }
+        playAmount: { $ref: '#/components/schemas/PlayAmount' }
+        createdAt: { type: string, format: date-time }
         scheduledStart: { type: string, format: date-time, nullable: true }
+        proposalId: { type: string, format: uuid, nullable: true }
+        partyId: { type: string, format: uuid, nullable: true }
     ProposalMember:
       type: object
       properties:
