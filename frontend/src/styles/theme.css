@@ -244,3 +244,15 @@ ul { margin: 0; padding: 0; list-style: none; }
 
 .skeleton { border-radius: var(--r-md); background: linear-gradient(90deg, #12142a, #1b1e3a, #12142a); background-size: 200% 100%; animation: sk 1.2s linear infinite; }
 @keyframes sk { to { background-position: -200% 0; } }
+
+/* 16:9 desktop이 1차 기준이지만 1280 노트북에서도 레이아웃이 깨지지 않아야 한다. */
+@media (max-width: 1439px) {
+  :root { --sidebar-w: 224px; --rail-w: 300px; }
+  .page { padding: 24px 22px 48px; }
+  .topbar { padding: 0 22px; }
+  .opt-row { grid-template-columns: 170px minmax(0, 1fr); gap: 16px; }
+  .opt { min-width: 88px; padding: 11px 14px; font-size: 13.5px; }
+  .game-card { min-height: 104px; padding: 15px; }
+  .game-card .gc-name { font-size: 14px; }
+  .page-head h1 { font-size: 25px; }
+}

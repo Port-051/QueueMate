@@ -14,7 +14,10 @@ export default defineConfig({
     locale: 'ko-KR',
     trace: 'retain-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [{
+    name: 'chromium',
+    use: { ...devices['Desktop Chrome'], viewport: { width: 1600, height: 900 } },
+  }],
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:5173',
