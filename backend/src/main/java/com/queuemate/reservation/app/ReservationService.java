@@ -98,6 +98,27 @@ public class ReservationService {
         reservation.cancel();
     }
 
+    /**
+     * 플레이 가능 시간이 지나 버린 예약을 만료시킨다.
+     *
+     * <p>정리하지 않으면 이미 지난 시간대가 계속 후보로 올라오고, 그 시간대에
+     * 새 예약을 잡으려는 사용자가 겹침으로 거절당한다.
+     *
+     * @return 만료시킨 예약 수
+     */
+    @Transactional
+    public int expireOverdue(OffsetDateTime now) {
+        List<Reservation> overdue = reservations
+                .findAllByStatusAndAvailableToLessThanEqual(ReservationStatus.ACTIVE, now);
+        for (Reservation reservation : overdue) {
+            MatchCondition condition = codec.fromJson(reservation.getConditionJson());
+            slots.remove(reservation.getId(), condition.game(), condition.modeKey(),
+                    reservation.getAvailableFrom(), reservation.getAvailableTo());
+            reservation.expire();
+        }
+        return overdue.size();
+    }
+
     @Transactional(readOnly = true)
     public List<Reservation> list(UUID userId) {
         return reservations.findAllByUserIdOrderByAvailableFromAsc(userId);

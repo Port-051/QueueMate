@@ -19,6 +19,10 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
 
     List<Reservation> findAllByStatusOrderByAvailableFromAsc(ReservationStatus status);
 
+    /** 플레이 가능 시간이 이미 지난 예약. 만료 정리용. */
+    List<Reservation> findAllByStatusAndAvailableToLessThanEqual(
+            ReservationStatus status, OffsetDateTime now);
+
     /**
      * INV-9 확인용. DB의 EXCLUDE 제약은 ACTIVE/PROPOSED만 막으므로
      * MATCHED까지 포함한 검사는 여기서 한다 (docs/04 §9).

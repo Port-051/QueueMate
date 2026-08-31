@@ -278,6 +278,33 @@ class ReservationMatchingIntegrationTest {
     }
 
     @Test
+    @DisplayName("시간이 지난 예약은 만료되고 그 시간대를 다시 잡을 수 있다")
+    void expiresOverdueReservations() {
+        UUID owner = newUser();
+        Reservation past = service.create(owner, lol(LolPosition.JUNGLE),
+                at("20:00"), at("22:00"), PlayAmount.ONE_GAME);
+
+        // 예약 시간이 모두 지난 시점.
+        int expired = service.expireOverdue(at("23:00"));
+
+        assertThat(expired).isEqualTo(1);
+        assertThat(reservations.findById(past.getId()))
+                .get().extracting(Reservation::getStatus).isEqualTo(ReservationStatus.EXPIRED);
+        // 만료됐으므로 같은 시간대를 다시 잡을 수 있다.
+        assertThat(service.create(owner, lol(LolPosition.MID),
+                at("20:00"), at("22:00"), PlayAmount.ONE_GAME)).isNotNull();
+    }
+
+    @Test
+    @DisplayName("아직 시간이 남은 예약은 만료시키지 않는다")
+    void keepsUpcomingReservations() {
+        service.create(newUser(), lol(LolPosition.JUNGLE),
+                at("20:00"), at("22:00"), PlayAmount.ONE_GAME);
+
+        assertThat(service.expireOverdue(at("21:00"))).isZero();
+    }
+
+    @Test
     @DisplayName("취소하면 슬롯 색인에서도 빠져 후보가 되지 않는다")
     void cancelRemovesFromIndex() {
         UUID owner = newUser();
