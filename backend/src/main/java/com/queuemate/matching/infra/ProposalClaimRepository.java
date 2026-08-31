@@ -1,9 +1,7 @@
 package com.queuemate.matching.infra;
 
 import com.queuemate.matching.domain.ClaimCandidate;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Repository;
 
@@ -33,8 +31,7 @@ public class ProposalClaimRepository {
 
     public ProposalClaimRepository(StringRedisTemplate redis) {
         this.redis = redis;
-        this.claimScript = new DefaultRedisScript<>(
-                readScript("redis/atomic-proposal-claim.lua"), Long.class);
+        this.claimScript = LuaScripts.load("redis/atomic-proposal-claim.lua", Long.class);
     }
 
     /**
@@ -91,14 +88,6 @@ public class ProposalClaimRepository {
                 // INV-7. Lua도 막지만 여기서 걸러야 원인이 드러난다.
                 throw new IllegalArgumentException("같은 사용자가 두 번 들어왔다: " + candidate.userId());
             }
-        }
-    }
-
-    private static String readScript(String path) {
-        try (var in = new ClassPathResource(path).getInputStream()) {
-            return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-        } catch (java.io.IOException e) {
-            throw new IllegalStateException("Redis script를 읽지 못했다: " + path, e);
         }
     }
 }

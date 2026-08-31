@@ -2,17 +2,9 @@ package com.queuemate.matching.infra;
 
 import com.queuemate.common.domain.GameKey;
 import com.queuemate.matching.domain.ClaimCandidate;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
-import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -31,41 +23,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * INV-2 검증. 한 사용자는 동시에 하나의 활성 proposal에만 속한다.
  * Redis 정합성이 이 클래스에 걸려 있으므로 Testcontainers로 진짜 Redis에 붙는다.
  */
-@Testcontainers
-class ProposalClaimRepositoryTest {
+class ProposalClaimRepositoryTest extends RedisTestSupport {
 
     private static final Duration TTL = Duration.ofSeconds(20);
 
-    @Container
-    private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:7-alpine").withExposedPorts(6379);
-
-    private static LettuceConnectionFactory connectionFactory;
-    private static StringRedisTemplate redis;
-    private static ProposalClaimRepository repository;
-
     private final String queueKey = MatchingRedisKeys.queue(GameKey.LOL, "SOLO_DUO_RANKED");
 
-    @BeforeAll
-    static void startRedis() {
-        connectionFactory = new LettuceConnectionFactory(
-                new RedisStandaloneConfiguration(REDIS.getHost(), REDIS.getMappedPort(6379)));
-        connectionFactory.afterPropertiesSet();
-        redis = new StringRedisTemplate(connectionFactory);
-        repository = new ProposalClaimRepository(redis);
-    }
-
-    @AfterAll
-    static void stopRedis() {
-        connectionFactory.destroy();
-    }
+    private ProposalClaimRepository repository;
 
     @BeforeEach
-    void flush() {
-        redis.execute((org.springframework.data.redis.core.RedisCallback<Void>) connection -> {
-            connection.serverCommands().flushDb();
-            return null;
-        });
+    void createRepository() {
+        repository = new ProposalClaimRepository(redis);
     }
 
     @Test
@@ -148,7 +116,8 @@ class ProposalClaimRepositoryTest {
         CountDownLatch start = new CountDownLatch(1);
         CountDownLatch done = new CountDownLatch(rivals);
 
-        try (ExecutorService pool = Executors.newFixedThreadPool(rivals)) {
+        // 전원이 start를 함께 기다려야 하므로 요청 수만큼 동시에 살아 있는 스레드가 필요하다.
+        try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {
             for (ClaimCandidate partner : partners) {
                 pool.execute(() -> {
                     ready.countDown();
@@ -164,8 +133,12 @@ class ProposalClaimRepositoryTest {
                     }
                 });
             }
-            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
-            start.countDown();
+            try {
+                assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            } finally {
+                // 검증이 실패해도 워커를 풀어 준다. 안 그러면 pool.close()가 영원히 기다린다.
+                start.countDown();
+            }
             assertThat(done.await(30, TimeUnit.SECONDS)).isTrue();
         }
 
