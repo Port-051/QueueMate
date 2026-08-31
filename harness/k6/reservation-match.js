@@ -1,22 +1,95 @@
+// INV-9 부하 검증: 시간이 겹치는 예약은 한 사용자에게 하나만 남는다.
+//
+// 각 사용자가 같은 시간대로 여러 번 등록을 시도한다. 정확히 한 번만 201이어야 한다
+// (docs/08 §2 INV-9).
+//
+//   k6 run harness/k6/reservation-match.js
+
 import http from 'k6/http';
 import { check } from 'k6';
+import { Counter } from 'k6/metrics';
 
-export const options = { vus: 10, iterations: 50 };
+// 409는 불변식이 제대로 막았다는 뜻이므로 실패로 세지 않는다.
+// setup()의 로그인은 200이다.
+http.setResponseCallback(http.expectedStatuses(200, 201, 409));
+
 const base = __ENV.BASE_URL || 'http://localhost:8080';
+const USERS = Number(__ENV.USERS || 10);
+const ATTEMPTS_PER_USER = Number(__ENV.ATTEMPTS || 5);
 
-export default function () {
-  const payload = JSON.stringify({
-    condition: {
-      game: 'VALORANT', modeKey: 'COMPETITIVE',
-      keyCondition: { type: 'ROLE', value: 'CONTROLLER' },
-      voicePreference: 'OPTIONAL', playPurpose: 'RANK_UP'
+const created = new Counter('reservations_created');
+const overlapRejected = new Counter('reservations_overlap_rejected');
+
+export const options = {
+  scenarios: {
+    overlap_burst: {
+      executor: 'per-vu-iterations',
+      vus: USERS,
+      iterations: ATTEMPTS_PER_USER,
+      maxDuration: '60s',
     },
-    availableFrom: '2026-08-30T11:00:00Z',
-    availableTo: '2026-08-30T14:00:00Z',
-    playAmount: 'ONE_GAME'
+  },
+  thresholds: {
+    reservations_created: [`count==${USERS}`],
+    http_req_failed: ['rate<0.01'], // 5xx나 네트워크 오류만 잡힌다
+  },
+};
+
+const ROLES = ['DUELIST', 'INITIATOR', 'CONTROLLER', 'SENTINEL'];
+
+/** 30분 경계로 올림한 UTC 시각. 서버는 30분 단위만 받는다. */
+function alignedFromNow(hoursAhead) {
+  const t = new Date(Date.now() + hoursAhead * 3600 * 1000);
+  t.setUTCSeconds(0, 0);
+  t.setUTCMinutes(t.getUTCMinutes() < 30 ? 30 : 60);
+  return t.toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+export function setup() {
+  const stamp = Date.now();
+  const tokens = [];
+  for (let i = 0; i < USERS; i++) {
+    const email = `k6-reservation-${stamp}-${i}@queuemate.test`;
+    const password = 'k6-load-test-password';
+    const nickname = `k6rv${stamp % 100000}${i}`;
+    const headers = { 'Content-Type': 'application/json' };
+
+    http.post(`${base}/api/v1/auth/signup`,
+      JSON.stringify({ email, password, nickname }), { headers });
+    const login = http.post(`${base}/api/v1/auth/login`,
+      JSON.stringify({ email, password }), { headers });
+    if (login.status !== 200) {
+      throw new Error(`로그인 실패 status=${login.status} body=${login.body}`);
+    }
+    tokens.push(login.json('accessToken'));
+  }
+  return { tokens, availableFrom: alignedFromNow(2), availableTo: alignedFromNow(5) };
+}
+
+export default function (data) {
+  const token = data.tokens[__VU - 1];
+  const res = http.post(`${base}/api/v1/reservations`, JSON.stringify({
+    condition: {
+      game: 'VALORANT',
+      modeKey: 'COMPETITIVE',
+      keyCondition: { type: 'ROLE', value: ROLES[__VU % ROLES.length] },
+      voicePreference: 'OPTIONAL',
+      playPurpose: 'RANK_UP',
+    },
+    availableFrom: data.availableFrom,
+    availableTo: data.availableTo,
+    playAmount: 'ONE_GAME',
+  }), {
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
   });
-  const res = http.post(`${base}/api/v1/reservations`, payload, {
-    headers: { 'Content-Type': 'application/json', 'X-Test-User': `reservation-${__VU}` }
+
+  check(res, {
+    'created or overlap-rejected': (r) => r.status === 201 || r.status === 409,
+    'never 5xx': (r) => r.status < 500,
   });
-  check(res, { 'created-or-overlap-conflict': r => [201,409].includes(r.status) });
+  if (res.status === 201) {
+    created.add(1);
+  } else if (res.status === 409) {
+    overlapRejected.add(1);
+  }
 }
