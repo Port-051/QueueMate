@@ -62,6 +62,19 @@ public final class TimeSlots {
      * @return 전원의 window가 겹치는 첫 30분 슬롯. 겹치지 않으면 empty
      */
     public static Optional<OffsetDateTime> earliestCommonSlot(List<Window> windows) {
+        return earliestCommonSlot(windows, null);
+    }
+
+    /**
+     * 모두가 함께할 수 있는 가장 이른 슬롯. 이미 지나간 슬롯은 고르지 않는다.
+     *
+     * <p>window가 20:00~23:00인 두 사람을 21:45에 매칭하면 20:00은 약속 시각이 될 수 없다.
+     * 이미 시작한 시간대를 약속으로 주면 사용자는 "지난 시각에 만나라"는 안내를 받는다.
+     *
+     * @param notBefore 이 시각 이후의 슬롯만 고른다. null이면 제한하지 않는다
+     */
+    public static Optional<OffsetDateTime> earliestCommonSlot(
+            List<Window> windows, OffsetDateTime notBefore) {
         if (windows == null || windows.isEmpty()) {
             return Optional.empty();
         }
@@ -71,10 +84,25 @@ public final class TimeSlots {
             start = window.from().isAfter(start) ? window.from() : start;
             end = window.to().isBefore(end) ? window.to() : end;
         }
+        if (notBefore != null) {
+            OffsetDateTime earliest = ceilToSlot(notBefore);
+            start = earliest.isAfter(start) ? earliest : start;
+        }
         if (!start.isBefore(end)) {
             return Optional.empty();
         }
         return Optional.of(start.withOffsetSameInstant(ZoneOffset.UTC));
+    }
+
+    /** 30분 격자에서 이 시각 이상인 첫 슬롯. */
+    public static OffsetDateTime ceilToSlot(OffsetDateTime time) {
+        OffsetDateTime utc = time.withOffsetSameInstant(ZoneOffset.UTC)
+                .withSecond(0).withNano(0);
+        int minute = utc.getMinute();
+        if (minute == 0 || minute == 30) {
+            return time.getSecond() == 0 && time.getNano() == 0 ? utc : utc.plus(SLOT);
+        }
+        return minute < 30 ? utc.withMinute(30) : utc.withMinute(0).plusHours(1);
     }
 
     private static void requireAligned(OffsetDateTime time, String field) {

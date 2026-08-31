@@ -3,6 +3,7 @@ package com.queuemate.reservation.app;
 import com.queuemate.matching.domain.MatchCondition;
 import com.queuemate.matching.domain.ProposalParticipants;
 import com.queuemate.matching.domain.ProposalSourceType;
+import com.queuemate.matching.infra.AfterCommit;
 import com.queuemate.matching.infra.MatchConditionCodec;
 import com.queuemate.reservation.domain.Reservation;
 import com.queuemate.reservation.domain.ReservationStatus;
@@ -68,8 +69,9 @@ public class ReservationParticipants implements ProposalParticipants {
 
     private void removeFromIndex(Reservation reservation) {
         MatchCondition condition = codec.fromJson(reservation.getConditionJson());
+        UUID id = reservation.getId();
         OffsetDateTime from = reservation.getAvailableFrom();
         OffsetDateTime to = reservation.getAvailableTo();
-        slots.remove(reservation.getId(), condition.game(), condition.modeKey(), from, to);
+        AfterCommit.run(() -> slots.remove(id, condition.game(), condition.modeKey(), from, to));
     }
 }

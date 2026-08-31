@@ -4,6 +4,8 @@ import com.queuemate.common.domain.PlayAmount;
 import com.queuemate.common.error.ConflictException;
 import com.queuemate.common.error.NotFoundException;
 import com.queuemate.matching.domain.MatchCondition;
+import com.queuemate.matching.app.ProposalService;
+import com.queuemate.matching.infra.AfterCommit;
 import com.queuemate.matching.infra.MatchConditionCodec;
 import com.queuemate.gameconfig.domain.GameModeConfigProvider;
 import com.queuemate.reservation.domain.Reservation;
@@ -35,13 +37,16 @@ public class ReservationService {
     private final ReservationSlotIndex slots;
     private final GameModeConfigProvider modes;
     private final MatchConditionCodec codec;
+    private final ProposalService proposals;
 
     public ReservationService(ReservationRepository reservations, ReservationSlotIndex slots,
-                              GameModeConfigProvider modes, MatchConditionCodec codec) {
+                              GameModeConfigProvider modes, MatchConditionCodec codec,
+                              ProposalService proposals) {
         this.reservations = reservations;
         this.slots = slots;
         this.modes = modes;
         this.codec = codec;
+        this.proposals = proposals;
     }
 
     @Transactional
@@ -54,8 +59,9 @@ public class ReservationService {
         requireNoOverlap(userId, availableFrom, availableTo, reservation.getId());
 
         save(reservation);
-        slots.index(reservation.getId(), condition.game(), condition.modeKey(),
-                availableFrom, availableTo);
+        UUID id = reservation.getId();
+        AfterCommit.run(() ->
+                slots.index(id, condition.game(), condition.modeKey(), availableFrom, availableTo));
         return reservation;
     }
 
@@ -73,28 +79,46 @@ public class ReservationService {
         requireNoOverlap(userId, availableFrom, availableTo, reservationId);
 
         MatchCondition previous = codec.fromJson(reservation.getConditionJson());
-        slots.remove(reservationId, previous.game(), previous.modeKey(),
-                reservation.getAvailableFrom(), reservation.getAvailableTo());
+        OffsetDateTime previousFrom = reservation.getAvailableFrom();
+        OffsetDateTime previousTo = reservation.getAvailableTo();
 
         reservation.edit(codec.toJson(condition), availableFrom, availableTo, playAmount);
         save(reservation);
-        slots.index(reservationId, condition.game(), condition.modeKey(), availableFrom, availableTo);
+        // 색인 교체는 커밋 뒤에 한 번에 한다. 먼저 지우고 롤백되면 DB에는 예약이 남는데
+        // 색인만 사라져 그 예약이 영영 후보에 오르지 않는다.
+        AfterCommit.run(() -> {
+            slots.remove(reservationId, previous.game(), previous.modeKey(), previousFrom, previousTo);
+            slots.index(reservationId, condition.game(), condition.modeKey(), availableFrom, availableTo);
+        });
         return reservation;
     }
 
+    /**
+     * 예약을 취소한다.
+     *
+     * <p>제안 중인 예약도 취소할 수 있다. 예약은 미래의 약속이라 사용자가 철회할 수 있어야 한다.
+     * 다만 그 경우 제안 전체를 먼저 파기해서, 나머지 참가자가 이미 사라진 사람과
+     * 파티를 확정하려다 실패하는 일이 없게 한다 (docs/04 §10).
+     */
     @Transactional
     public void cancel(UUID userId, UUID reservationId) {
         Reservation reservation = owned(userId, reservationId);
         if (reservation.getStatus() == ReservationStatus.CANCELLED) {
             return;
         }
+        if (reservation.getStatus() == ReservationStatus.PROPOSED) {
+            // 제안을 닫으면 이 예약도 ACTIVE로 돌아온다. 그 뒤에 취소한다.
+            proposals.cancelForWithdrawnSource(reservation.getProposalId());
+        }
         if (!reservation.getStatus().canTransitionTo(ReservationStatus.CANCELLED)) {
             throw new ConflictException("RESERVATION_NOT_CANCELLABLE",
                     "지금은 취소할 수 없는 상태다: " + reservation.getStatus());
         }
         MatchCondition condition = codec.fromJson(reservation.getConditionJson());
-        slots.remove(reservationId, condition.game(), condition.modeKey(),
-                reservation.getAvailableFrom(), reservation.getAvailableTo());
+        OffsetDateTime from = reservation.getAvailableFrom();
+        OffsetDateTime to = reservation.getAvailableTo();
+        AfterCommit.run(() ->
+                slots.remove(reservationId, condition.game(), condition.modeKey(), from, to));
         reservation.cancel();
     }
 
@@ -112,8 +136,11 @@ public class ReservationService {
                 .findAllByStatusAndAvailableToLessThanEqual(ReservationStatus.ACTIVE, now);
         for (Reservation reservation : overdue) {
             MatchCondition condition = codec.fromJson(reservation.getConditionJson());
-            slots.remove(reservation.getId(), condition.game(), condition.modeKey(),
-                    reservation.getAvailableFrom(), reservation.getAvailableTo());
+            UUID id = reservation.getId();
+            OffsetDateTime from = reservation.getAvailableFrom();
+            OffsetDateTime to = reservation.getAvailableTo();
+            AfterCommit.run(() ->
+                    slots.remove(id, condition.game(), condition.modeKey(), from, to));
             reservation.expire();
         }
         return overdue.size();

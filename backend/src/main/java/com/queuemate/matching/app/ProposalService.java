@@ -11,6 +11,7 @@ import com.queuemate.matching.domain.ProposalMember;
 import com.queuemate.matching.domain.ProposalParticipants;
 import com.queuemate.matching.domain.ProposalSourceType;
 import com.queuemate.matching.domain.ProposalStatus;
+import com.queuemate.matching.infra.AfterCommit;
 import com.queuemate.matching.infra.MatchProposalRepository;
 import com.queuemate.matching.infra.ProposalClaimRepository;
 import com.queuemate.matching.infra.ProposalMemberRepository;
@@ -79,7 +80,9 @@ public class ProposalService {
         OffsetDateTime now = OffsetDateTime.now(clock);
         if (proposal.getStatus() == ProposalStatus.PENDING && proposal.isExpiredAt(now)) {
             // 만료된 제안을 수락으로 되살리지 않는다 (INV-5).
-            expire(proposal, members);
+            // 여기서 정리까지 하면 안 된다. 이 예외가 트랜잭션을 롤백시켜 DB는 그대로인데
+            // Redis 잠금만 풀리고, 그 사용자가 다른 제안에 또 잡힐 수 있다.
+            // 정리는 별도 트랜잭션인 sweep이 맡는다.
             throw new ConflictException("PROPOSAL_EXPIRED", "제안이 만료됐다");
         }
         requirePending(proposal);
@@ -103,6 +106,27 @@ public class ProposalService {
         proposal.decline();
         breakProposal(proposal, members);
         log.info("제안 거절 proposalId={} by={}", proposalId, userId);
+    }
+
+    /**
+     * 참가자 한 명이 원본(예약)을 철회해 제안을 더 진행할 수 없다.
+     *
+     * <p>철회한 사람의 원본은 호출자가 정리한다. 여기서는 제안을 닫고 나머지 참가자를
+     * 원래 상태로 돌려놓는다. 제안 행을 잠그므로 동시에 들어온 수락과 직렬화된다.
+     *
+     * @return 이번 호출로 제안을 닫았으면 true, 이미 끝나 있었으면 false
+     */
+    @Transactional
+    public boolean cancelForWithdrawnSource(UUID proposalId) {
+        MatchProposal proposal = loadForUpdate(proposalId);
+        if (proposal.getStatus() != ProposalStatus.PENDING) {
+            return false;
+        }
+        List<ProposalMember> members = membersOf(proposalId);
+        proposal.cancel();
+        breakProposal(proposal, members);
+        log.info("원본 철회로 제안 파기 proposalId={}", proposalId);
+        return true;
     }
 
     @Transactional(readOnly = true)
@@ -153,8 +177,9 @@ public class ProposalService {
 
         createParty(proposal, config, userIds, plan.scheduledStart());
         handler.onConfirmed(sourceIds);
-        claims.releaseClaims(proposal.getId(), userIds);
-        log.info("제안 확정 proposalId={} size={}", proposal.getId(), members.size());
+        UUID proposalId = proposal.getId();
+        AfterCommit.run(() -> claims.releaseClaims(proposalId, userIds));
+        log.info("제안 확정 proposalId={} size={}", proposalId, members.size());
     }
 
     /**
@@ -182,8 +207,9 @@ public class ProposalService {
     private void breakProposal(MatchProposal proposal, List<ProposalMember> members) {
         handlerFor(proposal).onBroken(
                 members.stream().map(ProposalMember::getSourceRequestId).toList());
-        claims.releaseClaims(proposal.getId(),
-                members.stream().map(ProposalMember::getUserId).toList());
+        UUID proposalId = proposal.getId();
+        List<UUID> userIds = members.stream().map(ProposalMember::getUserId).toList();
+        AfterCommit.run(() -> claims.releaseClaims(proposalId, userIds));
     }
 
     private ProposalParticipants handlerFor(MatchProposal proposal) {

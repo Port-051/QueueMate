@@ -31,12 +31,14 @@ public class ProposalClaimRepository {
     private final StringRedisTemplate redis;
     private final RedisScript<Long> claimScript;
     private final RedisScript<Long> reservationClaimScript;
+    private final RedisScript<Long> releaseScript;
 
     public ProposalClaimRepository(StringRedisTemplate redis) {
         this.redis = redis;
         this.claimScript = LuaScripts.load("redis/atomic-proposal-claim.lua", Long.class);
         this.reservationClaimScript =
                 LuaScripts.load("redis/atomic-reservation-claim.lua", Long.class);
+        this.releaseScript = LuaScripts.load("redis/release-proposal-claim.lua", Long.class);
     }
 
     /**
@@ -113,16 +115,22 @@ public class ProposalClaimRepository {
     /**
      * 제안이 끝나 참가자 잠금을 푼다.
      *
-     * <p>키에 TTL이 걸려 있어 이 호출이 실패해도 결국 사라진다. 그래서 원자성을 요구하지 않는다.
-     * 다만 바로 다시 매칭될 수 있어야 하므로 정상 경로에서는 즉시 지운다.
+     * <p>내 proposalId가 들어 있는 잠금만 지운다. 그냥 지우면, TTL이 먼저 끝나 다른 제안에
+     * 다시 잡힌 사용자의 잠금을 뒤늦은 정리가 날려 버려 한 사람이 두 제안에 묶인다 (INV-2).
+     *
+     * @return 실제로 푼 잠금 수
      */
-    public void releaseClaims(UUID proposalId, Collection<UUID> userIds) {
+    public long releaseClaims(UUID proposalId, Collection<UUID> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return 0;
+        }
         List<String> keys = new ArrayList<>(userIds.size() + 1);
         for (UUID userId : userIds) {
             keys.add(MatchingRedisKeys.activeProposal(userId));
         }
         keys.add(MatchingRedisKeys.proposalMembers(proposalId));
-        redis.delete(keys);
+        Long released = redis.execute(releaseScript, keys, proposalId.toString());
+        return released == null ? 0 : released;
     }
 
     /** 현재 이 사용자를 잡고 있는 제안. 없으면 empty. */

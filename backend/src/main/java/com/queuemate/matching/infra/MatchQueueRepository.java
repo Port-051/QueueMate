@@ -69,6 +69,17 @@ public class MatchQueueRepository {
         redis.opsForZSet().add(queueKey, requestId.toString(), queuedAt.toEpochMilli());
     }
 
+    /**
+     * 대기열에 남았지만 DB에서는 이미 끝난 요청을 지운다.
+     *
+     * <p>지우지 않으면 scan 창(앞에서부터 N개) 앞자리를 이런 항목이 차지해,
+     * 실제 대기자가 영원히 스캔되지 않는다.
+     */
+    public void removeStale(String queueKey, UUID requestId) {
+        log.debug("대기열에서 끝난 요청을 제거한다 queueKey={} requestId={}", queueKey, requestId);
+        redis.opsForZSet().remove(queueKey, requestId.toString());
+    }
+
     /** 현재 활성 요청. 없으면 empty. */
     public Optional<UUID> activeRequestOf(UUID userId) {
         String value = redis.opsForValue().get(MatchingRedisKeys.activeRequest(userId));

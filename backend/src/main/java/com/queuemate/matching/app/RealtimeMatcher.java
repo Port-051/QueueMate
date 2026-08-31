@@ -81,7 +81,7 @@ public class RealtimeMatcher {
                            MatchConditionCodec codec, BlockLookupPort blocks, RandomSource random,
                            @Value("${queuemate.proposal.ttl-seconds:20}") long proposalTtlSeconds,
                            @Value("${queuemate.matching.scan-size:50}") int scanSize,
-                           @Value("${queuemate.matching.seed-attempts:10}") int seedAttempts) {
+                           @Value("${queuemate.matching.seed-attempts:50}") int seedAttempts) {
         this(queue, requests, proposals, proposalMembers, claims, modes, codec, blocks, random,
                 Clock.systemUTC(), Duration.ofSeconds(proposalTtlSeconds), scanSize, seedAttempts);
     }
@@ -154,8 +154,10 @@ public class RealtimeMatcher {
             return List.of();
         }
         Map<UUID, MatchRequest> byId = new HashMap<>();
+        // 매칭 대상 행을 잠근다. 후보를 읽는 사이 사용자가 취소하면 어느 쪽 변경이
+        // 유실될지 알 수 없기 때문이다.
         for (MatchRequest request :
-                requests.findAllByIdInAndStatus(requestIds, MatchRequestStatus.QUEUED)) {
+                requests.lockAllByIdInAndStatus(requestIds, MatchRequestStatus.QUEUED)) {
             byId.put(request.getId(), request);
         }
         List<Candidate> candidates = new ArrayList<>(byId.size());
@@ -163,6 +165,10 @@ public class RealtimeMatcher {
             MatchRequest request = byId.get(requestId);
             if (request != null) {
                 candidates.add(new Candidate(request, codec.fromJson(request.getConditionJson())));
+            } else {
+                // DB에서 이미 끝난 요청이다. 대기열에 남겨 두면 scan 창을 잠식해
+                // 뒤에 있는 진짜 대기자가 영원히 보이지 않는다.
+                queue.removeStale(queueKey, requestId);
             }
         }
         return candidates;

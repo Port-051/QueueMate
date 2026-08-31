@@ -12,6 +12,8 @@ import com.queuemate.reservation.domain.Reservation;
 import com.queuemate.reservation.domain.ReservationStatus;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -33,6 +35,8 @@ import java.util.UUID;
 @RequestMapping("/api/v1/reservations")
 public class ReservationController {
 
+    private static final Logger log = LoggerFactory.getLogger(ReservationController.class);
+
     private final ReservationService service;
     private final ReservationMatcher matcher;
 
@@ -46,9 +50,10 @@ public class ReservationController {
                                                   @Valid @RequestBody CreateReservationRequest body) {
         Reservation reservation = service.create(currentUser.userId(), toDomain(body.condition()),
                 body.availableFrom(), body.availableTo(), body.playAmount());
-        // 등록 직후 바로 후보를 훑는다. 놓친 조합은 주기 sweep이 다시 본다 (docs/04 §6).
-        matcher.tryMatchFor(reservation.getId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(view(reservation));
+        matchNow(reservation.getId());
+        // 방금 매칭됐다면 상태가 PROPOSED로 바뀌었다. 저장 시점 객체가 아니라 다시 읽어 응답한다.
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(view(service.get(currentUser.userId(), reservation.getId())));
     }
 
     @GetMapping
@@ -64,16 +69,31 @@ public class ReservationController {
     @PatchMapping("/{id}")
     public ReservationView edit(CurrentUser currentUser, @PathVariable UUID id,
                                 @Valid @RequestBody CreateReservationRequest body) {
-        Reservation reservation = service.edit(currentUser.userId(), id, toDomain(body.condition()),
+        service.edit(currentUser.userId(), id, toDomain(body.condition()),
                 body.availableFrom(), body.availableTo(), body.playAmount());
-        matcher.tryMatchFor(reservation.getId());
-        return view(reservation);
+        matchNow(id);
+        return view(service.get(currentUser.userId(), id));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> cancel(CurrentUser currentUser, @PathVariable UUID id) {
         service.cancel(currentUser.userId(), id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 등록 직후 바로 후보를 훑는다 (docs/04 §6).
+     *
+     * <p>여기서 실패해도 사용자의 등록은 이미 성공했다. 매칭 실패를 5xx로 돌려주면
+     * 사용자는 실패한 줄 알고 다시 시도하다 겹침 409를 만난다. 놓친 조합은 주기 sweep이 잡는다.
+     */
+    private void matchNow(UUID reservationId) {
+        try {
+            matcher.tryMatchFor(reservationId);
+        } catch (RuntimeException e) {
+            log.warn("등록 직후 매칭에 실패했다. sweep이 다시 시도한다 reservationId={}",
+                    reservationId, e);
+        }
     }
 
     private ReservationView view(Reservation reservation) {

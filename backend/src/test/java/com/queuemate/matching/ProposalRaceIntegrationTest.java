@@ -10,7 +10,9 @@ import com.queuemate.matching.domain.LolPosition;
 import com.queuemate.matching.domain.MatchCondition;
 import com.queuemate.matching.domain.ProposalStatus;
 import com.queuemate.matching.infra.MatchProposalRepository;
+import com.queuemate.common.error.ConflictException;
 import com.queuemate.matching.infra.MatchQueueRepository;
+import com.queuemate.matching.infra.ProposalClaimRepository;
 import com.queuemate.matching.infra.MatchingRedisKeys;
 import com.queuemate.user.domain.User;
 import com.queuemate.user.repository.UserRepository;
@@ -39,6 +41,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 제안 응답이 동시에 도착하는 경우 (docs/08 §2 INV-5 계열).
@@ -80,6 +83,7 @@ class ProposalRaceIntegrationTest {
     @Autowired ProposalService proposals;
     @Autowired MatchProposalRepository proposalRepository;
     @Autowired MatchQueueRepository queue;
+    @Autowired ProposalClaimRepository claims;
     @Autowired UserRepository users;
     @Autowired StringRedisTemplate redis;
     @Autowired JdbcClient jdbc;
@@ -193,6 +197,51 @@ class ProposalRaceIntegrationTest {
                 .withFailMessage("맨 앞 사람이 매칭되지 않는다고 뒤의 조합까지 막혔다")
                 .isPresent();
         assertThat(queue.waitingCount(MatchingRedisKeys.queue(GameKey.LOL, MODE))).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("만료된 제안을 수락해도 Redis 잠금이 제멋대로 풀리지 않는다")
+    void acceptingExpiredProposalDoesNotStripClaims() {
+        UUID first = newUser();
+        UUID second = newUser();
+        matchRequests.start(first, lol(LolPosition.JUNGLE));
+        matchRequests.start(second, lol(LolPosition.MID));
+        UUID proposalId = matcher.tryMatch(GameKey.LOL, MODE).orElseThrow();
+
+        // 기한이 지난 상태를 만든다.
+        jdbc.sql("UPDATE match_proposals SET expires_at = now() - interval '1 minute' WHERE id = ?")
+                .param(proposalId).update();
+
+        assertThatThrownBy(() -> proposals.accept(first, proposalId))
+                .isInstanceOf(ConflictException.class);
+
+        // 예외가 트랜잭션을 되돌린다. DB가 그대로면 Redis 잠금도 그대로여야 한다.
+        // 여기서 잠금만 풀리면 두 사람이 다른 제안에 또 잡혀 INV-2가 깨진다.
+        assertThat(proposalRepository.findById(proposalId))
+                .get().extracting(p -> p.getStatus()).isEqualTo(ProposalStatus.PENDING);
+        assertThat(claims.activeProposalOf(first)).contains(proposalId);
+        assertThat(claims.activeProposalOf(second)).contains(proposalId);
+
+        // 정리는 별도 트랜잭션인 sweep이 맡는다.
+        assertThat(proposals.expireOverdue()).isEqualTo(1);
+        assertThat(claims.activeProposalOf(first)).isEmpty();
+        assertThat(queue.waitingCount(MatchingRedisKeys.queue(GameKey.LOL, MODE))).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("대기열에 남은 끝난 요청이 scan 창을 잠식하지 않는다")
+    void staleQueueEntriesAreEvicted() {
+        UUID cancelled = newUser();
+        UUID requestId = matchRequests.start(cancelled, lol(LolPosition.TOP)).getId();
+        // Redis 항목만 남기고 DB에서는 끝난 요청으로 만든다.
+        jdbc.sql("UPDATE match_requests SET status = 'CANCELLED' WHERE id = ?")
+                .param(requestId).update();
+        matchRequests.start(newUser(), lol(LolPosition.JUNGLE));
+        matchRequests.start(newUser(), lol(LolPosition.MID));
+
+        assertThat(matcher.tryMatch(GameKey.LOL, MODE)).isPresent();
+        // 끝난 항목은 대기열에서도 사라진다.
+        assertThat(queue.waitingCount(MatchingRedisKeys.queue(GameKey.LOL, MODE))).isZero();
     }
 
     private UUID newUser() {

@@ -233,12 +233,14 @@ public class ReservationMatcher {
         List<TimeSlots.Window> windows = new ArrayList<>(party.size() + 1);
         party.forEach(member -> windows.add(member.reservation().window()));
         windows.add(candidate.reservation().window());
-        return TimeSlots.earliestCommonSlot(windows);
+        return TimeSlots.earliestCommonSlot(windows, OffsetDateTime.now(clock));
     }
 
     private Optional<OffsetDateTime> earliestCommonSlot(List<Candidate> party) {
+        // 이미 시작한 시간대를 약속 시각으로 주지 않는다.
         return TimeSlots.earliestCommonSlot(
-                party.stream().map(candidate -> candidate.reservation().window()).toList());
+                party.stream().map(candidate -> candidate.reservation().window()).toList(),
+                OffsetDateTime.now(clock));
     }
 
     private boolean isBlockedAgainst(Candidate candidate, List<Candidate> party,

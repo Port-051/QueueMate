@@ -152,6 +152,38 @@ class ProposalClaimRepositoryTest extends RedisTestSupport {
     }
 
     @Test
+    @DisplayName("끝난 제안을 정리해도 그 사이 다른 제안이 잡은 잠금은 건드리지 않는다")
+    void releaseOnlyRemovesOwnClaims() {
+        ClaimCandidate a = enqueue(1000);
+        ClaimCandidate b = enqueue(1001);
+        UUID older = UUID.randomUUID();
+        UUID newer = UUID.randomUUID();
+
+        // 새 제안이 두 사람을 잡고 있는 상태.
+        assertThat(repository.claimAll(queueKey, newer, TTL, List.of(a, b))).isTrue();
+
+        // TTL이 먼저 끝난 옛 제안의 뒤늦은 정리가 도착한다.
+        long released = repository.releaseClaims(older, List.of(a.userId(), b.userId()));
+
+        assertThat(released).isZero();
+        assertThat(activeProposalOf(a)).isEqualTo(newer.toString());
+        assertThat(activeProposalOf(b)).isEqualTo(newer.toString());
+    }
+
+    @Test
+    @DisplayName("자기 제안의 잠금은 정리한다")
+    void releaseRemovesOwnClaims() {
+        ClaimCandidate a = enqueue(1000);
+        ClaimCandidate b = enqueue(1001);
+        UUID proposalId = UUID.randomUUID();
+        repository.claimAll(queueKey, proposalId, TTL, List.of(a, b));
+
+        assertThat(repository.releaseClaims(proposalId, List.of(a.userId(), b.userId()))).isEqualTo(2);
+        assertThat(activeProposalOf(a)).isNull();
+        assertThat(redis.hasKey(MatchingRedisKeys.proposalMembers(proposalId))).isFalse();
+    }
+
+    @Test
     @DisplayName("같은 사용자를 두 번 담으면 거부한다")
     void rejectsDuplicateCandidate() {
         ClaimCandidate a = enqueue(1000);

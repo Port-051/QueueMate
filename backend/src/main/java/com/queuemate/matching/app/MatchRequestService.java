@@ -8,6 +8,7 @@ import com.queuemate.gameconfig.domain.GameModeConfigProvider;
 import com.queuemate.matching.domain.MatchCondition;
 import com.queuemate.matching.domain.MatchRequest;
 import com.queuemate.matching.domain.MatchRequestStatus;
+import com.queuemate.matching.infra.AfterCommit;
 import com.queuemate.matching.infra.MatchConditionCodec;
 import com.queuemate.matching.infra.MatchQueueRepository;
 import com.queuemate.matching.infra.MatchRequestRepository;
@@ -95,7 +96,12 @@ public class MatchRequestService {
     /** 대기를 취소한다. 이미 취소된 요청에 다시 불러도 성공으로 본다. */
     @Transactional
     public void cancel(UUID userId, UUID requestId) {
-        MatchRequest request = ownedRequest(userId, requestId);
+        // 매처가 같은 요청을 PROPOSED로 바꾸는 중일 수 있다. 잠그고 상태를 본다.
+        MatchRequest request = requests.findByIdForUpdate(requestId)
+                .orElseThrow(() -> notFound(requestId));
+        if (!request.getUserId().equals(userId)) {
+            throw notFound(requestId);
+        }
         if (request.getStatus() == MatchRequestStatus.CANCELLED) {
             return;
         }
@@ -105,7 +111,10 @@ public class MatchRequestService {
                     "지금은 취소할 수 없는 상태다: " + request.getStatus());
         }
         request.cancel();
-        queue.release(userId, requestId, queueKeyOf(codec.fromJson(request.getConditionJson())));
+        String queueKey = queueKeyOf(codec.fromJson(request.getConditionJson()));
+        // 커밋된 뒤에 푼다. 롤백됐는데 guard만 풀리면 DB에는 활성 요청이 남은 채
+        // 같은 사용자가 하나 더 만들 수 있다.
+        AfterCommit.run(() -> queue.release(userId, requestId, queueKey));
     }
 
     @Transactional(readOnly = true)
