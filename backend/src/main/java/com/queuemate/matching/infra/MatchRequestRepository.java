@@ -17,4 +17,7 @@ public interface MatchRequestRepository extends JpaRepository<MatchRequest, UUID
     List<MatchRequest> findAllByIdInAndStatus(Collection<UUID> ids, MatchRequestStatus status);
 
     List<MatchRequest> findAllByProposalId(UUID proposalId);
+
+    /** 큐 재구성용. DB가 영속 진실이므로 여기서 Redis를 다시 세운다 (docs/07 §10). */
+    List<MatchRequest> findAllByStatusOrderByQueuedAtAsc(MatchRequestStatus status);
 }
