@@ -1,0 +1,17 @@
+# 개발자 로컬. docker-compose의 postgres/redis를 그대로 본다.
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/queuemate}
+    username: ${DB_USER:queuemate}
+    password: ${DB_PASSWORD:queuemate}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+queuemate:
+  auth:
+    # local 전용 고정 secret. 운영에서 쓰이면 안 되므로 prod 프로파일에는 기본값이 없다.
+    jwt-secret: ${JWT_SECRET:local-development-only-secret-key-change-me-32b}
+    access-token-ttl-seconds: ${ACCESS_TOKEN_TTL_SECONDS:900}
+    refresh-token-ttl-seconds: ${REFRESH_TOKEN_TTL_SECONDS:1209600}
