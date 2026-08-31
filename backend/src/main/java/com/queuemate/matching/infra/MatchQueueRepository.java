@@ -57,6 +57,14 @@ public class MatchQueueRepository {
                 requestId.toString()));
     }
 
+    /**
+     * 제안이 깨진 요청을 대기열로 되돌린다. guard는 계속 살아 있으므로 다시 잡지 않는다.
+     * 최초 대기 시각을 그대로 넣어 오래 기다린 사람이 앞자리를 유지하게 한다 (docs/03 §8).
+     */
+    public void requeue(String queueKey, UUID requestId, Instant queuedAt) {
+        redis.opsForZSet().add(queueKey, requestId.toString(), queuedAt.toEpochMilli());
+    }
+
     /** 현재 활성 요청. 없으면 empty. */
     public Optional<UUID> activeRequestOf(UUID userId) {
         String value = redis.opsForValue().get(MatchingRedisKeys.activeRequest(userId));

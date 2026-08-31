@@ -7,8 +7,10 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -67,6 +69,27 @@ public class ProposalClaimRepository {
         }
 
         return Long.valueOf(1L).equals(redis.execute(claimScript, keys, args));
+    }
+
+    /**
+     * 제안이 끝나 참가자 잠금을 푼다.
+     *
+     * <p>키에 TTL이 걸려 있어 이 호출이 실패해도 결국 사라진다. 그래서 원자성을 요구하지 않는다.
+     * 다만 바로 다시 매칭될 수 있어야 하므로 정상 경로에서는 즉시 지운다.
+     */
+    public void releaseClaims(UUID proposalId, Collection<UUID> userIds) {
+        List<String> keys = new ArrayList<>(userIds.size() + 1);
+        for (UUID userId : userIds) {
+            keys.add(MatchingRedisKeys.activeProposal(userId));
+        }
+        keys.add(MatchingRedisKeys.proposalMembers(proposalId));
+        redis.delete(keys);
+    }
+
+    /** 현재 이 사용자를 잡고 있는 제안. 없으면 empty. */
+    public Optional<UUID> activeProposalOf(UUID userId) {
+        return Optional.ofNullable(redis.opsForValue().get(MatchingRedisKeys.activeProposal(userId)))
+                .map(UUID::fromString);
     }
 
     private void validate(String queueKey, UUID proposalId, Duration ttl, List<ClaimCandidate> candidates) {
