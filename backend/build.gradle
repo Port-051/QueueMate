@@ -11,6 +11,10 @@ java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
 
 repositories { mavenCentral() }
 
+// Docker Engine 29는 구버전 Engine API를 끊었고 Spring Boot 3.4.5가 관리하는
+// Testcontainers 1.20.6은 /info에서 HTTP 400을 받는다. 호환 버전으로 올린다.
+ext['testcontainers.version'] = '1.21.3'
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
@@ -25,4 +29,26 @@ dependencies {
     testImplementation 'org.testcontainers:postgresql'
 }
 
-tasks.named('test') { useJUnitPlatform() }
+tasks.named('test') {
+    useJUnitPlatform()
+    // docker-java는 Engine API v1.32로 협상하는데 Docker 29의 최소 지원은 v1.40이라
+    // Testcontainers가 Docker를 못 찾는다. v1.41은 Docker 20.10~29에서 모두 통한다.
+    systemProperty 'api.version', System.getenv('DOCKER_API_VERSION') ?: '1.41'
+
+    // Testcontainers는 docker context를 읽지 않는다. 소켓이 표준 위치에 없는 런타임
+    // (OrbStack, colima, Rancher, rootless Docker)에서도 붙도록 실제 경로를 찾아 넘긴다.
+    if (!System.getenv('DOCKER_HOST') && !file('/var/run/docker.sock').exists()) {
+        def home = System.getProperty('user.home')
+        def socket = [
+                "${home}/.orbstack/run/docker.sock",
+                "${home}/.colima/default/docker.sock",
+                "${home}/.rd/docker.sock",
+                "${home}/.docker/run/docker.sock",
+        ].find { file(it).exists() }
+        if (socket) {
+            environment 'DOCKER_HOST', "unix://${socket}"
+            // Ryuk은 컨테이너 안에서 데몬 쪽 표준 경로로 소켓을 마운트한다.
+            environment 'TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE', '/var/run/docker.sock'
+        }
+    }
+}
