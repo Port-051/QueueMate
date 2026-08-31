@@ -38,6 +38,10 @@ public class SecurityConfig {
                         // container의 error dispatch까지 막으면 인증된 요청의 404가 401로 뒤바뀐다.
                         // 응답 본문은 GlobalExceptionHandler가 만들고 여기서 새는 정보는 없다.
                         .requestMatchers("/error").permitAll()
+                        // WebSocket은 Authorization 헤더를 못 쓴다. handshake에서
+                        // Sec-WebSocket-Protocol로 인증한다 (contracts/events.md).
+                        // 여기서 막으면 interceptor에 닿기 전에 401이 난다.
+                        .requestMatchers("/ws").permitAll()
                         // 나머지는 전부 인증 필요. 새 엔드포인트가 실수로 열리지 않게 한다.
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling
