@@ -71,6 +71,8 @@ public class RealtimeMatcher {
     private final Clock clock;
     private final Duration proposalTtl;
     private final int scanSize;
+    /** 한 판에서 seed로 삼아 볼 후보 수. 앞사람이 막혀도 뒤를 시도하되 무한정 훑지는 않는다. */
+    private final int seedAttempts;
 
     @Autowired
     public RealtimeMatcher(MatchQueueRepository queue, MatchRequestRepository requests,
@@ -78,16 +80,17 @@ public class RealtimeMatcher {
                            ProposalClaimRepository claims, GameModeConfigProvider modes,
                            MatchConditionCodec codec, BlockLookupPort blocks, RandomSource random,
                            @Value("${queuemate.proposal.ttl-seconds:20}") long proposalTtlSeconds,
-                           @Value("${queuemate.matching.scan-size:50}") int scanSize) {
+                           @Value("${queuemate.matching.scan-size:50}") int scanSize,
+                           @Value("${queuemate.matching.seed-attempts:10}") int seedAttempts) {
         this(queue, requests, proposals, proposalMembers, claims, modes, codec, blocks, random,
-                Clock.systemUTC(), Duration.ofSeconds(proposalTtlSeconds), scanSize);
+                Clock.systemUTC(), Duration.ofSeconds(proposalTtlSeconds), scanSize, seedAttempts);
     }
 
     RealtimeMatcher(MatchQueueRepository queue, MatchRequestRepository requests,
                     MatchProposalRepository proposals, ProposalMemberRepository proposalMembers,
                     ProposalClaimRepository claims, GameModeConfigProvider modes,
                     MatchConditionCodec codec, BlockLookupPort blocks, RandomSource random,
-                    Clock clock, Duration proposalTtl, int scanSize) {
+                    Clock clock, Duration proposalTtl, int scanSize, int seedAttempts) {
         this.queue = queue;
         this.requests = requests;
         this.proposals = proposals;
@@ -100,6 +103,7 @@ public class RealtimeMatcher {
         this.clock = clock;
         this.proposalTtl = proposalTtl;
         this.scanSize = scanSize;
+        this.seedAttempts = Math.max(1, seedAttempts);
     }
 
     /**
@@ -121,14 +125,26 @@ public class RealtimeMatcher {
             return Optional.empty();
         }
 
-        // 가장 오래 기다린 사람을 기준으로 파티를 짠다. starvation 방지 (docs/03 §6).
-        Candidate seed = waiting.get(0);
-        List<Candidate> pool = new ArrayList<>(waiting.subList(1, waiting.size()));
-        Optional<List<Candidate>> party = buildParty(seed, pool, config);
-        if (party.isEmpty()) {
-            return Optional.empty();
+        // 가장 오래 기다린 사람부터 seed로 삼는다 (docs/03 §6 aging).
+        // 다만 맨 앞 사람이 아무와도 맞지 않는다고 뒤에 있는 조합까지 막히면 안 된다.
+        // 그렇게 두면 조건이 까다로운 사용자 한 명이 그 게임/모드 전체를 멈춰 세운다.
+        int lastSeedIndex = Math.min(waiting.size() - config.targetPartySize(), seedAttempts - 1);
+        for (int i = 0; i <= lastSeedIndex; i++) {
+            Candidate seed = waiting.get(i);
+            List<Candidate> pool = new ArrayList<>(waiting);
+            pool.remove(i);
+
+            Optional<List<Candidate>> party = buildParty(seed, pool, config);
+            if (party.isEmpty()) {
+                continue;
+            }
+            Optional<UUID> proposalId = claimAndPropose(party.get(), config, queueKey);
+            if (proposalId.isPresent()) {
+                return proposalId;
+            }
+            // 차단이 뒤늦게 확인됐거나 다른 매처가 먼저 잡았다. 다음 seed로 넘어간다.
         }
-        return claimAndPropose(party.get(), config, queueKey);
+        return Optional.empty();
     }
 
     /** 대기열 순서대로 요청 상세를 읽는다. Redis에는 있는데 DB에서 이미 끝난 요청은 버린다. */
@@ -221,7 +237,7 @@ public class RealtimeMatcher {
             // 다른 매처가 먼저 잡았다. 다음 판에서 다시 시도한다.
             return Optional.empty();
         }
-        releaseClaimsIfRolledBack(proposalId, userIds);
+        undoClaimIfRolledBack(proposalId, party, queueKey);
 
         OffsetDateTime now = OffsetDateTime.now(clock);
         proposals.save(MatchProposal.pending(
@@ -237,19 +253,30 @@ public class RealtimeMatcher {
     }
 
     /**
-     * 제안 저장이 실패하면 Redis 잠금도 푼다.
-     * TTL이 있어 언젠가는 풀리지만, 그동안 참가자들은 아무 제안도 못 받은 채 묶여 있게 된다.
+     * 제안 저장이 실패하면 claim을 통째로 되돌린다.
+     *
+     * <p>잠금만 푸는 것으로는 부족하다. claim은 참가자를 대기열에서도 빼 갔기 때문에,
+     * 대기열 항목을 되돌리지 않으면 사용자는 큐에서 사라진 채 guard만 남아
+     * 새 요청도 못 하는 상태로 갇힌다.
      */
-    private void releaseClaimsIfRolledBack(UUID proposalId, List<UUID> userIds) {
+    private void undoClaimIfRolledBack(UUID proposalId, List<Candidate> party, String queueKey) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             return;
         }
+        List<UUID> userIds = party.stream().map(Candidate::userId).toList();
+        List<Candidate> snapshot = List.copyOf(party);
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCompletion(int status) {
-                if (status != TransactionSynchronization.STATUS_COMMITTED) {
-                    claims.releaseClaims(proposalId, userIds);
+                if (status == TransactionSynchronization.STATUS_COMMITTED) {
+                    return;
                 }
+                claims.releaseClaims(proposalId, userIds);
+                for (Candidate candidate : snapshot) {
+                    queue.requeue(queueKey, candidate.requestId(),
+                            candidate.request().getQueuedAt().toInstant());
+                }
+                log.warn("제안 저장이 실패해 claim을 되돌렸다 proposalId={} users={}", proposalId, userIds);
             }
         });
     }

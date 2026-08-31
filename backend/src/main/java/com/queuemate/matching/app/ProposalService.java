@@ -72,7 +72,7 @@ public class ProposalService {
     /** 참가자 한 명이 수락한다. 전원이 수락하면 그 자리에서 확정한다. */
     @Transactional
     public ProposalView accept(UUID userId, UUID proposalId) {
-        MatchProposal proposal = load(proposalId);
+        MatchProposal proposal = loadForUpdate(proposalId);
         List<ProposalMember> members = membersOf(proposalId);
         ProposalMember me = memberOf(members, userId, proposalId);
 
@@ -94,7 +94,7 @@ public class ProposalService {
     /** 참가자 한 명이 거절하면 제안 전체가 끝난다. 나머지는 조건을 유지한 채 대기로 돌아간다. */
     @Transactional
     public void decline(UUID userId, UUID proposalId) {
-        MatchProposal proposal = load(proposalId);
+        MatchProposal proposal = loadForUpdate(proposalId);
         List<ProposalMember> members = membersOf(proposalId);
         ProposalMember me = memberOf(members, userId, proposalId);
         requirePending(proposal);
@@ -123,7 +123,12 @@ public class ProposalService {
         OffsetDateTime now = OffsetDateTime.now(clock);
         List<MatchProposal> overdue =
                 proposals.findAllByStatusAndExpiresAtLessThanEqual(ProposalStatus.PENDING, now);
-        for (MatchProposal proposal : overdue) {
+        for (MatchProposal candidate : overdue) {
+            // 수락이 동시에 들어오고 있을 수 있다. 잠근 뒤 상태를 다시 본다.
+            MatchProposal proposal = loadForUpdate(candidate.getId());
+            if (proposal.getStatus() != ProposalStatus.PENDING) {
+                continue;
+            }
             expire(proposal, membersOf(proposal.getId()));
         }
         if (!overdue.isEmpty()) {
@@ -192,6 +197,13 @@ public class ProposalService {
 
     private static boolean allAccepted(List<ProposalMember> members) {
         return members.stream().allMatch(member -> member.getAcceptance() == Acceptance.ACCEPTED);
+    }
+
+    /** 응답을 처리하기 전에 제안 행을 잠근다. 같은 제안에 대한 동시 응답을 직렬화한다. */
+    private MatchProposal loadForUpdate(UUID proposalId) {
+        return proposals.findByIdForUpdate(proposalId)
+                .orElseThrow(() -> new NotFoundException("PROPOSAL_NOT_FOUND",
+                        "제안을 찾을 수 없다: " + proposalId));
     }
 
     private MatchProposal load(UUID proposalId) {
