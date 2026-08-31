@@ -29,6 +29,8 @@ dependencies {
     implementation 'org.flywaydb:flyway-core'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
     runtimeOnly 'org.postgresql:postgresql'
+    // prod 프로파일의 JSON 로그 인코더. 코드가 참조하지 않고 logback 설정만 쓴다.
+    runtimeOnly 'net.logstash.logback:logstash-logback-encoder:8.0'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.testcontainers:junit-jupiter'
@@ -41,4 +43,7 @@ tasks.named('test') {
     // docker-java는 Engine API v1.32로 협상하는데 Docker 29의 최소 지원은 v1.40이라
     // Testcontainers가 Docker를 못 찾는다. v1.41은 Docker 20.10~29에서 모두 통한다.
     systemProperty 'api.version', System.getenv('DOCKER_API_VERSION') ?: '1.41'
+    // 테스트는 항상 test 프로파일로 돈다. 개별 테스트가 @ActiveProfiles를 빠뜨려도
+    // local 설정(느슨한 로그 레벨/기본 secret)이 새어 들어오지 않는다.
+    systemProperty 'spring.profiles.active', 'test'
 }
