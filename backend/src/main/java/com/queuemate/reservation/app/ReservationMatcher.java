@@ -8,6 +8,7 @@ import com.queuemate.matching.domain.ConditionCompatibility;
 import com.queuemate.matching.domain.MatchCondition;
 import com.queuemate.matching.domain.MatchProposal;
 import com.queuemate.matching.domain.ProposalMember;
+import com.queuemate.matching.domain.MatchingEvents;
 import com.queuemate.matching.domain.ProposalSourceType;
 import com.queuemate.matching.domain.RandomSource;
 import com.queuemate.matching.infra.MatchConditionCodec;
@@ -23,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -61,6 +63,7 @@ public class ReservationMatcher {
     private final MatchConditionCodec codec;
     private final BlockLookupPort blocks;
     private final RandomSource random;
+    private final ApplicationEventPublisher events;
     private final Clock clock;
     private final Duration proposalTtl;
 
@@ -69,16 +72,17 @@ public class ReservationMatcher {
                               MatchProposalRepository proposals, ProposalMemberRepository proposalMembers,
                               ProposalClaimRepository claims, GameModeConfigProvider modes,
                               MatchConditionCodec codec, BlockLookupPort blocks, RandomSource random,
+                              ApplicationEventPublisher events,
                               @Value("${queuemate.proposal.ttl-seconds:20}") long proposalTtlSeconds) {
         this(reservations, slots, proposals, proposalMembers, claims, modes, codec, blocks, random,
-                Clock.systemUTC(), Duration.ofSeconds(proposalTtlSeconds));
+                events, Clock.systemUTC(), Duration.ofSeconds(proposalTtlSeconds));
     }
 
     ReservationMatcher(ReservationRepository reservations, ReservationSlotIndex slots,
                        MatchProposalRepository proposals, ProposalMemberRepository proposalMembers,
                        ProposalClaimRepository claims, GameModeConfigProvider modes,
                        MatchConditionCodec codec, BlockLookupPort blocks, RandomSource random,
-                       Clock clock, Duration proposalTtl) {
+                       ApplicationEventPublisher events, Clock clock, Duration proposalTtl) {
         this.reservations = reservations;
         this.slots = slots;
         this.proposals = proposals;
@@ -88,6 +92,7 @@ public class ReservationMatcher {
         this.codec = codec;
         this.blocks = blocks;
         this.random = random;
+        this.events = events;
         this.clock = clock;
         this.proposalTtl = proposalTtl;
     }
@@ -224,6 +229,9 @@ public class ReservationMatcher {
                     proposalId, candidate.userId(), candidate.reservation().getId()));
             candidate.reservation().attachToProposal(proposalId, scheduledStart.get());
         }
+        events.publishEvent(new MatchingEvents.ProposalCreated(
+                proposalId, ProposalSourceType.RESERVATION, userIds,
+                now.plus(proposalTtl), scheduledStart.get()));
         log.info("예약 제안 생성 proposalId={} game={} mode={} start={} size={}",
                 proposalId, config.game(), config.modeKey(), scheduledStart.get(), party.size());
         return Optional.of(proposalId);

@@ -6,6 +6,7 @@ import com.queuemate.common.domain.VoicePreference;
 import com.queuemate.matching.app.MatchRequestService;
 import com.queuemate.matching.app.ProposalService;
 import com.queuemate.matching.app.RealtimeMatcher;
+import com.queuemate.matching.domain.BlockedPairProposalGuard;
 import com.queuemate.matching.domain.LolPosition;
 import com.queuemate.matching.domain.MatchCondition;
 import com.queuemate.matching.domain.ProposalStatus;
@@ -84,6 +85,7 @@ class ProposalRaceIntegrationTest {
     @Autowired MatchProposalRepository proposalRepository;
     @Autowired MatchQueueRepository queue;
     @Autowired ProposalClaimRepository claims;
+    @Autowired BlockedPairProposalGuard blockGuard;
     @Autowired UserRepository users;
     @Autowired StringRedisTemplate redis;
     @Autowired JdbcClient jdbc;
@@ -242,6 +244,42 @@ class ProposalRaceIntegrationTest {
         assertThat(matcher.tryMatch(GameKey.LOL, MODE)).isPresent();
         // 끝난 항목은 대기열에서도 사라진다.
         assertThat(queue.waitingCount(MatchingRedisKeys.queue(GameKey.LOL, MODE))).isZero();
+    }
+
+    @Test
+    @DisplayName("INV-6: 제안이 떠 있는 사이 차단이 생기면 그 제안을 닫는다")
+    void blockingDuringPendingProposalClosesIt() {
+        UUID first = newUser();
+        UUID second = newUser();
+        matchRequests.start(first, lol(LolPosition.JUNGLE));
+        matchRequests.start(second, lol(LolPosition.MID));
+        UUID proposalId = matcher.tryMatch(GameKey.LOL, MODE).orElseThrow();
+
+        // 후보 탐색과 잠금 사이가 아니라, 이미 제안이 만들어진 뒤에 차단이 생긴 경우다.
+        // 매칭 쪽 재검증만으로는 이 창을 막을 수 없어 차단을 만드는 쪽에서 닫는다.
+        int closed = blockGuard.cancelSharedPendingProposals(first, second);
+
+        assertThat(closed).isEqualTo(1);
+        assertThat(proposalRepository.findById(proposalId))
+                .get().extracting(p -> p.getStatus()).isEqualTo(ProposalStatus.CANCELLED);
+        // 두 사람 모두 대기로 돌아가되, 이제 서로는 후보가 아니다.
+        assertThat(queue.waitingCount(MatchingRedisKeys.queue(GameKey.LOL, MODE))).isEqualTo(2);
+        assertThat(claims.activeProposalOf(first)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("함께 있지 않은 두 사람을 차단해도 남의 제안은 건드리지 않는다")
+    void blockingUnrelatedUsersLeavesProposalsAlone() {
+        UUID first = newUser();
+        UUID second = newUser();
+        UUID outsider = newUser();
+        matchRequests.start(first, lol(LolPosition.JUNGLE));
+        matchRequests.start(second, lol(LolPosition.MID));
+        UUID proposalId = matcher.tryMatch(GameKey.LOL, MODE).orElseThrow();
+
+        assertThat(blockGuard.cancelSharedPendingProposals(first, outsider)).isZero();
+        assertThat(proposalRepository.findById(proposalId))
+                .get().extracting(p -> p.getStatus()).isEqualTo(ProposalStatus.PENDING);
     }
 
     private UUID newUser() {

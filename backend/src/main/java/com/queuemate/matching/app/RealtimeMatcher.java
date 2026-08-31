@@ -12,6 +12,7 @@ import com.queuemate.matching.domain.MatchProposal;
 import com.queuemate.matching.domain.MatchRequest;
 import com.queuemate.matching.domain.MatchRequestStatus;
 import com.queuemate.matching.domain.ProposalMember;
+import com.queuemate.matching.domain.MatchingEvents;
 import com.queuemate.matching.domain.ProposalSourceType;
 import com.queuemate.matching.domain.RandomSource;
 import com.queuemate.matching.infra.MatchConditionCodec;
@@ -25,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -68,6 +70,7 @@ public class RealtimeMatcher {
     private final MatchConditionCodec codec;
     private final BlockLookupPort blocks;
     private final RandomSource random;
+    private final ApplicationEventPublisher events;
     private final Clock clock;
     private final Duration proposalTtl;
     private final int scanSize;
@@ -79,17 +82,19 @@ public class RealtimeMatcher {
                            MatchProposalRepository proposals, ProposalMemberRepository proposalMembers,
                            ProposalClaimRepository claims, GameModeConfigProvider modes,
                            MatchConditionCodec codec, BlockLookupPort blocks, RandomSource random,
+                           ApplicationEventPublisher events,
                            @Value("${queuemate.proposal.ttl-seconds:20}") long proposalTtlSeconds,
                            @Value("${queuemate.matching.scan-size:50}") int scanSize,
                            @Value("${queuemate.matching.seed-attempts:50}") int seedAttempts) {
         this(queue, requests, proposals, proposalMembers, claims, modes, codec, blocks, random,
-                Clock.systemUTC(), Duration.ofSeconds(proposalTtlSeconds), scanSize, seedAttempts);
+                events, Clock.systemUTC(), Duration.ofSeconds(proposalTtlSeconds), scanSize, seedAttempts);
     }
 
     RealtimeMatcher(MatchQueueRepository queue, MatchRequestRepository requests,
                     MatchProposalRepository proposals, ProposalMemberRepository proposalMembers,
                     ProposalClaimRepository claims, GameModeConfigProvider modes,
                     MatchConditionCodec codec, BlockLookupPort blocks, RandomSource random,
+                    ApplicationEventPublisher events,
                     Clock clock, Duration proposalTtl, int scanSize, int seedAttempts) {
         this.queue = queue;
         this.requests = requests;
@@ -100,6 +105,7 @@ public class RealtimeMatcher {
         this.codec = codec;
         this.blocks = blocks;
         this.random = random;
+        this.events = events;
         this.clock = clock;
         this.proposalTtl = proposalTtl;
         this.scanSize = scanSize;
@@ -253,6 +259,8 @@ public class RealtimeMatcher {
                     proposalId, candidate.userId(), candidate.requestId()));
             candidate.request().attachToProposal(proposalId);
         }
+        events.publishEvent(new MatchingEvents.ProposalCreated(
+                proposalId, ProposalSourceType.REALTIME, userIds, now.plus(proposalTtl), null));
         log.info("제안 생성 proposalId={} game={} mode={} size={}",
                 proposalId, config.game(), config.modeKey(), party.size());
         return Optional.of(proposalId);

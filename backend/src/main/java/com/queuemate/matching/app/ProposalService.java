@@ -5,7 +5,9 @@ import com.queuemate.common.error.NotFoundException;
 import com.queuemate.gameconfig.domain.GameModeConfig;
 import com.queuemate.gameconfig.domain.GameModeConfigProvider;
 import com.queuemate.matching.domain.Acceptance;
+import com.queuemate.matching.domain.BlockedPairProposalGuard;
 import com.queuemate.matching.domain.MatchProposal;
+import com.queuemate.matching.domain.MatchingEvents;
 import com.queuemate.matching.domain.PartyCreationPort;
 import com.queuemate.matching.domain.ProposalMember;
 import com.queuemate.matching.domain.ProposalParticipants;
@@ -19,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,7 +39,7 @@ import java.util.UUID;
  * INV-5: 끝난 제안은 되살아나지 않는다. 만료와 수락이 겹치면 먼저 도달한 종결이 이긴다.
  */
 @Service
-public class ProposalService {
+public class ProposalService implements BlockedPairProposalGuard {
 
     private static final Logger log = LoggerFactory.getLogger(ProposalService.class);
 
@@ -46,20 +49,24 @@ public class ProposalService {
     private final GameModeConfigProvider modes;
     private final Map<ProposalSourceType, ProposalParticipants> participants;
     private final ObjectProvider<PartyCreationPort> partyCreation;
+    private final ApplicationEventPublisher events;
     private final Clock clock;
 
     @Autowired
     public ProposalService(MatchProposalRepository proposals, ProposalMemberRepository proposalMembers,
                            ProposalClaimRepository claims, GameModeConfigProvider modes,
                            List<ProposalParticipants> participants,
-                           ObjectProvider<PartyCreationPort> partyCreation) {
-        this(proposals, proposalMembers, claims, modes, participants, partyCreation, Clock.systemUTC());
+                           ObjectProvider<PartyCreationPort> partyCreation,
+                           ApplicationEventPublisher events) {
+        this(proposals, proposalMembers, claims, modes, participants, partyCreation, events,
+                Clock.systemUTC());
     }
 
     ProposalService(MatchProposalRepository proposals, ProposalMemberRepository proposalMembers,
                     ProposalClaimRepository claims, GameModeConfigProvider modes,
                     List<ProposalParticipants> participants,
-                    ObjectProvider<PartyCreationPort> partyCreation, Clock clock) {
+                    ObjectProvider<PartyCreationPort> partyCreation,
+                    ApplicationEventPublisher events, Clock clock) {
         this.proposals = proposals;
         this.proposalMembers = proposalMembers;
         this.claims = claims;
@@ -67,6 +74,7 @@ public class ProposalService {
         this.participants = new EnumMap<>(ProposalSourceType.class);
         participants.forEach(handler -> this.participants.put(handler.sourceType(), handler));
         this.partyCreation = partyCreation;
+        this.events = events;
         this.clock = clock;
     }
 
@@ -106,6 +114,32 @@ public class ProposalService {
         proposal.decline();
         breakProposal(proposal, members);
         log.info("제안 거절 proposalId={} by={}", proposalId, userId);
+    }
+
+    /**
+     * 차단이 생겨 함께 있을 수 없게 된 제안을 닫는다 (INV-6).
+     *
+     * <p>social이 block을 만드는 트랜잭션에서 부른다. 매칭 쪽에서 아무리 조심해도
+     * "후보를 고른 뒤 차단이 생기는" 창은 남기 때문에, 차단을 만드는 쪽에서도 막는다.
+     */
+    @Override
+    @Transactional
+    public int cancelSharedPendingProposals(UUID userId, UUID otherUserId) {
+        if (userId == null || otherUserId == null || userId.equals(otherUserId)) {
+            return 0;
+        }
+        List<UUID> shared = proposalMembers.findPendingProposalsSharedBy(
+                List.of(userId, otherUserId));
+        int closed = 0;
+        for (UUID proposalId : shared) {
+            if (cancelForWithdrawnSource(proposalId)) {
+                closed++;
+            }
+        }
+        if (closed > 0) {
+            log.info("차단으로 제안 파기 count={} users=[{}, {}]", closed, userId, otherUserId);
+        }
+        return closed;
     }
 
     /**
@@ -179,6 +213,7 @@ public class ProposalService {
         handler.onConfirmed(sourceIds);
         UUID proposalId = proposal.getId();
         AfterCommit.run(() -> claims.releaseClaims(proposalId, userIds));
+        publishSettled(proposal, userIds);
         log.info("제안 확정 proposalId={} size={}", proposalId, members.size());
     }
 
@@ -210,6 +245,16 @@ public class ProposalService {
         UUID proposalId = proposal.getId();
         List<UUID> userIds = members.stream().map(ProposalMember::getUserId).toList();
         AfterCommit.run(() -> claims.releaseClaims(proposalId, userIds));
+        publishSettled(proposal, userIds);
+    }
+
+    /**
+     * 제안이 끝났음을 알린다. 구독자는 AFTER_COMMIT에서 받는다.
+     * 대기 화면이 이 이벤트를 못 받으면 사용자는 끝난 제안을 계속 보고 있게 된다.
+     */
+    private void publishSettled(MatchProposal proposal, List<UUID> userIds) {
+        events.publishEvent(new MatchingEvents.ProposalSettled(
+                proposal.getId(), proposal.getSourceType(), proposal.getStatus(), userIds));
     }
 
     private ProposalParticipants handlerFor(MatchProposal proposal) {
