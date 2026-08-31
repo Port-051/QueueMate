@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ( cd frontend && npm run build )
-( cd backend && gradle test )
+( cd backend && ./gradlew test )
