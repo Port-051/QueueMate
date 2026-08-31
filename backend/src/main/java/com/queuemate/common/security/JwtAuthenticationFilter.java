@@ -1,11 +1,13 @@
 package com.queuemate.common.security;
 
+import com.queuemate.common.logging.MdcKeys;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -41,6 +43,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         new CurrentUser(userId), null, List.of());
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+                // 이후 모든 로그에 주체를 붙인다. RequestLoggingFilter가 요청 끝에서 지운다.
+                MDC.put(MdcKeys.USER_ID, userId.toString());
             } catch (InvalidTokenException e) {
                 // 인증 실패는 인증 없음으로 처리하고 EntryPoint가 401을 낸다.
                 // 토큰 본문은 로그에 남기지 않는다 (docs/09).

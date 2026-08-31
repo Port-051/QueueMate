@@ -1,0 +1,18 @@
+# 운영. 기본값을 두지 않는다. 값이 없으면 부팅이 실패하는 편이 잘못된 값으로 뜨는 것보다 낫다.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+
+queuemate:
+  auth:
+    jwt-secret: ${JWT_SECRET}
+    access-token-ttl-seconds: ${ACCESS_TOKEN_TTL_SECONDS:900}
+    refresh-token-ttl-seconds: ${REFRESH_TOKEN_TTL_SECONDS:1209600}

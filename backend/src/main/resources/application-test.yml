@@ -1,0 +1,17 @@
+# 자동화 테스트. datasource/redis는 Testcontainers가 @DynamicPropertySource로 덮어쓴다.
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/queuemate-test-placeholder
+    username: test
+    password: test
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+queuemate:
+  auth:
+    jwt-secret: test-secret-key-that-is-long-enough-32b
+    # 만료 검증 테스트가 실시간을 기다리지 않도록 짧게 둔다.
+    access-token-ttl-seconds: 60
+    refresh-token-ttl-seconds: 300
