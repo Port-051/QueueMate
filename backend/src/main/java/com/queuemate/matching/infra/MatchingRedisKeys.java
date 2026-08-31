@@ -22,7 +22,12 @@ public final class MatchingRedisKeys {
 
     /** INV-1 guard. 값은 현재 활성 requestId다. */
     public static String activeRequest(UUID userId) {
-        return PREFIX + "user:active-request:" + userId;
+        return activeRequestPrefix() + userId;
+    }
+
+    /** reconciliation이 guard 키를 훑을 때 쓰는 접두사. */
+    public static String activeRequestPrefix() {
+        return PREFIX + "user:active-request:";
     }
 
     /** INV-2 guard. 값은 현재 활성 proposalId이고 TTL을 가진다. */

@@ -6,8 +6,13 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Repository;
 
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
+
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -110,6 +115,50 @@ public class MatchQueueRepository {
             }
         }
         return result;
+    }
+
+    /**
+     * 대기열 키를 모르는 상태에서 guard만 푼다.
+     *
+     * <p>reconciliation은 이미 끝난 요청의 조건을 다시 읽을 수 없는 경우가 있어
+     * 큐 키를 특정하지 못한다. 대기열 항목은 stale 제거가 따로 걷어 간다.
+     *
+     * @return 실제로 풀었으면 true
+     */
+    public boolean releaseAnywhere(UUID userId, UUID requestId) {
+        String key = MatchingRedisKeys.activeRequest(userId);
+        String current = redis.opsForValue().get(key);
+        if (!requestId.toString().equals(current)) {
+            return false;
+        }
+        return Boolean.TRUE.equals(redis.delete(key));
+    }
+
+    /**
+     * 살아 있는 활성 요청 guard를 모두 훑는다 (userId -> requestId).
+     *
+     * <p>reconciliation 전용이다. DB에는 없는데 Redis에만 남은 guard를 찾으려면
+     * Redis 쪽에서 출발해야 한다. 운영 주기 작업이므로 SCAN으로 조금씩 읽는다.
+     */
+    public Map<UUID, UUID> scanActiveRequests() {
+        Map<UUID, UUID> found = new HashMap<>();
+        String prefix = MatchingRedisKeys.activeRequestPrefix();
+        ScanOptions options = ScanOptions.scanOptions().match(prefix + "*").count(500).build();
+        try (Cursor<String> cursor = redis.scan(options)) {
+            while (cursor.hasNext()) {
+                String key = cursor.next();
+                String value = redis.opsForValue().get(key);
+                if (value == null) {
+                    continue;
+                }
+                try {
+                    found.put(UUID.fromString(key.substring(prefix.length())), UUID.fromString(value));
+                } catch (IllegalArgumentException e) {
+                    log.warn("guard 키를 해석하지 못해 건너뛴다 key={} value={}", key, value);
+                }
+            }
+        }
+        return found;
     }
 
     /** 대기열 길이. 대기 화면과 metric에 쓴다. */

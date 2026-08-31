@@ -135,6 +135,37 @@ class MatchQueueRecoveryIntegrationTest {
                 .containsExactly(firstRequest, secondRequest);
     }
 
+    @Test
+    @DisplayName("DB에는 끝났는데 Redis에만 남은 guard를 걷어 낸다")
+    void reconcileRemovesStaleGuards() {
+        UUID user = newUser();
+        UUID requestId = matchRequests.start(user, lol(LolPosition.JUNGLE)).getId();
+        // Redis 작업이 유실된 상황을 흉내 낸다. DB만 끝나고 guard가 남았다.
+        jdbc.sql("UPDATE match_requests SET status = 'CANCELLED' WHERE id = ?")
+                .param(requestId).update();
+        assertThat(queue.activeRequestOf(user)).contains(requestId);
+
+        MatchQueueRecoveryService.ReconcileReport report = recovery.reconcile();
+
+        assertThat(report.staleGuards()).isEqualTo(1);
+        assertThat(queue.activeRequestOf(user)).isEmpty();
+        // guard가 풀렸으므로 다시 매칭을 시작할 수 있다.
+        assertThat(matchRequests.start(user, lol(LolPosition.MID))).isNotNull();
+    }
+
+    @Test
+    @DisplayName("살아 있는 guard는 정합성 정리가 건드리지 않는다")
+    void reconcileKeepsHealthyGuards() {
+        UUID user = newUser();
+        UUID requestId = matchRequests.start(user, lol(LolPosition.JUNGLE)).getId();
+
+        MatchQueueRecoveryService.ReconcileReport report = recovery.reconcile();
+
+        assertThat(report.staleGuards()).isZero();
+        assertThat(queue.activeRequestOf(user)).contains(requestId);
+        assertThat(queue.waitingCount(queueKey())).isEqualTo(1);
+    }
+
     private void flushRedis() {
         redis.execute((RedisCallback<Void>) connection -> {
             connection.serverCommands().flushDb();

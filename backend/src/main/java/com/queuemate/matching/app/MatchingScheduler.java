@@ -26,14 +26,16 @@ public class MatchingScheduler {
     private final RealtimeMatcher matcher;
     private final ProposalService proposals;
     private final GameModeConfigProvider modes;
+    private final MatchQueueRecoveryService recovery;
     private final int maxProposalsPerTick;
 
     public MatchingScheduler(RealtimeMatcher matcher, ProposalService proposals,
-                             GameModeConfigProvider modes,
+                             GameModeConfigProvider modes, MatchQueueRecoveryService recovery,
                              @Value("${queuemate.matching.max-proposals-per-tick:20}") int maxProposalsPerTick) {
         this.matcher = matcher;
         this.proposals = proposals;
         this.modes = modes;
+        this.recovery = recovery;
         this.maxProposalsPerTick = maxProposalsPerTick;
     }
 
@@ -53,6 +55,22 @@ public class MatchingScheduler {
             proposals.expireOverdue();
         } catch (DataAccessException e) {
             log.warn("만료 정리를 건너뛴다", e);
+        }
+    }
+
+    /**
+     * DB와 Redis의 어긋남을 되돌린다.
+     *
+     * <p>Redis는 트랜잭션에 참여하지 않으므로 커밋 직후 프로세스가 죽으면 Redis 작업이 유실된다.
+     * 특히 활성 요청 guard에는 TTL이 없어 저절로 사라지지 않는다. 그대로 두면 그 사용자는
+     * 영영 새 매칭을 시작하지 못한다.
+     */
+    @Scheduled(fixedDelayString = "${queuemate.matching.reconcile-ms:60000}")
+    public void reconcileStores() {
+        try {
+            recovery.reconcile();
+        } catch (DataAccessException e) {
+            log.warn("정합성 정리를 건너뛴다", e);
         }
     }
 

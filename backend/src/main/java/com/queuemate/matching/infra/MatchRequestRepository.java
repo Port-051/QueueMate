@@ -37,6 +37,10 @@ public interface MatchRequestRepository extends JpaRepository<MatchRequest, UUID
     @Query("select r from MatchRequest r where r.id = :id")
     Optional<MatchRequest> findByIdForUpdate(@Param("id") UUID id);
 
+    /** reconciliation 전용. 이 id들 중 아직 활성인 것만 돌려준다. */
+    List<MatchRequest> findAllByIdInAndStatusIn(Collection<UUID> ids,
+                                                Collection<MatchRequestStatus> statuses);
+
     List<MatchRequest> findAllByProposalId(UUID proposalId);
 
     /** 큐 재구성용. DB가 영속 진실이므로 여기서 Redis를 다시 세운다 (docs/07 §10). */
