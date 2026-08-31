@@ -1,68 +1,63 @@
-// INV-1 부하 검증: 같은 사용자가 아무리 몰아쳐도 활성 매칭 요청은 하나뿐이다.
+// INV-1 부하 검증: 같은 사용자의 요청이 동시에 쏟아져도 정확히 하나만 통과한다.
 //
-// 평균 응답시간만 보지 않는다. 마지막에 사용자별 201 개수를 세어
-// "정확히 하나만 통과했는가"를 확인한다 (docs/08 §2, §7).
+// docs/08 §2가 요구하는 것은 "100 concurrent POST same user -> exactly 1 success"다.
+// VU마다 다른 사용자를 주고 순차로 돌리면 그건 동시성 검증이 아니다.
+// 그래서 모든 VU가 같은 사용자 토큰을 들고 한 번씩만 쏜다.
 //
 //   k6 run harness/k6/realtime-match.js
-//   k6 run -e BASE_URL=https://staging.example.com harness/k6/realtime-match.js
+//   k6 run -e BASE_URL=https://staging.example.com -e VUS=200 harness/k6/realtime-match.js
 
 import http from 'k6/http';
 import { check } from 'k6';
 import { Counter } from 'k6/metrics';
 
-// 409는 불변식이 제대로 막았다는 뜻이므로 실패로 세지 않는다.
-// setup()의 로그인은 200이다.
+// 409는 불변식이 제대로 막았다는 뜻이므로 실패로 세지 않는다. setup()의 로그인은 200이다.
 http.setResponseCallback(http.expectedStatuses(200, 201, 409));
 
 const base = __ENV.BASE_URL || 'http://localhost:8080';
-const USERS = Number(__ENV.USERS || 20);
-const ATTEMPTS_PER_USER = Number(__ENV.ATTEMPTS || 10);
+const VUS = Number(__ENV.VUS || 100);
 
 const created = new Counter('match_requests_created');
 const conflicted = new Counter('match_requests_conflicted');
 
 export const options = {
   scenarios: {
-    duplicate_burst: {
-      executor: 'per-vu-iterations',
-      vus: USERS,
-      iterations: ATTEMPTS_PER_USER,
+    // 한 사용자에게 VUS개의 요청이 같은 순간에 도착한다.
+    same_user_burst: {
+      executor: 'shared-iterations',
+      vus: VUS,
+      iterations: VUS,
       maxDuration: '60s',
     },
   },
   thresholds: {
-    // 사용자 한 명당 딱 한 번만 통과해야 한다.
-    match_requests_created: [`count==${USERS}`],
+    // INV-1. 동시에 몇 개가 오든 살아남는 요청은 하나뿐이다.
+    match_requests_created: ['count==1'],
+    match_requests_conflicted: [`count==${VUS - 1}`],
     http_req_failed: ['rate<0.01'], // 5xx나 네트워크 오류만 잡힌다
   },
 };
 
 const POSITIONS = ['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'];
 
-/** 부하용 계정을 미리 만들어 토큰을 받아 둔다. */
+/** 부하 대상 계정 하나를 만들어 토큰을 받는다. 모든 VU가 이 토큰을 공유한다. */
 export function setup() {
   const stamp = Date.now();
-  const tokens = [];
-  for (let i = 0; i < USERS; i++) {
-    const email = `k6-realtime-${stamp}-${i}@queuemate.test`;
-    const password = 'k6-load-test-password';
-    const nickname = `k6rt${stamp % 100000}${i}`;
-    const headers = { 'Content-Type': 'application/json' };
+  const email = `k6-realtime-${stamp}@queuemate.test`;
+  const password = 'k6-load-test-password';
+  const headers = { 'Content-Type': 'application/json' };
 
-    http.post(`${base}/api/v1/auth/signup`,
-      JSON.stringify({ email, password, nickname }), { headers });
-    const login = http.post(`${base}/api/v1/auth/login`,
-      JSON.stringify({ email, password }), { headers });
-    if (login.status !== 200) {
-      throw new Error(`로그인 실패 status=${login.status} body=${login.body}`);
-    }
-    tokens.push(login.json('accessToken'));
+  http.post(`${base}/api/v1/auth/signup`,
+    JSON.stringify({ email, password, nickname: `k6rt${stamp % 1000000}` }), { headers });
+  const login = http.post(`${base}/api/v1/auth/login`,
+    JSON.stringify({ email, password }), { headers });
+  if (login.status !== 200) {
+    throw new Error(`로그인 실패 status=${login.status} body=${login.body}`);
   }
-  return { tokens };
+  return { token: login.json('accessToken') };
 }
 
 export default function (data) {
-  const token = data.tokens[__VU - 1];
   const res = http.post(`${base}/api/v1/match-requests`, JSON.stringify({
     game: 'LOL',
     modeKey: 'SOLO_DUO_RANKED',
@@ -70,7 +65,7 @@ export default function (data) {
     voicePreference: 'OPTIONAL',
     playPurpose: 'RANK_UP',
   }), {
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
   });
 
   check(res, {
@@ -81,5 +76,13 @@ export default function (data) {
     created.add(1);
   } else if (res.status === 409) {
     conflicted.add(1);
+  }
+}
+
+/** 부하가 끝난 뒤 서버가 여전히 정상인지 확인한다. 응답 개수만 믿지 않는다. */
+export function teardown(data) {
+  const health = http.get(`${base}/actuator/health`);
+  if (health.status !== 200) {
+    throw new Error(`부하 후 서버가 정상이 아니다 status=${health.status}`);
   }
 }
