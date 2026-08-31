@@ -35,6 +35,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/signup", "/api/v1/auth/login",
                                 "/api/v1/auth/refresh").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        // container의 error dispatch까지 막으면 인증된 요청의 404가 401로 뒤바뀐다.
+                        // 응답 본문은 GlobalExceptionHandler가 만들고 여기서 새는 정보는 없다.
+                        .requestMatchers("/error").permitAll()
                         // 나머지는 전부 인증 필요. 새 엔드포인트가 실수로 열리지 않게 한다.
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling

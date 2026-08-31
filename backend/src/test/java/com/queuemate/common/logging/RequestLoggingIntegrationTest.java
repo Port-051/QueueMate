@@ -1,5 +1,6 @@
 package com.queuemate.common.logging;
 
+import com.queuemate.common.security.JwtTokenService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -15,6 +16,8 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -46,6 +49,7 @@ class RequestLoggingIntegrationTest {
     }
 
     @Autowired TestRestTemplate http;
+    @Autowired JwtTokenService tokenService;
 
     @Test
     void 인증에_실패한_요청도_requestId를_돌려준다() {
@@ -70,4 +74,15 @@ class RequestLoggingIntegrationTest {
                 response.getHeaders().getFirst(RequestLoggingFilter.REQUEST_ID_HEADER));
     }
 
+    @Test
+    void 인증된_요청이_없는_경로를_치면_404다() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(tokenService.issueAccessToken(UUID.randomUUID()));
+
+        ResponseEntity<String> response = http.exchange(
+                "/api/v1/definitely-not-a-route", HttpMethod.GET, new HttpEntity<>(headers), String.class);
+
+        // /error dispatch가 막혀 있으면 여기서 401이 나오고 access log의 status와도 어긋난다.
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
 }
