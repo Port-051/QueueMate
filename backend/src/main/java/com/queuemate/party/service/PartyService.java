@@ -13,6 +13,9 @@ import com.queuemate.party.repository.ConfirmedProposalReader;
 import com.queuemate.party.repository.ConfirmedProposalReader.ProposalSnapshot;
 import com.queuemate.party.repository.PartyMemberRepository;
 import com.queuemate.party.repository.PartyRepository;
+import com.queuemate.realtime.event.EventType;
+import com.queuemate.realtime.event.RealtimeEventPublisher;
+import com.queuemate.realtime.event.ServerEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -22,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -33,13 +37,16 @@ public class PartyService implements PartyCreationPort {
     private final PartyMemberRepository partyMembers;
     private final ConfirmedProposalReader proposals;
     private final BlockLookupPort blockLookup;
+    private final RealtimeEventPublisher events;
 
     public PartyService(PartyRepository parties, PartyMemberRepository partyMembers,
-                        ConfirmedProposalReader proposals, BlockLookupPort blockLookup) {
+                        ConfirmedProposalReader proposals, BlockLookupPort blockLookup,
+                        RealtimeEventPublisher events) {
         this.parties = parties;
         this.partyMembers = partyMembers;
         this.proposals = proposals;
         this.blockLookup = blockLookup;
+        this.events = events;
     }
 
     /** 호출자의 확정 트랜잭션에 그대로 참여한다. 따로 트랜잭션을 열지 않는다. */
@@ -125,6 +132,16 @@ public class PartyService implements PartyCreationPort {
 
         MDC.put(MdcKeys.PARTY_ID, partyId.toString());
         log.info("파티 준비 변경 ready={} allReady={} status={}", ready, allReady, party.getStatus());
+
+        // 커밋 후에 알린다. 이벤트를 받은 클라이언트가 곧바로 조회했을 때
+        // 아직 반영되지 않은 상태를 읽으면 안 된다.
+        events.publishAfterCommit(
+                members.stream().map(PartyMember::getUserId).toList(),
+                ServerEvent.of(EventType.PARTY_READY_CHANGED, Map.of(
+                        "partyId", partyId,
+                        "userId", userId,
+                        "ready", ready,
+                        "status", party.getStatus().name())));
         return new PartyDetail(party, members);
     }
 
