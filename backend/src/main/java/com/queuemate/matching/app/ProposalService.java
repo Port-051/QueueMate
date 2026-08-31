@@ -5,18 +5,13 @@ import com.queuemate.common.error.NotFoundException;
 import com.queuemate.gameconfig.domain.GameModeConfig;
 import com.queuemate.gameconfig.domain.GameModeConfigProvider;
 import com.queuemate.matching.domain.Acceptance;
-import com.queuemate.matching.domain.MatchCondition;
 import com.queuemate.matching.domain.MatchProposal;
-import com.queuemate.matching.domain.MatchRequest;
-import com.queuemate.matching.domain.MatchRequestStatus;
 import com.queuemate.matching.domain.PartyCreationPort;
 import com.queuemate.matching.domain.ProposalMember;
+import com.queuemate.matching.domain.ProposalParticipants;
+import com.queuemate.matching.domain.ProposalSourceType;
 import com.queuemate.matching.domain.ProposalStatus;
-import com.queuemate.matching.infra.MatchConditionCodec;
 import com.queuemate.matching.infra.MatchProposalRepository;
-import com.queuemate.matching.infra.MatchQueueRepository;
-import com.queuemate.matching.infra.MatchRequestRepository;
-import com.queuemate.matching.infra.MatchingRedisKeys;
 import com.queuemate.matching.infra.ProposalClaimRepository;
 import com.queuemate.matching.infra.ProposalMemberRepository;
 import org.slf4j.Logger;
@@ -28,16 +23,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
- * 제안 수명주기 (docs/03 §8).
+ * 제안 수명주기 (docs/03 §8). 실시간과 예약이 같은 수락 모델을 공유한다.
  *
  * <p>INV-4: 전원이 수락하기 전에는 파티를 만들지 않는다.
  * INV-5: 끝난 제안은 되살아나지 않는다. 만료와 수락이 겹치면 먼저 도달한 종결이 이긴다.
@@ -49,35 +41,30 @@ public class ProposalService {
 
     private final MatchProposalRepository proposals;
     private final ProposalMemberRepository proposalMembers;
-    private final MatchRequestRepository requests;
-    private final MatchQueueRepository queue;
     private final ProposalClaimRepository claims;
     private final GameModeConfigProvider modes;
-    private final MatchConditionCodec codec;
+    private final Map<ProposalSourceType, ProposalParticipants> participants;
     private final ObjectProvider<PartyCreationPort> partyCreation;
     private final Clock clock;
 
     @Autowired
     public ProposalService(MatchProposalRepository proposals, ProposalMemberRepository proposalMembers,
-                           MatchRequestRepository requests, MatchQueueRepository queue,
                            ProposalClaimRepository claims, GameModeConfigProvider modes,
-                           MatchConditionCodec codec, ObjectProvider<PartyCreationPort> partyCreation) {
-        this(proposals, proposalMembers, requests, queue, claims, modes, codec, partyCreation,
-                Clock.systemUTC());
+                           List<ProposalParticipants> participants,
+                           ObjectProvider<PartyCreationPort> partyCreation) {
+        this(proposals, proposalMembers, claims, modes, participants, partyCreation, Clock.systemUTC());
     }
 
     ProposalService(MatchProposalRepository proposals, ProposalMemberRepository proposalMembers,
-                    MatchRequestRepository requests, MatchQueueRepository queue,
                     ProposalClaimRepository claims, GameModeConfigProvider modes,
-                    MatchConditionCodec codec, ObjectProvider<PartyCreationPort> partyCreation,
-                    Clock clock) {
+                    List<ProposalParticipants> participants,
+                    ObjectProvider<PartyCreationPort> partyCreation, Clock clock) {
         this.proposals = proposals;
         this.proposalMembers = proposalMembers;
-        this.requests = requests;
-        this.queue = queue;
         this.claims = claims;
         this.modes = modes;
-        this.codec = codec;
+        this.participants = new EnumMap<>(ProposalSourceType.class);
+        participants.forEach(handler -> this.participants.put(handler.sourceType(), handler));
         this.partyCreation = partyCreation;
         this.clock = clock;
     }
@@ -104,7 +91,7 @@ public class ProposalService {
         return view(proposal, members);
     }
 
-    /** 참가자 한 명이 거절하면 제안 전체가 끝난다. 나머지는 조건을 유지한 채 대기열로 돌아간다. */
+    /** 참가자 한 명이 거절하면 제안 전체가 끝난다. 나머지는 조건을 유지한 채 대기로 돌아간다. */
     @Transactional
     public void decline(UUID userId, UUID proposalId) {
         MatchProposal proposal = load(proposalId);
@@ -114,7 +101,7 @@ public class ProposalService {
 
         me.respond(Acceptance.DECLINED);
         proposal.decline();
-        returnEveryoneToQueue(proposal, members);
+        breakProposal(proposal, members);
         log.info("제안 거절 proposalId={} by={}", proposalId, userId);
     }
 
@@ -148,31 +135,20 @@ public class ProposalService {
     private void confirm(MatchProposal proposal, List<ProposalMember> members, OffsetDateTime now) {
         proposal.confirm(now);
 
-        Map<UUID, MatchRequest> byRequestId = requestsOf(members);
-        List<UUID> userIds = new ArrayList<>(members.size());
-        MatchCondition sample = null;
-        for (ProposalMember member : members) {
-            MatchRequest request = byRequestId.get(member.getSourceRequestId());
-            userIds.add(member.getUserId());
-            if (request == null) {
-                continue;
-            }
-            request.markMatched();
-            if (sample == null) {
-                sample = codec.fromJson(request.getConditionJson());
-            }
-        }
-        if (sample == null) {
-            throw new IllegalStateException("확정할 제안의 요청을 찾을 수 없다: " + proposal.getId());
-        }
+        ProposalParticipants handler = handlerFor(proposal);
+        List<UUID> sourceIds = members.stream().map(ProposalMember::getSourceRequestId).toList();
+        List<UUID> userIds = members.stream().map(ProposalMember::getUserId).toList();
 
-        MatchCondition condition = sample;
-        GameModeConfig config = modes.findActive(condition.game(), condition.modeKey())
+        ProposalParticipants.PartyPlan plan = handler.planFor(sourceIds)
                 .orElseThrow(() -> new IllegalStateException(
-                        "확정 시점에 모드 설정이 사라졌다: " + condition.game() + "/" + condition.modeKey()));
+                        "확정할 제안의 원본을 찾을 수 없다: " + proposal.getId()));
+        GameModeConfig config = modes.findActive(plan.game(), plan.modeKey())
+                .orElseThrow(() -> new IllegalStateException(
+                        "확정 시점에 모드 설정이 사라졌다: " + plan.game() + "/" + plan.modeKey()));
 
-        createParty(proposal, config, userIds);
-        releaseGuards(proposal, members, byRequestId, condition);
+        createParty(proposal, config, userIds, plan.scheduledStart());
+        handler.onConfirmed(sourceIds);
+        claims.releaseClaims(proposal.getId(), userIds);
         log.info("제안 확정 proposalId={} size={}", proposal.getId(), members.size());
     }
 
@@ -180,7 +156,8 @@ public class ProposalService {
      * 파티 생성은 party 패키지 소유다 (Member 3). 구현이 아직 붙지 않은 동안에도
      * 매칭 자체는 검증할 수 있어야 하므로 optional로 둔다. 계약상 partyId는 nullable이다.
      */
-    private void createParty(MatchProposal proposal, GameModeConfig config, List<UUID> userIds) {
+    private void createParty(MatchProposal proposal, GameModeConfig config, List<UUID> userIds,
+                             OffsetDateTime scheduledStart) {
         PartyCreationPort port = partyCreation.getIfAvailable();
         if (port == null) {
             log.warn("PartyCreationPort 구현이 없어 파티를 만들지 않았다 proposalId={}", proposal.getId());
@@ -188,52 +165,29 @@ public class ProposalService {
         }
         port.createParty(new PartyCreationPort.PartyCreationCommand(
                 proposal.getId(), config.game(), config.modeKey(),
-                config.targetPartySize(), userIds, null));
-    }
-
-    /** 확정된 참가자는 대기열에서 완전히 빠진다. */
-    private void releaseGuards(MatchProposal proposal, List<ProposalMember> members,
-                               Map<UUID, MatchRequest> byRequestId, MatchCondition sample) {
-        String queueKey = MatchingRedisKeys.queue(sample.game(), sample.modeKey());
-        for (ProposalMember member : members) {
-            MatchRequest request = byRequestId.get(member.getSourceRequestId());
-            if (request != null) {
-                queue.release(member.getUserId(), request.getId(), queueKey);
-            }
-        }
-        claims.releaseClaims(proposal.getId(),
-                members.stream().map(ProposalMember::getUserId).toList());
+                config.targetPartySize(), userIds, scheduledStart));
     }
 
     private void expire(MatchProposal proposal, List<ProposalMember> members) {
         proposal.expire();
-        returnEveryoneToQueue(proposal, members);
+        breakProposal(proposal, members);
     }
 
-    /**
-     * 제안이 깨졌다. 아직 매칭을 원하는 참가자는 최초 대기 시각을 유지한 채 대기열로 돌아간다
-     * (docs/03 §8). 매칭을 그만두려면 요청 자체를 취소해야 한다.
-     */
-    private void returnEveryoneToQueue(MatchProposal proposal, List<ProposalMember> members) {
-        Map<UUID, MatchRequest> byRequestId = requestsOf(members);
-        for (ProposalMember member : members) {
-            MatchRequest request = byRequestId.get(member.getSourceRequestId());
-            if (request == null || request.getStatus() != MatchRequestStatus.PROPOSED) {
-                continue;
-            }
-            request.returnToQueue();
-            MatchCondition condition = codec.fromJson(request.getConditionJson());
-            queue.requeue(MatchingRedisKeys.queue(condition.game(), condition.modeKey()),
-                    request.getId(), request.getQueuedAt().toInstant());
-        }
+    /** 제안이 깨졌다. 원본을 되돌리고 잠금을 푼다. */
+    private void breakProposal(MatchProposal proposal, List<ProposalMember> members) {
+        handlerFor(proposal).onBroken(
+                members.stream().map(ProposalMember::getSourceRequestId).toList());
         claims.releaseClaims(proposal.getId(),
                 members.stream().map(ProposalMember::getUserId).toList());
     }
 
-    private Map<UUID, MatchRequest> requestsOf(List<ProposalMember> members) {
-        List<UUID> requestIds = members.stream().map(ProposalMember::getSourceRequestId).toList();
-        return requests.findAllById(requestIds).stream()
-                .collect(Collectors.toMap(MatchRequest::getId, Function.identity()));
+    private ProposalParticipants handlerFor(MatchProposal proposal) {
+        ProposalParticipants handler = participants.get(proposal.getSourceType());
+        if (handler == null) {
+            throw new IllegalStateException(
+                    "제안 원본을 다룰 구현이 없다: " + proposal.getSourceType());
+        }
+        return handler;
     }
 
     private static boolean allAccepted(List<ProposalMember> members) {
@@ -265,18 +219,14 @@ public class ProposalService {
         }
     }
 
-    private Optional<UUID> partyIdOf(MatchProposal proposal) {
-        // 파티 조회는 party 패키지 소유다. 매칭은 확정 사실만 안다.
-        return Optional.empty();
-    }
-
-    private ProposalView view(MatchProposal proposal, List<ProposalMember> members) {
+    private static ProposalView view(MatchProposal proposal, List<ProposalMember> members) {
         return new ProposalView(
                 proposal.getId(), proposal.getStatus(), proposal.getExpiresAt(),
                 members.stream()
                         .map(member -> new ProposalView.Member(member.getUserId(), member.getAcceptance()))
                         .toList(),
-                partyIdOf(proposal).orElse(null));
+                // 파티 조회는 party 패키지 소유다. 매칭은 확정 사실까지만 안다.
+                null);
     }
 
     /** 계약(openapi ProposalView)에 맞춘 조회 결과. */

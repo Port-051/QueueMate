@@ -30,10 +30,13 @@ public class ProposalClaimRepository {
 
     private final StringRedisTemplate redis;
     private final RedisScript<Long> claimScript;
+    private final RedisScript<Long> reservationClaimScript;
 
     public ProposalClaimRepository(StringRedisTemplate redis) {
         this.redis = redis;
         this.claimScript = LuaScripts.load("redis/atomic-proposal-claim.lua", Long.class);
+        this.reservationClaimScript =
+                LuaScripts.load("redis/atomic-reservation-claim.lua", Long.class);
     }
 
     /**
@@ -69,6 +72,42 @@ public class ProposalClaimRepository {
         }
 
         return Long.valueOf(1L).equals(redis.execute(claimScript, keys, args));
+    }
+
+    /**
+     * 예약 제안용 잠금. 실시간과 같은 active-proposal 키를 써서,
+     * 한 사람이 실시간 제안과 예약 제안을 동시에 들고 있지 않게 한다 (INV-2).
+     *
+     * @param userIds 잠글 사용자. 최소 2명이고 중복될 수 없다
+     * @return 전원 잠금에 성공하면 true
+     */
+    public boolean claimAllForReservation(UUID proposalId, Duration ttl, List<UUID> userIds) {
+        if (proposalId == null) {
+            throw new IllegalArgumentException("proposalId는 필수다");
+        }
+        if (ttl == null || ttl.isZero() || ttl.isNegative()) {
+            throw new IllegalArgumentException("ttl은 양수여야 한다. 영구 잠금을 만들지 않는다");
+        }
+        if (userIds == null || userIds.size() < MIN_PARTY_SIZE) {
+            throw new IllegalArgumentException("후보는 최소 " + MIN_PARTY_SIZE + "명이다");
+        }
+        if (userIds.size() != new HashSet<>(userIds).size()) {
+            throw new IllegalArgumentException("같은 사용자가 두 번 들어왔다");
+        }
+
+        List<String> keys = new ArrayList<>(userIds.size() + 1);
+        keys.add(MatchingRedisKeys.proposalMembers(proposalId));
+        for (UUID userId : userIds) {
+            keys.add(MatchingRedisKeys.activeProposal(userId));
+        }
+
+        Object[] args = new Object[2 + userIds.size()];
+        args[0] = proposalId.toString();
+        args[1] = String.valueOf(ttl.toSeconds());
+        for (int i = 0; i < userIds.size(); i++) {
+            args[2 + i] = userIds.get(i).toString();
+        }
+        return Long.valueOf(1L).equals(redis.execute(reservationClaimScript, keys, args));
     }
 
     /**

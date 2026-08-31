@@ -34,4 +34,12 @@ public final class MatchingRedisKeys {
     public static String proposalMembers(UUID proposalId) {
         return PREFIX + "proposal:members:" + proposalId;
     }
+
+    /**
+     * 30분 슬롯 하나에 걸린 예약 id 집합 (docs/07 §8).
+     * 상세 조건은 담지 않는다. 후보를 좁히는 색인일 뿐이고 판정은 DB를 읽고 한다.
+     */
+    public static String reservationSlot(GameKey game, String modeKey, String slotKey) {
+        return PREFIX + "reservation:slot:" + game.name() + ":" + modeKey + ":" + slotKey;
+    }
 }
