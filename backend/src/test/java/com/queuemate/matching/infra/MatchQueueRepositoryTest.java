@@ -174,6 +174,18 @@ class MatchQueueRepositoryTest extends RedisTestSupport {
     }
 
     @Test
+    @DisplayName("대기열에 섞인 손상 항목이 그 큐의 매칭 전체를 멈추게 하지 않는다")
+    void skipsAndCleansCorruptedEntries() {
+        UUID valid = enqueueAt(Instant.parse("2026-08-31T00:01:00Z"));
+        // 운영 도구나 예전 형식이 남긴 값을 흉내 낸다.
+        redis.opsForZSet().add(queueKey, "not-a-uuid", 1000);
+
+        assertThat(repository.waitingOldestFirst(queueKey, 10)).containsExactly(valid);
+        // 다시 걸리지 않도록 지운다.
+        assertThat(repository.waitingCount(queueKey)).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("빈 대기열은 빈 목록을 준다")
     void emptyQueueReturnsEmptyList() {
         assertThat(repository.waitingOldestFirst(queueKey, 10)).isEmpty();

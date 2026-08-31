@@ -1,5 +1,7 @@
 package com.queuemate.matching.infra;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Repository;
@@ -19,6 +21,8 @@ import java.util.UUID;
  */
 @Repository
 public class MatchQueueRepository {
+
+    private static final Logger log = LoggerFactory.getLogger(MatchQueueRepository.class);
 
     private final StringRedisTemplate redis;
     private final RedisScript<Long> acquireScript;
@@ -85,7 +89,14 @@ public class MatchQueueRepository {
         }
         List<UUID> result = new ArrayList<>(ids.size());
         for (String id : ids) {
-            result.add(UUID.fromString(id));
+            try {
+                result.add(UUID.fromString(id));
+            } catch (IllegalArgumentException e) {
+                // 손상된 항목 하나가 그 큐의 매칭 전체를 멈추게 두지 않는다.
+                // 운영 도구나 예전 형식이 남긴 값일 수 있으므로 지우고 계속 간다.
+                log.warn("대기열에 requestId가 아닌 항목이 있어 제거한다 queueKey={} value={}", queueKey, id);
+                redis.opsForZSet().remove(queueKey, id);
+            }
         }
         return result;
     }
