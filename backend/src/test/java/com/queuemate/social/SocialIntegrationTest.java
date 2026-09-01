@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 차단 캐시 무효화가 afterCommit에 걸려 있어 롤백하면 검증할 수 없다.
  */
 @Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class SocialIntegrationTest {
 
     @Container
