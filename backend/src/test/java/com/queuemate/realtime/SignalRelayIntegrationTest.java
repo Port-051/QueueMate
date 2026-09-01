@@ -76,6 +76,7 @@ class SignalRelayIntegrationTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final List<WebSocketSession> opened = new ArrayList<>();
+    private final List<Collector> collectors = new ArrayList<>();
 
     @BeforeEach
     void clean() {
@@ -91,6 +92,7 @@ class SignalRelayIntegrationTest {
             }
         }
         opened.clear();
+        collectors.clear();
     }
 
     @Test
@@ -271,6 +273,7 @@ class SignalRelayIntegrationTest {
     }
 
     private WebSocketSession connect(UUID userId, Collector collector) throws Exception {
+        collectors.add(collector);
         WebSocketHttpHeaders headers = new WebSocketHttpHeaders();
         headers.setSecWebSocketProtocol(List.of(
                 WebSocketProtocol.VERSION,
@@ -287,6 +290,10 @@ class SignalRelayIntegrationTest {
             Thread.sleep(20);
         }
         assertEquals(expected, sessions.openSessionCount());
+        // 연결 직후 서버가 SESSION_SNAPSHOT을 한 번 보낸다. signaling 검증에 섞이지 않게 비운다.
+        for (Collector collector : collectors) {
+            collector.drainSnapshot();
+        }
     }
 
     private class Collector extends TextWebSocketHandler {
@@ -307,6 +314,12 @@ class SignalRelayIntegrationTest {
 
         boolean isEmptyAfterWait() throws Exception {
             return frames.poll(1, TimeUnit.SECONDS) == null;
+        }
+
+        void drainSnapshot() throws Exception {
+            String frame = frames.poll(5, TimeUnit.SECONDS);
+            assertNotNull(frame, "스냅샷이 도착하지 않았다");
+            assertEquals("SESSION_SNAPSHOT", objectMapper.readTree(frame).get("type").asText());
         }
     }
 

@@ -5,6 +5,8 @@ package com.queuemate.realtime.event;
  * 이름이 곧 계약이므로 임의로 바꾸거나 추가하지 않는다.
  */
 public enum EventType {
+    /** 연결 직후 한 번. 끊긴 동안 바뀐 것을 현재 상태로 대신 알린다. */
+    SESSION_SNAPSHOT,
     MATCH_QUEUE_UPDATED,
     MATCH_PROPOSAL_CREATED,
     MATCH_PROPOSAL_EXPIRED,

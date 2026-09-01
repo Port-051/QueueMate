@@ -94,6 +94,80 @@ class WebSocketIntegrationTest {
     }
 
     @Test
+    void 연결하면_현재_상태_스냅샷을_먼저_받는다() throws Exception {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        UUID partyId = party(a, b);
+        Collector collector = new Collector();
+
+        connect(tokenService.issueAccessToken(a), collector);
+
+        JsonNode snapshot = collector.next();
+        assertEquals("SESSION_SNAPSHOT", snapshot.get("type").asText());
+        JsonNode parties = snapshot.get("payload").get("parties");
+        assertEquals(1, parties.size());
+        assertEquals(partyId.toString(), parties.get(0).get("id").asText());
+    }
+
+    @Test
+    void 끊긴_동안_바뀐_상태가_재연결_스냅샷에_담긴다() throws Exception {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        UUID partyId = party(a, b);
+        Collector before = new Collector();
+        WebSocketSession first = connect(tokenService.issueAccessToken(a), before);
+        before.next();
+        assertTrue(waitUntil(() -> sessions.isOnline(a)));
+
+        first.close(CloseStatus.NORMAL);
+        assertTrue(waitUntil(() -> !sessions.isOnline(a)));
+        // 끊긴 사이에 b가 준비를 눌렀다. a는 이 이벤트를 받지 못한다.
+        partyService.changeReady(partyId, b, true);
+
+        Collector after = new Collector();
+        connect(tokenService.issueAccessToken(a), after);
+
+        JsonNode parties = after.next().get("payload").get("parties");
+        JsonNode members = parties.get(0).get("members");
+        boolean bReady = false;
+        for (JsonNode member : members) {
+            if (b.toString().equals(member.get("userId").asText())) {
+                bReady = member.get("ready").asBoolean();
+            }
+        }
+        assertTrue(bReady, "끊긴 동안 바뀐 준비 상태가 스냅샷에 있어야 한다");
+    }
+
+    @Test
+    void 파티가_없으면_빈_스냅샷을_받는다() throws Exception {
+        UUID a = user("alpha");
+        Collector collector = new Collector();
+
+        connect(tokenService.issueAccessToken(a), collector);
+
+        JsonNode snapshot = collector.next();
+        assertEquals("SESSION_SNAPSHOT", snapshot.get("type").asText());
+        assertEquals(0, snapshot.get("payload").get("parties").size());
+    }
+
+    @Test
+    void 탭마다_각자_스냅샷을_받는다() throws Exception {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        party(a, b);
+        Collector tab1 = new Collector();
+        Collector tab2 = new Collector();
+
+        connect(tokenService.issueAccessToken(a), tab1);
+        connect(tokenService.issueAccessToken(a), tab2);
+
+        // 세션 단위다. 새 탭이 붙었다고 기존 탭이 다시 받지는 않는다.
+        assertEquals("SESSION_SNAPSHOT", tab1.next().get("type").asText());
+        assertEquals("SESSION_SNAPSHOT", tab2.next().get("type").asText());
+        assertTrue(tab1.isEmptyAfterWait(), "기존 탭에 두 번 가면 안 된다: " + tab1.received);
+    }
+
+    @Test
     void 유효한_token이면_연결되고_버전만_돌려받는다() throws Exception {
         UUID userId = user("alpha");
         Collector collector = new Collector();
@@ -141,6 +215,9 @@ class WebSocketIntegrationTest {
         connect(tokenService.issueAccessToken(a), tab1);
         connect(tokenService.issueAccessToken(a), tab2);
         assertTrue(waitUntil(() -> sessions.sessionsOf(a).size() == 2));
+        // 연결 직후 스냅샷이 먼저 온다.
+        tab1.next();
+        tab2.next();
 
         partyService.changeReady(partyId, a, true);
 
@@ -158,6 +235,8 @@ class WebSocketIntegrationTest {
         connect(tokenService.issueAccessToken(a), forA);
         connect(tokenService.issueAccessToken(b), forB);
         assertTrue(waitUntil(() -> sessions.openSessionCount() == 2));
+        forA.next();
+        forB.next();
 
         partyService.changeReady(partyId, a, true);
 
@@ -181,6 +260,8 @@ class WebSocketIntegrationTest {
         connect(tokenService.issueAccessToken(outsider), forOutsider);
         connect(tokenService.issueAccessToken(a), new Collector());
         assertTrue(waitUntil(() -> sessions.openSessionCount() == 2));
+        // 파티가 없는 사용자도 빈 스냅샷을 받는다. 그것을 먼저 소비한다.
+        forOutsider.next();
 
         partyService.changeReady(partyId, a, true);
 

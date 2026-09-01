@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.queuemate.common.logging.MdcKeys;
 import com.queuemate.realtime.presence.DeparturePendingStore;
 import com.queuemate.realtime.presence.PresenceProperties;
+import com.queuemate.realtime.event.RealtimeEventPublisher;
 import com.queuemate.realtime.session.SessionRegistry;
+import com.queuemate.realtime.session.SessionSnapshotAssembler;
 import com.queuemate.realtime.signal.ClientMessage;
 import com.queuemate.realtime.signal.SignalRelayService;
 import org.slf4j.Logger;
@@ -33,15 +35,20 @@ public class QueueMateWebSocketHandler extends TextWebSocketHandler {
     private final SignalRelayService signals;
     private final DeparturePendingStore departures;
     private final PresenceProperties presence;
+    private final SessionSnapshotAssembler snapshots;
+    private final RealtimeEventPublisher events;
     private final ObjectMapper objectMapper;
 
     public QueueMateWebSocketHandler(SessionRegistry sessions, SignalRelayService signals,
                                      DeparturePendingStore departures, PresenceProperties presence,
-                                     ObjectMapper objectMapper) {
+                                     SessionSnapshotAssembler snapshots,
+                                     RealtimeEventPublisher events, ObjectMapper objectMapper) {
         this.sessions = sessions;
         this.signals = signals;
         this.departures = departures;
         this.presence = presence;
+        this.snapshots = snapshots;
+        this.events = events;
         this.objectMapper = objectMapper;
     }
 
@@ -49,10 +56,13 @@ public class QueueMateWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionEstablished(WebSocketSession session) {
         UUID userId = userIdOf(session);
         sessions.register(userId, session);
-        // 돌아왔으니 예약된 이탈 처리를 취소한다.
+        // 예약 취소가 먼저다. 스냅샷을 읽는 사이에 이탈 처리가 돌면
+        // 방금 붙은 사용자에게 없어진 파티를 보내게 된다.
         departures.cancel(userId);
-        withContext(session, () -> log.info("WebSocket 연결 open sessions={}",
-                sessions.sessionsOf(userId).size()));
+        withContext(session, () -> {
+            log.info("WebSocket 연결 open sessions={}", sessions.sessionsOf(userId).size());
+            sendSnapshot(session, userId);
+        });
     }
 
     @Override
@@ -86,6 +96,18 @@ public class QueueMateWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
         withContext(session, () -> log.warn("WebSocket 전송 오류: {}", exception.getMessage()));
+    }
+
+    /**
+     * 끊긴 동안 바뀐 것을 현재 상태로 대신 알린다. 첫 연결과 재연결을 구분하지 않는다.
+     * 실패해도 연결은 유지한다. 클라이언트가 REST로 직접 읽는 길이 남아 있다.
+     */
+    private void sendSnapshot(WebSocketSession session, UUID userId) {
+        try {
+            events.publishTo(session, snapshots.snapshotOf(userId));
+        } catch (RuntimeException e) {
+            log.error("연결 스냅샷 전송 실패", e);
+        }
     }
 
     private UUID userIdOf(WebSocketSession session) {

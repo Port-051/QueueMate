@@ -55,6 +55,19 @@ public class RealtimeEventPublisher {
         });
     }
 
+    /**
+     * 한 세션에만 보낸다. 연결 직후 스냅샷처럼 방금 붙은 탭에만 필요한 경우에 쓴다.
+     * 사용자 단위로 보내면 이미 상태를 갖고 있는 다른 탭까지 다시 그린다.
+     */
+    public boolean publishTo(WebSocketSession session, ServerEvent event) {
+        try {
+            return send(session, objectMapper.writeValueAsString(event));
+        } catch (JsonProcessingException e) {
+            log.error("이벤트 직렬화 실패 type={}", event.type(), e);
+            return false;
+        }
+    }
+
     public void publish(Collection<UUID> userIds, ServerEvent event) {
         String payload;
         try {
