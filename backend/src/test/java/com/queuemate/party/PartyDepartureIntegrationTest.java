@@ -6,7 +6,10 @@ import com.queuemate.party.domain.PartyStatus;
 import com.queuemate.party.repository.PartyMemberRepository;
 import com.queuemate.party.repository.PartyRepository;
 import com.queuemate.party.service.PartyDepartureService;
+import com.queuemate.party.service.PartyLifecycleService;
 import com.queuemate.party.service.PartyService;
+import com.queuemate.realtime.presence.DepartureGracePolicy;
+import com.queuemate.realtime.presence.PresenceProperties;
 import com.queuemate.user.domain.User;
 import com.queuemate.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,6 +64,9 @@ class PartyDepartureIntegrationTest {
 
     @Autowired PartyService partyService;
     @Autowired PartyDepartureService departures;
+    @Autowired PartyLifecycleService lifecycle;
+    @Autowired DepartureGracePolicy grace;
+    @Autowired PresenceProperties presence;
     @Autowired PartyRepository parties;
     @Autowired PartyMemberRepository partyMembers;
     @Autowired UserRepository users;
@@ -229,6 +235,62 @@ class PartyDepartureIntegrationTest {
     }
 
     @Test
+    void 파티가_없으면_기본_유예를_받는다() {
+        UUID a = user("alpha");
+
+        assertEquals(presence.departureGrace(), grace.graceFor(a));
+    }
+
+    @Test
+    void 준비가_끝난_파티는_유예가_길어진다() {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        UUID partyId = party(2, a, b);
+        assertEquals(presence.departureGrace(), grace.graceFor(a));
+
+        partyService.changeReady(partyId, a, true);
+        partyService.changeReady(partyId, b, true);
+
+        // 전원이 합의한 뒤에 내보내면 다 만들어진 파티가 깨진다.
+        assertEquals(presence.readyGrace(), grace.graceFor(a));
+    }
+
+    @Test
+    void 게임_중이면_가장_긴_유예를_받는다() {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        UUID partyId = playingParty(a, b);
+        assertEquals(PartyStatus.PLAYING, parties.findById(partyId).orElseThrow().getStatus());
+
+        // 게임 중에 10초로 내보내면 진행 중인 게임의 음성 채널이 사라진다.
+        assertEquals(presence.playingGrace(), grace.graceFor(a));
+    }
+
+    @Test
+    void 여러_파티에_걸쳐_있으면_가장_긴_유예를_따른다() {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        UUID c = user("charlie");
+        playingParty(a, b);
+        party(2, a, c);
+
+        // 짧은 쪽을 따르면 게임 중인 파티에서 먼저 빠지게 된다.
+        assertEquals(presence.playingGrace(), grace.graceFor(a));
+    }
+
+    @Test
+    void 파티가_닫히면_다시_기본_유예로_돌아간다() {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        UUID partyId = playingParty(a, b);
+
+        departures.leave(partyId, b);
+
+        assertEquals(PartyStatus.CLOSED, parties.findById(partyId).orElseThrow().getStatus());
+        assertEquals(presence.departureGrace(), grace.graceFor(a));
+    }
+
+    @Test
     void 나가기_요청은_유예_없이_즉시_처리된다() {
         UUID a = user("alpha");
         UUID b = user("bravo");
@@ -275,6 +337,15 @@ class PartyDepartureIntegrationTest {
 
     private UUID user(String nickname) {
         return users.save(User.create(nickname + "@queuemate.dev", "hash", nickname)).getId();
+    }
+
+    private UUID playingParty(UUID a, UUID b) {
+        UUID partyId = party(2, a, b);
+        partyService.changeReady(partyId, a, true);
+        partyService.changeReady(partyId, b, true);
+        OffsetDateTime now = OffsetDateTime.now().plusMinutes(5);
+        lifecycle.startPlaying(partyId, now.minusMinutes(2), now);
+        return partyId;
     }
 
     private UUID party(int size, UUID... members) {

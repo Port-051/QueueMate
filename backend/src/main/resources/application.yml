@@ -33,8 +33,12 @@ queuemate:
     max-play-seconds: ${MAX_PLAY_SECONDS:21600}
     sweep-ms: ${PARTY_SWEEP_MS:30000}
   presence:
-    # 연결이 끊긴 뒤 이탈로 판정하기까지 기다리는 시간. 근거는 PresenceProperties 주석에 있다.
+    # 연결이 끊긴 뒤 이탈로 판정하기까지 기다리는 시간. 파티 상태마다 다르다.
+    # 게임 전은 기다리는 비용이 크고, 게임 중은 잘못 내보내는 비용이 크다.
+    # 세 값의 근거는 PresenceProperties 주석에 있다.
     departure-grace-seconds: ${DEPARTURE_GRACE_SECONDS:10}
+    ready-grace-seconds: ${READY_GRACE_SECONDS:60}
+    playing-grace-seconds: ${PLAYING_GRACE_SECONDS:300}
     sweep-ms: ${DEPARTURE_SWEEP_MS:10000}
 
 # 로그 레벨/포맷은 logback-spring.xml이 프로파일별로 정한다.

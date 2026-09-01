@@ -4,6 +4,7 @@ import com.queuemate.common.logging.MdcKeys;
 import com.queuemate.common.matching.MatchRequeuePort;
 import com.queuemate.party.domain.Party;
 import com.queuemate.party.domain.PartyMember;
+import com.queuemate.party.domain.PartyStatus;
 import com.queuemate.party.repository.PartyMemberRepository;
 import com.queuemate.party.repository.PartyRepository;
 import com.queuemate.realtime.event.EventType;
@@ -62,6 +63,12 @@ public class PartyDepartureService {
     @Transactional(readOnly = true)
     public List<UUID> openPartyIdsOf(UUID userId) {
         return partyMembers.findOpenPartyIdsOf(userId);
+    }
+
+    /** 끝나지 않은 파티들의 상태. 이탈 유예를 얼마나 줄지 정하는 데 쓴다. */
+    @Transactional(readOnly = true)
+    public List<PartyStatus> openPartyStatusesOf(UUID userId) {
+        return partyMembers.findOpenPartyStatusesOf(userId);
     }
 
     @Transactional

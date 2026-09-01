@@ -2,8 +2,8 @@ package com.queuemate.realtime.ws;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.queuemate.common.logging.MdcKeys;
+import com.queuemate.realtime.presence.DepartureGracePolicy;
 import com.queuemate.realtime.presence.DeparturePendingStore;
-import com.queuemate.realtime.presence.PresenceProperties;
 import com.queuemate.realtime.event.RealtimeEventPublisher;
 import com.queuemate.realtime.session.SessionRegistry;
 import com.queuemate.realtime.session.SessionSnapshotAssembler;
@@ -34,19 +34,19 @@ public class QueueMateWebSocketHandler extends TextWebSocketHandler {
     private final SessionRegistry sessions;
     private final SignalRelayService signals;
     private final DeparturePendingStore departures;
-    private final PresenceProperties presence;
+    private final DepartureGracePolicy grace;
     private final SessionSnapshotAssembler snapshots;
     private final RealtimeEventPublisher events;
     private final ObjectMapper objectMapper;
 
     public QueueMateWebSocketHandler(SessionRegistry sessions, SignalRelayService signals,
-                                     DeparturePendingStore departures, PresenceProperties presence,
+                                     DeparturePendingStore departures, DepartureGracePolicy grace,
                                      SessionSnapshotAssembler snapshots,
                                      RealtimeEventPublisher events, ObjectMapper objectMapper) {
         this.sessions = sessions;
         this.signals = signals;
         this.departures = departures;
-        this.presence = presence;
+        this.grace = grace;
         this.snapshots = snapshots;
         this.events = events;
         this.objectMapper = objectMapper;
@@ -71,7 +71,8 @@ public class QueueMateWebSocketHandler extends TextWebSocketHandler {
         sessions.unregister(userId, session);
         // 탭을 여러 개 열어 둔 경우 하나를 닫아도 아직 접속 중이다. 그때는 예약하지 않는다.
         if (!sessions.isOnline(userId)) {
-            departures.schedule(userId, presence.departureGrace());
+            // 유예는 이 사용자가 어떤 파티에 있느냐에 따라 다르다. 게임 중이면 길게 준다.
+            departures.schedule(userId, grace.graceFor(userId));
         }
         withContext(session, () -> log.info("WebSocket 연결 close code={} reason={} online={}",
                 status.getCode(), status.getReason(), sessions.isOnline(userId)));
