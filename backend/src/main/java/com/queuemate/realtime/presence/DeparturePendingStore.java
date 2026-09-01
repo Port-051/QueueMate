@@ -43,6 +43,25 @@ public class DeparturePendingStore {
         }
     }
 
+    /**
+     * 아직 예약이 없을 때만 잡는다. 주기적인 점검이 쓴다.
+     *
+     * 그냥 schedule을 부르면 안 된다. ZADD가 점수를 덮어써서, 점검이 돌 때마다
+     * 만료 시각이 뒤로 밀린다. 게임 중 유예가 5분인데 점검이 1분마다 돌면
+     * 그 사용자는 영원히 만료되지 않는다.
+     *
+     * @return 이번에 새로 잡았으면 true
+     */
+    public boolean scheduleIfAbsent(UUID userId, Duration grace) {
+        try {
+            return Boolean.TRUE.equals(redis.opsForZSet().addIfAbsent(KEY, userId.toString(),
+                    Instant.now().plus(grace).toEpochMilli()));
+        } catch (DataAccessException e) {
+            log.error("이탈 예약 실패 userId={}", userId, e);
+            return false;
+        }
+    }
+
     /** 돌아왔다. 예약을 취소한다. */
     public void cancel(UUID userId) {
         try {

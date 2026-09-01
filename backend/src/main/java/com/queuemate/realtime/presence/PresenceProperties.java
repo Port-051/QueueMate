@@ -41,10 +41,16 @@ import java.time.Duration;
  * 게임이 끝나고 다들 탭을 닫으면 이 유예가 지난 뒤 파티가 정리된다.
  *
  * @param sweepMs 만료된 이탈 대상을 확인하는 주기. 이 값만큼 판정이 늦어질 수 있다.
+ *
+ * @param reconcileMs 파티 멤버와 접속 여부를 대조하는 주기.
+ *
+ * 정상 경로가 실패했을 때만 무언가를 찾는 수리 작업이다. 서버가 강제 종료되는 일은
+ * 드물기 때문에 자주 돌 이유가 없고, 대신 한 번에 훑는 양이 sweep보다 훨씬 많다.
+ * 이 값만큼 방치된 파티의 정리가 늦어지지만, 아예 안 되던 것에 비하면 상한이 생긴 것이다.
  */
 @ConfigurationProperties(prefix = "queuemate.presence")
 public record PresenceProperties(long departureGraceSeconds, long readyGraceSeconds,
-                                 long playingGraceSeconds, long sweepMs) {
+                                 long playingGraceSeconds, long sweepMs, long reconcileMs) {
 
     public Duration departureGrace() {
         return Duration.ofSeconds(departureGraceSeconds);

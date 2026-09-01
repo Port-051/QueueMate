@@ -6,6 +6,7 @@ import com.queuemate.party.repository.PartyRepository;
 import com.queuemate.party.service.PartyService;
 import com.queuemate.realtime.presence.DeparturePendingStore;
 import com.queuemate.realtime.presence.DepartureSweeper;
+import com.queuemate.realtime.presence.PresenceReconciler;
 import com.queuemate.realtime.session.ClusterPresence;
 import com.queuemate.realtime.session.NodeIdentity;
 import com.queuemate.realtime.session.SessionRegistry;
@@ -43,6 +44,8 @@ import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -79,6 +82,7 @@ class ClusterPresenceIntegrationTest {
     @Autowired NodeIdentity node;
     @Autowired DeparturePendingStore pending;
     @Autowired DepartureSweeper sweeper;
+    @Autowired PresenceReconciler reconciler;
     @Autowired PartyService partyService;
     @Autowired PartyRepository parties;
     @Autowired JwtTokenService tokenService;
@@ -187,7 +191,101 @@ class ClusterPresenceIntegrationTest {
         assertEquals(PartyStatus.CLOSED, parties.findById(partyId).orElseThrow().getStatus());
     }
 
+    // ---- 강제 종료된 서버가 남긴 것 대조 ----
+
+    @Test
+    void 예약이_빠진_오프라인_멤버를_대조로_찾는다() {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        party(a, b);
+        // 서버가 강제로 죽으면 close 콜백이 돌지 않아 예약 자체가 안 걸린다.
+        // 접속 여부는 정확히 오프라인인데 대기 목록에 없어 아무도 꺼내 보지 않는다.
+        assertNull(dueAt(a));
+
+        reconciler.reconcile();
+
+        assertNotNull(dueAt(a), "예약이 채워져야 한다");
+        assertNotNull(dueAt(b));
+    }
+
+    @Test
+    void 접속_중인_사람은_대조로_예약하지_않는다() {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        party(a, b);
+        markOnlineAt(a, UUID.randomUUID(), true);
+
+        reconciler.reconcile();
+
+        assertNull(dueAt(a), "붙어 있는 사람을 예약하면 멀쩡한 파티가 깨진다");
+        assertNotNull(dueAt(b));
+    }
+
+    @Test
+    void 죽은_노드에_붙어_있던_사람은_대조로_잡힌다() {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        party(a, b);
+        markOnlineAt(a, UUID.randomUUID(), false);
+
+        reconciler.reconcile();
+
+        assertNotNull(dueAt(a));
+    }
+
+    @Test
+    void 이미_예약이_있으면_만료_시각을_밀지_않는다() {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        UUID partyId = party(a, b);
+        // 유예가 이미 지난 예약이다. 곧 정리돼야 한다.
+        pending.schedule(a, Duration.ZERO);
+        Double before = dueAt(a);
+
+        reconciler.reconcile();
+
+        // 덮어쓰면 만료 시각이 점검마다 뒤로 밀려 영원히 정리되지 않는다.
+        assertEquals(before, dueAt(a));
+        sweeper.sweep();
+        assertEquals(PartyStatus.CLOSED, parties.findById(partyId).orElseThrow().getStatus());
+    }
+
+    @Test
+    void 끝난_파티의_멤버는_대조_대상이_아니다() {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        UUID partyId = party(a, b);
+        pending.schedule(a, Duration.ZERO);
+        sweeper.sweep();
+        assertEquals(PartyStatus.CLOSED, parties.findById(partyId).orElseThrow().getStatus());
+        redis.delete("qm:party:departure-due");
+
+        reconciler.reconcile();
+
+        // 닫힌 파티까지 계속 훑으면 대조 비용이 누적된 파티 수에 비례해 자란다.
+        assertNull(dueAt(a));
+        assertNull(dueAt(b));
+    }
+
+    @Test
+    void 대조가_채운_예약도_유예를_받는다() {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        UUID partyId = party(a, b);
+
+        reconciler.reconcile();
+        sweeper.sweep();
+
+        // 유예 없이 바로 내보내면, 점검이 도는 순간 끊겨 있던 사람이 즉시 빠진다.
+        assertEquals(PartyStatus.OPEN, parties.findById(partyId).orElseThrow().getStatus());
+    }
+
     // ---- helpers ----
+
+    private Double dueAt(UUID userId) {
+        return redis.opsForZSet().score("qm:party:departure-due", userId.toString());
+    }
+
 
     /** 다른 서버에 붙어 있는 상황을 만든다. alive=false면 그 서버가 죽은 상황이다. */
     private void markOnlineAt(UUID userId, UUID nodeId, boolean alive) {

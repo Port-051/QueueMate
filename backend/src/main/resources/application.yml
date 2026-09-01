@@ -40,6 +40,9 @@ queuemate:
     ready-grace-seconds: ${READY_GRACE_SECONDS:60}
     playing-grace-seconds: ${PLAYING_GRACE_SECONDS:300}
     sweep-ms: ${DEPARTURE_SWEEP_MS:10000}
+    # 파티 멤버와 접속 여부를 대조하는 주기. 서버가 강제 종료되면 이탈 예약 자체가
+    # 안 걸리는데, 그것을 뒤늦게라도 찾아내는 수리 작업이다.
+    reconcile-ms: ${PRESENCE_RECONCILE_MS:60000}
 
 # 로그 레벨/포맷은 logback-spring.xml이 프로파일별로 정한다.
 # 여기에 logging.level.* 을 넣으면 그 설정을 덮어쓰니 넣지 않는다.

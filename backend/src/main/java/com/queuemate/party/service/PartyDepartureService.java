@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -69,6 +70,12 @@ public class PartyDepartureService {
     @Transactional(readOnly = true)
     public List<PartyStatus> openPartyStatusesOf(UUID userId) {
         return partyMembers.findOpenPartyStatusesOf(userId);
+    }
+
+    /** 끝나지 않은 파티에 남아 있는 사람들. 접속 여부와 대조할 대상이다. */
+    @Transactional(readOnly = true)
+    public List<UUID> activeMembersOfOpenParties(int limit) {
+        return partyMembers.findActiveMembersOfOpenParties(Limit.of(limit));
     }
 
     @Transactional

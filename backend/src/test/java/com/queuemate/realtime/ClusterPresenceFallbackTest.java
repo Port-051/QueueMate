@@ -8,9 +8,11 @@ import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -20,6 +22,23 @@ import static org.mockito.Mockito.when;
  * Redis를 못 읽을 때의 답을 고정한다. 통합 테스트로는 컨테이너를 죽여야 해서 흉내로 본다.
  */
 class ClusterPresenceFallbackTest {
+
+    @Test
+    void 확인할_수_없으면_아무도_오프라인으로_보지_않는다() {
+        StringRedisTemplate redis = mock(StringRedisTemplate.class);
+        SetOperations<String, String> setOps = mock(SetOperations.class);
+        when(redis.opsForSet()).thenReturn(setOps);
+        when(setOps.members(anyString())).thenThrow(new QueryTimeoutException("redis down"));
+
+        SessionRegistry sessions = mock(SessionRegistry.class);
+        when(sessions.hasLocalSession(any())).thenReturn(false);
+
+        ClusterPresence presence = new ClusterPresence(redis, sessions, new NodeIdentity());
+
+        // 대조 작업이 이 답을 그대로 믿고 이탈 예약을 잡는다.
+        // 모르는 것을 오프라인으로 답하면 Redis가 잠깐 흔들릴 때 파티가 무더기로 깨진다.
+        assertEquals(0, presence.offlineAmong(List.of(UUID.randomUUID(), UUID.randomUUID())).size());
+    }
 
     @Test
     void 확인할_수_없으면_접속_중으로_본다() {

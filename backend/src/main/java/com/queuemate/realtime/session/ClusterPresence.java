@@ -7,6 +7,10 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -107,6 +111,53 @@ public class ClusterPresence {
             log.warn("접속 여부 확인 실패. 접속 중으로 본다 userId={}", userId);
             return true;
         }
+    }
+
+    /**
+     * 이 중 어느 노드에도 붙어 있지 않은 사람들.
+     *
+     * 사용자마다 isOnline을 부르면 같은 노드의 생존 확인이 사람 수만큼 반복된다.
+     * 한 번의 점검 안에서는 노드의 생사가 바뀌지 않는다고 보고 답을 재사용한다.
+     * 점검 도중에 노드가 죽어도 다음 주기에 잡히므로 손해가 없다.
+     *
+     * 확인할 수 없으면 빈 목록을 준다. 모르는 것을 오프라인으로 답하면
+     * 접속 중인 사용자를 파티에서 내보낸다.
+     */
+    public Set<UUID> offlineAmong(Collection<UUID> userIds) {
+        Set<UUID> offline = new HashSet<>();
+        Map<String, Boolean> nodeAlive = new HashMap<>();
+        for (UUID userId : userIds) {
+            if (sessions.hasLocalSession(userId)) {
+                continue;
+            }
+            try {
+                if (!anyLiveNode(userId, nodeAlive)) {
+                    offline.add(userId);
+                }
+            } catch (DataAccessException e) {
+                log.warn("접속 여부 확인 실패. 점검을 멈춘다 userId={}", userId);
+                return Set.of();
+            }
+        }
+        return offline;
+    }
+
+    private boolean anyLiveNode(UUID userId, Map<String, Boolean> nodeAlive) {
+        Set<String> nodes = redis.opsForSet().members(presenceKey(userId));
+        if (nodes == null || nodes.isEmpty()) {
+            return false;
+        }
+        for (String nodeId : nodes) {
+            if (node.asString().equals(nodeId)) {
+                continue;
+            }
+            if (nodeAlive.computeIfAbsent(nodeId,
+                    id -> Boolean.TRUE.equals(redis.hasKey(nodeKey(id))))) {
+                return true;
+            }
+        }
+        redis.opsForSet().remove(presenceKey(userId), nodes.toArray());
+        return false;
     }
 
     private String presenceKey(UUID userId) {

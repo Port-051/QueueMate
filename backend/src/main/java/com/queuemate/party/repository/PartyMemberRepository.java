@@ -2,6 +2,7 @@ package com.queuemate.party.repository;
 
 import com.queuemate.party.domain.PartyMember;
 import com.queuemate.party.domain.PartyStatus;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -40,4 +41,16 @@ public interface PartyMemberRepository
             + "where m.id.userId = :userId and m.leftAt is null "
             + "and p.id = m.id.partyId and p.status <> com.queuemate.party.domain.PartyStatus.CLOSED")
     List<PartyStatus> findOpenPartyStatusesOf(@Param("userId") UUID userId);
+
+    /**
+     * 끝나지 않은 파티에 아직 남아 있는 사람들. 접속 여부와 대조하는 데 쓴다.
+     *
+     * 오래된 파티부터 준다. 정상 경로가 실패해 방치된 파티는 시간이 지나도 그대로 남으므로,
+     * 한 번에 볼 양을 제한하더라도 문제가 있는 쪽이 먼저 잡힌다.
+     */
+    @Query("select m.id.userId from PartyMember m, Party p "
+            + "where m.leftAt is null and p.id = m.id.partyId "
+            + "and p.status <> com.queuemate.party.domain.PartyStatus.CLOSED "
+            + "group by m.id.userId order by min(p.createdAt) asc")
+    List<UUID> findActiveMembersOfOpenParties(Limit limit);
 }
