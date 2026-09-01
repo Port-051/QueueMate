@@ -128,6 +128,43 @@ Server validates:
 - sender in party
 - target in same party
 
+## 여러 서버에서의 전달
+
+WebSocket session은 그 연결을 받은 서버의 메모리에만 있다. 서버가 여러 대면 다른
+인스턴스에 붙은 사용자에게는 이벤트가 가지 않는다. signaling도 마찬가지라 두 파티원이
+서로 다른 서버에 붙으면 통화가 아예 성립하지 않는다.
+
+서버는 자기 노드 식별자를 갖고, 이벤트를 로컬 session에 보낸 뒤 같은 이벤트를
+Redis 채널로도 발행한다. 다른 노드가 그것을 받아 자기 session에 보낸다.
+발행한 노드는 자기가 보낸 것을 무시한다. 이미 로컬로 보냈기 때문이다.
+
+```text
+qm:ws:fanout             pub/sub 채널. 노드 간 이벤트 전달
+qm:ws:presence:{userId}  SET nodeId. 이 사용자가 붙어 있는 노드들
+qm:ws:node:{nodeId}      STRING + TTL. 노드가 살아 있다는 표시. 주기적으로 갱신
+```
+
+접속 여부는 `qm:ws:presence`와 `qm:ws:node`를 함께 본다. presence에 남아 있어도
+그 노드의 생존 키가 없으면 접속 중이 아니다. 서버가 죽으면 생존 키가 만료되면서
+그 노드의 presence 기록이 한꺼번에 무효가 된다. 사용자마다 정리할 필요가 없다.
+
+Redis가 죽으면 같은 노드에 붙은 사용자에게는 계속 전달하고 노드 간 전달만 멈춘다.
+이벤트는 상태의 소스가 아니라 알림이고, 클라이언트는 재연결 스냅샷과 REST로 복구한다.
+막아도 얻는 것이 없다.
+
+접속 여부는 반대로 판단한다. 확인할 수 없으면 접속 중으로 본다.
+아니라고 잘못 답하면 게임 중인 사용자를 파티에서 내보내고, 그건 되돌릴 수 없다.
+
+envelope는 Server → Client와 같고 전달용 필드가 앞에 붙는다.
+
+```json
+{
+  "nodeId": "uuid",
+  "userIds": ["uuid"],
+  "event": { "type": "PARTY_READY_CHANGED", "eventId": "uuid", "occurredAt": "...", "payload": {} }
+}
+```
+
 ## Not transported over server WebSocket
 - normal party text chat body
 - voice media
