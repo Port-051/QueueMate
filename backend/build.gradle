@@ -22,6 +22,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    // actuator만으로도 MeterRegistry는 생기지만 /actuator/prometheus는 이 레지스트리가 있어야 뜬다.
+    // 코드는 MeterRegistry만 알고 이 구현을 참조하지 않는다.
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
