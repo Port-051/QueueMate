@@ -2,6 +2,7 @@ package com.queuemate.realtime;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.queuemate.common.ratelimit.RateLimiter;
 import com.queuemate.common.security.JwtTokenService;
 import com.queuemate.party.service.PartyService;
 import com.queuemate.realtime.session.SessionRegistry;
@@ -71,6 +72,7 @@ class SignalRelayIntegrationTest {
     @Autowired UserRepository users;
     @Autowired JdbcClient jdbc;
     @Autowired ApplicationContext context;
+    @Autowired RateLimiter rateLimiter;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final List<WebSocketSession> opened = new ArrayList<>();
@@ -218,6 +220,26 @@ class SignalRelayIntegrationTest {
         // 앞 프레임이 깨졌어도 뒤 프레임은 정상 전달된다.
         assertEquals("WEBRTC_SIGNAL", forB.next().get("type").asText());
         assertTrue(fromA.isOpen());
+    }
+
+    @Test
+    void 한도를_넘긴_signal은_상대에게_가지_않는다() throws Exception {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        UUID partyId = party(a, b);
+        WebSocketSession fromA = connect(a, new Collector());
+        Collector forB = new Collector();
+        connect(b, forB);
+        waitForSessions(2);
+
+        // 운영 한도는 300이라 테스트에서 다 채우면 느리다. 같은 창의 카운터를 미리 소진시킨다.
+        for (int i = 0; i < 300; i++) {
+            rateLimiter.tryAcquire("signal", a.toString(), 300, java.time.Duration.ofSeconds(10));
+        }
+        fromA.sendMessage(signal(partyId, b, "ICE", "{}"));
+
+        assertTrue(forB.isEmptyAfterWait(), "한도를 넘겼는데 전달됐다: " + forB.received);
+        assertTrue(fromA.isOpen(), "한도를 넘겼다고 연결을 끊지는 않는다");
     }
 
     @Test

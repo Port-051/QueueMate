@@ -1,6 +1,7 @@
 package com.queuemate.realtime.signal;
 
 import com.queuemate.common.logging.MdcKeys;
+import com.queuemate.common.ratelimit.RateLimiter;
 import com.queuemate.party.service.PartyService;
 import com.queuemate.realtime.event.EventType;
 import com.queuemate.realtime.event.RealtimeEventPublisher;
@@ -10,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,12 +28,29 @@ public class SignalRelayService {
 
     private static final Logger log = LoggerFactory.getLogger(SignalRelayService.class);
 
+    private static final String RATE_SCOPE = "signal";
+    /**
+     * 정상 사용의 최대치를 재서 잡은 값이다.
+     *
+     * 5인 파티에서 한 사람이 보내는 signal은 상대 4명 × (OFFER 또는 ANSWER 1개 +
+     * ICE 후보 약 15개)로 60여 개이고, 파티가 만들어진 직후 몇 초에 몰린다.
+     * 네트워크가 바뀌어 재협상이 일어나면 그만큼 더 든다.
+     *
+     * 창을 좁게 잡으면 이 정상 폭주를 막는다. 창을 10초로 넓게 두고 그 안에서 몰아 쓰게 하되,
+     * 지속적으로 쏟아붓는 것은 막는다. 300개면 정상 최대의 네 배 남짓이다.
+     */
+    private static final int RATE_LIMIT = 300;
+    private static final Duration RATE_WINDOW = Duration.ofSeconds(10);
+
     private final PartyService parties;
     private final RealtimeEventPublisher events;
+    private final RateLimiter rateLimiter;
 
-    public SignalRelayService(PartyService parties, RealtimeEventPublisher events) {
+    public SignalRelayService(PartyService parties, RealtimeEventPublisher events,
+                              RateLimiter rateLimiter) {
         this.parties = parties;
         this.events = events;
+        this.rateLimiter = rateLimiter;
     }
 
     /**
@@ -46,6 +65,12 @@ public class SignalRelayService {
         }
         if (!message.hasRequiredFields()) {
             log.debug("형식이 맞지 않는 signal signalType={}", message.signalType());
+            return false;
+        }
+        if (!rateLimiter.tryAcquire(RATE_SCOPE, senderId.toString(), RATE_LIMIT, RATE_WINDOW)) {
+            // 파티 소속 확인보다 먼저 본다. 소속 확인은 DB를 읽으므로,
+            // 쏟아붓는 요청에 DB 조회가 딸려가면 막으려던 것을 그대로 겪는다.
+            log.warn("signal rate limit 초과");
             return false;
         }
         if (!parties.bothActiveMembers(message.partyId(), senderId, message.targetUserId())) {
