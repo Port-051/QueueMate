@@ -1,7 +1,10 @@
 package com.queuemate.realtime.ws;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.queuemate.common.logging.MdcKeys;
 import com.queuemate.realtime.session.SessionRegistry;
+import com.queuemate.realtime.signal.ClientMessage;
+import com.queuemate.realtime.signal.SignalRelayService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -25,9 +28,14 @@ public class QueueMateWebSocketHandler extends TextWebSocketHandler {
     private static final Logger log = LoggerFactory.getLogger(QueueMateWebSocketHandler.class);
 
     private final SessionRegistry sessions;
+    private final SignalRelayService signals;
+    private final ObjectMapper objectMapper;
 
-    public QueueMateWebSocketHandler(SessionRegistry sessions) {
+    public QueueMateWebSocketHandler(SessionRegistry sessions, SignalRelayService signals,
+                                     ObjectMapper objectMapper) {
         this.sessions = sessions;
+        this.signals = signals;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -48,10 +56,18 @@ public class QueueMateWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
-        // client → server는 WEBRTC_SIGNAL만 허용된다 (contracts/events.md).
-        // signaling relay는 아직 없다. 그전까지 들어온 메시지는 버린다.
-        withContext(session, () -> log.debug("client 메시지 수신 bytes={}",
-                message.getPayloadLength()));
+        withContext(session, () -> {
+            ClientMessage parsed;
+            try {
+                parsed = objectMapper.readValue(message.getPayload(), ClientMessage.class);
+            } catch (Exception e) {
+                // 깨진 JSON으로 연결을 끊지는 않는다. 한 프레임이 잘못됐다고
+                // 통화 중인 세션을 죽이면 손해가 더 크다.
+                log.debug("해석할 수 없는 client 메시지 bytes={}", message.getPayloadLength());
+                return;
+            }
+            signals.relay(userIdOf(session), parsed);
+        });
     }
 
     @Override

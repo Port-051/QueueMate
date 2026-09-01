@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -143,6 +144,18 @@ public class PartyService implements PartyCreationPort {
                         "ready", ready,
                         "status", party.getStatus().name())));
         return new PartyDetail(party, members);
+    }
+
+    /**
+     * 두 사람이 모두 이 파티에 남아 있는가. WebRTC signaling relay가 쓴다.
+     * 파티 상태(OPEN/READY/PLAYING)는 보지 않는다. 준비 중에도 통화는 가능해야 한다.
+     */
+    @Transactional(readOnly = true)
+    public boolean bothActiveMembers(UUID partyId, UUID one, UUID other) {
+        if (one.equals(other)) {
+            return false;
+        }
+        return partyMembers.countActiveMembers(partyId, Set.of(one, other)) == 2;
     }
 
     /** 멤버가 아니면 파티의 존재 자체를 알리지 않는다. */
