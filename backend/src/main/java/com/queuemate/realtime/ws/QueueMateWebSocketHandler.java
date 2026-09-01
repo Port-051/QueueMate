@@ -2,6 +2,8 @@ package com.queuemate.realtime.ws;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.queuemate.common.logging.MdcKeys;
+import com.queuemate.realtime.presence.DeparturePendingStore;
+import com.queuemate.realtime.presence.PresenceProperties;
 import com.queuemate.realtime.session.SessionRegistry;
 import com.queuemate.realtime.signal.ClientMessage;
 import com.queuemate.realtime.signal.SignalRelayService;
@@ -29,12 +31,17 @@ public class QueueMateWebSocketHandler extends TextWebSocketHandler {
 
     private final SessionRegistry sessions;
     private final SignalRelayService signals;
+    private final DeparturePendingStore departures;
+    private final PresenceProperties presence;
     private final ObjectMapper objectMapper;
 
     public QueueMateWebSocketHandler(SessionRegistry sessions, SignalRelayService signals,
+                                     DeparturePendingStore departures, PresenceProperties presence,
                                      ObjectMapper objectMapper) {
         this.sessions = sessions;
         this.signals = signals;
+        this.departures = departures;
+        this.presence = presence;
         this.objectMapper = objectMapper;
     }
 
@@ -42,6 +49,8 @@ public class QueueMateWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionEstablished(WebSocketSession session) {
         UUID userId = userIdOf(session);
         sessions.register(userId, session);
+        // 돌아왔으니 예약된 이탈 처리를 취소한다.
+        departures.cancel(userId);
         withContext(session, () -> log.info("WebSocket 연결 open sessions={}",
                 sessions.sessionsOf(userId).size()));
     }
@@ -50,8 +59,12 @@ public class QueueMateWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         UUID userId = userIdOf(session);
         sessions.unregister(userId, session);
-        withContext(session, () -> log.info("WebSocket 연결 close code={} reason={}",
-                status.getCode(), status.getReason()));
+        // 탭을 여러 개 열어 둔 경우 하나를 닫아도 아직 접속 중이다. 그때는 예약하지 않는다.
+        if (!sessions.isOnline(userId)) {
+            departures.schedule(userId, presence.departureGrace());
+        }
+        withContext(session, () -> log.info("WebSocket 연결 close code={} reason={} online={}",
+                status.getCode(), status.getReason(), sessions.isOnline(userId)));
     }
 
     @Override

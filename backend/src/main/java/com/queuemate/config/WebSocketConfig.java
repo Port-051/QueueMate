@@ -3,6 +3,8 @@ package com.queuemate.config;
 import com.queuemate.realtime.ws.QueueMateHandshakeHandler;
 import com.queuemate.realtime.ws.QueueMateWebSocketHandler;
 import com.queuemate.realtime.ws.WebSocketAuthInterceptor;
+import com.queuemate.realtime.presence.PresenceProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean;
@@ -12,6 +14,7 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 
 @Configuration
 @EnableWebSocket
+@EnableConfigurationProperties(PresenceProperties.class)
 public class WebSocketConfig implements WebSocketConfigurer {
 
     private final QueueMateWebSocketHandler handler;

@@ -25,6 +25,10 @@ queuemate:
     ttl-seconds: ${PROPOSAL_TTL_SECONDS:20}
   reservation:
     sweep-ms: ${RESERVATION_SWEEP_MS:30000}
+  presence:
+    # 연결이 끊긴 뒤 이탈로 판정하기까지 기다리는 시간. 근거는 PresenceProperties 주석에 있다.
+    departure-grace-seconds: ${DEPARTURE_GRACE_SECONDS:30}
+    sweep-ms: ${DEPARTURE_SWEEP_MS:10000}
 
 # 로그 레벨/포맷은 logback-spring.xml이 프로파일별로 정한다.
 # 여기에 logging.level.* 을 넣으면 그 설정을 덮어쓰니 넣지 않는다.
