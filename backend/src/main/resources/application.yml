@@ -27,7 +27,7 @@ queuemate:
     sweep-ms: ${RESERVATION_SWEEP_MS:30000}
   presence:
     # 연결이 끊긴 뒤 이탈로 판정하기까지 기다리는 시간. 근거는 PresenceProperties 주석에 있다.
-    departure-grace-seconds: ${DEPARTURE_GRACE_SECONDS:30}
+    departure-grace-seconds: ${DEPARTURE_GRACE_SECONDS:10}
     sweep-ms: ${DEPARTURE_SWEEP_MS:10000}
 
 # 로그 레벨/포맷은 logback-spring.xml이 프로파일별로 정한다.
