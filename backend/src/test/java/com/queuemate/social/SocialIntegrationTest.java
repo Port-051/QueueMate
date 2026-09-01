@@ -301,6 +301,18 @@ class SocialIntegrationTest {
     }
 
     @Test
+    void recentPlayersExcludePartiesThatNeverStarted() {
+        UUID me = user("me");
+        UUID neverPlayed = user("neverPlayed");
+
+        // 준비 중에 한 명이 나가 깨진 파티다. 닫히기는 했지만 함께 플레이한 적은 없다.
+        abandonedPartyWith(me, neverPlayed);
+
+        assertTrue(recentPlayerService.recentPlayers(me, 20).isEmpty(),
+                "게임에 들어간 적 없는 파티는 최근 함께한 사람이 아니다");
+    }
+
+    @Test
     void recentPlayersMarkFriendsAndCountPlays() {
         UUID me = user("me");
         UUID mate = user("mate");
@@ -325,15 +337,20 @@ class SocialIntegrationTest {
     }
 
     private void closedPartyWith(UUID... members) {
-        party("CLOSED", members);
+        party("CLOSED", true, members);
+    }
+
+    /** 준비 단계에서 깨진 파티. 닫히긴 했지만 함께 게임을 한 적은 없다. */
+    private void abandonedPartyWith(UUID... members) {
+        party("CLOSED", false, members);
     }
 
     private void openPartyWith(UUID... members) {
-        party("OPEN", members);
+        party("OPEN", false, members);
     }
 
     /** 파티 엔티티는 Phase 3 소관이라 여기서는 행을 직접 넣는다. */
-    private void party(String status, UUID... members) {
+    private void party(String status, boolean played, UUID... members) {
         UUID proposalId = UUID.randomUUID();
         jdbc.sql("""
                 INSERT INTO match_proposals (id, source_type, status, expires_at, confirmed_at)
@@ -341,9 +358,13 @@ class SocialIntegrationTest {
                 """).param(proposalId).update();
         UUID partyId = UUID.randomUUID();
         jdbc.sql("""
-                INSERT INTO parties (id, proposal_id, game_key, mode_key, target_size, status, closed_at)
-                VALUES (?, ?, 'LOL', 'SOLO_DUO_RANKED', 2, ?, CASE WHEN ? = 'CLOSED' THEN now() END)
-                """).param(partyId).param(proposalId).param(status).param(status).update();
+                INSERT INTO parties (id, proposal_id, game_key, mode_key, target_size, status,
+                                     closed_at, played_at)
+                VALUES (?, ?, 'LOL', 'SOLO_DUO_RANKED', 2, ?,
+                        CASE WHEN ? = 'CLOSED' THEN now() END,
+                        CASE WHEN ? THEN now() END)
+                """).param(partyId).param(proposalId).param(status).param(status)
+                .param(played).update();
         for (UUID member : members) {
             jdbc.sql("INSERT INTO party_members (party_id, user_id) VALUES (?, ?)")
                     .param(partyId).param(member).update();

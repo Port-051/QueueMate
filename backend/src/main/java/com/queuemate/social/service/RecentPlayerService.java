@@ -11,6 +11,10 @@ import java.util.UUID;
 /**
  * 완료된 party history에서 직접 조회한다. 별도 테이블을 만들지 않는다 (docs/06).
  * 파티 엔티티는 Phase 3 소관이라 여기서는 읽기 전용 질의로만 접근한다.
+ *
+ * 닫혔다는 것만으로는 부족하다. 준비 단계에서 한 명이 나가 깨진 파티도 닫힌다.
+ * 함께 게임을 한 적이 없는 사람이 최근 함께한 사람에 뜨면 안 되므로
+ * 게임에 들어간 적이 있는 파티만 센다. 그 근거가 played_at이다.
  */
 @Service
 public class RecentPlayerService {
@@ -33,6 +37,7 @@ public class RecentPlayerService {
               JOIN users u          ON u.id = mate.user_id
              WHERE me.user_id = :userId
                AND p.status = 'CLOSED'
+               AND p.played_at IS NOT NULL
                AND u.status = 'ACTIVE'
                AND NOT EXISTS (
                    SELECT 1 FROM blocks b
