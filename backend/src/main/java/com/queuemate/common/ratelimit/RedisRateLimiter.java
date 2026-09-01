@@ -41,19 +41,40 @@ public class RedisRateLimiter implements RateLimiter {
     }
 
     @Override
-    public boolean tryAcquire(String scope, String identity, int limit, Duration window) {
-        long windowMillis = window.toMillis();
-        String key = "qm:rate:%s:%s:%d".formatted(
-                scope, identity, System.currentTimeMillis() / windowMillis);
+    public boolean tryAcquire(String scope, String identity, int limit, Duration window,
+                              OnUnavailable onUnavailable) {
         try {
-            Long count = redis.execute(INCREMENT, List.of(key), String.valueOf(windowMillis));
+            Long count = redis.execute(INCREMENT, List.of(key(scope, identity, window)),
+                    String.valueOf(window.toMillis()));
             return count == null || count <= limit;
         } catch (DataAccessException e) {
-            // fail-open이다. INV-10의 fail-closed는 매칭 정합성에 대한 규칙이고,
-            // 여기서 막으면 Redis 장애가 통화 중인 사용자의 연결까지 끊는다.
-            // 남용 방어를 잠깐 잃는 쪽이 서비스를 잃는 쪽보다 낫다.
+            return whenUnavailable(scope, onUnavailable, e);
+        }
+    }
+
+    @Override
+    public void reset(String scope, String identity, Duration window) {
+        try {
+            redis.delete(key(scope, identity, window));
+        } catch (DataAccessException e) {
+            // 못 지워도 창이 지나면 사라진다. 실패를 올려서 로그인 성공을 되돌릴 이유가 없다.
+            log.warn("rate limit 초기화 실패 scope={}", scope);
+        }
+    }
+
+    private boolean whenUnavailable(String scope, OnUnavailable policy, DataAccessException e) {
+        if (policy == OnUnavailable.ALLOW) {
             log.warn("rate limit 확인 실패, 통과시킨다 scope={}", scope);
             return true;
         }
+        // 통과시키면 방어가 통째로 사라지는 자리다. 서비스가 멈추더라도 막는다.
+        log.error("rate limit 확인 실패, 거절한다 scope={}", scope);
+        throw new RateLimitUnavailableException(scope, e);
+    }
+
+    private String key(String scope, String identity, Duration window) {
+        long windowMillis = window.toMillis();
+        return "qm:rate:%s:%s:%d".formatted(
+                scope, identity, System.currentTimeMillis() / windowMillis);
     }
 }

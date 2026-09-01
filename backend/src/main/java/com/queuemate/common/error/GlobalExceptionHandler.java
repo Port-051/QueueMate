@@ -43,6 +43,13 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse("UNAUTHORIZED", "인증에 실패했다"));
     }
 
+    /** 한도 초과. 어느 기준에 걸렸는지는 알리지 않는다. */
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<ErrorResponse> handleTooManyRequests(TooManyRequestsException e) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(new ErrorResponse(e.getCode(), e.getMessage()));
+    }
+
     /** 인프라 장애 시 fail-closed. 임의로 통과시키지 않는다. */
     @ExceptionHandler(ServiceUnavailableException.class)
     public ResponseEntity<ErrorResponse> handleStoreUnavailable(ServiceUnavailableException e) {

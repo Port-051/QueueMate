@@ -67,7 +67,8 @@ public class SignalRelayService {
             log.debug("형식이 맞지 않는 signal signalType={}", message.signalType());
             return false;
         }
-        if (!rateLimiter.tryAcquire(RATE_SCOPE, senderId.toString(), RATE_LIMIT, RATE_WINDOW)) {
+        if (!rateLimiter.tryAcquire(RATE_SCOPE, senderId.toString(), RATE_LIMIT, RATE_WINDOW,
+                RateLimiter.OnUnavailable.ALLOW)) {
             // 파티 소속 확인보다 먼저 본다. 소속 확인은 DB를 읽으므로,
             // 쏟아붓는 요청에 DB 조회가 딸려가면 막으려던 것을 그대로 겪는다.
             log.warn("signal rate limit 초과");

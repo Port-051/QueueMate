@@ -236,7 +236,8 @@ class SignalRelayIntegrationTest {
 
         // 운영 한도는 300이라 테스트에서 다 채우면 느리다. 같은 창의 카운터를 미리 소진시킨다.
         for (int i = 0; i < 300; i++) {
-            rateLimiter.tryAcquire("signal", a.toString(), 300, java.time.Duration.ofSeconds(10));
+            rateLimiter.tryAcquire("signal", a.toString(), 300, java.time.Duration.ofSeconds(10),
+                    RateLimiter.OnUnavailable.ALLOW);
         }
         fromA.sendMessage(signal(partyId, b, "ICE", "{}"));
 
