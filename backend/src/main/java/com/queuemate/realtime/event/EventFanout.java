@@ -1,6 +1,7 @@
 package com.queuemate.realtime.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.queuemate.common.metrics.QueueMateMetrics;
 import com.queuemate.realtime.session.NodeIdentity;
 import com.queuemate.realtime.session.SessionMessageSender;
 import org.slf4j.Logger;
@@ -39,13 +40,16 @@ public class EventFanout implements MessageListener {
     private final ObjectMapper objectMapper;
     private final NodeIdentity node;
     private final SessionMessageSender sender;
+    private final QueueMateMetrics metrics;
 
     public EventFanout(StringRedisTemplate redis, ObjectMapper objectMapper,
-                       NodeIdentity node, SessionMessageSender sender) {
+                       NodeIdentity node, SessionMessageSender sender,
+                       QueueMateMetrics metrics) {
         this.redis = redis;
         this.objectMapper = objectMapper;
         this.node = node;
         this.sender = sender;
+        this.metrics = metrics;
     }
 
     /**
@@ -93,6 +97,9 @@ public class EventFanout implements MessageListener {
             return;
         }
         int delivered = sender.deliver(received.userIds(), payload);
+        // 원격 비중이 곧 노드 간 전달이 실제로 필요한 정도다. 0에 가까우면
+        // 같은 파티원이 같은 노드에 몰린다는 뜻이라 방송 비용을 다시 볼 근거가 된다.
+        metrics.eventDelivered("REMOTE", delivered);
         if (delivered > 0) {
             log.debug("다른 노드의 이벤트 전달 type={} from={} delivered={}",
                     received.event().type(), received.nodeId(), delivered);

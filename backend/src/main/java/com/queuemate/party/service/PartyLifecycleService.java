@@ -1,6 +1,7 @@
 package com.queuemate.party.service;
 
 import com.queuemate.common.logging.MdcKeys;
+import com.queuemate.common.metrics.QueueMateMetrics;
 import com.queuemate.party.domain.Party;
 import com.queuemate.party.domain.PartyMember;
 import com.queuemate.party.repository.PartyMemberRepository;
@@ -41,12 +42,14 @@ public class PartyLifecycleService {
     private final PartyRepository parties;
     private final PartyMemberRepository partyMembers;
     private final RealtimeEventPublisher events;
+    private final QueueMateMetrics metrics;
 
     public PartyLifecycleService(PartyRepository parties, PartyMemberRepository partyMembers,
-                                 RealtimeEventPublisher events) {
+                                 RealtimeEventPublisher events, QueueMateMetrics metrics) {
         this.parties = parties;
         this.partyMembers = partyMembers;
         this.events = events;
+        this.metrics = metrics;
     }
 
     @Transactional(readOnly = true)
@@ -81,6 +84,7 @@ public class PartyLifecycleService {
         MDC.put(MdcKeys.STATE_FROM, "READY");
         MDC.put(MdcKeys.STATE_TO, "PLAYING");
         log.info("게임 시작으로 판정 readyAt={} 인원={}", party.getReadyAt(), members.size());
+        metrics.partyStartedPlaying();
         MDC.remove(MdcKeys.STATE_FROM);
         MDC.remove(MdcKeys.STATE_TO);
 
@@ -109,6 +113,7 @@ public class PartyLifecycleService {
         List<UUID> members = activeMemberIds(partyId);
         MDC.put(MdcKeys.PARTY_ID, partyId.toString());
         log.info("방치된 파티 종료 playedAt={} 인원={}", party.getPlayedAt(), members.size());
+        metrics.partyClosed("PLAY_TIMEOUT");
 
         events.publishAfterCommit(members, ServerEvent.of(EventType.PARTY_CLOSED, Map.of(
                 "partyId", partyId,

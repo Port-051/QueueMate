@@ -1,6 +1,7 @@
 package com.queuemate.realtime.presence;
 
 import com.queuemate.common.logging.MdcKeys;
+import com.queuemate.common.metrics.QueueMateMetrics;
 import com.queuemate.party.service.PartyDepartureService;
 import com.queuemate.realtime.session.ClusterPresence;
 import org.slf4j.Logger;
@@ -25,12 +26,14 @@ public class DepartureSweeper {
     private final DeparturePendingStore pending;
     private final ClusterPresence presence;
     private final PartyDepartureService departures;
+    private final QueueMateMetrics metrics;
 
     public DepartureSweeper(DeparturePendingStore pending, ClusterPresence presence,
-                            PartyDepartureService departures) {
+                            PartyDepartureService departures, QueueMateMetrics metrics) {
         this.pending = pending;
         this.presence = presence;
         this.departures = departures;
+        this.metrics = metrics;
     }
 
     @Scheduled(fixedDelayString = "${queuemate.presence.sweep-ms}")
@@ -50,6 +53,7 @@ public class DepartureSweeper {
                 }
                 if (left > 0) {
                     log.info("연결이 돌아오지 않아 파티에서 내보냈다 parties={}", left);
+                    metrics.departureEvicted();
                 }
             } catch (RuntimeException e) {
                 // 한 사용자의 실패가 나머지 처리를 막지 않는다.

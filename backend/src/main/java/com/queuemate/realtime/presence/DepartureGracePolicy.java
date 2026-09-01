@@ -1,5 +1,6 @@
 package com.queuemate.realtime.presence;
 
+import com.queuemate.common.metrics.QueueMateMetrics;
 import com.queuemate.party.domain.PartyStatus;
 import com.queuemate.party.service.PartyDepartureService;
 import org.slf4j.Logger;
@@ -26,10 +27,13 @@ public class DepartureGracePolicy {
 
     private final PartyDepartureService departures;
     private final PresenceProperties presence;
+    private final QueueMateMetrics metrics;
 
-    public DepartureGracePolicy(PartyDepartureService departures, PresenceProperties presence) {
+    public DepartureGracePolicy(PartyDepartureService departures, PresenceProperties presence,
+                                QueueMateMetrics metrics) {
         this.departures = departures;
         this.presence = presence;
+        this.metrics = metrics;
     }
 
     public Duration graceFor(UUID userId) {
@@ -40,15 +44,20 @@ public class DepartureGracePolicy {
             // 조회가 실패했다고 이탈 예약 자체를 건너뛰면 파티가 영영 안 닫힌다.
             // 가장 긴 유예로 물러선다. 오래 기다리는 쪽이 잘못 내보내는 쪽보다 싸다.
             log.warn("파티 상태 조회 실패. 가장 긴 유예로 처리한다 userId={}", userId);
+            metrics.departureGraceChosen("UNKNOWN");
             return presence.playingGrace();
         }
         Duration grace = presence.departureGrace();
+        PartyStatus chosen = null;
         for (PartyStatus status : statuses) {
             Duration candidate = graceFor(status);
             if (candidate.compareTo(grace) > 0) {
                 grace = candidate;
+                chosen = status;
             }
         }
+        // 어느 단계가 실제로 쓰이는지가 유예를 나눈 판단이 맞는지 보는 유일한 창이다.
+        metrics.departureGraceChosen(chosen == null ? "NONE" : chosen.name());
         return grace;
     }
 

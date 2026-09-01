@@ -1,5 +1,6 @@
 package com.queuemate.common.ratelimit;
 
+import com.queuemate.common.metrics.QueueMateMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -35,9 +36,11 @@ public class RedisRateLimiter implements RateLimiter {
             """, Long.class);
 
     private final StringRedisTemplate redis;
+    private final QueueMateMetrics metrics;
 
-    public RedisRateLimiter(StringRedisTemplate redis) {
+    public RedisRateLimiter(StringRedisTemplate redis, QueueMateMetrics metrics) {
         this.redis = redis;
+        this.metrics = metrics;
     }
 
     @Override
@@ -46,7 +49,12 @@ public class RedisRateLimiter implements RateLimiter {
         try {
             Long count = redis.execute(INCREMENT, List.of(key(scope, identity, window)),
                     String.valueOf(window.toMillis()));
-            return count == null || count <= limit;
+            boolean allowed = count == null || count <= limit;
+            if (!allowed) {
+                // scope별로 센다. identity를 태그로 넣으면 시계열이 사용자 수만큼 늘어난다.
+                metrics.rateLimitRejected(scope);
+            }
+            return allowed;
         } catch (DataAccessException e) {
             return whenUnavailable(scope, onUnavailable, e);
         }
@@ -63,6 +71,9 @@ public class RedisRateLimiter implements RateLimiter {
     }
 
     private boolean whenUnavailable(String scope, OnUnavailable policy, DataAccessException e) {
+        // 장애가 어느 기능에 어떤 방향으로 닿았는지 남긴다. 같은 Redis 장애라도
+        // 통과시킨 자리와 거절한 자리는 사후에 완전히 다르게 읽어야 한다.
+        metrics.rateLimitUnavailable(scope, policy.name());
         if (policy == OnUnavailable.ALLOW) {
             log.warn("rate limit 확인 실패, 통과시킨다 scope={}", scope);
             return true;

@@ -3,6 +3,7 @@ package com.queuemate.common.ratelimit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.RedisConnectionFailureException;
+import com.queuemate.common.metrics.QueueMateMetrics;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.testcontainers.containers.GenericContainer;
@@ -33,6 +34,9 @@ class RedisRateLimiterTest {
             new GenericContainer<>("redis:7-alpine").withExposedPorts(6379);
 
     private RedisRateLimiter limiter;
+    /** 지표는 여기서 재는 대상이 아니다. 값을 버리는 레지스트리로 둔다. */
+    private final QueueMateMetrics metrics =
+            new QueueMateMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
     private StringRedisTemplate redis;
 
     @BeforeEach
@@ -42,7 +46,7 @@ class RedisRateLimiterTest {
         factory.afterPropertiesSet();
         redis = new StringRedisTemplate(factory);
         redis.afterPropertiesSet();
-        limiter = new RedisRateLimiter(redis);
+        limiter = new RedisRateLimiter(redis, metrics);
     }
 
     @Test
@@ -118,7 +122,7 @@ class RedisRateLimiterTest {
                 .thenThrow(new RedisConnectionFailureException("down"));
 
         // fail-open이다. 여기서 막으면 Redis 장애가 통화 중인 연결까지 끊는다.
-        assertTrue(new RedisRateLimiter(broken)
+        assertTrue(new RedisRateLimiter(broken, metrics)
                 .tryAcquire("signal", "user", 1, Duration.ofSeconds(10), ALLOW));
     }
 
@@ -129,7 +133,7 @@ class RedisRateLimiterTest {
                 .thenThrow(new RedisConnectionFailureException("down"));
 
         // 로그인처럼 통과시키면 방어가 통째로 사라지는 자리다.
-        assertThrows(RateLimitUnavailableException.class, () -> new RedisRateLimiter(broken)
+        assertThrows(RateLimitUnavailableException.class, () -> new RedisRateLimiter(broken, metrics)
                 .tryAcquire("login", "user", 1, Duration.ofSeconds(10), REJECT));
     }
 

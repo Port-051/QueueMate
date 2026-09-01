@@ -3,6 +3,8 @@ package com.queuemate.party.service;
 import com.queuemate.common.error.ConflictException;
 import com.queuemate.common.error.NotFoundException;
 import com.queuemate.common.logging.MdcKeys;
+import com.queuemate.common.metrics.QueueMateMetrics;
+import com.queuemate.common.metrics.QueueMateMetrics.Invariant;
 import com.queuemate.common.party.PartyCreationConflictException;
 import com.queuemate.common.party.PartyCreationPort;
 import com.queuemate.common.social.BlockLookupPort;
@@ -39,15 +41,17 @@ public class PartyService implements PartyCreationPort {
     private final ConfirmedProposalReader proposals;
     private final BlockLookupPort blockLookup;
     private final RealtimeEventPublisher events;
+    private final QueueMateMetrics metrics;
 
     public PartyService(PartyRepository parties, PartyMemberRepository partyMembers,
                         ConfirmedProposalReader proposals, BlockLookupPort blockLookup,
-                        RealtimeEventPublisher events) {
+                        RealtimeEventPublisher events, QueueMateMetrics metrics) {
         this.parties = parties;
         this.partyMembers = partyMembers;
         this.proposals = proposals;
         this.blockLookup = blockLookup;
         this.events = events;
+        this.metrics = metrics;
     }
 
     /** 호출자의 확정 트랜잭션에 그대로 참여한다. 따로 트랜잭션을 열지 않는다. */
@@ -66,21 +70,25 @@ public class PartyService implements PartyCreationPort {
                 .orElseThrow(() -> new NotFoundException("PROPOSAL_NOT_FOUND", "proposal을 찾을 수 없다"));
         if (!snapshot.confirmed()) {
             // INV-5: expired/declined/cancelled proposal은 party가 될 수 없다.
+            metrics.invariantViolated(Invariant.PROPOSAL_NOT_CONFIRMED);
             throw new ConflictException("PROPOSAL_NOT_CONFIRMED", "확정되지 않은 proposal이다");
         }
         if (!snapshot.acceptedByEveryone()) {
             // INV-4: 호출자가 확정이라 해도 수락 기록이 부족하면 만들지 않는다.
+            metrics.invariantViolated(Invariant.PROPOSAL_NOT_FULLY_ACCEPTED);
             throw new ConflictException("PROPOSAL_NOT_FULLY_ACCEPTED", "전원이 수락하지 않았다");
         }
 
         List<UUID> members = snapshot.acceptedIds();
         if (members.size() != targetSize) {
             // INV-3: 정원은 mode config가 정한다. 넘치는 것도 모자란 것도 파티가 아니다.
+            metrics.invariantViolated(Invariant.PARTY_SIZE_MISMATCH);
             throw new ConflictException("PARTY_SIZE_MISMATCH",
                     "정원과 참가자 수가 다르다 target=" + targetSize + " accepted=" + members.size());
         }
         if (blockLookup.anyBlockBetween(members)) {
             // INV-6: proposal 생성 이후 차단이 생겼을 수 있어 캐시 없이 다시 본다.
+            metrics.invariantViolated(Invariant.BLOCKED_MEMBERS);
             throw new ConflictException("BLOCKED_MEMBERS", "차단 관계인 참가자가 있다");
         }
 
@@ -93,6 +101,7 @@ public class PartyService implements PartyCreationPort {
             // parties_proposal_unique. 다른 트랜잭션이 먼저 만들었다는 뜻이다.
             // 여기서 기존 party를 읽어 돌려주지 않는다. 이 트랜잭션은 이미 실패했고
             // 호출자의 proposal 확정까지 함께 롤백되어야 한다.
+            metrics.invariantViolated(Invariant.PARTY_DUPLICATE_CREATION);
             log.warn("동시 party 생성 충돌 proposalId={}", proposalId);
             throw new PartyCreationConflictException("이미 이 proposal로 party가 만들어졌다");
         }

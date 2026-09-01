@@ -3,6 +3,7 @@ package com.queuemate.realtime.event;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.queuemate.common.logging.MdcKeys;
+import com.queuemate.common.metrics.QueueMateMetrics;
 import com.queuemate.realtime.session.SessionMessageSender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,12 +35,14 @@ public class RealtimeEventPublisher {
     private final SessionMessageSender sender;
     private final EventFanout fanout;
     private final ObjectMapper objectMapper;
+    private final QueueMateMetrics metrics;
 
     public RealtimeEventPublisher(SessionMessageSender sender, EventFanout fanout,
-                                  ObjectMapper objectMapper) {
+                                  ObjectMapper objectMapper, QueueMateMetrics metrics) {
         this.sender = sender;
         this.fanout = fanout;
         this.objectMapper = objectMapper;
+        this.metrics = metrics;
     }
 
     /**
@@ -87,6 +90,7 @@ public class RealtimeEventPublisher {
             return;
         }
         int delivered = sender.deliver(userIds, payload);
+        metrics.eventDelivered("LOCAL", delivered);
         // 이 노드에 전부 있었더라도 넘긴다. 같은 사용자가 다른 노드에도 탭을 열어 둘 수 있어
         // 로컬 전송 수만으로는 남은 대상이 있는지 알 수 없다.
         fanout.broadcast(userIds, event);

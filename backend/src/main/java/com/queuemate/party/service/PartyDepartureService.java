@@ -1,6 +1,7 @@
 package com.queuemate.party.service;
 
 import com.queuemate.common.logging.MdcKeys;
+import com.queuemate.common.metrics.QueueMateMetrics;
 import com.queuemate.common.matching.MatchRequeuePort;
 import com.queuemate.party.domain.Party;
 import com.queuemate.party.domain.PartyMember;
@@ -39,6 +40,7 @@ public class PartyDepartureService {
     private final PartyRepository parties;
     private final PartyMemberRepository partyMembers;
     private final RealtimeEventPublisher events;
+    private final QueueMateMetrics metrics;
     /**
      * matching 모듈이 아직 구현하지 않았을 수 있다. 없으면 복귀 요청을 건너뛴다.
      * 필수 의존으로 두면 그쪽 작업 전에는 애플리케이션이 아예 뜨지 않는다.
@@ -46,11 +48,12 @@ public class PartyDepartureService {
     private final ObjectProvider<MatchRequeuePort> requeue;
 
     public PartyDepartureService(PartyRepository parties, PartyMemberRepository partyMembers,
-                                 RealtimeEventPublisher events,
+                                 RealtimeEventPublisher events, QueueMateMetrics metrics,
                                  ObjectProvider<MatchRequeuePort> requeue) {
         this.parties = parties;
         this.partyMembers = partyMembers;
         this.events = events;
+        this.metrics = metrics;
         this.requeue = requeue;
     }
 
@@ -109,6 +112,7 @@ public class PartyDepartureService {
             party.close(OffsetDateTime.now());
             MDC.put(MdcKeys.STATE_TO, party.getStatus().name());
             log.info("파티 종료 남은인원={}", remaining.size());
+            metrics.partyClosed("MEMBER_LEFT");
             // 나간 사람에게도 알린다. 잠깐 끊겼다 돌아왔을 때 파티가 없어진 이유를 알아야 한다.
             List<UUID> everyone = members.stream().map(PartyMember::getUserId).toList();
             events.publishAfterCommit(everyone,

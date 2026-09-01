@@ -1,6 +1,7 @@
 package com.queuemate.realtime.presence;
 
 import com.queuemate.common.logging.MdcKeys;
+import com.queuemate.common.metrics.QueueMateMetrics;
 import com.queuemate.party.service.PartyDepartureService;
 import com.queuemate.realtime.session.ClusterPresence;
 import org.slf4j.Logger;
@@ -46,13 +47,16 @@ public class PresenceReconciler {
     private final ClusterPresence presence;
     private final DeparturePendingStore pending;
     private final DepartureGracePolicy grace;
+    private final QueueMateMetrics metrics;
 
     public PresenceReconciler(PartyDepartureService departures, ClusterPresence presence,
-                              DeparturePendingStore pending, DepartureGracePolicy grace) {
+                              DeparturePendingStore pending, DepartureGracePolicy grace,
+                              QueueMateMetrics metrics) {
         this.departures = departures;
         this.presence = presence;
         this.pending = pending;
         this.grace = grace;
+        this.metrics = metrics;
     }
 
     @Scheduled(fixedDelayString = "${queuemate.presence.reconcile-ms}")
@@ -72,6 +76,7 @@ public class PresenceReconciler {
             // 정말 떠난 사용자가 영원히 정리되지 않는다.
             if (pending.scheduleIfAbsent(userId, grace.graceFor(userId))) {
                 scheduled++;
+                metrics.reconcileFound();
                 MDC.put(MdcKeys.USER_ID, userId.toString());
                 log.warn("예약이 빠진 이탈을 대조로 찾았다. 연결이 비정상 종료됐을 수 있다");
                 MDC.remove(MdcKeys.USER_ID);
