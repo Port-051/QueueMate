@@ -6,6 +6,7 @@ import com.queuemate.auth.api.AuthDtos.SignupRequest;
 import com.queuemate.auth.api.AuthDtos.TokenResponse;
 import com.queuemate.auth.service.AuthService;
 import com.queuemate.auth.service.LoginAttemptGuard;
+import com.queuemate.auth.service.SignupRateGuard;
 import com.queuemate.user.api.UserDtos.UserProfileResponse;
 import com.queuemate.user.domain.User;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,14 +24,20 @@ public class AuthController {
 
     private final AuthService authService;
     private final LoginAttemptGuard loginAttempts;
+    private final SignupRateGuard signupRate;
 
-    public AuthController(AuthService authService, LoginAttemptGuard loginAttempts) {
+    public AuthController(AuthService authService, LoginAttemptGuard loginAttempts,
+                          SignupRateGuard signupRate) {
         this.authService = authService;
         this.loginAttempts = loginAttempts;
+        this.signupRate = signupRate;
     }
 
     @PostMapping("/signup")
-    public ResponseEntity<UserProfileResponse> signup(@Valid @RequestBody SignupRequest request) {
+    public ResponseEntity<UserProfileResponse> signup(@Valid @RequestBody SignupRequest request,
+                                                      HttpServletRequest httpRequest) {
+        // 비밀번호 해싱 전에 막는다. 해싱이 이 요청에서 가장 비싼 연산이다.
+        signupRate.checkAllowed(httpRequest.getRemoteAddr());
         User user = authService.signup(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(UserProfileResponse.from(user));
     }

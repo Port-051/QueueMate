@@ -150,7 +150,10 @@ class LoginRateLimitIntegrationTest {
 
     private String signup(String nickname) {
         String email = nickname + "@queuemate.dev";
-        // 가입은 로그인 한도를 건드리지 않는다. 제한은 /login에만 걸려 있다.
+        // 가입에도 IP 한도가 있다. 여기서 재는 것은 로그인 한도이므로 가입 쪽은 지워 둔다.
+        // 이 테스트는 한 IP에서 계정을 여러 개 만들어야 로그인 IP 한도를 채울 수 있다.
+        rateLimiter.reset("signup:ip:burst", "127.0.0.1", Duration.ofMinutes(10));
+        rateLimiter.reset("signup:ip:daily", "127.0.0.1", Duration.ofDays(1));
         http.postForEntity("/api/v1/auth/signup",
                 new SignupRequest(email, PASSWORD, nickname), String.class);
         return email;
