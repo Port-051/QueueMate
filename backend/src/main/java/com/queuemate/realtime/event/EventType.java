@@ -17,6 +17,8 @@ public enum EventType {
     PARTY_MEMBER_JOINED,
     PARTY_MEMBER_LEFT,
     PARTY_READY_CHANGED,
+    /** 전원 준비가 유지되어 게임에 들어갔다고 판정했다. 되돌아오지 않는다. */
+    PARTY_PLAYING,
     PARTY_CLOSED,
     FRIEND_REQUEST_RECEIVED,
     FRIEND_REQUEST_UPDATED,

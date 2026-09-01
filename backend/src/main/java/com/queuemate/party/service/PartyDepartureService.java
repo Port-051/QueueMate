@@ -107,7 +107,7 @@ public class PartyDepartureService {
             boolean allReady = members.stream()
                     .filter(PartyMember::countsForReadiness)
                     .allMatch(PartyMember::isReady);
-            party.refreshReadiness(allReady);
+            party.refreshReadiness(allReady, OffsetDateTime.now());
             MDC.put(MdcKeys.STATE_TO, party.getStatus().name());
             log.info("파티원 이탈 남은인원={} allReady={}", remaining.size(), allReady);
             events.publishAfterCommit(remaining,

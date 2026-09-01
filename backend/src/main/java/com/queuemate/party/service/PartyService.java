@@ -124,6 +124,11 @@ public class PartyService implements PartyCreationPort {
         if (party.getStatus() == PartyStatus.CLOSED) {
             throw new ConflictException("PARTY_CLOSED", "종료된 파티다");
         }
+        if (party.getStatus() == PartyStatus.PLAYING) {
+            // 게임에 들어간 뒤로는 준비를 되돌릴 수 없다. 허용하면 게임 중에 준비를 풀어
+            // 이탈 유예를 게임 전 기준으로 되돌리는 길이 생긴다. 나가려면 나가기를 쓴다.
+            throw new ConflictException("PARTY_PLAYING", "이미 게임이 시작된 파티다");
+        }
         if (!me.countsForReadiness()) {
             // 나간 사람의 준비 상태는 계산에서 빠지므로 바꿔도 의미가 없다.
             // 조용히 무시하면 클라이언트는 반영된 줄 안다.
@@ -134,7 +139,7 @@ public class PartyService implements PartyCreationPort {
         boolean allReady = members.stream()
                 .filter(PartyMember::countsForReadiness)
                 .allMatch(PartyMember::isReady);
-        party.refreshReadiness(allReady);
+        party.refreshReadiness(allReady, OffsetDateTime.now());
 
         MDC.put(MdcKeys.PARTY_ID, partyId.toString());
         log.info("파티 준비 변경 ready={} allReady={} status={}", ready, allReady, party.getStatus());

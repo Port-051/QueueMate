@@ -46,6 +46,14 @@ public class Party {
     @Column(name = "closed_at")
     private OffsetDateTime closedAt;
 
+    /** 전원 준비가 된 시각. 준비가 풀리면 다시 비운다. 게임 시작 판정의 기준이다. */
+    @Column(name = "ready_at")
+    private OffsetDateTime readyAt;
+
+    /** 게임에 들어간 시각. CLOSED가 된 뒤에도 남아 실제로 플레이했는지를 증명한다. */
+    @Column(name = "played_at")
+    private OffsetDateTime playedAt;
+
     protected Party() {
     }
 
@@ -67,12 +75,46 @@ public class Party {
         return new Party(UUID.randomUUID(), proposalId, gameKey, modeKey, targetSize, scheduledStart);
     }
 
-    /** 전원 준비면 READY, 아니면 OPEN. 진행/종료 상태는 여기서 건드리지 않는다. */
-    public void refreshReadiness(boolean allReady) {
+    /**
+     * 전원 준비면 READY, 아니면 OPEN. 진행/종료 상태는 여기서 건드리지 않는다.
+     *
+     * READY로 들어온 시각을 함께 남긴다. 이미 READY였다면 갱신하지 않는다.
+     * 준비 상태가 얼마나 유지됐는지가 게임 시작 판정의 근거인데, 사람이 들고 나며
+     * 계산이 다시 돌 때마다 시각을 밀면 그 파티는 영원히 게임에 못 들어간다.
+     */
+    public void refreshReadiness(boolean allReady, OffsetDateTime at) {
         if (status == PartyStatus.PLAYING || status == PartyStatus.CLOSED) {
             return;
         }
         status = allReady ? PartyStatus.READY : PartyStatus.OPEN;
+        if (status == PartyStatus.READY) {
+            if (readyAt == null) {
+                readyAt = at;
+            }
+        } else {
+            readyAt = null;
+        }
+    }
+
+    /**
+     * 게임에 들어갔다고 본다. READY에서만 넘어간다.
+     *
+     * 서버는 게임을 관측할 수 없다. 이 전이는 관측이 아니라 추정이고, 근거는
+     * 전원 준비 상태가 충분히 유지됐다는 것뿐이다. 그래서 되돌리지 않는다.
+     * 되돌릴 수 있게 만들면 게임 중에 준비를 풀어 유예를 짧게 만드는 길이 생긴다.
+     */
+    public boolean startPlaying(OffsetDateTime at) {
+        if (status != PartyStatus.READY) {
+            return false;
+        }
+        status = PartyStatus.PLAYING;
+        playedAt = at;
+        return true;
+    }
+
+    /** 게임에 들어간 적이 있는가. 닫힌 뒤에도 답이 유지된다. */
+    public boolean hasPlayed() {
+        return playedAt != null;
     }
 
     /**
@@ -122,5 +164,13 @@ public class Party {
 
     public OffsetDateTime getClosedAt() {
         return closedAt;
+    }
+
+    public OffsetDateTime getReadyAt() {
+        return readyAt;
+    }
+
+    public OffsetDateTime getPlayedAt() {
+        return playedAt;
     }
 }

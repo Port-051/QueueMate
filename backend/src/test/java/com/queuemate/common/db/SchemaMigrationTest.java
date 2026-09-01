@@ -158,6 +158,38 @@ class SchemaMigrationTest {
                 "INSERT INTO party_members (party_id, user_id) VALUES ('" + party + "', '" + user + "')"));
     }
 
+    /** PLAYING인데 played_at이 없으면 실제로 플레이했는지 판단할 근거가 사라진다. */
+    @Test
+    void rejectsPlayingPartyWithoutPlayedAt() throws SQLException {
+        UUID proposal = insertProposal("CONFIRMED");
+        assertThrows(SQLException.class, () -> exec(
+                "INSERT INTO parties (proposal_id, game_key, mode_key, target_size, status) "
+                        + "VALUES ('" + proposal + "', 'LOL', 'SOLO_DUO_RANKED', 2, 'PLAYING')"));
+    }
+
+    /** READY인데 ready_at이 없으면 게임 시작 판정이 영원히 돌지 않는다. */
+    @Test
+    void rejectsReadyPartyWithoutReadyAt() throws SQLException {
+        UUID proposal = insertProposal("CONFIRMED");
+        assertThrows(SQLException.class, () -> exec(
+                "INSERT INTO parties (proposal_id, game_key, mode_key, target_size, status) "
+                        + "VALUES ('" + proposal + "', 'LOL', 'SOLO_DUO_RANKED', 2, 'READY')"));
+    }
+
+    /** 게임을 마치고 닫힌 파티는 played_at을 유지한다. status만으로는 구분할 수 없다. */
+    @Test
+    void keepsPlayedAtAfterClose() throws SQLException {
+        UUID proposal = insertProposal("CONFIRMED");
+        exec("INSERT INTO parties (proposal_id, game_key, mode_key, target_size, status, played_at, closed_at) "
+                + "VALUES ('" + proposal + "', 'LOL', 'SOLO_DUO_RANKED', 2, 'CLOSED', now(), now())");
+        try (PreparedStatement st = conn.prepareStatement(
+                "SELECT played_at FROM parties WHERE proposal_id = '" + proposal + "'");
+             ResultSet rs = st.executeQuery()) {
+            assertTrue(rs.next());
+            assertTrue(rs.getObject("played_at") != null);
+        }
+    }
+
     @Test
     void rejectsDuplicateProposalMember() throws SQLException {
         UUID proposal = insertProposal("PENDING");
