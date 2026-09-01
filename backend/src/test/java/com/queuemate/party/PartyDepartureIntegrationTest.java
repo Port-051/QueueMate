@@ -24,6 +24,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -31,13 +32,15 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 /** 파티원이 빠졌을 때의 뒷정리. */
 @Testcontainers(disabledWithoutDocker = true)
@@ -71,7 +74,8 @@ class PartyDepartureIntegrationTest {
     @Autowired PartyMemberRepository partyMembers;
     @Autowired UserRepository users;
     @Autowired JdbcClient jdbc;
-    @Autowired(required = false) MatchRequeuePort requeuePort;
+    /** matching 모듈은 아직 이 포트를 구현하지 않았다. 호출 여부만 보면 되므로 대역을 쓴다. */
+    @MockitoBean MatchRequeuePort requeuePort;
     @Autowired TestRestTemplate http;
     @Autowired JwtTokenService tokenService;
 
@@ -229,9 +233,23 @@ class PartyDepartureIntegrationTest {
 
         departures.leave(partyId, a);
 
-        // matching 모듈이 아직 포트를 구현하지 않았다. 없어도 파티 정리는 끝나야 한다.
-        assertNull(requeuePort, "구현이 생기면 이 테스트를 실제 호출 검증으로 바꾼다");
         assertEquals(PartyStatus.CLOSED, parties.findById(partyId).orElseThrow().getStatus());
+        // 나간 사람은 홈으로 간다. 남은 사람만 대기열로 돌아간다.
+        verify(requeuePort).requeueAfterPartyClosed(List.of(b), partyId);
+    }
+
+    @Test
+    void 게임을_마친_파티가_닫히면_대기열로_되돌리지_않는다() {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        UUID partyId = playingParty(a, b);
+
+        departures.leave(partyId, a);
+
+        assertEquals(PartyStatus.CLOSED, parties.findById(partyId).orElseThrow().getStatus());
+        // 대기열 복귀는 게임 전에 파티가 깨졌을 때의 구제책이다.
+        // 한 판 끝낸 사람을 자동으로 다음 매칭에 밀어 넣지 않는다.
+        verifyNoInteractions(requeuePort);
     }
 
     @Test

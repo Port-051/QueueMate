@@ -98,6 +98,7 @@ public class PartyDepartureService {
         if (remaining.size() < 2) {
             // 정원은 최소 2인이다. 혼자 남은 파티는 파티가 아니므로 닫는다.
             // 남은 사람이 계속 빈 파티룸을 보고 있게 두지 않는다.
+            boolean played = party.hasPlayed();
             party.close(OffsetDateTime.now());
             MDC.put(MdcKeys.STATE_TO, party.getStatus().name());
             log.info("파티 종료 남은인원={}", remaining.size());
@@ -107,7 +108,14 @@ public class PartyDepartureService {
                     ServerEvent.of(EventType.PARTY_CLOSED, Map.of(
                             "partyId", partyId,
                             "reason", "MEMBER_LEFT")));
-            requeueAfterCommit(remaining, partyId);
+            if (played) {
+                // 게임이 끝나고 다들 자리를 뜨면서 닫힌 파티다. 대기열 복귀는 파티가
+                // 게임 전에 깨졌을 때의 구제책이지, 한 판 끝낸 사람을 다시 매칭에
+                // 밀어 넣으라는 뜻이 아니다. 다음 판은 본인이 결정한다.
+                log.info("게임을 마친 파티라 대기열로 되돌리지 않는다 users={}", remaining.size());
+            } else {
+                requeueAfterCommit(remaining, partyId);
+            }
         } else {
             // 노트 003에 예정된 버그로 적어둔 지점이다. 준비 안 한 사람이 나가면
             // 남은 전원이 준비 상태가 되므로 여기서 다시 계산해야 한다.

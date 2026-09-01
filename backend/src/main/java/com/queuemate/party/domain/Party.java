@@ -119,7 +119,7 @@ public class Party {
 
     /**
      * 파티를 끝낸다. 스키마의 parties_closed_at_check가 CLOSED와 closed_at을 함께 요구한다.
-     * 닫힌 파티만 최근 함께한 사람 집계에 들어간다.
+     * played_at은 지우지 않는다. 닫힌 뒤에도 실제로 플레이했는지를 구분해야 한다.
      */
     public boolean close(OffsetDateTime at) {
         if (status == PartyStatus.CLOSED) {
