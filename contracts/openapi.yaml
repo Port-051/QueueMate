@@ -251,6 +251,23 @@ paths:
                 ready: { type: boolean }
       responses:
         '200': { description: Updated }
+  /parties/{id}/leave:
+    post:
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      summary: Leave party
+      description: >
+        명시적 이탈은 유예 없이 즉시 처리한다. 연결 끊김은 재접속 유예를 거치지만
+        본인이 나가겠다고 한 경우는 기다릴 이유가 없다.
+        나간 사용자는 홈으로 돌아가며 매칭 요청이 자동으로 만들어지지 않는다.
+        남은 인원이 1명이 되면 파티는 CLOSED가 되고, 남은 사용자는 대기열로 복귀한다.
+      responses:
+        '204': { description: Left }
+        '404': { description: 파티가 없거나 멤버가 아니다 }
+        '409': { description: 이미 나갔거나 종료된 파티다 }
   /friends:
     get:
       summary: Friend list
