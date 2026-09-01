@@ -8,6 +8,12 @@ paths:
   /auth/signup:
     post:
       summary: Sign up
+      description: >
+        같은 IP에서의 가입 속도를 제한한다. 비밀번호 해싱이 의도적으로 비싼 연산이라
+        짧은 시간에 몰리면 인증 서버의 CPU를 소모하고, 계정이 양산되면 대기열에
+        가짜 참가자가 그만큼 늘어난다. 짧은 창과 하루 창을 함께 센다.
+        이미 가입된 계정을 가진 사용자를 막는 장치가 아니므로 차단 회피는 이것으로
+        막히지 않는다. 그건 신원 확인의 영역이다.
       requestBody:
         required: true
         content:
@@ -20,6 +26,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/UserProfile' }
         '409': { description: Email or nickname already in use }
+        '429': { description: 가입 속도 제한에 걸렸다 }
   /auth/login:
     post:
       summary: Login
@@ -35,6 +42,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/TokenResponse' }
         '401': { description: Invalid credentials }
+        '429': { description: 로그인 시도가 너무 잦다. 이메일별과 IP별을 함께 센다 }
   /auth/refresh:
     post:
       summary: Rotate refresh token
