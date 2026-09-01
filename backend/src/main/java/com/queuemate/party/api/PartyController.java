@@ -1,8 +1,10 @@
 package com.queuemate.party.api;
 
+import com.queuemate.common.error.ConflictException;
 import com.queuemate.common.security.CurrentUser;
 import com.queuemate.party.api.PartyDtos.PartyView;
 import com.queuemate.party.api.PartyDtos.ReadyRequest;
+import com.queuemate.party.service.PartyDepartureService;
 import com.queuemate.party.service.PartyService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -24,16 +26,33 @@ import java.util.UUID;
 public class PartyController {
 
     private final PartyService partyService;
+    private final PartyDepartureService departureService;
     private final PartyViewAssembler assembler;
 
-    public PartyController(PartyService partyService, PartyViewAssembler assembler) {
+    public PartyController(PartyService partyService, PartyDepartureService departureService,
+                           PartyViewAssembler assembler) {
         this.partyService = partyService;
+        this.departureService = departureService;
         this.assembler = assembler;
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<PartyView> get(@PathVariable UUID id, CurrentUser currentUser) {
         return ResponseEntity.ok(assembler.toView(partyService.detail(id, currentUser.userId())));
+    }
+
+    /**
+     * 명시적 이탈은 유예 없이 즉시 처리한다. 연결 끊김은 재접속을 기다리지만
+     * 본인이 나가겠다고 한 경우는 기다릴 이유가 없다.
+     */
+    @PostMapping("/{id}/leave")
+    public ResponseEntity<Void> leave(@PathVariable UUID id, CurrentUser currentUser) {
+        // 멤버가 아니면 파티의 존재 자체를 알리지 않는다. 조회와 같은 규칙이다.
+        partyService.detail(id, currentUser.userId());
+        if (!departureService.leave(id, currentUser.userId())) {
+            throw new ConflictException("ALREADY_LEFT", "이미 나갔거나 종료된 파티다");
+        }
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/ready")

@@ -1,5 +1,7 @@
 package com.queuemate.party;
 
+import com.queuemate.common.matching.MatchRequeuePort;
+import com.queuemate.common.security.JwtTokenService;
 import com.queuemate.party.domain.PartyStatus;
 import com.queuemate.party.repository.PartyMemberRepository;
 import com.queuemate.party.repository.PartyRepository;
@@ -11,6 +13,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -57,6 +65,9 @@ class PartyDepartureIntegrationTest {
     @Autowired PartyMemberRepository partyMembers;
     @Autowired UserRepository users;
     @Autowired JdbcClient jdbc;
+    @Autowired(required = false) MatchRequeuePort requeuePort;
+    @Autowired TestRestTemplate http;
+    @Autowired JwtTokenService tokenService;
 
     @BeforeEach
     void clean() {
@@ -202,6 +213,64 @@ class PartyDepartureIntegrationTest {
         Long afterClose = jdbc.sql("SELECT count(*) FROM parties WHERE status = 'CLOSED'")
                 .query(Long.class).single();
         assertEquals(1, afterClose);
+    }
+
+    @Test
+    void 파티가_닫히면_남은_사람만_대기열_복귀_대상이다() {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        UUID partyId = party(2, a, b);
+
+        departures.leave(partyId, a);
+
+        // matching 모듈이 아직 포트를 구현하지 않았다. 없어도 파티 정리는 끝나야 한다.
+        assertNull(requeuePort, "구현이 생기면 이 테스트를 실제 호출 검증으로 바꾼다");
+        assertEquals(PartyStatus.CLOSED, parties.findById(partyId).orElseThrow().getStatus());
+    }
+
+    @Test
+    void 나가기_요청은_유예_없이_즉시_처리된다() {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        UUID c = user("charlie");
+        UUID partyId = party(3, a, b, c);
+
+        ResponseEntity<String> response = leaveRequest(partyId, a);
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        var member = partyMembers.findById(new com.queuemate.party.domain.PartyMember
+                .PartyMemberId(partyId, a)).orElseThrow();
+        // 연결 끊김은 유예를 기다리지만 본인이 나간다고 하면 기다리지 않는다.
+        assertNotNull(member.getLeftAt());
+    }
+
+    @Test
+    void 두_번_나가면_409다() {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        UUID c = user("charlie");
+        UUID partyId = party(3, a, b, c);
+        leaveRequest(partyId, a);
+
+        assertEquals(HttpStatus.CONFLICT, leaveRequest(partyId, a).getStatusCode());
+    }
+
+    @Test
+    void 멤버가_아니면_나가기도_404다() {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        UUID outsider = user("outsider");
+        UUID partyId = party(2, a, b);
+
+        // 403이면 그 파티가 존재한다는 사실이 샌다. 조회와 같은 규칙이다.
+        assertEquals(HttpStatus.NOT_FOUND, leaveRequest(partyId, outsider).getStatusCode());
+    }
+
+    private ResponseEntity<String> leaveRequest(UUID partyId, UUID userId) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(tokenService.issueAccessToken(userId));
+        return http.exchange("/api/v1/parties/" + partyId + "/leave",
+                HttpMethod.POST, new HttpEntity<>(headers), String.class);
     }
 
     private UUID user(String nickname) {

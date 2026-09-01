@@ -124,6 +124,11 @@ public class PartyService implements PartyCreationPort {
         if (party.getStatus() == PartyStatus.CLOSED) {
             throw new ConflictException("PARTY_CLOSED", "종료된 파티다");
         }
+        if (!me.countsForReadiness()) {
+            // 나간 사람의 준비 상태는 계산에서 빠지므로 바꿔도 의미가 없다.
+            // 조용히 무시하면 클라이언트는 반영된 줄 안다.
+            throw new ConflictException("ALREADY_LEFT", "이미 나간 파티다");
+        }
 
         me.changeReady(ready);
         boolean allReady = members.stream()

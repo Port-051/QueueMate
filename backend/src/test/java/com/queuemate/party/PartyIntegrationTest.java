@@ -6,6 +6,7 @@ import com.queuemate.common.party.PartyCreationConflictException;
 import com.queuemate.party.domain.PartyStatus;
 import com.queuemate.party.repository.PartyMemberRepository;
 import com.queuemate.party.repository.PartyRepository;
+import com.queuemate.party.service.PartyDepartureService;
 import com.queuemate.party.service.PartyService;
 import com.queuemate.social.service.BlockService;
 import com.queuemate.user.domain.User;
@@ -66,6 +67,7 @@ class PartyIntegrationTest {
     }
 
     @Autowired PartyService partyService;
+    @Autowired PartyDepartureService departures;
     @Autowired PartyRepository parties;
     @Autowired PartyMemberRepository partyMembers;
     @Autowired BlockService blockService;
@@ -174,6 +176,21 @@ class PartyIntegrationTest {
         ConflictException e = assertThrows(ConflictException.class, () ->
                 partyService.createFromProposal(proposalId, "PUBG", "SQUAD", 4, null));
         assertEquals("PARTY_SIZE_MISMATCH", e.getCode());
+    }
+
+    @Test
+    void 나간_사람은_준비를_바꿀_수_없다() {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        UUID c = user("charlie");
+        UUID partyId = partyService.createFromProposal(
+                confirmedProposal(a, b, c), "PUBG", "SQUAD", 3, null);
+        departures.leave(partyId, a);
+
+        // 나갔는데 준비를 바꿀 수 있으면 남은 사람들의 상태 계산이 어긋난다.
+        ConflictException e = assertThrows(ConflictException.class,
+                () -> partyService.changeReady(partyId, a, true));
+        assertEquals("ALREADY_LEFT", e.getCode());
     }
 
     @Test

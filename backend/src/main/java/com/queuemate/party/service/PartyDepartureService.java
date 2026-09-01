@@ -1,6 +1,7 @@
 package com.queuemate.party.service;
 
 import com.queuemate.common.logging.MdcKeys;
+import com.queuemate.common.matching.MatchRequeuePort;
 import com.queuemate.party.domain.Party;
 import com.queuemate.party.domain.PartyMember;
 import com.queuemate.party.repository.PartyMemberRepository;
@@ -11,8 +12,11 @@ import com.queuemate.realtime.event.ServerEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -33,12 +37,19 @@ public class PartyDepartureService {
     private final PartyRepository parties;
     private final PartyMemberRepository partyMembers;
     private final RealtimeEventPublisher events;
+    /**
+     * matching 모듈이 아직 구현하지 않았을 수 있다. 없으면 복귀 요청을 건너뛴다.
+     * 필수 의존으로 두면 그쪽 작업 전에는 애플리케이션이 아예 뜨지 않는다.
+     */
+    private final ObjectProvider<MatchRequeuePort> requeue;
 
     public PartyDepartureService(PartyRepository parties, PartyMemberRepository partyMembers,
-                                 RealtimeEventPublisher events) {
+                                 RealtimeEventPublisher events,
+                                 ObjectProvider<MatchRequeuePort> requeue) {
         this.parties = parties;
         this.partyMembers = partyMembers;
         this.events = events;
+        this.requeue = requeue;
     }
 
     /**
@@ -89,6 +100,7 @@ public class PartyDepartureService {
                     ServerEvent.of(EventType.PARTY_CLOSED, Map.of(
                             "partyId", partyId,
                             "reason", "MEMBER_LEFT")));
+            requeueAfterCommit(remaining, partyId);
         } else {
             // 노트 003에 예정된 버그로 적어둔 지점이다. 준비 안 한 사람이 나가면
             // 남은 전원이 준비 상태가 되므로 여기서 다시 계산해야 한다.
@@ -107,5 +119,35 @@ public class PartyDepartureService {
         MDC.remove(MdcKeys.STATE_FROM);
         MDC.remove(MdcKeys.STATE_TO);
         return true;
+    }
+
+    /**
+     * 커밋 후에 요청한다. 같은 트랜잭션에 넣으면 복귀가 실패했을 때 파티 종료까지 롤백된다.
+     * 파티가 닫힌 것은 되돌릴 일이 아니고, 복귀 실패는 사용자가 홈에서 다시 누르면 된다.
+     */
+    private void requeueAfterCommit(List<UUID> userIds, UUID partyId) {
+        if (userIds.isEmpty()) {
+            return;
+        }
+        MatchRequeuePort port = requeue.getIfAvailable();
+        if (port == null) {
+            log.info("대기열 복귀 포트 미구현. 건너뛴다 users={}", userIds.size());
+            return;
+        }
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            port.requeueAfterPartyClosed(userIds, partyId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    port.requeueAfterPartyClosed(userIds, partyId);
+                } catch (RuntimeException e) {
+                    // 복귀 실패가 파티 종료를 되돌리지 않는다.
+                    log.error("대기열 복귀 실패 partyId={}", partyId, e);
+                }
+            }
+        });
     }
 }
