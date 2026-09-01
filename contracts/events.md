@@ -63,6 +63,35 @@ WebSocket은 끊긴 동안 서버가 보낸 이벤트를 이어받는 수단이 
 - `payload`는 영역이 늘어나면 키가 추가된다. matching과 reservation이 각자 채운다.
   클라이언트는 모르는 키를 무시한다.
 
+## 파티 상태 전이
+
+```text
+OPEN ──전원 준비──> READY ──준비 유지 PLAY_START_DELAY──> PLAYING ──> CLOSED
+  ^                   |
+  +──준비 해제────────+
+```
+
+서버는 게임을 관측할 수 없다. 게임 시작 신호를 받을 경로가 없으므로 전원 준비 상태가
+일정 시간 유지되면 게임에 들어간 것으로 본다. 사용자가 누르는 시작 버튼은 두지 않는다.
+누르지 않으면 게임 중인데도 게임 전 규칙이 적용되기 때문이다.
+
+- `PLAYING`으로 넘어가면 준비 상태를 더 바꿀 수 없다. 되돌리려면 파티를 나가야 한다.
+- 연결이 끊긴 뒤 이탈로 판정하기까지의 유예는 파티 상태마다 다르다.
+  게임 전에는 짧고 게임 중에는 길다. 게임 중 오판은 되돌릴 수 없다.
+- `PLAYING`에 도달한 적이 있는 파티만 최근 함께한 사람 집계에 들어간다.
+  준비 단계에서 깨진 파티는 함께 플레이한 것이 아니다.
+- `PLAYING`에 도달한 파티가 닫힐 때는 남은 사용자를 대기열로 되돌리지 않는다.
+  게임을 마친 사용자를 자동으로 매칭에 넣지 않는다.
+
+```json
+{
+  "type": "PARTY_PLAYING",
+  "eventId": "uuid",
+  "occurredAt": "2026-09-02T09:00:00Z",
+  "payload": { "partyId": "uuid", "status": "PLAYING" }
+}
+```
+
 ## Server → Client
 - `SESSION_SNAPSHOT`
 - `MATCH_QUEUE_UPDATED`
@@ -75,6 +104,7 @@ WebSocket은 끊긴 동안 서버가 보낸 이벤트를 이어받는 수단이 
 - `PARTY_MEMBER_JOINED`
 - `PARTY_MEMBER_LEFT`
 - `PARTY_READY_CHANGED`
+- `PARTY_PLAYING`
 - `PARTY_CLOSED`
 - `FRIEND_REQUEST_RECEIVED`
 - `FRIEND_REQUEST_UPDATED`

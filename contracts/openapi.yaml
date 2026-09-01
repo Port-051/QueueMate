@@ -241,6 +241,11 @@ paths:
           required: true
           schema: { type: string, format: uuid }
       summary: Set ready state
+      description: >
+        전원이 준비를 마치면 파티는 READY가 되고, 그 상태가 일정 시간 유지되면
+        PLAYING으로 넘어간다. 서버는 게임을 관측할 수 없으므로 시작 신호 대신
+        시간으로 판정한다. PLAYING 이후에는 준비 상태를 바꿀 수 없고, 되돌리려면
+        파티를 나가야 한다.
       requestBody:
         content:
           application/json:
@@ -251,6 +256,8 @@ paths:
                 ready: { type: boolean }
       responses:
         '200': { description: Updated }
+        '404': { description: 파티가 없거나 멤버가 아니다 }
+        '409': { description: 종료된 파티이거나 이미 게임이 시작됐다 }
   /parties/{id}/leave:
     post:
       parameters:
@@ -615,7 +622,10 @@ components:
         game: { $ref: '#/components/schemas/GameKey' }
         modeKey: { type: string }
         targetSize: { type: integer }
-        status: { type: string, enum: [OPEN, READY, PLAYING, CLOSED] }
+        status:
+          type: string
+          enum: [OPEN, READY, PLAYING, CLOSED]
+          description: OPEN 모이는 중, READY 전원 준비, PLAYING 게임 중, CLOSED 종료
         members:
           type: array
           items:
