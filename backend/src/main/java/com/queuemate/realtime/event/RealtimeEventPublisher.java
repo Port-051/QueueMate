@@ -3,17 +3,15 @@ package com.queuemate.realtime.event;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.queuemate.common.logging.MdcKeys;
-import com.queuemate.realtime.session.SessionRegistry;
+import com.queuemate.realtime.session.SessionMessageSender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.UUID;
 
@@ -22,17 +20,25 @@ import java.util.UUID;
  *
  * 전송 실패는 삼킨다. 이벤트를 못 받은 클라이언트는 재연결 후 REST로 현재 상태를
  * 다시 읽는다. 이벤트는 상태의 소스가 아니라 알림이다.
+ *
+ * 로컬 session에 먼저 보내고, 그다음 다른 노드에 넘긴다. 순서가 이렇게 된 이유는
+ * Redis가 죽어도 같은 노드에 붙은 사용자에게는 이벤트가 가야 하기 때문이다.
+ * 전부 Redis를 거치게 만들면 경로가 하나로 단순해지는 대신, 서버가 한 대일 때조차
+ * Redis 장애가 이벤트를 전부 끊는다.
  */
 @Component
 public class RealtimeEventPublisher {
 
     private static final Logger log = LoggerFactory.getLogger(RealtimeEventPublisher.class);
 
-    private final SessionRegistry sessions;
+    private final SessionMessageSender sender;
+    private final EventFanout fanout;
     private final ObjectMapper objectMapper;
 
-    public RealtimeEventPublisher(SessionRegistry sessions, ObjectMapper objectMapper) {
-        this.sessions = sessions;
+    public RealtimeEventPublisher(SessionMessageSender sender, EventFanout fanout,
+                                  ObjectMapper objectMapper) {
+        this.sender = sender;
+        this.fanout = fanout;
         this.objectMapper = objectMapper;
     }
 
@@ -58,10 +64,13 @@ public class RealtimeEventPublisher {
     /**
      * 한 세션에만 보낸다. 연결 직후 스냅샷처럼 방금 붙은 탭에만 필요한 경우에 쓴다.
      * 사용자 단위로 보내면 이미 상태를 갖고 있는 다른 탭까지 다시 그린다.
+     *
+     * 이 경로는 노드 간 전달을 하지 않는다. 대상 session이 이 프로세스에 있다는 것이
+     * 이미 확정된 상황에서만 쓰기 때문이다.
      */
     public boolean publishTo(WebSocketSession session, ServerEvent event) {
         try {
-            return send(session, objectMapper.writeValueAsString(event));
+            return sender.send(session, objectMapper.writeValueAsString(event));
         } catch (JsonProcessingException e) {
             log.error("이벤트 직렬화 실패 type={}", event.type(), e);
             return false;
@@ -77,33 +86,13 @@ public class RealtimeEventPublisher {
             log.error("이벤트 직렬화 실패 type={}", event.type(), e);
             return;
         }
-        int delivered = 0;
-        for (UUID userId : userIds) {
-            for (WebSocketSession session : sessions.sessionsOf(userId)) {
-                delivered += send(session, payload) ? 1 : 0;
-            }
-        }
-        MDC.put(MdcKeys.STATE_TO, event.type().name());
-        log.info("이벤트 발행 type={} targets={} delivered={}",
-                event.type(), userIds.size(), delivered);
-        MDC.remove(MdcKeys.STATE_TO);
-    }
+        int delivered = sender.deliver(userIds, payload);
+        // 이 노드에 전부 있었더라도 넘긴다. 같은 사용자가 다른 노드에도 탭을 열어 둘 수 있어
+        // 로컬 전송 수만으로는 남은 대상이 있는지 알 수 없다.
+        fanout.broadcast(userIds, event);
 
-    private boolean send(WebSocketSession session, String payload) {
-        try {
-            // WebSocketSession은 동시 전송에 안전하지 않다. 같은 session으로 두 스레드가
-            // 동시에 쓰면 프레임이 섞인다.
-            synchronized (session) {
-                if (!session.isOpen()) {
-                    return false;
-                }
-                session.sendMessage(new TextMessage(payload));
-            }
-            return true;
-        } catch (IOException | IllegalStateException e) {
-            // 끊긴 연결이다. 여기서 정리하지 않는다. close 콜백이 레지스트리를 정리한다.
-            log.debug("이벤트 전송 실패 sessionId={}: {}", session.getId(), e.getMessage());
-            return false;
-        }
+        MDC.put(MdcKeys.STATE_TO, event.type().name());
+        log.info("이벤트 발행 type={} targets={} local={}", event.type(), userIds.size(), delivered);
+        MDC.remove(MdcKeys.STATE_TO);
     }
 }
