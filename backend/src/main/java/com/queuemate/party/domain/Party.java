@@ -75,6 +75,19 @@ public class Party {
         status = allReady ? PartyStatus.READY : PartyStatus.OPEN;
     }
 
+    /**
+     * 파티를 끝낸다. 스키마의 parties_closed_at_check가 CLOSED와 closed_at을 함께 요구한다.
+     * 닫힌 파티만 최근 함께한 사람 집계에 들어간다.
+     */
+    public boolean close(OffsetDateTime at) {
+        if (status == PartyStatus.CLOSED) {
+            return false;
+        }
+        status = PartyStatus.CLOSED;
+        closedAt = at;
+        return true;
+    }
+
     public UUID getId() {
         return id;
     }

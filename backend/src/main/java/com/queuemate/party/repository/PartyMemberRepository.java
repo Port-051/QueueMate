@@ -22,4 +22,10 @@ public interface PartyMemberRepository
             + "where m.id.partyId = :partyId and m.id.userId in :userIds and m.leftAt is null")
     long countActiveMembers(@Param("partyId") UUID partyId,
                             @Param("userIds") Collection<UUID> userIds);
+
+    /** 이 사용자가 아직 속해 있는, 끝나지 않은 파티들. */
+    @Query("select m.id.partyId from PartyMember m, Party p "
+            + "where m.id.userId = :userId and m.leftAt is null "
+            + "and p.id = m.id.partyId and p.status <> com.queuemate.party.domain.PartyStatus.CLOSED")
+    List<UUID> findOpenPartyIdsOf(@Param("userId") UUID userId);
 }

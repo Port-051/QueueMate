@@ -44,6 +44,17 @@ public class PartyMember {
         this.ready = ready;
     }
 
+    /** 이미 나간 사람을 다시 나가게 하지 않는다. 처음 나간 시각을 유지한다. */
+    public boolean markLeft(OffsetDateTime at) {
+        if (leftAt != null) {
+            return false;
+        }
+        leftAt = at;
+        // 나간 사람의 준비 상태는 의미가 없다. 남겨 두면 조회 화면에서 오해를 부른다.
+        ready = false;
+        return true;
+    }
+
     /** 나간 사람은 준비 판정에서 빠진다. */
     public boolean countsForReadiness() {
         return leftAt == null;
