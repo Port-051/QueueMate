@@ -2,7 +2,7 @@ package com.queuemate.realtime.presence;
 
 import com.queuemate.common.logging.MdcKeys;
 import com.queuemate.party.service.PartyDepartureService;
-import com.queuemate.realtime.session.SessionRegistry;
+import com.queuemate.realtime.session.ClusterPresence;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -23,13 +23,13 @@ public class DepartureSweeper {
     private static final Logger log = LoggerFactory.getLogger(DepartureSweeper.class);
 
     private final DeparturePendingStore pending;
-    private final SessionRegistry sessions;
+    private final ClusterPresence presence;
     private final PartyDepartureService departures;
 
-    public DepartureSweeper(DeparturePendingStore pending, SessionRegistry sessions,
+    public DepartureSweeper(DeparturePendingStore pending, ClusterPresence presence,
                             PartyDepartureService departures) {
         this.pending = pending;
-        this.sessions = sessions;
+        this.presence = presence;
         this.departures = departures;
     }
 
@@ -37,8 +37,8 @@ public class DepartureSweeper {
     public void sweep() {
         for (UUID userId : pending.pollDue()) {
             // 예약 취소가 실패했거나 목록을 꺼낸 직후에 돌아왔을 수 있다.
-            // 여기서 한 번 더 확인해야 붙어 있는 사용자를 내보내지 않는다.
-            if (sessions.isOnline(userId)) {
+            // 다른 서버에 붙어 있을 수도 있어 이 프로세스만 봐서는 안 된다.
+            if (presence.isOnline(userId)) {
                 continue;
             }
             try {

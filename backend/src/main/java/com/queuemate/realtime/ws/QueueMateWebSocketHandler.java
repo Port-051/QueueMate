@@ -5,6 +5,7 @@ import com.queuemate.common.logging.MdcKeys;
 import com.queuemate.realtime.presence.DepartureGracePolicy;
 import com.queuemate.realtime.presence.DeparturePendingStore;
 import com.queuemate.realtime.event.RealtimeEventPublisher;
+import com.queuemate.realtime.session.ClusterPresence;
 import com.queuemate.realtime.session.SessionRegistry;
 import com.queuemate.realtime.session.SessionSnapshotAssembler;
 import com.queuemate.realtime.signal.ClientMessage;
@@ -32,6 +33,7 @@ public class QueueMateWebSocketHandler extends TextWebSocketHandler {
     private static final Logger log = LoggerFactory.getLogger(QueueMateWebSocketHandler.class);
 
     private final SessionRegistry sessions;
+    private final ClusterPresence presence;
     private final SignalRelayService signals;
     private final DeparturePendingStore departures;
     private final DepartureGracePolicy grace;
@@ -39,11 +41,13 @@ public class QueueMateWebSocketHandler extends TextWebSocketHandler {
     private final RealtimeEventPublisher events;
     private final ObjectMapper objectMapper;
 
-    public QueueMateWebSocketHandler(SessionRegistry sessions, SignalRelayService signals,
+    public QueueMateWebSocketHandler(SessionRegistry sessions, ClusterPresence presence,
+                                     SignalRelayService signals,
                                      DeparturePendingStore departures, DepartureGracePolicy grace,
                                      SessionSnapshotAssembler snapshots,
                                      RealtimeEventPublisher events, ObjectMapper objectMapper) {
         this.sessions = sessions;
+        this.presence = presence;
         this.signals = signals;
         this.departures = departures;
         this.grace = grace;
@@ -56,6 +60,8 @@ public class QueueMateWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionEstablished(WebSocketSession session) {
         UUID userId = userIdOf(session);
         sessions.register(userId, session);
+        // 다른 노드가 이 사용자를 오프라인으로 보지 않게 먼저 알린다.
+        presence.markOnline(userId);
         // 예약 취소가 먼저다. 스냅샷을 읽는 사이에 이탈 처리가 돌면
         // 방금 붙은 사용자에게 없어진 파티를 보내게 된다.
         departures.cancel(userId);
@@ -70,12 +76,19 @@ public class QueueMateWebSocketHandler extends TextWebSocketHandler {
         UUID userId = userIdOf(session);
         sessions.unregister(userId, session);
         // 탭을 여러 개 열어 둔 경우 하나를 닫아도 아직 접속 중이다. 그때는 예약하지 않는다.
-        if (!sessions.isOnline(userId)) {
+        if (!sessions.hasLocalSession(userId)) {
+            // 이 노드에서는 다 닫혔다고 먼저 알려야 한다. 지우기 전에 접속 여부를 물으면
+            // 자기가 남긴 기록을 보고 아직 붙어 있다고 답한다.
+            presence.markOffline(userId);
+        }
+        // 다른 서버에 아직 붙어 있으면 이탈이 아니다.
+        boolean online = presence.isOnline(userId);
+        if (!online) {
             // 유예는 이 사용자가 어떤 파티에 있느냐에 따라 다르다. 게임 중이면 길게 준다.
             departures.schedule(userId, grace.graceFor(userId));
         }
         withContext(session, () -> log.info("WebSocket 연결 close code={} reason={} online={}",
-                status.getCode(), status.getReason(), sessions.isOnline(userId)));
+                status.getCode(), status.getReason(), online));
     }
 
     @Override

@@ -117,10 +117,10 @@ class WebSocketIntegrationTest {
         Collector before = new Collector();
         WebSocketSession first = connect(tokenService.issueAccessToken(a), before);
         before.next();
-        assertTrue(waitUntil(() -> sessions.isOnline(a)));
+        assertTrue(waitUntil(() -> sessions.hasLocalSession(a)));
 
         first.close(CloseStatus.NORMAL);
-        assertTrue(waitUntil(() -> !sessions.isOnline(a)));
+        assertTrue(waitUntil(() -> !sessions.hasLocalSession(a)));
         // 끊긴 사이에 b가 준비를 눌렀다. a는 이 이벤트를 받지 못한다.
         partyService.changeReady(partyId, b, true);
 
@@ -177,7 +177,7 @@ class WebSocketIntegrationTest {
         assertTrue(session.isOpen());
         // 토큰을 그대로 되돌려주면 응답 헤더에 token이 남는다.
         assertEquals(WebSocketProtocol.VERSION, session.getAcceptedProtocol());
-        assertTrue(waitUntil(() -> sessions.isOnline(userId)), "레지스트리에 등록돼야 한다");
+        assertTrue(waitUntil(() -> sessions.hasLocalSession(userId)), "레지스트리에 등록돼야 한다");
     }
 
     @Test
@@ -198,11 +198,11 @@ class WebSocketIntegrationTest {
     void 연결이_닫히면_레지스트리에서_빠진다() throws Exception {
         UUID userId = user("alpha");
         WebSocketSession session = connect(tokenService.issueAccessToken(userId), new Collector());
-        assertTrue(waitUntil(() -> sessions.isOnline(userId)));
+        assertTrue(waitUntil(() -> sessions.hasLocalSession(userId)));
 
         session.close(CloseStatus.NORMAL);
 
-        assertTrue(waitUntil(() -> !sessions.isOnline(userId)), "close 후 정리돼야 한다");
+        assertTrue(waitUntil(() -> !sessions.hasLocalSession(userId)), "close 후 정리돼야 한다");
     }
 
     @Test
