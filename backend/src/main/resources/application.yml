@@ -23,11 +23,6 @@ management:
 queuemate:
   proposal:
     ttl-seconds: ${PROPOSAL_TTL_SECONDS:20}
-  gamemode:
-    # 모드 설정 스냅샷을 다시 읽는 주기. 5분이다.
-    # 이 값은 배포 때만 바뀌므로 짧게 잡으면 아무것도 바뀌지 않은 표를 계속 읽는다.
-    # 대가는 갱신 주기 안에서 옛 정원으로 파티가 만들어질 수 있다는 것이다.
-    reload-ms: ${GAME_MODE_RELOAD_MS:300000}
   reservation:
     sweep-ms: ${RESERVATION_SWEEP_MS:30000}
   party:
