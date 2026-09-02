@@ -51,7 +51,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 수락하면 서로의 변경을 보지 못해 아무도 확정하지 않을 수 있다.
  */
 @Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest
+// 애플리케이션에 WebSocket 엔드포인트가 있어 실제 서블릿 컨테이너가 필요하다.
+// MOCK 환경에는 jakarta.websocket의 ServerContainer가 없어 컨텍스트가 뜨지 않는다.
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ProposalRaceIntegrationTest {
 
     private static final String MODE = "SOLO_DUO_RANKED";
