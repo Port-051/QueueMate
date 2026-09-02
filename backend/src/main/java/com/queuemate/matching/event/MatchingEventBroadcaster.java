@@ -1,6 +1,7 @@
 package com.queuemate.matching.event;
 
 import com.queuemate.matching.app.ProposalService;
+import com.queuemate.matching.app.ProposalViewAssembler;
 import com.queuemate.matching.domain.MatchingEvents;
 import com.queuemate.matching.domain.ProposalSourceType;
 import com.queuemate.matching.domain.ProposalStatus;
@@ -39,10 +40,13 @@ public class MatchingEventBroadcaster {
     private static final Logger log = LoggerFactory.getLogger(MatchingEventBroadcaster.class);
 
     private final ProposalService proposals;
+    private final ProposalViewAssembler assembler;
     private final RealtimeEventPublisher realtime;
 
-    public MatchingEventBroadcaster(ProposalService proposals, RealtimeEventPublisher realtime) {
+    public MatchingEventBroadcaster(ProposalService proposals, ProposalViewAssembler assembler,
+                                    RealtimeEventPublisher realtime) {
         this.proposals = proposals;
+        this.assembler = assembler;
         this.realtime = realtime;
     }
 
@@ -60,7 +64,8 @@ public class MatchingEventBroadcaster {
 
         for (UUID userId : event.userIds()) {
             // 참가자마다 따로 만든다. 조회가 참가자 본인에게만 제안을 보여 주기 때문이다.
-            ProposalService.ProposalView view = proposals.get(userId, event.proposalId());
+            ProposalService.ProposalView view =
+                    assembler.withNicknames(proposals.get(userId, event.proposalId()));
             realtime.publish(List.of(userId),
                     ServerEvent.of(type, Map.of("proposal", view)));
         }

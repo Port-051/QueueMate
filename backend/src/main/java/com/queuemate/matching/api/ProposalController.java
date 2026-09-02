@@ -2,6 +2,7 @@ package com.queuemate.matching.api;
 
 import com.queuemate.common.security.CurrentUser;
 import com.queuemate.matching.app.ProposalService;
+import com.queuemate.matching.app.ProposalViewAssembler;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,19 +18,21 @@ import java.util.UUID;
 public class ProposalController {
 
     private final ProposalService service;
+    private final ProposalViewAssembler assembler;
 
-    public ProposalController(ProposalService service) {
+    public ProposalController(ProposalService service, ProposalViewAssembler assembler) {
         this.service = service;
+        this.assembler = assembler;
     }
 
     @GetMapping("/{id}")
     public ProposalService.ProposalView get(CurrentUser currentUser, @PathVariable UUID id) {
-        return service.get(currentUser.userId(), id);
+        return assembler.withNicknames(service.get(currentUser.userId(), id));
     }
 
     @PostMapping("/{id}/accept")
     public ProposalService.ProposalView accept(CurrentUser currentUser, @PathVariable UUID id) {
-        return service.accept(currentUser.userId(), id);
+        return assembler.withNicknames(service.accept(currentUser.userId(), id));
     }
 
     @PostMapping("/{id}/decline")

@@ -5,6 +5,7 @@ import com.queuemate.common.domain.PlayPurpose;
 import com.queuemate.common.domain.VoicePreference;
 import com.queuemate.matching.app.MatchRequestService;
 import com.queuemate.matching.app.ProposalService;
+import com.queuemate.matching.app.ProposalViewAssembler;
 import com.queuemate.matching.app.RealtimeMatcher;
 import com.queuemate.matching.domain.LolPosition;
 import com.queuemate.matching.domain.MatchCondition;
@@ -83,6 +84,7 @@ class MatchingEventBroadcastIntegrationTest {
     @Autowired RealtimeMatcher matcher;
     @Autowired ProposalService proposals;
     @Autowired UserRepository users;
+    @Autowired ProposalViewAssembler assembler;
     @Autowired StringRedisTemplate redis;
     @Autowired JdbcClient jdbc;
 
@@ -123,6 +125,11 @@ class MatchingEventBroadcastIntegrationTest {
             // 화면이 이 값으로 남은 시간을 그린다. 없으면 카운트다운이 서지 않는다.
             assertThat(view.expiresAt()).isNotNull();
             assertThat(view.members()).hasSize(2);
+            // 계약(openapi ProposalMember)이 요구하는 필드다. 빠지면 서버는 조용하고
+            // 화면이 이 값을 쓰다가 죽는다. 실제로 그렇게 한 번 죽었다.
+            assertThat(view.members())
+                    .as("nickname은 계약에 있는 필드다")
+                    .allSatisfy(member -> assertThat(member.nickname()).isNotBlank());
         });
         assertThat(recipients()).containsExactlyInAnyOrder(a, b);
     }
@@ -160,6 +167,24 @@ class MatchingEventBroadcastIntegrationTest {
         assertThat(proposals.expireOverdue()).isEqualTo(1);
 
         assertThat(capturedOf(EventType.MATCH_PROPOSAL_EXPIRED)).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("REST 조회도 같은 모양을 돌려준다")
+    void restViewCarriesNicknameToo() {
+        UUID a = newUser();
+        UUID b = newUser();
+        matchRequests.start(a, lol(LolPosition.MID));
+        matchRequests.start(b, lol(LolPosition.SUPPORT));
+        UUID proposalId = matcher.tryMatch(GameKey.LOL, LOL_MODE).orElseThrow();
+
+        ProposalService.ProposalView view =
+                assembler.withNicknames(proposals.get(a, proposalId));
+
+        // 출구가 둘이라 한쪽만 채우면 경로에 따라 다른 모양이 나간다.
+        // 이번 결함이 정확히 그것이었다.
+        assertThat(view.members()).allSatisfy(member ->
+                assertThat(member.nickname()).isNotBlank());
     }
 
     @SuppressWarnings("unchecked")

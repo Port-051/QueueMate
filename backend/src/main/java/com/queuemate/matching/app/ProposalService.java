@@ -325,7 +325,8 @@ public class ProposalService implements BlockedPairProposalGuard {
         return new ProposalView(
                 proposal.getId(), proposal.getStatus(), proposal.getExpiresAt(),
                 members.stream()
-                        .map(member -> new ProposalView.Member(member.getUserId(), member.getAcceptance()))
+                        .map(member -> new ProposalView.Member(
+                                member.getUserId(), null, member.getAcceptance()))
                         .toList(),
                 partyId);
     }
@@ -338,7 +339,8 @@ public class ProposalService implements BlockedPairProposalGuard {
             List<Member> members,
             UUID partyId
     ) {
-        public record Member(UUID userId, Acceptance acceptance) {
+        /** nickname은 화면용이라 조회 시점에 ProposalViewAssembler가 채운다. */
+        public record Member(UUID userId, String nickname, Acceptance acceptance) {
         }
     }
 }
