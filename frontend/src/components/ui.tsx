@@ -38,9 +38,11 @@ export function Tag({ children, tone = 'default' }: { children: ReactNode; tone?
   return <span className={`tag${tone === 'default' ? '' : ` ${tone}`}`}>{children}</span>;
 }
 
-export function Avatar({ name, size = 38, status }: { name: string; size?: number; status?: 'online' | 'away' | 'offline' }) {
-  const initial = name.trim().slice(0, 2).toUpperCase();
-  const hue = [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 60;
+export function Avatar({ name, size = 38, status }: { name?: string | null; size?: number; status?: 'online' | 'away' | 'offline' }) {
+  // 서버가 이름을 빼먹어도 화면 전체가 죽지는 않게 한다. 빈 칸 하나가 흰 화면보다 낫다.
+  const label = (name ?? '').trim();
+  const initial = label.slice(0, 2).toUpperCase() || '?';
+  const hue = [...label].reduce((a, c) => a + c.charCodeAt(0), 0) % 60;
   return (
     <span className="avatar-wrap" style={{ width: size, height: size }}>
       <span
