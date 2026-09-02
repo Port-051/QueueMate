@@ -209,6 +209,10 @@ public class ProposalService implements BlockedPairProposalGuard {
                 .orElseThrow(() -> new IllegalStateException(
                         "확정 시점에 모드 설정이 사라졌다: " + plan.game() + "/" + plan.modeKey()));
 
+        // 파티 생성 구현은 확정 사실을 DB에서 직접 읽어 다시 확인한다(INV-4, INV-5).
+        // 여기까지의 변경은 영속성 컨텍스트에만 있고, 그 사이 조회들은 다른 테이블을 봐서
+        // Hibernate가 match_proposals를 flush하지 않는다. 밀어 넣고 부른다.
+        proposals.saveAndFlush(proposal);
         createParty(proposal, config, userIds, plan.scheduledStart());
         handler.onConfirmed(sourceIds);
         UUID proposalId = proposal.getId();
