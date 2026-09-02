@@ -83,6 +83,17 @@ public class QueueMateMetrics {
         counter("queuemate.presence.reconcile.found", "대조로 찾아낸 빠진 이탈 예약 수").increment();
     }
 
+    /**
+     * 모드 설정을 다시 읽지 못했다.
+     *
+     * 이 값이 0이 아닌 채로 이어지면 애플리케이션은 낡은 설정으로 매칭을 돌리고 있다.
+     * 갱신 실패는 증상이 없다. 서버는 계속 돌고 응답도 정상이고 다만 바꾼 설정이
+     * 반영되지 않을 뿐이다. 이 지표가 그 침묵을 깨는 유일한 신호다.
+     */
+    public void gameModeReloadFailed() {
+        counter("queuemate.gamemode.reload.failed", "모드 설정 적재에 실패한 횟수").increment();
+    }
+
     /** 한도에 걸려 거절했다. 정상 사용자가 걸리는지 보는 유일한 창이다. */
     public void rateLimitRejected(String scope) {
         Counter.builder("queuemate.ratelimit.rejected")
