@@ -1,0 +1,24 @@
+# 운영. 기본값을 두지 않는다. 값이 없으면 부팅이 실패하는 편이 잘못된 값으로 뜨는 것보다 낫다.
+server:
+  # 로드밸런서 뒤에 있으면 getRemoteAddr가 LB의 IP가 된다. IP별 로그인 제한이
+  # 전부 한 IP로 묶여 무의미해지므로 X-Forwarded-For를 반영하게 한다.
+  # 신뢰할 수 있는 프록시 뒤에서만 켠다. 앞에 프록시가 없으면 헤더를 위조할 수 있다.
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:framework}
+
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+
+queuemate:
+  auth:
+    jwt-secret: ${JWT_SECRET}
+    access-token-ttl-seconds: ${ACCESS_TOKEN_TTL_SECONDS:900}
+    refresh-token-ttl-seconds: ${REFRESH_TOKEN_TTL_SECONDS:1209600}

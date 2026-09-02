@@ -11,6 +11,10 @@ java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
 
 repositories { mavenCentral() }
 
+// Docker Engine 29는 구버전 Engine API를 끊었고 Spring Boot 3.4.5가 관리하는
+// Testcontainers 1.20.6은 /info에서 HTTP 400을 받는다. 호환 버전으로 올린다.
+ext['testcontainers.version'] = '1.21.3'
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
@@ -18,11 +22,31 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    // actuator만으로도 MeterRegistry는 생기지만 /actuator/prometheus는 이 레지스트리가 있어야 뜬다.
+    // 코드는 MeterRegistry만 알고 이 구현을 참조하지 않는다.
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+    implementation 'org.flywaydb:flyway-core'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
     runtimeOnly 'org.postgresql:postgresql'
+    // prod 프로파일의 JSON 로그 인코더. 코드가 참조하지 않고 logback 설정만 쓴다.
+    runtimeOnly 'net.logstash.logback:logstash-logback-encoder:8.0'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:postgresql'
+    testImplementation 'org.springframework.security:spring-security-test'
 }
 
-tasks.named('test') { useJUnitPlatform() }
+tasks.named('test') {
+    useJUnitPlatform()
+    // docker-java는 Engine API v1.32로 협상하는데 Docker 29의 최소 지원은 v1.40이라
+    // Testcontainers가 Docker를 못 찾는다. v1.41은 Docker 20.10~29에서 모두 통한다.
+    systemProperty 'api.version', System.getenv('DOCKER_API_VERSION') ?: '1.41'
+    // 테스트는 항상 test 프로파일로 돈다. 개별 테스트가 @ActiveProfiles를 빠뜨려도
+    // local 설정(느슨한 로그 레벨/기본 secret)이 새어 들어오지 않는다.
+    systemProperty 'spring.profiles.active', 'test'
+}
