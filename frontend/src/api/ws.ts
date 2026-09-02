@@ -1,4 +1,4 @@
-import { USE_MOCK, WS_PATH } from '../config';
+import { USE_MOCK, WS_BEARER_PREFIX, WS_PATH, WS_PROTOCOL_VERSION } from '../config';
 import { subscribeMockEvents } from '../mocks/bus';
 import type { ServerEvent, WebRtcSignalMessage } from './types';
 
@@ -38,13 +38,26 @@ function createSocketStream(token: string | null): EventStream {
 
   const url = () => {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const query = token ? `?access_token=${encodeURIComponent(token)}` : '';
-    return `${proto}//${location.host}${WS_PATH}${query}`;
+    return `${proto}//${location.host}${WS_PATH}`;
   };
+
+  /**
+   * token은 subprotocol로 넘긴다 (contracts/events.md).
+   *
+   * 브라우저 WebSocket API는 커스텀 헤더를 붙일 수 없어서 Authorization을 쓸 수 없다.
+   * 그렇다고 query string에 실으면 접근 로그에 token이 그대로 남는다. 로그는 프록시와
+   * 수집기마다 복사되고 몇 달을 남는데 access token은 15분짜리다. 15분짜리 비밀이
+   * 몇 달짜리 기록이 된다. docs/09가 로그에 token을 남기지 말라고 한 이유다.
+   *
+   * subprotocol은 원래 프로토콜 협상 자리라 용도를 빌려 쓰는 편법이지만,
+   * 브라우저가 헤더로 보내 주는 유일한 값이다.
+   */
+  const protocols = () =>
+    token ? [WS_PROTOCOL_VERSION, `${WS_BEARER_PREFIX}${token}`] : [WS_PROTOCOL_VERSION];
 
   const connect = () => {
     if (closed) return;
-    socket = new WebSocket(url());
+    socket = new WebSocket(url(), protocols());
 
     socket.onopen = () => {
       retry = 0;
