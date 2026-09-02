@@ -2,6 +2,8 @@ package com.queuemate.realtime;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.queuemate.common.domain.GameKey;
+import com.queuemate.matching.domain.PartyCreationPort.PartyCreationCommand;
 import com.queuemate.common.ratelimit.RateLimiter;
 import com.queuemate.common.security.JwtTokenService;
 import com.queuemate.party.service.PartyService;
@@ -338,6 +340,7 @@ class SignalRelayIntegrationTest {
                             + "VALUES (:p, :u, :r, 'ACCEPTED')")
                     .param("p", proposalId).param("u", member).param("r", UUID.randomUUID()).update();
         }
-        return partyService.createFromProposal(proposalId, "LOL", "SOLO_DUO", members.length, null);
+        return partyService.createParty(new PartyCreationCommand(
+                proposalId, GameKey.LOL, "SOLO_DUO", members.length, List.of(members), null));
     }
 }

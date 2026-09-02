@@ -129,6 +129,8 @@ public class QueueMateMetrics {
         /** INV-5: expired/declined/cancelled proposal은 다시 confirm될 수 없다. */
         PROPOSAL_NOT_CONFIRMED,
         /** INV-6: 차단 관계 사용자는 같은 party에 들어갈 수 없다. */
-        BLOCKED_MEMBERS
+        BLOCKED_MEMBERS,
+        /** INV-4: 호출자가 아는 명단과 수락 기록이 어긋났다. 매칭 쪽 버그 신호다. */
+        PROPOSAL_MEMBER_MISMATCH
     }
 }

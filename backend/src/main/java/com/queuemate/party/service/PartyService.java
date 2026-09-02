@@ -6,7 +6,7 @@ import com.queuemate.common.logging.MdcKeys;
 import com.queuemate.common.metrics.QueueMateMetrics;
 import com.queuemate.common.metrics.QueueMateMetrics.Invariant;
 import com.queuemate.common.party.PartyCreationConflictException;
-import com.queuemate.common.party.PartyCreationPort;
+import com.queuemate.matching.domain.PartyCreationPort;
 import com.queuemate.common.social.BlockLookupPort;
 import com.queuemate.party.domain.Party;
 import com.queuemate.party.domain.PartyMember;
@@ -54,11 +54,20 @@ public class PartyService implements PartyCreationPort {
         this.metrics = metrics;
     }
 
-    /** 호출자의 확정 트랜잭션에 그대로 참여한다. 따로 트랜잭션을 열지 않는다. */
+    /**
+     * 호출자의 확정 트랜잭션에 그대로 참여한다. 따로 트랜잭션을 열지 않는다.
+     *
+     * command의 명단을 그대로 쓰지 않는다. proposal_members의 수락 기록에서 다시 읽고
+     * 둘이 같은지 대조한다. 넘어온 명단을 믿으면 INV-4(전원 accept 전 party 확정 금지)를
+     * 부르는 쪽에 맡기게 된다. 매칭에 버그가 생겨 수락하지 않은 사람이 명단에 섞여도
+     * 파티가 그냥 만들어진다. 다시 읽으면 그 자리에서 터진다.
+     */
     @Override
     @Transactional
-    public UUID createFromProposal(UUID proposalId, String game, String modeKey,
-                                   int targetSize, OffsetDateTime scheduledStart) {
+    public UUID createParty(PartyCreationCommand command) {
+        UUID proposalId = command.proposalId();
+        int targetSize = command.targetSize();
+
         // 같은 트랜잭션에서 재시도하거나 이미 만들어진 경우를 먼저 흡수한다.
         // 동시 생성까지 막지는 못한다. 그건 아래 unique 제약이 맡는다.
         var existing = parties.findByProposalId(proposalId);
@@ -86,13 +95,21 @@ public class PartyService implements PartyCreationPort {
             throw new ConflictException("PARTY_SIZE_MISMATCH",
                     "정원과 참가자 수가 다르다 target=" + targetSize + " accepted=" + members.size());
         }
+        if (!Set.copyOf(members).equals(Set.copyOf(command.memberUserIds()))) {
+            // 호출자가 아는 명단과 수락 기록이 다르다. 둘 중 하나는 버그다.
+            // 조용히 한쪽을 따르면 잘못된 파티가 만들어지고, 그건 나중에 데이터로만 드러난다.
+            metrics.invariantViolated(Invariant.PROPOSAL_MEMBER_MISMATCH);
+            throw new ConflictException("PROPOSAL_MEMBER_MISMATCH",
+                    "요청한 명단과 수락 기록이 다르다");
+        }
         if (blockLookup.anyBlockBetween(members)) {
             // INV-6: proposal 생성 이후 차단이 생겼을 수 있어 캐시 없이 다시 본다.
             metrics.invariantViolated(Invariant.BLOCKED_MEMBERS);
             throw new ConflictException("BLOCKED_MEMBERS", "차단 관계인 참가자가 있다");
         }
 
-        Party party = Party.of(proposalId, game, modeKey, targetSize, scheduledStart);
+        Party party = Party.of(proposalId, command.game().name(), command.modeKey(),
+                targetSize, command.scheduledStart());
         try {
             parties.saveAndFlush(party);
             partyMembers.saveAllAndFlush(
@@ -108,7 +125,7 @@ public class PartyService implements PartyCreationPort {
 
         MDC.put(MdcKeys.PARTY_ID, party.getId().toString());
         log.info("party 생성 proposalId={} game={} mode={} size={}",
-                proposalId, game, modeKey, targetSize);
+                proposalId, command.game(), command.modeKey(), targetSize);
         return party.getId();
     }
 

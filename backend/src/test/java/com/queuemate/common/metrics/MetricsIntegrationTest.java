@@ -1,7 +1,9 @@
 package com.queuemate.common.metrics;
 
 import com.queuemate.auth.api.AuthDtos.SignupRequest;
+import com.queuemate.common.domain.GameKey;
 import com.queuemate.common.error.ConflictException;
+import com.queuemate.matching.domain.PartyCreationPort.PartyCreationCommand;
 import com.queuemate.party.service.PartyDepartureService;
 import com.queuemate.party.service.PartyService;
 import com.queuemate.realtime.presence.DeparturePendingStore;
@@ -96,7 +98,7 @@ class MetricsIntegrationTest {
         double before = counter("queuemate.invariant.violation", "invariant", "BLOCKED_MEMBERS");
 
         assertThrows(ConflictException.class,
-                () -> partyService.createFromProposal(proposalId, "LOL", "SOLO_DUO", 2, null));
+                () -> createParty(proposalId, 2, a, b));
 
         assertEquals(before + 1,
                 counter("queuemate.invariant.violation", "invariant", "BLOCKED_MEMBERS"));
@@ -107,8 +109,7 @@ class MetricsIntegrationTest {
         UUID a = user("alpha");
         UUID b = user("bravo");
         UUID c = user("charlie");
-        UUID partyId = partyService.createFromProposal(
-                confirmedProposal(a, b, c), "PUBG", "SQUAD", 3, null);
+        UUID partyId = createParty(confirmedProposal(a, b, c), 3, a, b, c);
         departures.leave(partyId, a);
         double before = totalViolations();
 
@@ -123,8 +124,7 @@ class MetricsIntegrationTest {
     void 파티_종료가_사유별로_잡힌다() {
         UUID a = user("alpha");
         UUID b = user("bravo");
-        UUID partyId = partyService.createFromProposal(
-                confirmedProposal(a, b), "LOL", "SOLO_DUO", 2, null);
+        UUID partyId = createParty(confirmedProposal(a, b), 2, a, b);
         double before = counter("queuemate.party.closed", "reason", "MEMBER_LEFT");
 
         departures.leave(partyId, a);
@@ -136,8 +136,7 @@ class MetricsIntegrationTest {
     void 이탈_유예를_어느_단계로_줬는지_남는다() {
         UUID a = user("alpha");
         UUID b = user("bravo");
-        UUID partyId = partyService.createFromProposal(
-                confirmedProposal(a, b), "LOL", "SOLO_DUO", 2, null);
+        UUID partyId = createParty(confirmedProposal(a, b), 2, a, b);
         partyService.changeReady(partyId, a, true);
         partyService.changeReady(partyId, b, true);
         double before = counter("queuemate.departure.grace", "status", "READY");
@@ -152,7 +151,7 @@ class MetricsIntegrationTest {
     void 대조가_찾은_수가_지표에_남는다() {
         UUID a = user("alpha");
         UUID b = user("bravo");
-        partyService.createFromProposal(confirmedProposal(a, b), "LOL", "SOLO_DUO", 2, null);
+        createParty(confirmedProposal(a, b), 2, a, b);
         double before = counter("queuemate.presence.reconcile.found");
 
         reconciler.reconcile();
@@ -165,7 +164,7 @@ class MetricsIntegrationTest {
     void 내보낸_수가_지표에_남는다() {
         UUID a = user("alpha");
         UUID b = user("bravo");
-        partyService.createFromProposal(confirmedProposal(a, b), "LOL", "SOLO_DUO", 2, null);
+        createParty(confirmedProposal(a, b), 2, a, b);
         pending.schedule(a, Duration.ZERO);
         double before = counter("queuemate.departure.evicted");
 
@@ -199,8 +198,7 @@ class MetricsIntegrationTest {
     void 태그에_개별_식별자를_넣지_않는다() {
         UUID a = user("alpha");
         UUID b = user("bravo");
-        UUID partyId = partyService.createFromProposal(
-                confirmedProposal(a, b), "LOL", "SOLO_DUO", 2, null);
+        UUID partyId = createParty(confirmedProposal(a, b), 2, a, b);
         departures.leave(partyId, a);
         reconciler.reconcile();
 
@@ -232,6 +230,11 @@ class MetricsIntegrationTest {
                 ? meters.find(name).counter()
                 : meters.find(name).tags(tags).counter();
         return found == null ? 0 : found.count();
+    }
+
+    private UUID createParty(UUID proposalId, int targetSize, UUID... members) {
+        return partyService.createParty(new PartyCreationCommand(
+                proposalId, GameKey.LOL, "SOLO_DUO", targetSize, List.of(members), null));
     }
 
     private UUID user(String nickname) {

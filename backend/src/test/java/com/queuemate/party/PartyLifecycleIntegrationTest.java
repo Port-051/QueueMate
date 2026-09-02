@@ -1,6 +1,8 @@
 package com.queuemate.party;
 
+import com.queuemate.common.domain.GameKey;
 import com.queuemate.common.error.ConflictException;
+import com.queuemate.matching.domain.PartyCreationPort.PartyCreationCommand;
 import com.queuemate.party.domain.PartyStatus;
 import com.queuemate.party.repository.PartyRepository;
 import com.queuemate.party.service.PartyDepartureService;
@@ -130,8 +132,8 @@ class PartyLifecycleIntegrationTest {
         UUID a = user("alpha");
         UUID b = user("bravo");
         UUID c = user("charlie");
-        UUID partyId = partyService.createFromProposal(
-                confirmedProposal(a, b, c), "PUBG", "SQUAD", 3, null);
+        UUID partyId = partyService.createParty(new PartyCreationCommand(
+                confirmedProposal(a, b, c), GameKey.PUBG, "SQUAD", 3, List.of(a, b, c), null));
         partyService.changeReady(partyId, a, true);
         partyService.changeReady(partyId, b, true);
         partyService.changeReady(partyId, c, true);
@@ -195,8 +197,8 @@ class PartyLifecycleIntegrationTest {
         UUID a = user("alpha");
         UUID b = user("bravo");
         UUID c = user("charlie");
-        UUID partyId = partyService.createFromProposal(
-                confirmedProposal(a, b, c), "PUBG", "SQUAD", 3, null);
+        UUID partyId = partyService.createParty(new PartyCreationCommand(
+                confirmedProposal(a, b, c), GameKey.PUBG, "SQUAD", 3, List.of(a, b, c), null));
         partyService.changeReady(partyId, a, true);
         partyService.changeReady(partyId, b, true);
         partyService.changeReady(partyId, c, true);
@@ -243,8 +245,8 @@ class PartyLifecycleIntegrationTest {
     // ---- helpers ----
 
     private UUID readyParty(UUID a, UUID b) {
-        UUID partyId = partyService.createFromProposal(
-                confirmedProposal(a, b), "LOL", "SOLO_DUO", 2, null);
+        UUID partyId = partyService.createParty(new PartyCreationCommand(
+                confirmedProposal(a, b), GameKey.LOL, "SOLO_DUO", 2, List.of(a, b), null));
         partyService.changeReady(partyId, a, true);
         partyService.changeReady(partyId, b, true);
         return partyId;

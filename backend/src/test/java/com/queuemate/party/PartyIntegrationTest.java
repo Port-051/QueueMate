@@ -1,6 +1,8 @@
 package com.queuemate.party;
 
+import com.queuemate.common.domain.GameKey;
 import com.queuemate.common.error.ConflictException;
+import com.queuemate.matching.domain.PartyCreationPort.PartyCreationCommand;
 import com.queuemate.common.error.NotFoundException;
 import com.queuemate.common.party.PartyCreationConflictException;
 import com.queuemate.party.domain.PartyStatus;
@@ -86,7 +88,7 @@ class PartyIntegrationTest {
         UUID b = user("bravo");
         UUID proposalId = confirmedProposal(a, b);
 
-        UUID partyId = partyService.createFromProposal(proposalId, "LOL", "SOLO_DUO", 2, null);
+        UUID partyId = createParty(proposalId, 2, a, b);
 
         var detail = partyService.detail(partyId, a);
         assertEquals(PartyStatus.OPEN, detail.party().getStatus());
@@ -100,8 +102,8 @@ class PartyIntegrationTest {
         UUID b = user("bravo");
         UUID proposalId = confirmedProposal(a, b);
 
-        UUID first = partyService.createFromProposal(proposalId, "LOL", "SOLO_DUO", 2, null);
-        UUID second = partyService.createFromProposal(proposalId, "LOL", "SOLO_DUO", 2, null);
+        UUID first = createParty(proposalId, 2, a, b);
+        UUID second = createParty(proposalId, 2, a, b);
 
         assertEquals(first, second);
         assertEquals(1, parties.count());
@@ -115,8 +117,7 @@ class PartyIntegrationTest {
 
         // 조회 후 저장은 원자적이지 않다. 두 트랜잭션이 같은 순간에 "없음"을 보고
         // 둘 다 insert로 진입한다. 마지막 방어선은 parties_proposal_unique다.
-        List<Object> results = runConcurrently(2, () ->
-                partyService.createFromProposal(proposalId, "LOL", "SOLO_DUO", 2, null));
+        List<Object> results = runConcurrently(2, () -> createParty(proposalId, 2, a, b));
 
         long created = results.stream().filter(r -> r instanceof UUID).count();
         long conflicts = results.stream()
@@ -135,8 +136,8 @@ class PartyIntegrationTest {
         proposalMember(proposalId, a, "ACCEPTED");
         proposalMember(proposalId, b, "ACCEPTED");
 
-        ConflictException e = assertThrows(ConflictException.class, () ->
-                partyService.createFromProposal(proposalId, "LOL", "SOLO_DUO", 2, null));
+        ConflictException e = assertThrows(ConflictException.class,
+                () -> createParty(proposalId, 2, a, b));
         assertEquals("PROPOSAL_NOT_CONFIRMED", e.getCode());
     }
 
@@ -148,8 +149,8 @@ class PartyIntegrationTest {
         proposalMember(proposalId, a, "ACCEPTED");
         proposalMember(proposalId, b, "PENDING");
 
-        ConflictException e = assertThrows(ConflictException.class, () ->
-                partyService.createFromProposal(proposalId, "LOL", "SOLO_DUO", 2, null));
+        ConflictException e = assertThrows(ConflictException.class,
+                () -> createParty(proposalId, 2, a, b));
         assertEquals("PROPOSAL_NOT_FULLY_ACCEPTED", e.getCode());
     }
 
@@ -161,21 +162,40 @@ class PartyIntegrationTest {
         // proposal이 만들어진 뒤 차단이 생기는 상황이다. 후보 필터는 이미 지나갔다.
         blockService.block(a, b);
 
-        ConflictException e = assertThrows(ConflictException.class, () ->
-                partyService.createFromProposal(proposalId, "LOL", "SOLO_DUO", 2, null));
+        ConflictException e = assertThrows(ConflictException.class,
+                () -> createParty(proposalId, 2, a, b));
         assertEquals("BLOCKED_MEMBERS", e.getCode());
         assertEquals(0, parties.count());
     }
 
     @Test
-    void 정원과_참가자_수가_다르면_party가_되지_않는다() {
+    void 수락_인원이_정원과_다르면_party가_되지_않는다() {
         UUID a = user("alpha");
         UUID b = user("bravo");
+        UUID c = user("charlie");
+        UUID proposalId = confirmedProposal(a, b, c);
+
+        // 명단 크기와 정원이 맞는지는 PartyCreationCommand가 이미 본다.
+        // 여기서 잡는 것은 DB의 수락 기록이 그와 다른 경우다. 호출자가 아는 것과
+        // 실제로 수락한 사람이 어긋난 상황이라 파티를 만들면 안 된다.
+        ConflictException e = assertThrows(ConflictException.class,
+                () -> createParty(proposalId, 2, a, b));
+        assertEquals("PARTY_SIZE_MISMATCH", e.getCode());
+    }
+
+    @Test
+    void 넘어온_명단이_수락_기록과_다르면_party가_되지_않는다() {
+        UUID a = user("alpha");
+        UUID b = user("bravo");
+        UUID outsider = user("outsider");
         UUID proposalId = confirmedProposal(a, b);
 
-        ConflictException e = assertThrows(ConflictException.class, () ->
-                partyService.createFromProposal(proposalId, "PUBG", "SQUAD", 4, null));
-        assertEquals("PARTY_SIZE_MISMATCH", e.getCode());
+        // 인원 수는 맞지만 사람이 다르다. 매칭 쪽 버그이거나 위조다.
+        // 넘어온 명단을 그대로 믿으면 수락한 적 없는 사람이 파티에 들어간다.
+        ConflictException e = assertThrows(ConflictException.class,
+                () -> createParty(proposalId, 2, a, outsider));
+        assertEquals("PROPOSAL_MEMBER_MISMATCH", e.getCode());
+        assertEquals(0, parties.count());
     }
 
     @Test
@@ -183,8 +203,7 @@ class PartyIntegrationTest {
         UUID a = user("alpha");
         UUID b = user("bravo");
         UUID c = user("charlie");
-        UUID partyId = partyService.createFromProposal(
-                confirmedProposal(a, b, c), "PUBG", "SQUAD", 3, null);
+        UUID partyId = createParty(confirmedProposal(a, b, c), GameKey.PUBG, "SQUAD", 3, a, b, c);
         departures.leave(partyId, a);
 
         // 나갔는데 준비를 바꿀 수 있으면 남은 사람들의 상태 계산이 어긋난다.
@@ -198,7 +217,7 @@ class PartyIntegrationTest {
         UUID a = user("alpha");
         UUID b = user("bravo");
         UUID outsider = user("outsider");
-        UUID partyId = partyService.createFromProposal(confirmedProposal(a, b), "LOL", "SOLO_DUO", 2, null);
+        UUID partyId = createParty(confirmedProposal(a, b), 2, a, b);
 
         // 존재 자체를 숨긴다. 403이면 그 파티가 있다는 사실이 새어나간다.
         NotFoundException e = assertThrows(NotFoundException.class,
@@ -210,7 +229,7 @@ class PartyIntegrationTest {
     void 전원이_준비하면_파티가_READY가_된다() {
         UUID a = user("alpha");
         UUID b = user("bravo");
-        UUID partyId = partyService.createFromProposal(confirmedProposal(a, b), "LOL", "SOLO_DUO", 2, null);
+        UUID partyId = createParty(confirmedProposal(a, b), 2, a, b);
 
         assertEquals(PartyStatus.OPEN, partyService.changeReady(partyId, a, true).party().getStatus());
         assertEquals(PartyStatus.READY, partyService.changeReady(partyId, b, true).party().getStatus());
@@ -222,7 +241,7 @@ class PartyIntegrationTest {
     void 동시에_준비를_눌러도_READY로_올라간다() throws Exception {
         UUID a = user("alpha");
         UUID b = user("bravo");
-        UUID partyId = partyService.createFromProposal(confirmedProposal(a, b), "LOL", "SOLO_DUO", 2, null);
+        UUID partyId = createParty(confirmedProposal(a, b), 2, a, b);
 
         // party row 잠금이 없으면 서로의 커밋 전 상태를 읽어 양쪽 다 "아직 전원 준비 아님"으로
         // 판단하고, 전원이 준비했는데도 파티가 OPEN에 남는다.
@@ -267,6 +286,17 @@ class PartyIntegrationTest {
 
     private interface IndexedTask {
         Object run(int index) throws Exception;
+    }
+
+    /** 매칭이 확정 트랜잭션에서 부르는 것과 같은 모양으로 만든다. */
+    private UUID createParty(UUID proposalId, int targetSize, UUID... members) {
+        return createParty(proposalId, GameKey.LOL, "SOLO_DUO", targetSize, members);
+    }
+
+    private UUID createParty(UUID proposalId, GameKey game, String modeKey, int targetSize,
+                             UUID... members) {
+        return partyService.createParty(new PartyCreationCommand(
+                proposalId, game, modeKey, targetSize, List.of(members), null));
     }
 
     private UUID user(String nickname) {

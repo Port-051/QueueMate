@@ -1,5 +1,7 @@
 package com.queuemate.party;
 
+import com.queuemate.common.domain.GameKey;
+import com.queuemate.matching.domain.PartyCreationPort.PartyCreationCommand;
 import com.queuemate.common.matching.MatchRequeuePort;
 import com.queuemate.common.security.JwtTokenService;
 import com.queuemate.party.domain.PartyStatus;
@@ -376,6 +378,7 @@ class PartyDepartureIntegrationTest {
                             + "VALUES (:p, :u, :r, 'ACCEPTED')")
                     .param("p", proposalId).param("u", member).param("r", UUID.randomUUID()).update();
         }
-        return partyService.createFromProposal(proposalId, "PUBG", "SQUAD", size, null);
+        return partyService.createParty(new PartyCreationCommand(
+                proposalId, GameKey.PUBG, "SQUAD", size, List.of(members), null));
     }
 }
