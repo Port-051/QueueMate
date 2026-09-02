@@ -223,6 +223,53 @@ class RealtimeMatchingIntegrationTest {
     }
 
     @Test
+    @DisplayName("확정 응답에 파티 id가 실린다")
+    void confirmResponseCarriesPartyId() {
+        UUID first = newUser();
+        UUID second = newUser();
+        matchRequests.start(first, lol(LolPosition.JUNGLE));
+        matchRequests.start(second, lol(LolPosition.MID));
+        UUID proposalId = matcher.tryMatch(GameKey.LOL, LOL_MODE).orElseThrow();
+
+        proposals.accept(first, proposalId);
+        var confirmed = proposals.accept(second, proposalId);
+
+        // 클라이언트는 이 값으로 파티룸에 들어간다. null이면 갈 곳을 모른다.
+        assertThat(confirmed.status()).isEqualTo(ProposalStatus.CONFIRMED);
+        assertThat(confirmed.partyId()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("확정된 제안을 다시 조회해도 파티 id가 실린다")
+    void refetchedProposalCarriesPartyId() {
+        UUID first = newUser();
+        UUID second = newUser();
+        matchRequests.start(first, lol(LolPosition.JUNGLE));
+        matchRequests.start(second, lol(LolPosition.MID));
+        UUID proposalId = matcher.tryMatch(GameKey.LOL, LOL_MODE).orElseThrow();
+        proposals.accept(first, proposalId);
+        UUID partyId = proposals.accept(second, proposalId).partyId();
+
+        // 화면을 새로고침한 경우다. 방금 만든 id를 들고 있지 않으니 파티 쪽에 물어야 한다.
+        assertThat(proposals.get(first, proposalId).partyId()).isEqualTo(partyId);
+    }
+
+    @Test
+    @DisplayName("확정 전에는 파티 id가 없다")
+    void pendingProposalHasNoPartyId() {
+        UUID first = newUser();
+        UUID second = newUser();
+        matchRequests.start(first, lol(LolPosition.JUNGLE));
+        matchRequests.start(second, lol(LolPosition.MID));
+        UUID proposalId = matcher.tryMatch(GameKey.LOL, LOL_MODE).orElseThrow();
+
+        var pending = proposals.accept(first, proposalId);
+
+        assertThat(pending.status()).isEqualTo(ProposalStatus.PENDING);
+        assertThat(pending.partyId()).isNull();
+    }
+
+    @Test
     @DisplayName("거절하면 제안이 끝나고 두 사람 모두 대기열로 돌아간다")
     void declineReturnsEveryoneToQueue() {
         UUID decliner = newUser();

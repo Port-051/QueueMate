@@ -96,10 +96,11 @@ public class ProposalService implements BlockedPairProposalGuard {
         requirePending(proposal);
 
         me.respond(Acceptance.ACCEPTED);
+        UUID partyId = null;
         if (allAccepted(members)) {
-            confirm(proposal, members, now);
+            partyId = confirm(proposal, members, now);
         }
-        return view(proposal, members);
+        return view(proposal, members, partyId);
     }
 
     /** 참가자 한 명이 거절하면 제안 전체가 끝난다. 나머지는 조건을 유지한 채 대기로 돌아간다. */
@@ -168,7 +169,7 @@ public class ProposalService implements BlockedPairProposalGuard {
         MatchProposal proposal = load(proposalId);
         List<ProposalMember> members = membersOf(proposalId);
         memberOf(members, userId, proposalId); // 참가자가 아니면 존재를 알리지 않는다
-        return view(proposal, members);
+        return view(proposal, members, partyIdOf(proposal));
     }
 
     /**
@@ -195,7 +196,7 @@ public class ProposalService implements BlockedPairProposalGuard {
         return overdue.size();
     }
 
-    private void confirm(MatchProposal proposal, List<ProposalMember> members, OffsetDateTime now) {
+    private UUID confirm(MatchProposal proposal, List<ProposalMember> members, OffsetDateTime now) {
         proposal.confirm(now);
 
         ProposalParticipants handler = handlerFor(proposal);
@@ -213,26 +214,27 @@ public class ProposalService implements BlockedPairProposalGuard {
         // 여기까지의 변경은 영속성 컨텍스트에만 있고, 그 사이 조회들은 다른 테이블을 봐서
         // Hibernate가 match_proposals를 flush하지 않는다. 밀어 넣고 부른다.
         proposals.saveAndFlush(proposal);
-        createParty(proposal, config, userIds, plan.scheduledStart());
+        UUID partyId = createParty(proposal, config, userIds, plan.scheduledStart());
         handler.onConfirmed(sourceIds);
         UUID proposalId = proposal.getId();
         AfterCommit.run(() -> claims.releaseClaims(proposalId, userIds));
         publishSettled(proposal, userIds);
-        log.info("제안 확정 proposalId={} size={}", proposalId, members.size());
+        log.info("제안 확정 proposalId={} partyId={} size={}", proposalId, partyId, members.size());
+        return partyId;
     }
 
     /**
      * 파티 생성은 party 패키지 소유다 (Member 3). 구현이 아직 붙지 않은 동안에도
      * 매칭 자체는 검증할 수 있어야 하므로 optional로 둔다. 계약상 partyId는 nullable이다.
      */
-    private void createParty(MatchProposal proposal, GameModeConfig config, List<UUID> userIds,
+    private UUID createParty(MatchProposal proposal, GameModeConfig config, List<UUID> userIds,
                              OffsetDateTime scheduledStart) {
         PartyCreationPort port = partyCreation.getIfAvailable();
         if (port == null) {
             log.warn("PartyCreationPort 구현이 없어 파티를 만들지 않았다 proposalId={}", proposal.getId());
-            return;
+            return null;
         }
-        port.createParty(new PartyCreationPort.PartyCreationCommand(
+        return port.createParty(new PartyCreationPort.PartyCreationCommand(
                 proposal.getId(), config.game(), config.modeKey(),
                 config.targetPartySize(), userIds, scheduledStart));
     }
@@ -306,14 +308,26 @@ public class ProposalService implements BlockedPairProposalGuard {
         }
     }
 
-    private static ProposalView view(MatchProposal proposal, List<ProposalMember> members) {
+    /**
+     * 이미 확정된 제안을 다시 조회하는 경우다. 확정 응답에는 방금 만든 id를 그대로 쓰지만
+     * 조회에는 들고 있는 것이 없어 파티 쪽에 물어본다.
+     */
+    private UUID partyIdOf(MatchProposal proposal) {
+        if (proposal.getStatus() != ProposalStatus.CONFIRMED) {
+            return null;
+        }
+        PartyCreationPort port = partyCreation.getIfAvailable();
+        return port == null ? null : port.findPartyIdOf(proposal.getId()).orElse(null);
+    }
+
+    private static ProposalView view(MatchProposal proposal, List<ProposalMember> members,
+                                     UUID partyId) {
         return new ProposalView(
                 proposal.getId(), proposal.getStatus(), proposal.getExpiresAt(),
                 members.stream()
                         .map(member -> new ProposalView.Member(member.getUserId(), member.getAcceptance()))
                         .toList(),
-                // 파티 조회는 party 패키지 소유다. 매칭은 확정 사실까지만 안다.
-                null);
+                partyId);
     }
 
     /** 계약(openapi ProposalView)에 맞춘 조회 결과. */
