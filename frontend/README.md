@@ -5,7 +5,8 @@ Owner: Member 1. 소유 영역은 `frontend/**`다.
 ## 실행
 ```bash
 npm install
-npm run dev      # http://localhost:5173
+npm run dev      # http://localhost:5173 (mock. backend 없이 돈다)
+npm run dev:real # 같은 주소, 실제 backend에 붙는다
 npm run build    # tsc -b && vite build
 npm run e2e      # Playwright critical flows
 ```
@@ -15,10 +16,20 @@ npm run e2e      # Playwright critical flows
 ## API 모드
 backend가 없어도 전체 흐름이 돌아간다.
 
-| 모드 | 설정 | 동작 |
+| 모드 | 실행 | 동작 |
 | --- | --- | --- |
-| mock (기본) | 없음 | `src/mocks/`의 in-memory 서버가 REST와 WebSocket 이벤트를 대신한다 |
-| real | `VITE_API_MODE=real` | `/api/v1` REST와 `/ws` WebSocket에 그대로 붙는다 (vite proxy → `localhost:8080`) |
+| mock (기본) | `npm run dev` | `src/mocks/`의 in-memory 서버가 REST와 WebSocket 이벤트를 대신한다 |
+| real | `npm run dev:real` | `/api/v1` REST와 `/ws` WebSocket에 그대로 붙는다 (vite proxy → `localhost:8080`) |
+
+기본값을 `.env`로 덮지 않는다. 파일로 바꾸면 받아 간 사람 전원의 기본 동작이 바뀌어서,
+프론트만 보려던 사람이 backend를 띄우지 않으면 로그인부터 막힌다.
+
+real은 아래가 모두 떠 있어야 한다.
+
+```bash
+docker compose up -d postgres redis
+cd backend && gradle bootRun            # 8080. Java 21을 못 찾으면 JAVA_HOME을 준다
+```
 
 mock 데모 계정: `demo@queuemate.gg` / `queuemate1`
 

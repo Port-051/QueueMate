@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:real": "VITE_API_MODE=real vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "e2e": "playwright test"
