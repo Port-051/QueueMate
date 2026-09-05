@@ -1,5 +1,6 @@
 package com.queuemate.social.domain;
 
+import org.hibernate.annotations.Generated;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EmbeddedId;
@@ -19,6 +20,11 @@ public class Block {
     @EmbeddedId
     private BlockId id;
 
+    /**
+     * DB의 DEFAULT now()가 채운다. insert 직후 그 값을 다시 읽어 오게 한다.
+     * 이게 없으면 방금 만든 객체의 이 필드가 null이라 생성 응답에 빈 값이 나간다.
+     */
+    @Generated(event = org.hibernate.generator.EventType.INSERT)
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private OffsetDateTime createdAt;
 

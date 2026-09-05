@@ -35,13 +35,20 @@ public class UserService {
     @Transactional
     public User update(UUID userId, UpdateUserRequest request) {
         User user = getById(userId);
-        if (request.nickname() != null && !request.nickname().equals(user.getNickname())) {
-            if (users.existsByNickname(request.nickname())) {
-                throw new ConflictException("NICKNAME_ALREADY_IN_USE", "이미 사용 중인 닉네임이다");
+        // 닉네임은 비울 수 없다. 키를 보냈는데 값이 null이면 요청이 잘못된 것이다.
+        if (request.nicknamePresent()) {
+            if (request.nickname() == null) {
+                throw new IllegalArgumentException("nickname은 비울 수 없다");
             }
-            user.changeNickname(request.nickname());
+            if (!request.nickname().equals(user.getNickname())) {
+                if (users.existsByNickname(request.nickname())) {
+                    throw new ConflictException("NICKNAME_ALREADY_IN_USE", "이미 사용 중인 닉네임이다");
+                }
+                user.changeNickname(request.nickname());
+            }
         }
-        if (request.avatarUrl() != null) {
+        // 아바타는 비울 수 있다. 키를 보냈으면 값 그대로 반영한다. null이면 삭제다.
+        if (request.avatarUrlPresent()) {
             user.changeAvatarUrl(request.avatarUrl());
         }
         try {
