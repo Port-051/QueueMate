@@ -1,6 +1,7 @@
 package com.queuemate.reservation.domain;
 
 import com.queuemate.common.domain.PlayAmount;
+import org.hibernate.annotations.Generated;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -52,6 +53,14 @@ public class Reservation {
 
     @Column(name = "proposal_id")
     private UUID proposalId;
+
+    /**
+     * DB의 DEFAULT now()가 채운다. 목록을 만든 순서대로 보여 주려면 클라이언트에
+     * 이 값이 있어야 한다. insert 직후 다시 읽어 와 생성 응답에도 실린다.
+     */
+    @Generated(event = org.hibernate.generator.EventType.INSERT)
+    @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
+    private OffsetDateTime createdAt;
 
     protected Reservation() {
     }
@@ -165,6 +174,10 @@ public class Reservation {
 
     public PlayAmount getPlayAmount() {
         return playAmount;
+    }
+
+    public OffsetDateTime getCreatedAt() {
+        return createdAt;
     }
 
     public OffsetDateTime getScheduledStart() {

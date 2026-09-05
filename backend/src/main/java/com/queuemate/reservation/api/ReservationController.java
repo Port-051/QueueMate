@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.OffsetDateTime;
@@ -66,7 +67,13 @@ public class ReservationController {
         return view(service.get(currentUser.userId(), id));
     }
 
-    @PatchMapping("/{id}")
+    /**
+     * 예약을 통째로 바꾼다.
+     *
+     * <p>네 필드가 전부 필수라 의미는 전체 교체다. 그래서 PUT이 정본이다.
+     * PATCH는 먼저 붙은 클라이언트가 있어 당분간 같은 동작으로 함께 받는다.
+     */
+    @RequestMapping(method = {RequestMethod.PUT, RequestMethod.PATCH}, path = "/{id}")
     public ReservationView edit(CurrentUser currentUser, @PathVariable UUID id,
                                 @Valid @RequestBody CreateReservationRequest body) {
         service.edit(currentUser.userId(), id, toDomain(body.condition()),
@@ -105,9 +112,12 @@ public class ReservationController {
                 reservation.getAvailableFrom(),
                 reservation.getAvailableTo(),
                 reservation.getPlayAmount(),
+                reservation.getCreatedAt(),
                 reservation.getScheduledStart(),
-                reservation.getProposalId(),
-                null);
+                // partyId는 싣지 않는다. 예약에는 party_id 컬럼이 없어 늘 null이 나갔다.
+                // 실시간 매칭(MatchRequestView)도 proposalId만 주고 파티는 제안을 통해 찾는다.
+                // 두 흐름의 규칙을 같게 둔다: proposalId → GET /proposals/{id} → partyId.
+                reservation.getProposalId());
     }
 
     private static MatchCondition toDomain(MatchConditionRequest body) {
@@ -140,9 +150,9 @@ public class ReservationController {
             OffsetDateTime availableFrom,
             OffsetDateTime availableTo,
             PlayAmount playAmount,
+            OffsetDateTime createdAt,
             OffsetDateTime scheduledStart,
-            UUID proposalId,
-            UUID partyId
+            UUID proposalId
     ) {
     }
 
