@@ -1,7 +1,22 @@
 /* 페이지 전용 레이아웃. 공통 토큰/프리미티브는 theme.css에 있다. */
 
 /* ---------- landing ---------- */
-.landing { min-height: 100vh; padding: 0 5vw 80px; }
+.landing { position: relative; min-height: 100vh; padding: 0 5vw 80px; }
+/* 성운 백드롭. z-index -1로 내려서 랜딩 콘텐츠 위로 절대 올라오지 않게 한다.
+   screen 합성이라 검은 영역은 사라지고 보라 띠만 body 그라디언트에 얹힌다. */
+.landing::before {
+  content: ''; position: absolute; inset: 0 0 auto; height: min(1080px, 118vh); z-index: -1;
+  pointer-events: none;
+  background: url('../assets/landing-hero-backdrop.webp') center top / cover no-repeat;
+  opacity: 0.28; mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(to bottom, #000 52%, transparent 92%);
+  mask-image: linear-gradient(to bottom, #000 52%, transparent 92%);
+}
+/* 넓은 그라디언트 면의 밴딩만 덮는다. 눈에 띄면 과한 것이다. */
+.landing::after {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: url('../assets/noise-tile.svg') repeat; opacity: 0.5;
+}
 .landing-header { height: 84px; display: flex; align-items: center; gap: 14px; }
 .landing-header .brand { padding: 0; margin: 0; }
 .landing-nav { margin-left: auto; display: flex; align-items: center; gap: 12px; }
@@ -82,10 +97,22 @@
   .applied-grid { grid-template-columns: repeat(3, 1fr); }
   .waiting { grid-template-columns: 1fr; }
   .radar { height: 200px; }
+  /* 히어로 폭이 줄면 마스코트 자리도 같이 줄인다. */
+  .home-hero { padding-right: 140px; }
 }
 
 /* ---------- home ---------- */
-.home-hero { position: relative; overflow: hidden; border: 1px solid var(--accent-line); border-radius: var(--r-xl); padding: 30px 32px; background: radial-gradient(700px 300px at 85% 0%, rgba(124, 77, 255, 0.35), rgba(10, 12, 26, 0.9)); }
+/* 마스코트 배너를 오른쪽에 붙이고, 보라 글로우는 falloff를 투명하게 바꿔 배너 위에 얹는다.
+   배너 좌측 45%가 이미 비어 있어서 제목·본문이 그 위에 그대로 앉는다. */
+.home-hero {
+  position: relative; overflow: hidden;
+  border: 1px solid var(--accent-line); border-radius: var(--r-xl);
+  padding: 30px 200px 30px 32px;
+  background:
+    radial-gradient(700px 300px at 85% 0%, rgba(124, 77, 255, 0.3), rgba(124, 77, 255, 0) 68%),
+    url('../assets/hero-mascot-banner.webp') right center / cover no-repeat,
+    linear-gradient(180deg, #0d1024, rgba(10, 12, 26, 0.9));
+}
 .home-hero h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; }
 .home-hero p { margin-top: 10px; color: var(--text-dim); font-size: 14.5px; }
 .home-hero .hero-cta { display: flex; gap: 12px; margin-top: 22px; }

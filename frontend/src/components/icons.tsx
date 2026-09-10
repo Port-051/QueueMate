@@ -23,3 +23,5 @@ export const IconPlus = ({ size }: P) => (<svg {...s(size)}><path d="M12 5v14M5 
 export const IconTrash = ({ size }: P) => (<svg {...s(size)}><path d="M4.5 6.5h15M9.5 6.5V4h5v2.5M6.5 6.5 7.5 20h9l1-13.5" /></svg>);
 export const IconPencil = ({ size }: P) => (<svg {...s(size)}><path d="M4.5 19.5h4L20 8a2.5 2.5 0 0 0-3.5-3.5L5 16z" /></svg>);
 export const IconSend = ({ size }: P) => (<svg {...s(size)}><path d="M21 3 10.5 13.5M21 3l-7 18-3.5-7.5L3 10z" /></svg>);
+export const IconSearch = ({ size }: P) => (<svg {...s(size)}><circle cx="11" cy="11" r="7" /><path d="M20.5 20.5 16.1 16.1" /></svg>);
+export const IconCopy = ({ size }: P) => (<svg {...s(size)}><rect x="9" y="9" width="12" height="12" rx="2.5" /><path d="M6 15.5H5.5A2.5 2.5 0 0 1 3 13V5.5A2.5 2.5 0 0 1 5.5 3H13a2.5 2.5 0 0 1 2.5 2.5V6" /></svg>);

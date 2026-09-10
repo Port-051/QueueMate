@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { useAuth } from '../state/AuthContext';
 import { useMatch } from '../state/MatchContext';
 import { useSocial } from '../state/SocialContext';
+import { Logo } from './Logo';
 import { Avatar } from './ui';
 import {
   IconBell, IconCalendar, IconClock, IconHome, IconLogout, IconMatch, IconParty, IconSettings, IconUser,
@@ -48,10 +49,7 @@ export function AppShell() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark">Q</span>
-          <span className="brand-name">Queue<span>Mate</span></span>
-        </div>
+        <Logo />
 
         <nav className="side-nav">
           {NAV.map((item) => {
@@ -86,7 +84,7 @@ export function AppShell() {
           </div>
           {user ? (
             <div className="side-user">
-              <Avatar name={user.nickname} size={36} status="online" />
+              <Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={36} status="online" />
               <div style={{ minWidth: 0 }}>
                 <b style={{ fontSize: 14 }}>{user.nickname}</b>
                 <small>온라인</small>
@@ -106,7 +104,7 @@ export function AppShell() {
             </button>
             {user ? (
               <div className="user-chip">
-                <Avatar name={user.nickname} size={30} status="online" />
+                <Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={30} status="online" />
                 <div>
                   <b>{user.nickname}</b>
                   <small>온라인</small>

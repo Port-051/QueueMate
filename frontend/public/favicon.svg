@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="QueueMate">
+  <rect x="0" y="0" width="32" height="32" rx="7" fill="#020715"/>
+  <path d="M14.84 25.43 A9.5 9.5 0 1 0 6.74 13.86" fill="none" stroke="#9A56FF" stroke-width="3.8" stroke-linecap="round"/>
+  <circle cx="8.22" cy="21.45" r="3.4" fill="#9A56FF"/>
+  <circle cx="17.99" cy="14.33" r="3.2" fill="#9A56FF"/>
+</svg>
