@@ -1,0 +1,185 @@
+[
+  {
+    "file": "raw/gen1-mascot-banner.png",
+    "size": [
+      1536,
+      1024
+    ],
+    "mode": "RGB",
+    "alpha_extrema": null
+  },
+  {
+    "file": "raw/gen2-landing-backdrop.png",
+    "size": [
+      1536,
+      1024
+    ],
+    "mode": "RGB",
+    "alpha_extrema": null
+  },
+  {
+    "file": "raw/gen3-lol.png",
+    "size": [
+      1536,
+      1024
+    ],
+    "mode": "RGB",
+    "alpha_extrema": null
+  },
+  {
+    "file": "raw/gen3-valorant.png",
+    "size": [
+      1536,
+      1024
+    ],
+    "mode": "RGB",
+    "alpha_extrema": null
+  },
+  {
+    "file": "raw/gen3-pubg.png",
+    "size": [
+      1717,
+      916
+    ],
+    "mode": "RGB",
+    "alpha_extrema": null
+  },
+  {
+    "file": "raw/gen4-avatar-01.png",
+    "size": [
+      1214,
+      1295
+    ],
+    "mode": "RGBA",
+    "alpha_extrema": [
+      0,
+      255
+    ]
+  },
+  {
+    "file": "raw/gen4-avatar-02.png",
+    "size": [
+      1230,
+      1278
+    ],
+    "mode": "RGBA",
+    "alpha_extrema": [
+      0,
+      255
+    ]
+  },
+  {
+    "file": "raw/gen4-avatar-03.png",
+    "size": [
+      1224,
+      1285
+    ],
+    "mode": "RGBA",
+    "alpha_extrema": [
+      0,
+      255
+    ]
+  },
+  {
+    "file": "raw/gen4-avatar-04.png",
+    "size": [
+      1224,
+      1285
+    ],
+    "mode": "RGBA",
+    "alpha_extrema": [
+      0,
+      255
+    ]
+  },
+  {
+    "file": "raw/gen4-avatar-05.png",
+    "size": [
+      1224,
+      1285
+    ],
+    "mode": "RGBA",
+    "alpha_extrema": [
+      0,
+      255
+    ]
+  },
+  {
+    "file": "raw/gen4-avatar-06.png",
+    "size": [
+      1199,
+      1312
+    ],
+    "mode": "RGBA",
+    "alpha_extrema": [
+      0,
+      255
+    ]
+  },
+  {
+    "file": "raw/gen4-avatar-07.png",
+    "size": [
+      1230,
+      1278
+    ],
+    "mode": "RGBA",
+    "alpha_extrema": [
+      0,
+      255
+    ]
+  },
+  {
+    "file": "raw/gen4-avatar-08.png",
+    "size": [
+      1224,
+      1285
+    ],
+    "mode": "RGBA",
+    "alpha_extrema": [
+      0,
+      255
+    ]
+  },
+  {
+    "file": "raw/gen5-no-match.png",
+    "size": [
+      1219,
+      1290
+    ],
+    "mode": "RGBA",
+    "alpha_extrema": [
+      0,
+      255
+    ]
+  },
+  {
+    "file": "raw/gen5-no-social.png",
+    "size": [
+      1536,
+      1024
+    ],
+    "mode": "RGBA",
+    "alpha_extrema": [
+      0,
+      254
+    ]
+  },
+  {
+    "file": "raw/gen5-no-reservation.png",
+    "size": [
+      1536,
+      1024
+    ],
+    "mode": "RGB",
+    "alpha_extrema": null
+  },
+  {
+    "file": "raw/gen6-og-backdrop.png",
+    "size": [
+      1536,
+      1024
+    ],
+    "mode": "RGB",
+    "alpha_extrema": null
+  }
+]
