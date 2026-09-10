@@ -2,8 +2,8 @@ import { useState } from 'react';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
 import type { GameKey } from '../api/types';
-import { IconTrash } from '../components/icons';
-import { Avatar, Button, Card, CardHead, Field, Tag, useToast } from '../components/ui';
+import { IconCheck, IconPencil, IconTrash } from '../components/icons';
+import { AVATAR_CHOICES, Avatar, Button, Card, CardHead, Field, Modal, Tag, useToast } from '../components/ui';
 import { GAMES } from '../domain/gameConfig';
 import { gameFullLabel } from '../domain/labels';
 import { relativeTime } from '../domain/time';
@@ -19,6 +19,10 @@ export function MyInfoPage() {
   const [game, setGame] = useState<GameKey>('LOL');
   const [externalId, setExternalId] = useState('');
   const [busy, setBusy] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  // 모달 안에서만 쓰는 임시 선택이다. 저장 전까지 실제 프로필은 건드리지 않는다.
+  const [picked, setPicked] = useState<string | null>(null);
+  const [savingAvatar, setSavingAvatar] = useState(false);
 
   const unlinked = GAMES.filter((g) => !gameAccounts.some((a) => a.game === g.key));
 
@@ -33,6 +37,27 @@ export function MyInfoPage() {
       toast(isApiError(err) ? err.message : '닉네임을 변경하지 못했습니다', 'error');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const openAvatarPicker = () => {
+    setPicked(user?.avatarUrl ?? null);
+    setAvatarOpen(true);
+  };
+
+  const saveAvatar = async () => {
+    setSavingAvatar(true);
+    try {
+      // null을 명시해야 서버가 아바타를 지운다. 키를 빼면 유지된다 (contracts UpdateUserRequest).
+      await updateProfile({ avatarUrl: picked });
+      setAvatarOpen(false);
+      toast(picked ? '프로필 사진을 변경했습니다' : '기본 프로필 사진으로 되돌렸습니다', 'ok');
+    } catch (err) {
+      // 저장이 안 됐으니 화면도 되돌린다. 반영된 것처럼 보이면 안 된다.
+      setPicked(user?.avatarUrl ?? null);
+      toast(isApiError(err) ? err.message : '프로필 사진을 변경하지 못했습니다', 'error');
+    } finally {
+      setSavingAvatar(false);
     }
   };
 
@@ -76,12 +101,15 @@ export function MyInfoPage() {
           <Card>
             <CardHead title="프로필" sub="닉네임은 매칭 제안과 파티룸에서 팀원에게 보입니다." />
             <div className="row" style={{ gap: 16, alignItems: 'flex-end' }}>
-              <Avatar name={user?.nickname ?? '?'} size={64} />
+              <button type="button" className="avatar-edit" aria-label="프로필 사진 변경" onClick={openAvatarPicker}>
+                <Avatar name={user?.nickname ?? '?'} size={64} avatarUrl={user?.avatarUrl ?? null} />
+              </button>
               <div style={{ flex: 1 }}>
                 <Field label="닉네임" hint="2~16자">
                   <input className="input" value={nickname} onChange={(e) => setNickname(e.target.value)} />
                 </Field>
               </div>
+              <Button onClick={openAvatarPicker}><IconPencil size={13} /> 사진 변경</Button>
               <Button variant="primary" disabled={busy} onClick={() => void saveNickname()}>저장</Button>
             </div>
           </Card>
@@ -143,6 +171,49 @@ export function MyInfoPage() {
           </Card>
         </div>
       </div>
+
+      {avatarOpen ? (
+        <Modal
+          title="프로필 사진"
+          onClose={() => setAvatarOpen(false)}
+          foot={(
+            <>
+              <Button variant="primary" disabled={savingAvatar} onClick={() => void saveAvatar()}>저장</Button>
+              <Button variant="ghost" disabled={savingAvatar} onClick={() => setAvatarOpen(false)}>취소</Button>
+            </>
+          )}
+        >
+          <div className="avatar-picker">
+            <button
+              type="button"
+              className="avatar-opt"
+              aria-pressed={picked === null}
+              disabled={savingAvatar}
+              onClick={() => setPicked(null)}
+            >
+              <Avatar name={user?.nickname ?? '?'} size={64} />
+              <span>기본</span>
+              {picked === null ? <span className="ap-check" aria-hidden="true"><IconCheck size={12} /></span> : null}
+            </button>
+            {AVATAR_CHOICES.map((src, i) => (
+              <button
+                key={src}
+                type="button"
+                className="avatar-opt"
+                aria-pressed={picked === src}
+                disabled={savingAvatar}
+                onClick={() => setPicked(src)}
+              >
+                <img className="ap-img" src={src} alt={`아바타 ${i + 1}`} draggable={false} />
+                {picked === src ? <span className="ap-check" aria-hidden="true"><IconCheck size={12} /></span> : null}
+              </button>
+            ))}
+          </div>
+          <p className="hint" style={{ marginTop: 14 }}>
+            기본을 고르면 닉네임에 맞춰 자동으로 배정된 사진이 쓰입니다.
+          </p>
+        </Modal>
+      ) : null}
     </section>
   );
 }
