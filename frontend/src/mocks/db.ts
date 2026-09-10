@@ -27,7 +27,6 @@ export const CANDIDATES: MockUser[] = [
 
 export interface QueueSim {
   timers: number[];
-  waitingSeconds: number;
 }
 
 export interface MockProposal {
@@ -65,10 +64,10 @@ export const DEMO_CREDENTIALS = { email: 'demo@queuemate.gg', password: 'queuema
 
 function seedFriends(): FriendView[] {
   return [
-    { userId: 'u-gankflow', nickname: 'GankFlow', friendedAt: hoursAgo(52) },
-    { userId: 'u-supportlife', nickname: 'SupportLife', friendedAt: hoursAgo(120) },
-    { userId: 'u-playmaker', nickname: 'PlayMaker', friendedAt: hoursAgo(300) },
-    { userId: 'u-midtheory', nickname: 'MidTheory', friendedAt: hoursAgo(700) },
+    { userId: 'u-gankflow', nickname: 'GankFlow', avatarUrl: null, friendedAt: hoursAgo(52) },
+    { userId: 'u-supportlife', nickname: 'SupportLife', avatarUrl: null, friendedAt: hoursAgo(120) },
+    { userId: 'u-playmaker', nickname: 'PlayMaker', avatarUrl: null, friendedAt: hoursAgo(300) },
+    { userId: 'u-midtheory', nickname: 'MidTheory', avatarUrl: null, friendedAt: hoursAgo(700) },
   ];
 }
 
@@ -81,11 +80,11 @@ function seedRequests(): FriendRequestView[] {
 
 function seedRecent(): RecentPlayerView[] {
   return [
-    { userId: 'u-blueocean', nickname: 'BlueOcean', lastPlayedAt: hoursAgo(0.5), playCount: 3, friend: false },
-    { userId: 'u-lategame', nickname: 'LateGame', lastPlayedAt: hoursAgo(1), playCount: 1, friend: false },
-    { userId: 'u-chickendinner', nickname: 'ChickenDinner', lastPlayedAt: hoursAgo(2), playCount: 5, friend: false },
-    { userId: 'u-gankflow', nickname: 'GankFlow', lastPlayedAt: hoursAgo(20), playCount: 12, friend: true },
-    { userId: 'u-aimking', nickname: 'AimKing', lastPlayedAt: hoursAgo(48), playCount: 2, friend: false },
+    { userId: 'u-blueocean', nickname: 'BlueOcean', avatarUrl: null, lastPlayedAt: hoursAgo(0.5), playCount: 3, friend: false },
+    { userId: 'u-lategame', nickname: 'LateGame', avatarUrl: null, lastPlayedAt: hoursAgo(1), playCount: 1, friend: false },
+    { userId: 'u-chickendinner', nickname: 'ChickenDinner', avatarUrl: null, lastPlayedAt: hoursAgo(2), playCount: 5, friend: false },
+    { userId: 'u-gankflow', nickname: 'GankFlow', avatarUrl: null, lastPlayedAt: hoursAgo(20), playCount: 12, friend: true },
+    { userId: 'u-aimking', nickname: 'AimKing', avatarUrl: null, lastPlayedAt: hoursAgo(48), playCount: 2, friend: false },
   ];
 }
 

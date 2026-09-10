@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { isApiError } from '../api/error';
 import { ReportModal } from '../components/ReportModal';
 import { IconShield } from '../components/icons';
@@ -7,9 +7,12 @@ import { relativeTime } from '../domain/time';
 import { useSocial } from '../state/SocialContext';
 
 export function RecentPlayersPage() {
-  const { recentPlayers, addFriend, block } = useSocial();
+  const { recentPlayers, refresh, addFriend, block } = useSocial();
   const toast = useToast();
   const [reportTarget, setReportTarget] = useState<{ userId: string; nickname: string } | null>(null);
+
+  // 파티가 끝나야 갱신되는 목록이고 알려주는 이벤트가 없다. 화면을 열 때 다시 읽는다.
+  useEffect(() => { void refresh(); }, [refresh]);
 
   const run = async (action: Promise<void>, message: string) => {
     try {
@@ -32,7 +35,7 @@ export function RecentPlayersPage() {
           <EmptyState title="아직 함께 플레이한 기록이 없습니다" desc="매칭이 확정되고 파티가 끝나면 여기에 쌓입니다." />
         ) : recentPlayers.map((p) => (
           <div key={p.userId} className="list-item">
-            <Avatar name={p.nickname} size={38} />
+            <Avatar name={p.nickname} avatarUrl={p.avatarUrl} size={38} />
             <div className="li-main">
               <b>{p.nickname}</b>
               <p>{relativeTime(p.lastPlayedAt)} · {p.playCount}회 함께 플레이</p>

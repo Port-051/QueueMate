@@ -4,8 +4,8 @@ import * as api from '../api/client';
 import { isApiError } from '../api/error';
 import type { PartyView, ServerEvent } from '../api/types';
 import { ReportModal } from '../components/ReportModal';
-import { IconCheck, IconLogout, IconMic, IconMicOff, IconPlus, IconSend, IconShield } from '../components/icons';
-import { Avatar, Button, Card, CardHead, EmptyState, Modal, Tag, useToast } from '../components/ui';
+import { IconCheck, IconLogout, IconMic, IconMicOff, IconSend, IconShield } from '../components/icons';
+import { Avatar, Button, Card, CardHead, EmptyState, Tag, useToast } from '../components/ui';
 import { PARTY_STATUS_LABEL, gameFullLabel, modeLabel } from '../domain/labels';
 import { formatTime } from '../domain/time';
 import { useAuth } from '../state/AuthContext';
@@ -38,7 +38,6 @@ export function PartyRoomPage() {
   const [muted, setMuted] = useState(false);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
-  const [inviting, setInviting] = useState(false);
   const [reportTarget, setReportTarget] = useState<{ userId: string; nickname: string } | null>(null);
 
   const clientRef = useRef<PartyClient | null>(null);
@@ -60,7 +59,7 @@ export function PartyRoomPage() {
   useEffect(() => {
     if (!stream) return;
     return stream.subscribe((event: ServerEvent) => {
-      if (event.type.startsWith('PARTY_') && event.type !== 'PARTY_INVITE_RECEIVED') void load();
+      if (event.type.startsWith('PARTY_')) void load();
     });
   }, [stream, load]);
 
@@ -110,7 +109,6 @@ export function PartyRoomPage() {
   }
 
   const me = party.members.find((m) => m.userId === user?.id);
-  const invitable = friends.filter((f) => !party.members.some((m) => m.userId === f.userId));
 
   const toggleReady = async () => {
     setBusy(true);
@@ -134,16 +132,6 @@ export function PartyRoomPage() {
       toast(isApiError(err) ? err.message : '파티에서 나가지 못했습니다', 'error');
     } finally {
       setBusy(false);
-    }
-  };
-
-  const invite = async (friendUserId: string) => {
-    try {
-      await api.invitePartyMember(party.id, friendUserId);
-      toast('초대를 보냈습니다', 'ok');
-      setInviting(false);
-    } catch (err) {
-      toast(isApiError(err) ? err.message : '초대하지 못했습니다', 'error');
     }
   };
 
@@ -192,14 +180,9 @@ export function PartyRoomPage() {
             </div>
           </div>
         </div>
-        <div className="row" style={{ gap: 10 }}>
-          <Button onClick={() => setInviting(true)} disabled={party.members.length >= party.targetSize}>
-            <IconPlus size={15} /> 친구 초대
-          </Button>
-          <Button variant="danger" disabled={busy} onClick={() => void leave()}>
-            <IconLogout size={15} /> 나가기
-          </Button>
-        </div>
+        <Button variant="danger" disabled={busy} onClick={() => void leave()}>
+          <IconLogout size={15} /> 나가기
+        </Button>
       </div>
 
       <div className="page-grid">
@@ -215,7 +198,7 @@ export function PartyRoomPage() {
               <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
                 {party.members.map((m) => (
                   <div key={m.userId} className={connectedPeers.includes(m.userId) || m.userId === user?.id ? 'voice-chip on' : 'voice-chip'}>
-                    <Avatar name={m.nickname} size={28} />
+                    <Avatar name={m.nickname} avatarUrl={m.userId === user?.id ? user?.avatarUrl ?? null : null} size={28} />
                     <span>{m.nickname}</span>
                     {m.userId === user?.id && muted ? <IconMicOff size={14} /> : <IconMic size={14} />}
                   </div>
@@ -268,7 +251,7 @@ export function PartyRoomPage() {
             <CardHead title={`파티원 (${party.members.length}/${party.targetSize})`} />
             {party.members.map((m) => (
               <div key={m.userId} className="list-item" style={{ alignItems: 'flex-start' }}>
-                <Avatar name={m.nickname} size={36} />
+                <Avatar name={m.nickname} avatarUrl={m.userId === user?.id ? user?.avatarUrl ?? null : null} size={36} />
                 <div className="li-main">
                   <b>{m.nickname}{m.userId === user?.id ? ' (나)' : ''}</b>
                   <p>{m.ready ? '준비 완료' : '준비 중'}</p>
@@ -302,20 +285,6 @@ export function PartyRoomPage() {
           </Card>
         </div>
       </div>
-
-      {inviting ? (
-        <Modal title="친구 초대" onClose={() => setInviting(false)} foot={<Button variant="ghost" onClick={() => setInviting(false)}>닫기</Button>}>
-          {invitable.length === 0 ? (
-            <p style={{ color: 'var(--muted)', fontSize: 13.5 }}>초대할 수 있는 친구가 없습니다.</p>
-          ) : invitable.map((f) => (
-            <div key={f.userId} className="list-item">
-              <Avatar name={f.nickname} size={34} />
-              <div className="li-main"><b>{f.nickname}</b></div>
-              <Button size="sm" variant="primary" onClick={() => void invite(f.userId)}>초대</Button>
-            </div>
-          ))}
-        </Modal>
-      ) : null}
 
       {reportTarget ? (
         <ReportModal

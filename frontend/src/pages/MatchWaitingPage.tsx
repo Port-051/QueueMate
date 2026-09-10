@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import * as api from '../api/client';
 import { isApiError } from '../api/error';
-import type { MatchRequestView } from '../api/types';
 import { ConditionSummary } from '../components/ConditionSummary';
 import { IconX } from '../components/icons';
 import { Button, Card, CardHead, EmptyState, useToast } from '../components/ui';
@@ -15,22 +13,22 @@ export function MatchWaitingPage() {
   const { requestId } = useParams<{ requestId: string }>();
   const navigate = useNavigate();
   const toast = useToast();
-  const { request, condition, queue, cancel } = useMatch();
+  const { request, condition, adoptRequest, cancel } = useMatch();
 
-  const [fallback, setFallback] = useState<MatchRequestView | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [busy, setBusy] = useState(false);
 
-  const view = request ?? fallback;
-
+  /**
+   * 새로고침으로 context가 비었으면 URL의 id로 요청을 되찾는다.
+   * context가 요청을 들고 있어야 대기 중 폴링이 돈다.
+   */
   useEffect(() => {
     if (request || !requestId) return;
-    let cancelled = false;
-    api.getMatchRequest(requestId)
-      .then((r) => { if (!cancelled) setFallback(r); })
-      .catch(() => { if (!cancelled) setFallback(null); });
-    return () => { cancelled = true; };
-  }, [request, requestId]);
+    void adoptRequest(requestId).catch(() => { /* 없는 요청이면 아래 빈 화면이 뜬다 */ });
+  }, [request, requestId, adoptRequest]);
+
+  // 대기 화면은 아직 진행 중인 요청만 보여준다. 끝난 요청은 보여줄 것이 없다.
+  const view = request && (request.status === 'QUEUED' || request.status === 'PROPOSED') ? request : null;
 
   useEffect(() => {
     if (!view) return;
@@ -92,7 +90,6 @@ export function MatchWaitingPage() {
                   <b>{formatDuration(elapsed)}</b>
                 </div>
                 <div className="row" style={{ marginTop: 18, gap: 8, flexWrap: 'wrap' }}>
-                  <span className="tag accent">호환 후보 {queue.candidateCount}명</span>
                   {size ? <span className="tag">목표 인원 {size}명</span> : null}
                   <span className="tag ok">{view.status === 'QUEUED' ? '대기열 등록됨' : '제안 확인 중'}</span>
                 </div>

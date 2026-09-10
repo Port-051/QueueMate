@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { isApiError } from '../api/error';
 import { ReportModal } from '../components/ReportModal';
 import { IconShield, IconTrash } from '../components/icons';
@@ -10,13 +10,19 @@ type Tab = 'friends' | 'received' | 'sent' | 'blocks';
 
 export function FriendsPage() {
   const {
-    friends, receivedRequests, sentRequests, blocks,
+    friends, receivedRequests, sentRequests, blocks, refresh,
     acceptRequest, declineRequest, cancelRequest, removeFriend, block, unblock,
   } = useSocial();
   const toast = useToast();
   const [tab, setTab] = useState<Tab>('friends');
   const [query, setQuery] = useState('');
   const [reportTarget, setReportTarget] = useState<{ userId: string; nickname: string } | null>(null);
+
+  /**
+   * 친구 요청은 알려주는 이벤트가 없다(FRIEND_REQUEST_* 미발행).
+   * 화면을 열 때 다시 읽어야 새 요청이 보인다.
+   */
+  useEffect(() => { void refresh(); }, [refresh]);
 
   const run = async (action: Promise<void>, message: string) => {
     try {
@@ -63,7 +69,7 @@ export function FriendsPage() {
             ? <EmptyState title="친구가 없습니다" desc="파티룸이나 최근 함께한 사람에서 친구 요청을 보낼 수 있습니다." />
             : shownFriends.map((f) => (
               <div key={f.userId} className="list-item">
-                <Avatar name={f.nickname} size={38} />
+                <Avatar name={f.nickname} avatarUrl={f.avatarUrl} size={38} />
                 <div className="li-main">
                   <b>{f.nickname}</b>
                   <p>{relativeTime(f.friendedAt)} 친구가 됨</p>

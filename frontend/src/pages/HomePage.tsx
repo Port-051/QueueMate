@@ -4,7 +4,7 @@ import { isApiError } from '../api/error';
 import type { MatchCondition } from '../api/types';
 import { IconBolt, IconCalendar, IconClock, IconPlus } from '../components/icons';
 import { Avatar, Button, Card, CardHead, EmptyState, Tag, useToast } from '../components/ui';
-import { GAMES, defaultCondition } from '../domain/gameConfig';
+import { availableGames, defaultCondition } from '../domain/gameConfig';
 import { conditionSummary, gameFullLabel, modeLabel } from '../domain/labels';
 import { PLAY_AMOUNT_LABEL, RESERVATION_STATUS_LABEL } from '../domain/labels';
 import { formatRange, relativeTime } from '../domain/time';
@@ -56,7 +56,7 @@ export function HomePage() {
             <Link to="/app/match">조건 자세히 설정 →</Link>
           </div>
           <div className="quick-grid">
-            {GAMES.map((g) => (
+            {availableGames().map((g) => (
               <div key={g.key} className="quick-card">
                 <div className="qc-top">
                   <span className={`game-logo g-${g.key}`}>{g.shortName.slice(0, 3).toUpperCase()}</span>
@@ -145,7 +145,7 @@ export function HomePage() {
             <CardHead title="최근 함께한 사람" right={<Link to="/app/recent" style={{ fontSize: 12.5, color: 'var(--muted)' }}>전체</Link>} />
             {recentPlayers.length > 0 ? recentPlayers.slice(0, 4).map((p) => (
               <div key={p.userId} className="list-item">
-                <Avatar name={p.nickname} size={34} />
+                <Avatar name={p.nickname} avatarUrl={p.avatarUrl} size={34} />
                 <div className="li-main">
                   <b>{p.nickname}</b>
                   <p><IconClock size={11} /> {relativeTime(p.lastPlayedAt)} · {p.playCount}회 함께</p>
@@ -159,7 +159,7 @@ export function HomePage() {
             <CardHead title="친구" right={<Link to="/app/friends" style={{ fontSize: 12.5, color: 'var(--muted)' }}>전체</Link>} />
             {friends.length > 0 ? friends.slice(0, 4).map((f) => (
               <div key={f.userId} className="list-item">
-                <Avatar name={f.nickname} size={34} />
+                <Avatar name={f.nickname} avatarUrl={f.avatarUrl} size={34} />
                 <div className="li-main"><b>{f.nickname}</b></div>
               </div>
             )) : <div className="empty">아직 친구가 없습니다. 함께 플레이한 팀원에게 친구 요청을 보내보세요.</div>}

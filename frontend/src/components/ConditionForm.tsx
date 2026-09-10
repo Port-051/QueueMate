@@ -1,5 +1,7 @@
 import type { GameKey, MatchCondition, PlayPurpose, VoicePreference } from '../api/types';
-import { GAMES, PURPOSE_OPTIONS, VOICE_OPTIONS, gameConfig, switchGame, visibleModes } from '../domain/gameConfig';
+import {
+  PURPOSE_OPTIONS, VOICE_OPTIONS, availableGames, gameConfig, keyConditionOptions, switchGame, visibleModes,
+} from '../domain/gameConfig';
 import { OptionRow } from './ui';
 
 /**
@@ -14,7 +16,7 @@ export function ConditionForm({ value, onChange }: { value: MatchCondition; onCh
       <div>
         <div className="card-title" style={{ marginBottom: 12 }}>게임 선택</div>
         <div className="game-picker">
-          {GAMES.map((g) => (
+          {availableGames().map((g) => (
             <button
               key={g.key}
               type="button"
@@ -45,7 +47,7 @@ export function ConditionForm({ value, onChange }: { value: MatchCondition; onCh
           label={cfg.keyCondition.label}
           desc={cfg.keyCondition.desc}
           value={value.keyCondition.value}
-          options={cfg.keyCondition.options}
+          options={keyConditionOptions(value.game)}
           onChange={(v) => onChange({ ...value, keyCondition: { type: cfg.keyCondition.type, value: v } })}
         />
         <OptionRow

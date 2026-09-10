@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import * as api from '../api/client';
-import { readTokens, writeTokens } from '../api/http';
+import { readTokens, setAuthLostHandler, subscribeTokens, writeTokens } from '../api/http';
 import type { GameAccountView, UpdateUserRequest, UserProfile } from '../api/types';
 
 type Status = 'loading' | 'authenticated' | 'anonymous';
@@ -28,6 +28,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshGameAccounts = useCallback(async () => {
     setGameAccounts(await api.getGameAccounts());
+  }, []);
+
+  // 재발급으로 access token이 갈리면 state도 따라간다. WebSocket이 새 token으로 다시 붙는다.
+  useEffect(() => subscribeTokens((tokens) => setToken(tokens?.accessToken ?? null)), []);
+
+  // 재발급까지 실패하면 세션이 끝난 것이다. 화면을 익명 상태로 되돌린다.
+  useEffect(() => {
+    setAuthLostHandler(() => {
+      setUser(null);
+      setGameAccounts([]);
+      setStatus('anonymous');
+    });
+    return () => setAuthLostHandler(null);
   }, []);
 
   useEffect(() => {

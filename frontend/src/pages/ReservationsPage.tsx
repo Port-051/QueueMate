@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
@@ -21,6 +21,33 @@ export function ReservationsPage() {
   const active = reservations.filter((r) => ACTIVE_STATUSES.includes(r.status));
   const past = reservations.filter((r) => !ACTIVE_STATUSES.includes(r.status));
   const shown = tab === 'active' ? active : past;
+
+  /**
+   * 예약 상태는 서버에서만 바뀌고 알려주는 이벤트가 없다(RESERVATION_UPDATED 미발행).
+   * 목록을 열 때마다 다시 읽어야 취소·성사된 예약이 제때 반영된다.
+   */
+  useEffect(() => { void refreshReservations(); }, [refreshReservations]);
+
+  /**
+   * v2 ReservationView에는 partyId가 없다. 파티에 가려면 proposalId로 제안을 읽어
+   * 거기 실린 partyId를 쓴다 (docs/14 §11-13).
+   */
+  const openParty = async (reservation: ReservationView) => {
+    if (!reservation.proposalId) return;
+    setBusyId(reservation.id);
+    try {
+      const proposal = await api.getProposal(reservation.proposalId);
+      if (!proposal.partyId) {
+        toast('아직 파티가 만들어지지 않았습니다', 'error');
+        return;
+      }
+      navigate(`/app/party/${proposal.partyId}`);
+    } catch (err) {
+      toast(isApiError(err) ? err.message : '파티를 불러오지 못했습니다', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const cancel = async (reservation: ReservationView) => {
     setBusyId(reservation.id);
@@ -92,8 +119,10 @@ export function ReservationsPage() {
                     </Button>
                   </div>
                 ) : null}
-                {r.status === 'MATCHED' && r.partyId ? (
-                  <Button size="sm" variant="primary" onClick={() => navigate(`/app/party/${r.partyId}`)}>파티룸 입장</Button>
+                {r.status === 'MATCHED' && r.proposalId ? (
+                  <Button size="sm" variant="primary" disabled={busyId === r.id} onClick={() => void openParty(r)}>
+                    파티룸 입장
+                  </Button>
                 ) : null}
                 {r.status === 'PROPOSED' && r.proposalId ? (
                   <Button size="sm" variant="primary" onClick={() => navigate(`/app/proposals/${r.proposalId}`)}>제안 확인</Button>

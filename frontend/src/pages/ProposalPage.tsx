@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { isApiError } from '../api/error';
 import { ConditionSummary } from '../components/ConditionSummary';
 import { IconCheck, IconClock, IconX } from '../components/icons';
@@ -11,12 +11,19 @@ import { useAuth } from '../state/AuthContext';
 import { useMatch } from '../state/MatchContext';
 
 export function ProposalPage() {
+  const { proposalId } = useParams<{ proposalId: string }>();
   const { user } = useAuth();
-  const { proposal, proposalSource, condition, reservations, accept, decline } = useMatch();
+  const { proposal, proposalSource, condition, reservations, adoptProposal, accept, decline } = useMatch();
   const navigate = useNavigate();
   const toast = useToast();
   const [remaining, setRemaining] = useState(0);
   const [busy, setBusy] = useState(false);
+
+  /** 새로고침으로 context가 비었으면 URL의 id로 제안을 되찾는다. */
+  useEffect(() => {
+    if (proposal || !proposalId) return;
+    void adoptProposal(proposalId).catch(() => { /* 없거나 끝난 제안이면 아래 빈 화면이 뜬다 */ });
+  }, [proposal, proposalId, adoptProposal]);
 
   useEffect(() => {
     if (!proposal) return;
