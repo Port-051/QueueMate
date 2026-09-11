@@ -38,6 +38,9 @@ public class SecurityConfig {
                         // 뒤에도 세션을 끊을 수 있어야 하므로 인증을 요구하지 않는다.
                         .requestMatchers("/api/v1/auth/signup", "/api/v1/auth/login",
                                 "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
+                        // 소셜 로그인은 토큰을 받기 전에 오가는 구간이라 인증을 걸 수 없다.
+                        // 대신 state와 일회용 교환 코드로 흐름 자체를 검증한다.
+                        .requestMatchers("/api/v1/auth/oauth/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         // container의 error dispatch까지 막으면 인증된 요청의 404가 401로 뒤바뀐다.
                         // 응답 본문은 GlobalExceptionHandler가 만들고 여기서 새는 정보는 없다.

@@ -60,6 +60,10 @@ public class AuthService {
     public TokenResponse login(LoginRequest request) {
         User user = users.findByEmail(request.email())
                 .orElseThrow(() -> new BadCredentialsException("이메일 또는 비밀번호가 올바르지 않다"));
+        // 소셜로만 가입한 계정은 비밀번호가 없다. 같은 문구로 막아 가입 경로를 흘리지 않는다.
+        if (!user.hasPassword()) {
+            throw new BadCredentialsException("이메일 또는 비밀번호가 올바르지 않다");
+        }
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             // 어느 쪽이 틀렸는지 구분해서 알려주지 않는다. 계정 존재 여부가 새어나간다.
             throw new BadCredentialsException("이메일 또는 비밀번호가 올바르지 않다");
@@ -85,6 +89,11 @@ public class AuthService {
     public void logout(String refreshToken) {
         UUID userId = tokenService.parseSubject(refreshToken, TokenType.REFRESH);
         refreshTokens.consume(userId, refreshToken);
+    }
+
+    /** 소셜 로그인처럼 비밀번호를 거치지 않고 신원이 확인된 경우의 발급 경로다. */
+    public TokenResponse issueTokensFor(UUID userId) {
+        return issueTokens(userId);
     }
 
     private TokenResponse issueTokens(UUID userId) {

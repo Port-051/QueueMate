@@ -23,6 +23,19 @@ public final class AuthDtos {
     ) {
     }
 
+    public record OAuthExchangeRequest(
+            @NotBlank String code
+    ) {
+    }
+
+    /** 자격 증명이 설정된 제공자만 내려간다. authorizeUrl은 서버가 조립해 준다. */
+    public record OAuthProviderView(
+            String provider,
+            String displayName,
+            String authorizeUrl
+    ) {
+    }
+
     public record RefreshRequest(
             @NotBlank String refreshToken
     ) {
