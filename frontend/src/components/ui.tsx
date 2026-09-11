@@ -1,5 +1,6 @@
 import { cloneElement, createContext, isValidElement, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactElement, ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import emptyNoMatch from '../assets/empty-no-match.webp';
 import emptyNoSocial from '../assets/empty-no-social.webp';
 import emptyNoReservation from '../assets/empty-no-reservation.webp';
@@ -231,14 +232,16 @@ export function Modal({ title, children, onClose, foot, className = '', titleCon
     window.addEventListener('keydown', onKey);
     return () => { document.body.style.overflow = previousOverflow; window.removeEventListener('keydown', onKey); if (previous?.isConnected) previous.focus(); };
   }, []);
-  return (
+  // 부모의 sticky, overflow, transform에 영향받지 않는 화면 레이어에 표시한다.
+  return createPortal(
     <div className="modal-scrim" onClick={onClose} role="presentation">
       <div ref={dialogRef} tabIndex={-1} className={`modal ${className}`} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <div className="modal-heading"><h2 aria-label={titleContent ? title : undefined}>{titleContent ?? title}</h2>{closeLabel ? <button type="button" className="icon-btn modal-close" aria-label={closeLabel} onClick={onClose}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button> : null}</div>
         <div className="modal-body" style={{ marginTop: 16 }}>{children}</div>
         {foot ? <div className="modal-foot">{foot}</div> : null}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
