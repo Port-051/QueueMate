@@ -11,6 +11,18 @@ import { useAuth } from '../state/AuthContext';
  * 서버가 자격 증명이 설정된 제공자만 내려주므로 여기서 목록을 만들지 않는다.
  * 설정되지 않은 제공자의 버튼을 그려두면 사용자가 누른 뒤에야 실패를 알게 된다.
  */
+/**
+ * 받침에 따라 조사를 고른다. 받침이 없거나 ㄹ이면 '로', 아니면 '으로'다.
+ * 제공자 이름이 서버에서 오므로 문구를 미리 박아둘 수 없다.
+ */
+function startLabel(displayName: string): string {
+  const last = displayName.trim().slice(-1);
+  const code = last.charCodeAt(0);
+  if (Number.isNaN(code) || code < 0xac00 || code > 0xd7a3) return `${displayName}로 시작하기`;
+  const jongseong = (code - 0xac00) % 28;
+  return `${displayName}${jongseong === 0 || jongseong === 8 ? '로' : '으로'} 시작하기`;
+}
+
 export function SocialLoginButtons({ redirectTo, onError }: { redirectTo: string; onError(message: string): void }) {
   const { completeOAuth } = useAuth();
   const navigate = useNavigate();
@@ -60,7 +72,7 @@ export function SocialLoginButtons({ redirectTo, onError }: { redirectTo: string
           disabled={busy}
           onClick={() => void start(p)}
         >
-          {p.displayName}로 시작하기
+          {startLabel(p.displayName)}
         </button>
       ))}
     </div>
