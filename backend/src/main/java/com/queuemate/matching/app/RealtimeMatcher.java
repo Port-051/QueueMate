@@ -4,6 +4,7 @@ import com.queuemate.common.domain.GameKey;
 import com.queuemate.common.social.BlockLookupPort;
 import com.queuemate.gameconfig.domain.GameModeConfig;
 import com.queuemate.gameconfig.domain.GameModeConfigProvider;
+import com.queuemate.matching.domain.ActiveProposalClaim;
 import com.queuemate.matching.domain.BucketDepth;
 import com.queuemate.matching.domain.BucketScanPlan;
 import com.queuemate.matching.domain.ClaimCandidate;
@@ -18,6 +19,7 @@ import com.queuemate.matching.domain.PartyAssembler;
 import com.queuemate.matching.domain.PartyCandidate;
 import com.queuemate.matching.domain.ProposalSourceType;
 import com.queuemate.matching.domain.RandomSource;
+import com.queuemate.matching.infra.ActiveProposalClaimRepository;
 import com.queuemate.matching.infra.MatchConditionCodec;
 import com.queuemate.matching.infra.MatchProposalRepository;
 import com.queuemate.matching.infra.MatchQueueRepository;
@@ -29,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,6 +70,7 @@ public class RealtimeMatcher {
     private final MatchProposalRepository proposals;
     private final ProposalMemberRepository proposalMembers;
     private final ProposalClaimRepository claims;
+    private final ActiveProposalClaimRepository claimRows;
     private final GameModeConfigProvider modes;
     private final MatchConditionCodec codec;
     private final BlockLookupPort blocks;
@@ -81,19 +85,22 @@ public class RealtimeMatcher {
     @Autowired
     public RealtimeMatcher(MatchQueueRepository queue, MatchRequestRepository requests,
                            MatchProposalRepository proposals, ProposalMemberRepository proposalMembers,
-                           ProposalClaimRepository claims, GameModeConfigProvider modes,
+                           ProposalClaimRepository claims, ActiveProposalClaimRepository claimRows,
+                           GameModeConfigProvider modes,
                            MatchConditionCodec codec, BlockLookupPort blocks, RandomSource random,
                            ApplicationEventPublisher events,
                            @Value("${queuemate.proposal.ttl-seconds:20}") long proposalTtlSeconds,
                            @Value("${queuemate.matching.scan-size:50}") int scanSize,
                            @Value("${queuemate.matching.seed-attempts:50}") int seedAttempts) {
-        this(queue, requests, proposals, proposalMembers, claims, modes, codec, blocks, random,
-                events, Clock.systemUTC(), Duration.ofSeconds(proposalTtlSeconds), scanSize, seedAttempts);
+        this(queue, requests, proposals, proposalMembers, claims, claimRows, modes, codec, blocks,
+                random, events, Clock.systemUTC(), Duration.ofSeconds(proposalTtlSeconds),
+                scanSize, seedAttempts);
     }
 
     RealtimeMatcher(MatchQueueRepository queue, MatchRequestRepository requests,
                     MatchProposalRepository proposals, ProposalMemberRepository proposalMembers,
-                    ProposalClaimRepository claims, GameModeConfigProvider modes,
+                    ProposalClaimRepository claims, ActiveProposalClaimRepository claimRows,
+                    GameModeConfigProvider modes,
                     MatchConditionCodec codec, BlockLookupPort blocks, RandomSource random,
                     ApplicationEventPublisher events,
                     Clock clock, Duration proposalTtl, int scanSize, int seedAttempts) {
@@ -102,6 +109,7 @@ public class RealtimeMatcher {
         this.proposals = proposals;
         this.proposalMembers = proposalMembers;
         this.claims = claims;
+        this.claimRows = claimRows;
         this.modes = modes;
         this.codec = codec;
         this.blocks = blocks;
@@ -213,6 +221,13 @@ public class RealtimeMatcher {
             return Optional.empty();
         }
 
+        // Redis가 claim을 잃었을 수 있다. 영속 진실을 직접 본다 (INV-2).
+        if (claimRows.existsByUserIdIn(userIds)) {
+            log.warn("Redis에는 없지만 DB에 살아 있는 claim이 있다. 제안을 만들지 않는다 users={}",
+                    userIds);
+            return Optional.empty();
+        }
+
         UUID proposalId = UUID.randomUUID();
         List<ClaimCandidate> claimTargets = party.stream()
                 .map(candidate -> new ClaimCandidate(
@@ -226,18 +241,42 @@ public class RealtimeMatcher {
         undoClaimIfRolledBack(proposalId, party);
 
         OffsetDateTime now = OffsetDateTime.now(clock);
-        proposals.save(MatchProposal.pending(
-                proposalId, ProposalSourceType.REALTIME, now.plus(proposalTtl)));
+        OffsetDateTime expiresAt = now.plus(proposalTtl);
+        proposals.saveAndFlush(MatchProposal.pending(
+                proposalId, ProposalSourceType.REALTIME, expiresAt));
+        // INV-2의 영속 방어선. Redis가 claim을 잃어도 두 번째 제안은 여기서 막힌다.
+        holdClaims(proposalId, userIds, expiresAt);
         for (Candidate candidate : party) {
             proposalMembers.save(ProposalMember.pending(
                     proposalId, candidate.userId(), candidate.requestId()));
             candidate.request().attachToProposal(proposalId);
         }
         events.publishEvent(new MatchingEvents.ProposalCreated(
-                proposalId, ProposalSourceType.REALTIME, userIds, now.plus(proposalTtl), null));
+                proposalId, ProposalSourceType.REALTIME, userIds, expiresAt, null));
         log.info("제안 생성 proposalId={} game={} mode={} size={}",
                 proposalId, config.game(), config.modeKey(), party.size());
         return Optional.of(proposalId);
+    }
+
+    /**
+     * INV-2를 DB에도 새긴다.
+     *
+     * <p>user_id가 PK이므로 같은 사람이 두 제안에 묶이면 저장이 거부된다. 그 상황은
+     * Redis와 DB가 어긋났다는 뜻이라 조용히 넘어가지 않는다. 트랜잭션은 되돌아가고
+     * {@link #undoClaimIfRolledBack}이 Redis claim과 대기열을 함께 복구한다.
+     */
+    private void holdClaims(UUID proposalId, List<UUID> userIds, OffsetDateTime expiresAt) {
+        try {
+            for (UUID userId : userIds) {
+                claimRows.save(ActiveProposalClaim.held(userId, proposalId, expiresAt));
+            }
+            claimRows.flush();
+        } catch (DataIntegrityViolationException e) {
+            // active_proposal_claims PK. Redis는 비어 있다고 했는데 DB에는 살아 있는 claim이 있다.
+            log.error("INV-2 방어선이 걸렸다. Redis claim과 DB가 어긋나 있다 proposalId={} users={}",
+                    proposalId, userIds);
+            throw e;
+        }
     }
 
     /**

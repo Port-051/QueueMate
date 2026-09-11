@@ -68,6 +68,7 @@ class SchemaMigrationTest {
         String[] expected = {
                 "users", "game_accounts", "game_mode_configs",
                 "match_proposals", "match_requests", "reservations", "proposal_members",
+                "active_proposal_claims",
                 "parties", "party_members",
                 "friend_requests", "friendships", "blocks", "reports"
         };
@@ -190,6 +191,37 @@ class SchemaMigrationTest {
         }
     }
 
+    /**
+     * INV-2: 한 사용자는 동시에 하나의 활성 proposal에만 속한다.
+     *
+     * <p>지금까지 이 불변식은 Redis atomic claim 하나에만 걸려 있었다. Redis 복제는
+     * 비동기라 failover 때 claim이 사라질 수 있고, 그러면 같은 사람이 두 제안에 묶인다.
+     * 여기가 그 경우의 마지막 방어선이다.
+     */
+    @Test
+    void rejectsSecondActiveProposalClaimForSameUser() throws SQLException {
+        UUID user = insertUser();
+        UUID first = insertProposal("PENDING");
+        UUID second = insertProposal("PENDING");
+
+        exec(insertClaimSql(user, first));
+
+        assertThrows(SQLException.class, () -> exec(insertClaimSql(user, second)));
+    }
+
+    @Test
+    void allowsNewClaimAfterPreviousProposalReleasesIt() throws SQLException {
+        UUID user = insertUser();
+        UUID first = insertProposal("PENDING");
+        UUID second = insertProposal("PENDING");
+        exec(insertClaimSql(user, first));
+
+        // 제안이 끝나면 claim 행을 지운다. 그래야 다음 매칭이 가능하다.
+        exec("DELETE FROM active_proposal_claims WHERE proposal_id = '" + first + "'");
+
+        exec(insertClaimSql(user, second));
+    }
+
     @Test
     void rejectsDuplicateProposalMember() throws SQLException {
         UUID proposal = insertProposal("PENDING");
@@ -281,6 +313,11 @@ class SchemaMigrationTest {
         exec("INSERT INTO users (id, email, password_hash, nickname) VALUES ('"
                 + id + "', 'u" + shortId() + "@queuemate.test', 'hash', 'nick" + shortId() + "')");
         return id;
+    }
+
+    private String insertClaimSql(UUID user, UUID proposal) {
+        return "INSERT INTO active_proposal_claims (user_id, proposal_id, expires_at) VALUES ('"
+                + user + "', '" + proposal + "', now() + interval '20 seconds')";
     }
 
     private UUID insertProposal(String status) throws SQLException {

@@ -14,6 +14,7 @@ import com.queuemate.matching.domain.ProposalParticipants;
 import com.queuemate.matching.domain.ProposalSourceType;
 import com.queuemate.matching.domain.ProposalStatus;
 import com.queuemate.matching.infra.AfterCommit;
+import com.queuemate.matching.infra.ActiveProposalClaimRepository;
 import com.queuemate.matching.infra.MatchProposalRepository;
 import com.queuemate.matching.infra.ProposalClaimRepository;
 import com.queuemate.matching.infra.ProposalMemberRepository;
@@ -46,6 +47,7 @@ public class ProposalService implements BlockedPairProposalGuard {
     private final MatchProposalRepository proposals;
     private final ProposalMemberRepository proposalMembers;
     private final ProposalClaimRepository claims;
+    private final ActiveProposalClaimRepository claimRows;
     private final GameModeConfigProvider modes;
     private final Map<ProposalSourceType, ProposalParticipants> participants;
     private final ObjectProvider<PartyCreationPort> partyCreation;
@@ -54,22 +56,25 @@ public class ProposalService implements BlockedPairProposalGuard {
 
     @Autowired
     public ProposalService(MatchProposalRepository proposals, ProposalMemberRepository proposalMembers,
-                           ProposalClaimRepository claims, GameModeConfigProvider modes,
+                           ProposalClaimRepository claims,
+                           ActiveProposalClaimRepository claimRows, GameModeConfigProvider modes,
                            List<ProposalParticipants> participants,
                            ObjectProvider<PartyCreationPort> partyCreation,
                            ApplicationEventPublisher events) {
-        this(proposals, proposalMembers, claims, modes, participants, partyCreation, events,
-                Clock.systemUTC());
+        this(proposals, proposalMembers, claims, claimRows, modes, participants, partyCreation,
+                events, Clock.systemUTC());
     }
 
     ProposalService(MatchProposalRepository proposals, ProposalMemberRepository proposalMembers,
-                    ProposalClaimRepository claims, GameModeConfigProvider modes,
+                    ProposalClaimRepository claims,
+                    ActiveProposalClaimRepository claimRows, GameModeConfigProvider modes,
                     List<ProposalParticipants> participants,
                     ObjectProvider<PartyCreationPort> partyCreation,
                     ApplicationEventPublisher events, Clock clock) {
         this.proposals = proposals;
         this.proposalMembers = proposalMembers;
         this.claims = claims;
+        this.claimRows = claimRows;
         this.modes = modes;
         this.participants = new EnumMap<>(ProposalSourceType.class);
         participants.forEach(handler -> this.participants.put(handler.sourceType(), handler));
@@ -190,6 +195,12 @@ public class ProposalService implements BlockedPairProposalGuard {
             }
             expire(proposal, membersOf(proposal.getId()));
         }
+        // 정상 경로에서는 제안 종료와 같은 트랜잭션에서 지우므로 남지 않는다.
+        // 남았다면 그 사용자는 영영 매칭되지 못하므로 여기서 함께 걷어 낸다.
+        int orphaned = claimRows.deleteExpired(now);
+        if (orphaned > 0) {
+            log.warn("제안 없이 남은 INV-2 claim을 걷어 냈다 count={}", orphaned);
+        }
         if (!overdue.isEmpty()) {
             log.info("만료된 제안 정리 count={}", overdue.size());
         }
@@ -217,6 +228,8 @@ public class ProposalService implements BlockedPairProposalGuard {
         UUID partyId = createParty(proposal, config, userIds, plan.scheduledStart());
         handler.onConfirmed(sourceIds);
         UUID proposalId = proposal.getId();
+        // 제안이 끝났으니 INV-2 claim을 놓아 준다. Redis 해제는 커밋 뒤에 한다.
+        claimRows.deleteByProposalId(proposalId);
         AfterCommit.run(() -> claims.releaseClaims(proposalId, userIds));
         publishSettled(proposal, userIds);
         log.info("제안 확정 proposalId={} partyId={} size={}", proposalId, partyId, members.size());
@@ -250,6 +263,7 @@ public class ProposalService implements BlockedPairProposalGuard {
                 members.stream().map(ProposalMember::getSourceRequestId).toList());
         UUID proposalId = proposal.getId();
         List<UUID> userIds = members.stream().map(ProposalMember::getUserId).toList();
+        claimRows.deleteByProposalId(proposalId);
         AfterCommit.run(() -> claims.releaseClaims(proposalId, userIds));
         publishSettled(proposal, userIds);
     }
