@@ -415,7 +415,10 @@ const routes: Route[] = [
       id: uid(), game: req.game, externalGameId: req.externalGameId,
       // 티어는 서버가 Riot에서 읽어 채우는 파생 값이다. LoL만 조회할 수 있어서
       // 발로란트·PUBG는 진짜 서버에서도 비어 있다. mock도 같게 둔다.
-      region: req.region ?? null, rankCode: req.game === 'LOL' ? 'SILVER_1' : null, verifiedAt: nowIso(),
+      region: req.region ?? null,
+      rankCode: req.game === 'LOL' ? 'SILVER_1' : null,
+      flexRankCode: req.game === 'LOL' ? 'BRONZE_2' : null,
+      verifiedAt: nowIso(),
     };
     db.gameAccounts.push(view);
     return view;

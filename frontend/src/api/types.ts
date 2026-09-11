@@ -50,7 +50,10 @@ export interface GameAccountView {
   game: GameKey;
   externalGameId: string;
   region: string | null;
+  /** 솔로/듀오 랭크. 서버가 채우는 파생 값이다 */
   rankCode: string | null;
+  /** 자유 랭크. 솔로와 독립이라 한쪽만 있을 수 있다 */
+  flexRankCode: string | null;
   verifiedAt: string | null;
 }
 export interface CreateGameAccountRequest { game: GameKey; externalGameId: string; region?: string | null; }

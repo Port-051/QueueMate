@@ -152,7 +152,10 @@ export function MyInfoPage() {
                 <div className="li-main">
                   <b>
                     {gameFullLabel(a.game)}
-                    {rankLabel(a.rankCode) ? <Tag tone="accent">{rankLabel(a.rankCode)}</Tag> : null}
+                    {/* 두 큐는 배치도 티어도 따로 움직인다. 어느 쪽인지 밝히지 않으면
+                        자유 랭크가 솔로 랭크로 읽힌다. */}
+                    {rankLabel(a.rankCode) ? <Tag tone="accent">솔로 {rankLabel(a.rankCode)}</Tag> : null}
+                    {rankLabel(a.flexRankCode) ? <Tag>자유 {rankLabel(a.flexRankCode)}</Tag> : null}
                     {/* Riot ID를 입력받았을 뿐 본인 계정인지는 확인하지 못했다. 그 사실을 숨기지 않는다. */}
                     <Tag>미인증</Tag>
                   </b>
