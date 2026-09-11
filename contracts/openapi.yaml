@@ -812,7 +812,21 @@ components:
         game: { $ref: '#/components/schemas/GameKey' }
         externalGameId: { type: string }
         region: { type: string, nullable: true }
-        rankCode: { type: string, nullable: true }
+        rankCode:
+          type: string
+          nullable: true
+          example: GOLD_2
+          description: |
+            **솔로/듀오 랭크.** 서버가 외부 API에서 읽어 채우는 파생 값이라 요청으로 넣을 수 없다.
+            형식은 `TIER_단계`이고, 마스터 위로는 단계가 없어 티어 이름만 온다 (`MASTER`).
+            언랭이거나 아직 읽지 못했으면 null이다.
+        flexRankCode:
+          type: string
+          nullable: true
+          example: PLATINUM_4
+          description: |
+            **자유 랭크.** `rankCode`와 같은 형식·같은 규칙이다. 둘은 서로 독립이라
+            한쪽만 있을 수 있다. LoL이 아닌 게임에서는 둘 다 null이다.
         verifiedAt: { type: string, format: date-time, nullable: true }
     CreateGameAccountRequest:
       type: object

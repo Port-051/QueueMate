@@ -25,10 +25,7 @@ import java.util.Set;
  * 환경 변수는 설정되지 않은 것과 빈 값을 구분하지 못하는 배포가 많아, 그대로 두면
  * master 이름이 빈 sentinel 연결을 시도하다 뜨지 않는다. 여기서 공백을 명시적으로 걸러 낸다.
  *
- * <p>둘째, sentinel도 host도 없는 설정은 기동 자체를 막는다. 자동 설정은 이때 localhost로
- * 붙어 버려서, 빈 Redis를 정상으로 읽고 guard가 전부 통과한다.
- *
- * <p>넷째, 명령 타임아웃에 기본값을 준다. Lettuce 기본값 60초는 failover 6초짜리 장애를
+ * <p>둘째, 명령 타임아웃에 기본값을 준다. Lettuce 기본값 60초는 failover 6초짜리 장애를
  * 분 단위 정지로 바꾼다. 자동 설정은 값이 없으면 그 60초를 그대로 쓴다.
  *
  * <p>셋째, <b>읽기는 반드시 master에서 한다</b>. replica 읽기를 켜면 복제 지연 동안
@@ -74,13 +71,6 @@ public class RedisConfig {
     RedisConfiguration topologyOf(RedisProperties properties) {
         RedisProperties.Sentinel sentinel = properties.getSentinel();
         if (sentinel == null || !hasText(sentinel.getMaster()) || isEmpty(sentinel.getNodes())) {
-            if (!hasText(properties.getHost())) {
-                // 운영에서 접속 설정을 통째로 빠뜨린 경우다. localhost의 빈 Redis에 조용히
-                // 붙는 것보다 뜨지 않는 편이 낫다 (application-prod.yml 첫 줄과 같은 판단).
-                throw new IllegalStateException(
-                        "Redis 접속 설정이 없다. REDIS_HOST를 주거나 "
-                                + "REDIS_SENTINEL_MASTER/REDIS_SENTINEL_NODES를 채워라");
-            }
             log.info("Redis 단일 인스턴스로 붙는다 host={} port={}",
                     properties.getHost(), properties.getPort());
             RedisStandaloneConfiguration standalone =
