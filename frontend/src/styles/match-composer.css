@@ -38,6 +38,10 @@
 .composer-action { margin-top: 18px; padding: 16px; gap: 16px; border-radius: 16px; background: rgba(113,67,208,.1); }
 .composer-action b { font-size: 14px; }
 .composer-action p { font-size: 13px; }
+.composer-summary { flex: 1; min-width: 0; line-height: 1.65; }
+.composer-summary b { display: block; }
+.composer-summary p { margin-top: 5px; text-wrap: pretty; }
+.composer-summary .composer-summary-schedule { color: var(--accent-2); }
 .composer-action .btn { min-width: 150px; }
 .home-reservation-row { padding: 20px 0; gap: 14px; border-bottom: 1px solid var(--line-soft); }
 .home-reservation-row .li-main { min-width: 0; flex: 1; }

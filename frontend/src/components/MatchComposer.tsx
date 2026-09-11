@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { isApiError } from '../api/error';
 import type { MatchCondition, PlayAmount, ReservationView } from '../api/types';
 import { defaultCondition, targetPartySize } from '../domain/gameConfig';
-import { PLAY_AMOUNT_LABEL, gameFullLabel } from '../domain/labels';
+import { PLAY_AMOUNT_LABEL, conditionSummary, gameFullLabel } from '../domain/labels';
 import { addDays, defaultReservationWindow, formatRange, formatTime, nextDays, slotTimes, toDateKey, toIso } from '../domain/time';
 import { useMatch } from '../state/MatchContext';
 import { readPreferences } from '../state/preferences';
@@ -114,7 +114,11 @@ export function MatchComposer({ condition: initial, mode: initialMode = 'REALTIM
       {blocked ? <p className="banner warn" role="status">{request ? '이미 진행 중인 매칭이 있습니다. 예약 매칭은 등록할 수 있습니다.' : '참여 중인 파티가 있습니다. 예약 매칭은 등록할 수 있습니다.'}</p> : null}
       {error ? <p className="banner danger" role="alert">{error}</p> : null}
       <div className="action-bar composer-action">
-        <div><b>{reservation ? invalidRange || pastStart ? '예약 시간을 확인하세요' : formatRange(availableFrom, availableTo) : `${partySize}인 파티`}</b><p>{reservation ? PLAY_AMOUNT_LABEL[playAmount] : '조건에 맞는 팀원을 찾습니다'}</p></div>
+        <div className="composer-summary" role="status" aria-label="선택한 매칭 조건">
+          <b>{gameFullLabel(condition.game)} · {partySize}인 파티</b>
+          <p>{conditionSummary(condition).join(' · ')}</p>
+          {reservation ? <p className="composer-summary-schedule">{invalidRange || pastStart ? '예약 시간을 확인하세요' : formatRange(availableFrom, availableTo)} · {PLAY_AMOUNT_LABEL[playAmount]}</p> : null}
+        </div>
         <Button variant="primary" size="lg" disabled={busy || blocked || (reservation && (invalidRange || pastStart))} onClick={() => void submit()}>
           {reservation ? <IconCalendar size={17} /> : <IconBolt size={17} />}{busy ? '처리 중…' : reservation ? editing ? '예약 수정' : '예약 등록' : '매칭 시작'}
         </Button>
