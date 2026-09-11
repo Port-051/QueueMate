@@ -5,7 +5,7 @@ import type { GameKey } from '../api/types';
 import { IconCheck, IconPencil, IconTrash } from '../components/icons';
 import { AVATAR_CHOICES, Avatar, Button, Card, CardHead, Field, Modal, Tag, useToast } from '../components/ui';
 import { GAMES } from '../domain/gameConfig';
-import { gameFullLabel } from '../domain/labels';
+import { gameFullLabel, rankLabel } from '../domain/labels';
 import { relativeTime } from '../domain/time';
 import { useAuth } from '../state/AuthContext';
 import { useSocial } from '../state/SocialContext';
@@ -150,7 +150,12 @@ export function MyInfoPage() {
               <div key={a.id} className="list-item">
                 <span className={`game-logo g-${a.game}`} style={{ width: 34, height: 34, fontSize: 11 }}>{a.game.slice(0, 3)}</span>
                 <div className="li-main">
-                  <b>{gameFullLabel(a.game)}</b>
+                  <b>
+                    {gameFullLabel(a.game)}
+                    {rankLabel(a.rankCode) ? <Tag tone="accent">{rankLabel(a.rankCode)}</Tag> : null}
+                    {/* Riot ID를 입력받았을 뿐 본인 계정인지는 확인하지 못했다. 그 사실을 숨기지 않는다. */}
+                    <Tag>미인증</Tag>
+                  </b>
                   <p>{a.externalGameId}{a.region ? ` · ${a.region}` : ''}{a.verifiedAt ? ` · ${relativeTime(a.verifiedAt)} 연결` : ''}</p>
                 </div>
                 <Button size="sm" variant="danger" disabled={busy} onClick={() => void unlink(a.id)}>

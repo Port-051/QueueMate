@@ -297,7 +297,9 @@ ul { margin: 0; padding: 0; list-style: none; }
 .list-item { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border-radius: var(--r-md); border: 1px solid var(--line-soft); background: rgba(255, 255, 255, 0.02); }
 .list-item + .list-item { margin-top: 8px; }
 .list-item .li-main { min-width: 0; flex: 1; }
-.list-item .li-main b { font-size: 14.5px; }
+/* 이름 옆에 티어·인증 배지가 붙는다. 배지가 없으면 전과 똑같이 보인다. */
+.list-item .li-main b { font-size: 14.5px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.list-item .li-main b .tag { font-weight: 600; }
 .list-item .li-main p { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
 
 .empty { padding: 40px 20px; text-align: center; color: var(--muted); font-size: 13.5px; border: 1px dashed var(--line); border-radius: var(--r-lg); }

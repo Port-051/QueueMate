@@ -94,7 +94,7 @@ export function createDb(): MockDb {
     session: null,
     me: { ...DEMO_USER },
     gameAccounts: [
-      { id: uid(), game: 'LOL', externalGameId: 'QueueMaster#KR1', region: 'KR', rankCode: null, verifiedAt: hoursAgo(200) },
+      { id: uid(), game: 'LOL', externalGameId: 'QueueMaster#KR1', region: 'KR', rankCode: 'GOLD_2', verifiedAt: hoursAgo(200) },
     ],
     friends: seedFriends(),
     friendRequests: seedRequests(),

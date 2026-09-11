@@ -70,3 +70,30 @@ export const REPORT_REASONS: { value: ReportReason; label: string }[] = [
 export function conditionSummary(c: MatchCondition): string[] {
   return [modeLabel(c.game, c.modeKey), keyConditionLabel(c), VOICE_LABEL[c.voicePreference], PURPOSE_LABEL[c.playPurpose]];
 }
+
+/**
+ * `rankCode`는 서버가 Riot에서 읽어 채우는 파생 값이다 (contracts GameAccountView).
+ * 형식은 `GOLD_2`이고, 마스터 위로는 단계가 없어 티어 이름만 온다.
+ *
+ * 여기 없는 티어가 와도 화면은 깨지지 않아야 한다. Riot이 티어를 추가한 전례가 있다
+ * (2023년 EMERALD). 모르는 값은 받은 그대로 보여준다.
+ */
+const TIER_LABEL: Record<string, string> = {
+  IRON: '아이언',
+  BRONZE: '브론즈',
+  SILVER: '실버',
+  GOLD: '골드',
+  PLATINUM: '플래티넘',
+  EMERALD: '에메랄드',
+  DIAMOND: '다이아몬드',
+  MASTER: '마스터',
+  GRANDMASTER: '그랜드마스터',
+  CHALLENGER: '챌린저',
+};
+
+export function rankLabel(rankCode: string | null): string | null {
+  if (!rankCode) return null;
+  const [tier, division] = rankCode.split('_');
+  const label = TIER_LABEL[tier] ?? tier;
+  return division ? `${label} ${division}` : label;
+}

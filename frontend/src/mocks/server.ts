@@ -413,7 +413,9 @@ const routes: Route[] = [
     if (db.gameAccounts.some((g) => g.game === req.game)) throw new ApiError(409, 'GAME_ACCOUNT_ALREADY_LINKED', '이미 연결된 게임입니다');
     const view: GameAccountView = {
       id: uid(), game: req.game, externalGameId: req.externalGameId,
-      region: req.region ?? null, rankCode: null, verifiedAt: nowIso(),
+      // 티어는 서버가 Riot에서 읽어 채우는 파생 값이다. LoL만 조회할 수 있어서
+      // 발로란트·PUBG는 진짜 서버에서도 비어 있다. mock도 같게 둔다.
+      region: req.region ?? null, rankCode: req.game === 'LOL' ? 'SILVER_1' : null, verifiedAt: nowIso(),
     };
     db.gameAccounts.push(view);
     return view;
