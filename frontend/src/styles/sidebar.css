@@ -17,7 +17,7 @@
   .sidebar .logo-mark { width: 34px; height: 34px; }
   .sidebar .brand-wordmark { flex: none; width: 132px; }
   .side-nav { min-width: 0; width: 100%; gap: 4px; }
-  .side-nav .nav-link { position: relative; min-height: 52px; padding: 8px 12px; gap: 10px; border: 0; background: none; box-shadow: none; }
+  .side-nav .nav-link { position: relative; min-height: 52px; padding: 8px 12px; gap: 10px; border: 0; box-shadow: none; }
   .side-nav .nav-icon { width: 32px; }
   .side-nav .nav-label { position: absolute; left: 54px; right: 12px; }
   .side-nav .nav-badge { position: absolute; left: 35px; top: 3px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; }

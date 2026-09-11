@@ -79,9 +79,9 @@ ul { margin: 0; padding: 0; list-style: none; }
   padding: 12px 14px; border-radius: var(--r-md);
   color: #a7adc6; font-size: 15px; font-weight: 500;
   border: 1px solid transparent;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s;
 }
-.nav-link:hover { color: var(--text); }
+.nav-link:hover { background: rgba(255, 255, 255, 0.06); }
 .nav-link.active {
   color: var(--text);
 }

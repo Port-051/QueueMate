@@ -51,14 +51,14 @@ export function AppShell() {
           onClick={(event) => { if (disabled) event.preventDefault(); else setMenuOpen(false); }}
           className={({ isActive }) => `nav-link${isActive && !disabled ? ' active' : ''}${disabled ? ' disabled' : ''}`}>
           {({ isActive }) => <>
-            <span className="nav-icon"><MenuIcon size={24} filled={isActive && !disabled} /></span><span className="nav-label">{item.label}</span>
+            <span className="nav-icon"><MenuIcon size={mobile ? 24 : 28} filled={isActive && !disabled} /></span><span className="nav-label">{item.label}</span>
             {item.to === '/app/home' && request ? <span className="nav-badge">1</span> : null}
             {item.to === '/app/friends' && receivedRequests.length > 0 ? <span className="nav-badge">{receivedRequests.length}</span> : null}
           </>}
         </NavLink>;
       })}
       {user ? <NavLink to="/app/me" className="nav-link nav-profile" aria-label="프로필" onClick={() => setMenuOpen(false)}>
-        <span className="nav-icon"><Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={28} status={connection === 'connected' ? 'online' : 'away'} /></span>
+        <span className="nav-icon"><Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={mobile ? 28 : 32} status={connection === 'connected' ? 'online' : 'away'} /></span>
         <span className="nav-label"><span>프로필</span><small className={connection === 'connected' ? '' : 'connecting'}>{connectionLabel}</small></span>
       </NavLink> : null}
     </nav>
