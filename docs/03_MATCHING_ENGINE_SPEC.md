@@ -109,3 +109,27 @@ party size는 `GameModeConfig.targetPartySize`가 결정한다.
 ## 10. No opponent model
 QueueMate의 Match/Party 모델에는 `opponent`, `enemyTeam`, `versusTeam` 개념을 두지 않는다.
 한 MatchProposal은 **함께 플레이할 하나의 party**만 의미한다.
+
+## 11. When matching runs
+매칭은 **대기열이 변한 순간** 돈다. 주기 tick으로 모든 게임×모드를 훑지 않는다.
+
+새 대기자 없이 새 파티가 생길 수는 없다. 그래서 큐를 채우는 경로가 곧 매칭을 돌릴 자리다.
+
+큐를 채우는 경로는 둘뿐이다.
+- 새 match request
+- 깨진 proposal의 queue 복귀 (§8)
+
+둘 다 **DB 커밋 뒤에** 매칭을 건다. 커밋 전에 걸면 매처가 아직 보이지 않는 행을 찾는다.
+
+돌 때는 모드 전체가 아니라 **그 요청이 들어온 bucket을 anchor로** 삼는다 (docs/07 §3.2).
+어느 bucket이 상대가 될 수 있는지는 조건만으로 정해지므로 Redis를 읽기 전에 추릴 수 있다.
+
+**요청-응답 안에서 돌리지 않는다.** 그렇게 하면 매칭 요청의 응답 시간이 대기열 길이에 끌려가고,
+늦게 온 사람이 자기 요청을 처리하는 동안 남의 파티를 만들어 주게 된다. 커밋 뒤 별도 스레드에서 돈다.
+같은 bucket에 일감이 이미 잡혀 있으면 새로 잡지 않는다. 한 번 돌 때 그 bucket에서 만들 수 있는
+파티를 상한까지 다 만들기 때문이다.
+
+**안전망.** trigger는 유실될 수 있다 (프로세스 종료, 일감 큐 포화, Redis 일시 장애).
+그래서 훨씬 긴 주기로 모드 전체를 훑는 sweep을 둔다. 이쪽은 평소에 아무것도 찾지 못해야 정상이고,
+`queuemate.match.proposal.created{source=SWEEP}`가 0이 아니면 event 경로가 새고 있다는 뜻이다.
+그때 고칠 것은 sweep 주기가 아니라 유실 원인이다.

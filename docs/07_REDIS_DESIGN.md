@@ -59,13 +59,21 @@ Redis는 그 결정에 따라 읽을 key 목록을 받을 뿐이다. key 이름�
 조건이 하나 바뀔 때마다 key schema가 따라 바뀐다.
 
 ### 3.2 Reading candidates
-1. mode의 모든 bucket key에 대해 head score와 크기를 읽는다 (`queue-bucket-depths.lua`).
-2. 가장 오래 기다린 bucket을 anchor로 삼아, 그와 파티가 될 수 있는 bucket을 tier 좋은 순으로
-   고른다. 예산이 남으면 다음으로 오래된 anchor로 넘어간다.
-3. 고른 bucket에서 오래 기다린 순으로 quota만큼 꺼낸다 (`queue-bucket-slice.lua`).
+anchor를 정하고, 그와 파티가 될 수 있는 bucket을 tier 좋은 순으로 고른 뒤, 고른 bucket에서
+오래 기다린 순으로 quota만큼 꺼낸다 (`queue-bucket-slice.lua`).
 
-aging(docs/03 §6)은 anchor 선택과 bucket 내부 정렬 양쪽에서 유지된다.
-가장 오래 기다린 사람은 언제나 후보에 들어가고 언제나 첫 seed가 된다.
+anchor를 누가 정하느냐로 입구가 둘이다.
+
+**평소 경로 (docs/03 §11).** 요청이 들어온 bucket이 곧 anchor다. 어느 bucket이 상대가 될 수
+있는지는 조건만으로 정해지므로, depth를 읽을 때부터 그 subset만 읽는다. mode 전체 bucket을
+훑지 않는다.
+
+**안전망 경로.** 어디를 볼지 모르는 채로 부른다. mode의 모든 bucket key에 대해 head score와
+크기를 읽고(`queue-bucket-depths.lua`), 가장 오래 기다린 bucket부터 anchor로 삼는다.
+예산이 남으면 다음으로 오래된 anchor로 넘어간다.
+
+aging(docs/03 §6)은 anchor 선택과 bucket 내부 정렬 양쪽에서 유지된다. 평소 경로에서도
+bucket 안은 오래 기다린 순이므로, 방금 들어온 사람이 자기 trigger로 앞자리를 새치기하지 못한다.
 
 ### 3.3 Bucket key를 아는 쪽
 큐를 건드리는 모든 경로는 조건을 함께 들고 있어야 한다. 조건 없이 requestId만으로는
