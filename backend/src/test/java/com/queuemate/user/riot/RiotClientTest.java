@@ -19,6 +19,7 @@ import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -94,22 +95,22 @@ class RiotClientTest {
     }
 
     @Test
-    @DisplayName("티어는 league-v4의 by-puuid 경로로 읽는다")
-    void readsRankThroughLeagueV4ByPuuid() {
+    @DisplayName("한 응답에서 솔로와 자유를 함께 읽는다")
+    void readsBothQueuesThroughLeagueV4ByPuuid() {
+        // 순서는 Riot이 정한다. 자유가 먼저 와도 각자 제자리에 들어가야 한다.
         stub("/lol/league/v4/entries/by-puuid/", 200, """
                 [{"queueType":"RANKED_FLEX_SR","tier":"PLATINUM","rank":"I","leaguePoints":12},
                  {"queueType":"RANKED_SOLO_5x5","tier":"GOLD","rank":"II","leaguePoints":45}]
                 """);
 
-        Optional<RiotRank> rank = client().findSoloRank("PUUID-1");
+        RiotRanks ranks = client().findRanks("PUUID-1");
 
         // by-summoner가 아니다. 그 경로는 2025년 6월에 없어졌다.
         assertEquals("/lol/league/v4/entries/by-puuid/PUUID-1", requestedPaths.get(0));
-        assertTrue(rank.isPresent());
-        // 자유 랭크가 먼저 왔어도 솔로 랭크를 고른다.
-        assertEquals("GOLD", rank.get().tier());
-        assertEquals("II", rank.get().division());
-        assertEquals(45, rank.get().leaguePoints());
+        assertEquals("GOLD_2", ranks.soloRankCode());
+        assertEquals("PLATINUM_1", ranks.flexRankCode());
+        assertEquals(45, ranks.solo().leaguePoints());
+        assertEquals(12, ranks.flex().leaguePoints());
     }
 
     @Test
@@ -117,16 +118,35 @@ class RiotClientTest {
     void unrankedIsAnEmptyList() {
         stub("/lol/league/v4/entries/by-puuid/", 200, "[]");
 
-        assertEquals(Optional.empty(), client().findSoloRank("PUUID-1"));
+        RiotRanks ranks = client().findRanks("PUUID-1");
+
+        assertNull(ranks.soloRankCode());
+        assertNull(ranks.flexRankCode());
     }
 
     @Test
-    @DisplayName("솔로 랭크 항목이 없으면 비어 있다")
-    void flexOnlyCountsAsNoRank() {
+    @DisplayName("한쪽 큐만 한 계정은 그쪽만 채워진다")
+    void oneQueueOnly() {
         stub("/lol/league/v4/entries/by-puuid/", 200,
                 "[{\"queueType\":\"RANKED_FLEX_SR\",\"tier\":\"PLATINUM\",\"rank\":\"I\",\"leaguePoints\":12}]");
 
-        assertEquals(Optional.empty(), client().findSoloRank("PUUID-1"));
+        RiotRanks ranks = client().findRanks("PUUID-1");
+
+        assertNull(ranks.soloRankCode());
+        assertEquals("PLATINUM_1", ranks.flexRankCode());
+    }
+
+    @Test
+    @DisplayName("모르는 큐 타입은 무시한다")
+    void ignoresUnknownQueues() {
+        // Riot이 큐를 추가해도 화면이 깨지면 안 된다.
+        stub("/lol/league/v4/entries/by-puuid/", 200,
+                "[{\"queueType\":\"CHERRY\",\"tier\":\"GOLD\",\"rank\":\"I\",\"leaguePoints\":1}]");
+
+        RiotRanks ranks = client().findRanks("PUUID-1");
+
+        assertNull(ranks.soloRankCode());
+        assertNull(ranks.flexRankCode());
     }
 
     @Test
@@ -154,6 +174,6 @@ class RiotClientTest {
     void rateLimitAndOutageAreUnavailable() {
         stub("/lol/league/v4/entries/by-puuid/", 429, "{\"status\":{\"status_code\":429}}");
 
-        assertThrows(RiotUnavailableException.class, () -> client().findSoloRank("PUUID-1"));
+        assertThrows(RiotUnavailableException.class, () -> client().findRanks("PUUID-1"));
     }
 }

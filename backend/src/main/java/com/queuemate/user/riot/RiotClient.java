@@ -29,8 +29,8 @@ public class RiotClient {
 
     private static final Logger log = LoggerFactory.getLogger(RiotClient.class);
 
-    /** 솔로 랭크만 쓴다. 자유 랭크는 따로 표시할 자리도 없고 실력의 근거로도 약하다. */
     private static final String SOLO_QUEUE = "RANKED_SOLO_5x5";
+    private static final String FLEX_QUEUE = "RANKED_FLEX_SR";
 
     private final RiotProperties properties;
     private final RestClient http;
@@ -61,24 +61,33 @@ public class RiotClient {
     }
 
     /**
-     * @return 언랭이면 빈 값. 배치를 마치지 않았거나 이번 시즌을 안 한 계정이다
+     * 솔로와 자유 랭크를 한 번에 읽는다.
+     *
+     * @return 둘 다 없으면 {@link RiotRanks#NONE}. 배치를 마치지 않았거나 이번 시즌을 안 했다
      * @throws RiotUnavailableException 조회 자체를 못 했다
      */
-    public Optional<RiotRank> findSoloRank(String puuid) {
+    public RiotRanks findRanks(String puuid) {
         List<?> entries = get(properties.platformBaseUrl(),
                 "/lol/league/v4/entries/by-puuid/{puuid}", List.class, puuid);
         if (entries == null) {
-            return Optional.empty();
+            return RiotRanks.NONE;
         }
-        return entries.stream()
+        List<Map<?, ?>> rows = entries.stream()
                 .filter(Map.class::isInstance)
-                .map(entry -> (Map<?, ?>) entry)
-                .filter(entry -> SOLO_QUEUE.equals(asString(entry.get("queueType"))))
+                .<Map<?, ?>>map(entry -> (Map<?, ?>) entry)
+                .toList();
+        return new RiotRanks(pick(rows, SOLO_QUEUE), pick(rows, FLEX_QUEUE));
+    }
+
+    private static RiotRank pick(List<Map<?, ?>> rows, String queueType) {
+        return rows.stream()
+                .filter(entry -> queueType.equals(asString(entry.get("queueType"))))
                 .findFirst()
                 .map(entry -> new RiotRank(
                         asString(entry.get("tier")),
                         asString(entry.get("rank")),
-                        asInt(entry.get("leaguePoints"))));
+                        asInt(entry.get("leaguePoints"))))
+                .orElse(null);
     }
 
     private <T> T get(String baseUrl, String path, Class<T> type, Object... uriVariables) {

@@ -49,12 +49,13 @@ class RiotRankServiceTest {
     @DisplayName("연결 직후 솔로 랭크를 읽어 rankCode를 채운다")
     void fillsRankOnLink() {
         when(riot.findPuuid("QueueMaster", "KR1")).thenReturn(Optional.of("PUUID-1"));
-        when(riot.findSoloRank("PUUID-1")).thenReturn(Optional.of(new RiotRank("GOLD", "II", 45)));
+        when(riot.findRanks("PUUID-1")).thenReturn(new RiotRanks(new RiotRank("GOLD", "II", 45), new RiotRank("PLATINUM", "IV", 3)));
         GameAccount account = account(GameKey.LOL, "QueueMaster#KR1");
 
         service().syncNewlyLinked(account, NOW);
 
         assertEquals("GOLD_2", account.getRankCode());
+        assertEquals("PLATINUM_4", account.getFlexRankCode());
         assertEquals(NOW, account.getRankUpdatedAt());
         assertEquals(NOW, account.getRankSyncedAt());
     }
@@ -63,12 +64,13 @@ class RiotRankServiceTest {
     @DisplayName("언랭이면 조회 시각만 남고 rankCode는 비어 있다")
     void unrankedRecordsOnlyTheAttempt() {
         when(riot.findPuuid(anyString(), anyString())).thenReturn(Optional.of("PUUID-1"));
-        when(riot.findSoloRank("PUUID-1")).thenReturn(Optional.empty());
+        when(riot.findRanks("PUUID-1")).thenReturn(RiotRanks.NONE);
         GameAccount account = account(GameKey.LOL, "QueueMaster#KR1");
 
         service().syncNewlyLinked(account, NOW);
 
         assertNull(account.getRankCode());
+        assertNull(account.getFlexRankCode());
         assertNull(account.getRankUpdatedAt(), "채운 적이 없으므로 갱신 시각도 없다");
         // 시각은 남긴다. 남기지 않으면 언랭 계정을 매 조회마다 다시 묻는다.
         assertEquals(NOW, account.getRankSyncedAt());
@@ -92,7 +94,7 @@ class RiotRankServiceTest {
     void outageKeepsTheKnownRank() {
         GameAccount account = account(GameKey.LOL, "QueueMaster#KR1");
         when(riot.findPuuid(anyString(), anyString())).thenReturn(Optional.of("PUUID-1"));
-        when(riot.findSoloRank("PUUID-1")).thenReturn(Optional.of(new RiotRank("DIAMOND", "IV", 10)));
+        when(riot.findRanks("PUUID-1")).thenReturn(new RiotRanks(new RiotRank("DIAMOND", "IV", 10), null));
         service().syncNewlyLinked(account, NOW.minusDays(2));
         assertEquals("DIAMOND_4", account.getRankCode());
 
@@ -158,7 +160,7 @@ class RiotRankServiceTest {
 
         private GameAccount synced(String rankCode, OffsetDateTime at) {
             GameAccount account = account(GameKey.LOL, "QueueMaster#KR1");
-            account.applyRank(rankCode, at);
+            account.applyRank(rankCode, null, at);
             return account;
         }
 
@@ -174,7 +176,7 @@ class RiotRankServiceTest {
         @DisplayName("랭크가 있으면 6시간마다 다시 읽는다")
         void rankedRefreshesAfterSixHours() {
             when(riot.findPuuid(anyString(), anyString())).thenReturn(Optional.of("PUUID-1"));
-            when(riot.findSoloRank(anyString())).thenReturn(Optional.of(new RiotRank("GOLD", "I", 80)));
+            when(riot.findRanks(anyString())).thenReturn(new RiotRanks(new RiotRank("GOLD", "I", 80), null));
 
             assertFalse(service().refreshStale(List.of(synced("GOLD_2", NOW.minusHours(5))), NOW));
             assertTrue(service().refreshStale(List.of(synced("GOLD_2", NOW.minusHours(7))), NOW));
@@ -268,11 +270,11 @@ class RiotRankServiceTest {
     @DisplayName("여러 계정 중 오래된 것만 읽는다")
     void refreshesOnlyStaleAccounts() {
         GameAccount fresh = account(GameKey.LOL, "Fresh#KR1");
-        fresh.applyRank("GOLD_2", NOW.minusMinutes(1));
+        fresh.applyRank("GOLD_2", null, NOW.minusMinutes(1));
         GameAccount stale = account(GameKey.LOL, "Stale#KR1");
-        stale.applyRank("SILVER_1", NOW.minusDays(1));
+        stale.applyRank("SILVER_1", null, NOW.minusDays(1));
         when(riot.findPuuid("Stale", "KR1")).thenReturn(Optional.of("PUUID-2"));
-        when(riot.findSoloRank("PUUID-2")).thenReturn(Optional.of(new RiotRank("PLATINUM", "III", 20)));
+        when(riot.findRanks("PUUID-2")).thenReturn(new RiotRanks(new RiotRank("PLATINUM", "III", 20), null));
 
         assertTrue(service().refreshStale(List.of(fresh, stale), NOW));
 
@@ -288,7 +290,7 @@ class RiotRankServiceTest {
         GameAccount ok = account(GameKey.LOL, "Ok#KR1");
         when(riot.findPuuid("Broken", "KR1")).thenThrow(new RiotUnavailableException(new RuntimeException()));
         when(riot.findPuuid("Ok", "KR1")).thenReturn(Optional.of("PUUID-3"));
-        when(riot.findSoloRank("PUUID-3")).thenReturn(Optional.of(new RiotRank("BRONZE", "III", 5)));
+        when(riot.findRanks("PUUID-3")).thenReturn(new RiotRanks(new RiotRank("BRONZE", "III", 5), null));
 
         assertTrue(service().refreshStale(List.of(broken, ok), NOW));
 
@@ -297,9 +299,56 @@ class RiotRankServiceTest {
     }
 
     @Test
+    @DisplayName("시즌이 초기화돼 랭크가 사라지면 지운다")
+    void seasonResetClearsTheStaleRank() {
+        GameAccount account = account(GameKey.LOL, "QueueMaster#KR1");
+        when(riot.findPuuid(anyString(), anyString())).thenReturn(Optional.of("PUUID-1"));
+        when(riot.findRanks("PUUID-1")).thenReturn(
+                new RiotRanks(new RiotRank("DIAMOND", "IV", 10), new RiotRank("GOLD", "I", 5)));
+        service().syncNewlyLinked(account, NOW.minusDays(2));
+
+        // 새 시즌이 열려 둘 다 배치가 풀렸다.
+        when(riot.findRanks("PUUID-1")).thenReturn(RiotRanks.NONE);
+        service().refreshStale(List.of(account), NOW);
+
+        // 남겨 두면 지난 시즌 티어가 계속 보인다. 장애(아무것도 안 씀)와는 다른 경우다.
+        assertNull(account.getRankCode());
+        assertNull(account.getFlexRankCode());
+    }
+
+    @Test
+    @DisplayName("한쪽 큐만 배치가 풀려도 나머지는 남는다")
+    void oneQueueResetKeepsTheOther() {
+        GameAccount account = account(GameKey.LOL, "QueueMaster#KR1");
+        when(riot.findPuuid(anyString(), anyString())).thenReturn(Optional.of("PUUID-1"));
+        when(riot.findRanks("PUUID-1")).thenReturn(
+                new RiotRanks(new RiotRank("DIAMOND", "IV", 10), new RiotRank("GOLD", "I", 5)));
+        service().syncNewlyLinked(account, NOW.minusDays(2));
+
+        when(riot.findRanks("PUUID-1")).thenReturn(new RiotRanks(null, new RiotRank("GOLD", "I", 5)));
+        service().refreshStale(List.of(account), NOW);
+
+        assertNull(account.getRankCode());
+        assertEquals("GOLD_1", account.getFlexRankCode());
+    }
+
+    @Test
+    @DisplayName("자유 랭크만 있어도 '랭크 있음'으로 보고 6시간 주기를 쓴다")
+    void flexAloneCountsAsRanked() {
+        GameAccount flexOnly = account(GameKey.LOL, "QueueMaster#KR1");
+        flexOnly.applyRank(null, "GOLD_1", NOW.minusHours(7));
+
+        // 언랭 주기(24시간)를 썼다면 아직 갱신하지 않았을 시점이다.
+        when(riot.findPuuid(anyString(), anyString())).thenReturn(Optional.of("PUUID-1"));
+        when(riot.findRanks("PUUID-1")).thenReturn(new RiotRanks(null, new RiotRank("GOLD", "I", 9)));
+
+        assertTrue(service().refreshStale(List.of(flexOnly), NOW));
+    }
+
+    @Test
     @DisplayName("계정이 없으면 아무 일도 하지 않는다")
     void emptyListIsANoop() {
         assertFalse(service().refreshStale(List.of(), NOW));
-        verify(riot, never()).findSoloRank(any());
+        verify(riot, never()).findRanks(any());
     }
 }

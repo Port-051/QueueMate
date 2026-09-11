@@ -70,17 +70,18 @@ public class RiotRankService {
         RiotRankService.RiotId riotId = RiotId.parse(account.getExternalGameId());
         if (riotId == null) {
             // 형식이 아니면 다시 물어도 결과가 같다. 시각을 남겨 매 조회마다 되묻지 않게 한다.
-            account.applyRank(null, now);
+            account.applyRank(null, null, now);
             return true;
         }
         try {
             Optional<String> puuid = riot.findPuuid(riotId.gameName(), riotId.tagLine());
             if (puuid.isEmpty()) {
                 // 없는 Riot ID다. 이것도 확인된 결과이므로 시각을 남긴다.
-                account.applyRank(null, now);
+                account.applyRank(null, null, now);
                 return true;
             }
-            account.applyRank(riot.findSoloRank(puuid.get()).map(RiotRank::toRankCode).orElse(null), now);
+            RiotRanks ranks = riot.findRanks(puuid.get());
+            account.applyRank(ranks.soloRankCode(), ranks.flexRankCode(), now);
             return true;
         } catch (RiotUnavailableException e) {
             // 다음 조회 때 다시 시도한다. 이미 알고 있던 티어는 그대로 둔다.
@@ -98,7 +99,8 @@ public class RiotRankService {
             return true;
         }
         // 랭크가 있으면 자주, 없으면 드물게 본다. 언랭은 흔하고 잘 바뀌지 않는다.
-        Duration ttl = account.getRankCode() == null ? properties.unrankedTtl() : properties.rankTtl();
+        boolean hasAnyRank = account.getRankCode() != null || account.getFlexRankCode() != null;
+        Duration ttl = hasAnyRank ? properties.rankTtl() : properties.unrankedTtl();
         return synced.plus(ttl).isBefore(now);
     }
 
