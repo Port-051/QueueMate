@@ -12,22 +12,33 @@ test('사이드바는 호버와 키보드 탐색 때 펼쳐지고 마우스가 �
   await expect(label).toBeHidden();
   await expect(sidebar.locator('.avatar-status.online')).toBeVisible();
   await expect(sidebar).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  const main = page.locator('.main');
+  const homeBounds = await main.boundingBox();
+  const gameBounds = await page.locator('.home-games').boundingBox();
 
   await sidebar.hover();
   await expect(sidebar).toHaveCSS('width', '232px');
   await expect(wordmark).toBeVisible();
   await expect(label).toBeVisible();
+  expect(await main.boundingBox()).toEqual(homeBounds);
+  expect(await page.locator('.home-games').boundingBox()).toEqual(gameBounds);
+  await page.mouse.move(900, 100);
+  await expect(sidebar).toHaveCSS('width', '80px');
+  expect(await main.boundingBox()).toEqual(homeBounds);
+  expect(await page.locator('.home-games').boundingBox()).toEqual(gameBounds);
   await sidebar.getByRole('link', { name: '프로필', exact: true }).click();
   await page.mouse.move(900, 100);
   await expect(sidebar).toHaveCSS('width', '80px');
   await expect(label).toBeHidden();
   await expect(wordmark).toBeHidden();
+  const profileBounds = await main.boundingBox();
 
   await sidebar.getByRole('link', { name: '홈', exact: true }).focus();
   await page.keyboard.press('Tab');
   await expect(sidebar).toHaveCSS('width', '232px');
   await expect(sidebar.getByRole('link', { name: '친구', exact: true })).toBeFocused();
   await expect(sidebar.locator('.nav-label').first()).toBeVisible();
+  expect(await main.boundingBox()).toEqual(profileBounds);
 });
 
 test('기존 설정 주소는 프로필의 설정 영역으로 연결된다', async ({ page }) => {

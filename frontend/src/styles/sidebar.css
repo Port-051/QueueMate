@@ -9,9 +9,10 @@
 .profile-settings .inline-help { margin-top: 24px; }
 
 @media (min-width: 768px) {
-  .app-shell { --sidebar-w: 80px; transition: grid-template-columns .22s ease; }
-  .app-shell:has(.sidebar:hover), .app-shell:has(.sidebar :focus-visible) { --sidebar-w: 232px; }
-  .sidebar { min-width: 0; padding: 24px 12px 20px; overflow: hidden; background: none; border: 0; mix-blend-mode: screen; }
+  /* 메뉴 영역은 확보해 두고 사이드바만 펼쳐 본문 이동과 글자 겹침을 막는다. */
+  .app-shell { --sidebar-w: 232px; }
+  .sidebar { width: 80px; min-width: 0; padding: 24px 12px 20px; overflow: hidden; background: none; border: 0; mix-blend-mode: screen; transition: width .22s ease; }
+  .sidebar:hover, .sidebar:has(:focus-visible) { width: var(--sidebar-w); }
   .sidebar .brand { width: 208px; max-width: none; padding: 4px 11px 28px; gap: 10px; }
   .sidebar .logo-mark { width: 34px; height: 34px; }
   .sidebar .brand-wordmark { flex: none; width: 132px; }
@@ -25,5 +26,5 @@
   .sidebar:hover .brand-wordmark, .sidebar:has(:focus-visible) .brand-wordmark { opacity: 1; visibility: visible; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .app-shell, .sidebar .nav-label, .sidebar .brand-wordmark { transition: none; }
+  .sidebar, .sidebar .nav-label, .sidebar .brand-wordmark { transition: none; }
 }
