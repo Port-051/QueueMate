@@ -41,6 +41,31 @@ public class QueueMateMetrics {
                 .increment();
     }
 
+    /**
+     * 제안이 만들어졌다. 무엇이 매칭을 돌렸는지 함께 센다.
+     *
+     * 매칭은 대기열이 변한 순간 돌고, 주기 sweep은 그 trigger를 잃었을 때만 일을 찾는 안전망이다.
+     * 그래서 SWEEP이 0이 아니라는 것 자체가 정상 경로가 새고 있다는 신호다.
+     * 둘을 합쳐서만 세면 전체 수치가 멀쩡해 보여 그 사실이 가려진다.
+     */
+    public void proposalCreated(MatchSource source) {
+        Counter.builder("queuemate.match.proposal.created")
+                .tag("source", source.name())
+                .description("만들어진 제안 수. 무엇이 매칭을 돌렸는지별")
+                .register(registry)
+                .increment();
+    }
+
+    /**
+     * 매칭 trigger를 버렸다. 그 bucket은 안전망 sweep까지 기다린다.
+     *
+     * 일감 큐가 포화됐다는 뜻이므로, 계속 오른다면 trigger 스레드가 모자라거나
+     * 매칭 한 판이 너무 오래 걸리고 있다.
+     */
+    public void matchTriggerDropped() {
+        counter("queuemate.match.trigger.dropped", "포화로 버린 매칭 trigger 수").increment();
+    }
+
     /** 파티가 게임 시작으로 넘어갔다. 서버가 관측한 것이 아니라 시간으로 추정한 전이다. */
     public void partyStartedPlaying() {
         counter("queuemate.party.playing", "게임 시작으로 판정한 파티 수").increment();
@@ -116,6 +141,14 @@ public class QueueMateMetrics {
 
     private Counter counter(String name, String description) {
         return Counter.builder(name).description(description).register(registry);
+    }
+
+    /** 매칭을 돌린 계기. */
+    public enum MatchSource {
+        /** 대기열이 변해서 돌았다. 평소 경로다. */
+        TRIGGER,
+        /** 주기 안전망이 멈춰 선 큐를 찾아 돌았다. 0이어야 정상이다. */
+        SWEEP
     }
 
     /** 불변식 방어가 걸리는 자리. CLAUDE.md의 INV 번호와 대응한다. */
