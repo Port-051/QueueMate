@@ -1,7 +1,7 @@
 .home-page { max-width: 1160px; }
 .home-games { margin-top: 0; }
-.home-games > .section-head { margin-bottom: 28px; }
-.home-games h1 { font-size: 22px; font-weight: 700; }
+.home-games > .section-head { margin-bottom: 40px; }
+.home-games h1 { font-size: 32px; font-weight: 700; line-height: 1.4; letter-spacing: -.025em; word-break: keep-all; }
 .home-game-tile { aspect-ratio: 1.9; }
 .home-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 32px; align-items: start; margin-top: 32px; }
 .home-match-columns { display: grid; gap: 24px; min-width: 0; }
@@ -57,6 +57,7 @@
   .home-workspace { grid-template-columns: 1fr; }
 }
 @media (max-width: 767px) {
+  .home-games h1 { font-size: 26px; }
   .home-workspace { margin-top: 24px; gap: 28px; }
   .home-match-columns { gap: 16px; }
   .home-match-column { padding: 18px; }
