@@ -13,6 +13,7 @@ import { readPreferences } from '../state/preferences';
 import { readRecentConditions } from '../state/recentConditions';
 import { IconBolt, IconCalendar } from './icons';
 import { Button, Tag, useToast } from './ui';
+import { GameWordmark } from './GameWordmark';
 
 /**
  * 홈의 큐 콘솔. 게임 → 조건 → 매칭 시작까지 한 화면에서 끝낸다.
@@ -154,14 +155,14 @@ export function QueueConsole() {
             type="button"
             role="tab"
             aria-selected={g.key === condition.game}
-            className={g.key === condition.game ? 'qc-game on' : 'qc-game'}
+            // 워드마크는 그림에 가까워 aria-hidden이다. 이름은 여기서 준다.
+            aria-label={g.name}
+            className={`qc-game g-${g.key}${g.key === condition.game ? ' on' : ''}`}
             onClick={() => setCondition(switchGame(condition, g.key as GameKey))}
           >
-            <span className={`game-logo g-${g.key}`}>{g.shortName.slice(0, 3).toUpperCase()}</span>
-            <span className="qc-game-name">
-              <b>{g.name}</b>
-              <small>{g.tagline}</small>
-            </span>
+            {/* 배경 아트는 `.qc-game.g-{GAME}`이 CSS로 깐다. 여기서는 글자만 얹는다. */}
+            <GameWordmark game={g.key as GameKey} />
+            <small>{g.tagline}</small>
           </button>
         ))}
       </div>

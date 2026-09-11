@@ -146,12 +146,61 @@
 .qc-recent button:hover { border-color: var(--accent-line); color: var(--text); }
 
 .qc-games { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 6px; }
-.qc-game { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r-md); border: 1px solid var(--line); background: rgba(9, 11, 24, 0.6); cursor: pointer; text-align: left; }
-.qc-game:hover { border-color: var(--accent-line); }
-.qc-game.on { border-color: var(--accent-2); background: linear-gradient(135deg, rgba(111, 44, 255, 0.34), rgba(154, 86, 255, 0.16)); }
-.qc-game .qc-game-name { min-width: 0; }
-.qc-game b { display: block; font-size: 14.5px; }
-.qc-game small { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); }
+
+/* 게임 선택은 배지 + 이름이 아니라 키 아트 배너다.
+   theme.css의 `.g-LOL` 등은 40px 배지용 규칙이라 배경을 덮어쓴다.
+   여기서는 `.qc-game.g-LOL`로 한 단계 더 좁혀 그 위에 얹는다. */
+.qc-game {
+  position: relative; display: flex; flex-direction: column; justify-content: flex-end;
+  min-height: 94px; padding: 14px 16px; border-radius: var(--r-md);
+  border: 1px solid var(--line); cursor: pointer; text-align: left; overflow: hidden;
+  background-color: #070911; background-repeat: no-repeat;
+  transition: border-color 0.15s, filter 0.15s;
+}
+/* 아트는 어둡게 깔고 아래쪽에 스크림을 덮는다. 글자가 아트 위에서도 읽혀야 한다. */
+.qc-game.g-LOL {
+  background-image: linear-gradient(180deg, rgba(5, 6, 15, 0.3) 0%, rgba(5, 6, 15, 0.88) 76%),
+    url('../assets/game-art-lol.webp');
+  background-size: cover, cover; background-position: center, center;
+}
+.qc-game.g-VALORANT {
+  background-image: linear-gradient(180deg, rgba(5, 6, 15, 0.3) 0%, rgba(5, 6, 15, 0.88) 76%),
+    url('../assets/game-art-valorant.webp');
+  background-size: cover, cover; background-position: center, center;
+}
+.qc-game.g-PUBG {
+  background-image: linear-gradient(180deg, rgba(5, 6, 15, 0.3) 0%, rgba(5, 6, 15, 0.88) 76%),
+    url('../assets/game-art-pubg.webp');
+  background-size: cover, cover; background-position: center, center;
+}
+.qc-game:hover { border-color: var(--accent-line); filter: brightness(1.12); }
+/* 선택 상태는 아트를 덮는 보라 배경이 아니라 테두리와 광으로 말한다. */
+.qc-game.on { border-color: var(--accent-2); box-shadow: var(--glow); }
+.qc-game.on::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  /* 테두리와 광이 이미 선택을 말한다. 보라를 진하게 깔면 게임색(특히 LoL의 금색)이 죽는다. */
+  background: linear-gradient(135deg, rgba(111, 44, 255, 0.14), rgba(154, 86, 255, 0.03));
+}
+.qc-game small {
+  position: relative; display: block; margin-top: 7px;
+  font-size: 12px; color: var(--text-dim);
+}
+
+/* 게임 이름 조판. 공식 로고 파일이 아니다 (GameWordmark 주석 참고). */
+.wm { position: relative; display: block; line-height: 1; text-transform: uppercase; white-space: nowrap; }
+.wm .wm-line { display: block; }
+.wm-lol { font-family: Georgia, 'Times New Roman', serif; color: #c8aa6e; }
+.wm-lol .wm-line { font-size: 17px; font-weight: 700; letter-spacing: 0.13em; }
+.wm-lol .wm-line-2 { margin-top: 3px; font-size: 12px; letter-spacing: 0.2em; }
+.wm-valorant .wm-line {
+  color: #fff; font-size: 19px; font-weight: 800; letter-spacing: 0.19em;
+  transform: scaleX(0.93); transform-origin: left center;
+}
+.wm-pubg .wm-tag {
+  display: inline-block; padding: 2px 6px; border-radius: 2px;
+  background: #f2a900; color: #0d0d0d; font-size: 11.5px; font-weight: 900; letter-spacing: 0.05em;
+}
+.wm-pubg .wm-line { margin-top: 5px; color: #fff; font-size: 14.5px; font-weight: 800; letter-spacing: 0.09em; }
 
 .qc-rows { display: grid; }
 .qc-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 16px; align-items: center; padding: 10px 0; }
