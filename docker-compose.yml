@@ -28,6 +28,54 @@ services:
       timeout: 3s
       retries: 10
 
+  backend:
+    build:
+      context: ./backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # 컨테이너끼리는 compose 서비스 이름으로 붙는다. localhost는 컨테이너 자기 자신이다.
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      DB_URL: jdbc:postgresql://postgres:5432/queuemate
+      DB_USER: queuemate
+      DB_PASSWORD: queuemate
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # local 프로파일은 기본값을 임시 디렉터리로 두므로 컨테이너에서는 명시한다.
+      # 아래 볼륨과 같은 경로여야 재시작해도 올린 사진이 남는다.
+      AVATAR_DIR: /var/lib/queuemate/avatars
+      # Riot 개발자 키. .env에서 온다. 비면 티어 조회만 꺼진다.
+      RIOT_API_KEY: ${RIOT_API_KEY:-}
+      # 아래 둘이 비어 있으면 위의 단일 인스턴스로 붙는다 (RedisConfig 참고).
+      # HA로 띄울 때만 채운다: docker compose --profile ha up
+      SPRING_DATA_REDIS_SENTINEL_MASTER: ${REDIS_SENTINEL_MASTER:-}
+      SPRING_DATA_REDIS_SENTINEL_NODES: ${REDIS_SENTINEL_NODES:-}
+      JWT_SECRET: ${JWT_SECRET:-local-development-only-secret-key-change-me-32b}
+      # 소셜 로그인 자격 증명. 비어 있으면 그 제공자는 설정되지 않은 것으로 본다.
+      # 값은 .env에서 온다. 저장소에 두지 않는다.
+      KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID:-}
+      KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET:-}
+      NAVER_CLIENT_ID: ${NAVER_CLIENT_ID:-}
+      NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET:-}
+      # 제공자 콘솔에 등록한 값과 글자 단위로 같아야 한다. 컨테이너 밖(브라우저) 주소다.
+      KAKAO_SCOPE: ${KAKAO_SCOPE:-profile_nickname,account_email}
+      KAKAO_REDIRECT_URI: ${KAKAO_REDIRECT_URI:-http://localhost:8080/api/v1/auth/oauth/kakao/callback}
+      NAVER_REDIRECT_URI: ${NAVER_REDIRECT_URI:-http://localhost:8080/api/v1/auth/oauth/naver/callback}
+      OAUTH_FRONTEND_CALLBACK_URI: ${OAUTH_FRONTEND_CALLBACK_URI:-http://localhost:5173/auth/callback}
+    ports: ["8080:8080"]
+    volumes:
+      - qm-avatars:/var/lib/queuemate/avatars
+    healthcheck:
+      # alpine 이미지에 curl이 없다. busybox wget을 쓴다.
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
   # ---- Redis HA (docs/07 §11) ----
   # 기본 실행에는 뜨지 않는다. 띄우려면:
   #   REDIS_SENTINEL_MASTER=queuemate \
@@ -103,6 +151,7 @@ services:
     command: ["-c", "/etc/coturn/turnserver.conf"]
 
 volumes:
+  qm-avatars:
   qm-postgres:
   qm-redis:
   qm-redis-master:
