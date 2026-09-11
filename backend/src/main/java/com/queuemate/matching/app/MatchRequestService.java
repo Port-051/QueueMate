@@ -131,6 +131,16 @@ public class MatchRequestService {
         return ownedRequest(userId, requestId);
     }
 
+    @Transactional(readOnly = true)
+    public List<MatchRequest> history(UUID userId) {
+        return requests.findByUserIdAndStatusInOrderByQueuedAtDescIdDesc(userId,
+                List.of(MatchRequestStatus.MATCHED, MatchRequestStatus.CANCELLED, MatchRequestStatus.EXPIRED));
+    }
+
+    public MatchCondition conditionOf(MatchRequest request) {
+        return codec.fromJson(request.getConditionJson());
+    }
+
     private MatchRequest ownedRequest(UUID userId, UUID requestId) {
         MatchRequest request = requests.findById(requestId)
                 .orElseThrow(() -> notFound(requestId));
