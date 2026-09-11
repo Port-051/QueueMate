@@ -5,14 +5,14 @@ import com.queuemate.common.social.BlockLookupPort;
 import com.queuemate.gameconfig.domain.GameModeConfig;
 import com.queuemate.gameconfig.domain.GameModeConfigProvider;
 import com.queuemate.matching.domain.ClaimCandidate;
-import com.queuemate.matching.domain.CompatibilityTier;
-import com.queuemate.matching.domain.ConditionCompatibility;
 import com.queuemate.matching.domain.MatchCondition;
 import com.queuemate.matching.domain.MatchProposal;
 import com.queuemate.matching.domain.MatchRequest;
 import com.queuemate.matching.domain.MatchRequestStatus;
 import com.queuemate.matching.domain.ProposalMember;
 import com.queuemate.matching.domain.MatchingEvents;
+import com.queuemate.matching.domain.PartyAssembler;
+import com.queuemate.matching.domain.PartyCandidate;
 import com.queuemate.matching.domain.ProposalSourceType;
 import com.queuemate.matching.domain.RandomSource;
 import com.queuemate.matching.infra.MatchConditionCodec;
@@ -36,14 +36,10 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -134,13 +130,14 @@ public class RealtimeMatcher {
         // 가장 오래 기다린 사람부터 seed로 삼는다 (docs/03 §6 aging).
         // 다만 맨 앞 사람이 아무와도 맞지 않는다고 뒤에 있는 조합까지 막히면 안 된다.
         // 그렇게 두면 조건이 까다로운 사용자 한 명이 그 게임/모드 전체를 멈춰 세운다.
+        //
+        // 차단 조회와 쌍 등급은 이 후보 집합 위에서 한 번만 구한다. seed를 바꿔도 값이 같다.
+        PartyAssembler<Candidate> assembler =
+                PartyAssembler.over(waiting, config, blocks, random);
+
         int lastSeedIndex = Math.min(waiting.size() - config.targetPartySize(), seedAttempts - 1);
         for (int i = 0; i <= lastSeedIndex; i++) {
-            Candidate seed = waiting.get(i);
-            List<Candidate> pool = new ArrayList<>(waiting);
-            pool.remove(i);
-
-            Optional<List<Candidate>> party = buildParty(seed, pool, config);
+            Optional<List<Candidate>> party = assembler.assembleFrom(i);
             if (party.isEmpty()) {
                 continue;
             }
@@ -178,57 +175,6 @@ public class RealtimeMatcher {
             }
         }
         return candidates;
-    }
-
-    /**
-     * seed에 한 명씩 붙여 정원을 채운다. 매 단계에서 가장 좋은 등급의 후보군을 만들고
-     * 그 안에서 무작위로 고른다. 등급이 같으면 누구를 고르든 제품 관점에서 동등하다.
-     */
-    private Optional<List<Candidate>> buildParty(Candidate seed, List<Candidate> pool, GameModeConfig config) {
-        List<Candidate> party = new ArrayList<>(config.targetPartySize());
-        party.add(seed);
-        Map<UUID, Set<UUID>> blockCache = new HashMap<>();
-
-        while (party.size() < config.targetPartySize()) {
-            Map<CompatibilityTier, List<Candidate>> byTier = new EnumMap<>(CompatibilityTier.class);
-            for (Candidate candidate : pool) {
-                if (isBlockedAgainst(candidate, party, blockCache)) {
-                    continue;
-                }
-                List<MatchCondition> conditions = new ArrayList<>(party.size() + 1);
-                party.forEach(member -> conditions.add(member.condition()));
-                conditions.add(candidate.condition());
-                ConditionCompatibility.forParty(conditions, config)
-                        .ifPresent(tier -> byTier.computeIfAbsent(tier, key -> new ArrayList<>())
-                                .add(candidate));
-            }
-            if (byTier.isEmpty()) {
-                return Optional.empty();
-            }
-            CompatibilityTier best = byTier.keySet().stream().min(Comparator.naturalOrder()).orElseThrow();
-            Candidate chosen = random.pick(byTier.get(best));
-            party.add(chosen);
-            pool.remove(chosen);
-        }
-        return Optional.of(party);
-    }
-
-    /** 후보 필터용 차단 확인. 캐시를 타므로 조금 낡을 수 있고, 확정 직전에 다시 본다 (INV-6). */
-    private boolean isBlockedAgainst(Candidate candidate, List<Candidate> party,
-                                     Map<UUID, Set<UUID>> blockCache) {
-        Set<UUID> blocked = blockCache.computeIfAbsent(
-                candidate.userId(), blocks::blockedUserIds);
-        for (Candidate member : party) {
-            if (blocked.contains(member.userId())) {
-                return true;
-            }
-            Set<UUID> memberBlocked = blockCache.computeIfAbsent(
-                    member.userId(), blocks::blockedUserIds);
-            if (memberBlocked.contains(candidate.userId())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private Optional<UUID> claimAndPropose(List<Candidate> party, GameModeConfig config, String queueKey) {
@@ -295,8 +241,10 @@ public class RealtimeMatcher {
         });
     }
 
-    private record Candidate(MatchRequest request, MatchCondition condition) {
-        UUID userId() {
+    private record Candidate(MatchRequest request, MatchCondition condition)
+            implements PartyCandidate {
+        @Override
+        public UUID userId() {
             return request.getUserId();
         }
 
