@@ -123,3 +123,43 @@ DB fallback으로 비원자적 matching을 시도하지 않는다.
 active match queue는 짧은 수명의 상태지만 Redis restart 시 사용자 경험 손실을 줄이기 위해 운영 환경에서는 provider의 persistence/replication 옵션을 사용한다.
 정확한 recovery는 DB의 active request와 heartbeat를 이용해 queue를 재구성하는 admin operation으로 제공한다.
 
+## 11. High availability (Sentinel)
+운영에서는 master 1 + replica 2 + sentinel 3으로 띄우고 애플리케이션은 sentinel을 통해 붙는다.
+정족수는 2다.
+
+```text
+SPRING_DATA_REDIS_SENTINEL_MASTER=queuemate
+SPRING_DATA_REDIS_SENTINEL_NODES=host-a:26379,host-b:26379,host-c:26379
+```
+
+두 값이 비어 있으면 `REDIS_HOST`/`REDIS_PORT`의 단일 인스턴스로 붙는다.
+판단은 `RedisConfig`가 한다. 빈 문자열을 "sentinel을 쓰겠다"로 읽지 않기 위해서다.
+
+### 11.1 읽기는 반드시 master에서
+`readFrom`을 replica로 돌리지 않는다. 복제 지연 동안 `user:active-request`와
+`user:active-proposal`이 낡은 값을 돌려주면 그 순간 INV-1과 INV-2가 조용히 깨진다.
+이건 성능 선택지가 아니라 정합성 요구다.
+
+### 11.2 failover는 write를 잃는다
+Redis 복제는 비동기다. master가 ack했지만 복제되지 않은 write는 승격 때 사라진다.
+매칭 guard는 전부 이 write 하나에 걸려 있으므로 세 겹으로 막는다.
+
+| 겹 | 무엇 | 어디 |
+|---|---|---|
+| 1 | 복제가 밀리면 write 자체를 거부한다 | `min-replicas-to-write 1`, `min-replicas-max-lag 10` |
+| 2 | INV-1은 DB partial unique index가 받는다 | `match_requests_one_active_per_user_idx` |
+| 3 | INV-2는 DB PK가 받는다 | `active_proposal_claims.user_id` (V3) |
+
+1은 창을 줄일 뿐 0으로 만들지 못한다. 확실한 관문은 2와 3이다.
+
+failover 진행 중 명령 실패는 `DataAccessException`으로 올라오고, 기존 fail-closed 경로가
+그대로 받는다 (§9, INV-10). 새 매칭이 몇 초 멈추는 것은 의도된 동작이다.
+
+### 11.3 queue 재구성
+failover로 대기열 항목이 유실되면 `MatchQueueRecoveryService.reconcile()`이 60초 주기로
+DB의 QUEUED 요청을 근거로 다시 세운다 (§10). guard가 남고 큐만 빈 상태도 여기서 복구된다.
+
+### 11.4 연습
+`docker compose --profile ha up`으로 같은 모양을 띄우고 `scripts/redis-failover-drill.sh`로
+승격을 확인할 수 있다. 단일 호스트에서는 sentinel이 호스트와 함께 죽으므로 실제 HA가 아니다.
+연습과 검증용이다.

@@ -25,3 +25,15 @@
     - 영향: refresh rotation을 필수로 한다. 정지/삭제 계정 즉시 차단은 stateless로
       불가능하므로 Redis denylist를 두고, denylist 조회 실패는 fail-closed 처리한다.
       access token TTL은 짧게 잡아 무효화 지연을 줄인다.
+
+17. Redis는 Sentinel(master 1 + replica 2 + sentinel 3, 정족수 2)로 운영한다. (2026-09-11)
+    - 근거: INV-10이 Redis 장애에 fail-closed이므로 지금은 Redis가 죽으면 매칭이 통째로
+      멈춘다. docs/07 §10이 이미 운영 replication을 전제하고 있었고, Sentinel은 그
+      전제에 대한 표준적인 구현이다.
+    - 영향: 복제가 비동기라 failover 때 guard write가 유실될 수 있다. INV-2는 그때까지
+      Redis claim 하나에만 걸려 있었으므로 `active_proposal_claims` 테이블을 먼저
+      도입해 DB PK로 받게 했다 (V3). 읽기는 master로 고정한다. 복제가 밀리면
+      `min-replicas-to-write`로 write를 거부한다. 셋 다 매칭 가용성을 정합성보다
+      뒤에 두는 선택이다.
+    - 배제한 대안: 단일 인스턴스 + `restart: always`. 프로세스 사망만 막고 노드 손실은
+      못 막는다. 멀티 노드 배포가 목표라 선택하지 않았다.

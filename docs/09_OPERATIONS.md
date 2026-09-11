@@ -91,6 +91,17 @@ voice active
 4. active party WebRTC는 유지
 5. Redis 복구 후 active DB records로 queue rebuild job 수행
 
+### Redis failover (Sentinel)
+1. sentinel이 master를 승격한다. 보통 5~10초. `sentinel get-master-addr-by-name queuemate`로 확인
+2. 그 사이 새 매칭은 fail-closed. 기존 party와 WebRTC는 영향 없음
+3. 승격 직후 확인할 것
+   - 새 master의 `connected_slaves >= 1`. 0이면 `min-replicas-to-write`에 걸려 계속 write 거부다
+   - 애플리케이션 로그에 `Redis Sentinel로 붙는다` 이후 명령 실패가 멎었는지
+4. 유실된 대기열은 `reconcile()`이 60초 안에 DB 기준으로 다시 세운다. 기다린다
+5. 로그에 `INV-2 방어선이 걸렸다`가 있으면 복제 유실이 실제로 일어난 것이다.
+   해당 proposalId/userId를 스냅샷으로 남긴다. 매칭은 이미 거부됐으므로 사용자 영향은 없다
+6. 옛 master를 되살리면 자동으로 replica로 합류한다. 강제로 master로 되돌리지 않는다
+
 ### PostgreSQL outage
 1. auth/profile/reservation writes 차단
 2. block relation을 검증할 수 없으면 새 proposal 생성 fail-closed
