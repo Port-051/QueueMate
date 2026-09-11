@@ -82,6 +82,11 @@ export function AppShell() {
             <b>음성으로 더 빠르게</b>
             <p>파티룸 음성과 채팅은 WebRTC로 직접 연결됩니다. 서버는 대화 내용을 저장하지 않습니다.</p>
           </div>
+          {/* 공식 로고를 쓰는 조건이다. 지우지 않는다 (queuemate-assets/THIRD-PARTY-LOGOS.md). */}
+          <p className="side-legal">
+            QueueMate는 Riot Games가 보증하지 않으며 Riot Games 또는 그 제작·운영에 공식적으로
+            관여한 이들의 견해를 대변하지 않습니다. 게임 이름과 로고는 각 소유자의 상표입니다.
+          </p>
           {user ? (
             <div className="side-user">
               <Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={36} status="online" />

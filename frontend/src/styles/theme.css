@@ -100,6 +100,7 @@ ul { margin: 0; padding: 0; list-style: none; }
 .side-note b { display: block; font-size: 14px; margin-bottom: 6px; }
 .side-note p { font-size: 12.5px; color: var(--muted); line-height: 1.6; }
 
+.side-legal { margin: 0 4px; font-size: 10.5px; line-height: 1.55; color: #5b6076; }
 .side-user { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: var(--r-md); background: rgba(255, 255, 255, 0.03); }
 .side-user small { display: block; color: var(--ok); font-size: 12px; }
 
@@ -241,7 +242,10 @@ ul { margin: 0; padding: 0; list-style: none; }
 .game-card:hover { border-color: var(--accent-line); }
 .game-card.on { border-color: var(--accent-2); box-shadow: var(--glow); }
 .game-card .gc-name { font-size: 15px; font-weight: 700; }
-.game-card .gc-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.game-card .gc-sub { font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+/* 40px 배지용 `.g-LOL` 규칙이 카드 자신에게 걸린다. 배경은 위에서 다시 정하고
+   글자색만 게임색이 되지 않게 되돌린다. */
+.game-card.g-LOL, .game-card.g-VALORANT, .game-card.g-PUBG { color: var(--text); }
 .game-card .gc-check { position: absolute; top: 14px; right: 14px; width: 22px; height: 22px; border-radius: 999px; background: var(--accent); display: grid; place-items: center; font-size: 12px; }
 .game-logo { position: relative; width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; font-size: 13px; font-weight: 900; letter-spacing: -0.04em; }
 .g-LOL { background: linear-gradient(140deg, #1d3f6e, #0a1830); color: #c8aa6e; }
@@ -273,15 +277,16 @@ ul { margin: 0; padding: 0; list-style: none; }
    카드 마크업에는 게임 키가 없고 안쪽 배지에만 있어서 :has()로 끌어온다.
    아트는 이미 좌측이 패널색으로 페이드된 상태라 별도 스크림 없이 얹는다.
    가상 요소가 아니라 배경 레이어라서 카드 내용과 z-index를 다툴 일이 없다. */
-.game-card:has(.g-LOL), .quick-card:has(.g-LOL), .hero-game:has(.g-LOL) {
+.game-card.g-LOL, .game-card:has(.g-LOL), .quick-card:has(.g-LOL), .hero-game:has(.g-LOL) {
   background-image: linear-gradient(100deg, rgba(12, 14, 30, 0.92) 26%, rgba(12, 14, 30, 0.35) 100%), url('../assets/game-art-lol.webp');
 }
-.game-card:has(.g-VALORANT), .quick-card:has(.g-VALORANT), .hero-game:has(.g-VALORANT) {
+.game-card.g-VALORANT, .game-card:has(.g-VALORANT), .quick-card:has(.g-VALORANT), .hero-game:has(.g-VALORANT) {
   background-image: linear-gradient(100deg, rgba(12, 14, 30, 0.92) 26%, rgba(12, 14, 30, 0.35) 100%), url('../assets/game-art-valorant.webp');
 }
-.game-card:has(.g-PUBG), .quick-card:has(.g-PUBG), .hero-game:has(.g-PUBG) {
+.game-card.g-PUBG, .game-card:has(.g-PUBG), .quick-card:has(.g-PUBG), .hero-game:has(.g-PUBG) {
   background-image: linear-gradient(100deg, rgba(12, 14, 30, 0.92) 26%, rgba(12, 14, 30, 0.35) 100%), url('../assets/game-art-pubg.webp');
 }
+.game-card.g-LOL, .game-card.g-VALORANT, .game-card.g-PUBG,
 .game-card:has(.game-logo), .quick-card:has(.game-logo), .hero-game:has(.game-logo) {
   background-color: var(--panel);
   background-position: center, right center;

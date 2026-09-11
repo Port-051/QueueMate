@@ -3,6 +3,7 @@ import {
   PURPOSE_OPTIONS, VOICE_OPTIONS, availableGames, gameConfig, keyConditionOptions, switchGame, visibleModes,
 } from '../domain/gameConfig';
 import { OptionRow } from './ui';
+import { GameWordmark } from './GameWordmark';
 
 /**
  * docs/02 기준 조건 폼. 공통 골격(모드/음성/목적) + 게임별 핵심 조건 하나만 받는다.
@@ -21,14 +22,13 @@ export function ConditionForm({ value, onChange }: { value: MatchCondition; onCh
               key={g.key}
               type="button"
               aria-pressed={g.key === value.game}
-              className={g.key === value.game ? 'game-card on' : 'game-card'}
+              aria-label={g.name}
+              className={`game-card g-${g.key}${g.key === value.game ? ' on' : ''}`}
               onClick={() => onChange(switchGame(value, g.key as GameKey))}
             >
-              <span className={`game-logo g-${g.key}`}>{g.shortName.slice(0, 3).toUpperCase()}</span>
-              <div>
-                <div className="gc-name">{g.name}</div>
-                <div className="gc-sub">{g.tagline}</div>
-              </div>
+              {/* 배경 아트는 `.game-card.g-{GAME}`이 깐다. 이름은 로고가 대신한다. */}
+              <GameWordmark game={g.key as GameKey} />
+              <div className="gc-sub">{g.tagline}</div>
               {g.key === value.game ? <span className="gc-check">✓</span> : null}
             </button>
           ))}
