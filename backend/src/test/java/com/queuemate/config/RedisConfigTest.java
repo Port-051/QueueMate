@@ -11,6 +11,7 @@ import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactor
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 /**
  * 어떤 토폴로지로 붙을지 고르는 판단 (docs/07 §11).
@@ -89,6 +90,20 @@ class RedisConfigTest {
 
         assertThat(config.redisConnectionFactory(properties).getClientConfiguration().getReadFrom())
                 .contains(ReadFrom.MASTER);
+    }
+
+    @Test
+    @DisplayName("host도 sentinel도 비어 있으면 기동을 막는다")
+    void failsWhenNeitherTopologyIsConfigured() {
+        // 운영 프로파일은 host 기본값이 없다. 여기서 막지 않으면 자동 설정이 localhost로
+        // 붙고, 빈 Redis가 모든 guard를 통과시킨다.
+        RedisProperties properties = sentinel("", List.of());
+        properties.setHost("");
+
+        assertThatIllegalStateException()
+                .isThrownBy(() -> config.topologyOf(properties))
+                .withMessageContaining("REDIS_HOST")
+                .withMessageContaining("REDIS_SENTINEL_MASTER");
     }
 
     private static RedisProperties sentinel(String master, List<String> nodes) {

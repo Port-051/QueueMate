@@ -14,8 +14,14 @@ spring:
       maximum-pool-size: ${DB_POOL_SIZE:20}
   data:
     redis:
-      host: ${REDIS_HOST}
+      # sentinel로 붙으면 아래 host/port는 쓰이지 않는다. 그래서 필수로 두지 않는다.
+      # 대신 host도 sentinel도 비면 RedisConfig가 기동을 막는다 (docs/07 §11).
+      host: ${REDIS_HOST:}
       port: ${REDIS_PORT:6379}
+      # 채우면 sentinel로, 비우면 위의 단일 인스턴스로 붙는다.
+      sentinel:
+        master: ${REDIS_SENTINEL_MASTER:}
+        nodes: ${REDIS_SENTINEL_NODES:}
 
 queuemate:
   auth:
