@@ -157,7 +157,8 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
 @media (max-width: 1199px) {
   :root { --sidebar-w: 196px; --rail-w: 250px; }
   .sidebar { padding-inline: 12px; }
-  .brand { font-size: 18px; gap: 6px; }
+  .sidebar .brand { gap: 8px; }
+  .sidebar .logo-mark { width: 30px; height: 30px; }
   .page-grid { grid-template-columns: minmax(0, 1fr); }
   .rail { position: static; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
   .home-page .rail { display: flex; flex-direction: column; }
@@ -268,7 +269,8 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
   .hero-actions, .landing-foot { flex-wrap: wrap; }
   .hero-games { grid-template-columns: 1fr; }
   .landing-features { grid-template-columns: 1fr; }
-  .landing-header .brand { font-size: 18px; }
+  .landing-header .brand { width: 180px; gap: 8px; }
+  .landing-header .logo-mark { width: 30px; height: 30px; }
   .landing-nav { gap: 6px; }
   .landing-nav .btn { padding-inline: 10px; }
   .focus-page { padding-top: 24px; }

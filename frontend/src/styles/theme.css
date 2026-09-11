@@ -68,16 +68,10 @@ ul { margin: 0; padding: 0; list-style: none; }
   border-right: 1px solid var(--line-soft);
   background: linear-gradient(180deg, #080a17 0%, #06070f 100%);
 }
-.brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 28px; font-size: 21px; font-weight: 800; letter-spacing: -0.02em; }
-.logo-mark { flex: none; display: block; }
-/* 아직 <span class="brand-mark">Q</span> 마크업을 쓰는 화면도 같은 마크로 보이게 한다.
-   Logo 컴포넌트를 쓰는 쪽은 그라디언트를 살리려고 인라인 SVG(.logo-mark)로 간다. */
-.brand-mark {
-  width: 34px; height: 34px; flex: none; display: block;
-  font-size: 0; line-height: 0;
-  background: url('../assets/brand-mark.svg') center / contain no-repeat;
-}
-.brand-name span { color: var(--accent-2); }
+.brand { display: flex; align-items: center; gap: 10px; width: 216px; max-width: 100%; padding: 4px 8px 28px; }
+/* 승인된 검정 배경 원본을 어두운 앱 표면에 합성한다. */
+.logo-mark { flex: none; display: block; object-fit: contain; mix-blend-mode: screen; }
+.brand-wordmark { display: block; width: 156px; min-width: 0; height: auto; }
 
 .side-nav { display: grid; gap: 4px; }
 .nav-link {
