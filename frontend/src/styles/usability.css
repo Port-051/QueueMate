@@ -1,5 +1,5 @@
 /* Shared working layouts: readable controls, compact chrome, responsive content. */
-.page { width: 100%; max-width: 1600px; margin-inline: auto; }
+.page { width: 100%; max-width: 1160px; margin-inline: auto; }
 .page-head h1 { line-height: 1.35; word-break: keep-all; overflow-wrap: anywhere; }
 .page-head p { line-height: 1.6; }
 .page-grid > *, .stack > *, .rail > *, .row > div { min-width: 0; }
@@ -62,7 +62,6 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
 
 /* One task per content area. Secondary information opens in place. */
 .app-shell { background: #0b0d18; }
-.focus-page { max-width: 960px; }
 .focus-page .page-head { margin-bottom: 32px; }
 .focus-page .page-head h1 { font-size: 26px; font-weight: 700; }
 .focus-page .card.content-section, .focus-page .condition-form > .card,
@@ -70,7 +69,6 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
 .content-sections { display: grid; gap: 32px; }
 .content-sections > .content-section + .content-section { border-top: 1px solid var(--line-soft); padding-top: 32px; }
 .content-section .card-head { margin-bottom: 22px; }
-.profile-page, .settings-page { max-width: 880px; }
 .profile-links { display: flex; flex-wrap: wrap; gap: 8px 24px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
 .profile-links a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--text-dim); font-size: 14px; }
 .profile-links a:hover { color: var(--accent-2); }
@@ -102,7 +100,6 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
 .focus-page .game-card .gc-check { position: static; margin-left: auto; flex: none; width: 18px; height: 18px; }
 .focus-page .game-card .game-logo { width: 36px; height: 36px; }
 .reservation-time-section { padding-bottom: 20px !important; border-bottom: 1px solid var(--line-soft) !important; }
-.home-page { max-width: 1080px; }
 .home-page .home-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
 .home-page .home-heading h1 { font-size: 22px; }
 .home-reservation-actions { display: flex; align-items: center; gap: 20px; flex-shrink: 0; }
@@ -136,7 +133,6 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
 .home-reservations .li-main p { font-size: 13px; margin-top: 6px; }
 .home-page .recent-condition-row { border: 0; border-bottom: 1px solid var(--line-soft); border-radius: 0; background: none; padding: 14px 0; display: grid; grid-template-columns: 200px minmax(0, 1fr) auto; }
 .recent-condition-detail { color: var(--muted); font-size: 14px; line-height: 1.7; }
-.list-page { max-width: 1080px; }
 .list-page > .card > .list-item { padding: 18px 8px; border: 0; border-bottom: 1px solid var(--line-soft); border-radius: 0; background: none; margin: 0; }
 .list-page > .card > .list-item:hover { background: rgba(255,255,255,.025); }
 .list-page .action-menu > summary { border-color: transparent; }
