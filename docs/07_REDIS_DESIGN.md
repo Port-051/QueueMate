@@ -128,11 +128,15 @@ active match queue는 짧은 수명의 상태지만 Redis restart 시 사용자 
 정족수는 2다.
 
 ```text
-SPRING_DATA_REDIS_SENTINEL_MASTER=queuemate
-SPRING_DATA_REDIS_SENTINEL_NODES=host-a:26379,host-b:26379,host-c:26379
+REDIS_SENTINEL_MASTER=queuemate
+REDIS_SENTINEL_NODES=host-a:26379,host-b:26379,host-c:26379
 ```
 
 두 값이 비어 있으면 `REDIS_HOST`/`REDIS_PORT`의 단일 인스턴스로 붙는다.
+sentinel로 붙을 때 `REDIS_HOST`는 쓰이지 않으므로 주지 않아도 된다. 다만 둘 다 비어 있으면
+기동을 막는다. 설정을 통째로 빠뜨린 배포가 localhost의 빈 Redis에 붙으면 guard가 전부
+통과해 INV-1/INV-2가 조용히 깨진다.
+
 판단은 `RedisConfig`가 한다. 빈 문자열을 "sentinel을 쓰겠다"로 읽지 않기 위해서다.
 
 ### 11.1 읽기는 반드시 master에서
