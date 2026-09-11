@@ -6,6 +6,7 @@ import com.queuemate.user.api.UserDtos.CreateGameAccountRequest;
 import com.queuemate.user.api.UserDtos.UpdateUserRequest;
 import com.queuemate.user.domain.GameAccount;
 import com.queuemate.user.domain.User;
+import com.queuemate.user.avatar.AvatarService;
 import com.queuemate.user.repository.GameAccountRepository;
 import com.queuemate.user.repository.UserRepository;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -20,10 +21,12 @@ public class UserService {
 
     private final UserRepository users;
     private final GameAccountRepository gameAccounts;
+    private final AvatarService avatars;
 
-    public UserService(UserRepository users, GameAccountRepository gameAccounts) {
+    public UserService(UserRepository users, GameAccountRepository gameAccounts, AvatarService avatars) {
         this.users = users;
         this.gameAccounts = gameAccounts;
+        this.avatars = avatars;
     }
 
     @Transactional(readOnly = true)
@@ -48,14 +51,20 @@ public class UserService {
             }
         }
         // 아바타는 비울 수 있다. 키를 보냈으면 값 그대로 반영한다. null이면 삭제다.
+        String replacedAvatarUrl = null;
         if (request.avatarUrlPresent()) {
+            replacedAvatarUrl = user.getAvatarUrl();
             user.changeAvatarUrl(request.avatarUrl());
         }
+        User saved;
         try {
-            return users.saveAndFlush(user);
+            saved = users.saveAndFlush(user);
         } catch (DataIntegrityViolationException e) {
             throw new ConflictException("NICKNAME_ALREADY_IN_USE", "이미 사용 중인 닉네임이다");
         }
+        // 프리셋으로 바꾸거나 지워도 직전에 업로드했던 파일은 남는다. 여기서 치운다.
+        avatars.discardReplaced(replacedAvatarUrl, saved.getAvatarUrl());
+        return saved;
     }
 
     @Transactional(readOnly = true)

@@ -10,6 +10,9 @@ spring:
       port: 6379
 
 queuemate:
+  avatar:
+    # 테스트는 사용자 홈 아래 임시 디렉터리에 쓴다. /var/lib은 CI/로컬 어디서도 못 만든다.
+    dir: ${java.io.tmpdir}/queuemate-test-avatars
   auth:
     jwt-secret: test-secret-key-that-is-long-enough-32b
     # 만료 검증 테스트가 실시간을 기다리지 않도록 짧게 둔다.

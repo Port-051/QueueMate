@@ -14,6 +14,21 @@ spring:
       ddl-auto: validate
     open-in-view: false
 
+  servlet:
+    multipart:
+      # 계약상 한도는 5MiB다. 컨테이너 쪽은 약간 위에 둔다. 멀티파트 헤더 때문에
+      # 정확히 5MiB짜리 파일의 요청 전체는 5MiB를 조금 넘는다.
+      max-file-size: 5MB
+      max-request-size: 6MB
+
+server:
+  tomcat:
+    # 한도를 넘은 업로드에 413을 돌려주려면 남은 본문을 끝까지 읽어서 버려야 한다.
+    # 기본값(2MiB)이면 5MiB 초과 요청에서 Tomcat이 먼저 연결을 끊고, 클라이언트는
+    # 413 대신 네트워크 오류를 본다. 요청 한도(6MiB)보다 조금 위에 둔다.
+    # 무제한으로 두지는 않는다. 그러면 거절하기로 한 요청을 끝까지 받아 주게 된다.
+    max-swallow-size: 8MB
+
 management:
   endpoints:
     web:
@@ -21,6 +36,14 @@ management:
         include: health,info,metrics,prometheus
 
 queuemate:
+  avatar:
+    # 업로드된 프로필 사진. 컨테이너 안 경로이고 운영에서는 볼륨을 붙인다.
+    dir: ${AVATAR_DIR:/var/lib/queuemate/avatars}
+    max-upload-size: ${AVATAR_MAX_UPLOAD_SIZE:5MB}
+    # 목록에서 38px, 내 정보에서 64px로 쓴다. 2배 화면까지 감안해 512로 저장한다.
+    edge-pixels: ${AVATAR_EDGE_PIXELS:512}
+    # 파일은 작아도 펼치면 큰 이미지를 거른다. 8000x5000 정도까지는 통과한다.
+    max-source-pixels: ${AVATAR_MAX_SOURCE_PIXELS:40000000}
   oauth:
     # 제공자 콜백을 받은 뒤 브라우저를 돌려보낼 프론트엔드 주소.
     frontend-callback-uri: ${OAUTH_FRONTEND_CALLBACK_URI:http://localhost:5173/auth/callback}
@@ -57,7 +80,7 @@ queuemate:
     # 매칭은 대기열이 변한 순간 돈다. 아래는 그 trigger를 잃었을 때를 위한 안전망 주기다.
     # 여기서 제안이 만들어진다면 주기를 줄일 것이 아니라 왜 trigger를 잃었는지 봐야 한다.
     sweep-ms: ${MATCH_SWEEP_MS:15000}
-    # 매칭은 요청 스레드가 아니라 여기서 돈다. 대기열이 길어도 요청 응답이 느려지지 않는다.
+    # 매칭을 요청 스레드가 아니라 여기서 돈다. 대기열이 길어도 요청 응답이 느려지지 않는다.
     trigger-threads: ${MATCH_TRIGGER_THREADS:4}
     trigger-queue: ${MATCH_TRIGGER_QUEUE:512}
   proposal:

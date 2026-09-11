@@ -10,6 +10,10 @@ spring:
       port: ${REDIS_PORT:6379}
 
 queuemate:
+  avatar:
+    # 컨테이너로 띄우면 docker-compose가 볼륨을 붙인다. 호스트에서 직접 돌릴 때는
+    # /var/lib에 못 쓰므로 여기서 임시 디렉터리로 내린다.
+    dir: ${AVATAR_DIR:${java.io.tmpdir}/queuemate-avatars}
   oauth:
     # 카카오·네이버를 등록하기 전에도 로그인 화면을 확인할 수 있게 버튼을 내보낸다.
     # 누르면 제공자로 나가지 않고 설정이 빠졌다는 안내로 되돌린다.
