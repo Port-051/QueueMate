@@ -305,6 +305,22 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /match-requests/history:
+    get:
+      summary: List my past realtime matches
+      description: >
+        인증된 사용자의 MATCHED, CANCELLED, EXPIRED 요청만 반환한다.
+        최초 매칭 시작 시각(queuedAt) 내림차순이며 같은 시각은 id 내림차순이다.
+        queuedAt은 결과가 발생한 시각이 아니다. 조건과 최종 상태는 DB 기록을 사용한다.
+      responses:
+        '200':
+          description: Past matches, newest request first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MatchHistoryView' }
+        '401': { description: Authentication required }
   /match-requests/{id}:
     parameters:
       - name: id
@@ -970,6 +986,15 @@ components:
           type: string
           format: date-time
           description: 최초 대기 시작 시각. 제안을 거절하고 큐로 돌아와도 유지된다
+        proposalId: { type: string, format: uuid, nullable: true }
+    MatchHistoryView:
+      type: object
+      required: [id, status, queuedAt, condition]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [MATCHED, CANCELLED, EXPIRED] }
+        queuedAt: { type: string, format: date-time, description: 최초 매칭 시작 시각 }
+        condition: { $ref: '#/components/schemas/MatchCondition' }
         proposalId: { type: string, format: uuid, nullable: true }
     PlayAmount:
       type: string
