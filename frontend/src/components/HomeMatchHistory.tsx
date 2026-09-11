@@ -9,6 +9,7 @@ import { IconCheck, IconClock, IconX } from './icons';
 import type { MatchMode } from './MatchComposer';
 import { Button } from './ui';
 
+const HISTORY_PAGE_SIZE = 5;
 const RESULTS = {
   MATCHED: '매칭 성사', CANCELLED: '취소됨', EXPIRED: '기간 만료', COMPLETED: '플레이 완료',
 };
@@ -31,7 +32,7 @@ export function HomeMatchHistory({ onReview }: { onReview: (condition: MatchCond
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [reload, setReload] = useState(0);
-  const [visible, setVisible] = useState(8);
+  const [visible, setVisible] = useState(HISTORY_PAGE_SIZE);
 
   useEffect(() => {
     let disposed = false;
@@ -86,6 +87,6 @@ export function HomeMatchHistory({ onReview }: { onReview: (condition: MatchCond
         <Button size="sm" variant="ghost" onClick={() => onReview(entry.condition, entry.mode)}>조건 보기</Button>
       </li>;
     })}</ul> : !hasError ? <p className="home-history-empty">{loading || !reservationsLoaded ? '기록을 불러오는 중…' : '아직 지난 매칭이 없습니다.'}</p> : null}
-    {entries.length > visible ? <Button className="history-more" variant="ghost" onClick={() => setVisible((count) => count + 8)}>기록 더 보기</Button> : null}
+    {entries.length > visible ? <Button className="history-more" variant="ghost" onClick={() => setVisible((count) => count + HISTORY_PAGE_SIZE)}>기록 더 보기</Button> : null}
   </section>;
 }
