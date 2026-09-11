@@ -1,7 +1,9 @@
 package com.queuemate.matching.infra;
 
 import com.queuemate.common.domain.GameKey;
+import com.queuemate.matching.domain.MatchBucket;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -15,9 +17,19 @@ public final class MatchingRedisKeys {
     private MatchingRedisKeys() {
     }
 
-    /** 게임/모드별 대기열. score는 최초 queuedAt이고 재시도해도 보존한다. */
-    public static String queue(GameKey game, String modeKey) {
-        return PREFIX + "queue:" + game.name() + ":" + modeKey;
+    /**
+     * 조건이 같은 사람끼리 묶인 대기열 (docs/07 §3.1). score는 최초 queuedAt이고 재시도해도 보존한다.
+     *
+     * <p>모드당 하나가 아니라 bucket당 하나다. 이유는 {@link com.queuemate.matching.domain.MatchBucket}에 있다.
+     */
+    public static String queue(MatchBucket bucket) {
+        return PREFIX + "queue:" + bucket.game().name() + ":" + bucket.modeKey()
+                + ":" + bucket.suffix();
+    }
+
+    /** 계획에 담긴 bucket들의 key. Lua에 넘길 KEYS 순서를 그대로 유지한다. */
+    public static List<String> queues(List<MatchBucket> buckets) {
+        return buckets.stream().map(MatchingRedisKeys::queue).toList();
     }
 
     /** INV-1 guard. 값은 현재 활성 requestId다. */

@@ -5,6 +5,7 @@ import com.queuemate.common.error.NotFoundException;
 import com.queuemate.common.error.ServiceUnavailableException;
 import com.queuemate.gameconfig.domain.GameModeConfig;
 import com.queuemate.gameconfig.domain.GameModeConfigProvider;
+import com.queuemate.matching.domain.MatchBucket;
 import com.queuemate.matching.domain.MatchCondition;
 import com.queuemate.matching.domain.MatchRequest;
 import com.queuemate.matching.domain.MatchRequestStatus;
@@ -79,17 +80,17 @@ public class MatchRequestService {
             throw new ConflictException(DUPLICATE_CODE, "이미 진행 중인 매칭 요청이 있다");
         }
 
-        String queueKey = queueKeyOf(condition);
+        String bucketKey = bucketKeyOf(condition);
         boolean acquired;
         try {
-            acquired = queue.acquire(userId, request.getId(), queueKey, now.toInstant());
+            acquired = queue.acquire(userId, request.getId(), bucketKey, now.toInstant());
         } catch (DataAccessException e) {
             throw new ServiceUnavailableException("MATCHING_UNAVAILABLE", "매칭을 시작할 수 없다", e);
         }
         if (!acquired) {
             throw new ConflictException(DUPLICATE_CODE, "이미 진행 중인 매칭 요청이 있다");
         }
-        releaseGuardIfRolledBack(userId, request.getId(), queueKey);
+        releaseGuardIfRolledBack(userId, request.getId(), bucketKey);
         return request;
     }
 
@@ -111,10 +112,10 @@ public class MatchRequestService {
                     "지금은 취소할 수 없는 상태다: " + request.getStatus());
         }
         request.cancel();
-        String queueKey = queueKeyOf(codec.fromJson(request.getConditionJson()));
+        String bucketKey = bucketKeyOf(codec.fromJson(request.getConditionJson()));
         // 커밋된 뒤에 푼다. 롤백됐는데 guard만 풀리면 DB에는 활성 요청이 남은 채
         // 같은 사용자가 하나 더 만들 수 있다.
-        AfterCommit.run(() -> queue.release(userId, requestId, queueKey));
+        AfterCommit.run(() -> queue.release(userId, requestId, bucketKey));
     }
 
     @Transactional(readOnly = true)
@@ -142,7 +143,7 @@ public class MatchRequestService {
      * 커밋되지 않으면 Redis guard도 되돌린다. 그러지 않으면 DB에는 요청이 없는데
      * Redis만 사용자를 잠근 채로 남아 그 사용자는 영영 매칭을 시작하지 못한다.
      */
-    private void releaseGuardIfRolledBack(UUID userId, UUID requestId, String queueKey) {
+    private void releaseGuardIfRolledBack(UUID userId, UUID requestId, String bucketKey) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             return;
         }
@@ -150,7 +151,7 @@ public class MatchRequestService {
             @Override
             public void afterCompletion(int status) {
                 if (status != TransactionSynchronization.STATUS_COMMITTED) {
-                    queue.release(userId, requestId, queueKey);
+                    queue.release(userId, requestId, bucketKey);
                 }
             }
         });
@@ -160,7 +161,7 @@ public class MatchRequestService {
         return new NotFoundException("MATCH_REQUEST_NOT_FOUND", "매칭 요청을 찾을 수 없다: " + requestId);
     }
 
-    private static String queueKeyOf(MatchCondition condition) {
-        return MatchingRedisKeys.queue(condition.game(), condition.modeKey());
+    private static String bucketKeyOf(MatchCondition condition) {
+        return MatchingRedisKeys.queue(MatchBucket.of(condition));
     }
 }

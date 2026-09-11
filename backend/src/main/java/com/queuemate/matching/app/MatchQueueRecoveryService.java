@@ -1,5 +1,6 @@
 package com.queuemate.matching.app;
 
+import com.queuemate.matching.domain.MatchBucket;
 import com.queuemate.matching.domain.MatchCondition;
 import com.queuemate.matching.domain.MatchRequest;
 import com.queuemate.matching.domain.MatchRequestStatus;
@@ -62,16 +63,16 @@ public class MatchQueueRecoveryService {
 
         for (MatchRequest request : requests.findAllByStatusOrderByQueuedAtAsc(MatchRequestStatus.QUEUED)) {
             MatchCondition condition = codec.fromJson(request.getConditionJson());
-            String queueKey = MatchingRedisKeys.queue(condition.game(), condition.modeKey());
+            String bucketKey = MatchingRedisKeys.queue(MatchBucket.of(condition));
             UUID userId = request.getUserId();
 
-            if (queue.acquire(userId, request.getId(), queueKey, request.getQueuedAt().toInstant())) {
+            if (queue.acquire(userId, request.getId(), bucketKey, request.getQueuedAt().toInstant())) {
                 restored++;
                 continue;
             }
             // guard가 이미 있다. 그것이 이 요청이면 대기열 항목만 다시 넣으면 된다.
             if (queue.activeRequestOf(userId).filter(request.getId()::equals).isPresent()) {
-                queue.requeue(queueKey, request.getId(), request.getQueuedAt().toInstant());
+                queue.requeue(bucketKey, request.getId(), request.getQueuedAt().toInstant());
                 alreadyPresent++;
             } else {
                 // DB와 Redis가 서로 다른 요청을 가리킨다. 사람이 봐야 한다.

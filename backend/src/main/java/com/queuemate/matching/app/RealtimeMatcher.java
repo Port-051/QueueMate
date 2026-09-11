@@ -4,7 +4,10 @@ import com.queuemate.common.domain.GameKey;
 import com.queuemate.common.social.BlockLookupPort;
 import com.queuemate.gameconfig.domain.GameModeConfig;
 import com.queuemate.gameconfig.domain.GameModeConfigProvider;
+import com.queuemate.matching.domain.BucketDepth;
+import com.queuemate.matching.domain.BucketScanPlan;
 import com.queuemate.matching.domain.ClaimCandidate;
+import com.queuemate.matching.domain.MatchBucket;
 import com.queuemate.matching.domain.MatchCondition;
 import com.queuemate.matching.domain.MatchProposal;
 import com.queuemate.matching.domain.MatchRequest;
@@ -18,8 +21,8 @@ import com.queuemate.matching.domain.RandomSource;
 import com.queuemate.matching.infra.MatchConditionCodec;
 import com.queuemate.matching.infra.MatchProposalRepository;
 import com.queuemate.matching.infra.MatchQueueRepository;
-import com.queuemate.matching.infra.MatchRequestRepository;
 import com.queuemate.matching.infra.MatchingRedisKeys;
+import com.queuemate.matching.infra.MatchRequestRepository;
 import com.queuemate.matching.infra.ProposalClaimRepository;
 import com.queuemate.matching.infra.ProposalMemberRepository;
 import org.slf4j.Logger;
@@ -36,10 +39,12 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -120,9 +125,8 @@ public class RealtimeMatcher {
             return Optional.empty();
         }
         GameModeConfig config = found.get();
-        String queueKey = MatchingRedisKeys.queue(game, modeKey);
 
-        List<Candidate> waiting = loadWaiting(queueKey);
+        List<Candidate> waiting = loadWaiting(config);
         if (waiting.size() < config.targetPartySize()) {
             return Optional.empty();
         }
@@ -141,7 +145,7 @@ public class RealtimeMatcher {
             if (party.isEmpty()) {
                 continue;
             }
-            Optional<UUID> proposalId = claimAndPropose(party.get(), config, queueKey);
+            Optional<UUID> proposalId = claimAndPropose(party.get(), config);
             if (proposalId.isPresent()) {
                 return proposalId;
             }
@@ -150,34 +154,57 @@ public class RealtimeMatcher {
         return Optional.empty();
     }
 
-    /** 대기열 순서대로 요청 상세를 읽는다. Redis에는 있는데 DB에서 이미 끝난 요청은 버린다. */
-    private List<Candidate> loadWaiting(String queueKey) {
-        List<UUID> requestIds = queue.waitingOldestFirst(queueKey, scanSize);
-        if (requestIds.isEmpty()) {
+    /**
+     * 이번 판에 볼 후보를 읽는다 (docs/07 §3.2).
+     *
+     * <p>대기열은 조건별 bucket으로 나뉘어 있다. 모드 전체를 앞에서부터 훑으면 서로 맞지 않는
+     * 사람들이 창을 채워 뒤가 보이지 않으므로, 먼저 어느 bucket을 볼지 정하고 그 bucket에서만 읽는다.
+     *
+     * <p>Redis에는 있는데 DB에서 이미 끝난 요청은 읽어 온 bucket에서 지운다.
+     */
+    private List<Candidate> loadWaiting(GameModeConfig config) {
+        List<MatchBucket> buckets = MatchBucket.allFor(config);
+        List<BucketDepth> depths = queue.bucketDepths(buckets);
+        BucketScanPlan plan = BucketScanPlan.of(depths, config, scanSize);
+        if (plan.isEmpty()) {
             return List.of();
         }
-        Map<UUID, MatchRequest> byId = new HashMap<>();
-        // 매칭 대상 행을 잠근다. 후보를 읽는 사이 사용자가 취소하면 어느 쪽 변경이
-        // 유실될지 알 수 없기 때문이다.
-        for (MatchRequest request :
-                requests.lockAllByIdInAndStatus(requestIds, MatchRequestStatus.QUEUED)) {
-            byId.put(request.getId(), request);
-        }
-        List<Candidate> candidates = new ArrayList<>(byId.size());
-        for (UUID requestId : requestIds) {
-            MatchRequest request = byId.get(requestId);
-            if (request != null) {
-                candidates.add(new Candidate(request, codec.fromJson(request.getConditionJson())));
-            } else {
-                // DB에서 이미 끝난 요청이다. 대기열에 남겨 두면 scan 창을 잠식해
-                // 뒤에 있는 진짜 대기자가 영원히 보이지 않는다.
-                queue.removeStale(queueKey, requestId);
+
+        List<MatchQueueRepository.BucketSlice> slices = queue.waitingOldestFirst(plan);
+        Map<UUID, MatchBucket> bucketOf = new LinkedHashMap<>();
+        for (MatchQueueRepository.BucketSlice slice : slices) {
+            for (UUID requestId : slice.requestIds()) {
+                bucketOf.put(requestId, slice.bucket());
             }
         }
+        if (bucketOf.isEmpty()) {
+            return List.of();
+        }
+
+        // 매칭 대상 행을 잠근다. 후보를 읽는 사이 사용자가 취소하면 어느 쪽 변경이
+        // 유실될지 알 수 없기 때문이다. 쿼리가 queuedAt 순으로 돌려주므로 aging이 유지된다.
+        List<Candidate> candidates = new ArrayList<>(bucketOf.size());
+        Set<UUID> alive = new HashSet<>();
+        for (MatchRequest request :
+                requests.lockAllByIdInAndStatus(bucketOf.keySet(), MatchRequestStatus.QUEUED)) {
+            alive.add(request.getId());
+            candidates.add(new Candidate(request, codec.fromJson(request.getConditionJson()),
+                    bucketOf.get(request.getId())));
+        }
+
+        // DB에서 이미 끝난 요청이다. 대기열에 남겨 두면 그 bucket의 앞자리를 잠식해
+        // 뒤에 있는 진짜 대기자가 영원히 보이지 않는다.
+        Map<MatchBucket, List<UUID>> stale = new LinkedHashMap<>();
+        bucketOf.forEach((requestId, bucket) -> {
+            if (!alive.contains(requestId)) {
+                stale.computeIfAbsent(bucket, key -> new ArrayList<>()).add(requestId);
+            }
+        });
+        stale.forEach(queue::removeStale);
         return candidates;
     }
 
-    private Optional<UUID> claimAndPropose(List<Candidate> party, GameModeConfig config, String queueKey) {
+    private Optional<UUID> claimAndPropose(List<Candidate> party, GameModeConfig config) {
         List<UUID> userIds = party.stream().map(Candidate::userId).toList();
 
         // 후보를 고른 사이에 차단이 생겼을 수 있다. 잠그기 직전에 DB로 다시 본다 (INV-6).
@@ -188,14 +215,15 @@ public class RealtimeMatcher {
 
         UUID proposalId = UUID.randomUUID();
         List<ClaimCandidate> claimTargets = party.stream()
-                .map(candidate -> new ClaimCandidate(candidate.userId(), candidate.requestId()))
+                .map(candidate -> new ClaimCandidate(
+                        candidate.userId(), candidate.requestId(), candidate.bucket()))
                 .toList();
 
-        if (!claims.claimAll(queueKey, proposalId, proposalTtl, claimTargets)) {
+        if (!claims.claimAll(proposalId, proposalTtl, claimTargets)) {
             // 다른 매처가 먼저 잡았다. 다음 판에서 다시 시도한다.
             return Optional.empty();
         }
-        undoClaimIfRolledBack(proposalId, party, queueKey);
+        undoClaimIfRolledBack(proposalId, party);
 
         OffsetDateTime now = OffsetDateTime.now(clock);
         proposals.save(MatchProposal.pending(
@@ -219,7 +247,7 @@ public class RealtimeMatcher {
      * 대기열 항목을 되돌리지 않으면 사용자는 큐에서 사라진 채 guard만 남아
      * 새 요청도 못 하는 상태로 갇힌다.
      */
-    private void undoClaimIfRolledBack(UUID proposalId, List<Candidate> party, String queueKey) {
+    private void undoClaimIfRolledBack(UUID proposalId, List<Candidate> party) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             return;
         }
@@ -233,15 +261,15 @@ public class RealtimeMatcher {
                 }
                 claims.releaseClaims(proposalId, userIds);
                 for (Candidate candidate : snapshot) {
-                    queue.requeue(queueKey, candidate.requestId(),
-                            candidate.request().getQueuedAt().toInstant());
+                    queue.requeue(MatchingRedisKeys.queue(candidate.bucket()),
+                            candidate.requestId(), candidate.request().getQueuedAt().toInstant());
                 }
                 log.warn("제안 저장이 실패해 claim을 되돌렸다 proposalId={} users={}", proposalId, userIds);
             }
         });
     }
 
-    private record Candidate(MatchRequest request, MatchCondition condition)
+    private record Candidate(MatchRequest request, MatchCondition condition, MatchBucket bucket)
             implements PartyCandidate {
         @Override
         public UUID userId() {

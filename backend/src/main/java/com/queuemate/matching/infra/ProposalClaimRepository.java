@@ -45,23 +45,23 @@ public class ProposalClaimRepository {
      * 후보 전원을 잠근다. 한 명이라도 다른 proposal에 묶여 있거나 활성 요청이 바뀌었으면
      * 아무것도 바꾸지 않고 실패한다.
      *
-     * <p>성공하면 참가자의 requestId가 대기열에서 함께 제거된다.
+     * <p>성공하면 참가자의 requestId가 각자의 대기열 bucket에서 함께 제거된다.
      *
-     * @param queueKey   후보를 꺼낸 대기열 키. {@link MatchingRedisKeys#queue}로 만든다
      * @param proposalId 새로 만들 proposal의 id
      * @param ttl        proposal 수락 제한 시간
-     * @param candidates 잠글 후보. 최소 2명이고 중복될 수 없다
+     * @param candidates 잠글 후보. 최소 2명이고 중복될 수 없다. 각자 자기 bucket을 들고 온다
      * @return 전원 잠금에 성공하면 true, 한 명이라도 충돌하면 false
      */
-    public boolean claimAll(String queueKey, UUID proposalId, Duration ttl, List<ClaimCandidate> candidates) {
-        validate(queueKey, proposalId, ttl, candidates);
+    public boolean claimAll(UUID proposalId, Duration ttl, List<ClaimCandidate> candidates) {
+        validate(proposalId, ttl, candidates);
 
-        List<String> keys = new ArrayList<>(2 + candidates.size() * 2);
-        keys.add(queueKey);
+        // 참가자마다 조건이 달라 빠져나올 대기열 key도 다르다 (docs/07 §3.1).
+        List<String> keys = new ArrayList<>(1 + candidates.size() * 3);
         keys.add(MatchingRedisKeys.proposalMembers(proposalId));
         for (ClaimCandidate candidate : candidates) {
             keys.add(MatchingRedisKeys.activeProposal(candidate.userId()));
             keys.add(MatchingRedisKeys.activeRequest(candidate.userId()));
+            keys.add(MatchingRedisKeys.queue(candidate.bucket()));
         }
 
         Object[] args = new Object[2 + candidates.size() * 2];
@@ -139,10 +139,7 @@ public class ProposalClaimRepository {
                 .map(UUID::fromString);
     }
 
-    private void validate(String queueKey, UUID proposalId, Duration ttl, List<ClaimCandidate> candidates) {
-        if (queueKey == null || queueKey.isBlank()) {
-            throw new IllegalArgumentException("queueKey는 필수다");
-        }
+    private void validate(UUID proposalId, Duration ttl, List<ClaimCandidate> candidates) {
         if (proposalId == null) {
             throw new IllegalArgumentException("proposalId는 필수다");
         }

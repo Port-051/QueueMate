@@ -23,6 +23,15 @@ public sealed interface KeyCondition permits LolPosition, ValorantRole, PubgPlay
         return false;
     }
 
+    /** 게임이 가질 수 있는 조건 값 전체. 대기열 bucket을 enumerate할 때 쓴다 (docs/07 §3.1). */
+    static java.util.List<KeyCondition> valuesOf(GameKey game) {
+        return switch (game) {
+            case LOL -> java.util.List.of(LolPosition.values());
+            case VALORANT -> java.util.List.of(ValorantRole.values());
+            case PUBG -> java.util.List.of(PubgPlayStyle.values());
+        };
+    }
+
     /** 게임이 요구하는 조건 종류. */
     static KeyConditionType typeOf(GameKey game) {
         return switch (game) {

@@ -7,6 +7,8 @@ import com.queuemate.common.error.ConflictException;
 import com.queuemate.matching.app.MatchRequestService;
 import com.queuemate.matching.app.ProposalService;
 import com.queuemate.matching.app.RealtimeMatcher;
+import com.queuemate.gameconfig.domain.GameModeConfig;
+import com.queuemate.matching.domain.MatchBucket;
 import com.queuemate.matching.domain.Acceptance;
 import com.queuemate.matching.domain.LolPosition;
 import com.queuemate.matching.domain.MatchCondition;
@@ -117,10 +119,10 @@ class RealtimeMatchingIntegrationTest {
         MatchRequest request = matchRequests.start(user, lol(LolPosition.JUNGLE));
 
         assertThat(request.getStatus()).isEqualTo(MatchRequestStatus.QUEUED);
-        assertThat(queueRepository.waitingCount(lolQueueKey())).isEqualTo(1);
+        assertThat(queueRepository.waitingCount(lolBuckets())).isEqualTo(1);
         assertThatThrownBy(() -> matchRequests.start(user, lol(LolPosition.MID)))
                 .isInstanceOf(ConflictException.class);
-        assertThat(queueRepository.waitingCount(lolQueueKey())).isEqualTo(1);
+        assertThat(queueRepository.waitingCount(lolBuckets())).isEqualTo(1);
     }
 
     @Test
@@ -137,7 +139,7 @@ class RealtimeMatchingIntegrationTest {
         assertThat(memberRepository.findAllByIdProposalId(proposalId.get()))
                 .hasSize(2)
                 .allSatisfy(member -> assertThat(member.getAcceptance()).isEqualTo(Acceptance.PENDING));
-        assertThat(queueRepository.waitingCount(lolQueueKey())).isZero();
+        assertThat(queueRepository.waitingCount(lolBuckets())).isZero();
         assertThat(claimRepository.activeProposalOf(jungler)).contains(proposalId.get());
         assertThat(requestRepository.findAllByProposalId(proposalId.get()))
                 .allSatisfy(r -> assertThat(r.getStatus()).isEqualTo(MatchRequestStatus.PROPOSED));
@@ -150,7 +152,7 @@ class RealtimeMatchingIntegrationTest {
         matchRequests.start(newUser(), lol(LolPosition.JUNGLE));
 
         assertThat(matcher.tryMatch(GameKey.LOL, LOL_MODE)).isEmpty();
-        assertThat(queueRepository.waitingCount(lolQueueKey())).isEqualTo(2);
+        assertThat(queueRepository.waitingCount(lolBuckets())).isEqualTo(2);
     }
 
     @Test
@@ -174,7 +176,7 @@ class RealtimeMatchingIntegrationTest {
         matchRequests.start(blocked, lol(LolPosition.MID));
 
         assertThat(matcher.tryMatch(GameKey.LOL, LOL_MODE)).isEmpty();
-        assertThat(queueRepository.waitingCount(lolQueueKey())).isEqualTo(2);
+        assertThat(queueRepository.waitingCount(lolBuckets())).isEqualTo(2);
     }
 
     @Test
@@ -283,7 +285,7 @@ class RealtimeMatchingIntegrationTest {
         assertThat(proposalRepository.findById(proposalId))
                 .get().extracting(p -> p.getStatus()).isEqualTo(ProposalStatus.DECLINED);
         assertThat(requestRepository.findAllByProposalId(proposalId)).isEmpty();
-        assertThat(queueRepository.waitingCount(lolQueueKey())).isEqualTo(2);
+        assertThat(queueRepository.waitingCount(lolBuckets())).isEqualTo(2);
         assertThat(claimRepository.activeProposalOf(decliner)).isEmpty();
         // 조건이 그대로이므로 곧바로 다시 매칭될 수 있다.
         assertThat(matcher.tryMatch(GameKey.LOL, LOL_MODE)).isPresent();
@@ -326,7 +328,7 @@ class RealtimeMatchingIntegrationTest {
 
         matchRequests.cancel(user, request.getId());
 
-        assertThat(queueRepository.waitingCount(lolQueueKey())).isZero();
+        assertThat(queueRepository.waitingCount(lolBuckets())).isZero();
         assertThat(queueRepository.activeRequestOf(user)).isEmpty();
         assertThat(matchRequests.start(user, lol(LolPosition.MID))).isNotNull();
     }
@@ -363,7 +365,9 @@ class RealtimeMatchingIntegrationTest {
                 VoicePreference.OPTIONAL, PlayPurpose.RANK_UP);
     }
 
-    private static String lolQueueKey() {
-        return MatchingRedisKeys.queue(GameKey.LOL, LOL_MODE);
+    /** 대기열은 조건별 bucket으로 나뉘어 있으므로 모드 전체 인원은 bucket 합계다 (docs/07 §3.1). */
+    private static List<MatchBucket> lolBuckets() {
+        return MatchBucket.allFor(
+                new GameModeConfig(GameKey.LOL, LOL_MODE, 2, true, true));
     }
 }

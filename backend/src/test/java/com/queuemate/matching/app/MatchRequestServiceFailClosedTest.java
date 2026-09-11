@@ -23,7 +23,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -80,7 +80,6 @@ class MatchRequestServiceFailClosedTest {
                 .isInstanceOf(com.queuemate.common.error.NotFoundException.class);
         // 모드 검증이 먼저이므로 Redis를 건드리지 않는다.
         org.mockito.Mockito.verify(queue, org.mockito.Mockito.never())
-                .acquire(any(UUID.class), any(UUID.class), eq("qm:queue:LOL:NOT_A_MODE"),
-                        any(Instant.class));
+                .acquire(any(UUID.class), any(UUID.class), anyString(), any(Instant.class));
     }
 }

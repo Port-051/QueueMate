@@ -6,6 +6,9 @@ import com.queuemate.common.domain.VoicePreference;
 import com.queuemate.matching.app.MatchQueueRecoveryService;
 import com.queuemate.matching.app.MatchRequestService;
 import com.queuemate.matching.app.RealtimeMatcher;
+import com.queuemate.gameconfig.domain.GameModeConfig;
+import com.queuemate.matching.domain.BucketScanPlan;
+import com.queuemate.matching.domain.MatchBucket;
 import com.queuemate.matching.domain.LolPosition;
 import com.queuemate.matching.domain.MatchCondition;
 import com.queuemate.matching.infra.MatchQueueRepository;
@@ -27,6 +30,9 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -91,17 +97,17 @@ class MatchQueueRecoveryIntegrationTest {
         UUID mid = newUser();
         matchRequests.start(jungler, lol(LolPosition.JUNGLE));
         matchRequests.start(mid, lol(LolPosition.MID));
-        assertThat(queue.waitingCount(queueKey())).isEqualTo(2);
+        assertThat(queue.waitingCount(buckets())).isEqualTo(2);
 
         flushRedis(); // Redis 재시작을 흉내 낸다
-        assertThat(queue.waitingCount(queueKey())).isZero();
+        assertThat(queue.waitingCount(buckets())).isZero();
         assertThat(matcher.tryMatch(GameKey.LOL, MODE)).isEmpty();
 
         MatchQueueRecoveryService.RecoveryReport report = recovery.rebuild();
 
         assertThat(report.restored()).isEqualTo(2);
         assertThat(report.conflicted()).isZero();
-        assertThat(queue.waitingCount(queueKey())).isEqualTo(2);
+        assertThat(queue.waitingCount(buckets())).isEqualTo(2);
         assertThat(queue.activeRequestOf(jungler)).isPresent();
         // 복구 뒤에는 곧바로 매칭이 다시 돈다.
         assertThat(matcher.tryMatch(GameKey.LOL, MODE)).isPresent();
@@ -119,7 +125,7 @@ class MatchQueueRecoveryIntegrationTest {
         assertThat(report.restored()).isZero();
         assertThat(report.alreadyPresent()).isEqualTo(1);
         assertThat(report.conflicted()).isZero();
-        assertThat(queue.waitingCount(queueKey())).isEqualTo(1);
+        assertThat(queue.waitingCount(buckets())).isEqualTo(1);
     }
 
     @Test
@@ -133,8 +139,7 @@ class MatchQueueRecoveryIntegrationTest {
         flushRedis();
         recovery.rebuild();
 
-        assertThat(queue.waitingOldestFirst(queueKey(), 10))
-                .containsExactly(firstRequest, secondRequest);
+        assertThat(waitingOldestFirst()).containsExactly(firstRequest, secondRequest);
     }
 
     @Test
@@ -165,7 +170,7 @@ class MatchQueueRecoveryIntegrationTest {
 
         assertThat(report.staleGuards()).isZero();
         assertThat(queue.activeRequestOf(user)).contains(requestId);
-        assertThat(queue.waitingCount(queueKey())).isEqualTo(1);
+        assertThat(queue.waitingCount(buckets())).isEqualTo(1);
     }
 
     private void flushRedis() {
@@ -185,7 +190,30 @@ class MatchQueueRecoveryIntegrationTest {
                 VoicePreference.OPTIONAL, PlayPurpose.RANK_UP);
     }
 
-    private static String queueKey() {
-        return MatchingRedisKeys.queue(GameKey.LOL, MODE);
+    private static List<MatchBucket> buckets() {
+        return MatchBucket.allFor(new GameModeConfig(GameKey.LOL, MODE, 2, true, true));
+    }
+
+    /**
+     * bucket을 가로질러 대기 순으로 모은다.
+     *
+     * <p>대기열이 조건별로 나뉜 뒤로 "전체에서 몇 번째"는 Redis 한 자료구조가 알려 주지 않는다.
+     * 복구가 최초 queuedAt(=score)을 지켰는지 보는 것이 이 도우미의 목적이므로 score로 정렬한다.
+     */
+    private List<UUID> waitingOldestFirst() {
+        GameModeConfig config = new GameModeConfig(GameKey.LOL, MODE, 2, true, true);
+        record Scored(UUID requestId, double queuedAt) {
+        }
+        List<Scored> scored = new ArrayList<>();
+        for (MatchQueueRepository.BucketSlice slice : queue.waitingOldestFirst(
+                BucketScanPlan.of(queue.bucketDepths(buckets()), config, 50))) {
+            String key = MatchingRedisKeys.queue(slice.bucket());
+            for (UUID requestId : slice.requestIds()) {
+                Double score = redis.opsForZSet().score(key, requestId.toString());
+                scored.add(new Scored(requestId, score == null ? Double.MAX_VALUE : score));
+            }
+        }
+        scored.sort(Comparator.comparingDouble(Scored::queuedAt));
+        return scored.stream().map(Scored::requestId).toList();
     }
 }

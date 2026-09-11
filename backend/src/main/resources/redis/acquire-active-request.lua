@@ -4,7 +4,7 @@
 -- "매칭 중"인데 아무도 후보로 보지 못하는 유령이 된다.
 --
 -- KEYS[1]  qm:user:active-request:{userId}
--- KEYS[2]  qm:queue:{game}:{mode}
+-- KEYS[2]  qm:queue:{game}:{mode}:{key}:{voice}:{purpose}  사용자 조건의 bucket (docs/07 §3.1)
 --
 -- ARGV[1]  requestId
 -- ARGV[2]  queuedAt score. 재시도해도 최초 대기 시각을 보존해 aging을 잃지 않는다.

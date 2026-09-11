@@ -1,6 +1,10 @@
 package com.queuemate.matching.infra;
 
 import com.queuemate.common.domain.GameKey;
+import com.queuemate.common.domain.PlayPurpose;
+import com.queuemate.common.domain.VoicePreference;
+import com.queuemate.matching.domain.LolPosition;
+import com.queuemate.matching.domain.MatchBucket;
 import com.queuemate.matching.domain.ClaimCandidate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,7 +31,10 @@ class ProposalClaimRepositoryTest extends RedisTestSupport {
 
     private static final Duration TTL = Duration.ofSeconds(20);
 
-    private final String queueKey = MatchingRedisKeys.queue(GameKey.LOL, "SOLO_DUO_RANKED");
+    private static final MatchBucket TOP = bucket(LolPosition.TOP);
+    private static final MatchBucket MID = bucket(LolPosition.MID);
+
+    private final String topKey = MatchingRedisKeys.queue(TOP);
 
     private ProposalClaimRepository repository;
 
@@ -43,12 +50,12 @@ class ProposalClaimRepositoryTest extends RedisTestSupport {
         ClaimCandidate b = enqueue(1001);
         UUID proposalId = UUID.randomUUID();
 
-        boolean claimed = repository.claimAll(queueKey, proposalId, TTL, List.of(a, b));
+        boolean claimed = repository.claimAll(proposalId, TTL, List.of(a, b));
 
         assertThat(claimed).isTrue();
         assertThat(activeProposalOf(a)).isEqualTo(proposalId.toString());
         assertThat(activeProposalOf(b)).isEqualTo(proposalId.toString());
-        assertThat(redis.opsForZSet().size(queueKey)).isZero();
+        assertThat(redis.opsForZSet().size(topKey)).isZero();
         assertThat(redis.opsForSet().size(MatchingRedisKeys.proposalMembers(proposalId))).isEqualTo(2);
         assertThat(redis.getExpire(MatchingRedisKeys.activeProposal(a.userId())))
                 .isPositive().isLessThanOrEqualTo(TTL.toSeconds());
@@ -64,12 +71,12 @@ class ProposalClaimRepositoryTest extends RedisTestSupport {
         redis.opsForValue().set(MatchingRedisKeys.activeProposal(b.userId()), "other-proposal");
         UUID proposalId = UUID.randomUUID();
 
-        boolean claimed = repository.claimAll(queueKey, proposalId, TTL, List.of(a, b));
+        boolean claimed = repository.claimAll(proposalId, TTL, List.of(a, b));
 
         assertThat(claimed).isFalse();
         assertThat(activeProposalOf(a)).isNull();
         assertThat(activeProposalOf(b)).isEqualTo("other-proposal");
-        assertThat(redis.opsForZSet().size(queueKey)).isEqualTo(2);
+        assertThat(redis.opsForZSet().size(topKey)).isEqualTo(2);
         assertThat(redis.hasKey(MatchingRedisKeys.proposalMembers(proposalId))).isFalse();
     }
 
@@ -81,7 +88,7 @@ class ProposalClaimRepositoryTest extends RedisTestSupport {
         // 취소 후 재요청. 우리가 본 requestId는 더 이상 유효하지 않다.
         redis.opsForValue().set(MatchingRedisKeys.activeRequest(a.userId()), UUID.randomUUID().toString());
 
-        boolean claimed = repository.claimAll(queueKey, UUID.randomUUID(), TTL, List.of(a, b));
+        boolean claimed = repository.claimAll(UUID.randomUUID(), TTL, List.of(a, b));
 
         assertThat(claimed).isFalse();
         assertThat(activeProposalOf(a)).isNull();
@@ -95,7 +102,7 @@ class ProposalClaimRepositoryTest extends RedisTestSupport {
         ClaimCandidate b = enqueue(1001);
         redis.delete(MatchingRedisKeys.activeRequest(a.userId()));
 
-        boolean claimed = repository.claimAll(queueKey, UUID.randomUUID(), TTL, List.of(a, b));
+        boolean claimed = repository.claimAll(UUID.randomUUID(), TTL, List.of(a, b));
 
         assertThat(claimed).isFalse();
         assertThat(activeProposalOf(b)).isNull();
@@ -123,7 +130,7 @@ class ProposalClaimRepositoryTest extends RedisTestSupport {
                     ready.countDown();
                     try {
                         start.await();
-                        if (repository.claimAll(queueKey, UUID.randomUUID(), TTL, List.of(target, partner))) {
+                        if (repository.claimAll(UUID.randomUUID(), TTL, List.of(target, partner))) {
                             succeeded.incrementAndGet();
                         }
                     } catch (InterruptedException e) {
@@ -148,7 +155,7 @@ class ProposalClaimRepositoryTest extends RedisTestSupport {
         long lockedPartners = partners.stream().filter(p -> activeProposalOf(p) != null).count();
         assertThat(lockedPartners).isEqualTo(1);
         // 대기열에서는 승자 두 명만 빠졌다.
-        assertThat(redis.opsForZSet().size(queueKey)).isEqualTo(rivals + 1 - 2L);
+        assertThat(redis.opsForZSet().size(topKey)).isEqualTo(rivals + 1 - 2L);
     }
 
     @Test
@@ -160,7 +167,7 @@ class ProposalClaimRepositoryTest extends RedisTestSupport {
         UUID newer = UUID.randomUUID();
 
         // 새 제안이 두 사람을 잡고 있는 상태.
-        assertThat(repository.claimAll(queueKey, newer, TTL, List.of(a, b))).isTrue();
+        assertThat(repository.claimAll(newer, TTL, List.of(a, b))).isTrue();
 
         // TTL이 먼저 끝난 옛 제안의 뒤늦은 정리가 도착한다.
         long released = repository.releaseClaims(older, List.of(a.userId(), b.userId()));
@@ -176,7 +183,7 @@ class ProposalClaimRepositoryTest extends RedisTestSupport {
         ClaimCandidate a = enqueue(1000);
         ClaimCandidate b = enqueue(1001);
         UUID proposalId = UUID.randomUUID();
-        repository.claimAll(queueKey, proposalId, TTL, List.of(a, b));
+        repository.claimAll(proposalId, TTL, List.of(a, b));
 
         assertThat(repository.releaseClaims(proposalId, List.of(a.userId(), b.userId()))).isEqualTo(2);
         assertThat(activeProposalOf(a)).isNull();
@@ -188,7 +195,7 @@ class ProposalClaimRepositoryTest extends RedisTestSupport {
     void rejectsDuplicateCandidate() {
         ClaimCandidate a = enqueue(1000);
 
-        assertThatThrownBy(() -> repository.claimAll(queueKey, UUID.randomUUID(), TTL, List.of(a, a)))
+        assertThatThrownBy(() -> repository.claimAll(UUID.randomUUID(), TTL, List.of(a, a)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("두 번");
         assertThat(activeProposalOf(a)).isNull();
@@ -199,8 +206,22 @@ class ProposalClaimRepositoryTest extends RedisTestSupport {
     void rejectsSingleCandidate() {
         ClaimCandidate a = enqueue(1000);
 
-        assertThatThrownBy(() -> repository.claimAll(queueKey, UUID.randomUUID(), TTL, List.of(a)))
+        assertThatThrownBy(() -> repository.claimAll(UUID.randomUUID(), TTL, List.of(a)))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("참가자가 서로 다른 bucket에 있어도 각자 자기 bucket에서 빠진다")
+    void removesEachMemberFromItsOwnBucket() {
+        // LoL 랭크는 포지션이 겹치면 매칭되지 않으므로 파티원은 늘 다른 bucket에 있다.
+        ClaimCandidate top = enqueue(TOP, 1000);
+        ClaimCandidate mid = enqueue(MID, 1001);
+
+        boolean claimed = repository.claimAll(UUID.randomUUID(), TTL, List.of(top, mid));
+
+        assertThat(claimed).isTrue();
+        assertThat(redis.opsForZSet().size(MatchingRedisKeys.queue(TOP))).isZero();
+        assertThat(redis.opsForZSet().size(MatchingRedisKeys.queue(MID))).isZero();
     }
 
     @Test
@@ -209,17 +230,28 @@ class ProposalClaimRepositoryTest extends RedisTestSupport {
         ClaimCandidate a = enqueue(1000);
         ClaimCandidate b = enqueue(1001);
 
-        assertThatThrownBy(() -> repository.claimAll(queueKey, UUID.randomUUID(), Duration.ZERO, List.of(a, b)))
+        assertThatThrownBy(() -> repository.claimAll(UUID.randomUUID(), Duration.ZERO, List.of(a, b)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     /** 대기 중인 사용자 한 명을 만든다. 활성 요청 guard와 대기열 항목을 함께 세운다. */
     private ClaimCandidate enqueue(double queuedAtScore) {
-        ClaimCandidate candidate = new ClaimCandidate(UUID.randomUUID(), UUID.randomUUID());
+        return enqueue(TOP, queuedAtScore);
+    }
+
+    private ClaimCandidate enqueue(MatchBucket bucket, double queuedAtScore) {
+        ClaimCandidate candidate =
+                new ClaimCandidate(UUID.randomUUID(), UUID.randomUUID(), bucket);
         redis.opsForValue().set(
                 MatchingRedisKeys.activeRequest(candidate.userId()), candidate.requestId().toString());
-        redis.opsForZSet().add(queueKey, candidate.requestId().toString(), queuedAtScore);
+        redis.opsForZSet().add(MatchingRedisKeys.queue(bucket),
+                candidate.requestId().toString(), queuedAtScore);
         return candidate;
+    }
+
+    private static MatchBucket bucket(LolPosition position) {
+        return new MatchBucket(GameKey.LOL, "SOLO_DUO_RANKED", position,
+                VoicePreference.OPTIONAL, PlayPurpose.RANK_UP);
     }
 
     private String activeProposalOf(ClaimCandidate candidate) {

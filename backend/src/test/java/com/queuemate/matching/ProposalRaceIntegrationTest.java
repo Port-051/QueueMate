@@ -6,6 +6,8 @@ import com.queuemate.common.domain.VoicePreference;
 import com.queuemate.matching.app.MatchRequestService;
 import com.queuemate.matching.app.ProposalService;
 import com.queuemate.matching.app.RealtimeMatcher;
+import com.queuemate.gameconfig.domain.GameModeConfig;
+import com.queuemate.matching.domain.MatchBucket;
 import com.queuemate.matching.domain.BlockedPairProposalGuard;
 import com.queuemate.matching.domain.LolPosition;
 import com.queuemate.matching.domain.MatchCondition;
@@ -57,6 +59,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ProposalRaceIntegrationTest {
 
     private static final String MODE = "SOLO_DUO_RANKED";
+
+    /** 대기열은 조건별 bucket으로 나뉘어 있으므로 모드 전체 인원은 bucket 합계다 (docs/07 §3.1). */
+    private static List<MatchBucket> lolBuckets() {
+        return MatchBucket.allFor(new GameModeConfig(GameKey.LOL, MODE, 2, true, true));
+    }
 
     @Container
     static final PostgreSQLContainer<?> POSTGRES =
@@ -200,7 +207,7 @@ class ProposalRaceIntegrationTest {
         assertThat(matcher.tryMatch(GameKey.LOL, MODE))
                 .withFailMessage("맨 앞 사람이 매칭되지 않는다고 뒤의 조합까지 막혔다")
                 .isPresent();
-        assertThat(queue.waitingCount(MatchingRedisKeys.queue(GameKey.LOL, MODE))).isEqualTo(1);
+        assertThat(queue.waitingCount(lolBuckets())).isEqualTo(1);
     }
 
     @Test
@@ -229,7 +236,7 @@ class ProposalRaceIntegrationTest {
         // 정리는 별도 트랜잭션인 sweep이 맡는다.
         assertThat(proposals.expireOverdue()).isEqualTo(1);
         assertThat(claims.activeProposalOf(first)).isEmpty();
-        assertThat(queue.waitingCount(MatchingRedisKeys.queue(GameKey.LOL, MODE))).isEqualTo(2);
+        assertThat(queue.waitingCount(lolBuckets())).isEqualTo(2);
     }
 
     @Test
@@ -245,7 +252,7 @@ class ProposalRaceIntegrationTest {
 
         assertThat(matcher.tryMatch(GameKey.LOL, MODE)).isPresent();
         // 끝난 항목은 대기열에서도 사라진다.
-        assertThat(queue.waitingCount(MatchingRedisKeys.queue(GameKey.LOL, MODE))).isZero();
+        assertThat(queue.waitingCount(lolBuckets())).isZero();
     }
 
     @Test
@@ -265,7 +272,7 @@ class ProposalRaceIntegrationTest {
         assertThat(proposalRepository.findById(proposalId))
                 .get().extracting(p -> p.getStatus()).isEqualTo(ProposalStatus.CANCELLED);
         // 두 사람 모두 대기로 돌아가되, 이제 서로는 후보가 아니다.
-        assertThat(queue.waitingCount(MatchingRedisKeys.queue(GameKey.LOL, MODE))).isEqualTo(2);
+        assertThat(queue.waitingCount(lolBuckets())).isEqualTo(2);
         assertThat(claims.activeProposalOf(first)).isEmpty();
     }
 

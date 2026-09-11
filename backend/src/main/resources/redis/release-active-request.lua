@@ -4,7 +4,7 @@
 -- 등록한 요청의 guard를 늦게 도착한 취소 요청이 지워 버린다. 그 순간 INV-1이 깨진다.
 --
 -- KEYS[1]  qm:user:active-request:{userId}
--- KEYS[2]  qm:queue:{game}:{mode}
+-- KEYS[2]  qm:queue:{game}:{mode}:{key}:{voice}:{purpose}  사용자 조건의 bucket (docs/07 §3.1)
 --
 -- ARGV[1]  해제하려는 requestId
 --

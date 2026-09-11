@@ -1,5 +1,6 @@
 package com.queuemate.matching.app;
 
+import com.queuemate.matching.domain.MatchBucket;
 import com.queuemate.matching.domain.MatchCondition;
 import com.queuemate.matching.domain.MatchRequest;
 import com.queuemate.matching.domain.MatchRequestStatus;
@@ -51,8 +52,8 @@ public class RealtimeParticipants implements ProposalParticipants {
             MatchCondition condition = codec.fromJson(request.getConditionJson());
             UUID userId = request.getUserId();
             UUID requestId = request.getId();
-            String queueKey = MatchingRedisKeys.queue(condition.game(), condition.modeKey());
-            AfterCommit.run(() -> queue.release(userId, requestId, queueKey));
+            String bucketKey = MatchingRedisKeys.queue(MatchBucket.of(condition));
+            AfterCommit.run(() -> queue.release(userId, requestId, bucketKey));
         }
     }
 
@@ -64,11 +65,11 @@ public class RealtimeParticipants implements ProposalParticipants {
             }
             request.returnToQueue();
             MatchCondition condition = codec.fromJson(request.getConditionJson());
-            String queueKey = MatchingRedisKeys.queue(condition.game(), condition.modeKey());
+            String bucketKey = MatchingRedisKeys.queue(MatchBucket.of(condition));
             UUID requestId = request.getId();
             java.time.Instant queuedAt = request.getQueuedAt().toInstant();
             // 최초 대기 시각을 그대로 넣어 오래 기다린 사람이 앞자리를 지킨다 (docs/03 §8).
-            AfterCommit.run(() -> queue.requeue(queueKey, requestId, queuedAt));
+            AfterCommit.run(() -> queue.requeue(bucketKey, requestId, queuedAt));
         }
     }
 }
