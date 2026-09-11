@@ -20,7 +20,9 @@ test('차단하면 친구 목록에서 빠지고 차단 목록에 남는다 (INV
 
   const first = page.locator('.list-item').first();
   const nickname = (await first.locator('.li-main b').innerText()).trim();
-  await first.getByRole('button', { name: '차단' }).click();
+  await first.locator('summary').click();
+  await first.getByRole('button', { name: '차단', exact: true }).click();
+  await page.getByRole('button', { name: '차단하기', exact: true }).click();
 
   await expect(page.locator('.list-item .li-main b').filter({ hasText: nickname })).toHaveCount(0);
   await page.getByRole('button', { name: /차단 목록/ }).click();

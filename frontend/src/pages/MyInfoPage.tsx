@@ -1,12 +1,13 @@
+import { GameBadge } from '../components/GameSymbol';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
 import type { GameKey } from '../api/types';
-import { IconCheck, IconPencil, IconTrash } from '../components/icons';
-import { AVATAR_CHOICES, Avatar, Button, Card, CardHead, Field, Modal, Tag, useToast } from '../components/ui';
+import { IconCheck, IconPencil } from '../components/icons';
+import { AVATAR_CHOICES, Avatar, Button, Card, CardHead, ConfirmDialog, Field, Modal, Tag, useToast } from '../components/ui';
 import { GAMES } from '../domain/gameConfig';
 import { gameFullLabel } from '../domain/labels';
-import { relativeTime } from '../domain/time';
 import { useAuth } from '../state/AuthContext';
 import { useSocial } from '../state/SocialContext';
 
@@ -20,11 +21,16 @@ export function MyInfoPage() {
   const [externalId, setExternalId] = useState('');
   const [busy, setBusy] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [unlinkTarget, setUnlinkTarget] = useState<{ id: string; game: GameKey } | null>(null);
   // 모달 안에서만 쓰는 임시 선택이다. 저장 전까지 실제 프로필은 건드리지 않는다.
   const [picked, setPicked] = useState<string | null>(null);
   const [savingAvatar, setSavingAvatar] = useState(false);
 
   const unlinked = GAMES.filter((g) => !gameAccounts.some((a) => a.game === g.key));
+
+  const selectedGame = unlinked.some((item) => item.key === game) ? game : unlinked[0]?.key;
+  const nicknameChanged = nickname.trim() !== user?.nickname;
+  const nicknameError = nicknameChanged && (nickname.trim().length < 2 || nickname.trim().length > 16) ? '닉네임은 2~16자로 입력해주세요.' : undefined;
 
   const saveNickname = async () => {
     const trimmed = nickname.trim();
@@ -62,10 +68,11 @@ export function MyInfoPage() {
   };
 
   const link = async () => {
+    if (!selectedGame) return;
     if (!externalId.trim()) { toast('게임 아이디를 입력해주세요', 'error'); return; }
     setBusy(true);
     try {
-      await api.linkGameAccount({ game, externalGameId: externalId.trim(), region: 'KR' });
+      await api.linkGameAccount({ game: selectedGame, externalGameId: externalId.trim(), region: 'KR' });
       await refreshGameAccounts();
       setExternalId('');
       toast('게임 계정을 연결했습니다', 'ok');
@@ -77,100 +84,61 @@ export function MyInfoPage() {
   };
 
   const unlink = async (id: string) => {
-    setBusy(true);
-    try {
-      await api.unlinkGameAccount(id);
-      await refreshGameAccounts();
-      toast('게임 계정 연결을 해제했습니다');
-    } catch (err) {
-      toast(isApiError(err) ? err.message : '연결을 해제하지 못했습니다', 'error');
-    } finally {
-      setBusy(false);
-    }
+    await api.unlinkGameAccount(id);
+    await refreshGameAccounts();
+    toast('게임 계정 연결을 해제했습니다');
   };
 
   return (
-    <section className="page">
-      <div className="page-head">
-        <h1>내 정보</h1>
-        <p>프로필과 게임 계정 연결을 관리합니다.</p>
-      </div>
-
-      <div className="page-grid">
-        <div className="stack">
-          <Card>
-            <CardHead title="프로필" sub="닉네임은 매칭 제안과 파티룸에서 팀원에게 보입니다." />
-            <div className="row" style={{ gap: 16, alignItems: 'flex-end' }}>
-              <button type="button" className="avatar-edit" aria-label="프로필 사진 변경" onClick={openAvatarPicker}>
-                <Avatar name={user?.nickname ?? '?'} size={64} avatarUrl={user?.avatarUrl ?? null} />
-              </button>
-              <div style={{ flex: 1 }}>
-                <Field label="닉네임" hint="2~16자">
-                  <input className="input" value={nickname} onChange={(e) => setNickname(e.target.value)} />
+    <section className="page focus-page profile-page">
+      <div className="page-head"><h1>내 정보</h1><p>팀원에게 보여줄 프로필과 게임 ID를 관리하세요.</p></div>
+      <div className="content-sections">
+          <Card className="content-section">
+            <CardHead title="프로필" sub="매칭 제안과 파티룸에서 팀원에게 보입니다." />
+            <form className="profile-form" onSubmit={(event) => { event.preventDefault(); if (nicknameChanged && !nicknameError && !busy) void saveNickname(); }}>
+              <div className="profile-avatar">
+                <button type="button" className="avatar-edit" aria-label="프로필 사진 변경" onClick={openAvatarPicker}>
+                  <Avatar name={user?.nickname ?? '?'} size={72} avatarUrl={user?.avatarUrl ?? null} />
+                </button>
+                <Button size="sm" variant="ghost" onClick={openAvatarPicker}><IconPencil size={13} /> 사진 변경</Button>
+              </div>
+              <div className="profile-fields">
+                <Field label="닉네임" hint="2~16자 · 공백만으로는 저장할 수 없습니다." error={nicknameError}>
+                  <input className="input" value={nickname} maxLength={16} onChange={(event) => setNickname(event.target.value)} />
                 </Field>
+                <div className="profile-save">
+                  <span className="hint" role="status">{nicknameChanged ? '아직 저장하지 않은 변경 사항이 있습니다.' : '변경 사항이 없습니다.'}</span>
+                  <Button type="submit" variant="primary" disabled={busy || !nicknameChanged || Boolean(nicknameError)}>{busy ? '저장 중…' : '변경 사항 저장'}</Button>
+                </div>
               </div>
-              <Button onClick={openAvatarPicker}><IconPencil size={13} /> 사진 변경</Button>
-              <Button variant="primary" disabled={busy} onClick={() => void saveNickname()}>저장</Button>
+            </form>
+          </Card>
+          <Card className="content-section">
+            <CardHead title="게임 ID" sub="파티가 만들어지면 팀원에게 공유됩니다." right={<Tag>{GAMES.length - unlinked.length}/{GAMES.length} 등록</Tag>} />
+            <div className="game-account-list">
+              {GAMES.flatMap((item) => {
+                const accounts = gameAccounts.filter((a) => a.game === item.key);
+                return (accounts.length ? accounts : [null]).map((account) => <div key={account?.id ?? item.key} className="list-item account-row">
+                  <GameBadge game={item.key} />
+                  <div className="li-main"><b>{item.name}</b>{account ? <p className="account-id">{account.externalGameId}{account.region ? ` · ${account.region}` : ''}</p> : <p>게임 ID를 등록하면 팀원이 게임에서 초대할 수 있습니다.</p>}</div>
+                  {account ? <Button size="sm" variant="ghost" aria-label={`${item.name} 연결 해제`} onClick={() => setUnlinkTarget({ id: account.id, game: account.game })}>연결 해제</Button> : <Tag>미등록</Tag>}
+                </div>);
+              })}
             </div>
+            {unlinked.length > 0 ? <form className="account-link-form" onSubmit={(event) => { event.preventDefault(); if (!busy) void link(); }}>
+              <Field label="등록할 게임"><select className="select" value={selectedGame} onChange={(event) => setGame(event.target.value as GameKey)}>{unlinked.map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}</select></Field>
+              <Field label="게임 ID"><input className="input" placeholder="예: QueueMaster#KR1" value={externalId} onChange={(event) => setExternalId(event.target.value)} /></Field>
+              <Button type="submit" disabled={busy || !externalId.trim()} variant="primary">ID 등록</Button>
+            </form> : null}
+            <p className="account-note">현재 랭크·지역 자동 조회는 지원하지 않습니다.</p>
           </Card>
-
-          <Card>
-            <CardHead title="연결된 게임 계정" sub="랭크·지역 같은 조건은 연결된 계정에서 시스템이 가져옵니다." />
-            {gameAccounts.length === 0 ? (
-              <div className="empty">연결된 게임 계정이 없습니다.</div>
-            ) : gameAccounts.map((a) => (
-              <div key={a.id} className="list-item">
-                <span className={`game-logo g-${a.game}`} style={{ width: 34, height: 34, fontSize: 11 }}>{a.game.slice(0, 3)}</span>
-                <div className="li-main">
-                  <b>{gameFullLabel(a.game)}</b>
-                  <p>{a.externalGameId}{a.region ? ` · ${a.region}` : ''}{a.verifiedAt ? ` · ${relativeTime(a.verifiedAt)} 연결` : ''}</p>
-                </div>
-                <Button size="sm" variant="danger" disabled={busy} onClick={() => void unlink(a.id)}>
-                  <IconTrash size={13} /> 해제
-                </Button>
-              </div>
-            ))}
-
-            {unlinked.length > 0 ? (
-              <div className="stack" style={{ marginTop: 18, gap: 12 }}>
-                <div className="opt-choices">
-                  {unlinked.map((g) => (
-                    <button key={g.key} type="button" className={g.key === game ? 'opt on' : 'opt'} onClick={() => setGame(g.key)}>
-                      {g.shortName}
-                    </button>
-                  ))}
-                </div>
-                <div className="row" style={{ gap: 10 }}>
-                  <input className="input" placeholder="게임 내 아이디 (예: QueueMaster#KR1)"
-                    value={externalId} onChange={(e) => setExternalId(e.target.value)} />
-                  <Button disabled={busy} onClick={() => void link()}>연결</Button>
-                </div>
-              </div>
-            ) : null}
-          </Card>
-        </div>
-
-        <div className="rail">
-          <Card>
-            <CardHead title="내 활동" />
-            <div className="summary-row"><span>친구</span><b>{friends.length}명</b></div>
-            <div className="summary-row"><span>최근 함께한 사람</span><b>{recentPlayers.length}명</b></div>
-            <div className="summary-row"><span>차단</span><b>{blocks.length}명</b></div>
-          </Card>
-          <Card>
-            <CardHead title="지원 게임" />
-            <div className="stack" style={{ gap: 8 }}>
-              {GAMES.map((g) => (
-                <div key={g.key} className="row" style={{ gap: 10 }}>
-                  <span className={`game-logo g-${g.key}`} style={{ width: 30, height: 30, fontSize: 10 }}>{g.shortName.slice(0, 3)}</span>
-                  <b style={{ fontSize: 13.5 }}>{g.name}</b>
-                  {gameAccounts.some((a) => a.game === g.key) ? <Tag tone="ok">연결됨</Tag> : <Tag>미연결</Tag>}
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
+        <nav className="profile-links" aria-label="내 활동">
+          <Link to="/app/friends">친구 <span>{friends.length}</span></Link>
+          <Link to="/app/recent">최근 함께한 사람 <span>{recentPlayers.length}</span></Link>
+          <Link to="/app/friends?tab=blocks">차단 목록 <span>{blocks.length}</span></Link>
+        </nav>
       </div>
+      {unlinkTarget ? <ConfirmDialog title={`${gameFullLabel(unlinkTarget.game)} 연결을 해제할까요?`} description="이 게임의 ID가 파티원에게 표시되지 않습니다. 나중에 다시 등록할 수 있습니다." confirmLabel="연결 해제" onConfirm={() => unlink(unlinkTarget.id)} onClose={() => setUnlinkTarget(null)} /> : null}
 
       {avatarOpen ? (
         <Modal

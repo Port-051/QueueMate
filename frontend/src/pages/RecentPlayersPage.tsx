@@ -24,7 +24,7 @@ export function RecentPlayersPage() {
   };
 
   return (
-    <section className="page">
+    <section className="page focus-page list-page">
       <div className="page-head">
         <h1>최근 함께한 사람</h1>
         <p>완료된 파티에서 함께 플레이한 팀원입니다. 차단한 사용자는 표시되지 않습니다.</p>

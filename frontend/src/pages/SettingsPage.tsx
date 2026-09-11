@@ -20,16 +20,15 @@ export function SettingsPage() {
   };
 
   return (
-    <section className="page">
+    <section className="page focus-page settings-page">
       <div className="page-head">
         <h1>설정</h1>
-        <p>매칭 조건 폼의 기본값과 계정을 관리합니다.</p>
+        <p>자주 사용하는 매칭 조건을 설정하세요.</p>
       </div>
 
-      <div className="page-grid">
-        <div className="stack">
-          <Card>
-            <CardHead title="매칭 조건 기본값" sub="새 매칭을 시작할 때 미리 선택되어 있을 값입니다. 조건 자체가 늘어나지는 않습니다." />
+      <div className="content-sections">
+          <Card className="content-section">
+            <CardHead title="매칭 조건 기본값" sub="새 매칭에서 사용할 기본 조건입니다. 선택하면 자동으로 저장됩니다." />
             <OptionRow
               label="음성 사용"
               value={prefs.defaultVoice}
@@ -44,24 +43,20 @@ export function SettingsPage() {
             />
           </Card>
 
-          <Card>
+          <Card className="content-section">
             <CardHead title="계정" />
             <Button variant="danger" onClick={() => { void logout().then(() => navigate('/')); }}>
               <IconLogout size={15} /> 로그아웃
             </Button>
           </Card>
-        </div>
-
-        <div className="rail">
-          <Card>
-            <CardHead title="개인정보와 안전" />
-            <ul style={{ display: 'grid', gap: 10, fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>
-              <li>· 파티 음성과 채팅은 파티원끼리 직접 연결되며 서버에 저장되지 않습니다.</li>
-              <li>· 신고는 사유와 식별자만 접수됩니다.</li>
-              <li>· 차단한 사용자는 이후 어떤 매칭에서도 같은 파티가 되지 않습니다.</li>
-            </ul>
-          </Card>
-        </div>
+        <details className="inline-help">
+          <summary>개인정보와 안전</summary>
+          <ul>
+            <li>파티 음성과 채팅은 파티원끼리 직접 연결되며 서버에 저장되지 않습니다.</li>
+            <li>신고는 사유와 식별자만 접수됩니다.</li>
+            <li>차단한 사용자는 이후 매칭에서 같은 파티가 되지 않습니다.</li>
+          </ul>
+        </details>
       </div>
     </section>
   );
