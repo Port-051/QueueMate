@@ -3,6 +3,7 @@ package com.queuemate.reservation.app;
 import com.queuemate.common.social.BlockLookupPort;
 import com.queuemate.gameconfig.domain.GameModeConfig;
 import com.queuemate.gameconfig.domain.GameModeConfigProvider;
+import com.queuemate.matching.domain.ActiveProposalClaim;
 import com.queuemate.matching.domain.MatchCondition;
 import com.queuemate.matching.domain.MatchProposal;
 import com.queuemate.matching.domain.PartyAssembler;
@@ -11,6 +12,7 @@ import com.queuemate.matching.domain.ProposalMember;
 import com.queuemate.matching.domain.MatchingEvents;
 import com.queuemate.matching.domain.ProposalSourceType;
 import com.queuemate.matching.domain.RandomSource;
+import com.queuemate.matching.infra.ActiveProposalClaimRepository;
 import com.queuemate.matching.infra.MatchConditionCodec;
 import com.queuemate.matching.infra.MatchProposalRepository;
 import com.queuemate.matching.infra.ProposalClaimRepository;
@@ -24,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +58,7 @@ public class ReservationMatcher {
     private final MatchProposalRepository proposals;
     private final ProposalMemberRepository proposalMembers;
     private final ProposalClaimRepository claims;
+    private final ActiveProposalClaimRepository claimRows;
     private final GameModeConfigProvider modes;
     private final MatchConditionCodec codec;
     private final BlockLookupPort blocks;
@@ -66,17 +70,19 @@ public class ReservationMatcher {
     @Autowired
     public ReservationMatcher(ReservationRepository reservations, ReservationSlotIndex slots,
                               MatchProposalRepository proposals, ProposalMemberRepository proposalMembers,
-                              ProposalClaimRepository claims, GameModeConfigProvider modes,
+                              ProposalClaimRepository claims,
+                              ActiveProposalClaimRepository claimRows, GameModeConfigProvider modes,
                               MatchConditionCodec codec, BlockLookupPort blocks, RandomSource random,
                               ApplicationEventPublisher events,
                               @Value("${queuemate.proposal.ttl-seconds:20}") long proposalTtlSeconds) {
-        this(reservations, slots, proposals, proposalMembers, claims, modes, codec, blocks, random,
-                events, Clock.systemUTC(), Duration.ofSeconds(proposalTtlSeconds));
+        this(reservations, slots, proposals, proposalMembers, claims, claimRows, modes, codec,
+                blocks, random, events, Clock.systemUTC(), Duration.ofSeconds(proposalTtlSeconds));
     }
 
     ReservationMatcher(ReservationRepository reservations, ReservationSlotIndex slots,
                        MatchProposalRepository proposals, ProposalMemberRepository proposalMembers,
-                       ProposalClaimRepository claims, GameModeConfigProvider modes,
+                       ProposalClaimRepository claims,
+                       ActiveProposalClaimRepository claimRows, GameModeConfigProvider modes,
                        MatchConditionCodec codec, BlockLookupPort blocks, RandomSource random,
                        ApplicationEventPublisher events, Clock clock, Duration proposalTtl) {
         this.reservations = reservations;
@@ -84,6 +90,7 @@ public class ReservationMatcher {
         this.proposals = proposals;
         this.proposalMembers = proposalMembers;
         this.claims = claims;
+        this.claimRows = claimRows;
         this.modes = modes;
         this.codec = codec;
         this.blocks = blocks;
@@ -177,6 +184,13 @@ public class ReservationMatcher {
             log.info("차단 관계가 확인되어 예약 제안을 만들지 않는다 users={}", userIds);
             return Optional.empty();
         }
+
+        // Redis가 claim을 잃었을 수 있다. 영속 진실을 직접 본다 (INV-2).
+        if (claimRows.existsByUserIdIn(userIds)) {
+            log.warn("Redis에는 없지만 DB에 살아 있는 claim이 있다. 제안을 만들지 않는다 users={}",
+                    userIds);
+            return Optional.empty();
+        }
         Optional<OffsetDateTime> scheduledStart = earliestCommonSlot(party);
         if (scheduledStart.isEmpty()) {
             return Optional.empty();
@@ -189,8 +203,11 @@ public class ReservationMatcher {
         releaseClaimsIfRolledBack(proposalId, userIds);
 
         OffsetDateTime now = OffsetDateTime.now(clock);
-        proposals.save(MatchProposal.pending(
-                proposalId, ProposalSourceType.RESERVATION, now.plus(proposalTtl)));
+        OffsetDateTime expiresAt = now.plus(proposalTtl);
+        proposals.saveAndFlush(MatchProposal.pending(
+                proposalId, ProposalSourceType.RESERVATION, expiresAt));
+        // INV-2의 영속 방어선. 예약은 원본 행을 잠그지 않으므로 여기가 유일한 DB 방어선이다.
+        holdClaims(proposalId, userIds, expiresAt);
         for (Candidate candidate : party) {
             proposalMembers.save(ProposalMember.pending(
                     proposalId, candidate.userId(), candidate.reservation().getId()));
@@ -198,10 +215,30 @@ public class ReservationMatcher {
         }
         events.publishEvent(new MatchingEvents.ProposalCreated(
                 proposalId, ProposalSourceType.RESERVATION, userIds,
-                now.plus(proposalTtl), scheduledStart.get()));
+                expiresAt, scheduledStart.get()));
         log.info("예약 제안 생성 proposalId={} game={} mode={} start={} size={}",
                 proposalId, config.game(), config.modeKey(), scheduledStart.get(), party.size());
         return Optional.of(proposalId);
+    }
+
+    /**
+     * INV-2를 DB에도 새긴다.
+     *
+     * <p>실시간은 match_request 행을 {@code FOR UPDATE}로 잠가 같은 사람이 두 번 뽑히는 것을
+     * 막지만, 예약은 원본을 잠그지 않는다. 그래서 예약 쪽 INV-2는 지금까지 Redis claim
+     * 하나에만 걸려 있었다. user_id PK가 그 자리를 메운다.
+     */
+    private void holdClaims(UUID proposalId, List<UUID> userIds, OffsetDateTime expiresAt) {
+        try {
+            for (UUID userId : userIds) {
+                claimRows.save(ActiveProposalClaim.held(userId, proposalId, expiresAt));
+            }
+            claimRows.flush();
+        } catch (DataIntegrityViolationException e) {
+            log.error("INV-2 방어선이 걸렸다. Redis claim과 DB가 어긋나 있다 proposalId={} users={}",
+                    proposalId, userIds);
+            throw e;
+        }
     }
 
     private Optional<OffsetDateTime> commonSlotOf(List<Candidate> party, Candidate candidate) {

@@ -9,8 +9,11 @@ import com.queuemate.matching.app.ProposalService;
 import com.queuemate.matching.domain.LolPosition;
 import com.queuemate.matching.domain.MatchCondition;
 import com.queuemate.matching.domain.ProposalStatus;
+import com.queuemate.matching.infra.MatchingRedisKeys;
 import com.queuemate.matching.infra.ProposalClaimRepository;
 import com.queuemate.matching.infra.ProposalMemberRepository;
+import com.queuemate.matching.app.MatchRequestService;
+import com.queuemate.matching.app.RealtimeMatcher;
 import com.queuemate.reservation.app.ReservationMatcher;
 import com.queuemate.reservation.app.ReservationService;
 import com.queuemate.reservation.domain.Reservation;
@@ -79,6 +82,8 @@ class ReservationMatchingIntegrationTest {
 
     @Autowired ReservationService service;
     @Autowired ReservationMatcher matcher;
+    @Autowired MatchRequestService matchRequests;
+    @Autowired RealtimeMatcher realtimeMatcher;
     @Autowired ProposalService proposals;
     @Autowired ReservationRepository reservations;
     @Autowired ProposalMemberRepository proposalMembers;
@@ -318,6 +323,44 @@ class ReservationMatchingIntegrationTest {
         service.cancel(owner, cancelled.getId());
 
         assertThat(matcher.tryMatchFor(other.getId())).isEmpty();
+    }
+
+    /**
+     * Redis failover로 claim이 사라져도 같은 사람이 두 제안에 묶이지 않는다 (INV-2).
+     *
+     * <p>Redis 복제는 비동기다. master가 ack한 claim이 복제되기 전에 failover가 나면
+     * 새 master는 그 사용자가 비어 있다고 답한다. 실시간 제안은 match_request 행을
+     * {@code FOR UPDATE}로 잠가 스스로를 지키지만, 예약은 원본을 잠그지 않는다.
+     * 그래서 "실시간 제안을 들고 있는 사람의 예약"이 가장 약한 지점이다.
+     */
+    @Test
+    @DisplayName("Redis claim이 사라져도 실시간 제안 중인 사람에게 예약 제안을 겹쳐 주지 않는다")
+    void survivesLostRedisClaim() {
+        UUID jungler = newUser();
+        UUID mid = newUser();
+        UUID adc = newUser();
+
+        // 예약과 실시간 요청을 동시에 들고 있는 사용자.
+        Reservation booked = service.create(jungler, lol(LolPosition.JUNGLE),
+                at("20:00"), at("23:00"), PlayAmount.ONE_GAME);
+        matchRequests.start(jungler, lol(LolPosition.JUNGLE));
+        matchRequests.start(mid, lol(LolPosition.MID));
+        Optional<UUID> realtime = realtimeMatcher.tryMatch(GameKey.LOL, MODE);
+        assertThat(realtime).isPresent();
+        assertThat(claims.activeProposalOf(jungler)).contains(realtime.get());
+
+        // failover로 복제되지 않은 claim이 유실된 상태를 그대로 흉내 낸다.
+        redis.delete(MatchingRedisKeys.activeProposal(jungler));
+        redis.delete(MatchingRedisKeys.activeProposal(mid));
+        assertThat(claims.activeProposalOf(jungler)).isEmpty();
+
+        // 이제 예약 매칭이 같은 사람을 다시 데려가려 한다.
+        service.create(adc, lol(LolPosition.ADC), at("20:00"), at("23:00"), PlayAmount.ONE_GAME);
+        Optional<UUID> second = matcher.tryMatchFor(booked.getId());
+
+        assertThat(second).isEmpty();
+        assertThat(reservations.findById(booked.getId()))
+                .get().extracting(Reservation::getStatus).isEqualTo(ReservationStatus.ACTIVE);
     }
 
     private UUID newUser() {
