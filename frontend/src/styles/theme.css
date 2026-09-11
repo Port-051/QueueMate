@@ -40,7 +40,7 @@
   background: var(--bg);
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; scrollbar-width: none; }
 
 body {
   margin: 0;
@@ -56,8 +56,7 @@ button { font: inherit; color: inherit; }
 h1, h2, h3, h4, p { margin: 0; }
 ul { margin: 0; padding: 0; list-style: none; }
 
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: #23264a; border-radius: 999px; border: 3px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar { display: none; }
 
 /* ---------- app shell ---------- */
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: var(--sidebar-w) 1fr; }
