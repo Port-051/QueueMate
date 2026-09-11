@@ -29,6 +29,8 @@ queuemate:
     state-ttl-seconds: ${OAUTH_STATE_TTL_SECONDS:300}
     # 콜백에서 프론트엔드가 토큰을 받아가기까지의 시간. 한 번만 쓸 수 있다.
     handoff-ttl-seconds: ${OAUTH_HANDOFF_TTL_SECONDS:60}
+    # 기본은 끈다. 운영에서 누르면 실패할 버튼을 그리지 않기 위해서다. local에서만 켠다.
+    expose-unconfigured-providers: ${OAUTH_EXPOSE_UNCONFIGURED:false}
     providers:
       # client-id가 비어 있으면 그 제공자는 목록에 뜨지 않는다. secret은 저장소에 두지 않는다.
       kakao:

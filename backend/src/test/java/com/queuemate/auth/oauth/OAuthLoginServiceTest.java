@@ -63,7 +63,7 @@ class OAuthLoginServiceTest {
 
         client = new FakeClient();
         service = new OAuthLoginService(
-                new OAuthClients(List.of(client)),
+                new OAuthClients(List.of(client), true),
                 new OAuthAccountLinker(identities, users, new NicknameAllocator(users)));
     }
 

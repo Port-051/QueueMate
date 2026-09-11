@@ -10,6 +10,8 @@ const MESSAGES: Record<string, string> = {
   INVALID_STATE: '로그인 요청이 만료됐습니다. 다시 시도해주세요',
   EXCHANGE_FAILED: '제공자와 통신하지 못했습니다. 잠시 후 다시 시도해주세요',
   ACCOUNT_UNAVAILABLE: '사용할 수 없는 계정입니다',
+  // 앱 등록 전 개발 환경에서만 나온다. 운영에서는 버튼 자체가 없다.
+  PROVIDER_NOT_CONFIGURED: '이 제공자는 아직 앱 등록이 되지 않았습니다',
 };
 
 /**
