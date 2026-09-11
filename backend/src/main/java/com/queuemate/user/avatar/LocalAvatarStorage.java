@@ -34,6 +34,11 @@ public class LocalAvatarStorage implements AvatarStorage {
             // 여기서 죽는 편이 낫다. 업로드를 받고 나서야 못 쓴다는 것을 아는 것보다 낫다.
             throw new IllegalStateException("아바타 저장 디렉터리를 만들 수 없다: " + dir, e);
         }
+        // 있는 것과 쓸 수 있는 것은 다르다. 볼륨 마운트 지점은 컨테이너가 root 소유로
+        // 만들어 두기 때문에, 디렉터리 존재만 확인하면 첫 업로드에서야 500으로 드러난다.
+        if (!Files.isWritable(dir)) {
+            throw new IllegalStateException("아바타 저장 디렉터리에 쓸 수 없다: " + dir);
+        }
         log.info("아바타 저장 디렉터리 dir={}", dir);
     }
 
