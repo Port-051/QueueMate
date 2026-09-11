@@ -1040,3 +1040,7 @@ components:
               userId: { type: string, format: uuid }
               nickname: { type: string }
               ready: { type: boolean }
+              gameIds:
+                type: array
+                items: { type: string }
+                description: 파티 게임에 등록한 초대용 게임 ID 목록. 해당 파티 참여자에게만 제공하며 미등록이면 빈 배열.

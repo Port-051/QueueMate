@@ -967,13 +967,15 @@ Content-Type: application/json;charset=UTF-8
   "targetSize": 2,
   "status": "OPEN",
   "members": [
-    { "userId": "11111111-1111-4111-8111-111111111111", "nickname": "알파",   "ready": false },
-    { "userId": "22222222-2222-4222-8222-222222222222", "nickname": "브라보", "ready": false }
+    { "userId": "11111111-1111-4111-8111-111111111111", "nickname": "알파",   "ready": false, "gameIds": ["Alpha#KR1"] },
+    { "userId": "22222222-2222-4222-8222-222222222222", "nickname": "브라보", "ready": false, "gameIds": [] }
   ]
 }
 ```
 
 `status` 값: `OPEN`(모이는 중) `READY`(전원 준비) `PLAYING`(게임 중) `CLOSED`(종료)
+
+> `members[].gameIds`는 파티 게임에 등록된 초대용 게임 ID 목록이다. 미등록이면 빈 배열이며, 다른 게임의 ID는 포함하지 않는다. 파티 상세를 조회할 수 있는 참여자에게만 제공한다.
 
 > `game`은 `GameKey` enum이 아니라 **문자열 필드**다(`PartyView`의 `String game`).
 > 값은 같지만 타입이 다른 자리다.
@@ -1012,8 +1014,8 @@ Content-Type: application/json;charset=UTF-8
   "targetSize": 2,
   "status": "READY",
   "members": [
-    { "userId": "11111111-1111-4111-8111-111111111111", "nickname": "알파",   "ready": true },
-    { "userId": "22222222-2222-4222-8222-222222222222", "nickname": "브라보", "ready": true }
+    { "userId": "11111111-1111-4111-8111-111111111111", "nickname": "알파",   "ready": true, "gameIds": ["Alpha#KR1"] },
+    { "userId": "22222222-2222-4222-8222-222222222222", "nickname": "브라보", "ready": true, "gameIds": [] }
   ]
 }
 ```
