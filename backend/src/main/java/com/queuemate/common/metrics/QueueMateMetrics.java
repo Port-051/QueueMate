@@ -139,6 +139,28 @@ public class QueueMateMetrics {
                 .increment(count);
     }
 
+    /**
+     * Redis 서킷이 상태를 바꿨다.
+     *
+     * 실패 건수만 세면 "죽은 Redis를 계속 불렀다"와 "불러야 할 때 안 불렀다"를 구분하지
+     * 못한다. 전이 자체를 세면 장애 구간의 시작과 끝이 시계열에 남고, CLOSED로 못 돌아오는
+     * 상황(설정이 잘못돼 새 master를 영영 못 보는 경우)이 드러난다.
+     */
+    public void redisCircuitTransition(String from, String to) {
+        Counter.builder("queuemate.redis.circuit.transition")
+                .tag("from", from)
+                .tag("to", to)
+                .description("Redis 서킷 상태 전이 횟수")
+                .register(registry)
+                .increment();
+    }
+
+    /** 서킷이 열려 있어 부르지 않고 되돌린 호출. 아낀 타임아웃의 양이다. */
+    public void redisCircuitShortCircuited() {
+        counter("queuemate.redis.circuit.short-circuited",
+                "서킷이 열려 있어 시도하지 않은 호출 수").increment();
+    }
+
     private Counter counter(String name, String description) {
         return Counter.builder(name).description(description).register(registry);
     }
