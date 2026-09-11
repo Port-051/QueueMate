@@ -57,9 +57,9 @@ export function AppShell() {
           </>}
         </NavLink>;
       })}
-      {user ? <NavLink to="/app/me" className="nav-link nav-profile" aria-label="프로필" onClick={() => setMenuOpen(false)}>
+      {user ? <NavLink to="/app/me" className="nav-link nav-profile" aria-label={`${user.nickname} 프로필`} onClick={() => setMenuOpen(false)}>
         <span className="nav-icon"><Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={mobile ? 28 : 32} status={connection === 'connected' ? 'online' : 'away'} /></span>
-        <span className="nav-label"><span>프로필</span><small className={connection === 'connected' ? '' : 'connecting'}>{connectionLabel}</small></span>
+        <span className="nav-label"><span className="nav-nickname" title={user.nickname}>{user.nickname}</span><small className={connection === 'connected' ? '' : 'connecting'}>{connectionLabel}</small></span>
       </NavLink> : null}
     </nav>
   );

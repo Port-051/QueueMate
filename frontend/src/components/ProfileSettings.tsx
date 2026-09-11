@@ -15,9 +15,9 @@ export function ProfileSettings() {
   };
 
   return (
-    <section id="settings" className="profile-settings" aria-labelledby="profile-settings-heading">
-      <h2 id="profile-settings-heading">설정</h2>
-      <h3>매칭 조건 기본값</h3>
+    <section id="settings" className="profile-section profile-settings" aria-labelledby="profile-settings-heading">
+      <div className="profile-section-heading"><h2 id="profile-settings-heading">매칭 기본값</h2><p>새 매칭에 자동으로 적용됩니다.</p></div>
+      <div className="profile-preferences">
       <OptionRow
         label="음성 사용"
         value={prefs.defaultVoice}
@@ -30,14 +30,8 @@ export function ProfileSettings() {
         options={PURPOSE_OPTIONS}
         onChange={(v) => update({ ...prefs, defaultPurpose: v as PlayPurpose })}
       />
-      <details className="inline-help">
-        <summary>개인정보와 안전</summary>
-        <ul>
-          <li>파티 음성과 채팅은 파티원끼리 직접 연결되며 서버에 저장되지 않습니다.</li>
-          <li>신고는 사유와 식별자만 접수됩니다.</li>
-          <li>차단한 사용자는 이후 매칭에서 같은 파티가 되지 않습니다.</li>
-        </ul>
-      </details>
+      <span className="profile-auto-save">자동 저장</span>
+      </div>
     </section>
   );
 }

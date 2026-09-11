@@ -24,18 +24,6 @@
 .confirm-description { color: var(--text-dim); line-height: 1.8; }
 .confirm-description p + p { margin-top: 12px; }
 
-.profile-page { --rail-w: 260px; }
-.profile-form { display: flex; gap: 28px; align-items: flex-start; }
-.profile-avatar { display: grid; justify-items: center; gap: 8px; flex: none; }
-.avatar-edit { display: grid; }
-.profile-fields { flex: 1; min-width: 0; }
-.profile-save { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-top: 20px; }
-.profile-save .hint { flex: 1; min-width: 180px; }
-.account-row { padding: 18px 0; border: 0; border-bottom: 1px solid var(--line-soft); border-radius: 0; background: none; }
-.account-row:last-child { border-bottom: 0; }
-.account-row .li-main p.account-id { color: var(--text); font-size: 16px; margin-top: 6px; overflow-wrap: anywhere; }
-.account-link-form { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(160px, 1.3fr) auto; gap: 12px; align-items: end; padding-top: 20px; border-top: 1px solid var(--line); }
-.account-note { color: var(--muted); font-size: 13px; padding-top: 18px; }
 .activity-link { min-height: 52px; font-size: 14px; }
 .activity-link:hover { color: var(--accent-2); }
 .activity-link b span { margin-left: 14px; }
@@ -69,13 +57,6 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
 .content-sections { display: grid; gap: 32px; }
 .content-sections > .content-section + .content-section { border-top: 1px solid var(--line-soft); padding-top: 32px; }
 .content-section .card-head { margin-bottom: 22px; }
-.profile-links { display: flex; flex-wrap: wrap; gap: 8px 24px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
-.profile-links a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--text-dim); font-size: 14px; }
-.profile-links a:hover { color: var(--accent-2); }
-.profile-links span { color: var(--muted); }
-.profile-session { padding-top: 24px; border-top: 1px solid var(--line-soft); }
-.profile-page .account-row { margin-top: 0; padding-block: 18px; }
-.profile-page .account-row .game-logo { width: 40px; height: 40px; }
 .inline-help { border-top: 1px solid var(--line-soft); color: var(--muted); font-size: 14px; }
 .inline-help > summary { padding: 16px 0; min-height: 48px; cursor: pointer; width: fit-content; color: var(--text-dim); }
 .inline-help > summary:hover { color: var(--accent-2); }
@@ -152,7 +133,6 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
   .condition-page > .page-head { padding-right: 0; }
   .condition-page > div:has(> .segmented) { position: static; }
   .condition-page .opt-row { grid-template-columns: 150px minmax(0, 1fr); }
-  .profile-page .rail { grid-template-columns: 1fr; }
   .social-toolbar { flex-wrap: wrap; }
   .social-toolbar .input { max-width: 100%; }
   .party-page .page-grid { display: flex; flex-direction: column; }
@@ -221,15 +201,6 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
   .reservation-row > .reservation-actions, .reservation-row > .btn { grid-column: 2; }
   .reservation-time { font-size: 16px; }
   .reservation-title > b { font-size: 14px !important; }
-  .profile-form { flex-direction: column; gap: 20px; }
-  .profile-avatar { display: flex; gap: 14px; }
-  .profile-fields { width: 100%; }
-  .profile-save .btn { width: 100%; }
-  .account-row { display: grid; grid-template-columns: 40px minmax(0, 1fr); }
-  .account-row .li-main { min-width: 0; }
-  .account-row .btn { grid-column: 2; justify-self: start; }
-  .account-link-form { grid-template-columns: 1fr; }
-  .account-link-form .btn { width: 100%; }
   .modal-scrim { padding: 16px; }
   .modal { padding: 22px 18px; max-height: calc(100dvh - 32px); border-radius: 18px; }
   .modal h2 { font-size: 20px; }

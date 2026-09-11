@@ -12,6 +12,7 @@ import './styles/usability.css';
 import './styles/match-composer.css';
 import './styles/home.css';
 import './styles/sidebar.css';
+import './styles/profile.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
