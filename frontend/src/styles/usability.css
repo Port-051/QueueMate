@@ -62,7 +62,7 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
 
 /* One task per content area. Secondary information opens in place. */
 .app-shell { background: #0b0d18; }
-.focus-page { max-width: 960px; padding-top: 36px; }
+.focus-page { max-width: 960px; }
 .focus-page .page-head { margin-bottom: 32px; }
 .focus-page .page-head h1 { font-size: 26px; font-weight: 700; }
 .focus-page .card.content-section, .focus-page .condition-form > .card,
@@ -182,8 +182,7 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
   .mobile-page-actions { display: flex; position: absolute; top: 24px; right: 16px; gap: 8px; z-index: 5; }
   .mobile-page-actions .icon-btn { width: 42px; }
   .page > .page-head h1 { padding-right: 54px; min-height: 44px; }
-  .page:not(:has(> .page-head)) { padding-top: 86px; }
-  .page { padding: 24px 16px 36px; }
+  .page { padding: var(--page-top) 16px 36px; }
   .page-head h1 { font-size: 24px; }
   .page-head.row-between { flex-wrap: wrap; align-items: flex-start; }
   .page-head .row { flex-wrap: wrap; }
@@ -263,7 +262,6 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
   .landing-header .logo-mark { width: 30px; height: 30px; }
   .landing-nav { gap: 6px; }
   .landing-nav .btn { padding-inline: 10px; }
-  .focus-page { padding-top: 24px; }
   .focus-page .page-head { margin-bottom: 26px; }
   .focus-page .page-head h1 { font-size: 24px; }
   .focus-page .action-bar { padding-inline: 16px; }
