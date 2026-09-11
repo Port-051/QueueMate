@@ -3,7 +3,14 @@
 .modal-close { flex: none; margin-left: auto; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .match-composer { width: min(700px, 100%); padding: 24px; overscroll-behavior: contain; animation: composer-enter .24s cubic-bezier(.2,.8,.2,1); }
-.match-composer .modal-heading h2 { display: flex; align-items: center; height: 64px; overflow: hidden; }
+.match-composer .modal-heading { position: relative; isolation: isolate; min-height: 144px; margin: -24px -24px 0; padding: 24px; border-radius: 23px 23px 0 0; overflow: hidden; }
+.match-composer .modal-heading::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; background-image: linear-gradient(90deg, rgba(18,20,42,.9), rgba(18,20,42,.2) 75%), linear-gradient(0deg, var(--panel-2), rgba(18,20,42,.12) 85%), var(--composer-backdrop); background-size: cover; background-position: center, center, var(--composer-backdrop-position, center); background-repeat: no-repeat; }
+.match-composer-LOL { --composer-backdrop: url('../assets/game-backdrop-lol.png'); --composer-backdrop-position: center 28%; }
+.match-composer-VALORANT { --composer-backdrop: url('../assets/game-backdrop-valorant.webp'); --composer-backdrop-position: center 30%; }
+.match-composer-PUBG { --composer-backdrop: url('../assets/game-backdrop-pubg.jpg'); --composer-backdrop-position: center top; }
+.match-composer .modal-heading h2 { display: flex; align-items: center; height: 96px; overflow: hidden; }
+.match-composer .modal-close { align-self: flex-start; background: rgba(12,14,30,.8); }
+.match-composer .composer-wordmark { filter: drop-shadow(0 2px 10px rgba(0,0,0,.6)); }
 .composer-wordmark { display: block; flex: none; height: auto; max-width: 100%; object-fit: contain; }
 .composer-wordmark-LOL { width: 150px; }
 .composer-wordmark-VALORANT { width: 210px; }
@@ -65,8 +72,8 @@
 @media (max-width: 767px) {
   .modal-scrim:has(.match-composer) { padding: 12px; }
   .match-composer { max-height: calc(100dvh - 24px); padding: 18px; border-radius: 22px; }
-  .match-composer .modal-heading { gap: 10px; }
-  .match-composer .modal-heading h2 { height: 58px; }
+  .match-composer .modal-heading { gap: 10px; min-height: 132px; margin: -18px -18px 0; padding: 18px; border-radius: 21px 21px 0 0; }
+  .match-composer .modal-heading h2 { height: 96px; }
   .composer-wordmark-LOL { width: 140px; }
   .composer-wordmark-VALORANT { width: 190px; }
   .composer-wordmark-PUBG { width: 156px; }

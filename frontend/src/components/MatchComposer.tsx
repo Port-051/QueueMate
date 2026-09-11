@@ -73,7 +73,7 @@ export function MatchComposer({ condition: initial, mode: initialMode = 'REALTIM
   };
 
   return <Modal title={editing ? `${gameFullLabel(condition.game)} 예약 수정` : gameFullLabel(condition.game)} titleContent={<GameWordmark game={condition.game} className={`composer-wordmark composer-wordmark-${condition.game}`} />}
-    className="match-composer" closeLabel="매칭 설정 닫기" onClose={() => { if (!submitting.current) onClose(); }}>
+    className={`match-composer match-composer-${condition.game}`} closeLabel="매칭 설정 닫기" onClose={() => { if (!submitting.current) onClose(); }}>
     {!editing ? <div className="match-mode-switch" role="tablist" aria-label="매칭 방식" data-mode={mode}>
       <span className="match-mode-thumb" aria-hidden="true" />
       {(['REALTIME', 'RESERVATION'] as const).map((item, index) => <button key={item} id={`${panelId}-${item}`} type="button" role="tab"
