@@ -8,11 +8,13 @@ import com.queuemate.user.domain.GameAccount;
 import com.queuemate.user.domain.User;
 import com.queuemate.user.avatar.AvatarService;
 import com.queuemate.user.repository.GameAccountRepository;
+import com.queuemate.user.riot.RiotRankService;
 import com.queuemate.user.repository.UserRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,11 +24,14 @@ public class UserService {
     private final UserRepository users;
     private final GameAccountRepository gameAccounts;
     private final AvatarService avatars;
+    private final RiotRankService riotRanks;
 
-    public UserService(UserRepository users, GameAccountRepository gameAccounts, AvatarService avatars) {
+    public UserService(UserRepository users, GameAccountRepository gameAccounts,
+                       AvatarService avatars, RiotRankService riotRanks) {
         this.users = users;
         this.gameAccounts = gameAccounts;
         this.avatars = avatars;
+        this.riotRanks = riotRanks;
     }
 
     @Transactional(readOnly = true)
@@ -67,9 +72,20 @@ public class UserService {
         return saved;
     }
 
-    @Transactional(readOnly = true)
+    /**
+     * 목록을 보여주는 김에 오래된 티어를 다시 읽는다.
+     *
+     * <p>readOnly가 아닌 이유가 이것이다. 조회 경로에서 쓰기가 일어나는 것은 예외적이지만,
+     * 대안은 아무도 보지 않는 계정까지 갱신하는 스케줄러이고 외부 API에는 호출 한도가 있다.
+     * Riot을 못 읽으면 아무것도 쓰지 않으므로 평소에는 읽기만 하는 것과 같다.
+     */
+    @Transactional
     public List<GameAccount> listGameAccounts(UUID userId) {
-        return gameAccounts.findAllByUserId(userId);
+        List<GameAccount> accounts = gameAccounts.findAllByUserId(userId);
+        if (riotRanks.refreshStale(accounts, OffsetDateTime.now())) {
+            gameAccounts.saveAll(accounts);
+        }
+        return accounts;
     }
 
     @Transactional
@@ -78,12 +94,16 @@ public class UserService {
                 userId, request.game(), request.externalGameId())) {
             throw new ConflictException("GAME_ACCOUNT_ALREADY_LINKED", "이미 연결된 게임 계정이다");
         }
+        GameAccount account;
         try {
-            return gameAccounts.saveAndFlush(
+            account = gameAccounts.saveAndFlush(
                     GameAccount.create(userId, request.game(), request.externalGameId(), request.region()));
         } catch (DataIntegrityViolationException e) {
             throw new ConflictException("GAME_ACCOUNT_ALREADY_LINKED", "이미 연결된 게임 계정이다");
         }
+        // 연결하자마자 티어를 읽어 둔다. 실패는 삼킨다. Riot이 죽었다고 연결이 막히면 안 된다.
+        riotRanks.syncNewlyLinked(account, OffsetDateTime.now());
+        return gameAccounts.saveAndFlush(account);
     }
 
     /** 남의 계정을 지울 수 없도록 소유자까지 함께 조회한다 (docs/13 Authorization). */

@@ -44,6 +44,20 @@ queuemate:
     edge-pixels: ${AVATAR_EDGE_PIXELS:512}
     # 파일은 작아도 펼치면 큰 이미지를 거른다. 8000x5000 정도까지는 통과한다.
     max-source-pixels: ${AVATAR_MAX_SOURCE_PIXELS:40000000}
+  riot:
+    # 개발자 키는 24시간마다 만료된다. 비어 있거나 죽어 있으면 티어를 비워 둘 뿐
+    # 계정 연결은 그대로 된다. 저장소에 두지 않는다 (docs/13).
+    api-key: ${RIOT_API_KEY:}
+    # Riot ID를 puuid로 바꾸는 account-v1은 대륙 라우팅이다. 한국은 asia.
+    account-base-url: ${RIOT_ACCOUNT_BASE_URL:https://asia.api.riotgames.com}
+    # 리그 정보는 플랫폼 라우팅이다. 한국은 kr.
+    platform-base-url: ${RIOT_PLATFORM_BASE_URL:https://kr.api.riotgames.com}
+    connect-timeout: ${RIOT_CONNECT_TIMEOUT:2s}
+    # 계정 연결 응답이 이만큼 이상 늦어지지 않게 한다.
+    read-timeout: ${RIOT_READ_TIMEOUT:3s}
+    rank-ttl: ${RIOT_RANK_TTL:6h}
+    # 언랭은 흔하고 잘 바뀌지 않는다. 매번 되묻지 않는다.
+    unranked-ttl: ${RIOT_UNRANKED_TTL:24h}
   oauth:
     # 제공자 콜백을 받은 뒤 브라우저를 돌려보낼 프론트엔드 주소.
     frontend-callback-uri: ${OAUTH_FRONTEND_CALLBACK_URI:http://localhost:5173/auth/callback}

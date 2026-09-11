@@ -42,6 +42,12 @@ public class GameAccount {
     @Column(name = "verified_at")
     private OffsetDateTime verifiedAt;
 
+    @Column(name = "rank_updated_at")
+    private OffsetDateTime rankUpdatedAt;
+
+    @Column(name = "rank_synced_at")
+    private OffsetDateTime rankSyncedAt;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -89,5 +95,30 @@ public class GameAccount {
 
     public OffsetDateTime getVerifiedAt() {
         return verifiedAt;
+    }
+
+    public OffsetDateTime getRankUpdatedAt() {
+        return rankUpdatedAt;
+    }
+
+    public OffsetDateTime getRankSyncedAt() {
+        return rankSyncedAt;
+    }
+
+    /**
+     * 외부 API에서 읽어 온 티어를 반영한다.
+     *
+     * <p>rankCode가 null이면 언랭이거나 아직 배치가 안 끝난 계정이다. 그것도 조회 결과이므로
+     * 시도한 시각은 남긴다. 남기지 않으면 랭크 없는 계정을 매 조회마다 다시 물어보게 된다.
+     *
+     * <p>verified_at은 건드리지 않는다. Riot ID가 존재한다는 것과 그 계정이 이 사용자의
+     * 것이라는 것은 다른 이야기다. 소유권은 RSO를 붙이기 전까지 확인할 수 없다.
+     */
+    public void applyRank(String rankCode, OffsetDateTime syncedAt) {
+        this.rankSyncedAt = syncedAt;
+        if (rankCode != null) {
+            this.rankCode = rankCode;
+            this.rankUpdatedAt = syncedAt;
+        }
     }
 }
