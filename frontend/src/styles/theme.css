@@ -65,15 +65,13 @@ ul { margin: 0; padding: 0; list-style: none; }
   position: sticky; top: 0; height: 100vh;
   display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(min-content, 1fr) auto minmax(min-content, 1fr); row-gap: 16px;
   padding: 24px 16px 20px;
-  border-right: 1px solid var(--line-soft);
-  background: linear-gradient(180deg, #080a17 0%, #06070f 100%);
+  background: transparent;
 }
 .sidebar > .brand { align-self: start; }
-.sidebar > .sidebar-account { align-self: end; margin-top: 0; }
-.brand { display: flex; align-items: center; gap: 10px; width: 216px; max-width: 100%; padding: 4px 8px 28px; }
+.brand { display: flex; align-items: center; gap: 10px; width: 192px; max-width: 100%; padding: 4px 8px 28px; }
 /* 승인된 검정 배경 원본을 어두운 앱 표면에 합성한다. */
 .logo-mark { flex: none; display: block; object-fit: contain; mix-blend-mode: screen; }
-.brand-wordmark { display: block; width: 156px; min-width: 0; height: auto; }
+.brand-wordmark { display: block; width: 132px; min-width: 0; height: auto; }
 
 .side-nav { display: grid; gap: 4px; }
 .nav-link {

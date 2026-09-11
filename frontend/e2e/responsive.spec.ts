@@ -5,7 +5,7 @@ test('작은 화면에서도 주요 페이지와 매칭 팝업이 잘리지 않�
   await login(page);
   for (const width of [390, 768, 1024, 1280]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const route of ['home', 'me', 'friends', 'settings', 'recent']) {
+    for (const route of ['home', 'me', 'friends', 'recent']) {
       if (width < 768) {
         await page.getByRole('button', { name: '메뉴 열기' }).click();
         await page.getByRole('dialog', { name: '메뉴', exact: true }).locator(`a[href="/app/${route}"]`).click();
@@ -52,7 +52,7 @@ test('모바일 메뉴로 이동하고 닉네임 변경 상태와 연결 해제 
   await login(page);
   await page.getByRole('button', { name: '메뉴 열기' }).click();
   await expect(page.getByRole('dialog', { name: '메뉴', exact: true })).toBeVisible();
-  await page.getByRole('dialog').getByRole('link', { name: '내 정보', exact: true }).click();
+  await page.getByRole('dialog').getByRole('link', { name: '프로필', exact: true }).click();
   await expect(page).toHaveURL(/\/app\/me$/);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   const save = page.getByRole('button', { name: '변경 사항 저장', exact: true });

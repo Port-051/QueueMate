@@ -25,7 +25,7 @@ export const IconParty = ({ size, filled = false }: Selectable) => (
 export const IconUser = ({ size, filled = false }: Selectable) => (
   <svg {...s(size)} fill={filled ? 'currentColor' : 'none'} stroke={filled ? 'none' : 'currentColor'} aria-hidden="true">
     <circle cx="12" cy="8" r="3.6" />
-    <path d={filled ? 'M4.5 20c0-3.5 3.3-5.7 7.5-5.7s7.5 2.2 7.5 5.7a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1z' : 'M4.5 20.5c0-3.7 3.3-6.2 7.5-6.2s7.5 2.5 7.5 6.2'} />
+    <path d="M4.5 20c0-3.5 3.3-5.7 7.5-5.7s7.5 2.2 7.5 5.7a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1z" />
   </svg>
 );
 export const IconClock = ({ size, filled = false }: Selectable) => (

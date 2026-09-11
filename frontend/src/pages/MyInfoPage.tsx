@@ -1,4 +1,5 @@
 import { GameBadge } from '../components/GameSymbol';
+import { ProfileSettings } from '../components/ProfileSettings';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
@@ -103,10 +104,9 @@ export function MyInfoPage() {
 
   return (
     <section className="page focus-page profile-page">
-      <div className="page-head"><h1>내 정보</h1></div>
+      <div className="page-head"><h1>프로필</h1></div>
       <div className="content-sections">
           <Card className="content-section">
-            <CardHead title="프로필" sub="매칭 제안과 파티룸에서 팀원에게 보입니다." />
             <form className="profile-form" onSubmit={(event) => { event.preventDefault(); if (nicknameChanged && !nicknameError && !busy) void saveNickname(); }}>
               <div className="profile-avatar">
                 <button type="button" className="avatar-edit" aria-label="프로필 사진 변경" onClick={openAvatarPicker}>
@@ -149,6 +149,7 @@ export function MyInfoPage() {
           <Link to="/app/recent">최근 함께한 사람 <span>{recentPlayers.length}</span></Link>
           <Link to="/app/friends?tab=blocks">차단 목록 <span>{blocks.length}</span></Link>
         </nav>
+        <ProfileSettings />
         <div className="profile-session">
           <Button variant="danger" disabled={loggingOut} onClick={() => void handleLogout()}>
             <IconLogout size={16} /> {loggingOut ? '로그아웃 중…' : '로그아웃'}

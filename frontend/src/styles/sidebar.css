@@ -1,0 +1,29 @@
+.nav-label { min-width: 0; white-space: nowrap; }
+.nav-profile .nav-label { line-height: 1.3; }
+.nav-profile small { display: block; margin-top: 3px; color: var(--ok); font-size: 11px; }
+.nav-profile small.connecting { color: var(--warn); }
+.nav-profile .nav-icon { opacity: 1; }
+.profile-settings { padding-top: 28px; border-top: 1px solid var(--line-soft); scroll-margin-top: 32px; }
+.profile-settings h2 { font-size: 18px; margin-bottom: 20px; }
+.profile-settings h3 { font-size: 14px; font-weight: 500; color: var(--text-dim); margin-bottom: 6px; }
+.profile-settings .inline-help { margin-top: 24px; }
+
+@media (min-width: 768px) {
+  .app-shell { --sidebar-w: 80px; transition: grid-template-columns .22s ease; }
+  .app-shell:has(.sidebar:hover), .app-shell:has(.sidebar :focus-visible) { --sidebar-w: 232px; }
+  .sidebar { min-width: 0; padding: 24px 12px 20px; overflow: hidden; background: none; border: 0; mix-blend-mode: screen; }
+  .sidebar .brand { width: 208px; max-width: none; padding: 4px 11px 28px; gap: 10px; }
+  .sidebar .logo-mark { width: 34px; height: 34px; }
+  .sidebar .brand-wordmark { flex: none; width: 132px; }
+  .side-nav { min-width: 0; width: 100%; gap: 4px; }
+  .side-nav .nav-link { position: relative; min-height: 52px; padding: 8px 12px; gap: 10px; border: 0; background: none; box-shadow: none; }
+  .side-nav .nav-icon { width: 32px; }
+  .side-nav .nav-label { position: absolute; left: 54px; right: 12px; }
+  .side-nav .nav-badge { position: absolute; left: 35px; top: 3px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; }
+  .sidebar .nav-label, .sidebar .brand-wordmark { opacity: 0; visibility: hidden; transform: translateX(-6px); transition: opacity .16s ease, transform .22s ease, visibility .16s; }
+  .sidebar:hover .nav-label, .sidebar:has(:focus-visible) .nav-label,
+  .sidebar:hover .brand-wordmark, .sidebar:has(:focus-visible) .brand-wordmark { opacity: 1; visibility: visible; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell, .sidebar .nav-label, .sidebar .brand-wordmark { transition: none; }
+}

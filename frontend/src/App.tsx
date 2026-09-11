@@ -11,7 +11,6 @@ import { FriendsPage } from './pages/FriendsPage';
 import { MyInfoPage } from './pages/MyInfoPage';
 import { PartyRoomPage } from './pages/PartyRoomPage';
 import { RecentPlayersPage } from './pages/RecentPlayersPage';
-import { SettingsPage } from './pages/SettingsPage';
 import { ProposalPage } from './pages/ProposalPage';
 import { ReservationNewPage } from './pages/ReservationNewPage';
 import { ReservationsPage } from './pages/ReservationsPage';
@@ -39,7 +38,7 @@ export function App() {
         <Route path="friends" element={<FriendsPage />} />
         <Route path="recent" element={<RecentPlayersPage />} />
         <Route path="me" element={<MyInfoPage />} />
-        <Route path="settings" element={<SettingsPage />} />
+        <Route path="settings" element={<Navigate to="/app/me#settings" replace />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

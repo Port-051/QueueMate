@@ -16,17 +16,6 @@
 .sidebar { overflow-y: auto; }
 .main { position: relative; }
 .mobile-page-actions { display: none; }
-.sidebar-account { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
-.account-profile { display: flex; gap: 10px; align-items: center; flex: 1; min-width: 0; min-height: 56px; padding: 8px; text-align: left; border: 1px solid transparent; border-radius: var(--r-sm); background: transparent; cursor: pointer; transition: background .15s, border-color .15s; }
-.account-profile > .avatar { flex-shrink: 0; }
-.account-profile > span:last-child { min-width: 0; }
-.account-profile b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
-.account-profile small { display: block; font-size: 12px; color: var(--ok); }
-.account-profile small.connecting { color: var(--warn); }
-.account-profile:hover { background: var(--panel-3); }
-.account-settings { flex: none; width: 42px; height: 42px; border-color: transparent; background: transparent; color: var(--text-dim); }
-.account-settings:hover { background: var(--panel-3); border-color: transparent; }
-.modal .sidebar-account { padding-top: 12px; }
 .mobile-nav { display: grid; gap: 4px; }
 .section-head { gap: 12px; flex-wrap: wrap; }
 .rc-tags { display: flex; flex-wrap: wrap; gap: 6px; }

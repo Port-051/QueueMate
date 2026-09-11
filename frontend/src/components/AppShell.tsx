@@ -8,7 +8,7 @@ import { useConnectionStatus } from '../state/useConnectionStatus';
 import { Logo } from './Logo';
 import { Avatar, Button, Modal } from './ui';
 import {
-  IconClock, IconHome, IconParty, IconSettings, IconUser,
+  IconClock, IconHome, IconParty, IconUser,
 } from './icons';
 
 interface NavItem { to: string; label: string; icon: ComponentType<{ size?: number; filled?: boolean }>; }
@@ -28,7 +28,14 @@ export function AppShell() {
   const { receivedRequests } = useSocial();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
-  useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }, [location.pathname]);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const target = location.hash ? document.getElementById(location.hash.slice(1)) : null;
+      if (target) target.scrollIntoView({ block: 'start' });
+      else window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [location.pathname, location.hash]);
 
   const partyTo = activePartyId ? `/app/party/${activePartyId}` : '/app/party';
 
@@ -38,27 +45,22 @@ export function AppShell() {
         const disabled = item.to === '/app/party' && !activePartyId;
         const MenuIcon = item.icon;
         return <NavLink key={item.to} to={item.to === '/app/party' ? partyTo : item.to}
+          aria-label={item.label}
           aria-disabled={disabled} tabIndex={disabled ? -1 : undefined}
           title={disabled ? '매칭이 성사되면 파티룸이 열립니다' : undefined}
           onClick={(event) => { if (disabled) event.preventDefault(); else setMenuOpen(false); }}
           className={({ isActive }) => `nav-link${isActive && !disabled ? ' active' : ''}${disabled ? ' disabled' : ''}`}>
           {({ isActive }) => <>
-            <span className="nav-icon"><MenuIcon size={22} filled={isActive && !disabled} /></span><span>{item.label}</span>
+            <span className="nav-icon"><MenuIcon size={24} filled={isActive && !disabled} /></span><span className="nav-label">{item.label}</span>
             {item.to === '/app/home' && request ? <span className="nav-badge">1</span> : null}
             {item.to === '/app/friends' && receivedRequests.length > 0 ? <span className="nav-badge">{receivedRequests.length}</span> : null}
           </>}
         </NavLink>;
       })}
-    </nav>
-  );
-
-  const account = (
-    <nav className="sidebar-account" aria-label="내 계정">
-      {user ? <NavLink to="/app/me" className="account-profile" aria-label="내 정보" title="내 정보" onClick={() => setMenuOpen(false)}>
-        <Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={36} status={connection === 'connected' ? 'online' : 'away'} />
-        <span><b>{user.nickname}</b><small className={connection === 'connected' ? '' : 'connecting'}>{connectionLabel}</small></span>
+      {user ? <NavLink to="/app/me" className="nav-link nav-profile" aria-label="프로필" onClick={() => setMenuOpen(false)}>
+        <span className="nav-icon"><Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={28} status={connection === 'connected' ? 'online' : 'away'} /></span>
+        <span className="nav-label"><span>프로필</span><small className={connection === 'connected' ? '' : 'connecting'}>{connectionLabel}</small></span>
       </NavLink> : null}
-      <NavLink to="/app/settings" className="icon-btn account-settings" aria-label="설정" title="설정" onClick={() => setMenuOpen(false)}><IconSettings size={22} /></NavLink>
     </nav>
   );
 
@@ -67,7 +69,6 @@ export function AppShell() {
       <aside className="sidebar">
         <Logo />
         {navigation()}
-        {account}
       </aside>
       <main className="main">
         <div className="mobile-page-actions" aria-label="빠른 메뉴">
@@ -77,7 +78,7 @@ export function AppShell() {
         </div>
         <Outlet />
       </main>
-      {menuOpen ? <Modal title="메뉴" onClose={() => setMenuOpen(false)} foot={<Button onClick={() => setMenuOpen(false)}>메뉴 닫기</Button>}>{navigation(true)}{account}</Modal> : null}
+      {menuOpen ? <Modal title="메뉴" onClose={() => setMenuOpen(false)} foot={<Button onClick={() => setMenuOpen(false)}>메뉴 닫기</Button>}>{navigation(true)}</Modal> : null}
     </div>
   );
 }
