@@ -33,7 +33,7 @@ export function HomePage() {
 
   return <section className="page focus-page home-page">
     <section className="home-games" aria-labelledby="game-selection-heading">
-      <div className="section-head"><h1 id="game-selection-heading">게임 선택</h1></div>
+      <div className="section-head"><h1 id="game-selection-heading">오늘은 어떤 게임?</h1></div>
       <div className="home-game-library">
         {availableGames().map((game) => <button key={game.key} type="button" className={`home-game-tile home-game-${game.key.toLowerCase()}`} aria-label={`${game.name} 매칭`}
           onClick={() => {

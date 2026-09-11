@@ -1,5 +1,6 @@
 .home-page { max-width: 1160px; }
 .home-games { margin-top: 0; }
+.home-games > .section-head { margin-bottom: 28px; }
 .home-games h1 { font-size: 22px; font-weight: 700; }
 .home-game-tile { aspect-ratio: 1.9; }
 .home-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 32px; align-items: start; margin-top: 32px; }
