@@ -3,9 +3,11 @@ import { subscribeMockEvents } from '../mocks/bus';
 import type { ServerEvent, ServerEventType, WebRtcSignalMessage } from './types';
 
 export type EventHandler = (event: ServerEvent) => void;
+export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'closed';
 
 export interface EventStream {
   subscribe(handler: EventHandler): () => void;
+  subscribeStatus(handler: (status: ConnectionStatus) => void): () => void;
   /** contracts/events.md: client → server 는 WebRTC signaling만 보낸다. */
   sendSignal(message: WebRtcSignalMessage): void;
   close(): void;
@@ -26,6 +28,7 @@ function createMockStream(): EventStream {
   const handlers = new Set<EventHandler>();
   const unsubscribe = subscribeMockEvents((event) => handlers.forEach((h) => h(event)));
   return {
+    subscribeStatus(handler) { handler('connected'); return () => undefined; },
     subscribe(handler) {
       handlers.add(handler);
       return () => handlers.delete(handler);
@@ -42,6 +45,9 @@ function createMockStream(): EventStream {
 
 function createSocketStream(token: string | null): EventStream {
   const handlers = new Set<EventHandler>();
+  const statusHandlers = new Set<(status: ConnectionStatus) => void>();
+  let status: ConnectionStatus = 'connecting';
+  const updateStatus = (next: ConnectionStatus) => { status = next; statusHandlers.forEach((h) => h(next)); };
   const queued: string[] = [];
   let socket: WebSocket | null = null;
   let closed = false;
@@ -76,6 +82,7 @@ function createSocketStream(token: string | null): EventStream {
 
     socket.onopen = () => {
       retry = 0;
+      updateStatus('connected');
       // 연결이 맺어지면 서버가 SESSION_SNAPSHOT을 먼저 한 번 보낸다.
       // 끊긴 동안의 이벤트를 이어받는 수단이 없으므로 현재 상태로 대신 복구한다.
       queued.splice(0).forEach((raw) => socket?.send(raw));
@@ -87,6 +94,7 @@ function createSocketStream(token: string | null): EventStream {
     socket.onclose = () => {
       socket = null;
       if (closed) return;
+      updateStatus('reconnecting');
       // access token이 만료되면 서버가 끊는다. 재연결은 저장된 token으로 다시 시도하고,
       // 그것도 401이면 REST 쪽 재발급이 끝난 뒤 새 stream이 만들어진다.
       retry += 1;
@@ -99,6 +107,11 @@ function createSocketStream(token: string | null): EventStream {
   connect();
 
   return {
+    subscribeStatus(handler) {
+      statusHandlers.add(handler);
+      handler(status);
+      return () => statusHandlers.delete(handler);
+    },
     subscribe(handler) {
       handlers.add(handler);
       return () => handlers.delete(handler);
@@ -110,6 +123,8 @@ function createSocketStream(token: string | null): EventStream {
     },
     close() {
       closed = true;
+      updateStatus('closed');
+      statusHandlers.clear();
       handlers.clear();
       if (retryTimer !== null) window.clearTimeout(retryTimer);
       retryTimer = null;

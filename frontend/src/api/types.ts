@@ -136,6 +136,7 @@ export interface PartyMemberView {
   /** 서버가 null을 줄 수 있다 (docs/14 §7.1). `client.ts`가 정규화해서 넘긴다. */
   nickname: string;
   ready: boolean;
+  gameIds?: string[];
 }
 
 export interface PartyView {

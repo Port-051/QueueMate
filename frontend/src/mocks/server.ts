@@ -200,7 +200,9 @@ function confirmProposal(proposalId: string): void {
     modeKey: condition.modeKey,
     targetSize: partySizeOf(condition),
     status: 'OPEN',
-    members: proposal.view.members.map((m) => ({ userId: m.userId, nickname: m.nickname, ready: false })),
+    members: proposal.view.members.map((m) => ({ userId: m.userId, nickname: m.nickname, ready: false,
+      gameIds: m.userId === db.me.id ? db.gameAccounts.filter((a) => a.game === condition.game).map((a) => a.externalGameId).sort() : [],
+    })),
   };
   const mockParty = { view: party, condition, timers: [] as number[] };
   db.parties.set(party.id, mockParty);

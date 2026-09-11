@@ -22,9 +22,10 @@ export interface PartyClientHandlers {
 
 export interface PartyClient {
   connect(): Promise<void>;
+  startVoice(): Promise<void>;
   /** 파티원 목록이 바뀌면 호출해 peer 연결을 맞춘다. */
   syncMembers(memberIds: string[]): void;
-  sendChat(text: string): void;
+  sendChat(text: string): number;
   setMuted(muted: boolean): void;
   close(): void;
 }
