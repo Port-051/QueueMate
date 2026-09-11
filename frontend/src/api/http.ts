@@ -1,5 +1,4 @@
 import { API_BASE, USE_MOCK } from '../config';
-import { handleMockRequest } from '../mocks/server';
 import { ApiError, toApiError } from './error';
 import type { TokenResponse } from './types';
 
@@ -114,6 +113,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const fullPath = withQuery(path, options.query);
 
   if (USE_MOCK) {
+    // 실제 서버 모드에서 테스트 데이터 초기화나 브라우저 API에 의존하지 않는다.
+    const { handleMockRequest } = await import('../mocks/server');
     return handleMockRequest<T>(method, fullPath, options.body, readTokens()?.accessToken ?? null);
   }
 
