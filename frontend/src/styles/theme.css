@@ -323,4 +323,8 @@ ul { margin: 0; padding: 0; list-style: none; }
   .game-card { min-height: 104px; padding: 15px; }
   .game-card .gc-name { font-size: 14px; }
   .page-head h1 { font-size: 25px; }
+  .queue-console { padding: 18px 18px 18px; }
+  .qc-row { grid-template-columns: 80px minmax(0, 1fr); gap: 12px; }
+  .chip { padding: 8px 13px; font-size: 13px; }
+  .qc-start { min-width: 180px; }
 }

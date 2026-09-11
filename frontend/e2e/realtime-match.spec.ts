@@ -37,7 +37,23 @@ test('대기 화면에서 매칭을 취소하면 홈으로 돌아간다', async 
 
   await page.getByRole('button', { name: '매칭 취소' }).click();
   await expect(page).toHaveURL(/\/app\/home/);
-  await expect(page.getByText('진행 중인 매칭이 없습니다')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '큐 매치' })).toBeVisible();
+});
+
+test('홈 큐 콘솔에서 조건을 고르고 바로 매칭을 시작한다', async ({ page }) => {
+  await login(page);
+  await expect(page.getByRole('heading', { name: '큐 매치' })).toBeVisible();
+
+  await page.getByRole('tab', { name: 'VALORANT', exact: false }).click();
+  await page.getByRole('button', { name: '경쟁전', exact: true }).click();
+  await page.getByRole('button', { name: '타격대', exact: true }).click();
+  await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/match\/waiting\//);
+
+  // 큐에 있는 동안 홈 콘솔은 새 조건 폼 대신 큐 상태를 보여준다 (INV-1)
+  await page.locator('.side-nav a[href="/app/home"]').click();
+  await expect(page.getByRole('heading', { name: '팀원을 찾는 중' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '매칭 시작', exact: true })).toHaveCount(0);
 });
 
 test('파티룸에서 채팅을 보내고 준비 상태를 바꾼다', async ({ page }) => {
