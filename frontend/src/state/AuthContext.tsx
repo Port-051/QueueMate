@@ -17,6 +17,7 @@ interface AuthValue {
   signup(email: string, password: string, nickname: string): Promise<void>;
   logout(): Promise<void>;
   updateProfile(patch: UpdateUserRequest): Promise<void>;
+  uploadAvatar(file: File): Promise<void>;
   refreshGameAccounts(): Promise<void>;
 }
 
@@ -112,9 +113,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await api.updateMe(patch));
   }, []);
 
+  const uploadAvatar = useCallback(async (file: File) => {
+    setUser(await api.uploadAvatar(file));
+  }, []);
+
   const value = useMemo<AuthValue>(() => ({
-    status, user, token, gameAccounts, login, completeOAuth, signup, logout, updateProfile, refreshGameAccounts,
-  }), [status, user, token, gameAccounts, login, completeOAuth, signup, logout, updateProfile, refreshGameAccounts]);
+    status, user, token, gameAccounts, login, completeOAuth, signup, logout, updateProfile, uploadAvatar, refreshGameAccounts,
+  }), [status, user, token, gameAccounts, login, completeOAuth, signup, logout, updateProfile, uploadAvatar, refreshGameAccounts]);
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }

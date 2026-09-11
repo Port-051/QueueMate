@@ -20,6 +20,11 @@ const RESERVATION_TO_PROPOSAL_MS = 15_000;
 /** 전원 준비가 이만큼 유지되면 게임에 들어간 것으로 본다. */
 const PLAY_START_DELAY_MS = 8_000;
 
+/** 계약의 업로드 한도. 서버와 같은 값이어야 mock에서만 통과하는 일이 없다. */
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+const AVATAR_ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+const AVATAR_EDGE = 512;
+
 const delay = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms));
 const nowIso = () => new Date().toISOString();
 
@@ -380,6 +385,27 @@ const routes: Route[] = [
     return db.me;
   }],
 
+  /**
+   * 프로필 사진 업로드. 진짜 서버는 정사각 512px PNG로 다시 인코딩해 저장하고
+   * `/api/v1/files/avatars/{uuid}`를 돌려준다. mock에는 저장할 곳이 없으므로
+   * 브라우저에서 같은 크기로 잘라 data URL로 만든다. 화면에 보이는 결과는 같다.
+   *
+   * 거절 조건은 계약과 맞춘다. 여기서 통과하고 real 모드에서 막히면 안 된다.
+   */
+  ['POST', /^\/users\/me\/avatar$/, async ({ body }) => {
+    const file = body as File | undefined;
+    if (!file || file.size === 0) throw new ApiError(400, 'VALIDATION_FAILED', '파일이 비어 있습니다');
+    if (file.size > AVATAR_MAX_BYTES) throw new ApiError(413, 'AVATAR_TOO_LARGE', '사진이 너무 큽니다');
+    if (!AVATAR_ACCEPTED_TYPES.includes(file.type)) {
+      throw new ApiError(415, 'UNSUPPORTED_MEDIA_TYPE', 'PNG, JPEG, WebP만 올릴 수 있습니다');
+    }
+    const avatarUrl = await toSquareDataUrl(file);
+    db.me = { ...db.me, avatarUrl };
+    const account = db.accounts.find((a) => a.profile.id === db.me.id);
+    if (account) account.profile = { ...db.me };
+    return db.me;
+  }],
+
   ['GET', /^\/users\/me\/game-accounts$/, () => db.gameAccounts],
   ['POST', /^\/users\/me\/game-accounts$/, ({ body }) => {
     const req = body as CreateGameAccountRequest;
@@ -658,6 +684,27 @@ function assertNoOverlap(req: CreateReservationRequest, ignoreId: string | null)
     && (r.status === 'ACTIVE' || r.status === 'PROPOSED' || r.status === 'MATCHED')
     && overlaps(req.availableFrom, req.availableTo, r.availableFrom, r.availableTo));
   if (conflict) throw new ApiError(409, 'OVERLAPPING_RESERVATION', '시간이 겹치는 예약이 이미 있습니다');
+}
+
+/**
+ * 업로드된 파일을 서버와 같은 규칙(가운데 정사각, 최대 512px, PNG)으로 줄여 data URL로 만든다.
+ * 원본을 그대로 쓰면 mock에서만 수 MB짜리 문자열이 상태에 남는다.
+ */
+async function toSquareDataUrl(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const edge = Math.min(bitmap.width, bitmap.height);
+    const target = Math.min(AVATAR_EDGE, edge);
+    const canvas = document.createElement('canvas');
+    canvas.width = target;
+    canvas.height = target;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new ApiError(400, 'VALIDATION_FAILED', '이미지를 읽지 못했습니다');
+    ctx.drawImage(bitmap, (bitmap.width - edge) / 2, (bitmap.height - edge) / 2, edge, edge, 0, 0, target, target);
+    return canvas.toDataURL('image/png');
+  } finally {
+    bitmap.close();
+  }
 }
 
 function lookupNickname(userId: string): string {

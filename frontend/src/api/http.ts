@@ -51,6 +51,13 @@ export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   query?: Record<string, string | number | undefined>;
+  /**
+   * multipart로 보낼 파일. `body`와 함께 쓰지 않는다.
+   *
+   * Content-Type을 직접 정하지 않는다. FormData를 fetch에 넘기면 브라우저가
+   * boundary까지 붙여서 채워 준다. 손으로 지정하면 boundary가 빠져 서버가 못 읽는다.
+   */
+  file?: File;
   /** 인증 헤더를 붙이지 않는다. auth 엔드포인트 4개가 쓴다 (docs/14 §0.4). */
   anonymous?: boolean;
   /** 401을 만나도 재발급을 시도하지 않는다. 재발급 호출 자신이 쓴다. */
@@ -114,7 +121,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const fullPath = withQuery(path, options.query);
 
   if (USE_MOCK) {
-    return handleMockRequest<T>(method, fullPath, options.body, readTokens()?.accessToken ?? null);
+    return handleMockRequest<T>(method, fullPath, options.file ?? options.body, readTokens()?.accessToken ?? null);
   }
 
   const res = await send(method, fullPath, options, readTokens()?.accessToken ?? null);
@@ -137,15 +144,21 @@ async function send(
   token: string | null,
 ): Promise<Response> {
   const useAuth = !options.anonymous && Boolean(token);
+  let form: FormData | undefined;
+  if (options.file) {
+    form = new FormData();
+    form.append('file', options.file);
+  }
   return fetch(`${API_BASE}${fullPath}`, {
     method,
     headers: {
       Accept: 'application/json',
       // 계약은 바디가 있는 요청에만 Content-Type을 요구한다. 없으면 415다 (docs/14 §0.2).
-      ...(options.body === undefined ? {} : { 'Content-Type': 'application/json;charset=UTF-8' }),
+      // multipart는 예외다. boundary를 붙일 수 있는 것은 브라우저뿐이라 비워 둔다.
+      ...(options.body === undefined || form ? {} : { 'Content-Type': 'application/json;charset=UTF-8' }),
       ...(useAuth ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body: form ?? (options.body === undefined ? undefined : JSON.stringify(options.body)),
   });
 }
 

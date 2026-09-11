@@ -35,6 +35,12 @@ export const exchangeOAuthCode = (code: string) =>
 export const getMe = () => request<UserProfile>('/users/me');
 /** 부분 수정이다. `avatarUrl: null`을 보내면 지워지고, 키를 빼면 유지된다. */
 export const updateMe = (body: UpdateUserRequest) => request<UserProfile>('/users/me', { method: 'PATCH', body });
+/**
+ * 프로필 사진 업로드. 서버가 정사각 512px PNG로 바꿔 저장하고 갱신된 프로필을 돌려준다.
+ * 지우는 것은 이쪽이 아니라 `updateMe({ avatarUrl: null })`이다.
+ */
+export const uploadAvatar = (file: File) =>
+  request<UserProfile>('/users/me/avatar', { method: 'POST', file });
 export const getGameAccounts = () => request<GameAccountView[]>('/users/me/game-accounts');
 export const linkGameAccount = (body: CreateGameAccountRequest) =>
   request<GameAccountView>('/users/me/game-accounts', { method: 'POST', body });
