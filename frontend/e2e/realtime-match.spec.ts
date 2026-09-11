@@ -41,9 +41,10 @@ test('홈에서 매칭을 취소하면 현재 매칭 카드가 사라진다', as
   await login(page);
   await startRealtimeMatch(page);
 
+  await expect(page.locator('.match-live-card')).toBeVisible();
   await page.getByRole('button', { name: '매칭 취소', exact: true }).click();
   await expect(page).toHaveURL(/\/app\/home/);
-  await expect(page.locator('.home-current')).toHaveCount(0);
+  await expect(page.locator('.match-live-card')).toHaveCount(0);
   const history = page.getByRole('region', { name: '지난 매칭', exact: true });
   await expect(history).toContainText('취소됨');
   await expect(history).toContainText('League of Legends');

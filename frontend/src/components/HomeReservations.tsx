@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
 import type { ReservationView } from '../api/types';
-import { PLAY_AMOUNT_LABEL, RESERVATION_STATUS_LABEL, conditionSummary, gameFullLabel } from '../domain/labels';
+import { PLAY_AMOUNT_LABEL, RESERVATION_STATUS_LABEL, gameFullLabel } from '../domain/labels';
 import { formatRange } from '../domain/time';
 import { useMatch } from '../state/MatchContext';
-import { GameBadge } from './GameSymbol';
-import { Button, ConfirmDialog, Tag, useToast } from './ui';
+import { HomeMatchConditions, HomeMatchHeading } from './HomeMatchDetails';
+import { Button, ConfirmDialog, useToast } from './ui';
 import { IconCalendar } from './icons';
 
 export function HomeReservations({ onEdit }: { onEdit: (reservation: ReservationView) => void }) {
@@ -33,20 +33,20 @@ export function HomeReservations({ onEdit }: { onEdit: (reservation: Reservation
     await refreshReservations();
     toast('예약을 취소했습니다');
   };
-  const row = (r: ReservationView) => <div className="reservation-row home-reservation-row" key={r.id}>
-    <GameBadge game={r.condition.game} size={36} />
-    <div className="li-main">
+  const row = (r: ReservationView) => <article className="reservation-row home-reservation-row" key={r.id} aria-label={`${gameFullLabel(r.condition.game)} ${formatRange(r.availableFrom, r.availableTo)}`}>
+    <HomeMatchHeading condition={r.condition} status={<span className={`match-card-status${r.status === 'MATCHED' ? ' is-matched' : r.status === 'PROPOSED' ? ' is-live' : ''}`}><i aria-hidden="true" />{RESERVATION_STATUS_LABEL[r.status]}</span>} />
+    <div className="match-card-schedule">
+      <IconCalendar size={17} />
       <b>{formatRange(r.availableFrom, r.availableTo)}</b>
-      <p>{gameFullLabel(r.condition.game)} · {PLAY_AMOUNT_LABEL[r.playAmount]}</p>
-      <p className="home-reservation-conditions">{conditionSummary(r.condition).join(' · ')}</p>
+      <span>{PLAY_AMOUNT_LABEL[r.playAmount]}</span>
     </div>
-    <Tag tone={r.status === 'MATCHED' ? 'ok' : 'default'}>{RESERVATION_STATUS_LABEL[r.status]}</Tag>
+    <HomeMatchConditions condition={r.condition} />
     <div className="reservation-actions">
       {r.status === 'ACTIVE' ? <><Button size="sm" variant="ghost" onClick={() => onEdit(r)}>수정</Button><Button size="sm" variant="ghost" onClick={() => setCancelTarget(r)}>취소</Button></> : null}
       {r.status === 'PROPOSED' && r.proposalId ? <Button size="sm" variant="primary" onClick={() => navigate(`/app/proposals/${r.proposalId}`)}>제안 확인</Button> : null}
       {r.status === 'MATCHED' && r.proposalId ? <Button size="sm" variant="primary" disabled={busyId === r.id} onClick={() => void openParty(r)}>파티룸 입장</Button> : null}
     </div>
-  </div>;
+  </article>;
 
   return <section className="home-reservations home-match-column" aria-labelledby="upcoming-heading">
     <div className="section-head"><h2 id="upcoming-heading"><IconCalendar size={19} />예약 매칭</h2>{active.length > 0 ? <span className="home-section-count">{active.length}</span> : null}</div>
