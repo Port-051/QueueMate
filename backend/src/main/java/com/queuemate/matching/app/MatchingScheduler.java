@@ -1,7 +1,9 @@
 package com.queuemate.matching.app;
 
+import com.queuemate.common.redis.RedisRecoveredEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.event.EventListener;
 import org.springframework.dao.DataAccessException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -57,6 +59,19 @@ public class MatchingScheduler {
         } catch (DataAccessException e) {
             log.warn("대기열 sweep을 건너뛴다", e);
         }
+    }
+
+    /**
+     * Redis가 살아났다. 다음 주기를 기다리지 않고 바로 훑는다.
+     *
+     * <p>장애 동안 들어온 요청은 DB에는 있지만 매칭은 돌지 못했다. sweep 주기(15초)를
+     * 그대로 기다리면 복구가 6초에 끝나도 사용자는 최대 그만큼 더 기다린다.
+     * 복구를 아는 시점이 여기라 그 자리에서 훑는 것이 가장 이르다.
+     */
+    @EventListener
+    public void onRedisRecovered(RedisRecoveredEvent event) {
+        log.info("[failover] 복구 직후 대기열을 훑는다 source={}", event.source());
+        sweepStalledQueues();
     }
 
     /**
