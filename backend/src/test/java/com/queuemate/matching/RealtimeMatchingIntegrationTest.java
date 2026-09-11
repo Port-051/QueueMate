@@ -51,8 +51,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 실시간 매칭 전체 흐름 통합 검증.
  *
- * <p>스케줄러는 꺼 두고 매처를 직접 돌린다. 백그라운드 tick이 끼어들면
- * 어떤 제안이 어느 시점에 생겼는지 단정할 수 없다.
+ * <p>자동 trigger와 안전망 sweep을 꺼 두고 매처를 직접 돌린다. 백그라운드 매칭이 끼어들면
+ * 어떤 제안이 어느 시점에 생겼는지 단정할 수 없다. trigger 자체는 MatchTriggerIntegrationTest가 본다.
  */
 @Testcontainers(disabledWithoutDocker = true)
 // 애플리케이션에 WebSocket 엔드포인트가 있어 실제 서블릿 컨테이너가 필요하다.
@@ -82,7 +82,9 @@ class RealtimeMatchingIntegrationTest {
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
         // 주기 작업이 테스트 중에 끼어들지 않게 사실상 끈다.
-        registry.add("queuemate.matching.tick-ms", () -> 3_600_000);
+        registry.add("queuemate.matching.sweep-ms", () -> 3_600_000);
+        // 매칭은 요청이 들어온 순간 저절로 돈다. 여기서는 매처를 직접 불러 한 판씩 본다.
+        registry.add("queuemate.matching.auto-trigger", () -> false);
         registry.add("queuemate.proposal.sweep-ms", () -> 3_600_000);
     }
 

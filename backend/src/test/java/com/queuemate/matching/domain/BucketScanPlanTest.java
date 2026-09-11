@@ -138,6 +138,62 @@ class BucketScanPlanTest {
         assertThat(BucketScanPlan.of(List.of(), LOL_DUO, 50).isEmpty()).isTrue();
     }
 
+    @Test
+    @DisplayName("around: 더 오래 기다린 bucket이 있어도 지정한 anchor가 맨 앞이다")
+    void aroundKeepsGivenAnchorFirst() {
+        // 방금 들어온 사람의 자리에서 매칭을 돌리는 경우다. 여기서 오래된 쪽을 anchor로
+        // 바꿔 버리면 "요청이 들어온 자리에서 돈다"는 전제가 깨진다.
+        BucketDepth older = depth(LolPosition.TOP, VoicePreference.OPTIONAL, 1_000, 1);
+        BucketDepth anchor = depth(LolPosition.MID, VoicePreference.OPTIONAL, 9_000, 1);
+
+        BucketScanPlan plan =
+                BucketScanPlan.around(anchor.bucket(), List.of(older, anchor), LOL_DUO, 50);
+
+        assertThat(plan.buckets()).first().isEqualTo(anchor.bucket());
+        assertThat(plan.buckets()).contains(older.bucket());
+    }
+
+    @Test
+    @DisplayName("around: anchor와 같은 파티가 될 수 없는 bucket은 담지 않는다")
+    void aroundSkipsIncompatibleBuckets() {
+        BucketDepth anchor = depth(LolPosition.TOP, VoicePreference.REQUIRED, 1_000, 1);
+        BucketDepth impossible = depth(LolPosition.MID, VoicePreference.NO_VOICE, 2_000, 1);
+        BucketDepth possible = depth(LolPosition.ADC, VoicePreference.REQUIRED, 3_000, 1);
+
+        BucketScanPlan plan = BucketScanPlan.around(
+                anchor.bucket(), List.of(anchor, impossible, possible), LOL_DUO, 50);
+
+        assertThat(plan.buckets()).contains(possible.bucket())
+                .doesNotContain(impossible.bucket());
+    }
+
+    @Test
+    @DisplayName("around: 등급이 좋은 상대를 먼저 고른다")
+    void aroundPrefersBetterTierPartners() {
+        BucketDepth anchor = depth(LolPosition.TOP, VoicePreference.OPTIONAL, 1_000, 1);
+        BucketDepth worse = depth(LolPosition.MID, VoicePreference.REQUIRED, 2_000, 1);
+        BucketDepth better = depth(LolPosition.ADC, VoicePreference.OPTIONAL, 3_000, 1);
+
+        BucketScanPlan plan = BucketScanPlan.around(
+                anchor.bucket(), List.of(anchor, worse, better), LOL_DUO, 50);
+
+        assertThat(plan.buckets().indexOf(better.bucket()))
+                .isLessThan(plan.buckets().indexOf(worse.bucket()));
+    }
+
+    @Test
+    @DisplayName("around: anchor 자리가 이미 비었으면 읽을 것이 없다")
+    void aroundIsEmptyWhenAnchorIsGone() {
+        // trigger가 도착하기 전에 다른 trigger가 그 사람을 데려갔다.
+        // 여기서 남은 bucket으로 계속 돌면 아무도 부르지 않은 매칭을 하게 된다.
+        MatchBucket anchor =
+                new MatchBucket(GameKey.LOL, MODE, LolPosition.TOP,
+                        VoicePreference.OPTIONAL, PlayPurpose.RANK_UP);
+        BucketDepth other = depth(LolPosition.MID, VoicePreference.OPTIONAL, 2_000, 3);
+
+        assertThat(BucketScanPlan.around(anchor, List.of(other), LOL_DUO, 50).isEmpty()).isTrue();
+    }
+
     private static BucketDepth depth(LolPosition position, VoicePreference voice,
                                      long oldestQueuedAt, int waiting) {
         return new BucketDepth(

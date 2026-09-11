@@ -59,6 +59,10 @@ import java.util.UUID;
  *
  * <p>추천 목록을 만들지 않는다. 호환되는 사람 중에서 무작위로 고른다.
  * 후보 탐색 결과는 언제나 낡았을 수 있다고 보고, 실제 잠금은 Lua가 다시 검증한다.
+ *
+ * <p>입구는 둘이다. {@link #tryMatchAround}는 요청이 들어온 자리를 알고 부르는 평소 경로고,
+ * {@link #tryMatch}는 모드 전체를 훑는 안전망 경로다. 고르는 규칙은 둘이 같다.
+ * 언제 도는지는 {@link MatchTrigger}가 정한다.
  */
 @Service
 public class RealtimeMatcher {
@@ -122,7 +126,30 @@ public class RealtimeMatcher {
     }
 
     /**
-     * 대기열에서 파티 하나를 만들어 본다.
+     * 요청이 들어온 bucket 주변에서 파티 하나를 만들어 본다.
+     *
+     * <p>평소 매칭은 전부 이 입구로 들어온다. 누가 대기열에 들어왔는지 알고 부르는 것이므로
+     * 모드 전체를 훑지 않고 그 자리와 상대가 될 수 있는 bucket만 본다.
+     *
+     * @return 제안이 만들어졌으면 그 id, 만들 조합이 없으면 empty
+     */
+    @Transactional
+    public Optional<UUID> tryMatchAround(MatchBucket anchor) {
+        Optional<GameModeConfig> found = modes.findActive(anchor.game(), anchor.modeKey());
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        GameModeConfig config = found.get();
+        List<BucketDepth> depths =
+                queue.bucketDepths(MatchBucket.compatibleWith(anchor, config));
+        return match(config, BucketScanPlan.around(anchor, depths, config, scanSize));
+    }
+
+    /**
+     * 모드 전체를 훑어 파티 하나를 만들어 본다.
+     *
+     * <p>어디를 볼지 모르는 채로 부르는 입구다. trigger가 유실됐을 때 멈춰 선 큐를 푸는
+     * 안전망(MatchingScheduler)과, 매칭 한 판을 통째로 검증하는 테스트가 쓴다.
      *
      * @return 제안이 만들어졌으면 그 id, 만들 조합이 없으면 empty
      */
@@ -133,8 +160,15 @@ public class RealtimeMatcher {
             return Optional.empty();
         }
         GameModeConfig config = found.get();
+        List<BucketDepth> depths = queue.bucketDepths(MatchBucket.allFor(config));
+        return match(config, BucketScanPlan.of(depths, config, scanSize));
+    }
 
-        List<Candidate> waiting = loadWaiting(config);
+    private Optional<UUID> match(GameModeConfig config, BucketScanPlan plan) {
+        if (plan.isEmpty()) {
+            return Optional.empty();
+        }
+        List<Candidate> waiting = loadWaiting(plan);
         if (waiting.size() < config.targetPartySize()) {
             return Optional.empty();
         }
@@ -163,21 +197,11 @@ public class RealtimeMatcher {
     }
 
     /**
-     * 이번 판에 볼 후보를 읽는다 (docs/07 §3.2).
-     *
-     * <p>대기열은 조건별 bucket으로 나뉘어 있다. 모드 전체를 앞에서부터 훑으면 서로 맞지 않는
-     * 사람들이 창을 채워 뒤가 보이지 않으므로, 먼저 어느 bucket을 볼지 정하고 그 bucket에서만 읽는다.
+     * 계획대로 이번 판의 후보를 읽는다 (docs/07 §3.2).
      *
      * <p>Redis에는 있는데 DB에서 이미 끝난 요청은 읽어 온 bucket에서 지운다.
      */
-    private List<Candidate> loadWaiting(GameModeConfig config) {
-        List<MatchBucket> buckets = MatchBucket.allFor(config);
-        List<BucketDepth> depths = queue.bucketDepths(buckets);
-        BucketScanPlan plan = BucketScanPlan.of(depths, config, scanSize);
-        if (plan.isEmpty()) {
-            return List.of();
-        }
-
+    private List<Candidate> loadWaiting(BucketScanPlan plan) {
         List<MatchQueueRepository.BucketSlice> slices = queue.waitingOldestFirst(plan);
         Map<UUID, MatchBucket> bucketOf = new LinkedHashMap<>();
         for (MatchQueueRepository.BucketSlice slice : slices) {

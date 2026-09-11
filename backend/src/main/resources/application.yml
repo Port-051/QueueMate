@@ -21,6 +21,13 @@ management:
         include: health,info,metrics,prometheus
 
 queuemate:
+  matching:
+    # 매칭은 대기열이 변한 순간 돈다. 아래는 그 trigger를 잃었을 때를 위한 안전망 주기다.
+    # 여기서 제안이 만들어진다면 주기를 줄일 것이 아니라 왜 trigger를 잃었는지 봐야 한다.
+    sweep-ms: ${MATCH_SWEEP_MS:15000}
+    # 매칭은 요청 스레드가 아니라 여기서 돈다. 대기열이 길어도 요청 응답이 느려지지 않는다.
+    trigger-threads: ${MATCH_TRIGGER_THREADS:4}
+    trigger-queue: ${MATCH_TRIGGER_QUEUE:512}
   proposal:
     ttl-seconds: ${PROPOSAL_TTL_SECONDS:20}
   reservation:

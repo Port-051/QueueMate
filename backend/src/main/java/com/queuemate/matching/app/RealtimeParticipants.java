@@ -24,12 +24,14 @@ public class RealtimeParticipants implements ProposalParticipants {
     private final MatchRequestRepository requests;
     private final MatchQueueRepository queue;
     private final MatchConditionCodec codec;
+    private final MatchTrigger trigger;
 
     public RealtimeParticipants(MatchRequestRepository requests, MatchQueueRepository queue,
-                                MatchConditionCodec codec) {
+                                MatchConditionCodec codec, MatchTrigger trigger) {
         this.requests = requests;
         this.queue = queue;
         this.codec = codec;
+        this.trigger = trigger;
     }
 
     @Override
@@ -65,11 +67,16 @@ public class RealtimeParticipants implements ProposalParticipants {
             }
             request.returnToQueue();
             MatchCondition condition = codec.fromJson(request.getConditionJson());
-            String bucketKey = MatchingRedisKeys.queue(MatchBucket.of(condition));
+            MatchBucket bucket = MatchBucket.of(condition);
+            String bucketKey = MatchingRedisKeys.queue(bucket);
             UUID requestId = request.getId();
             java.time.Instant queuedAt = request.getQueuedAt().toInstant();
             // 최초 대기 시각을 그대로 넣어 오래 기다린 사람이 앞자리를 지킨다 (docs/03 §8).
-            AfterCommit.run(() -> queue.requeue(bucketKey, requestId, queuedAt));
+            // 돌아온 사람도 대기열이 변한 것이다. 다음 조합을 기다리게 두지 않는다.
+            AfterCommit.run(() -> {
+                queue.requeue(bucketKey, requestId, queuedAt);
+                trigger.onQueued(bucket);
+            });
         }
     }
 }

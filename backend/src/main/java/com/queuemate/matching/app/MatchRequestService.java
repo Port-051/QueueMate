@@ -44,20 +44,24 @@ public class MatchRequestService {
     private final MatchQueueRepository queue;
     private final GameModeConfigProvider modes;
     private final MatchConditionCodec codec;
+    private final MatchTrigger trigger;
     private final Clock clock;
 
     @Autowired
     public MatchRequestService(MatchRequestRepository requests, MatchQueueRepository queue,
-                               GameModeConfigProvider modes, MatchConditionCodec codec) {
-        this(requests, queue, modes, codec, Clock.systemUTC());
+                               GameModeConfigProvider modes, MatchConditionCodec codec,
+                               MatchTrigger trigger) {
+        this(requests, queue, modes, codec, trigger, Clock.systemUTC());
     }
 
     MatchRequestService(MatchRequestRepository requests, MatchQueueRepository queue,
-                        GameModeConfigProvider modes, MatchConditionCodec codec, Clock clock) {
+                        GameModeConfigProvider modes, MatchConditionCodec codec,
+                        MatchTrigger trigger, Clock clock) {
         this.requests = requests;
         this.queue = queue;
         this.modes = modes;
         this.codec = codec;
+        this.trigger = trigger;
         this.clock = clock;
     }
 
@@ -80,7 +84,8 @@ public class MatchRequestService {
             throw new ConflictException(DUPLICATE_CODE, "이미 진행 중인 매칭 요청이 있다");
         }
 
-        String bucketKey = bucketKeyOf(condition);
+        MatchBucket bucket = MatchBucket.of(condition);
+        String bucketKey = MatchingRedisKeys.queue(bucket);
         boolean acquired;
         try {
             acquired = queue.acquire(userId, request.getId(), bucketKey, now.toInstant());
@@ -91,6 +96,8 @@ public class MatchRequestService {
             throw new ConflictException(DUPLICATE_CODE, "이미 진행 중인 매칭 요청이 있다");
         }
         releaseGuardIfRolledBack(userId, request.getId(), bucketKey);
+        // 대기열이 변했다. 커밋된 뒤에 그 자리에서 매칭을 돌린다.
+        AfterCommit.run(() -> trigger.onQueued(bucket));
         return request;
     }
 
@@ -112,7 +119,8 @@ public class MatchRequestService {
                     "지금은 취소할 수 없는 상태다: " + request.getStatus());
         }
         request.cancel();
-        String bucketKey = bucketKeyOf(codec.fromJson(request.getConditionJson()));
+        String bucketKey = MatchingRedisKeys.queue(
+                MatchBucket.of(codec.fromJson(request.getConditionJson())));
         // 커밋된 뒤에 푼다. 롤백됐는데 guard만 풀리면 DB에는 활성 요청이 남은 채
         // 같은 사용자가 하나 더 만들 수 있다.
         AfterCommit.run(() -> queue.release(userId, requestId, bucketKey));
@@ -159,9 +167,5 @@ public class MatchRequestService {
 
     private static NotFoundException notFound(UUID requestId) {
         return new NotFoundException("MATCH_REQUEST_NOT_FOUND", "매칭 요청을 찾을 수 없다: " + requestId);
-    }
-
-    private static String bucketKeyOf(MatchCondition condition) {
-        return MatchingRedisKeys.queue(MatchBucket.of(condition));
     }
 }

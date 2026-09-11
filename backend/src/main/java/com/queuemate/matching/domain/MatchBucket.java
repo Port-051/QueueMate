@@ -59,6 +59,29 @@ public record MatchBucket(
     }
 
     /**
+     * anchor와 같은 파티가 될 수 있는 bucket. anchor 자신이 언제나 맨 앞이다.
+     *
+     * <p>요청이 들어온 자리에서 출발하는 매칭이 쓴다. 모드 전체 bucket을 읽을 이유가 없다.
+     * 어느 bucket이 상대가 되는지는 조건만으로 정해지므로 Redis를 보기 전에 추릴 수 있다.
+     *
+     * <p>role uniqueness 모드에서는 anchor가 자기 bucket과 호환되지 않지만 그래도 담는다.
+     * anchor는 상대이기 전에 seed다 (docs/03 §6).
+     */
+    public static List<MatchBucket> compatibleWith(MatchBucket anchor, GameModeConfig config) {
+        List<MatchBucket> compatible = new ArrayList<>();
+        compatible.add(anchor);
+        for (MatchBucket candidate : allFor(config)) {
+            if (candidate.equals(anchor)) {
+                continue;
+            }
+            ConditionCompatibility
+                    .between(anchor.representative(), candidate.representative(), config)
+                    .ifPresent(tier -> compatible.add(candidate));
+        }
+        return compatible;
+    }
+
+    /**
      * 이 bucket을 대표하는 조건.
      *
      * <p>bucket 안의 사람은 조건이 모두 같으므로, 호환 판정에 아무나 하나를 세워도 결과가 같다.

@@ -76,7 +76,9 @@ class MatchingEventBroadcastIntegrationTest {
         registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
-        registry.add("queuemate.matching.tick-ms", () -> 3_600_000);
+        registry.add("queuemate.matching.sweep-ms", () -> 3_600_000);
+        // 매칭은 요청이 들어온 순간 저절로 돈다. 여기서는 매처를 직접 불러 한 판씩 본다.
+        registry.add("queuemate.matching.auto-trigger", () -> false);
         registry.add("queuemate.proposal.sweep-ms", () -> 3_600_000);
     }
 

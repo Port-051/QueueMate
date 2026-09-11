@@ -23,7 +23,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -39,8 +38,10 @@ class MatchRequestServiceFailClosedTest {
     private final MatchQueueRepository queue = mock(MatchQueueRepository.class);
     private final MatchConditionCodec codec = new MatchConditionCodec(new ObjectMapper());
 
+    private final MatchTrigger trigger = mock(MatchTrigger.class);
+
     private final MatchRequestService service = new MatchRequestService(
-            requests, queue, new SeedGameModeConfigProvider(), codec);
+            requests, queue, new SeedGameModeConfigProvider(), codec, trigger);
 
     private static final MatchCondition CONDITION = new MatchCondition(
             GameKey.LOL, "SOLO_DUO_RANKED", LolPosition.JUNGLE,
