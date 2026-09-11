@@ -396,10 +396,14 @@ const routes: Route[] = [
     if (activeMatchRequest()) throw new ApiError(409, 'ACTIVE_MATCH_REQUEST_EXISTS', '이미 진행 중인 매칭이 있습니다');
     if (activeProposalForMe()) throw new ApiError(409, 'ACTIVE_MATCH_REQUEST_EXISTS', '응답하지 않은 매칭 제안이 있습니다');
     const view: MatchRequestView = { id: uid(), status: 'QUEUED', queuedAt: nowIso(), proposalId: null };
-    db.matchRequests.set(view.id, { view, condition, sim: { timers: [] } });
+    db.matchRequests.set(view.id, { view, condition, sim: { timers: [] }, userId: db.me.id });
     startQueueSim(view.id);
     return view;
   }],
+  ['GET', /^\/match-requests\/history$/, () => [...db.matchRequests.values()]
+    .filter((entry) => entry.userId === db.me.id && ['MATCHED', 'CANCELLED', 'EXPIRED'].includes(entry.view.status))
+    .map(({ view, condition }) => ({ ...view, condition }))
+    .sort((a, b) => b.queuedAt.localeCompare(a.queuedAt) || b.id.localeCompare(a.id))],
   ['GET', /^\/match-requests\/([^/]+)$/, ({ params }) => {
     const entry = db.matchRequests.get(params[0]);
     if (!entry) throw new ApiError(404, 'MATCH_REQUEST_NOT_FOUND', '매칭 요청을 찾을 수 없습니다');

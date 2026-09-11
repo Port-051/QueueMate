@@ -12,7 +12,7 @@ test('랜딩에서 로그인하면 홈으로 들어간다', async ({ page }) => 
   await page.locator('.auth-form button[type="submit"]').click();
 
   await expect(page).toHaveURL(/\/app\/home/);
-  await expect(page.getByRole('heading', { name: '예정된 예약' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '예약 매칭', exact: true })).toBeVisible();
 });
 
 test('잘못된 비밀번호는 오류를 보여주고 로그인되지 않는다', async ({ page }) => {

@@ -10,6 +10,7 @@ import './styles/theme.css';
 import './styles/pages.css';
 import './styles/usability.css';
 import './styles/match-composer.css';
+import './styles/home.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

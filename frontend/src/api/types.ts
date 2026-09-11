@@ -80,6 +80,11 @@ export interface MatchRequestView {
   proposalId: string | null;
 }
 
+export interface MatchHistoryView extends Omit<MatchRequestView, 'status'> {
+  status: 'MATCHED' | 'CANCELLED' | 'EXPIRED';
+  condition: MatchCondition;
+}
+
 export type ProposalStatus = 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'EXPIRED' | 'CANCELLED';
 export type Acceptance = 'PENDING' | 'ACCEPTED' | 'DECLINED';
 

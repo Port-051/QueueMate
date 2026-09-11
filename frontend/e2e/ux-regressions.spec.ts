@@ -37,14 +37,14 @@ test('파티 준비 변경이 연결을 초기화하지 않고, 종료되면 통
   await expect(page.getByRole('button', { name: '연결 다시 시도' })).toHaveCount(0);
 });
 
-test('최근 조건을 확인하고 조건 입력 바로 아래에서 매칭을 시작할 수 있다', async ({ page }) => {
+test('지난 매칭의 조건을 확인하고 조건 입력 바로 아래에서 매칭을 시작할 수 있다', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await login(page);
-  const reservationHeading = page.getByRole('heading', { name: '예정된 예약' });
+  const reservationHeading = page.getByRole('heading', { name: '예약 매칭', exact: true });
   expect((await reservationHeading.boundingBox())!.y).toBeLessThan(720);
   await startRealtimeMatch(page);
   await page.getByRole('button', { name: '매칭 취소', exact: true }).click();
-  await page.getByRole('button', { name: '조건 확인', exact: true }).click();
+  await page.getByRole('button', { name: '조건 보기', exact: true }).click();
   await expect(page).toHaveURL(/\/app\/home$/);
   await expect(page.getByRole('dialog')).toBeVisible();
   const start = page.getByRole('button', { name: '매칭 시작', exact: true });

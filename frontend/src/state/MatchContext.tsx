@@ -34,6 +34,8 @@ interface MatchValue {
   proposalSource: ProposalSource | null;
   activePartyId: string | null;
   reservations: ReservationView[];
+  reservationsLoaded: boolean;
+  reservationsError: string | null;
   stream: EventStream | null;
   start(condition: MatchCondition): Promise<void>;
   /** 새로고침으로 context가 비었을 때 URL의 요청 id로 상태를 복구한다. */
@@ -74,6 +76,8 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   const [proposalSource, setProposalSource] = useState<ProposalSource | null>(null);
   const [activePartyId, setActivePartyIdState] = useState<string | null>(() => readActiveParty());
   const [reservations, setReservations] = useState<ReservationView[]>([]);
+  const [reservationsLoaded, setReservationsLoaded] = useState(false);
+  const [reservationsError, setReservationsError] = useState<string | null>(null);
   const [stream, setStream] = useState<EventStream | null>(null);
   const userId = user?.id;
   const [restoredUserId, setRestoredUserId] = useState<string | null>(null);
@@ -87,7 +91,15 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshReservations = useCallback(async () => {
-    setReservations(await api.listReservations());
+    try {
+      setReservations(await api.listReservations());
+      setReservationsError(null);
+    } catch (err) {
+      setReservationsError('예약을 불러오지 못했습니다.');
+      throw err;
+    } finally {
+      setReservationsLoaded(true);
+    }
   }, []);
 
   const saveReservation = useCallback(async (body: CreateReservationRequest, id?: string) => {
@@ -101,6 +113,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       if (status === 'anonymous') {
         setRequest(null); setCondition(null); setProposal(null); setProposalSource(null); setReservations([]);
         setRestoredUserId(null);
+        setReservationsLoaded(false); setReservationsError(null);
       }
       return;
     }
@@ -111,7 +124,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (status !== 'authenticated') return;
-    void refreshReservations();
+    void refreshReservations().catch(() => {});
   }, [status, refreshReservations]);
 
   const proposalRef = useRef<ProposalView | null>(null);
@@ -401,9 +414,9 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   }, [proposal, proposalSource, navigate, refreshReservations]);
 
   const value = useMemo<MatchValue>(() => ({
-    request, condition, proposal, proposalSource, activePartyId, reservations, stream,
+    request, condition, proposal, proposalSource, activePartyId, reservations, reservationsLoaded, reservationsError, stream,
     start, adoptRequest, adoptProposal, cancel, accept, decline, refreshReservations, saveReservation, setActivePartyId,
-  }), [request, condition, proposal, proposalSource, activePartyId, reservations, stream,
+  }), [request, condition, proposal, proposalSource, activePartyId, reservations, reservationsLoaded, reservationsError, stream,
     start, adoptRequest, adoptProposal, cancel, accept, decline, refreshReservations, saveReservation, setActivePartyId]);
 
   return <MatchCtx.Provider value={value}>{children}</MatchCtx.Provider>;

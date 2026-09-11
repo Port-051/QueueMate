@@ -37,7 +37,7 @@ test('시간이 겹치는 예약은 등록할 수 없다 (INV-9)', async ({ page
   await expect(page).toHaveURL(/\/app\/home$/);
 });
 
-test('예약을 취소하면 지난 예약으로 이동한다', async ({ page }) => {
+test('예약을 취소하면 지난 매칭에 결과가 남는다', async ({ page }) => {
   await login(page);
   await openNewReservation(page);
   await page.getByRole('button', { name: '예약 등록' }).click();
@@ -52,8 +52,10 @@ test('예약을 취소하면 지난 예약으로 이동한다', async ({ page })
   await page.getByRole('button', { name: '예약 취소', exact: true }).click();
   await expect(page.getByText('예정된 예약이 없습니다')).toBeVisible();
 
-  await page.getByRole('button', { name: /지난 예약/ }).click();
-  await expect(page.getByText('취소됨')).toBeVisible();
+  const history = page.getByRole('region', { name: '지난 매칭', exact: true });
+  await expect(history).toContainText('예약 매칭');
+  await expect(history).toContainText('취소됨');
+  await expect(history.locator('.match-history-row')).toHaveCount(1);
 });
 
 test('종료 시간이 시작보다 빠르면 등록 버튼이 잠긴다', async ({ page }) => {

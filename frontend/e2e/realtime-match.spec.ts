@@ -5,7 +5,7 @@ test('실시간 매칭: 조건 설정 → 대기 → 제안 수락 → 파티룸
   await login(page);
   await startRealtimeMatch(page);
 
-  await expect(page.getByRole('heading', { name: '현재 매칭' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '지금 매칭', exact: true })).toBeVisible();
   await expect(page.getByText('대기 시간')).toBeVisible();
 
   // 제안 도착
@@ -20,6 +20,10 @@ test('실시간 매칭: 조건 설정 → 대기 → 제안 수락 → 파티룸
   // 모두 수락해야 파티가 확정된다(INV-4)
   await expect(page).toHaveURL(/\/app\/party\//, { timeout: 30_000 });
   await expect(page.getByText('파티 채팅')).toBeVisible();
+  await page.locator('.side-nav a[href="/app/home"]').click();
+  const history = page.getByRole('region', { name: '지난 매칭', exact: true });
+  await expect(history).toContainText('매칭 성사');
+  await expect(history.locator('.match-history-row')).toHaveCount(1);
 });
 
 test('활성 매칭이 있으면 새 매칭을 시작할 수 없다 (INV-1)', async ({ page }) => {
@@ -40,6 +44,12 @@ test('홈에서 매칭을 취소하면 현재 매칭 카드가 사라진다', as
   await page.getByRole('button', { name: '매칭 취소', exact: true }).click();
   await expect(page).toHaveURL(/\/app\/home/);
   await expect(page.locator('.home-current')).toHaveCount(0);
+  const history = page.getByRole('region', { name: '지난 매칭', exact: true });
+  await expect(history).toContainText('취소됨');
+  await expect(history).toContainText('League of Legends');
+  await page.locator('.side-nav a[href="/app/recent"]').click();
+  await page.locator('.side-nav a[href="/app/home"]').click();
+  await expect(history.locator('.match-history-row')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'League of Legends 매칭', exact: true })).toBeEnabled();
 });
 
