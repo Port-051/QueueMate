@@ -28,6 +28,72 @@ services:
       timeout: 3s
       retries: 10
 
+  # ---- Redis HA (docs/07 §11) ----
+  # 기본 실행에는 뜨지 않는다. 띄우려면:
+  #   REDIS_SENTINEL_MASTER=queuemate \
+  #   REDIS_SENTINEL_NODES=redis-sentinel-1:26379,redis-sentinel-2:26379,redis-sentinel-3:26379 \
+  #   docker compose --profile ha up
+  # 이때 위의 단일 redis는 떠 있어도 쓰이지 않는다.
+  #
+  # 한 호스트 위의 sentinel은 호스트가 죽으면 같이 죽는다. 여기 토폴로지의 목적은
+  # 운영과 같은 모양으로 failover를 연습하고 검증하는 것이다. 실제 HA는 서로 다른
+  # 장애 도메인에 배치해야 성립한다.
+
+  redis-master:
+    image: redis:7-alpine
+    profiles: ["ha"]
+    command: ["redis-server", "/usr/local/etc/redis/master.conf"]
+    volumes:
+      - qm-redis-master:/data
+      - ./infra/redis/master.conf:/usr/local/etc/redis/master.conf:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-replica-1: &redis-replica
+    image: redis:7-alpine
+    profiles: ["ha"]
+    command: ["redis-server", "/usr/local/etc/redis/replica.conf"]
+    volumes:
+      - ./infra/redis/replica.conf:/usr/local/etc/redis/replica.conf:ro
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-replica-2:
+    <<: *redis-replica
+
+  redis-sentinel-1: &redis-sentinel
+    image: redis:7-alpine
+    profiles: ["ha"]
+    # sentinel은 감시 결과를 자기 설정 파일에 다시 쓴다. 읽기 전용 마운트면 뜨지 않는다.
+    command: ["sh", "-c", "cp /etc/redis/sentinel.conf /tmp/sentinel.conf && exec redis-sentinel /tmp/sentinel.conf"]
+    volumes:
+      - ./infra/redis/sentinel.conf:/etc/redis/sentinel.conf:ro
+    depends_on:
+      redis-replica-1:
+        condition: service_healthy
+      redis-replica-2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-sentinel-2:
+    <<: *redis-sentinel
+
+  redis-sentinel-3:
+    <<: *redis-sentinel
+
   coturn:
     image: coturn/coturn:latest
     profiles: ["realtime"]
@@ -39,3 +105,4 @@ services:
 volumes:
   qm-postgres:
   qm-redis:
+  qm-redis-master:
