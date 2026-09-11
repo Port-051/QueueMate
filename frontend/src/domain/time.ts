@@ -60,7 +60,22 @@ export function formatDay(iso: string): string {
 }
 
 export function formatRange(from: string, to: string): string {
-  return `${formatDay(from)} ${formatTime(from)} ~ ${formatTime(to)}`;
+  const endDay = toDateKey(new Date(from)) === toDateKey(new Date(to)) ? '' : `${formatDay(to)} `;
+  return `${formatDay(from)} ${formatTime(from)} ~ ${endDay}${formatTime(to)}`;
+}
+
+export function addDays(dateKey: string, count: number): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  return toDateKey(new Date(y, m - 1, d + count));
+}
+
+export function defaultReservationWindow(now = new Date()): { from: Date; to: Date } {
+  const evening = new Date(now);
+  evening.setHours(20, 0, 0, 0);
+  const nextSlot = floorToSlot(now);
+  nextSlot.setMinutes(nextSlot.getMinutes() + SLOT_MINUTES);
+  const from = evening > now ? evening : nextSlot;
+  return { from, to: new Date(from.getTime() + 2 * 60 * 60 * 1000) };
 }
 
 export function formatDuration(seconds: number): string {

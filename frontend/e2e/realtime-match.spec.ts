@@ -5,7 +5,7 @@ test('실시간 매칭: 조건 설정 → 대기 → 제안 수락 → 파티룸
   await login(page);
   await startRealtimeMatch(page);
 
-  await expect(page.getByRole('heading', { name: '매칭 중입니다' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '현재 매칭' })).toBeVisible();
   await expect(page.getByText('대기 시간')).toBeVisible();
 
   // 제안 도착
@@ -26,18 +26,21 @@ test('활성 매칭이 있으면 새 매칭을 시작할 수 없다 (INV-1)', as
   await login(page);
   await startRealtimeMatch(page);
 
-  await page.locator('.side-nav a[href="/app/match"]').click();
+  await page.getByRole('button', { name: 'League of Legends 매칭', exact: true }).click();
   await expect(page.getByText('이미 진행 중인 매칭이 있습니다')).toBeVisible();
   await expect(page.getByRole('button', { name: '매칭 시작' })).toBeDisabled();
+  await page.getByRole('tab', { name: '예약 매칭', exact: true }).click();
+  await expect(page.getByRole('button', { name: '예약 등록' })).toBeEnabled();
 });
 
-test('대기 화면에서 매칭을 취소하면 홈으로 돌아간다', async ({ page }) => {
+test('홈에서 매칭을 취소하면 현재 매칭 카드가 사라진다', async ({ page }) => {
   await login(page);
   await startRealtimeMatch(page);
 
-  await page.getByRole('button', { name: '매칭 취소' }).click();
+  await page.getByRole('button', { name: '매칭 취소', exact: true }).click();
   await expect(page).toHaveURL(/\/app\/home/);
-  await expect(page.getByText('진행 중인 매칭이 없습니다')).toBeVisible();
+  await expect(page.locator('.home-current')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'League of Legends 매칭', exact: true })).toBeEnabled();
 });
 
 test('파티룸에서 채팅을 보내고 준비 상태를 바꾼다', async ({ page }) => {

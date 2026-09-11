@@ -1,39 +1,25 @@
-import type { GameKey, MatchCondition, PlayPurpose, VoicePreference } from '../api/types';
+import { useState } from 'react';
+import type { MatchCondition, PlayPurpose, VoicePreference } from '../api/types';
 import {
   PURPOSE_OPTIONS, VOICE_OPTIONS, availableGames, gameConfig, keyConditionOptions, switchGame, visibleModes,
 } from '../domain/gameConfig';
-import { OptionRow } from './ui';
+import { Button, Modal, OptionRow } from './ui';
+import { GameBadge } from './GameSymbol';
 
 /**
  * docs/02 기준 조건 폼. 공통 골격(모드/음성/목적) + 게임별 핵심 조건 하나만 받는다.
  * 실시간·예약 화면이 같은 폼을 쓴다.
  */
-export function ConditionForm({ value, onChange }: { value: MatchCondition; onChange: (next: MatchCondition) => void }) {
+export function ConditionForm({ value, onChange, showGame = true }: { value: MatchCondition; onChange: (next: MatchCondition) => void; showGame?: boolean }) {
   const cfg = gameConfig(value.game);
+  const [choosingGame, setChoosingGame] = useState(false);
 
   return (
-    <div className="stack">
-      <div>
-        <div className="card-title" style={{ marginBottom: 12 }}>게임 선택</div>
-        <div className="game-picker">
-          {availableGames().map((g) => (
-            <button
-              key={g.key}
-              type="button"
-              aria-pressed={g.key === value.game}
-              className={g.key === value.game ? 'game-card on' : 'game-card'}
-              onClick={() => onChange(switchGame(value, g.key as GameKey))}
-            >
-              <span className={`game-logo g-${g.key}`}>{g.shortName.slice(0, 3).toUpperCase()}</span>
-              <div>
-                <div className="gc-name">{g.name}</div>
-                <div className="gc-sub">{g.tagline}</div>
-              </div>
-              {g.key === value.game ? <span className="gc-check">✓</span> : null}
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="stack condition-form">
+      {showGame ? <div className="selected-game" aria-label={`선택한 게임: ${cfg.name}`}>
+        <div className="selected-game-title"><GameBadge game={value.game} size={44} /><h2>{cfg.name}</h2></div>
+        <Button size="sm" variant="ghost" onClick={() => setChoosingGame(true)}>게임 변경</Button>
+      </div> : null}
 
       <div className="card">
         <OptionRow
@@ -52,19 +38,28 @@ export function ConditionForm({ value, onChange }: { value: MatchCondition; onCh
         />
         <OptionRow
           label="음성 사용"
-          desc="음성 채팅 사용 여부를 선택하세요. '사용'과 '사용 안 함'은 서로 매칭되지 않습니다."
+          desc="'사용'과 '사용 안 함'은 서로 매칭되지 않습니다."
           value={value.voicePreference}
           options={VOICE_OPTIONS}
           onChange={(v) => onChange({ ...value, voicePreference: v as VoicePreference })}
         />
         <OptionRow
           label="플레이 목적"
-          desc="대기가 길어지면 목적 조건만 자동으로 완화될 수 있습니다."
+          desc="대기가 길면 목적만 완화될 수 있습니다."
           value={value.playPurpose}
           options={PURPOSE_OPTIONS}
           onChange={(v) => onChange({ ...value, playPurpose: v as PlayPurpose })}
         />
       </div>
+      {choosingGame ? <Modal title="게임 변경" onClose={() => setChoosingGame(false)}
+        foot={<Button variant="ghost" onClick={() => setChoosingGame(false)}>닫기</Button>}>
+        <div className="game-change-list">
+          {availableGames().map((game) => <button key={game.key} type="button" className="game-change-option" aria-pressed={game.key === value.game}
+            onClick={() => { onChange(switchGame(value, game.key)); setChoosingGame(false); }}>
+            <GameBadge game={game.key} /><span>{game.name}</span>{game.key === value.game ? <span className="game-change-check" aria-hidden="true">✓</span> : null}
+          </button>)}
+        </div>
+      </Modal> : null}
     </div>
   );
 }

@@ -13,8 +13,10 @@ export async function login(page: Page): Promise<void> {
 }
 
 export async function startRealtimeMatch(page: Page): Promise<void> {
-  await page.locator('.side-nav a[href="/app/match"]').click();
-  await expect(page.getByRole('heading', { name: '매칭 조건 설정' })).toBeVisible();
+  await page.getByRole('button', { name: 'League of Legends 매칭', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'League of Legends', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '매칭 시작' }).click();
-  await expect(page).toHaveURL(/\/app\/match\/waiting\//);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page).toHaveURL(/\/app\/home$/);
+  await expect(page.locator('.home-active-match')).toBeVisible();
 }

@@ -1,3 +1,4 @@
+import { Logo } from '../components/Logo';
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { isApiError } from '../api/error';
@@ -54,10 +55,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   return (
     <div className="auth">
       <aside className="auth-aside">
-        <Link to="/" className="brand" style={{ padding: 0 }}>
-          <span className="brand-mark">Q</span>
-          <span className="brand-name">Queue<span>Mate</span></span>
-        </Link>
+        <Link to="/" aria-label="QueueMate 홈"><Logo /></Link>
         <div>
           <h2>조건이 맞는 팀원과<br /><em>지금, 바로 플레이</em></h2>
           <p style={{ marginTop: 16 }}>

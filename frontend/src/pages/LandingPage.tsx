@@ -1,3 +1,5 @@
+import { Logo } from '../components/Logo';
+import { GameBadge } from '../components/GameSymbol';
 import { Link } from 'react-router-dom';
 import { Button } from '../components/ui';
 import { IconBolt, IconMic, IconShield, IconTarget } from '../components/icons';
@@ -14,10 +16,7 @@ export function LandingPage() {
   return (
     <main className="landing">
       <header className="landing-header">
-        <div className="brand">
-          <span className="brand-mark">Q</span>
-          <span className="brand-name">Queue<span>Mate</span></span>
-        </div>
+        <Logo />
         <div className="landing-nav">
           <Link to="/login"><Button variant="ghost">로그인</Button></Link>
           <Link to="/signup"><Button variant="primary">시작하기</Button></Link>
@@ -42,7 +41,7 @@ export function LandingPage() {
           <div className="hero-games">
             {GAMES.map((g) => (
               <div key={g.key} className="hero-game">
-                <span className={`game-logo g-${g.key}`}>{g.shortName.slice(0, 3).toUpperCase()}</span>
+                <GameBadge game={g.key} />
                 <div>
                   <b>{g.name}</b>
                   <br />

@@ -2,10 +2,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
+import { isApiError } from '../api/error';
 import { createEventStream } from '../api/ws';
 import type { EventStream } from '../api/ws';
 import type {
-  MatchCondition, MatchRequestView, ProposalView, ReservationView, ServerEvent,
+  CreateReservationRequest, MatchCondition, MatchRequestView, ProposalView, ReservationView, ServerEvent,
   MatchConfirmedPayload, PartyClosedPayload, PartyPlayingPayload, ProposalCreatedPayload,
   ProposalSettledPayload, SessionSnapshotPayload,
 } from '../api/types';
@@ -43,6 +44,7 @@ interface MatchValue {
   accept(): Promise<void>;
   decline(): Promise<void>;
   refreshReservations(): Promise<void>;
+  saveReservation(body: CreateReservationRequest, id?: string): Promise<void>;
   setActivePartyId(id: string | null): void;
 }
 
@@ -62,7 +64,7 @@ const writeActiveParty = (id: string | null) => {
 };
 
 export function MatchProvider({ children }: { children: ReactNode }) {
-  const { status, token } = useAuth();
+  const { status, token, user } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
 
@@ -73,6 +75,8 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   const [activePartyId, setActivePartyIdState] = useState<string | null>(() => readActiveParty());
   const [reservations, setReservations] = useState<ReservationView[]>([]);
   const [stream, setStream] = useState<EventStream | null>(null);
+  const userId = user?.id;
+  const [restoredUserId, setRestoredUserId] = useState<string | null>(null);
 
   const requestRef = useRef<MatchRequestView | null>(null);
   requestRef.current = request;
@@ -86,9 +90,18 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     setReservations(await api.listReservations());
   }, []);
 
+  const saveReservation = useCallback(async (body: CreateReservationRequest, id?: string) => {
+    const saved = id ? await api.updateReservation(id, body) : await api.createReservation(body);
+    setReservations((prev) => [...prev.filter((item) => item.id !== saved.id), saved]);
+  }, []);
+
   useEffect(() => {
     if (status !== 'authenticated') {
       setStream(null);
+      if (status === 'anonymous') {
+        setRequest(null); setCondition(null); setProposal(null); setProposalSource(null); setReservations([]);
+        setRestoredUserId(null);
+      }
       return;
     }
     const created = createEventStream(token);
@@ -145,10 +158,10 @@ export function MatchProvider({ children }: { children: ReactNode }) {
           if (current) {
             setRequest({ ...current, status: 'QUEUED', proposalId: null });
             toast('제안 시간이 지나 다시 팀원을 찾습니다', 'error');
-            navigate(`/app/match/waiting/${current.id}`);
+            navigate('/app/home');
           } else {
             toast('제안 시간이 지났습니다', 'error');
-            navigate('/app/reservations');
+            navigate('/app/home');
           }
           break;
         }
@@ -212,9 +225,57 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     navigate(`/app/proposals/${view.id}`);
   }, [navigate, setActivePartyId]);
 
+  // The home URL carries no request ID. Restore this account's request, then
+  // validate it with the server before showing it as active after a reload.
+  useEffect(() => {
+    if (status !== 'authenticated' || !userId) return;
+    let disposed = false;
+    let retryTimer: number | undefined;
+    const key = `qm.activeMatch.${userId}`;
+    const restore = async () => {
+      let verified = false;
+      try {
+        const raw = localStorage.getItem(key);
+        const saved = raw ? JSON.parse(raw) as { id: string; condition: MatchCondition } : null;
+        if (saved?.id && saved.condition) {
+          const current = await api.getMatchRequest(saved.id);
+          if (disposed) return;
+          if (requestRef.current) { verified = true; return; }
+          if (current.status === 'QUEUED' || current.status === 'PROPOSED') {
+            setCondition(saved.condition);
+            setRequest(current);
+          } else if (current.status === 'MATCHED' && current.proposalId) {
+            await openProposal(current.proposalId, 'REALTIME');
+          }
+        }
+        verified = true;
+      } catch (err) {
+        verified = (isApiError(err) && err.code === 'MATCH_REQUEST_NOT_FOUND') || err instanceof SyntaxError || (err instanceof DOMException && err.name === 'SecurityError');
+      } finally {
+        if (!disposed) {
+          if (verified) setRestoredUserId(userId);
+          else retryTimer = window.setTimeout(() => void restore(), MATCH_POLL_MS);
+        }
+      }
+    };
+    void restore();
+    return () => { disposed = true; window.clearTimeout(retryTimer); };
+  }, [status, userId, openProposal]);
+
+  useEffect(() => {
+    if (!userId || restoredUserId !== userId) return;
+    try {
+      const key = `qm.activeMatch.${userId}`;
+      if (request && condition) localStorage.setItem(key, JSON.stringify({ id: request.id, condition }));
+      else localStorage.removeItem(key);
+    } catch { /* Matching still works when browser storage is unavailable. */ }
+  }, [userId, restoredUserId, request, condition]);
+
   const adoptRequest = useCallback(async (requestId: string) => {
-    setRequest(await api.getMatchRequest(requestId));
-  }, []);
+    const current = await api.getMatchRequest(requestId);
+    if (current.status === 'QUEUED' || current.status === 'PROPOSED') setRequest(current);
+    else if (current.status === 'MATCHED' && current.proposalId) await openProposal(current.proposalId, 'REALTIME');
+  }, [openProposal]);
 
   const adoptProposal = useCallback(async (proposalId: string) => {
     await openProposal(proposalId, 'REALTIME');
@@ -255,10 +316,10 @@ export function MatchProvider({ children }: { children: ReactNode }) {
         const current = requestRef.current;
         if (current) {
           setRequest({ ...current, status: 'QUEUED', proposalId: null });
-          navigate(`/app/match/waiting/${current.id}`);
+          navigate('/app/home');
         } else {
           void refreshReservations();
-          navigate('/app/reservations');
+          navigate('/app/home');
         }
       } catch {
         /* 일시적인 실패는 다음 주기에 다시 시도한다 */
@@ -305,8 +366,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     rememberCondition(next);
     setCondition(next);
     setRequest(created);
-    navigate(`/app/match/waiting/${created.id}`);
-  }, [navigate]);
+  }, []);
 
   const cancel = useCallback(async () => {
     const current = requestRef.current;
@@ -333,18 +393,18 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     const current = requestRef.current;
     if (source === 'REALTIME' && current) {
       setRequest({ ...current, status: 'QUEUED', proposalId: null });
-      navigate(`/app/match/waiting/${current.id}`);
+      navigate('/app/home');
     } else {
       await refreshReservations();
-      navigate('/app/reservations');
+      navigate('/app/home');
     }
   }, [proposal, proposalSource, navigate, refreshReservations]);
 
   const value = useMemo<MatchValue>(() => ({
     request, condition, proposal, proposalSource, activePartyId, reservations, stream,
-    start, adoptRequest, adoptProposal, cancel, accept, decline, refreshReservations, setActivePartyId,
+    start, adoptRequest, adoptProposal, cancel, accept, decline, refreshReservations, saveReservation, setActivePartyId,
   }), [request, condition, proposal, proposalSource, activePartyId, reservations, stream,
-    start, adoptRequest, adoptProposal, cancel, accept, decline, refreshReservations, setActivePartyId]);
+    start, adoptRequest, adoptProposal, cancel, accept, decline, refreshReservations, saveReservation, setActivePartyId]);
 
   return <MatchCtx.Provider value={value}>{children}</MatchCtx.Provider>;
 }

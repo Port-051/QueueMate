@@ -1,20 +1,20 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../state/AuthContext';
 import { useMatch } from '../state/MatchContext';
 import { useSocial } from '../state/SocialContext';
+import { useConnectionStatus } from '../state/useConnectionStatus';
 import { Logo } from './Logo';
-import { Avatar } from './ui';
+import { Avatar, Button, Modal } from './ui';
 import {
-  IconBell, IconCalendar, IconClock, IconHome, IconLogout, IconMatch, IconParty, IconSettings, IconUser,
+  IconClock, IconHome, IconLogout, IconParty, IconSettings, IconUser,
 } from './icons';
 
 interface NavItem { to: string; label: string; icon: ReactNode; }
 
 const NAV: NavItem[] = [
   { to: '/app/home', label: '홈', icon: <IconHome /> },
-  { to: '/app/match', label: '매칭', icon: <IconMatch /> },
-  { to: '/app/reservations', label: '예약 매칭', icon: <IconCalendar /> },
   { to: '/app/party', label: '파티룸', icon: <IconParty /> },
   { to: '/app/friends', label: '친구', icon: <IconUser /> },
   { to: '/app/recent', label: '최근 함께한 사람', icon: <IconClock /> },
@@ -22,102 +22,62 @@ const NAV: NavItem[] = [
   { to: '/app/settings', label: '설정', icon: <IconSettings /> },
 ];
 
-const TITLES: [RegExp, string][] = [
-  [/^\/app\/home/, '홈'],
-  [/^\/app\/match\/waiting/, '매칭 대기'],
-  [/^\/app\/match/, '매칭 조건 설정'],
-  [/^\/app\/reservations\/new/, '예약 매칭 설정'],
-  [/^\/app\/reservations/, '예약 매칭 관리'],
-  [/^\/app\/proposals/, '매칭 제안'],
-  [/^\/app\/party/, '파티룸'],
-  [/^\/app\/friends/, '친구'],
-  [/^\/app\/recent/, '최근 함께한 사람'],
-  [/^\/app\/me/, '내 정보'],
-  [/^\/app\/settings/, '설정'],
-];
-
 export function AppShell() {
   const { user, logout } = useAuth();
-  const { activePartyId, request } = useMatch();
+  const { activePartyId, request, stream } = useMatch();
+  const connection = useConnectionStatus(stream);
+  const connectionLabel = connection === 'connected' ? '온라인' : connection === 'reconnecting' ? '재연결 중' : '서버 연결 중';
   const { receivedRequests } = useSocial();
   const location = useLocation();
   const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }, [location.pathname]);
 
-  const title = TITLES.find(([re]) => re.test(location.pathname))?.[1] ?? 'QueueMate';
   const partyTo = activePartyId ? `/app/party/${activePartyId}` : '/app/party';
+
+  const navigation = (mobile = false) => (
+    <nav className={mobile ? 'mobile-nav' : 'side-nav'} aria-label="주 메뉴">
+      {NAV.map((item) => {
+        const disabled = item.to === '/app/party' && !activePartyId;
+        return <NavLink key={item.to} to={item.to === '/app/party' ? partyTo : item.to}
+          aria-disabled={disabled} tabIndex={disabled ? -1 : undefined}
+          title={disabled ? '매칭이 성사되면 파티룸이 열립니다' : undefined}
+          onClick={(event) => { if (disabled) event.preventDefault(); else setMenuOpen(false); }}
+          className={({ isActive }) => `nav-link${isActive && !disabled ? ' active' : ''}${disabled ? ' disabled' : ''}`}>
+          <span className="nav-icon">{item.icon}</span><span>{item.label}</span>
+          {item.to === '/app/home' && request ? <span className="nav-badge">1</span> : null}
+          {item.to === '/app/friends' && receivedRequests.length > 0 ? <span className="nav-badge">{receivedRequests.length}</span> : null}
+        </NavLink>;
+      })}
+    </nav>
+  );
+
+  const account = (
+    <div className="sidebar-account">
+      {user ? <button type="button" className="account-profile" aria-label="내 프로필 열기" onClick={() => { setMenuOpen(false); navigate('/app/me'); }}>
+        <Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={36} status={connection === 'connected' ? 'online' : 'away'} />
+        <span><b>{user.nickname}</b><small className={connection === 'connected' ? '' : 'connecting'}>{connectionLabel}</small></span>
+      </button> : null}
+      <button type="button" className="icon-btn account-logout" aria-label="로그아웃" title="로그아웃" onClick={() => { setMenuOpen(false); void logout().then(() => navigate('/')); }}><IconLogout /></button>
+    </div>
+  );
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <Logo />
-
-        <nav className="side-nav">
-          {NAV.map((item) => {
-            const to = item.to === '/app/party' ? partyTo : item.to;
-            const disabled = item.to === '/app/party' && !activePartyId;
-            return (
-              <NavLink
-                key={item.to}
-                to={to}
-                aria-disabled={disabled}
-                className={({ isActive }) => [
-                  'nav-link',
-                  isActive && !disabled ? 'active' : '',
-                  disabled ? 'disabled' : '',
-                ].filter(Boolean).join(' ')}
-              >
-                <span className="nav-icon">{item.icon}</span>
-                {item.label}
-                {item.to === '/app/match' && request ? <span className="nav-badge">1</span> : null}
-                {item.to === '/app/friends' && receivedRequests.length > 0
-                  ? <span className="nav-badge">{receivedRequests.length}</span>
-                  : null}
-              </NavLink>
-            );
-          })}
-        </nav>
-
-        <div className="side-foot">
-          <div className="side-note">
-            <b>음성으로 더 빠르게</b>
-            <p>파티룸 음성과 채팅은 WebRTC로 직접 연결됩니다. 서버는 대화 내용을 저장하지 않습니다.</p>
-          </div>
-          {user ? (
-            <div className="side-user">
-              <Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={36} status="online" />
-              <div style={{ minWidth: 0 }}>
-                <b style={{ fontSize: 14 }}>{user.nickname}</b>
-                <small>온라인</small>
-              </div>
-            </div>
-          ) : null}
-        </div>
+        {navigation()}
+        {account}
       </aside>
-
-      <div className="main">
-        <header className="topbar">
-          <div className="topbar-title">{title}</div>
-          <div className="topbar-right">
-            <button type="button" className="icon-btn" aria-label="알림" onClick={() => navigate('/app/friends')}>
-              <IconBell />
-              {receivedRequests.length > 0 ? <span className="dot" /> : null}
-            </button>
-            {user ? (
-              <div className="user-chip">
-                <Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={30} status="online" />
-                <div>
-                  <b>{user.nickname}</b>
-                  <small>온라인</small>
-                </div>
-              </div>
-            ) : null}
-            <button type="button" className="icon-btn" aria-label="로그아웃" onClick={() => { void logout().then(() => navigate('/')); }}>
-              <IconLogout />
-            </button>
-          </div>
-        </header>
+      <main className="main">
+        <div className="mobile-page-actions" aria-label="빠른 메뉴">
+          <button className="icon-btn" type="button" aria-label="메뉴 열기" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+          </button>
+        </div>
         <Outlet />
-      </div>
+      </main>
+      {menuOpen ? <Modal title="메뉴" onClose={() => setMenuOpen(false)} foot={<Button onClick={() => setMenuOpen(false)}>메뉴 닫기</Button>}>{navigation(true)}{account}</Modal> : null}
     </div>
   );
 }
