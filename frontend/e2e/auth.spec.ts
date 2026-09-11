@@ -25,6 +25,35 @@ test('잘못된 비밀번호는 오류를 보여주고 로그인되지 않는다
   await expect(page).toHaveURL(/\/login/);
 });
 
+test('카카오로 시작하면 로그인된다', async ({ page }) => {
+  await page.goto('/login');
+  // 서버가 자격 증명이 설정된 제공자만 내려준다. 목록에 없는 버튼은 그리지 않는다.
+  await expect(page.getByRole('button', { name: '카카오로 시작하기' })).toBeVisible();
+
+  await page.getByRole('button', { name: '카카오로 시작하기' }).click();
+
+  // 소셜로 처음 들어온 계정은 게임 계정이 없어 온보딩부터 시작한다.
+  await expect(page).toHaveURL(/\/onboarding|\/app\/home/);
+  await expect(page.getByRole('button', { name: '로그인', exact: true })).toHaveCount(0);
+});
+
+test('같은 소셜 계정으로 다시 들어가면 같은 사용자다', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByRole('button', { name: '네이버로 시작하기' }).click();
+  await expect(page).toHaveURL(/\/onboarding|\/app\/home/);
+
+  const first = await page.evaluate(() => localStorage.getItem('qm.tokens'));
+  expect(first).not.toBeNull();
+});
+
+test('콜백에 코드가 없으면 실패를 알리고 로그인으로 되돌린다', async ({ page }) => {
+  await page.goto('/auth/callback?error=ACCESS_DENIED');
+
+  await expect(page.getByRole('heading', { name: '로그인하지 못했습니다' })).toBeVisible();
+  await page.getByRole('button', { name: '로그인으로 돌아가기' }).click();
+  await expect(page).toHaveURL(/\/login/);
+});
+
 test('로그인하지 않으면 앱 화면 대신 로그인으로 보낸다', async ({ page }) => {
   await page.goto('/app/home');
   await expect(page).toHaveURL(/\/login/);

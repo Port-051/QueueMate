@@ -3,6 +3,7 @@ import type {
   BlockView, CreateBlockRequest, CreateFriendRequest, CreateGameAccountRequest, CreateMatchRequest,
   CreateReportRequest, CreateReservationRequest, FriendRequestDirection, FriendRequestView, FriendView,
   GameAccountView, GameKey, GameView, LoginRequest, MatchRequestView, MatchSchemaView,
+  OAuthProviderView,
   PartyView, ProposalView, RecentPlayerView, ReservationView, SignupRequest, TokenResponse,
   UpdateUserRequest, UserProfile,
 } from './types';
@@ -22,6 +23,13 @@ export const refresh = (refreshToken: string) =>
 /** refresh token 자체가 자격 증명이라 access token을 요구하지 않는다 (docs/14 §11-12). */
 export const logout = (refreshToken: string) =>
   request<void>('/auth/logout', { method: 'POST', body: { refreshToken }, anonymous: true });
+
+/** 자격 증명이 설정된 제공자만 내려온다. 눌러도 실패할 버튼을 그리지 않기 위해서다. */
+export const listOAuthProviders = () =>
+  request<OAuthProviderView[]>('/auth/oauth/providers', { anonymous: true });
+/** 콜백이 들려준 일회용 코드를 토큰으로 바꾼다. 두 번째 호출은 401이다. */
+export const exchangeOAuthCode = (code: string) =>
+  request<TokenResponse>('/auth/oauth/exchange', { method: 'POST', body: { code }, anonymous: true });
 
 /* ---------- user ---------- */
 export const getMe = () => request<UserProfile>('/users/me');

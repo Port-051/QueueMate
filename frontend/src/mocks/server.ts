@@ -2,7 +2,8 @@ import { ApiError } from '../api/error';
 import type {
   BlockView, CreateBlockRequest, CreateFriendRequest, CreateGameAccountRequest, CreateReportRequest,
   CreateReservationRequest, FriendRequestView, FriendView, GameAccountView, GameKey, LoginRequest,
-  MatchCondition, MatchRequestView, PartyView, PlayPurpose, ProposalMember, ProposalView,
+  MatchCondition, MatchRequestView, OAuthExchangeRequest, OAuthProviderView, PartyView, PlayPurpose,
+  ProposalMember, ProposalView,
   RecentPlayerView, ReservationView, SignupRequest, TokenResponse, UpdateUserRequest, UserProfile,
   VoicePreference,
 } from '../api/types';
@@ -35,6 +36,26 @@ function issueTokens(profile: UserProfile): TokenResponse {
   db.session = { userId: profile.id, ...tokens };
   db.me = { ...profile };
   return { ...tokens, tokenType: 'Bearer', expiresIn: 3600 };
+}
+
+/** real 모드에서는 서버가 자격 증명을 보고 정한다. mock은 둘 다 켜진 셈 친다. */
+const MOCK_OAUTH_PROVIDERS: OAuthProviderView[] = [
+  { provider: 'KAKAO', displayName: '카카오', authorizeUrl: '/api/v1/auth/oauth/kakao/authorize' },
+  { provider: 'NAVER', displayName: '네이버', authorizeUrl: '/api/v1/auth/oauth/naver/authorize' },
+];
+
+/** 제공자 계정 하나에 QueueMate 계정 하나. 다시 로그인해도 같은 계정으로 들어간다. */
+function socialAccount(provider: OAuthProviderView) {
+  const email = `${provider.provider.toLowerCase()}@social.queuemate.test`;
+  const found = db.accounts.find((a) => a.email === email);
+  if (found) return found;
+  const account = {
+    email,
+    password: '',
+    profile: { id: uid(), nickname: `${provider.displayName}유저`, avatarUrl: null } as UserProfile,
+  };
+  db.accounts.push(account);
+  return account;
 }
 
 const isBlocked = (userId: string) => db.blocks.some((b) => b.userId === userId);
@@ -327,6 +348,19 @@ const routes: Route[] = [
   }, true],
 
   ['POST', /^\/auth\/logout$/, () => { db.session = null; return undefined; }, true],
+
+  /**
+   * 소셜 로그인. mock 모드에는 나갔다 올 제공자가 없어서 동의·콜백 구간이 없다.
+   * 계약에서 JSON을 주고받는 두 경로만 흉내 내고, 리다이렉트 구간은 real 모드에만 있다.
+   */
+  ['GET', /^\/auth\/oauth\/providers$/, () => MOCK_OAUTH_PROVIDERS, true],
+
+  ['POST', /^\/auth\/oauth\/exchange$/, ({ body }) => {
+    const { code } = body as OAuthExchangeRequest;
+    const provider = MOCK_OAUTH_PROVIDERS.find((p) => code === `mock-${p.provider.toLowerCase()}`);
+    if (!provider) throw new ApiError(401, 'UNAUTHORIZED', '만료됐거나 이미 사용된 코드입니다');
+    return issueTokens(socialAccount(provider).profile);
+  }, true],
 
   ['GET', /^\/users\/me$/, () => db.me],
   ['PATCH', /^\/users\/me$/, ({ body }) => {

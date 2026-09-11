@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { isApiError } from '../api/error';
+import { SocialLoginButtons } from '../components/SocialLoginButtons';
 import { Button, Field } from '../components/ui';
 import { IconBolt, IconMic, IconShield, IconTarget } from '../components/icons';
 import { USE_MOCK } from '../config';
@@ -87,6 +88,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
 
           <h1>{isSignup ? '회원가입' : '로그인'}</h1>
           <p className="sub">{isSignup ? '계정을 만들고 바로 매칭을 시작하세요.' : 'QueueMate에 오신 것을 환영합니다!'}</p>
+
+          <SocialLoginButtons redirectTo={from} onError={setError} />
 
           <form className="auth-form" onSubmit={submit}>
             <Field label="이메일">

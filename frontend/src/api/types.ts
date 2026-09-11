@@ -27,6 +27,16 @@ export interface SignupRequest { email: string; password: string; nickname: stri
 export interface LoginRequest { email: string; password: string; }
 export interface TokenResponse { accessToken: string; refreshToken: string; tokenType: 'Bearer'; expiresIn: number; }
 export interface RefreshRequest { refreshToken: string; }
+
+/** 소셜 로그인. DEV는 로컬 개발용 가짜 제공자라 운영에는 뜨지 않는다. */
+export type OAuthProviderKey = 'KAKAO' | 'NAVER' | 'DEV';
+export interface OAuthProviderView {
+  provider: OAuthProviderKey;
+  displayName: string;
+  /** 브라우저를 이동시킬 경로. 프론트엔드가 직접 조립하지 않는다. */
+  authorizeUrl: string;
+}
+export interface OAuthExchangeRequest { code: string; }
 export interface UserProfile { id: string; nickname: string; avatarUrl: string | null; }
 
 /**
