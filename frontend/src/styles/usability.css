@@ -13,7 +13,6 @@
 .card-sub, .banner { line-height: 1.65; }
 .field .hint, .field .err, .hint { font-size: 13px; }
 .nav-link { padding-block: 13px; }
-.nav-link.active { background: var(--accent-soft); border-color: transparent; box-shadow: inset 3px 0 var(--accent-2); }
 .sidebar { overflow-y: auto; }
 .main { position: relative; }
 .mobile-page-actions { display: none; }
@@ -24,11 +23,9 @@
 .account-profile b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .account-profile small { display: block; font-size: 12px; color: var(--ok); }
 .account-profile small.connecting { color: var(--warn); }
-.account-profile.active { background: var(--accent-soft); }
-.account-profile:hover, .account-profile:focus-visible { background: var(--panel-3); border-color: var(--line); }
+.account-profile:hover { background: var(--panel-3); }
 .account-settings { flex: none; width: 42px; height: 42px; border-color: transparent; background: transparent; color: var(--text-dim); }
-.account-settings:hover, .account-settings:focus-visible { background: var(--panel-3); color: var(--text); }
-.account-settings.active { background: var(--accent-soft); color: var(--accent-2); }
+.account-settings:hover { background: var(--panel-3); border-color: transparent; }
 .modal .sidebar-account { padding-top: 12px; }
 .mobile-nav { display: grid; gap: 4px; }
 .section-head { gap: 12px; flex-wrap: wrap; }

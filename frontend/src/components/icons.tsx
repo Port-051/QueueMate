@@ -1,14 +1,46 @@
 type P = { size?: number };
+type Selectable = P & { filled?: boolean };
 
 const s = (n = 18) => ({ width: n, height: n, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const });
 
-export const IconHome = ({ size }: P) => (<svg {...s(size)}><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.8V21h14V9.8" /></svg>);
+export const IconHome = ({ size, filled = false }: Selectable) => (
+  <svg {...s(size)} fill={filled ? 'currentColor' : 'none'} stroke={filled ? 'none' : 'currentColor'} aria-hidden="true">
+    <path d="M10 3.2a3 3 0 0 1 4 0l6 5.5a3 3 0 0 1 1 2.2V18a3 3 0 0 1-3 3h-3v-6a3 3 0 0 0-6 0v6H6a3 3 0 0 1-3-3v-7.1a3 3 0 0 1 1-2.2z" />
+  </svg>
+);
 export const IconMatch = ({ size }: P) => (<svg {...s(size)}><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="3" /><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3" /></svg>);
 export const IconCalendar = ({ size }: P) => (<svg {...s(size)}><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>);
-export const IconParty = ({ size }: P) => (<svg {...s(size)}><circle cx="9" cy="8.5" r="3.2" /><path d="M2.8 20c0-3.4 2.8-5.6 6.2-5.6s6.2 2.2 6.2 5.6" /><path d="M16.5 6.2a3 3 0 0 1 0 5.6M18.6 14.8c1.7.8 2.7 2.4 2.7 4.4" /></svg>);
-export const IconUser = ({ size }: P) => (<svg {...s(size)}><circle cx="12" cy="8" r="3.6" /><path d="M4.5 20.5c0-3.7 3.3-6.2 7.5-6.2s7.5 2.5 7.5 6.2" /></svg>);
-export const IconClock = ({ size }: P) => (<svg {...s(size)}><circle cx="12" cy="12" r="8.8" /><path d="M12 7v5.3l3.4 2" /></svg>);
-export const IconSettings = ({ size }: P) => (<svg {...s(size)}><circle cx="12" cy="12" r="3.2" /><path d="M19.4 14a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-2.9 1.2V20a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 7 18.3l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4 12.6H4a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 5.7 7l-.06-.06a2 2 0 1 1 2.83-2.83L8.5 4.2A1.7 1.7 0 0 0 11.4 3V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 2.9 1.2l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0 1.2 2.9H22a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z" /></svg>);
+export const IconParty = ({ size, filled = false }: Selectable) => (
+  <svg {...s(size)} fill={filled ? 'currentColor' : 'none'} stroke={filled ? 'none' : 'currentColor'} aria-hidden="true">
+    <circle cx="9" cy="8.5" r="3.2" />
+    {filled ? <>
+      <path d="M2.8 20c0-3.4 2.8-5.6 6.2-5.6s6.2 2.2 6.2 5.6a1 1 0 0 1-1 1H3.8a1 1 0 0 1-1-1z" />
+      <path d="M16 5.3a3.2 3.2 0 1 1 0 6.4 5.4 5.4 0 0 0 0-6.4M17 14.4c3 0 5 2.3 5 5.6a1 1 0 0 1-1 1h-3.5a9 9 0 0 0-1.7-6.4z" />
+    </> : <>
+      <path d="M2.8 20c0-3.4 2.8-5.6 6.2-5.6s6.2 2.2 6.2 5.6" />
+      <path d="M16.5 6.2a3 3 0 0 1 0 5.6M18.6 14.8c1.7.8 2.7 2.4 2.7 4.4" />
+    </>}
+  </svg>
+);
+export const IconUser = ({ size, filled = false }: Selectable) => (
+  <svg {...s(size)} fill={filled ? 'currentColor' : 'none'} stroke={filled ? 'none' : 'currentColor'} aria-hidden="true">
+    <circle cx="12" cy="8" r="3.6" />
+    <path d={filled ? 'M4.5 20c0-3.5 3.3-5.7 7.5-5.7s7.5 2.2 7.5 5.7a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1z' : 'M4.5 20.5c0-3.7 3.3-6.2 7.5-6.2s7.5 2.5 7.5 6.2'} />
+  </svg>
+);
+export const IconClock = ({ size, filled = false }: Selectable) => (
+  <svg {...s(size)} fill={filled ? 'currentColor' : 'none'} stroke={filled ? 'none' : 'currentColor'} aria-hidden="true">
+    {filled ? <path fillRule="evenodd" d="M12 3.2a8.8 8.8 0 1 1 0 17.6 8.8 8.8 0 0 1 0-17.6M11.2 6.9a.8.8 0 0 1 1.6 0v4.7l3 1.8a.8.8 0 1 1-.8 1.4l-3.4-2a.8.8 0 0 1-.4-.7z" /> : <>
+      <circle cx="12" cy="12" r="8.8" /><path d="M12 7v5.3l3.4 2" />
+    </>}
+  </svg>
+);
+export const IconSettings = ({ size }: P) => (
+  <svg {...s(size)} fill="currentColor" stroke="none" aria-hidden="true">
+    <path fillRule="evenodd" d="M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16M12 8.6a3.4 3.4 0 1 1 0 6.8 3.4 3.4 0 0 1 0-6.8" />
+    {[0, 45, 90, 135, 180, 225, 270, 315].map((angle) => <rect key={angle} x="10" y="1" width="4" height="5" rx=".8" transform={`rotate(${angle} 12 12)`} />)}
+  </svg>
+);
 export const IconBell = ({ size }: P) => (<svg {...s(size)}><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6z" /><path d="M10.3 19.5a2 2 0 0 0 3.4 0" /></svg>);
 export const IconMic = ({ size }: P) => (<svg {...s(size)}><rect x="9" y="2.5" width="6" height="11" rx="3" /><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5" /></svg>);
 export const IconMicOff = ({ size }: P) => (<svg {...s(size)}><path d="M9 5.5a3 3 0 0 1 6 0v5M9 10v.6a3 3 0 0 0 4.6 2.5" /><path d="M5.5 11.5a6.5 6.5 0 0 0 10 5.5M18.5 11.5a6.4 6.4 0 0 1-.5 2.5M12 18v3.5" /><path d="m3.5 3 17 18" /></svg>);

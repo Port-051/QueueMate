@@ -81,14 +81,13 @@ ul { margin: 0; padding: 0; list-style: none; }
   border: 1px solid transparent;
   transition: background 0.15s, color 0.15s;
 }
-.nav-link:hover { background: rgba(255, 255, 255, 0.04); color: var(--text); }
+.nav-link:hover { color: var(--text); }
 .nav-link.active {
-  color: #fff; font-weight: 600;
-  background: linear-gradient(90deg, rgba(96, 46, 214, 0.85), rgba(40, 25, 95, 0.55));
-  border-color: var(--accent-line);
+  color: var(--text);
 }
+.nav-link.active .nav-icon { color: #fff; opacity: 1; }
 .nav-link.disabled { opacity: 0.4; pointer-events: none; }
-.nav-icon { width: 20px; display: grid; place-items: center; opacity: 0.9; }
+.nav-icon { width: 22px; flex: none; display: grid; place-items: center; opacity: 0.9; }
 .nav-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
 
 .side-foot { margin-top: auto; display: grid; gap: 12px; }
