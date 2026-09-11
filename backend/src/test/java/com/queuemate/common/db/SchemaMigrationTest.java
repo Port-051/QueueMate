@@ -70,7 +70,8 @@ class SchemaMigrationTest {
                 "match_proposals", "match_requests", "reservations", "proposal_members",
                 "active_proposal_claims",
                 "parties", "party_members",
-                "friend_requests", "friendships", "blocks", "reports"
+                "friend_requests", "friendships", "blocks", "reports",
+                "user_identities"
         };
         for (String table : expected) {
             try (PreparedStatement ps = conn.prepareStatement(
@@ -81,6 +82,31 @@ class SchemaMigrationTest {
                 }
             }
         }
+    }
+
+    /** 같은 제공자 계정이 두 QueueMate 계정에 붙으면 어느 쪽으로 로그인될지 알 수 없다. */
+    @Test
+    void rejectsSameProviderAccountLinkedTwice() throws SQLException {
+        UUID first = insertUser();
+        UUID second = insertUser();
+        exec(insertIdentitySql(first, "KAKAO", "kakao-1"));
+
+        assertThrows(SQLException.class, () -> exec(insertIdentitySql(second, "KAKAO", "kakao-1")));
+    }
+
+    @Test
+    void allowsSameProviderUserIdOnDifferentProviders() throws SQLException {
+        UUID user = insertUser();
+        exec(insertIdentitySql(user, "KAKAO", "same-id"));
+        exec(insertIdentitySql(user, "NAVER", "same-id"));
+    }
+
+    /** 소셜로만 가입한 계정은 비밀번호도 이메일도 없을 수 있다 (V4). */
+    @Test
+    void allowsSocialOnlyUserWithoutPasswordAndEmail() throws SQLException {
+        UUID id = UUID.randomUUID();
+        exec("INSERT INTO users (id, nickname) VALUES ('" + id + "', 'social" + shortId() + "')");
+        exec(insertIdentitySql(id, "KAKAO", "kakao-" + shortId()));
     }
 
     @Test
@@ -313,6 +339,11 @@ class SchemaMigrationTest {
         exec("INSERT INTO users (id, email, password_hash, nickname) VALUES ('"
                 + id + "', 'u" + shortId() + "@queuemate.test', 'hash', 'nick" + shortId() + "')");
         return id;
+    }
+
+    private String insertIdentitySql(UUID user, String provider, String providerUserId) {
+        return "INSERT INTO user_identities (user_id, provider, provider_user_id) VALUES ('"
+                + user + "', '" + provider + "', '" + providerUserId + "')";
     }
 
     private String insertClaimSql(UUID user, UUID proposal) {

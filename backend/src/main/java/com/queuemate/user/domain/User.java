@@ -19,10 +19,12 @@ public class User {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @Column(name = "email", nullable = false, length = 255)
+    // 이메일을 주지 않는 소셜 제공자가 있어 null이 허용된다 (V4).
+    @Column(name = "email", length = 255)
     private String email;
 
-    @Column(name = "password_hash", nullable = false, length = 255)
+    // 소셜로만 가입한 사용자는 비밀번호가 없다 (V4).
+    @Column(name = "password_hash", length = 255)
     private String passwordHash;
 
     @Column(name = "nickname", nullable = false, length = 16)
@@ -55,6 +57,16 @@ public class User {
 
     public static User create(String email, String passwordHash, String nickname) {
         return new User(UUID.randomUUID(), email, passwordHash, nickname);
+    }
+
+    /** 소셜 로그인으로만 만들어진 계정. 비밀번호가 없고 이메일도 없을 수 있다. */
+    public static User createSocial(String email, String nickname) {
+        return new User(UUID.randomUUID(), email, null, nickname);
+    }
+
+    /** 비밀번호로 로그인할 수 있는 계정인가. 소셜 전용 계정은 false다. */
+    public boolean hasPassword() {
+        return passwordHash != null && !passwordHash.isBlank();
     }
 
     public void changeNickname(String nickname) {
