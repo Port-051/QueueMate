@@ -12,6 +12,8 @@ public interface GameAccountRepository extends JpaRepository<GameAccount, UUID> 
 
     List<GameAccount> findAllByUserId(UUID userId);
 
+    List<GameAccount> findAllByUserIdInAndProviderGame(List<UUID> userIds, GameKey providerGame);
+
     Optional<GameAccount> findByIdAndUserId(UUID id, UUID userId);
 
     boolean existsByUserIdAndProviderGameAndExternalGameId(

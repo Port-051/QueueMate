@@ -6,9 +6,13 @@ import com.queuemate.party.domain.PartyMember;
 import com.queuemate.party.service.PartyService.PartyDetail;
 import com.queuemate.user.domain.User;
 import com.queuemate.user.repository.UserRepository;
+import com.queuemate.user.repository.GameAccountRepository;
+import com.queuemate.user.domain.GameAccount;
+import com.queuemate.common.domain.GameKey;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -18,12 +22,19 @@ import java.util.stream.Collectors;
 public class PartyViewAssembler {
 
     private final UserRepository users;
+    private final GameAccountRepository gameAccounts;
 
-    public PartyViewAssembler(UserRepository users) {
+    public PartyViewAssembler(UserRepository users, GameAccountRepository gameAccounts) {
         this.users = users;
+        this.gameAccounts = gameAccounts;
     }
 
     public PartyView toView(PartyDetail detail) {
+        Map<UUID, List<String>> gameIds = gameAccounts.findAllByUserIdInAndProviderGame(
+                        detail.members().stream().map(PartyMember::getUserId).toList(),
+                        GameKey.valueOf(detail.party().getGameKey()))
+                .stream().collect(Collectors.groupingBy(GameAccount::getUserId,
+                        Collectors.mapping(GameAccount::getExternalGameId, Collectors.toList())));
         Map<UUID, User> profiles = users
                 .findAllById(detail.members().stream().map(PartyMember::getUserId).toList())
                 .stream()
@@ -40,7 +51,8 @@ public class PartyViewAssembler {
                             return new MemberView(
                                     member.getUserId(),
                                     profile == null ? null : profile.getNickname(),
-                                    member.isReady());
+                                    member.isReady(),
+                                    gameIds.getOrDefault(member.getUserId(), List.of()).stream().sorted().toList());
                         })
                         .toList());
     }
