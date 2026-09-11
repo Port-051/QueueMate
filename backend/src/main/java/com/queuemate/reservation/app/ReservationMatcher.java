@@ -3,10 +3,10 @@ package com.queuemate.reservation.app;
 import com.queuemate.common.social.BlockLookupPort;
 import com.queuemate.gameconfig.domain.GameModeConfig;
 import com.queuemate.gameconfig.domain.GameModeConfigProvider;
-import com.queuemate.matching.domain.CompatibilityTier;
-import com.queuemate.matching.domain.ConditionCompatibility;
 import com.queuemate.matching.domain.MatchCondition;
 import com.queuemate.matching.domain.MatchProposal;
+import com.queuemate.matching.domain.PartyAssembler;
+import com.queuemate.matching.domain.PartyCandidate;
 import com.queuemate.matching.domain.ProposalMember;
 import com.queuemate.matching.domain.MatchingEvents;
 import com.queuemate.matching.domain.ProposalSourceType;
@@ -34,11 +34,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -119,7 +115,12 @@ public class ReservationMatcher {
         if (pool.size() < config.get().targetPartySize() - 1) {
             return Optional.empty();
         }
-        return buildParty(seed, pool, config.get())
+        // seed를 0번에 놓고 그 자리에서만 조립한다. 예약은 기준 예약이 정해진 매칭이다.
+        List<Candidate> all = new ArrayList<>(pool.size() + 1);
+        all.add(seed);
+        all.addAll(pool);
+        return PartyAssembler.over(all, config.get(), blocks, random)
+                .assembleFrom(0, (party, candidate) -> commonSlotOf(party, candidate).isPresent())
                 .flatMap(party -> claimAndPropose(party, config.get()));
     }
 
@@ -170,40 +171,6 @@ public class ReservationMatcher {
         return candidates;
     }
 
-    private Optional<List<Candidate>> buildParty(Candidate seed, List<Candidate> pool,
-                                                 GameModeConfig config) {
-        List<Candidate> party = new ArrayList<>(config.targetPartySize());
-        party.add(seed);
-        Map<UUID, Set<UUID>> blockCache = new HashMap<>();
-
-        while (party.size() < config.targetPartySize()) {
-            Map<CompatibilityTier, List<Candidate>> byTier = new EnumMap<>(CompatibilityTier.class);
-            for (Candidate candidate : pool) {
-                if (isBlockedAgainst(candidate, party, blockCache)) {
-                    continue;
-                }
-                // 전원의 시간이 여전히 겹쳐야 한다. 한 명만 겹치는 것으로는 부족하다.
-                if (commonSlotOf(party, candidate).isEmpty()) {
-                    continue;
-                }
-                List<MatchCondition> conditions = new ArrayList<>(party.size() + 1);
-                party.forEach(member -> conditions.add(member.condition()));
-                conditions.add(candidate.condition());
-                ConditionCompatibility.forParty(conditions, config)
-                        .ifPresent(tier -> byTier.computeIfAbsent(tier, key -> new ArrayList<>())
-                                .add(candidate));
-            }
-            if (byTier.isEmpty()) {
-                return Optional.empty();
-            }
-            CompatibilityTier best = byTier.keySet().stream().min(Comparator.naturalOrder()).orElseThrow();
-            Candidate chosen = random.pick(byTier.get(best));
-            party.add(chosen);
-            pool.remove(chosen);
-        }
-        return Optional.of(party);
-    }
-
     private Optional<UUID> claimAndPropose(List<Candidate> party, GameModeConfig config) {
         List<UUID> userIds = party.stream().map(Candidate::userId).toList();
         if (blocks.anyBlockBetween(userIds)) {
@@ -251,21 +218,6 @@ public class ReservationMatcher {
                 OffsetDateTime.now(clock));
     }
 
-    private boolean isBlockedAgainst(Candidate candidate, List<Candidate> party,
-                                     Map<UUID, Set<UUID>> blockCache) {
-        Set<UUID> blocked = blockCache.computeIfAbsent(candidate.userId(), blocks::blockedUserIds);
-        for (Candidate member : party) {
-            if (blocked.contains(member.userId())) {
-                return true;
-            }
-            if (blockCache.computeIfAbsent(member.userId(), blocks::blockedUserIds)
-                    .contains(candidate.userId())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private void releaseClaimsIfRolledBack(UUID proposalId, List<UUID> userIds) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             return;
@@ -284,8 +236,10 @@ public class ReservationMatcher {
         return new Candidate(reservation, codec.fromJson(reservation.getConditionJson()));
     }
 
-    private record Candidate(Reservation reservation, MatchCondition condition) {
-        UUID userId() {
+    private record Candidate(Reservation reservation, MatchCondition condition)
+            implements PartyCandidate {
+        @Override
+        public UUID userId() {
             return reservation.getUserId();
         }
     }
