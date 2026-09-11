@@ -95,6 +95,82 @@ paths:
             schema: { $ref: '#/components/schemas/RefreshRequest' }
       responses:
         '204': { description: Logged out }
+  /auth/oauth/providers:
+    get:
+      summary: 사용 가능한 소셜 로그인 제공자
+      description: >
+        자격 증명이 설정된 제공자만 돌려준다. 프론트엔드는 이 목록으로 버튼을 그린다.
+        설정되지 않은 제공자의 버튼을 그려두면 사용자가 누른 뒤에야 실패를 알게 된다.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/OAuthProviderView' }
+  /auth/oauth/{provider}/authorize:
+    get:
+      summary: 소셜 로그인 시작
+      description: >
+        제공자의 동의 화면으로 302 한다. XHR이 아니라 브라우저 이동으로 호출한다.
+        CSRF 방지용 state를 서버가 만들어 보관하고 callback에서 한 번만 소비한다.
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/OAuthProvider' }
+        - name: redirect
+          in: query
+          required: false
+          description: 로그인 후 돌아갈 앱 내부 경로. 외부 URL은 거부한다.
+          schema: { type: string }
+      responses:
+        '302': { description: 제공자 동의 화면으로 이동 }
+        '404': { description: 설정되지 않은 제공자 }
+  /auth/oauth/{provider}/callback:
+    get:
+      summary: 제공자 콜백
+      description: >
+        제공자가 브라우저를 여기로 돌려보낸다. 토큰을 URL에 싣지 않는다.
+        URL은 브라우저 기록과 Referer, 프록시 로그에 남기 때문이다. 대신 한 번만 쓸 수 있는
+        짧은 수명의 교환 코드를 붙여 프론트엔드로 302 하고, 토큰은 exchange에서 준다.
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/OAuthProvider' }
+        - name: code
+          in: query
+          required: false
+          schema: { type: string }
+        - name: state
+          in: query
+          required: false
+          schema: { type: string }
+        - name: error
+          in: query
+          required: false
+          description: 사용자가 동의를 거부하면 제공자가 채워 보낸다.
+          schema: { type: string }
+      responses:
+        '302': { description: 프론트엔드 콜백 경로로 이동 }
+  /auth/oauth/exchange:
+    post:
+      summary: 교환 코드를 토큰으로 바꾼다
+      description: 코드는 한 번만 쓸 수 있고 수명이 짧다. 두 번째 호출은 401이다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OAuthExchangeRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { description: 만료됐거나 이미 사용된 코드 }
   /users/me:
     get:
       summary: Current user
@@ -637,6 +713,24 @@ components:
       required: [refreshToken]
       properties:
         refreshToken: { type: string }
+    OAuthProvider:
+      type: string
+      description: DEV는 로컬 개발용 가짜 제공자다. local/test 프로파일에서만 켜진다.
+      enum: [KAKAO, NAVER, DEV]
+    OAuthProviderView:
+      type: object
+      required: [provider, displayName, authorizeUrl]
+      properties:
+        provider: { $ref: '#/components/schemas/OAuthProvider' }
+        displayName: { type: string }
+        authorizeUrl:
+          type: string
+          description: 브라우저를 이동시킬 경로. 프론트엔드가 직접 조립하지 않는다.
+    OAuthExchangeRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string }
     UserProfile:
       type: object
       required: [id, nickname]
