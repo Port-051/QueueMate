@@ -8,8 +8,9 @@ test('작은 화면에서도 주요 페이지와 매칭 팝업이 잘리지 않�
     for (const route of ['home', 'me', 'friends', 'settings', 'recent']) {
       if (width < 768) {
         await page.getByRole('button', { name: '메뉴 열기' }).click();
-        await page.locator(`.mobile-nav a[href="/app/${route}"]`).click();
-      } else await page.locator(`.side-nav a[href="/app/${route}"]`).click();
+        await page.getByRole('dialog', { name: '메뉴', exact: true }).locator(`a[href="/app/${route}"]`).click();
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+      } else await page.locator(`.sidebar a[href="/app/${route}"]`).click();
       await expect(page).toHaveURL(new RegExp(`/app/${route}$`));
       await expect(page.locator('h1')).toBeVisible();
       const dimensions = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: innerWidth }));

@@ -14,17 +14,21 @@
 .field .hint, .field .err, .hint { font-size: 13px; }
 .nav-link { padding-block: 13px; }
 .nav-link.active { background: var(--accent-soft); border-color: transparent; box-shadow: inset 3px 0 var(--accent-2); }
-.side-nav .nav-link[href="/app/me"] { margin-top: 24px; }
 .sidebar { overflow-y: auto; }
 .main { position: relative; }
 .mobile-page-actions { display: none; }
 .sidebar-account { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
-.account-profile { display: flex; gap: 10px; align-items: center; flex: 1; min-width: 0; padding: 12px 0; text-align: left; border: 0; background: transparent; cursor: pointer; }
+.account-profile { display: flex; gap: 10px; align-items: center; flex: 1; min-width: 0; min-height: 56px; padding: 8px; text-align: left; border: 1px solid transparent; border-radius: var(--r-sm); background: transparent; cursor: pointer; transition: background .15s, border-color .15s; }
+.account-profile > .avatar { flex-shrink: 0; }
 .account-profile > span:last-child { min-width: 0; }
-.account-profile b { display: block; overflow-wrap: anywhere; font-size: 14px; }
+.account-profile b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
 .account-profile small { display: block; font-size: 12px; color: var(--ok); }
 .account-profile small.connecting { color: var(--warn); }
-.account-profile:hover b { color: var(--accent-2); }
+.account-profile.active { background: var(--accent-soft); }
+.account-profile:hover, .account-profile:focus-visible { background: var(--panel-3); border-color: var(--line); }
+.account-settings { flex: none; width: 42px; height: 42px; border-color: transparent; background: transparent; color: var(--text-dim); }
+.account-settings:hover, .account-settings:focus-visible { background: var(--panel-3); color: var(--text); }
+.account-settings.active { background: var(--accent-soft); color: var(--accent-2); }
 .modal .sidebar-account { padding-top: 12px; }
 .mobile-nav { display: grid; gap: 4px; }
 .section-head { gap: 12px; flex-wrap: wrap; }
@@ -85,6 +89,7 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
 .profile-links a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--text-dim); font-size: 14px; }
 .profile-links a:hover { color: var(--accent-2); }
 .profile-links span { color: var(--muted); }
+.profile-session { padding-top: 24px; border-top: 1px solid var(--line-soft); }
 .profile-page .account-row { margin-top: 0; padding-block: 18px; }
 .profile-page .account-row .game-logo { width: 40px; height: 40px; }
 .inline-help { border-top: 1px solid var(--line-soft); color: var(--muted); font-size: 14px; }
@@ -111,7 +116,6 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
 .focus-page .game-card .gc-check { position: static; margin-left: auto; flex: none; width: 18px; height: 18px; }
 .focus-page .game-card .game-logo { width: 36px; height: 36px; }
 .reservation-time-section { padding-bottom: 20px !important; border-bottom: 1px solid var(--line-soft) !important; }
-.account-logout { flex: none; }
 .home-page { max-width: 1080px; }
 .home-page .home-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
 .home-page .home-heading h1 { font-size: 22px; }

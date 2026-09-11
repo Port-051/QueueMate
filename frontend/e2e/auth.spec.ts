@@ -30,10 +30,24 @@ test('로그인하지 않으면 앱 화면 대신 로그인으로 보낸다', as
   await expect(page).toHaveURL(/\/login/);
 });
 
-test('로그인 후 홈 중심의 메뉴가 노출된다', async ({ page }) => {
+test('계정 메뉴에서 내 정보와 설정으로 이동하고 내 정보에서 로그아웃한다', async ({ page }) => {
   await login(page);
   const labels = await page.locator('.side-nav .nav-link').allInnerTexts();
   expect(labels.map((t) => t.trim().split('\n')[0])).toEqual([
-    '홈', '파티룸', '친구', '최근 함께한 사람', '내 정보', '설정',
+    '홈', '파티룸', '친구', '최근 함께한 사람',
   ]);
+  const account = page.getByRole('navigation', { name: '내 계정' });
+  await expect(account.getByRole('button', { name: '로그아웃' })).toHaveCount(0);
+  await account.getByRole('link', { name: '설정', exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/settings$/);
+  await expect(account.getByRole('link', { name: '설정', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('button', { name: '로그아웃' })).toHaveCount(0);
+  await account.getByRole('link', { name: '내 정보', exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/me$/);
+  await expect(account.getByRole('link', { name: '내 정보', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByText('팀원에게 보여줄 프로필과 게임 ID를 관리하세요.')).toHaveCount(0);
+  await page.getByRole('button', { name: '로그아웃', exact: true }).click();
+  await expect(page).toHaveURL('/');
+  await page.goto('/app/me');
+  await expect(page).toHaveURL(/\/login/);
 });

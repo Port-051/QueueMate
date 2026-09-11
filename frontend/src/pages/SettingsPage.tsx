@@ -1,15 +1,10 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import type { PlayPurpose, VoicePreference } from '../api/types';
-import { IconLogout } from '../components/icons';
-import { Button, Card, CardHead, OptionRow, useToast } from '../components/ui';
+import { Card, CardHead, OptionRow, useToast } from '../components/ui';
 import { PURPOSE_OPTIONS, VOICE_OPTIONS } from '../domain/gameConfig';
-import { useAuth } from '../state/AuthContext';
 import { readPreferences, writePreferences } from '../state/preferences';
 
 export function SettingsPage() {
-  const { logout } = useAuth();
-  const navigate = useNavigate();
   const toast = useToast();
   const [prefs, setPrefs] = useState(() => readPreferences());
 
@@ -43,12 +38,6 @@ export function SettingsPage() {
             />
           </Card>
 
-          <Card className="content-section">
-            <CardHead title="계정" />
-            <Button variant="danger" onClick={() => { void logout().then(() => navigate('/')); }}>
-              <IconLogout size={15} /> 로그아웃
-            </Button>
-          </Card>
         <details className="inline-help">
           <summary>개인정보와 안전</summary>
           <ul>

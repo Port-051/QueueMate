@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../state/AuthContext';
@@ -8,7 +8,7 @@ import { useConnectionStatus } from '../state/useConnectionStatus';
 import { Logo } from './Logo';
 import { Avatar, Button, Modal } from './ui';
 import {
-  IconClock, IconHome, IconLogout, IconParty, IconSettings, IconUser,
+  IconClock, IconHome, IconParty, IconSettings, IconUser,
 } from './icons';
 
 interface NavItem { to: string; label: string; icon: ReactNode; }
@@ -18,18 +18,15 @@ const NAV: NavItem[] = [
   { to: '/app/party', label: '파티룸', icon: <IconParty /> },
   { to: '/app/friends', label: '친구', icon: <IconUser /> },
   { to: '/app/recent', label: '최근 함께한 사람', icon: <IconClock /> },
-  { to: '/app/me', label: '내 정보', icon: <IconUser /> },
-  { to: '/app/settings', label: '설정', icon: <IconSettings /> },
 ];
 
 export function AppShell() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { activePartyId, request, stream } = useMatch();
   const connection = useConnectionStatus(stream);
   const connectionLabel = connection === 'connected' ? '온라인' : connection === 'reconnecting' ? '재연결 중' : '서버 연결 중';
   const { receivedRequests } = useSocial();
   const location = useLocation();
-  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); }, [location.pathname]);
 
@@ -53,13 +50,13 @@ export function AppShell() {
   );
 
   const account = (
-    <div className="sidebar-account">
-      {user ? <button type="button" className="account-profile" aria-label="내 프로필 열기" onClick={() => { setMenuOpen(false); navigate('/app/me'); }}>
+    <nav className="sidebar-account" aria-label="내 계정">
+      {user ? <NavLink to="/app/me" className={({ isActive }) => `account-profile${isActive ? ' active' : ''}`} aria-label="내 정보" title="내 정보" onClick={() => setMenuOpen(false)}>
         <Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={36} status={connection === 'connected' ? 'online' : 'away'} />
         <span><b>{user.nickname}</b><small className={connection === 'connected' ? '' : 'connecting'}>{connectionLabel}</small></span>
-      </button> : null}
-      <button type="button" className="icon-btn account-logout" aria-label="로그아웃" title="로그아웃" onClick={() => { setMenuOpen(false); void logout().then(() => navigate('/')); }}><IconLogout /></button>
-    </div>
+      </NavLink> : null}
+      <NavLink to="/app/settings" className={({ isActive }) => `icon-btn account-settings${isActive ? ' active' : ''}`} aria-label="설정" title="설정" onClick={() => setMenuOpen(false)}><IconSettings /></NavLink>
+    </nav>
   );
 
   return (

@@ -1,10 +1,10 @@
 import { GameBadge } from '../components/GameSymbol';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
 import type { GameKey } from '../api/types';
-import { IconCheck, IconPencil } from '../components/icons';
+import { IconCheck, IconLogout, IconPencil } from '../components/icons';
 import { AVATAR_CHOICES, Avatar, Button, Card, CardHead, ConfirmDialog, Field, Modal, Tag, useToast } from '../components/ui';
 import { GAMES } from '../domain/gameConfig';
 import { gameFullLabel } from '../domain/labels';
@@ -12,14 +12,16 @@ import { useAuth } from '../state/AuthContext';
 import { useSocial } from '../state/SocialContext';
 
 export function MyInfoPage() {
-  const { user, gameAccounts, updateProfile, refreshGameAccounts } = useAuth();
+  const { user, gameAccounts, updateProfile, refreshGameAccounts, logout } = useAuth();
   const { friends, recentPlayers, blocks } = useSocial();
   const toast = useToast();
+  const navigate = useNavigate();
 
   const [nickname, setNickname] = useState(user?.nickname ?? '');
   const [game, setGame] = useState<GameKey>('LOL');
   const [externalId, setExternalId] = useState('');
   const [busy, setBusy] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [unlinkTarget, setUnlinkTarget] = useState<{ id: string; game: GameKey } | null>(null);
   // 모달 안에서만 쓰는 임시 선택이다. 저장 전까지 실제 프로필은 건드리지 않는다.
@@ -89,9 +91,19 @@ export function MyInfoPage() {
     toast('게임 계정 연결을 해제했습니다');
   };
 
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+    } catch {
+      // 서버 요청 실패 시에도 AuthContext가 로컬 세션을 정리한다.
+    }
+    navigate('/', { replace: true });
+  };
+
   return (
     <section className="page focus-page profile-page">
-      <div className="page-head"><h1>내 정보</h1><p>팀원에게 보여줄 프로필과 게임 ID를 관리하세요.</p></div>
+      <div className="page-head"><h1>내 정보</h1></div>
       <div className="content-sections">
           <Card className="content-section">
             <CardHead title="프로필" sub="매칭 제안과 파티룸에서 팀원에게 보입니다." />
@@ -137,6 +149,11 @@ export function MyInfoPage() {
           <Link to="/app/recent">최근 함께한 사람 <span>{recentPlayers.length}</span></Link>
           <Link to="/app/friends?tab=blocks">차단 목록 <span>{blocks.length}</span></Link>
         </nav>
+        <div className="profile-session">
+          <Button variant="danger" disabled={loggingOut} onClick={() => void handleLogout()}>
+            <IconLogout size={16} /> {loggingOut ? '로그아웃 중…' : '로그아웃'}
+          </Button>
+        </div>
       </div>
       {unlinkTarget ? <ConfirmDialog title={`${gameFullLabel(unlinkTarget.game)} 연결을 해제할까요?`} description="이 게임의 ID가 파티원에게 표시되지 않습니다. 나중에 다시 등록할 수 있습니다." confirmLabel="연결 해제" onConfirm={() => unlink(unlinkTarget.id)} onClose={() => setUnlinkTarget(null)} /> : null}
 
