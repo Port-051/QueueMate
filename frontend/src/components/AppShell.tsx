@@ -52,7 +52,7 @@ export function AppShell() {
           className={({ isActive }) => `nav-link${isActive && !disabled ? ' active' : ''}${disabled ? ' disabled' : ''}`}>
           {({ isActive }) => <>
             <span className="nav-icon"><MenuIcon size={mobile ? 24 : 28} filled={isActive && !disabled} /></span><span className="nav-label">{item.label}</span>
-            {item.to === '/app/home' && request ? <span className="nav-badge">1</span> : null}
+            {item.to === '/app/home' && request ? <span className="nav-dot" role="img" aria-label="매칭 중" /> : null}
             {item.to === '/app/friends' && receivedRequests.length > 0 ? <span className="nav-badge">{receivedRequests.length}</span> : null}
           </>}
         </NavLink>;
