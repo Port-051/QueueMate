@@ -49,6 +49,9 @@
 .home-history-empty { padding: 28px 0; border-top: 1px solid var(--line-soft); color: var(--muted); font-size: 14px; }
 .home-load-error { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 12px; color: var(--warn); font-size: 13px; }
 .history-more { display: flex; margin: 20px auto 0; }
+@media (min-width: 768px) {
+  .home-page { padding-top: 64px; }
+}
 @media (max-width: 1023px) {
   .home-workspace { grid-template-columns: 1fr; }
 }
