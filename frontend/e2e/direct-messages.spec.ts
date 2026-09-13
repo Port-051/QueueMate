@@ -164,18 +164,20 @@ test('음성 미리보기는 요청 취소·시간 초과·대화 이동 후 재
   await page.getByRole('button', { name: 'GankFlow 대화', exact: true }).click();
   await page.clock.install();
   const voice = page.getByRole('region', { name: '음성 대화', exact: true });
-  await voice.getByRole('button', { name: '통화 시작', exact: true }).click();
+  await page.getByRole('button', { name: '통화 시작', exact: true }).click();
   await page.clock.fastForward(5000);
   await expect(voice.getByRole('status')).toHaveText('통화 요청 중 · 00:05');
   await voice.getByRole('button', { name: '요청 취소', exact: true }).click();
-  await expect(voice.getByRole('button', { name: '통화 시작', exact: true })).toBeVisible();
-  await voice.getByRole('button', { name: '통화 시작', exact: true }).click();
+  await expect(voice).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '통화 시작', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: '통화 시작', exact: true }).click();
   await page.clock.fastForward(30000);
   await expect(voice.getByRole('status')).toHaveText('응답이 없습니다');
   await voice.getByRole('button', { name: '다시 통화하기', exact: true }).click();
   await page.getByRole('button', { name: /^BlueOcean 대화/ }).click();
-  await expect(voice.getByRole('button', { name: '통화 시작', exact: true })).toBeVisible();
-  await expect(voice.getByRole('status')).toHaveText('음성으로 함께하기');
+  await expect(voice).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '통화 시작', exact: true })).toBeEnabled();
+  await expect(voice).toHaveCount(0);
 });
 
 test('홈과 메시지의 콘텐츠 너비와 좌우 시작점을 맞춘다', async ({ page }) => {
@@ -185,4 +187,20 @@ test('홈과 메시지의 콘텐츠 너비와 좌우 시작점을 맞춘다', as
   const messages = (await page.locator('.direct-messages-page').boundingBox())!;
   expect(messages.x).toBe(home.x);
   expect(messages.width).toBe(home.width);
+});
+
+test('연속 메시지는 작성자를 반복하지 않고 입력창 가까이에 쌓인다', async ({ page }) => {
+  await openMessages(page);
+  await page.getByRole('button', { name: 'GankFlow 대화', exact: true }).click();
+  const field = page.getByRole('textbox', { name: 'GankFlow에게 메시지', exact: true });
+  await field.fill('첫 번째 문장');
+  await field.press('Enter');
+  await field.fill('이어서 보낸 문장');
+  await field.press('Enter');
+  await expect(page.locator('.dm-message-entry.is-grouped p')).toHaveText('이어서 보낸 문장');
+  const last = (await page.locator('.dm-message-entry').last().boundingBox())!;
+  const compose = (await page.locator('.dm-compose').boundingBox())!;
+  expect(compose.y - last.y - last.height).toBeLessThan(50);
+  const avatar = (await page.locator('.dm-self > .avatar-wrap').boundingBox())!;
+  expect(avatar.width).toBe(avatar.height);
 });
