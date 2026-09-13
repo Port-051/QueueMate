@@ -4,7 +4,7 @@ type Selectable = P & { filled?: boolean };
 const s = (n = 18) => ({ width: n, height: n, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const });
 
 export const IconHome = ({ size, filled = false }: Selectable) => (
-  <svg {...s(size)} fill={filled ? 'currentColor' : 'none'} stroke={filled ? 'none' : 'currentColor'} aria-hidden="true">
+  <svg {...s(size)} viewBox="1.5 1.5 21 21" fill={filled ? 'currentColor' : 'none'} stroke={filled ? 'none' : 'currentColor'} aria-hidden="true">
     <path d="M10 3.2a3 3 0 0 1 4 0l6 5.5a3 3 0 0 1 1 2.2V18a3 3 0 0 1-3 3h-3v-6a3 3 0 0 0-6 0v6H6a3 3 0 0 1-3-3v-7.1a3 3 0 0 1 1-2.2z" />
   </svg>
 );
