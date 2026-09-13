@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { login, manageRecruitment } from './helpers';
+import { login, manageRecruitment, selectBoardFilter } from './helpers';
 
 test('자기소개를 비워 두면 모든 조건이 무관이며 수동 모집을 시작할 수 있다', async ({ page }) => {
   await login(page);
@@ -26,9 +26,12 @@ test('자기소개를 비워 두면 모든 조건이 무관이며 수동 모집�
 
 test('상대 검색과 별개인 자기소개·전적을 보관하고 수정·다시 모집에 사용한다', async ({ page }) => {
   await login(page);
-  await page.getByLabel('찾는 상대 포지션').selectOption('TOP');
-  await page.getByLabel('찾는 상대 티어').selectOption('DIAMOND');
-  await page.getByLabel('찾는 큐 타입').selectOption('ARAM');
+  const filters = page.locator('.board-filter-bar');
+  const top = filters.getByRole('group', { name: '찾는 상대 포지션', exact: true }).getByRole('button', { name: '탑', exact: true });
+  const aram = filters.getByRole('group', { name: '찾는 큐 타입', exact: true }).getByRole('button', { name: '칼바람 나락', exact: true });
+  await top.click();
+  await selectBoardFilter(page, '찾는 상대 티어', '다이아몬드');
+  await aram.click();
   await page.locator('.intro-launch').getByRole('button').click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByLabel('주 포지션', { exact: true })).toHaveValue('ANY');
@@ -51,9 +54,9 @@ test('상대 검색과 별개인 자기소개·전적을 보관하고 수정·�
   await dialog.getByRole('radio', { name: '수동 매칭' }).check();
   await dialog.getByRole('button', { name: '모집 시작', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByLabel('찾는 상대 포지션')).toHaveValue('TOP');
-  await expect(page.getByLabel('찾는 상대 티어')).toHaveValue('DIAMOND');
-  await expect(page.getByLabel('찾는 큐 타입')).toHaveValue('ARAM');
+  await expect(top).toHaveAttribute('aria-pressed', 'true');
+  await expect(filters.getByRole('button', { name: '찾는 상대 티어', exact: true })).toContainText('다이아몬드');
+  await expect(aram).toHaveAttribute('aria-pressed', 'true');
   const stored = await page.evaluate(async () => {
     const introPath = '/src/domain/introduction.ts';
     const apiPath = '/src/api/client.ts';

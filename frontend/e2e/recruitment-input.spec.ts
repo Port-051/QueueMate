@@ -1,24 +1,129 @@
 import { expect, test } from '@playwright/test';
-import { login } from './helpers';
+import { login, selectBoardFilter } from './helpers';
 test.use({ timezoneId: 'Asia/Seoul' });
 
 test('상대 티어 하나를 고르면 바로 필터링되고 전체 티어로 돌아갈 수 있다', async ({ page }) => {
   await login(page);
   await expect(page.locator('.recruitment-row').first()).toBeVisible();
   const initialCount = await page.locator('.recruitment-row').count();
+  await expect(page.getByRole('button', { name: '초기화', exact: true })).toHaveCount(0);
   await expect(page.getByLabel('상대 최소 티어')).toHaveCount(0);
   await expect(page.getByLabel('상대 최대 티어')).toHaveCount(0);
-  await page.getByLabel('찾는 상대 티어').selectOption('GOLD');
+  await selectBoardFilter(page, '찾는 상대 티어', '골드');
   await expect.poll(async () => {
     const tiers = await page.locator('.recruitment-row .row-tier').allTextContents();
     return tiers.length > 0 && tiers.every(tier => tier.includes('골드'));
   }).toBe(true);
-  await page.getByLabel('찾는 상대 티어').selectOption('DIAMOND');
+  await selectBoardFilter(page, '찾는 상대 티어', '다이아몬드');
   await expect(page.locator('.recruitment-row')).toHaveCount(0);
   await expect(page.locator('.board-empty')).toContainText('조건에 맞는 모집이 없어요');
   await page.getByRole('button', { name: '초기화', exact: true }).click();
-  await expect(page.getByLabel('찾는 상대 티어')).toHaveValue('');
+  await expect(page.getByRole('button', { name: '찾는 상대 티어', exact: true })).toContainText('모든 티어');
+  await expect(page.getByRole('button', { name: '초기화', exact: true })).toHaveCount(0);
   await expect(page.locator('.recruitment-row')).toHaveCount(initialCount);
+});
+
+test('포지션 아이콘은 재선택으로 해제되고 큐·음성 조건과 함께 목록을 좁힌다', async ({ page }) => {
+  await login(page);
+  const filters = page.locator('.board-filter-bar');
+  const roles = filters.getByRole('group', { name: '찾는 상대 포지션', exact: true });
+  const modes = filters.getByRole('group', { name: '찾는 큐 타입', exact: true });
+  const rows = page.locator('.recruitment-row');
+  await expect(rows).toHaveCount(10);
+  await expect(roles.getByRole('button')).toHaveCount(5);
+  await expect(roles.getByRole('button', { pressed: true })).toHaveCount(0);
+  await expect(modes.getByRole('button', { name: '전체', exact: true })).toHaveAttribute('aria-pressed', 'true');
+
+  await roles.getByRole('button', { name: '미드', exact: true }).click();
+  await expect(roles.getByRole('button', { name: '미드', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(rows).toHaveCount(6);
+  await modes.getByRole('button', { name: '칼바람 나락', exact: true }).click();
+  await expect(modes.getByRole('button', { name: '전체', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  await expect(modes.getByRole('button', { name: '칼바람 나락', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.locator('.row-player b')).toHaveText(['SupportLife · 칼바람', 'SilentJungle · 칼바람']);
+  await selectBoardFilter(page, '찾는 상대 음성', '사용 안 함');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('SilentJungle · 칼바람');
+
+  await roles.getByRole('button', { name: '미드', exact: true }).click();
+  await expect(roles.getByRole('button', { pressed: true })).toHaveCount(0);
+  await expect(modes.getByRole('button', { name: '칼바람 나락', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(rows).toHaveCount(3);
+  await filters.getByRole('button', { name: '초기화', exact: true }).click();
+  await expect(modes.getByRole('button', { name: '전체', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(roles.getByRole('button', { pressed: true })).toHaveCount(0);
+  await expect(filters.getByRole('button', { name: '찾는 상대 음성', exact: true })).toContainText('무관');
+  await expect(rows).toHaveCount(10);
+});
+
+test('티어·음성 팝업은 키보드로 선택하고 Escape와 바깥 클릭으로 닫을 수 있다', async ({ page }) => {
+  await login(page);
+  const tier = page.getByRole('button', { name: '찾는 상대 티어', exact: true });
+  const tiers = page.getByRole('listbox', { name: '찾는 상대 티어', exact: true });
+  await expect(tier).toHaveAttribute('aria-haspopup', 'listbox');
+  await expect(tier).toHaveAttribute('aria-expanded', 'false');
+  await tier.focus();
+  await page.keyboard.press('Enter');
+  await expect(tier).toHaveAttribute('aria-expanded', 'true');
+  await expect(tiers.getByRole('option', { name: '모든 티어', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(tiers.getByRole('option', { name: '아이언', exact: true })).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(tiers.getByRole('option', { name: '챌린저', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await expect(tiers.getByRole('option', { name: '그랜드마스터', exact: true })).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(tiers.getByRole('option', { name: '모든 티어', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(tiers).toHaveCount(0);
+  await expect(tier).toBeFocused();
+  await expect(tier).toContainText('아이언');
+  await expect(page.locator('.board-empty')).toContainText('조건에 맞는 모집이 없어요');
+
+  await tier.click();
+  await expect(tiers.getByRole('option', { name: '아이언', exact: true })).toBeFocused();
+  await expect(tiers.getByRole('option', { name: '아이언', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Escape');
+  await expect(tiers).toHaveCount(0);
+  await expect(tier).toHaveAttribute('aria-expanded', 'false');
+  await expect(tier).toBeFocused();
+  await expect(tier).toContainText('아이언');
+
+  await tier.click();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await tier.click();
+  const challenger = tiers.getByRole('option', { name: '챌린저', exact: true });
+  await expect(challenger).toBeFocused();
+  await expect(challenger).toHaveAttribute('aria-selected', 'true');
+  const selectedBox = (await challenger.boundingBox())!;
+  const listBox = (await tiers.boundingBox())!;
+  expect(selectedBox.y).toBeGreaterThanOrEqual(listBox.y);
+  expect(selectedBox.y + selectedBox.height).toBeLessThanOrEqual(listBox.y + listBox.height);
+  await page.keyboard.press('Tab');
+  await expect(tiers).toHaveCount(0);
+  await expect(page.locator('.board-filter-bar').getByRole('group', { name: '찾는 큐 타입', exact: true }).getByRole('button', { name: '전체', exact: true })).toBeFocused();
+  await expect(tier).toContainText('챌린저');
+
+  const voice = page.getByRole('button', { name: '찾는 상대 음성', exact: true });
+  const voices = page.getByRole('listbox', { name: '찾는 상대 음성', exact: true });
+  await voice.focus();
+  await page.keyboard.press('Enter');
+  await expect(voices.getByRole('option', { name: '무관', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(voices).toHaveCount(0);
+  await expect(voice).toBeFocused();
+  await expect(voice).toContainText('사용');
+  await voice.click();
+  await expect(voices.getByRole('option', { name: '사용', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: '실시간 매치', exact: true }).click();
+  await expect(voices).toHaveCount(0);
+  await expect(voice).toHaveAttribute('aria-expanded', 'false');
+  await expect(voice).toContainText('사용');
 });
 
 test('예약 필터의 잘못된 시간을 고쳐야 목록에 적용된다', async ({ page }) => {

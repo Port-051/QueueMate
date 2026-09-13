@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test';
-import { manageRecruitment, login, startRealtimeMatch } from './helpers';
+import { manageRecruitment, login, selectBoardFilter, startRealtimeMatch } from './helpers';
 
 test('빈 결과에서도 필터 수정과 모집 시작 액션이 남는다', async ({ page }) => {
   await login(page);
-  await page.getByLabel('찾는 상대 티어', { exact: true }).selectOption('CHALLENGER');
+  await selectBoardFilter(page, '찾는 상대 티어', '챌린저');
   await expect(page.getByRole('heading', { name: '조건에 맞는 모집이 없어요' })).toBeVisible();
-  await expect(page.getByLabel('찾는 상대 티어', { exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '찾는 상대 티어', exact: true })).toBeEnabled();
   await expect(page.locator('.intro-launch > button')).toBeEnabled();
 });
 test('활동 재확인과 조건 한 개 변경은 사용자 선택 후에만 적용된다', async ({ page }) => {

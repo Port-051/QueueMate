@@ -28,7 +28,7 @@ test('홈의 내 정보는 큰 화면 오른쪽과 작은 화면 상단에 배�
       ['.row-player b', 16],
       ['.row-player p', 14],
       ['.row-introduction-stats', 14],
-      ['.board-filter-line select', 14],
+      ['.board-filter-line button', 14],
       ['.board-tabs button', 16],
     ] as const) {
       const fontSize = await feed.locator(selector).first().evaluate(element => parseFloat(getComputedStyle(element).fontSize));
@@ -36,6 +36,87 @@ test('홈의 내 정보는 큰 화면 오른쪽과 작은 화면 상단에 배�
     }
     if (width === 1600 || width === 390) await page.screenshot({ path: testInfo.outputPath(`home-profile-${width}.png`) });
   }
+});
+
+test('모바일 필터는 한 줄로 스크롤되고 선택 팝업과 예약 입력은 잘리지 않는다', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  const filters = page.locator('.board-filter-bar');
+  const line = filters.locator('.board-filter-line');
+  const tier = filters.getByRole('button', { name: '찾는 상대 티어', exact: true });
+  const voice = filters.getByRole('button', { name: '찾는 상대 음성', exact: true });
+  const roles = filters.getByRole('group', { name: '찾는 상대 포지션', exact: true });
+  const modes = filters.getByRole('group', { name: '찾는 큐 타입', exact: true });
+  await expect(roles.getByRole('button')).toHaveCount(5);
+  for (const name of ['탑', '정글', '미드', '원딜', '서포터']) {
+    await expect(roles.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', 'false');
+  }
+  const layout = await line.evaluate(element => ({
+    width: element.clientWidth,
+    content: element.scrollWidth,
+    centers: [...element.querySelectorAll('button')].map(button => {
+      const box = button.getBoundingClientRect();
+      return box.y + box.height / 2;
+    }),
+  }));
+  expect(layout.content).toBeGreaterThan(layout.width);
+  expect(Math.max(...layout.centers) - Math.min(...layout.centers), '필터 버튼이 두 줄로 줄바꿈되지 않는다').toBeLessThanOrEqual(2);
+  await voice.focus();
+  await expect(voice).toBeInViewport();
+  expect(await line.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
+  await page.keyboard.press('Enter');
+  const voices = page.getByRole('listbox', { name: '찾는 상대 음성', exact: true });
+  await expect(voices).toBeVisible();
+  const voiceBox = (await voices.boundingBox())!;
+  expect(voiceBox.x).toBeGreaterThanOrEqual(0);
+  expect(voiceBox.x + voiceBox.width).toBeLessThanOrEqual(390);
+  const noVoice = voices.getByRole('option', { name: '사용 안 함', exact: true });
+  await noVoice.click();
+  await expect(voice).toContainText('사용 안 함');
+
+  await tier.scrollIntoViewIfNeeded();
+  await tier.click();
+  const tiers = page.getByRole('listbox', { name: '찾는 상대 티어', exact: true });
+  await expect(tiers).toBeVisible();
+  const popupBox = (await tiers.boundingBox())!;
+  const lineBox = (await line.boundingBox())!;
+  expect(popupBox.x).toBeGreaterThanOrEqual(0);
+  expect(popupBox.x + popupBox.width).toBeLessThanOrEqual(390);
+  expect(popupBox.y).toBeGreaterThanOrEqual(0);
+  expect(popupBox.y + popupBox.height).toBeLessThanOrEqual(844);
+  expect(popupBox.height).toBeGreaterThan(lineBox.height);
+  const challenger = tiers.getByRole('option', { name: '챌린저', exact: true });
+  await challenger.scrollIntoViewIfNeeded();
+  await expect(challenger).toBeInViewport();
+  expect(await challenger.evaluate(element => {
+    const box = element.getBoundingClientRect();
+    return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+  }), '팝업의 마지막 항목은 필터 스크롤 영역에 잘리지 않는다').toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('mobile-board-tier-popup.png') });
+  await challenger.click();
+  await expect(tier).toContainText('챌린저');
+  await filters.getByRole('button', { name: '초기화', exact: true }).click();
+  await modes.getByRole('button', { name: '일반 게임', exact: true }).click();
+  await expect(modes.getByRole('button', { name: '일반 게임', exact: true })).toHaveAttribute('aria-pressed', 'true');
+
+  await page.getByRole('tab', { name: '예약 매치', exact: true }).click();
+  const start = filters.getByLabel('검색 시작 시각', { exact: true });
+  const end = filters.getByLabel('검색 종료 시각', { exact: true });
+  const amount = filters.getByRole('combobox', { name: '검색 플레이 양', exact: true });
+  await expect(start).toBeVisible();
+  await expect(end).toBeVisible();
+  await expect(amount).toBeVisible();
+  await expect(line.getByLabel('검색 시작 시각', { exact: true })).toHaveCount(0);
+  const reservationLineBox = (await line.boundingBox())!;
+  for (const control of [start, end, amount]) {
+    const box = (await control.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(reservationLineBox.y + reservationLineBox.height);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(390);
+  }
+  await amount.selectOption('TWO_PLUS');
+  await expect(amount).toHaveValue('TWO_PLUS');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test('작은 화면에서도 주요 페이지와 매칭 팝업이 잘리지 않고 두 방식으로 전환할 수 있다', async ({ page }) => {

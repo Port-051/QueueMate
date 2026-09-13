@@ -84,13 +84,15 @@ test('친구 요청 탭, 검색 빈 상태, 신고 모달 키보드 포커스', 
 
 test('검색 필터는 내 모집을 바꾸지 않고 게임과 필터 선택을 유지한다', async ({ page }) => {
   await login(page); await startRealtimeMatch(page);
-  await page.getByLabel('찾는 상대 포지션').selectOption('MID');
+  const roles = page.locator('.board-filter-bar').getByRole('group', { name: '찾는 상대 포지션', exact: true });
+  await roles.getByRole('button', { name: '미드', exact: true }).click();
   await expect(page.locator('.my-recruitment .recruitment-own-summary')).toContainText('무관');
   await manageRecruitment(page, '조건 수정');
   await expect(page.getByRole('dialog').getByLabel('주 포지션')).toHaveValue('ANY');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: '발로란트 매칭', exact: true }).click();
-  await expect(page.getByLabel('찾는 상대 포지션')).toHaveValue('ANY');
+  await expect(roles.getByRole('button', { name: '타격대', exact: true })).toBeVisible();
+  await expect(roles.getByRole('button', { pressed: true })).toHaveCount(0);
 });
 
 test('기존 매칭과 예약 주소도 홈 위의 팝업으로 연결된다', async ({ page }) => {

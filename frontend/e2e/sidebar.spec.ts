@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { DEMO, login } from './helpers';
+import { DEMO, login, selectBoardFilter } from './helpers';
 
 test('사이드바의 위쪽·중간·아래쪽 빈 영역에서도 펼쳐지고 탐색 후 다시 호버할 수 있다', async ({ page }, testInfo) => {
   await login(page);
@@ -156,20 +156,47 @@ test('로고 아래 게임 아이콘은 선택 링을 표시하고 게임을 바
   await expect(lol.locator('.game-nav-logo')).toHaveCSS('outline-width', '2px');
   await expect(lol.locator('.game-nav-logo')).toHaveCSS('outline-color', 'rgb(124, 77, 255)');
 
+  const filters = page.locator('.board-filter-bar');
+  const roleFilter = filters.getByRole('group', { name: '찾는 상대 포지션', exact: true });
+  const modeFilter = filters.getByRole('group', { name: '찾는 큐 타입', exact: true });
+  const tierFilter = filters.getByRole('button', { name: '찾는 상대 티어', exact: true });
+  await roleFilter.getByRole('button', { name: '서포터', exact: true }).click();
+  await modeFilter.getByRole('button', { name: '칼바람 나락', exact: true }).click();
+  await selectBoardFilter(page, '찾는 상대 티어', '에메랄드');
+
   await valorant.click();
   await expect(valorant).toHaveAttribute('aria-pressed', 'true');
   await expect(lol).toHaveAttribute('aria-pressed', 'false');
   await expect(valorant.locator('.game-nav-logo')).toHaveCSS('outline-width', '2px');
   await expect(valorant.locator('.game-nav-logo')).toHaveCSS('outline-color', 'rgb(124, 77, 255)');
-  const roleFilter = page.getByRole('combobox', { name: '찾는 상대 포지션', exact: true });
-  await expect(roleFilter.locator('option[value="DUELIST"]')).toHaveText('타격대');
-  await expect(roleFilter.locator('option[value="TOP"]')).toHaveCount(0);
+  await expect(roleFilter.getByRole('button', { name: '타격대', exact: true })).toBeVisible();
+  await expect(roleFilter.getByRole('button', { name: '탑', exact: true })).toHaveCount(0);
+  await expect(roleFilter.getByRole('button')).toHaveCount(4);
+  await expect(roleFilter.getByRole('button', { pressed: true })).toHaveCount(0);
+  await expect(modeFilter.getByRole('button')).toHaveText(['전체', '경쟁전', '일반전']);
+  await expect(modeFilter.getByRole('button', { name: '전체', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(tierFilter).toContainText('모든 티어');
+  await tierFilter.click();
+  const tierOptions = page.getByRole('listbox', { name: '찾는 상대 티어', exact: true });
+  await expect(tierOptions.getByRole('option', { name: '레디언트', exact: true })).toBeVisible();
+  await expect(tierOptions.getByRole('option', { name: '에메랄드', exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await roleFilter.getByRole('button', { name: '전략가', exact: true }).click();
+  await modeFilter.getByRole('button', { name: '경쟁전', exact: true }).click();
 
   await sidebar.getByRole('link', { name: '프로필', exact: true }).click();
   await expect(page).toHaveURL(/\/app\/me$/);
   await games.getByRole('button', { name: '배틀그라운드 매칭', exact: true }).click();
   await expect(page).toHaveURL(/\/app\/home(?:\?|$)/);
-  await expect(roleFilter.locator('option[value="AGGRESSIVE"]')).toHaveText('공격적');
+  await expect(roleFilter.getByRole('button', { name: '공격적', exact: true })).toBeVisible();
+  await expect(roleFilter.getByRole('button')).toHaveCount(3);
+  await expect(roleFilter.getByRole('button', { pressed: true })).toHaveCount(0);
+  await expect(modeFilter.getByRole('button')).toHaveText(['전체', '듀오', '스쿼드']);
+  await expect(modeFilter.getByRole('button', { name: '전체', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await tierFilter.click();
+  await expect(tierOptions.getByRole('option', { name: '마스터', exact: true })).toBeVisible();
+  await expect(tierOptions.getByRole('option', { name: '레디언트', exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: '메뉴 열기', exact: true }).click();
@@ -181,7 +208,12 @@ test('로고 아래 게임 아이콘은 선택 링을 표시하고 게임을 바
   expect(mobileGamesBox.y + mobileGamesBox.height).toBeLessThanOrEqual(mobileNavBox.y);
   await mobileGames.getByRole('button', { name: '리그 오브 레전드 매칭', exact: true }).click();
   await expect(menu).toHaveCount(0);
-  await expect(roleFilter.locator('option[value="TOP"]')).toHaveText('탑');
+  await expect(roleFilter.getByRole('button', { name: '탑', exact: true })).toBeVisible();
+  await expect(roleFilter.getByRole('button')).toHaveCount(5);
+  await expect(modeFilter.getByRole('button')).toHaveCount(4);
+  for (const [index, name] of ['전체', '솔로/듀오 랭크', '일반 게임', '칼바람 나락'].entries()) {
+    await expect(modeFilter.getByRole('button').nth(index)).toHaveAccessibleName(name);
+  }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
