@@ -16,6 +16,14 @@ export function reservationWindow() {
 export const initialSearch = (game: GameKey = 'LOL'): BoardSearch => ({ type: 'REALTIME', condition: { ...defaultCondition(game), voicePreference: readPreferences().defaultVoice, playPurpose: readPreferences().defaultPurpose }, preferences: anyPreferences(), availableFrom: null, availableTo: null, playAmount: null, sort: 'RECENT', page: 0, pageSize: 10 });
 export const writeFrom = (value: BoardWrite): BoardWrite => ({ type: value.type, condition: value.condition, preferences: value.preferences, description: value.description, autoMatch: value.autoMatch, availableFrom: value.availableFrom, availableTo: value.availableTo, playAmount: value.playAmount });
 export const elapsedMinutes = (at: string) => Math.max(0, Math.floor((Date.now() - new Date(at).getTime()) / 60_000));
-export const confirmedLabel = (row: BoardRow) => { const min = elapsedMinutes(row.confirmedAt); return min < 1 ? '방금 활동 확인' : `${min}분 전 활동 확인`; };
+export function relativeBoardTime(at: string, now = Date.now()) {
+  const minutes = Math.max(0, Math.floor((now - Date.parse(at)) / 60_000));
+  if (!Number.isFinite(minutes)) return '시간 미상';
+  if (minutes < 1) return '방금';
+  if (minutes < 60) return `${minutes}분 전`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}시간 전`;
+  return `${Math.floor(minutes / 1440)}일 전`;
+}
+export const confirmedLabel = (row: BoardRow, now = Date.now()) => `${relativeBoardTime(row.confirmedAt, now)} 활동`;
 export const timeLabel = (iso: string) => new Date(iso).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 export const localInput = (iso: string | null) => iso ? new Date(new Date(iso).getTime() - new Date(iso).getTimezoneOffset() * 60_000).toISOString().slice(0, 16) : '';

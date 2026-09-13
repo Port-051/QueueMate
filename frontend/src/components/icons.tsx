@@ -44,6 +44,7 @@ export const IconSettings = ({ size }: P) => (
 export const IconBell = ({ size }: P) => (<svg {...s(size)}><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6z" /><path d="M10.3 19.5a2 2 0 0 0 3.4 0" /></svg>);
 export const IconMic = ({ size }: P) => (<svg {...s(size)}><rect x="9" y="2.5" width="6" height="11" rx="3" /><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5" /></svg>);
 export const IconMicOff = ({ size }: P) => (<svg {...s(size)}><path d="M9 5.5a3 3 0 0 1 6 0v5M9 10v.6a3 3 0 0 0 4.6 2.5" /><path d="M5.5 11.5a6.5 6.5 0 0 0 10 5.5M18.5 11.5a6.4 6.4 0 0 1-.5 2.5M12 18v3.5" /><path d="m3.5 3 17 18" /></svg>);
+export const IconMicOptional = ({ size }: P) => (<svg {...s(size)}><rect x="6" y="2.5" width="6" height="10" rx="3" /><path d="M2.5 10.5a6.5 6.5 0 0 0 13 0M9 17v4.5M15 18h7m-2-2 2 2-2 2m-3-4-2 2 2 2" /></svg>);
 export const IconBolt = ({ size }: P) => (<svg {...s(size)}><path d="M13.5 2.5 4.8 13.4h5.9l-1 8.1 8.7-10.9h-5.9z" /></svg>);
 export const IconCheck = ({ size }: P) => (<svg {...s(size)}><path d="m4.5 12.5 5 5 10-11" /></svg>);
 export const IconX = ({ size }: P) => (<svg {...s(size)}><path d="M5.5 5.5 18.5 18.5M18.5 5.5 5.5 18.5" /></svg>);

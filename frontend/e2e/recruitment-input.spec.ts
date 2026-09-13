@@ -133,7 +133,8 @@ test('마이크 아이콘은 클릭·Enter·Space로 바로 켜고 끄며 초기
   await expect(page.getByRole('listbox')).toHaveCount(0);
   await expect(rows).toHaveCount(10);
   await expect(count).toContainText('12개 모집');
-  await expect(rows.locator('.row-fresh > span:first-child')).toHaveText(Array(10).fill('음성 사용'));
+  await expect(rows.getByRole('img', { name: '음성 사용', exact: true })).toHaveCount(10);
+  await expect(rows.locator('.recruitment-voice')).toHaveText(Array(10).fill(''));
   await voice.click();
   await expect(voice).toHaveAttribute('aria-checked', 'false');
   await expect(count).toContainText('40개 모집');

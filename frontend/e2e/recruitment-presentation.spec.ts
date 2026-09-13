@@ -26,8 +26,8 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
     await expect(page.locator('.board-results-head')).toContainText('10개 모집');
     await expect(rows.locator(':scope > .row-mode .recruitment-mode')).toHaveText(Array(10).fill(mode));
     await expect(page.locator('.recruitment-list-head > span')).toHaveText(mode === '칼바람'
-      ? ['플레이어 · 자기소개', '모드', '음성 · 활동 확인']
-      : ['플레이어 · 자기소개', '모드', '주 포지션 → 찾는 상대', '음성 · 활동 확인']);
+      ? ['플레이어 · 자기소개', '모드', '음성 · 게시/활동']
+      : ['플레이어 · 자기소개', '모드', '주 포지션 → 찾는 상대', '음성 · 게시/활동']);
     await expect(rows.locator(':scope > .row-roles')).toHaveCount(mode === '칼바람' ? 0 : 10);
     if (mode !== '칼바람') {
       const modeColumn = await rows.first().locator('.row-mode').boundingBox();
@@ -49,9 +49,16 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
 
   await modes.getByRole('button', { name: '랭크', exact: true }).click();
   for (const name of ['리 신', '비에고', '아리', '오리아나', '쓰레쉬', '룰루', '징크스', '카이사', '신드라', '아지르']) {
-    const champion = rows.locator('.preferred-champion').filter({ has: page.getByText(name, { exact: true }) }).first();
-    await expect(champion.getByText(name, { exact: true })).toBeVisible();
+    const champion = rows.locator('.preferred-champion').filter({ has: page.getByRole('img', { name: `${name} 초상화`, exact: true }) }).first();
+    await expect(champion.locator('.preferred-champion-name')).toBeHidden();
+    await expect(champion).not.toHaveAttribute('title');
     await expectLoadedPortrait(champion.getByRole('img', { name: `${name} 초상화`, exact: true }));
+    await champion.hover();
+    await expect(page.getByRole('tooltip')).toBeVisible({ timeout: 500 });
+    await expect(page.getByRole('tooltip')).toHaveText(name);
+    if (name === '리 신') await page.screenshot({ path: testInfo.outputPath('recruitment-champion-tooltip.png') });
+    await page.mouse.move(0, 0);
+    await expect(page.getByRole('tooltip')).toHaveCount(0);
   }
 
   for (const width of [1600, 360]) {
@@ -106,7 +113,7 @@ test('승률과 KDA는 수치 구간에 따라 다섯 색상으로 구분하며 
   await expect(dialog.locator('.performance-value[data-tone]')).toHaveCount(0);
 });
 
-test('알 수 없는 챔피언과 불러오지 못한 초상화도 이름을 유지하고 깨진 이미지를 남기지 않는다', async ({ page }) => {
+test('알 수 없는 챔피언과 불러오지 못한 초상화는 대체 아이콘과 즉시 보이는 이름 툴팁을 제공한다', async ({ page }) => {
   await saveExamples(page, [{ userId: 'u-gankflow', champions: ['처음 보는 챔피언', '리 신'], winRate: null, kda: null }]);
   await page.route(/\/[^/]*LeeSin[^/]*\.png(?:\?.*)?$/i, route => route.request().resourceType() === 'image' ? route.abort() : route.continue());
   await login(page);
@@ -115,9 +122,76 @@ test('알 수 없는 챔피언과 불러오지 못한 초상화도 이름을 유
   for (const surface of [row, dialog]) {
     if (surface === dialog) await row.click();
     for (const name of ['처음 보는 챔피언', '리 신']) {
-      const champion = surface.locator('.preferred-champion').filter({ has: page.getByText(name, { exact: true }) });
-      await expect(champion.getByText(name, { exact: true })).toBeVisible();
+      const champion = surface.locator('.preferred-champion').filter({ has: page.getByRole('img', { name: `${name} 초상화`, exact: true }) });
+      await expect(champion.getByRole('img', { name: `${name} 초상화`, exact: true })).toBeVisible();
+      await expect(champion.locator('.preferred-champion-name')).toBeHidden();
       await expect(champion.locator('img')).toHaveCount(0);
+      await champion.hover();
+      await expect(page.getByRole('tooltip')).toBeVisible({ timeout: 500 });
+      await expect(page.getByRole('tooltip')).toHaveText(name);
+      await page.mouse.move(0, 0);
+      await expect(page.getByRole('tooltip')).toHaveCount(0);
     }
   }
+});
+
+test('모집은 닉네임 앞에 티어 아이콘을 두고 음성 상태와 게시·활동 시간을 각각 표시한다', async ({ page }) => {
+  const now = Date.parse('2026-09-14T12:00:00Z');
+  const ago = (offset: number) => new Date(now - offset).toISOString();
+  const examples = [
+    { ownTier: 'GOLD', tier: '골드', voicePreference: 'REQUIRED', voice: '음성 사용', createdAt: ago(90_000), posted: '1분 전 게시', confirmedAt: ago(30_000), active: '방금 활동' },
+    { ownTier: 'SILVER', tier: '실버', voicePreference: 'NO_VOICE', voice: '음성 사용 안 함', createdAt: ago(2 * 3_600_000 + 30_000), posted: '2시간 전 게시', confirmedAt: ago(90_000), active: '1분 전 활동' },
+    { ownTier: null, tier: '티어 미입력', voicePreference: 'OPTIONAL', voice: '음성 무관', createdAt: ago(3 * 86_400_000 + 30_000), posted: '3일 전 게시', confirmedAt: ago(2 * 3_600_000 + 30_000), active: '2시간 전 활동' },
+    { ownTier: 'DIAMOND', tier: '다이아몬드', voicePreference: 'REQUIRED', voice: '음성 사용', createdAt: ago(4 * 86_400_000 + 30_000), posted: '4일 전 게시', confirmedAt: ago(2 * 86_400_000 + 30_000), active: '2일 전 활동' },
+  ];
+  await page.clock.install({ time: new Date(now) });
+  await page.route(/\/src\/api\/recruitment\.ts(?:\?.*)?$/, async route => {
+    const response = await route.fetch();
+    const source = await response.text();
+    expect(source).toContain('export const searchBoard =');
+    // 조회 응답의 시각을 분리해 끌어올린 시각이나 활동 시각이 게시 시각을 덮지 않는지 확인한다.
+    const body = source.replace('export const searchBoard =', 'const originalSearchBoard =') + `
+      export const searchBoard = async query => {
+        const result = await originalSearchBoard(query);
+        const examples = ${JSON.stringify(examples)};
+        result.items = result.items.map((row, index) => index >= examples.length ? row : {
+          ...row, createdAt: examples[index].createdAt, confirmedAt: examples[index].confirmedAt,
+          bumpedAt: ${JSON.stringify(new Date(now).toISOString())},
+          condition: { ...row.condition, voicePreference: examples[index].voicePreference },
+          preferences: { ...row.preferences, ownTier: examples[index].ownTier },
+        });
+        return result;
+      };
+    `;
+    await route.fulfill({ response, body });
+  });
+  await login(page);
+  const rows = page.locator('.recruitment-row');
+  await expect(rows).toHaveCount(10);
+  const voiceDrawings: string[] = [];
+  for (const [index, example] of examples.entries()) {
+    const row = rows.nth(index);
+    const heading = row.locator('.row-player-heading');
+    const tier = heading.locator(':scope > .row-tier');
+    await expect(tier).toHaveText(example.tier);
+    await expect(tier.locator('svg.filter-tier-symbol')).toBeVisible();
+    await expect(heading.locator(':scope > .row-tier + b')).toBeVisible();
+    const tierBox = (await tier.boundingBox())!;
+    const nicknameBox = (await heading.locator('b').boundingBox())!;
+    expect(tierBox.x + tierBox.width, '티어는 닉네임 왼쪽에 배치한다').toBeLessThanOrEqual(nicknameBox.x);
+    await expect(row).not.toContainText('직접 입력');
+    const voice = row.getByRole('img', { name: example.voice, exact: true });
+    await expect(voice).toHaveClass(/recruitment-voice/);
+    await expect(voice).toHaveText('');
+    await expect(voice.locator('svg')).toBeVisible();
+    voiceDrawings.push(await voice.locator('svg').innerHTML());
+    const posted = row.locator('time.row-posted');
+    const active = row.locator('time.row-active');
+    await expect(posted).toHaveText(example.posted);
+    await expect(posted).toHaveAttribute('datetime', example.createdAt);
+    await expect(active).toHaveText(example.active);
+    await expect(active).toHaveAttribute('datetime', example.confirmedAt);
+    await expect(row.locator('.row-fresh')).not.toContainText('활동 확인');
+  }
+  expect(new Set(voiceDrawings).size, '사용·미사용·무관은 서로 다른 아이콘이다').toBe(3);
 });

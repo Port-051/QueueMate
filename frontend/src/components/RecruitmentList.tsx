@@ -1,11 +1,13 @@
+import { useEffect, useState } from 'react';
 import type { BoardRow } from '../api/recruitment';
 import type { GameKey } from '../api/types';
 import { keyConditionOptions, usesKeyCondition } from '../domain/gameConfig';
 import { keyConditionLabel, modeLabel, PURPOSE_LABEL, VOICE_LABEL } from '../domain/labels';
 import { introductionForRow, type SelfIntroduction, type IntroductionRecord } from '../domain/introduction';
-import { BOARD_STATUS, confirmedLabel, TIER_LABELS, timeLabel } from '../domain/recruitment';
+import { BOARD_STATUS, confirmedLabel, relativeBoardTime, TIER_LABELS, timeLabel } from '../domain/recruitment';
 import { Avatar, Button, Modal } from './ui';
-import { FilterModeIcon, FilterRoleIcon } from './FilterSymbols';
+import { FilterModeIcon, FilterRoleIcon, FilterTierIcon } from './FilterSymbols';
+import { IconMic, IconMicOff, IconMicOptional } from './icons';
 import { PerformanceValue, PreferredChampions } from './IntroductionVisuals';
 import '../styles/introduction.css';
 
@@ -14,6 +16,17 @@ const roleLabel = (row: IntroductionRecord) => row.condition.keyCondition.value 
 const queueLabel = (row: IntroductionRecord) => row.condition.modeKey === 'ANY' ? '큐 무관' : modeLabel(row.condition.game, row.condition.modeKey);
 const voiceLabel = (row: IntroductionRecord) => row.condition.voicePreference === 'OPTIONAL' ? '음성 무관' : VOICE_LABEL[row.condition.voicePreference];
 const roleTitle = (row?: IntroductionRecord) => row?.condition.game === 'VALORANT' ? '주 역할' : row?.condition.game === 'PUBG' ? '플레이 스타일' : '주 포지션';
+
+function RecruitmentTier({ tier }: { tier: string | null }) {
+  return <span className="row-tier"><FilterTierIcon tier={tier} size={22} /><span>{tier ? TIER_LABELS[tier] ?? tier : '티어 미입력'}</span></span>;
+}
+
+function RecruitmentVoice({ row }: { row: IntroductionRecord }) {
+  const preference = row.condition.voicePreference;
+  return <span className={`recruitment-voice voice-${preference.toLowerCase()}`} role="img" aria-label={voiceLabel(row)} title={voiceLabel(row)}>
+    <span aria-hidden="true">{preference === 'REQUIRED' ? <IconMic size={20} /> : preference === 'NO_VOICE' ? <IconMicOff size={20} /> : <IconMicOptional size={20} />}</span>
+  </span>;
+}
 
 function RecruitmentRoleIcons({ row }: { row: IntroductionRecord }) {
   const game = row.condition.game;
@@ -37,21 +50,26 @@ export function IntroductionStats({ game, introduction }: { game: GameKey; intro
 }
 
 export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]; selected: string | undefined; onSelect: (row: BoardRow) => void }) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const withoutRoles = rows.length > 0 && rows.every(row => !usesKeyCondition(row.condition.game, row.condition.modeKey));
   return <div className={`recruitment-list${withoutRoles ? ' without-roles' : ''}`} aria-label="모집 목록">
-    <div className="recruitment-list-head"><span>플레이어 · 자기소개</span><span>모드</span>{!withoutRoles ? <span>{roleTitle(rows[0])} → 찾는 상대</span> : null}<span>음성 · 활동 확인</span></div>
+    <div className="recruitment-list-head"><span>플레이어 · 자기소개</span><span>모드</span>{!withoutRoles ? <span>{roleTitle(rows[0])} → 찾는 상대</span> : null}<span>음성 · 게시/활동</span></div>
     {rows.map(row => <button type="button" key={row.id} data-recruitment-id={row.id} className={`recruitment-row ${selected === row.id ? 'selected' : ''} ${row.status !== 'OPEN' ? 'unavailable' : ''}`} aria-label={`${row.nickname} 모집 상세`} aria-pressed={selected === row.id} onClick={() => onSelect(row)}>
-      <div className="row-player"><Avatar name={row.nickname} size={40} /><div><b>{row.nickname}</b><span className="row-tier">{row.preferences.ownTier ? TIER_LABELS[row.preferences.ownTier] : '티어 미입력'} <small>직접 입력</small></span><IntroductionStats game={row.condition.game} introduction={introductionForRow(row)} />{row.description ? <p>{row.description}</p> : null}</div></div>
+      <div className="row-player"><Avatar name={row.nickname} size={40} /><div><div className="row-player-heading"><RecruitmentTier tier={row.preferences.ownTier} /><b>{row.nickname}</b></div><IntroductionStats game={row.condition.game} introduction={introductionForRow(row)} />{row.description ? <p>{row.description}</p> : null}</div></div>
       <div className="row-mode"><span className="recruitment-mode"><FilterModeIcon mode={row.condition.modeKey} /><span>{queueLabel(row)}</span></span>{row.targetSize > 2 ? <small>{row.members.length}/{row.targetSize}명</small> : null}</div>
       {!withoutRoles ? <div className="row-roles"><RecruitmentRoleIcons row={row} /></div> : null}
-      <div className="row-fresh"><span>{voiceLabel(row)}</span><small>{row.status === 'OPEN' ? confirmedLabel(row) : BOARD_STATUS[row.status]}</small><span className="row-arrow" aria-hidden="true">↗</span></div>
+      <div className="row-fresh"><RecruitmentVoice row={row} /><div className="row-times"><time className="row-posted" dateTime={row.createdAt} title={`게시: ${timeLabel(row.createdAt)}`}>{relativeBoardTime(row.createdAt, now)} 게시</time><time className="row-active" dateTime={row.confirmedAt} title={`활동: ${timeLabel(row.confirmedAt)}`}>{confirmedLabel(row, now)}</time>{row.status !== 'OPEN' ? <small>{BOARD_STATUS[row.status]}</small> : null}</div><span className="row-arrow" aria-hidden="true">↗</span></div>
     </button>)}
   </div>;
 }
 
 export function RecruitmentDetail({ row, busy, hasSource, disabled, disabledReason, onClose, onJoin }: { row: BoardRow; busy: boolean; hasSource: boolean; disabled: boolean; disabledReason?: string; onClose: () => void; onJoin: () => void }) {
   return <Modal className="recruitment-detail" title="모집 상세" closeLabel="모집 상세 닫기" onClose={onClose}>
-    <div className="row"><Avatar name={row.nickname} /><div><b>{row.nickname}</b><p>{BOARD_STATUS[row.status]}{row.targetSize > 2 ? ` · ${row.members.length}/${row.targetSize}명` : ''}</p></div></div>
+    <div className="row"><Avatar name={row.nickname} /><div><div className="row-player-heading"><RecruitmentTier tier={row.preferences.ownTier} /><b>{row.nickname}</b></div><p>{BOARD_STATUS[row.status]}{row.targetSize > 2 ? ` · ${row.members.length}/${row.targetSize}명` : ''}</p></div></div>
     <RecruitmentIntroduction row={row} />
     {row.type === 'RESERVATION' && row.availableFrom ? <p>{timeLabel(row.availableFrom)} ~ {row.availableTo ? timeLabel(row.availableTo) : ''}</p> : null}
     {disabledReason || row.status !== 'OPEN' ? <p className="hint">{disabledReason ?? '현재 참여 신청을 받지 않는 모집이에요.'}</p> : null}
@@ -76,7 +94,7 @@ export function RecruitmentIntroduction({ row }: { row: IntroductionRecord }) {
       {usesKeyCondition(row.condition.game, row.condition.modeKey) ? <><dt>{roleTitle(row)} → 찾는 상대</dt><dd><RecruitmentRoleIcons row={row} /></dd></> : null}
       <dt>{row.condition.game === 'LOL' ? '선호 챔피언' : row.condition.game === 'VALORANT' ? '선호 요원' : '선호 무기'}</dt><dd>{introduction.champions.length ? <PreferredChampions game={row.condition.game} names={introduction.champions} /> : '미입력'}</dd>
       <dt>원하는 큐 타입</dt><dd><span className="recruitment-mode"><FilterModeIcon mode={row.condition.modeKey} />{queueLabel(row)}</span></dd>
-      <dt>음성</dt><dd>{voiceLabel(row)}</dd>
+      <dt>음성</dt><dd><RecruitmentVoice row={row} /></dd>
       {row.preferences.minTier || row.preferences.maxTier ? <><dt>상대 티어</dt><dd>{row.preferences.minTier ? TIER_LABELS[row.preferences.minTier] : '최소 제한 없음'} ~ {row.preferences.maxTier ? TIER_LABELS[row.preferences.maxTier] : '최대 제한 없음'}</dd></> : null}
       {row.preferences.purposeRequired ? <><dt>플레이 목적</dt><dd>{PURPOSE_LABEL[row.condition.playPurpose]} 필수</dd></> : null}
     </dl>
