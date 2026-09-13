@@ -70,7 +70,7 @@ export function useRecruitmentBoard(query: api.BoardSearch) {
             }
             setLoadMoreError('');
           } catch {
-            if (active()) setLoadMoreError('다음 모집을 불러오지 못했습니다. 다시 시도해 주세요.');
+            if (active()) setLoadMoreError('다음 매칭을 불러오지 못했습니다. 다시 시도해 주세요.');
           } finally {
             if (active()) setLoadingMore(false);
           }
@@ -122,9 +122,9 @@ export function useRecruitmentBoard(query: api.BoardSearch) {
           }
           session.ready = true;
           setMine(owned);
-          setError(lookupFailed ? '일부 모집 정보를 갱신하지 못했습니다. 다시 확인해 주세요.' : '');
+          setError(lookupFailed ? '일부 매칭 정보를 갱신하지 못했습니다. 다시 확인해 주세요.' : '');
         } catch {
-          if (active()) setError('모집 정보를 불러오지 못했습니다. 다시 확인해 주세요.');
+          if (active()) setError('매칭 정보를 불러오지 못했습니다. 다시 확인해 주세요.');
         } finally {
           if (active()) setLoading(false);
         }

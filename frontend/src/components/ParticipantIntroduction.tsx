@@ -7,7 +7,7 @@ import { keyConditionLabel, VOICE_LABEL } from '../domain/labels';
 import { RankBadge } from './RankBadge';
 import { IntroductionStats, RecruitmentIntroduction } from './RecruitmentList';
 
-/** 공개된 요약은 바로 보여주고, 신청자의 원본 모집은 펼칠 때만 조회한다. */
+/** 공개된 요약은 바로 보여주고, 신청자의 원본 매칭은 펼칠 때만 조회한다. */
 export function ParticipantIntroduction({ nickname, record, sourceId, loading = false, unavailable = false }: {
   nickname: string; record: IntroductionRecord | null; sourceId?: string; loading?: boolean; unavailable?: boolean;
 }) {

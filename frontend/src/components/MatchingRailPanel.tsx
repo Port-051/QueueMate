@@ -27,7 +27,7 @@ export function MatchingRailPanel({ title, className = '', suspended = false, bu
   return <section ref={panel} className={`matching-rail-panel ${className}`} aria-label={title} tabIndex={-1} hidden={suspended} onKeyDown={event => {
     if (event.key === 'Escape' && !busy) { event.stopPropagation(); onClose(); }
   }}>
-    <header className="matching-rail-heading"><h2>{title}</h2><Button size="sm" variant="ghost" disabled={busy} aria-label={`${title === '모집 상세' ? '모집 상세' : '모집 작성'} 닫기`} onClick={onClose}>닫기</Button></header>
+    <header className="matching-rail-heading"><h2>{title}</h2><Button size="sm" variant="ghost" disabled={busy} aria-label={`${title === '매칭 글 상세' ? '매칭 글 상세' : '매칭 작성'} 닫기`} onClick={onClose}>닫기</Button></header>
     {children}
   </section>;
 }

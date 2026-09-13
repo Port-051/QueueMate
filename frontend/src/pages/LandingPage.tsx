@@ -5,7 +5,7 @@ import { IconBolt, IconMic, IconShield, IconTarget } from '../components/icons';
 import { GAMES } from '../domain/gameConfig';
 
 const FEATURES = [
-  { icon: <IconBolt />, title: '팀원 찾기', desc: '모집에 직접 신청하거나 자동으로 찾아요.' },
+  { icon: <IconBolt />, title: '팀원 찾기', desc: '매칭에 직접 신청하거나 자동으로 찾아요.' },
   { icon: <IconTarget />, title: '조건 필터', desc: '티어, 포지션, 음성 등 원하는 조건으로 골라요.' },
   { icon: <IconMic />, title: '음성 · 채팅', desc: '파티에서 대화하며 게임을 준비해요.' },
   { icon: <IconShield />, title: '차단 · 신고', desc: '차단한 사용자와는 다시 매칭되지 않아요.' },
@@ -26,7 +26,7 @@ export function LandingPage() {
           <h1>조건이 맞는 팀원과<br /><em>지금, 바로</em> 플레이</h1>
           <p className="lede">
             지금 함께할 팀원도, 약속한 시간에 만날 팀원도.
-            실시간·예약 매치로 찾으세요.
+            실시간·예약 매칭으로 찾으세요.
           </p>
           <div className="hero-actions">
             <Link className="btn btn-primary btn-lg" to="/signup">시작하기</Link>

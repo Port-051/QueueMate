@@ -14,7 +14,7 @@ export function InlineProposal({ knownRows = [] }: { knownRows?: BoardRow[] }) {
   const now = useNow();
   const seconds = proposal ? Math.max(0, Math.ceil((Date.parse(proposal.expiresAt) - now) / 1000)) : 0;
   const [busy, setBusy] = useState(false);
-  // 제안이 생겨 공개 목록에서 빠진 모집도 이미 확인한 소개는 유지한다.
+  // 제안이 생겨 공개 목록에서 빠진 매칭도 이미 확인한 소개는 유지한다.
   const previousRows = useRef<BoardRow[]>([]);
   useEffect(() => {
     const unique = new Map([...knownRows, ...previousRows.current].map(row => [row.id, row]));
@@ -43,7 +43,7 @@ export function InlineProposal({ knownRows = [] }: { knownRows?: BoardRow[] }) {
   const group = knownParent ?? (parent?.id === parentId ? parent : null) ?? source;
   const game = source?.condition.game ?? condition?.game;
   const records = new Map<string, IntroductionRecord & { id: string }>();
-  // 같은 게임에서 실제로 공개된 모집만 사용한다. 제안 계약에 없는 전적을 만들지 않는다.
+  // 같은 게임에서 실제로 공개된 매칭만 사용한다. 제안 계약에 없는 전적을 만들지 않는다.
   for (const row of rows) {
     if (row.condition.game !== game || (source && row.type !== source.type)) continue;
     const proposedName = proposal?.members.find(member => member.userId === row.userId)?.nickname;

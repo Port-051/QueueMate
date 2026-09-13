@@ -46,7 +46,7 @@ export const RESERVATION_STATUS_LABEL: Record<ReservationStatus, string> = {
 };
 
 export const PARTY_STATUS_LABEL: Record<PartyStatus, string> = {
-  OPEN: '모집 완료',
+  OPEN: '매칭 완료',
   READY: '준비 완료',
   PLAYING: '전원 준비 확인됨',
   CLOSED: '종료됨',

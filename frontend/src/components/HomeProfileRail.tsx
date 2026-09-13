@@ -57,7 +57,7 @@ export function HomeProfileRail({ user, game, introduction, gameAccount, actionL
           {introduction.kda !== null ? <span>KDA <PerformanceValue kind="kda" value={introduction.kda} /></span> : null}
         </div> : null}
         {wins + losses > 0 ? <div className="home-profile-records"><span>최근 {wins + losses}경기</span><strong>{wins}승 {losses}패</strong></div> : null}
-        {hasReportedInfo ? <span className="home-profile-source">티어·전적 직접 입력</span> : null}
+        {hasReportedInfo ? <span className="home-profile-source">저장된 전적</span> : null}
       </section> : null}
       {children}
       {actionLabel ? <div className="intro-launch"><Button variant="primary" block onClick={onCompose}>{actionLabel}</Button></div> : null}

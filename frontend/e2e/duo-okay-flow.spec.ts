@@ -20,12 +20,12 @@ async function okay(page: Page, id: string) {
   }, id);
 }
 async function send(page: Page, nickname: string) {
-  await page.getByRole('button', { name: `${nickname} 모집 상세`, exact: true }).click();
+  await page.getByRole('button', { name: `${nickname} 매칭 글 상세`, exact: true }).click();
   await page.getByRole('button', { name: '같이 할래요', exact: true }).click();
   await expect(page.getByRole('region', { name: '보낸 오케이' })).toContainText(nickname);
 }
 
-test('여러 오케이를 보내도 모집을 유지하고 먼저 서로 수락한 한 명과만 메시지로 연결한다', async ({ page }) => {
+test('여러 오케이를 보내도 매칭을 유지하고 먼저 서로 수락한 한 명과만 메시지로 연결한다', async ({ page }) => {
   await page.clock.install(); await login(page); await startRealtimeMatch(page);
   const before = (await snapshot(page)).mine[0];
   await send(page, 'PlayMaker'); await send(page, 'GankFlow');
@@ -34,7 +34,7 @@ test('여러 오케이를 보내도 모집을 유지하고 먼저 서로 수락�
   expect(sent.mine[0]).toMatchObject({ status: 'OPEN', createdAt: before.createdAt, proposalId: null });
   expect(sent.mine[0].members).toHaveLength(1);
   expect(Object.values(sent.messages.conversations).flatMap((c: any) => c.messages).filter((m: any) => m.kind === 'MATCH')).toHaveLength(0);
-  await expect(page.getByRole('timer', { name: '모집 시작 후', exact: true })).toBeVisible();
+  await expect(page.getByRole('timer', { name: '매칭 시작 후', exact: true })).toBeVisible();
   await expect(page.locator('.board-proposal')).toHaveCount(0);
   await okay(page, sent.offers[1].id); await okay(page, sent.offers[0].id); await okay(page, sent.offers[1].id);
   await expect(page.getByRole('region', { name: '매칭 성사', exact: true })).toContainText('GankFlow');
@@ -71,7 +71,7 @@ test('자동 매칭도 응답을 기다리면서 새 상대를 발견하고 다�
   await expect(page).toHaveURL(/\/app\/me$/);
 });
 
-for (const action of ['오케이 취소', '잠시 멈춤', '조건 수정', '모집 종료'] as const) {
+for (const action of ['오케이 취소', '잠시 멈춤', '조건 수정', '매칭 종료'] as const) {
   test(`${action} 후 늦게 온 응답은 매칭을 성사시키지 않는다`, async ({ page }) => {
     await page.clock.install(); await login(page); await startRealtimeMatch(page); await send(page, 'PlayMaker');
     const offer = (await snapshot(page)).offers[0];
@@ -79,8 +79,8 @@ for (const action of ['오케이 취소', '잠시 멈춤', '조건 수정', '모
     else {
       await manageRecruitment(page, action);
       if (action === '조건 수정') {
-        await page.getByLabel('모집 한마디').fill('조건을 새로 확인해 주세요');
-        await page.getByRole('button', { name: '모집 조건 저장', exact: true }).click();
+        await page.getByLabel('한마디').fill('조건을 새로 확인해 주세요');
+        await page.getByRole('button', { name: '매칭 조건 저장', exact: true }).click();
       }
     }
     await okay(page, offer.id);
@@ -91,7 +91,7 @@ for (const action of ['오케이 취소', '잠시 멈춤', '조건 수정', '모
   });
 }
 
-test('상대가 먼저 오케이를 해도 내가 수락하기 전에는 모집 중이다', async ({ page }) => {
+test('상대가 먼저 오케이를 해도 내가 수락하기 전에는 매칭 중이다', async ({ page }) => {
   await page.clock.install(); await login(page); await startRealtimeMatch(page, true); await page.clock.fastForward(7000);
   await expect(page.locator('.duo-offer')).toHaveCount(1);
   const offer = (await snapshot(page)).offers[0]; await okay(page, offer.id);
@@ -101,7 +101,7 @@ test('상대가 먼저 오케이를 해도 내가 수락하기 전에는 모집 
   await expect(page.getByRole('region', { name: '매칭 성사', exact: true })).toBeVisible();
 });
 
-test('모바일에서도 후보·오케이·모집 상태를 팝업 없이 표시한다', async ({ page }) => {
+test('모바일에서도 후보·오케이·매칭 상태를 팝업 없이 표시한다', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.clock.install(); await login(page); await startRealtimeMatch(page, true); await page.clock.fastForward(7000);
   await expect(page.locator('.duo-offer')).toHaveCount(1);
@@ -112,11 +112,11 @@ test('모바일에서도 후보·오케이·모집 상태를 팝업 없이 표�
 });
 
 
-test('예약도 오케이 대기 동안 모집을 유지하고 상호 수락 후에만 마감한다', async ({ page }) => {
+test('예약도 오케이 대기 동안 매칭을 유지하고 상호 수락 후에만 마감한다', async ({ page }) => {
   await page.clock.install(); await login(page);
-  await page.getByRole('tab', { name: '예약 매치', exact: true }).click();
+  await page.getByRole('tab', { name: '예약 매칭', exact: true }).click();
   await page.getByRole('button', { name: '예약하기', exact: true }).click();
-  await page.getByRole('button', { name: '모집 시작', exact: true }).click();
+  await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(page.locator('.my-recruitment')).toBeVisible();
   await send(page, 'PlayMaker');
   const state = await snapshot(page);
@@ -126,7 +126,7 @@ test('예약도 오케이 대기 동안 모집을 유지하고 상호 수락 후
   expect((await snapshot(page)).mine[0].status).toBe('MATCHED');
 });
 
-test('메시지 저장이 실패하면 모집을 유지하고 저장 복구 후 한 번만 성사시킨다', async ({ page }) => {
+test('메시지 저장이 실패하면 매칭을 유지하고 저장 복구 후 한 번만 성사시킨다', async ({ page }) => {
   await page.clock.install(); await login(page); await startRealtimeMatch(page); await send(page, 'PlayMaker');
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;

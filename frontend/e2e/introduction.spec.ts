@@ -1,18 +1,19 @@
 import { expect, test } from '@playwright/test';
 import { login, manageRecruitment, selectBoardFilter } from './helpers';
 
-test('자기소개를 비워 두면 모든 조건이 무관이며 수동 모집을 시작할 수 있다', async ({ page }) => {
+test('자기소개를 비워 두면 모든 조건이 무관이며 수동 매칭을 시작할 수 있다', async ({ page }) => {
   await login(page);
   await page.locator('.intro-launch').getByRole('button', { name: '자기소개 작성' }).click();
   const dialog = page.locator('.recruitment-composer-shell');
-  await expect(dialog.getByLabel('주 포지션', { exact: true })).toHaveValue('ANY');
-  await expect(dialog.getByLabel('원하는 큐 타입', { exact: true })).toHaveValue('ANY');
-  await expect(dialog.getByLabel('내 티어', { exact: true })).toHaveValue('');
-  await expect(dialog.getByLabel('음성', { exact: true })).toHaveValue('OPTIONAL');
+  await expect(dialog.getByRole('group', { name: '주 포지션', exact: true }).getByRole('button', { name: '무관', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(dialog.getByRole('group', { name: '원하는 큐 타입', exact: true }).locator('[aria-pressed="true"]')).toHaveCount(0);
+  await expect(dialog.getByLabel('내 티어', { exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole('region', { name: '롤 전적 정보' })).toContainText('연동 대기');
+  await expect(dialog.getByRole('group', { name: '음성', exact: true }).getByRole('button', { name: '무관', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(dialog.getByRole('radio', { name: '수동 매칭' })).toBeChecked();
   await expect(dialog.getByRole('radio', { name: '자동 매칭' })).not.toBeChecked();
-  await expect(dialog.getByRole('button', { name: '모집 시작', exact: true })).toBeEnabled();
-  await dialog.getByRole('button', { name: '모집 시작', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: '매칭 시작', exact: true })).toBeEnabled();
+  await dialog.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   const row = await page.evaluate(async () => {
     const apiPath = '/src/api/recruitment.ts';
@@ -24,68 +25,35 @@ test('자기소개를 비워 두면 모든 조건이 무관이며 수동 모집�
   expect(row.autoMatch).toBe(false);
 });
 
-test('상대 검색과 별개인 자기소개·전적을 보관하고 수정·다시 모집에 사용한다', async ({ page }) => {
+test('검색과 별개로 아이콘 버튼을 선택하고 수정·다시 시작할 때 유지한다', async ({ page }) => {
   await login(page);
   const filters = page.locator('.board-filter-bar');
-  const top = filters.getByRole('group', { name: '찾는 상대 포지션', exact: true }).getByRole('button', { name: '탑', exact: true });
-  const aram = filters.getByRole('group', { name: '찾는 큐 타입', exact: true }).getByRole('button', { name: '칼바람', exact: true });
-  await top.click();
   await selectBoardFilter(page, '찾는 상대 티어', '다이아몬드');
-  await aram.click();
-  await page.locator('.intro-launch').getByRole('button').click();
-  const dialog = page.locator('.recruitment-composer-shell');
-  await expect(dialog.getByLabel('주 포지션', { exact: true })).toHaveValue('ANY');
-  await expect(dialog.getByLabel('내 티어', { exact: true })).toHaveValue('');
-  await expect(dialog.getByLabel('원하는 큐 타입')).toHaveValue('ANY');
-  await dialog.getByLabel('주 포지션', { exact: true }).selectOption('MID');
-  await dialog.getByLabel('내 티어', { exact: true }).selectOption('GOLD');
-  await dialog.getByLabel('원하는 큐 타입').selectOption('SOLO_DUO_RANKED');
-  await dialog.getByRole('group', { name: '찾는 상대 포지션' }).getByRole('button', { name: '서포터', exact: true }).click();
-  await dialog.getByLabel('선호 챔피언').fill('아리, 오리아나');
-  await dialog.getByLabel('모집 한마디').fill('미드에서 편하게 함께해요');
-  await dialog.locator('.introduction-records > summary').click();
-  await dialog.getByLabel('승률 (%)').fill('57.5');
-  await dialog.getByLabel('KDA', { exact: true }).fill('3.42');
-  await dialog.getByRole('button', { name: '최근 1경기: 미입력', exact: true }).click();
-  await dialog.getByRole('button', { name: '최근 2경기: 미입력', exact: true }).click();
-  await dialog.getByRole('button', { name: '최근 2경기: 승리', exact: true }).click();
-  await dialog.getByRole('radio', { name: '자동 매칭' }).check();
-  await expect(dialog.getByRole('radio', { name: '수동 매칭' })).not.toBeChecked();
-  await dialog.getByRole('radio', { name: '수동 매칭' }).check();
-  await dialog.getByRole('button', { name: '모집 시작', exact: true }).click();
-  await expect(dialog).toHaveCount(0);
-  await expect(top).toHaveCount(0);
-  await expect(filters.getByRole('button', { name: '찾는 상대 티어', exact: true })).toContainText('다이아몬드');
-  await expect(aram).toHaveAttribute('aria-pressed', 'true');
-  const stored = await page.evaluate(async () => {
-    const introPath = '/src/domain/introduction.ts';
-    const apiPath = '/src/api/client.ts';
-    const { readIntroduction } = await import(/* @vite-ignore */ introPath);
-    const api = await import(/* @vite-ignore */ apiPath);
-    const me = await api.getMe();
-    return { current: readIntroduction(me.id, 'LOL'), otherGame: readIntroduction(me.id, 'VALORANT'), otherUser: readIntroduction('another-user', 'LOL') };
-  });
-  expect(stored.current).toMatchObject({ primaryRole: 'MID', ownTier: 'GOLD', queueType: 'SOLO_DUO_RANKED', desiredRoles: ['SUPPORT'], champions: ['아리', '오리아나'], winRate: 57.5, kda: 3.42, bio: '미드에서 편하게 함께해요' });
-  expect(stored.current.recentResults).toEqual(['WIN', 'LOSS', ...Array(18).fill(null)]);
-  expect(stored.otherGame).toBeNull();
-  expect(stored.otherUser).toBeNull();
+  await filters.getByRole('button', { name: '칼바람', exact: true }).click();
+  await page.locator('.intro-launch > button').click();
+  const form = page.locator('.recruitment-composer-shell');
+  await expect(form.getByRole('group', { name: '원하는 큐 타입' }).locator('[aria-pressed="true"]')).toHaveCount(0);
+  await form.getByRole('group', { name: '주 포지션', exact: true }).getByRole('button', { name: '미드', exact: true }).click();
+  await form.getByRole('group', { name: '원하는 큐 타입' }).getByRole('button', { name: '랭크', exact: true }).click();
+  const desired = form.getByRole('group', { name: '찾는 상대 포지션', exact: true });
+  await desired.getByRole('button', { name: '정글', exact: true }).click();
+  await desired.getByRole('button', { name: '서포터', exact: true }).click();
+  await form.getByRole('group', { name: '음성', exact: true }).getByRole('button', { name: '사용', exact: true }).click();
+  await form.getByLabel('한마디').fill('미드에서 편하게 함께해요');
+  await form.getByRole('button', { name: '매칭 시작', exact: true }).click();
+  await expect(form).toHaveCount(0);
+  await expect(filters.getByRole('button', { name: '칼바람', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await manageRecruitment(page, '조건 수정');
-  await expect(dialog.getByLabel('주 포지션', { exact: true })).toHaveValue('MID');
-  await expect(dialog.getByLabel('선호 챔피언')).toHaveValue('아리, 오리아나');
-  await page.keyboard.press('Escape');
-  await manageRecruitment(page, '모집 종료');
-  await page.locator('.intro-launch').getByRole('button', { name: '매칭 시작', exact: true }).click();
-  await expect(dialog.getByLabel('주 포지션', { exact: true })).toHaveValue('MID');
-  await expect(dialog.getByLabel('내 티어', { exact: true })).toHaveValue('GOLD');
-  await expect(dialog.getByLabel('선호 챔피언')).toHaveValue('아리, 오리아나');
-  await dialog.locator('.introduction-records > summary').click();
-  await expect(dialog.getByLabel('승률 (%)')).toHaveValue('57.5');
-  await expect(dialog.getByLabel('KDA', { exact: true })).toHaveValue('3.42');
-  await expect(dialog.getByRole('button', { name: '최근 1경기: 승리', exact: true })).toBeVisible();
-  await expect(dialog.getByRole('button', { name: '최근 2경기: 패배', exact: true })).toBeVisible();
+  await expect(form.getByRole('group', { name: '주 포지션', exact: true }).getByRole('button', { name: '미드', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(desired.locator('[aria-pressed="true"]')).toHaveCount(2);
+  await expect(form.locator('input[type="number"], select')).toHaveCount(0);
+  await page.keyboard.press('Escape'); await manageRecruitment(page, '매칭 종료');
+  await page.locator('.intro-launch > button').click();
+  await expect(form.getByLabel('한마디')).toHaveValue('미드에서 편하게 함께해요');
+  await expect(form.getByRole('group', { name: '주 포지션', exact: true }).getByRole('button', { name: '미드', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('모집 목록과 상세에서 자기소개 전적을 보여주고 최근 경기 20칸을 구분한다', async ({ page }) => {
+test('매칭 글 목록과 상세에서 자기소개 전적을 보여주고 최근 경기 20칸을 구분한다', async ({ page }) => {
   await login(page);
   const row = page.locator('.recruitment-row').first();
   await expect(row.locator('.row-introduction-stats')).toContainText('승률');
@@ -94,10 +62,10 @@ test('모집 목록과 상세에서 자기소개 전적을 보여주고 최근 �
   await expect(row.getByRole('img', { name: '탑', exact: true })).toHaveAttribute('title', '탑');
   await expect(row.getByRole('img', { name: '무관', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: '바텀', exact: true })).toHaveAttribute('title', '바텀');
-  await expect(page.getByRole('button', { name: 'LateGame 모집 상세', exact: true }).getByRole('img', { name: '바텀', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'LateGame 매칭 글 상세', exact: true }).getByRole('img', { name: '바텀', exact: true })).toBeVisible();
   await row.click();
-  const dialog = page.getByRole('region', { name: '모집 상세', exact: true });
-  await expect(dialog).toContainText('티어·전적 직접 입력');
+  const dialog = page.getByRole('region', { name: '매칭 글 상세', exact: true });
+  await expect(dialog).toContainText('예시 전적');
   await expect(dialog).toContainText('선호 챔피언');
   await expect(dialog.locator('.recruitment-role-pair')).toHaveText('');
   await expect(dialog.getByRole('img', { name: '탑', exact: true })).toBeVisible();

@@ -119,9 +119,9 @@ export function useNotifications() {
         for (const row of rows.filter(row => row.userId === userId && ['OPEN', 'STALE'].includes(row.status))) {
           const confirmAt = row.timing ? Date.parse(row.timing.confirmAt) : Date.parse(row.confirmedAt) + 10 * 60_000;
           if (row.type === 'REALTIME' && (row.status === 'STALE' || confirmAt <= now)) {
-            entries.push({ id: `recruitment:${row.id}:confirm:${row.confirmedAt}`, kind: 'RECRUITMENT', title: '아직 팀원을 찾고 있나요?', body: '내 모집을 유지하거나 조건을 수정해 보세요.', href: '/app/home', createdAt: new Date(Math.min(confirmAt, now)).toISOString() });
+            entries.push({ id: `recruitment:${row.id}:confirm:${row.confirmedAt}`, kind: 'RECRUITMENT', title: '아직 팀원을 찾고 있나요?', body: '내 매칭을 유지하거나 조건을 수정해 보세요.', href: '/app/home', createdAt: new Date(Math.min(confirmAt, now)).toISOString() });
           } else if (row.type === 'REALTIME' && Number.isFinite(confirmAt)) nextReminder = Math.min(nextReminder, confirmAt);
-          for (const applicant of row.applicants) entries.push({ id: `recruitment:${row.id}:applicant:${applicant.id}`, kind: 'RECRUITMENT', title: `${applicant.nickname}님이 참여를 신청했어요`, body: '내 모집에서 신청한 팀원을 확인해 주세요.', href: '/app/home', createdAt: new Date().toISOString() });
+          for (const applicant of row.applicants) entries.push({ id: `recruitment:${row.id}:applicant:${applicant.id}`, kind: 'RECRUITMENT', title: `${applicant.nickname}님이 참여를 신청했어요`, body: '내 매칭에서 신청한 팀원을 확인해 주세요.', href: '/app/home', createdAt: new Date().toISOString() });
         }
         add(entries);
         if (Number.isFinite(nextReminder)) reminder = window.setTimeout(() => void refresh(), Math.max(1000, nextReminder - now + 100));

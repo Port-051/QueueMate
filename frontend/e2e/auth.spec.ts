@@ -12,7 +12,7 @@ test('랜딩에서 로그인하면 홈으로 들어간다', async ({ page }) => 
   await page.locator('.auth-form button[type="submit"]').click();
 
   await expect(page).toHaveURL(/\/app\/home/);
-  await expect(page.getByRole('tab', { name: '예약 매치', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: '예약 매칭', exact: true })).toBeVisible();
 });
 
 test('잘못된 비밀번호는 오류를 보여주고 로그인되지 않는다', async ({ page }) => {
@@ -50,9 +50,9 @@ test('프로필 설정은 저장되고 새 자기소개는 무관 조건으로 �
   await settings.getByRole('button', { name: '즐겜', exact: true }).click();
   await navigation.getByRole('link', { name: '홈', exact: true }).click();
   await page.getByRole('button', { name: '자기소개 작성', exact: true }).click();
-  await expect(page.locator('.recruitment-composer-shell').getByLabel('음성', { exact: true })).toHaveValue('OPTIONAL');
-  await expect(page.locator('.recruitment-composer-shell').getByLabel('주 포지션', { exact: true })).toHaveValue('ANY');
-  await expect(page.locator('.recruitment-composer-shell').getByLabel('원하는 큐 타입', { exact: true })).toHaveValue('ANY');
+  await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '음성', exact: true }).getByRole('button', { name: '무관', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '주 포지션', exact: true }).getByRole('button', { name: '무관', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '원하는 큐 타입', exact: true }).locator('[aria-pressed="true"]')).toHaveCount(0);
   await expect(page.locator('.recruitment-composer-shell').getByRole('radio', { name: '수동 매칭', exact: true })).toBeChecked();
   await page.keyboard.press('Escape');
   await navigation.getByRole('link', { name: '프로필', exact: true }).click();

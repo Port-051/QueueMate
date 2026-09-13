@@ -1,3 +1,4 @@
+import { USE_MOCK } from '../config';
 import { useEffect, useState } from 'react';
 import type { BoardRow } from '../api/recruitment';
 import type { GameKey } from '../api/types';
@@ -55,11 +56,11 @@ export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]
     return () => window.clearInterval(timer);
   }, []);
   const withoutRoles = rows.length > 0 && rows.every(row => !usesKeyCondition(row.condition.game, row.condition.modeKey));
-  return <div className={`recruitment-list${withoutRoles ? ' without-roles' : ''}`} aria-label="모집 목록">
+  return <div className={`recruitment-list${withoutRoles ? ' without-roles' : ''}`} aria-label="매칭 글 목록">
     {rows.map(row => {
       const introduction = introductionForRow(row);
       const hasRoles = usesKeyCondition(row.condition.game, row.condition.modeKey);
-      return <button type="button" key={row.id} data-recruitment-id={row.id} className={`recruitment-row ${selected === row.id ? 'selected' : ''} ${row.status !== 'OPEN' ? 'unavailable' : ''}${hasRoles ? '' : ' without-roles'}`} aria-label={`${row.nickname} 모집 상세`} aria-pressed={selected === row.id} onClick={() => onSelect(row)}>
+      return <button type="button" key={row.id} data-recruitment-id={row.id} className={`recruitment-row ${selected === row.id ? 'selected' : ''} ${row.status !== 'OPEN' ? 'unavailable' : ''}${hasRoles ? '' : ' without-roles'}`} aria-label={`${row.nickname} 매칭 글 상세`} aria-pressed={selected === row.id} onClick={() => onSelect(row)}>
       <div className="row-player"><Avatar name={row.nickname} size={40} /><div><div className="row-player-heading"><b>{row.nickname}</b>{introduction.champions.length ? <PreferredChampions game={row.condition.game} names={introduction.champions} /> : null}</div><IntroductionStats game={row.condition.game} introduction={introduction} showChampions={false} />{row.description ? <p>{row.description}</p> : null}</div></div>
       <div className="row-meta row-rank"><RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /></div>
       <div className="row-meta row-mode"><span className="recruitment-mode"><FilterModeIcon mode={row.condition.modeKey} /><span>{queueLabel(row)}</span></span>{row.targetSize > 2 ? <small>{row.members.length}/{row.targetSize}명</small> : null}</div>
@@ -72,16 +73,16 @@ export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]
 
 export function RecruitmentDetail({ row, busy, hasSource, disabled, disabledReason, joinLabel, onClose, onJoin }: { joinLabel?: string; row: BoardRow; busy: boolean; hasSource: boolean; disabled: boolean; disabledReason?: string; onClose: () => void; onJoin: () => void }) {
   const introduction = introductionForRow(row);
-  return <MatchingRailPanel className="recruitment-detail" title="모집 상세" busy={busy} onClose={onClose}>
+  return <MatchingRailPanel className="recruitment-detail" title="매칭 글 상세" busy={busy} onClose={onClose}>
     <div className="row"><Avatar name={row.nickname} /><div><div className="row-player-heading"><b>{row.nickname}</b><RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /></div><p>{BOARD_STATUS[row.status]}{row.targetSize > 2 ? ` · ${row.members.length}/${row.targetSize}명` : ''}</p></div></div>
     <RecruitmentIntroduction row={row} />
     {row.type === 'RESERVATION' && row.availableFrom ? <p>{timeLabel(row.availableFrom)} ~ {row.availableTo ? timeLabel(row.availableTo) : ''}</p> : null}
-    {disabledReason || row.status !== 'OPEN' ? <p className="hint">{disabledReason ?? '현재 참여 신청을 받지 않는 모집이에요.'}</p> : null}
-    <Button variant="primary" block disabled={busy || disabled || row.status !== 'OPEN'} onClick={onJoin}>{joinLabel ?? (hasSource ? '이 모집에 참여 신청' : '자기소개 입력하고 참여 신청')}</Button>
+    {disabledReason || row.status !== 'OPEN' ? <p className="hint">{disabledReason ?? '현재 참여 신청을 받지 않는 매칭이에요.'}</p> : null}
+    <Button variant="primary" block disabled={busy || disabled || row.status !== 'OPEN'} onClick={onJoin}>{joinLabel ?? (hasSource ? '이 매칭에 참여 신청' : '자기소개 입력하고 참여 신청')}</Button>
   </MatchingRailPanel>;
 }
 
-/** 모집 상세와 참여·수락 단계에서 동일한 공개 소개를 표시한다. */
+/** 매칭 글 상세와 참여·수락 단계에서 동일한 공개 소개를 표시한다. */
 export function RecruitmentIntroduction({ row }: { row: IntroductionRecord }) {
   const introduction = introductionForRow(row);
   const wins = introduction.recentResults.filter(result => result === 'WIN').length;
@@ -92,7 +93,7 @@ export function RecruitmentIntroduction({ row }: { row: IntroductionRecord }) {
       <span>승률<PerformanceValue kind="winRate" value={introduction.winRate} /></span>
       <span>KDA<PerformanceValue kind="kda" value={introduction.kda} /></span>
     </div>
-    <span className="introduction-detail-source">티어·전적 직접 입력</span>
+    <span className="introduction-detail-source">{USE_MOCK ? '예시 전적' : '전적 확인 전'}</span>
     {introduction.bio ? <p>{introduction.bio}</p> : null}
     <dl>
       {usesKeyCondition(row.condition.game, row.condition.modeKey) ? <><dt>{roleTitle(row)} → 찾는 상대</dt><dd><RecruitmentRoleIcons row={row} /></dd></> : null}

@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import type { Page, Locator } from '@playwright/test';
 
 export const DEMO = { email: 'demo@queuemate.gg', password: 'queuemate1' };
 
@@ -25,12 +25,18 @@ export async function startRealtimeMatch(page: Page, auto = false): Promise<void
   await expect(page.locator('.home-profile .recruitment-composer-shell')).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   if (auto) await page.locator('.recruitment-composer-shell').getByRole('radio', { name: '자동 매칭', exact: true }).check();
-  await page.getByRole('button', { name: '모집 시작', exact: true }).click();
+  await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.locator('.my-recruitment')).toBeVisible();
 }
 
-/** 오른쪽 모집 영역의 개별 관리 버튼을 누른다. */
+/** 오른쪽 매칭 영역의 개별 관리 버튼을 누른다. */
 export async function manageRecruitment(page: Page, action: string): Promise<void> {
   await page.locator('.my-recruitment').getByRole('button', { name: action, exact: true }).click();
+}
+
+/** 버튼 선택 그룹에서 이미 선택된 항목은 해제하지 않는다. */
+export async function selectButton(group: Locator, name: string): Promise<void> {
+  const button = group.getByRole('button', { name, exact: true });
+  if (await button.getAttribute('aria-pressed') !== 'true') await button.click();
 }

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { login, startRealtimeMatch } from './helpers';
 
-test('자동 추천의 소개를 읽는 동안 모집 타이머와 수락 버튼을 유지한다', async ({ page }) => {
+test('자동 추천의 소개를 읽는 동안 매칭 타이머와 수락 버튼을 유지한다', async ({ page }) => {
   await page.clock.install(); await login(page); await startRealtimeMatch(page, true);
   await page.clock.fastForward(7000);
   const proposal = page.locator('.duo-offer');
@@ -10,7 +10,7 @@ test('자동 추천의 소개를 읽는 동안 모집 타이머와 수락 버튼
   await expect(introduction.locator('.row-introduction-stats')).toContainText('KDA');
   await introduction.locator('summary').click();
   await expect(introduction.locator('.recent-results > span')).toHaveCount(20);
-  const timer = page.getByRole('timer', { name: '모집 시작 후', exact: true });
+  const timer = page.getByRole('timer', { name: '매칭 시작 후', exact: true });
   const before = await timer.innerText();
   await page.clock.fastForward(2000); await expect(timer).not.toHaveText(before);
   const accept = proposal.getByRole('button', { name: '같이 할래요' });
@@ -19,7 +19,7 @@ test('자동 추천의 소개를 읽는 동안 모집 타이머와 수락 버튼
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
-test('추천을 건너뛰어도 모집을 유지하고 다음 상대를 보여준다', async ({ page }) => {
+test('추천을 건너뛰어도 매칭을 유지하고 다음 상대를 보여준다', async ({ page }) => {
   await page.clock.install(); await login(page); await startRealtimeMatch(page, true);
   await page.clock.fastForward(7000);
   const proposal = page.locator('.duo-offer');
@@ -29,7 +29,7 @@ test('추천을 건너뛰어도 모집을 유지하고 다음 상대를 보여�
   await page.clock.fastForward(7000);
   await expect(proposal).toHaveCount(1); await expect(proposal).not.toHaveAttribute('aria-label', first!);
   await expect(page.getByRole('region', { name: '보낸 오케이' })).toHaveCount(0);
-  await expect(page.locator('.my-recruitment')).toContainText('모집 중');
+  await expect(page.locator('.my-recruitment')).toContainText('매칭 중');
 });
 
 test('방장은 수락 전에 신청자의 공개 조건과 자기소개를 확인하고 거절할 수 있다', async ({ page }) => {
@@ -70,6 +70,6 @@ test('방장은 수락 전에 신청자의 공개 조건과 자기소개를 확�
   await expect(applicant.getByRole('button', { name: '함께하기', exact: true })).toBeEnabled();
   await applicant.getByRole('button', { name: '거절', exact: true }).click();
   await expect(applicant).toHaveCount(0);
-  await expect(page.locator('.my-recruitment')).toContainText('모집 중');
+  await expect(page.locator('.my-recruitment')).toContainText('매칭 중');
   await expect(page.locator('.compact-party')).toHaveCount(0);
 });

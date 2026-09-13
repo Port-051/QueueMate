@@ -14,7 +14,7 @@ export function IconDirectMessage({ size = 24, filled = false }: { size?: number
   </svg>;
 }
 
-const KIND_LABEL: Record<NotificationKind, string> = { MATCH: '매칭', PARTY: '파티', RECRUITMENT: '모집', FRIEND: '친구', MESSAGE: '메시지', RECOMMENDATION: '추천' };
+const KIND_LABEL: Record<NotificationKind, string> = { MATCH: '매칭', PARTY: '파티', RECRUITMENT: '매칭', FRIEND: '친구', MESSAGE: '메시지', RECOMMENDATION: '추천' };
 const KIND_SYMBOL: Record<NotificationKind, string> = { MATCH: '↗', PARTY: '✓', RECRUITMENT: '+', FRIEND: '♡', MESSAGE: '↗', RECOMMENDATION: '✦' };
 function relativeTime(createdAt: string) {
   const minutes = Math.max(0, Math.floor((Date.now() - Date.parse(createdAt)) / 60_000));

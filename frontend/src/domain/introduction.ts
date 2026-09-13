@@ -60,7 +60,7 @@ export function saveIntroduction(userId: string, game: GameKey, value: SelfIntro
   catch { return false; }
 }
 
-/** 수정 중인 모집의 조건이 저장된 프로필보다 우선한다. */
+/** 수정 중인 매칭의 조건이 저장된 프로필보다 우선한다. */
 export function introductionFromBoard(value: Pick<BoardWrite, 'condition' | 'preferences'> & { description?: string }, saved: SelfIntroduction | null = null): SelfIntroduction {
   const hasRoles = usesKeyCondition(value.condition.game, value.condition.modeKey);
   const rankTier = value.condition.game === 'LOL' && saved?.ownTier === value.preferences.ownTier ? value.preferences.ownTier : null;

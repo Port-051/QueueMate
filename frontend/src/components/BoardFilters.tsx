@@ -6,7 +6,7 @@ import { FilterSelect } from './FilterSelect';
 import { FilterModeIcon, FilterRoleIcon, FilterTierIcon } from './FilterSymbols';
 import { IconMic } from './icons';
 
-/** 목록에 보일 상대만 고른다. 내 소개와 내 모집의 조건에는 쓰지 않는다. */
+/** 목록에 보일 상대만 고른다. 내 소개와 내 매칭의 조건에는 쓰지 않는다. */
 export function BoardFilters({ value, onChange, onReset }: { value: BoardSearch; onChange: (value: BoardSearch) => void; onReset: () => void }) {
   const error = recruitmentInputError(value);
   const game = value.condition.game;
@@ -30,7 +30,7 @@ export function BoardFilters({ value, onChange, onReset }: { value: BoardSearch;
           <FilterRoleIcon game={game} value={role.value} />
         </button>)}
       </div> : null}
-      <button type="button" className="filter-voice" role="switch" aria-label="음성 사용 모집만 보기" aria-checked={voiceEnabled} title={voiceEnabled ? '음성 필터 켜짐' : '음성 필터 꺼짐'} onClick={() => condition({ voicePreference: voiceEnabled ? 'OPTIONAL' : 'REQUIRED' })}><IconMic size={20} /></button>
+      <button type="button" className="filter-voice" role="switch" aria-label="음성 사용 매칭만 보기" aria-checked={voiceEnabled} title={voiceEnabled ? '음성 필터 켜짐' : '음성 필터 꺼짐'} onClick={() => condition({ voicePreference: voiceEnabled ? 'OPTIONAL' : 'REQUIRED' })}><IconMic size={20} /></button>
       {filtered ? <button type="button" className="filter-reset" aria-label="초기화" title="필터 초기화" onClick={onReset}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg></button> : null}
     </div>
     {value.type === 'RESERVATION' ? <div className="board-filter-schedule" role="group" aria-label="예약 검색 시간">

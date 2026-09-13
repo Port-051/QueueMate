@@ -8,7 +8,7 @@ type StatKind = 'winRate' | 'kda';
 const STAT_THRESHOLDS: Record<StatKind, number[]> = { winRate: [45, 49, 53, 60], kda: [1, 2, 3, 4] };
 const STAT_TONES = ['red', 'orange', 'yellow', 'green', 'blue'] as const;
 
-/** 전체 모집에 같은 고정 구간을 사용한다. 모집 목록의 구성에 따라 색이 달라지지 않는다. */
+/** 전체 매칭에 같은 고정 구간을 사용한다. 매칭 글 목록의 구성에 따라 색이 달라지지 않는다. */
 export function PerformanceValue({ kind, value }: { kind: StatKind; value: number | null }) {
   const valid = value !== null && Number.isFinite(value) && value >= 0 && (kind !== 'winRate' || value <= 100);
   const band = valid ? STAT_THRESHOLDS[kind].filter(threshold => value >= threshold).length : undefined;

@@ -4,9 +4,10 @@ import { isApiError } from '../api/error';
 import { useNow } from '../state/useNow';
 import { recruitmentInputError } from '../domain/recruitmentValidation';
 import { writeFrom } from '../domain/recruitment';
-import { applyIntroduction, introductionFromBoard, introductionInputError, readIntroduction, saveIntroduction } from '../domain/introduction';
+import { applyIntroduction, emptyIntroduction, introductionFromBoard, introductionInputError, readIntroduction, saveIntroduction } from '../domain/introduction';
 import { useAuth } from '../state/AuthContext';
 import { Button, useToast } from './ui';
+import { IconSearch, IconBolt } from './icons';
 import { MatchingRailPanel } from './MatchingRailPanel';
 import { ReservationFields } from './RecruitmentFields';
 import { SelfIntroductionFields } from './SelfIntroductionFields';
@@ -17,7 +18,11 @@ export function RecruitmentComposer({ initial, editing, suspended, onClose, onSa
   const toast = useToast();
   const { user } = useAuth();
   const now = useNow();
-  const [introduction, setIntroduction] = useState(() => introductionFromBoard(initial, user ? readIntroduction(user.id, initial.condition.game) : null));
+  const [introduction, setIntroduction] = useState(() => {
+    const saved = introductionFromBoard(initial, user ? readIntroduction(user.id, initial.condition.game) : null);
+    // 롤 전적 입력값은 연동 데이터로 취급하지 않는다. 실제 연동 전에는 미확인 상태다.
+    return initial.condition.game === 'LOL' ? { ...saved, ownTier: null, rankDivision: null, champions: [], winRate: null, kda: null, recentResults: emptyIntroduction().recentResults } : saved;
+  });
   const [value, setValue] = useState(() => applyIntroduction(writeFrom(initial), introduction));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -27,24 +32,24 @@ export function RecruitmentComposer({ initial, editing, suspended, onClose, onSa
     setBusy(true); setError('');
     try {
       const row = editing ? await board.editRecruitment(editing, value) : await board.createRecruitment(value);
-      if (user && !saveIntroduction(user.id, value.condition.game, introduction)) toast('모집은 등록됐지만 자기소개를 이 브라우저에 보관하지 못했어요.', 'info');
-      try { await onSaved(row); } catch { toast('모집은 저장되었습니다. 최신 상태를 다시 불러와 주세요.', 'info'); }
+      if (user && !saveIntroduction(user.id, value.condition.game, introduction)) toast('매칭은 등록됐지만 자기소개를 이 브라우저에 보관하지 못했어요.', 'info');
+      try { await onSaved(row); } catch { toast('매칭은 저장되었습니다. 최신 상태를 다시 불러와 주세요.', 'info'); }
       onClose(true);
-    } catch (err) { setError(isApiError(err) ? err.message : '모집을 저장하지 못했습니다. 다시 시도해 주세요.'); }
+    } catch (err) { setError(isApiError(err) ? err.message : '매칭을 저장하지 못했습니다. 다시 시도해 주세요.'); }
     finally { setBusy(false); }
   };
-  return <MatchingRailPanel suspended={suspended} busy={busy} title={editing ? '모집 수정' : value.type === 'REALTIME' ? '실시간 모집' : '예약 모집'} onClose={() => onClose()} className="recruitment-composer-shell">
+  return <MatchingRailPanel suspended={suspended} busy={busy} title={editing ? '매칭 수정' : value.type === 'REALTIME' ? '실시간 매칭' : '예약 매칭'} onClose={() => onClose()} className="recruitment-composer-shell">
     <form onSubmit={event => { event.preventDefault(); void submit(); }}>
     <fieldset className="recruitment-composer" disabled={busy || suspended}>
       {error || validationError ? <div className="banner warn" role="alert">{error || validationError}</div> : null}
       <SelfIntroductionFields game={value.condition.game} value={introduction} modeLocked={Boolean(editing)} onChange={next => { setIntroduction(next); setValue(applyIntroduction(value, next)); }} />
       {value.type === 'RESERVATION' ? <ReservationFields value={value} onChange={time => setValue({ ...value, ...time })} /> : null}
-      <fieldset className="matching-choice"><legend>매칭 방식</legend><div className="matching-choice-grid">
-        <label><input type="radio" name="matching-method" aria-label="수동 매칭" checked={!value.autoMatch} onChange={() => setValue({ ...value, autoMatch: false })} /><span><strong>수동 매칭</strong><small>목록에서 상대를 찾거나 오케이를 받아요.</small></span></label>
-        <label><input type="radio" name="matching-method" aria-label="자동 매칭" checked={value.autoMatch} onChange={() => setValue({ ...value, autoMatch: true })} /><span><strong>자동 매칭</strong><small>조건이 맞는 상대를 한 명씩 추천해요.</small></span></label>
+      <fieldset className="matching-choice"><legend>매칭 방식</legend><div className="matching-choice-grid" role="radiogroup" aria-label="매칭 방식">
+        <button type="button" role="radio" aria-label="수동 매칭" aria-checked={!value.autoMatch} onClick={() => setValue({ ...value, autoMatch: false })}><IconSearch size={20} /><span>수동 매칭</span></button>
+        <button type="button" role="radio" aria-label="자동 매칭" aria-checked={value.autoMatch} onClick={() => setValue({ ...value, autoMatch: true })}><IconBolt size={20} /><span>자동 매칭</span></button>
       </div></fieldset>
     </fieldset>
-    <div className="matching-rail-footer"><Button block type="submit" variant="primary" disabled={busy || suspended || Boolean(validationError)}>{busy ? '저장 중…' : editing ? '모집 조건 저장' : '모집 시작'}</Button></div>
+    <div className="matching-rail-footer"><Button block type="submit" variant="primary" disabled={busy || suspended || Boolean(validationError)}>{busy ? '저장 중…' : editing ? '매칭 조건 저장' : '매칭 시작'}</Button></div>
     </form>
   </MatchingRailPanel>;
 }

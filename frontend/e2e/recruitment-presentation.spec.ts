@@ -33,11 +33,11 @@ async function saveExamples(page: Page, examples: { userId: string; champions: s
   }, examples);
 }
 
-test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 표시 없이 챔피언 사진을 보여준다', async ({ page }, testInfo) => {
+test('네 모드의 매칭은 필터와 같은 아이콘을 쓰며 2인 정원 표시 없이 챔피언 사진을 보여준다', async ({ page }, testInfo) => {
   await login(page);
   const modes = page.getByRole('group', { name: '찾는 큐 타입', exact: true });
   const rows = page.locator('.recruitment-row');
-  const dialog = page.getByRole('region', { name: '모집 상세', exact: true });
+  const dialog = page.getByRole('region', { name: '매칭 글 상세', exact: true });
 
   await page.getByRole('button', { name: '찾는 상대 티어', exact: true }).click();
   const tiers = page.getByRole('listbox', { name: '찾는 상대 티어', exact: true });
@@ -53,7 +53,7 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
   for (const mode of ['랭크', '일반', '신속', '칼바람']) {
     const filter = modes.getByRole('button', { name: mode, exact: true });
     await filter.click();
-    await expect(page.locator('.board-results-head')).toContainText('10개 모집');
+    await expect(page.locator('.board-results-head')).toContainText('10개 매칭 글');
     await expect(rows.locator(':scope > .row-mode .recruitment-mode')).toHaveText(Array(10).fill(mode));
     await expect(page.locator('.recruitment-list-head')).toHaveCount(0);
     await expect(rows.locator(':scope > .row-rank > .row-tier')).toHaveCount(10);
@@ -94,7 +94,7 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
   for (const width of [1600, 1100, 900, 360]) {
     await page.setViewportSize({ width, height: 900 });
     await rows.first().scrollIntoViewIfNeeded();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `모집 목록 ${width}px 가로 넘침`).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `매칭 글 목록 ${width}px 가로 넘침`).toBe(true);
     await expect(rows.first().locator('.row-rank')).toBeVisible();
     await expect(rows.first().locator('.row-mode')).toBeVisible();
     await expect(rows.first().locator('.row-roles')).toBeVisible();
@@ -126,7 +126,7 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
     await expectLoadedPortrait(rows.first().getByRole('img', { name: '리 신 초상화', exact: true }));
     await page.screenshot({ path: testInfo.outputPath(`recruitment-presentation-${width}.png`) });
     await rows.first().click();
-    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth), `모집 상세 ${width}px 가로 넘침`).toBe(true);
+    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth), `매칭 글 상세 ${width}px 가로 넘침`).toBe(true);
     await expectLoadedPortrait(dialog.getByRole('img', { name: '리 신 초상화', exact: true }));
     await page.keyboard.press('Escape');
   }
@@ -160,9 +160,9 @@ test('승률과 KDA는 수치 구간에 따라 다섯 색상으로 구분하며 
   await login(page);
   await page.getByRole('group', { name: '찾는 큐 타입', exact: true }).getByRole('button', { name: '랭크', exact: true }).click();
   const colors: string[] = [];
-  const dialog = page.getByRole('region', { name: '모집 상세', exact: true });
+  const dialog = page.getByRole('region', { name: '매칭 글 상세', exact: true });
   for (const example of examples) {
-    const row = page.getByRole('button', { name: `${example.nickname} 모집 상세`, exact: true });
+    const row = page.getByRole('button', { name: `${example.nickname} 매칭 글 상세`, exact: true });
     const values = row.locator('.performance-value');
     await expect(values).toHaveText([`${example.winRate}%`, example.kda.toFixed(2)]);
     for (const value of await values.all()) await expect(value).toHaveAttribute('data-tone', example.tone);
@@ -175,7 +175,7 @@ test('승률과 KDA는 수치 구간에 따라 다섯 색상으로 구분하며 
     await page.keyboard.press('Escape');
   }
   expect(new Set(colors).size, '다섯 구간은 서로 다른 실제 글자 색상으로 표시한다').toBe(5);
-  const noRecord = page.getByRole('button', { name: 'AimKing 모집 상세', exact: true });
+  const noRecord = page.getByRole('button', { name: 'AimKing 매칭 글 상세', exact: true });
   await expect(noRecord.locator('.performance-value')).toHaveCount(0);
   await noRecord.click();
   await expect(dialog.locator('.performance-value')).toHaveText(['미입력', '미입력']);
@@ -186,8 +186,8 @@ test('알 수 없는 챔피언과 불러오지 못한 초상화는 대체 아이
   await saveExamples(page, [{ userId: 'u-gankflow', champions: ['처음 보는 챔피언', '리 신'], winRate: null, kda: null }]);
   await page.route(/\/[^/]*LeeSin[^/]*\.png(?:\?.*)?$/i, route => route.request().resourceType() === 'image' ? route.abort() : route.continue());
   await login(page);
-  const row = page.getByRole('button', { name: 'GankFlow 모집 상세', exact: true });
-  const dialog = page.getByRole('region', { name: '모집 상세', exact: true });
+  const row = page.getByRole('button', { name: 'GankFlow 매칭 글 상세', exact: true });
+  const dialog = page.getByRole('region', { name: '매칭 글 상세', exact: true });
   for (const surface of [row, dialog]) {
     if (surface === dialog) await row.click();
     for (const name of ['처음 보는 챔피언', '리 신']) {
@@ -204,7 +204,7 @@ test('알 수 없는 챔피언과 불러오지 못한 초상화는 대체 아이
   }
 });
 
-test('모집은 닉네임 뒤에 챔피언을 한 번 표시하고 랭크는 별도 열에 표시한다', async ({ page }) => {
+test('매칭은 닉네임 뒤에 챔피언을 한 번 표시하고 랭크는 별도 열에 표시한다', async ({ page }) => {
   const now = Date.parse('2026-09-14T12:00:00Z');
   const ago = (offset: number) => new Date(now - offset).toISOString();
   const examples = [

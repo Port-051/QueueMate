@@ -187,7 +187,7 @@ export function targetPartySize(game: GameKey, modeKey: string): number {
   return modeConfig(game, modeKey)?.targetPartySize ?? 2;
 }
 
-/** 칼바람은 포지션을 정하지 않으므로 검색·모집 조건에서도 제외한다. */
+/** 칼바람은 포지션을 정하지 않으므로 검색·매칭 조건에서도 제외한다. */
 export function usesKeyCondition(game: GameKey, modeKey: string): boolean {
   return game !== 'LOL' || modeKey !== 'ARAM';
 }

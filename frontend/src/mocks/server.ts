@@ -46,7 +46,7 @@ const partySizeOf = (condition: MatchCondition): number =>
 
 /**
  * 체험용 카탈로그의 조건을 검증한다. 오류 코드는 기존 계약과 맞추되,
- * 허용 모드와 모집 정원은 승인된 프론트엔드 시안에 따른다 (contract.ts).
+ * 허용 모드와 매칭 정원은 승인된 프론트엔드 시안에 따른다 (contract.ts).
  */
 function validateCondition(raw: unknown): MatchCondition {
   const c = raw as Partial<MatchCondition> | undefined;

@@ -137,7 +137,7 @@ test('큐 무관 소개는 칼바람에서 포지션 조건을 비우고 신청 
 });
 
 for (const modeKey of ['SOLO_DUO_RANKED', 'NORMAL_DRAFT', 'SWIFTPLAY', 'ARAM']) {
-  test(`${modeKey} 모집은 같은 모드의 한 명을 수락하면 2인 제안이 된다`, async ({ page }) => {
+  test(`${modeKey} 매칭은 같은 모드의 한 명을 수락하면 2인 제안이 된다`, async ({ page }) => {
     const result = await page.evaluate(modeKey => {
       const { call, create, respond, events } = (window as any).boardInvariantFixture;
       const host = create('duo-host', modeKey, 'TOP');
@@ -294,7 +294,7 @@ test('새 모드에서 만난 파티원과 매칭 상대의 이름은 친구 요
 });
 
 
-test('자동 매칭된 실제 상대 소개를 내 모집에서 읽고 제안 취소 후 그룹에 남기지 않는다', async ({ page }) => {
+test('자동 매칭된 실제 상대 소개를 내 매칭에서 읽고 제안 취소 후 그룹에 남기지 않는다', async ({ page }) => {
   const result = await page.evaluate(() => {
     const { db, call, create, peers } = (window as any).boardInvariantFixture;
     const candidate = create('outside-first-page', 'ARAM', 'TOP', true, true, 'OPTIONAL', 'LOL', ['SUPPORT']);

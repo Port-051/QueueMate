@@ -67,3 +67,34 @@
   .row-introduction-stats { font-size: 9px; gap: 4px 7px; }
   .board-proposal .proposal-members { max-height: 260px; }
 }
+
+/* 홈 필터의 아이콘·선택 색상을 시작 폼에도 사용한다. */
+.button-fields { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.introduction-choice { border: 0; padding: 0; margin: 0; min-width: 0; }
+.introduction-choice legend { padding: 0; margin-bottom: 9px; color: var(--text-dim); font-size: 13px; }
+.intro-mode-options, .intro-voice-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+.intro-voice-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.intro-role-options { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+.self-introduction .filter-mode, .self-introduction .filter-role { min-width: 0; width: 100%; min-height: 44px; border: 1px solid var(--line); background: transparent; border-radius: 7px; color: var(--muted); display: flex; gap: 6px; align-items: center; justify-content: center; padding: 8px 4px; cursor: pointer; font: inherit; font-size: 13px; }
+.self-introduction .filter-role { flex-direction: column; height: auto; font-size: 11px; gap: 5px; }
+.self-introduction button[aria-pressed="true"] { color: #fff; border-color: var(--accent); background: var(--accent); }
+.self-introduction button:hover:not(:disabled):not([aria-pressed="true"]) { background: #ffffff09; color: var(--text); }
+.self-introduction button:focus-visible { outline: 2px solid #bda4ff; outline-offset: 2px; }
+.self-introduction button:disabled { opacity: .55; cursor: default; }
+.linked-game-record { border-block: 1px solid var(--line); padding: 13px 0; margin-bottom: 20px; }
+.linked-record-heading { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.linked-record-heading > span:last-child { margin-left: auto; color: var(--muted); font-size: 12px; }
+.linked-game-record dl { display: grid; grid-template-columns: repeat(3, 1fr); margin: 12px 0; }
+.linked-game-record dt { font-size: 12px; color: var(--muted); }
+.linked-game-record dd { margin: 5px 0 0; color: var(--text-dim); }
+.linked-record-champions { display: flex; align-items: center; gap: 5px; }
+.linked-record-champions > span { width: 25px; height: 25px; border-radius: 50%; border: 1px solid var(--line); background: #ffffff04; }
+.linked-record-champions small { margin-left: 5px; font-size: 11px; color: var(--muted); }
+.matching-choice-grid strong { display: flex; gap: 6px; align-items: center; }
+.matching-choice-grid > button { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 8px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--text-dim); font: inherit; font-size: 14px; cursor: pointer; }
+.matching-choice-grid > button[aria-checked="true"] { border-color: var(--accent); background: var(--accent); color: white; }
+.matching-choice-grid > button:focus-visible { outline: 2px solid #bda4ff; outline-offset: 2px; }
+.matching-choice-grid > button:disabled { opacity: .5; cursor: default; }
+
+.reservation-amount { grid-column: 1 / -1; }
+.matching-choice-grid > button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: white; }

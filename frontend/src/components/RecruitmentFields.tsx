@@ -1,3 +1,4 @@
+import { IconClock } from './icons';
 import type { BoardPreferences, BoardSearch, BoardWrite } from '../api/recruitment';
 import type { MatchCondition, VoicePreference, PlayPurpose } from '../api/types';
 import { conditionForMode, keyConditionOptions, usesKeyCondition, visibleModes, VOICE_OPTIONS, PURPOSE_OPTIONS } from '../domain/gameConfig';
@@ -27,7 +28,9 @@ export function ReservationFields({ value, onChange }: { value: Pick<BoardWrite,
   return <div className="reservation-fields">
     <label>시작 가능 시각<input aria-label="시작 가능 시각" type="datetime-local" step="1800" value={localInput(value.availableFrom)} onChange={e => onChange({ ...value, availableFrom: e.target.value ? new Date(e.target.value).toISOString() : null })} /></label>
     <label>마지막 종료 시각<input aria-label="마지막 종료 시각" type="datetime-local" step="1800" value={localInput(value.availableTo)} onChange={e => onChange({ ...value, availableTo: e.target.value ? new Date(e.target.value).toISOString() : null })} /></label>
-    <label>플레이 양<select aria-label="플레이 양" value={value.playAmount ?? 'ONE_GAME'} onChange={e => onChange({ ...value, playAmount: e.target.value as 'ONE_GAME' | 'TWO_PLUS' })}><option value="ONE_GAME">한 게임</option><option value="TWO_PLUS">두 게임 이상</option></select></label>
+    <fieldset className="introduction-choice reservation-amount"><legend>플레이 양</legend><div className="matching-choice-grid" role="group" aria-label="플레이 양">
+      {([{ value: 'ONE_GAME', label: '한 게임' }, { value: 'TWO_PLUS', label: '두 게임 이상' }] as const).map(option => <button type="button" key={option.value} aria-pressed={(value.playAmount ?? 'ONE_GAME') === option.value} onClick={() => onChange({ ...value, playAmount: option.value })}><IconClock size={18} />{option.label}</button>)}
+    </div></fieldset>
     <p className="hint">30분 단위로 선택하세요. 서로 겹치는 시간에 약속을 잡습니다.</p>
   </div>;
 }

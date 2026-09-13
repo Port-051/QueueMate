@@ -37,18 +37,18 @@ test('파티 준비 변경이 연결을 초기화하지 않고, 종료되면 통
   await expect(page.getByRole('button', { name: '연결 다시 시도' })).toHaveCount(0);
 });
 
-test('오른쪽 모집 폼은 키보드로 조작하고 닫으면 시작 버튼으로 포커스가 돌아간다', async ({ page }) => {
+test('오른쪽 매칭 폼은 키보드로 조작하고 닫으면 시작 버튼으로 포커스가 돌아간다', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await login(page);
   const launch = page.locator('.intro-launch > button');
   await launch.click();
-  const start = page.getByRole('button', { name: '모집 시작', exact: true });
+  const start = page.getByRole('button', { name: '매칭 시작', exact: true });
   await expect(start).toBeEnabled();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('button', { name: '모집 작성 닫기' })).toBeFocused();
+  await expect(page.getByRole('button', { name: '매칭 작성 닫기' })).toBeFocused();
   await page.keyboard.press('Tab');
-  await expect(page.locator('.recruitment-composer-shell').getByLabel('주 포지션')).toBeFocused();
+  await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '원하는 큐 타입', exact: true }).getByRole('button', { name: '랭크', exact: true })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(launch).toBeFocused();
@@ -83,13 +83,13 @@ test('친구 요청 탭, 검색 빈 상태, 신고 모달 키보드 포커스', 
   await expect(menu).toBeFocused();
 });
 
-test('검색 필터는 내 모집을 바꾸지 않고 게임과 필터 선택을 유지한다', async ({ page }) => {
+test('검색 필터는 내 매칭을 바꾸지 않고 게임과 필터 선택을 유지한다', async ({ page }) => {
   await login(page); await startRealtimeMatch(page);
   const roles = page.locator('.board-filter-bar').getByRole('group', { name: '찾는 상대 포지션', exact: true });
   await roles.getByRole('button', { name: '미드', exact: true }).click();
   await expect(page.locator('.my-recruitment .recruitment-own-summary')).toContainText('무관');
   await manageRecruitment(page, '조건 수정');
-  await expect(page.locator('.recruitment-composer-shell').getByLabel('주 포지션')).toHaveValue('ANY');
+  await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '주 포지션', exact: true }).getByRole('button', { name: '무관', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: '발로란트 매칭', exact: true }).click();
   await expect(roles.getByRole('button', { name: '타격대', exact: true })).toBeVisible();
@@ -108,10 +108,10 @@ test('기존 매칭과 예약 주소도 홈 오른쪽 작성 영역으로 연결
   await openBookmark('/app/match');
   await expect(page).toHaveURL(/\/app\/home$/);
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
-  await expect(page.locator('.recruitment-composer-shell')).toContainText('실시간 모집');
+  await expect(page.locator('.recruitment-composer-shell')).toContainText('실시간 매칭');
   await openBookmark('/app/reservations/new');
   await expect(page).toHaveURL(/\/app\/home$/);
-  await expect(page.locator('.recruitment-composer-shell')).toContainText('예약 모집');
+  await expect(page.locator('.recruitment-composer-shell')).toContainText('예약 매칭');
   await openBookmark('/app/reservations');
   await expect(page).toHaveURL(/\/app\/home$/);
   await expect(page.locator('.recruitment-composer-shell')).toHaveCount(0);

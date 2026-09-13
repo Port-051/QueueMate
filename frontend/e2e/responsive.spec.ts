@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { login } from './helpers';
 
-test('홈의 내 정보는 큰 화면 오른쪽과 작은 화면 상단에 배치하고 모집 글자를 읽을 수 있게 유지한다', async ({ page }, testInfo) => {
+test('홈의 내 정보는 큰 화면 오른쪽과 작은 화면 상단에 배치하고 매칭 글자를 읽을 수 있게 유지한다', async ({ page }, testInfo) => {
   await login(page);
   const home = page.getByRole('region', { name: '듀오 찾기', exact: true });
   const profile = home.getByRole('complementary', { name: '내 정보', exact: true });
@@ -15,9 +15,9 @@ test('홈의 내 정보는 큰 화면 오른쪽과 작은 화면 상단에 배�
     const profileBox = (await profile.boundingBox())!;
     const feedBox = (await feed.boundingBox())!;
     if (width >= 1100) {
-      expect(profileBox.x, `내 정보는 모집 목록 오른쪽 ${width}px`).toBeGreaterThanOrEqual(feedBox.x + feedBox.width);
+      expect(profileBox.x, `내 정보는 매칭 글 목록 오른쪽 ${width}px`).toBeGreaterThanOrEqual(feedBox.x + feedBox.width);
     } else {
-      expect(profileBox.y + profileBox.height, `내 정보는 모집 목록 위 ${width}px`).toBeLessThanOrEqual(feedBox.y);
+      expect(profileBox.y + profileBox.height, `내 정보는 매칭 글 목록 위 ${width}px`).toBeLessThanOrEqual(feedBox.y);
     }
     const homeBox = (await home.boundingBox())!;
     const mainBox = (await page.locator('main.main').boundingBox())!;
@@ -44,7 +44,7 @@ test('모바일 필터는 한 줄로 스크롤되고 선택 팝업과 예약 입
   const filters = page.locator('.board-filter-bar');
   const line = filters.locator('.board-filter-line');
   const tier = filters.getByRole('button', { name: '찾는 상대 티어', exact: true });
-  const voice = filters.getByRole('switch', { name: '음성 사용 모집만 보기', exact: true });
+  const voice = filters.getByRole('switch', { name: '음성 사용 매칭만 보기', exact: true });
   const roles = filters.getByRole('group', { name: '찾는 상대 포지션', exact: true });
   const modes = filters.getByRole('group', { name: '찾는 큐 타입', exact: true });
   await expect(roles.getByRole('button')).toHaveCount(5);
@@ -74,13 +74,13 @@ test('모바일 필터는 한 줄로 스크롤되고 선택 팝업과 예약 입
   await expect(voice).toHaveAttribute('aria-checked', 'true');
   await expect(voice).toHaveAttribute('title', '음성 필터 켜짐');
   await expect(page.getByRole('listbox')).toHaveCount(0);
-  await expect(page.locator('.board-results-head')).toContainText('12개 모집');
+  await expect(page.locator('.board-results-head')).toContainText('12개 매칭 글');
   await page.keyboard.press('Space');
   await expect(voice).toHaveAttribute('aria-checked', 'false');
-  await expect(page.locator('.board-results-head')).toContainText('40개 모집');
+  await expect(page.locator('.board-results-head')).toContainText('40개 매칭 글');
   await page.keyboard.press('Enter');
   await expect(voice).toHaveAttribute('aria-checked', 'true');
-  await expect(page.locator('.board-results-head')).toContainText('12개 모집');
+  await expect(page.locator('.board-results-head')).toContainText('12개 매칭 글');
 
   await tier.scrollIntoViewIfNeeded();
   await tier.click();
@@ -109,7 +109,7 @@ test('모바일 필터는 한 줄로 스크롤되고 선택 팝업과 예약 입
   await modes.getByRole('button', { name: '일반', exact: true }).click();
   await expect(modes.getByRole('button', { name: '일반', exact: true })).toHaveAttribute('aria-pressed', 'true');
 
-  await page.getByRole('tab', { name: '예약 매치', exact: true }).click();
+  await page.getByRole('tab', { name: '예약 매칭', exact: true }).click();
   const start = filters.getByLabel('검색 시작 시각', { exact: true });
   const end = filters.getByLabel('검색 종료 시각', { exact: true });
   const amount = filters.getByRole('combobox', { name: '검색 플레이 양', exact: true });
@@ -156,15 +156,15 @@ test('작은 화면에서도 주요 페이지와 오른쪽 매칭 폼이 잘리�
         continue;
       }
       if (route !== 'home') continue;
-      await expect(page.getByRole('tab', { name: '실시간 매치', exact: true })).toBeVisible();
-      await expect(page.getByRole('tab', { name: '예약 매치', exact: true })).toBeVisible();
+      await expect(page.getByRole('tab', { name: '실시간 매칭', exact: true })).toBeVisible();
+      await expect(page.getByRole('tab', { name: '예약 매칭', exact: true })).toBeVisible();
       for (const mode of ['실시간', '예약']) {
-        await page.getByRole('tab', { name: `${mode} 매치`, exact: true }).click();
+        await page.getByRole('tab', { name: `${mode} 매칭`, exact: true }).click();
         await page.locator('.intro-launch > button').click();
         await expect(page.locator('.recruitment-composer-shell').getByRole('radio', { name: '수동 매칭', exact: true })).toBeChecked();
         await page.locator('.recruitment-composer-shell').getByRole('radio', { name: '자동 매칭', exact: true }).check();
         await expect(page.locator('.recruitment-composer-shell').getByRole('radio', { name: '자동 매칭', exact: true })).toBeChecked();
-        const button = page.getByRole('button', { name: '모집 시작', exact: true });
+        const button = page.getByRole('button', { name: '매칭 시작', exact: true });
         await button.scrollIntoViewIfNeeded();
         const box = (await button.boundingBox())!;
         expect(box.x).toBeGreaterThanOrEqual(0);

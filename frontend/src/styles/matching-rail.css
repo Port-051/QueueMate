@@ -19,7 +19,7 @@ body:has(.board-home) .toast-host { pointer-events: none; }
 .home-profile .introduction-fields input, .home-profile .introduction-fields select, .home-profile .reservation-fields input, .home-profile .reservation-fields select { font-size: 14px; min-height: 42px; }
 .home-profile .introduction-desired .chip { font-size: 13px; }
 .home-profile .introduction-records > summary { font-size: 13px; }
-.home-profile .matching-choice-grid { grid-template-columns: 1fr; gap: 8px; }
+.home-profile .matching-choice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .home-profile .matching-choice-grid strong { font-size: 14px; }
 .home-profile .matching-choice-grid small { font-size: 12px; }
 .home-profile .reservation-fields { grid-template-columns: 1fr; }

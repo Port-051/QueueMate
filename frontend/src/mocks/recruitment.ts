@@ -58,7 +58,7 @@ function seed() {
   }
 }
 function refresh(row: BoardRow): BoardRow {
-  // 화면 작업용 예시만 활동을 이어간다. 직접 만든 모집과 참여 진행 중인 방은 보정하지 않는다.
+  // 화면 작업용 예시만 활동을 이어간다. 직접 만든 매칭과 참여 진행 중인 방은 보정하지 않는다.
   const activityOffset = seedActivityOffsets.get(row.id);
   if (activityOffset !== undefined && row.status === 'OPEN' && row.members.length === 1 && !row.applicants.length) {
     if (Date.now() - Date.parse(row.confirmedAt) >= 5 * 60_000) {
@@ -82,7 +82,7 @@ function viewMembers(row: BoardRow): BoardPerson[] {
   const proposal = row.proposalId ? db.proposals.get(row.proposalId) : undefined;
   if (row.userId !== db.me.id || !['PROPOSED', 'MATCHED'].includes(row.status)
     || !proposal || !['PENDING', 'CONFIRMED'].includes(proposal.view.status)) return row.members;
-  // 자동 매칭 상대도 실제 공개 소개를 반환하되, 모집 중인 그룹의 멤버는 변경하지 않는다.
+  // 자동 매칭 상대도 실제 공개 소개를 반환하되, 매칭 중인 그룹의 멤버는 변경하지 않는다.
   return proposal.view.members.flatMap(peer => {
     const peerRow = [...rows.values()].find(candidate => candidate.userId === peer.userId
       && candidate.type === row.type && candidate.condition.game === row.condition.game
@@ -99,9 +99,9 @@ function view(row: BoardRow) {
     applicants: current.userId === db.me.id ? current.applicants : [], impressions: current.userId === db.me.id ? current.impressions : 0,
     alertEnabled: current.userId === db.me.id && current.alertEnabled });
 }
-function owned(id: string) { const row = rows.get(id); if (!row || row.userId !== db.me.id) throw new ApiError(404, 'RECRUITMENT_NOT_FOUND', '모집을 찾을 수 없습니다'); return refresh(row); }
-function editable(row: BoardRow) { if (!['OPEN', 'STALE', 'PAUSED', 'REQUESTED', 'JOINED'].includes(row.status)) throw new ApiError(409, 'RECRUITMENT_CONFLICT', '현재 모집 상태를 다시 확인해 주세요'); }
-function version(row: BoardRow, expected: number) { if (row.version !== expected) throw new ApiError(409, 'RECRUITMENT_CONFLICT', '다른 화면에서 모집이 바뀌었습니다. 다시 확인해 주세요'); }
+function owned(id: string) { const row = rows.get(id); if (!row || row.userId !== db.me.id) throw new ApiError(404, 'RECRUITMENT_NOT_FOUND', '매칭을 찾을 수 없습니다'); return refresh(row); }
+function editable(row: BoardRow) { if (!['OPEN', 'STALE', 'PAUSED', 'REQUESTED', 'JOINED'].includes(row.status)) throw new ApiError(409, 'RECRUITMENT_CONFLICT', '현재 매칭 상태를 다시 확인해 주세요'); }
+function version(row: BoardRow, expected: number) { if (row.version !== expected) throw new ApiError(409, 'RECRUITMENT_CONFLICT', '다른 화면에서 매칭이 바뀌었습니다. 다시 확인해 주세요'); }
 function accepts(a: BoardPreferences, ca: MatchCondition, b: BoardPreferences, cb: MatchCondition) {
   if (a.minTier || a.maxTier) {
     const list = tiers(ca.game), value = b.ownTier ? list.indexOf(b.ownTier) : -1;
@@ -180,7 +180,7 @@ function proposalsFor(row: BoardRow, pool: BoardRow[]) {
   }
   return chosen.length === row.targetSize ? chosen.filter(member => member.userId !== row.userId).map(member => ({ userId: member.userId, nickname: member.nickname })) : [];
 }
-/** undefined=기존 데모 요청, null=후보 없음/직접 모집, 배열=실제 데모 목록에서 고른 정원. */
+/** undefined=기존 데모 요청, null=후보 없음/직접 매칭, 배열=실제 데모 목록에서 고른 정원. */
 export function boardSimulationPeers(id: string): MockUser[] | null | undefined {
   const row = rows.get(id); if (!row) return undefined;
   if (duoOwners.has(row.userId)) return null;
@@ -203,7 +203,7 @@ function respondToApplicant(host: BoardRow, applicant: BoardRow | undefined, acc
   if (applicant) refresh(applicant);
   if (!isPendingApplicant(host, applicant)) throw new ApiError(409, 'RECRUITMENT_CONFLICT', '이미 처리되었거나 취소된 참여 신청입니다');
   if (accept && (db.blocks.some(block => block.userId === applicant.userId) || !matches(queryOf(applicant), host, applicant.userId))) {
-    throw new ApiError(409, 'RECRUITMENT_CONFLICT', '조건이나 모집 정원이 바뀌어 참여 신청을 수락할 수 없습니다');
+    throw new ApiError(409, 'RECRUITMENT_CONFLICT', '조건이나 매칭 정원이 바뀌어 참여 신청을 수락할 수 없습니다');
   }
   host.applicants = host.applicants.filter(person => person.id !== applicant.id);
   applicant.requestedParentId = null;
@@ -249,10 +249,10 @@ export function handleBoardMock(method: string, path: string, body: unknown,
   }
   const [, , id, action] = path.split('/');
   const row = rows.get(id);
-  if (!row) throw new ApiError(404, 'RECRUITMENT_NOT_FOUND', '모집을 찾을 수 없습니다');
+  if (!row) throw new ApiError(404, 'RECRUITMENT_NOT_FOUND', '매칭을 찾을 수 없습니다');
   if (action === 'join') {
     const applicant = owned((body as { sourceId: string }).sourceId); editable(applicant);
-    if (applicant.status !== 'OPEN' || !matches(queryOf(applicant), row)) throw new ApiError(409, 'RECRUITMENT_CONFLICT', '서로의 조건이 맞지 않거나 모집 상태가 바뀌었습니다');
+    if (applicant.status !== 'OPEN' || !matches(queryOf(applicant), row)) throw new ApiError(409, 'RECRUITMENT_CONFLICT', '서로의 조건이 맞지 않거나 매칭 상태가 바뀌었습니다');
     const hostMode = effectiveCondition(row).modeKey;
     const applicantCondition = effectiveCondition(applicant);
     const modes = hostMode !== 'ANY' ? [hostMode] : applicantCondition.modeKey !== 'ANY' ? [applicantCondition.modeKey] : GAME_SEED[row.condition.game].modes.map(mode => mode.modeKey);
@@ -277,7 +277,7 @@ export function handleBoardMock(method: string, path: string, body: unknown,
     const relatedHost = parent?.userId === db.me.id && (
       row.requestedParentId === parent.id && parent.applicants.some(person => person.id === row.id)
       || row.parentId === parent.id && parent.members.some(person => person.id === row.id));
-    if (row.userId !== db.me.id && row.status !== 'OPEN' && !relatedHost && !row.members.some(m => m.userId === db.me.id) && !row.applicants.some(m => m.userId === db.me.id)) throw new ApiError(404, 'RECRUITMENT_NOT_FOUND', '종료되거나 비공개인 모집입니다');
+    if (row.userId !== db.me.id && row.status !== 'OPEN' && !relatedHost && !row.members.some(m => m.userId === db.me.id) && !row.applicants.some(m => m.userId === db.me.id)) throw new ApiError(404, 'RECRUITMENT_NOT_FOUND', '종료되거나 비공개인 매칭입니다');
     return view(row);
   }
   owned(id);
@@ -302,7 +302,7 @@ export function handleBoardMock(method: string, path: string, body: unknown,
   }
   if (method === 'PUT') {
     editable(row); const value = normalizeWrite(body as BoardWrite & { version: number }); version(row, value.version);
-    if (row.parentId || row.requestedParentId || row.members.length > 1) throw new ApiError(409, 'RECRUITMENT_CONFLICT', '모집에서 나간 후 수정해 주세요');
+    if (row.parentId || row.requestedParentId || row.members.length > 1) throw new ApiError(409, 'RECRUITMENT_CONFLICT', '매칭에서 나간 후 수정해 주세요');
     if (row.type === 'RESERVATION') legacy('PUT', `/reservations/${id}`, { ...value, condition: sourceCondition(value.condition) });
     else db.matchRequests.get(id)!.condition = sourceCondition(value.condition);
     selectedModes.delete(row.id);
@@ -333,7 +333,7 @@ export function handleBoardMock(method: string, path: string, body: unknown,
 }
 
 
-// 프론트 전용 비동기 수락 시뮬레이션. 한쪽의 오케이는 원본 모집을 점유하지 않는다.
+// 프론트 전용 비동기 수락 시뮬레이션. 한쪽의 오케이는 원본 매칭을 점유하지 않는다.
 const offerTerms = new Map<string, string>();
 const lastDiscovery = new Map<string, number>();
 const peerReplies = new Map<string, number>();
@@ -341,7 +341,7 @@ const terms = (row: BoardRow) => JSON.stringify([row.condition, row.preferences,
 const isWaiting = (offer: DuoOffer) => ['FOUND', 'SENT', 'RECEIVED'].includes(offer.status);
 function duoSource(id: string) {
   const source = owned(id);
-  if (source.status !== 'OPEN') throw new ApiError(409, 'RECRUITMENT_CONFLICT', '모집을 재개한 뒤 오케이를 보내 주세요.');
+  if (source.status !== 'OPEN') throw new ApiError(409, 'RECRUITMENT_CONFLICT', '매칭을 재개한 뒤 오케이를 보내 주세요.');
   return source;
 }
 function validDuoPair(source: BoardRow, peer: BoardRow) {
@@ -364,7 +364,7 @@ function completeDuo(offer: DuoOffer) {
   if (!source || !peer || !validDuoPair(refresh(source), refresh(peer)) || terms(source) !== offerTerms.get(offer.id)) {
     setOffer(offer.ownerId, offer.id, { status: 'CANCELLED' }); return;
   }
-  // 저장에 실패하면 모집과 수락 상태를 그대로 두어 재시도할 수 있다.
+  // 저장에 실패하면 매칭과 수락 상태를 그대로 두어 재시도할 수 있다.
   receiveDuoMatch(offer.ownerId, { userId: peer.userId, nickname: peer.nickname, avatarUrl: null }, offer.id);
   for (const row of [source, peer]) {
     row.status = 'MATCHED'; row.version++;
@@ -382,7 +382,7 @@ function completeDuo(offer: DuoOffer) {
 }
 export function sendDuoInterest(sourceId: string, peerId: string) {
   const source = duoSource(sourceId), peer = rows.get(peerId);
-  if (!peer || !validDuoPair(source, refresh(peer))) throw new ApiError(409, 'RECRUITMENT_CONFLICT', '서로의 조건이나 모집 상태가 바뀌었습니다.');
+  if (!peer || !validDuoPair(source, refresh(peer))) throw new ApiError(409, 'RECRUITMENT_CONFLICT', '서로의 조건이나 매칭 상태가 바뀌었습니다.');
   const offer = offerFor(source, peer);
   if (offer.status === 'SENT') return;
   if (offer.status === 'RECEIVED') { completeDuo(offer); return; }

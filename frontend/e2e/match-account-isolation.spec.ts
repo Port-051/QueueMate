@@ -26,7 +26,7 @@ async function loginOriginalAccount(page: Page) {
   await expect(page).toHaveURL(/\/app\/home$/);
 }
 
-test('모집 중 계정을 바꾸면 이전 모집과 제안을 표시하지 않고 본인 계정에서만 복원한다', async ({ page }) => {
+test('매칭 중 계정을 바꾸면 이전 매칭과 제안을 표시하지 않고 본인 계정에서만 복원한다', async ({ page }) => {
   await login(page);
   await startRealtimeMatch(page);
   await expect(page.locator('.my-recruitment')).toBeVisible();

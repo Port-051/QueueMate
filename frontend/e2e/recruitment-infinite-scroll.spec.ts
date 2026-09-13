@@ -58,12 +58,12 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test('아래로 스크롤하면 순서와 읽던 위치를 유지하며 모집을 중복 없이 이어 붙인다', async ({ page }) => {
+test('아래로 스크롤하면 순서와 읽던 위치를 유지하며 매칭을 중복 없이 이어 붙인다', async ({ page }) => {
   await login(page);
   const rows = page.locator('.recruitment-row');
   await expect(rows).toHaveCount(10);
   const first = await rowIds(page);
-  await expect(page.locator('.board-results-head')).toContainText('40개 모집');
+  await expect(page.locator('.board-results-head')).toContainText('40개 매칭 글');
   await expect(page.getByText('최신순', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^(이전|다음)$/ })).toHaveCount(0);
   await page.evaluate(() => {
@@ -107,18 +107,18 @@ test('첫 조회에는 빈 숫자를 표시하지 않고 필터 계산 중에는
   await page.locator('.auth-form button[type="submit"]').click();
   await expect(page).toHaveURL(/\/app\/home/);
   await expect.poll(() => page.evaluate(() => window.boardSearchControls.held.length)).toBeGreaterThan(0);
-  await expect(page.locator('.board-results-head')).not.toContainText(/[—-]개\s*모집/);
+  await expect(page.locator('.board-results-head')).not.toContainText(/[—-]개\s*매칭/);
   await releaseSearch(page);
   await expect(page.locator('.recruitment-row')).toHaveCount(10);
-  await expect(page.locator('.board-results-head')).toContainText('40개 모집');
+  await expect(page.locator('.board-results-head')).toContainText('40개 매칭 글');
   const original = await rowIds(page);
   await page.evaluate(() => { window.boardSearchControls.hold = { page: 0, tier: 'GOLD' }; });
   await selectBoardFilter(page, '찾는 상대 티어', '골드');
   await expect.poll(() => page.evaluate(() => window.boardSearchControls.held.length)).toBeGreaterThan(0);
-  await expect(page.locator('.board-results-head')).toContainText('40개 모집');
+  await expect(page.locator('.board-results-head')).toContainText('40개 매칭 글');
   expect(await rowIds(page)).toEqual(original);
   await releaseSearch(page);
-  await expect(page.locator('.board-results-head')).toContainText('12개 모집');
+  await expect(page.locator('.board-results-head')).toContainText('12개 매칭 글');
   await expect(page.locator('.recruitment-row')).toHaveCount(10);
   await expect(page.locator('.recruitment-row .row-tier')).toHaveText(Array(10).fill(/골드/));
 });
@@ -127,15 +127,15 @@ test('새 필터 조회가 실패하면 이전 행 선택을 막고 재시도나
   await login(page);
   const rows = page.locator('.recruitment-row');
   const count = page.locator('.board-results-head');
-  const error = page.getByRole('alert').filter({ hasText: '모집 정보를 불러오지 못했습니다' });
-  const detail = page.getByRole('region', { name: '모집 상세', exact: true });
+  const error = page.getByRole('alert').filter({ hasText: '매칭 정보를 불러오지 못했습니다' });
+  const detail = page.getByRole('region', { name: '매칭 글 상세', exact: true });
   await expect(rows).toHaveCount(10);
   const original = await rowIds(page);
 
   await page.evaluate(() => { window.boardSearchControls.failPage = 0; });
   await selectBoardFilter(page, '찾는 상대 티어', '골드');
   await expect(error).toBeVisible();
-  await expect(count).toContainText('40개 모집');
+  await expect(count).toContainText('40개 매칭 글');
   expect(await rowIds(page)).toEqual(original);
   await rows.first().focus();
   await page.keyboard.press('Enter');
@@ -145,7 +145,7 @@ test('새 필터 조회가 실패하면 이전 행 선택을 막고 재시도나
   await error.getByRole('button', { name: '다시 불러오기', exact: true }).click();
   await expect(error).toHaveCount(0);
   await expect(rows).toHaveCount(10);
-  await expect(count).toContainText('12개 모집');
+  await expect(count).toContainText('12개 매칭 글');
   await expect(rows.locator('.row-tier')).toHaveText(Array(10).fill(/골드/));
   await rows.first().focus();
   await page.keyboard.press('Enter');
@@ -157,7 +157,7 @@ test('새 필터 조회가 실패하면 이전 행 선택을 막고 재시도나
   await page.evaluate(() => { window.boardSearchControls.failPage = 0; });
   await selectBoardFilter(page, '찾는 상대 티어', '실버');
   await expect(error).toBeVisible();
-  await expect(count).toContainText('12개 모집');
+  await expect(count).toContainText('12개 매칭 글');
   expect(await rowIds(page)).toEqual(gold);
   await rows.first().focus();
   await page.keyboard.press('Enter');
@@ -167,7 +167,7 @@ test('새 필터 조회가 실패하면 이전 행 선택을 막고 재시도나
   await page.locator('.board-filter-bar').getByRole('button', { name: '초기화', exact: true }).click();
   await expect(error).toHaveCount(0);
   await expect(rows).toHaveCount(10);
-  await expect(count).toContainText('40개 모집');
+  await expect(count).toContainText('40개 매칭 글');
   expect(await rowIds(page)).toEqual(original);
   await rows.first().focus();
   await page.keyboard.press('Enter');
@@ -181,7 +181,7 @@ test('여러 번 내려 읽은 뒤 필터를 바꾸면 첫 묶음부터 다시 �
   await page.locator('.board-load-more').scrollIntoViewIfNeeded();
   await expect(rows).toHaveCount(20);
   await selectBoardFilter(page, '찾는 상대 티어', '실버');
-  await expect(page.locator('.board-results-head')).toContainText('16개 모집');
+  await expect(page.locator('.board-results-head')).toContainText('16개 매칭 글');
   await expect(rows).toHaveCount(10);
   expect((await page.evaluate(() => window.boardSearchControls.calls.filter(call => call.query.preferences.minTier === 'SILVER').map(call => call.query.page)))).toEqual([0]);
   await page.locator('.board-load-more').scrollIntoViewIfNeeded();
@@ -190,7 +190,7 @@ test('여러 번 내려 읽은 뒤 필터를 바꾸면 첫 묶음부터 다시 �
   await expect(page.locator('.board-load-more')).toHaveCount(0);
   await page.locator('.board-filter-bar').getByRole('button', { name: '초기화', exact: true }).click();
   await expect(rows).toHaveCount(10);
-  await expect(page.locator('.board-results-head')).toContainText('40개 모집');
+  await expect(page.locator('.board-results-head')).toContainText('40개 매칭 글');
 });
 
 test('이전 필터의 늦은 추가 응답은 새 필터 목록에 섞이지 않는다', async ({ page }) => {
@@ -201,14 +201,14 @@ test('이전 필터의 늦은 추가 응답은 새 필터 목록에 섞이지 �
   await page.locator('.board-load-more').scrollIntoViewIfNeeded();
   await expect.poll(() => page.evaluate(() => window.boardSearchControls.held.length)).toBe(1);
   await selectBoardFilter(page, '찾는 상대 티어', '골드');
-  await expect(page.locator('.board-results-head')).toContainText('12개 모집');
+  await expect(page.locator('.board-results-head')).toContainText('12개 매칭 글');
   await expect(rows).toHaveCount(10);
   const filtered = await rowIds(page);
   await releaseSearch(page);
   await expect.poll(() => page.evaluate(() => window.boardSearchControls.calls.every(call => call.settled))).toBe(true);
   await expect(rows).toHaveCount(10);
   expect(await rowIds(page)).toEqual(filtered);
-  await expect(page.locator('.board-results-head')).toContainText('12개 모집');
+  await expect(page.locator('.board-results-head')).toContainText('12개 매칭 글');
   await expect(page.locator('.board-load-more')).toHaveCount(1);
 });
 
@@ -223,7 +223,7 @@ test('추가 조회가 실패해도 읽던 목록을 유지하고 사용자가 �
   await expect(retry).toBeVisible();
   await expect(rows).toHaveCount(10);
   expect(await rowIds(page)).toEqual(original);
-  await expect(page.locator('.board-results-head')).toContainText('40개 모집');
+  await expect(page.locator('.board-results-head')).toContainText('40개 매칭 글');
   await rows.first().scrollIntoViewIfNeeded();
   await page.locator('.board-load-more').scrollIntoViewIfNeeded();
   await page.waitForTimeout(800);
@@ -245,7 +245,7 @@ test('실시간 갱신과 새 목록 반영은 이미 읽은 목록의 길이를
   const previous = await rowIds(page);
   const newId = await page.evaluate(async () => {
     // Vite의 ?t 버전까지 일치시켜 앱과 같은 mock rows Map을 사용한다.
-    // 버전 없는 경로를 다시 import하면 별도 모듈에만 모집이 생성될 수 있다.
+    // 버전 없는 경로를 다시 import하면 별도 모듈에만 매칭이 생성될 수 있다.
     const loadedModule = (path: string) => {
       const resource = performance.getEntriesByType('resource').find(entry => new URL(entry.name).pathname === path);
       if (!resource) throw new Error(`앱이 로드한 모듈을 찾을 수 없습니다: ${path}`);
@@ -255,11 +255,11 @@ test('실시간 갱신과 새 목록 반영은 이미 읽은 목록의 길이를
     const { db } = await import(/* @vite-ignore */ loadedModule('/src/mocks/db.ts'));
     const { anyPreferences } = await import(/* @vite-ignore */ loadedModule('/src/domain/recruitment.ts'));
     const viewer = db.me;
-    db.me = { id: 'infinite-scroll-host', nickname: '새 모집 방장', avatarUrl: null };
+    db.me = { id: 'infinite-scroll-host', nickname: '새 매칭 방장', avatarUrl: null };
     try {
       const row = handleBoardMock('POST', '/recruitments', {
         type: 'REALTIME', condition: { game: 'LOL', modeKey: 'SOLO_DUO_RANKED', keyCondition: { type: 'POSITION', value: 'TOP' }, voicePreference: 'OPTIONAL', playPurpose: 'FUN' },
-        preferences: anyPreferences(), description: '새로 등록한 모집', autoMatch: false, availableFrom: null, availableTo: null, playAmount: null,
+        preferences: anyPreferences(), description: '새로 등록한 매칭', autoMatch: false, availableFrom: null, availableTo: null, playAmount: null,
       }, () => ({ id: crypto.randomUUID() }), () => {}) as BoardRow;
       return row.id;
     } finally { db.me = viewer; }
@@ -271,5 +271,5 @@ test('실시간 갱신과 새 목록 반영은 이미 읽은 목록의 길이를
   await expect(page.locator('.board-new-results')).toHaveCount(0);
   await expect(rows).toHaveCount(20);
   expect(await rowIds(page)).toEqual([newId, ...previous.slice(0, 19)]);
-  await expect(page.locator('.board-results-head')).toContainText('41개 모집');
+  await expect(page.locator('.board-results-head')).toContainText('41개 매칭 글');
 });

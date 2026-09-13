@@ -83,7 +83,7 @@ export function formatDuration(seconds: number): string {
   return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
 }
 
-/** 모집 경과/예약 카운트다운. 1시간 이상도 분이 무한히 늘어나지 않게 표시한다. */
+/** 매칭 경과/예약 카운트다운. 1시간 이상도 분이 무한히 늘어나지 않게 표시한다. */
 export function formatElapsed(seconds: number): string {
   const s = Math.max(0, Math.floor(Number.isFinite(seconds) ? seconds : 0));
   return s >= 3600 ? `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}` : formatDuration(s);

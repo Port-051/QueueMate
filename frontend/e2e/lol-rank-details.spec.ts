@@ -1,52 +1,19 @@
 import { expect, test } from '@playwright/test';
 import { login, manageRecruitment } from './helpers';
 
-test('롤 자기소개는 LP 없이 IV~I 단계를 보관하고 티어 변경 시 지난 세부 정보를 지운다', async ({ page }) => {
+test('롤 전적은 직접 입력할 수 없으며 이전 수동 전적을 API 정보로 사용하지 않는다', async ({ page }) => {
   await login(page);
-  await page.locator('.intro-launch').getByRole('button').click();
-  const dialog = page.locator('.recruitment-composer-shell');
-  const tier = dialog.getByLabel('내 티어', { exact: true });
-  const division = dialog.getByLabel('세부 단계', { exact: true });
-  const lp = dialog.getByLabel('LP', { exact: true });
-  const submit = dialog.getByRole('button', { name: '모집 시작', exact: true });
-  await expect(tier.locator('option')).toHaveText(['미입력', '아이언', '브론즈', '실버', '골드', '플래티넘', '에메랄드', '다이아몬드', '마스터', '그랜드마스터', '챌린저']);
-  await expect(division).toHaveCount(0);
-  await expect(lp).toHaveCount(0);
-  await tier.selectOption('GOLD');
-  await expect(division.locator('option')).toHaveText(['미입력', 'IV', 'III', 'II', 'I']);
-  await expect(division).toHaveValue('');
-  await expect(lp).toHaveCount(0);
-  await division.selectOption('II');
-  await expect(submit).toBeEnabled();
-  await submit.click();
-  await expect(dialog).toHaveCount(0);
-  await expect(page.locator('.my-recruitment .rank-badge-label')).toHaveText('골드 II');
-  const saved = await page.evaluate(async () => {
-    const introductionPath = '/src/domain/introduction.ts';
-    const apiPath = '/src/api/client.ts';
-    const recruitmentPath = '/src/api/recruitment.ts';
-    const { readIntroduction } = await import(/* @vite-ignore */ introductionPath);
-    const api = await import(/* @vite-ignore */ apiPath);
-    const recruitment = await import(/* @vite-ignore */ recruitmentPath);
-    const me = await api.getMe();
-    return { introduction: readIntroduction(me.id, 'LOL'), preferences: (await recruitment.myRecruitments())[0].preferences };
-  });
-  expect(saved.introduction).toMatchObject({ ownTier: 'GOLD', rankDivision: 'II' });
-  expect(saved.introduction).not.toHaveProperty('rankLp');
-  expect(saved.preferences.ownTier).toBe('GOLD');
-  expect(saved.preferences).not.toHaveProperty('rankDivision');
-  expect(saved.preferences).not.toHaveProperty('rankLp');
-  await manageRecruitment(page, '조건 수정');
-  await expect(division).toHaveValue('II');
-  await expect(lp).toHaveCount(0);
-  await tier.selectOption('MASTER');
-  await expect(division).toHaveCount(0);
-  await expect(lp).toHaveCount(0);
-  await tier.selectOption('IRON');
-  await expect(division).toHaveValue('');
-  await tier.selectOption('');
-  await expect(division).toHaveCount(0);
-  await expect(lp).toHaveCount(0);
+  await page.evaluate(() => localStorage.setItem('queuemate:introduction:v1:u-me:LOL', JSON.stringify({ primaryRole: 'MID', ownTier: 'GOLD', rankDivision: 'II', champions: ['아리'], winRate: 99, kda: 9, queueType: 'ANY' })));
+  await page.locator('.intro-launch > button').click();
+  const form = page.locator('.recruitment-composer-shell');
+  await expect(form.getByRole('region', { name: '롤 전적 정보' })).toContainText('연동 대기');
+  await expect(form.locator('input[type="number"], select, .introduction-records')).toHaveCount(0);
+  await expect(form.getByLabel('선호 챔피언')).toHaveCount(0);
+  await expect(form).not.toContainText('골드');
+  await form.getByRole('button', { name: '매칭 시작', exact: true }).click();
+  await expect(form).toHaveCount(0);
+  const record = await page.evaluate(() => JSON.parse(localStorage.getItem('queuemate:introduction:v1:u-me:LOL')!));
+  expect(record).toMatchObject({ primaryRole: 'MID', ownTier: null, rankDivision: null, champions: [], winRate: null, kda: null });
 });
 
 test('이전 저장 데이터의 LP를 무시하고 누락되거나 잘못된 랭크 단계는 표시하지 않는다', async ({ page }) => {
