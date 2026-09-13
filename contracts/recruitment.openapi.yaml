@@ -1,0 +1,324 @@
+openapi: 3.0.3
+info: {title: QueueMate Recruitment API, version: 1.0.0}
+servers: [{url: /api/v1}]
+security: [{bearerAuth: []}]
+paths:
+  /recruitments/search:
+    post:
+      summary: 검색 조건으로 공개 모집 조회
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/BoardSearch'}
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BoardPage'}
+        '400': {description: 잘못된 입력}
+        '401': {description: 인증 필요}
+        '404': {description: 공개되지 않았거나 소유권 없음}
+        '409': {description: 상태·버전·중복·정원 충돌}
+        '429': {description: 갱신 재사용 간격}
+        '503': {description: 매칭 연결 불가}
+  /recruitments/mine:
+    get:
+      summary: 내 모집과 받은 신청 조회
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BoardRows'}
+        '400': {description: 잘못된 입력}
+        '401': {description: 인증 필요}
+        '404': {description: 공개되지 않았거나 소유권 없음}
+        '409': {description: 상태·버전·중복·정원 충돌}
+        '429': {description: 갱신 재사용 간격}
+        '503': {description: 매칭 연결 불가}
+  /recruitments:
+    post:
+      summary: 기존 매칭 원본과 공개 모집을 함께 생성
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/BoardWrite'}
+      responses:
+        '201':
+          description: 성공
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BoardRow'}
+        '400': {description: 잘못된 입력}
+        '401': {description: 인증 필요}
+        '404': {description: 공개되지 않았거나 소유권 없음}
+        '409': {description: 상태·버전·중복·정원 충돌}
+        '429': {description: 갱신 재사용 간격}
+        '503': {description: 매칭 연결 불가}
+  /recruitments/{id}:
+    get:
+      summary: 공개 모집 또는 자신의 모집 조회
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BoardRow'}
+        '400': {description: 잘못된 입력}
+        '401': {description: 인증 필요}
+        '404': {description: 공개되지 않았거나 소유권 없음}
+        '409': {description: 상태·버전·중복·정원 충돌}
+        '429': {description: 갱신 재사용 간격}
+        '503': {description: 매칭 연결 불가}
+    put:
+      summary: 대기 중 모집 조건 변경
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/BoardEdit'}
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BoardRow'}
+        '400': {description: 잘못된 입력}
+        '401': {description: 인증 필요}
+        '404': {description: 공개되지 않았거나 소유권 없음}
+        '409': {description: 상태·버전·중복·정원 충돌}
+        '429': {description: 갱신 재사용 간격}
+        '503': {description: 매칭 연결 불가}
+  /recruitments/{id}/actions:
+    post:
+      summary: 모집 확인·갱신·일시중지·종료
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/BoardAction'}
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BoardRow'}
+        '400': {description: 잘못된 입력}
+        '401': {description: 인증 필요}
+        '404': {description: 공개되지 않았거나 소유권 없음}
+        '409': {description: 상태·버전·중복·정원 충돌}
+        '429': {description: 갱신 재사용 간격}
+        '503': {description: 매칭 연결 불가}
+  /recruitments/{id}/join:
+    post:
+      summary: 내 모집 원본으로 참여 신청
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/BoardJoin'}
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BoardRow'}
+        '400': {description: 잘못된 입력}
+        '401': {description: 인증 필요}
+        '404': {description: 공개되지 않았거나 소유권 없음}
+        '409': {description: 상태·버전·중복·정원 충돌}
+        '429': {description: 갱신 재사용 간격}
+        '503': {description: 매칭 연결 불가}
+  /recruitments/{id}/respond:
+    post:
+      summary: 받은 신청 수락·거절
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/BoardRespond'}
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BoardRow'}
+        '400': {description: 잘못된 입력}
+        '401': {description: 인증 필요}
+        '404': {description: 공개되지 않았거나 소유권 없음}
+        '409': {description: 상태·버전·중복·정원 충돌}
+        '429': {description: 갱신 재사용 간격}
+        '503': {description: 매칭 연결 불가}
+  /recruitments/{id}/suggestions:
+    get:
+      summary: 단일 조건 변경의 실제 후보 미리보기
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/BoardSuggestions'}
+        '400': {description: 잘못된 입력}
+        '401': {description: 인증 필요}
+        '404': {description: 공개되지 않았거나 소유권 없음}
+        '409': {description: 상태·버전·중복·정원 충돌}
+        '429': {description: 갱신 재사용 간격}
+        '503': {description: 매칭 연결 불가}
+  /recruitments/impressions:
+    post:
+      summary: 화면에 노출된 공개 모집 기록
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/BoardImpressions'}
+      responses:
+        '204':
+          description: 성공
+        '400': {description: 잘못된 입력}
+        '401': {description: 인증 필요}
+        '404': {description: 공개되지 않았거나 소유권 없음}
+        '409': {description: 상태·버전·중복·정원 충돌}
+        '429': {description: 갱신 재사용 간격}
+        '503': {description: 매칭 연결 불가}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  schemas:
+    BoardPreferences:
+      type: object
+      properties:
+        ownTier: {type: string, nullable: true, description: 직접 입력한 본인 티어이며 인증 정보가 아님}
+        minTier: {type: string, nullable: true}
+        maxTier: {type: string, nullable: true}
+        desiredKeys: {type: array, maxItems: 10, items: {type: string}, description: 빈 배열은 상대 포지션·역할·스타일 무관}
+        purposeRequired: {type: boolean, default: false}
+    BoardWrite:
+      type: object
+      required: [type, condition, preferences, description, autoMatch]
+      properties:
+        type: {type: string, enum: [REALTIME, RESERVATION]}
+        condition: {$ref: './openapi.yaml#/components/schemas/MatchCondition'}
+        preferences: {$ref: '#/components/schemas/BoardPreferences'}
+        description: {type: string, maxLength: 120}
+        autoMatch: {type: boolean}
+        availableFrom: {type: string, format: date-time, nullable: true}
+        availableTo: {type: string, format: date-time, nullable: true}
+        playAmount: {type: string, enum: [ONE_GAME, TWO_PLUS], nullable: true}
+    BoardEdit:
+      allOf:
+        - {$ref: '#/components/schemas/BoardWrite'}
+        - type: object
+          required: [version]
+          properties:
+            version: {type: integer, format: int64}
+    BoardSearch:
+      type: object
+      required: [type, condition, preferences]
+      properties:
+        type: {type: string, enum: [REALTIME, RESERVATION]}
+        condition: {$ref: './openapi.yaml#/components/schemas/MatchCondition'}
+        preferences: {$ref: '#/components/schemas/BoardPreferences'}
+        availableFrom: {type: string, format: date-time, nullable: true}
+        availableTo: {type: string, format: date-time, nullable: true}
+        playAmount: {type: string, enum: [ONE_GAME, TWO_PLUS], nullable: true}
+        sort: {type: string, enum: [RECOMMENDED, RECENT], default: RECOMMENDED}
+        page: {type: integer, minimum: 0, maximum: 1000, default: 0}
+        pageSize: {type: integer, enum: [5, 10], default: 10}
+    BoardAction:
+      type: object
+      required: [action, version]
+      properties:
+        action: {type: string, enum: [CONFIRM, BUMP, PAUSE, RESUME, CLOSE, LEAVE, AUTO_ON, AUTO_OFF, ALERT_ON, ALERT_OFF]}
+        version: {type: integer, format: int64}
+    BoardJoin:
+      type: object
+      required: [sourceId]
+      properties:
+        sourceId: {type: string, format: uuid}
+    BoardRespond:
+      type: object
+      required: [applicantId, accept]
+      properties:
+        applicantId: {type: string, format: uuid}
+        accept: {type: boolean}
+    BoardPerson:
+      type: object
+      required: [id, userId, nickname, condition, preferences]
+      properties:
+        id: {type: string, format: uuid}
+        userId: {type: string, format: uuid}
+        nickname: {type: string}
+        condition: {$ref: './openapi.yaml#/components/schemas/MatchCondition'}
+        preferences: {$ref: '#/components/schemas/BoardPreferences'}
+    BoardRow:
+      allOf:
+        - {$ref: '#/components/schemas/BoardWrite'}
+        - type: object
+          required: [id, userId, nickname, status, createdAt, confirmedAt, version, targetSize, members, applicants, impressions, alertEnabled]
+          properties:
+            id: {type: string, format: uuid}
+            userId: {type: string, format: uuid}
+            nickname: {type: string}
+            status: {type: string, enum: [OPEN, PAUSED, STALE, REQUESTED, JOINED, PROPOSED, MATCHED, CLOSED]}
+            createdAt: {type: string, format: date-time}
+            confirmedAt: {type: string, format: date-time}
+            bumpedAt: {type: string, format: date-time, nullable: true}
+            parentId: {type: string, format: uuid, nullable: true}
+            requestedParentId: {type: string, format: uuid, nullable: true}
+            proposalId: {type: string, format: uuid, nullable: true}
+            version: {type: integer, format: int64}
+            targetSize: {type: integer}
+            members: {type: array, items: {$ref: '#/components/schemas/BoardPerson'}}
+            applicants: {type: array, items: {$ref: '#/components/schemas/BoardPerson'}, description: 모집 소유자에게만 제공}
+            impressions: {type: integer, format: int64}
+            alertEnabled: {type: boolean}
+    BoardRows:
+      type: array
+      items: {$ref: '#/components/schemas/BoardRow'}
+    BoardPage:
+      type: object
+      required: [items, total, page, hasMore, asOf]
+      properties:
+        items: {$ref: '#/components/schemas/BoardRows'}
+        total: {type: integer}
+        page: {type: integer}
+        hasMore: {type: boolean}
+        asOf: {type: string, format: date-time}
+    BoardSuggestion:
+      type: object
+      required: [field, label, condition, preferences, candidateCount, candidates]
+      properties:
+        field: {type: string, enum: [desiredKeys, tierRange, voicePreference, purposeRequired]}
+        label: {type: string}
+        condition: {$ref: './openapi.yaml#/components/schemas/MatchCondition'}
+        preferences: {$ref: '#/components/schemas/BoardPreferences'}
+        candidateCount: {type: integer}
+        candidates: {$ref: '#/components/schemas/BoardRows'}
+    BoardSuggestions:
+      type: object
+      required: [currentCount, suggestions, asOf]
+      properties:
+        currentCount: {type: integer}
+        suggestions: {type: array, items: {$ref: '#/components/schemas/BoardSuggestion'}}
+        asOf: {type: string, format: date-time}
+    BoardImpressions:
+      type: object
+      required: [ids]
+      properties:
+        ids: {type: array, maxItems: 10, items: {type: string, format: uuid}}

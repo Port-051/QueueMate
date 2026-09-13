@@ -170,3 +170,10 @@ envelope는 Server → Client와 같고 전달용 필드가 앞에 붙는다.
 - voice media
 
 Those use WebRTC DataChannel/audio track.
+
+## Recruitment board (2026-09-13)
+
+- `RECRUITMENT_UPDATED`: payload `{}`. 인증된 연결에 공개 모집 스냅샷 갱신을 알린다.
+- 개인정보/조건/신청자/차단 관계를 방송하지 않는다. 클라이언트는 권한이 적용된 search/mine을 다시 읽는다.
+- 누락은 재연결·포커스 복귀·저빈도 안전망 조회로 복구한다. 새 목록의 순서는 사용자가 적용한다.
+- 회원별 요청/수락 상태는 기존 proposal 이벤트와 mine 조회로 복구한다.

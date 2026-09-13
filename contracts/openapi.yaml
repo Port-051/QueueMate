@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: QueueMate API
-  version: 2.0.0
+  version: 2.1.0
   description: |
     **이 파일이 정본이다.** 구현과 어긋나면 이 파일이 아니라 구현을 고친다.
 
@@ -25,6 +25,24 @@ servers:
 security:
   - bearerAuth: []
 paths:
+  /recruitments/search:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1search'
+  /recruitments/mine:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1mine'
+  /recruitments:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments'
+  /recruitments/{id}:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1{id}'
+  /recruitments/{id}/actions:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1{id}~1actions'
+  /recruitments/{id}/join:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1{id}~1join'
+  /recruitments/{id}/respond:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1{id}~1respond'
+  /recruitments/{id}/suggestions:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1{id}~1suggestions'
+  /recruitments/impressions:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1impressions'
   /auth/signup:
     post:
       security: []
