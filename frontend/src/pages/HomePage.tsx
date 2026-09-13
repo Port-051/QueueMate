@@ -17,6 +17,7 @@ import { Button, useToast } from '../components/ui';
 import { availableGames, defaultCondition, gameConfig, switchGame } from '../domain/gameConfig';
 import { modeLabel } from '../domain/labels';
 import { anyPreferences, BOARD_STATUS, initialSearch, reservationWindow, timeLabel, writeFrom } from '../domain/recruitment';
+import { recruitmentInputError } from '../domain/recruitmentValidation';
 import { useMatch } from '../state/MatchContext';
 import { useRecruitmentBoard } from '../state/useRecruitmentBoard';
 import { useConnectionStatus } from '../state/useConnectionStatus';
@@ -33,6 +34,7 @@ export function HomePage() {
   const [filter, setFilter] = useState(query);
   const reservationTimes = useRef<Pick<api.BoardWrite, 'availableFrom' | 'availableTo' | 'playAmount'>>(reservationWindow());
   if (query.type === 'RESERVATION') reservationTimes.current = { availableFrom: query.availableFrom!, availableTo: query.availableTo!, playAmount: query.playAmount };
+  const filterError = recruitmentInputError(filter);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const { page, pending, mine, loading, error, refresh, applyPending } = useRecruitmentBoard(query);
   const [composer, setComposer] = useState<{ initial: api.BoardWrite; editing?: api.BoardRow; joinId?: string } | null>(null);
@@ -143,10 +145,11 @@ export function HomePage() {
         (event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role=tab]')[index])?.click();
         (event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role=tab]')[index])?.focus();
       }}>{type === 'REALTIME' ? '실시간 매치' : '예약 매치'}</button>)}</div><Button size="sm" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}>검색 필터 {filtersOpen ? '접기' : '설정'}</Button></div>
-      {filtersOpen ? <form className="board-filter" onSubmit={event => { event.preventDefault(); changeQuery({ ...filter, page: 0 }); }}>
+      {filtersOpen ? <form className="board-filter" onSubmit={event => { event.preventDefault(); if (!filterError) changeQuery({ ...filter, page: 0 }); }}>
         <p>목록을 찾는 조건입니다. <b>내 모집 조건은 바뀌지 않아요.</b></p><RecruitmentFields compact condition={filter.condition} preferences={filter.preferences} onChange={(condition, preferences) => setFilter({ ...filter, condition, preferences })} />
         {query.type === 'RESERVATION' ? <ReservationFields value={filter} onChange={time => setFilter({ ...filter, ...time })} /> : null}
-        <div className="row"><Button onClick={() => setFilter({ ...query, condition: defaultCondition(query.condition.game), preferences: anyPreferences(), page: 0 })}>조건 초기화</Button><Button variant="primary" type="submit">필터 적용</Button></div>
+        {filterError ? <div className="banner warn" role="alert">{filterError}</div> : null}
+        <div className="row"><Button onClick={() => setFilter({ ...query, condition: defaultCondition(query.condition.game), preferences: anyPreferences(), page: 0 })}>조건 초기화</Button><Button variant="primary" type="submit" disabled={Boolean(filterError)}>필터 적용</Button></div>
         <p className="hint">상대방이 원하는 조건도 함께 확인합니다. 티어가 미입력이면 티어 제한이 있는 모집은 보이지 않을 수 있어요.</p>
       </form> : null}
       {query.type === 'RESERVATION' ? <div className="board-reservation-note"><span>{query.availableFrom ? timeLabel(query.availableFrom) : ''} ~ {query.availableTo ? timeLabel(query.availableTo) : ''}</span><button type="button" onClick={() => setFiltersOpen(true)}>시간 변경</button><p>지금 접속해 있지 않아도 예약 모집은 유지됩니다.</p></div> : null}

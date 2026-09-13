@@ -3,8 +3,7 @@ import * as board from '../api/recruitment';
 import { isApiError } from '../api/error';
 import { gameConfig } from '../domain/gameConfig';
 import { useNow } from '../state/useNow';
-import { isOnSlotBoundary } from '../domain/time';
-import { tiers } from '../domain/recruitment';
+import { recruitmentInputError } from '../domain/recruitmentValidation';
 import { writeFrom } from '../domain/recruitment';
 import { Button, Modal, useToast } from './ui';
 import { RecruitmentFields, ReservationFields } from './RecruitmentFields';
@@ -17,13 +16,7 @@ export function RecruitmentComposer({ initial, editing, suspended, onClose, onSa
   const [value, setValue] = useState(() => writeFrom(initial));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const ranks = tiers(value.condition.game);
-  const rangeError = value.preferences.minTier && value.preferences.maxTier && ranks.indexOf(value.preferences.minTier) > ranks.indexOf(value.preferences.maxTier) ? '최소 티어가 최대 티어보다 높습니다.' : '';
-  const timeError = value.type !== 'RESERVATION' ? '' : !value.availableFrom || !value.availableTo ? '예약 시간을 선택해 주세요.'
-    : !isOnSlotBoundary(value.availableFrom) || !isOnSlotBoundary(value.availableTo) ? '예약 시간은 30분 단위로 선택해 주세요.'
-    : Date.parse(value.availableTo) <= Date.parse(value.availableFrom) ? '종료 시간이 시작 시간보다 늦어야 합니다.'
-    : !editing && Date.parse(value.availableFrom) <= now ? '시작 시각은 현재 이후여야 합니다.' : '';
-  const validationError = rangeError || timeError;
+  const validationError = recruitmentInputError(value, editing ? undefined : now);
   const submit = async () => {
     if (validationError) return;
     setBusy(true); setError('');
