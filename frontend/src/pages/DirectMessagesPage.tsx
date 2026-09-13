@@ -290,9 +290,10 @@ function Conversation({ ownerId, ownerName, voiceOpen, closeVoice, contact, conv
       if (area) atBottom.current = area.scrollHeight - area.scrollTop - area.clientHeight < 80;
     }}>
       {messages.length === 0 ? <p className="dm-first-message">가볍게 인사를 건네보세요.</p> : messages.map((message, index) => {
+        if (message.kind === 'MATCH') return <div className="dm-match-notice" role="note" key={message.id}><IconParty size={20} /><strong>매칭 성사</strong><p>{message.text}</p></div>;
         const own = message.senderId === ownerId;
         const showDay = index === 0 || localDay(messages[index - 1].createdAt) !== localDay(message.createdAt);
-        const grouped = !showDay && messages[index - 1].senderId === message.senderId
+        const grouped = !showDay && messages[index - 1].kind !== 'MATCH' && messages[index - 1].senderId === message.senderId
           && Date.parse(message.createdAt) - Date.parse(messages[index - 1].createdAt) < 300_000;
         return <div className={`dm-message-entry${grouped ? ' is-grouped' : ''}`} key={message.id}>
           {showDay ? <div className="dm-date"><span>{messageDay(message.createdAt)}</span></div> : null}

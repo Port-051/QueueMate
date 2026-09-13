@@ -32,7 +32,7 @@ test('종료된 모집의 상태 응답이 늦어도 다른 모집에 바로 참
     await route.fulfill({ response, body });
   });
 
-  await login(page);
+  await page.clock.install(); await login(page);
   await page.locator('.intro-launch > button').click();
   const dialog = page.locator('.recruitment-composer-shell');
   await dialog.getByLabel('원하는 큐 타입', { exact: true }).selectOption('SOLO_DUO_RANKED');
@@ -48,12 +48,12 @@ test('종료된 모집의 상태 응답이 늦어도 다른 모집에 바로 참
 
   await page.locator('.board-filter-bar').getByRole('button', { name: '칼바람', exact: true }).click();
   await page.getByRole('button', { name: '포로간식 모집 상세', exact: true }).click();
-  await page.getByRole('button', { name: '자기소개 입력하고 참여 신청', exact: true }).click();
+  await page.getByRole('button', { name: '자기소개 작성하고 오케이 보내기', exact: true }).click();
   await expect(dialog.getByLabel('원하는 큐 타입', { exact: true })).toHaveValue('ARAM');
   await expect(dialog.getByLabel('모집 한마디', { exact: true })).toHaveValue('서로 존중하면서 즐겨요');
   await dialog.getByRole('button', { name: '모집 시작', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(page.locator('.board-proposal')).toBeVisible();
+  await expect(page.getByRole('region', { name: '보낸 오케이' })).toBeVisible();
   const held = await page.evaluate(() => {
     const state = window.closedRequestSnapshots;
     const count = state.held.length;
@@ -62,9 +62,10 @@ test('종료된 모집의 상태 응답이 늦어도 다른 모집에 바로 참
     return count;
   });
   await expect.poll(() => page.evaluate(() => window.closedRequestSnapshots.completed)).toBe(held);
-  await expect(page.locator('.board-proposal')).toBeVisible();
+  await expect(page.getByRole('region', { name: '보낸 오케이' })).toBeVisible();
   await expect(page.getByText('진행 중인 실시간 모집을 확인해 주세요. 동시에 두 개를 등록할 수 없습니다.', { exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: '함께할게요', exact: true }).click();
-  await expect(page.locator('.compact-party h2').first()).toHaveText('리그 오브 레전드 · 칼바람');
-  await expect(page.locator('.compact-party-members > div')).toHaveCount(2);
+  await page.clock.fastForward(22000);
+  await expect(page.getByRole('region', { name: '매칭 성사', exact: true })).toContainText('포로간식');
+  await page.getByRole('button', { name: '메시지로 이동' }).click();
+  await expect(page.getByRole('note')).toContainText('매칭 성사');
 });

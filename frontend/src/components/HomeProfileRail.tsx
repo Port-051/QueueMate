@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import type { GameAccountView, GameKey, UserProfile } from '../api/types';
 import { keyConditionOptions, usesKeyCondition } from '../domain/gameConfig';
 import type { SelfIntroduction } from '../domain/introduction';
-import { gameLabel, modeLabel, VOICE_LABEL } from '../domain/labels';
+import { modeLabel, VOICE_LABEL } from '../domain/labels';
 import { RankBadge } from './RankBadge';
 import { Avatar, Button } from './ui';
 import { PerformanceValue, PreferredChampions } from './IntroductionVisuals';
@@ -42,7 +42,7 @@ export function HomeProfileRail({ user, game, introduction, gameAccount, actionL
         <Link className="home-profile-link" to="/app/me">프로필</Link>
       </div>
       {introduction && !hasWorkflow ? <section className="home-profile-introduction" aria-label="내 자기소개">
-        <div className="home-profile-heading"><h2>내 소개</h2><span>{gameLabel(game)}</span></div>
+        <div className="home-profile-heading"><h2>내 소개</h2></div>
         {introduction.bio ? <p className="home-profile-bio">{introduction.bio}</p> : null}
         <dl className="home-profile-facts">
           {introduction.ownTier ? <><dt>티어</dt><dd><RankBadge game={game} tier={introduction.ownTier} division={introduction.rankDivision} /></dd></> : null}

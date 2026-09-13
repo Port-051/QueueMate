@@ -168,3 +168,8 @@
   .dm-friend-row { flex-wrap: wrap; gap: 8px; }
   .dm-friend-row .btn { font-size: 13px; padding-inline: 8px; }
 }
+
+.dm-match-notice { margin: 20px 0; padding: 18px; border: 1px solid var(--accent-line); border-radius: 10px; background: var(--accent-soft); color: var(--text-dim); font-size: 14px; line-height: 1.7; }
+.dm-match-notice > svg { color: var(--accent-2); vertical-align: middle; margin-right: 8px; }
+.dm-match-notice > strong { color: var(--text); }
+.dm-match-notice > p { margin: 6px 0 0; }

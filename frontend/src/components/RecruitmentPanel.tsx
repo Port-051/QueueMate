@@ -1,17 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import * as api from '../api/recruitment';
 import { errorMessage } from '../api/error';
 import { BOARD_STATUS, writeFrom } from '../domain/recruitment';
 import { keyConditionLabel, VOICE_LABEL, PURPOSE_LABEL, modeLabel } from '../domain/labels';
 import { Button, Card, Tag, useToast } from './ui';
 import { RecruitmentClock } from './RecruitmentClock';
-import { gameConfig, usesKeyCondition } from '../domain/gameConfig';
+import { usesKeyCondition } from '../domain/gameConfig';
 import { useNow } from '../state/useNow';
 import { introductionForRow } from '../domain/introduction';
 import { RankBadge } from './RankBadge';
 import { ParticipantIntroduction } from './ParticipantIntroduction';
 
-export function RecruitmentPanel({ row, onChanged, onEdit, onFind }: { row: api.BoardRow; onChanged: () => Promise<void>; onEdit: () => void; onFind: () => void }) {
+export function RecruitmentPanel({ row, onChanged, onEdit, onFind, matchingContent }: { matchingContent?: ReactNode; row: api.BoardRow; onChanged: () => Promise<void>; onEdit: () => void; onFind: () => void }) {
   const toast = useToast();
   const now = useNow();
   const [busy, setBusy] = useState(false);
@@ -50,7 +50,7 @@ export function RecruitmentPanel({ row, onChanged, onEdit, onFind }: { row: api.
   const candidateCount = showSuggestions ? suggestions?.currentCount ?? 0 : 0;
   const share = () => void navigator.clipboard.writeText(`${window.location.origin}/app/home?recruitment=${row.id}`).then(() => toast('모집 링크를 복사했습니다', 'ok')).catch(() => toast('링크를 복사하지 못했습니다', 'error'));
   return <Card className="my-recruitment">
-    <div className="recruitment-title"><div className="row"><h2>내 {reservation ? '예약' : '실시간'} 모집</h2><Tag>{BOARD_STATUS[row.status]}</Tag><span className="recruitment-method">{row.autoMatch ? '자동 매칭' : '수동 매칭'}</span></div><span>{gameConfig(row.condition.game).shortName} · {modeLabel(row.condition.game, row.condition.modeKey)}</span></div>
+    <div className="recruitment-title"><div className="row"><h2>내 {reservation ? '예약' : '실시간'} 모집</h2><Tag>{BOARD_STATUS[row.status]}</Tag><span className="recruitment-method">{row.autoMatch ? '자동 매칭' : '수동 매칭'}</span></div><span>{modeLabel(row.condition.game, row.condition.modeKey)}</span></div>
     <div className="recruitment-overview">
       <RecruitmentClock row={row} now={now} />
       <div className="recruitment-waiting"><div className="recruitment-own-summary">{row.preferences.ownTier ? <RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /> : null}{usesKeyCondition(row.condition.game, row.condition.modeKey) ? <span>{keyConditionLabel(row.condition)}</span> : null}<span>{VOICE_LABEL[row.condition.voicePreference]}</span>{row.preferences.purposeRequired ? <span>{PURPOSE_LABEL[row.condition.playPurpose]}</span> : null}{row.targetSize > 2 ? <span>{row.members.length}/{row.targetSize}명</span> : null}</div>{row.description ? <p className="recruitment-description">{row.description}</p> : null}</div>
@@ -62,6 +62,7 @@ export function RecruitmentPanel({ row, onChanged, onEdit, onFind }: { row: api.
     {row.members.length > 1 ? <div className="recruitment-members">{row.members.map(person => <span key={person.id}>{person.nickname}</span>)}</div> : null}
     {showSuggestions && suggestions?.suggestions.length ? <div className="recruitment-suggestions" role="status">{suggestions.suggestions.slice(0, 2).map(item => <button key={item.field} className="suggestion-link" onClick={() => setPreview(item)}>{item.label} · {item.candidateCount}개 보기 →</button>)}</div> : null}
     {suggestionError ? <p className="hint" role="alert">조건 제안을 불러오지 못했어요. <button type="button" onClick={() => setTick(n => n + 1)}>다시 시도</button></p> : null}
+    {matchingContent}
     {managed ? <div className="my-recruitment-actions">
       {independent ? <Button variant={row.status === 'PAUSED' || stale ? 'default' : 'primary'} onClick={onFind}>모집 둘러보기{candidateCount ? ` · ${candidateCount}` : ''}</Button> : null}
       {row.status === 'PAUSED' ? <Button variant="primary" disabled={busy} onClick={() => action('RESUME')}>모집 재개</Button> : null}

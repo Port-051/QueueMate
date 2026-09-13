@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 
 export interface MessageContact { userId: string; nickname: string; avatarUrl: string | null; }
-export interface DirectMessage { id: string; senderId: string; text: string; createdAt: string; example?: boolean; }
+export interface DirectMessage { id: string; senderId: string; text: string; createdAt: string; example?: boolean; kind?: 'MATCH'; }
 export interface DirectConversation {
   contact: MessageContact;
   messages: DirectMessage[];
@@ -197,4 +197,15 @@ export function useDirectMessages(ownerId: string | null | undefined) {
   const snapshot = useSyncExternalStore(subscribeDirectMessages, getSnapshot, () => EMPTY);
   const conversations = useMemo(() => Object.values(snapshot.conversations), [snapshot]);
   return { snapshot, conversations, unreadCount: ownerId ? countUnreadMessages(snapshot, ownerId) : 0 };
+}
+
+/** 매칭 성사 안내는 상대가 작성한 메시지와 구분해서 표시한다. */
+export function receiveDuoMatch(ownerId: string, contact: MessageContact, matchId: string): void {
+  const id = `duo-match:${matchId}`;
+  const old = readDirectMessages(ownerId).conversations[contact.userId];
+  if (old?.messages.some(message => message.id === id)) return;
+  const createdAt = new Date(Math.max(Date.now(), (old?.lastReadAt ?? 0) + 1)).toISOString();
+  const message: DirectMessage = { id, kind: 'MATCH', senderId: contact.userId, text: '서로 함께하기로 했어요. 메시지나 보이스챗으로 인사해 보세요.', createdAt };
+  updateConversation(ownerId, contact, previous => ({ ...previous, contact, messages: [...previous.messages, message].slice(-MAX_MESSAGES) }));
+  window.dispatchEvent(new CustomEvent('qm:duo-matched', { detail: { ownerId, matchId, contact, createdAt } }));
 }

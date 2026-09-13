@@ -1,3 +1,5 @@
+import { readDuoOffers, writeDuoOffers, type DuoOffer } from '../state/duoOffers';
+import { receiveDuoMatch } from '../state/directMessages';
 /** 로컬 데모 전용. 실제 API 모드에서는 가져오지 않는다. */
 import type { BoardAction, BoardPerson, BoardPreferences, BoardRow, BoardSearch, BoardSuggestion, BoardWrite } from '../api/recruitment';
 import type { MatchCondition } from '../api/types';
@@ -13,6 +15,7 @@ const manualPeers = new Map<string, MockUser[]>();
 const selectedModes = new Map<string, string>();
 const impressions = new Set<string>();
 let seeded = false;
+const duoOwners = new Set<string>();
 const freshTime = () => new Date().toISOString();
 const changed = () => emitMockEvent('RECRUITMENT_UPDATED', {});
 const hasPositions = (condition: MatchCondition) => condition.game !== 'LOL' || condition.modeKey !== 'ARAM';
@@ -180,6 +183,7 @@ function proposalsFor(row: BoardRow, pool: BoardRow[]) {
 /** undefined=기존 데모 요청, null=후보 없음/직접 모집, 배열=실제 데모 목록에서 고른 정원. */
 export function boardSimulationPeers(id: string): MockUser[] | null | undefined {
   const row = rows.get(id); if (!row) return undefined;
+  if (duoOwners.has(row.userId)) return null;
   const forced = manualPeers.get(id); if (forced) { manualPeers.delete(id); return forced; }
   if (!row.autoMatch || refresh(row).status !== 'OPEN') return null;
   const pool = candidates(queryOf(row)).filter(r => r.autoMatch);
@@ -326,4 +330,101 @@ export function handleBoardMock(method: string, path: string, body: unknown,
     row.version++; changed(); return view(row);
   }
   throw new ApiError(404, 'NO_MOCK_ROUTE', '지원하지 않는 데모 요청입니다');
+}
+
+
+// 프론트 전용 비동기 수락 시뮬레이션. 한쪽의 오케이는 원본 모집을 점유하지 않는다.
+const offerTerms = new Map<string, string>();
+const lastDiscovery = new Map<string, number>();
+const peerReplies = new Map<string, number>();
+const terms = (row: BoardRow) => JSON.stringify([row.condition, row.preferences, row.description, row.availableFrom, row.availableTo, row.playAmount]);
+const isWaiting = (offer: DuoOffer) => ['FOUND', 'SENT', 'RECEIVED'].includes(offer.status);
+function duoSource(id: string) {
+  const source = owned(id);
+  if (source.status !== 'OPEN') throw new ApiError(409, 'RECRUITMENT_CONFLICT', '모집을 재개한 뒤 오케이를 보내 주세요.');
+  return source;
+}
+function validDuoPair(source: BoardRow, peer: BoardRow) {
+  return source.status === 'OPEN' && peer.userId !== source.userId && matches(queryOf(source), peer, source.userId)
+    && !db.blocks.some(block => block.userId === peer.userId);
+}
+function offerFor(source: BoardRow, peer: BoardRow): DuoOffer {
+  const existing = readDuoOffers(source.userId).find(offer => offer.sourceId === source.id && offer.peer.userId === peer.userId && isWaiting(offer));
+  if (existing) return existing;
+  const offer: DuoOffer = { id: uid(), ownerId: source.userId, sourceId: source.id, peer: view(peer), status: 'FOUND', createdAt: freshTime() };
+  offerTerms.set(offer.id, terms(source));
+  writeDuoOffers(source.userId, previous => [...previous, offer]);
+  return offer;
+}
+function setOffer(ownerId: string, id: string, patch: Partial<DuoOffer>) {
+  writeDuoOffers(ownerId, previous => previous.map(offer => offer.id === id ? { ...offer, ...patch } : offer));
+}
+function completeDuo(offer: DuoOffer) {
+  const source = rows.get(offer.sourceId), peer = rows.get(offer.peer.id);
+  if (!source || !peer || !validDuoPair(refresh(source), refresh(peer)) || terms(source) !== offerTerms.get(offer.id)) {
+    setOffer(offer.ownerId, offer.id, { status: 'CANCELLED' }); return;
+  }
+  // 저장에 실패하면 모집과 수락 상태를 그대로 두어 재시도할 수 있다.
+  receiveDuoMatch(offer.ownerId, { userId: peer.userId, nickname: peer.nickname, avatarUrl: null }, offer.id);
+  for (const row of [source, peer]) {
+    row.status = 'MATCHED'; row.version++;
+    const request = db.matchRequests.get(row.id);
+    if (request) { clearTimers(request.sim.timers); request.view.status = 'MATCHED'; request.view.proposalId = null; }
+    const reservation = db.reservations.find(item => item.id === row.id);
+    if (reservation) { reservation.status = 'MATCHED'; reservation.proposalId = null; }
+  }
+  writeDuoOffers(offer.ownerId, previous => previous.map(item => item.id === offer.id ? { ...item, status: 'MATCHED', matchedAt: freshTime() }
+    : item.sourceId === source.id && isWaiting(item) ? { ...item, status: 'CANCELLED' } : item));
+  for (const item of readDuoOffers(offer.ownerId)) {
+    if (item.sourceId === source.id) peerReplies.delete(item.id);
+  }
+  changed();
+}
+export function sendDuoInterest(sourceId: string, peerId: string) {
+  const source = duoSource(sourceId), peer = rows.get(peerId);
+  if (!peer || !validDuoPair(source, refresh(peer))) throw new ApiError(409, 'RECRUITMENT_CONFLICT', '서로의 조건이나 모집 상태가 바뀌었습니다.');
+  const offer = offerFor(source, peer);
+  if (offer.status === 'SENT') return;
+  if (offer.status === 'RECEIVED') { completeDuo(offer); return; }
+  setOffer(source.userId, offer.id, { status: 'SENT', sentAt: freshTime() });
+  // 다른 상대에게도 의사를 보낼 수 있도록 느린 응답을 재현한다.
+  peerReplies.set(offer.id, Date.now() + 20_000);
+}
+/** 개발 검증에서도 사용하는 상대 수락 이벤트. 내 수락이 먼저라면 한 번만 확정한다. */
+export function receiveDuoOkay(ownerId: string, offerId: string) {
+  if (db.me.id !== ownerId) return;
+  const offer = readDuoOffers(ownerId).find(item => item.id === offerId);
+  if (!offer || !isWaiting(offer)) return;
+  if (offer.status === 'SENT') completeDuo(offer);
+  else setOffer(ownerId, offerId, { status: 'RECEIVED' });
+  peerReplies.delete(offerId);
+}
+export function dismissDuoOffer(ownerId: string, offerId: string) {
+  if (db.me.id !== ownerId) return;
+  const offer = readDuoOffers(ownerId).find(item => item.id === offerId);
+  if (!offer || !isWaiting(offer)) return;
+  peerReplies.delete(offerId);
+  setOffer(ownerId, offerId, { status: offer.status === 'SENT' ? 'CANCELLED' : 'DISMISSED' });
+}
+export function syncDuoPreview(ownerId: string) {
+  if (db.me.id !== ownerId) return;
+  duoOwners.add(ownerId);
+  seed();
+  for (const offer of readDuoOffers(ownerId).filter(isWaiting)) {
+    const source = rows.get(offer.sourceId), peer = rows.get(offer.peer.id);
+    if (!source || !peer || !validDuoPair(refresh(source), refresh(peer)) || terms(source) !== offerTerms.get(offer.id)) {
+      peerReplies.delete(offer.id); setOffer(ownerId, offer.id, { status: 'CANCELLED' }); continue;
+    }
+    if ((peerReplies.get(offer.id) ?? Infinity) <= Date.now()) {
+      try { receiveDuoOkay(ownerId, offer.id); } catch { /* 저장 공간 복구 후 다음 주기에 재시도한다. */ }
+    }
+  }
+  for (const source of rows.values()) {
+    if (source.userId !== ownerId || !source.autoMatch || refresh(source).status !== 'OPEN') continue;
+    if (Date.now() - (lastDiscovery.get(source.id) ?? Date.parse(source.createdAt)) < 6000) continue;
+    const offers = readDuoOffers(ownerId).filter(offer => offer.sourceId === source.id);
+    if (offers.filter(offer => offer.status === 'FOUND' || offer.status === 'RECEIVED').length >= 1) continue;
+    const peer = candidates(queryOf(source)).find(candidate => !offers.some(offer => offer.peer.userId === candidate.userId));
+    if (peer) { offerFor(source, peer); lastDiscovery.set(source.id, Date.now()); }
+  }
 }

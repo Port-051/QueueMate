@@ -49,14 +49,16 @@ test('위로 올리기 제한과 일시 중지·재개는 같은 모집을 유�
   await expect(page.locator('.my-recruitment')).toHaveCount(1);
 });
 test('새 목록은 확인 버튼으로 반영하며 읽고 있던 행은 움직이지 않는다', async ({ page }) => {
-  await login(page);
+  await page.clock.install(); await login(page);
   const first = await page.locator('.recruitment-row').first().getAttribute('data-recruitment-id');
   await startRealtimeMatch(page);
   await page.getByRole('button', { name: 'PlayMaker 모집 상세' }).click();
-  await page.getByRole('button', { name: '이 모집에 참여 신청' }).click();
+  await page.getByRole('button', { name: '같이 할래요' }).click();
+  await expect(page.getByRole('region', { name: '보낸 오케이' })).toBeVisible();
+  await page.clock.fastForward(22000);
   await expect(page.locator('.board-new-results')).toBeVisible();
   await expect(page.locator('.recruitment-row').first()).toHaveAttribute('data-recruitment-id', first!);
-  await expect(page.locator('.recruitment-row').filter({ hasText: 'PlayMaker' })).toContainText('전원 수락 대기');
+  await expect(page.locator('.recruitment-row').filter({ hasText: 'PlayMaker' })).toContainText('모집 종료');
   await page.locator('.board-new-results').click();
   await expect(page.getByRole('button', { name: 'PlayMaker 모집 상세' })).toHaveCount(0);
 });

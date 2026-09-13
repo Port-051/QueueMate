@@ -104,7 +104,7 @@ test('모집 목록과 상세에서 자기소개 전적을 보여주고 최근 �
   await expect(dialog.locator('.recent-results > span')).toHaveCount(20);
   await expect(dialog.locator('.recent-results .win')).toHaveCount(12);
   await expect(dialog.locator('.recent-results .loss')).toHaveCount(8);
-  await expect(dialog.getByRole('button', { name: '자기소개 입력하고 참여 신청' })).toBeEnabled();
+  await expect(dialog.getByRole('button', { name: '자기소개 작성하고 오케이 보내기' })).toBeEnabled();
   await page.keyboard.press('Escape');
   await expect(row).toBeFocused();
 });

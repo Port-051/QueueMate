@@ -148,6 +148,16 @@ export function useNotifications() {
     return () => window.removeEventListener('qm:direct-message', onMessage);
   }, [userId, blocks, add]);
 
+  useEffect(() => {
+    const matched = (event: Event) => {
+      const data = (event as CustomEvent<{ ownerId: string; matchId: string; contact: { userId: string; nickname: string }; createdAt: string }>).detail;
+      if (!data || data.ownerId !== userId || blocks.some(block => block.userId === data.contact.userId)) return;
+      add([{ id: `duo:${data.matchId}`, kind: 'MATCH', title: `${data.contact.nickname}님도 오케이했어요`, body: '서로 수락했어요. 메시지에서 대화와 보이스챗을 시작하세요.', href: `/app/messages?user=${encodeURIComponent(data.contact.userId)}`, createdAt: data.createdAt }]);
+    };
+    window.addEventListener('qm:duo-matched', matched);
+    return () => window.removeEventListener('qm:duo-matched', matched);
+  }, [userId, blocks, add]);
+
   const read = useCallback((id: string) => update(previous => previous.map(item => item.id === id ? { ...item, read: true } : item)), [update]);
   const readAll = useCallback(() => update(previous => previous.map(item => item.read ? item : { ...item, read: true })), [update]);
   return useMemo(() => ({ items, unreadCount: items.filter(item => !item.read).length, read, readAll }), [items, read, readAll]);

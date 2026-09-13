@@ -383,7 +383,7 @@ function MatchSession({ children }: { children: ReactNode }) {
         setRequest((prev) => (prev && prev.id === next.id ? next : prev));
         if (next.proposalId) {
           await openProposal(next.proposalId, 'REALTIME');
-        } else if (next.status === 'CANCELLED' || next.status === 'EXPIRED') {
+        } else if (next.status === 'CANCELLED' || next.status === 'EXPIRED' || next.status === 'MATCHED' && !next.proposalId) {
           setRequest(null);
           setCondition(null);
         }

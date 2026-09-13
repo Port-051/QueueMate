@@ -1,3 +1,4 @@
+import { useDuoPreview } from '../state/useDuoPreview';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import type { ComponentType } from 'react';
 import { useEffect, useRef, useState } from 'react';
@@ -23,6 +24,7 @@ const NAV: NavItem[] = [
 
 export function AppShell() {
   const { user } = useAuth();
+  useDuoPreview(user?.id);
   const { request, proposal } = useMatch();
   const notifications = useNotifications();
   const messages = useDirectMessages(user?.id);

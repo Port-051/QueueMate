@@ -62,17 +62,19 @@ test('모두 읽음은 새로고침 뒤에도 유지되고 친구 알림은 해�
   await expect(page).toHaveURL(/\/app\/messages\?user=u-healingyou$/);
 });
 
-test('새 매칭 제안은 반복 갱신돼도 알림을 중복으로 만들지 않는다', async ({ page }) => {
+test('상호 수락 알림은 반복 갱신돼도 중복으로 만들지 않는다', async ({ page }) => {
   await page.clock.install();
   await login(page);
   await startRealtimeMatch(page, true);
   await page.clock.fastForward(7000);
-  await expect(page.locator('.board-proposal')).toBeVisible();
+  await page.locator('.duo-offer').getByRole('button', { name: '같이 할래요' }).click();
+  await expect(page.getByRole('region', { name: '보낸 오케이' })).toBeVisible();
+  await page.clock.fastForward(22000);
   await page.locator('.sidebar').getByRole('button', { name: '알림', exact: true }).click();
   const panel = page.getByRole('dialog', { name: '알림', exact: true });
-  await expect(panel.getByText('함께할 팀원을 찾았어요', { exact: true })).toHaveCount(1);
+  await expect(panel.getByText('GankFlow님도 오케이했어요', { exact: true })).toHaveCount(1);
   await page.clock.fastForward(6000);
-  await expect(panel.getByText('함께할 팀원을 찾았어요', { exact: true })).toHaveCount(1);
+  await expect(panel.getByText('GankFlow님도 오케이했어요', { exact: true })).toHaveCount(1);
 });
 
 test('메시지 알림은 다른 계정과 본인 발신을 제외하고 같은 이벤트를 한 번만 표시한다', async ({ page }) => {

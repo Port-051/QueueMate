@@ -1,50 +1,35 @@
 import { expect, test } from '@playwright/test';
 import { login, startRealtimeMatch } from './helpers';
 
-test('자동 매칭 상대의 소개를 읽어도 수락 타이머와 버튼이 유지된다', async ({ page }) => {
-  await page.clock.install();
-  await login(page); await startRealtimeMatch(page, true);
-  const proposal = page.locator('.board-proposal');
-  await expect(proposal).toBeVisible();
+test('자동 추천의 소개를 읽는 동안 모집 타이머와 수락 버튼을 유지한다', async ({ page }) => {
+  await page.clock.install(); await login(page); await startRealtimeMatch(page, true);
+  await page.clock.fastForward(7000);
+  const proposal = page.locator('.duo-offer');
   const introduction = proposal.locator('.participant-introduction');
   await expect(introduction.locator('.row-introduction-stats')).toContainText('승률');
   await expect(introduction.locator('.row-introduction-stats')).toContainText('KDA');
   await introduction.locator('summary').click();
   await expect(introduction.locator('.recent-results > span')).toHaveCount(20);
-  await expect(introduction).toContainText('티어·전적 직접 입력');
-  const timer = proposal.getByRole('timer', { name: '수락 응답 남은 초' });
-  const before = Number(await timer.innerText());
-  await page.clock.fastForward(2000);
-  await expect.poll(async () => Number(await timer.innerText())).toBeLessThan(before);
-  await expect(timer).toBeInViewport();
-  const accept = proposal.getByRole('button', { name: '함께할게요' });
-  await expect(accept).toBeInViewport();
-  await expect(accept).toBeEnabled();
+  const timer = page.getByRole('timer', { name: '모집 시작 후', exact: true });
+  const before = await timer.innerText();
+  await page.clock.fastForward(2000); await expect(timer).not.toHaveText(before);
+  const accept = proposal.getByRole('button', { name: '같이 할래요' });
+  await expect(accept).toBeEnabled(); await accept.click();
+  await expect(page.getByRole('region', { name: '보낸 오케이' })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await accept.click();
-  await expect(page.locator('.compact-party')).toBeVisible();
 });
 
-test('공개 소개가 없는 제안 상대에게 전적을 만들지 않고 거절할 수 있다', async ({ page }) => {
-  await login(page); await startRealtimeMatch(page, true);
-  const proposal = page.locator('.board-proposal');
-  await expect(proposal).toBeVisible();
-  await page.evaluate(async () => {
-    const dbPath = '/src/mocks/db.ts'; const busPath = '/src/mocks/bus.ts';
-    const { db } = await import(/* @vite-ignore */ dbPath);
-    const { emitMockEvent } = await import(/* @vite-ignore */ busPath);
-    const pending = [...db.proposals.values()].find((item: any) => item.view.status === 'PENDING') as any;
-    pending.view.members = pending.view.members.map((member: any) => member.userId === db.me.id ? member : { ...member, userId: 'unlisted-player', nickname: '소개 없는 팀원' });
-    emitMockEvent('MATCH_PROPOSAL_CREATED', { proposal: structuredClone(pending.view) });
-  });
-  await expect(proposal).toContainText('소개 없는 팀원');
-  await expect(proposal).toContainText('공개된 소개 정보가 없습니다.');
-  await expect(proposal.locator('.row-introduction-stats')).toHaveCount(0);
-  await expect(proposal.locator('.participant-introduction summary')).toHaveCount(0);
-  await expect(proposal.getByRole('button', { name: '함께할게요' })).toBeEnabled();
-  await proposal.getByRole('button', { name: '거절', exact: true }).click();
+test('추천을 건너뛰어도 모집을 유지하고 다음 상대를 보여준다', async ({ page }) => {
+  await page.clock.install(); await login(page); await startRealtimeMatch(page, true);
+  await page.clock.fastForward(7000);
+  const proposal = page.locator('.duo-offer');
+  const first = await proposal.getAttribute('aria-label');
+  await proposal.getByRole('button', { name: '다음에', exact: true }).click();
   await expect(proposal).toHaveCount(0);
-  await expect(page.locator('.compact-party')).toHaveCount(0);
+  await page.clock.fastForward(7000);
+  await expect(proposal).toHaveCount(1); await expect(proposal).not.toHaveAttribute('aria-label', first!);
+  await expect(page.getByRole('region', { name: '보낸 오케이' })).toHaveCount(0);
+  await expect(page.locator('.my-recruitment')).toContainText('모집 중');
 });
 
 test('방장은 수락 전에 신청자의 공개 조건과 자기소개를 확인하고 거절할 수 있다', async ({ page }) => {

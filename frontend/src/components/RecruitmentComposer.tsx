@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import * as board from '../api/recruitment';
 import { isApiError } from '../api/error';
-import { gameConfig } from '../domain/gameConfig';
 import { useNow } from '../state/useNow';
 import { recruitmentInputError } from '../domain/recruitmentValidation';
 import { writeFrom } from '../domain/recruitment';
@@ -34,15 +33,15 @@ export function RecruitmentComposer({ initial, editing, suspended, onClose, onSa
     } catch (err) { setError(isApiError(err) ? err.message : '모집을 저장하지 못했습니다. 다시 시도해 주세요.'); }
     finally { setBusy(false); }
   };
-  return <MatchingRailPanel suspended={suspended} busy={busy} title={`${gameConfig(value.condition.game).name} · ${editing ? '모집 수정' : value.type === 'REALTIME' ? '실시간 모집' : '예약 모집'}`} onClose={() => onClose()} className="recruitment-composer-shell">
+  return <MatchingRailPanel suspended={suspended} busy={busy} title={editing ? '모집 수정' : value.type === 'REALTIME' ? '실시간 모집' : '예약 모집'} onClose={() => onClose()} className="recruitment-composer-shell">
     <form onSubmit={event => { event.preventDefault(); void submit(); }}>
     <fieldset className="recruitment-composer" disabled={busy || suspended}>
       {error || validationError ? <div className="banner warn" role="alert">{error || validationError}</div> : null}
       <SelfIntroductionFields game={value.condition.game} value={introduction} modeLocked={Boolean(editing)} onChange={next => { setIntroduction(next); setValue(applyIntroduction(value, next)); }} />
       {value.type === 'RESERVATION' ? <ReservationFields value={value} onChange={time => setValue({ ...value, ...time })} /> : null}
       <fieldset className="matching-choice"><legend>매칭 방식</legend><div className="matching-choice-grid">
-        <label><input type="radio" name="matching-method" aria-label="수동 매칭" checked={!value.autoMatch} onChange={() => setValue({ ...value, autoMatch: false })} /><span><strong>수동 매칭</strong><small>목록에서 팀원을 고르고 참여 신청을 받아요.</small></span></label>
-        <label><input type="radio" name="matching-method" aria-label="자동 매칭" checked={value.autoMatch} onChange={() => setValue({ ...value, autoMatch: true })} /><span><strong>자동 매칭</strong><small>조건이 맞는 팀원을 찾아 수락을 요청해요.</small></span></label>
+        <label><input type="radio" name="matching-method" aria-label="수동 매칭" checked={!value.autoMatch} onChange={() => setValue({ ...value, autoMatch: false })} /><span><strong>수동 매칭</strong><small>목록에서 상대를 찾거나 오케이를 받아요.</small></span></label>
+        <label><input type="radio" name="matching-method" aria-label="자동 매칭" checked={value.autoMatch} onChange={() => setValue({ ...value, autoMatch: true })} /><span><strong>자동 매칭</strong><small>조건이 맞는 상대를 한 명씩 추천해요.</small></span></label>
       </div></fieldset>
     </fieldset>
     <div className="matching-rail-footer"><Button block type="submit" variant="primary" disabled={busy || suspended || Boolean(validationError)}>{busy ? '저장 중…' : editing ? '모집 조건 저장' : '모집 시작'}</Button></div>
