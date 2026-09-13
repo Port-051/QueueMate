@@ -6,6 +6,30 @@ async function expectLoadedPortrait(portrait: Locator) {
   await expect.poll(() => portrait.evaluate(image => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0)).toBe(true);
 }
 
+async function expectEvenMetaGaps(row: Locator, selectors: string[]) {
+  const boxes = await Promise.all(selectors.map(async selector => {
+    const box = await row.locator(selector).boundingBox();
+    expect(box, `${selector}의 콘텐츠 영역`).not.toBeNull();
+    return box!;
+  }));
+  for (let index = 1; index < boxes.length; index++) {
+    const gap = boxes[index].x - boxes[index - 1].x - boxes[index - 1].width;
+    expect(Math.abs(gap - 28), `${selectors[index - 1]} → ${selectors[index]}의 콘텐츠 간격 ${gap}px`).toBeLessThanOrEqual(1);
+    const divider = await row.locator(selectors[index]).evaluate(element => {
+      const cell = element.closest('.row-meta')!;
+      const style = getComputedStyle(cell, '::before');
+      return { display: style.display, content: style.content, width: style.width, height: style.height, background: style.backgroundColor, opacity: style.opacity, center: cell.getBoundingClientRect().x + parseFloat(style.left) + parseFloat(style.width) / 2 };
+    });
+    expect(divider.display).not.toBe('none');
+    expect(divider.content).not.toBe('none');
+    expect(divider.background).not.toBe('rgba(0, 0, 0, 0)');
+    expect(parseFloat(divider.opacity)).toBeGreaterThan(0);
+    expect(divider.width).toBe('1px');
+    expect(divider.height).toBe('16px');
+    expect(Math.abs(divider.center - (boxes[index].x - gap / 2)), '세로 구분선은 두 콘텐츠 간격의 중앙에 표시한다').toBeLessThanOrEqual(1);
+  }
+}
+
 async function saveExamples(page: Page, examples: { userId: string; champions: string[]; winRate: number | null; kda: number | null }[]) {
   await page.addInitScript(examples => {
     for (const { userId, ...introduction } of examples) {
@@ -90,6 +114,8 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
     expect(rank.x + rank.width, `랭크와 모드는 ${width}px에서 별도 열이다`).toBeLessThanOrEqual(mode.x);
     const compact = await page.locator('.recruitment-list').evaluate(element => element.clientWidth <= 680);
     if (compact) {
+      await expectEvenMetaGaps(rows.first(), ['.row-tier', '.recruitment-mode']);
+      await expectEvenMetaGaps(rows.first(), ['.recruitment-role-pair', '.recruitment-voice']);
       expect(rank.y, '모바일 랭크·모드는 플레이어 아래에 표시한다').toBeGreaterThanOrEqual(player.y + player.height);
       expect(Math.abs(rank.y + rank.height / 2 - mode.y - mode.height / 2), '모바일 랭크와 모드는 같은 줄이다').toBeLessThanOrEqual(1);
       expect(role.y, '모바일 포지션·음성은 랭크·모드 아래에 표시한다').toBeGreaterThanOrEqual(Math.max(rank.y + rank.height, mode.y + mode.height));
@@ -97,8 +123,8 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
       expect(Math.abs(role.y + role.height / 2 - voice.y - voice.height / 2), '모바일 포지션과 음성은 같은 줄이다').toBeLessThanOrEqual(1);
       expect(posted.y, '모바일 게시 시간은 마지막 줄이다').toBeGreaterThanOrEqual(voice.y + voice.height);
       expect(player.x + player.width - Math.min(rank.x, mode.x, role.x, voice.x, posted.x), '모바일 부가 정보는 오른쪽의 좁은 영역에 모은다').toBeLessThanOrEqual(208);
-      expect(Math.abs(mode.x + mode.width - player.x - player.width), '모바일 부가 정보는 플레이어 영역 오른쪽 끝에 맞춘다').toBeLessThanOrEqual(1);
     } else {
+      await expectEvenMetaGaps(rows.first(), ['.row-tier', '.recruitment-mode', '.recruitment-role-pair', '.recruitment-voice', '.row-posted']);
       expect(player.x + player.width, '랭크는 플레이어 오른쪽에 별도 열로 표시한다').toBeLessThanOrEqual(rank.x);
       expect(mode.x + mode.width, '모드와 포지션은 별도 열이다').toBeLessThanOrEqual(role.x);
       expect(voice.x + voice.width, '음성과 게시 시간은 별도 열이다').toBeLessThanOrEqual(posted.x);
@@ -121,6 +147,7 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
   expect(aramVoice.y, '모바일 칼바람 음성·게시 시간은 랭크·모드 아래에 표시한다').toBeGreaterThanOrEqual(aramMode.y + aramMode.height);
   expect(Math.abs(aramVoice.y + aramVoice.height / 2 - aramPosted.y - aramPosted.height / 2), '모바일 칼바람 음성과 게시 시간은 같은 줄이다').toBeLessThanOrEqual(1);
   expect(aramVoice.x + aramVoice.width, '모바일 칼바람 음성과 게시 시간은 별도 열이다').toBeLessThanOrEqual(aramPosted.x);
+  await expectEvenMetaGaps(rows.first(), ['.recruitment-voice', '.row-posted']);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), '모바일 칼바람 가로 넘침').toBe(true);
   await page.screenshot({ path: testInfo.outputPath('recruitment-presentation-aram-360.png') });
 });
@@ -191,7 +218,7 @@ test('모집은 닉네임 뒤에 챔피언을 한 번 표시하고 랭크는 별
     { ownTier: 'GOLD', tier: '골드', voicePreference: 'REQUIRED', voice: '음성 사용', createdAt: ago(90_000), posted: '1분 전', confirmedAt: ago(30_000) },
     { ownTier: 'SILVER', tier: '실버', voicePreference: 'NO_VOICE', voice: '음성 사용 안 함', createdAt: ago(2 * 3_600_000 + 30_000), posted: '2시간 전', confirmedAt: ago(90_000) },
     { ownTier: null, tier: '티어 미입력', voicePreference: 'OPTIONAL', voice: '음성 무관', createdAt: ago(3 * 86_400_000 + 30_000), posted: '3일 전', confirmedAt: ago(2 * 3_600_000 + 30_000) },
-    { ownTier: 'DIAMOND', tier: '다이아몬드', voicePreference: 'REQUIRED', voice: '음성 사용', createdAt: ago(30_000), posted: '방금', confirmedAt: ago(10_000) },
+    { ownTier: 'DIAMOND', tier: '다이아몬드', modeKey: 'ARAM', voicePreference: 'REQUIRED', voice: '음성 사용', createdAt: ago(30_000), posted: '방금', confirmedAt: ago(10_000) },
   ];
   await page.clock.install({ time: new Date(now) });
   await page.route(/\/src\/api\/recruitment\.ts(?:\?.*)?$/, async route => {
@@ -206,7 +233,7 @@ test('모집은 닉네임 뒤에 챔피언을 한 번 표시하고 랭크는 별
         result.items = result.items.map((row, index) => index >= examples.length ? row : {
           ...row, createdAt: examples[index].createdAt, confirmedAt: examples[index].confirmedAt,
           bumpedAt: ${JSON.stringify(new Date(now).toISOString())},
-          condition: { ...row.condition, voicePreference: examples[index].voicePreference },
+          condition: { ...row.condition, modeKey: examples[index].modeKey ?? row.condition.modeKey, voicePreference: examples[index].voicePreference },
           preferences: { ...row.preferences, ownTier: examples[index].ownTier },
         });
         return result;
@@ -236,6 +263,9 @@ test('모집은 닉네임 뒤에 챔피언을 한 번 표시하고 랭크는 별
     const modeBox = (await row.locator('.row-mode').boundingBox())!;
     expect(playerBox.x + playerBox.width, '랭크는 플레이어 오른쪽에 별도 열로 표시한다').toBeLessThanOrEqual(rankBox.x);
     expect(rankBox.x + rankBox.width, '랭크 다음 열에 모드를 표시한다').toBeLessThanOrEqual(modeBox.x);
+    const hasRoles = example.modeKey !== 'ARAM';
+    await expect(row.locator('.row-roles')).toHaveCount(hasRoles ? 1 : 0);
+    await expectEvenMetaGaps(row, ['.row-tier', '.recruitment-mode', ...(hasRoles ? ['.recruitment-role-pair'] : []), '.recruitment-voice', '.row-posted']);
     await expect(row).not.toContainText('직접 입력');
     const voice = row.locator(':scope > .row-voice').getByRole('img', { name: example.voice, exact: true });
     await expect(voice).toHaveClass(/recruitment-voice/);

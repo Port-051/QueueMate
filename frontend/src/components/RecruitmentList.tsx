@@ -57,13 +57,14 @@ export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]
   return <div className={`recruitment-list${withoutRoles ? ' without-roles' : ''}`} aria-label="모집 목록">
     {rows.map(row => {
       const introduction = introductionForRow(row);
-      return <button type="button" key={row.id} data-recruitment-id={row.id} className={`recruitment-row ${selected === row.id ? 'selected' : ''} ${row.status !== 'OPEN' ? 'unavailable' : ''}`} aria-label={`${row.nickname} 모집 상세`} aria-pressed={selected === row.id} onClick={() => onSelect(row)}>
+      const hasRoles = usesKeyCondition(row.condition.game, row.condition.modeKey);
+      return <button type="button" key={row.id} data-recruitment-id={row.id} className={`recruitment-row ${selected === row.id ? 'selected' : ''} ${row.status !== 'OPEN' ? 'unavailable' : ''}${hasRoles ? '' : ' without-roles'}`} aria-label={`${row.nickname} 모집 상세`} aria-pressed={selected === row.id} onClick={() => onSelect(row)}>
       <div className="row-player"><Avatar name={row.nickname} size={40} /><div><div className="row-player-heading"><b>{row.nickname}</b>{introduction.champions.length ? <PreferredChampions game={row.condition.game} names={introduction.champions} /> : null}</div><IntroductionStats game={row.condition.game} introduction={introduction} showChampions={false} />{row.description ? <p>{row.description}</p> : null}</div></div>
-      <div className="row-rank"><RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /></div>
-      <div className="row-mode"><span className="recruitment-mode"><FilterModeIcon mode={row.condition.modeKey} /><span>{queueLabel(row)}</span></span>{row.targetSize > 2 ? <small>{row.members.length}/{row.targetSize}명</small> : null}</div>
-      {!withoutRoles ? <div className="row-roles"><RecruitmentRoleIcons row={row} /></div> : null}
-      <div className="row-voice"><RecruitmentVoice row={row} /></div>
-      <div className="row-fresh"><time className="row-posted" dateTime={row.createdAt} title={`게시: ${timeLabel(row.createdAt)}`}>{relativeBoardTime(row.createdAt, now)}</time>{row.status !== 'OPEN' ? <small>{BOARD_STATUS[row.status]}</small> : null}<span className="row-arrow" aria-hidden="true">↗</span></div>
+      <div className="row-meta row-rank"><RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /></div>
+      <div className="row-meta row-mode"><span className="recruitment-mode"><FilterModeIcon mode={row.condition.modeKey} /><span>{queueLabel(row)}</span></span>{row.targetSize > 2 ? <small>{row.members.length}/{row.targetSize}명</small> : null}</div>
+      {hasRoles ? <div className="row-meta row-roles"><RecruitmentRoleIcons row={row} /></div> : null}
+      <div className="row-meta row-voice"><RecruitmentVoice row={row} /></div>
+      <div className="row-meta row-fresh"><time className="row-posted" dateTime={row.createdAt} title={`게시: ${timeLabel(row.createdAt)}`}>{relativeBoardTime(row.createdAt, now)}</time>{row.status !== 'OPEN' ? <small>{BOARD_STATUS[row.status]}</small> : null}<span className="row-arrow" aria-hidden="true">↗</span></div>
     </button>; })}
   </div>;
 }
