@@ -180,13 +180,17 @@ test('음성 미리보기는 요청 취소·시간 초과·대화 이동 후 재
   await expect(voice).toHaveCount(0);
 });
 
-test('홈과 메시지의 콘텐츠 너비와 좌우 시작점을 맞춘다', async ({ page }) => {
-  await login(page);
-  const home = (await page.locator('.board-home').boundingBox())!;
-  await page.locator('.side-nav').getByRole('link', { name: '메시지', exact: true }).click();
-  const messages = (await page.locator('.direct-messages-page').boundingBox())!;
-  expect(messages.x).toBe(home.x);
-  expect(messages.width).toBe(home.width);
+test('메시지는 태블릿과 데스크톱에서 본문 전체 너비를 사용하고 중복 프로필을 표시하지 않는다', async ({ page }) => {
+  await openMessages(page);
+  for (const width of [768, 1280, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    const main = (await page.locator('.main').boundingBox())!;
+    const messages = (await page.locator('.direct-messages-page').boundingBox())!;
+    expect(messages.x, `${width}px 왼쪽 여백`).toBeCloseTo(main.x, 0);
+    expect(messages.x + messages.width, `${width}px 오른쪽 여백`).toBeCloseTo(main.x + main.width, 0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${width}px 가로 넘침`).toBe(true);
+  }
+  await expect(page.locator('.dm-self')).toHaveCount(0);
 });
 
 test('연속 메시지는 작성자를 반복하지 않고 입력창 가까이에 쌓인다', async ({ page }) => {
@@ -201,6 +205,4 @@ test('연속 메시지는 작성자를 반복하지 않고 입력창 가까이�
   const last = (await page.locator('.dm-message-entry').last().boundingBox())!;
   const compose = (await page.locator('.dm-compose').boundingBox())!;
   expect(compose.y - last.y - last.height).toBeLessThan(50);
-  const avatar = (await page.locator('.dm-self > .avatar-wrap').boundingBox())!;
-  expect(avatar.width).toBe(avatar.height);
 });

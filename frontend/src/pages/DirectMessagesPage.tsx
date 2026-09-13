@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { isApiError } from '../api/error';
 import { DirectVoiceStage } from '../components/DirectVoiceStage';
 import { ReportModal } from '../components/ReportModal';
-import { IconChat, IconPlus, IconSearch, IconSend, IconSettings, IconShield } from '../components/icons';
+import { IconChat, IconPencil, IconSearch, IconSend, IconSettings, IconShield } from '../components/icons';
 import { ActionMenu, Avatar, Button, ConfirmDialog, Modal, useToast } from '../components/ui';
 import { USE_MOCK } from '../config';
+import { relativeTime } from '../domain/time';
 import { useAuth } from '../state/AuthContext';
 import { useSocial } from '../state/SocialContext';
 import {
@@ -167,14 +168,18 @@ export function DirectMessagesPage() {
   const renderContact = (contact: Contact) => {
     const thread = snapshot.conversations[contact.userId];
     const unread = thread && user ? unreadMessages(thread, user.id) : 0;
+    const last = thread?.messages.at(-1);
     const isSelected = contact.userId === selectedId;
     const isPinned = contact.friend && Boolean(thread?.pinnedAt);
     return <li className={`dm-contact${isSelected ? ' is-selected' : ''}${unread ? ' is-unread' : ''}`} key={contact.userId}>
       <button type="button" className="dm-contact-select" aria-label={`${contact.nickname} 대화${unread ? `, 읽지 않은 메시지 ${unread}개` : ''}`}
         aria-current={isSelected ? 'true' : undefined} ref={isSelected ? selectedButtonRef : undefined} onClick={() => choose(contact)}>
-        <Avatar name={contact.nickname} avatarUrl={contact.avatarUrl} size={32} />
+        <Avatar name={contact.nickname} avatarUrl={contact.avatarUrl} size={44} />
         <span className="dm-contact-text"><span className="dm-contact-top"><b>{contact.nickname}</b></span>
-          {thread?.draft ? <span className="dm-contact-preview"><em>임시저장</em></span> : null}
+          <span className="dm-contact-preview">
+            <span>{thread?.draft ? <><em>임시저장</em> {thread.draft}</> : last ? `${last.senderId === user?.id ? '나: ' : ''}${last.text}` : relationship(contact)}</span>
+            {!thread?.draft && last ? <time dateTime={last.createdAt}> · {relativeTime(last.createdAt)}</time> : null}
+          </span>
         </span>
         {unread > 0 ? <span className="dm-unread" aria-hidden="true">{unread > 99 ? '99+' : unread}</span> : null}
       </button>
@@ -187,7 +192,7 @@ export function DirectMessagesPage() {
       <aside className="dm-sidebar" aria-label="대화 목록">
         <header className="dm-list-header"><h1>메시지</h1><div className="dm-header-actions">
           <button type="button" className="dm-icon-btn" aria-label="친구 관리" onClick={() => setManagement('received')}><IconSettings size={19} />{social.receivedRequests.length > 0 ? <span className="dm-request-dot" /> : null}</button>
-          <button type="button" className="dm-icon-btn" aria-label="새 대화" onClick={() => { setNewConversation(true); setNewQuery(''); }}><IconPlus size={20} /></button>
+          <button type="button" className="dm-icon-btn" aria-label="새 대화" onClick={() => { setNewConversation(true); setNewQuery(''); }}><IconPencil size={22} /></button>
         </div></header>
         <div className="dm-search"><IconSearch size={17} /><input ref={searchRef} type="search" placeholder="대화 검색" aria-label="대화 검색" value={query} onChange={event => setQuery(event.target.value)} /></div>
         <div className="dm-list-filters"><button type="button" className={!unreadOnly ? 'on' : ''} aria-pressed={!unreadOnly} onClick={() => setUnreadOnly(false)}>전체</button><button type="button" className={unreadOnly ? 'on' : ''} aria-pressed={unreadOnly} onClick={() => setUnreadOnly(true)}>읽지 않음{totalUnread ? <span>{totalUnread}</span> : null}</button></div>
@@ -197,14 +202,13 @@ export function DirectMessagesPage() {
             {others.length > 0 ? <div className="dm-contact-group">{pinned.length > 0 ? <h2>대화</h2> : null}<ul>{others.map(renderContact)}</ul></div> : null}
           </>}
         </div>
-        {user ? <Link className="dm-self" to="/app/me"><Avatar name={user.nickname} size={32} /><span><b>{user.nickname}</b><small>내 프로필</small></span><IconSettings size={18} /></Link> : null}
       </aside>
 
       <div className="dm-thread">
         {selected && user ? <>
           <header className="dm-thread-header">
             <button type="button" className="dm-icon-btn dm-back" aria-label="대화 목록으로" onClick={backToList}><BackArrow /></button>
-            <Avatar name={selected.nickname} avatarUrl={selected.avatarUrl} size={28} />
+            <Avatar name={selected.nickname} avatarUrl={selected.avatarUrl} size={40} />
             <div className="dm-thread-person"><h2 ref={headingRef} tabIndex={-1}>{selected.nickname}</h2><span>{relationship(selected)}</span></div>
             <div className="dm-thread-actions">
               <button type="button" className="dm-icon-btn dm-call-button" aria-label="통화 시작" title={USE_MOCK ? '음성 통화 · 미리보기' : '음성 연결 준비 중'} disabled={!USE_MOCK || voiceContact === selected.userId} onClick={() => setVoiceContact(selected.userId)}><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 2.5 9 7.7a1.5 1.5 0 0 1-.4 1.7l-1.5 1.2a15 15 0 0 0 6.3 6.3l1.2-1.5a1.5 1.5 0 0 1 1.7-.4l5.2 2.4c.5.2.8.8.6 1.4l-.6 2c-.2.7-.9 1.2-1.6 1.2C10.1 22 2 13.9 2 4.1c0-.7.5-1.4 1.2-1.6l2-.6c.6-.2 1.2.1 1.4.6Z" /></svg></button>
