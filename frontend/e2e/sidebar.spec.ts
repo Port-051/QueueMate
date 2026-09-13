@@ -1,6 +1,83 @@
 import { expect, test } from '@playwright/test';
 import { DEMO, login } from './helpers';
 
+test('사이드바의 위쪽·중간·아래쪽 빈 영역에서도 펼쳐지고 탐색 후 다시 호버할 수 있다', async ({ page }, testInfo) => {
+  await login(page);
+  const sidebar = page.locator('.sidebar');
+  const main = page.locator('.main');
+  const feed = page.locator('.board-feed');
+  await expect(page.locator('.recruitment-row').first()).toBeVisible();
+  const homeBounds = (await main.boundingBox())!;
+  const feedBounds = await feed.boundingBox();
+  const outside = { x: homeBounds.x + homeBounds.width / 2, y: 100 };
+  await page.mouse.move(outside.x, outside.y);
+  await expect(sidebar).toHaveCSS('width', '80px');
+
+  const collapsedBounds = (await sidebar.boundingBox())!;
+  const brandBounds = (await sidebar.locator('.sidebar-brand-link').boundingBox())!;
+  const gamesBounds = (await sidebar.getByRole('group', { name: '게임 선택', exact: true }).boundingBox())!;
+  const navBounds = (await sidebar.getByRole('navigation', { name: '주 메뉴', exact: true }).boundingBox())!;
+  const emptyRegions = [
+    { name: '위쪽 패딩', start: collapsedBounds.y, end: brandBounds.y },
+    { name: '게임과 메뉴 사이', start: gamesBounds.y + gamesBounds.height, end: navBounds.y },
+    { name: '메뉴 아래', start: navBounds.y + navBounds.height, end: collapsedBounds.y + collapsedBounds.height },
+  ];
+  const expectEmptyPoint = async (point: { x: number; y: number }) => {
+    const controls = await sidebar.locator('.sidebar-navigation a, .sidebar-navigation button').evaluateAll(elements =>
+      elements.map(element => {
+        const { x, y, width, height } = element.getBoundingClientRect();
+        return { x, y, width, height };
+      }));
+    expect(controls.some(box => point.x >= box.x && point.x <= box.x + box.width
+      && point.y >= box.y && point.y <= box.y + box.height)).toBe(false);
+  };
+
+  for (const region of emptyRegions) {
+    await test.step(region.name, async () => {
+      expect(region.end - region.start).toBeGreaterThan(0);
+      const point = { x: collapsedBounds.x + collapsedBounds.width / 2, y: (region.start + region.end) / 2 };
+      await expectEmptyPoint(point);
+      await page.mouse.move(point.x, point.y);
+      await expect(sidebar).toHaveCSS('width', '232px');
+      await expect(sidebar.locator('.brand-wordmark')).toBeVisible();
+      expect(await main.boundingBox()).toEqual(homeBounds);
+      expect(await feed.boundingBox()).toEqual(feedBounds);
+
+      const expandedBounds = (await sidebar.boundingBox())!;
+      const expandedPoint = { x: expandedBounds.x + expandedBounds.width / 2, y: point.y };
+      expect(expandedPoint.x).toBeGreaterThan(collapsedBounds.x + collapsedBounds.width);
+      await expectEmptyPoint(expandedPoint);
+      await page.mouse.move(expandedPoint.x, expandedPoint.y);
+      await expect(sidebar).toHaveCSS('width', '232px');
+      expect(await page.evaluate(({ x, y }) => Boolean(document.elementFromPoint(x, y)?.closest('.sidebar')), expandedPoint)).toBe(true);
+      if (region.name === '게임과 메뉴 사이') {
+        await page.screenshot({ path: testInfo.outputPath('sidebar-empty-hover.png') });
+      }
+
+      await page.mouse.move(outside.x, outside.y);
+      await expect(sidebar).toHaveCSS('width', '80px');
+      await expect(sidebar.locator('.brand-wordmark')).toBeHidden();
+      expect(await main.boundingBox()).toEqual(homeBounds);
+      expect(await feed.boundingBox()).toEqual(feedBounds);
+    });
+  }
+
+  await sidebar.getByRole('link', { name: '프로필', exact: true }).click({ position: { x: 24, y: 24 } });
+  await expect(page).toHaveURL(/\/app\/me$/);
+  await expect(sidebar).toHaveCSS('width', '80px');
+  await page.mouse.move(outside.x, outside.y);
+  const profileBounds = await main.boundingBox();
+  const bottom = emptyRegions[2];
+  const reentry = { x: collapsedBounds.x + collapsedBounds.width / 2, y: (bottom.start + bottom.end) / 2 };
+  await expectEmptyPoint(reentry);
+  await page.mouse.move(reentry.x, reentry.y);
+  await expect(sidebar).toHaveCSS('width', '232px');
+  expect(await main.boundingBox()).toEqual(profileBounds);
+  await page.mouse.move(outside.x, outside.y);
+  await expect(sidebar).toHaveCSS('width', '80px');
+  expect(await main.boundingBox()).toEqual(profileBounds);
+});
+
 test('사이드바는 호버와 키보드 탐색 때 펼쳐지고 마우스가 떠나면 다시 접힌다', async ({ page }) => {
   await login(page);
   const sidebar = page.locator('.sidebar');

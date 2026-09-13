@@ -22,7 +22,7 @@
 @media (min-width: 768px) {
   /* 접힌 메뉴 너비만 확보하고, 펼친 메뉴는 본문을 밀지 않는 레이어로 표시한다. */
   .app-shell { --sidebar-w: 232px; grid-template-columns: 80px minmax(0, 1fr); }
-  .sidebar { display: block; width: 80px; min-width: 0; height: 100dvh; padding: 0; overflow: hidden; pointer-events: none; background: none; border: 0; mix-blend-mode: screen; transition: width .26s cubic-bezier(.22, 1, .36, 1); }
+  .sidebar { display: block; width: 80px; min-width: 0; height: 100dvh; padding: 0; overflow: hidden; pointer-events: auto; background: none; border: 0; mix-blend-mode: screen; transition: width .26s cubic-bezier(.22, 1, .36, 1); }
   .sidebar-navigation { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(min-content, 1fr) auto minmax(min-content, 1fr); row-gap: 16px; height: 100%; padding: 24px 12px 20px; opacity: 1; transform: translateX(0); transition: opacity .18s ease, transform .26s cubic-bezier(.22, 1, .36, 1); }
   .sidebar.has-notifications-open { --sidebar-w: 400px; }
   .sidebar.has-notifications-open .sidebar-navigation { opacity: 0; transform: translateX(-16px); transition: opacity .12s ease, transform .26s cubic-bezier(.22, 1, .36, 1); }
