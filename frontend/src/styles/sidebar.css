@@ -16,7 +16,7 @@
 .sidebar-games .nav-link:hover { background: rgba(255, 255, 255, .06); }
 .sidebar-games .nav-icon { width: 32px; height: 32px; opacity: 1; }
 .game-nav-logo { border-radius: 50%; }
-.game-nav-link.active .game-nav-logo { outline: 2px solid var(--accent); outline-offset: 3px; box-shadow: 0 0 14px 5px #7c4dff38; }
+.game-nav-link.active .game-nav-logo { outline: 2px solid var(--accent); outline-offset: 3px; box-shadow: 0 0 10px 5px #7c4dff80, 0 0 24px 8px #7c4dff4d; }
 .mobile-games { padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--border); }
 
 @media (min-width: 768px) {
