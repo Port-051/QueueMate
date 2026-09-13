@@ -15,8 +15,15 @@ export async function login(page: Page): Promise<void> {
 export async function startRealtimeMatch(page: Page, auto = false): Promise<void> {
   await page.getByRole('button', { name: '+ 실시간 모집 만들기' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
-  if (auto) await page.getByRole('dialog').getByLabel('자동으로도 팀원 찾기').check();
+  if (auto) await page.getByRole('dialog').getByLabel('자동 찾기').check();
   await page.getByRole('button', { name: '모집 시작', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.locator('.my-recruitment')).toBeVisible();
+}
+
+/** 부가 모집 작업은 관리 메뉴에서 선택한다. */
+export async function manageRecruitment(page: Page, action: string): Promise<void> {
+  const menu = page.locator('.my-recruitment .action-menu');
+  if (await menu.getAttribute('open') === null) await menu.locator('summary').click();
+  await menu.getByRole('button', { name: action, exact: true }).click();
 }

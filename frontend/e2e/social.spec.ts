@@ -33,7 +33,9 @@ test('최근 함께한 사람에서 신고를 접수할 수 있다', async ({ pa
   await login(page);
   await page.locator('.side-nav a[href="/app/recent"]').click();
 
-  await page.locator('.list-item').first().getByRole('button', { name: '신고' }).click();
+  const person = page.locator('.list-item').first();
+  await person.locator('.action-menu summary').click();
+  await person.getByRole('button', { name: '신고' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('button', { name: '신고 접수' }).click();
   await expect(page.locator('.toast.ok')).toContainText('신고가 접수되었습니다');

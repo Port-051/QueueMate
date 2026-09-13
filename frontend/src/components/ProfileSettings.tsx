@@ -16,7 +16,7 @@ export function ProfileSettings() {
 
   return (
     <section id="settings" className="profile-section profile-settings" aria-labelledby="profile-settings-heading">
-      <div className="profile-section-heading"><h2 id="profile-settings-heading">매칭 기본값</h2><p>새 매칭에 자동으로 적용됩니다.</p></div>
+      <div className="profile-section-heading"><h2 id="profile-settings-heading">매칭 기본값</h2></div>
       <div className="profile-preferences">
       <OptionRow
         label="음성 사용"

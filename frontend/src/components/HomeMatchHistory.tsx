@@ -26,7 +26,7 @@ const dateLabel = (value: string) => new Date(value).toLocaleString('ko-KR', {
   year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
 });
 
-export function HomeMatchHistory({ onReview }: { onReview: (condition: MatchCondition, mode: MatchMode) => void }) {
+export function HomeMatchHistory({ onReview, excludeIds = [] }: { excludeIds?: string[]; onReview: (condition: MatchCondition, mode: MatchMode) => void }) {
   const { request, activePartyId, reservations, reservationsLoaded, reservationsError, refreshReservations } = useMatch();
   const [realtime, setRealtime] = useState<MatchHistoryView[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,11 +64,12 @@ export function HomeMatchHistory({ onReview }: { onReview: (condition: MatchCond
       status: item.status as Result, startedAt: item.createdAt,
       schedule: `${formatRange(item.availableFrom, item.availableTo)} · ${PLAY_AMOUNT_LABEL[item.playAmount]}`,
     })),
-  ].sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime() || b.id.localeCompare(a.id)), [realtime, reservations]);
+  ].filter(item => !excludeIds.includes(item.id)).sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime() || b.id.localeCompare(a.id)), [realtime, reservations, excludeIds]);
   const hasError = error || Boolean(reservationsError);
 
+  if (!loading && reservationsLoaded && !hasError && !entries.length && excludeIds.length) return null;
   return <section className="home-history" aria-labelledby="history-heading">
-    <div className="section-head"><h2 id="history-heading">지난 매칭</h2></div>
+    <h2 id="history-heading" className="sr-only">이전 매칭 기록</h2>
     {hasError ? <div className="home-load-error" role="status"><p>일부 매칭 기록을 불러오지 못했습니다.</p><Button size="sm" variant="ghost" onClick={() => { setReload((value) => value + 1); void refreshReservations().catch(() => {}); }}>다시 시도</Button></div> : null}
     {entries.length ? <ul className="match-history-list">{entries.slice(0, visible).map((entry) => {
       const success = entry.status === 'MATCHED' || entry.status === 'COMPLETED';

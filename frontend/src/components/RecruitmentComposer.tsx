@@ -27,15 +27,14 @@ export function RecruitmentComposer({ initial, editing, suspended, onClose, onSa
     } catch (err) { setError(isApiError(err) ? err.message : '모집을 저장하지 못했습니다. 다시 시도해 주세요.'); }
     finally { setBusy(false); }
   };
-  return <Modal suspended={suspended} title={`${gameConfig(value.condition.game).name} · ${editing ? '모집 수정' : value.type === 'REALTIME' ? '실시간 모집' : '예약 모집'}`} onClose={() => { if (!busy) onClose(); }} className="recruitment-modal" foot={<><Button disabled={busy} onClick={onClose}>닫기</Button><Button variant="primary" disabled={busy || Boolean(validationError)} onClick={() => void submit()}>{busy ? '저장 중…' : editing ? '모집 조건 저장' : '모집 시작'}</Button></>}>
+  return <Modal suspended={suspended} title={`${gameConfig(value.condition.game).name} · ${editing ? '모집 수정' : value.type === 'REALTIME' ? '실시간 모집' : '예약 모집'}`} onClose={() => { if (!busy) onClose(); }} className="recruitment-modal" closeLabel="모집 작성 닫기" foot={<><Button variant="primary" disabled={busy || Boolean(validationError)} onClick={() => void submit()}>{busy ? '저장 중…' : editing ? '모집 조건 저장' : '모집 시작'}</Button></>}>
     <div className="recruitment-composer">
-      <p className="hint">공개 목록에 닉네임과 아래 조건이 표시됩니다. 참여자를 확인한 뒤 모두 수락하면 파티가 열립니다.</p>
+      <p className="hint">닉네임과 모집 조건이 목록에 공개됩니다.</p>
       {error || validationError ? <div className="banner warn" role="alert">{error || validationError}</div> : null}
       <RecruitmentFields condition={value.condition} preferences={value.preferences} modeLocked={Boolean(editing)} onChange={(condition, preferences) => setValue({ ...value, condition, preferences })} />
       {value.type === 'RESERVATION' ? <ReservationFields value={value} onChange={time => setValue({ ...value, ...time })} /> : null}
       <label>모집 한마디<input maxLength={120} placeholder="예: 편하게 두 판 하실 분, 서로 존중해요" value={value.description} onChange={e => setValue({ ...value, description: e.target.value })} /></label>
-      <label className="check-label"><input type="checkbox" checked={value.autoMatch} onChange={e => setValue({ ...value, autoMatch: e.target.checked })} />자동으로도 팀원 찾기</label>
-      <p className="hint">자동 찾기를 켜면 같은 조건으로 참여자를 찾아 수락 요청을 보냅니다. 티어는 직접 입력한 정보이며, 게임 내 랭크 참가 제한은 게임에서 확인해야 합니다.</p>
+      <label className="check-label"><input type="checkbox" checked={value.autoMatch} onChange={e => setValue({ ...value, autoMatch: e.target.checked })} />자동 찾기</label>
     </div>
   </Modal>;
 }

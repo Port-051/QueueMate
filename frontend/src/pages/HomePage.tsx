@@ -34,6 +34,7 @@ export function HomePage() {
   const reservationTimes = useRef<Pick<api.BoardWrite, 'availableFrom' | 'availableTo' | 'playAmount'>>(reservationWindow());
   if (query.type === 'RESERVATION') reservationTimes.current = { availableFrom: query.availableFrom!, availableTo: query.availableTo!, playAmount: query.playAmount };
   const filterError = recruitmentInputError(filter);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const { page, pending, mine, loading, error, refresh, applyPending } = useRecruitmentBoard(query);
   const [composer, setComposer] = useState<{ initial: api.BoardWrite; editing?: api.BoardRow; joinId?: string } | null>(null);
@@ -120,15 +121,16 @@ export function HomePage() {
     catch (err) { toast(errorMessage(err), 'error'); }
     finally { await changed(); setBusy(false); }
   };
+  const displayedHistory = mine.filter(row => ['CLOSED', 'MATCHED'].includes(row.status)).slice(0, 5);
   const canCreate = query.type === 'RESERVATION' || (!active.some(r => r.type === 'REALTIME') && !match.request && !match.activePartyId);
   const reuse = (condition: api.BoardWrite['condition'], type: api.BoardType) => setComposer({ initial: { condition, type, preferences: anyPreferences(), description: '', autoMatch: false, ...(type === 'RESERVATION' ? reservationWindow() : { availableFrom: null, availableTo: null, playAmount: null }) } });
   return <section className="page board-home">
-    <header className="board-heading"><h1>함께할 팀원을, 지금 여기서.</h1><Button variant="primary" size="lg" disabled={!canCreate} onClick={() => compose()}>+ {query.type === 'REALTIME' ? '실시간' : '예약'} 모집 만들기</Button></header>
+    <header className="board-heading"><h1>팀원 찾기</h1>{canCreate ? <Button variant="primary" size="lg" onClick={() => compose()}>+ {query.type === 'REALTIME' ? '실시간' : '예약'} 모집 만들기</Button> : null}</header>
     {own || match.request || match.activePartyId || match.proposal?.status === 'PENDING' ? <section className={`match-stage ${collapsed && own && !stageKey ? 'is-summary' : ''}`} aria-label="내 매칭 진행" tabIndex={-1} ref={stageRef}>
       {collapsed && own && !stageKey ? <RecruitmentSummary row={own} onExpand={() => { setCollapsed(false); setFocusStage(true); }} /> : <>
       <MatchProgress step={match.proposal?.status === 'PENDING' ? 1 : match.activePartyId ? 2 : 0} />
-      {connection !== 'connected' ? <p className="banner warn" role="status">서버 연결을 다시 확인하고 있어요. 경과 시간은 계속 표시하며, 연결되면 최신 상태를 확인합니다.</p> : null}
-      {match.proposal?.status === 'PENDING' ? <>{composer ? <p className="hint">작성 중인 조건은 보관했어요. 먼저 함께할 팀원을 확인해 주세요.</p> : null}<InlineProposal /></> : match.activePartyId ? <PartyRoomPage embedded /> : <>
+      {connection !== 'connected' ? <p className="banner warn" role="status">서버에 다시 연결하고 있어요.</p> : null}
+      {match.proposal?.status === 'PENDING' ? <>{composer ? <p className="hint">작성 중인 조건은 보관했어요.</p> : null}<InlineProposal /></> : match.activePartyId ? <PartyRoomPage embedded /> : <>
         {active.length > 1 ? <label className="my-recruitment-picker">관리할 모집<select value={own?.id ?? ''} onChange={e => setOwnId(e.target.value)}>{active.map(row => <option key={row.id} value={row.id}>{gameConfig(row.condition.game).shortName} · {row.type === 'REALTIME' ? '실시간' : row.availableFrom ? timeLabel(row.availableFrom) : '예약'} · {BOARD_STATUS[row.status]}</option>)}</select></label> : null}
         {own ? <RecruitmentPanel key={own.id} row={own} onChanged={changed} onEdit={() => setComposer({ initial: writeFrom(own), editing: own })} onFind={() => { changeQuery({ ...query, type: own.type, condition: own.condition, preferences: own.preferences, availableFrom: own.availableFrom, availableTo: own.availableTo, playAmount: own.playAmount, page: 0 }); setCollapsed(true); }} /> : match.request ? <ActiveMatchCard /> : null}
 
@@ -145,21 +147,20 @@ export function HomePage() {
         (event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role=tab]')[index])?.focus();
       }}>{type === 'REALTIME' ? '실시간 매치' : '예약 매치'}</button>)}</div><Button size="sm" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}>검색 필터 {filtersOpen ? '접기' : '설정'}</Button></div>
       {filtersOpen ? <form className="board-filter" onSubmit={event => { event.preventDefault(); if (!filterError) changeQuery({ ...filter, page: 0 }); }}>
-        <p>목록을 찾는 조건입니다. <b>내 모집 조건은 바뀌지 않아요.</b></p><RecruitmentFields compact condition={filter.condition} preferences={filter.preferences} onChange={(condition, preferences) => setFilter({ ...filter, condition, preferences })} />
+        <p>내 모집 조건은 바뀌지 않아요.</p><RecruitmentFields compact condition={filter.condition} preferences={filter.preferences} onChange={(condition, preferences) => setFilter({ ...filter, condition, preferences })} />
         {query.type === 'RESERVATION' ? <ReservationFields value={filter} onChange={time => setFilter({ ...filter, ...time })} /> : null}
         {filterError ? <div className="banner warn" role="alert">{filterError}</div> : null}
         <div className="row"><Button onClick={() => setFilter({ ...query, condition: defaultCondition(query.condition.game), preferences: anyPreferences(), page: 0 })}>조건 초기화</Button><Button variant="primary" type="submit" disabled={Boolean(filterError)}>필터 적용</Button></div>
-        <p className="hint">상대방이 원하는 조건도 함께 확인합니다. 티어가 미입력이면 티어 제한이 있는 모집은 보이지 않을 수 있어요.</p>
       </form> : null}
-      {query.type === 'RESERVATION' ? <div className="board-reservation-note"><span>{query.availableFrom ? timeLabel(query.availableFrom) : ''} ~ {query.availableTo ? timeLabel(query.availableTo) : ''}</span><button type="button" onClick={() => setFiltersOpen(true)}>시간 변경</button><p>지금 접속해 있지 않아도 예약 모집은 유지됩니다.</p></div> : null}
-      <div className="board-results-head"><span><b>{page?.total ?? '—'}</b>개 모집 <span className="muted">· {modeLabel(query.condition.game, query.condition.modeKey)}</span></span><label>정렬<select aria-label="모집 정렬" value={query.sort} onChange={e => changeQuery({ ...query, sort: e.target.value as api.BoardSearch['sort'], page: 0 })}><option value="RECOMMENDED">추천순</option><option value="RECENT">최근 갱신순</option></select></label></div>
+      {query.type === 'RESERVATION' ? <div className="board-reservation-note"><span>{query.availableFrom ? timeLabel(query.availableFrom) : ''} ~ {query.availableTo ? timeLabel(query.availableTo) : ''}</span></div> : null}
+      <div className="board-results-head"><span><b>{page?.total ?? '—'}</b>개 모집 <span className="muted">· {modeLabel(query.condition.game, query.condition.modeKey)}</span></span><label><select aria-label="모집 정렬" value={query.sort} onChange={e => changeQuery({ ...query, sort: e.target.value as api.BoardSearch['sort'], page: 0 })}><option value="RECOMMENDED">추천순</option><option value="RECENT">최근 갱신순</option></select></label></div>
       {error ? <div className="banner warn" role="alert">{error}<Button size="sm" onClick={() => void refresh(true)}>다시 불러오기</Button></div> : null}
-      {pending ? <button type="button" className="board-new-results" onClick={applyPending}>새 모집과 변경된 순서 확인하기 ↓</button> : null}
+      {pending ? <button type="button" className="board-new-results" onClick={applyPending}>새 모집 보기 ↓</button> : null}
       {loading && !page ? <div className="board-empty" role="status">모집 목록을 불러오는 중…</div> : null}
-      {!loading && !error && page?.items.length === 0 ? <div className="board-empty"><div className="empty-orbit" aria-hidden="true">＋</div><h2>이 조건으로 모집 중인 팀원이 없어요</h2><p>필터를 넓혀보거나 모집을 시작해 보세요.<br />모집 후에는 실제 후보를 바탕으로 변경할 조건을 제안해 드려요.</p><div className="row"><Button onClick={() => setFiltersOpen(true)}>검색 조건 바꾸기</Button><Button variant="primary" disabled={!canCreate} onClick={() => compose()}>먼저 모집하기</Button></div></div> : null}
+      {!loading && !error && page?.items.length === 0 ? <div className="board-empty"><h2>조건에 맞는 모집이 없어요</h2></div> : null}
       {page?.items.length ? <RecruitmentList rows={page.items} selected={selected?.id} onSelect={setSelected} /> : null}
-      {page ? <footer className="board-pagination"><div className="row"><Button size="sm" disabled={query.page === 0 || loading} onClick={() => changeQuery({ ...query, page: query.page - 1 })}>이전</Button><span>{query.page + 1} 페이지</span><Button size="sm" disabled={!page.hasMore || loading} onClick={() => changeQuery({ ...query, page: query.page + 1 })}>다음</Button></div></footer> : null}
-      <details className="board-history"><summary>지난 모집 조건으로 다시 시작하기</summary><div className="closed-recruitments">{mine.filter(r => ['CLOSED', 'MATCHED'].includes(r.status)).slice(0, 5).map(row => <div key={row.id}><span>{gameConfig(row.condition.game).shortName} · {row.type === 'REALTIME' ? '실시간' : '예약'} · {row.description || BOARD_STATUS[row.status]}</span><Button size="sm" onClick={() => setComposer({ initial: { ...writeFrom(row), ...(row.type === 'RESERVATION' && row.availableFrom && Date.parse(row.availableFrom) <= Date.now() ? reservationWindow() : {}) } })}>이 조건으로 다시 모집</Button></div>)}</div><HomeMatchHistory onReview={reuse} /></details>
+      {page && (page.hasMore || query.page > 0) ? <footer className="board-pagination"><div className="row"><Button size="sm" disabled={query.page === 0 || loading} onClick={() => changeQuery({ ...query, page: query.page - 1 })}>이전</Button><span>{query.page + 1} 페이지</span><Button size="sm" disabled={!page.hasMore || loading} onClick={() => changeQuery({ ...query, page: query.page + 1 })}>다음</Button></div></footer> : null}
+      <details className="board-history" onToggle={event => setHistoryOpen(event.currentTarget.open)}><summary>지난 모집</summary>{historyOpen ? <><div className="closed-recruitments">{displayedHistory.map(row => <div key={row.id}><span>{gameConfig(row.condition.game).shortName} · {row.type === 'REALTIME' ? '실시간' : '예약'} · {row.description || BOARD_STATUS[row.status]}</span><Button size="sm" onClick={() => setComposer({ initial: { ...writeFrom(row), ...(row.type === 'RESERVATION' && row.availableFrom && Date.parse(row.availableFrom) <= Date.now() ? reservationWindow() : {}) } })}>이 조건으로 다시 모집</Button></div>)}</div><HomeMatchHistory onReview={reuse} excludeIds={displayedHistory.map(row => `${row.type === 'REALTIME' ? 'realtime' : 'reservation'}-${row.id}`)} /></> : null}</details>
     </div></div>
     {selected && !composer && match.proposal?.status !== 'PENDING' ? <RecruitmentDetail row={selected} busy={busy} hasSource={Boolean(source)} disabled={Boolean(source && source.status !== 'OPEN') || Boolean(match.activePartyId && selected.type === 'REALTIME')} disabledReason={match.activePartyId && selected.type === 'REALTIME' ? '현재 파티에 참여 중이에요. 파티에서 나온 뒤 실시간 모집에 참여할 수 있어요.' : source && source.status !== 'OPEN' ? '내 모집을 재개하거나 진행 중인 신청을 마친 뒤 참여해 주세요.' : undefined} onClose={() => { if (!busy) setSelected(null); }} onJoin={() => void join()} /> : null}
     {composer ? <RecruitmentComposer suspended={match.proposal?.status === 'PENDING'} initial={composer.initial} editing={mine.find(row => row.id === composer.editing?.id) ?? composer.editing} onClose={() => setComposer(null)} onSaved={async row => {

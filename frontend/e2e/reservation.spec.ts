@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { login } from './helpers';
+import { manageRecruitment, login } from './helpers';
 test.use({ timezoneId: 'Asia/Seoul' });
 async function open(page: Page) {
   await page.getByRole('tab', { name: '예약 매치', exact: true }).click();
@@ -21,7 +21,7 @@ test('자정을 넘는 예약은 수정할 때도 날짜와 플레이 양을 유
   await page.getByRole('dialog').getByLabel('마지막 종료 시각').fill('2026-09-15T00:30');
   await page.getByRole('dialog').getByLabel('플레이 양').selectOption('TWO_PLUS');
   await page.getByRole('button', { name: '모집 시작', exact: true }).click();
-  await page.getByRole('button', { name: '조건 수정', exact: true }).click();
+  await manageRecruitment(page, '조건 수정');
   await expect(page.getByRole('dialog').getByLabel('시작 가능 시각')).toHaveValue('2026-09-14T23:30');
   await expect(page.getByRole('dialog').getByLabel('마지막 종료 시각')).toHaveValue('2026-09-15T00:30');
   await expect(page.getByRole('dialog').getByLabel('플레이 양')).toHaveValue('TWO_PLUS');
@@ -39,7 +39,7 @@ test('과거·역전·30분 경계가 아닌 시간은 제출 전에 알려준�
 });
 test('예약 모집은 취소해도 기록이 남고 신규 예약을 다시 등록할 수 있다', async ({ page }) => {
   await login(page); await open(page); await page.getByRole('button', { name: '모집 시작', exact: true }).click();
-  await page.getByRole('button', { name: '모집 종료', exact: true }).click();
+  await manageRecruitment(page, '모집 종료');
   await expect(page.locator('.my-recruitment')).toHaveCount(0);
   await page.locator('.board-history summary').click();
   await expect(page.locator('.closed-recruitments')).toContainText('예약');

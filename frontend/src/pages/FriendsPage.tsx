@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { isApiError } from '../api/error';
 import { ReportModal } from '../components/ReportModal';
 import { IconShield, IconTrash } from '../components/icons';
-import { ActionMenu, Avatar, Button, Card, ConfirmDialog, EmptyState, Tag, useToast } from '../components/ui';
+import { ActionMenu, Avatar, Button, Card, ConfirmDialog, EmptyState, useToast } from '../components/ui';
 import { relativeTime } from '../domain/time';
 import { useSocial } from '../state/SocialContext';
 
@@ -44,7 +44,6 @@ export function FriendsPage() {
     <section className="page focus-page list-page social-page">
       <div className="page-head">
         <h1>친구</h1>
-        <p>다시 함께하고 싶은 팀원을 모아두세요.</p>
       </div>
 
       <div className="social-toolbar">
@@ -77,7 +76,7 @@ export function FriendsPage() {
                 <Avatar name={f.nickname} avatarUrl={f.avatarUrl} size={38} />
                 <div className="li-main">
                   <b>{f.nickname}</b>
-                  <p>{relativeTime(f.friendedAt)} 친구가 됨</p>
+                  <p>{relativeTime(f.friendedAt)}</p>
                 </div>
                 <ActionMenu label={`${f.nickname} 관리`}>
                 <Button size="sm" onClick={() => setConfirmTarget({ userId: f.userId, nickname: f.nickname, action: 'block' })}>차단</Button>
@@ -116,9 +115,8 @@ export function FriendsPage() {
                 <Avatar name={r.counterpartNickname} size={38} />
                 <div className="li-main">
                   <b>{r.counterpartNickname}</b>
-                  <p>{relativeTime(r.createdAt)} 요청함</p>
+                  <p>{relativeTime(r.createdAt)}</p>
                 </div>
-                <Tag>응답 대기</Tag>
                 <Button size="sm" onClick={() => void run(cancelRequest(r.id), '요청을 취소했습니다')}>요청 취소</Button>
               </div>
             ))
@@ -132,7 +130,7 @@ export function FriendsPage() {
                 <Avatar name={b.nickname} size={38} />
                 <div className="li-main">
                   <b>{b.nickname}</b>
-                  <p>{relativeTime(b.blockedAt)} 차단함</p>
+                  <p>{relativeTime(b.blockedAt)}</p>
                 </div>
                 <Button size="sm" onClick={() => void run(unblock(b.userId), '차단을 해제했습니다')}>차단 해제</Button>
               </div>

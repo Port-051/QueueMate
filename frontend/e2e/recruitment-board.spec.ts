@@ -1,14 +1,14 @@
 import { expect, test } from '@playwright/test';
-import { login, startRealtimeMatch } from './helpers';
+import { manageRecruitment, login, startRealtimeMatch } from './helpers';
 
 test('빈 결과에서도 필터 수정과 모집 시작 액션이 남는다', async ({ page }) => {
   await login(page);
   await page.getByRole('button', { name: '검색 필터 설정' }).click();
   await page.locator('.board-filter').getByLabel('상대 최소 티어', { exact: true }).selectOption('CHALLENGER');
   await page.getByRole('button', { name: '필터 적용' }).click();
-  await expect(page.getByRole('heading', { name: '이 조건으로 모집 중인 팀원이 없어요' })).toBeVisible();
-  await expect(page.getByRole('button', { name: '검색 조건 바꾸기' })).toBeEnabled();
-  await expect(page.getByRole('button', { name: '먼저 모집하기' })).toBeEnabled();
+  await expect(page.getByRole('heading', { name: '조건에 맞는 모집이 없어요' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /검색 필터/ })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '+ 실시간 모집 만들기' })).toBeEnabled();
 });
 test('활동 재확인과 조건 한 개 변경은 사용자 선택 후에만 적용된다', async ({ page }) => {
   await page.clock.install();
@@ -23,20 +23,20 @@ test('활동 재확인과 조건 한 개 변경은 사용자 선택 후에만 �
   await page.getByRole('button', { name: /상대 티어 범위를 넓히면/ }).click();
   await expect(page.getByRole('dialog', { name: '조건 변경 미리 보기' })).toBeVisible();
   await page.getByRole('button', { name: '유지할게요' }).click();
-  await page.getByRole('button', { name: '조건 수정', exact: true }).click();
+  await manageRecruitment(page, '조건 수정');
   await expect(page.getByRole('dialog').getByLabel('상대 최소 티어', { exact: true })).toHaveValue('CHALLENGER');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: /상대 티어 범위를 넓히면/ }).click();
   await page.getByRole('button', { name: '이 조건만 변경' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.getByRole('button', { name: '조건 수정', exact: true }).click();
+  await manageRecruitment(page, '조건 수정');
   await expect(page.getByRole('dialog').getByLabel('상대 최소 티어', { exact: true })).toHaveValue('');
   await expect(page.getByRole('dialog').getByLabel('내 포지션 / 역할')).toHaveValue('TOP');
 });
 test('위로 올리기 제한과 일시 중지·재개는 같은 모집을 유지한다', async ({ page }) => {
   await login(page); await startRealtimeMatch(page);
-  await expect(page.getByRole('button', { name: '5분 후 위로 올리기' })).toBeDisabled();
-  await page.getByRole('button', { name: '잠시 멈춤', exact: true }).click();
+  await expect(page.getByRole('button', { name: '위로 올리기', exact: true })).toHaveCount(0);
+  await manageRecruitment(page, '잠시 멈춤');
   await expect(page.locator('.my-recruitment')).toContainText('잠시 멈춤');
   await page.getByRole('button', { name: '모집 재개', exact: true }).click();
   await expect(page.locator('.my-recruitment')).toContainText('모집 중');

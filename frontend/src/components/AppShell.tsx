@@ -6,7 +6,7 @@ import { useMatch } from '../state/MatchContext';
 import { useSocial } from '../state/SocialContext';
 import { useConnectionStatus } from '../state/useConnectionStatus';
 import { Logo } from './Logo';
-import { Avatar, Button, Modal } from './ui';
+import { Avatar, Modal } from './ui';
 import {
   IconClock, IconHome, IconParty, IconUser,
 } from './icons';
@@ -78,7 +78,7 @@ export function AppShell() {
         </div>
         <Outlet />
       </main>
-      {menuOpen ? <Modal title="메뉴" onClose={() => setMenuOpen(false)} foot={<Button onClick={() => setMenuOpen(false)}>메뉴 닫기</Button>}>{navigation(true)}</Modal> : null}
+      {menuOpen ? <Modal title="메뉴" closeLabel="메뉴 닫기" onClose={() => setMenuOpen(false)}>{navigation(true)}</Modal> : null}
     </div>
   );
 }

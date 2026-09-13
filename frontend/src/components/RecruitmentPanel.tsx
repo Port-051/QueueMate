@@ -3,7 +3,7 @@ import * as api from '../api/recruitment';
 import { errorMessage } from '../api/error';
 import { BOARD_STATUS, writeFrom } from '../domain/recruitment';
 import { keyConditionLabel, VOICE_LABEL, PURPOSE_LABEL, modeLabel } from '../domain/labels';
-import { Button, Card, Modal, Tag, useToast } from './ui';
+import { ActionMenu, Button, Card, Modal, Tag, useToast } from './ui';
 import { RecruitmentClock } from './RecruitmentClock';
 import { gameConfig } from '../domain/gameConfig';
 import { useNow } from '../state/useNow';
@@ -35,45 +35,42 @@ export function RecruitmentPanel({ row, onChanged, onEdit, onFind }: { row: api.
     catch (err) { toast(errorMessage(err), 'error'); await onChanged(); }
     finally { setBusy(false); }
   };
-  const action = (value: api.BoardAction) => void perform(() => api.recruitmentAction(row, value));
+  const action = (value: api.BoardAction) => void perform(() => api.recruitmentAction(row, value), value === 'BUMP' ? '모집을 위로 올렸어요.' : undefined);
   const stale = row.type === 'REALTIME' && (row.status === 'STALE' || (row.timing ? now >= Date.parse(row.timing.confirmAt) : now - Date.parse(row.confirmedAt) >= 10 * 60_000));
   const timed = row.timing ? now >= Date.parse(row.timing.suggestAt) : row.type === 'REALTIME' ? now - Date.parse(row.createdAt) >= 3 * 60_000 : Boolean(row.availableFrom && Date.parse(row.availableFrom) - now <= 30 * 60_000);
   const bumpAt = row.timing ? Date.parse(row.timing.nextBumpAt) : Date.parse(row.bumpedAt ?? row.createdAt) + 5 * 60_000;
   const bumpIn = Math.max(0, Math.ceil((bumpAt - now) / 60_000));
   const reservation = row.type === 'RESERVATION';
-  const headline = row.status === 'PAUSED' ? '모집을 잠시 멈췄어요'
-    : row.status === 'STALE' ? '계속 모집할지 확인해 주세요'
-    : row.status === 'REQUESTED' ? '방장의 응답을 기다리고 있어요'
-    : row.status === 'JOINED' ? '남은 팀원이 모이길 기다리고 있어요'
-    : row.applicants.length ? '함께하고 싶은 팀원이 있어요'
-    : reservation && row.availableFrom && Date.parse(row.availableFrom) <= now ? '예약한 시간이 되었어요. 팀원을 확인해 주세요' : reservation ? '약속한 시간에 함께할 팀원을 찾아요' : '함께할 팀원을 찾고 있어요';
-  const guidance = row.status === 'PAUSED' ? '모집을 재개하면 목록에 다시 표시됩니다.'
-    : row.status === 'REQUESTED' ? '방장이 신청을 확인하면 함께할 팀원을 다시 보여드려요.'
-    : row.status === 'JOINED' ? '정원이 차면 모두에게 수락 요청을 보내드려요.'
-    : row.autoMatch ? '직접 신청을 받을 수 있고, 자동으로도 조건이 맞는 팀원을 찾습니다.'
-    : '참여 신청을 기다리거나 아래 목록에서 원하는 팀원을 직접 찾아보세요.';
+  const managed = editable && !row.parentId && !row.requestedParentId;
+  const showSuggestions = row.status === 'OPEN' && independent && !stale && (timed || row.alertEnabled);
+  const candidateCount = showSuggestions ? suggestions?.currentCount ?? 0 : 0;
   const share = () => void navigator.clipboard.writeText(`${window.location.origin}/app/home?recruitment=${row.id}`).then(() => toast('모집 링크를 복사했습니다', 'ok')).catch(() => toast('링크를 복사하지 못했습니다', 'error'));
   return <Card className="my-recruitment">
     <div className="recruitment-title"><div className="row"><h2>내 {reservation ? '예약' : '실시간'} 모집</h2><Tag>{BOARD_STATUS[row.status]}</Tag></div><span>{gameConfig(row.condition.game).shortName} · {modeLabel(row.condition.game, row.condition.modeKey)}</span></div>
     <div className="recruitment-overview">
       <RecruitmentClock row={row} now={now} />
-      <div className="recruitment-waiting"><h3 role="status">{headline}</h3><p>{guidance}</p><div className="recruitment-own-summary"><span>{keyConditionLabel(row.condition)}</span><span>{VOICE_LABEL[row.condition.voicePreference]}</span><span>{PURPOSE_LABEL[row.condition.playPurpose]}</span><span>{row.members.length}/{row.targetSize}명</span></div>{row.description ? <p className="recruitment-description">“{row.description}”</p> : null}{independent ? <Button size="sm" onClick={onFind}>다른 모집 둘러보기 ↓</Button> : null}</div>
+      <div className="recruitment-waiting"><div className="recruitment-own-summary"><span>{keyConditionLabel(row.condition)}</span><span>{VOICE_LABEL[row.condition.voicePreference]}</span><span>{PURPOSE_LABEL[row.condition.playPurpose]}</span><span>{row.members.length}/{row.targetSize}명</span></div>{row.description ? <p className="recruitment-description">{row.description}</p> : null}</div>
     </div>
-    {!reservation && row.status === 'PAUSED' ? <p className="hint">모집 시작 후 경과 시간에는 잠시 멈춘 시간도 포함됩니다.</p> : null}
-    {stale && editable ? <div className="recruitment-advice" role="status"><b>아직 팀원을 찾고 있나요?</b><p>{row.status === 'STALE' ? '활동 확인이 늦어 목록에서 잠시 숨겼어요.' : '활동 확인이 늦어지면 목록에서 잠시 숨겨요.'}</p><Button disabled={busy} onClick={() => action('CONFIRM')}>계속 모집할게요</Button></div> : null}
-    {row.type === 'RESERVATION' && editable && timed && row.availableFrom && Date.parse(row.availableFrom) > now ? <div className="recruitment-advice"><b>예약 시간이 가까워지고 있어요</b><p>계속 모집할지 확인하고, 남은 자리도 함께 살펴보세요.</p><Button disabled={busy} onClick={() => action('CONFIRM')}>예약 모집 확인</Button></div> : null}
-    {row.status === 'REQUESTED'  || row.status === 'JOINED' ? <div className="recruitment-advice"><b>{row.status === 'REQUESTED' ? '방장 응답을 기다리는 중이에요' : '팀원이 더 모이면 모두에게 수락 요청을 보내요'}</b><Button disabled={busy} onClick={() => action('LEAVE')}>{row.status === 'REQUESTED' ? '신청 취소' : '모집에서 나가기'}</Button></div> : null}
+    {stale && editable && row.status !== 'PAUSED' ? <div className="recruitment-notice" role="status"><span>{row.status === 'STALE' ? '활동 확인이 필요해 목록에서 숨겨졌어요.' : '계속 모집 중인가요?'}</span><Button variant="primary" disabled={busy} onClick={() => action('CONFIRM')}>계속 모집할게요</Button></div> : null}
+    {reservation && row.status === 'OPEN' && timed && row.availableFrom ? <div className="recruitment-notice"><span>{Date.parse(row.availableFrom) > now ? '예약 시간이 가까워졌어요.' : '예약 시간이 되었어요.'}</span><Button disabled={busy} onClick={() => action('CONFIRM')}>예약 모집 확인</Button></div> : null}
+    {row.status === 'REQUESTED' || row.status === 'JOINED' ? <div className="recruitment-notice"><span>{row.status === 'REQUESTED' ? '방장이 신청을 확인하고 있어요.' : '정원이 차면 수락 요청을 보내드려요.'}</span><Button disabled={busy} onClick={() => action('LEAVE')}>{row.status === 'REQUESTED' ? '신청 취소' : '모집에서 나가기'}</Button></div> : null}
     {row.applicants.length ? <div className="recruitment-applicants"><h3>참여 신청 {row.applicants.length}명</h3>{row.applicants.map(person => <div key={person.id}><b>{person.nickname}</b><span>{keyConditionLabel(person.condition)}</span><div className="row"><Button size="sm" disabled={busy} onClick={() => void perform(() => api.respondRecruitment(row.id, person.id, false))}>거절</Button><Button size="sm" variant="primary" disabled={busy} onClick={() => void perform(() => api.respondRecruitment(row.id, person.id, true))}>함께하기</Button></div></div>)}</div> : null}
     {row.members.length > 1 ? <div className="recruitment-members">{row.members.map(person => <span key={person.id}>{person.nickname}</span>)}</div> : null}
-    {editable && independent && (timed || row.alertEnabled) && suggestions ? <div className="recruitment-advice" role="status">
-      {suggestions.currentCount > 0 ? <><b>현재 조건에 맞는 모집이 {suggestions.currentCount}개 있어요</b><p>{row.impressions < 3 ? '직접 찾아보거나 위로 올려 더 잘 보이게 해 보세요.' : '응답을 기다리는 동안 다른 모집도 살펴볼 수 있어요.'}</p><Button onClick={onFind}>조건에 맞는 모집 보기</Button></> : suggestions.suggestions.length ? <><b>조건 하나만 바꿔도 만날 수 있어요</b><p>실제로 모집 중인 상대를 확인한 뒤 결정하세요.</p></> : <><b>지금은 맞는 모집이 없어요</b><p>모집을 유지하거나 링크로 함께할 사람을 초대해 보세요.</p><Button onClick={share}>모집 링크 복사</Button></>}
-      {suggestions.suggestions.slice(0, 2).map(item => <button key={item.field} className="suggestion-link" onClick={() => setPreview(item)}>{item.label} · 새 모집 {item.candidateCount}개 <span>미리 보기 →</span></button>)}
+    {showSuggestions && suggestions?.suggestions.length ? <div className="recruitment-suggestions" role="status">{suggestions.suggestions.slice(0, 2).map(item => <button key={item.field} className="suggestion-link" onClick={() => setPreview(item)}>{item.label} · {item.candidateCount}개 보기 →</button>)}</div> : null}
+    {suggestionError ? <p className="hint" role="alert">조건 제안을 불러오지 못했어요. <button type="button" onClick={() => setTick(n => n + 1)}>다시 시도</button></p> : null}
+    {managed ? <div className="my-recruitment-actions">
+      {independent ? <Button variant={row.status === 'PAUSED' || stale ? 'default' : 'primary'} onClick={onFind}>모집 둘러보기{candidateCount ? ` · ${candidateCount}` : ''}</Button> : null}
+      {row.status === 'PAUSED' ? <Button variant="primary" disabled={busy} onClick={() => action('RESUME')}>모집 재개</Button> : null}
+      {row.status === 'OPEN' && !stale && bumpIn === 0 ? <Button disabled={busy} onClick={() => action('BUMP')}>위로 올리기</Button> : null}
+      <label className="check-label"><input type="checkbox" checked={row.autoMatch} disabled={busy} onChange={e => action(e.target.checked ? 'AUTO_ON' : 'AUTO_OFF')} />자동 찾기</label>
+      <ActionMenu label="모집 관리">
+        <Button disabled={busy || !independent} onClick={onEdit}>조건 수정</Button>
+        {row.status !== 'PAUSED' ? <Button disabled={busy} onClick={() => action('PAUSE')}>잠시 멈춤</Button> : null}
+        <Button disabled={busy} onClick={share}>링크 복사</Button>
+        <Button disabled={busy} onClick={() => action(row.alertEnabled ? 'ALERT_OFF' : 'ALERT_ON')}>조건 제안 알림 {row.alertEnabled ? '끄기' : '켜기'}</Button>
+        <Button variant="danger" disabled={busy} onClick={() => action('CLOSE')}>모집 종료</Button>
+      </ActionMenu>
     </div> : null}
-    {suggestionError ? <p className="hint" role="alert">{suggestionError} <button type="button" onClick={() => setTick(n => n + 1)}>다시 확인</button></p> : null}
-    {editable && !row.parentId && !row.requestedParentId ? <><div className="my-recruitment-actions"><Button disabled={busy || bumpIn > 0 || row.status !== 'OPEN'} onClick={() => action('BUMP')}>{bumpIn > 0 ? `${bumpIn}분 후 위로 올리기` : '위로 올리기'}</Button><Button disabled={busy || !independent} onClick={onEdit}>조건 수정</Button><Button variant={row.status === 'PAUSED' ? 'primary' : 'default'} disabled={busy} onClick={() => action(row.status === 'PAUSED' ? 'RESUME' : 'PAUSE')}>{row.status === 'PAUSED' ? '모집 재개' : '잠시 멈춤'}</Button><Button disabled={busy} onClick={share}>링크 복사</Button><Button variant="ghost" disabled={busy} onClick={() => action('CLOSE')}>모집 종료</Button></div><div className="recruitment-options">
-      <label className="check-label"><input type="checkbox" checked={row.autoMatch} disabled={busy} onChange={e => action(e.target.checked ? 'AUTO_ON' : 'AUTO_OFF')} />자동으로도 팀원 찾기</label>
-      <label className="check-label"><input type="checkbox" checked={row.alertEnabled} disabled={busy} onChange={e => action(e.target.checked ? 'ALERT_ON' : 'ALERT_OFF')} />이 화면에서 맞는 모집이 생기면 알려주기</label>
-      <span className="hint">누적 확인 노출 {row.impressions}회</span></div></> : null}
     {preview ? <Modal title="조건 변경 미리 보기" onClose={() => { if (!busy) setPreview(null); }} foot={<><Button disabled={busy} onClick={() => setPreview(null)}>유지할게요</Button><Button variant="primary" disabled={busy} onClick={() => void perform(async () => {
       // 미리보기 이후 달라진 공급과 내 모집 버전을 모두 다시 확인한다.
       const fresh = await api.recruitmentSuggestions(row.id);
@@ -82,7 +79,7 @@ export function RecruitmentPanel({ row, onChanged, onEdit, onFind }: { row: api.
       await api.editRecruitment(row, { ...writeFrom(row), condition: current.condition, preferences: current.preferences });
       setPreview(null);
     }, '선택한 조건을 바꿨습니다. 다른 조건은 유지됩니다.')}>이 조건만 변경</Button></>}>
-      <p>{preview.label} 새로 만날 수 있는 모집이 {preview.candidateCount}개 있어요.</p><p className="hint">확정이나 매칭 성공률을 뜻하지 않습니다. 참여할 때 상대 조건과 자리를 다시 확인합니다.</p>
+      <p>{preview.label} · 새 모집 {preview.candidateCount}개</p>
       {preview.candidates.map(candidate => <div className="preview-candidate" key={candidate.id}><b>{candidate.nickname}</b><span>{keyConditionLabel(candidate.condition)}</span><p>{candidate.description}</p></div>)}
     </Modal> : null}
   </Card>;

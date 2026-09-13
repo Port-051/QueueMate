@@ -30,8 +30,6 @@ export function MyInfoPage() {
   const [picked, setPicked] = useState<string | null>(null);
   const [savingAvatar, setSavingAvatar] = useState(false);
 
-  const unlinked = GAMES.filter((g) => !gameAccounts.some((a) => a.game === g.key));
-
   const nicknameChanged = nickname.trim() !== user?.nickname;
   const nicknameError = nicknameChanged && (nickname.trim().length < 2 || nickname.trim().length > 16) ? '닉네임은 2~16자로 입력해주세요.' : undefined;
 
@@ -124,7 +122,7 @@ export function MyInfoPage() {
       <div className="profile-sections">
           <section className="profile-section" aria-labelledby="profile-games-heading">
             <div className="profile-section-heading">
-              <h2 id="profile-games-heading">게임 ID <span>{GAMES.length - unlinked.length}/{GAMES.length}</span></h2>
+              <h2 id="profile-games-heading">게임 ID</h2>
               <p>매칭된 팀원에게 공유됩니다.</p>
             </div>
             <div className="profile-game-accounts">
@@ -132,7 +130,7 @@ export function MyInfoPage() {
                 const accounts = gameAccounts.filter((a) => a.game === item.key);
                 return (accounts.length ? accounts : [null]).map((account) => <div key={account?.id ?? item.key} className="profile-game-account account-row">
                   <GameBadge game={item.key} />
-                  <div className="profile-game-detail"><h3>{item.name}</h3>{account ? <p className="profile-game-id">{account.externalGameId}</p> : <p className="profile-game-unregistered">등록된 ID가 없습니다</p>}</div>
+                  <div className="profile-game-detail"><h3>{item.name}</h3>{account ? <p className="profile-game-id">{account.externalGameId}</p> : null}</div>
                   {account ? <Button size="sm" variant="ghost" className="profile-unlink" aria-label={`${item.name} 연결 해제`} onClick={() => setUnlinkTarget({ id: account.id, game: account.game })}>연결 해제</Button> : <Button size="sm" variant="ghost" aria-label={`${item.name} ID 등록`} onClick={() => { setExternalId(''); setLinkGame(item.key); }}><IconPlus size={15} />ID 등록</Button>}
                 </div>);
               })}
@@ -212,9 +210,6 @@ export function MyInfoPage() {
               </button>
             ))}
           </div>
-          <p className="hint" style={{ marginTop: 14 }}>
-            기본을 고르면 닉네임에 맞춰 자동으로 배정된 사진이 쓰입니다.
-          </p>
         </Modal>
       ) : null}
     </section>

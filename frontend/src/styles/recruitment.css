@@ -42,7 +42,6 @@
 .board-empty { border:1px solid var(--border); border-radius:10px; min-height:360px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:35px 20px; }
 .board-empty h2 { font-size:18px; margin:20px 0 10px; }
 .board-empty p { font-size:12px; line-height:1.9; color:var(--muted); margin-bottom:20px; }
-.empty-orbit { width:60px; height:60px; border:1px solid #8d73de55; border-radius:50%; background:#7d66ce18; color:#b6a1ff; display:grid; place-items:center; font-size:24px; }
 .board-history { border-top:1px solid var(--border); margin-top:24px; padding-top:14px; }
 .board-history summary { cursor:pointer; font-size:12px; color:var(--muted); margin-bottom:14px; }
 .board-filter { padding:17px; border:1px solid var(--border); border-radius:8px; background:#151720; margin:12px 0; }
@@ -56,7 +55,7 @@
 .chip-options { display:flex; gap:6px; flex-wrap:wrap; }
 .chip-options button { border:1px solid var(--border); color:var(--muted); background:#10121c; padding:7px 12px; border-radius:6px; font:inherit; font-size:11px; cursor:pointer; }
 .chip-options button.chosen { border-color:#a28ade; background:#967bdf20; color:#dbcaff; }
-.recruitment-fields .check-label,.check-label { display:flex; flex-direction:row; align-items:center; gap:8px; font-size:11px; margin:10px 0; color:var(--text-dim); line-height:1.6; }
+.recruitment-fields .check-label,.recruitment-composer > .check-label,.check-label { display:flex; flex-direction:row; align-items:center; gap:8px; font-size:11px; margin:10px 0; color:var(--text-dim); line-height:1.6; }
 .check-label input { accent-color:#aa8dff; width:15px; height:15px; flex-shrink:0; }
 .recruitment-modal { max-width:680px; width:calc(100vw - 32px); }
 .recruitment-composer { display:grid; gap:12px; }
@@ -64,17 +63,11 @@
 .reservation-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:12px 0; }
 .reservation-fields .hint { grid-column:1/-1; }
 .board-reservation-note { font-size:12px; padding:15px; border-radius:8px; background:#8c6ddd12; margin:12px 0; }
-.board-reservation-note button { background:none; border:0; color:#c6afff; font:inherit; font-size:11px; cursor:pointer; margin-left:12px; }
-.board-reservation-note p { font-size:11px; color:var(--muted); margin-top:8px; }
 .my-recruitment .hint { line-height:1.7; font-size:10px; margin:10px 0; }
 .recruitment-description { font-size:13px; line-height:1.6; margin:14px 0 10px; }
 .recruitment-own-summary { display:flex; flex-wrap:wrap; gap:5px; }
 .recruitment-own-summary span { font-size:10px; color:#bcb0d4; background:#a493d514; border-radius:4px; padding:4px 6px; }
-.recruitment-advice { border:1px solid #a68ae838; background:#a089e412; border-radius:8px; padding:13px; margin:13px 0; display:grid; gap:10px; }
-.recruitment-advice b { font-size:12px; color:#d5c5fc; }
-.recruitment-advice p { font-size:11px; color:var(--muted); line-height:1.8; }
 .suggestion-link { text-align:left; font:inherit; font-size:11px; color:#ddcaff; background:none; border:0; border-top:1px solid #ffffff10; padding:10px 0 0; cursor:pointer; line-height:1.8; }
-.suggestion-link span { display:block; color:#b9a1ef; }
 .recruitment-applicants h3 { font-size:12px; margin-top:14px; }
 .recruitment-applicants >div { padding:12px 0; border-bottom:1px solid var(--border); display:grid; gap:8px; font-size:12px; }
 .recruitment-members { display:flex; flex-wrap:wrap; gap:8px; font-size:11px; margin:10px 0; }
@@ -133,22 +126,15 @@
 .recruitment-title .row { gap: 12px; }
 .recruitment-title h2 { font-size: 16px; }
 .recruitment-title > span { font-size: 12px; color: var(--muted); }
-.recruitment-overview { display: grid; grid-template-columns: 240px minmax(0,1fr); gap: 32px; margin: 22px 0; align-items: center; }
+.recruitment-overview { display: grid; grid-template-columns: 240px minmax(0,1fr); gap: 28px; margin: 20px 0; align-items: center; }
 .recruitment-clock { display: grid; gap: 7px; border-right: 1px solid #a78cdc25; padding-right: 25px; }
 .recruitment-clock strong { font-size: 52px; line-height: 1.1; letter-spacing: -2px; font-variant-numeric: tabular-nums; font-weight: 650; color: #f4eeff; }
 .recruitment-clock small { font-size: 10px; line-height: 1.7; color: var(--muted); }
-.recruitment-waiting h3 { font-size: 20px; letter-spacing: -.5px; margin: 0 0 8px; }
-.recruitment-waiting > p { font-size: 12px; color: var(--muted); line-height: 1.8; margin: 0 0 12px; }
-.recruitment-waiting > .btn { margin-top: 14px; }
 .recruitment-own-summary span { font-size: 11px; padding: 5px 8px; }
 .my-recruitment-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 18px; margin: 0; border-top: 1px solid #ffffff0d; }
-.my-recruitment-actions .btn { font-size: 12px; padding: 10px 17px; min-height: 40px; }
-.my-recruitment-actions .btn:last-child { margin-left: auto; }
-.recruitment-options { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 24px; margin-top: 10px; }
-.recruitment-options .hint { margin-left: auto; }
+.my-recruitment-actions > .btn { font-size: 12px; padding: 10px 17px; min-height: 40px; }
+.my-recruitment-actions > .action-menu { margin-left: auto; }
 .my-recruitment-picker { margin-bottom: 14px; max-width: 440px; }
-.match-stage .recruitment-advice { padding: 16px 18px; }
-.match-stage .recruitment-advice > .btn { justify-self: start; }
 .match-stage .recruitment-applicants { display: flex; flex-wrap: wrap; gap: 16px; margin: 16px 0; }
 .match-stage .recruitment-applicants h3 { flex-basis: 100%; margin: 0; }
 .match-stage .recruitment-applicants > div { min-width: 200px; }
@@ -187,12 +173,7 @@
   .recruitment-overview { grid-template-columns: 1fr; gap: 18px; margin: 20px 0; }
   .recruitment-clock { border: 0; padding: 0; }
   .recruitment-clock strong { font-size: 48px; }
-  .recruitment-waiting h3 { font-size: 17px; }
-  .my-recruitment-actions .btn { flex: 1 1 40%; padding: 9px; }
-  .my-recruitment-actions .btn:last-child { margin-left: 0; }
-  .recruitment-options { gap: 0; }
-  .recruitment-options .check-label { width: 100%; }
-  .recruitment-options .hint { margin-left: 0; }
+  .my-recruitment-actions > .btn { flex: 1 1 auto; padding: 9px; }
   .proposal-overview { grid-template-columns: 1fr 80px; gap: 10px; }
   .proposal-countdown strong { font-size: 42px; }
   .proposal-overview h2 { font-size: 19px; }
@@ -220,4 +201,22 @@
   .board-heading { flex-direction: column; align-items: stretch; gap: 14px; }
   .board-heading h1 { width: 100%; padding-right: 54px; }
   .board-heading > .btn { width: 100%; }
+}
+
+/* 모집은 상태와 조건, 바로 할 수 있는 행동만 표시한다. */
+.recruitment-waiting .recruitment-description { margin: 10px 0 0; color: var(--text-dim); }
+.recruitment-notice { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-dim); }
+.recruitment-suggestions { display: grid; gap: 8px; margin: 12px 0; }
+.recruitment-suggestions .suggestion-link { padding: 9px 12px; border: 1px solid #a68ae838; border-radius: 7px; background: #a089e412; }
+.my-recruitment-actions { align-items: center; }
+.my-recruitment-actions > .check-label { margin: 0 0 0 auto; }
+.my-recruitment-actions > .action-menu { margin-left: 0; }
+.my-recruitment-actions .action-menu-items { min-width: 180px; }
+.my-recruitment-actions .action-menu-items .btn { font-size: 12px; }
+.board-empty { min-height: 190px; }
+.board-empty h2 { margin: 0; font-size: 16px; color: var(--muted); font-weight: 500; }
+@media (max-width: 650px) {
+  .recruitment-overview { grid-template-columns: 1fr; gap: 14px; }
+  .my-recruitment-actions > .check-label { margin-left: 0; }
+  .my-recruitment-actions > .action-menu { margin-left: auto; }
 }
