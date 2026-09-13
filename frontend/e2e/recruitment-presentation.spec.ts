@@ -36,9 +36,7 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
     await filter.click();
     await expect(page.locator('.board-results-head')).toContainText('10개 모집');
     await expect(rows.locator(':scope > .row-mode .recruitment-mode')).toHaveText(Array(10).fill(mode));
-    await expect(page.locator('.recruitment-list-head > span')).toHaveText(mode === '칼바람'
-      ? ['플레이어 · 자기소개', '랭크', '모드', '음성', '게시 시간']
-      : ['플레이어 · 자기소개', '랭크', '모드', '주 포지션 → 찾는 상대', '음성', '게시 시간']);
+    await expect(page.locator('.recruitment-list-head')).toHaveCount(0);
     await expect(rows.locator(':scope > .row-rank > .row-tier')).toHaveCount(10);
     await expect(rows.locator(':scope > .row-roles')).toHaveCount(mode === '칼바람' ? 0 : 10);
     if (mode !== '칼바람') {
@@ -90,7 +88,7 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
     const voice = (await rows.first().locator('.row-voice').boundingBox())!;
     const posted = (await rows.first().locator('.row-fresh').boundingBox())!;
     expect(rank.x + rank.width, `랭크와 모드는 ${width}px에서 별도 열이다`).toBeLessThanOrEqual(mode.x);
-    const compact = await page.locator('.recruitment-list').evaluate(element => element.clientWidth <= 760);
+    const compact = await page.locator('.recruitment-list').evaluate(element => element.clientWidth <= 680);
     if (compact) {
       expect(rank.y, '모바일 랭크·모드는 플레이어 아래에 표시한다').toBeGreaterThanOrEqual(player.y + player.height);
       expect(Math.abs(rank.y + rank.height / 2 - mode.y - mode.height / 2), '모바일 랭크와 모드는 같은 줄이다').toBeLessThanOrEqual(1);
@@ -98,10 +96,13 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
       expect(role.x + role.width, '모바일 포지션과 음성은 별도 열이다').toBeLessThanOrEqual(voice.x);
       expect(Math.abs(role.y + role.height / 2 - voice.y - voice.height / 2), '모바일 포지션과 음성은 같은 줄이다').toBeLessThanOrEqual(1);
       expect(posted.y, '모바일 게시 시간은 마지막 줄이다').toBeGreaterThanOrEqual(voice.y + voice.height);
+      expect(player.x + player.width - Math.min(rank.x, mode.x, role.x, voice.x, posted.x), '모바일 부가 정보는 오른쪽의 좁은 영역에 모은다').toBeLessThanOrEqual(208);
+      expect(Math.abs(mode.x + mode.width - player.x - player.width), '모바일 부가 정보는 플레이어 영역 오른쪽 끝에 맞춘다').toBeLessThanOrEqual(1);
     } else {
       expect(player.x + player.width, '랭크는 플레이어 오른쪽에 별도 열로 표시한다').toBeLessThanOrEqual(rank.x);
       expect(mode.x + mode.width, '모드와 포지션은 별도 열이다').toBeLessThanOrEqual(role.x);
       expect(voice.x + voice.width, '음성과 게시 시간은 별도 열이다').toBeLessThanOrEqual(posted.x);
+      expect(posted.x + posted.width - rank.x, '데스크톱 부가 정보는 오른쪽의 좁은 영역에 모은다').toBeLessThanOrEqual(400);
     }
     await expectLoadedPortrait(rows.first().getByRole('img', { name: '리 신 초상화', exact: true }));
     await page.screenshot({ path: testInfo.outputPath(`recruitment-presentation-${width}.png`) });

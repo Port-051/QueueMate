@@ -55,7 +55,6 @@ export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]
   }, []);
   const withoutRoles = rows.length > 0 && rows.every(row => !usesKeyCondition(row.condition.game, row.condition.modeKey));
   return <div className={`recruitment-list${withoutRoles ? ' without-roles' : ''}`} aria-label="모집 목록">
-    <div className="recruitment-list-head"><span>플레이어 · 자기소개</span><span>랭크</span><span>모드</span>{!withoutRoles ? <span>{roleTitle(rows[0])} → 찾는 상대</span> : null}<span className="row-voice">음성</span><span>게시 시간</span></div>
     {rows.map(row => {
       const introduction = introductionForRow(row);
       return <button type="button" key={row.id} data-recruitment-id={row.id} className={`recruitment-row ${selected === row.id ? 'selected' : ''} ${row.status !== 'OPEN' ? 'unavailable' : ''}`} aria-label={`${row.nickname} 모집 상세`} aria-pressed={selected === row.id} onClick={() => onSelect(row)}>
