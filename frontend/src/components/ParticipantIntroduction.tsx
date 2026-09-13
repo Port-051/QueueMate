@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getRecruitment } from '../api/recruitment';
 import type { BoardRow } from '../api/recruitment';
 import { introductionForRow, type IntroductionRecord } from '../domain/introduction';
+import { usesKeyCondition } from '../domain/gameConfig';
 import { keyConditionLabel, VOICE_LABEL } from '../domain/labels';
 import { TIER_LABELS } from '../domain/recruitment';
 import { IntroductionStats, RecruitmentIntroduction } from './RecruitmentList';
@@ -25,7 +26,7 @@ export function ParticipantIntroduction({ nickname, record, sourceId, loading = 
     finally { if (alive.current) setFetching(false); }
   };
   return <div className="participant-introduction">
-    {current ? <><div className="participant-facts"><span>{current.condition.keyCondition.value === 'ANY' ? '포지션 무관' : keyConditionLabel(current.condition)}</span><span>{current.preferences.ownTier ? TIER_LABELS[current.preferences.ownTier] : '티어 미입력'}</span><span>{current.condition.voicePreference === 'OPTIONAL' ? '음성 무관' : VOICE_LABEL[current.condition.voicePreference]}</span></div><IntroductionStats introduction={introduction!} /></> : <p className="participant-info-state">{loading ? '소개 확인 중…' : unavailable ? '소개 정보를 불러오지 못했어요.' : '공개된 소개 정보가 없습니다.'}</p>}
+    {current ? <><div className="participant-facts">{usesKeyCondition(current.condition.game, current.condition.modeKey) ? <span>{current.condition.keyCondition.value === 'ANY' ? '포지션 무관' : keyConditionLabel(current.condition)}</span> : null}<span>{current.preferences.ownTier ? TIER_LABELS[current.preferences.ownTier] : '티어 미입력'}</span><span>{current.condition.voicePreference === 'OPTIONAL' ? '음성 무관' : VOICE_LABEL[current.condition.voicePreference]}</span></div><IntroductionStats introduction={introduction!} /></> : <p className="participant-info-state">{loading ? '소개 확인 중…' : unavailable ? '소개 정보를 불러오지 못했어요.' : '공개된 소개 정보가 없습니다.'}</p>}
     {current || sourceId ? <details onToggle={event => { if (event.currentTarget.open) void load(); }}>
       <summary aria-label={`${nickname} 소개 보기`}>소개 보기</summary>
       {fetching ? <p role="status" className="participant-info-state">최신 소개 확인 중…</p> : null}

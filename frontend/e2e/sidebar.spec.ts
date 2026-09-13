@@ -161,7 +161,7 @@ test('로고 아래 게임 아이콘은 선택 링을 표시하고 게임을 바
   const modeFilter = filters.getByRole('group', { name: '찾는 큐 타입', exact: true });
   const tierFilter = filters.getByRole('button', { name: '찾는 상대 티어', exact: true });
   await roleFilter.getByRole('button', { name: '서포터', exact: true }).click();
-  await modeFilter.getByRole('button', { name: '칼바람 나락', exact: true }).click();
+  await modeFilter.getByRole('button', { name: '칼바람', exact: true }).click();
   await selectBoardFilter(page, '찾는 상대 티어', '에메랄드');
 
   await valorant.click();
@@ -210,8 +210,8 @@ test('로고 아래 게임 아이콘은 선택 링을 표시하고 게임을 바
   await expect(menu).toHaveCount(0);
   await expect(roleFilter.getByRole('button', { name: '탑', exact: true })).toBeVisible();
   await expect(roleFilter.getByRole('button')).toHaveCount(5);
-  await expect(modeFilter.getByRole('button')).toHaveCount(4);
-  for (const [index, name] of ['전체', '솔로/듀오 랭크', '일반 게임', '칼바람 나락'].entries()) {
+  await expect(modeFilter.getByRole('button')).toHaveCount(5);
+  for (const [index, name] of ['전체', '랭크', '일반', '신속', '칼바람'].entries()) {
     await expect(modeFilter.getByRole('button').nth(index)).toHaveAccessibleName(name);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

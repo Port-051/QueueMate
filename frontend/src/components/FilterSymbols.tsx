@@ -102,6 +102,8 @@ export function FilterModeIcon({ mode, size = 16 }: SymbolProps & { mode: string
     glyph = <><path d="M7 3h10v5c0 4-2 6-5 6s-5-2-5-6V3Zm0 2H3v3c0 3 2 4 5 4m9-7h4v3c0 3-2 4-5 4M12 14v6m-4 1h8" /></>;
   } else if (mode === 'ARAM') {
     glyph = <path d="M12 2v20M3.3 7l17.4 10M3.3 17 20.7 7M9 4l3 3 3-3M9 20l3-3 3 3M4 10l4-1-1-4m10 14-1-4 4-1M4 14l4 1-1 4M17 5l-1 4 4 1" />;
+  } else if (mode === 'SWIFTPLAY') {
+    glyph = <path d="m14 2-9 12h6l-1 8 9-12h-6l1-8Z" />;
   } else if (mode === 'DUO' || mode === 'SQUAD') {
     glyph = <>
       <circle cx="9" cy="8" r="3" /><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6m2 4a5 5 0 0 1 3 4v2" />

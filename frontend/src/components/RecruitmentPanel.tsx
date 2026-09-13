@@ -5,7 +5,7 @@ import { BOARD_STATUS, writeFrom } from '../domain/recruitment';
 import { keyConditionLabel, VOICE_LABEL, PURPOSE_LABEL, modeLabel } from '../domain/labels';
 import { ActionMenu, Button, Card, Modal, Tag, useToast } from './ui';
 import { RecruitmentClock } from './RecruitmentClock';
-import { gameConfig } from '../domain/gameConfig';
+import { gameConfig, usesKeyCondition } from '../domain/gameConfig';
 import { useNow } from '../state/useNow';
 import { ParticipantIntroduction } from './ParticipantIntroduction';
 
@@ -50,7 +50,7 @@ export function RecruitmentPanel({ row, onChanged, onEdit, onFind }: { row: api.
     <div className="recruitment-title"><div className="row"><h2>내 {reservation ? '예약' : '실시간'} 모집</h2><Tag>{BOARD_STATUS[row.status]}</Tag><span className="recruitment-method">{row.autoMatch ? '자동 매칭' : '수동 매칭'}</span></div><span>{gameConfig(row.condition.game).shortName} · {modeLabel(row.condition.game, row.condition.modeKey)}</span></div>
     <div className="recruitment-overview">
       <RecruitmentClock row={row} now={now} />
-      <div className="recruitment-waiting"><div className="recruitment-own-summary"><span>{keyConditionLabel(row.condition)}</span><span>{VOICE_LABEL[row.condition.voicePreference]}</span>{row.preferences.purposeRequired ? <span>{PURPOSE_LABEL[row.condition.playPurpose]}</span> : null}<span>{row.members.length}/{row.targetSize}명</span></div>{row.description ? <p className="recruitment-description">{row.description}</p> : null}</div>
+      <div className="recruitment-waiting"><div className="recruitment-own-summary">{usesKeyCondition(row.condition.game, row.condition.modeKey) ? <span>{keyConditionLabel(row.condition)}</span> : null}<span>{VOICE_LABEL[row.condition.voicePreference]}</span>{row.preferences.purposeRequired ? <span>{PURPOSE_LABEL[row.condition.playPurpose]}</span> : null}<span>{row.members.length}/{row.targetSize}명</span></div>{row.description ? <p className="recruitment-description">{row.description}</p> : null}</div>
     </div>
     {stale && editable && row.status !== 'PAUSED' ? <div className="recruitment-notice" role="status"><span>{row.status === 'STALE' ? '활동 확인이 필요해 목록에서 숨겨졌어요.' : '계속 모집 중인가요?'}</span><Button variant="primary" disabled={busy} onClick={() => action('CONFIRM')}>계속 모집할게요</Button></div> : null}
     {reservation && row.status === 'OPEN' && timed && row.availableFrom ? <div className="recruitment-notice"><span>{Date.parse(row.availableFrom) > now ? '예약 시간이 가까워졌어요.' : '예약 시간이 되었어요.'}</span><Button disabled={busy} onClick={() => action('CONFIRM')}>예약 모집 확인</Button></div> : null}
@@ -81,7 +81,7 @@ export function RecruitmentPanel({ row, onChanged, onEdit, onFind }: { row: api.
       setPreview(null);
     }, '선택한 조건을 바꿨습니다. 다른 조건은 유지됩니다.')}>이 조건만 변경</Button></>}>
       <p>{preview.label} · 새 모집 {preview.candidateCount}개</p>
-      {preview.candidates.map(candidate => <div className="preview-candidate" key={candidate.id}><b>{candidate.nickname}</b><span>{keyConditionLabel(candidate.condition)}</span><p>{candidate.description}</p></div>)}
+      {preview.candidates.map(candidate => <div className="preview-candidate" key={candidate.id}><b>{candidate.nickname}</b>{usesKeyCondition(candidate.condition.game, candidate.condition.modeKey) ? <span>{keyConditionLabel(candidate.condition)}</span> : null}<p>{candidate.description}</p></div>)}
     </Modal> : null}
   </Card>;
 }

@@ -1,5 +1,5 @@
 import type { BoardRow } from '../api/recruitment';
-import { keyConditionOptions } from '../domain/gameConfig';
+import { keyConditionOptions, usesKeyCondition } from '../domain/gameConfig';
 import { keyConditionLabel, modeLabel, PURPOSE_LABEL, VOICE_LABEL } from '../domain/labels';
 import { introductionForRow, type SelfIntroduction, type IntroductionRecord } from '../domain/introduction';
 import { BOARD_STATUS, confirmedLabel, TIER_LABELS, timeLabel } from '../domain/recruitment';
@@ -15,6 +15,7 @@ const roleTitle = (row?: IntroductionRecord) => row?.condition.game === 'VALORAN
 
 function RecruitmentRoleIcons({ row }: { row: IntroductionRecord }) {
   const game = row.condition.game;
+  if (!usesKeyCondition(game, row.condition.modeKey)) return null;
   const label = (value: string) => value === 'ANY' ? '무관' : keyConditionOptions(game).find(role => role.value === value)?.label ?? value;
   const icon = (value: string) => <span key={value} className="recruitment-role-icon" role="img" aria-label={label(value)} title={label(value)}><FilterRoleIcon game={game} value={value} size={22} /></span>;
   return <span className="recruitment-role-pair" role="group" aria-label={`${roleTitle(row)}: ${roleLabel(row)}, 찾는 상대: ${desiredLabel(row)}`}>
@@ -34,8 +35,9 @@ export function IntroductionStats({ introduction }: { introduction: SelfIntroduc
 }
 
 export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]; selected: string | undefined; onSelect: (row: BoardRow) => void }) {
+  const withoutRoles = rows.length > 0 && rows.every(row => !usesKeyCondition(row.condition.game, row.condition.modeKey));
   return <div className="recruitment-list" aria-label="모집 목록">
-    <div className="recruitment-list-head"><span>플레이어 · 자기소개</span><span>{roleTitle(rows[0])} → 찾는 상대</span><span>음성 · 활동 확인</span></div>
+    <div className="recruitment-list-head"><span>플레이어 · 자기소개</span><span>{withoutRoles ? '모집 조건' : `${roleTitle(rows[0])} → 찾는 상대`}</span><span>음성 · 활동 확인</span></div>
     {rows.map(row => <button type="button" key={row.id} data-recruitment-id={row.id} className={`recruitment-row ${selected === row.id ? 'selected' : ''} ${row.status !== 'OPEN' ? 'unavailable' : ''}`} aria-label={`${row.nickname} 모집 상세`} aria-pressed={selected === row.id} onClick={() => onSelect(row)}>
       <div className="row-player"><Avatar name={row.nickname} size={40} /><div><b>{row.nickname}</b><span className="row-tier">{row.preferences.ownTier ? TIER_LABELS[row.preferences.ownTier] : '티어 미입력'} <small>직접 입력</small></span><IntroductionStats introduction={introductionForRow(row)} />{row.description ? <p>{row.description}</p> : null}</div></div>
       <div className="row-roles"><RecruitmentRoleIcons row={row} /><small>{queueLabel(row)} · {row.members.length}/{row.targetSize}명</small></div>
@@ -68,7 +70,7 @@ export function RecruitmentIntroduction({ row }: { row: IntroductionRecord }) {
     <span className="introduction-detail-source">티어·전적 직접 입력</span>
     {introduction.bio ? <p>{introduction.bio}</p> : null}
     <dl>
-      <dt>{roleTitle(row)} → 찾는 상대</dt><dd><RecruitmentRoleIcons row={row} /></dd>
+      {usesKeyCondition(row.condition.game, row.condition.modeKey) ? <><dt>{roleTitle(row)} → 찾는 상대</dt><dd><RecruitmentRoleIcons row={row} /></dd></> : null}
       <dt>{row.condition.game === 'LOL' ? '선호 챔피언' : row.condition.game === 'VALORANT' ? '선호 요원' : '선호 무기'}</dt><dd>{introduction.champions.length ? introduction.champions.join(' · ') : '미입력'}</dd>
       <dt>원하는 큐 타입</dt><dd>{queueLabel(row)}</dd>
       <dt>음성</dt><dd>{voiceLabel(row)}</dd>

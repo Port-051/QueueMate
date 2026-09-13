@@ -1,6 +1,7 @@
 import type { BoardRow, BoardWrite } from '../api/recruitment';
 import type { GameKey, VoicePreference } from '../api/types';
 import { USE_MOCK } from '../config';
+import { conditionForMode, usesKeyCondition } from './gameConfig';
 
 export type MatchResult = 'WIN' | 'LOSS' | null;
 export type IntroductionRecord = Pick<BoardRow, 'userId' | 'condition' | 'preferences'> & { description?: string };
@@ -58,18 +59,20 @@ export function saveIntroduction(userId: string, game: GameKey, value: SelfIntro
 
 /** 수정 중인 모집의 조건이 저장된 프로필보다 우선한다. */
 export function introductionFromBoard(value: Pick<BoardWrite, 'condition' | 'preferences'> & { description?: string }, saved: SelfIntroduction | null = null): SelfIntroduction {
+  const hasRoles = usesKeyCondition(value.condition.game, value.condition.modeKey);
   return {
-    ...(saved ?? emptyIntroduction()), primaryRole: value.condition.keyCondition.value || 'ANY',
-    desiredRoles: [...value.preferences.desiredKeys], ownTier: value.preferences.ownTier,
+    ...(saved ?? emptyIntroduction()), primaryRole: hasRoles ? value.condition.keyCondition.value || 'ANY' : saved?.primaryRole ?? 'ANY',
+    desiredRoles: hasRoles ? [...value.preferences.desiredKeys] : [...(saved?.desiredRoles ?? [])], ownTier: value.preferences.ownTier,
     queueType: value.condition.modeKey || 'ANY', voice: value.condition.voicePreference, bio: value.description ?? saved?.bio ?? '',
   };
 }
 
 export function applyIntroduction(value: BoardWrite, introduction: SelfIntroduction): BoardWrite {
+  const modeKey = introduction.queueType || 'ANY';
   return {
     ...value,
-    condition: { ...value.condition, modeKey: introduction.queueType || 'ANY', keyCondition: { ...value.condition.keyCondition, value: introduction.primaryRole || 'ANY' }, voicePreference: introduction.voice },
-    preferences: { ...value.preferences, ownTier: introduction.ownTier, desiredKeys: [...introduction.desiredRoles] },
+    condition: conditionForMode({ ...value.condition, keyCondition: { ...value.condition.keyCondition, value: introduction.primaryRole || 'ANY' }, voicePreference: introduction.voice }, modeKey),
+    preferences: { ...value.preferences, ownTier: introduction.ownTier, desiredKeys: usesKeyCondition(value.condition.game, modeKey) ? [...introduction.desiredRoles] : [] },
     description: introduction.bio,
   };
 }
@@ -84,7 +87,8 @@ const seedChampions: Record<GameKey, string[][]> = {
 export function introductionForRow(row: IntroductionRecord): SelfIntroduction {
   const saved = readIntroduction(row.userId, row.condition.game);
   if (saved) return introductionFromBoard(row, saved);
-  const index = USE_MOCK ? seedUsers.indexOf(row.userId) : -1;
+  const modeExample = /^u-lol-(?:normal_draft|swiftplay|aram)-(\d)$/.exec(row.userId);
+  const index = USE_MOCK ? modeExample ? Number(modeExample[1]) : seedUsers.indexOf(row.userId) : -1;
   const example = index >= 0 ? {
     ...emptyIntroduction(), champions: seedChampions[row.condition.game][index % 5],
     winRate: 48 + index * 2, kda: Number((2.1 + index * 0.19).toFixed(2)),

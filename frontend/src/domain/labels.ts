@@ -2,7 +2,7 @@ import type {
   Acceptance, GameKey, MatchCondition, PartyStatus, PlayAmount, PlayPurpose,
   ReportReason, ReservationStatus, VoicePreference,
 } from '../api/types';
-import { gameConfig, modeConfig } from './gameConfig';
+import { gameConfig, modeConfig, usesKeyCondition } from './gameConfig';
 
 export const gameLabel = (g: GameKey) => gameConfig(g).shortName;
 export const gameFullLabel = (g: GameKey) => gameConfig(g).name;
@@ -69,5 +69,5 @@ export const REPORT_REASONS: { value: ReportReason; label: string }[] = [
 
 /** 조건 한 줄 요약. 카드/리스트에서 재사용한다. */
 export function conditionSummary(c: MatchCondition): string[] {
-  return [modeLabel(c.game, c.modeKey), keyConditionLabel(c), VOICE_LABEL[c.voicePreference], PURPOSE_LABEL[c.playPurpose]];
+  return [modeLabel(c.game, c.modeKey), ...(usesKeyCondition(c.game, c.modeKey) ? [keyConditionLabel(c)] : []), VOICE_LABEL[c.voicePreference], PURPOSE_LABEL[c.playPurpose]];
 }

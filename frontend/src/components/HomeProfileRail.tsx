@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { GameAccountView, GameKey, UserProfile } from '../api/types';
-import { keyConditionOptions } from '../domain/gameConfig';
+import { keyConditionOptions, usesKeyCondition } from '../domain/gameConfig';
 import type { SelfIntroduction } from '../domain/introduction';
 import { gameLabel, modeLabel, VOICE_LABEL } from '../domain/labels';
 import { TIER_LABELS } from '../domain/recruitment';
@@ -42,8 +42,8 @@ export function HomeProfileRail({ user, game, introduction, gameAccount, actionL
         {introduction.bio ? <p className="home-profile-bio">{introduction.bio}</p> : null}
         <dl className="home-profile-facts">
           {introduction.ownTier ? <><dt>티어</dt><dd>{TIER_LABELS[introduction.ownTier] ?? introduction.ownTier}</dd></> : null}
-          <dt>{roleTitle}</dt><dd>{roleLabel(introduction.primaryRole)}</dd>
-          <dt>찾는 상대</dt><dd>{introduction.desiredRoles.length ? introduction.desiredRoles.map(roleLabel).join(' · ') : '무관'}</dd>
+          {usesKeyCondition(game, introduction.queueType) ? <><dt>{roleTitle}</dt><dd>{roleLabel(introduction.primaryRole)}</dd>
+          <dt>찾는 상대</dt><dd>{introduction.desiredRoles.length ? introduction.desiredRoles.map(roleLabel).join(' · ') : '무관'}</dd></> : null}
           <dt>큐 타입</dt><dd>{modeLabel(game, introduction.queueType)}</dd>
           <dt>음성</dt><dd>{introduction.voice === 'OPTIONAL' ? '무관' : VOICE_LABEL[introduction.voice].replace('음성 ', '')}</dd>
           {introduction.champions.length ? <><dt>{championTitle}</dt><dd>{introduction.champions.join(' · ')}</dd></> : null}

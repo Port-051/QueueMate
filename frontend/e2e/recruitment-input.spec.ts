@@ -35,14 +35,11 @@ test('포지션 아이콘은 재선택으로 해제되고 큐·음성 조건과 
   await expect(roles.getByRole('button', { pressed: true })).toHaveCount(0);
   await expect(modes.getByRole('button', { name: '전체', exact: true })).toHaveAttribute('aria-pressed', 'true');
 
+  await modes.getByRole('button', { name: '랭크', exact: true }).click();
   await roles.getByRole('button', { name: '미드', exact: true }).click();
   await expect(roles.getByRole('button', { name: '미드', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(rows).toHaveCount(6);
-  await modes.getByRole('button', { name: '칼바람 나락', exact: true }).click();
-  await expect(modes.getByRole('button', { name: '전체', exact: true })).toHaveAttribute('aria-pressed', 'false');
-  await expect(modes.getByRole('button', { name: '칼바람 나락', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(rows).toHaveCount(2);
-  await expect(rows.locator('.row-player b')).toHaveText(['SupportLife · 칼바람', 'SilentJungle · 칼바람']);
+  await expect(rows.locator('.row-player b')).toHaveText(['SupportLife', 'SilentJungle']);
   await voice.click();
   await expect(voice).toHaveAttribute('aria-checked', 'true');
   await expect(rows).toHaveCount(0);
@@ -50,9 +47,9 @@ test('포지션 아이콘은 재선택으로 해제되고 큐·음성 조건과 
 
   await roles.getByRole('button', { name: '미드', exact: true }).click();
   await expect(roles.getByRole('button', { pressed: true })).toHaveCount(0);
-  await expect(modes.getByRole('button', { name: '칼바람 나락', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(modes.getByRole('button', { name: '랭크', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(rows).toHaveCount(3);
-  await expect(rows.locator('.row-player b')).toHaveText(['PlayMaker · 칼바람', 'AimKing · 칼바람', 'HealingYou · 칼바람']);
+  await expect(rows.locator('.row-player b')).toHaveText(['PlayMaker', 'AimKing', 'HealingYou']);
   await filters.getByRole('button', { name: '초기화', exact: true }).click();
   await expect(modes.getByRole('button', { name: '전체', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(roles.getByRole('button', { pressed: true })).toHaveCount(0);
@@ -134,35 +131,35 @@ test('마이크 아이콘은 클릭·Enter·Space로 바로 켜고 끄며 초기
   await expect(voice).toHaveAttribute('aria-checked', 'true');
   await expect(voice).toHaveAttribute('title', '음성 필터 켜짐');
   await expect(page.getByRole('listbox')).toHaveCount(0);
-  await expect(rows).toHaveCount(9);
-  await expect(count).toContainText('9개 모집');
-  await expect(rows.locator('.row-fresh > span:first-child')).toHaveText(Array(9).fill('음성 사용'));
+  await expect(rows).toHaveCount(10);
+  await expect(count).toContainText('12개 모집');
+  await expect(rows.locator('.row-fresh > span:first-child')).toHaveText(Array(10).fill('음성 사용'));
   await voice.click();
   await expect(voice).toHaveAttribute('aria-checked', 'false');
-  await expect(count).toContainText('30개 모집');
+  await expect(count).toContainText('40개 모집');
   await expect(rows).toHaveCount(10);
 
   await voice.focus();
   await page.keyboard.press('Enter');
   await expect(voice).toHaveAttribute('aria-checked', 'true');
   await expect(voice).toBeFocused();
-  await expect(rows).toHaveCount(9);
+  await expect(rows).toHaveCount(10);
   await page.keyboard.press('Space');
   await expect(voice).toHaveAttribute('aria-checked', 'false');
   await expect(voice).toBeFocused();
   await expect(rows).toHaveCount(10);
-  await expect(count).toContainText('30개 모집');
+  await expect(count).toContainText('40개 모집');
   await expect(page.getByRole('listbox')).toHaveCount(0);
 
   await page.keyboard.press('Space');
   await expect(voice).toHaveAttribute('aria-checked', 'true');
-  await expect(rows).toHaveCount(9);
+  await expect(rows).toHaveCount(10);
   await filters.getByRole('button', { name: '초기화', exact: true }).click();
   await expect(voice).toHaveAttribute('aria-checked', 'false');
   await expect(voice).toHaveAttribute('title', '음성 필터 꺼짐');
   await expect(voice).toHaveText('');
   await expect(rows).toHaveCount(10);
-  await expect(count).toContainText('30개 모집');
+  await expect(count).toContainText('40개 모집');
   await expect(filters.getByRole('button', { name: '초기화', exact: true })).toHaveCount(0);
 });
 

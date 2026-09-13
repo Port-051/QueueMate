@@ -107,9 +107,12 @@ export function HomePage() {
   useEffect(() => {
     if (collapsed) listRef.current?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }, [collapsed]);
-  const compose = (joinId?: string) => {
+  const compose = (joinRow?: api.BoardRow) => {
     const base: api.BoardWrite = { type: query.type, condition: defaultCondition(query.condition.game), preferences: anyPreferences(), description: '', autoMatch: false, availableFrom: query.availableFrom, availableTo: query.availableTo, playAmount: query.playAmount };
-    setComposer({ initial: applyIntroduction(base, readIntroduction(user!.id, query.condition.game) ?? emptyIntroduction()), joinId });
+    const introduction = readIntroduction(user!.id, query.condition.game) ?? emptyIntroduction();
+    // 참여할 모집을 고른 경우에는 그 모드를 사용한다. 목록 필터만으로 내 소개를 바꾸지는 않는다.
+    const next = joinRow && joinRow.condition.modeKey !== 'ANY' ? { ...introduction, queueType: joinRow.condition.modeKey } : introduction;
+    setComposer({ initial: applyIntroduction(base, next), joinId: joinRow?.id });
   };
   const changed = async () => {
     await refresh();
@@ -155,7 +158,7 @@ export function HomePage() {
     if (!selected) return;
     if (!source) {
       if (query.type === 'REALTIME' && (active.some(r => r.type === 'REALTIME') || match.request)) toast('진행 중인 실시간 모집을 확인해 주세요. 동시에 두 개를 등록할 수 없습니다.', 'info');
-      else { compose(selected.id); setSelected(null); }
+      else { compose(selected); setSelected(null); }
       return;
     }
     setBusy(true);

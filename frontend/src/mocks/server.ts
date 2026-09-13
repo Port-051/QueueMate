@@ -40,13 +40,13 @@ function issueTokens(profile: UserProfile): TokenResponse {
 
 const isBlocked = (userId: string) => db.blocks.some((b) => b.userId === userId);
 
-/** 서버가 정하는 파티 정원. 클라이언트가 보내는 값이 아니다 (docs/03 §9). */
+/** 체험용 카탈로그가 정하는 파티 정원. 실제 서버 설정과의 차이는 contract.ts 참고. */
 const partySizeOf = (condition: MatchCondition): number =>
   modeOf(condition.game, condition.modeKey)?.targetPartySize ?? 2;
 
 /**
- * 조건을 계약대로 검증한다. 실서버·mock-server와 같은 code로 실패해야
- * mock 모드에서만 통과하는 조건이 생기지 않는다 (docs/14 §4.1).
+ * 체험용 카탈로그의 조건을 검증한다. 오류 코드는 기존 계약과 맞추되,
+ * 허용 모드와 모집 정원은 승인된 프론트엔드 시안에 따른다 (contract.ts).
  */
 function validateCondition(raw: unknown): MatchCondition {
   const c = raw as Partial<MatchCondition> | undefined;
@@ -641,6 +641,8 @@ function lookupNickname(userId: string): string {
   return CANDIDATES.find((c) => c.userId === userId)?.nickname
     ?? db.recentPlayers.find((p) => p.userId === userId)?.nickname
     ?? db.friends.find((f) => f.userId === userId)?.nickname
+    ?? [...db.parties.values()].flatMap(party => party.view.members).find(member => member.userId === userId)?.nickname
+    ?? [...db.proposals.values()].flatMap(proposal => proposal.view.members).find(member => member.userId === userId)?.nickname
     ?? '알 수 없는 사용자';
 }
 

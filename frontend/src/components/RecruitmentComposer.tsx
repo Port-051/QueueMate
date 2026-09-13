@@ -17,8 +17,8 @@ export function RecruitmentComposer({ initial, editing, suspended, onClose, onSa
   const toast = useToast();
   const { user } = useAuth();
   const now = useNow();
-  const [value, setValue] = useState(() => writeFrom(initial));
   const [introduction, setIntroduction] = useState(() => introductionFromBoard(initial, user ? readIntroduction(user.id, initial.condition.game) : null));
+  const [value, setValue] = useState(() => applyIntroduction(writeFrom(initial), introduction));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const validationError = introductionInputError(introduction) || recruitmentInputError(value, editing ? undefined : now);

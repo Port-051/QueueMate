@@ -1,12 +1,10 @@
 import type { BoardSearch } from '../api/recruitment';
-import { keyConditionOptions, visibleModes } from '../domain/gameConfig';
+import { conditionForMode, keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
 import { localInput, tiers, TIER_LABELS } from '../domain/recruitment';
 import { recruitmentInputError } from '../domain/recruitmentValidation';
 import { FilterSelect } from './FilterSelect';
 import { FilterModeIcon, FilterRoleIcon, FilterTierIcon } from './FilterSymbols';
 import { IconMic } from './icons';
-
-const MODE_SHORT_LABELS: Record<string, string> = { SOLO_DUO_RANKED: '듀오 랭크', NORMAL_DRAFT: '일반', ARAM: '칼바람' };
 
 /** 목록에 보일 상대만 고른다. 내 소개와 내 모집의 조건에는 쓰지 않는다. */
 export function BoardFilters({ value, onChange, onReset }: { value: BoardSearch; onChange: (value: BoardSearch) => void; onReset: () => void }) {
@@ -14,6 +12,7 @@ export function BoardFilters({ value, onChange, onReset }: { value: BoardSearch;
   const game = value.condition.game;
   const voiceEnabled = value.condition.voicePreference === 'REQUIRED';
   const condition = (patch: Partial<BoardSearch['condition']>) => onChange({ ...value, condition: { ...value.condition, ...patch }, page: 0 });
+  const chooseMode = (modeKey: string) => onChange({ ...value, condition: conditionForMode(value.condition, modeKey), page: 0 });
   const filtered = value.condition.modeKey !== 'ANY' || value.condition.keyCondition.value !== 'ANY' || value.condition.voicePreference !== 'OPTIONAL' || Boolean(value.preferences.minTier);
   return <div className="board-filter-bar">
     <div className="board-filter-line" role="group" aria-label="상대 검색 필터">
@@ -22,16 +21,16 @@ export function BoardFilters({ value, onChange, onReset }: { value: BoardSearch;
         ...tiers(game).map(tier => ({ value: tier, label: TIER_LABELS[tier], icon: <FilterTierIcon tier={tier} /> })),
       ]} onChange={tier => onChange({ ...value, preferences: { ...value.preferences, minTier: tier || null, maxTier: tier || null }, page: 0 })} />
       <div className="filter-mode-options" role="group" aria-label="찾는 큐 타입">
-        <button type="button" className="filter-mode" aria-pressed={value.condition.modeKey === 'ANY'} onClick={() => condition({ modeKey: 'ANY' })}>전체</button>
-        {visibleModes(game).map(mode => <button key={mode.key} type="button" className="filter-mode" aria-label={mode.label} aria-pressed={value.condition.modeKey === mode.key} onClick={() => condition({ modeKey: value.condition.modeKey === mode.key ? 'ANY' : mode.key })}>
-          <FilterModeIcon mode={mode.key} /><span>{MODE_SHORT_LABELS[mode.key] ?? mode.label}</span>
+        <button type="button" className="filter-mode" aria-pressed={value.condition.modeKey === 'ANY'} onClick={() => chooseMode('ANY')}>전체</button>
+        {visibleModes(game).map(mode => <button key={mode.key} type="button" className="filter-mode" aria-label={mode.label} aria-pressed={value.condition.modeKey === mode.key} onClick={() => chooseMode(value.condition.modeKey === mode.key ? 'ANY' : mode.key)}>
+          <FilterModeIcon mode={mode.key} /><span>{mode.label}</span>
         </button>)}
       </div>
-      <div className="filter-role-options" role="group" aria-label="찾는 상대 포지션">
+      {usesKeyCondition(game, value.condition.modeKey) ? <div className="filter-role-options" role="group" aria-label="찾는 상대 포지션">
         {keyConditionOptions(game).filter(role => role.value !== 'ANY').map(role => <button key={role.value} type="button" className="filter-role" aria-label={role.label} title={role.label} aria-pressed={value.condition.keyCondition.value === role.value} onClick={() => condition({ keyCondition: { ...value.condition.keyCondition, value: value.condition.keyCondition.value === role.value ? 'ANY' : role.value } })}>
           <FilterRoleIcon game={game} value={role.value} />
         </button>)}
-      </div>
+      </div> : null}
       <button type="button" className="filter-voice" role="switch" aria-label="음성 사용 모집만 보기" aria-checked={voiceEnabled} title={voiceEnabled ? '음성 필터 켜짐' : '음성 필터 꺼짐'} onClick={() => condition({ voicePreference: voiceEnabled ? 'OPTIONAL' : 'REQUIRED' })}><IconMic size={20} /></button>
       {filtered ? <button type="button" className="filter-reset" aria-label="초기화" title="필터 초기화" onClick={onReset}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg></button> : null}
     </div>

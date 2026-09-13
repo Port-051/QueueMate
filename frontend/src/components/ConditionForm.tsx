@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { MatchCondition, PlayPurpose, VoicePreference } from '../api/types';
 import {
-  PURPOSE_OPTIONS, VOICE_OPTIONS, availableGames, gameConfig, keyConditionOptions, switchGame, visibleModes,
+  PURPOSE_OPTIONS, VOICE_OPTIONS, availableGames, conditionForMode, gameConfig, keyConditionOptions, switchGame, usesKeyCondition, visibleModes,
 } from '../domain/gameConfig';
 import { Button, Modal, OptionRow } from './ui';
 import { GameBadge } from './GameSymbol';
@@ -27,15 +27,15 @@ export function ConditionForm({ value, onChange, showGame = true }: { value: Mat
           desc="어떤 모드로 플레이할까요?"
           value={value.modeKey}
           options={visibleModes(value.game).map((m) => ({ value: m.key, label: m.label }))}
-          onChange={(modeKey) => onChange({ ...value, modeKey })}
+          onChange={(modeKey) => onChange(conditionForMode(value, modeKey))}
         />
-        <OptionRow
+        {usesKeyCondition(value.game, value.modeKey) ? <OptionRow
           label={cfg.keyCondition.label}
           desc={cfg.keyCondition.desc}
           value={value.keyCondition.value}
           options={keyConditionOptions(value.game)}
           onChange={(v) => onChange({ ...value, keyCondition: { type: cfg.keyCondition.type, value: v } })}
-        />
+        /> : null}
         <OptionRow
           label="음성 사용"
           desc="'사용'과 '사용 안 함'은 서로 매칭되지 않습니다."

@@ -42,7 +42,7 @@ export function InlineProposal({ knownRows = [] }: { knownRows?: BoardRow[] }) {
   }, [proposal?.id, missingParentId]);
   const group = knownParent ?? (parent?.id === parentId ? parent : null) ?? source;
   const game = source?.condition.game ?? condition?.game;
-  const records = new Map<string, IntroductionRecord>();
+  const records = new Map<string, IntroductionRecord & { id: string }>();
   // 같은 게임에서 실제로 공개된 모집만 사용한다. 제안 계약에 없는 전적을 만들지 않는다.
   for (const row of rows) {
     if (row.condition.game !== game || (source && row.type !== source.type)) continue;
@@ -59,7 +59,7 @@ export function InlineProposal({ knownRows = [] }: { knownRows?: BoardRow[] }) {
     </div>
     <div className="proposal-members">{proposal.members.map(m => <div className="proposal-person proposal-participant" key={m.userId}>
       <div className="proposal-participant-heading"><Avatar name={m.nickname} size={32} /><b>{m.nickname}{m.userId === user?.id ? ' (나)' : ''}</b><span>{m.acceptance === 'ACCEPTED' ? '수락 완료' : '응답 대기'}</span></div>
-      {m.userId !== user?.id ? <ParticipantIntroduction nickname={m.nickname} record={records.get(m.userId) ?? null} loading={parentLoading} unavailable={parentError} /> : null}
+      {m.userId !== user?.id ? <ParticipantIntroduction nickname={m.nickname} record={records.get(m.userId) ?? null} sourceId={records.get(m.userId)?.id} loading={parentLoading} unavailable={parentError} /> : null}
     </div>)}</div>
     <div className="row"><Button disabled={busy || seconds === 0} onClick={() => void run(decline)}>거절</Button>{!accepted ? <Button variant="primary" disabled={busy || seconds === 0} onClick={() => void run(accept)}>{busy ? '처리 중…' : '함께할게요'}</Button> : null}</div>
   </Card>;

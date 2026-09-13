@@ -28,7 +28,7 @@ test('상대 검색과 별개인 자기소개·전적을 보관하고 수정·�
   await login(page);
   const filters = page.locator('.board-filter-bar');
   const top = filters.getByRole('group', { name: '찾는 상대 포지션', exact: true }).getByRole('button', { name: '탑', exact: true });
-  const aram = filters.getByRole('group', { name: '찾는 큐 타입', exact: true }).getByRole('button', { name: '칼바람 나락', exact: true });
+  const aram = filters.getByRole('group', { name: '찾는 큐 타입', exact: true }).getByRole('button', { name: '칼바람', exact: true });
   await top.click();
   await selectBoardFilter(page, '찾는 상대 티어', '다이아몬드');
   await aram.click();
@@ -54,7 +54,7 @@ test('상대 검색과 별개인 자기소개·전적을 보관하고 수정·�
   await dialog.getByRole('radio', { name: '수동 매칭' }).check();
   await dialog.getByRole('button', { name: '모집 시작', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(top).toHaveAttribute('aria-pressed', 'true');
+  await expect(top).toHaveCount(0);
   await expect(filters.getByRole('button', { name: '찾는 상대 티어', exact: true })).toContainText('다이아몬드');
   await expect(aram).toHaveAttribute('aria-pressed', 'true');
   const stored = await page.evaluate(async () => {
