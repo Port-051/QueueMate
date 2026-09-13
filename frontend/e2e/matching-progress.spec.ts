@@ -66,7 +66,7 @@ test('오케이를 취소해도 같은 매칭과 타이머를 유지한다', asy
 });
 
 test('추천에 답하지 않아도 매칭을 잠그지 않고 조건을 수정할 수 있다', async ({ page }) => {
-  await page.clock.install(); await login(page); await startRealtimeMatch(page, true);
+  await page.clock.install(); await login(page); await startRealtimeMatch(page);
   await page.clock.fastForward(70_000);
   await expect(page.locator('.duo-offer')).toHaveCount(1);
   await expect(page.locator('.board-proposal')).toHaveCount(0);
@@ -141,7 +141,7 @@ test('한 시간 이상 지난 매칭도 활동 재확인 후 원래 경과 시�
 });
 
 test('조건 수정 중 새 후보가 생겨도 작성 내용을 덮어쓰지 않는다', async ({ page }) => {
-  await page.clock.install(); await login(page); await startRealtimeMatch(page, true);
+  await page.clock.install(); await login(page); await startRealtimeMatch(page);
   await manageRecruitment(page, '조건 수정');
   await page.getByLabel('한마디').fill('아직 저장하지 않은 매칭 문구');
   await page.clock.fastForward(7000);

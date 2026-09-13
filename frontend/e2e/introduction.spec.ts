@@ -1,18 +1,17 @@
 import { expect, test } from '@playwright/test';
 import { login, manageRecruitment, selectBoardFilter } from './helpers';
 
-test('자기소개를 비워 두면 모든 조건이 무관이며 수동 매칭을 시작할 수 있다', async ({ page }) => {
+test('기본 랭크 모드로 선택 단계 없이 매칭을 시작한다', async ({ page }) => {
   await login(page);
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const dialog = page.locator('.recruitment-composer-shell');
   await expect(dialog.getByRole('group', { name: '주 포지션', exact: true }).getByRole('button', { name: '무관', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(dialog.getByRole('group', { name: '원하는 큐 타입', exact: true }).locator('[aria-pressed="true"]')).toHaveCount(0);
+  await expect(dialog.getByRole('group', { name: '원하는 큐 타입', exact: true }).locator('[aria-pressed="true"]')).toHaveCount(1);
   await expect(dialog.locator('.matching-rail-heading')).toHaveCount(0);
   await expect(dialog.getByLabel('내 티어', { exact: true })).toHaveCount(0);
   await expect(dialog.getByRole('region', { name: '롤 전적 정보' })).toHaveCount(0);
   await expect(dialog.getByRole('group', { name: '음성', exact: true }).getByRole('button', { name: '무관', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(dialog.getByRole('radio', { name: '수동 매칭' })).toBeChecked();
-  await expect(dialog.getByRole('radio', { name: '자동 매칭' })).not.toBeChecked();
+  await expect(dialog.getByRole('radiogroup', { name: '매칭 방식' })).toHaveCount(0);
   await expect(dialog.getByRole('button', { name: '매칭 시작', exact: true })).toBeEnabled();
   await dialog.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(dialog).toHaveCount(0);
@@ -21,9 +20,9 @@ test('자기소개를 비워 두면 모든 조건이 무관이며 수동 매칭�
     const api = await import(/* @vite-ignore */ apiPath);
     return (await api.myRecruitments())[0];
   });
-  expect(row.condition).toMatchObject({ modeKey: 'ANY', keyCondition: { value: 'ANY' }, voicePreference: 'OPTIONAL' });
+  expect(row.condition).toMatchObject({ modeKey: 'SOLO_DUO_RANKED', keyCondition: { value: 'ANY' }, voicePreference: 'OPTIONAL' });
   expect(row.preferences).toMatchObject({ ownTier: null, desiredKeys: [], minTier: null, maxTier: null, purposeRequired: false });
-  expect(row.autoMatch).toBe(false);
+  expect(row.autoMatch).toBe(true);
 });
 
 test('검색과 별개로 아이콘 버튼을 선택하고 수정·다시 시작할 때 유지한다', async ({ page }) => {
@@ -33,7 +32,7 @@ test('검색과 별개로 아이콘 버튼을 선택하고 수정·다시 시작
   await filters.getByRole('button', { name: '칼바람', exact: true }).click();
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const form = page.locator('.recruitment-composer-shell');
-  await expect(form.getByRole('group', { name: '원하는 큐 타입' }).locator('[aria-pressed="true"]')).toHaveCount(0);
+  await expect(form.getByRole('group', { name: '원하는 큐 타입' }).locator('[aria-pressed="true"]')).toHaveCount(1);
   await form.getByRole('group', { name: '주 포지션', exact: true }).getByRole('button', { name: '미드', exact: true }).click();
   await form.getByRole('group', { name: '원하는 큐 타입' }).getByRole('button', { name: '랭크', exact: true }).click();
   const desired = form.getByRole('group', { name: '찾는 상대 포지션', exact: true });

@@ -65,7 +65,7 @@ test('모두 읽음은 새로고침 뒤에도 유지되고 친구 알림은 해�
 test('상호 수락 알림은 반복 갱신돼도 중복으로 만들지 않는다', async ({ page }) => {
   await page.clock.install();
   await login(page);
-  await startRealtimeMatch(page, true);
+  await startRealtimeMatch(page);
   await page.clock.fastForward(7000);
   await page.locator('.duo-offer').getByRole('button', { name: '같이 할래요' }).click();
   await expect(page.getByRole('region', { name: '보낸 오케이' })).toBeVisible();

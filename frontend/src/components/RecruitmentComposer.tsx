@@ -3,11 +3,13 @@ import * as board from '../api/recruitment';
 import { isApiError } from '../api/error';
 import { useNow } from '../state/useNow';
 import { recruitmentInputError } from '../domain/recruitmentValidation';
+import { defaultCondition, visibleModes } from '../domain/gameConfig';
+import { readReservationDraft, saveReservationDraft } from '../state/reservationDraft';
 import { writeFrom } from '../domain/recruitment';
 import { applyIntroduction, emptyIntroduction, introductionFromBoard, introductionInputError, readIntroduction, saveIntroduction } from '../domain/introduction';
 import { useAuth } from '../state/AuthContext';
 import { Button, useToast } from './ui';
-import { IconSearch, IconMatch } from './icons';
+import { IconMatch } from './icons';
 import { MatchingRailPanel } from './MatchingRailPanel';
 import { ReservationFields } from './RecruitmentFields';
 import { SelfIntroductionFields } from './SelfIntroductionFields';
@@ -20,13 +22,19 @@ export function RecruitmentComposer({ initial, editing, suspended, focusOnMount 
   const now = useNow();
   const [introduction, setIntroduction] = useState(() => {
     const saved = introductionFromBoard(initial, user ? readIntroduction(user.id, initial.condition.game) : null);
+    if (!visibleModes(initial.condition.game).some(mode => mode.key === saved.queueType)) saved.queueType = defaultCondition(initial.condition.game).modeKey;
     // 롤 전적 입력값은 연동 데이터로 취급하지 않는다. 실제 연동 전에는 미확인 상태다.
     return initial.condition.game === 'LOL' ? { ...saved, ownTier: null, rankDivision: null, champions: [], winRate: null, kda: null, recentResults: emptyIntroduction().recentResults } : saved;
   });
-  const [value, setValue] = useState(() => applyIntroduction(writeFrom(initial), introduction));
+  const [value, setValue] = useState(() => applyIntroduction({ ...writeFrom(initial), ...(!editing && initial.type === 'RESERVATION' && user ? readReservationDraft(user.id, initial.condition.game) : {}), autoMatch: editing ? initial.autoMatch : true }, introduction));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const validationError = introductionInputError(introduction) || recruitmentInputError(value, editing ? undefined : now);
+  const validationError = (!visibleModes(value.condition.game).some(mode => mode.key === value.condition.modeKey) ? '게임 모드를 선택해 주세요.' : '') || introductionInputError(introduction) || recruitmentInputError(value, editing ? undefined : now);
+  const updateIntroduction = (next: typeof introduction) => {
+    setIntroduction(next);
+    setValue(current => applyIntroduction(current, next));
+    if (user) saveIntroduction(user.id, value.condition.game, next);
+  };
   const submit = async () => {
     if (busy || suspended || validationError) return;
     setBusy(true); setError('');
@@ -42,14 +50,10 @@ export function RecruitmentComposer({ initial, editing, suspended, focusOnMount 
     <form onSubmit={event => { event.preventDefault(); void submit(); }}>
     <fieldset className="recruitment-composer" disabled={busy || suspended}>
       {error || validationError ? <div className="banner warn" role="alert">{error || validationError}</div> : null}
-      <SelfIntroductionFields game={value.condition.game} value={introduction} modeLocked={Boolean(editing)} onChange={next => { setIntroduction(next); setValue(applyIntroduction(value, next)); }} />
-      {value.type === 'RESERVATION' ? <ReservationFields value={value} onChange={time => setValue({ ...value, ...time })} /> : null}
-      <fieldset className="matching-choice"><legend>매칭 방식</legend><div className="matching-choice-grid" role="radiogroup" aria-label="매칭 방식">
-        <button type="button" role="radio" aria-label="수동 매칭" aria-checked={!value.autoMatch} onClick={() => setValue({ ...value, autoMatch: false })}><IconSearch size={20} /><span>수동 매칭</span></button>
-        <button type="button" role="radio" aria-label="자동 매칭" aria-checked={value.autoMatch} onClick={() => setValue({ ...value, autoMatch: true })}><IconMatch size={20} /><span>자동 매칭</span></button>
-      </div></fieldset>
+      <SelfIntroductionFields game={value.condition.game} value={introduction} modeLocked={Boolean(editing)} onChange={updateIntroduction} />
+      {value.type === 'RESERVATION' ? <ReservationFields value={value} onChange={time => { setValue({ ...value, ...time }); if (user && !editing) saveReservationDraft(user.id, value.condition.game, time); }} /> : null}
     </fieldset>
-    <div className="matching-rail-footer"><Button block type="submit" variant="primary" disabled={busy || suspended || Boolean(validationError)}>{busy ? '저장 중…' : editing ? '매칭 조건 저장' : '매칭 시작'}</Button></div>
+    <div className="matching-rail-footer"><Button block type="submit" variant="primary" disabled={busy || suspended || Boolean(validationError)}><IconMatch size={20} />{busy ? '저장 중…' : editing ? '매칭 조건 저장' : '매칭 시작'}</Button></div>
     </form>
   </MatchingRailPanel>;
 }

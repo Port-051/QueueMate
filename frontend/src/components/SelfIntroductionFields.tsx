@@ -22,7 +22,7 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
   return <section className="self-introduction" aria-label="자기소개">
     <div className="introduction-fields button-fields">
       <fieldset className="introduction-choice"><legend>게임 모드</legend><div className="intro-mode-options" role="group" aria-label="원하는 큐 타입">
-        {visibleModes(game).map(mode => <button type="button" key={mode.key} className="filter-mode" aria-label={mode.label} aria-pressed={value.queueType === mode.key} disabled={modeLocked} onClick={() => patch({ queueType: value.queueType === mode.key ? 'ANY' : mode.key })}><FilterModeIcon mode={mode.key} /><span>{mode.label}</span></button>)}
+        {visibleModes(game).map(mode => <button type="button" key={mode.key} className="filter-mode" aria-label={mode.label} aria-pressed={value.queueType === mode.key} disabled={modeLocked} onClick={() => patch({ queueType: mode.key })}><FilterModeIcon mode={mode.key} /><span>{mode.label}</span></button>)}
       </div></fieldset>
       {hasRoles ? <>
         <fieldset className="introduction-choice"><legend>{roleTitle}</legend><div className="intro-role-options" role="group" aria-label={roleTitle}>

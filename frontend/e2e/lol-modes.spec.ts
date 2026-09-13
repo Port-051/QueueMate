@@ -98,7 +98,6 @@ for (const mode of modes) {
     await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
     const dialog = page.locator('.recruitment-composer-shell');
     await dialog.getByRole('group', { name: '원하는 큐 타입', exact: true }).getByRole('button', { name: mode.label, exact: true }).click();
-    await dialog.getByRole('radio', { name: '수동 매칭', exact: true }).check();
     await dialog.getByRole('button', { name: '매칭 시작', exact: true }).click();
     await expect(dialog).toHaveCount(0);
     const [created] = await myRecruitments(page);
@@ -149,7 +148,6 @@ test('첫 페이지 밖 신속 매칭과 자동 매칭돼도 상대 소개를 �
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const dialog = page.locator('.recruitment-composer-shell');
   await selectButton(dialog.getByRole('group', { name: '원하는 큐 타입', exact: true }), '신속');
-  await dialog.getByRole('radio', { name: '자동 매칭', exact: true }).check();
   await dialog.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   const proposal = page.locator('.duo-offer');

@@ -20,11 +20,10 @@ export async function selectBoardFilter(page: Page, label: '찾는 상대 티어
   await expect(popup).toHaveCount(0);
 }
 
-export async function startRealtimeMatch(page: Page, auto = false): Promise<void> {
+export async function startRealtimeMatch(page: Page): Promise<void> {
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   await expect(page.locator('.home-profile .recruitment-composer-shell')).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  if (auto) await page.locator('.recruitment-composer-shell').getByRole('radio', { name: '자동 매칭', exact: true }).check();
   await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.locator('.my-recruitment')).toBeVisible();

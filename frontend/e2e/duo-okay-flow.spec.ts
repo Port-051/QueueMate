@@ -57,7 +57,7 @@ test('여러 오케이를 보내도 매칭을 유지하고 먼저 서로 수락�
 });
 
 test('자동 매칭도 응답을 기다리면서 새 상대를 발견하고 다른 화면에서 성사 알림을 받는다', async ({ page }) => {
-  await page.clock.install(); await login(page); await startRealtimeMatch(page, true);
+  await page.clock.install(); await login(page); await startRealtimeMatch(page);
   await page.clock.fastForward(7000);
   await expect(page.locator('.duo-offer')).toHaveCount(1);
   await page.locator('.duo-offer').getByRole('button', { name: '같이 할래요' }).click();
@@ -92,7 +92,7 @@ for (const action of ['오케이 취소', '잠시 멈춤', '조건 수정', '매
 }
 
 test('상대가 먼저 오케이를 해도 내가 수락하기 전에는 매칭 중이다', async ({ page }) => {
-  await page.clock.install(); await login(page); await startRealtimeMatch(page, true); await page.clock.fastForward(7000);
+  await page.clock.install(); await login(page); await startRealtimeMatch(page); await page.clock.fastForward(7000);
   await expect(page.locator('.duo-offer')).toHaveCount(1);
   const offer = (await snapshot(page)).offers[0]; await okay(page, offer.id);
   await expect(page.locator('.duo-offer')).toContainText('상대가 먼저 오케이를 보냈어요');
@@ -103,7 +103,7 @@ test('상대가 먼저 오케이를 해도 내가 수락하기 전에는 매칭 
 
 test('모바일에서도 후보·오케이·매칭 상태를 팝업 없이 표시한다', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.clock.install(); await login(page); await startRealtimeMatch(page, true); await page.clock.fastForward(7000);
+  await page.clock.install(); await login(page); await startRealtimeMatch(page); await page.clock.fastForward(7000);
   await expect(page.locator('.duo-offer')).toHaveCount(1);
   await page.locator('.duo-offer').getByRole('button', { name: '같이 할래요' }).click();
   await expect(page.getByRole('region', { name: '보낸 오케이' })).toBeVisible();

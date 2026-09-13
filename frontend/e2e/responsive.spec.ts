@@ -161,9 +161,7 @@ test('작은 화면에서도 주요 페이지와 오른쪽 매칭 폼이 잘리�
       for (const mode of ['실시간', '예약']) {
         await page.getByRole('tab', { name: `${mode} 매칭`, exact: true }).click();
         await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
-        await expect(page.locator('.recruitment-composer-shell').getByRole('radio', { name: '수동 매칭', exact: true })).toBeChecked();
-        await page.locator('.recruitment-composer-shell').getByRole('radio', { name: '자동 매칭', exact: true }).check();
-        await expect(page.locator('.recruitment-composer-shell').getByRole('radio', { name: '자동 매칭', exact: true })).toBeChecked();
+        await expect(page.locator('.recruitment-composer-shell').getByRole('radiogroup', { name: '매칭 방식' })).toHaveCount(0);
         const button = page.getByRole('button', { name: '매칭 시작', exact: true });
         await button.scrollIntoViewIfNeeded();
         const box = (await button.boundingBox())!;

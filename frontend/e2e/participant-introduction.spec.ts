@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { login, startRealtimeMatch } from './helpers';
 
 test('자동 추천의 소개를 읽는 동안 매칭 타이머와 수락 버튼을 유지한다', async ({ page }) => {
-  await page.clock.install(); await login(page); await startRealtimeMatch(page, true);
+  await page.clock.install(); await login(page); await startRealtimeMatch(page);
   await page.clock.fastForward(7000);
   const proposal = page.locator('.duo-offer');
   const introduction = proposal.locator('.participant-introduction');
@@ -20,7 +20,7 @@ test('자동 추천의 소개를 읽는 동안 매칭 타이머와 수락 버튼
 });
 
 test('추천을 건너뛰어도 매칭을 유지하고 다음 상대를 보여준다', async ({ page }) => {
-  await page.clock.install(); await login(page); await startRealtimeMatch(page, true);
+  await page.clock.install(); await login(page); await startRealtimeMatch(page);
   await page.clock.fastForward(7000);
   const proposal = page.locator('.duo-offer');
   const first = await proposal.getAttribute('aria-label');

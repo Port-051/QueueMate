@@ -43,7 +43,7 @@ test('매칭 중 계정을 바꾸면 이전 매칭과 제안을 표시하지 않
 });
 
 test('성사된 매칭과 메시지는 계정별로만 복원한다', async ({ page }) => {
-  await page.clock.install(); await login(page); await startRealtimeMatch(page, true);
+  await page.clock.install(); await login(page); await startRealtimeMatch(page);
   await page.clock.fastForward(7000);
   await page.locator('.duo-offer').getByRole('button', { name: '같이 할래요' }).click();
   await expect(page.getByRole('region', { name: '보낸 오케이' })).toBeVisible();

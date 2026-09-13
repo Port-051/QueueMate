@@ -52,8 +52,8 @@ test('프로필 설정은 저장되고 새 자기소개는 무관 조건으로 �
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '음성', exact: true }).getByRole('button', { name: '무관', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '주 포지션', exact: true }).getByRole('button', { name: '무관', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '원하는 큐 타입', exact: true }).locator('[aria-pressed="true"]')).toHaveCount(0);
-  await expect(page.locator('.recruitment-composer-shell').getByRole('radio', { name: '수동 매칭', exact: true })).toBeChecked();
+  await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '원하는 큐 타입', exact: true }).locator('[aria-pressed="true"]')).toHaveCount(1);
+  await expect(page.locator('.recruitment-composer-shell').getByRole('radiogroup', { name: '매칭 방식' })).toHaveCount(0);
   await page.keyboard.press('Escape');
   await navigation.getByRole('link', { name: '프로필', exact: true }).click();
   await expect(settings.getByRole('button', { name: '사용 안 함', exact: true })).toHaveAttribute('aria-pressed', 'true');

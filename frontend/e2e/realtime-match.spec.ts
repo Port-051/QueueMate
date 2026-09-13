@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { manageRecruitment, login, startRealtimeMatch } from './helpers';
 
 test('자동 찾기는 오케이 후 상호 수락하면 메시지로 연결한다', async ({ page }) => {
-  await page.clock.install(); await login(page); await startRealtimeMatch(page, true);
+  await page.clock.install(); await login(page); await startRealtimeMatch(page);
   await page.clock.fastForward(7000);
   await page.locator('.duo-offer').getByRole('button', { name: '같이 할래요' }).click();
   await expect(page.locator('.my-recruitment')).toContainText('매칭 중');
