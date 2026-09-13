@@ -211,6 +211,56 @@ class EventFanoutIntegrationTest {
         }
     }
 
+    @Test
+    void 빈_모집_갱신_알림은_모든_session에_한_번_전달한다() throws Exception {
+        Collector first = connect(user("alpha"));
+        Collector second = connect(user("bravo"));
+        first.next(); second.next();
+        BlockingQueue<String> onChannel = subscribeToChannel();
+
+        publisher.publish(List.of(), ServerEvent.of(EventType.RECRUITMENT_UPDATED, Map.of()));
+
+        for (Collector collector : List.of(first, second)) {
+            JsonNode event = collector.next();
+            assertEquals("RECRUITMENT_UPDATED", event.path("type").asText());
+            assertTrue(event.path("payload").isEmpty());
+            assertNull(collector.poll(), "자기 노드의 알림이 중복 전달됐다");
+        }
+        JsonNode envelope = objectMapper.readTree(onChannel.poll(5, TimeUnit.SECONDS));
+        assertTrue(envelope.path("userIds").isEmpty());
+        assertTrue(envelope.path("event").path("payload").isEmpty());
+
+        publishAsOtherNode(UUID.randomUUID(), List.of(),
+                ServerEvent.of(EventType.RECRUITMENT_UPDATED, Map.of()));
+        assertEquals("RECRUITMENT_UPDATED", first.next().path("type").asText());
+        assertEquals("RECRUITMENT_UPDATED", second.next().path("type").asText());
+    }
+
+    @Test
+    void 내용이_있는_모집_알림과_다른_이벤트는_전체_전송하지_않는다() throws Exception {
+        UUID alpha = user("alpha");
+        Collector first = connect(alpha);
+        Collector second = connect(user("bravo"));
+        first.next(); second.next();
+        ServerEvent privateEvent = ServerEvent.of(EventType.RECRUITMENT_UPDATED,
+                Map.of("applicantId", alpha.toString()));
+
+        publisher.publish(List.of(alpha), privateEvent);
+        assertEquals(alpha.toString(), first.next().path("payload").path("applicantId").asText());
+        assertNull(second.poll(), "지정한 사용자 이외에게 내용이 전달됐다");
+
+        publishAsOtherNode(UUID.randomUUID(), List.of(alpha), privateEvent);
+        assertEquals(alpha.toString(), first.next().path("payload").path("applicantId").asText());
+        assertNull(second.poll(), "다른 노드의 개인 알림이 전체 전송됐다");
+
+        publisher.publish(List.of(), privateEvent);
+        publisher.publish(List.of(), ServerEvent.of(EventType.PARTY_CLOSED, Map.of()));
+        publishAsOtherNode(UUID.randomUUID(), List.of(), privateEvent);
+        publishAsOtherNode(UUID.randomUUID(), List.of(), ServerEvent.of(EventType.PARTY_CLOSED, Map.of()));
+        assertNull(first.poll());
+        assertNull(second.poll());
+    }
+
     /** 다른 노드가 무엇을 받게 되는지 그대로 본다. */
     private BlockingQueue<String> subscribeToChannel() throws Exception {
         BlockingQueue<String> received = new LinkedBlockingQueue<>();

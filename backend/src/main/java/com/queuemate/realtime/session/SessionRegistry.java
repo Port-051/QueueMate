@@ -49,6 +49,8 @@ public class SessionRegistry {
         return !sessionsOf(userId).isEmpty();
     }
 
+    public Set<UUID> userIds() { return Set.copyOf(sessionsByUser.keySet()); }
+
     public int openSessionCount() {
         return sessionsByUser.values().stream().mapToInt(Set::size).sum();
     }
