@@ -23,7 +23,7 @@ test('실시간·예약 모두 네 모드를 같은 이름과 2인 정원으로 
   const modeGroup = filters.getByRole('group', { name: '찾는 큐 타입', exact: true });
   const roleGroup = filters.getByRole('group', { name: '찾는 상대 포지션', exact: true });
   const rows = page.locator('.recruitment-row');
-  await expect(modeGroup.getByRole('button')).toHaveText(['전체', ...modes.map(mode => mode.label)]);
+  await expect(modeGroup.getByRole('button')).toHaveText(modes.map(mode => mode.label));
   await expect(page.locator('.board-results-head')).toContainText('40개 모집');
 
   for (const type of ['실시간', '예약']) {

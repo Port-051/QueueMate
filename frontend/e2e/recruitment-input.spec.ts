@@ -33,7 +33,8 @@ test('포지션 아이콘은 재선택으로 해제되고 큐·음성 조건과 
   await expect(rows).toHaveCount(10);
   await expect(roles.getByRole('button')).toHaveCount(5);
   await expect(roles.getByRole('button', { pressed: true })).toHaveCount(0);
-  await expect(modes.getByRole('button', { name: '전체', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(modes.getByRole('button', { pressed: true })).toHaveCount(0);
+  await expect(modes.getByRole('button', { name: '전체', exact: true })).toHaveCount(0);
 
   await modes.getByRole('button', { name: '랭크', exact: true }).click();
   await roles.getByRole('button', { name: '미드', exact: true }).click();
@@ -51,11 +52,17 @@ test('포지션 아이콘은 재선택으로 해제되고 큐·음성 조건과 
   await expect(rows).toHaveCount(3);
   await expect(rows.locator('.row-player b')).toHaveText(['PlayMaker', 'AimKing', 'HealingYou']);
   await filters.getByRole('button', { name: '초기화', exact: true }).click();
-  await expect(modes.getByRole('button', { name: '전체', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(modes.getByRole('button', { pressed: true })).toHaveCount(0);
   await expect(roles.getByRole('button', { pressed: true })).toHaveCount(0);
   await expect(voice).toHaveAttribute('aria-checked', 'false');
   await expect(voice).toHaveAttribute('title', '음성 필터 꺼짐');
   await expect(rows).toHaveCount(10);
+  const ranked = modes.getByRole('button', { name: '랭크', exact: true });
+  await ranked.click();
+  await expect(page.locator('.board-results-head')).toContainText('10개 모집');
+  await ranked.click();
+  await expect(modes.getByRole('button', { pressed: true })).toHaveCount(0);
+  await expect(page.locator('.board-results-head')).toContainText('40개 모집');
 });
 
 test('티어 팝업은 키보드로 선택하고 Escape와 바깥 클릭으로 닫을 수 있다', async ({ page }) => {
@@ -106,7 +113,7 @@ test('티어 팝업은 키보드로 선택하고 Escape와 바깥 클릭으로 �
   expect(selectedBox.y + selectedBox.height).toBeLessThanOrEqual(listBox.y + listBox.height);
   await page.keyboard.press('Tab');
   await expect(tiers).toHaveCount(0);
-  await expect(page.locator('.board-filter-bar').getByRole('group', { name: '찾는 큐 타입', exact: true }).getByRole('button', { name: '전체', exact: true })).toBeFocused();
+  await expect(page.locator('.board-filter-bar').getByRole('group', { name: '찾는 큐 타입', exact: true }).getByRole('button', { name: '랭크', exact: true })).toBeFocused();
   await expect(tier).toContainText('챌린저');
   await tier.click();
   await expect(tiers).toBeVisible();

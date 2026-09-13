@@ -173,8 +173,8 @@ test('로고 아래 게임 아이콘은 선택 링을 표시하고 게임을 바
   await expect(roleFilter.getByRole('button', { name: '탑', exact: true })).toHaveCount(0);
   await expect(roleFilter.getByRole('button')).toHaveCount(4);
   await expect(roleFilter.getByRole('button', { pressed: true })).toHaveCount(0);
-  await expect(modeFilter.getByRole('button')).toHaveText(['전체', '경쟁전', '일반전']);
-  await expect(modeFilter.getByRole('button', { name: '전체', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(modeFilter.getByRole('button')).toHaveText(['경쟁전', '일반전']);
+  await expect(modeFilter.getByRole('button', { pressed: true })).toHaveCount(0);
   await expect(tierFilter).toContainText('모든 티어');
   await tierFilter.click();
   const tierOptions = page.getByRole('listbox', { name: '찾는 상대 티어', exact: true });
@@ -191,8 +191,8 @@ test('로고 아래 게임 아이콘은 선택 링을 표시하고 게임을 바
   await expect(roleFilter.getByRole('button', { name: '공격적', exact: true })).toBeVisible();
   await expect(roleFilter.getByRole('button')).toHaveCount(3);
   await expect(roleFilter.getByRole('button', { pressed: true })).toHaveCount(0);
-  await expect(modeFilter.getByRole('button')).toHaveText(['전체', '듀오', '스쿼드']);
-  await expect(modeFilter.getByRole('button', { name: '전체', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(modeFilter.getByRole('button')).toHaveText(['듀오', '스쿼드']);
+  await expect(modeFilter.getByRole('button', { pressed: true })).toHaveCount(0);
   await tierFilter.click();
   await expect(tierOptions.getByRole('option', { name: '마스터', exact: true })).toBeVisible();
   await expect(tierOptions.getByRole('option', { name: '레디언트', exact: true })).toHaveCount(0);
@@ -210,8 +210,8 @@ test('로고 아래 게임 아이콘은 선택 링을 표시하고 게임을 바
   await expect(menu).toHaveCount(0);
   await expect(roleFilter.getByRole('button', { name: '탑', exact: true })).toBeVisible();
   await expect(roleFilter.getByRole('button')).toHaveCount(5);
-  await expect(modeFilter.getByRole('button')).toHaveCount(5);
-  for (const [index, name] of ['전체', '랭크', '일반', '신속', '칼바람'].entries()) {
+  await expect(modeFilter.getByRole('button')).toHaveCount(4);
+  for (const [index, name] of ['랭크', '일반', '신속', '칼바람'].entries()) {
     await expect(modeFilter.getByRole('button').nth(index)).toHaveAccessibleName(name);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

@@ -21,7 +21,6 @@ export function BoardFilters({ value, onChange, onReset }: { value: BoardSearch;
         ...tiers(game).map(tier => ({ value: tier, label: TIER_LABELS[tier], icon: <FilterTierIcon game={game} tier={tier} size={28} /> })),
       ]} onChange={tier => onChange({ ...value, preferences: { ...value.preferences, minTier: tier || null, maxTier: tier || null }, page: 0 })} />
       <div className="filter-mode-options" role="group" aria-label="찾는 큐 타입">
-        <button type="button" className="filter-mode" aria-pressed={value.condition.modeKey === 'ANY'} onClick={() => chooseMode('ANY')}>전체</button>
         {visibleModes(game).map(mode => <button key={mode.key} type="button" className="filter-mode" aria-label={mode.label} aria-pressed={value.condition.modeKey === mode.key} onClick={() => chooseMode(value.condition.modeKey === mode.key ? 'ANY' : mode.key)}>
           <FilterModeIcon mode={mode.key} /><span>{mode.label}</span>
         </button>)}
