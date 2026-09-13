@@ -18,7 +18,7 @@ export function BoardFilters({ value, onChange, onReset }: { value: BoardSearch;
     <div className="board-filter-line" role="group" aria-label="상대 검색 필터">
       <FilterSelect key={`${game}-tier`} className={`filter-tier${value.preferences.minTier ? ' is-filtered' : ''}`} label="찾는 상대 티어" value={value.preferences.minTier ?? ''} options={[
         { value: '', label: '모든 티어' },
-        ...tiers(game).map(tier => ({ value: tier, label: TIER_LABELS[tier], icon: <FilterTierIcon tier={tier} /> })),
+        ...tiers(game).map(tier => ({ value: tier, label: TIER_LABELS[tier], icon: <FilterTierIcon game={game} tier={tier} size={28} /> })),
       ]} onChange={tier => onChange({ ...value, preferences: { ...value.preferences, minTier: tier || null, maxTier: tier || null }, page: 0 })} />
       <div className="filter-mode-options" role="group" aria-label="찾는 큐 타입">
         <button type="button" className="filter-mode" aria-pressed={value.condition.modeKey === 'ANY'} onClick={() => chooseMode('ANY')}>전체</button>

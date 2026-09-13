@@ -24,6 +24,5 @@ export function relativeBoardTime(at: string, now = Date.now()) {
   if (minutes < 1440) return `${Math.floor(minutes / 60)}시간 전`;
   return `${Math.floor(minutes / 1440)}일 전`;
 }
-export const confirmedLabel = (row: BoardRow, now = Date.now()) => `${relativeBoardTime(row.confirmedAt, now)} 활동`;
 export const timeLabel = (iso: string) => new Date(iso).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 export const localInput = (iso: string | null) => iso ? new Date(new Date(iso).getTime() - new Date(iso).getTimezoneOffset() * 60_000).toISOString().slice(0, 16) : '';

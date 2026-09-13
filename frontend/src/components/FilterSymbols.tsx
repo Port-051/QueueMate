@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { GameKey } from '../api/types';
+import { rankEmblem, rankEmblemBounds, RANK_EMBLEM_SOURCE_SIZE } from '../domain/rankAssets';
 
 type SymbolProps = { size?: number };
 
@@ -84,7 +85,13 @@ const TIER_COLORS: Record<string, string> = {
   IMMORTAL: '#cb8496', RADIANT: '#d4ca96',
 };
 
-export function FilterTierIcon({ tier, size = 20 }: SymbolProps & { tier: string | null }) {
+export function FilterTierIcon({ game, tier, size = 20 }: SymbolProps & { game?: GameKey; tier: string | null }) {
+  const emblem = game === 'LOL' ? rankEmblem(tier) : null;
+  const bounds = game === 'LOL' ? rankEmblemBounds(tier) : null;
+  if (emblem && bounds) {
+    const scale = size / Math.max(bounds.width, bounds.height);
+    return <span className="filter-tier-symbol rank-emblem" style={{ width: size, height: size }} aria-hidden="true"><img src={emblem} width={RANK_EMBLEM_SOURCE_SIZE} height={RANK_EMBLEM_SOURCE_SIZE} alt="" style={{ width: RANK_EMBLEM_SOURCE_SIZE * scale, height: RANK_EMBLEM_SOURCE_SIZE * scale, left: (size - bounds.width * scale) / 2 - bounds.x * scale, top: (size - bounds.height * scale) / 2 - bounds.y * scale }} /></span>;
+  }
   return <svg className="filter-tier-symbol" width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ color: tier ? TIER_COLORS[tier] ?? '#9c95b0' : '#9c95b0' }} aria-hidden="true" focusable="false">
     <path d="m12 2 7 4v8l-7 8-7-8V6l7-4Z" fill="currentColor" opacity=".18" />
     <path d="m12 3 6 3.5V14l-6 6.5L6 14V6.5L12 3Z" stroke="currentColor" strokeWidth="1.5" />

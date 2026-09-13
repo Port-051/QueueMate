@@ -20,14 +20,25 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
   const rows = page.locator('.recruitment-row');
   const dialog = page.getByRole('dialog', { name: '모집 상세', exact: true });
 
+  await page.getByRole('button', { name: '찾는 상대 티어', exact: true }).click();
+  const tiers = page.getByRole('listbox', { name: '찾는 상대 티어', exact: true });
+  await expect(tiers.locator('.rank-emblem img')).toHaveCount(10);
+  for (const name of ['아이언', '브론즈', '실버', '골드', '플래티넘', '에메랄드', '다이아몬드', '마스터', '그랜드마스터', '챌린저']) {
+    const option = tiers.getByRole('option', { name, exact: true });
+    await option.scrollIntoViewIfNeeded();
+    await expectLoadedPortrait(option.locator('.rank-emblem img'));
+  }
+  await page.keyboard.press('Escape');
+  await expect(tiers).toHaveCount(0);
+
   for (const mode of ['랭크', '일반', '신속', '칼바람']) {
     const filter = modes.getByRole('button', { name: mode, exact: true });
     await filter.click();
     await expect(page.locator('.board-results-head')).toContainText('10개 모집');
     await expect(rows.locator(':scope > .row-mode .recruitment-mode')).toHaveText(Array(10).fill(mode));
     await expect(page.locator('.recruitment-list-head > span')).toHaveText(mode === '칼바람'
-      ? ['플레이어 · 자기소개', '모드', '음성 · 게시/활동']
-      : ['플레이어 · 자기소개', '모드', '주 포지션 → 찾는 상대', '음성 · 게시/활동']);
+      ? ['플레이어 · 자기소개', '모드', '음성', '게시 시간']
+      : ['플레이어 · 자기소개', '모드', '주 포지션 → 찾는 상대', '음성', '게시 시간']);
     await expect(rows.locator(':scope > .row-roles')).toHaveCount(mode === '칼바람' ? 0 : 10);
     if (mode !== '칼바람') {
       const modeColumn = await rows.first().locator('.row-mode').boundingBox();
@@ -67,6 +78,18 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `모집 목록 ${width}px 가로 넘침`).toBe(true);
     await expect(rows.first().locator('.row-mode')).toBeVisible();
     await expect(rows.first().locator('.row-roles')).toBeVisible();
+    await expect(rows.first().locator('.row-voice')).toBeVisible();
+    await expect(rows.first().locator('.row-fresh')).toBeVisible();
+    const mode = (await rows.first().locator('.row-mode').boundingBox())!;
+    const role = (await rows.first().locator('.row-roles').boundingBox())!;
+    const voice = (await rows.first().locator('.row-voice').boundingBox())!;
+    const posted = (await rows.first().locator('.row-fresh').boundingBox())!;
+    expect(mode.x + mode.width, `모드와 포지션은 ${width}px에서 별도 열이다`).toBeLessThanOrEqual(role.x);
+    expect(voice.x + voice.width, `음성과 게시 시간은 ${width}px에서 별도 열이다`).toBeLessThanOrEqual(posted.x);
+    if (width === 360) {
+      expect(Math.abs(mode.y - role.y), '모바일 모드와 포지션은 같은 줄이다').toBeLessThanOrEqual(1);
+      expect(voice.y, '모바일 음성은 모드 아래에 표시한다').toBeGreaterThanOrEqual(mode.y + mode.height);
+    }
     await expectLoadedPortrait(rows.first().getByRole('img', { name: '리 신 초상화', exact: true }));
     await page.screenshot({ path: testInfo.outputPath(`recruitment-presentation-${width}.png`) });
     await rows.first().click();
@@ -135,14 +158,14 @@ test('알 수 없는 챔피언과 불러오지 못한 초상화는 대체 아이
   }
 });
 
-test('모집은 닉네임 앞에 티어 아이콘을 두고 음성 상태와 게시·활동 시간을 각각 표시한다', async ({ page }) => {
+test('모집은 닉네임 뒤에 티어 아이콘을 두고 음성과 게시 시간을 별도 열에 표시한다', async ({ page }) => {
   const now = Date.parse('2026-09-14T12:00:00Z');
   const ago = (offset: number) => new Date(now - offset).toISOString();
   const examples = [
-    { ownTier: 'GOLD', tier: '골드', voicePreference: 'REQUIRED', voice: '음성 사용', createdAt: ago(90_000), posted: '1분 전 게시', confirmedAt: ago(30_000), active: '방금 활동' },
-    { ownTier: 'SILVER', tier: '실버', voicePreference: 'NO_VOICE', voice: '음성 사용 안 함', createdAt: ago(2 * 3_600_000 + 30_000), posted: '2시간 전 게시', confirmedAt: ago(90_000), active: '1분 전 활동' },
-    { ownTier: null, tier: '티어 미입력', voicePreference: 'OPTIONAL', voice: '음성 무관', createdAt: ago(3 * 86_400_000 + 30_000), posted: '3일 전 게시', confirmedAt: ago(2 * 3_600_000 + 30_000), active: '2시간 전 활동' },
-    { ownTier: 'DIAMOND', tier: '다이아몬드', voicePreference: 'REQUIRED', voice: '음성 사용', createdAt: ago(4 * 86_400_000 + 30_000), posted: '4일 전 게시', confirmedAt: ago(2 * 86_400_000 + 30_000), active: '2일 전 활동' },
+    { ownTier: 'GOLD', tier: '골드', voicePreference: 'REQUIRED', voice: '음성 사용', createdAt: ago(90_000), posted: '1분 전', confirmedAt: ago(30_000) },
+    { ownTier: 'SILVER', tier: '실버', voicePreference: 'NO_VOICE', voice: '음성 사용 안 함', createdAt: ago(2 * 3_600_000 + 30_000), posted: '2시간 전', confirmedAt: ago(90_000) },
+    { ownTier: null, tier: '티어 미입력', voicePreference: 'OPTIONAL', voice: '음성 무관', createdAt: ago(3 * 86_400_000 + 30_000), posted: '3일 전', confirmedAt: ago(2 * 3_600_000 + 30_000) },
+    { ownTier: 'DIAMOND', tier: '다이아몬드', voicePreference: 'REQUIRED', voice: '음성 사용', createdAt: ago(30_000), posted: '방금', confirmedAt: ago(10_000) },
   ];
   await page.clock.install({ time: new Date(now) });
   await page.route(/\/src\/api\/recruitment\.ts(?:\?.*)?$/, async route => {
@@ -173,25 +196,24 @@ test('모집은 닉네임 앞에 티어 아이콘을 두고 음성 상태와 게
     const row = rows.nth(index);
     const heading = row.locator('.row-player-heading');
     const tier = heading.locator(':scope > .row-tier');
-    await expect(tier).toHaveText(example.tier);
-    await expect(tier.locator('svg.filter-tier-symbol')).toBeVisible();
-    await expect(heading.locator(':scope > .row-tier + b')).toBeVisible();
+    await expect(tier).toContainText(example.tier);
+    if (example.ownTier) await expectLoadedPortrait(tier.locator('img'));
+    await expect(heading.locator(':scope > b + .row-tier')).toBeVisible();
     const tierBox = (await tier.boundingBox())!;
     const nicknameBox = (await heading.locator('b').boundingBox())!;
-    expect(tierBox.x + tierBox.width, '티어는 닉네임 왼쪽에 배치한다').toBeLessThanOrEqual(nicknameBox.x);
+    expect(nicknameBox.x + nicknameBox.width, '티어는 닉네임 오른쪽에 배치한다').toBeLessThanOrEqual(tierBox.x);
     await expect(row).not.toContainText('직접 입력');
-    const voice = row.getByRole('img', { name: example.voice, exact: true });
+    const voice = row.locator(':scope > .row-voice').getByRole('img', { name: example.voice, exact: true });
     await expect(voice).toHaveClass(/recruitment-voice/);
     await expect(voice).toHaveText('');
     await expect(voice.locator('svg')).toBeVisible();
     voiceDrawings.push(await voice.locator('svg').innerHTML());
-    const posted = row.locator('time.row-posted');
-    const active = row.locator('time.row-active');
+    const posted = row.locator(':scope > .row-fresh > time.row-posted');
     await expect(posted).toHaveText(example.posted);
     await expect(posted).toHaveAttribute('datetime', example.createdAt);
-    await expect(active).toHaveText(example.active);
-    await expect(active).toHaveAttribute('datetime', example.confirmedAt);
-    await expect(row.locator('.row-fresh')).not.toContainText('활동 확인');
+    await expect(row.locator('.row-active')).toHaveCount(0);
+    await expect(row.locator('.row-fresh')).not.toContainText('게시');
+    await expect(row.locator('.row-fresh')).not.toContainText('활동');
   }
   expect(new Set(voiceDrawings).size, '사용·미사용·무관은 서로 다른 아이콘이다').toBe(3);
 });
