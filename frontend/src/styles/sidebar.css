@@ -10,6 +10,14 @@
 .mobile-nav { gap: 8px; }
 .mobile-nav .nav-link { min-height: 48px; padding-block: 8px; gap: 12px; }
 .nav-notifications { width: 100%; background: transparent; text-align: left; cursor: pointer; }
+.sidebar-top { align-self: start; min-width: 0; }
+.sidebar-games { display: grid; gap: 8px; min-width: 0; pointer-events: auto; }
+.sidebar-games .nav-link { position: relative; width: 100%; min-height: 48px; padding: 8px 12px; gap: 12px; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.sidebar-games .nav-link:hover { background: rgba(255, 255, 255, .06); }
+.sidebar-games .nav-icon { width: 32px; height: 32px; opacity: 1; }
+.game-nav-logo { border-radius: 50%; }
+.game-nav-link.active .game-nav-logo { outline: 2px solid #fff; outline-offset: 3px; }
+.mobile-games { padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--border); }
 
 @media (min-width: 768px) {
   /* 접힌 메뉴 너비만 확보하고, 펼친 메뉴는 본문을 밀지 않는 레이어로 표시한다. */
@@ -26,7 +34,7 @@
   .side-nav { pointer-events: auto; min-width: 0; width: 100%; gap: 8px; }
   .side-nav .nav-link { position: relative; min-height: 48px; padding: 8px 12px; gap: 12px; border: 0; box-shadow: none; }
   .side-nav .nav-icon { width: 32px; }
-  .side-nav .nav-label { position: absolute; left: 56px; right: 12px; }
+  .side-nav .nav-label, .sidebar-games .nav-label { position: absolute; left: 56px; right: 12px; }
   .side-nav .nav-dot { position: absolute; left: 39px; top: 7px; }
   .sidebar .nav-label, .sidebar .brand-wordmark { opacity: 0; visibility: hidden; transform: translateX(-6px); transition: opacity .16s ease, transform .22s ease, visibility .16s; }
   .sidebar:not(.navigation-picked):hover .nav-label, .sidebar:has(:focus-visible) .nav-label,

@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import type { ComponentType } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../state/AuthContext';
@@ -6,11 +6,15 @@ import { useMatch } from '../state/MatchContext';
 import { useNotifications } from '../state/notifications';
 import { useDirectMessages } from '../state/directMessages';
 import { Logo } from './Logo';
+import { GameBadge } from './GameSymbol';
+import { availableGames } from '../domain/gameConfig';
+import type { GameKey } from '../api/types';
 import { Avatar, Modal } from './ui';
 import { IconHome } from './icons';
 import { IconDirectMessage, IconNotification, NotificationPanel } from './NotificationPanel';
 
 interface NavItem { to: string; label: string; icon: ComponentType<{ size?: number; filled?: boolean }>; }
+export interface AppShellOutletContext { selectedGame: GameKey; setSelectedGame(game: GameKey): void; }
 
 const NAV: NavItem[] = [
   { to: '/app/home', label: '홈', icon: IconHome },
@@ -23,6 +27,8 @@ export function AppShell() {
   const notifications = useNotifications();
   const messages = useDirectMessages(user?.id);
   const location = useLocation();
+  const navigate = useNavigate();
+  const [selectedGame, setSelectedGame] = useState<GameKey>('LOL');
   const [navigationPicked, setNavigationPicked] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationAnchor, setNotificationAnchor] = useState<HTMLElement | null>(null);
@@ -40,6 +46,13 @@ export function AppShell() {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [location.pathname, location.hash]);
+
+  const gameNavigation = (mobile = false) => <div className={`sidebar-games${mobile ? ' mobile-games' : ''}`} role="group" aria-label="게임 선택">
+    {availableGames().map(game => <button key={game.key} type="button" className={`nav-link game-nav-link${selectedGame === game.key ? ' active' : ''}`} aria-label={`${game.name} 매칭`} aria-pressed={selectedGame === game.key} onClick={() => {
+      setSelectedGame(game.key); setMenuOpen(false); setNavigationPicked(true); closeNotifications();
+      if (location.pathname !== '/app/home' || location.search) navigate('/app/home');
+    }}><span className="nav-icon"><GameBadge game={game.key} size={28} className="game-nav-logo" /></span><span className="nav-label">{game.shortName}</span></button>)}
+  </div>;
 
   const navigation = (mobile = false) => (
     <nav className={mobile ? 'mobile-nav' : 'side-nav'} aria-label="주 메뉴">
@@ -72,9 +85,12 @@ export function AppShell() {
     <div className="app-shell">
       <aside onPointerLeave={() => setNavigationPicked(false)} className={`sidebar${navigationPicked ? ' navigation-picked' : ''}${notificationAnchor ? ' has-notifications-open' : ''}`}>
         <div className="sidebar-navigation" aria-hidden={Boolean(notificationAnchor)} {...{ inert: notificationAnchor ? '' : undefined }}>
-          <Link to="/app/home" className="sidebar-brand-link" aria-label="QueueMate 홈" onPointerEnter={() => setNavigationPicked(false)} onClick={() => { setMenuOpen(false); setNavigationPicked(true); closeNotifications(); }}>
-            <Logo />
-          </Link>
+          <div className="sidebar-top">
+            <Link to="/app/home" className="sidebar-brand-link" aria-label="QueueMate 홈" onPointerEnter={() => setNavigationPicked(false)} onClick={() => { setMenuOpen(false); setNavigationPicked(true); closeNotifications(); }}>
+              <Logo />
+            </Link>
+            {gameNavigation()}
+          </div>
           {navigation()}
         </div>
         <NotificationPanel items={notifications.items} unreadCount={notifications.unreadCount} anchor={notificationAnchor} onClose={closeNotifications} onRead={notifications.read} onReadAll={notifications.readAll} />
@@ -85,9 +101,9 @@ export function AppShell() {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
         </div>
-        <Outlet />
+        <Outlet context={{ selectedGame, setSelectedGame } satisfies AppShellOutletContext} />
       </main>
-      {menuOpen ? <Modal title="메뉴" closeLabel="메뉴 닫기" onClose={() => setMenuOpen(false)}>{navigation(true)}</Modal> : null}
+      {menuOpen ? <Modal title="메뉴" closeLabel="메뉴 닫기" onClose={() => setMenuOpen(false)}>{gameNavigation(true)}{navigation(true)}</Modal> : null}
     </div>
   );
 }

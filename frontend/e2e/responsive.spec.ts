@@ -1,6 +1,43 @@
 import { expect, test } from '@playwright/test';
 import { login } from './helpers';
 
+test('홈의 내 정보는 큰 화면 오른쪽과 작은 화면 상단에 배치하고 모집 글자를 읽을 수 있게 유지한다', async ({ page }, testInfo) => {
+  await login(page);
+  const home = page.getByRole('region', { name: '듀오 찾기', exact: true });
+  const profile = home.getByRole('complementary', { name: '내 정보', exact: true });
+  const feed = home.locator('.board-feed');
+  await expect(profile).toContainText('QueueMaster');
+  await expect(feed.locator('.recruitment-row').first()).toBeVisible();
+
+  for (const width of [1600, 1100, 1099, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(profile).toBeVisible();
+    const profileBox = (await profile.boundingBox())!;
+    const feedBox = (await feed.boundingBox())!;
+    if (width >= 1100) {
+      expect(profileBox.x, `내 정보는 모집 목록 오른쪽 ${width}px`).toBeGreaterThanOrEqual(feedBox.x + feedBox.width);
+    } else {
+      expect(profileBox.y + profileBox.height, `내 정보는 모집 목록 위 ${width}px`).toBeLessThanOrEqual(feedBox.y);
+    }
+    const homeBox = (await home.boundingBox())!;
+    const mainBox = (await page.locator('main.main').boundingBox())!;
+    expect(homeBox.width).toBeLessThanOrEqual(1200);
+    expect(Math.abs((homeBox.x - mainBox.x) - (mainBox.x + mainBox.width - homeBox.x - homeBox.width)), `홈 좌우 여백 ${width}px`).toBeLessThanOrEqual(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `홈 가로 넘침 ${width}px`).toBe(true);
+    for (const [selector, minimum] of [
+      ['.row-player b', 16],
+      ['.row-player p', 14],
+      ['.row-introduction-stats', 14],
+      ['.board-filter-line select', 14],
+      ['.board-tabs button', 16],
+    ] as const) {
+      const fontSize = await feed.locator(selector).first().evaluate(element => parseFloat(getComputedStyle(element).fontSize));
+      expect(fontSize, `${selector} 글자 크기 ${width}px`).toBeGreaterThanOrEqual(minimum);
+    }
+    if (width === 1600 || width === 390) await page.screenshot({ path: testInfo.outputPath(`home-profile-${width}.png`) });
+  }
+});
+
 test('작은 화면에서도 주요 페이지와 매칭 팝업이 잘리지 않고 두 방식으로 전환할 수 있다', async ({ page }) => {
   await login(page);
   for (const width of [390, 768, 1024, 1280]) {

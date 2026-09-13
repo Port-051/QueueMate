@@ -1,25 +1,97 @@
-.board-home > .board-games { margin: 0 0 22px; padding: 0 0 16px; gap: 10px; }
-.board-home > .board-games button { padding: 12px 16px; white-space: nowrap; }
-.intro-launch { display: flex; align-items: center; gap: 13px; padding: 16px 18px; border: 1px solid #bba0ff22; border-radius: 10px; background: linear-gradient(110deg,#211a32,#151620); margin-bottom: 24px; }
-.intro-launch > div { display: grid; gap: 5px; min-width: 0; }
-.intro-launch b { font-size: 13px; }
-.intro-launch span { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.intro-launch > .btn { margin-left: auto; flex: none; font-size: 12px; padding: 10px 16px; }
+.board-layout { display: grid; grid-template-columns: minmax(0, 1fr) 264px; gap: 36px; align-items: start; }
+.board-feed { min-width: 0; }
+.board-home .board-tabs button { font-size: 16px; }
+.board-home .board-results-head { padding: 14px 0; font-size: 14px; }
+.board-home .board-results-head b { font-size: 18px; }
+
+/* 내 정보는 목록 옆에 두고, 실제 매칭 진행은 본문에서 이어진다. */
+.home-profile { min-width: 0; align-self: stretch; }
+.home-profile-content { position: sticky; top: 28px; padding-top: 12px; }
+.home-profile-account { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.home-profile-identity { display: grid; gap: 5px; min-width: 0; }
+.home-profile-identity strong { font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+.home-profile-identity > span { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.home-profile-link { margin-left: auto; flex: none; color: #b9a6ed; font-size: 13px; }
+.home-profile-link:hover { color: var(--text); }
+.home-profile-introduction { margin-top: 28px; }
+.home-profile-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 18px; }
+.home-profile-heading h2 { font-size: 15px; font-weight: 650; }
+.home-profile-heading > span { font-size: 12px; color: var(--muted); }
+.home-profile-bio { color: var(--text-dim); font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; margin-bottom: 18px; }
+.home-profile-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px 18px; font-size: 14px; line-height: 1.5; }
+.home-profile-facts dt { color: var(--muted); }
+.home-profile-facts dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.home-profile-stats { display: flex; flex-wrap: wrap; gap: 16px; padding-top: 20px; margin-top: 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+.home-profile-stats strong { color: var(--text); margin-left: 4px; font-size: 16px; font-variant-numeric: tabular-nums; }
+.home-profile-records { display: flex; justify-content: space-between; gap: 12px; margin-top: 16px; font-size: 14px; color: var(--muted); }
+.home-profile-records strong { color: var(--text); font-weight: 600; }
+.home-profile-source { display: block; margin-top: 12px; color: var(--muted); font-size: 11px; }
+.intro-launch { margin-top: 24px; }
+.intro-launch > .btn { width: 100%; font-size: 15px; min-height: 44px; }
+
 .board-filter-bar { padding-top: 15px; }
 .board-filter-line { display: flex; gap: 8px; overflow-x: auto; padding: 1px 1px 7px; scrollbar-width: thin; align-items: center; }
 .board-filter-line > label { display: flex; gap: 8px; align-items: center; white-space: nowrap; padding: 4px 10px; border-radius: 7px; border: 1px solid var(--border); background: #141620; flex: 0 0 auto; }
-.board-filter-line > label > span { color: var(--muted); font-size: 10px; }
-.board-home .board-filter-line select { border: 0; padding: 6px 20px 6px 0; background-color: transparent; font-size: 12px; min-width: 55px; }
-.board-filter-line input { color: var(--text); color-scheme: dark; font: inherit; font-size: 11px; border: 0; background: transparent; width: 148px; padding: 5px 0; }
-.filter-reset { color: var(--muted); background: transparent; border: 0; font: inherit; font-size: 11px; white-space: nowrap; cursor: pointer; padding: 10px; }
+.board-filter-line > label > span { color: var(--muted); font-size: 12px; }
+.board-home .board-filter-line select { border: 0; padding: 6px 20px 6px 0; background-color: transparent; font-size: 14px; min-width: 60px; }
+.board-filter-line input { color: var(--text); color-scheme: dark; font: inherit; font-size: 14px; border: 0; background: transparent; width: 180px; padding: 5px 0; }
+.filter-reset { color: var(--muted); background: transparent; border: 0; font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer; padding: 10px; }
 .filter-reset:hover { color: var(--text); }
-.filter-error { color: var(--warn); font-size: 12px; margin: 7px 0; }
-.recruitment-method { color: #b9a6ed; font-size: 11px; }
-.board-home .board-results-head { padding: 10px 0 13px; }
-@media(max-width:767px) {
+.filter-error { color: var(--warn); font-size: 14px; margin: 7px 0; }
+.recruitment-method { color: #b9a6ed; font-size: 13px; }
+
+.board-home .recruitment-list-head, .board-home .recruitment-row { grid-template-columns: minmax(0, 1.6fr) minmax(148px, 1fr) minmax(126px, .8fr); gap: 16px; }
+.board-home .recruitment-list-head { padding: 14px 16px; font-size: 12px; line-height: 1.5; }
+.board-home .recruitment-row { min-height: 108px; padding: 18px 16px; }
+.board-home .row-player { gap: 12px; }
+.board-home .row-player b { font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
+.board-home .row-tier { display: inline; font-size: 12px; line-height: 1.5; }
+.board-home .row-tier small { font-size: 10px; }
+.board-home .row-player p { font-size: 14px; line-height: 1.6; margin-top: 6px; }
+.board-home .row-introduction-stats { font-size: 14px; line-height: 1.5; gap: 3px 10px; margin-top: 5px; }
+.board-home .row-introduction-stats .champions { max-width: 168px; }
+.board-home .row-roles, .board-home .row-fresh { gap: 7px; font-size: 14px; line-height: 1.5; }
+.board-home .row-roles small, .board-home .row-fresh small { font-size: 12px; line-height: 1.5; }
+.board-home .row-arrow { top: 50%; transform: translateY(-50%); }
+.board-home .board-pagination, .board-home .board-history summary { font-size: 14px; }
+.board-home .board-pagination .btn { font-size: 14px; }
+.board-home .board-new-results, .board-home .board-empty p { font-size: 14px; }
+.board-feed .match-stage .compact-party { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.board-feed .match-stage .compact-party > .compact-chat { grid-column: 1 / -1; }
+
+@media (max-width: 1099px) {
+  .board-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .home-profile { grid-row: 1; }
+  .home-profile-content { position: static; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px 24px; padding: 0 0 24px; border-bottom: 1px solid var(--border); }
+  .home-profile-introduction { grid-column: 1 / -1; grid-row: 2; margin-top: 0; }
+  .home-profile-heading { margin-bottom: 14px; }
+  .home-profile-facts { grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px 16px; }
+  .home-profile-facts dd { text-align: left; }
+  .intro-launch { margin: 0; align-self: center; }
+  .intro-launch > .btn { min-width: 150px; }
+}
+@media (max-width: 767px) {
   .board-home { padding-top: 24px; }
-  .board-home > .board-games { margin-right: 48px; overflow-x: auto; scrollbar-width: none; gap: 3px; padding-bottom: 12px; margin-bottom: 18px; }
-  .board-home > .board-games button { padding: 9px 10px; font-size: 11px; gap: 6px; }
-  .intro-launch { padding: 12px; gap: 9px; }
-  .intro-launch > .btn { padding: 10px 12px; }
+  .home-profile-content { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .home-profile-account { padding-right: 50px; }
+  .home-profile-introduction { grid-row: auto; }
+  .home-profile-identity strong { font-size: 16px; }
+  .home-profile-link { font-size: 12px; }
+  .home-profile-facts { grid-template-columns: auto minmax(0, 1fr); }
+  .home-profile-facts dd { text-align: right; }
+  .intro-launch { grid-row: 2; }
+  .intro-launch > .btn { min-width: 0; }
+}
+@media (max-width: 650px) {
+  .board-home .recruitment-row { grid-template-columns: minmax(0, 1fr) 112px; gap: 12px; padding: 16px 12px; }
+  .board-home .row-player { grid-column: 1 / -1; grid-row: 1; }
+  .board-home .row-player b { margin-right: 8px; }
+  .board-home .row-introduction-stats .champions { max-width: 100%; }
+  .board-home .row-roles { grid-column: 1; grid-row: 2; padding-left: 52px; }
+  .board-home .row-roles small { display: block; }
+  .board-home .row-fresh { grid-column: 2; grid-row: 2; padding-right: 8px; }
+  .board-home .row-arrow { right: 8px; top: auto; bottom: 18px; transform: none; }
+  .board-home .board-tabs { gap: 22px; }
+  .board-home .board-pagination { flex-direction: row; }
+  .board-feed .match-stage .compact-party { grid-template-columns: minmax(0, 1fr); }
 }

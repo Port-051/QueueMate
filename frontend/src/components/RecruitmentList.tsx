@@ -25,7 +25,7 @@ export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]
   return <div className="recruitment-list" aria-label="모집 목록">
     <div className="recruitment-list-head"><span>플레이어 · 자기소개</span><span>{roleTitle(rows[0])} → 찾는 상대</span><span>음성 · 활동 확인</span></div>
     {rows.map(row => <button type="button" key={row.id} data-recruitment-id={row.id} className={`recruitment-row ${selected === row.id ? 'selected' : ''} ${row.status !== 'OPEN' ? 'unavailable' : ''}`} aria-label={`${row.nickname} 모집 상세`} aria-pressed={selected === row.id} onClick={() => onSelect(row)}>
-      <div className="row-player"><Avatar name={row.nickname} size={34} /><div><b>{row.nickname}</b><span className="row-tier">{row.preferences.ownTier ? TIER_LABELS[row.preferences.ownTier] : '티어 미입력'} <small>직접 입력</small></span><IntroductionStats introduction={introductionForRow(row)} />{row.description ? <p>{row.description}</p> : null}</div></div>
+      <div className="row-player"><Avatar name={row.nickname} size={40} /><div><b>{row.nickname}</b><span className="row-tier">{row.preferences.ownTier ? TIER_LABELS[row.preferences.ownTier] : '티어 미입력'} <small>직접 입력</small></span><IntroductionStats introduction={introductionForRow(row)} />{row.description ? <p>{row.description}</p> : null}</div></div>
       <div className="row-roles"><span>{roleLabel(row)} <i>→</i> {desiredLabel(row)}</span><small>{queueLabel(row)} · {row.members.length}/{row.targetSize}명</small></div>
       <div className="row-fresh"><span>{voiceLabel(row)}</span><small>{row.status === 'OPEN' ? confirmedLabel(row) : BOARD_STATUS[row.status]}</small><span className="row-arrow" aria-hidden="true">↗</span></div>
     </button>)}

@@ -33,7 +33,14 @@ test('활동 재확인과 조건 한 개 변경은 사용자 선택 후에만 �
   await expect(page.getByRole('dialog').getByLabel('주 포지션')).toHaveValue('TOP');
 });
 test('위로 올리기 제한과 일시 중지·재개는 같은 모집을 유지한다', async ({ page }) => {
-  await login(page); await startRealtimeMatch(page);
+  await login(page);
+  const profile = page.getByRole('complementary', { name: '내 정보', exact: true });
+  await expect(profile.locator('.intro-launch > button')).toBeEnabled();
+  await startRealtimeMatch(page);
+  await expect(profile).toBeVisible();
+  await expect(profile.locator('.intro-launch > button')).toHaveCount(0);
+  await expect(page.locator('.board-feed .match-stage .my-recruitment')).toBeVisible();
+  await expect(profile.locator('.match-stage')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '위로 올리기', exact: true })).toHaveCount(0);
   await manageRecruitment(page, '잠시 멈춤');
   await expect(page.locator('.my-recruitment')).toContainText('잠시 멈춤');

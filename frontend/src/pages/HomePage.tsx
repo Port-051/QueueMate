@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import * as api from '../api/recruitment';
 import { errorMessage } from '../api/error';
 import { USE_MOCK } from '../config';
 import { ActiveMatchCard } from '../components/ActiveMatchCard';
-import { GameBadge } from '../components/GameSymbol';
+import type { AppShellOutletContext } from '../components/AppShell';
 import { HomeMatchHistory } from '../components/HomeMatchHistory';
+import { HomeProfileRail } from '../components/HomeProfileRail';
 import { RecruitmentComposer } from '../components/RecruitmentComposer';
 import { BoardFilters } from '../components/BoardFilters';
 import { RecruitmentPanel } from '../components/RecruitmentPanel';
@@ -13,9 +14,8 @@ import { RecruitmentList, RecruitmentDetail } from '../components/RecruitmentLis
 import { InlineProposal } from '../components/InlineProposal';
 import { MatchProgress } from '../components/MatchProgress';
 import { RecruitmentSummary } from '../components/RecruitmentSummary';
-import { Avatar, Button, useToast } from '../components/ui';
-import { availableGames, defaultCondition, gameConfig } from '../domain/gameConfig';
-import { modeLabel } from '../domain/labels';
+import { Button, useToast } from '../components/ui';
+import { defaultCondition, gameConfig } from '../domain/gameConfig';
 import { anyPreferences, BOARD_STATUS, initialSearch, reservationWindow, timeLabel, writeFrom } from '../domain/recruitment';
 import { recruitmentInputError } from '../domain/recruitmentValidation';
 import { useAuth } from '../state/AuthContext';
@@ -33,13 +33,14 @@ const browseSearch = (game: api.BoardWrite['condition']['game'] = 'LOL'): api.Bo
 };
 
 export function HomePage() {
-  const { user } = useAuth();
+  const { user, gameAccounts } = useAuth();
+  const { selectedGame, setSelectedGame } = useOutletContext<AppShellOutletContext>();
   const match = useMatch();
   const connection = useConnectionStatus(match.stream);
   const toast = useToast();
   const location = useLocation();
   const navigate = useNavigate();
-  const [query, setQuery] = useState(() => browseSearch());
+  const [query, setQuery] = useState(() => browseSearch(selectedGame));
   const [filter, setFilter] = useState(query);
   const reservationTimes = useRef<Pick<api.BoardWrite, 'availableFrom' | 'availableTo' | 'playAmount'>>(reservationWindow());
   const previewReservationTimes = useRef(reservationTimes.current);
@@ -73,8 +74,13 @@ export function HomePage() {
   }, [match.activePartyId]);
   const changeQuery = (value: api.BoardSearch) => {
     if (value.type !== query.type || value.condition.game !== query.condition.game) setOwnId(null);
+    setSelectedGame(value.condition.game);
     setQuery(value); setFilter(value); setSelected(null);
   };
+  useEffect(() => {
+    if (query.condition.game === selectedGame) return;
+    changeQuery({ ...browseSearch(selectedGame), type: query.type, availableFrom: query.availableFrom, availableTo: query.availableTo, playAmount: query.playAmount });
+  }, [selectedGame]);
   useEffect(() => {
     // 예시 예약이 다음 시간대로 넘어갈 때 기본 검색 시간도 맞춘다. 선택한 일정과 작성 중인 입력은 유지한다.
     if (!USE_MOCK || composer || selected || recruitmentInputError(filter)) return;
@@ -124,7 +130,7 @@ export function HomePage() {
       if (!live) return;
       const browse = browseSearch(row.condition.game);
       const next = { ...browse, type: row.type, condition: { ...browse.condition, modeKey: row.condition.modeKey }, ...(row.type === 'RESERVATION' ? { availableFrom: row.availableFrom, availableTo: row.availableTo, playAmount: row.playAmount } : {}) };
-      setQuery(next); setFilter(next); setSelected(row);
+      setSelectedGame(row.condition.game); setQuery(next); setFilter(next); setSelected(row);
     }).catch(err => { if (live) toast(errorMessage(err), 'error'); });
     return () => { live = false; };
   }, [location.search, toast]);
@@ -154,8 +160,7 @@ export function HomePage() {
   const reuse = (condition: api.BoardWrite['condition'], type: api.BoardType) => setComposer({ initial: { condition, type, preferences: anyPreferences(), description: '', autoMatch: false, ...(type === 'RESERVATION' ? reservationWindow() : { availableFrom: null, availableTo: null, playAmount: null }) } });
   const intro = user ? readIntroduction(user.id, query.condition.game) : null;
   return <section className="page board-home" aria-label="듀오 찾기">
-    <div className="board-games" role="group" aria-label="게임 선택">{availableGames().map(game => <button key={game.key} type="button" className={query.condition.game === game.key ? 'active' : ''} aria-pressed={query.condition.game === game.key} aria-label={`${game.name} 매칭`} onClick={() => changeQuery({ ...browseSearch(game.key), type: query.type, availableFrom: query.availableFrom, availableTo: query.availableTo, playAmount: query.playAmount })}><GameBadge game={game.key} size={26} /><span>{game.shortName}</span></button>)}</div>
-    {canCreate && !stageKey ? <div className="intro-launch"><Avatar name={user?.nickname ?? ''} avatarUrl={user?.avatarUrl} size={38} /><div><b>{user?.nickname}</b><span>{intro?.bio || '내 소개'}</span></div><Button variant="primary" onClick={() => compose()}>{query.type === 'RESERVATION' ? '예약하기' : intro ? '매칭 시작' : '자기소개 작성'}</Button></div> : null}
+    <div className="board-layout"><div className="board-feed">
     {own || match.request || match.activePartyId || match.proposal?.status === 'PENDING' ? <section className={`match-stage ${collapsed && own && !stageKey ? 'is-summary' : ''}`} aria-label="내 매칭 진행" tabIndex={-1} ref={stageRef}>
       {collapsed && own && !stageKey ? <RecruitmentSummary row={own} onExpand={() => { setCollapsed(false); setFocusStage(true); }} /> : <>
       <MatchProgress step={match.proposal?.status === 'PENDING' ? 1 : match.activePartyId ? 2 : 0} />
@@ -185,6 +190,9 @@ export function HomePage() {
       {page && (page.hasMore || query.page > 0) ? <footer className="board-pagination"><div className="row"><Button size="sm" disabled={query.page === 0 || loading} onClick={() => changeQuery({ ...query, page: query.page - 1 })}>이전</Button><span>{query.page + 1} 페이지</span><Button size="sm" disabled={!page.hasMore || loading} onClick={() => changeQuery({ ...query, page: query.page + 1 })}>다음</Button></div></footer> : null}
       <details className="board-history" onToggle={event => setHistoryOpen(event.currentTarget.open)}><summary>지난 모집</summary>{historyOpen ? <><div className="closed-recruitments">{displayedHistory.map(row => <div key={row.id}><span>{gameConfig(row.condition.game).shortName} · {row.type === 'REALTIME' ? '실시간' : '예약'} · {row.description || BOARD_STATUS[row.status]}</span><Button size="sm" onClick={() => setComposer({ initial: { ...writeFrom(row), ...(row.type === 'RESERVATION' && row.availableFrom && Date.parse(row.availableFrom) <= Date.now() ? reservationWindow() : {}) } })}>이 조건으로 다시 모집</Button></div>)}</div><HomeMatchHistory onReview={reuse} excludeIds={displayedHistory.map(row => `${row.type === 'REALTIME' ? 'realtime' : 'reservation'}-${row.id}`)} /></> : null}</details>
     </div></div>
+    </div>
+    <HomeProfileRail user={user} game={query.condition.game} introduction={intro} gameAccount={gameAccounts.find(account => account.game === query.condition.game)} actionLabel={canCreate && !stageKey ? query.type === 'RESERVATION' ? '예약하기' : intro ? '매칭 시작' : '자기소개 작성' : undefined} onCompose={() => compose()} />
+    </div>
     {selected && !composer && match.proposal?.status !== 'PENDING' ? <RecruitmentDetail row={selected} busy={busy} hasSource={Boolean(source)} disabled={Boolean(source && source.status !== 'OPEN') || Boolean(match.activePartyId && selected.type === 'REALTIME')} disabledReason={match.activePartyId && selected.type === 'REALTIME' ? '현재 파티에 참여 중이에요. 파티에서 나온 뒤 실시간 모집에 참여할 수 있어요.' : source && source.status !== 'OPEN' ? '내 모집을 재개하거나 진행 중인 신청을 마친 뒤 참여해 주세요.' : undefined} onClose={() => { if (!busy) setSelected(null); }} onJoin={() => void join()} /> : null}
     {composer ? <RecruitmentComposer suspended={match.proposal?.status === 'PENDING'} initial={composer.initial} editing={mine.find(row => row.id === composer.editing?.id) ?? composer.editing} onClose={() => setComposer(null)} onSaved={async row => {
       rememberCondition(row.condition); setOwnId(row.id); setFocusStage(true);
