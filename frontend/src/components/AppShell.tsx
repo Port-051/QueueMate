@@ -8,7 +8,7 @@ import { useDirectMessages } from '../state/directMessages';
 import { Logo } from './Logo';
 import { Avatar, Modal } from './ui';
 import { IconHome } from './icons';
-import { IconDirectMessage, IconNotification, NotificationPopover } from './NotificationPopover';
+import { IconDirectMessage, IconNotification, NotificationPanel } from './NotificationPanel';
 
 interface NavItem { to: string; label: string; icon: ComponentType<{ size?: number; filled?: boolean }>; }
 
@@ -57,7 +57,7 @@ export function AppShell() {
           </>}
         </NavLink>;
       })}
-      <button className={`nav-link nav-notifications${notificationAnchor ? ' active' : ''}`} type="button" aria-label="알림" title="알림" aria-haspopup="dialog" aria-expanded={Boolean(notificationAnchor)} aria-controls={notificationAnchor ? 'notification-popover' : undefined} onClick={event => {
+      <button className={`nav-link nav-notifications${notificationAnchor ? ' active' : ''}`} type="button" aria-label="알림" title="알림" aria-haspopup="dialog" aria-expanded={Boolean(notificationAnchor)} aria-controls="notification-panel" onClick={event => {
         if (notificationAnchor) closeNotifications();
         else { setNotificationAnchor(mobile ? mobileMenuButton.current : event.currentTarget); setMenuOpen(false); }
       }}><span className="nav-icon"><IconNotification size={24} filled={Boolean(notificationAnchor)} />{notifications.unreadCount > 0 ? <span className={`nav-badge${notifications.unreadCount > 99 ? ' nav-badge-long' : ''}`} aria-label={`안 읽은 알림 ${notifications.unreadCount}개`}>{notifications.unreadCount > 99 ? '99+' : notifications.unreadCount}</span> : null}</span><span className="nav-label">알림</span></button>
@@ -71,10 +71,13 @@ export function AppShell() {
   return (
     <div className="app-shell">
       <aside onPointerLeave={() => setNavigationPicked(false)} className={`sidebar${navigationPicked ? ' navigation-picked' : ''}${notificationAnchor ? ' has-notifications-open' : ''}`}>
-        <Link to="/app/home" className="sidebar-brand-link" aria-label="QueueMate 홈" onPointerEnter={() => setNavigationPicked(false)} onClick={() => { setMenuOpen(false); setNavigationPicked(true); closeNotifications(); }}>
-          <Logo />
-        </Link>
-        {navigation()}
+        <div className="sidebar-navigation" aria-hidden={Boolean(notificationAnchor)} {...{ inert: notificationAnchor ? '' : undefined }}>
+          <Link to="/app/home" className="sidebar-brand-link" aria-label="QueueMate 홈" onPointerEnter={() => setNavigationPicked(false)} onClick={() => { setMenuOpen(false); setNavigationPicked(true); closeNotifications(); }}>
+            <Logo />
+          </Link>
+          {navigation()}
+        </div>
+        <NotificationPanel items={notifications.items} unreadCount={notifications.unreadCount} anchor={notificationAnchor} onClose={closeNotifications} onRead={notifications.read} onReadAll={notifications.readAll} />
       </aside>
       <main className="main">
         <div className="mobile-page-actions" aria-label="빠른 메뉴">
@@ -85,7 +88,6 @@ export function AppShell() {
         <Outlet />
       </main>
       {menuOpen ? <Modal title="메뉴" closeLabel="메뉴 닫기" onClose={() => setMenuOpen(false)}>{navigation(true)}</Modal> : null}
-      {notificationAnchor ? <NotificationPopover items={notifications.items} unreadCount={notifications.unreadCount} anchor={notificationAnchor} onClose={closeNotifications} onRead={notifications.read} onReadAll={notifications.readAll} /> : null}
     </div>
   );
 }

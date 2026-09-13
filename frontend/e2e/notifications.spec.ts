@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { login, startRealtimeMatch } from './helpers';
 
-test('사이드바 알림은 현재 화면 위에 열리고 Escape와 바깥 클릭으로 닫힌다', async ({ page }) => {
+test('알림은 왼쪽 사이드바 전체를 채우고 닫으면 메뉴와 포커스를 복원한다', async ({ page }) => {
   await login(page);
   const sidebar = page.locator('.sidebar');
   await expect(sidebar.getByRole('link', { name: '메시지', exact: true })).toBeVisible();
@@ -14,6 +14,12 @@ test('사이드바 알림은 현재 화면 위에 열리고 Escape와 바깥 클
   await trigger.click();
   const panel = page.getByRole('dialog', { name: '알림', exact: true });
   await expect(panel).toBeVisible();
+  await expect(sidebar.locator('#notification-panel')).toHaveCount(1);
+  await expect.poll(() => panel.boundingBox()).toEqual({ x: 0, y: 0, width: 400, height: 900 });
+  await expect(sidebar.locator('.sidebar-navigation')).toHaveAttribute('aria-hidden', 'true');
+  await expect(sidebar.locator('.sidebar-navigation')).toHaveAttribute('inert', '');
+  await expect(sidebar.getByRole('link', { name: '홈', exact: true })).toHaveCount(0);
+  await expect(sidebar.getByRole('link', { name: '프로필', exact: true })).toHaveCount(0);
   await expect(panel).toContainText('HealingYou님의 친구 요청');
   await expect(page).toHaveURL(/\/app\/home$/);
   const openedBounds = (await page.locator('.board-home').boundingBox())!;
@@ -24,6 +30,18 @@ test('사이드바 알림은 현재 화면 위에 열리고 Escape와 바깥 클
   await trigger.click();
   await page.mouse.click(bounds.x + bounds.width - 8, bounds.y + 8);
   await expect(panel).toHaveCount(0);
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await trigger.click();
+  await expect(panel).toBeVisible();
+  for (const animated of [panel, sidebar.locator('.sidebar-navigation')]) {
+    expect(await animated.evaluate(element => getComputedStyle(element).transitionDuration.split(',').every(duration => parseFloat(duration) <= 0.001))).toBe(true);
+  }
+  await panel.getByRole('button', { name: '알림 닫기', exact: true }).click();
+  await expect(panel).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await sidebar.getByRole('link', { name: '프로필', exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/me$/);
 });
 
 test('모두 읽음은 새로고침 뒤에도 유지되고 친구 알림은 해당 대화로 연결된다', async ({ page }) => {
@@ -32,7 +50,7 @@ test('모두 읽음은 새로고침 뒤에도 유지되고 친구 알림은 해�
   await trigger.click();
   const panel = page.getByRole('dialog', { name: '알림', exact: true });
   await panel.getByRole('button', { name: '모두 읽음', exact: true }).click();
-  await expect(trigger.locator('.nav-badge')).toHaveCount(0);
+  await expect(page.locator('.sidebar .nav-notifications .nav-badge')).toHaveCount(0);
   await panel.getByRole('button', { name: '안 읽음', exact: true }).click();
   await expect(panel).toContainText('모든 알림을 확인했어요');
   await page.keyboard.press('Escape');
@@ -82,10 +100,9 @@ test('모바일에서는 메뉴에서 알림을 열고 원래 메뉴 버튼으�
   const panel = page.getByRole('dialog', { name: '알림', exact: true });
   await expect(page.getByRole('dialog')).toHaveCount(1);
   await expect(panel).toBeVisible();
-  const box = (await panel.boundingBox())!;
-  expect(box.x).toBeGreaterThanOrEqual(0);
-  expect(box.x + box.width).toBeLessThanOrEqual(360);
-  expect(box.y + box.height).toBeLessThanOrEqual(640);
+  await expect(page.locator('.sidebar #notification-panel')).toHaveCount(1);
+  await expect.poll(() => panel.boundingBox()).toEqual({ x: 0, y: 0, width: 360, height: 640 });
+  await expect(page.locator('.sidebar').getByRole('link')).toHaveCount(0);
   await panel.getByRole('button', { name: '알림 닫기', exact: true }).click();
   await expect(panel).toHaveCount(0);
   await expect(menu).toBeFocused();

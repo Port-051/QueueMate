@@ -1,5 +1,4 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import type { AppNotification, NotificationKind } from '../state/notifications';
 import '../styles/notifications.css';
@@ -25,27 +24,22 @@ function relativeTime(createdAt: string) {
   return `${Math.floor(minutes / 1440)}일 전`;
 }
 
-export function NotificationPopover({ items, unreadCount, anchor, onClose, onRead, onReadAll }: {
+export function NotificationPanel({ items, unreadCount, anchor, onClose, onRead, onReadAll }: {
   items: AppNotification[]; unreadCount: number; anchor: HTMLElement | null;
   onClose(): void; onRead(id: string): void; onReadAll(): void;
 }) {
   const navigate = useNavigate();
   const panel = useRef<HTMLDivElement>(null);
+  const restoreFrame = useRef<number>();
   const close = useRef(onClose);
   close.current = onClose;
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const [position, setPosition] = useState({ top: 80, left: 244 });
   const shown = unreadOnly ? items.filter(item => !item.read) : items;
 
   useEffect(() => {
-    const place = () => {
-      const target = anchor?.getBoundingClientRect();
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      const panelHeight = Math.min(580, height - 32);
-      setPosition({ top: width < 768 ? 16 : Math.max(16, Math.min((target?.top ?? 180) - 24, height - panelHeight - 16)), left: width < 768 ? 16 : Math.min(244, width - 384) });
-    };
-    place();
+    if (!anchor) return;
+    if (restoreFrame.current !== undefined) window.cancelAnimationFrame(restoreFrame.current);
+    setUnreadOnly(false);
     panel.current?.focus();
     const outside = (event: PointerEvent) => {
       if (event.target instanceof Node && !panel.current?.contains(event.target) && !anchor?.contains(event.target)) close.current();
@@ -59,24 +53,25 @@ export function NotificationPopover({ items, unreadCount, anchor, onClose, onRea
       if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) { event.preventDefault(); last.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     };
-    window.addEventListener('resize', place);
     document.addEventListener('pointerdown', outside);
     window.addEventListener('keydown', keyboard);
     return () => {
-      window.removeEventListener('resize', place);
       document.removeEventListener('pointerdown', outside);
       window.removeEventListener('keydown', keyboard);
-      const restore = anchor?.isConnected && anchor.getClientRects().length
-        ? anchor : document.querySelector<HTMLElement>('.mobile-page-actions button');
-      restore?.focus({ preventScroll: true });
+      // 메뉴의 inert와 숨김 스타일이 해제된 다음 포커스를 돌려준다.
+      restoreFrame.current = window.requestAnimationFrame(() => {
+        const restore = [anchor, document.querySelector<HTMLElement>('.sidebar .nav-notifications'), document.querySelector<HTMLElement>('.mobile-page-actions button')]
+          .find(element => element?.isConnected && element.getClientRects().length);
+        restore?.focus({ preventScroll: true });
+      });
     };
   }, [anchor]);
 
-  return createPortal(<div id="notification-popover" className="notification-popover" ref={panel} role="dialog" aria-label="알림" tabIndex={-1} style={position}>
+  return <div id="notification-panel" className="notification-panel" ref={panel} role="dialog" aria-label="알림" aria-hidden={!anchor} {...{ inert: anchor ? undefined : '' }} tabIndex={-1}>
     <header className="notification-heading"><div><h2>알림</h2>{unreadCount > 0 ? <span>{unreadCount}</span> : null}</div><button className="icon-btn" type="button" aria-label="알림 닫기" onClick={onClose}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button></header>
     <div className="notification-toolbar"><div aria-label="알림 보기"><button type="button" aria-pressed={!unreadOnly} onClick={() => setUnreadOnly(false)}>전체</button><button type="button" aria-pressed={unreadOnly} onClick={() => setUnreadOnly(true)}>안 읽음</button></div><button type="button" className="notification-read-all" disabled={!unreadCount} onClick={onReadAll}>모두 읽음</button></div>
     <div className="notification-list">
       {shown.length ? <ul>{shown.map(item => <li key={item.id} className={item.read ? '' : 'unread'}><button type="button" className="notification-item" onClick={() => { onRead(item.id); onClose(); navigate(item.href); }}><span className={`notification-symbol kind-${item.kind.toLowerCase()}`} aria-hidden="true">{KIND_SYMBOL[item.kind]}</span><span className="notification-content"><span className="notification-meta"><span>{KIND_LABEL[item.kind]}</span><time dateTime={item.createdAt}>{relativeTime(item.createdAt)}</time></span><strong>{item.title}</strong><span className="notification-body">{item.body}</span></span>{!item.read ? <span className="notification-unread-dot" aria-label="안 읽음" /> : null}</button></li>)}</ul> : <div className="notification-empty"><IconNotification size={32} /><strong>{unreadOnly ? '모든 알림을 확인했어요' : '아직 알림이 없어요'}</strong><p>{unreadOnly ? '새 소식이 오면 여기에 알려드릴게요.' : '매칭과 팀원의 소식을 여기서 확인하세요.'}</p></div>}
     </div>
-  </div>, document.body);
+  </div>;
 }
