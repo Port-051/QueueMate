@@ -64,6 +64,11 @@ public class ReservationMatcher {
     private final BlockLookupPort blocks;
     private final RandomSource random;
     private final ApplicationEventPublisher events;
+    private com.queuemate.matching.domain.MatchPoolPolicy poolPolicy = com.queuemate.matching.domain.MatchPoolPolicy.UNRESTRICTED;
+
+    @Autowired(required = false)
+    public void setPoolPolicy(com.queuemate.matching.domain.MatchPoolPolicy policy) { this.poolPolicy = policy; }
+
     private final Clock clock;
     private final Duration proposalTtl;
 
@@ -113,6 +118,8 @@ public class ReservationMatcher {
             return Optional.empty();
         }
         Candidate seed = toCandidate(found.get());
+        poolPolicy.lock(seed.condition().game(), seed.condition().modeKey());
+        if (!poolPolicy.automatic(reservationId)) return Optional.empty();
         Optional<GameModeConfig> config = modes.findActive(
                 seed.condition().game(), seed.condition().modeKey());
         if (config.isEmpty()) {
@@ -127,7 +134,9 @@ public class ReservationMatcher {
         all.add(seed);
         all.addAll(pool);
         return PartyAssembler.over(all, config.get(), blocks, random)
-                .assembleFrom(0, (party, candidate) -> commonSlotOf(party, candidate).isPresent())
+                .assembleFrom(0, (party, candidate) -> commonSlotOf(party, candidate).isPresent()
+                        && party.stream().allMatch(member -> poolPolicy.compatible(member.reservation().getId(),
+                        member.condition(), candidate.reservation().getId(), candidate.condition())))
                 .flatMap(party -> claimAndPropose(party, config.get()));
     }
 
@@ -161,6 +170,8 @@ public class ReservationMatcher {
         if (ids.isEmpty()) {
             return List.of();
         }
+        var sourceIds = new java.util.HashSet<>(ids); sourceIds.add(seed.reservation().getId());
+        poolPolicy.prepare(sourceIds);
         List<Candidate> candidates = new ArrayList<>();
         for (Reservation reservation :
                 reservations.findAllByIdInAndStatus(ids, ReservationStatus.ACTIVE)) {
@@ -173,9 +184,29 @@ public class ReservationMatcher {
             if (!reservation.window().overlaps(seed.reservation().window())) {
                 continue;
             }
-            candidates.add(toCandidate(reservation));
+            if (poolPolicy.automatic(reservation.getId())) candidates.add(toCandidate(reservation));
         }
         return candidates;
+    }
+
+    @Transactional
+    public Optional<UUID> proposeSelected(List<UUID> ids) {
+        if (ids.isEmpty() || ids.stream().distinct().count() != ids.size()) return Optional.empty();
+        var first = reservations.findById(ids.getFirst()).orElse(null);
+        if (first == null) return Optional.empty();
+        var condition = codec.fromJson(first.getConditionJson());
+        poolPolicy.lock(condition.game(), condition.modeKey());
+        var config = modes.findActive(condition.game(), condition.modeKey()).orElse(null);
+        if (config == null || ids.size() != config.targetPartySize()) return Optional.empty();
+        poolPolicy.prepare(ids);
+        var party = reservations.lockAllActive(ids).stream().map(this::toCandidate).toList();
+        if (party.size() != ids.size() || party.stream().anyMatch(c -> c.reservation().getPlayAmount() != first.getPlayAmount()))
+            return Optional.empty();
+        return PartyAssembler.over(party, config, blocks, random)
+                .assembleFrom(0, (members, candidate) -> commonSlotOf(members, candidate).isPresent()
+                        && members.stream().allMatch(member -> poolPolicy.compatible(member.reservation().getId(),
+                        member.condition(), candidate.reservation().getId(), candidate.condition())))
+                .flatMap(selected -> claimAndPropose(selected, config));
     }
 
     private Optional<UUID> claimAndPropose(List<Candidate> party, GameModeConfig config) {

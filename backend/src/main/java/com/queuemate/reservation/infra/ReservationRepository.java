@@ -13,6 +13,10 @@ import java.util.UUID;
 
 public interface ReservationRepository extends JpaRepository<Reservation, UUID> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from Reservation r where r.id in :ids and r.status = com.queuemate.reservation.domain.ReservationStatus.ACTIVE order by r.id")
+    List<Reservation> lockAllActive(@Param("ids") Collection<UUID> ids);
+
     List<Reservation> findAllByUserIdOrderByAvailableFromAsc(UUID userId);
 
     List<Reservation> findAllByIdInAndStatus(Collection<UUID> ids, ReservationStatus status);
