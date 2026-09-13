@@ -45,7 +45,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @EnabledIf(value = "com.queuemate.api.DockerAvailability#isAvailable",
         disabledReason = "Docker가 없으면 계약 테스트를 돌릴 수 없다")
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
+        // CRUD 계약은 요청이 끝난 상태를 검사한다. 비동기 매칭은 전용 통합 테스트에서
+        // 검증하며, 여기서는 다음 테스트의 TRUNCATE와 이전 작업이 경쟁하지 않게 한다.
+        "queuemate.matching.auto-trigger=false",
+        "queuemate.matching.sweep-ms=3600000",
+        "queuemate.matching.reconcile-ms=3600000",
+        "queuemate.proposal.sweep-ms=3600000",
+        "queuemate.reservation.sweep-ms=3600000",
+        "queuemate.reservation.expire-ms=3600000",
+        "queuemate.recruitment.group-sweep-ms=3600000"
+})
 abstract class ApiContractTestSupport {
 
     private static final PostgreSQLContainer<?> POSTGRES =
