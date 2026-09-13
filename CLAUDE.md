@@ -3,12 +3,12 @@
 Claude Code는 작업 전에 이 파일과 `docs/`를 읽어야 한다.
 
 ## 1. Product boundary
-QueueMate는 **조건 기반 팀원 자동 랜덤 매칭** 서비스다.
+QueueMate는 **실시간·예약 모집 게시판과 조건 기반 팀원 매칭** 서비스다. 최신 제품 규칙은 `docs/16_RECRUITMENT_BOARD.md`를 따른다.
 
 반드시 지킨다:
 - 지원 게임: LoL, VALORANT, PUBG만.
 - 상대팀/VS/대전 상대를 만들거나 보여주지 않는다.
-- 공개 사용자 탐색, 게시판, 길드, 피드, 팔로우, 좋아요, 공개 채팅방을 만들지 않는다.
+- 모집 공개에 동의한 사용자만 모집 게시판에 노출한다. 길드, 피드, 팔로우, 좋아요, 공개 채팅방은 만들지 않는다.
 - 프리미엄/과금 기능을 구현하지 않는다.
 - 친구는 매칭 후 관계 유지 기능이며 SNS 추천 시스템이 아니다.
 - 차단 관계의 사용자는 어떤 매칭에서도 같은 파티가 될 수 없다.
@@ -38,7 +38,7 @@ QueueMate는 **조건 기반 팀원 자동 랜덤 매칭** 서비스다.
 - 플레이 가능한 시간: 30분 단위 start/end
 - 플레이할 양: `ONE_GAME` / `TWO_PLUS`
 
-새 조건은 `docs/12_ELBOW_CONDITION_SELECTION.md` 절차를 거치기 전에는 추가 금지.
+사용자가 승인한 티어 범위·원하는 상대 포지션·목적 필수 여부는 `docs/16_RECRUITMENT_BOARD.md`에 따라 추가한다. 그 외 조건은 `docs/12_ELBOW_CONDITION_SELECTION.md` 절차를 따른다.
 
 ## 3. Architecture
 - React SPA. Next.js로 변경 금지.
