@@ -26,6 +26,7 @@ export function AppShell() {
   const notifications = useNotifications();
   const messages = useDirectMessages(user?.id);
   const location = useLocation();
+  const [navigationPicked, setNavigationPicked] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationAnchor, setNotificationAnchor] = useState<HTMLElement | null>(null);
   const mobileMenuButton = useRef<HTMLButtonElement>(null);
@@ -49,7 +50,7 @@ export function AppShell() {
         const MenuIcon = item.icon;
         return <NavLink key={item.to} to={item.to}
           aria-label={item.label} title={item.label}
-          onClick={() => { setMenuOpen(false); closeNotifications(); }}
+          onClick={() => { setMenuOpen(false); setNavigationPicked(true); closeNotifications(); }}
           className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
           {({ isActive }) => <>
             <span className="nav-icon"><MenuIcon size={mobile ? 24 : 28} filled={isActive} />
@@ -63,7 +64,7 @@ export function AppShell() {
         if (notificationAnchor) closeNotifications();
         else { setNotificationAnchor(mobile ? mobileMenuButton.current : event.currentTarget); setMenuOpen(false); }
       }}><span className="nav-icon"><IconNotification size={mobile ? 24 : 28} filled={Boolean(notificationAnchor)} />{notifications.unreadCount > 0 ? <span className={`nav-badge${notifications.unreadCount > 99 ? ' nav-badge-long' : ''}`} aria-label={`안 읽은 알림 ${notifications.unreadCount}개`}>{notifications.unreadCount > 99 ? '99+' : notifications.unreadCount}</span> : null}</span><span className="nav-label">알림</span></button>
-      {user ? <NavLink to="/app/me" className="nav-link nav-profile" aria-label={`${user.nickname} 프로필`} onClick={() => { setMenuOpen(false); closeNotifications(); }}>
+      {user ? <NavLink to="/app/me" className="nav-link nav-profile" aria-label={`${user.nickname} 프로필`} onClick={() => { setMenuOpen(false); setNavigationPicked(true); closeNotifications(); }}>
         <span className="nav-icon"><Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={mobile ? 28 : 32} status={connection === 'connected' ? 'online' : 'away'} /></span>
         <span className="nav-label"><span className="nav-nickname" title={user.nickname}>{user.nickname}</span><small className={connection === 'connected' ? '' : 'connecting'}>{connectionLabel}</small></span>
       </NavLink> : null}
@@ -72,7 +73,7 @@ export function AppShell() {
 
   return (
     <div className="app-shell">
-      <aside className={`sidebar${notificationAnchor ? ' has-notifications-open' : ''}`}>
+      <aside onPointerLeave={() => setNavigationPicked(false)} className={`sidebar${navigationPicked ? ' navigation-picked' : ''}${notificationAnchor ? ' has-notifications-open' : ''}`}>
         <Logo />
         {navigation()}
       </aside>
