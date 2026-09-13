@@ -288,6 +288,9 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     const current = await api.getMatchRequest(requestId);
     if (current.status === 'QUEUED' || current.status === 'PROPOSED') setRequest(current);
     else if (current.status === 'MATCHED' && current.proposalId) await openProposal(current.proposalId, 'REALTIME');
+    else {
+      setRequest(previous => previous?.id === requestId ? null : previous);
+    }
   }, [openProposal]);
 
   const adoptProposal = useCallback(async (proposalId: string) => {

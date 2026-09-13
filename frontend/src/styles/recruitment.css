@@ -7,9 +7,8 @@
 .board-games button { display:flex; align-items:center; gap:9px; border:1px solid transparent; padding:9px 18px; border-radius:8px; background:transparent; color:var(--muted); cursor:pointer; font:inherit; font-size:13px; font-weight:650; }
 .board-games button.active { color:#f1ecff; background:#7761d522; border-color:#8870e94d; }
 .board-games button:hover { background:#ffffff09; }
-.board-workspace { display:grid; grid-template-columns:minmax(0,1fr) 330px; align-items:start; gap:24px; }
-.board-main,.board-rail { min-width:0; }
-.board-rail { display:grid; gap:14px; }
+.board-workspace { display:block; }
+.board-main { min-width:0; }
 .board-toolbar,.board-results-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .board-toolbar { border-bottom:1px solid var(--border); }
 .board-tabs { display:flex; gap:22px; }
@@ -45,12 +44,6 @@
 .board-empty h2 { font-size:18px; margin:20px 0 10px; }
 .board-empty p { font-size:12px; line-height:1.9; color:var(--muted); margin-bottom:20px; }
 .empty-orbit { width:60px; height:60px; border:1px solid #8d73de55; border-radius:50%; background:#7d66ce18; color:#b6a1ff; display:grid; place-items:center; font-size:24px; }
-.board-start-card { background:linear-gradient(155deg,#242035,#161722); padding:23px; }
-.board-start-card h2 { font-size:21px; line-height:1.55; margin:14px 0; letter-spacing:-.6px; }
-.board-start-card p { font-size:12px; color:var(--muted); line-height:1.8; margin-bottom:18px; }
-.board-start-card ol { list-style:none; counter-reset:steps; padding:18px 0 0; display:grid; gap:12px; font-size:11px; color:var(--text-dim); }
-.board-start-card li { counter-increment:steps; display:flex; gap:10px; align-items:center; }
-.board-start-card li:before { content:counter(steps); color:#c5b3ff; width:21px; height:21px; background:#9580d921; display:grid; place-items:center; border-radius:50%; font-size:10px; }
 .board-history { border-top:1px solid var(--border); margin-top:24px; padding-top:14px; }
 .board-history summary { cursor:pointer; font-size:12px; color:var(--muted); margin-bottom:14px; }
 .board-filter { padding:17px; border:1px solid var(--border); border-radius:8px; background:#151720; margin:12px 0; }
@@ -74,15 +67,10 @@
 .board-reservation-note { font-size:12px; padding:15px; border-radius:8px; background:#8c6ddd12; margin:12px 0; }
 .board-reservation-note button { background:none; border:0; color:#c6afff; font:inherit; font-size:11px; cursor:pointer; margin-left:12px; }
 .board-reservation-note p { font-size:11px; color:var(--muted); margin-top:8px; }
-.board-rail h2 { font-size:16px; letter-spacing:-.3px; }
-.board-rail .card { padding:18px; }
-.board-rail .row { gap:8px; flex-wrap:wrap; }
 .my-recruitment .hint { line-height:1.7; font-size:10px; margin:10px 0; }
 .recruitment-description { font-size:13px; line-height:1.6; margin:14px 0 10px; }
 .recruitment-own-summary { display:flex; flex-wrap:wrap; gap:5px; }
 .recruitment-own-summary span { font-size:10px; color:#bcb0d4; background:#a493d514; border-radius:4px; padding:4px 6px; }
-.my-recruitment-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; margin:14px 0; }
-.my-recruitment-actions button { font-size:11px; padding:8px; }
 .recruitment-advice { border:1px solid #a68ae838; background:#a089e412; border-radius:8px; padding:13px; margin:13px 0; display:grid; gap:10px; }
 .recruitment-advice b { font-size:12px; color:#d5c5fc; }
 .recruitment-advice p { font-size:11px; color:var(--muted); line-height:1.8; }
@@ -95,7 +83,6 @@
 .preview-candidate { border:1px solid var(--border); padding:15px; border-radius:6px; margin-top:12px; font-size:13px; }
 .preview-candidate span { color:#c4afff; margin-left:12px; }
 .preview-candidate p { font-size:12px; color:var(--muted); margin-top:7px; }
-.recruitment-detail >.row { margin:16px 0; }
 .recruitment-detail p { font-size:12px; color:var(--muted); line-height:1.8; }
 .recruitment-detail dl { margin:16px 0; display:grid; gap:7px; }
 .recruitment-detail dt { color:var(--muted); font-size:10px; }
@@ -106,25 +93,10 @@
 .proposal-person { display:flex; align-items:center; gap:8px; padding:12px 0; font-size:12px; border-bottom:1px solid var(--border); }
 .proposal-person span:last-child { margin-left:auto; font-size:10px; color:#bba6f1; }
 .board-proposal >.row:last-child { margin-top:16px; display:grid; grid-template-columns:1fr 1.6fr; }
-.embedded-party { min-width:0; }
-.embedded-party .page-head { gap:10px; align-items:flex-start; margin-bottom:14px; }
-.embedded-party .page-head h1 { font-size:16px; }
-.embedded-party .page-grid { display:flex; flex-direction:column; gap:14px; }
-.embedded-party .page-grid >* { width:100%; }
-.embedded-party .stack,.embedded-party .rail { gap:12px; }
-.embedded-party .chat-log { height:180px; min-height:140px; }
-.embedded-party .voice-row { display:grid; gap:12px; }
-.embedded-party .page-head>.row>div:first-child { display:none; }
-.embedded-party .rail>.card:last-child { display:none; }
-.embedded-party .card-head { gap:8px; flex-wrap:wrap; }
-.embedded-party .card-head h2 { font-size:14px; }
-.embedded-party .game-id { flex-wrap:wrap; }
-.embedded-party .game-id code { overflow-wrap:anywhere; }
 .board-home button:focus-visible,.recruitment-modal button:focus-visible { outline:2px solid #c9b1ff; outline-offset:3px; }
 @media(min-width:1550px) and (min-height:850px) { .recruitment-row { min-height:65px; padding-top:9px; padding-bottom:9px; } }
-@media(max-width:1250px) { .board-home { padding:22px; } .board-workspace { grid-template-columns:minmax(0,1fr) 300px; gap:16px; } .recruitment-row,.recruitment-list-head { grid-template-columns:minmax(160px,1.25fr) minmax(120px,1fr) 95px; gap:8px; padding-left:12px; padding-right:12px; } .row-tier { display:block; margin-top:3px; } .row-tier small { display:none; } .row-fresh { font-size:10px; } .row-fresh small { font-size:9px; } }
-@media(max-width:1080px) { .board-workspace { grid-template-columns:1fr; } .board-rail { grid-template-columns:repeat(2,minmax(0,1fr)); } .board-rail:has(.embedded-party),.board-rail:has(.board-proposal) { grid-template-columns:1fr; } .embedded-party .page-grid { display:grid; grid-template-columns:1fr 1fr; } }
-@media(max-width:650px) { .board-home { padding:16px; } .board-heading { align-items:flex-start; flex-direction:column; gap:14px; } .board-heading h1 { font-size:23px; } .board-heading>.btn { width:100%; } .board-games { gap:3px; } .board-games button { padding:8px 10px; font-size:11px; } .board-games button svg { width:20px; } .board-rail { grid-template-columns:1fr; } .recruitment-list-head { display:none; } .recruitment-row { grid-template-columns:minmax(0,1fr) 112px; padding:13px; gap:8px; } .row-roles { grid-column:1; grid-row:2; padding-left:44px; font-size:10px; } .row-roles small { display:none; } .row-fresh { grid-column:2; grid-row:1/3; padding-right:12px; } .row-tier { display:inline; } .row-player p { font-size:10px; } .recruitment-fields.compact { grid-template-columns:repeat(2,minmax(0,1fr)); } .board-filter { padding:13px; } .board-pagination { flex-direction:column; align-items:flex-start; } .board-tabs { gap:16px; } .board-tabs button { font-size:13px; } .embedded-party .page-grid { display:flex; } .reservation-fields { grid-template-columns:1fr; } .board-results-head .muted { display:none; } .board-empty h2 { font-size:16px; } }
+@media(max-width:1250px) { .board-home { padding:22px; } .recruitment-row,.recruitment-list-head { grid-template-columns:minmax(160px,1.25fr) minmax(120px,1fr) 95px; gap:8px; padding-left:12px; padding-right:12px; } .row-tier { display:block; margin-top:3px; } .row-tier small { display:none; } .row-fresh { font-size:10px; } .row-fresh small { font-size:9px; } }
+@media(max-width:650px) { .board-home { padding:16px; } .board-heading { align-items:flex-start; flex-direction:column; gap:14px; } .board-heading h1 { font-size:23px; } .board-heading>.btn { width:100%; } .board-games { gap:3px; } .board-games button { padding:8px 10px; font-size:11px; } .board-games button svg { width:20px; } .recruitment-list-head { display:none; } .recruitment-row { grid-template-columns:minmax(0,1fr) 112px; padding:13px; gap:8px; } .row-roles { grid-column:1; grid-row:2; padding-left:44px; font-size:10px; } .row-roles small { display:none; } .row-fresh { grid-column:2; grid-row:1/3; padding-right:12px; } .row-tier { display:inline; } .row-player p { font-size:10px; } .recruitment-fields.compact { grid-template-columns:repeat(2,minmax(0,1fr)); } .board-filter { padding:13px; } .board-pagination { flex-direction:column; align-items:flex-start; } .board-tabs { gap:16px; } .board-tabs button { font-size:13px; } .reservation-fields { grid-template-columns:1fr; } .board-results-head .muted { display:none; } .board-empty h2 { font-size:16px; } }
 @media(prefers-reduced-motion:reduce) { .board-home * { scroll-behavior:auto!important; } }
 .compact-party { display:grid; gap:12px; min-width:0; }
 .compact-party h2 { font-size:15px; margin:5px 0; }
@@ -147,3 +119,104 @@
 .closed-recruitments { display:grid; gap:8px; margin:10px 0 20px; }
 .closed-recruitments >div { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; border:1px solid var(--border); border-radius:7px; font-size:12px; }
 .board-demo { color:var(--muted); font-size:10px; margin-left:12px; border:1px solid var(--border); border-radius:4px; padding:3px 6px; }
+
+/* 중앙 진행 영역: 대기 → 전원 수락 → 파티 준비가 같은 자리를 사용한다. */
+.match-stage { margin: 0 0 28px; scroll-margin-top: 20px; outline: none; }
+.match-stage:focus-visible { outline: 2px solid #b49aff; outline-offset: 6px; border-radius: 16px; }
+.match-progress { display: flex; gap: 22px; padding: 0; margin: 4px 0 16px; list-style: none; color: var(--muted); font-size: 12px; }
+.match-progress li { display: flex; align-items: center; gap: 8px; }
+.match-progress li:not(:last-child)::after { content: ''; width: 30px; height: 1px; background: #ffffff12; margin-left: 14px; }
+.match-progress li > span { display: grid; place-items: center; width: 23px; height: 23px; border-radius: 50%; border: 1px solid #ffffff15; font-size: 10px; }
+.match-progress .current { color: #e0d4ff; font-weight: 700; }
+.match-progress .current > span { background: #8062d833; border-color: #a586ea; }
+.match-progress .complete { color: #bfa8f2; }
+.match-stage .my-recruitment { padding: 24px 28px; border: 1px solid #9471e645; background: linear-gradient(120deg,#211933 0%,#141522 55%,#11131d 100%); }
+.recruitment-title { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.recruitment-title .row { gap: 12px; }
+.recruitment-title h2 { font-size: 16px; }
+.recruitment-title > span { font-size: 12px; color: var(--muted); }
+.recruitment-overview { display: grid; grid-template-columns: 240px minmax(0,1fr); gap: 32px; margin: 22px 0; align-items: center; }
+.recruitment-clock { display: grid; gap: 7px; border-right: 1px solid #a78cdc25; padding-right: 25px; }
+.recruitment-clock > span { color: #c5b2e9; font-size: 12px; }
+.recruitment-clock strong { font-size: 52px; line-height: 1.1; letter-spacing: -2px; font-variant-numeric: tabular-nums; font-weight: 650; color: #f4eeff; }
+.recruitment-clock small { font-size: 10px; line-height: 1.7; color: var(--muted); }
+.recruitment-waiting h3 { font-size: 20px; letter-spacing: -.5px; margin: 0 0 8px; }
+.recruitment-waiting > p { font-size: 12px; color: var(--muted); line-height: 1.8; margin: 0 0 12px; }
+.recruitment-waiting > .btn { margin-top: 14px; }
+.recruitment-own-summary span { font-size: 11px; padding: 5px 8px; }
+.my-recruitment-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 18px; margin: 0; border-top: 1px solid #ffffff0d; }
+.my-recruitment-actions .btn { font-size: 12px; padding: 10px 17px; min-height: 40px; }
+.my-recruitment-actions .btn:last-child { margin-left: auto; }
+.recruitment-options { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 24px; margin-top: 10px; }
+.recruitment-options .hint { margin-left: auto; }
+.my-recruitment-picker { margin-bottom: 14px; max-width: 440px; }
+.match-stage .recruitment-advice { padding: 16px 18px; }
+.match-stage .recruitment-advice > .btn { justify-self: start; }
+.match-stage .recruitment-applicants { display: flex; flex-wrap: wrap; gap: 16px; margin: 16px 0; }
+.match-stage .recruitment-applicants h3 { flex-basis: 100%; margin: 0; }
+.match-stage .recruitment-applicants > div { min-width: 200px; }
+.match-stage .board-proposal { padding: 28px; border: 1px solid #a184ed65; background: linear-gradient(125deg,#281e41,#121421 70%); }
+.proposal-overview { display: grid; grid-template-columns: minmax(0,1fr) 180px; gap: 24px; align-items: center; }
+.proposal-countdown { text-align: center; display: grid; gap: 6px; color: #d2baff; }
+.proposal-countdown strong { font-size: 52px; font-variant-numeric: tabular-nums; font-weight: 650; line-height: 1; }
+.proposal-countdown small { font-size: 12px; }
+.proposal-countdown.urgent { color: #ffb4ae; }
+.proposal-members { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px 28px; margin: 16px 0; }
+.match-stage .board-proposal > .row:last-child { display: flex; justify-content: flex-end; }
+.match-stage .board-proposal > .row:last-child > .btn { min-width: 140px; }
+.proposal-person { font-size: 14px; }
+.proposal-person span:last-child { font-size: 12px; }
+.match-stage .compact-party { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,.8fr) minmax(0,1.2fr); gap: 16px; align-items: start; }
+.match-stage .compact-party > .card { padding: 22px; }
+.match-stage .compact-chat .chat-log { height: 220px; }
+.match-stage .compact-party h2 { font-size: 17px; }
+.match-stage .compact-party .hint { font-size: 12px; }
+.match-stage .compact-party-members > div { font-size: 13px; }
+.match-stage .compact-party-members .tag { font-size: 10px; }
+.recruitment-detail { max-width: 580px; }
+.recruitment-detail .modal-body > .row { margin-bottom: 18px; }
+.recruitment-detail .modal-body > .btn { margin-top: 16px; }
+@media (max-width: 1100px) {
+  .match-stage .compact-party { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .match-stage .compact-party > .compact-chat { grid-column: 1 / -1; }
+}
+@media (max-width: 650px) {
+  .match-stage { margin-bottom: 24px; }
+  .match-progress { gap: 10px; font-size: 11px; }
+  .match-progress li { gap: 5px; }
+  .match-progress li:not(:last-child)::after { width: 10px; margin-left: 3px; }
+  .match-stage .my-recruitment, .match-stage .board-proposal { padding: 20px; }
+  .recruitment-title > span { font-size: 10px; }
+  .recruitment-overview { grid-template-columns: 1fr; gap: 18px; margin: 20px 0; }
+  .recruitment-clock { border: 0; padding: 0; }
+  .recruitment-clock strong { font-size: 48px; }
+  .recruitment-waiting h3 { font-size: 17px; }
+  .my-recruitment-actions .btn { flex: 1 1 40%; padding: 9px; }
+  .my-recruitment-actions .btn:last-child { margin-left: 0; }
+  .recruitment-options { gap: 0; }
+  .recruitment-options .check-label { width: 100%; }
+  .recruitment-options .hint { margin-left: 0; }
+  .proposal-overview { grid-template-columns: 1fr 80px; gap: 10px; }
+  .proposal-countdown strong { font-size: 42px; }
+  .proposal-overview h2 { font-size: 19px; }
+  .proposal-members { grid-template-columns: 1fr; }
+  .match-stage .board-proposal > .row:last-child { display: grid; grid-template-columns: 1fr 1fr; }
+  .match-stage .board-proposal > .row:last-child > .btn { min-width: 0; }
+  .match-stage .compact-party { grid-template-columns: 1fr; }
+}
+.match-stage.is-summary { position: sticky; top: 12px; z-index: 15; margin-bottom: 22px; }
+.recruitment-summary { display: flex; align-items: center; gap: 24px; padding: 14px 20px; background: #1b1629f5; border: 1px solid #ab87ef50; border-radius: 12px; box-shadow: 0 10px 25px #0005; backdrop-filter: blur(12px); }
+.recruitment-summary > .row { flex-wrap: wrap; gap: 10px; font-size: 13px; }
+.recruitment-summary .recruitment-clock { margin-left: auto; border: 0; display: flex; align-items: center; padding: 0; gap: 14px; }
+.recruitment-summary .recruitment-clock strong { font-size: 28px; letter-spacing: -1px; }
+.recruitment-summary .recruitment-clock small { display: none; }
+.board-main { scroll-margin-top: 110px; }
+@media (max-width:650px) {
+  .recruitment-summary { flex-wrap: wrap; gap: 10px; padding: 12px; }
+  .recruitment-summary > .row { font-size: 11px; }
+  .recruitment-summary .recruitment-clock { gap: 7px; }
+  .recruitment-summary .recruitment-clock > span { display: none; }
+  .recruitment-summary .recruitment-clock strong { font-size: 25px; }
+  .recruitment-summary > .btn { width: 100%; }
+  .board-main { scroll-margin-top: 145px; }
+}

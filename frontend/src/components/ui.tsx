@@ -208,11 +208,12 @@ export function EmptyState({
   );
 }
 
-export function Modal({ title, children, onClose, foot, className = '', titleContent, closeLabel }: { title: string; children: ReactNode; onClose: () => void; foot?: ReactNode; className?: string; titleContent?: ReactNode; closeLabel?: string }) {
+export function Modal({ title, children, onClose, foot, className = '', titleContent, closeLabel, suspended = false }: { title: string; children: ReactNode; onClose: () => void; foot?: ReactNode; className?: string; titleContent?: ReactNode; closeLabel?: string; suspended?: boolean }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {
+    if (suspended) return;
     const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previous = active?.closest('details.action-menu')?.querySelector('summary') ?? active;
     const previousOverflow = document.body.style.overflow;
@@ -231,7 +232,9 @@ export function Modal({ title, children, onClose, foot, className = '', titleCon
     };
     window.addEventListener('keydown', onKey);
     return () => { document.body.style.overflow = previousOverflow; window.removeEventListener('keydown', onKey); if (previous?.isConnected) previous.focus(); };
-  }, []);
+  }, [suspended]);
+  // 제안에 응답하는 동안 폼의 입력 상태는 보관하고 포커스 잠금만 해제한다.
+  if (suspended) return null;
   // 부모의 sticky, overflow, transform에 영향받지 않는 화면 레이어에 표시한다.
   return createPortal(
     <div className="modal-scrim" onClick={onClose} role="presentation">
