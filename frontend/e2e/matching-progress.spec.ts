@@ -98,7 +98,7 @@ test('목록 탐색 중에도 요약 타이머가 남고 펼치면 같은 모집
   await page.getByRole('button', { name: /^모집 둘러보기/ }).click();
   await expect(page.locator('.recruitment-summary')).toBeInViewport();
   await expect(page.locator('.my-recruitment')).toHaveCount(0);
-  await page.locator('.board-history summary').scrollIntoViewIfNeeded();
+  await page.locator('.recruitment-row').last().scrollIntoViewIfNeeded();
   await expect(page.getByRole('timer', { name: '모집 시작 후', exact: true })).toBeInViewport();
   await page.getByRole('button', { name: '내 모집 보기' }).click();
   await expect(page.locator('.my-recruitment')).toBeVisible();

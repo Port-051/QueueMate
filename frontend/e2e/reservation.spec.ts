@@ -37,11 +37,10 @@ test('과거·역전·30분 경계가 아닌 시간은 제출 전에 알려준�
   await end.fill('2026-09-14T23:15'); await expect(submit).toBeDisabled();
   await end.fill('2026-09-14T23:30'); await expect(submit).toBeEnabled();
 });
-test('예약 모집은 취소해도 기록이 남고 신규 예약을 다시 등록할 수 있다', async ({ page }) => {
+test('예약 모집을 종료하면 신규 예약을 다시 등록할 수 있다', async ({ page }) => {
   await login(page); await open(page); await page.getByRole('button', { name: '모집 시작', exact: true }).click();
   await manageRecruitment(page, '모집 종료');
   await expect(page.locator('.my-recruitment')).toHaveCount(0);
-  await page.locator('.board-history summary').click();
-  await expect(page.locator('.closed-recruitments')).toContainText('예약');
-  await open(page); await expect(page.getByRole('button', { name: '모집 시작', exact: true })).toBeEnabled();
+  await open(page); await page.getByRole('button', { name: '모집 시작', exact: true }).click();
+  await expect(page.locator('.my-recruitment')).toContainText('예약');
 });

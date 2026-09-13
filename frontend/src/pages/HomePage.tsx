@@ -5,7 +5,6 @@ import { errorMessage } from '../api/error';
 import { USE_MOCK } from '../config';
 import { ActiveMatchCard } from '../components/ActiveMatchCard';
 import type { AppShellOutletContext } from '../components/AppShell';
-import { HomeMatchHistory } from '../components/HomeMatchHistory';
 import { HomeProfileRail } from '../components/HomeProfileRail';
 import { RecruitmentComposer } from '../components/RecruitmentComposer';
 import { BoardFilters } from '../components/BoardFilters';
@@ -45,7 +44,6 @@ export function HomePage() {
   const reservationTimes = useRef<Pick<api.BoardWrite, 'availableFrom' | 'availableTo' | 'playAmount'>>(reservationWindow());
   const previewReservationTimes = useRef(reservationTimes.current);
   if (query.type === 'RESERVATION') reservationTimes.current = { availableFrom: query.availableFrom!, availableTo: query.availableTo!, playAmount: query.playAmount };
-  const [historyOpen, setHistoryOpen] = useState(false);
   const { page, pending, mine, loading, error, refresh, applyPending } = useRecruitmentBoard(query);
   const [composer, setComposer] = useState<{ initial: api.BoardWrite; editing?: api.BoardRow; joinId?: string } | null>(null);
   const [selected, setSelected] = useState<api.BoardRow | null>(null);
@@ -155,9 +153,7 @@ export function HomePage() {
     catch (err) { toast(errorMessage(err), 'error'); }
     finally { await changed(); setBusy(false); }
   };
-  const displayedHistory = mine.filter(row => ['CLOSED', 'MATCHED'].includes(row.status)).slice(0, 5);
   const canCreate = query.type === 'RESERVATION' || (!active.some(r => r.type === 'REALTIME') && !match.request && !match.activePartyId);
-  const reuse = (condition: api.BoardWrite['condition'], type: api.BoardType) => setComposer({ initial: { condition, type, preferences: anyPreferences(), description: '', autoMatch: false, ...(type === 'RESERVATION' ? reservationWindow() : { availableFrom: null, availableTo: null, playAmount: null }) } });
   const intro = user ? readIntroduction(user.id, query.condition.game) : null;
   return <section className="page board-home" aria-label="듀오 찾기">
     <div className="board-layout"><div className="board-feed">
@@ -188,7 +184,6 @@ export function HomePage() {
       {!loading && !error && page?.items.length === 0 ? <div className="board-empty"><h2>조건에 맞는 모집이 없어요</h2></div> : null}
       {page?.items.length ? <RecruitmentList rows={page.items} selected={selected?.id} onSelect={setSelected} /> : null}
       {page && (page.hasMore || query.page > 0) ? <footer className="board-pagination"><div className="row"><Button size="sm" disabled={query.page === 0 || loading} onClick={() => changeQuery({ ...query, page: query.page - 1 })}>이전</Button><span>{query.page + 1} 페이지</span><Button size="sm" disabled={!page.hasMore || loading} onClick={() => changeQuery({ ...query, page: query.page + 1 })}>다음</Button></div></footer> : null}
-      <details className="board-history" onToggle={event => setHistoryOpen(event.currentTarget.open)}><summary>지난 모집</summary>{historyOpen ? <><div className="closed-recruitments">{displayedHistory.map(row => <div key={row.id}><span>{gameConfig(row.condition.game).shortName} · {row.type === 'REALTIME' ? '실시간' : '예약'} · {row.description || BOARD_STATUS[row.status]}</span><Button size="sm" onClick={() => setComposer({ initial: { ...writeFrom(row), ...(row.type === 'RESERVATION' && row.availableFrom && Date.parse(row.availableFrom) <= Date.now() ? reservationWindow() : {}) } })}>이 조건으로 다시 모집</Button></div>)}</div><HomeMatchHistory onReview={reuse} excludeIds={displayedHistory.map(row => `${row.type === 'REALTIME' ? 'realtime' : 'reservation'}-${row.id}`)} /></> : null}</details>
     </div></div>
     </div>
     <HomeProfileRail user={user} game={query.condition.game} introduction={intro} gameAccount={gameAccounts.find(account => account.game === query.condition.game)} actionLabel={canCreate && !stageKey ? query.type === 'RESERVATION' ? '예약하기' : intro ? '매칭 시작' : '자기소개 작성' : undefined} onCompose={() => compose()} />

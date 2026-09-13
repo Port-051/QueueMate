@@ -53,7 +53,7 @@
 .board-home .row-roles, .board-home .row-fresh { gap: 7px; font-size: 14px; line-height: 1.5; }
 .board-home .row-roles small, .board-home .row-fresh small { font-size: 12px; line-height: 1.5; }
 .board-home .row-arrow { top: 50%; transform: translateY(-50%); }
-.board-home .board-pagination, .board-home .board-history summary { font-size: 14px; }
+.board-home .board-pagination { font-size: 14px; }
 .board-home .board-pagination .btn { font-size: 14px; }
 .board-home .board-new-results, .board-home .board-empty p { font-size: 14px; }
 .board-feed .match-stage .compact-party { grid-template-columns: repeat(2, minmax(0, 1fr)); }

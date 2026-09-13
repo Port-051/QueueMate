@@ -102,7 +102,5 @@ test('직접 등록한 예약은 원래 시간에 종료되고 다음 날 예시
   await expect(page.locator('.my-recruitment')).toHaveCount(0);
   const current = await readOwn(page);
   expect(current).toMatchObject({ id: own.id, status: 'CLOSED', availableFrom: own.availableFrom, availableTo: own.availableTo, createdAt: own.createdAt });
-  await page.locator('.board-history > summary').click();
-  await expect(page.locator('.closed-recruitments')).toContainText('예약');
   await expect(page.locator('.recruitment-row').first()).toBeVisible();
 });

@@ -19,7 +19,7 @@ test('활성 실시간 모집은 하나만 가능하지만 예약 모집은 별�
   await expect(page.getByRole('button', { name: '예약하기' })).toBeEnabled();
   await expect(page.locator('.my-recruitment')).toBeVisible();
 });
-test('모집 종료와 재사용은 새로운 모집을 만들고 티어·상대 조건을 유지한다', async ({ page }) => {
+test('모집을 종료한 뒤 새로 시작해도 티어·상대 조건을 유지한다', async ({ page }) => {
   await login(page);
   await page.locator('.intro-launch > button').click();
   await page.getByRole('dialog').getByLabel('내 티어', { exact: true }).selectOption('GOLD');
@@ -28,10 +28,11 @@ test('모집 종료와 재사용은 새로운 모집을 만들고 티어·상대
   await expect(page.locator('.my-recruitment')).toBeVisible();
   await manageRecruitment(page, '모집 종료');
   await expect(page.locator('.my-recruitment')).toHaveCount(0);
-  await page.locator('.board-history summary').click();
-  await page.getByRole('button', { name: '이 조건으로 다시 모집' }).click();
+  await page.locator('.intro-launch > button').click();
   await expect(page.getByRole('dialog').getByLabel('내 티어', { exact: true })).toHaveValue('GOLD');
   await expect(page.getByRole('dialog').getByRole('button', { name: '정글', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: '모집 시작', exact: true }).click();
+  await expect(page.locator('.my-recruitment')).toBeVisible();
 });
 test('직접 신청·수락 후 메뉴를 이동해도 채팅과 마이크가 유지된다', async ({ page }) => {
   await login(page); await startRealtimeMatch(page);

@@ -37,13 +37,11 @@ test('파티 준비 변경이 연결을 초기화하지 않고, 종료되면 통
   await expect(page.getByRole('button', { name: '연결 다시 시도' })).toHaveCount(0);
 });
 
-test('지난 모집 재사용과 작성 모달은 키보드로 조작할 수 있다', async ({ page }) => {
+test('모집 작성 모달은 키보드로 조작하고 닫으면 시작 버튼으로 포커스가 돌아간다', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
-  await login(page); await startRealtimeMatch(page);
-  await manageRecruitment(page, '모집 종료');
-  await page.locator('.board-history summary').click();
-  const reuse = page.getByRole('button', { name: '이 조건으로 다시 모집' });
-  await reuse.click();
+  await login(page);
+  const launch = page.locator('.intro-launch > button');
+  await launch.click();
   const start = page.getByRole('button', { name: '모집 시작', exact: true });
   await expect(start).toBeEnabled();
   for (let i = 0; i < 24; i++) {
@@ -51,41 +49,8 @@ test('지난 모집 재사용과 작성 모달은 키보드로 조작할 수 있
     expect(await page.evaluate(() => Boolean(document.activeElement?.closest('[role="dialog"]')))).toBe(true);
   }
   await page.keyboard.press('Escape');
-  await expect(reuse).toBeFocused();
-});
-
-test('지난 모집 5개는 중복 없이 표시하고 여섯 번째 기록도 다시 열 수 있다', async ({ page }) => {
-  await login(page);
-  await page.evaluate(async () => {
-    const apiPath = '/src/api/recruitment.ts';
-    const preferencesPath = '/src/domain/recruitment.ts';
-    const api = await import(/* @vite-ignore */ apiPath);
-    const { anyPreferences } = await import(/* @vite-ignore */ preferencesPath);
-    for (let i = 1; i <= 6; i++) {
-      const row = await api.createRecruitment({
-        type: 'REALTIME',
-        condition: { game: 'LOL', modeKey: 'SOLO_DUO_RANKED', keyCondition: { type: 'POSITION', value: i === 1 ? 'MID' : 'TOP' }, voicePreference: 'OPTIONAL', playPurpose: 'NORMAL' },
-        preferences: anyPreferences(), description: `지난 모집 ${i}`, autoMatch: false,
-        availableFrom: null, availableTo: null, playAmount: null,
-      });
-      await api.recruitmentAction(row, 'CLOSE');
-    }
-  });
-  await page.locator('.board-history > summary').click();
-  const recent = page.locator('.closed-recruitments > div');
-  const earlier = page.locator('.match-history-row');
-  await expect(recent).toHaveCount(5);
-  await expect(recent).toHaveText([
-    /지난 모집 6/, /지난 모집 5/, /지난 모집 4/, /지난 모집 3/, /지난 모집 2/,
-  ]);
-  // 상위 다섯 건을 다시 표시하지 않으면서 가장 오래된 조건은 남겨둔다.
-  await expect(earlier).toHaveCount(1);
-  await expect(earlier).toContainText('미드');
-  const review = earlier.getByRole('button', { name: '조건 보기' });
-  await review.click();
-  await expect(page.getByRole('dialog').getByLabel('주 포지션')).toHaveValue('MID');
-  await page.keyboard.press('Escape');
-  await expect(review).toBeFocused();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(launch).toBeFocused();
 });
 
 test('친구 요청 탭, 검색 빈 상태, 신고 모달 키보드 포커스', async ({ page }) => {
