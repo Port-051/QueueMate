@@ -61,7 +61,7 @@ export function AppShell() {
       <button className={`nav-link nav-notifications${notificationAnchor ? ' active' : ''}`} type="button" aria-label="알림" title="알림" aria-haspopup="dialog" aria-expanded={Boolean(notificationAnchor)} aria-controls={notificationAnchor ? 'notification-popover' : undefined} onClick={event => {
         if (notificationAnchor) closeNotifications();
         else { setNotificationAnchor(mobile ? mobileMenuButton.current : event.currentTarget); setMenuOpen(false); }
-      }}><span className="nav-icon"><IconNotification size={mobile ? 24 : 28} /></span><span className="nav-label">알림</span>{notifications.unreadCount > 0 ? <span className="nav-badge" aria-label={`안 읽은 알림 ${notifications.unreadCount}개`}>{notifications.unreadCount > 99 ? '99+' : notifications.unreadCount}</span> : null}</button>
+      }}><span className="nav-icon"><IconNotification size={mobile ? 24 : 28} filled={Boolean(notificationAnchor)} /></span><span className="nav-label">알림</span>{notifications.unreadCount > 0 ? <span className="nav-badge" aria-label={`안 읽은 알림 ${notifications.unreadCount}개`}>{notifications.unreadCount > 99 ? '99+' : notifications.unreadCount}</span> : null}</button>
       {user ? <NavLink to="/app/me" className="nav-link nav-profile" aria-label={`${user.nickname} 프로필`} onClick={() => { setMenuOpen(false); closeNotifications(); }}>
         <span className="nav-icon"><Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={mobile ? 28 : 32} status={connection === 'connected' ? 'online' : 'away'} /></span>
         <span className="nav-label"><span className="nav-nickname" title={user.nickname}>{user.nickname}</span><small className={connection === 'connected' ? '' : 'connecting'}>{connectionLabel}</small></span>
