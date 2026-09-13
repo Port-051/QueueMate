@@ -216,7 +216,7 @@ test('같은 브라우저에서 계정을 바꿔도 대화와 고정 상태가 �
   await page.getByRole('button', { name: 'SilentJungle 대화', exact: true }).click();
   await page.getByRole('textbox', { name: 'SilentJungle에게 메시지', exact: true }).fill('첫 번째 계정에만 남길 이야기');
   await page.getByRole('button', { name: '메시지 보내기', exact: true }).click();
-  await page.locator('.side-nav').getByRole('link', { name: 'QueueMaster 프로필', exact: true }).click();
+  await page.locator('.side-nav').getByRole('link', { name: '프로필', exact: true }).click();
   await page.getByRole('button', { name: '로그아웃', exact: true }).click();
   await page.getByRole('link', { name: '시작하기', exact: true }).click();
   await page.getByPlaceholder('이메일 주소를 입력하세요').fill('separate-player@example.com');
@@ -228,7 +228,7 @@ test('같은 브라우저에서 계정을 바꿔도 대화와 고정 상태가 �
   await page.getByRole('button', { name: 'SilentJungle 대화', exact: true }).click();
   await expect(page.getByRole('log')).not.toContainText('첫 번째 계정에만 남길 이야기');
   await expect(contactRow(page, 'SilentJungle').getByLabel('상단 고정', { exact: true })).toHaveCount(0);
-  await page.locator('.side-nav').getByRole('link', { name: 'SeparatePlayer 프로필', exact: true }).click();
+  await page.locator('.side-nav').getByRole('link', { name: '프로필', exact: true }).click();
   await page.getByRole('button', { name: '로그아웃', exact: true }).click();
   await page.getByRole('link', { name: '로그인', exact: true }).click();
   await page.getByPlaceholder('이메일 주소를 입력하세요').fill('demo@queuemate.gg');

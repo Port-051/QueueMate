@@ -54,7 +54,10 @@ test('모바일 메뉴로 이동하고 닉네임 변경 상태와 연결 해제 
   await login(page);
   await page.getByRole('button', { name: '메뉴 열기' }).click();
   await expect(page.getByRole('dialog', { name: '메뉴', exact: true })).toBeVisible();
-  await page.getByRole('dialog').getByRole('link', { name: 'QueueMaster 프로필', exact: true }).click();
+  const mobileProfile = page.getByRole('dialog').getByRole('link', { name: '프로필', exact: true });
+  await expect(mobileProfile.locator('.avatar-status')).toHaveCount(0);
+  await expect(mobileProfile.locator('small')).toHaveCount(0);
+  await mobileProfile.click();
   await expect(page).toHaveURL(/\/app\/me$/);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: '닉네임', exact: true })).toHaveCount(0);
@@ -70,7 +73,7 @@ test('모바일 메뉴로 이동하고 닉네임 변경 상태와 연결 해제 
   await save.click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: '새로운닉네임', exact: true })).toBeVisible();
-  await expect(page.locator('.sidebar .nav-profile')).toHaveAttribute('aria-label', '새로운닉네임 프로필');
+  await expect(page.locator('.sidebar .nav-profile')).toHaveAttribute('aria-label', '프로필');
   await expect(page.locator('.toast.ok')).toContainText('닉네임을 변경했습니다');
   await page.getByRole('button', { name: '발로란트 ID 등록', exact: true }).click();
   await expect(page.getByRole('dialog', { name: '발로란트 ID 등록', exact: true })).toBeVisible();

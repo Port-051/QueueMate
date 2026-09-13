@@ -5,30 +5,37 @@ test('사이드바는 호버와 키보드 탐색 때 펼쳐지고 마우스가 �
   await login(page);
   const sidebar = page.locator('.sidebar');
   const wordmark = sidebar.locator('.brand-wordmark');
+  const brandLink = sidebar.getByRole('link', { name: 'QueueMate 홈', exact: true });
   const label = sidebar.locator('.nav-profile .nav-label');
+  const profileAvatar = sidebar.locator('.nav-profile .avatar-wrap');
   await page.mouse.move(900, 100);
   await expect(sidebar).toHaveCSS('width', '80px');
   await expect(wordmark).toBeHidden();
   await expect(label).toBeHidden();
-  await expect(sidebar.locator('.avatar-status.online')).toBeVisible();
+  await expect(profileAvatar).toHaveCSS('outline-style', 'none');
+  await expect(sidebar.locator('.nav-profile .avatar-status')).toHaveCount(0);
+  await expect(label.locator('small')).toHaveCount(0);
   await expect(sidebar).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   const main = page.locator('.main');
   await expect(page.locator('.recruitment-row').first()).toBeVisible();
   const homeBounds = await main.boundingBox();
   const gameBounds = await page.locator('.board-games').boundingBox();
 
-  await sidebar.hover();
+  await brandLink.hover();
   await expect(sidebar).toHaveCSS('width', '232px');
   await expect(wordmark).toBeVisible();
   await expect(label).toBeVisible();
-  await expect(label.locator('.nav-nickname')).toHaveText('QueueMaster');
+  await expect(label).toHaveText('프로필');
   expect(await main.boundingBox()).toEqual(homeBounds);
   expect(await page.locator('.board-games').boundingBox()).toEqual(gameBounds);
   await page.mouse.move(900, 100);
   await expect(sidebar).toHaveCSS('width', '80px');
   expect(await main.boundingBox()).toEqual(homeBounds);
   expect(await page.locator('.board-games').boundingBox()).toEqual(gameBounds);
-  await sidebar.getByRole('link', { name: 'QueueMaster 프로필', exact: true }).click();
+  await sidebar.getByRole('link', { name: '프로필', exact: true }).click();
+  await expect(profileAvatar).toHaveCSS('outline-style', 'solid');
+  await expect(profileAvatar).toHaveCSS('outline-width', '2px');
+  await expect(profileAvatar).toHaveCSS('outline-color', 'rgb(255, 255, 255)');
   await page.mouse.move(900, 100);
   await expect(sidebar).toHaveCSS('width', '80px');
   await expect(label).toBeHidden();
@@ -42,9 +49,14 @@ test('사이드바는 호버와 키보드 탐색 때 펼쳐지고 마우스가 �
   await page.keyboard.press('Tab');
   await expect(sidebar.getByRole('button', { name: '알림', exact: true })).toBeFocused();
   await page.keyboard.press('Tab');
-  await expect(sidebar.getByRole('link', { name: 'QueueMaster 프로필', exact: true })).toBeFocused();
+  await expect(sidebar.getByRole('link', { name: '프로필', exact: true })).toBeFocused();
   await expect(sidebar.locator('.nav-label').first()).toBeVisible();
   expect(await main.boundingBox()).toEqual(profileBounds);
+
+  await brandLink.click();
+  await expect(page).toHaveURL(/\/app\/home$/);
+  await expect(profileAvatar).toHaveCSS('outline-style', 'none');
+  await expect(page.locator('.recruitment-row').first()).toBeVisible();
 });
 
 test('기존 설정 주소는 프로필의 설정 영역으로 연결된다', async ({ page }) => {

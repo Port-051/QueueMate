@@ -2,8 +2,8 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { DEMO, login, startRealtimeMatch } from './helpers';
 
-async function logout(page: Page, nickname: string) {
-  await page.locator('.side-nav').getByRole('link', { name: `${nickname} 프로필`, exact: true }).click();
+async function logout(page: Page) {
+  await page.locator('.side-nav').getByRole('link', { name: '프로필', exact: true }).click();
   await page.getByRole('button', { name: '로그아웃', exact: true }).click();
   await expect(page.getByRole('link', { name: '시작하기', exact: true })).toBeVisible();
 }
@@ -30,13 +30,13 @@ test('모집 중 계정을 바꾸면 이전 모집과 제안을 표시하지 않
   await login(page);
   await startRealtimeMatch(page);
   await expect(page.locator('.my-recruitment')).toBeVisible();
-  await logout(page, 'QueueMaster');
+  await logout(page);
   await signupSecondAccount(page);
   await expect(page.locator('.my-recruitment')).toHaveCount(0);
   await expect(page.locator('.board-proposal')).toHaveCount(0);
   await expect(page.locator('.compact-party')).toHaveCount(0);
   await expect(page.locator('.intro-launch > button')).toBeEnabled();
-  await logout(page, 'SeparateMatcher');
+  await logout(page);
   await loginOriginalAccount(page);
   await expect(page.locator('.my-recruitment')).toBeVisible();
   await expect(page.locator('.intro-launch > button')).toHaveCount(0);
@@ -59,7 +59,7 @@ test('파티는 계정별로 복원하고 이전 공용 저장 키와 파티 채
   });
   expect(storedParty?.id).toBeTruthy();
   await page.evaluate(id => localStorage.setItem('qm.activeParty', id!), storedParty!.id);
-  await logout(page, 'QueueMaster');
+  await logout(page);
   await signupSecondAccount(page);
   await expect(page.locator('.compact-party')).toHaveCount(0);
   await expect(page.locator('.board-proposal')).toHaveCount(0);
@@ -67,7 +67,7 @@ test('파티는 계정별로 복원하고 이전 공용 저장 키와 파티 채
   await expect(page.locator('.intro-launch > button')).toBeEnabled();
   await expect(page.getByText('첫 번째 계정의 파티 대화', { exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('qm.activeParty.')))).toEqual([storedParty!.key]);
-  await logout(page, 'SeparateMatcher');
+  await logout(page);
   await loginOriginalAccount(page);
   await expect(page.locator('.compact-party')).toBeVisible();
   expect(await page.evaluate(key => localStorage.getItem(key), storedParty!.key)).toBe(storedParty!.id);

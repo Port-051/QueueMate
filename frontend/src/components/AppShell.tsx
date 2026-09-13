@@ -1,9 +1,8 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import type { ComponentType } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../state/AuthContext';
 import { useMatch } from '../state/MatchContext';
-import { useConnectionStatus } from '../state/useConnectionStatus';
 import { useNotifications } from '../state/notifications';
 import { useDirectMessages } from '../state/directMessages';
 import { Logo } from './Logo';
@@ -20,9 +19,7 @@ const NAV: NavItem[] = [
 
 export function AppShell() {
   const { user } = useAuth();
-  const { request, proposal, stream } = useMatch();
-  const connection = useConnectionStatus(stream);
-  const connectionLabel = connection === 'connected' ? '온라인' : connection === 'reconnecting' ? '재연결 중' : '서버 연결 중';
+  const { request, proposal } = useMatch();
   const notifications = useNotifications();
   const messages = useDirectMessages(user?.id);
   const location = useLocation();
@@ -53,7 +50,7 @@ export function AppShell() {
           onClick={() => { setMenuOpen(false); setNavigationPicked(true); closeNotifications(); }}
           className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
           {({ isActive }) => <>
-            <span className="nav-icon"><MenuIcon size={mobile ? 24 : 28} filled={isActive} />
+            <span className="nav-icon"><MenuIcon size={24} filled={isActive} />
               {item.to === '/app/messages' && messages.unreadCount > 0 ? <span className={`nav-badge${messages.unreadCount > 99 ? ' nav-badge-long' : ''}`} aria-label={`안 읽은 메시지 ${messages.unreadCount}개`}>{messages.unreadCount > 99 ? '99+' : messages.unreadCount}</span> : null}
             </span><span className="nav-label">{item.label}</span>
             {item.to === '/app/home' && request ? <span className="nav-dot" role="img" aria-label="매칭 중" /> : null}
@@ -63,10 +60,10 @@ export function AppShell() {
       <button className={`nav-link nav-notifications${notificationAnchor ? ' active' : ''}`} type="button" aria-label="알림" title="알림" aria-haspopup="dialog" aria-expanded={Boolean(notificationAnchor)} aria-controls={notificationAnchor ? 'notification-popover' : undefined} onClick={event => {
         if (notificationAnchor) closeNotifications();
         else { setNotificationAnchor(mobile ? mobileMenuButton.current : event.currentTarget); setMenuOpen(false); }
-      }}><span className="nav-icon"><IconNotification size={mobile ? 24 : 28} filled={Boolean(notificationAnchor)} />{notifications.unreadCount > 0 ? <span className={`nav-badge${notifications.unreadCount > 99 ? ' nav-badge-long' : ''}`} aria-label={`안 읽은 알림 ${notifications.unreadCount}개`}>{notifications.unreadCount > 99 ? '99+' : notifications.unreadCount}</span> : null}</span><span className="nav-label">알림</span></button>
-      {user ? <NavLink to="/app/me" className="nav-link nav-profile" aria-label={`${user.nickname} 프로필`} onClick={() => { setMenuOpen(false); setNavigationPicked(true); closeNotifications(); }}>
-        <span className="nav-icon"><Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={mobile ? 28 : 32} status={connection === 'connected' ? 'online' : 'away'} /></span>
-        <span className="nav-label"><span className="nav-nickname" title={user.nickname}>{user.nickname}</span><small className={connection === 'connected' ? '' : 'connecting'}>{connectionLabel}</small></span>
+      }}><span className="nav-icon"><IconNotification size={24} filled={Boolean(notificationAnchor)} />{notifications.unreadCount > 0 ? <span className={`nav-badge${notifications.unreadCount > 99 ? ' nav-badge-long' : ''}`} aria-label={`안 읽은 알림 ${notifications.unreadCount}개`}>{notifications.unreadCount > 99 ? '99+' : notifications.unreadCount}</span> : null}</span><span className="nav-label">알림</span></button>
+      {user ? <NavLink to="/app/me" className="nav-link nav-profile" aria-label="프로필" title="프로필" onClick={() => { setMenuOpen(false); setNavigationPicked(true); closeNotifications(); }}>
+        <span className="nav-icon"><Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={24} /></span>
+        <span className="nav-label">프로필</span>
       </NavLink> : null}
     </nav>
   );
@@ -74,7 +71,9 @@ export function AppShell() {
   return (
     <div className="app-shell">
       <aside onPointerLeave={() => setNavigationPicked(false)} className={`sidebar${navigationPicked ? ' navigation-picked' : ''}${notificationAnchor ? ' has-notifications-open' : ''}`}>
-        <Logo />
+        <Link to="/app/home" className="sidebar-brand-link" aria-label="QueueMate 홈" title="홈으로 이동" onPointerEnter={() => setNavigationPicked(false)} onClick={() => { setMenuOpen(false); setNavigationPicked(true); closeNotifications(); }}>
+          <Logo />
+        </Link>
         {navigation()}
       </aside>
       <main className="main">

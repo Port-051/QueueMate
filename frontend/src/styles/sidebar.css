@@ -1,14 +1,14 @@
-.nav-label { min-width: 0; white-space: nowrap; }
+.nav-label { min-width: 0; white-space: nowrap; font-size: 16px; line-height: 24px; }
+.nav-link.active .nav-label { font-weight: 700; }
 .nav-dot { flex: none; width: 8px; height: 8px; margin-left: auto; border-radius: 50%; background: var(--accent); }
-.nav-profile .nav-label { line-height: 1.3; }
-.nav-nickname { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nav-profile small { display: block; margin-top: 3px; color: var(--ok); font-size: 11px; }
-.nav-profile small.connecting { color: var(--warn); }
+.nav-profile .avatar-wrap { border-radius: 50%; }
+.nav-profile.active .avatar-wrap { outline: 2px solid #fff; outline-offset: 3px; }
 .side-nav .nav-icon, .mobile-nav .nav-icon { position: relative; height: 32px; opacity: 1; }
-.side-nav .nav-badge, .mobile-nav .nav-badge { position: absolute; left: 17px; top: 15px; box-sizing: border-box; width: 24px; min-width: 24px; height: 24px; margin: 0; padding: 0; border: 3px solid #0b0e16; border-radius: 50%; background: var(--accent); color: #fff; font-size: 13px; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; }
+.side-nav .nav-badge, .mobile-nav .nav-badge { position: absolute; left: 14px; top: 14px; box-sizing: border-box; width: 24px; min-width: 24px; height: 24px; margin: 0; padding: 0; border: 3px solid #0b0e16; border-radius: 50%; background: var(--accent); color: #fff; font-size: 13px; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; }
 .side-nav .nav-badge-long, .mobile-nav .nav-badge-long { font-size: 9px; }
 .mobile-nav .nav-icon { width: 32px; }
-.mobile-nav .nav-link { gap: 20px; }
+.mobile-nav { gap: 8px; }
+.mobile-nav .nav-link { min-height: 48px; padding-block: 8px; gap: 12px; }
 .nav-notifications { width: 100%; background: transparent; text-align: left; cursor: pointer; }
 
 @media (min-width: 768px) {
@@ -16,13 +16,14 @@
   .app-shell { --sidebar-w: 232px; grid-template-columns: 80px minmax(0, 1fr); }
   .sidebar { width: 80px; min-width: 0; padding: 24px 12px 20px; overflow: hidden; pointer-events: none; background: none; border: 0; mix-blend-mode: screen; transition: width .22s ease; }
   .sidebar:not(.navigation-picked):hover, .sidebar:has(:focus-visible), .sidebar.has-notifications-open { width: var(--sidebar-w); z-index: 30; background: #0b0e16; mix-blend-mode: normal; }
+  .sidebar-brand-link { display: block; align-self: start; min-width: 0; width: 100%; border-radius: var(--r-md); pointer-events: auto; }
   .sidebar .brand { width: 208px; max-width: none; padding: 4px 11px 28px; gap: 10px; }
   .sidebar .logo-mark { width: 34px; height: 34px; }
   .sidebar .brand-wordmark { flex: none; width: 132px; }
-  .side-nav { pointer-events: auto; min-width: 0; width: 100%; gap: 4px; }
-  .side-nav .nav-link { position: relative; min-height: 52px; padding: 8px 12px; gap: 10px; border: 0; box-shadow: none; }
+  .side-nav { pointer-events: auto; min-width: 0; width: 100%; gap: 8px; }
+  .side-nav .nav-link { position: relative; min-height: 48px; padding: 8px 12px; gap: 12px; border: 0; box-shadow: none; }
   .side-nav .nav-icon { width: 32px; }
-  .side-nav .nav-label { position: absolute; left: 64px; right: 12px; }
+  .side-nav .nav-label { position: absolute; left: 56px; right: 12px; }
   .side-nav .nav-dot { position: absolute; left: 39px; top: 7px; }
   .sidebar .nav-label, .sidebar .brand-wordmark { opacity: 0; visibility: hidden; transform: translateX(-6px); transition: opacity .16s ease, transform .22s ease, visibility .16s; }
   .sidebar:not(.navigation-picked):hover .nav-label, .sidebar:has(:focus-visible) .nav-label,
