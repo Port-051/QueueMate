@@ -5,6 +5,7 @@ import type { SelfIntroduction } from '../domain/introduction';
 import { gameLabel, modeLabel, VOICE_LABEL } from '../domain/labels';
 import { TIER_LABELS } from '../domain/recruitment';
 import { Avatar, Button } from './ui';
+import { PerformanceValue, PreferredChampions } from './IntroductionVisuals';
 
 interface HomeProfileRailProps {
   user: UserProfile | null;
@@ -46,11 +47,11 @@ export function HomeProfileRail({ user, game, introduction, gameAccount, actionL
           <dt>찾는 상대</dt><dd>{introduction.desiredRoles.length ? introduction.desiredRoles.map(roleLabel).join(' · ') : '무관'}</dd></> : null}
           <dt>큐 타입</dt><dd>{modeLabel(game, introduction.queueType)}</dd>
           <dt>음성</dt><dd>{introduction.voice === 'OPTIONAL' ? '무관' : VOICE_LABEL[introduction.voice].replace('음성 ', '')}</dd>
-          {introduction.champions.length ? <><dt>{championTitle}</dt><dd>{introduction.champions.join(' · ')}</dd></> : null}
+          {introduction.champions.length ? <><dt>{championTitle}</dt><dd><PreferredChampions game={game} names={introduction.champions} /></dd></> : null}
         </dl>
         {hasStats ? <div className="home-profile-stats">
-          {introduction.winRate !== null ? <span>승률 <strong>{introduction.winRate}%</strong></span> : null}
-          {introduction.kda !== null ? <span>KDA <strong>{introduction.kda.toFixed(2)}</strong></span> : null}
+          {introduction.winRate !== null ? <span>승률 <PerformanceValue kind="winRate" value={introduction.winRate} /></span> : null}
+          {introduction.kda !== null ? <span>KDA <PerformanceValue kind="kda" value={introduction.kda} /></span> : null}
         </div> : null}
         {wins + losses > 0 ? <div className="home-profile-records"><span>최근 {wins + losses}경기</span><strong>{wins}승 {losses}패</strong></div> : null}
         {hasReportedInfo ? <span className="home-profile-source">티어·전적 직접 입력</span> : null}

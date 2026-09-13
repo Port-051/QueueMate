@@ -1,0 +1,16 @@
+.performance-value { font: inherit; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.performance-value[data-tone="red"] { color: #f47783; }
+.performance-value[data-tone="orange"] { color: #f5a568; }
+.performance-value[data-tone="yellow"] { color: #e4c969; }
+.performance-value[data-tone="green"] { color: #70cc9c; }
+.performance-value[data-tone="blue"] { color: #79b4ff; }
+.preferred-champions { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-width: 0; max-width: 100%; }
+.preferred-champion { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+.preferred-champion-portrait { display: block; flex: none; width: 28px; height: 28px; border-radius: 5px; object-fit: cover; background: #222536; }
+.preferred-champion-portrait.is-fallback { display: grid; place-items: center; color: var(--muted); font-size: 13px; }
+.preferred-champion-name { min-width: 0; max-width: 112px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
+.recruitment-introduction .preferred-champion-portrait { width: 32px; height: 32px; }
+.recruitment-mode { display: inline-flex; align-items: center; gap: 6px; }
+.recruitment-mode > svg { flex: none; }
+.board-home .row-roles .recruitment-mode { display: inline-flex; }
+.home-profile-facts .preferred-champions { justify-content: flex-end; }
