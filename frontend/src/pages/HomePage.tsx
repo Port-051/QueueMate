@@ -56,6 +56,8 @@ export function HomePage() {
   const [collapsed, setCollapsed] = useState(false);
   const proposalSeen = useRef<string | null>(null);
   const active = mine.filter(r => !['CLOSED', 'MATCHED'].includes(r.status));
+  // 모집 종료 응답이 먼저 도착하면 이전 매칭 요청의 정리까지 기다리지 않고 다음 모집을 열 수 있다.
+  const liveRequest = mine.some(row => row.id === match.request?.id && row.status === 'CLOSED') ? null : match.request;
   const own = active.find(r => r.id === ownId) ?? active.find(r => r.type === query.type && r.condition.game === query.condition.game) ?? active[0];
   const source = active.find(r => r.type === query.type && r.condition.game === selected?.condition.game && (r.condition.modeKey === 'ANY' || selected?.condition.modeKey === 'ANY' || r.condition.modeKey === selected?.condition.modeKey));
   const stageKey = match.proposal?.status === 'PENDING' ? match.proposal.id : match.activePartyId;
@@ -157,7 +159,7 @@ export function HomePage() {
   const join = async () => {
     if (!selected) return;
     if (!source) {
-      if (query.type === 'REALTIME' && (active.some(r => r.type === 'REALTIME') || match.request)) toast('진행 중인 실시간 모집을 확인해 주세요. 동시에 두 개를 등록할 수 없습니다.', 'info');
+      if (query.type === 'REALTIME' && (active.some(r => r.type === 'REALTIME') || liveRequest)) toast('진행 중인 실시간 모집을 확인해 주세요. 동시에 두 개를 등록할 수 없습니다.', 'info');
       else { compose(selected); setSelected(null); }
       return;
     }
@@ -166,17 +168,17 @@ export function HomePage() {
     catch (err) { toast(errorMessage(err), 'error'); }
     finally { await changed(); setBusy(false); }
   };
-  const canCreate = query.type === 'RESERVATION' || (!active.some(r => r.type === 'REALTIME') && !match.request && !match.activePartyId);
+  const canCreate = query.type === 'RESERVATION' || (!active.some(r => r.type === 'REALTIME') && !liveRequest && !match.activePartyId);
   const intro = user ? readIntroduction(user.id, query.condition.game) : null;
   return <section className="page board-home" aria-label="듀오 찾기">
     <div className="board-layout"><div className="board-feed">
-    {own || match.request || match.activePartyId || match.proposal?.status === 'PENDING' ? <section className={`match-stage ${collapsed && own && !stageKey ? 'is-summary' : ''}`} aria-label="내 매칭 진행" tabIndex={-1} ref={stageRef}>
+    {own || liveRequest || match.activePartyId || match.proposal?.status === 'PENDING' ? <section className={`match-stage ${collapsed && own && !stageKey ? 'is-summary' : ''}`} aria-label="내 매칭 진행" tabIndex={-1} ref={stageRef}>
       {collapsed && own && !stageKey ? <RecruitmentSummary row={own} onExpand={() => { setCollapsed(false); setFocusStage(true); }} /> : <>
       <MatchProgress step={match.proposal?.status === 'PENDING' ? 1 : match.activePartyId ? 2 : 0} />
       {connection !== 'connected' ? <p className="banner warn" role="status">서버에 다시 연결하고 있어요.</p> : null}
       {match.proposal?.status === 'PENDING' ? <>{composer ? <p className="hint">작성 중인 조건은 보관했어요.</p> : null}<InlineProposal knownRows={[...(page?.items ?? []), ...mine]} /></> : match.activePartyId ? <PartyRoomPage embedded /> : <>
         {active.length > 1 ? <label className="my-recruitment-picker">관리할 모집<select value={own?.id ?? ''} onChange={e => setOwnId(e.target.value)}>{active.map(row => <option key={row.id} value={row.id}>{gameConfig(row.condition.game).shortName} · {row.type === 'REALTIME' ? '실시간' : row.availableFrom ? timeLabel(row.availableFrom) : '예약'} · {BOARD_STATUS[row.status]}</option>)}</select></label> : null}
-        {own ? <RecruitmentPanel key={own.id} row={own} onChanged={changed} onEdit={() => setComposer({ initial: writeFrom(own), editing: own })} onFind={() => { changeQuery({ ...browseSearch(own.condition.game), type: own.type, availableFrom: own.availableFrom, availableTo: own.availableTo, playAmount: own.playAmount }); setCollapsed(true); }} /> : match.request ? <ActiveMatchCard /> : null}
+        {own ? <RecruitmentPanel key={own.id} row={own} onChanged={changed} onEdit={() => setComposer({ initial: writeFrom(own), editing: own })} onFind={() => { changeQuery({ ...browseSearch(own.condition.game), type: own.type, availableFrom: own.availableFrom, availableTo: own.availableTo, playAmount: own.playAmount }); setCollapsed(true); }} /> : liveRequest ? <ActiveMatchCard /> : null}
 
       </>}
       </>}
