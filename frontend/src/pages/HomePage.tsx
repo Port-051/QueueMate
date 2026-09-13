@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import * as api from '../api/recruitment';
-import { USE_MOCK } from '../config';
 import { errorMessage } from '../api/error';
 import { ActiveMatchCard } from '../components/ActiveMatchCard';
 import { GameBadge } from '../components/GameSymbol';
@@ -124,7 +123,7 @@ export function HomePage() {
   const canCreate = query.type === 'RESERVATION' || (!active.some(r => r.type === 'REALTIME') && !match.request && !match.activePartyId);
   const reuse = (condition: api.BoardWrite['condition'], type: api.BoardType) => setComposer({ initial: { condition, type, preferences: anyPreferences(), description: '', autoMatch: false, ...(type === 'RESERVATION' ? reservationWindow() : { availableFrom: null, availableTo: null, playAmount: null }) } });
   return <section className="page board-home">
-    <header className="board-heading"><div><span className="eyebrow">PLAY TOGETHER</span>{USE_MOCK ? <span className="board-demo">체험 모드 · 예시 모집</span> : null}<h1>함께할 팀원을, 지금 여기서.</h1><p>모집을 살펴보고, 함께할 사람을 직접 골라보세요.</p></div><Button variant="primary" size="lg" disabled={!canCreate} onClick={() => compose()}>+ {query.type === 'REALTIME' ? '실시간' : '예약'} 모집 만들기</Button></header>
+    <header className="board-heading"><h1>함께할 팀원을, 지금 여기서.</h1><Button variant="primary" size="lg" disabled={!canCreate} onClick={() => compose()}>+ {query.type === 'REALTIME' ? '실시간' : '예약'} 모집 만들기</Button></header>
     {own || match.request || match.activePartyId || match.proposal?.status === 'PENDING' ? <section className={`match-stage ${collapsed && own && !stageKey ? 'is-summary' : ''}`} aria-label="내 매칭 진행" tabIndex={-1} ref={stageRef}>
       {collapsed && own && !stageKey ? <RecruitmentSummary row={own} onExpand={() => { setCollapsed(false); setFocusStage(true); }} /> : <>
       <MatchProgress step={match.proposal?.status === 'PENDING' ? 1 : match.activePartyId ? 2 : 0} />
@@ -159,7 +158,7 @@ export function HomePage() {
       {loading && !page ? <div className="board-empty" role="status">모집 목록을 불러오는 중…</div> : null}
       {!loading && !error && page?.items.length === 0 ? <div className="board-empty"><div className="empty-orbit" aria-hidden="true">＋</div><h2>이 조건으로 모집 중인 팀원이 없어요</h2><p>필터를 넓혀보거나 모집을 시작해 보세요.<br />모집 후에는 실제 후보를 바탕으로 변경할 조건을 제안해 드려요.</p><div className="row"><Button onClick={() => setFiltersOpen(true)}>검색 조건 바꾸기</Button><Button variant="primary" disabled={!canCreate} onClick={() => compose()}>먼저 모집하기</Button></div></div> : null}
       {page?.items.length ? <RecruitmentList rows={page.items} selected={selected?.id} onSelect={setSelected} /> : null}
-      {page ? <footer className="board-pagination"><span>한 번에 최대 10개 · 조건 적합도와 노출 균형을 반영해요.</span><div className="row"><Button size="sm" disabled={query.page === 0 || loading} onClick={() => changeQuery({ ...query, page: query.page - 1 })}>이전</Button><span>{query.page + 1} 페이지</span><Button size="sm" disabled={!page.hasMore || loading} onClick={() => changeQuery({ ...query, page: query.page + 1 })}>다음</Button></div></footer> : null}
+      {page ? <footer className="board-pagination"><div className="row"><Button size="sm" disabled={query.page === 0 || loading} onClick={() => changeQuery({ ...query, page: query.page - 1 })}>이전</Button><span>{query.page + 1} 페이지</span><Button size="sm" disabled={!page.hasMore || loading} onClick={() => changeQuery({ ...query, page: query.page + 1 })}>다음</Button></div></footer> : null}
       <details className="board-history"><summary>지난 모집 조건으로 다시 시작하기</summary><div className="closed-recruitments">{mine.filter(r => ['CLOSED', 'MATCHED'].includes(r.status)).slice(0, 5).map(row => <div key={row.id}><span>{gameConfig(row.condition.game).shortName} · {row.type === 'REALTIME' ? '실시간' : '예약'} · {row.description || BOARD_STATUS[row.status]}</span><Button size="sm" onClick={() => setComposer({ initial: { ...writeFrom(row), ...(row.type === 'RESERVATION' && row.availableFrom && Date.parse(row.availableFrom) <= Date.now() ? reservationWindow() : {}) } })}>이 조건으로 다시 모집</Button></div>)}</div><HomeMatchHistory onReview={reuse} /></details>
     </div></div>
     {selected && !composer && match.proposal?.status !== 'PENDING' ? <RecruitmentDetail row={selected} busy={busy} hasSource={Boolean(source)} disabled={Boolean(source && source.status !== 'OPEN') || Boolean(match.activePartyId && selected.type === 'REALTIME')} disabledReason={match.activePartyId && selected.type === 'REALTIME' ? '현재 파티에 참여 중이에요. 파티에서 나온 뒤 실시간 모집에 참여할 수 있어요.' : source && source.status !== 'OPEN' ? '내 모집을 재개하거나 진행 중인 신청을 마친 뒤 참여해 주세요.' : undefined} onClose={() => { if (!busy) setSelected(null); }} onJoin={() => void join()} /> : null}
