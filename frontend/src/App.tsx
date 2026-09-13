@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { RequireAuth } from './components/RequireAuth';
 import { RequireGameCatalog } from './components/RequireGameCatalog';
@@ -7,15 +7,21 @@ import { AuthPage } from './pages/AuthPage';
 import { HomePage } from './pages/HomePage';
 import { MatchConditionPage } from './pages/MatchConditionPage';
 import { MatchWaitingPage } from './pages/MatchWaitingPage';
-import { FriendsPage } from './pages/FriendsPage';
+import { DirectMessagesPage } from './pages/DirectMessagesPage';
 import { MyInfoPage } from './pages/MyInfoPage';
 import { PartyRoomPage } from './pages/PartyRoomPage';
-import { RecentPlayersPage } from './pages/RecentPlayersPage';
 import { ProposalPage } from './pages/ProposalPage';
 import { ReservationNewPage } from './pages/ReservationNewPage';
 import { ReservationsPage } from './pages/ReservationsPage';
 import { LandingPage } from './pages/LandingPage';
 import { OnboardingPage } from './pages/OnboardingPage';
+
+function LegacyFriendsRedirect() {
+  const { search } = useLocation();
+  const tab = new URLSearchParams(search).get('tab');
+  const manage = tab === 'blocks' || tab === 'sent' ? tab : 'friends';
+  return <Navigate to={`/app/messages?manage=${manage}`} replace />;
+}
 
 export function App() {
   return (
@@ -35,8 +41,9 @@ export function App() {
         <Route path="proposals/:proposalId" element={<ProposalPage />} />
         <Route path="party" element={<PartyRoomPage />} />
         <Route path="party/:partyId" element={<PartyRoomPage />} />
-        <Route path="friends" element={<FriendsPage />} />
-        <Route path="recent" element={<RecentPlayersPage />} />
+        <Route path="messages" element={<DirectMessagesPage />} />
+        <Route path="friends" element={<LegacyFriendsRedirect />} />
+        <Route path="recent" element={<Navigate to="/app/messages" replace />} />
         <Route path="me" element={<MyInfoPage />} />
         <Route path="settings" element={<Navigate to="/app/me#settings" replace />} />
       </Route>

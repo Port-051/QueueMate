@@ -124,9 +124,9 @@ function createProposalForRequest(requestId: string): void {
   const entry = db.matchRequests.get(requestId);
   if (!entry || entry.view.status !== 'QUEUED') return;
 
-  const size = partySizeOf(entry.condition);
   const peers = boardSimulationPeers(requestId);
   if (peers === null) return;
+  const size = partySizeOf(entry.condition);
   const view = buildProposal(size, peers);
   const proposal = { view, condition: entry.condition, requestId, timers: [] as number[] };
   db.proposals.set(view.id, proposal);
@@ -145,9 +145,9 @@ function createProposalForReservation(reservationId: string): void {
   const reservation = db.reservations.find((r) => r.id === reservationId);
   if (!reservation || reservation.status !== 'ACTIVE') return;
 
-  const size = partySizeOf(reservation.condition);
   const peers = boardSimulationPeers(reservationId);
   if (peers === null) return;
+  const size = partySizeOf(reservation.condition);
   const view = buildProposal(size, peers);
   const proposal = { view, condition: reservation.condition, reservationId, timers: [] as number[] };
   db.proposals.set(view.id, proposal);

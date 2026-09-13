@@ -30,13 +30,14 @@ test('로그인하지 않으면 앱 화면 대신 로그인으로 보낸다', as
   await expect(page).toHaveURL(/\/login/);
 });
 
-test('프로필에서 설정을 바꾸고 매칭 기본값에 반영한 뒤 로그아웃한다', async ({ page }) => {
+test('프로필 설정은 저장되고 새 자기소개는 무관 조건으로 시작하며 로그아웃할 수 있다', async ({ page }) => {
   await login(page);
   const navigation = page.locator('.side-nav');
   const labels = await navigation.getByRole('link').evaluateAll((links) => links.map((link) => link.getAttribute('aria-label')));
   expect(labels).toEqual([
-    '홈', '파티룸', '친구', '최근 함께한 사람', 'QueueMaster 프로필',
+    '홈', '다이렉트 메시지', 'QueueMaster 프로필',
   ]);
+  await expect(navigation.getByRole('button', { name: '알림', exact: true })).toBeVisible();
   await expect(page.locator('.sidebar-account')).toHaveCount(0);
   await expect(navigation.getByRole('link', { name: '설정', exact: true })).toHaveCount(0);
   await navigation.getByRole('link', { name: 'QueueMaster 프로필', exact: true }).click();
@@ -48,11 +49,15 @@ test('프로필에서 설정을 바꾸고 매칭 기본값에 반영한 뒤 로�
   await settings.getByRole('button', { name: '사용 안 함', exact: true }).click();
   await settings.getByRole('button', { name: '즐겜', exact: true }).click();
   await navigation.getByRole('link', { name: '홈', exact: true }).click();
-  await page.getByRole('button', { name: '+ 실시간 모집 만들기' }).click();
-  await expect(page.getByRole('dialog').getByLabel('음성', { exact: true })).toHaveValue('NO_VOICE');
-  await expect(page.getByRole('dialog').getByLabel('플레이 목적', { exact: true })).toHaveValue('FUN');
+  await page.getByRole('button', { name: '자기소개 작성', exact: true }).click();
+  await expect(page.getByRole('dialog').getByLabel('음성', { exact: true })).toHaveValue('OPTIONAL');
+  await expect(page.getByRole('dialog').getByLabel('주 포지션', { exact: true })).toHaveValue('ANY');
+  await expect(page.getByRole('dialog').getByLabel('원하는 큐 타입', { exact: true })).toHaveValue('ANY');
+  await expect(page.getByRole('dialog').getByRole('radio', { name: '수동 매칭', exact: true })).toBeChecked();
   await page.keyboard.press('Escape');
   await navigation.getByRole('link', { name: 'QueueMaster 프로필', exact: true }).click();
+  await expect(settings.getByRole('button', { name: '사용 안 함', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(settings.getByRole('button', { name: '즐겜', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: '로그아웃', exact: true }).click();
   await expect(page).toHaveURL('/');
   await page.goto('/app/me');

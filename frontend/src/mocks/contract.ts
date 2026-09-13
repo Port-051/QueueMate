@@ -17,7 +17,11 @@ export const GAME_SEED: Record<GameKey, GameSeed> = {
   LOL: {
     keyConditionType: 'POSITION',
     values: ['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT', 'ANY'],
-    modes: [{ modeKey: 'SOLO_DUO_RANKED', targetPartySize: 2, roleUniqueness: true }],
+    modes: [
+      { modeKey: 'SOLO_DUO_RANKED', targetPartySize: 2, roleUniqueness: true },
+      { modeKey: 'NORMAL_DRAFT', targetPartySize: 5, roleUniqueness: true },
+      { modeKey: 'ARAM', targetPartySize: 5, roleUniqueness: false },
+    ],
   },
   VALORANT: {
     keyConditionType: 'ROLE',

@@ -50,7 +50,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
         <Link to="/" aria-label="QueueMate 홈"><Logo /></Link>
         <div>
           <h2>조건이 맞는 팀원과<br /><em>지금, 바로 플레이</em></h2>
-          <p style={{ marginTop: 16 }}>LoL · VALORANT · PUBG</p>
+          <p style={{ marginTop: 16 }}>리그 오브 레전드 · 발로란트 · 배틀그라운드</p>
         </div>
       </aside>
 

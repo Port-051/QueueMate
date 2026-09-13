@@ -7,6 +7,7 @@ import { ActionMenu, Button, Card, Modal, Tag, useToast } from './ui';
 import { RecruitmentClock } from './RecruitmentClock';
 import { gameConfig } from '../domain/gameConfig';
 import { useNow } from '../state/useNow';
+import { ParticipantIntroduction } from './ParticipantIntroduction';
 
 export function RecruitmentPanel({ row, onChanged, onEdit, onFind }: { row: api.BoardRow; onChanged: () => Promise<void>; onEdit: () => void; onFind: () => void }) {
   const toast = useToast();
@@ -46,15 +47,15 @@ export function RecruitmentPanel({ row, onChanged, onEdit, onFind }: { row: api.
   const candidateCount = showSuggestions ? suggestions?.currentCount ?? 0 : 0;
   const share = () => void navigator.clipboard.writeText(`${window.location.origin}/app/home?recruitment=${row.id}`).then(() => toast('모집 링크를 복사했습니다', 'ok')).catch(() => toast('링크를 복사하지 못했습니다', 'error'));
   return <Card className="my-recruitment">
-    <div className="recruitment-title"><div className="row"><h2>내 {reservation ? '예약' : '실시간'} 모집</h2><Tag>{BOARD_STATUS[row.status]}</Tag></div><span>{gameConfig(row.condition.game).shortName} · {modeLabel(row.condition.game, row.condition.modeKey)}</span></div>
+    <div className="recruitment-title"><div className="row"><h2>내 {reservation ? '예약' : '실시간'} 모집</h2><Tag>{BOARD_STATUS[row.status]}</Tag><span className="recruitment-method">{row.autoMatch ? '자동 매칭' : '수동 매칭'}</span></div><span>{gameConfig(row.condition.game).shortName} · {modeLabel(row.condition.game, row.condition.modeKey)}</span></div>
     <div className="recruitment-overview">
       <RecruitmentClock row={row} now={now} />
-      <div className="recruitment-waiting"><div className="recruitment-own-summary"><span>{keyConditionLabel(row.condition)}</span><span>{VOICE_LABEL[row.condition.voicePreference]}</span><span>{PURPOSE_LABEL[row.condition.playPurpose]}</span><span>{row.members.length}/{row.targetSize}명</span></div>{row.description ? <p className="recruitment-description">{row.description}</p> : null}</div>
+      <div className="recruitment-waiting"><div className="recruitment-own-summary"><span>{keyConditionLabel(row.condition)}</span><span>{VOICE_LABEL[row.condition.voicePreference]}</span>{row.preferences.purposeRequired ? <span>{PURPOSE_LABEL[row.condition.playPurpose]}</span> : null}<span>{row.members.length}/{row.targetSize}명</span></div>{row.description ? <p className="recruitment-description">{row.description}</p> : null}</div>
     </div>
     {stale && editable && row.status !== 'PAUSED' ? <div className="recruitment-notice" role="status"><span>{row.status === 'STALE' ? '활동 확인이 필요해 목록에서 숨겨졌어요.' : '계속 모집 중인가요?'}</span><Button variant="primary" disabled={busy} onClick={() => action('CONFIRM')}>계속 모집할게요</Button></div> : null}
     {reservation && row.status === 'OPEN' && timed && row.availableFrom ? <div className="recruitment-notice"><span>{Date.parse(row.availableFrom) > now ? '예약 시간이 가까워졌어요.' : '예약 시간이 되었어요.'}</span><Button disabled={busy} onClick={() => action('CONFIRM')}>예약 모집 확인</Button></div> : null}
     {row.status === 'REQUESTED' || row.status === 'JOINED' ? <div className="recruitment-notice"><span>{row.status === 'REQUESTED' ? '방장이 신청을 확인하고 있어요.' : '정원이 차면 수락 요청을 보내드려요.'}</span><Button disabled={busy} onClick={() => action('LEAVE')}>{row.status === 'REQUESTED' ? '신청 취소' : '모집에서 나가기'}</Button></div> : null}
-    {row.applicants.length ? <div className="recruitment-applicants"><h3>참여 신청 {row.applicants.length}명</h3>{row.applicants.map(person => <div key={person.id}><b>{person.nickname}</b><span>{keyConditionLabel(person.condition)}</span><div className="row"><Button size="sm" disabled={busy} onClick={() => void perform(() => api.respondRecruitment(row.id, person.id, false))}>거절</Button><Button size="sm" variant="primary" disabled={busy} onClick={() => void perform(() => api.respondRecruitment(row.id, person.id, true))}>함께하기</Button></div></div>)}</div> : null}
+    {row.applicants.length ? <div className="recruitment-applicants"><h3>참여 신청 {row.applicants.length}명</h3>{row.applicants.map(person => <div className="recruitment-applicant" key={person.id}><b>{person.nickname}</b><ParticipantIntroduction nickname={person.nickname} record={person} sourceId={person.id} /><div className="row"><Button size="sm" disabled={busy} onClick={() => void perform(() => api.respondRecruitment(row.id, person.id, false))}>거절</Button><Button size="sm" variant="primary" disabled={busy} onClick={() => void perform(() => api.respondRecruitment(row.id, person.id, true))}>함께하기</Button></div></div>)}</div> : null}
     {row.members.length > 1 ? <div className="recruitment-members">{row.members.map(person => <span key={person.id}>{person.nickname}</span>)}</div> : null}
     {showSuggestions && suggestions?.suggestions.length ? <div className="recruitment-suggestions" role="status">{suggestions.suggestions.slice(0, 2).map(item => <button key={item.field} className="suggestion-link" onClick={() => setPreview(item)}>{item.label} · {item.candidateCount}개 보기 →</button>)}</div> : null}
     {suggestionError ? <p className="hint" role="alert">조건 제안을 불러오지 못했어요. <button type="button" onClick={() => setTick(n => n + 1)}>다시 시도</button></p> : null}
@@ -62,7 +63,7 @@ export function RecruitmentPanel({ row, onChanged, onEdit, onFind }: { row: api.
       {independent ? <Button variant={row.status === 'PAUSED' || stale ? 'default' : 'primary'} onClick={onFind}>모집 둘러보기{candidateCount ? ` · ${candidateCount}` : ''}</Button> : null}
       {row.status === 'PAUSED' ? <Button variant="primary" disabled={busy} onClick={() => action('RESUME')}>모집 재개</Button> : null}
       {row.status === 'OPEN' && !stale && bumpIn === 0 ? <Button disabled={busy} onClick={() => action('BUMP')}>위로 올리기</Button> : null}
-      <label className="check-label"><input type="checkbox" checked={row.autoMatch} disabled={busy} onChange={e => action(e.target.checked ? 'AUTO_ON' : 'AUTO_OFF')} />자동 찾기</label>
+      <label className="check-label"><input type="checkbox" checked={row.autoMatch} disabled={busy} onChange={e => action(e.target.checked ? 'AUTO_ON' : 'AUTO_OFF')} />자동 매칭</label>
       <ActionMenu label="모집 관리">
         <Button disabled={busy || !independent} onClick={onEdit}>조건 수정</Button>
         {row.status !== 'PAUSED' ? <Button disabled={busy} onClick={() => action('PAUSE')}>잠시 멈춤</Button> : null}

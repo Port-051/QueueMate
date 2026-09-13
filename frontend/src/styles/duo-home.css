@@ -1,0 +1,25 @@
+.board-home > .board-games { margin: 0 0 22px; padding: 0 0 16px; gap: 10px; }
+.board-home > .board-games button { padding: 12px 16px; white-space: nowrap; }
+.intro-launch { display: flex; align-items: center; gap: 13px; padding: 16px 18px; border: 1px solid #bba0ff22; border-radius: 10px; background: linear-gradient(110deg,#211a32,#151620); margin-bottom: 24px; }
+.intro-launch > div { display: grid; gap: 5px; min-width: 0; }
+.intro-launch b { font-size: 13px; }
+.intro-launch span { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.intro-launch > .btn { margin-left: auto; flex: none; font-size: 12px; padding: 10px 16px; }
+.board-filter-bar { padding-top: 15px; }
+.board-filter-line { display: flex; gap: 8px; overflow-x: auto; padding: 1px 1px 7px; scrollbar-width: thin; align-items: center; }
+.board-filter-line > label { display: flex; gap: 8px; align-items: center; white-space: nowrap; padding: 4px 10px; border-radius: 7px; border: 1px solid var(--border); background: #141620; flex: 0 0 auto; }
+.board-filter-line > label > span { color: var(--muted); font-size: 10px; }
+.board-home .board-filter-line select { border: 0; padding: 6px 20px 6px 0; background-color: transparent; font-size: 12px; min-width: 55px; }
+.board-filter-line input { color: var(--text); color-scheme: dark; font: inherit; font-size: 11px; border: 0; background: transparent; width: 148px; padding: 5px 0; }
+.filter-reset { color: var(--muted); background: transparent; border: 0; font: inherit; font-size: 11px; white-space: nowrap; cursor: pointer; padding: 10px; }
+.filter-reset:hover { color: var(--text); }
+.filter-error { color: var(--warn); font-size: 12px; margin: 7px 0; }
+.recruitment-method { color: #b9a6ed; font-size: 11px; }
+.board-home .board-results-head { padding: 10px 0 13px; }
+@media(max-width:767px) {
+  .board-home { padding-top: 24px; }
+  .board-home > .board-games { margin-right: 48px; overflow-x: auto; scrollbar-width: none; gap: 3px; padding-bottom: 12px; margin-bottom: 18px; }
+  .board-home > .board-games button { padding: 9px 10px; font-size: 11px; gap: 6px; }
+  .intro-launch { padding: 12px; gap: 9px; }
+  .intro-launch > .btn { padding: 10px 12px; }
+}

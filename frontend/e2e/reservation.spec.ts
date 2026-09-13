@@ -3,7 +3,7 @@ import { manageRecruitment, login } from './helpers';
 test.use({ timezoneId: 'Asia/Seoul' });
 async function open(page: Page) {
   await page.getByRole('tab', { name: '예약 매치', exact: true }).click();
-  await page.getByRole('button', { name: '+ 예약 모집 만들기' }).click();
+  await page.locator('.intro-launch').getByRole('button', { name: '예약하기' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
 }
 test('예약은 별도 탭에서 등록하고 겹치는 예약은 서버가 거절한다', async ({ page }) => {

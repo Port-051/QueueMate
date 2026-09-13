@@ -37,14 +37,13 @@ test('하루가 지나면 기본 예약 검색 시간과 예시 모집 시간이
   await page.getByRole('tab', { name: '예약 매치', exact: true }).click();
   await expect(page.locator('.recruitment-row').first()).toBeVisible();
   const before = await seedIds(page);
-  const schedule = await page.locator('.board-reservation-note').innerText();
+  const schedule = await page.getByLabel('검색 시작 시각').inputValue();
   await page.clock.fastForward(DAY);
-  await expect(page.locator('.board-reservation-note')).not.toHaveText(schedule);
+  await expect(page.getByLabel('검색 시작 시각')).not.toHaveValue(schedule);
   await expect(page.locator('.recruitment-row')).toHaveCount(before.length);
   await expect(page.locator('.recruitment-row.unavailable')).toHaveCount(0);
   expect(await seedIds(page)).toEqual(before);
-  await page.getByRole('button', { name: '검색 필터 설정' }).click();
-  await expect(page.locator('.board-filter').getByLabel('시작 가능 시각')).toHaveValue(/^2026-09-15T/);
+  await expect(page.getByLabel('검색 시작 시각')).toHaveValue(/^2026-09-15T/);
   const seed = await page.evaluate(async id => {
     const apiPath = '/src/api/recruitment.ts';
     const api = await import(/* @vite-ignore */ apiPath);
@@ -59,20 +58,16 @@ test('직접 선택한 미래 예약 검색 시간과 플레이 양은 예시 �
   await page.clock.install({ time: startTime });
   await login(page);
   await page.getByRole('tab', { name: '예약 매치', exact: true }).click();
-  await page.getByRole('button', { name: '검색 필터 설정' }).click();
-  const filter = page.locator('.board-filter');
-  await filter.getByLabel('시작 가능 시각').fill('2026-09-20T20:00');
-  await filter.getByLabel('마지막 종료 시각').fill('2026-09-20T22:00');
-  await filter.getByLabel('플레이 양').selectOption('TWO_PLUS');
-  await page.getByRole('button', { name: '필터 적용', exact: true }).click();
-  await page.getByRole('button', { name: '검색 필터 접기' }).click();
-  const schedule = await page.locator('.board-reservation-note').innerText();
+  const filter = page.locator('.board-filter-bar');
+  await filter.getByLabel('검색 시작 시각').fill('2026-09-20T20:00');
+  await filter.getByLabel('검색 종료 시각').fill('2026-09-20T22:00');
+  await filter.getByLabel('검색 플레이 양').selectOption('TWO_PLUS');
+  const schedule = await page.getByLabel('검색 시작 시각').inputValue();
   await page.clock.fastForward(DAY);
-  await expect(page.locator('.board-reservation-note')).toHaveText(schedule);
-  await page.getByRole('button', { name: '검색 필터 설정' }).click();
-  await expect(filter.getByLabel('시작 가능 시각')).toHaveValue('2026-09-20T20:00');
-  await expect(filter.getByLabel('마지막 종료 시각')).toHaveValue('2026-09-20T22:00');
-  await expect(filter.getByLabel('플레이 양')).toHaveValue('TWO_PLUS');
+  await expect(page.getByLabel('검색 시작 시각')).toHaveValue(schedule);
+  await expect(filter.getByLabel('검색 시작 시각')).toHaveValue('2026-09-20T20:00');
+  await expect(filter.getByLabel('검색 종료 시각')).toHaveValue('2026-09-20T22:00');
+  await expect(filter.getByLabel('검색 플레이 양')).toHaveValue('TWO_PLUS');
   // 예시를 늘리기 위해 실제 시간/플레이 양 필터를 우회하지 않는다.
   await expect(page.locator('.recruitment-row')).toHaveCount(0);
 });
@@ -81,7 +76,7 @@ test('작성 중인 예약 입력은 시간이 지나도 보존하고 만료된 
   await page.clock.install({ time: startTime });
   await login(page);
   await page.getByRole('tab', { name: '예약 매치', exact: true }).click();
-  await page.getByRole('button', { name: '+ 예약 모집 만들기' }).click();
+  await page.locator('.intro-launch').getByRole('button', { name: '예약하기' }).click();
   const dialog = page.getByRole('dialog');
   const from = await dialog.getByLabel('시작 가능 시각').inputValue();
   const to = await dialog.getByLabel('마지막 종료 시각').inputValue();
@@ -99,7 +94,7 @@ test('직접 등록한 예약은 원래 시간에 종료되고 다음 날 예시
   await page.clock.install({ time: startTime });
   await login(page);
   await page.getByRole('tab', { name: '예약 매치', exact: true }).click();
-  await page.getByRole('button', { name: '+ 예약 모집 만들기' }).click();
+  await page.locator('.intro-launch').getByRole('button', { name: '예약하기' }).click();
   await page.getByRole('button', { name: '모집 시작', exact: true }).click();
   await expect(page.locator('.my-recruitment')).toBeVisible();
   const own = await readOwn(page);

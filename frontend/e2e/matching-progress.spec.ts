@@ -8,7 +8,7 @@ test('모집 타이머는 중앙에 크게 보이고 초 단위로 증가한다'
   await expect(timer).toBeInViewport();
   expect(parseFloat(await timer.evaluate(el => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(44);
   const stage = await page.getByRole('region', { name: '내 매칭 진행' }).boundingBox();
-  const list = await page.locator('.board-games').boundingBox();
+  const list = await page.locator('.board-toolbar').boundingBox();
   expect(stage!.width).toBeGreaterThan(1000);
   expect(stage!.y + stage!.height).toBeLessThanOrEqual(list!.y);
   const before = seconds(await timer.innerText());
@@ -29,7 +29,7 @@ test('조건 수정·멈춤·재개·끌어올림과 메뉴 이동이 경과 시
   await page.getByRole('dialog').getByLabel('모집 한마디').fill('타이머 유지 확인');
   await page.getByRole('button', { name: '모집 조건 저장', exact: true }).click();
   await expect.poll(async () => seconds(await timer.innerText())).toBeGreaterThanOrEqual(75);
-  await page.locator('.side-nav a[href="/app/friends"]').click();
+  await page.locator('.side-nav a[href="/app/messages"]').click();
   await page.clock.fastForward(10_000);
   await page.locator('.side-nav a[href="/app/home"]').click();
   await expect.poll(async () => seconds(await timer.innerText())).toBeGreaterThanOrEqual(85);
@@ -43,7 +43,7 @@ test('모집 상세는 중앙 팝업이며 닫으면 선택한 행으로 포커�
   await row.click();
   await expect(page.getByRole('dialog', { name: '모집 상세', exact: true })).toBeVisible();
   await page.keyboard.press('Escape'); await expect(row).toBeFocused(); await row.click();
-  await page.getByRole('button', { name: '내 조건 입력하고 참여 신청' }).click();
+  await page.getByRole('button', { name: '자기소개 입력하고 참여 신청' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(1);
   await expect(page.getByRole('dialog')).toContainText('실시간 모집');
   await page.getByRole('button', { name: '모집 시작', exact: true }).click();
@@ -81,7 +81,7 @@ test('수락하지 않고 제한 시간이 지나면 대기로 돌아가 다시 
 test('예약은 시작까지 남은 시간을 표시하고 시간이 되어도 음수로 내려가지 않는다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-09-14T18:00:00+09:00') });
   await login(page); await page.getByRole('tab', { name: '예약 매치', exact: true }).click();
-  await page.getByRole('button', { name: '+ 예약 모집 만들기' }).click();
+  await page.getByRole('button', { name: '예약하기' }).click();
   await page.getByRole('button', { name: '모집 시작', exact: true }).click();
   const countdown = page.getByRole('timer', { name: '예약 시작까지' });
   await expect(countdown).toBeVisible(); const before = seconds(await countdown.innerText());
@@ -128,7 +128,7 @@ test('360px 화면에서도 대기 타이머·모집 상세·수락 화면을 �
 test('실시간과 예약을 함께 만들었을 때 탭에 맞는 모집을 관리한다', async ({ page }) => {
   await login(page); await startRealtimeMatch(page);
   await page.getByRole('tab', { name: '예약 매치', exact: true }).click();
-  await page.getByRole('button', { name: '+ 예약 모집 만들기' }).click();
+  await page.getByRole('button', { name: '예약하기' }).click();
   await page.getByRole('button', { name: '모집 시작', exact: true }).click();
   await expect(page.getByRole('heading', { name: '내 예약 모집', exact: true })).toBeVisible();
   await page.getByRole('tab', { name: '실시간 매치', exact: true }).click();

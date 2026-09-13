@@ -14,7 +14,7 @@ import { useToast } from '../components/ui';
 import { rememberCondition } from './recentConditions';
 import { useAuth } from './AuthContext';
 
-const ACTIVE_PARTY_KEY = 'qm.activeParty';
+const ACTIVE_PARTY_KEY = 'qm.activeParty.';
 
 /**
  * 대기 중 매칭 요청을 REST로 다시 확인하는 주기.
@@ -52,20 +52,27 @@ interface MatchValue {
 
 const MatchCtx = createContext<MatchValue | null>(null);
 
-const readActiveParty = () => {
-  try { return localStorage.getItem(ACTIVE_PARTY_KEY); } catch { return null; }
+const readActiveParty = (userId?: string) => {
+  if (!userId) return null;
+  try { return localStorage.getItem(`${ACTIVE_PARTY_KEY}${userId}`); } catch { return null; }
 };
 
-const writeActiveParty = (id: string | null) => {
+const writeActiveParty = (userId: string | undefined, id: string | null) => {
+  if (!userId) return;
   try {
-    if (id) localStorage.setItem(ACTIVE_PARTY_KEY, id);
-    else localStorage.removeItem(ACTIVE_PARTY_KEY);
+    if (id) localStorage.setItem(`${ACTIVE_PARTY_KEY}${userId}`, id);
+    else localStorage.removeItem(`${ACTIVE_PARTY_KEY}${userId}`);
   } catch {
     /* storage 접근 불가여도 세션 안에서는 state로 동작한다 */
   }
 };
 
 export function MatchProvider({ children }: { children: ReactNode }) {
+  const { status, user } = useAuth();
+  return <MatchSession key={`${status}:${user?.id ?? ''}`}>{children}</MatchSession>;
+}
+
+function MatchSession({ children }: { children: ReactNode }) {
   const { status, token, user } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
@@ -74,7 +81,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   const [condition, setCondition] = useState<MatchCondition | null>(null);
   const [proposal, setProposal] = useState<ProposalView | null>(null);
   const [proposalSource, setProposalSource] = useState<ProposalSource | null>(null);
-  const [activePartyId, setActivePartyIdState] = useState<string | null>(() => readActiveParty());
+  const [activePartyId, setActivePartyIdState] = useState<string | null>(() => readActiveParty(user?.id));
   const [reservations, setReservations] = useState<ReservationView[]>([]);
   const [reservationsLoaded, setReservationsLoaded] = useState(false);
   const [reservationsError, setReservationsError] = useState<string | null>(null);
@@ -84,26 +91,35 @@ export function MatchProvider({ children }: { children: ReactNode }) {
 
   const requestRef = useRef<MatchRequestView | null>(null);
   requestRef.current = request;
+  const live = useRef(true);
+  useEffect(() => {
+    live.current = true;
+    return () => { live.current = false; };
+  }, []);
 
   const setActivePartyId = useCallback((id: string | null) => {
-    writeActiveParty(id);
+    if (!live.current) return;
+    writeActiveParty(userId, id);
     setActivePartyIdState(id);
-  }, []);
+  }, [userId]);
 
   const refreshReservations = useCallback(async () => {
     try {
-      setReservations(await api.listReservations());
+      const saved = await api.listReservations();
+      if (!live.current) return;
+      setReservations(saved);
       setReservationsError(null);
     } catch (err) {
-      setReservationsError('예약을 불러오지 못했습니다.');
+      if (live.current) setReservationsError('예약을 불러오지 못했습니다.');
       throw err;
     } finally {
-      setReservationsLoaded(true);
+      if (live.current) setReservationsLoaded(true);
     }
   }, []);
 
   const saveReservation = useCallback(async (body: CreateReservationRequest, id?: string) => {
     const saved = id ? await api.updateReservation(id, body) : await api.createReservation(body);
+    if (!live.current) return;
     setReservations((prev) => [...prev.filter((item) => item.id !== saved.id), saved]);
   }, []);
 
@@ -136,6 +152,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!stream) return;
     return stream.subscribe((event: ServerEvent) => {
+      if (!live.current) return;
       switch (event.type) {
         /**
          * 연결 직후 한 번 온다. 재연결도 첫 연결과 구분하지 않는다 (contracts/events.md).
@@ -221,6 +238,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
    */
   const openProposal = useCallback(async (proposalId: string, source: ProposalSource) => {
     const view = await api.getProposal(proposalId);
+    if (!live.current) return;
     if (view.status === 'CONFIRMED' && view.partyId) {
       setProposal(null);
       setProposalSource(null);
@@ -286,6 +304,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
 
   const adoptRequest = useCallback(async (requestId: string) => {
     const current = await api.getMatchRequest(requestId);
+    if (!live.current) return;
     if (current.status === 'QUEUED' || current.status === 'PROPOSED') setRequest(current);
     else if (current.status === 'MATCHED' && current.proposalId) await openProposal(current.proposalId, 'REALTIME');
     else {
@@ -379,6 +398,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
 
   const start = useCallback(async (next: MatchCondition) => {
     const created = await api.createMatchRequest(next);
+    if (!live.current) return;
     rememberCondition(next);
     setCondition(next);
     setRequest(created);
@@ -388,6 +408,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     const current = requestRef.current;
     if (!current) return;
     await api.cancelMatchRequest(current.id);
+    if (!live.current) return;
     setRequest(null);
     setCondition(null);
     setProposal(null);
@@ -397,12 +418,14 @@ export function MatchProvider({ children }: { children: ReactNode }) {
 
   const accept = useCallback(async () => {
     if (!proposal) return;
-    setProposal(await api.acceptProposal(proposal.id));
+    const accepted = await api.acceptProposal(proposal.id);
+    if (live.current) setProposal(accepted);
   }, [proposal]);
 
   const decline = useCallback(async () => {
     if (!proposal) return;
     await api.declineProposal(proposal.id);
+    if (!live.current) return;
     const source = proposalSource;
     setProposal(null);
     setProposalSource(null);
@@ -412,6 +435,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       navigate('/app/home');
     } else {
       await refreshReservations();
+      if (!live.current) return;
       navigate('/app/home');
     }
   }, [proposal, proposalSource, navigate, refreshReservations]);

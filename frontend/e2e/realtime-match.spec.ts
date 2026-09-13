@@ -14,15 +14,15 @@ test('자동 찾기: 같은 공개 모집 풀에서 제안과 파티까지 홈�
 });
 test('활성 실시간 모집은 하나만 가능하지만 예약 모집은 별도로 유지한다', async ({ page }) => {
   await login(page); await startRealtimeMatch(page);
-  await expect(page.getByRole('button', { name: '+ 실시간 모집 만들기' })).toHaveCount(0);
+  await expect(page.locator('.intro-launch > button')).toHaveCount(0);
   await page.getByRole('tab', { name: '예약 매치', exact: true }).click();
-  await expect(page.getByRole('button', { name: '+ 예약 모집 만들기' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '예약하기' })).toBeEnabled();
   await expect(page.locator('.my-recruitment')).toBeVisible();
 });
 test('모집 종료와 재사용은 새로운 모집을 만들고 티어·상대 조건을 유지한다', async ({ page }) => {
   await login(page);
-  await page.getByRole('button', { name: '+ 실시간 모집 만들기' }).click();
-  await page.getByRole('dialog').getByLabel('내 티어 · 직접 입력', { exact: true }).selectOption('GOLD');
+  await page.locator('.intro-launch > button').click();
+  await page.getByRole('dialog').getByLabel('내 티어', { exact: true }).selectOption('GOLD');
   await page.getByRole('dialog').getByRole('button', { name: '정글', exact: true }).click();
   await page.getByRole('button', { name: '모집 시작', exact: true }).click();
   await expect(page.locator('.my-recruitment')).toBeVisible();
@@ -30,7 +30,7 @@ test('모집 종료와 재사용은 새로운 모집을 만들고 티어·상대
   await expect(page.locator('.my-recruitment')).toHaveCount(0);
   await page.locator('.board-history summary').click();
   await page.getByRole('button', { name: '이 조건으로 다시 모집' }).click();
-  await expect(page.getByRole('dialog').getByLabel('내 티어 · 직접 입력', { exact: true })).toHaveValue('GOLD');
+  await expect(page.getByRole('dialog').getByLabel('내 티어', { exact: true })).toHaveValue('GOLD');
   await expect(page.getByRole('dialog').getByRole('button', { name: '정글', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 test('직접 신청·수락 후 메뉴를 이동해도 채팅과 마이크가 유지된다', async ({ page }) => {
@@ -45,7 +45,7 @@ test('직접 신청·수락 후 메뉴를 이동해도 채팅과 마이크가 �
   await page.getByPlaceholder('메시지를 입력하세요').fill('이동해도 대화를 유지해요');
   await page.getByPlaceholder('메시지를 입력하세요').press('Enter');
   await expect(page.getByRole('log')).toContainText('이동해도 대화를 유지해요');
-  await page.locator('.side-nav a[href="/app/friends"]').click();
+  await page.locator('.side-nav a[href="/app/messages"]').click();
   await page.locator('.side-nav a[href="/app/home"]').click();
   await expect(page.getByRole('button', { name: '음소거', exact: true })).toBeEnabled();
   await expect(page.getByRole('log')).toContainText('이동해도 대화를 유지해요');

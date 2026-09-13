@@ -16,7 +16,7 @@ test('파티 준비 변경이 연결을 초기화하지 않고, 종료되면 통
     }, condition: { game: 'LOL', modeKey: 'SOLO_DUO_RANKED', keyCondition: { type: 'POSITION', value: 'TOP' }, voicePreference: 'OPTIONAL', playPurpose: 'NORMAL' }, timers: [] });
     emitMockEvent('SESSION_SNAPSHOT', { parties: [{ id: 'ux-party', status: 'OPEN' }] });
   });
-  await page.locator('.side-nav a[href="/app/party/ux-party"]').click();
+  await page.evaluate(() => { history.pushState(null, '', '/app/party/ux-party'); dispatchEvent(new PopStateEvent('popstate')); });
   await expect(page.getByText('QueueMaster#KR1', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '마이크 켜기' }).click();
   await expect(page.getByRole('button', { name: '음소거', exact: true })).toBeEnabled();
@@ -64,7 +64,7 @@ test('지난 모집 5개는 중복 없이 표시하고 여섯 번째 기록도 �
     for (let i = 1; i <= 6; i++) {
       const row = await api.createRecruitment({
         type: 'REALTIME',
-        condition: { game: 'LOL', modeKey: 'SOLO_DUO_RANKED', keyCondition: { type: 'POSITION', value: 'TOP' }, voicePreference: 'OPTIONAL', playPurpose: i === 1 ? 'FUN' : 'NORMAL' },
+        condition: { game: 'LOL', modeKey: 'SOLO_DUO_RANKED', keyCondition: { type: 'POSITION', value: i === 1 ? 'MID' : 'TOP' }, voicePreference: 'OPTIONAL', playPurpose: 'NORMAL' },
         preferences: anyPreferences(), description: `지난 모집 ${i}`, autoMatch: false,
         availableFrom: null, availableTo: null, playAmount: null,
       });
@@ -80,27 +80,27 @@ test('지난 모집 5개는 중복 없이 표시하고 여섯 번째 기록도 �
   ]);
   // 상위 다섯 건을 다시 표시하지 않으면서 가장 오래된 조건은 남겨둔다.
   await expect(earlier).toHaveCount(1);
-  await expect(earlier).toContainText('즐겜');
+  await expect(earlier).toContainText('미드');
   const review = earlier.getByRole('button', { name: '조건 보기' });
   await review.click();
-  await expect(page.getByRole('dialog').getByLabel('플레이 목적')).toHaveValue('FUN');
+  await expect(page.getByRole('dialog').getByLabel('주 포지션')).toHaveValue('MID');
   await page.keyboard.press('Escape');
   await expect(review).toBeFocused();
 });
 
 test('친구 요청 탭, 검색 빈 상태, 신고 모달 키보드 포커스', async ({ page }) => {
   await login(page);
-  await page.locator('.side-nav a[href="/app/friends"]').click();
-  await page.getByRole('button', { name: /받은 요청/ }).click();
-  await expect(page.getByText('HealingYou', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: /친구 목록/ }).click();
-  await page.getByPlaceholder('친구 검색').fill('검색되지않는이름');
+  await page.locator('.side-nav a[href="/app/messages"]').click();
+  await page.getByRole('button', { name: '친구 관리', exact: true }).click();
+  await expect(page.getByRole('dialog').getByText('HealingYou', { exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.getByLabel('대화 검색').fill('검색되지않는이름');
   await expect(page.getByText('검색 결과가 없습니다', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '검색 지우기' }).click();
-  const menu = page.locator('.list-item summary').first();
+  await page.getByLabel('대화 검색').fill('');
+  await page.getByRole('button', { name: /^GankFlow 대화/ }).click();
+  const menu = page.locator('.dm-thread-header .action-menu > summary');
   await menu.click();
-  const report = page.getByRole('button', { name: '신고', exact: true }).first();
-  await report.click();
+  await page.getByRole('button', { name: '신고', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   for (let i = 0; i < 10; i++) {
     await page.keyboard.press('Tab');
@@ -113,15 +113,13 @@ test('친구 요청 탭, 검색 빈 상태, 신고 모달 키보드 포커스', 
 
 test('검색 필터는 내 모집을 바꾸지 않고 게임과 필터 선택을 유지한다', async ({ page }) => {
   await login(page); await startRealtimeMatch(page);
-  await page.getByRole('button', { name: '검색 필터 설정' }).click();
-  await page.locator('.board-filter').getByLabel('내 포지션 / 역할').selectOption('MID');
-  await page.getByRole('button', { name: '필터 적용' }).click();
-  await expect(page.locator('.my-recruitment .recruitment-own-summary')).toContainText('탑');
+  await page.getByLabel('찾는 상대 포지션').selectOption('MID');
+  await expect(page.locator('.my-recruitment .recruitment-own-summary')).toContainText('무관');
   await manageRecruitment(page, '조건 수정');
-  await expect(page.getByRole('dialog').getByLabel('내 포지션 / 역할')).toHaveValue('TOP');
+  await expect(page.getByRole('dialog').getByLabel('주 포지션')).toHaveValue('ANY');
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'VALORANT 매칭', exact: true }).click();
-  await expect(page.locator('.board-filter').getByLabel('내 포지션 / 역할')).toHaveValue('DUELIST');
+  await page.getByRole('button', { name: '발로란트 매칭', exact: true }).click();
+  await expect(page.getByLabel('찾는 상대 포지션')).toHaveValue('ANY');
 });
 
 test('기존 매칭과 예약 주소도 홈 위의 팝업으로 연결된다', async ({ page }) => {

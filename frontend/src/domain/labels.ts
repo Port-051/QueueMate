@@ -8,10 +8,11 @@ export const gameLabel = (g: GameKey) => gameConfig(g).shortName;
 export const gameFullLabel = (g: GameKey) => gameConfig(g).name;
 
 export function modeLabel(game: GameKey, modeKey: string): string {
-  return modeConfig(game, modeKey)?.label ?? modeKey;
+  return modeKey === 'ANY' ? '큐 무관' : modeConfig(game, modeKey)?.label ?? modeKey;
 }
 
 export function keyConditionLabel(condition: MatchCondition): string {
+  if (condition.keyCondition.value === 'ANY') return '무관';
   const cfg = gameConfig(condition.game);
   return cfg.keyCondition.options.find((o) => o.value === condition.keyCondition.value)?.label ?? condition.keyCondition.value;
 }

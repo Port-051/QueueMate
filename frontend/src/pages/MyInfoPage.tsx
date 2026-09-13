@@ -14,7 +14,7 @@ import { useSocial } from '../state/SocialContext';
 
 export function MyInfoPage() {
   const { user, gameAccounts, updateProfile, refreshGameAccounts, logout } = useAuth();
-  const { friends, recentPlayers, blocks } = useSocial();
+  const { blocks } = useSocial();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -112,8 +112,7 @@ export function MyInfoPage() {
         <div className="profile-identity-info">
           <h1>{user?.nickname}</h1>
           <nav className="profile-activity" aria-label="내 활동">
-            <Link to="/app/friends">친구 <b>{friends.length}</b></Link>
-            <Link to="/app/recent">최근 함께한 사람 <b>{recentPlayers.length}</b></Link>
+            <Link to="/app/messages">다이렉트 메시지</Link>
           </nav>
         </div>
         <Button className="profile-edit-name" variant="ghost" onClick={() => { setNickname(user?.nickname ?? ''); setNicknameOpen(true); }}><IconPencil size={15} />닉네임 변경</Button>
@@ -140,7 +139,7 @@ export function MyInfoPage() {
         <section className="profile-section" aria-labelledby="profile-privacy-heading">
           <div className="profile-section-heading"><h2 id="profile-privacy-heading">개인정보와 안전</h2></div>
           <div className="profile-privacy">
-            <Link className="profile-blocks" to="/app/friends?tab=blocks"><IconShield size={20} /><span>차단 목록</span><b>{blocks.length}</b><span aria-hidden="true">›</span></Link>
+            <Link className="profile-blocks" to="/app/messages?manage=blocks"><IconShield size={20} /><span>차단 목록</span><b>{blocks.length}</b><span aria-hidden="true">›</span></Link>
             <details className="profile-privacy-details">
               <summary>개인정보 처리 안내</summary>
               <ul>

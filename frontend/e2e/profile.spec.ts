@@ -32,7 +32,7 @@ test('프로필 편집을 취소하면 변경되지 않고, 사진을 저장하�
 test('게임 ID 등록 취소는 원래 게임 버튼으로 돌아가고 등록 후 연결 해제할 수 있다', async ({ page }) => {
   await login(page);
   await page.getByRole('link', { name: 'QueueMaster 프로필', exact: true }).click();
-  const register = page.getByRole('button', { name: 'PUBG: BATTLEGROUNDS ID 등록', exact: true });
+  const register = page.getByRole('button', { name: '배틀그라운드 ID 등록', exact: true });
   await register.click();
   await expect(page.getByRole('button', { name: 'ID 등록', exact: true })).toBeDisabled();
   await page.getByRole('textbox', { name: '게임 ID', exact: true }).fill('DiscardedID');
@@ -43,7 +43,7 @@ test('게임 ID 등록 취소는 원래 게임 버튼으로 돌아가고 등록 
   await page.getByRole('textbox', { name: '게임 ID', exact: true }).fill('QueuePlayer');
   await page.getByRole('button', { name: 'ID 등록', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  const account = page.locator('.account-row').filter({ hasText: 'PUBG: BATTLEGROUNDS' });
+  const account = page.locator('.account-row').filter({ hasText: '배틀그라운드' });
   await expect(account).toContainText('QueuePlayer');
   await account.getByRole('button', { name: /연결 해제/ }).click();
   await page.getByRole('dialog').getByRole('button', { name: '연결 해제', exact: true }).click();

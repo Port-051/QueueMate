@@ -48,8 +48,8 @@ export interface GameConfig {
 export const GAMES: GameConfig[] = [
   {
     key: 'LOL',
-    name: 'League of Legends',
-    shortName: 'LoL',
+    name: '리그 오브 레전드',
+    shortName: '리그 오브 레전드',
     tagline: '포지션이 맞는 팀원과',
     keyCondition: {
       type: 'POSITION',
@@ -67,8 +67,8 @@ export const GAMES: GameConfig[] = [
   },
   {
     key: 'VALORANT',
-    name: 'VALORANT',
-    shortName: 'VALORANT',
+    name: '발로란트',
+    shortName: '발로란트',
     tagline: '역할군이 맞는 팀원과',
     keyCondition: {
       type: 'ROLE',
@@ -84,8 +84,8 @@ export const GAMES: GameConfig[] = [
   },
   {
     key: 'PUBG',
-    name: 'PUBG: BATTLEGROUNDS',
-    shortName: 'PUBG',
+    name: '배틀그라운드',
+    shortName: '배틀그라운드',
     tagline: '플레이 스타일이 맞는 팀원과',
     keyCondition: {
       type: 'PLAY_STYLE',

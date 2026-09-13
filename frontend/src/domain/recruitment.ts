@@ -13,7 +13,7 @@ export function reservationWindow() {
   const start = Math.ceil((Date.now() + 30 * 60_000) / (30 * 60_000)) * (30 * 60_000);
   return { availableFrom: new Date(start).toISOString(), availableTo: new Date(start + 60 * 60_000).toISOString(), playAmount: 'ONE_GAME' as const };
 }
-export const initialSearch = (game: GameKey = 'LOL'): BoardSearch => ({ type: 'REALTIME', condition: { ...defaultCondition(game), voicePreference: readPreferences().defaultVoice, playPurpose: readPreferences().defaultPurpose }, preferences: anyPreferences(), availableFrom: null, availableTo: null, playAmount: null, sort: 'RECOMMENDED', page: 0, pageSize: 10 });
+export const initialSearch = (game: GameKey = 'LOL'): BoardSearch => ({ type: 'REALTIME', condition: { ...defaultCondition(game), voicePreference: readPreferences().defaultVoice, playPurpose: readPreferences().defaultPurpose }, preferences: anyPreferences(), availableFrom: null, availableTo: null, playAmount: null, sort: 'RECENT', page: 0, pageSize: 10 });
 export const writeFrom = (value: BoardWrite): BoardWrite => ({ type: value.type, condition: value.condition, preferences: value.preferences, description: value.description, autoMatch: value.autoMatch, availableFrom: value.availableFrom, availableTo: value.availableTo, playAmount: value.playAmount });
 export const elapsedMinutes = (at: string) => Math.max(0, Math.floor((Date.now() - new Date(at).getTime()) / 60_000));
 export const confirmedLabel = (row: BoardRow) => { const min = elapsedMinutes(row.confirmedAt); return min < 1 ? '방금 활동 확인' : `${min}분 전 활동 확인`; };

@@ -24,7 +24,14 @@ interface SocialValue {
 const SocialCtx = createContext<SocialValue | null>(null);
 
 export function SocialProvider({ children }: { children: ReactNode }) {
-  const { status } = useAuth();
+  const { status, user } = useAuth();
+  // Account changes remount state so in-flight responses cannot reach the next account.
+  return <SocialSession key={`${status}:${user?.id ?? ''}`} >{children}</SocialSession>;
+}
+
+function SocialSession({ children }: { children: ReactNode }) {
+  const { status, user } = useAuth();
+  const ownerId = user?.id;
   const [friends, setFriends] = useState<FriendView[]>([]);
   const [receivedRequests, setReceived] = useState<FriendRequestView[]>([]);
   const [sentRequests, setSent] = useState<FriendRequestView[]>([]);
@@ -42,20 +49,21 @@ export function SocialProvider({ children }: { children: ReactNode }) {
         api.listBlocks(),
         api.listRecentPlayers(20),
       ]);
-      setFriends(f);
-      setReceived(received);
-      setSent(sent);
-      setBlocks(b);
-      setRecent(r);
+      setFriends([...f]);
+      setReceived([...received]);
+      setSent([...sent]);
+      setBlocks([...b]);
+      setRecent([...r]);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (status !== 'authenticated') return;
-    void refresh();
-  }, [status, refresh]);
+    setFriends([]); setReceived([]); setSent([]); setBlocks([]); setRecent([]);
+    if (status !== 'authenticated' || !ownerId) return;
+    void refresh().catch(() => {});
+  }, [status, ownerId, refresh]);
 
   const addFriend = useCallback(async (userId: string) => {
     await api.sendFriendRequest({ targetUserId: userId });

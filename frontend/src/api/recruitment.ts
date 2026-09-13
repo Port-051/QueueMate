@@ -29,6 +29,8 @@ export interface BoardRow extends BoardWrite {
   timing?: { confirmAt: string; hideAt: string | null; suggestAt: string; nextBumpAt: string };
 }
 export interface BoardSearch {
+  /** 프론트 미리보기의 상대 목록 필터. 자기소개 기반 양방향 매칭과 구분한다. */
+  browse?: boolean;
   type: BoardType; condition: MatchCondition; preferences: BoardPreferences;
   availableFrom: string | null; availableTo: string | null; playAmount: PlayAmount | null;
   sort: 'RECOMMENDED' | 'RECENT'; page: number; pageSize: 5 | 10;

@@ -5,12 +5,13 @@
 .nav-profile small { display: block; margin-top: 3px; color: var(--ok); font-size: 11px; }
 .nav-profile small.connecting { color: var(--warn); }
 .nav-profile .nav-icon { opacity: 1; }
+.nav-notifications { width: 100%; background: transparent; text-align: left; cursor: pointer; }
 
 @media (min-width: 768px) {
   /* 접힌 메뉴 너비만 확보하고, 펼친 메뉴는 본문을 밀지 않는 레이어로 표시한다. */
   .app-shell { --sidebar-w: 232px; grid-template-columns: 80px minmax(0, 1fr); }
   .sidebar { width: 80px; min-width: 0; padding: 24px 12px 20px; overflow: hidden; pointer-events: none; background: none; border: 0; mix-blend-mode: screen; transition: width .22s ease; }
-  .sidebar:hover, .sidebar:has(:focus-visible) { width: var(--sidebar-w); z-index: 30; background: #0b0e16; mix-blend-mode: normal; }
+  .sidebar:hover, .sidebar:has(:focus-visible), .sidebar.has-notifications-open { width: var(--sidebar-w); z-index: 30; background: #0b0e16; mix-blend-mode: normal; }
   .sidebar .brand { width: 208px; max-width: none; padding: 4px 11px 28px; gap: 10px; }
   .sidebar .logo-mark { width: 34px; height: 34px; }
   .sidebar .brand-wordmark { flex: none; width: 132px; }
@@ -22,7 +23,8 @@
   .side-nav .nav-dot { position: absolute; left: 39px; top: 7px; }
   .sidebar .nav-label, .sidebar .brand-wordmark { opacity: 0; visibility: hidden; transform: translateX(-6px); transition: opacity .16s ease, transform .22s ease, visibility .16s; }
   .sidebar:hover .nav-label, .sidebar:has(:focus-visible) .nav-label,
-  .sidebar:hover .brand-wordmark, .sidebar:has(:focus-visible) .brand-wordmark { opacity: 1; visibility: visible; transform: none; }
+  .sidebar:hover .brand-wordmark, .sidebar:has(:focus-visible) .brand-wordmark,
+  .sidebar.has-notifications-open .nav-label, .sidebar.has-notifications-open .brand-wordmark { opacity: 1; visibility: visible; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .sidebar, .sidebar .nav-label, .sidebar .brand-wordmark { transition: none; }
