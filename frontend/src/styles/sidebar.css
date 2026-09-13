@@ -4,7 +4,11 @@
 .nav-nickname { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-profile small { display: block; margin-top: 3px; color: var(--ok); font-size: 11px; }
 .nav-profile small.connecting { color: var(--warn); }
-.nav-profile .nav-icon { opacity: 1; }
+.side-nav .nav-icon, .mobile-nav .nav-icon { position: relative; height: 32px; opacity: 1; }
+.side-nav .nav-badge, .mobile-nav .nav-badge { position: absolute; left: 17px; top: 15px; box-sizing: border-box; width: 26px; min-width: 26px; height: 26px; margin: 0; padding: 0; border: 3px solid #0b0e16; border-radius: 50%; background: var(--accent); color: #fff; font-size: 14px; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; }
+.side-nav .nav-badge-long, .mobile-nav .nav-badge-long { font-size: 10px; }
+.mobile-nav .nav-icon { width: 32px; }
+.mobile-nav .nav-link { gap: 20px; }
 .nav-notifications { width: 100%; background: transparent; text-align: left; cursor: pointer; }
 
 @media (min-width: 768px) {
@@ -18,8 +22,7 @@
   .side-nav { pointer-events: auto; min-width: 0; width: 100%; gap: 4px; }
   .side-nav .nav-link { position: relative; min-height: 52px; padding: 8px 12px; gap: 10px; border: 0; box-shadow: none; }
   .side-nav .nav-icon { width: 32px; }
-  .side-nav .nav-label { position: absolute; left: 54px; right: 12px; }
-  .side-nav .nav-badge { position: absolute; left: 35px; top: 3px; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; }
+  .side-nav .nav-label { position: absolute; left: 64px; right: 12px; }
   .side-nav .nav-dot { position: absolute; left: 39px; top: 7px; }
   .sidebar .nav-label, .sidebar .brand-wordmark { opacity: 0; visibility: hidden; transform: translateX(-6px); transition: opacity .16s ease, transform .22s ease, visibility .16s; }
   .sidebar:hover .nav-label, .sidebar:has(:focus-visible) .nav-label,
