@@ -31,7 +31,7 @@
 .matching-choice-grid small { color: var(--muted); font-size: 11px; line-height: 1.6; display: block; }
 .row-introduction-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; color: var(--text-dim); font-size: 10px; margin-top: 5px; }
 .introduction-metric { white-space: nowrap; }
-.row-player-heading .row-tier, .row-introduction-stats .row-tier, .introduction-detail-stats .row-tier, .home-profile-facts .row-tier, .participant-facts .row-tier { display: inline-flex; align-items: center; gap: 4px; margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-dim); white-space: nowrap; }
+.row-player-heading .row-tier, .row-rank .row-tier, .introduction-detail-stats .row-tier, .home-profile-facts .row-tier, .participant-facts .row-tier { display: inline-flex; align-items: center; gap: 4px; margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-dim); white-space: nowrap; }
 .row-tier > svg, .row-tier > img, .rank-emblem { flex: none; }
 .rank-emblem, .row-tier .rank-emblem { display: inline-block; vertical-align: middle; position: relative; overflow: hidden; }
 .rank-emblem > img { position: absolute; display: block; max-width: none; }

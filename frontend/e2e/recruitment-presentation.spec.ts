@@ -37,8 +37,9 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
     await expect(page.locator('.board-results-head')).toContainText('10개 모집');
     await expect(rows.locator(':scope > .row-mode .recruitment-mode')).toHaveText(Array(10).fill(mode));
     await expect(page.locator('.recruitment-list-head > span')).toHaveText(mode === '칼바람'
-      ? ['플레이어 · 자기소개', '모드', '음성', '게시 시간']
-      : ['플레이어 · 자기소개', '모드', '주 포지션 → 찾는 상대', '음성', '게시 시간']);
+      ? ['플레이어 · 자기소개', '랭크', '모드', '음성', '게시 시간']
+      : ['플레이어 · 자기소개', '랭크', '모드', '주 포지션 → 찾는 상대', '음성', '게시 시간']);
+    await expect(rows.locator(':scope > .row-rank > .row-tier')).toHaveCount(10);
     await expect(rows.locator(':scope > .row-roles')).toHaveCount(mode === '칼바람' ? 0 : 10);
     if (mode !== '칼바람') {
       const modeColumn = await rows.first().locator('.row-mode').boundingBox();
@@ -73,23 +74,34 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
     await expect(page.getByRole('tooltip')).toHaveCount(0);
   }
 
-  for (const width of [1600, 360]) {
+  for (const width of [1600, 1100, 900, 360]) {
     await page.setViewportSize({ width, height: 900 });
     await rows.first().scrollIntoViewIfNeeded();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `모집 목록 ${width}px 가로 넘침`).toBe(true);
+    await expect(rows.first().locator('.row-rank')).toBeVisible();
     await expect(rows.first().locator('.row-mode')).toBeVisible();
     await expect(rows.first().locator('.row-roles')).toBeVisible();
     await expect(rows.first().locator('.row-voice')).toBeVisible();
     await expect(rows.first().locator('.row-fresh')).toBeVisible();
+    const player = (await rows.first().locator('.row-player').boundingBox())!;
+    const rank = (await rows.first().locator('.row-rank').boundingBox())!;
     const mode = (await rows.first().locator('.row-mode').boundingBox())!;
     const role = (await rows.first().locator('.row-roles').boundingBox())!;
     const voice = (await rows.first().locator('.row-voice').boundingBox())!;
     const posted = (await rows.first().locator('.row-fresh').boundingBox())!;
-    expect(mode.x + mode.width, `모드와 포지션은 ${width}px에서 별도 열이다`).toBeLessThanOrEqual(role.x);
-    expect(voice.x + voice.width, `음성과 게시 시간은 ${width}px에서 별도 열이다`).toBeLessThanOrEqual(posted.x);
-    if (width === 360) {
-      expect(Math.abs(mode.y - role.y), '모바일 모드와 포지션은 같은 줄이다').toBeLessThanOrEqual(1);
-      expect(voice.y, '모바일 음성은 모드 아래에 표시한다').toBeGreaterThanOrEqual(mode.y + mode.height);
+    expect(rank.x + rank.width, `랭크와 모드는 ${width}px에서 별도 열이다`).toBeLessThanOrEqual(mode.x);
+    const compact = await page.locator('.recruitment-list').evaluate(element => element.clientWidth <= 760);
+    if (compact) {
+      expect(rank.y, '모바일 랭크·모드는 플레이어 아래에 표시한다').toBeGreaterThanOrEqual(player.y + player.height);
+      expect(Math.abs(rank.y + rank.height / 2 - mode.y - mode.height / 2), '모바일 랭크와 모드는 같은 줄이다').toBeLessThanOrEqual(1);
+      expect(role.y, '모바일 포지션·음성은 랭크·모드 아래에 표시한다').toBeGreaterThanOrEqual(Math.max(rank.y + rank.height, mode.y + mode.height));
+      expect(role.x + role.width, '모바일 포지션과 음성은 별도 열이다').toBeLessThanOrEqual(voice.x);
+      expect(Math.abs(role.y + role.height / 2 - voice.y - voice.height / 2), '모바일 포지션과 음성은 같은 줄이다').toBeLessThanOrEqual(1);
+      expect(posted.y, '모바일 게시 시간은 마지막 줄이다').toBeGreaterThanOrEqual(voice.y + voice.height);
+    } else {
+      expect(player.x + player.width, '랭크는 플레이어 오른쪽에 별도 열로 표시한다').toBeLessThanOrEqual(rank.x);
+      expect(mode.x + mode.width, '모드와 포지션은 별도 열이다').toBeLessThanOrEqual(role.x);
+      expect(voice.x + voice.width, '음성과 게시 시간은 별도 열이다').toBeLessThanOrEqual(posted.x);
     }
     await expectLoadedPortrait(rows.first().getByRole('img', { name: '리 신 초상화', exact: true }));
     await page.screenshot({ path: testInfo.outputPath(`recruitment-presentation-${width}.png`) });
@@ -98,6 +110,18 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
     await expectLoadedPortrait(dialog.getByRole('img', { name: '리 신 초상화', exact: true }));
     await page.keyboard.press('Escape');
   }
+
+  await modes.getByRole('button', { name: '칼바람', exact: true }).click();
+  await expect(rows.locator(':scope > .row-roles')).toHaveCount(0);
+  await rows.first().scrollIntoViewIfNeeded();
+  const aramMode = (await rows.first().locator('.row-mode').boundingBox())!;
+  const aramVoice = (await rows.first().locator('.row-voice').boundingBox())!;
+  const aramPosted = (await rows.first().locator('.row-fresh').boundingBox())!;
+  expect(aramVoice.y, '모바일 칼바람 음성·게시 시간은 랭크·모드 아래에 표시한다').toBeGreaterThanOrEqual(aramMode.y + aramMode.height);
+  expect(Math.abs(aramVoice.y + aramVoice.height / 2 - aramPosted.y - aramPosted.height / 2), '모바일 칼바람 음성과 게시 시간은 같은 줄이다').toBeLessThanOrEqual(1);
+  expect(aramVoice.x + aramVoice.width, '모바일 칼바람 음성과 게시 시간은 별도 열이다').toBeLessThanOrEqual(aramPosted.x);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), '모바일 칼바람 가로 넘침').toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('recruitment-presentation-aram-360.png') });
 });
 
 test('승률과 KDA는 수치 구간에 따라 다섯 색상으로 구분하며 미입력을 낮은 기록으로 표시하지 않는다', async ({ page }) => {
@@ -159,7 +183,7 @@ test('알 수 없는 챔피언과 불러오지 못한 초상화는 대체 아이
   }
 });
 
-test('모집은 닉네임 뒤에 챔피언을 두고 아래 전적 오른쪽에 티어를 표시한다', async ({ page }) => {
+test('모집은 닉네임 뒤에 챔피언을 한 번 표시하고 랭크는 별도 열에 표시한다', async ({ page }) => {
   const now = Date.parse('2026-09-14T12:00:00Z');
   const ago = (offset: number) => new Date(now - offset).toISOString();
   const examples = [
@@ -197,17 +221,20 @@ test('모집은 닉네임 뒤에 챔피언을 두고 아래 전적 오른쪽에 
     const row = rows.nth(index);
     const heading = row.locator('.row-player-heading');
     const stats = row.locator('.row-introduction-stats');
-    const tier = stats.locator(':scope > .row-tier:last-child');
+    const rank = row.locator(':scope > .row-rank');
+    const tier = rank.locator(':scope > .row-tier');
     await expect(tier).toContainText(example.tier);
     if (example.ownTier) await expectLoadedPortrait(tier.locator('img'));
     await expect(heading.locator(':scope > b + .preferred-champions')).toBeVisible();
-    await expect(heading.locator('.row-tier')).toHaveCount(0);
-    await expect(stats.locator(':scope > .introduction-metric + .row-tier')).toBeVisible();
-    const tierBox = (await tier.boundingBox())!;
-    const kdaBox = (await stats.locator('.introduction-metric').last().boundingBox())!;
-    const headingBox = (await heading.boundingBox())!;
-    expect(tierBox.y, '전적과 티어는 닉네임·챔피언 아래에 배치한다').toBeGreaterThanOrEqual(headingBox.y + headingBox.height);
-    expect(tierBox.x, '티어는 승률·KDA 오른쪽에 배치한다').toBeGreaterThanOrEqual(kdaBox.x + kdaBox.width);
+    await expect(row.locator('.preferred-champions')).toHaveCount(1);
+    await expect(stats.locator('.preferred-champions')).toHaveCount(0);
+    await expect(row.locator('.row-player .row-tier')).toHaveCount(0);
+    await expect(row.locator(':scope > .row-player + .row-rank + .row-mode')).toBeVisible();
+    const playerBox = (await row.locator('.row-player').boundingBox())!;
+    const rankBox = (await rank.boundingBox())!;
+    const modeBox = (await row.locator('.row-mode').boundingBox())!;
+    expect(playerBox.x + playerBox.width, '랭크는 플레이어 오른쪽에 별도 열로 표시한다').toBeLessThanOrEqual(rankBox.x);
+    expect(rankBox.x + rankBox.width, '랭크 다음 열에 모드를 표시한다').toBeLessThanOrEqual(modeBox.x);
     await expect(row).not.toContainText('직접 입력');
     const voice = row.locator(':scope > .row-voice').getByRole('img', { name: example.voice, exact: true });
     await expect(voice).toHaveClass(/recruitment-voice/);

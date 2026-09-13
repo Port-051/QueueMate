@@ -72,9 +72,9 @@
 .filter-error { color: var(--warn); font-size: 14px; margin: 7px 0; }
 .recruitment-method { color: #b9a6ed; font-size: 13px; }
 
-.board-home .recruitment-list { container-type: inline-size; --recruitment-columns: minmax(0, 1fr) 72px 140px 48px 88px; }
-.board-home .recruitment-list.without-roles { --recruitment-columns: minmax(0, 1fr) 72px 48px 88px; }
-.board-home .recruitment-list-head, .board-home .recruitment-row { grid-template-columns: var(--recruitment-columns); gap: 16px; }
+.board-home .recruitment-list { container-type: inline-size; --recruitment-columns: minmax(0, 1fr) 112px 64px 140px 40px 72px; }
+.board-home .recruitment-list.without-roles { --recruitment-columns: minmax(0, 1fr) 112px 64px 40px 72px; }
+.board-home .recruitment-list-head, .board-home .recruitment-row { grid-template-columns: var(--recruitment-columns); gap: 14px; }
 .board-home .recruitment-list-head { padding: 14px 16px; font-size: 12px; line-height: 1.5; }
 .board-home .recruitment-row { min-height: 108px; padding: 18px 16px; }
 .board-home .row-player { gap: 12px; }
@@ -83,6 +83,7 @@
 .row-player-heading > b { margin: 0; }
 .board-home .row-player p { font-size: 14px; line-height: 1.6; margin-top: 6px; }
 .board-home .row-introduction-stats { font-size: 14px; line-height: 1.5; gap: 6px 10px; margin-top: 6px; }
+.board-home .row-rank { min-width: 0; }
 .board-home .row-mode { display: grid; color: var(--text-dim); }
 .board-home .row-mode, .board-home .row-roles, .board-home .row-fresh { gap: 7px; font-size: 14px; line-height: 1.5; }
 .board-home .row-mode small, .board-home .row-fresh small { color: var(--muted); font-size: 12px; line-height: 1.5; }
@@ -120,14 +121,17 @@
   .intro-launch { grid-row: 2; }
   .intro-launch > .btn { min-width: 0; }
 }
-@container (max-width: 680px) {
+@container (max-width: 760px) {
   .board-home .recruitment-list-head { display: none; }
   .board-home .recruitment-row { grid-template-columns: minmax(80px, .65fr) minmax(0, 1fr); gap: 14px 16px; padding: 16px 12px; }
   .board-home .row-player { grid-column: 1 / -1; grid-row: 1; }
-  .board-home .row-mode { grid-column: 1; grid-row: 2; }
-  .board-home .row-roles { grid-column: 2; grid-row: 2; padding-left: 0; }
-  .board-home .row-voice { grid-column: 1; grid-row: 3; justify-content: flex-start; }
-  .board-home .row-fresh { grid-column: 2; grid-row: 3; padding-right: 16px; }
+  .board-home .row-rank { grid-column: 1; grid-row: 2; }
+  .board-home .row-mode { grid-column: 2; grid-row: 2; }
+  .board-home .row-roles { grid-column: 1; grid-row: 3; padding-left: 0; }
+  .board-home .row-voice { grid-column: 2; grid-row: 3; justify-content: flex-start; }
+  .board-home .row-fresh { grid-column: 1 / -1; grid-row: 4; padding-right: 16px; }
+  .board-home .without-roles .row-voice { grid-column: 1; }
+  .board-home .without-roles .row-fresh { grid-column: 2; grid-row: 3; }
   .board-home .row-arrow { right: 8px; top: auto; bottom: 18px; transform: none; }
 }
 @media (max-width: 650px) {
