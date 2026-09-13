@@ -71,7 +71,7 @@ export function AppShell() {
   return (
     <div className="app-shell">
       <aside onPointerLeave={() => setNavigationPicked(false)} className={`sidebar${navigationPicked ? ' navigation-picked' : ''}${notificationAnchor ? ' has-notifications-open' : ''}`}>
-        <Link to="/app/home" className="sidebar-brand-link" aria-label="QueueMate 홈" title="홈으로 이동" onPointerEnter={() => setNavigationPicked(false)} onClick={() => { setMenuOpen(false); setNavigationPicked(true); closeNotifications(); }}>
+        <Link to="/app/home" className="sidebar-brand-link" aria-label="QueueMate 홈" onPointerEnter={() => setNavigationPicked(false)} onClick={() => { setMenuOpen(false); setNavigationPicked(true); closeNotifications(); }}>
           <Logo />
         </Link>
         {navigation()}
