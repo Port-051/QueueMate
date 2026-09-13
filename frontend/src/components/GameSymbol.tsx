@@ -19,7 +19,7 @@ export function GameSymbol({ game, size = 30, className = '' }: Props) {
 
 export function GameBadge({ game, size = 40, className = '' }: Props) {
   return <span className={`game-logo g-${game} ${className}`.trim()} style={{ width: size, height: size }} aria-hidden="true">
-    <GameSymbol game={game} size={Math.round(size * .78)} />
+    <GameSymbol game={game} size={game === 'PUBG' ? size : Math.round(size * .78)} />
   </span>;
 }
 

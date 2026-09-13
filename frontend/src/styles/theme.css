@@ -222,7 +222,7 @@ ul { margin: 0; padding: 0; list-style: none; }
 .game-logo { position: relative; width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; font-size: 13px; font-weight: 900; letter-spacing: -0.04em; }
 .g-LOL { background: linear-gradient(140deg, #1d3f6e, #0a1830); color: #c8aa6e; }
 .g-VALORANT { background: linear-gradient(140deg, #6d1e2a, #2a0b12); color: #ef4347; }
-.g-PUBG { background: linear-gradient(140deg, #4a4423, #17150a); color: #f2a900; }
+.g-PUBG { background: transparent; color: #f2a900; }
 
 /* Game identity is rendered by the shared GameBadge component. */
 .game-symbol { position: relative; display: block; overflow: hidden; flex: none; }
