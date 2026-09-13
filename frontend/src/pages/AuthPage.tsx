@@ -8,9 +8,9 @@ import { USE_MOCK } from '../config';
 import { useAuth } from '../state/AuthContext';
 
 const POINTS = [
-  { icon: <IconBolt size={16} />, title: '빠른 매칭', desc: '복잡한 과정 없이 조건만 고르면 매칭이 시작됩니다.' },
-  { icon: <IconTarget size={16} />, title: '핵심 조건 매칭', desc: '게임 모드, 핵심 조건, 음성, 플레이 목적만 봅니다.' },
-  { icon: <IconMic size={16} />, title: '음성 채팅', desc: 'WebRTC 기반으로 파티원과 바로 대화합니다.' },
+  { icon: <IconBolt size={16} />, title: '직접 찾고, 바로 신청', desc: '모집 목록을 살펴보거나 내 모집에서 자동 찾기를 켜보세요.' },
+  { icon: <IconTarget size={16} />, title: '핵심 조건 매칭', desc: '티어, 포지션, 게임 모드와 음성 조건으로 팀원을 찾아요.' },
+  { icon: <IconMic size={16} />, title: '음성 채팅', desc: '같은 화면에서 파티원과 대화하며 게임을 준비해요.' },
   { icon: <IconShield size={16} />, title: '안전한 플레이', desc: '차단·신고로 불쾌한 매칭을 걸러냅니다.' },
 ];
 
@@ -59,8 +59,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
         <div>
           <h2>조건이 맞는 팀원과<br /><em>지금, 바로 플레이</em></h2>
           <p style={{ marginTop: 16 }}>
-            QueueMate는 LoL · VALORANT · PUBG에서 게임별 핵심 조건만으로<br />
-            호환되는 팀원을 자동으로 매칭해주는 서비스입니다.
+            LoL · VALORANT · PUBG에서 조건이 맞는 팀원을 살펴보세요.<br />
+            실시간 모집과 예약, 참여 수락부터 파티 준비까지 한곳에서 이어집니다.
           </p>
         </div>
         <div className="auth-points">
@@ -115,7 +115,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
 
           {USE_MOCK ? (
             <div className="auth-hint">
-              backend 없이 동작하는 mock 모드입니다.<br />
+              예시 데이터로 모집과 매칭을 체험할 수 있어요.<br />
               데모 계정: <b>demo@queuemate.gg</b> / <b>queuemate1</b>
             </div>
           ) : null}

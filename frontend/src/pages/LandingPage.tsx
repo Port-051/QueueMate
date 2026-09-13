@@ -6,9 +6,9 @@ import { IconBolt, IconMic, IconShield, IconTarget } from '../components/icons';
 import { GAMES } from '../domain/gameConfig';
 
 const FEATURES = [
-  { icon: <IconBolt />, title: '빠른 매칭', desc: '글을 쓰고 사람을 찾을 필요 없이 조건만 고르면 시스템이 팀원을 배정합니다.' },
-  { icon: <IconTarget />, title: '핵심 조건만', desc: '게임 모드, 게임별 핵심 조건 하나, 음성, 플레이 목적. 딱 네 가지면 충분합니다.' },
-  { icon: <IconMic />, title: '음성 · 채팅', desc: 'WebRTC로 파티원과 직접 연결됩니다. 서버는 대화 내용을 저장하지 않습니다.' },
+  { icon: <IconBolt />, title: '한눈에 찾는 팀원', desc: '모집 목록에서 원하는 팀원을 골라 신청하세요. 내 모집을 열고 자동 찾기도 함께 켤 수 있어요.' },
+  { icon: <IconTarget />, title: '나에게 맞는 조건', desc: '게임 모드, 티어, 포지션, 음성, 플레이 목적을 골라 서로 조건이 맞는 모집을 찾아요.' },
+  { icon: <IconMic />, title: '음성 · 채팅', desc: '모두 수락하면 같은 화면에서 채팅과 음성으로 게임을 준비할 수 있어요.' },
   { icon: <IconShield />, title: '안전한 파티', desc: '차단한 사용자는 이후 어떤 매칭에서도 같은 파티가 되지 않습니다.' },
 ];
 
@@ -25,11 +25,11 @@ export function LandingPage() {
 
       <section className="hero">
         <div>
-          <span className="eyebrow"><IconBolt size={14} /> 조건은 내가, 사람 선택은 시스템이</span>
+          <span className="eyebrow"><IconBolt size={14} /> 함께할 팀원을 찾는 곳</span>
           <h1>조건이 맞는 팀원과<br /><em>지금, 바로</em> 플레이</h1>
           <p className="lede">
-            QueueMate는 LoL · VALORANT · PUBG에서 게임별 핵심 조건이 호환되는 사용자만 남긴 뒤,
-            그 안에서 자동으로 팀원을 배정하는 랜덤 매칭 서비스입니다.
+            LoL · VALORANT · PUBG에서 원하는 팀원을 살펴보고 직접 골라보세요.
+            지금 함께할 사람도, 약속한 시간에 만날 사람도 한곳에서 찾을 수 있어요.
           </p>
           <div className="hero-actions">
             <Link to="/signup"><Button variant="primary" size="lg">무료로 시작하기</Button></Link>
@@ -53,9 +53,9 @@ export function LandingPage() {
           <div className="hero-flow">
             <b style={{ fontSize: 15 }}>매칭은 이렇게 진행됩니다</b>
             <ol>
-              <li>게임과 모드, 핵심 조건 하나, 음성, 플레이 목적을 고릅니다.</li>
-              <li>지금 매칭하거나, 플레이 가능한 시간으로 예약합니다.</li>
-              <li>호환되는 팀원이 모이면 제안이 오고, 모두 수락하면 파티가 확정됩니다.</li>
+              <li>게임과 모드, 원하는 팀원의 조건을 고릅니다.</li>
+              <li>실시간·예약 모집을 살펴보고 참여하거나 내 모집을 시작합니다.</li>
+              <li>자동 찾기도 함께 사용할 수 있어요. 모두 수락하면 파티가 열립니다.</li>
               <li>파티룸에서 음성과 채팅으로 준비하고 바로 게임에 들어갑니다.</li>
             </ol>
           </div>
