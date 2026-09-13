@@ -3,6 +3,14 @@
 .board-home .board-tabs button { font-size: 16px; }
 .board-home .board-results-head { padding: 14px 0; font-size: 14px; }
 .board-home .board-results-head b { font-size: 18px; }
+.board-result-count { display: inline-flex; align-items: baseline; min-width: 80px; min-height: 27px; font-variant-numeric: tabular-nums; }
+.board-count-placeholder { align-self: center; width: 72px; height: 14px; border-radius: 4px; background: var(--line-soft); }
+.board-list-region { transition: opacity .15s ease; }
+.board-list-region.is-updating { opacity: .7; pointer-events: none; }
+.board-load-more { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; min-height: 64px; padding: 16px 0; color: var(--muted); font-size: 14px; }
+.board-loading-spinner { display: block; width: 20px; height: 20px; border: 2px solid var(--line); border-top-color: var(--accent-2); border-radius: 50%; animation: board-loading-spin .8s linear infinite; }
+@keyframes board-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .board-list-region { transition: none; } .board-loading-spinner { animation: none; } }
 
 /* 내 정보는 목록 옆에 두고, 실제 매칭 진행은 본문에서 이어진다. */
 .home-profile { min-width: 0; align-self: stretch; }
@@ -77,8 +85,6 @@
 .board-home .row-roles, .board-home .row-fresh { gap: 7px; font-size: 14px; line-height: 1.5; }
 .board-home .row-roles small, .board-home .row-fresh small { font-size: 12px; line-height: 1.5; }
 .board-home .row-arrow { top: 50%; transform: translateY(-50%); }
-.board-home .board-pagination { font-size: 14px; }
-.board-home .board-pagination .btn { font-size: 14px; }
 .board-home .board-new-results, .board-home .board-empty p { font-size: 14px; }
 .board-feed .match-stage .compact-party { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .board-feed .match-stage .compact-party > .compact-chat { grid-column: 1 / -1; }
@@ -116,6 +122,5 @@
   .board-home .row-fresh { grid-column: 2; grid-row: 2; padding-right: 8px; }
   .board-home .row-arrow { right: 8px; top: auto; bottom: 18px; transform: none; }
   .board-home .board-tabs { gap: 22px; }
-  .board-home .board-pagination { flex-direction: row; }
   .board-feed .match-stage .compact-party { grid-template-columns: minmax(0, 1fr); }
 }

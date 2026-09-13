@@ -4,54 +4,191 @@ import { ApiError } from '../api/http';
 import { useMatch } from './MatchContext';
 import { useAuth } from './AuthContext';
 
+type BoardSession = {
+  key: string;
+  userId: string | null;
+  query: api.BoardSearch;
+  lastPage: number;
+  ready: boolean;
+  running: Promise<void> | null;
+  operation: 'refresh' | 'append' | null;
+  refreshRequested: boolean;
+  resetRequested: boolean;
+  appendRequested: boolean;
+};
+
+function uniqueRows(rows: api.BoardRow[]) {
+  const ids = new Set<string>();
+  return rows.filter(row => {
+    if (ids.has(row.id)) return false;
+    ids.add(row.id);
+    return true;
+  });
+}
+
 export function useRecruitmentBoard(query: api.BoardSearch) {
   const { stream } = useMatch();
   const { user } = useAuth();
+  const userId = user?.id ?? null;
   const [page, setPage] = useState<api.BoardPage | null>(null);
   const [pending, setPending] = useState<api.BoardPage | null>(null);
   const [mine, setMine] = useState<api.BoardRow[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const sequence = useRef(0);
-  const pageRef = useRef(page); pageRef.current = page;
-  const queryKey = JSON.stringify(query);
-  const refresh = useCallback(async (reset = false) => {
-    const run = ++sequence.current;
-    try {
-      const [next, owned] = await Promise.all([api.searchBoard(JSON.parse(queryKey) as api.BoardSearch), api.myRecruitments()]);
-      if (run !== sequence.current) return;
-      const previous = pageRef.current;
-      if (reset || !previous) { setPage(next); setPending(null); }
-      else {
-        // 새 모집으로 순서가 바뀌어도 읽던 행은 움직이지 않는다. 사라진 행은 개별 조회로
-        // 종료와 단순한 페이지 이동을 구분한다.
-        const updated = await Promise.all(previous.items.map(async row => {
-          const current = next.items.find(item => item.id === row.id);
-          if (current) return current;
-          try { return await api.getRecruitment(row.id); }
-          catch (cause) {
-            if (cause instanceof ApiError && cause.status === 404) return { ...row, status: 'CLOSED' as const };
-            // 일시적인 조회 실패는 모집 종료가 아니다. 기존 목록을 보존하고 재시도를 안내한다.
-            throw cause;
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState('');
+  const pageRef = useRef<api.BoardPage | null>(null);
+  const pendingRef = useRef<api.BoardPage | null>(null);
+  const ownerRef = useRef(userId);
+  const sessionRef = useRef<BoardSession | null>(null);
+  // Pagination belongs to this hook; only filters start a new board session.
+  const queryKey = JSON.stringify({ ...query, page: 0 });
+  const scopeKey = JSON.stringify([userId, queryKey]);
+
+  const runSession = useCallback(async (session: BoardSession): Promise<void> => {
+    if (session.running) return session.running;
+    const active = () => sessionRef.current === session;
+    const updatePage = (next: api.BoardPage) => { pageRef.current = next; setPage(next); };
+    const updatePending = (next: api.BoardPage | null) => { pendingRef.current = next; setPending(next); };
+    const work = async () => {
+      while (active() && (session.refreshRequested || session.appendRequested)) {
+        // An append waiting behind a refresh gets the next turn, even during a busy stream.
+        if (session.appendRequested && session.ready && !session.resetRequested) {
+          session.appendRequested = false;
+          session.operation = 'append';
+          if (!pageRef.current?.hasMore) { setLoadingMore(false); continue; }
+          const nextPage = session.lastPage + 1;
+          try {
+            const next = await api.searchBoard({ ...session.query, page: nextPage });
+            if (!active()) return;
+            const previous = pageRef.current;
+            if (!previous) return;
+            updatePage({ ...next, items: uniqueRows([...previous.items, ...next.items]) });
+            session.lastPage = nextPage;
+            if (pendingRef.current) {
+              updatePending({ ...next, items: uniqueRows([...pendingRef.current.items, ...next.items]) });
+            }
+            setLoadMoreError('');
+          } catch {
+            if (active()) setLoadMoreError('다음 모집을 불러오지 못했습니다. 다시 시도해 주세요.');
+          } finally {
+            if (active()) setLoadingMore(false);
           }
-        }));
-        if (run !== sequence.current) return;
-        setPage({ ...next, items: updated });
-        const changed = previous.items.map(r => r.id).join() !== next.items.map(r => r.id).join();
-        setPending(changed ? next : null);
+          continue;
+        }
+
+        // A filter replacement may make a queued append unnecessary.
+        if (!session.refreshRequested) {
+          session.appendRequested = false;
+          setLoadingMore(false);
+          break;
+        }
+        const reset = session.resetRequested || !session.ready;
+        session.refreshRequested = false;
+        session.resetRequested = false;
+        session.operation = 'refresh';
+        try {
+          const [pages, owned] = await Promise.all([
+            Promise.all(Array.from({ length: session.lastPage + 1 }, (_, index) =>
+              api.searchBoard({ ...session.query, page: index }))),
+            api.myRecruitments(),
+          ]);
+          if (!active()) return;
+          const last = pages[pages.length - 1]!;
+          const next: api.BoardPage = { ...last, items: uniqueRows(pages.flatMap(result => result.items)) };
+          const previous = pageRef.current;
+          let lookupFailed = false;
+          if (reset || !previous) {
+            updatePage(next);
+            updatePending(null);
+          } else {
+            // Refresh every loaded page without moving or dropping rows being read.
+            const freshRows = new Map(next.items.map(row => [row.id, row]));
+            const updated = await Promise.all(previous.items.map(async row => {
+              const current = freshRows.get(row.id);
+              if (current) return current;
+              try { return await api.getRecruitment(row.id); }
+              catch (cause) {
+                if (cause instanceof ApiError && cause.status === 404) return { ...row, status: 'CLOSED' as const };
+                lookupFailed = true;
+                return row;
+              }
+            }));
+            if (!active()) return;
+            updatePage({ ...next, items: updated });
+            const changed = previous.items.length !== next.items.length ||
+              previous.items.some((row, index) => row.id !== next.items[index]?.id);
+            updatePending(changed ? next : null);
+          }
+          session.ready = true;
+          setMine(owned);
+          setError(lookupFailed ? '일부 모집 정보를 갱신하지 못했습니다. 다시 확인해 주세요.' : '');
+        } catch {
+          if (active()) setError('모집 정보를 불러오지 못했습니다. 다시 확인해 주세요.');
+        } finally {
+          if (active()) setLoading(false);
+        }
       }
-      setMine(owned); setError('');
-    } catch { if (run === sequence.current) setError('모집 정보를 불러오지 못했습니다. 다시 확인해 주세요.'); }
-    finally { if (run === sequence.current) setLoading(false); }
-  }, [queryKey, user?.id]);
+    };
+    session.running = work().finally(() => {
+      session.running = null;
+      session.operation = null;
+    });
+    return session.running;
+  }, []);
+
+  const refresh = useCallback(async (reset = false): Promise<void> => {
+    const session = sessionRef.current;
+    if (!session || session.key !== scopeKey) return;
+    // Coalesce background events instead of repeatedly cancelling an in-flight request.
+    if (session.operation === 'refresh' && !reset) return session.running ?? undefined;
+    session.refreshRequested = true;
+    session.resetRequested ||= reset;
+    if (reset || !session.ready) setLoading(true);
+    await runSession(session);
+  }, [runSession, scopeKey]);
+
+  const loadMore = useCallback(async (): Promise<void> => {
+    const session = sessionRef.current;
+    if (!session || session.key !== scopeKey || !session.ready || !pageRef.current?.hasMore ||
+      session.appendRequested || session.operation === 'append') return;
+    session.appendRequested = true;
+    setLoadingMore(true);
+    setLoadMoreError('');
+    await runSession(session);
+  }, [runSession, scopeKey]);
+
   useEffect(() => {
-    setLoading(true); setPage(null); pageRef.current = null; setPending(null);
+    if (ownerRef.current !== userId) {
+      ownerRef.current = userId;
+      pageRef.current = null;
+      setPage(null);
+      setMine([]);
+    }
+    const session: BoardSession = {
+      key: scopeKey, userId, query: JSON.parse(queryKey) as api.BoardSearch,
+      lastPage: 0, ready: false, running: null, operation: null,
+      refreshRequested: false, resetRequested: false, appendRequested: false,
+    };
+    sessionRef.current = session;
+    setLoading(true);
+    setError('');
+    setLoadingMore(false);
+    setLoadMoreError('');
+    pendingRef.current = null;
+    setPending(null);
+    // Keep the current rows and count visible while a new filter is being calculated.
     void refresh(true);
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 15_000);
     const focus = () => { void refresh(); };
     window.addEventListener('focus', focus);
-    return () => { sequence.current++; window.clearInterval(timer); window.removeEventListener('focus', focus); };
-  }, [refresh]);
+    return () => {
+      if (sessionRef.current === session) sessionRef.current = null;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', focus);
+    };
+  }, [queryKey, refresh, scopeKey, userId]);
+
   useEffect(() => {
     if (!stream) return;
     let timer = 0;
@@ -63,9 +200,12 @@ export function useRecruitmentBoard(query: api.BoardSearch) {
     const offStatus = stream.subscribeStatus(status => { if (status === 'connected') void refresh(); });
     return () => { off(); offStatus(); window.clearTimeout(timer); };
   }, [stream, refresh]);
+
+  // Never expose the preceding user's data during the render before effect cleanup.
+  const visiblePage = ownerRef.current === userId ? page : null;
   useEffect(() => {
-    if (!page?.items.length) return;
-    const eligible = new Set(page.items.filter(r => r.status === 'OPEN').map(r => r.id));
+    if (!visiblePage?.items.length) return;
+    const eligible = new Set(visiblePage.items.filter(r => r.status === 'OPEN').map(r => r.id));
     const timers = new Map<Element, number>();
     const observer = new IntersectionObserver(entries => {
       for (const entry of entries) {
@@ -83,7 +223,20 @@ export function useRecruitmentBoard(query: api.BoardSearch) {
     }, { threshold: [0, 0.5] });
     document.querySelectorAll('[data-recruitment-id]').forEach(element => observer.observe(element));
     return () => { observer.disconnect(); timers.forEach(timer => window.clearTimeout(timer)); };
-  }, [page?.items.map(r => `${r.id}:${r.status}`).join(',')]);
-  const applyPending = () => { if (pending) { setPage(pending); setPending(null); } else void refresh(true); };
-  return { page, pending, mine, loading, error, refresh, applyPending };
+  }, [visiblePage?.items.map(r => `${r.id}:${r.status}`).join(',')]);
+
+  // Re-fetch the loaded range so applying a pending update cannot discard an append.
+  const applyPending = useCallback(() => { void refresh(true); }, [refresh]);
+  const currentScope = sessionRef.current?.key === scopeKey;
+  return {
+    page: visiblePage,
+    pending: currentScope ? pending : null,
+    mine: ownerRef.current === userId ? mine : [],
+    loading: !currentScope || loading,
+    stale: Boolean(visiblePage) && (!currentScope || !sessionRef.current?.ready),
+    error: currentScope ? error : '',
+    refresh, applyPending, loadMore,
+    loadingMore: currentScope && loadingMore,
+    loadMoreError: currentScope ? loadMoreError : '',
+  };
 }

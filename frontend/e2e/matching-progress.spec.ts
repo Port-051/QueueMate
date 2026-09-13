@@ -9,7 +9,8 @@ test('모집 타이머는 중앙에 크게 보이고 초 단위로 증가한다'
   expect(parseFloat(await timer.evaluate(el => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(44);
   const stage = await page.getByRole('region', { name: '내 매칭 진행' }).boundingBox();
   const list = await page.locator('.board-toolbar').boundingBox();
-  expect(stage!.width).toBeGreaterThan(1000);
+  expect(stage!.x).toBeCloseTo(list!.x, 0);
+  expect(stage!.width).toBeCloseTo(list!.width, 0);
   expect(stage!.y + stage!.height).toBeLessThanOrEqual(list!.y);
   const before = seconds(await timer.innerText());
   await page.clock.fastForward(6000);
