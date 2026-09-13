@@ -46,8 +46,6 @@ test('오른쪽 매칭 폼은 키보드로 조작하고 닫으면 시작 버튼�
   await expect(start).toBeEnabled();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('button', { name: '매칭 작성 닫기' })).toBeFocused();
-  await page.keyboard.press('Tab');
   await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '원하는 큐 타입', exact: true }).getByRole('button', { name: '랭크', exact: true })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -108,10 +106,10 @@ test('기존 매칭과 예약 주소도 홈 오른쪽 작성 영역으로 연결
   await openBookmark('/app/match');
   await expect(page).toHaveURL(/\/app\/home$/);
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
-  await expect(page.locator('.recruitment-composer-shell')).toContainText('실시간 매칭');
+  await expect(page.locator('.recruitment-composer-shell')).toHaveAttribute('aria-label', '실시간 매칭');
   await openBookmark('/app/reservations/new');
   await expect(page).toHaveURL(/\/app\/home$/);
-  await expect(page.locator('.recruitment-composer-shell')).toContainText('예약 매칭');
+  await expect(page.locator('.recruitment-composer-shell')).toHaveAttribute('aria-label', '예약 매칭');
   await openBookmark('/app/reservations');
   await expect(page).toHaveURL(/\/app\/home$/);
   await expect(page.locator('.recruitment-composer-shell')).toHaveCount(0);

@@ -7,8 +7,9 @@ test('자기소개를 비워 두면 모든 조건이 무관이며 수동 매칭�
   const dialog = page.locator('.recruitment-composer-shell');
   await expect(dialog.getByRole('group', { name: '주 포지션', exact: true }).getByRole('button', { name: '무관', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(dialog.getByRole('group', { name: '원하는 큐 타입', exact: true }).locator('[aria-pressed="true"]')).toHaveCount(0);
+  await expect(dialog.locator('.matching-rail-heading')).toHaveCount(0);
   await expect(dialog.getByLabel('내 티어', { exact: true })).toHaveCount(0);
-  await expect(dialog.getByRole('region', { name: '롤 전적 정보' })).toContainText('연동 대기');
+  await expect(dialog.getByRole('region', { name: '롤 전적 정보' })).toHaveCount(0);
   await expect(dialog.getByRole('group', { name: '음성', exact: true }).getByRole('button', { name: '무관', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(dialog.getByRole('radio', { name: '수동 매칭' })).toBeChecked();
   await expect(dialog.getByRole('radio', { name: '자동 매칭' })).not.toBeChecked();
@@ -75,4 +76,10 @@ test('매칭 글 목록과 상세에서 자기소개 전적을 보여주고 최�
   await expect(dialog.getByRole('button', { name: '자기소개 작성하고 오케이 보내기' })).toBeEnabled();
   await page.keyboard.press('Escape');
   await expect(row).toBeFocused();
+});
+
+test('내 전적은 매칭 조건 대신 개인 프로필에서 확인한다', async ({ page }) => {
+  await login(page);
+  await page.locator('.home-profile-link').click();
+  await expect(page.getByRole('region', { name: '롤 전적 정보', exact: true })).toContainText('연동 대기');
 });

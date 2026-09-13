@@ -7,7 +7,7 @@ import { writeFrom } from '../domain/recruitment';
 import { applyIntroduction, emptyIntroduction, introductionFromBoard, introductionInputError, readIntroduction, saveIntroduction } from '../domain/introduction';
 import { useAuth } from '../state/AuthContext';
 import { Button, useToast } from './ui';
-import { IconSearch, IconBolt } from './icons';
+import { IconSearch, IconMatch } from './icons';
 import { MatchingRailPanel } from './MatchingRailPanel';
 import { ReservationFields } from './RecruitmentFields';
 import { SelfIntroductionFields } from './SelfIntroductionFields';
@@ -38,7 +38,7 @@ export function RecruitmentComposer({ initial, editing, suspended, onClose, onSa
     } catch (err) { setError(isApiError(err) ? err.message : '매칭을 저장하지 못했습니다. 다시 시도해 주세요.'); }
     finally { setBusy(false); }
   };
-  return <MatchingRailPanel suspended={suspended} busy={busy} title={editing ? '매칭 수정' : value.type === 'REALTIME' ? '실시간 매칭' : '예약 매칭'} onClose={() => onClose()} className="recruitment-composer-shell">
+  return <MatchingRailPanel showHeader={false} suspended={suspended} busy={busy} title={editing ? '매칭 수정' : value.type === 'REALTIME' ? '실시간 매칭' : '예약 매칭'} onClose={() => onClose()} className="recruitment-composer-shell">
     <form onSubmit={event => { event.preventDefault(); void submit(); }}>
     <fieldset className="recruitment-composer" disabled={busy || suspended}>
       {error || validationError ? <div className="banner warn" role="alert">{error || validationError}</div> : null}
@@ -46,7 +46,7 @@ export function RecruitmentComposer({ initial, editing, suspended, onClose, onSa
       {value.type === 'RESERVATION' ? <ReservationFields value={value} onChange={time => setValue({ ...value, ...time })} /> : null}
       <fieldset className="matching-choice"><legend>매칭 방식</legend><div className="matching-choice-grid" role="radiogroup" aria-label="매칭 방식">
         <button type="button" role="radio" aria-label="수동 매칭" aria-checked={!value.autoMatch} onClick={() => setValue({ ...value, autoMatch: false })}><IconSearch size={20} /><span>수동 매칭</span></button>
-        <button type="button" role="radio" aria-label="자동 매칭" aria-checked={value.autoMatch} onClick={() => setValue({ ...value, autoMatch: true })}><IconBolt size={20} /><span>자동 매칭</span></button>
+        <button type="button" role="radio" aria-label="자동 매칭" aria-checked={value.autoMatch} onClick={() => setValue({ ...value, autoMatch: true })}><IconMatch size={20} /><span>자동 매칭</span></button>
       </div></fieldset>
     </fieldset>
     <div className="matching-rail-footer"><Button block type="submit" variant="primary" disabled={busy || suspended || Boolean(validationError)}>{busy ? '저장 중…' : editing ? '매칭 조건 저장' : '매칭 시작'}</Button></div>

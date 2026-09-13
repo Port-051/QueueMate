@@ -1,3 +1,5 @@
+import { FilterTierIcon } from '../components/FilterSymbols';
+import '../styles/introduction.css';
 import { GameBadge } from '../components/GameSymbol';
 import { ProfileSettings } from '../components/ProfileSettings';
 import { useState } from 'react';
@@ -135,6 +137,14 @@ export function MyInfoPage() {
               })}
             </div>
           </section>
+        <section className="profile-section" aria-labelledby="profile-record-heading">
+          <div className="profile-section-heading"><h2 id="profile-record-heading">내 전적</h2></div>
+          <section className="linked-game-record" aria-label="롤 전적 정보">
+            <div className="linked-record-heading"><FilterTierIcon game="LOL" tier={null} size={26} /><strong>리그 오브 레전드 전적</strong><span>연동 대기</span></div>
+            <dl><div><dt>티어</dt><dd>—</dd></div><div><dt>승률</dt><dd>—</dd></div><div><dt>KDA</dt><dd>—</dd></div></dl>
+            <div className="linked-record-champions" aria-label="챔피언 연동 대기"><span /><span /><span /><small>챔피언 · 최근 20경기</small></div>
+          </section>
+        </section>
         <ProfileSettings />
         <section className="profile-section" aria-labelledby="profile-privacy-heading">
           <div className="profile-section-heading"><h2 id="profile-privacy-heading">개인정보와 안전</h2></div>

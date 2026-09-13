@@ -49,7 +49,7 @@ test('매칭 글 상세와 참여 신청은 오른쪽에서 이어지고 닫으�
   await page.getByRole('button', { name: '자기소개 작성하고 오케이 보내기' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.locator('.home-profile .recruitment-composer-shell')).toBeVisible();
-  await expect(page.locator('.recruitment-composer-shell')).toContainText('실시간 매칭');
+  await expect(page.locator('.recruitment-composer-shell')).toHaveAttribute('aria-label', '실시간 매칭');
   await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('region', { name: '보낸 오케이' })).toBeVisible();

@@ -12,8 +12,8 @@ export function revealMatchingRail(element: HTMLElement) {
 }
 
 /** 목록을 가리지 않는 매칭 작업 영역. 닫으면 작업을 시작한 버튼으로 돌아간다. */
-export function MatchingRailPanel({ title, className = '', suspended = false, busy = false, onClose, children }: {
-  title: string; className?: string; suspended?: boolean; busy?: boolean; onClose: () => void; children: ReactNode;
+export function MatchingRailPanel({ title, className = '', showHeader = true, suspended = false, busy = false, onClose, children }: {
+  title: string; className?: string; showHeader?: boolean; suspended?: boolean; busy?: boolean; onClose: () => void; children: ReactNode;
 }) {
   const panel = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -27,7 +27,7 @@ export function MatchingRailPanel({ title, className = '', suspended = false, bu
   return <section ref={panel} className={`matching-rail-panel ${className}`} aria-label={title} tabIndex={-1} hidden={suspended} onKeyDown={event => {
     if (event.key === 'Escape' && !busy) { event.stopPropagation(); onClose(); }
   }}>
-    <header className="matching-rail-heading"><h2>{title}</h2><Button size="sm" variant="ghost" disabled={busy} aria-label={`${title === '매칭 글 상세' ? '매칭 글 상세' : '매칭 작성'} 닫기`} onClick={onClose}>닫기</Button></header>
+    {showHeader ? <header className="matching-rail-heading"><h2>{title}</h2><Button size="sm" variant="ghost" disabled={busy} aria-label={`${title === '매칭 글 상세' ? '매칭 글 상세' : '매칭 작성'} 닫기`} onClick={onClose}>닫기</Button></header> : null}
     {children}
   </section>;
 }

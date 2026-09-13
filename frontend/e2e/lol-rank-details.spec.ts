@@ -6,7 +6,7 @@ test('롤 전적은 직접 입력할 수 없으며 이전 수동 전적을 API �
   await page.evaluate(() => localStorage.setItem('queuemate:introduction:v1:u-me:LOL', JSON.stringify({ primaryRole: 'MID', ownTier: 'GOLD', rankDivision: 'II', champions: ['아리'], winRate: 99, kda: 9, queueType: 'ANY' })));
   await page.locator('.intro-launch > button').click();
   const form = page.locator('.recruitment-composer-shell');
-  await expect(form.getByRole('region', { name: '롤 전적 정보' })).toContainText('연동 대기');
+  await expect(form.getByRole('region', { name: '롤 전적 정보' })).toHaveCount(0);
   await expect(form.locator('input[type="number"], select, .introduction-records')).toHaveCount(0);
   await expect(form.getByLabel('선호 챔피언')).toHaveCount(0);
   await expect(form).not.toContainText('골드');

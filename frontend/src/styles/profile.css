@@ -75,3 +75,5 @@
   .profile-game-id { font-size: 14px; }
   .profile-game-unregistered { font-size: 13px; }
 }
+
+.profile-section > .linked-game-record { border: 0; margin: 0; padding: 0; }

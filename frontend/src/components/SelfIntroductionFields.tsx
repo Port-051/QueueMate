@@ -3,7 +3,7 @@ import type { GameKey } from '../api/types';
 import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
 import { TIER_LABELS, tiers } from '../domain/recruitment';
 import type { MatchResult, SelfIntroduction } from '../domain/introduction';
-import { FilterModeIcon, FilterRoleIcon, FilterTierIcon } from './FilterSymbols';
+import { FilterModeIcon, FilterRoleIcon } from './FilterSymbols';
 import { IconMic, IconMicOff, IconMicOptional } from './icons';
 import '../styles/introduction.css';
 
@@ -20,12 +20,6 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
   const losses = value.recentResults.filter(result => result === 'LOSS').length;
   const nextResult = (current: MatchResult): MatchResult => current === null ? 'WIN' : current === 'WIN' ? 'LOSS' : null;
   return <section className="self-introduction" aria-label="자기소개">
-    <div className="introduction-section-head"><h3>자기소개</h3></div>
-    {game === 'LOL' ? <section className="linked-game-record" aria-label="롤 전적 정보">
-      <div className="linked-record-heading"><FilterTierIcon game="LOL" tier={null} size={26} /><strong>내 전적</strong><span>연동 대기</span></div>
-      <dl><div><dt>티어</dt><dd>—</dd></div><div><dt>승률</dt><dd>—</dd></div><div><dt>KDA</dt><dd>—</dd></div></dl>
-      <div className="linked-record-champions" aria-label="챔피언 연동 대기"><span /><span /><span /><small>챔피언 · 최근 20경기</small></div>
-    </section> : null}
     <div className="introduction-fields button-fields">
       <fieldset className="introduction-choice"><legend>게임 모드</legend><div className="intro-mode-options" role="group" aria-label="원하는 큐 타입">
         {visibleModes(game).map(mode => <button type="button" key={mode.key} className="filter-mode" aria-label={mode.label} aria-pressed={value.queueType === mode.key} disabled={modeLocked} onClick={() => patch({ queueType: value.queueType === mode.key ? 'ANY' : mode.key })}><FilterModeIcon mode={mode.key} /><span>{mode.label}</span></button>)}
