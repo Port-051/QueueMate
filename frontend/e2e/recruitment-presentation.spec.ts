@@ -64,6 +64,7 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
     await expect(champion.locator('.preferred-champion-name')).toBeHidden();
     await expect(champion).not.toHaveAttribute('title');
     await expectLoadedPortrait(champion.getByRole('img', { name: `${name} 초상화`, exact: true }));
+    await expect(champion.locator('.preferred-champion-portrait')).toHaveCSS('border-radius', '50%');
     await champion.hover();
     await expect(page.getByRole('tooltip')).toBeVisible({ timeout: 500 });
     await expect(page.getByRole('tooltip')).toHaveText(name);
@@ -158,7 +159,7 @@ test('알 수 없는 챔피언과 불러오지 못한 초상화는 대체 아이
   }
 });
 
-test('모집은 닉네임 뒤에 챔피언을 두고 아래에 티어와 전적을 표시한다', async ({ page }) => {
+test('모집은 닉네임 뒤에 챔피언을 두고 아래 전적 오른쪽에 티어를 표시한다', async ({ page }) => {
   const now = Date.parse('2026-09-14T12:00:00Z');
   const ago = (offset: number) => new Date(now - offset).toISOString();
   const examples = [
@@ -196,15 +197,17 @@ test('모집은 닉네임 뒤에 챔피언을 두고 아래에 티어와 전적�
     const row = rows.nth(index);
     const heading = row.locator('.row-player-heading');
     const stats = row.locator('.row-introduction-stats');
-    const tier = stats.locator(':scope > .row-tier:first-child');
+    const tier = stats.locator(':scope > .row-tier:last-child');
     await expect(tier).toContainText(example.tier);
     if (example.ownTier) await expectLoadedPortrait(tier.locator('img'));
     await expect(heading.locator(':scope > b + .preferred-champions')).toBeVisible();
     await expect(heading.locator('.row-tier')).toHaveCount(0);
-    await expect(stats.locator(':scope > .row-tier + .introduction-metric')).toBeVisible();
+    await expect(stats.locator(':scope > .introduction-metric + .row-tier')).toBeVisible();
     const tierBox = (await tier.boundingBox())!;
+    const kdaBox = (await stats.locator('.introduction-metric').last().boundingBox())!;
     const headingBox = (await heading.boundingBox())!;
-    expect(tierBox.y, '티어와 전적은 닉네임·챔피언 아래에 배치한다').toBeGreaterThanOrEqual(headingBox.y + headingBox.height);
+    expect(tierBox.y, '전적과 티어는 닉네임·챔피언 아래에 배치한다').toBeGreaterThanOrEqual(headingBox.y + headingBox.height);
+    expect(tierBox.x, '티어는 승률·KDA 오른쪽에 배치한다').toBeGreaterThanOrEqual(kdaBox.x + kdaBox.width);
     await expect(row).not.toContainText('직접 입력');
     const voice = row.locator(':scope > .row-voice').getByRole('img', { name: example.voice, exact: true });
     await expect(voice).toHaveClass(/recruitment-voice/);

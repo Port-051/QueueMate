@@ -6,7 +6,7 @@
 .performance-value[data-tone="blue"] { color: #79b4ff; }
 .preferred-champions { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-width: 0; max-width: 100%; }
 .preferred-champion { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
-.preferred-champion-portrait { display: block; flex: none; width: 28px; height: 28px; border-radius: 5px; object-fit: cover; background: #222536; }
+.preferred-champion-portrait { display: block; flex: none; width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: #222536; }
 .preferred-champion-portrait.is-fallback { display: grid; place-items: center; color: var(--muted); font-size: 13px; }
 .preferred-champion-name { min-width: 0; max-width: 112px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
 .preferred-champion.has-portrait .preferred-champion-name { display: none; }

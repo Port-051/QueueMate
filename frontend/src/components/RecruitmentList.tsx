@@ -38,12 +38,13 @@ function RecruitmentRoleIcons({ row }: { row: IntroductionRecord }) {
 }
 
 export function IntroductionStats({ game, introduction, children }: { game: GameKey; introduction: SelfIntroduction; children?: ReactNode }) {
-  const leading = children ?? (introduction.champions.length ? <PreferredChampions game={game} names={introduction.champions} /> : null);
-  if (!leading && introduction.winRate === null && introduction.kda === null) return null;
+  const champions = children === undefined && introduction.champions.length ? <PreferredChampions game={game} names={introduction.champions} /> : null;
+  if (!champions && !children && introduction.winRate === null && introduction.kda === null) return null;
   return <div className="row-introduction-stats">
-    {leading}
+    {champions}
     {introduction.winRate !== null ? <span className="introduction-metric">승률 <PerformanceValue kind="winRate" value={introduction.winRate} /></span> : null}
     {introduction.kda !== null ? <span className="introduction-metric">KDA <PerformanceValue kind="kda" value={introduction.kda} /></span> : null}
+    {children}
   </div>;
 }
 
