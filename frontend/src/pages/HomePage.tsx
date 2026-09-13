@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import * as api from '../api/recruitment';
 import { errorMessage } from '../api/error';
+import { USE_MOCK } from '../config';
 import { ActiveMatchCard } from '../components/ActiveMatchCard';
 import { GameBadge } from '../components/GameSymbol';
 import { HomeMatchHistory } from '../components/HomeMatchHistory';
@@ -32,6 +33,7 @@ export function HomePage() {
   const [query, setQuery] = useState(() => initialSearch());
   const [filter, setFilter] = useState(query);
   const reservationTimes = useRef<Pick<api.BoardWrite, 'availableFrom' | 'availableTo' | 'playAmount'>>(reservationWindow());
+  const previewReservationTimes = useRef(reservationTimes.current);
   if (query.type === 'RESERVATION') reservationTimes.current = { availableFrom: query.availableFrom!, availableTo: query.availableTo!, playAmount: query.playAmount };
   const filterError = recruitmentInputError(filter);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -66,6 +68,21 @@ export function HomePage() {
     if (value.type !== query.type || value.condition.game !== query.condition.game) setOwnId(null);
     setQuery(value); setFilter(value); setSelected(null);
   };
+  useEffect(() => {
+    // 예시 예약이 다음 시간대로 넘어갈 때 기본 검색 시간도 맞춘다. 선택한 일정과 작성 중인 입력은 유지한다.
+    if (!USE_MOCK || filtersOpen || composer || selected) return;
+    const previous = previewReservationTimes.current;
+    const current = reservationTimes.current;
+    if (current.availableFrom !== previous.availableFrom || current.availableTo !== previous.availableTo || current.playAmount !== previous.playAmount) return;
+    if (!current.availableTo || Date.parse(current.availableTo) > Date.now()) return;
+    const next = reservationWindow();
+    reservationTimes.current = next;
+    previewReservationTimes.current = next;
+    if (query.type === 'RESERVATION') {
+      setQuery(value => ({ ...value, ...next, page: 0 }));
+      setFilter(value => ({ ...value, ...next, page: 0 }));
+    }
+  }, [page?.asOf, query.type, filtersOpen, composer, selected]);
   useEffect(() => {
     if (collapsed) listRef.current?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }, [collapsed]);

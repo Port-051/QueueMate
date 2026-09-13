@@ -8,6 +8,7 @@ import { CANDIDATES, clearTimers, db, uid, type MockUser } from './db';
 import { emitMockEvent } from './bus';
 
 const rows = new Map<string, BoardRow>();
+const seedActivityOffsets = new Map<string, number>();
 const manualPeers = new Map<string, MockUser[]>();
 const impressions = new Set<string>();
 let seeded = false;
@@ -27,11 +28,21 @@ function seed() {
         ...(type === 'RESERVATION' ? reservationWindow() : { availableFrom: null, availableTo: null, playAmount: null }),
         status: 'OPEN', createdAt: new Date(Date.now() - (i + 1) * 40_000).toISOString(), confirmedAt: new Date(Date.now() - i * 20_000).toISOString(), bumpedAt: null,
         parentId: null, requestedParentId: null, proposalId: null, version: 0, targetSize: config.modes[0].targetPartySize, members: [], applicants: [], impressions: 0, alertEnabled: false };
-      r.members = [person(r)]; rows.set(r.id, r);
+      r.members = [person(r)]; rows.set(r.id, r); seedActivityOffsets.set(r.id, i * 20_000);
     }
   }
 }
 function refresh(row: BoardRow): BoardRow {
+  // 화면 작업용 예시만 활동을 이어간다. 직접 만든 모집과 참여 진행 중인 방은 보정하지 않는다.
+  const activityOffset = seedActivityOffsets.get(row.id);
+  if (activityOffset !== undefined && row.status === 'OPEN' && row.members.length === 1 && !row.applicants.length) {
+    if (Date.now() - Date.parse(row.confirmedAt) >= 5 * 60_000) {
+      row.confirmedAt = new Date(Date.now() - activityOffset).toISOString();
+    }
+    if (row.type === 'RESERVATION' && row.availableTo && Date.parse(row.availableTo) <= Date.now()) {
+      Object.assign(row, reservationWindow());
+    }
+  }
   const request = db.matchRequests.get(row.id)?.view;
   const reservation = db.reservations.find(r => r.id === row.id);
   const source = request ?? reservation;
