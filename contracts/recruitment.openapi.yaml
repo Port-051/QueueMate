@@ -288,6 +288,15 @@ components:
             applicants: {type: array, items: {$ref: '#/components/schemas/BoardPerson'}, description: 모집 소유자에게만 제공}
             impressions: {type: integer, format: int64}
             alertEnabled: {type: boolean}
+            timing:
+              type: object
+              description: 서버 설정으로 계산한 다음 안내와 갱신 가능 시각
+              required: [confirmAt, suggestAt, nextBumpAt]
+              properties:
+                confirmAt: {type: string, format: date-time}
+                hideAt: {type: string, format: date-time, nullable: true}
+                suggestAt: {type: string, format: date-time}
+                nextBumpAt: {type: string, format: date-time}
     BoardRows:
       type: array
       items: {$ref: '#/components/schemas/BoardRow'}
