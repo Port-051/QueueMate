@@ -158,7 +158,7 @@ test('알 수 없는 챔피언과 불러오지 못한 초상화는 대체 아이
   }
 });
 
-test('모집은 닉네임 뒤에 티어 아이콘을 두고 음성과 게시 시간을 별도 열에 표시한다', async ({ page }) => {
+test('모집은 닉네임 뒤에 챔피언을 두고 아래에 티어와 전적을 표시한다', async ({ page }) => {
   const now = Date.parse('2026-09-14T12:00:00Z');
   const ago = (offset: number) => new Date(now - offset).toISOString();
   const examples = [
@@ -195,13 +195,16 @@ test('모집은 닉네임 뒤에 티어 아이콘을 두고 음성과 게시 시
   for (const [index, example] of examples.entries()) {
     const row = rows.nth(index);
     const heading = row.locator('.row-player-heading');
-    const tier = heading.locator(':scope > .row-tier');
+    const stats = row.locator('.row-introduction-stats');
+    const tier = stats.locator(':scope > .row-tier:first-child');
     await expect(tier).toContainText(example.tier);
     if (example.ownTier) await expectLoadedPortrait(tier.locator('img'));
-    await expect(heading.locator(':scope > b + .row-tier')).toBeVisible();
+    await expect(heading.locator(':scope > b + .preferred-champions')).toBeVisible();
+    await expect(heading.locator('.row-tier')).toHaveCount(0);
+    await expect(stats.locator(':scope > .row-tier + .introduction-metric')).toBeVisible();
     const tierBox = (await tier.boundingBox())!;
-    const nicknameBox = (await heading.locator('b').boundingBox())!;
-    expect(nicknameBox.x + nicknameBox.width, '티어는 닉네임 오른쪽에 배치한다').toBeLessThanOrEqual(tierBox.x);
+    const headingBox = (await heading.boundingBox())!;
+    expect(tierBox.y, '티어와 전적은 닉네임·챔피언 아래에 배치한다').toBeGreaterThanOrEqual(headingBox.y + headingBox.height);
     await expect(row).not.toContainText('직접 입력');
     const voice = row.locator(':scope > .row-voice').getByRole('img', { name: example.voice, exact: true });
     await expect(voice).toHaveClass(/recruitment-voice/);

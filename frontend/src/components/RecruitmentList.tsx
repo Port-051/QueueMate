@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { BoardRow } from '../api/recruitment';
 import type { GameKey } from '../api/types';
 import { keyConditionOptions, usesKeyCondition } from '../domain/gameConfig';
@@ -37,10 +37,11 @@ function RecruitmentRoleIcons({ row }: { row: IntroductionRecord }) {
   </span>;
 }
 
-export function IntroductionStats({ game, introduction }: { game: GameKey; introduction: SelfIntroduction }) {
-  if (!introduction.champions.length && introduction.winRate === null && introduction.kda === null) return null;
+export function IntroductionStats({ game, introduction, children }: { game: GameKey; introduction: SelfIntroduction; children?: ReactNode }) {
+  const leading = children ?? (introduction.champions.length ? <PreferredChampions game={game} names={introduction.champions} /> : null);
+  if (!leading && introduction.winRate === null && introduction.kda === null) return null;
   return <div className="row-introduction-stats">
-    {introduction.champions.length ? <PreferredChampions game={game} names={introduction.champions} /> : null}
+    {leading}
     {introduction.winRate !== null ? <span className="introduction-metric">승률 <PerformanceValue kind="winRate" value={introduction.winRate} /></span> : null}
     {introduction.kda !== null ? <span className="introduction-metric">KDA <PerformanceValue kind="kda" value={introduction.kda} /></span> : null}
   </div>;
@@ -58,7 +59,7 @@ export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]
     {rows.map(row => {
       const introduction = introductionForRow(row);
       return <button type="button" key={row.id} data-recruitment-id={row.id} className={`recruitment-row ${selected === row.id ? 'selected' : ''} ${row.status !== 'OPEN' ? 'unavailable' : ''}`} aria-label={`${row.nickname} 모집 상세`} aria-pressed={selected === row.id} onClick={() => onSelect(row)}>
-      <div className="row-player"><Avatar name={row.nickname} size={40} /><div><div className="row-player-heading"><b>{row.nickname}</b><RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /></div><IntroductionStats game={row.condition.game} introduction={introduction} />{row.description ? <p>{row.description}</p> : null}</div></div>
+      <div className="row-player"><Avatar name={row.nickname} size={40} /><div><div className="row-player-heading"><b>{row.nickname}</b>{introduction.champions.length ? <PreferredChampions game={row.condition.game} names={introduction.champions} /> : null}</div><IntroductionStats game={row.condition.game} introduction={introduction}><RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /></IntroductionStats>{row.description ? <p>{row.description}</p> : null}</div></div>
       <div className="row-mode"><span className="recruitment-mode"><FilterModeIcon mode={row.condition.modeKey} /><span>{queueLabel(row)}</span></span>{row.targetSize > 2 ? <small>{row.members.length}/{row.targetSize}명</small> : null}</div>
       {!withoutRoles ? <div className="row-roles"><RecruitmentRoleIcons row={row} /></div> : null}
       <div className="row-voice"><RecruitmentVoice row={row} /></div>
