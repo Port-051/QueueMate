@@ -6,8 +6,8 @@ async function openMessages(page: Page) {
   await login(page);
   if (await page.getByRole('button', { name: '메뉴 열기', exact: true }).isVisible()) {
     await page.getByRole('button', { name: '메뉴 열기', exact: true }).click();
-    await page.getByRole('dialog').getByRole('link', { name: '다이렉트 메시지', exact: true }).click();
-  } else await page.locator('.side-nav').getByRole('link', { name: '다이렉트 메시지', exact: true }).click();
+    await page.getByRole('dialog').getByRole('link', { name: '메시지', exact: true }).click();
+  } else await page.locator('.side-nav').getByRole('link', { name: '메시지', exact: true }).click();
   await expect(page.locator('.dm-contact').first()).toBeVisible();
 }
 
@@ -143,7 +143,7 @@ test('같은 브라우저에서 계정을 바꿔도 대화와 고정 상태가 �
   await page.getByPlaceholder('비밀번호를 입력하세요').fill('queuemate2');
   await page.locator('.auth-form button[type="submit"]').click();
   await expect(page).toHaveURL(/\/app\/home/);
-  await page.locator('.side-nav').getByRole('link', { name: '다이렉트 메시지', exact: true }).click();
+  await page.locator('.side-nav').getByRole('link', { name: '메시지', exact: true }).click();
   await page.getByRole('button', { name: 'GankFlow 대화', exact: true }).click();
   await expect(page.getByRole('log')).not.toContainText('첫 번째 계정에만 남길 이야기');
   await expect(page.getByRole('button', { name: 'GankFlow 상단 고정', exact: true })).toHaveAttribute('aria-pressed', 'false');
@@ -153,7 +153,7 @@ test('같은 브라우저에서 계정을 바꿔도 대화와 고정 상태가 �
   await page.getByPlaceholder('이메일 주소를 입력하세요').fill('demo@queuemate.gg');
   await page.getByPlaceholder('비밀번호를 입력하세요').fill('queuemate1');
   await page.locator('.auth-form button[type="submit"]').click();
-  await page.locator('.side-nav').getByRole('link', { name: '다이렉트 메시지', exact: true }).click();
+  await page.locator('.side-nav').getByRole('link', { name: '메시지', exact: true }).click();
   await page.getByRole('button', { name: 'GankFlow 대화', exact: true }).click();
   await expect(page.getByRole('log')).toContainText('첫 번째 계정에만 남길 이야기');
   await expect(page.getByRole('button', { name: 'GankFlow 고정 해제', exact: true })).toHaveAttribute('aria-pressed', 'true');

@@ -112,7 +112,7 @@ export function MyInfoPage() {
         <div className="profile-identity-info">
           <h1>{user?.nickname}</h1>
           <nav className="profile-activity" aria-label="내 활동">
-            <Link to="/app/messages">다이렉트 메시지</Link>
+            <Link to="/app/messages">메시지</Link>
           </nav>
         </div>
         <Button className="profile-edit-name" variant="ghost" onClick={() => { setNickname(user?.nickname ?? ''); setNicknameOpen(true); }}><IconPencil size={15} />닉네임 변경</Button>

@@ -38,7 +38,7 @@ test('사이드바는 호버와 키보드 탐색 때 펼쳐지고 마우스가 �
   await sidebar.getByRole('link', { name: '홈', exact: true }).focus();
   await page.keyboard.press('Tab');
   await expect(sidebar).toHaveCSS('width', '232px');
-  await expect(sidebar.getByRole('link', { name: '다이렉트 메시지', exact: true })).toBeFocused();
+  await expect(sidebar.getByRole('link', { name: '메시지', exact: true })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(sidebar.getByRole('button', { name: '알림', exact: true })).toBeFocused();
   await page.keyboard.press('Tab');

@@ -4,7 +4,7 @@ import { login, startRealtimeMatch } from './helpers';
 test('사이드바 알림은 현재 화면 위에 열리고 Escape와 바깥 클릭으로 닫힌다', async ({ page }) => {
   await login(page);
   const sidebar = page.locator('.sidebar');
-  await expect(sidebar.getByRole('link', { name: '다이렉트 메시지', exact: true })).toBeVisible();
+  await expect(sidebar.getByRole('link', { name: '메시지', exact: true })).toBeVisible();
   await expect(sidebar.getByRole('link', { name: '파티룸', exact: true })).toHaveCount(0);
   await expect(sidebar.getByRole('link', { name: '친구', exact: true })).toHaveCount(0);
   const trigger = sidebar.getByRole('button', { name: '알림', exact: true });

@@ -35,7 +35,7 @@ test('프로필 설정은 저장되고 새 자기소개는 무관 조건으로 �
   const navigation = page.locator('.side-nav');
   const labels = await navigation.getByRole('link').evaluateAll((links) => links.map((link) => link.getAttribute('aria-label')));
   expect(labels).toEqual([
-    '홈', '다이렉트 메시지', 'QueueMaster 프로필',
+    '홈', '메시지', 'QueueMaster 프로필',
   ]);
   await expect(navigation.getByRole('button', { name: '알림', exact: true })).toBeVisible();
   await expect(page.locator('.sidebar-account')).toHaveCount(0);

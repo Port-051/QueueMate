@@ -181,7 +181,7 @@ export function DirectMessagesPage() {
     </li>;
   };
 
-  return <section className={`page direct-messages-page${selectedId ? ' has-conversation' : ''}`} aria-label="다이렉트 메시지">
+  return <section className={`page direct-messages-page${selectedId ? ' has-conversation' : ''}`} aria-label="메시지">
     <div className="dm-layout">
       <aside className="dm-sidebar" aria-label="대화 목록">
         <header className="dm-list-header"><h1>메시지</h1><div className="dm-header-actions">

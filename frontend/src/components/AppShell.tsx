@@ -15,7 +15,7 @@ interface NavItem { to: string; label: string; icon: ComponentType<{ size?: numb
 
 const NAV: NavItem[] = [
   { to: '/app/home', label: '홈', icon: IconHome },
-  { to: '/app/messages', label: '다이렉트 메시지', icon: IconDirectMessage },
+  { to: '/app/messages', label: '메시지', icon: IconDirectMessage },
 ];
 
 export function AppShell() {

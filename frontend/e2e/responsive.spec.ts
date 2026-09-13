@@ -12,7 +12,7 @@ test('작은 화면에서도 주요 페이지와 매칭 팝업이 잘리지 않�
         await expect(page.getByRole('dialog')).toHaveCount(0);
       } else await page.locator(`.sidebar a[href="/app/${route}"]`).click();
       await expect(page).toHaveURL(new RegExp(`/app/${route}$`));
-      await expect(page.getByRole('region', { name: route === 'home' ? '듀오 찾기' : route === 'me' ? '프로필' : '다이렉트 메시지', exact: true })).toBeVisible();
+      await expect(page.getByRole('region', { name: route === 'home' ? '듀오 찾기' : route === 'me' ? '프로필' : '메시지', exact: true })).toBeVisible();
       const dimensions = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: innerWidth }));
       expect(dimensions.content, `${route} at ${width}px`).toBeLessThanOrEqual(dimensions.viewport);
       if (route === 'messages') {
