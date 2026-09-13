@@ -32,7 +32,7 @@ test('실시간·예약 모두 네 모드를 같은 이름과 2인 정원으로 
       await modeGroup.getByRole('button', { name: mode.label, exact: true }).click();
       await expect(page.locator('.board-results-head')).toContainText('10개 모집');
       await expect(rows).toHaveCount(10);
-      await expect(rows.locator('.row-roles > small')).toHaveText(Array(10).fill(mode.label));
+      await expect(rows.locator('.row-mode .recruitment-mode')).toHaveText(Array(10).fill(mode.label));
       if (mode.key === 'ARAM') {
         await expect(roleGroup).toHaveCount(0);
         await expect(rows.locator('.recruitment-role-pair')).toHaveCount(0);
@@ -144,7 +144,7 @@ test('저장된 랭크 소개가 있어도 칼바람 글에서 바로 참여하�
 
 test('첫 페이지 밖 신속 모집과 자동 매칭돼도 상대 소개를 확인하고 수락할 수 있다', async ({ page }) => {
   await login(page);
-  await expect(page.locator('.recruitment-row .row-roles > small')).toHaveText(Array(10).fill('랭크'));
+  await expect(page.locator('.recruitment-row .row-mode .recruitment-mode')).toHaveText(Array(10).fill('랭크'));
   await expect(page.getByRole('button', { name: '퇴근후십분 모집 상세', exact: true })).toHaveCount(0);
   await page.locator('.intro-launch > button').click();
   const dialog = page.getByRole('dialog');

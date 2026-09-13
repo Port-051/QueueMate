@@ -72,7 +72,9 @@
 .filter-error { color: var(--warn); font-size: 14px; margin: 7px 0; }
 .recruitment-method { color: #b9a6ed; font-size: 13px; }
 
-.board-home .recruitment-list-head, .board-home .recruitment-row { grid-template-columns: minmax(0, 1.6fr) minmax(148px, 1fr) minmax(126px, .8fr); gap: 16px; }
+.board-home .recruitment-list { container-type: inline-size; --recruitment-columns: minmax(0, 1fr) 80px 156px 140px; }
+.board-home .recruitment-list.without-roles { --recruitment-columns: minmax(0, 1fr) 80px 140px; }
+.board-home .recruitment-list-head, .board-home .recruitment-row { grid-template-columns: var(--recruitment-columns); gap: 16px; }
 .board-home .recruitment-list-head { padding: 14px 16px; font-size: 12px; line-height: 1.5; }
 .board-home .recruitment-row { min-height: 108px; padding: 18px 16px; }
 .board-home .row-player { gap: 12px; }
@@ -81,8 +83,9 @@
 .board-home .row-tier small { font-size: 10px; }
 .board-home .row-player p { font-size: 14px; line-height: 1.6; margin-top: 6px; }
 .board-home .row-introduction-stats { font-size: 14px; line-height: 1.5; gap: 6px 10px; margin-top: 6px; }
-.board-home .row-roles, .board-home .row-fresh { gap: 7px; font-size: 14px; line-height: 1.5; }
-.board-home .row-roles small, .board-home .row-fresh small { font-size: 12px; line-height: 1.5; }
+.board-home .row-mode { display: grid; color: var(--text-dim); }
+.board-home .row-mode, .board-home .row-roles, .board-home .row-fresh { gap: 7px; font-size: 14px; line-height: 1.5; }
+.board-home .row-mode small, .board-home .row-fresh small { color: var(--muted); font-size: 12px; line-height: 1.5; }
 .board-home .row-arrow { top: 50%; transform: translateY(-50%); }
 .board-home .board-new-results, .board-home .board-empty p { font-size: 14px; }
 .board-feed .match-stage .compact-party { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -111,14 +114,17 @@
   .intro-launch { grid-row: 2; }
   .intro-launch > .btn { min-width: 0; }
 }
-@media (max-width: 650px) {
-  .board-home .recruitment-row { grid-template-columns: minmax(0, 1fr) 112px; gap: 12px; padding: 16px 12px; }
+@container (max-width: 680px) {
+  .board-home .recruitment-list-head { display: none; }
+  .board-home .recruitment-row { grid-template-columns: minmax(80px, .65fr) minmax(0, 1fr); gap: 14px 16px; padding: 16px 12px; }
   .board-home .row-player { grid-column: 1 / -1; grid-row: 1; }
   .board-home .row-player b { margin-right: 8px; }
-  .board-home .row-roles { grid-column: 1; grid-row: 2; padding-left: 52px; }
-  .board-home .row-roles small { display: block; }
-  .board-home .row-fresh { grid-column: 2; grid-row: 2; padding-right: 8px; }
+  .board-home .row-mode { grid-column: 1; grid-row: 2; }
+  .board-home .row-roles { grid-column: 2; grid-row: 2; padding-left: 0; }
+  .board-home .row-fresh { grid-column: 1 / -1; grid-row: 3; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding-right: 16px; }
   .board-home .row-arrow { right: 8px; top: auto; bottom: 18px; transform: none; }
+}
+@media (max-width: 650px) {
   .board-home .board-tabs { gap: 22px; }
   .board-feed .match-stage .compact-party { grid-template-columns: minmax(0, 1fr); }
 }

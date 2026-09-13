@@ -12,5 +12,4 @@
 .recruitment-introduction .preferred-champion-portrait { width: 32px; height: 32px; }
 .recruitment-mode { display: inline-flex; align-items: center; gap: 6px; }
 .recruitment-mode > svg { flex: none; }
-.board-home .row-roles .recruitment-mode { display: inline-flex; }
 .home-profile-facts .preferred-champions { justify-content: flex-end; }

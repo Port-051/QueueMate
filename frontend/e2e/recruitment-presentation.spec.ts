@@ -24,7 +24,18 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
     const filter = modes.getByRole('button', { name: mode, exact: true });
     await filter.click();
     await expect(page.locator('.board-results-head')).toContainText('10개 모집');
-    await expect(rows.locator('.recruitment-mode')).toHaveText(Array(10).fill(mode));
+    await expect(rows.locator(':scope > .row-mode .recruitment-mode')).toHaveText(Array(10).fill(mode));
+    await expect(page.locator('.recruitment-list-head > span')).toHaveText(mode === '칼바람'
+      ? ['플레이어 · 자기소개', '모드', '음성 · 활동 확인']
+      : ['플레이어 · 자기소개', '모드', '주 포지션 → 찾는 상대', '음성 · 활동 확인']);
+    await expect(rows.locator(':scope > .row-roles')).toHaveCount(mode === '칼바람' ? 0 : 10);
+    if (mode !== '칼바람') {
+      const modeColumn = await rows.first().locator('.row-mode').boundingBox();
+      const roleColumn = await rows.first().locator('.row-roles').boundingBox();
+      expect(modeColumn).not.toBeNull();
+      expect(roleColumn).not.toBeNull();
+      expect(modeColumn!.x + modeColumn!.width, '모드와 포지션은 나란히 분리된 열이다').toBeLessThanOrEqual(roleColumn!.x);
+    }
     const filterDrawing = await filter.locator('svg').innerHTML();
     expect(await rows.first().locator('.recruitment-mode svg').innerHTML()).toBe(filterDrawing);
     await expect(rows.filter({ hasText: '1/2명' })).toHaveCount(0);
@@ -47,6 +58,8 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
     await page.setViewportSize({ width, height: 900 });
     await rows.first().scrollIntoViewIfNeeded();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `모집 목록 ${width}px 가로 넘침`).toBe(true);
+    await expect(rows.first().locator('.row-mode')).toBeVisible();
+    await expect(rows.first().locator('.row-roles')).toBeVisible();
     await expectLoadedPortrait(rows.first().getByRole('img', { name: '리 신 초상화', exact: true }));
     await page.screenshot({ path: testInfo.outputPath(`recruitment-presentation-${width}.png`) });
     await rows.first().click();

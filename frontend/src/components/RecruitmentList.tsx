@@ -38,11 +38,12 @@ export function IntroductionStats({ game, introduction }: { game: GameKey; intro
 
 export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]; selected: string | undefined; onSelect: (row: BoardRow) => void }) {
   const withoutRoles = rows.length > 0 && rows.every(row => !usesKeyCondition(row.condition.game, row.condition.modeKey));
-  return <div className="recruitment-list" aria-label="모집 목록">
-    <div className="recruitment-list-head"><span>플레이어 · 자기소개</span><span>{withoutRoles ? '모집 조건' : `${roleTitle(rows[0])} → 찾는 상대`}</span><span>음성 · 활동 확인</span></div>
+  return <div className={`recruitment-list${withoutRoles ? ' without-roles' : ''}`} aria-label="모집 목록">
+    <div className="recruitment-list-head"><span>플레이어 · 자기소개</span><span>모드</span>{!withoutRoles ? <span>{roleTitle(rows[0])} → 찾는 상대</span> : null}<span>음성 · 활동 확인</span></div>
     {rows.map(row => <button type="button" key={row.id} data-recruitment-id={row.id} className={`recruitment-row ${selected === row.id ? 'selected' : ''} ${row.status !== 'OPEN' ? 'unavailable' : ''}`} aria-label={`${row.nickname} 모집 상세`} aria-pressed={selected === row.id} onClick={() => onSelect(row)}>
       <div className="row-player"><Avatar name={row.nickname} size={40} /><div><b>{row.nickname}</b><span className="row-tier">{row.preferences.ownTier ? TIER_LABELS[row.preferences.ownTier] : '티어 미입력'} <small>직접 입력</small></span><IntroductionStats game={row.condition.game} introduction={introductionForRow(row)} />{row.description ? <p>{row.description}</p> : null}</div></div>
-      <div className="row-roles"><RecruitmentRoleIcons row={row} /><small className="recruitment-mode"><FilterModeIcon mode={row.condition.modeKey} /><span>{queueLabel(row)}{row.targetSize > 2 ? ` · ${row.members.length}/${row.targetSize}명` : ''}</span></small></div>
+      <div className="row-mode"><span className="recruitment-mode"><FilterModeIcon mode={row.condition.modeKey} /><span>{queueLabel(row)}</span></span>{row.targetSize > 2 ? <small>{row.members.length}/{row.targetSize}명</small> : null}</div>
+      {!withoutRoles ? <div className="row-roles"><RecruitmentRoleIcons row={row} /></div> : null}
       <div className="row-fresh"><span>{voiceLabel(row)}</span><small>{row.status === 'OPEN' ? confirmedLabel(row) : BOARD_STATUS[row.status]}</small><span className="row-arrow" aria-hidden="true">↗</span></div>
     </button>)}
   </div>;
