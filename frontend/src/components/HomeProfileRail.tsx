@@ -42,7 +42,7 @@ export function HomeProfileRail({ user, game, introduction, gameAccount, actionL
         <div className="home-profile-heading"><h2>내 소개</h2><span>{gameLabel(game)}</span></div>
         {introduction.bio ? <p className="home-profile-bio">{introduction.bio}</p> : null}
         <dl className="home-profile-facts">
-          {introduction.ownTier ? <><dt>티어</dt><dd><RankBadge game={game} tier={introduction.ownTier} division={introduction.rankDivision} lp={introduction.rankLp} /></dd></> : null}
+          {introduction.ownTier ? <><dt>티어</dt><dd><RankBadge game={game} tier={introduction.ownTier} division={introduction.rankDivision} /></dd></> : null}
           {usesKeyCondition(game, introduction.queueType) ? <><dt>{roleTitle}</dt><dd>{roleLabel(introduction.primaryRole)}</dd>
           <dt>찾는 상대</dt><dd>{introduction.desiredRoles.length ? introduction.desiredRoles.map(roleLabel).join(' · ') : '무관'}</dd></> : null}
           <dt>큐 타입</dt><dd>{modeLabel(game, introduction.queueType)}</dd>

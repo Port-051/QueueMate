@@ -2,7 +2,7 @@ import type { BoardRow, BoardWrite } from '../api/recruitment';
 import type { GameKey, VoicePreference } from '../api/types';
 import { USE_MOCK } from '../config';
 import { conditionForMode, usesKeyCondition } from './gameConfig';
-import { hasLolRankDivision, normalizeLolRankDetails, type LolRankDivision } from './lolRank';
+import { normalizeLolRankDetails, type LolRankDivision } from './lolRank';
 
 export type MatchResult = 'WIN' | 'LOSS' | null;
 export type IntroductionRecord = Pick<BoardRow, 'userId' | 'condition' | 'preferences'> & { description?: string };
@@ -11,7 +11,6 @@ export interface SelfIntroduction {
   desiredRoles: string[];
   ownTier: string | null;
   rankDivision?: LolRankDivision | null;
-  rankLp?: number | null;
   champions: string[];
   winRate: number | null;
   kda: number | null;
@@ -22,7 +21,7 @@ export interface SelfIntroduction {
 }
 
 export const emptyIntroduction = (): SelfIntroduction => ({
-  primaryRole: 'ANY', desiredRoles: [], ownTier: null, rankDivision: null, rankLp: null, champions: [], winRate: null, kda: null,
+  primaryRole: 'ANY', desiredRoles: [], ownTier: null, rankDivision: null, champions: [], winRate: null, kda: null,
   queueType: 'ANY', recentResults: Array<MatchResult>(20).fill(null), voice: 'OPTIONAL', bio: '',
 });
 const storageKey = (userId: string, game: GameKey) => `queuemate:introduction:v1:${encodeURIComponent(userId)}:${game}`;
@@ -35,7 +34,7 @@ function normalize(value: Partial<SelfIntroduction>, game: GameKey): SelfIntrodu
     primaryRole: text(value.primaryRole, defaults.primaryRole) || 'ANY',
     desiredRoles: strings(value.desiredRoles).filter(role => role !== 'ANY').slice(0, 5),
     ownTier: typeof value.ownTier === 'string' && value.ownTier ? value.ownTier : null,
-    ...normalizeLolRankDetails(game === 'LOL' ? value.ownTier : null, value.rankDivision, value.rankLp),
+    ...normalizeLolRankDetails(game === 'LOL' ? value.ownTier : null, value.rankDivision),
     champions: strings(value.champions).map(name => name.trim()).filter(Boolean),
     winRate: typeof value.winRate === 'number' && Number.isFinite(value.winRate) && value.winRate >= 0 && value.winRate <= 100 ? value.winRate : null,
     kda: typeof value.kda === 'number' && Number.isFinite(value.kda) && value.kda >= 0 ? value.kda : null,
@@ -68,7 +67,7 @@ export function introductionFromBoard(value: Pick<BoardWrite, 'condition' | 'pre
   return {
     ...(saved ?? emptyIntroduction()), primaryRole: hasRoles ? value.condition.keyCondition.value || 'ANY' : saved?.primaryRole ?? 'ANY',
     desiredRoles: hasRoles ? [...value.preferences.desiredKeys] : [...(saved?.desiredRoles ?? [])], ownTier: value.preferences.ownTier,
-    ...normalizeLolRankDetails(rankTier, saved?.rankDivision, saved?.rankLp),
+    ...normalizeLolRankDetails(rankTier, saved?.rankDivision),
     queueType: value.condition.modeKey || 'ANY', voice: value.condition.voicePreference, bio: value.description ?? saved?.bio ?? '',
   };
 }
@@ -98,7 +97,7 @@ export function introductionForRow(row: IntroductionRecord): SelfIntroduction {
   const example = index >= 0 ? {
     ...emptyIntroduction(), champions: seedChampions[row.condition.game][index % 5],
     ownTier: row.preferences.ownTier,
-    ...normalizeLolRankDetails(row.condition.game === 'LOL' ? row.preferences.ownTier : null, ['II', 'III', 'I', 'IV'][index % 4], 18 + index * 7),
+    ...normalizeLolRankDetails(row.condition.game === 'LOL' ? row.preferences.ownTier : null, ['II', 'III', 'I', 'IV'][index % 4]),
     winRate: 48 + index * 2, kda: Number((2.1 + index * 0.19).toFixed(2)),
     recentResults: Array.from({ length: 20 }, (_, i): MatchResult => (i + index) % 5 < 3 ? 'WIN' : 'LOSS'),
   } : null;
@@ -106,7 +105,6 @@ export function introductionForRow(row: IntroductionRecord): SelfIntroduction {
 }
 
 export function introductionInputError(value: SelfIntroduction): string {
-  if (value.rankLp != null && (!Number.isSafeInteger(value.rankLp) || value.rankLp < 0 || (hasLolRankDivision(value.ownTier) && value.rankLp > 99))) return hasLolRankDivision(value.ownTier) ? 'LP는 0~99 사이의 정수로 입력해 주세요.' : 'LP는 0 이상의 정수로 입력해 주세요.';
   if (value.winRate !== null && (!Number.isFinite(value.winRate) || value.winRate < 0 || value.winRate > 100)) return '승률은 0~100 사이로 입력해 주세요.';
   if (value.kda !== null && (!Number.isFinite(value.kda) || value.kda < 0)) return 'KDA는 0 이상으로 입력해 주세요.';
   return '';

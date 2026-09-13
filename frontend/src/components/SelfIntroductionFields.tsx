@@ -3,7 +3,7 @@ import type { GameKey } from '../api/types';
 import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
 import { TIER_LABELS, tiers } from '../domain/recruitment';
 import type { MatchResult, SelfIntroduction } from '../domain/introduction';
-import { hasLolRankDivision, isLolRankTier, LOL_RANK_DIVISIONS, type LolRankDivision } from '../domain/lolRank';
+import { hasLolRankDivision, LOL_RANK_DIVISIONS, type LolRankDivision } from '../domain/lolRank';
 import '../styles/introduction.css';
 
 export function SelfIntroductionFields({ game, value, onChange, modeLocked = false }: {
@@ -22,9 +22,8 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
     <div className="introduction-section-head"><h3>자기소개</h3></div>
     <div className="introduction-fields">
       {hasRoles ? <label>{roleTitle}<select aria-label={roleTitle} value={value.primaryRole} onChange={event => patch({ primaryRole: event.target.value })}><option value="ANY">무관</option>{roles.map(role => <option key={role.value} value={role.value}>{role.label}</option>)}</select></label> : null}
-      <label>내 티어<select aria-label="내 티어" value={value.ownTier ?? ''} onChange={event => patch({ ownTier: event.target.value || null, rankDivision: null, rankLp: null })}><option value="">미입력</option>{tiers(game).map(tier => <option key={tier} value={tier}>{TIER_LABELS[tier]}</option>)}</select></label>
+      <label>내 티어<select aria-label="내 티어" value={value.ownTier ?? ''} onChange={event => patch({ ownTier: event.target.value || null, rankDivision: null })}><option value="">미입력</option>{tiers(game).map(tier => <option key={tier} value={tier}>{TIER_LABELS[tier]}</option>)}</select></label>
       {game === 'LOL' && hasLolRankDivision(value.ownTier) ? <label>세부 단계<select aria-label="세부 단계" value={value.rankDivision ?? ''} onChange={event => patch({ rankDivision: event.target.value as LolRankDivision || null })}><option value="">미입력</option>{LOL_RANK_DIVISIONS.map(division => <option key={division} value={division}>{division}</option>)}</select></label> : null}
-      {game === 'LOL' && isLolRankTier(value.ownTier) ? <label>LP<input aria-label="LP" type="number" min={0} max={hasLolRankDivision(value.ownTier) ? 99 : undefined} step={1} placeholder="미입력" value={value.rankLp ?? ''} onChange={event => patch({ rankLp: event.target.value === '' ? null : Number(event.target.value) })} /></label> : null}
       <label>원하는 큐 타입<select aria-label="원하는 큐 타입" disabled={modeLocked} value={value.queueType} onChange={event => patch({ queueType: event.target.value })}><option value="ANY">무관</option>{visibleModes(game).filter(mode => mode.key !== 'ANY').map(mode => <option key={mode.key} value={mode.key}>{mode.label}</option>)}</select></label>
       <label>음성<select aria-label="음성" value={value.voice} onChange={event => patch({ voice: event.target.value as SelfIntroduction['voice'] })}><option value="OPTIONAL">무관</option><option value="REQUIRED">사용</option><option value="NO_VOICE">사용 안 함</option></select></label>
       {hasRoles ? <fieldset className="introduction-desired"><legend>{game === 'LOL' ? '찾는 상대 포지션' : game === 'VALORANT' ? '찾는 상대 역할' : '찾는 상대 스타일'}</legend><div className="chip-options"><button type="button" aria-pressed={!value.desiredRoles.length} className={!value.desiredRoles.length ? 'chosen' : ''} onClick={() => patch({ desiredRoles: [] })}>무관</button>{roles.map(role => <button type="button" key={role.value} aria-pressed={value.desiredRoles.includes(role.value)} className={value.desiredRoles.includes(role.value) ? 'chosen' : ''} onClick={() => patch({ desiredRoles: value.desiredRoles.includes(role.value) ? value.desiredRoles.filter(item => item !== role.value) : [...value.desiredRoles, role.value] })}>{role.label}</button>)}</div></fieldset> : null}

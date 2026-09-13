@@ -58,7 +58,7 @@ export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]
     {rows.map(row => {
       const introduction = introductionForRow(row);
       return <button type="button" key={row.id} data-recruitment-id={row.id} className={`recruitment-row ${selected === row.id ? 'selected' : ''} ${row.status !== 'OPEN' ? 'unavailable' : ''}`} aria-label={`${row.nickname} 모집 상세`} aria-pressed={selected === row.id} onClick={() => onSelect(row)}>
-      <div className="row-player"><Avatar name={row.nickname} size={40} /><div><div className="row-player-heading"><b>{row.nickname}</b><RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} lp={introduction.rankLp} /></div><IntroductionStats game={row.condition.game} introduction={introduction} />{row.description ? <p>{row.description}</p> : null}</div></div>
+      <div className="row-player"><Avatar name={row.nickname} size={40} /><div><div className="row-player-heading"><b>{row.nickname}</b><RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /></div><IntroductionStats game={row.condition.game} introduction={introduction} />{row.description ? <p>{row.description}</p> : null}</div></div>
       <div className="row-mode"><span className="recruitment-mode"><FilterModeIcon mode={row.condition.modeKey} /><span>{queueLabel(row)}</span></span>{row.targetSize > 2 ? <small>{row.members.length}/{row.targetSize}명</small> : null}</div>
       {!withoutRoles ? <div className="row-roles"><RecruitmentRoleIcons row={row} /></div> : null}
       <div className="row-voice"><RecruitmentVoice row={row} /></div>
@@ -70,7 +70,7 @@ export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]
 export function RecruitmentDetail({ row, busy, hasSource, disabled, disabledReason, onClose, onJoin }: { row: BoardRow; busy: boolean; hasSource: boolean; disabled: boolean; disabledReason?: string; onClose: () => void; onJoin: () => void }) {
   const introduction = introductionForRow(row);
   return <Modal className="recruitment-detail" title="모집 상세" closeLabel="모집 상세 닫기" onClose={onClose}>
-    <div className="row"><Avatar name={row.nickname} /><div><div className="row-player-heading"><b>{row.nickname}</b><RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} lp={introduction.rankLp} /></div><p>{BOARD_STATUS[row.status]}{row.targetSize > 2 ? ` · ${row.members.length}/${row.targetSize}명` : ''}</p></div></div>
+    <div className="row"><Avatar name={row.nickname} /><div><div className="row-player-heading"><b>{row.nickname}</b><RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /></div><p>{BOARD_STATUS[row.status]}{row.targetSize > 2 ? ` · ${row.members.length}/${row.targetSize}명` : ''}</p></div></div>
     <RecruitmentIntroduction row={row} />
     {row.type === 'RESERVATION' && row.availableFrom ? <p>{timeLabel(row.availableFrom)} ~ {row.availableTo ? timeLabel(row.availableTo) : ''}</p> : null}
     {disabledReason || row.status !== 'OPEN' ? <p className="hint">{disabledReason ?? '현재 참여 신청을 받지 않는 모집이에요.'}</p> : null}
@@ -85,7 +85,7 @@ export function RecruitmentIntroduction({ row }: { row: IntroductionRecord }) {
   const losses = introduction.recentResults.filter(result => result === 'LOSS').length;
   return <div className="recruitment-introduction">
     <div className="introduction-detail-stats">
-      <span>내 티어<RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} lp={introduction.rankLp} /></span>
+      <span>내 티어<RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /></span>
       <span>승률<PerformanceValue kind="winRate" value={introduction.winRate} /></span>
       <span>KDA<PerformanceValue kind="kda" value={introduction.kda} /></span>
     </div>
