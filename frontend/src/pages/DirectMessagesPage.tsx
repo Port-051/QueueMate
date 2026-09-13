@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { isApiError } from '../api/error';
+import { DirectVoiceStage } from '../components/DirectVoiceStage';
 import { ReportModal } from '../components/ReportModal';
 import { IconChat, IconPlus, IconSearch, IconSend, IconSettings, IconShield } from '../components/icons';
 import { ActionMenu, Avatar, Button, ConfirmDialog, Modal, useToast } from '../components/ui';
@@ -217,7 +218,7 @@ export function DirectMessagesPage() {
               </ActionMenu>
             </div>
           </header>
-          <Conversation key={`${user.id}:${selected.userId}`} ownerId={user.id} contact={selected} conversation={conversation} onError={setStorageError} />
+          <Conversation key={`${user.id}:${selected.userId}`} ownerId={user.id} ownerName={user.nickname} contact={selected} conversation={conversation} onError={setStorageError} />
         </> : <div className="dm-thread-empty">
           {selectedId ? <button type="button" className="dm-icon-btn dm-back" aria-label="대화 목록으로" onClick={backToList}><BackArrow /></button> : null}
           <span className="dm-empty-symbol"><IconChat size={35} /></span>
@@ -263,8 +264,8 @@ export function DirectMessagesPage() {
   </section>;
 }
 
-function Conversation({ ownerId, contact, conversation, onError }: {
-  ownerId: string; contact: Contact; conversation?: DirectConversation; onError: (message: string | null) => void;
+function Conversation({ ownerId, ownerName, contact, conversation, onError }: {
+  ownerId: string; ownerName: string; contact: Contact; conversation?: DirectConversation; onError: (message: string | null) => void;
 }) {
   const [draft, setDraft] = useState(conversation?.draft ?? '');
   const [announcement, setAnnouncement] = useState('');
@@ -294,19 +295,23 @@ function Conversation({ ownerId, contact, conversation, onError }: {
   };
 
   return <>
+    <DirectVoiceStage contact={contact} ownerName={ownerName} />
+    <div className="dm-chat-label"><IconChat size={15} />채팅</div>
     <div className="dm-messages" ref={messagesRef} role="log" aria-label={`${contact.nickname}님과의 메시지`} aria-live="polite" aria-relevant="additions" onScroll={() => {
       const area = messagesRef.current;
       if (area) atBottom.current = area.scrollHeight - area.scrollTop - area.clientHeight < 80;
     }}>
-      <div className="dm-conversation-start"><Avatar name={contact.nickname} avatarUrl={contact.avatarUrl} size={64} /><h3>{contact.nickname}</h3></div>
       {messages.length === 0 ? <p className="dm-first-message">가볍게 인사를 건네보세요.</p> : messages.map((message, index) => {
         const own = message.senderId === ownerId;
         const showDay = index === 0 || localDay(messages[index - 1].createdAt) !== localDay(message.createdAt);
         return <div className="dm-message-entry" key={message.id}>
           {showDay ? <div className="dm-date"><span>{messageDay(message.createdAt)}</span></div> : null}
           <div className={`dm-message${own ? ' is-own' : ''}`}>
+            <Avatar name={own ? ownerName : contact.nickname} avatarUrl={own ? undefined : contact.avatarUrl} size={34} />
+            <div className="dm-message-body"><div className="dm-message-meta"><b>{own ? ownerName : contact.nickname}</b>
+            <time dateTime={message.createdAt} aria-label={`${own ? '내 메시지' : contact.nickname}, ${messageTime(message.createdAt)}`}>{messageTime(message.createdAt)}</time></div>
             <p title={message.example ? '예시 대화' : '이 브라우저에 저장된 메시지'}>{message.text}</p>
-            <time dateTime={message.createdAt} aria-label={`${own ? '내 메시지' : contact.nickname}, ${messageTime(message.createdAt)}`}>{messageTime(message.createdAt)}</time>
+            </div>
           </div>
         </div>;
       })}
