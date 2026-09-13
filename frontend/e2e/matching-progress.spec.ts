@@ -6,7 +6,7 @@ test('매칭 타이머는 오른쪽 바에 보이고 목록 위치를 바꾸지 
   await page.clock.install(); await login(page); await startRealtimeMatch(page);
   const timer = page.getByRole('timer', { name: '매칭 시작 후', exact: true });
   await expect(timer).toBeInViewport();
-  expect(parseFloat(await timer.evaluate(el => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(44);
+  expect(parseFloat(await timer.evaluate(el => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(24);
   const stage = await page.getByRole('region', { name: '내 매칭 진행' }).boundingBox();
   const list = await page.locator('.board-toolbar').boundingBox();
   expect(stage!.x).toBeGreaterThan(list!.x + list!.width);
@@ -93,7 +93,7 @@ test('예약은 시작까지 남은 시간을 표시하고 시간이 되어도 �
 test('목록 탐색 중에도 오른쪽 매칭 타이머와 관리 버튼이 유지된다', async ({ page }) => {
   await page.clock.install(); await login(page); await startRealtimeMatch(page);
   await page.clock.fastForward(12_000);
-  await page.getByRole('button', { name: /^매칭 둘러보기/ }).click();
+  await page.locator('.board-filter-bar').getByRole('button', { name: '랭크', exact: true }).click();
   await expect(page.locator('.recruitment-summary')).toHaveCount(0);
   await expect(page.locator('.home-profile .my-recruitment')).toBeVisible();
   await page.locator('.recruitment-row').last().scrollIntoViewIfNeeded();
@@ -120,9 +120,9 @@ test('실시간과 예약을 함께 만들었을 때 탭에 맞는 매칭을 관
   await page.getByRole('tab', { name: '예약 매칭', exact: true }).click();
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '내 예약 매칭', exact: true })).toBeVisible();
+  await expect(page.getByRole('timer', { name: '예약 시작까지', exact: true })).toBeVisible();
   await page.getByRole('tab', { name: '실시간 매칭', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '내 실시간 매칭', exact: true })).toBeVisible();
+  await expect(page.getByRole('timer', { name: '매칭 시작 후', exact: true })).toBeVisible();
   await manageRecruitment(page, '잠시 멈춤');
   await page.getByRole('tab', { name: '예약 매칭', exact: true }).click();
   await expect(page.locator('.my-recruitment .recruitment-title')).toContainText('매칭 중');

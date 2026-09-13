@@ -210,13 +210,13 @@ export function HomePage() {
       </div> : null}
     </div></div>
     </div>
-    <HomeProfileRail user={user} game={query.condition.game} gameAccount={gameAccounts.find(account => account.game === query.condition.game)}>
+    <HomeProfileRail user={user} game={query.condition.game} gameAccount={gameAccounts.find(account => account.game === query.condition.game)} below={USE_MOCK && own && !form && !selected && !stageKey ? <DuoOffersPanel key={own.id} source={own} /> : null}>
     {own || liveRequest || match.activePartyId || match.proposal?.status === 'PENDING' ? <section hidden={Boolean(form || selected) && match.proposal?.status !== 'PENDING'} className="match-stage" aria-label="내 매칭 진행" tabIndex={-1} ref={stageRef}>
       {!USE_MOCK ? <MatchProgress step={match.proposal?.status === 'PENDING' ? 1 : match.activePartyId ? 2 : 0} /> : null}
       {connection !== 'connected' ? <p className="banner warn" role="status">서버에 다시 연결하고 있어요.</p> : null}
       {match.proposal?.status === 'PENDING' ? <>{composer ? <p className="hint">작성 중인 조건은 보관했어요.</p> : null}<InlineProposal knownRows={[...(page?.items ?? []), ...mine]} /></> : match.activePartyId ? <PartyRoomPage embedded /> : <>
         {active.length > 1 ? <label className="my-recruitment-picker">관리할 매칭<select value={own?.id ?? ''} onChange={e => setOwnId(e.target.value)}>{active.map(row => <option key={row.id} value={row.id}>{row.type === 'REALTIME' ? '실시간' : row.availableFrom ? timeLabel(row.availableFrom) : '예약'} · {BOARD_STATUS[row.status]}</option>)}</select></label> : null}
-        {own ? <RecruitmentPanel key={own.id} row={own} matchingContent={USE_MOCK ? <DuoOffersPanel source={own} /> : undefined} onChanged={changed} onEdit={() => setComposer({ initial: writeFrom(own), editing: own })} onFind={() => { changeQuery({ ...browseSearch(own.condition.game), type: own.type, availableFrom: own.availableFrom, availableTo: own.availableTo, playAmount: own.playAmount }); listRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }); listRef.current?.focus({ preventScroll: true }); }} /> : liveRequest ? <ActiveMatchCard /> : null}
+        {own ? <RecruitmentPanel key={own.id} row={own} onChanged={changed} onEdit={() => setComposer({ initial: writeFrom(own), editing: own })} /> : liveRequest ? <ActiveMatchCard /> : null}
 
       </>}
     </section> : null}

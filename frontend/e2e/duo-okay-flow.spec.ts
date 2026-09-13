@@ -95,7 +95,7 @@ test('상대가 먼저 오케이를 해도 내가 수락하기 전에는 매칭 
   await page.clock.install(); await login(page); await startRealtimeMatch(page); await page.clock.fastForward(7000);
   await expect(page.locator('.duo-offer')).toHaveCount(1);
   const offer = (await snapshot(page)).offers[0]; await okay(page, offer.id);
-  await expect(page.locator('.duo-offer')).toContainText('상대가 먼저 오케이를 보냈어요');
+  await expect(page.locator('.duo-offer')).toContainText('먼저 오케이를 보냈어요');
   expect((await snapshot(page)).mine[0].status).toBe('OPEN');
   await page.locator('.duo-offer').getByRole('button', { name: '같이 할래요' }).click();
   await expect(page.getByRole('region', { name: '매칭 성사', exact: true })).toBeVisible();

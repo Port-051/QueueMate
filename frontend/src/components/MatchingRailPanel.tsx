@@ -3,7 +3,7 @@ import { Button } from './ui';
 
 export function revealMatchingRail(element: HTMLElement) {
   if (window.matchMedia('(min-width: 1100px)').matches) {
-    const rail = element.closest('.home-profile-content');
+    const rail = element.closest('.home-profile-stack');
     if (rail) rail.scrollTop = 0;
   } else {
     element.scrollIntoView({ block: 'start', behavior: 'auto' });

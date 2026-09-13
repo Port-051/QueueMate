@@ -4,7 +4,7 @@ import type { BoardRow } from '../api/recruitment';
 import type { GameKey } from '../api/types';
 import { keyConditionOptions, usesKeyCondition } from '../domain/gameConfig';
 import { keyConditionLabel, modeLabel, PURPOSE_LABEL, VOICE_LABEL } from '../domain/labels';
-import { introductionForRow, type SelfIntroduction, type IntroductionRecord } from '../domain/introduction';
+import { introductionForRow, normalizeDesiredRoles, type SelfIntroduction, type IntroductionRecord } from '../domain/introduction';
 import { BOARD_STATUS, relativeBoardTime, TIER_LABELS, timeLabel } from '../domain/recruitment';
 import { Avatar, Button } from './ui';
 import { MatchingRailPanel } from './MatchingRailPanel';
@@ -14,20 +14,20 @@ import { IconMic, IconMicOff, IconMicOptional } from './icons';
 import { PerformanceValue, PreferredChampions } from './IntroductionVisuals';
 import '../styles/introduction.css';
 
-export const desiredLabel = (row: IntroductionRecord) => row.preferences.desiredKeys.length ? row.preferences.desiredKeys.map(v => keyConditionOptions(row.condition.game).find(k => k.value === v)?.label ?? v).join('·') : '무관';
+export const desiredLabel = (row: IntroductionRecord) => normalizeDesiredRoles(row.condition.game, row.preferences.desiredKeys).length ? normalizeDesiredRoles(row.condition.game, row.preferences.desiredKeys).map(v => keyConditionOptions(row.condition.game).find(k => k.value === v)?.label ?? v).join('·') : '무관';
 const roleLabel = (row: IntroductionRecord) => row.condition.keyCondition.value === 'ANY' ? '무관' : keyConditionLabel(row.condition);
 const queueLabel = (row: IntroductionRecord) => row.condition.modeKey === 'ANY' ? '큐 무관' : modeLabel(row.condition.game, row.condition.modeKey);
 const voiceLabel = (row: IntroductionRecord) => row.condition.voicePreference === 'OPTIONAL' ? '음성 무관' : VOICE_LABEL[row.condition.voicePreference];
 const roleTitle = (row?: IntroductionRecord) => row?.condition.game === 'VALORANT' ? '주 역할' : row?.condition.game === 'PUBG' ? '플레이 스타일' : '주 포지션';
 
-function RecruitmentVoice({ row }: { row: IntroductionRecord }) {
+export function RecruitmentVoice({ row }: { row: IntroductionRecord }) {
   const preference = row.condition.voicePreference;
   return <span className={`recruitment-voice voice-${preference.toLowerCase()}`} role="img" aria-label={voiceLabel(row)} title={voiceLabel(row)}>
     <span aria-hidden="true">{preference === 'REQUIRED' ? <IconMic size={20} /> : preference === 'NO_VOICE' ? <IconMicOff size={20} /> : <IconMicOptional size={20} />}</span>
   </span>;
 }
 
-function RecruitmentRoleIcons({ row }: { row: IntroductionRecord }) {
+export function RecruitmentRoleIcons({ row }: { row: IntroductionRecord }) {
   const game = row.condition.game;
   if (!usesKeyCondition(game, row.condition.modeKey)) return null;
   const label = (value: string) => value === 'ANY' ? '무관' : keyConditionOptions(game).find(role => role.value === value)?.label ?? value;
@@ -35,7 +35,7 @@ function RecruitmentRoleIcons({ row }: { row: IntroductionRecord }) {
   return <span className="recruitment-role-pair" role="group" aria-label={`${roleTitle(row)}: ${roleLabel(row)}, 찾는 상대: ${desiredLabel(row)}`}>
     {icon(row.condition.keyCondition.value)}
     <svg className="recruitment-role-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6" /></svg>
-    <span className="recruitment-role-targets">{(row.preferences.desiredKeys.length ? row.preferences.desiredKeys : ['ANY']).map(icon)}</span>
+    <span className="recruitment-role-targets">{(normalizeDesiredRoles(game, row.preferences.desiredKeys).length ? normalizeDesiredRoles(game, row.preferences.desiredKeys) : ['ANY']).map(icon)}</span>
   </span>;
 }
 

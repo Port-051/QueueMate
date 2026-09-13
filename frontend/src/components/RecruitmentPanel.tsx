@@ -1,17 +1,17 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import * as api from '../api/recruitment';
 import { errorMessage } from '../api/error';
 import { BOARD_STATUS, writeFrom } from '../domain/recruitment';
-import { keyConditionLabel, VOICE_LABEL, PURPOSE_LABEL, modeLabel } from '../domain/labels';
-import { Button, Card, Tag, useToast } from './ui';
+import { keyConditionLabel } from '../domain/labels';
+import { Button, Card, useToast } from './ui';
 import { RecruitmentClock } from './RecruitmentClock';
 import { usesKeyCondition } from '../domain/gameConfig';
 import { useNow } from '../state/useNow';
-import { introductionForRow } from '../domain/introduction';
-import { RankBadge } from './RankBadge';
+import { MatchConditionSummary } from './MatchConditionSummary';
+import { IconPencil, IconX } from './icons';
 import { ParticipantIntroduction } from './ParticipantIntroduction';
 
-export function RecruitmentPanel({ row, onChanged, onEdit, onFind, matchingContent }: { matchingContent?: ReactNode; row: api.BoardRow; onChanged: () => Promise<void>; onEdit: () => void; onFind: () => void }) {
+export function RecruitmentPanel({ row, onChanged, onEdit }: { row: api.BoardRow; onChanged: () => Promise<void>; onEdit: () => void }) {
   const toast = useToast();
   const now = useNow();
   const [busy, setBusy] = useState(false);
@@ -43,18 +43,16 @@ export function RecruitmentPanel({ row, onChanged, onEdit, onFind, matchingConte
   const timed = row.timing ? now >= Date.parse(row.timing.suggestAt) : row.type === 'REALTIME' ? now - Date.parse(row.createdAt) >= 3 * 60_000 : Boolean(row.availableFrom && Date.parse(row.availableFrom) - now <= 30 * 60_000);
   const bumpAt = row.timing ? Date.parse(row.timing.nextBumpAt) : Date.parse(row.bumpedAt ?? row.createdAt) + 5 * 60_000;
   const bumpIn = Math.max(0, Math.ceil((bumpAt - now) / 60_000));
-  const introduction = introductionForRow(row);
   const reservation = row.type === 'RESERVATION';
   const managed = editable && !row.parentId && !row.requestedParentId;
   const showSuggestions = row.status === 'OPEN' && independent && !stale && (timed || row.alertEnabled);
-  const candidateCount = showSuggestions ? suggestions?.currentCount ?? 0 : 0;
-  const share = () => void navigator.clipboard.writeText(`${window.location.origin}/app/home?recruitment=${row.id}`).then(() => toast('매칭 링크를 복사했습니다', 'ok')).catch(() => toast('링크를 복사하지 못했습니다', 'error'));
   return <Card className="my-recruitment">
-    <div className="recruitment-title"><div className="row"><h2>내 {reservation ? '예약' : '실시간'} 매칭</h2><Tag>{BOARD_STATUS[row.status]}</Tag><span className="recruitment-method">{row.autoMatch ? '자동 매칭' : '수동 매칭'}</span></div><span>{modeLabel(row.condition.game, row.condition.modeKey)}</span></div>
-    <div className="recruitment-overview">
+    <div className="recruitment-title compact-match-status">
+      <span className="match-status" data-active={row.status === 'OPEN' && !stale}><i aria-hidden="true" />{BOARD_STATUS[row.status]}</span>
       <RecruitmentClock row={row} now={now} />
-      <div className="recruitment-waiting"><div className="recruitment-own-summary">{row.preferences.ownTier ? <RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /> : null}{usesKeyCondition(row.condition.game, row.condition.modeKey) ? <span>{keyConditionLabel(row.condition)}</span> : null}<span>{VOICE_LABEL[row.condition.voicePreference]}</span>{row.preferences.purposeRequired ? <span>{PURPOSE_LABEL[row.condition.playPurpose]}</span> : null}{row.targetSize > 2 ? <span>{row.members.length}/{row.targetSize}명</span> : null}</div>{row.description ? <p className="recruitment-description">{row.description}</p> : null}</div>
     </div>
+    <MatchConditionSummary record={row} />
+    {row.description ? <p className="recruitment-description">{row.description}</p> : null}
     {stale && editable && row.status !== 'PAUSED' ? <div className="recruitment-notice" role="status"><span>{row.status === 'STALE' ? '활동 확인이 필요해 목록에서 숨겨졌어요.' : '계속 매칭 중인가요?'}</span><Button variant="primary" disabled={busy} onClick={() => action('CONFIRM')}>계속 매칭할게요</Button></div> : null}
     {reservation && row.status === 'OPEN' && timed && row.availableFrom ? <div className="recruitment-notice"><span>{Date.parse(row.availableFrom) > now ? '예약 시간이 가까워졌어요.' : '예약 시간이 되었어요.'}</span><Button disabled={busy} onClick={() => action('CONFIRM')}>예약 매칭 확인</Button></div> : null}
     {row.status === 'REQUESTED' || row.status === 'JOINED' ? <div className="recruitment-notice"><span>{row.status === 'REQUESTED' ? '방장이 신청을 확인하고 있어요.' : '정원이 차면 수락 요청을 보내드려요.'}</span><Button disabled={busy} onClick={() => action('LEAVE')}>{row.status === 'REQUESTED' ? '신청 취소' : '매칭에서 나가기'}</Button></div> : null}
@@ -62,18 +60,14 @@ export function RecruitmentPanel({ row, onChanged, onEdit, onFind, matchingConte
     {row.members.length > 1 ? <div className="recruitment-members">{row.members.map(person => <span key={person.id}>{person.nickname}</span>)}</div> : null}
     {showSuggestions && suggestions?.suggestions.length ? <div className="recruitment-suggestions" role="status">{suggestions.suggestions.slice(0, 2).map(item => <button key={item.field} className="suggestion-link" onClick={() => setPreview(item)}>{item.label} · {item.candidateCount}개 보기 →</button>)}</div> : null}
     {suggestionError ? <p className="hint" role="alert">조건 제안을 불러오지 못했어요. <button type="button" onClick={() => setTick(n => n + 1)}>다시 시도</button></p> : null}
-    {matchingContent}
-    {managed ? <div className="my-recruitment-actions">
-      {independent ? <Button variant={row.status === 'PAUSED' || stale ? 'default' : 'primary'} onClick={onFind}>매칭 둘러보기{candidateCount ? ` · ${candidateCount}` : ''}</Button> : null}
-      {row.status === 'PAUSED' ? <Button variant="primary" disabled={busy} onClick={() => action('RESUME')}>매칭 재개</Button> : null}
-      {row.status === 'OPEN' && !stale ? <Button title={bumpIn ? `${bumpIn}분 후 다시 올릴 수 있어요` : undefined} disabled={busy || bumpIn > 0} onClick={() => action('BUMP')}>위로 올리기</Button> : null}
-      <Button aria-pressed={row.autoMatch} disabled={busy} onClick={() => action(row.autoMatch ? 'AUTO_OFF' : 'AUTO_ON')}>자동 매칭 <span aria-hidden="true">{row.autoMatch ? '켬' : '끔'}</span></Button>
-      <Button className="recruitment-edit" disabled={busy || !independent} onClick={onEdit}>조건 수정</Button>
-      {row.status !== 'PAUSED' ? <Button disabled={busy} onClick={() => action('PAUSE')}>잠시 멈춤</Button> : null}
-      <Button disabled={busy} onClick={share}>링크 복사</Button>
-      <Button disabled={busy} onClick={() => action(row.alertEnabled ? 'ALERT_OFF' : 'ALERT_ON')}>조건 제안 알림 {row.alertEnabled ? '끄기' : '켜기'}</Button>
-      <Button variant="danger" disabled={busy} onClick={() => action('CLOSE')}>매칭 종료</Button>
-    </div> : null}
+    {managed ? <>
+      {row.status === 'OPEN' && !stale && timed ? <button className="match-bump" aria-label="위로 올리기" disabled={busy || bumpIn > 0} title={bumpIn ? `${bumpIn}분 후 다시 올릴 수 있어요` : undefined} onClick={() => action('BUMP')}>↑ 위로 올리기</button> : null}
+      <div className="my-recruitment-actions compact-match-actions">
+        <Button className="recruitment-edit" aria-label="조건 수정" disabled={busy || !independent} onClick={onEdit}><IconPencil size={15} />수정</Button>
+        <Button aria-label={row.status === 'PAUSED' ? '매칭 재개' : '잠시 멈춤'} disabled={busy} onClick={() => action(row.status === 'PAUSED' ? 'RESUME' : 'PAUSE')}>{row.status === 'PAUSED' ? '재개' : '일시정지'}</Button>
+        <Button variant="ghost" aria-label="매칭 종료" disabled={busy} onClick={() => action('CLOSE')}><IconX size={15} />종료</Button>
+      </div>
+    </> : null}
     {preview ? <section className="recruitment-condition-preview" aria-label="조건 변경 미리 보기">
       <h3>조건 변경 미리 보기</h3>
       <p>{preview.label} · 새 매칭 {preview.candidateCount}개</p>

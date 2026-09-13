@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { GameKey } from '../api/types';
 import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
 import { TIER_LABELS, tiers } from '../domain/recruitment';
+import { normalizeDesiredRoles } from '../domain/introduction';
 import type { MatchResult, SelfIntroduction } from '../domain/introduction';
 import { FilterModeIcon, FilterRoleIcon } from './FilterSymbols';
 import { IconMic, IconMicOff, IconMicOptional } from './icons';
@@ -30,7 +31,7 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
         </div></fieldset>
         <fieldset className="introduction-choice"><legend>{game === 'LOL' ? '찾는 상대 포지션' : game === 'VALORANT' ? '찾는 상대 역할' : '찾는 상대 스타일'}</legend><div className="intro-role-options" role="group" aria-label="찾는 상대 포지션">
           <button type="button" className="filter-role" aria-label="무관" aria-pressed={!value.desiredRoles.length} onClick={() => patch({ desiredRoles: [] })}><FilterRoleIcon game={game} value="ANY" /><span>무관</span></button>
-          {roles.map(role => <button type="button" key={role.value} className="filter-role" aria-label={role.label} aria-pressed={value.desiredRoles.includes(role.value)} onClick={() => patch({ desiredRoles: value.desiredRoles.includes(role.value) ? value.desiredRoles.filter(item => item !== role.value) : [...value.desiredRoles, role.value] })}><FilterRoleIcon game={game} value={role.value} /><span>{role.label}</span></button>)}
+          {roles.map(role => <button type="button" key={role.value} className="filter-role" aria-label={role.label} aria-pressed={value.desiredRoles.includes(role.value)} onClick={() => patch({ desiredRoles: normalizeDesiredRoles(game, value.desiredRoles.includes(role.value) ? value.desiredRoles.filter(item => item !== role.value) : [...value.desiredRoles, role.value]) })}><FilterRoleIcon game={game} value={role.value} /><span>{role.label}</span></button>)}
         </div></fieldset>
       </> : null}
       <fieldset className="introduction-choice"><legend>음성</legend><div className="intro-voice-options" role="group" aria-label="음성">

@@ -1,7 +1,7 @@
 import type { BoardRow, BoardWrite } from '../api/recruitment';
 import type { GameKey, VoicePreference } from '../api/types';
 import { USE_MOCK } from '../config';
-import { conditionForMode, usesKeyCondition } from './gameConfig';
+import { conditionForMode, usesKeyCondition, keyConditionOptions } from './gameConfig';
 import { normalizeLolRankDetails, type LolRankDivision } from './lolRank';
 
 export type MatchResult = 'WIN' | 'LOSS' | null;
@@ -28,11 +28,17 @@ const storageKey = (userId: string, game: GameKey) => `queuemate:introduction:v1
 const text = (value: unknown, fallback = '') => typeof value === 'string' ? value.slice(0, 120) : fallback;
 const strings = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string').slice(0, 50).map(item => item.slice(0, 100)) : [];
 
+export function normalizeDesiredRoles(game: GameKey, selected: string[]): string[] {
+  const available = keyConditionOptions(game).filter(role => role.value !== 'ANY').map(role => role.value);
+  const valid = [...new Set(selected)].filter(role => available.includes(role));
+  return available.length && available.every(role => valid.includes(role)) ? [] : valid;
+}
+
 function normalize(value: Partial<SelfIntroduction>, game: GameKey): SelfIntroduction {
   const defaults = emptyIntroduction();
   return {
     primaryRole: text(value.primaryRole, defaults.primaryRole) || 'ANY',
-    desiredRoles: strings(value.desiredRoles).filter(role => role !== 'ANY').slice(0, 5),
+    desiredRoles: normalizeDesiredRoles(game, strings(value.desiredRoles)),
     ownTier: typeof value.ownTier === 'string' && value.ownTier ? value.ownTier : null,
     ...normalizeLolRankDetails(game === 'LOL' ? value.ownTier : null, value.rankDivision),
     champions: strings(value.champions).map(name => name.trim()).filter(Boolean),
@@ -77,7 +83,7 @@ export function applyIntroduction(value: BoardWrite, introduction: SelfIntroduct
   return {
     ...value,
     condition: conditionForMode({ ...value.condition, keyCondition: { ...value.condition.keyCondition, value: introduction.primaryRole || 'ANY' }, voicePreference: introduction.voice }, modeKey),
-    preferences: { ...value.preferences, ownTier: introduction.ownTier, desiredKeys: usesKeyCondition(value.condition.game, modeKey) ? [...introduction.desiredRoles] : [] },
+    preferences: { ...value.preferences, ownTier: introduction.ownTier, desiredKeys: usesKeyCondition(value.condition.game, modeKey) ? normalizeDesiredRoles(value.condition.game, introduction.desiredRoles) : [] },
     description: introduction.bio,
   };
 }
