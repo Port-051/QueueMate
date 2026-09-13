@@ -151,6 +151,17 @@ export function toggleDirectMessagePin(ownerId: string, contact: MessageContact)
   updateConversation(ownerId, contact, old => ({ ...old, pinnedAt: old.pinnedAt === null ? Date.now() : null }));
 }
 
+export function deleteDirectConversation(ownerId: string, contact: MessageContact): void {
+  const snapshot = readDirectMessages(ownerId);
+  // Deletion also completes example initialization so a later contact refresh
+  // cannot replace the removed conversation with a sample exchange.
+  write(ownerId, {
+    ...snapshot,
+    seeded: true,
+    conversations: { ...snapshot.conversations, [contact.userId]: emptyConversation(contact) },
+  });
+}
+
 export function saveDirectMessageDraft(ownerId: string, contact: MessageContact, draft: string): void {
   updateConversation(ownerId, contact, old => old.draft === draft ? old : { ...old, draft: draft.slice(0, 2000) });
 }

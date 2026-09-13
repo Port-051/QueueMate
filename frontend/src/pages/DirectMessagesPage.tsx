@@ -1,28 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { isApiError } from '../api/error';
+import { ConversationMenu, ConversationPin } from '../components/ConversationMenu';
+import { FriendManagementPanel, type ManagementTab } from '../components/FriendManagementPanel';
 import { DirectVoiceStage } from '../components/DirectVoiceStage';
 import { ReportModal } from '../components/ReportModal';
-import { IconChat, IconPencil, IconSearch, IconSend, IconSettings, IconShield } from '../components/icons';
+import { IconChat, IconPencil, IconSearch, IconSend, IconParty, IconShield } from '../components/icons';
 import { ActionMenu, Avatar, Button, ConfirmDialog, Modal, useToast } from '../components/ui';
 import { USE_MOCK } from '../config';
 import { relativeTime } from '../domain/time';
 import { useAuth } from '../state/AuthContext';
 import { useSocial } from '../state/SocialContext';
 import {
-  ensureDirectContacts, markDirectMessagesRead, saveDirectMessageDraft, sendDirectMessage,
+  deleteDirectConversation, ensureDirectContacts, markDirectMessagesRead, saveDirectMessageDraft, sendDirectMessage,
   toggleDirectMessagePin, unreadMessages, useDirectMessages,
 } from '../state/directMessages';
 import type { DirectConversation, MessageContact } from '../state/directMessages';
 import '../styles/messages.css';
 
 interface Contact extends MessageContact { friend: boolean; recentAt?: string; }
-type ManagementTab = 'received' | 'sent' | 'blocks';
-
-function Pin({ filled = false }: { filled?: boolean }) {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m16 3 5 5-4 2-3 6-2-2-5 5-1-1 5-5-2-2 6-3z" /></svg>;
-}
-
 function BackArrow() {
   return <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m14 5-7 7 7 7M7 12h13" /></svg>;
 }
@@ -48,7 +44,8 @@ export function DirectMessagesPage() {
   const [voiceContact, setVoiceContact] = useState<string | null>(null);
   useEffect(() => setVoiceContact(null), [selectedId]);
   const [query, setQuery] = useState('');
-  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [listTab, setListTab] = useState<'conversations' | 'unread' | 'recommended'>('conversations');
+  const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [newConversation, setNewConversation] = useState(false);
   const [newQuery, setNewQuery] = useState('');
   const [management, setManagement] = useState<ManagementTab | null>(null);
@@ -72,7 +69,7 @@ export function DirectMessagesPage() {
 
   useEffect(() => { void social.refresh().catch(() => toast('연락처를 불러오지 못했습니다.', 'error')); }, [social.refresh, toast]);
   useEffect(() => {
-    if (managementParam) setManagement(managementParam === 'blocks' ? 'blocks' : managementParam === 'sent' ? 'sent' : 'received');
+    setManagement(managementParam ? managementParam === 'blocks' ? 'blocks' : managementParam === 'sent' ? 'sent' : managementParam === 'friends' ? 'friends' : 'received' : null);
   }, [managementParam]);
   useEffect(() => {
     if (!user?.id || sourceContacts.length === 0) return;
@@ -97,7 +94,7 @@ export function DirectMessagesPage() {
     sourceContacts.forEach(contact => all.set(contact.userId, contact));
     return [...all.values()].sort((a, b) => {
       const left = snapshot.conversations[a.userId]; const right = snapshot.conversations[b.userId];
-      const leftPin = a.friend ? left?.pinnedAt ?? 0 : 0; const rightPin = b.friend ? right?.pinnedAt ?? 0 : 0;
+      const leftPin = left?.pinnedAt ?? 0; const rightPin = right?.pinnedAt ?? 0;
       if (leftPin || rightPin) return rightPin - leftPin;
       const lastTime = (conversation: DirectConversation | undefined, contact: Contact) => {
         const last = conversation?.messages.at(-1)?.createdAt ?? contact.recentAt;
@@ -113,16 +110,15 @@ export function DirectMessagesPage() {
   const shown = contacts.filter(contact => {
     const thread = snapshot.conversations[contact.userId];
     const term = query.trim().toLocaleLowerCase();
-    return (!term || contact.nickname.toLocaleLowerCase().includes(term) || thread?.messages.some(message => message.text.toLocaleLowerCase().includes(term)))
-      && (!unreadOnly || Boolean(thread && user && unreadMessages(thread, user.id)));
+    return (listTab === 'recommended' ? !thread?.messages.length : Boolean(thread?.messages.length))
+      && (!term || contact.nickname.toLocaleLowerCase().includes(term) || thread?.messages.some(message => message.text.toLocaleLowerCase().includes(term)))
+      && (listTab !== 'unread' || Boolean(thread && user && unreadMessages(thread, user.id)));
   });
-  const pinned = shown.filter(contact => contact.friend && snapshot.conversations[contact.userId]?.pinnedAt);
-  const others = shown.filter(contact => !pinned.includes(contact));
   const pendingSent = social.sentRequests.find(request => request.counterpartUserId === selectedId);
   const pendingReceived = social.receivedRequests.find(request => request.counterpartUserId === selectedId);
 
   useEffect(() => {
-    if (!selected || !user) return;
+    if (!selected || !user || management) return;
     const markRead = () => {
       if (document.visibilityState !== 'visible') return;
       try { markDirectMessagesRead(user.id, selected); }
@@ -131,12 +127,14 @@ export function DirectMessagesPage() {
     markRead();
     document.addEventListener('visibilitychange', markRead);
     return () => document.removeEventListener('visibilitychange', markRead);
-  }, [selected?.userId, user?.id, lastMessageId]);
+  }, [selected?.userId, user?.id, lastMessageId, management]);
   useEffect(() => { if (selectedId) headingRef.current?.focus({ preventScroll: true }); }, [selectedId]);
 
   const choose = (contact: MessageContact) => {
     const next = new URLSearchParams(params);
     next.set('user', contact.userId);
+    next.delete('manage');
+    setManagement(null);
     setParams(next);
     setNewConversation(false);
     setNewQuery('');
@@ -148,6 +146,7 @@ export function DirectMessagesPage() {
   };
   const closeManagement = () => {
     setManagement(null);
+    requestAnimationFrame(() => (headingRef.current ?? searchRef.current)?.focus({ preventScroll: true }));
     if (managementParam) { const next = new URLSearchParams(params); next.delete('manage'); setParams(next, { replace: true }); }
   };
   const run = async (action: () => Promise<void>, message: string) => {
@@ -158,7 +157,7 @@ export function DirectMessagesPage() {
     finally { setBusy(false); }
   };
   const pin = (contact: Contact) => {
-    if (!user || !contact.friend) return;
+    if (!user || !snapshot.conversations[contact.userId]?.messages.length) return;
     try { toggleDirectMessagePin(user.id, contact); setStorageError(null); }
     catch { setStorageError('고정 상태를 저장하지 못했습니다.'); }
   };
@@ -170,12 +169,12 @@ export function DirectMessagesPage() {
     const unread = thread && user ? unreadMessages(thread, user.id) : 0;
     const last = thread?.messages.at(-1);
     const isSelected = contact.userId === selectedId;
-    const isPinned = contact.friend && Boolean(thread?.pinnedAt);
+    const isPinned = Boolean(thread?.messages.length && thread.pinnedAt);
     return <li className={`dm-contact${isSelected ? ' is-selected' : ''}${unread ? ' is-unread' : ''}`} key={contact.userId}>
       <button type="button" className="dm-contact-select" aria-label={`${contact.nickname} 대화${unread ? `, 읽지 않은 메시지 ${unread}개` : ''}`}
         aria-current={isSelected ? 'true' : undefined} ref={isSelected ? selectedButtonRef : undefined} onClick={() => choose(contact)}>
         <Avatar name={contact.nickname} avatarUrl={contact.avatarUrl} size={44} />
-        <span className="dm-contact-text"><span className="dm-contact-top"><b>{contact.nickname}</b></span>
+        <span className="dm-contact-text"><span className="dm-contact-top"><b>{contact.nickname}</b>{isPinned ? <span className="dm-pinned-mark" role="img" aria-label="상단 고정"><ConversationPin /></span> : null}</span>
           <span className="dm-contact-preview">
             <span>{thread?.draft ? <><em>임시저장</em> {thread.draft}</> : last ? `${last.senderId === user?.id ? '나: ' : ''}${last.text}` : relationship(contact)}</span>
             {!thread?.draft && last ? <time dateTime={last.createdAt}> · {relativeTime(last.createdAt)}</time> : null}
@@ -183,29 +182,26 @@ export function DirectMessagesPage() {
         </span>
         {unread > 0 ? <span className="dm-unread" aria-hidden="true">{unread > 99 ? '99+' : unread}</span> : null}
       </button>
-      {contact.friend ? <button type="button" className={`dm-pin${isPinned ? ' is-pinned' : ''}`} aria-label={`${contact.nickname} ${isPinned ? '고정 해제' : '상단 고정'}`} aria-pressed={isPinned} onClick={() => pin(contact)}><Pin filled={isPinned} /></button> : null}
+      {thread?.messages.length ? <ConversationMenu nickname={contact.nickname} pinned={isPinned} onPin={() => pin(contact)} onDelete={() => setDeleteTarget(contact)} /> : null}
     </li>;
   };
 
-  return <section className={`page direct-messages-page${selectedId ? ' has-conversation' : ''}`} aria-label="메시지">
+  return <section className={`page direct-messages-page${selectedId || management ? ' has-conversation' : ''}`} aria-label="메시지">
     <div className="dm-layout">
       <aside className="dm-sidebar" aria-label="대화 목록">
         <header className="dm-list-header"><h1>메시지</h1><div className="dm-header-actions">
-          <button type="button" className="dm-icon-btn" aria-label="친구 관리" onClick={() => setManagement('received')}><IconSettings size={19} />{social.receivedRequests.length > 0 ? <span className="dm-request-dot" /> : null}</button>
+          <button type="button" className="dm-icon-btn" aria-label="친구 관리" aria-pressed={Boolean(management)} onClick={() => { setVoiceContact(null); setManagement('friends'); }}><IconParty size={24} />{social.receivedRequests.length > 0 ? <span className="dm-request-dot" /> : null}</button>
           <button type="button" className="dm-icon-btn" aria-label="새 대화" onClick={() => { setNewConversation(true); setNewQuery(''); }}><IconPencil size={22} /></button>
         </div></header>
         <div className="dm-search"><IconSearch size={17} /><input ref={searchRef} type="search" placeholder="대화 검색" aria-label="대화 검색" value={query} onChange={event => setQuery(event.target.value)} /></div>
-        <div className="dm-list-filters"><button type="button" className={!unreadOnly ? 'on' : ''} aria-pressed={!unreadOnly} onClick={() => setUnreadOnly(false)}>전체</button><button type="button" className={unreadOnly ? 'on' : ''} aria-pressed={unreadOnly} onClick={() => setUnreadOnly(true)}>읽지 않음{totalUnread ? <span>{totalUnread}</span> : null}</button></div>
+        <div className="dm-list-filters">{([{ key: 'conversations', label: '대화' }, { key: 'unread', label: '읽지 않음' }, { key: 'recommended', label: '추천' }] as const).map(tab => <button type="button" key={tab.key} className={listTab === tab.key ? 'on' : ''} aria-pressed={listTab === tab.key} onClick={() => { setListTab(tab.key); setQuery(''); }}>{tab.label}{tab.key === 'unread' && totalUnread ? <span>{totalUnread}</span> : null}</button>)}</div>
         <div className="dm-contact-scroll">
-          {social.loading && contacts.length === 0 ? <p className="dm-list-empty" role="status">연락처 불러오는 중…</p> : shown.length === 0 ? <div className="dm-list-empty"><p>{query ? '검색 결과가 없습니다' : unreadOnly ? '모두 읽었어요' : '아직 대화할 사람이 없습니다'}</p>{query ? <Button variant="ghost" size="sm" onClick={() => setQuery('')}>검색 지우기</Button> : null}</div> : <>
-            {pinned.length > 0 ? <div className="dm-contact-group"><h2>고정</h2><ul>{pinned.map(renderContact)}</ul></div> : null}
-            {others.length > 0 ? <div className="dm-contact-group">{pinned.length > 0 ? <h2>대화</h2> : null}<ul>{others.map(renderContact)}</ul></div> : null}
-          </>}
+          {social.loading && contacts.length === 0 ? <p className="dm-list-empty" role="status">연락처 불러오는 중…</p> : shown.length === 0 ? <div className="dm-list-empty"><p>{query ? '검색 결과가 없습니다' : listTab === 'unread' ? '모두 읽었어요' : listTab === 'recommended' ? '추천할 사람이 없습니다' : '아직 나눈 대화가 없습니다'}</p>{query ? <Button variant="ghost" size="sm" onClick={() => setQuery('')}>검색 지우기</Button> : null}</div> : <ul>{shown.map(renderContact)}</ul>}
         </div>
       </aside>
 
       <div className="dm-thread">
-        {selected && user ? <>
+        {management ? <FriendManagementPanel tab={management} setTab={setManagement} onClose={closeManagement} onChoose={choose} /> : selected && user ? <>
           <header className="dm-thread-header">
             <button type="button" className="dm-icon-btn dm-back" aria-label="대화 목록으로" onClick={backToList}><BackArrow /></button>
             <Avatar name={selected.nickname} avatarUrl={selected.avatarUrl} size={40} />
@@ -217,14 +213,13 @@ export function DirectMessagesPage() {
                 pendingReceived ? '친구 요청을 수락했습니다' : pendingSent ? '요청을 취소했습니다' : '친구 요청을 보냈습니다',
               )}>{pendingReceived ? '요청 수락' : pendingSent ? '요청 취소' : '친구 추가'}</Button> : null}
               <ActionMenu label={`${selected.nickname} 관리`}>
-                {selected.friend ? <Button size="sm" onClick={() => pin(selected)}>{conversation?.pinnedAt ? '고정 해제' : '상단 고정'}</Button> : null}
-                <Button size="sm" onClick={() => setReportTarget(selected)}><IconShield size={14} />신고</Button>
+                                <Button size="sm" onClick={() => setReportTarget(selected)}><IconShield size={14} />신고</Button>
                 <Button size="sm" onClick={() => setConfirmTarget({ contact: selected, action: 'block' })}>차단</Button>
                 {selected.friend ? <Button size="sm" variant="danger" onClick={() => setConfirmTarget({ contact: selected, action: 'remove' })}>친구 삭제</Button> : null}
               </ActionMenu>
             </div>
           </header>
-          <Conversation key={`${user.id}:${selected.userId}`} ownerId={user.id} ownerName={user.nickname} voiceOpen={voiceContact === selected.userId} closeVoice={() => setVoiceContact(null)} contact={selected} conversation={conversation} onError={setStorageError} />
+          <Conversation key={`${user.id}:${selected.userId}`} ownerId={user.id} ownerName={user.nickname} voiceOpen={voiceContact === selected.userId} closeVoice={() => setVoiceContact(null)} contact={selected} conversation={conversation} onError={setStorageError} onSent={() => setListTab('conversations')} />
         </> : <div className="dm-thread-empty">
           {selectedId ? <button type="button" className="dm-icon-btn dm-back" aria-label="대화 목록으로" onClick={backToList}><BackArrow /></button> : null}
           <span className="dm-empty-symbol"><IconChat size={35} /></span>
@@ -241,23 +236,11 @@ export function DirectMessagesPage() {
       {!contacts.some(contact => contact.nickname.toLocaleLowerCase().includes(newQuery.trim().toLocaleLowerCase())) ? <p className="dm-list-empty">{newQuery ? '검색 결과가 없습니다' : '함께한 팀원이 여기에 표시됩니다.'}</p> : null}
     </Modal> : null}
 
-    {management ? <Modal title="친구 관리" closeLabel="친구 관리 닫기" className="dm-manage-modal" onClose={closeManagement}>
-      <div className="tabs dm-manage-tabs" role="tablist" aria-label="친구 관리" onKeyDown={event => {
-        const keys: ManagementTab[] = ['received', 'sent', 'blocks'];
-        const index = keys.indexOf(management);
-        const next = event.key === 'ArrowRight' ? (index + 1) % keys.length : event.key === 'ArrowLeft' ? (index + keys.length - 1) % keys.length : event.key === 'Home' ? 0 : event.key === 'End' ? keys.length - 1 : -1;
-        if (next === -1) return;
-        event.preventDefault(); setManagement(keys[next]);
-        (event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next])?.focus();
-      }}>
-        {([{ key: 'received', label: '받은 요청', count: social.receivedRequests.length }, { key: 'sent', label: '보낸 요청', count: social.sentRequests.length }, { key: 'blocks', label: '차단 목록', count: social.blocks.length }] as const).map(tab => <button type="button" role="tab" aria-selected={management === tab.key} tabIndex={management === tab.key ? 0 : -1} className={management === tab.key ? 'on' : ''} key={tab.key} onClick={() => setManagement(tab.key)}>{tab.label}{tab.count > 0 ? <span className="count">{tab.count}</span> : null}</button>)}
-      </div>
-      <div className="dm-management-list" role="tabpanel">
-        {management === 'blocks' ? social.blocks.length ? social.blocks.map(contact => <div className="dm-management-person" key={contact.userId}><Avatar name={contact.nickname} size={36} /><b>{contact.nickname}</b><Button size="sm" disabled={busy} onClick={() => void run(() => social.unblock(contact.userId), '차단을 해제했습니다')}>차단 해제</Button></div>) : <p className="dm-list-empty">차단한 사용자가 없습니다</p> : (
-          management === 'received' ? social.receivedRequests : social.sentRequests
-        ).length ? (management === 'received' ? social.receivedRequests : social.sentRequests).map(request => <div className="dm-management-person" key={request.id}><Avatar name={request.counterpartNickname} size={36} /><b>{request.counterpartNickname}</b><div>{management === 'received' ? <><Button size="sm" variant="primary" disabled={busy} onClick={() => void run(() => social.acceptRequest(request.id), '친구 요청을 수락했습니다')}>수락</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => social.declineRequest(request.id), '친구 요청을 거절했습니다')}>거절</Button></> : <Button size="sm" disabled={busy} onClick={() => void run(() => social.cancelRequest(request.id), '요청을 취소했습니다')}>요청 취소</Button>}</div></div>) : <p className="dm-list-empty">{management === 'received' ? '받은 친구 요청이 없습니다' : '보낸 친구 요청이 없습니다'}</p>}
-      </div>
-    </Modal> : null}
+    {deleteTarget && user ? <ConfirmDialog title={`${deleteTarget.nickname}님과의 대화를 삭제할까요?`} description="이 브라우저의 대화 기록과 초안이 삭제됩니다. 친구 관계는 유지됩니다." confirmLabel="대화 삭제" onClose={() => setDeleteTarget(null)} onConfirm={async () => {
+      deleteDirectConversation(user.id, deleteTarget);
+      if (selectedId === deleteTarget.userId) { setVoiceContact(null); backToList(); }
+      toast('대화를 삭제했습니다', 'ok');
+    }} /> : null}
     {reportTarget ? <ReportModal targetUserId={reportTarget.userId} targetNickname={reportTarget.nickname} onClose={() => setReportTarget(null)} /> : null}
     {confirmTarget ? <ConfirmDialog title={`${confirmTarget.contact.nickname}님을 ${confirmTarget.action === 'block' ? '차단' : '친구에서 삭제'}할까요?`}
       description={confirmTarget.action === 'block' ? '대화 목록에서 제외되며 같은 파티로 매칭되지 않습니다. 친구 관리에서 차단을 해제할 수 있습니다.' : '친구 목록에서 삭제됩니다. 기존 대화는 유지됩니다.'}
@@ -270,8 +253,8 @@ export function DirectMessagesPage() {
   </section>;
 }
 
-function Conversation({ ownerId, ownerName, voiceOpen, closeVoice, contact, conversation, onError }: {
-  ownerId: string; ownerName: string; voiceOpen: boolean; closeVoice: () => void; contact: Contact; conversation?: DirectConversation; onError: (message: string | null) => void;
+function Conversation({ ownerId, ownerName, voiceOpen, closeVoice, contact, conversation, onError, onSent }: {
+  ownerId: string; ownerName: string; voiceOpen: boolean; closeVoice: () => void; contact: Contact; conversation?: DirectConversation; onError: (message: string | null) => void; onSent: () => void;
 }) {
   const [draft, setDraft] = useState(conversation?.draft ?? '');
   const [announcement, setAnnouncement] = useState('');
@@ -295,7 +278,7 @@ function Conversation({ ownerId, ownerName, voiceOpen, closeVoice, contact, conv
     try {
       atBottom.current = true;
       sendDirectMessage(ownerId, contact, draft);
-      setDraft(''); setAnnouncement('메시지를 보냈습니다'); onError(null);
+      setDraft(''); setAnnouncement('메시지를 보냈습니다'); onError(null); onSent();
       inputRef.current?.focus();
     } catch (error) { onError(error instanceof Error && error.message.includes('2,000') ? error.message : '메시지를 저장하지 못했습니다. 다시 시도해주세요.'); }
   };

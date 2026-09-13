@@ -16,8 +16,8 @@ test('작은 화면에서도 주요 페이지와 매칭 팝업이 잘리지 않�
       const dimensions = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: innerWidth }));
       expect(dimensions.content, `${route} at ${width}px`).toBeLessThanOrEqual(dimensions.viewport);
       if (route === 'messages') {
-        await page.getByRole('button', { name: /^GankFlow 대화/ }).click();
-        await expect(page.getByRole('textbox', { name: 'GankFlow에게 메시지', exact: true }), `대화 입력란 ${width}px`).toBeInViewport();
+        await page.getByRole('button', { name: 'SilentJungle 대화', exact: true }).click();
+        await expect(page.getByRole('textbox', { name: 'SilentJungle에게 메시지', exact: true }), `대화 입력란 ${width}px`).toBeInViewport();
         await expect(page.getByRole('button', { name: '메시지 보내기', exact: true })).toBeInViewport();
         const opened = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: innerWidth }));
         expect(opened.content, `conversation at ${width}px`).toBeLessThanOrEqual(opened.viewport);
@@ -49,7 +49,7 @@ test('작은 화면에서도 주요 페이지와 매칭 팝업이 잘리지 않�
   }
 });
 
-test('모바일 메뉴로 이동하고 닉네임 변경 상태와 연결 해제 대상을 확인한다', async ({ page }) => {
+test('모바일 메뉴로 이동하고 닉네임 변경 상태와 연결 해제 대상을 확인한다', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
   await page.getByRole('button', { name: '메뉴 열기' }).click();
@@ -87,10 +87,14 @@ test('모바일 메뉴로 이동하고 닉네임 변경 상태와 연결 해제 
   await expect(unlink).toBeVisible();
   await page.getByRole('link', { name: /차단 목록/ }).click();
   await expect(page).toHaveURL(/\/app\/messages\?manage=blocks$/);
-  const management = page.getByRole('dialog', { name: '친구 관리', exact: true });
+  const management = page.getByRole('region', { name: '친구 관리', exact: true });
   await expect(management.getByRole('tab', { name: /차단 목록/ })).toHaveAttribute('aria-selected', 'true');
   await management.getByRole('tab', { name: /받은 요청/ }).click();
   await expect(management.getByRole('tab', { name: /받은 요청/ })).toHaveAttribute('aria-selected', 'true');
+  await management.getByRole('tab', { name: /^친구/ }).click();
+  await expect(management.locator('.dm-friend-row').first()).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('messages-friends-390.png') });
   await management.getByRole('button', { name: '친구 관리 닫기', exact: true }).click();
   await expect(page).toHaveURL(/\/app\/messages$/);
   await page.goBack();
