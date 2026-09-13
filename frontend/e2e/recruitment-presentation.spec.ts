@@ -58,14 +58,18 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
 
 test('승률과 KDA는 수치 구간에 따라 다섯 색상으로 구분하며 미입력을 낮은 기록으로 표시하지 않는다', async ({ page }) => {
   const examples = [
-    { userId: 'u-gankflow', nickname: 'GankFlow', winRate: 35, kda: 1, tone: 'red' },
-    { userId: 'u-playmaker', nickname: 'PlayMaker', winRate: 45, kda: 1.75, tone: 'orange' },
-    { userId: 'u-supportlife', nickname: 'SupportLife', winRate: 52, kda: 2.5, tone: 'yellow' },
-    { userId: 'u-lategame', nickname: 'LateGame', winRate: 57, kda: 3.5, tone: 'green' },
-    { userId: 'u-midtheory', nickname: 'MidTheory', winRate: 65, kda: 4.5, tone: 'blue' },
+    { userId: 'u-gankflow', nickname: 'GankFlow', winRate: 44, kda: 0.99, tone: 'red' },
+    { userId: 'u-playmaker', nickname: 'PlayMaker', winRate: 45, kda: 1, tone: 'orange' },
+    { userId: 'u-supportlife', nickname: 'SupportLife', winRate: 48, kda: 1.99, tone: 'orange' },
+    { userId: 'u-lategame', nickname: 'LateGame', winRate: 49, kda: 2, tone: 'yellow' },
+    { userId: 'u-midtheory', nickname: 'MidTheory', winRate: 52, kda: 2.99, tone: 'yellow' },
+    { userId: 'u-blueocean', nickname: 'BlueOcean', winRate: 53, kda: 3, tone: 'green' },
+    { userId: 'u-chickendinner', nickname: 'ChickenDinner', winRate: 59, kda: 3.99, tone: 'green' },
+    { userId: 'u-silentjungle', nickname: 'SilentJungle', winRate: 60, kda: 4, tone: 'blue' },
   ];
   await saveExamples(page, [...examples.map(example => ({ ...example, champions: ['아리'] })), { userId: 'u-aimking', champions: [], winRate: null, kda: null }]);
   await login(page);
+  await page.getByRole('group', { name: '찾는 큐 타입', exact: true }).getByRole('button', { name: '랭크', exact: true }).click();
   const colors: string[] = [];
   const dialog = page.getByRole('dialog', { name: '모집 상세', exact: true });
   for (const example of examples) {

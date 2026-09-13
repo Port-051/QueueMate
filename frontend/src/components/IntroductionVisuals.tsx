@@ -4,7 +4,7 @@ import { championName, championPortrait } from '../domain/champions';
 import '../styles/introduction-visuals.css';
 
 type StatKind = 'winRate' | 'kda';
-const STAT_THRESHOLDS: Record<StatKind, number[]> = { winRate: [40, 50, 55, 60], kda: [1.5, 2, 3, 4] };
+const STAT_THRESHOLDS: Record<StatKind, number[]> = { winRate: [45, 49, 53, 60], kda: [1, 2, 3, 4] };
 const STAT_TONES = ['red', 'orange', 'yellow', 'green', 'blue'] as const;
 
 /** 전체 모집에 같은 고정 구간을 사용한다. 모집 목록의 구성에 따라 색이 달라지지 않는다. */
