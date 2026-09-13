@@ -16,33 +16,20 @@ test('작은 화면에서도 주요 페이지와 매칭 팝업이 잘리지 않�
       const dimensions = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, viewport: innerWidth }));
       expect(dimensions.content, `${route} at ${width}px`).toBeLessThanOrEqual(dimensions.viewport);
       if (route !== 'home') continue;
-      const games = (await page.locator('.home-games').boundingBox())!;
-      const current = (await page.locator('.home-active-match').boundingBox())!;
-      const reservations = (await page.locator('.home-reservations').boundingBox())!;
-      const history = (await page.locator('.home-history').boundingBox())!;
-      expect(games.y + games.height).toBeLessThan(current.y);
-      expect(current.y + current.height).toBeLessThan(reservations.y);
-      if (width >= 1024) {
-        expect(current.y).toBe(history.y);
-        expect(current.x + current.width).toBeLessThan(history.x);
-      } else expect(history.y).toBeGreaterThan(reservations.y + reservations.height);
-      if (width >= 768) {
-        const navigation = (await page.locator('.side-nav').boundingBox())!;
-        expect(Math.abs(navigation.y + navigation.height / 2 - 844 / 2)).toBeLessThan(5);
-      }
-      await page.getByRole('button', { name: 'League of Legends 매칭', exact: true }).click();
-      for (const mode of ['바로 매칭', '예약 매칭']) {
-        await page.getByRole('tab', { name: mode, exact: true }).click();
-        const button = page.getByRole('button', { name: mode === '바로 매칭' ? '매칭 시작' : '예약 등록', exact: true });
+      await expect(page.getByRole('tab', { name: '실시간 매치', exact: true })).toBeVisible();
+      await expect(page.getByRole('tab', { name: '예약 매치', exact: true })).toBeVisible();
+      for (const mode of ['실시간', '예약']) {
+        await page.getByRole('tab', { name: `${mode} 매치`, exact: true }).click();
+        await page.getByRole('button', { name: `+ ${mode} 모집 만들기` }).click();
+        const button = page.getByRole('button', { name: '모집 시작', exact: true });
         await button.scrollIntoViewIfNeeded();
         const box = (await button.boundingBox())!;
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(width);
         expect(box.y + box.height).toBeLessThanOrEqual(844);
-        const overflow = await page.getByRole('dialog').evaluate((element) => element.scrollWidth > element.clientWidth);
-        expect(overflow).toBe(false);
+        expect(await page.getByRole('dialog').evaluate(element => element.scrollWidth > element.clientWidth)).toBe(false);
+        await page.keyboard.press('Escape');
       }
-      await page.keyboard.press('Escape');
     }
   }
 });

@@ -200,6 +200,7 @@ export interface CreateReportRequest {
  */
 export type ServerEventType =
   | 'SESSION_SNAPSHOT'
+  | 'RECRUITMENT_UPDATED'
   | 'MATCH_PROPOSAL_CREATED'
   | 'MATCH_PROPOSAL_EXPIRED'
   | 'MATCH_CONFIRMED'

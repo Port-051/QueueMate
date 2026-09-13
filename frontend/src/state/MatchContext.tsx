@@ -158,7 +158,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
           // RESERVATION_UPDATED가 오지 않으므로 예약 목록은 직접 다시 읽는다.
           if (event.type === 'RESERVATION_PROPOSAL_CREATED') void refreshReservations();
           toast('조건에 맞는 팀원을 찾았습니다', 'ok');
-          navigate(`/app/proposals/${p.proposal.id}`);
+          navigate(window.location.pathname === '/app/home' ? '/app/home' : `/app/proposals/${p.proposal.id}`);
           break;
         }
         case 'MATCH_PROPOSAL_EXPIRED': {
@@ -186,7 +186,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
           setCondition(null);
           setActivePartyId(p.partyId);
           toast('파티가 확정되었습니다', 'ok');
-          navigate(`/app/party/${p.partyId}`);
+          navigate(window.location.pathname === '/app/home' ? '/app/home' : `/app/party/${p.partyId}`);
           break;
         }
         // 누군가 거절했거나 취소됐다. payload는 proposalId 하나뿐이다.
@@ -227,7 +227,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
       setRequest(null);
       setCondition(null);
       setActivePartyId(view.partyId);
-      navigate(`/app/party/${view.partyId}`);
+      navigate(window.location.pathname === '/app/home' ? '/app/home' : `/app/party/${view.partyId}`);
       return;
     }
     // 만료·거절·취소된 제안으로는 화면을 옮기지 않는다.
@@ -235,7 +235,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     setProposal(view);
     setProposalSource(source);
     setRequest((prev) => (prev ? { ...prev, status: 'PROPOSED', proposalId: view.id } : prev));
-    navigate(`/app/proposals/${view.id}`);
+    navigate(window.location.pathname === '/app/home' ? '/app/home' : `/app/proposals/${view.id}`);
   }, [navigate, setActivePartyId]);
 
   // The home URL carries no request ID. Restore this account's request, then
@@ -320,7 +320,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
           setCondition(null);
           setActivePartyId(view.partyId);
           toast('파티가 확정되었습니다', 'ok');
-          navigate(`/app/party/${view.partyId}`);
+          navigate(window.location.pathname === '/app/home' ? '/app/home' : `/app/party/${view.partyId}`);
           return;
         }
         // 만료·거절·취소. 실시간이면 큐로 돌아가고 예약이면 예약 목록으로 돌린다.

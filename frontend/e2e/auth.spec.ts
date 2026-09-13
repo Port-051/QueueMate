@@ -12,7 +12,7 @@ test('랜딩에서 로그인하면 홈으로 들어간다', async ({ page }) => 
   await page.locator('.auth-form button[type="submit"]').click();
 
   await expect(page).toHaveURL(/\/app\/home/);
-  await expect(page.getByRole('heading', { name: '예약 매칭', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: '예약 매치', exact: true })).toBeVisible();
 });
 
 test('잘못된 비밀번호는 오류를 보여주고 로그인되지 않는다', async ({ page }) => {
@@ -48,9 +48,9 @@ test('프로필에서 설정을 바꾸고 매칭 기본값에 반영한 뒤 로�
   await settings.getByRole('button', { name: '사용 안 함', exact: true }).click();
   await settings.getByRole('button', { name: '즐겜', exact: true }).click();
   await navigation.getByRole('link', { name: '홈', exact: true }).click();
-  await page.getByRole('button', { name: 'League of Legends 매칭', exact: true }).click();
-  await expect(page.getByRole('dialog').getByRole('button', { name: '사용 안 함', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('dialog').getByRole('button', { name: '즐겜', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: '+ 실시간 모집 만들기' }).click();
+  await expect(page.getByRole('dialog').getByLabel('음성', { exact: true })).toHaveValue('NO_VOICE');
+  await expect(page.getByRole('dialog').getByLabel('플레이 목적', { exact: true })).toHaveValue('FUN');
   await page.keyboard.press('Escape');
   await navigation.getByRole('link', { name: 'QueueMaster 프로필', exact: true }).click();
   await page.getByRole('button', { name: '로그아웃', exact: true }).click();

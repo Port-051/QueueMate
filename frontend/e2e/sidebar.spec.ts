@@ -13,8 +13,9 @@ test('사이드바는 호버와 키보드 탐색 때 펼쳐지고 마우스가 �
   await expect(sidebar.locator('.avatar-status.online')).toBeVisible();
   await expect(sidebar).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   const main = page.locator('.main');
+  await expect(page.locator('.recruitment-row').first()).toBeVisible();
   const homeBounds = await main.boundingBox();
-  const gameBounds = await page.locator('.home-games').boundingBox();
+  const gameBounds = await page.locator('.board-games').boundingBox();
 
   await sidebar.hover();
   await expect(sidebar).toHaveCSS('width', '232px');
@@ -22,11 +23,11 @@ test('사이드바는 호버와 키보드 탐색 때 펼쳐지고 마우스가 �
   await expect(label).toBeVisible();
   await expect(label.locator('.nav-nickname')).toHaveText('QueueMaster');
   expect(await main.boundingBox()).toEqual(homeBounds);
-  expect(await page.locator('.home-games').boundingBox()).toEqual(gameBounds);
+  expect(await page.locator('.board-games').boundingBox()).toEqual(gameBounds);
   await page.mouse.move(900, 100);
   await expect(sidebar).toHaveCSS('width', '80px');
   expect(await main.boundingBox()).toEqual(homeBounds);
-  expect(await page.locator('.home-games').boundingBox()).toEqual(gameBounds);
+  expect(await page.locator('.board-games').boundingBox()).toEqual(gameBounds);
   await sidebar.getByRole('link', { name: 'QueueMaster 프로필', exact: true }).click();
   await page.mouse.move(900, 100);
   await expect(sidebar).toHaveCSS('width', '80px');

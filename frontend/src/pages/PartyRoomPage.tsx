@@ -1,5 +1,5 @@
 import { GameBadge } from '../components/GameSymbol';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
@@ -12,8 +12,8 @@ import { formatTime } from '../domain/time';
 import { useAuth } from '../state/AuthContext';
 import { useMatch } from '../state/MatchContext';
 import { useSocial } from '../state/SocialContext';
-import { createPartyClient } from '../webrtc/createPartyClient';
-import type { PartyChatMessage, PartyClient, VoiceStatus } from '../webrtc/types';
+import { usePartySession } from '../state/PartySessionContext';
+import type { VoiceStatus } from '../webrtc/types';
 
 const VOICE_LABEL: Record<VoiceStatus, string> = {
   idle: '마이크 꺼짐',
@@ -23,10 +23,12 @@ const VOICE_LABEL: Record<VoiceStatus, string> = {
   error: '연결 실패',
 };
 
-export function PartyRoomPage() {
-  const { partyId } = useParams<{ partyId: string }>();
+export function PartyRoomPage({ embedded = false }: { embedded?: boolean }) {
+  const { partyId: routePartyId } = useParams<{ partyId: string }>();
   const { user } = useAuth();
   const { stream, activePartyId, setActivePartyId } = useMatch();
+  const partyId = embedded ? activePartyId ?? undefined : routePartyId;
+  const { messages, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef, setConnectionAttempt } = usePartySession();
   const { friends, addFriend, block } = useSocial();
   const navigate = useNavigate();
   const toast = useToast();
@@ -34,17 +36,10 @@ export function PartyRoomPage() {
   const [party, setParty] = useState<PartyView | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [connectionAttempt, setConnectionAttempt] = useState(0);
-  const [messages, setMessages] = useState<PartyChatMessage[]>([]);
-  const [voice, setVoice] = useState<VoiceStatus>('idle');
-  const [voiceDetail, setVoiceDetail] = useState<string | null>(null);
-  const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
-  const [muted, setMuted] = useState(false);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [reportTarget, setReportTarget] = useState<{ userId: string; nickname: string } | null>(null);
 
-  const clientRef = useRef<PartyClient | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const currentRoute = useRef(partyId);
   currentRoute.current = partyId;
@@ -67,7 +62,7 @@ export function PartyRoomPage() {
     }
   }, [partyId, setActivePartyId]);
 
-  useEffect(() => { setParty(null); setMessages([]); setDraft(''); setLoading(Boolean(partyId)); void load(); }, [load, partyId]);
+  useEffect(() => { setParty(null); setDraft(''); setLoading(Boolean(partyId)); void load(); }, [load, partyId]);
 
   useEffect(() => {
     if (!stream) return;
@@ -76,45 +71,7 @@ export function PartyRoomPage() {
     });
   }, [stream, load]);
 
-  const memberIds = useMemo(() => party?.members.map((m) => m.userId).join(',') ?? '', [party]);
-  const membersRef = useRef(party?.members ?? []);
-  membersRef.current = party?.members ?? [];
   const closed = party?.status === 'CLOSED';
-  const connectionPartyId = party && !closed ? party.id : null;
-  const selfId = user?.id;
-  const selfNickname = user?.nickname;
-
-  useEffect(() => {
-    if (!connectionPartyId || !selfId || !stream) return;
-    setConnectedPeers([]);
-    setMuted(false);
-    const client = createPartyClient({
-      partyId: connectionPartyId,
-      selfUserId: selfId,
-      selfNickname: selfNickname ?? '플레이어',
-      members: membersRef.current,
-      stream,
-      handlers: {
-        onChat: (message) => setMessages((prev) => [...prev, message]),
-        onStatus: (status, detail) => { setVoice(status); setVoiceDetail(detail ?? null); },
-        onPeer: (peer) => setConnectedPeers((prev) => (
-          peer.connected ? [...new Set([...prev, peer.userId])] : prev.filter((id) => id !== peer.userId)
-        )),
-      },
-    });
-    clientRef.current = client;
-    void client.connect().then(() => client.syncMembers(membersRef.current.map((m) => m.userId)));
-    return () => {
-      client.close();
-      clientRef.current = null;
-      setConnectedPeers([]);
-    };
-  }, [connectionPartyId, selfId, selfNickname, stream, connectionAttempt]);
-
-  useEffect(() => {
-    if (!clientRef.current || !memberIds) return;
-    clientRef.current.syncMembers(memberIds.split(','));
-  }, [memberIds]);
 
   useEffect(() => { if (messages.length) chatEndRef.current?.scrollIntoView({ block: 'nearest' }); }, [messages]);
 
@@ -122,7 +79,7 @@ export function PartyRoomPage() {
 
   if (!partyId || !party) {
     return (
-      <section className="page party-page">
+      <section className={embedded ? "embedded-party" : "page party-page"}>
         <EmptyState
           title={loadError ? '파티를 불러오지 못했습니다' : '참여 중인 파티가 없습니다'}
           desc={loadError ? '연결 상태를 확인하고 다시 시도하세요.' : '매칭이 확정되면 파티룸이 자동으로 열립니다.'}
@@ -153,7 +110,7 @@ export function PartyRoomPage() {
       await api.leaveParty(party.id);
       setActivePartyId(null);
       toast('파티에서 나왔습니다');
-      navigate('/app/recent');
+      navigate(embedded ? '/app/home' : '/app/recent');
     } catch (err) {
       toast(isApiError(err) ? err.message : '파티에서 나가지 못했습니다', 'error');
     } finally {
@@ -194,8 +151,22 @@ export function PartyRoomPage() {
     }
   };
 
+  if (embedded) return <div className="compact-party">
+    <Card>
+      <div className="row-between"><div><span className="eyebrow">YOUR PARTY</span><h2>팀원이 모였어요</h2></div><Button size="sm" variant="danger" disabled={busy} onClick={() => void leave()}>나가기</Button></div>
+      <p className="hint">{gameFullLabel(party.game)} · {modeLabel(party.game, party.modeKey)}</p>
+      <div className="compact-party-members">{party.members.map(m => <div key={m.userId}><Avatar name={m.nickname} size={28} /><b>{m.nickname}</b><Tag tone={m.ready ? 'ok' : 'default'}>{m.ready ? '준비 완료' : '준비 중'}</Tag></div>)}</div>
+      <Button variant={me?.ready ? 'default' : 'primary'} block disabled={busy || closed || party.status === 'PLAYING'} onClick={() => void toggleReady()}>{party.status === 'PLAYING' ? '전원 준비 확인됨' : me?.ready ? '준비 해제' : '게임 준비 완료'}</Button>
+      <p className="hint">게임 시작 여부는 게임에서 확인해 주세요.</p>
+      <details className="compact-party-details"><summary>게임 ID · 팀원 관리</summary>{party.members.map(m => <div className="compact-party-person" key={m.userId}><b>{m.nickname}</b>{(m.gameIds ?? []).map(id => <div className="game-id" key={id}><code>{id}</code><Button size="sm" aria-label={`${m.nickname} 게임 ID ${id} 복사`} onClick={() => void navigator.clipboard.writeText(id).then(() => toast('게임 ID를 복사했습니다', 'ok')).catch(() => toast('복사하지 못했습니다', 'error'))}>복사</Button></div>)}{!m.gameIds?.length ? <p className="hint">등록된 게임 ID가 없습니다.</p> : null}{m.userId !== user?.id ? <div className="row"><Button size="sm" disabled={friends.some(f => f.userId === m.userId)} onClick={() => void onFriendRequest(m.userId, m.nickname)}>{friends.some(f => f.userId === m.userId) ? '친구' : '친구 추가'}</Button><Button size="sm" onClick={() => void onBlock(m.userId, m.nickname)}>차단</Button><Button size="sm" onClick={() => setReportTarget({ userId: m.userId, nickname: m.nickname })}>신고</Button></div> : null}</div>)}</details>
+    </Card>
+    <Card><div className="row-between"><h2>음성 채널</h2><Tag>{VOICE_LABEL[voice]}</Tag></div><p className="hint">다른 메뉴로 이동해도 연결을 유지합니다.</p>{voiceDetail ? <p className="hint" role="status">{voiceDetail}</p> : null}{voice !== 'connected' ? <Button block disabled={closed || !clientRef.current || voice === 'connecting'} onClick={() => void clientRef.current?.startVoice()}>{voice === 'denied' || voice === 'error' ? '마이크 다시 시도' : '마이크 켜기'}</Button> : <Button block onClick={toggleMute}>{muted ? '음소거 해제' : '음소거'}</Button>}</Card>
+    <Card className="compact-chat"><div className="row-between"><h2>파티 채팅</h2><Button size="sm" onClick={() => setConnectionAttempt(n => n + 1)}>연결 다시 시도</Button></div><p className="hint">{connectedPeers.length}/{peerCount}명 연결됨 · 마이크 없이도 채팅할 수 있어요</p><div className="chat-log" role="log" aria-label="파티 메시지" aria-live="polite">{messages.length ? messages.map(m => m.system ? <p className="chat-system" key={m.id}>{m.text}</p> : <div className="compact-chat-message" key={m.id}><b>{m.nickname}</b><small>{formatTime(m.at)}</small><p>{m.text}</p></div>) : <p className="hint">연결된 팀원에게 인사해 보세요.</p>}<div ref={chatEndRef} /></div><div className="chat-input"><input className="input" placeholder="메시지를 입력하세요" aria-label="파티 메시지" disabled={closed} value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) send(); }} /><Button variant="primary" aria-label="보내기" disabled={!canChat || !draft.trim()} onClick={send}><IconSend size={16} /></Button></div></Card>
+    {reportTarget ? <ReportModal targetUserId={reportTarget.userId} targetNickname={reportTarget.nickname} partyId={party.id} onClose={() => setReportTarget(null)} /> : null}
+  </div>;
+
   return (
-    <section className="page party-page">
+    <section className={embedded ? "embedded-party" : "page party-page"}>
       <div className="page-head row-between">
         <div className="row" style={{ gap: 14 }}>
           <GameBadge game={party.game} />
@@ -221,7 +192,7 @@ export function PartyRoomPage() {
           <Card>
             <CardHead
               title="음성 채널"
-              sub={closed ? '파티가 종료되어 연결을 닫았습니다.' : '마이크는 직접 켤 수 있습니다. 이 화면을 떠나면 음성·채팅 연결이 종료됩니다.'}
+              sub={closed ? '파티가 종료되어 연결을 닫았습니다.' : '마이크는 직접 켤 수 있습니다. 페이지를 이동해도 파티 연결이 유지됩니다.'}
               right={<Tag tone={!closed && voice === 'connected' ? 'ok' : 'default'}>{closed ? '종료됨' : VOICE_LABEL[voice]}</Tag>}
             />
             {voiceDetail ? <div className="banner warn" style={{ marginBottom: 14 }}>{voiceDetail}</div> : null}
@@ -309,7 +280,7 @@ export function PartyRoomPage() {
           </Card>
 
           <Button variant={me?.ready ? 'default' : 'primary'} size="lg" block disabled={busy || closed || party.status === 'PLAYING'} onClick={() => void toggleReady()}>
-            <IconCheck size={16} /> {closed ? '종료된 파티' : party.status === 'PLAYING' ? '게임 진행 중' : me?.ready ? '준비 해제' : '게임 준비 완료'}
+            <IconCheck size={16} /> {closed ? '종료된 파티' : party.status === 'PLAYING' ? '전원 준비 확인됨' : me?.ready ? '준비 해제' : '게임 준비 완료'}
           </Button>
 
           <Card>

@@ -1,3 +1,4 @@
+import { handleBoardMock, boardSimulationPeers } from './recruitment';
 import { ApiError } from '../api/error';
 import type {
   BlockView, CreateBlockRequest, CreateFriendRequest, CreateGameAccountRequest, CreateReportRequest,
@@ -104,8 +105,8 @@ function startQueueSim(requestId: string): void {
   entry.sim.timers.push(fire);
 }
 
-function buildProposal(memberCount: number): ProposalView {
-  const mates = pickCandidates(memberCount - 1);
+function buildProposal(memberCount: number, selected?: MockUser[]): ProposalView {
+  const mates = selected ?? pickCandidates(memberCount - 1);
   const members: ProposalMember[] = [
     { userId: db.me.id, nickname: db.me.nickname, acceptance: 'PENDING' },
     ...mates.map((m) => ({ userId: m.userId, nickname: m.nickname, acceptance: 'PENDING' as const })),
@@ -124,7 +125,9 @@ function createProposalForRequest(requestId: string): void {
   if (!entry || entry.view.status !== 'QUEUED') return;
 
   const size = partySizeOf(entry.condition);
-  const view = buildProposal(size);
+  const peers = boardSimulationPeers(requestId);
+  if (peers === null) return;
+  const view = buildProposal(size, peers);
   const proposal = { view, condition: entry.condition, requestId, timers: [] as number[] };
   db.proposals.set(view.id, proposal);
 
@@ -143,7 +146,9 @@ function createProposalForReservation(reservationId: string): void {
   if (!reservation || reservation.status !== 'ACTIVE') return;
 
   const size = partySizeOf(reservation.condition);
-  const view = buildProposal(size);
+  const peers = boardSimulationPeers(reservationId);
+  if (peers === null) return;
+  const view = buildProposal(size, peers);
   const proposal = { view, condition: reservation.condition, reservationId, timers: [] as number[] };
   db.proposals.set(view.id, proposal);
 
@@ -684,6 +689,16 @@ export async function handleMockRequest<T>(
   await delay(LATENCY_MS);
   const [path, search = ''] = fullPath.split('?');
   const query = new URLSearchParams(search);
+  if (path.startsWith('/recruitments')) {
+    requireSession(token);
+    return handleBoardMock(method, path, body, (verb, legacyPath, payload) => {
+      for (const [routeMethod, pattern, handler] of routes) {
+        const match = pattern.exec(legacyPath);
+        if (verb === routeMethod && match) return handler({ params: match.slice(1), body: payload, query: new URLSearchParams() });
+      }
+      throw new ApiError(404, 'NO_MOCK_ROUTE', legacyPath);
+    }, (id, type) => type === 'REALTIME' ? createProposalForRequest(id) : createProposalForReservation(id)) as T;
+  }
 
   for (const [routeMethod, pattern, handler, isPublic] of routes) {
     if (routeMethod !== method) continue;

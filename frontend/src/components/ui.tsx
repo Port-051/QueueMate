@@ -214,7 +214,7 @@ export function Modal({ title, children, onClose, foot, className = '', titleCon
   closeRef.current = onClose;
   useEffect(() => {
     const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previous = active?.closest('details')?.querySelector('summary') ?? active;
+    const previous = active?.closest('details.action-menu')?.querySelector('summary') ?? active;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const focusable = () => [...(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]') ?? [])].filter((el) => el.getClientRects().length > 0 && el.tabIndex >= 0 && el.getAttribute('aria-disabled') !== 'true');

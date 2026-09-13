@@ -45,7 +45,7 @@ export function ConditionForm({ value, onChange, showGame = true }: { value: Mat
         />
         <OptionRow
           label="플레이 목적"
-          desc="대기가 길면 목적만 완화될 수 있습니다."
+          desc="같은 목적을 우선 추천합니다. 필수 여부는 직접 정할 수 있습니다."
           value={value.playPurpose}
           options={PURPOSE_OPTIONS}
           onChange={(v) => onChange({ ...value, playPurpose: v as PlayPurpose })}

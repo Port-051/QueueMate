@@ -12,11 +12,11 @@ export async function login(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/app\/home/);
 }
 
-export async function startRealtimeMatch(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'League of Legends 매칭', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'League of Legends', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '매칭 시작' }).click();
+export async function startRealtimeMatch(page: Page, auto = false): Promise<void> {
+  await page.getByRole('button', { name: '+ 실시간 모집 만들기' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  if (auto) await page.getByRole('dialog').getByLabel('자동으로도 팀원 찾기').check();
+  await page.getByRole('button', { name: '모집 시작', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page).toHaveURL(/\/app\/home$/);
-  await expect(page.locator('.home-active-match')).toBeVisible();
+  await expect(page.locator('.my-recruitment')).toBeVisible();
 }
