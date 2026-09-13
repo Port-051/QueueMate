@@ -59,7 +59,7 @@ export const GAMES: GameConfig[] = [
         { value: 'TOP', label: '탑' },
         { value: 'JUNGLE', label: '정글' },
         { value: 'MID', label: '미드' },
-        { value: 'ADC', label: '원딜' },
+        { value: 'ADC', label: '바텀' },
         { value: 'SUPPORT', label: '서포터' },
         { value: 'ANY', label: '전체' },
       ],

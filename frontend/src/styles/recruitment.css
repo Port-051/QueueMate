@@ -32,7 +32,10 @@
 .row-tier small { color:var(--muted); font-size:8px; }
 .row-player p { font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:5px; }
 .row-roles,.row-fresh { display:grid; gap:5px; font-size:11px; }
-.row-roles i { color:#807294; font-style:normal; margin:0 3px; }
+.recruitment-role-pair,.recruitment-role-targets { display:inline-flex; align-items:center; gap:8px; max-width:100%; }
+.recruitment-role-targets { flex-wrap:wrap; gap:5px; }
+.recruitment-role-icon { display:inline-flex; flex:none; color:var(--text-dim); }
+.recruitment-role-arrow { flex:none; color:var(--muted); }
 .row-roles small,.row-fresh small { color:var(--muted); font-size:10px; }
 .row-fresh { padding-right:16px; }
 .row-arrow { position:absolute; right:12px; top:29px; color:#9786c7; }

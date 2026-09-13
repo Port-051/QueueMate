@@ -90,10 +90,17 @@ test('모집 목록과 상세에서 자기소개 전적을 보여주고 최근 �
   const row = page.locator('.recruitment-row').first();
   await expect(row.locator('.row-introduction-stats')).toContainText('승률');
   await expect(row.locator('.row-introduction-stats')).toContainText('KDA');
+  await expect(row.locator('.recruitment-role-pair')).toHaveText('');
+  await expect(row.getByRole('img', { name: '탑', exact: true })).toHaveAttribute('title', '탑');
+  await expect(row.getByRole('img', { name: '무관', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '바텀', exact: true })).toHaveAttribute('title', '바텀');
+  await expect(page.getByRole('button', { name: 'LateGame 모집 상세', exact: true }).getByRole('img', { name: '바텀', exact: true })).toBeVisible();
   await row.click();
   const dialog = page.getByRole('dialog', { name: '모집 상세', exact: true });
   await expect(dialog).toContainText('티어·전적 직접 입력');
   await expect(dialog).toContainText('선호 챔피언');
+  await expect(dialog.locator('.recruitment-role-pair')).toHaveText('');
+  await expect(dialog.getByRole('img', { name: '탑', exact: true })).toBeVisible();
   await expect(dialog.locator('.recent-results > span')).toHaveCount(20);
   await expect(dialog.locator('.recent-results .win')).toHaveCount(12);
   await expect(dialog.locator('.recent-results .loss')).toHaveCount(8);

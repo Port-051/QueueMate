@@ -1,11 +1,10 @@
 import type { BoardSearch } from '../api/recruitment';
-import type { VoicePreference } from '../api/types';
 import { keyConditionOptions, visibleModes } from '../domain/gameConfig';
 import { localInput, tiers, TIER_LABELS } from '../domain/recruitment';
 import { recruitmentInputError } from '../domain/recruitmentValidation';
 import { FilterSelect } from './FilterSelect';
 import { FilterModeIcon, FilterRoleIcon, FilterTierIcon } from './FilterSymbols';
-import { IconMic, IconMicOff } from './icons';
+import { IconMic } from './icons';
 
 const MODE_SHORT_LABELS: Record<string, string> = { SOLO_DUO_RANKED: '듀오 랭크', NORMAL_DRAFT: '일반', ARAM: '칼바람' };
 
@@ -13,6 +12,7 @@ const MODE_SHORT_LABELS: Record<string, string> = { SOLO_DUO_RANKED: '듀오 랭
 export function BoardFilters({ value, onChange, onReset }: { value: BoardSearch; onChange: (value: BoardSearch) => void; onReset: () => void }) {
   const error = recruitmentInputError(value);
   const game = value.condition.game;
+  const voiceEnabled = value.condition.voicePreference === 'REQUIRED';
   const condition = (patch: Partial<BoardSearch['condition']>) => onChange({ ...value, condition: { ...value.condition, ...patch }, page: 0 });
   const filtered = value.condition.modeKey !== 'ANY' || value.condition.keyCondition.value !== 'ANY' || value.condition.voicePreference !== 'OPTIONAL' || Boolean(value.preferences.minTier);
   return <div className="board-filter-bar">
@@ -32,11 +32,7 @@ export function BoardFilters({ value, onChange, onReset }: { value: BoardSearch;
           <FilterRoleIcon game={game} value={role.value} />
         </button>)}
       </div>
-      <FilterSelect key={`${game}-voice`} className={`filter-voice${value.condition.voicePreference !== 'OPTIONAL' ? ' is-filtered' : ''}`} label="찾는 상대 음성" value={value.condition.voicePreference} icon={value.condition.voicePreference === 'NO_VOICE' ? <IconMicOff size={18} /> : <IconMic size={18} />} options={[
-        { value: 'OPTIONAL', label: '무관', icon: <IconMic size={18} /> },
-        { value: 'REQUIRED', label: '사용', icon: <IconMic size={18} /> },
-        { value: 'NO_VOICE', label: '사용 안 함', icon: <IconMicOff size={18} /> },
-      ]} onChange={voice => condition({ voicePreference: voice as VoicePreference })} />
+      <button type="button" className="filter-voice" role="switch" aria-label="음성 사용 모집만 보기" aria-checked={voiceEnabled} title={voiceEnabled ? '음성 필터 켜짐' : '음성 필터 꺼짐'} onClick={() => condition({ voicePreference: voiceEnabled ? 'OPTIONAL' : 'REQUIRED' })}><IconMic size={20} /></button>
       {filtered ? <button type="button" className="filter-reset" aria-label="초기화" title="필터 초기화" onClick={onReset}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg></button> : null}
     </div>
     {value.type === 'RESERVATION' ? <div className="board-filter-schedule" role="group" aria-label="예약 검색 시간">

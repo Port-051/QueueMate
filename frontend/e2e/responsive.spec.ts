@@ -44,11 +44,11 @@ test('모바일 필터는 한 줄로 스크롤되고 선택 팝업과 예약 입
   const filters = page.locator('.board-filter-bar');
   const line = filters.locator('.board-filter-line');
   const tier = filters.getByRole('button', { name: '찾는 상대 티어', exact: true });
-  const voice = filters.getByRole('button', { name: '찾는 상대 음성', exact: true });
+  const voice = filters.getByRole('switch', { name: '음성 사용 모집만 보기', exact: true });
   const roles = filters.getByRole('group', { name: '찾는 상대 포지션', exact: true });
   const modes = filters.getByRole('group', { name: '찾는 큐 타입', exact: true });
   await expect(roles.getByRole('button')).toHaveCount(5);
-  for (const name of ['탑', '정글', '미드', '원딜', '서포터']) {
+  for (const name of ['탑', '정글', '미드', '바텀', '서포터']) {
     await expect(roles.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', 'false');
   }
   const layout = await line.evaluate(element => ({
@@ -64,15 +64,23 @@ test('모바일 필터는 한 줄로 스크롤되고 선택 팝업과 예약 입
   await voice.focus();
   await expect(voice).toBeInViewport();
   expect(await line.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
-  await page.keyboard.press('Enter');
-  const voices = page.getByRole('listbox', { name: '찾는 상대 음성', exact: true });
-  await expect(voices).toBeVisible();
-  const voiceBox = (await voices.boundingBox())!;
+  await expect(voice).toHaveAttribute('aria-checked', 'false');
+  await expect(voice).toHaveText('');
+  await expect(voice.locator('svg')).toHaveCount(1);
+  const voiceBox = (await voice.boundingBox())!;
   expect(voiceBox.x).toBeGreaterThanOrEqual(0);
   expect(voiceBox.x + voiceBox.width).toBeLessThanOrEqual(390);
-  const noVoice = voices.getByRole('option', { name: '사용 안 함', exact: true });
-  await noVoice.click();
-  await expect(voice).toContainText('사용 안 함');
+  await voice.click();
+  await expect(voice).toHaveAttribute('aria-checked', 'true');
+  await expect(voice).toHaveAttribute('title', '음성 필터 켜짐');
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await expect(page.locator('.board-results-head')).toContainText('9개 모집');
+  await page.keyboard.press('Space');
+  await expect(voice).toHaveAttribute('aria-checked', 'false');
+  await expect(page.locator('.board-results-head')).toContainText('30개 모집');
+  await page.keyboard.press('Enter');
+  await expect(voice).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('.board-results-head')).toContainText('9개 모집');
 
   await tier.scrollIntoViewIfNeeded();
   await tier.click();
@@ -96,6 +104,8 @@ test('모바일 필터는 한 줄로 스크롤되고 선택 팝업과 예약 입
   await challenger.click();
   await expect(tier).toContainText('챌린저');
   await filters.getByRole('button', { name: '초기화', exact: true }).click();
+  await expect(voice).toHaveAttribute('aria-checked', 'false');
+  await expect(voice).toHaveAttribute('title', '음성 필터 꺼짐');
   await modes.getByRole('button', { name: '일반 게임', exact: true }).click();
   await expect(modes.getByRole('button', { name: '일반 게임', exact: true })).toHaveAttribute('aria-pressed', 'true');
 

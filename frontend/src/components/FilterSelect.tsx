@@ -62,6 +62,7 @@ export function FilterSelect({ label, value, options, onChange, className, icon 
 
   useEffect(() => {
     if (!open) return;
+    const anchor = trigger.current?.getBoundingClientRect();
     const outside = (event: PointerEvent) => {
       if (event.target instanceof Node && !menu.current?.contains(event.target) && !trigger.current?.contains(event.target)) close();
     };
@@ -72,7 +73,10 @@ export function FilterSelect({ label, value, options, onChange, className, icon 
       }
     };
     const move = (event: Event) => {
-      if (!(event.target instanceof Node) || !menu.current?.contains(event.target)) close();
+      if (event.target instanceof Node && menu.current?.contains(event.target)) return;
+      const rect = trigger.current?.getBoundingClientRect();
+      // Opening after scrolling to the trigger can deliver an already-completed scroll event.
+      if (event.type === 'resize' || !anchor || !rect || Math.abs(rect.top - anchor.top) > 1 || Math.abs(rect.left - anchor.left) > 1) close();
     };
     document.addEventListener('pointerdown', outside);
     document.addEventListener('keydown', escape);

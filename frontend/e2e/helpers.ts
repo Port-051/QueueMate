@@ -12,8 +12,8 @@ export async function login(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/app\/home/);
 }
 
-/** 게시판의 티어·음성 팝업에서 표시된 선택지를 고른다. */
-export async function selectBoardFilter(page: Page, label: '찾는 상대 티어' | '찾는 상대 음성', option: string): Promise<void> {
+/** 게시판의 티어 팝업에서 표시된 선택지를 고른다. */
+export async function selectBoardFilter(page: Page, label: '찾는 상대 티어', option: string): Promise<void> {
   await page.locator('.board-filter-bar').getByRole('button', { name: label, exact: true }).click();
   const popup = page.getByRole('listbox', { name: label, exact: true });
   await popup.getByRole('option', { name: option, exact: true }).click();
