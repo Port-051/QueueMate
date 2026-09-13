@@ -72,9 +72,9 @@
 .filter-error { color: var(--warn); font-size: 14px; margin: 7px 0; }
 .recruitment-method { color: #b9a6ed; font-size: 13px; }
 
-.board-home .recruitment-list { container-type: inline-size; --recruitment-columns: minmax(0, 1fr) repeat(5, max-content); }
-.board-home .recruitment-list.without-roles, .board-home .recruitment-row.without-roles { --recruitment-columns: minmax(0, 1fr) repeat(4, max-content); }
-.board-home .recruitment-row { grid-template-columns: var(--recruitment-columns); gap: 0; min-height: 108px; padding: 18px 32px 18px 16px; }
+.board-home .recruitment-list { container-type: inline-size; display: grid; grid-template-columns: var(--recruitment-columns); --recruitment-columns: minmax(0, 1fr) repeat(5, max-content); }
+.board-home .recruitment-list.without-roles { --recruitment-columns: minmax(0, 1fr) repeat(4, max-content); }
+.board-home .recruitment-row { grid-column: 1 / -1; grid-template-columns: subgrid; gap: 0; min-height: 108px; padding: 18px 32px 18px 16px; }
 .board-home .recruitment-row:first-child { border-top: 0; }
 .board-home .row-player { gap: 12px; padding-right: 24px; }
 .board-home .row-player b { font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
@@ -87,6 +87,7 @@
 .board-home .row-rank { padding-left: 0; }
 .board-home .row-mode { display: grid; justify-items: start; color: var(--text-dim); }
 .board-home .row-roles { max-width: 108px; }
+.board-home .row-role-unavailable { color: var(--muted); text-align: center; }
 .board-home .row-mode, .board-home .row-roles, .board-home .row-fresh { gap: 7px; font-size: 14px; line-height: 1.5; }
 .board-home .row-mode small, .board-home .row-fresh small { color: var(--muted); font-size: 12px; line-height: 1.5; }
 .recruitment-voice, .recruitment-voice > span { display: inline-flex; align-items: center; justify-content: center; }
@@ -134,6 +135,7 @@
   .board-home .row-voice { grid-column: 3; grid-row: 3; }
   .board-home .row-meta.row-mode::before, .board-home .row-meta.row-voice::before { display: block; }
   .board-home .row-fresh { grid-column: 2 / -1; grid-row: 4; justify-self: end; padding-right: 20px; }
+  .board-home .recruitment-row.without-roles .row-roles { display: none; }
   .board-home .without-roles .row-voice { grid-column: 2; justify-self: end; }
   .board-home .without-roles .row-voice::before { display: none; }
   .board-home .without-roles .row-fresh { grid-column: 3; grid-row: 3; justify-self: start; }

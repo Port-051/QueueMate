@@ -62,7 +62,7 @@ export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]
       <div className="row-player"><Avatar name={row.nickname} size={40} /><div><div className="row-player-heading"><b>{row.nickname}</b>{introduction.champions.length ? <PreferredChampions game={row.condition.game} names={introduction.champions} /> : null}</div><IntroductionStats game={row.condition.game} introduction={introduction} showChampions={false} />{row.description ? <p>{row.description}</p> : null}</div></div>
       <div className="row-meta row-rank"><RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /></div>
       <div className="row-meta row-mode"><span className="recruitment-mode"><FilterModeIcon mode={row.condition.modeKey} /><span>{queueLabel(row)}</span></span>{row.targetSize > 2 ? <small>{row.members.length}/{row.targetSize}명</small> : null}</div>
-      {hasRoles ? <div className="row-meta row-roles"><RecruitmentRoleIcons row={row} /></div> : null}
+      {!withoutRoles ? <div className="row-meta row-roles">{hasRoles ? <RecruitmentRoleIcons row={row} /> : <span className="row-role-unavailable" role="img" aria-label="포지션 지정 없음">—</span>}</div> : null}
       <div className="row-meta row-voice"><RecruitmentVoice row={row} /></div>
       <div className="row-meta row-fresh"><time className="row-posted" dateTime={row.createdAt} title={`게시: ${timeLabel(row.createdAt)}`}>{relativeBoardTime(row.createdAt, now)}</time>{row.status !== 'OPEN' ? <small>{BOARD_STATUS[row.status]}</small> : null}<span className="row-arrow" aria-hidden="true">↗</span></div>
     </button>; })}
