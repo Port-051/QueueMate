@@ -77,13 +77,13 @@ test('로고 아래 게임 아이콘은 선택 링을 표시하고 게임을 바
   expect(gamesBox.y + gamesBox.height).toBeLessThanOrEqual(navBox.y);
   await expect(lol).toHaveAttribute('aria-pressed', 'true');
   await expect(lol.locator('.game-nav-logo')).toHaveCSS('outline-width', '2px');
-  await expect(lol.locator('.game-nav-logo')).toHaveCSS('outline-color', 'rgb(255, 255, 255)');
+  await expect(lol.locator('.game-nav-logo')).toHaveCSS('outline-color', 'rgb(124, 77, 255)');
 
   await valorant.click();
   await expect(valorant).toHaveAttribute('aria-pressed', 'true');
   await expect(lol).toHaveAttribute('aria-pressed', 'false');
   await expect(valorant.locator('.game-nav-logo')).toHaveCSS('outline-width', '2px');
-  await expect(valorant.locator('.game-nav-logo')).toHaveCSS('outline-color', 'rgb(255, 255, 255)');
+  await expect(valorant.locator('.game-nav-logo')).toHaveCSS('outline-color', 'rgb(124, 77, 255)');
   const roleFilter = page.getByRole('combobox', { name: '찾는 상대 포지션', exact: true });
   await expect(roleFilter.locator('option[value="DUELIST"]')).toHaveText('타격대');
   await expect(roleFilter.locator('option[value="TOP"]')).toHaveCount(0);
