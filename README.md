@@ -41,3 +41,5 @@
 - `infra/`: Redis/Postgres/Coturn 로컬 설정
 - `design/`: 지금까지 생성한 웹 UI 레퍼런스
 - `team/`: 3인 병렬 개발 지침 + Claude Code 프롬프트
+
+모집 게시판의 실제 서버/데모 실행, 초기 설정, 검증 방법: [구현과 검증](docs/17_RECRUITMENT_IMPLEMENTATION.md).
