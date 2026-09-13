@@ -22,15 +22,15 @@ test('활성 실시간 모집은 하나만 가능하지만 예약 모집은 별�
 test('모집을 종료한 뒤 새로 시작해도 티어·상대 조건을 유지한다', async ({ page }) => {
   await login(page);
   await page.locator('.intro-launch > button').click();
-  await page.getByRole('dialog').getByLabel('내 티어', { exact: true }).selectOption('GOLD');
-  await page.getByRole('dialog').getByRole('button', { name: '정글', exact: true }).click();
+  await page.locator('.recruitment-composer-shell').getByLabel('내 티어', { exact: true }).selectOption('GOLD');
+  await page.locator('.recruitment-composer-shell').getByRole('button', { name: '정글', exact: true }).click();
   await page.getByRole('button', { name: '모집 시작', exact: true }).click();
   await expect(page.locator('.my-recruitment')).toBeVisible();
   await manageRecruitment(page, '모집 종료');
   await expect(page.locator('.my-recruitment')).toHaveCount(0);
   await page.locator('.intro-launch > button').click();
-  await expect(page.getByRole('dialog').getByLabel('내 티어', { exact: true })).toHaveValue('GOLD');
-  await expect(page.getByRole('dialog').getByRole('button', { name: '정글', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.recruitment-composer-shell').getByLabel('내 티어', { exact: true })).toHaveValue('GOLD');
+  await expect(page.locator('.recruitment-composer-shell').getByRole('button', { name: '정글', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: '모집 시작', exact: true }).click();
   await expect(page.locator('.my-recruitment')).toBeVisible();
 });

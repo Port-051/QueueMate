@@ -1,3 +1,4 @@
+import { Children, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { GameAccountView, GameKey, UserProfile } from '../api/types';
 import { keyConditionOptions, usesKeyCondition } from '../domain/gameConfig';
@@ -14,9 +15,10 @@ interface HomeProfileRailProps {
   gameAccount?: GameAccountView;
   actionLabel?: string;
   onCompose: () => void;
+  children?: ReactNode;
 }
 
-export function HomeProfileRail({ user, game, introduction, gameAccount, actionLabel, onCompose }: HomeProfileRailProps) {
+export function HomeProfileRail({ user, game, introduction, gameAccount, actionLabel, onCompose, children }: HomeProfileRailProps) {
   if (!user) return null;
 
   const roles = keyConditionOptions(game);
@@ -28,7 +30,8 @@ export function HomeProfileRail({ user, game, introduction, gameAccount, actionL
   const hasStats = introduction && (introduction.winRate !== null || introduction.kda !== null);
   const hasReportedInfo = introduction && (introduction.ownTier || hasStats || wins + losses > 0);
 
-  return <aside className="home-profile" aria-label="내 정보">
+  const hasWorkflow = Children.toArray(children).length > 0;
+  return <aside className={`home-profile${hasWorkflow ? ' has-workflow' : ''}`} aria-label="내 정보">
     <div className="home-profile-content">
       <div className="home-profile-account">
         <Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={44} />
@@ -38,7 +41,7 @@ export function HomeProfileRail({ user, game, introduction, gameAccount, actionL
         </div>
         <Link className="home-profile-link" to="/app/me">프로필</Link>
       </div>
-      {introduction ? <section className="home-profile-introduction" aria-label="내 자기소개">
+      {introduction && !hasWorkflow ? <section className="home-profile-introduction" aria-label="내 자기소개">
         <div className="home-profile-heading"><h2>내 소개</h2><span>{gameLabel(game)}</span></div>
         {introduction.bio ? <p className="home-profile-bio">{introduction.bio}</p> : null}
         <dl className="home-profile-facts">
@@ -56,6 +59,7 @@ export function HomeProfileRail({ user, game, introduction, gameAccount, actionL
         {wins + losses > 0 ? <div className="home-profile-records"><span>최근 {wins + losses}경기</span><strong>{wins}승 {losses}패</strong></div> : null}
         {hasReportedInfo ? <span className="home-profile-source">티어·전적 직접 입력</span> : null}
       </section> : null}
+      {children}
       {actionLabel ? <div className="intro-launch"><Button variant="primary" block onClick={onCompose}>{actionLabel}</Button></div> : null}
     </div>
   </aside>;

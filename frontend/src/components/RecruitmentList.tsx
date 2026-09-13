@@ -5,7 +5,8 @@ import { keyConditionOptions, usesKeyCondition } from '../domain/gameConfig';
 import { keyConditionLabel, modeLabel, PURPOSE_LABEL, VOICE_LABEL } from '../domain/labels';
 import { introductionForRow, type SelfIntroduction, type IntroductionRecord } from '../domain/introduction';
 import { BOARD_STATUS, relativeBoardTime, TIER_LABELS, timeLabel } from '../domain/recruitment';
-import { Avatar, Button, Modal } from './ui';
+import { Avatar, Button } from './ui';
+import { MatchingRailPanel } from './MatchingRailPanel';
 import { FilterModeIcon, FilterRoleIcon } from './FilterSymbols';
 import { RankBadge } from './RankBadge';
 import { IconMic, IconMicOff, IconMicOptional } from './icons';
@@ -71,13 +72,13 @@ export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]
 
 export function RecruitmentDetail({ row, busy, hasSource, disabled, disabledReason, onClose, onJoin }: { row: BoardRow; busy: boolean; hasSource: boolean; disabled: boolean; disabledReason?: string; onClose: () => void; onJoin: () => void }) {
   const introduction = introductionForRow(row);
-  return <Modal className="recruitment-detail" title="모집 상세" closeLabel="모집 상세 닫기" onClose={onClose}>
+  return <MatchingRailPanel className="recruitment-detail" title="모집 상세" busy={busy} onClose={onClose}>
     <div className="row"><Avatar name={row.nickname} /><div><div className="row-player-heading"><b>{row.nickname}</b><RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /></div><p>{BOARD_STATUS[row.status]}{row.targetSize > 2 ? ` · ${row.members.length}/${row.targetSize}명` : ''}</p></div></div>
     <RecruitmentIntroduction row={row} />
     {row.type === 'RESERVATION' && row.availableFrom ? <p>{timeLabel(row.availableFrom)} ~ {row.availableTo ? timeLabel(row.availableTo) : ''}</p> : null}
     {disabledReason || row.status !== 'OPEN' ? <p className="hint">{disabledReason ?? '현재 참여 신청을 받지 않는 모집이에요.'}</p> : null}
     <Button variant="primary" block disabled={busy || disabled || row.status !== 'OPEN'} onClick={onJoin}>{hasSource ? '이 모집에 참여 신청' : '자기소개 입력하고 참여 신청'}</Button>
-  </Modal>;
+  </MatchingRailPanel>;
 }
 
 /** 모집 상세와 참여·수락 단계에서 동일한 공개 소개를 표시한다. */

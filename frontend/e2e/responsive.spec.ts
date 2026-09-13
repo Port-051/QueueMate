@@ -129,7 +129,7 @@ test('모바일 필터는 한 줄로 스크롤되고 선택 팝업과 예약 입
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('작은 화면에서도 주요 페이지와 매칭 팝업이 잘리지 않고 두 방식으로 전환할 수 있다', async ({ page }) => {
+test('작은 화면에서도 주요 페이지와 오른쪽 매칭 폼이 잘리지 않고 두 방식으로 전환할 수 있다', async ({ page }) => {
   await login(page);
   for (const width of [390, 768, 1024, 1280]) {
     await page.setViewportSize({ width, height: 844 });
@@ -161,16 +161,16 @@ test('작은 화면에서도 주요 페이지와 매칭 팝업이 잘리지 않�
       for (const mode of ['실시간', '예약']) {
         await page.getByRole('tab', { name: `${mode} 매치`, exact: true }).click();
         await page.locator('.intro-launch > button').click();
-        await expect(page.getByRole('dialog').getByRole('radio', { name: '수동 매칭', exact: true })).toBeChecked();
-        await page.getByRole('dialog').getByRole('radio', { name: '자동 매칭', exact: true }).check();
-        await expect(page.getByRole('dialog').getByRole('radio', { name: '자동 매칭', exact: true })).toBeChecked();
+        await expect(page.locator('.recruitment-composer-shell').getByRole('radio', { name: '수동 매칭', exact: true })).toBeChecked();
+        await page.locator('.recruitment-composer-shell').getByRole('radio', { name: '자동 매칭', exact: true }).check();
+        await expect(page.locator('.recruitment-composer-shell').getByRole('radio', { name: '자동 매칭', exact: true })).toBeChecked();
         const button = page.getByRole('button', { name: '모집 시작', exact: true });
         await button.scrollIntoViewIfNeeded();
         const box = (await button.boundingBox())!;
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(width);
         expect(box.y + box.height).toBeLessThanOrEqual(844);
-        expect(await page.getByRole('dialog').evaluate(element => element.scrollWidth > element.clientWidth)).toBe(false);
+        expect(await page.locator('.recruitment-composer-shell').evaluate(element => element.scrollWidth > element.clientWidth)).toBe(false);
         await page.keyboard.press('Escape');
       }
     }

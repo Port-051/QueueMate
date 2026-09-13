@@ -50,10 +50,10 @@ test('프로필 설정은 저장되고 새 자기소개는 무관 조건으로 �
   await settings.getByRole('button', { name: '즐겜', exact: true }).click();
   await navigation.getByRole('link', { name: '홈', exact: true }).click();
   await page.getByRole('button', { name: '자기소개 작성', exact: true }).click();
-  await expect(page.getByRole('dialog').getByLabel('음성', { exact: true })).toHaveValue('OPTIONAL');
-  await expect(page.getByRole('dialog').getByLabel('주 포지션', { exact: true })).toHaveValue('ANY');
-  await expect(page.getByRole('dialog').getByLabel('원하는 큐 타입', { exact: true })).toHaveValue('ANY');
-  await expect(page.getByRole('dialog').getByRole('radio', { name: '수동 매칭', exact: true })).toBeChecked();
+  await expect(page.locator('.recruitment-composer-shell').getByLabel('음성', { exact: true })).toHaveValue('OPTIONAL');
+  await expect(page.locator('.recruitment-composer-shell').getByLabel('주 포지션', { exact: true })).toHaveValue('ANY');
+  await expect(page.locator('.recruitment-composer-shell').getByLabel('원하는 큐 타입', { exact: true })).toHaveValue('ANY');
+  await expect(page.locator('.recruitment-composer-shell').getByRole('radio', { name: '수동 매칭', exact: true })).toBeChecked();
   await page.keyboard.press('Escape');
   await navigation.getByRole('link', { name: '프로필', exact: true }).click();
   await expect(settings.getByRole('button', { name: '사용 안 함', exact: true })).toHaveAttribute('aria-pressed', 'true');

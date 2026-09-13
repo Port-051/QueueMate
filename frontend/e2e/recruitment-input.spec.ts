@@ -200,7 +200,7 @@ test('예약 작성 중 시작 시각이 지나면 별도 입력 없이 저장�
   await page.getByLabel('마지막 종료 시각').fill('2026-09-14T20:00');
   await expect(page.getByRole('button', { name: '모집 시작', exact: true })).toBeEnabled();
   await page.clock.fastForward(15_000);
-  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('시작 시각은 현재 이후여야 합니다');
+  await expect(page.locator('.recruitment-composer-shell').getByRole('alert')).toContainText('시작 시각은 현재 이후여야 합니다');
   await expect(page.getByRole('button', { name: '모집 시작', exact: true })).toBeDisabled();
   await page.getByLabel('시작 가능 시각').fill('2026-09-14T19:00');
   await expect(page.getByRole('button', { name: '모집 시작', exact: true })).toBeEnabled();

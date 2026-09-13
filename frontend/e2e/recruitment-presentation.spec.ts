@@ -37,7 +37,7 @@ test('네 모드의 모집은 필터와 같은 아이콘을 쓰며 2인 정원 �
   await login(page);
   const modes = page.getByRole('group', { name: '찾는 큐 타입', exact: true });
   const rows = page.locator('.recruitment-row');
-  const dialog = page.getByRole('dialog', { name: '모집 상세', exact: true });
+  const dialog = page.getByRole('region', { name: '모집 상세', exact: true });
 
   await page.getByRole('button', { name: '찾는 상대 티어', exact: true }).click();
   const tiers = page.getByRole('listbox', { name: '찾는 상대 티어', exact: true });
@@ -160,7 +160,7 @@ test('승률과 KDA는 수치 구간에 따라 다섯 색상으로 구분하며 
   await login(page);
   await page.getByRole('group', { name: '찾는 큐 타입', exact: true }).getByRole('button', { name: '랭크', exact: true }).click();
   const colors: string[] = [];
-  const dialog = page.getByRole('dialog', { name: '모집 상세', exact: true });
+  const dialog = page.getByRole('region', { name: '모집 상세', exact: true });
   for (const example of examples) {
     const row = page.getByRole('button', { name: `${example.nickname} 모집 상세`, exact: true });
     const values = row.locator('.performance-value');
@@ -187,7 +187,7 @@ test('알 수 없는 챔피언과 불러오지 못한 초상화는 대체 아이
   await page.route(/\/[^/]*LeeSin[^/]*\.png(?:\?.*)?$/i, route => route.request().resourceType() === 'image' ? route.abort() : route.continue());
   await login(page);
   const row = page.getByRole('button', { name: 'GankFlow 모집 상세', exact: true });
-  const dialog = page.getByRole('dialog', { name: '모집 상세', exact: true });
+  const dialog = page.getByRole('region', { name: '모집 상세', exact: true });
   for (const surface of [row, dialog]) {
     if (surface === dialog) await row.click();
     for (const name of ['처음 보는 챔피언', '리 신']) {

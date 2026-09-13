@@ -11,8 +11,8 @@ import { BoardFilters } from '../components/BoardFilters';
 import { RecruitmentPanel } from '../components/RecruitmentPanel';
 import { RecruitmentList, RecruitmentDetail } from '../components/RecruitmentList';
 import { InlineProposal } from '../components/InlineProposal';
+import { revealMatchingRail } from '../components/MatchingRailPanel';
 import { MatchProgress } from '../components/MatchProgress';
-import { RecruitmentSummary } from '../components/RecruitmentSummary';
 import { Button, useToast } from '../components/ui';
 import { defaultCondition, gameConfig } from '../domain/gameConfig';
 import { anyPreferences, BOARD_STATUS, initialSearch, reservationWindow, timeLabel, writeFrom } from '../domain/recruitment';
@@ -25,6 +25,7 @@ import { useConnectionStatus } from '../state/useConnectionStatus';
 import { rememberCondition } from '../state/recentConditions';
 import { PartyRoomPage } from './PartyRoomPage';
 import '../styles/duo-home.css';
+import '../styles/matching-rail.css';
 
 const browseSearch = (game: api.BoardWrite['condition']['game'] = 'LOL'): api.BoardSearch => {
   const initial = initialSearch(game);
@@ -53,7 +54,6 @@ export function HomePage() {
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLElement>(null);
   const [focusStage, setFocusStage] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
   const proposalSeen = useRef<string | null>(null);
   const active = mine.filter(r => !['CLOSED', 'MATCHED'].includes(r.status));
   // 모집 종료 응답이 먼저 도착하면 이전 매칭 요청의 정리까지 기다리지 않고 다음 모집을 열 수 있다.
@@ -61,6 +61,7 @@ export function HomePage() {
   const own = active.find(r => r.id === ownId) ?? active.find(r => r.type === query.type && r.condition.game === query.condition.game) ?? active[0];
   const source = active.find(r => r.type === query.type && r.condition.game === selected?.condition.game && (r.condition.modeKey === 'ANY' || selected?.condition.modeKey === 'ANY' || r.condition.modeKey === selected?.condition.modeKey));
   const stageKey = match.proposal?.status === 'PENDING' ? match.proposal.id : match.activePartyId;
+  const revealedStage = useRef<string | null>(null);
   useEffect(() => {
     if (!page?.hasMore || loading || loadingMore || error || loadMoreError || !loadMoreRef.current) return;
     const observer = new IntersectionObserver(entries => {
@@ -70,14 +71,13 @@ export function HomePage() {
     return () => observer.disconnect();
   }, [page?.hasMore, page?.items.length, loading, loadingMore, error, loadMoreError, loadMore]);
   useEffect(() => {
-    if (!stageKey && !focusStage) return;
-    if (!stageRef.current) return;
-    setCollapsed(false);
-    stageRef.current.scrollIntoView({ block: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-    stageRef.current.focus({ preventScroll: true });
+    if ((!stageKey || stageKey === revealedStage.current) && !focusStage) return;
+    if (!stageRef.current || stageRef.current.hidden) return;
+    revealMatchingRail(stageRef.current);
+    revealedStage.current = stageKey ?? null;
     setFocusStage(false);
     if (stageKey) setSelected(null);
-  }, [stageKey, focusStage, own?.id]);
+  }, [stageKey, focusStage, own?.id, composer]);
   useEffect(() => {
     if (match.activePartyId) setComposer(null);
   }, [match.activePartyId]);
@@ -106,9 +106,6 @@ export function HomePage() {
       setFilter(value => ({ ...value, ...next, page: 0 }));
     }
   }, [page?.asOf, query.type, composer, selected, filter]);
-  useEffect(() => {
-    if (collapsed) listRef.current?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-  }, [collapsed]);
   const compose = (joinRow?: api.BoardRow) => {
     const base: api.BoardWrite = { type: query.type, condition: defaultCondition(query.condition.game), preferences: anyPreferences(), description: '', autoMatch: false, availableFrom: query.availableFrom, availableTo: query.availableTo, playAmount: query.playAmount };
     const introduction = readIntroduction(user!.id, query.condition.game) ?? emptyIntroduction();
@@ -172,18 +169,7 @@ export function HomePage() {
   const intro = user ? readIntroduction(user.id, query.condition.game) : null;
   return <section className="page board-home" aria-label="듀오 찾기">
     <div className="board-layout"><div className="board-feed">
-    {own || liveRequest || match.activePartyId || match.proposal?.status === 'PENDING' ? <section className={`match-stage ${collapsed && own && !stageKey ? 'is-summary' : ''}`} aria-label="내 매칭 진행" tabIndex={-1} ref={stageRef}>
-      {collapsed && own && !stageKey ? <RecruitmentSummary row={own} onExpand={() => { setCollapsed(false); setFocusStage(true); }} /> : <>
-      <MatchProgress step={match.proposal?.status === 'PENDING' ? 1 : match.activePartyId ? 2 : 0} />
-      {connection !== 'connected' ? <p className="banner warn" role="status">서버에 다시 연결하고 있어요.</p> : null}
-      {match.proposal?.status === 'PENDING' ? <>{composer ? <p className="hint">작성 중인 조건은 보관했어요.</p> : null}<InlineProposal knownRows={[...(page?.items ?? []), ...mine]} /></> : match.activePartyId ? <PartyRoomPage embedded /> : <>
-        {active.length > 1 ? <label className="my-recruitment-picker">관리할 모집<select value={own?.id ?? ''} onChange={e => setOwnId(e.target.value)}>{active.map(row => <option key={row.id} value={row.id}>{gameConfig(row.condition.game).shortName} · {row.type === 'REALTIME' ? '실시간' : row.availableFrom ? timeLabel(row.availableFrom) : '예약'} · {BOARD_STATUS[row.status]}</option>)}</select></label> : null}
-        {own ? <RecruitmentPanel key={own.id} row={own} onChanged={changed} onEdit={() => setComposer({ initial: writeFrom(own), editing: own })} onFind={() => { changeQuery({ ...browseSearch(own.condition.game), type: own.type, availableFrom: own.availableFrom, availableTo: own.availableTo, playAmount: own.playAmount }); setCollapsed(true); }} /> : liveRequest ? <ActiveMatchCard /> : null}
-
-      </>}
-      </>}
-    </section> : null}
-    <div className="board-workspace"><div className="board-main" ref={listRef}>
+    <div className="board-workspace"><div className="board-main" ref={listRef} tabIndex={-1}>
       <div className="board-toolbar"><div className="board-tabs" role="tablist" aria-label="매치 종류">{(['REALTIME', 'RESERVATION'] as const).map(type => <button role="tab" aria-selected={query.type === type} key={type} onClick={() => changeQuery({ ...query, type, page: 0, ...(type === 'RESERVATION' ? reservationTimes.current : { availableFrom: null, availableTo: null, playAmount: null }) })} onKeyDown={event => {
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
         event.preventDefault();
@@ -197,20 +183,43 @@ export function HomePage() {
       {pending ? <button type="button" className="board-new-results" onClick={applyPending}>새 모집 보기 ↓</button> : null}
       {loading && !page ? <div className="board-empty" role="status">모집 목록을 불러오는 중…</div> : null}
       {!loading && !error && page?.items.length === 0 ? <div className="board-empty"><h2>조건에 맞는 모집이 없어요</h2></div> : null}
-      {page?.items.length ? <div className={`board-list-region${loading || stale ? ' is-updating' : ''}`} aria-busy={loading} aria-disabled={stale}><RecruitmentList rows={page.items} selected={selected?.id} onSelect={row => { if (!loading && !stale) setSelected(row); }} /></div> : null}
+      {page?.items.length ? <div className={`board-list-region${loading || stale ? ' is-updating' : ''}`} aria-busy={loading} aria-disabled={stale}><RecruitmentList rows={page.items} selected={selected?.id} onSelect={row => {
+        if (loading || stale) return;
+        if (composer) { toast('자기소개를 저장하거나 닫은 뒤 모집을 선택해 주세요.', 'info'); return; }
+        setSelected(row);
+      }} /></div> : null}
       {page && (page.hasMore || loadingMore || loadMoreError) ? <div className="board-load-more" ref={loadMoreRef} role="status" aria-live="polite">
         {loadMoreError ? <><span>{loadMoreError}</span><Button size="sm" onClick={() => void loadMore()}>다시 불러오기</Button></> : loadingMore ? <span className="board-loading-spinner" role="img" aria-label="모집 더 불러오는 중" /> : null}
       </div> : null}
     </div></div>
     </div>
-    <HomeProfileRail user={user} game={query.condition.game} introduction={intro} gameAccount={gameAccounts.find(account => account.game === query.condition.game)} actionLabel={canCreate && !stageKey ? query.type === 'RESERVATION' ? '예약하기' : intro ? '매칭 시작' : '자기소개 작성' : undefined} onCompose={() => compose()} />
-    </div>
+    <HomeProfileRail user={user} game={query.condition.game} introduction={intro} gameAccount={gameAccounts.find(account => account.game === query.condition.game)} actionLabel={canCreate && !stageKey && !composer && !selected ? query.type === 'RESERVATION' ? '예약하기' : intro ? '매칭 시작' : '자기소개 작성' : undefined} onCompose={() => compose()}>
+    {own || liveRequest || match.activePartyId || match.proposal?.status === 'PENDING' ? <section hidden={Boolean(composer || selected) && match.proposal?.status !== 'PENDING'} className="match-stage" aria-label="내 매칭 진행" tabIndex={-1} ref={stageRef}>
+      <MatchProgress step={match.proposal?.status === 'PENDING' ? 1 : match.activePartyId ? 2 : 0} />
+      {connection !== 'connected' ? <p className="banner warn" role="status">서버에 다시 연결하고 있어요.</p> : null}
+      {match.proposal?.status === 'PENDING' ? <>{composer ? <p className="hint">작성 중인 조건은 보관했어요.</p> : null}<InlineProposal knownRows={[...(page?.items ?? []), ...mine]} /></> : match.activePartyId ? <PartyRoomPage embedded /> : <>
+        {active.length > 1 ? <label className="my-recruitment-picker">관리할 모집<select value={own?.id ?? ''} onChange={e => setOwnId(e.target.value)}>{active.map(row => <option key={row.id} value={row.id}>{gameConfig(row.condition.game).shortName} · {row.type === 'REALTIME' ? '실시간' : row.availableFrom ? timeLabel(row.availableFrom) : '예약'} · {BOARD_STATUS[row.status]}</option>)}</select></label> : null}
+        {own ? <RecruitmentPanel key={own.id} row={own} onChanged={changed} onEdit={() => setComposer({ initial: writeFrom(own), editing: own })} onFind={() => { changeQuery({ ...browseSearch(own.condition.game), type: own.type, availableFrom: own.availableFrom, availableTo: own.availableTo, playAmount: own.playAmount }); listRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }); listRef.current?.focus({ preventScroll: true }); }} /> : liveRequest ? <ActiveMatchCard /> : null}
+
+      </>}
+    </section> : null}
+
     {selected && !composer && match.proposal?.status !== 'PENDING' ? <RecruitmentDetail row={selected} busy={busy} hasSource={Boolean(source)} disabled={Boolean(source && source.status !== 'OPEN') || Boolean(match.activePartyId && selected.type === 'REALTIME')} disabledReason={match.activePartyId && selected.type === 'REALTIME' ? '현재 파티에 참여 중이에요. 파티에서 나온 뒤 실시간 모집에 참여할 수 있어요.' : source && source.status !== 'OPEN' ? '내 모집을 재개하거나 진행 중인 신청을 마친 뒤 참여해 주세요.' : undefined} onClose={() => { if (!busy) setSelected(null); }} onJoin={() => void join()} /> : null}
-    {composer ? <RecruitmentComposer suspended={match.proposal?.status === 'PENDING'} initial={composer.initial} editing={mine.find(row => row.id === composer.editing?.id) ?? composer.editing} onClose={() => setComposer(null)} onSaved={async row => {
+    {composer ? <RecruitmentComposer suspended={match.proposal?.status === 'PENDING'} initial={composer.initial} editing={mine.find(row => row.id === composer.editing?.id) ?? composer.editing} onClose={saved => {
+      const editing = Boolean(composer.editing);
+      const joinId = composer.joinId;
+      setComposer(null);
+      if (!saved) requestAnimationFrame(() => {
+        const target = editing ? '.recruitment-edit' : joinId ? `[data-recruitment-id="${CSS.escape(joinId)}"]` : '.intro-launch > button';
+        document.querySelector<HTMLElement>(target)?.focus({ preventScroll: true });
+      });
+    }} onSaved={async row => {
       rememberCondition(row.condition); setOwnId(row.id); setFocusStage(true);
       if (row.type === 'REALTIME') await match.adoptRequest(row.id); else await match.refreshReservations();
       if (composer.joinId) try { await api.joinRecruitment(composer.joinId, row.id); toast('참여 신청을 보냈습니다', 'ok'); } catch (err) { toast(`${errorMessage(err)} 내 모집은 유지됩니다.`, 'error'); }
       await refresh(true);
     }} /> : null}
+    </HomeProfileRail>
+    </div>
   </section>;
 }

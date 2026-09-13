@@ -34,7 +34,7 @@ test('종료된 모집의 상태 응답이 늦어도 다른 모집에 바로 참
 
   await login(page);
   await page.locator('.intro-launch > button').click();
-  const dialog = page.getByRole('dialog');
+  const dialog = page.locator('.recruitment-composer-shell');
   await dialog.getByLabel('원하는 큐 타입', { exact: true }).selectOption('SOLO_DUO_RANKED');
   await dialog.getByLabel('주 포지션', { exact: true }).selectOption('MID');
   await dialog.getByLabel('모집 한마디', { exact: true }).fill('서로 존중하면서 즐겨요');

@@ -1,0 +1,72 @@
+/* 홈의 작성·대기·수락을 같은 오른쪽 영역에서 전환한다. */
+body:has(.board-home) .toast-host { pointer-events: none; }
+@media (min-width: 1100px) {
+  .board-home .board-layout { grid-template-columns: minmax(0, 1fr) 320px; gap: 32px; }
+  .home-profile-content { max-height: calc(100dvh - 56px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; padding-bottom: 12px; }
+}
+.home-profile.has-workflow .home-profile-account { margin-bottom: 28px; }
+.home-profile .match-stage { margin: 0; padding: 0; scroll-margin-top: 28px; }
+.home-profile .matching-rail-panel, .home-profile .match-stage, .board-main { outline: none; }
+.matching-rail-panel[hidden], .home-profile .match-stage[hidden] { display: none; }
+.matching-rail-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 18px; }
+.matching-rail-heading h2 { font-size: 16px; line-height: 1.5; font-weight: 650; }
+.matching-rail-heading > .btn { flex: none; }
+.home-profile .btn { font-size: 13px; min-height: 40px; white-space: normal; }
+.home-profile .hint { font-size: 12px; line-height: 1.6; }
+.home-profile .recruitment-composer { border: 0; margin: 0; padding: 0; min-width: 0; gap: 22px; }
+.home-profile .introduction-fields { gap: 16px 12px; }
+.home-profile .introduction-fields label, .home-profile .introduction-desired legend, .home-profile .introduction-recent legend, .home-profile .reservation-fields label { font-size: 13px; }
+.home-profile .introduction-fields input, .home-profile .introduction-fields select, .home-profile .reservation-fields input, .home-profile .reservation-fields select { font-size: 14px; min-height: 42px; }
+.home-profile .introduction-desired .chip { font-size: 13px; }
+.home-profile .introduction-records > summary { font-size: 13px; }
+.home-profile .matching-choice-grid { grid-template-columns: 1fr; gap: 8px; }
+.home-profile .matching-choice-grid strong { font-size: 14px; }
+.home-profile .matching-choice-grid small { font-size: 12px; }
+.home-profile .reservation-fields { grid-template-columns: 1fr; }
+.home-profile .recent-results { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+.matching-rail-footer { position: sticky; bottom: -12px; padding: 16px 0 12px; background: #0b0e16; z-index: 1; }
+.matching-rail-footer > .btn { min-height: 44px; font-size: 15px; }
+.home-profile .match-progress { justify-content: space-between; gap: 6px; margin: 0 0 22px; font-size: 12px; }
+.home-profile .match-progress li { gap: 6px; }
+.home-profile .match-progress li:not(:last-child)::after { display: none; }
+.home-profile .match-stage .my-recruitment, .home-profile .board-proposal, .home-profile .match-stage .compact-party > .card { padding: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.home-profile .recruitment-title { gap: 8px; }
+.home-profile .recruitment-title .row { flex-wrap: wrap; gap: 8px; }
+.home-profile .recruitment-title h2 { font-size: 16px; }
+.home-profile .recruitment-title > span { font-size: 13px; }
+.home-profile .recruitment-method { font-size: 12px; }
+.home-profile .recruitment-overview { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 22px 0; margin: 0; }
+.home-profile .recruitment-clock { border: 0; padding: 0; }
+.home-profile .recruitment-clock strong { font-size: 44px; letter-spacing: -1px; }
+.home-profile .recruitment-clock small { font-size: 12px; }
+.home-profile .recruitment-own-summary { font-size: 13px; flex-wrap: wrap; }
+.home-profile .recruitment-description { font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.home-profile .my-recruitment-actions, .matching-rail-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.home-profile .my-recruitment-actions > .btn { min-width: 0; padding: 10px 8px; font-size: 13px; }
+.home-profile .my-recruitment-actions > .btn[aria-pressed=true] { background: var(--accent-soft); color: var(--accent-2); border-color: var(--accent); }
+.home-profile .my-recruitment-actions > .btn span { font-size: 11px; color: var(--muted); }
+.home-profile .recruitment-notice { flex-direction: column; align-items: stretch; font-size: 13px; }
+.home-profile .recruitment-applicants { display: grid; grid-template-columns: minmax(0, 1fr); }
+.home-profile .recruitment-applicant { min-width: 0; }
+.home-profile .suggestion-link { width: 100%; text-align: left; font-size: 13px; line-height: 1.6; }
+.recruitment-condition-preview { border-top: 1px solid var(--line); margin-top: 20px; padding-top: 20px; font-size: 13px; line-height: 1.6; }
+.recruitment-condition-preview h3 { font-size: 15px; margin-bottom: 10px; }
+.recruitment-condition-preview .matching-rail-actions { margin-top: 16px; }
+.home-profile .recruitment-detail > .row { align-items: flex-start; }
+.home-profile .recruitment-detail p, .home-profile .recruitment-introduction dd { font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.home-profile .recruitment-introduction dt, .home-profile .introduction-detail-stats > span { font-size: 12px; }
+.home-profile .board-proposal .proposal-overview { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+.home-profile .board-proposal .proposal-countdown strong { font-size: 36px; }
+.home-profile .board-proposal .proposal-members { grid-template-columns: minmax(0, 1fr); max-height: clamp(180px, calc(100dvh - 420px), 360px); overflow-y: auto; padding-right: 4px; }
+.home-profile .board-proposal > .row:last-child { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.home-profile .board-proposal > .row:last-child > .btn { min-width: 0; }
+.home-profile .match-stage .compact-party { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.home-profile .match-stage .compact-party > .compact-chat { grid-column: auto; }
+.home-profile .compact-party > .card + .card { border-top: 1px solid var(--line); padding-top: 20px; }
+.home-profile .compact-party .chat-log { max-height: 240px; }
+@media (max-width: 1099px) {
+  .home-profile.has-workflow .home-profile-content { display: block; }
+  .home-profile.has-workflow .intro-launch { margin-top: 24px; }
+  .home-profile .matching-rail-panel, .home-profile .match-stage { max-width: 540px; margin-inline: auto; }
+  .matching-rail-footer { position: static; padding-bottom: 0; }
+}

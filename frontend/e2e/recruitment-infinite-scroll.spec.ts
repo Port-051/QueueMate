@@ -128,7 +128,7 @@ test('새 필터 조회가 실패하면 이전 행 선택을 막고 재시도나
   const rows = page.locator('.recruitment-row');
   const count = page.locator('.board-results-head');
   const error = page.getByRole('alert').filter({ hasText: '모집 정보를 불러오지 못했습니다' });
-  const detail = page.getByRole('dialog', { name: '모집 상세', exact: true });
+  const detail = page.getByRole('region', { name: '모집 상세', exact: true });
   await expect(rows).toHaveCount(10);
   const original = await rowIds(page);
 

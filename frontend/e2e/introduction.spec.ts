@@ -4,7 +4,7 @@ import { login, manageRecruitment, selectBoardFilter } from './helpers';
 test('자기소개를 비워 두면 모든 조건이 무관이며 수동 모집을 시작할 수 있다', async ({ page }) => {
   await login(page);
   await page.locator('.intro-launch').getByRole('button', { name: '자기소개 작성' }).click();
-  const dialog = page.getByRole('dialog');
+  const dialog = page.locator('.recruitment-composer-shell');
   await expect(dialog.getByLabel('주 포지션', { exact: true })).toHaveValue('ANY');
   await expect(dialog.getByLabel('원하는 큐 타입', { exact: true })).toHaveValue('ANY');
   await expect(dialog.getByLabel('내 티어', { exact: true })).toHaveValue('');
@@ -33,7 +33,7 @@ test('상대 검색과 별개인 자기소개·전적을 보관하고 수정·�
   await selectBoardFilter(page, '찾는 상대 티어', '다이아몬드');
   await aram.click();
   await page.locator('.intro-launch').getByRole('button').click();
-  const dialog = page.getByRole('dialog');
+  const dialog = page.locator('.recruitment-composer-shell');
   await expect(dialog.getByLabel('주 포지션', { exact: true })).toHaveValue('ANY');
   await expect(dialog.getByLabel('내 티어', { exact: true })).toHaveValue('');
   await expect(dialog.getByLabel('원하는 큐 타입')).toHaveValue('ANY');
@@ -96,7 +96,7 @@ test('모집 목록과 상세에서 자기소개 전적을 보여주고 최근 �
   await expect(page.getByRole('button', { name: '바텀', exact: true })).toHaveAttribute('title', '바텀');
   await expect(page.getByRole('button', { name: 'LateGame 모집 상세', exact: true }).getByRole('img', { name: '바텀', exact: true })).toBeVisible();
   await row.click();
-  const dialog = page.getByRole('dialog', { name: '모집 상세', exact: true });
+  const dialog = page.getByRole('region', { name: '모집 상세', exact: true });
   await expect(dialog).toContainText('티어·전적 직접 입력');
   await expect(dialog).toContainText('선호 챔피언');
   await expect(dialog.locator('.recruitment-role-pair')).toHaveText('');

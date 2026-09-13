@@ -56,7 +56,7 @@ test('실시간·예약 모두 네 모드를 같은 이름과 2인 정원으로 
 test('칼바람 소개는 포지션 입력을 숨기고 전송 조건만 무관으로 정리하며 작성하던 소개를 보존한다', async ({ page }) => {
   await login(page);
   await page.locator('.intro-launch > button').click();
-  const dialog = page.getByRole('dialog');
+  const dialog = page.locator('.recruitment-composer-shell');
   const queue = dialog.getByLabel('원하는 큐 타입', { exact: true });
   const primary = dialog.getByLabel('주 포지션', { exact: true });
   const desired = dialog.getByRole('group', { name: '찾는 상대 포지션', exact: true });
@@ -96,7 +96,7 @@ for (const mode of modes) {
     const filters = page.locator('.board-filter-bar');
     await filters.getByRole('group', { name: '찾는 큐 타입', exact: true }).getByRole('button', { name: mode.label, exact: true }).click();
     await page.locator('.intro-launch > button').click();
-    const dialog = page.getByRole('dialog');
+    const dialog = page.locator('.recruitment-composer-shell');
     await dialog.getByLabel('원하는 큐 타입', { exact: true }).selectOption(mode.key);
     await dialog.getByRole('radio', { name: '수동 매칭', exact: true }).check();
     await dialog.getByRole('button', { name: '모집 시작', exact: true }).click();
@@ -121,7 +121,7 @@ for (const mode of modes) {
 test('저장된 랭크 소개가 있어도 칼바람 글에서 바로 참여하면 해당 모드로 소개를 연다', async ({ page }) => {
   await login(page);
   await page.locator('.intro-launch > button').click();
-  const dialog = page.getByRole('dialog');
+  const dialog = page.locator('.recruitment-composer-shell');
   await dialog.getByLabel('원하는 큐 타입', { exact: true }).selectOption('SOLO_DUO_RANKED');
   await dialog.getByLabel('주 포지션', { exact: true }).selectOption('MID');
   await dialog.getByLabel('모집 한마디', { exact: true }).fill('서로 존중하면서 즐겨요');
@@ -147,7 +147,7 @@ test('첫 페이지 밖 신속 모집과 자동 매칭돼도 상대 소개를 �
   await expect(page.locator('.recruitment-row .row-mode .recruitment-mode')).toHaveText(Array(10).fill('랭크'));
   await expect(page.getByRole('button', { name: '퇴근후십분 모집 상세', exact: true })).toHaveCount(0);
   await page.locator('.intro-launch > button').click();
-  const dialog = page.getByRole('dialog');
+  const dialog = page.locator('.recruitment-composer-shell');
   await dialog.getByLabel('원하는 큐 타입', { exact: true }).selectOption('SWIFTPLAY');
   await dialog.getByRole('radio', { name: '자동 매칭', exact: true }).check();
   await dialog.getByRole('button', { name: '모집 시작', exact: true }).click();

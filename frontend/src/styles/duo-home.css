@@ -12,7 +12,7 @@
 @keyframes board-loading-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .board-list-region { transition: none; } .board-loading-spinner { animation: none; } }
 
-/* 내 정보는 목록 옆에 두고, 실제 매칭 진행은 본문에서 이어진다. */
+/* 내 정보와 매칭 작업을 목록 오른쪽에서 이어간다. */
 .home-profile { min-width: 0; align-self: stretch; }
 .home-profile-content { position: sticky; top: 28px; padding-top: 12px; }
 .home-profile-account { display: flex; align-items: center; gap: 12px; min-width: 0; }

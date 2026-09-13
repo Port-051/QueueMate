@@ -22,16 +22,15 @@ export async function selectBoardFilter(page: Page, label: '찾는 상대 티어
 
 export async function startRealtimeMatch(page: Page, auto = false): Promise<void> {
   await page.locator('.intro-launch > button').click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  if (auto) await page.getByRole('dialog').getByRole('radio', { name: '자동 매칭', exact: true }).check();
+  await expect(page.locator('.home-profile .recruitment-composer-shell')).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  if (auto) await page.locator('.recruitment-composer-shell').getByRole('radio', { name: '자동 매칭', exact: true }).check();
   await page.getByRole('button', { name: '모집 시작', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.locator('.my-recruitment')).toBeVisible();
 }
 
-/** 부가 모집 작업은 관리 메뉴에서 선택한다. */
+/** 오른쪽 모집 영역의 개별 관리 버튼을 누른다. */
 export async function manageRecruitment(page: Page, action: string): Promise<void> {
-  const menu = page.locator('.my-recruitment .action-menu');
-  if (await menu.getAttribute('open') === null) await menu.locator('summary').click();
-  await menu.getByRole('button', { name: action, exact: true }).click();
+  await page.locator('.my-recruitment').getByRole('button', { name: action, exact: true }).click();
 }

@@ -4,11 +4,11 @@ test.use({ timezoneId: 'Asia/Seoul' });
 async function open(page: Page) {
   await page.getByRole('tab', { name: '예약 매치', exact: true }).click();
   await page.locator('.intro-launch').getByRole('button', { name: '예약하기' }).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
 }
 test('예약은 별도 탭에서 등록하고 겹치는 예약은 서버가 거절한다', async ({ page }) => {
   await login(page); await open(page);
-  await page.getByRole('dialog').getByLabel('플레이 양', { exact: true }).selectOption('TWO_PLUS');
+  await page.locator('.recruitment-composer-shell').getByLabel('플레이 양', { exact: true }).selectOption('TWO_PLUS');
   await page.getByRole('button', { name: '모집 시작', exact: true }).click();
   await expect(page.locator('.my-recruitment')).toContainText('예약');
   await open(page); await page.getByRole('button', { name: '모집 시작', exact: true }).click();
@@ -17,20 +17,20 @@ test('예약은 별도 탭에서 등록하고 겹치는 예약은 서버가 거�
 test('자정을 넘는 예약은 수정할 때도 날짜와 플레이 양을 유지한다', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-09-13T10:00:00+09:00'));
   await login(page); await open(page);
-  await page.getByRole('dialog').getByLabel('시작 가능 시각').fill('2026-09-14T23:30');
-  await page.getByRole('dialog').getByLabel('마지막 종료 시각').fill('2026-09-15T00:30');
-  await page.getByRole('dialog').getByLabel('플레이 양').selectOption('TWO_PLUS');
+  await page.locator('.recruitment-composer-shell').getByLabel('시작 가능 시각').fill('2026-09-14T23:30');
+  await page.locator('.recruitment-composer-shell').getByLabel('마지막 종료 시각').fill('2026-09-15T00:30');
+  await page.locator('.recruitment-composer-shell').getByLabel('플레이 양').selectOption('TWO_PLUS');
   await page.getByRole('button', { name: '모집 시작', exact: true }).click();
   await manageRecruitment(page, '조건 수정');
-  await expect(page.getByRole('dialog').getByLabel('시작 가능 시각')).toHaveValue('2026-09-14T23:30');
-  await expect(page.getByRole('dialog').getByLabel('마지막 종료 시각')).toHaveValue('2026-09-15T00:30');
-  await expect(page.getByRole('dialog').getByLabel('플레이 양')).toHaveValue('TWO_PLUS');
+  await expect(page.locator('.recruitment-composer-shell').getByLabel('시작 가능 시각')).toHaveValue('2026-09-14T23:30');
+  await expect(page.locator('.recruitment-composer-shell').getByLabel('마지막 종료 시각')).toHaveValue('2026-09-15T00:30');
+  await expect(page.locator('.recruitment-composer-shell').getByLabel('플레이 양')).toHaveValue('TWO_PLUS');
 });
 test('과거·역전·30분 경계가 아닌 시간은 제출 전에 알려준다', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-09-13T10:00:00+09:00'));
   await login(page); await open(page);
-  const start = page.getByRole('dialog').getByLabel('시작 가능 시각');
-  const end = page.getByRole('dialog').getByLabel('마지막 종료 시각');
+  const start = page.locator('.recruitment-composer-shell').getByLabel('시작 가능 시각');
+  const end = page.locator('.recruitment-composer-shell').getByLabel('마지막 종료 시각');
   const submit = page.getByRole('button', { name: '모집 시작', exact: true });
   await start.fill('2026-09-13T09:00'); await expect(submit).toBeDisabled();
   await start.fill('2026-09-14T22:00'); await end.fill('2026-09-14T20:00'); await expect(submit).toBeDisabled();

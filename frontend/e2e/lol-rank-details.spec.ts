@@ -4,7 +4,7 @@ import { login, manageRecruitment } from './helpers';
 test('롤 자기소개는 LP 없이 IV~I 단계를 보관하고 티어 변경 시 지난 세부 정보를 지운다', async ({ page }) => {
   await login(page);
   await page.locator('.intro-launch').getByRole('button').click();
-  const dialog = page.getByRole('dialog');
+  const dialog = page.locator('.recruitment-composer-shell');
   const tier = dialog.getByLabel('내 티어', { exact: true });
   const division = dialog.getByLabel('세부 단계', { exact: true });
   const lp = dialog.getByLabel('LP', { exact: true });
@@ -20,7 +20,7 @@ test('롤 자기소개는 LP 없이 IV~I 단계를 보관하고 티어 변경 �
   await expect(submit).toBeEnabled();
   await submit.click();
   await expect(dialog).toHaveCount(0);
-  await expect(page.locator('.home-profile-facts .rank-badge-label')).toHaveText('골드 II');
+  await expect(page.locator('.my-recruitment .rank-badge-label')).toHaveText('골드 II');
   const saved = await page.evaluate(async () => {
     const introductionPath = '/src/domain/introduction.ts';
     const apiPath = '/src/api/client.ts';

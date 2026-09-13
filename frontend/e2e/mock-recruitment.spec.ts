@@ -77,7 +77,7 @@ test('작성 중인 예약 입력은 시간이 지나도 보존하고 만료된 
   await login(page);
   await page.getByRole('tab', { name: '예약 매치', exact: true }).click();
   await page.locator('.intro-launch').getByRole('button', { name: '예약하기' }).click();
-  const dialog = page.getByRole('dialog');
+  const dialog = page.locator('.recruitment-composer-shell');
   const from = await dialog.getByLabel('시작 가능 시각').inputValue();
   const to = await dialog.getByLabel('마지막 종료 시각').inputValue();
   await dialog.getByLabel('모집 한마디').fill('작성 중인 예약');
