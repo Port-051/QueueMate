@@ -43,6 +43,8 @@ public class PartyService implements PartyCreationPort {
     private final BlockLookupPort blockLookup;
     private final RealtimeEventPublisher events;
     private final QueueMateMetrics metrics;
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.context.ApplicationEventPublisher domainEvents;
 
     public PartyService(PartyRepository parties, PartyMemberRepository partyMembers,
                         ConfirmedProposalReader proposals, BlockLookupPort blockLookup,
@@ -173,6 +175,8 @@ public class PartyService implements PartyCreationPort {
                 .filter(PartyMember::countsForReadiness)
                 .allMatch(PartyMember::isReady);
         party.refreshReadiness(allReady, OffsetDateTime.now());
+        if (allReady && members.stream().filter(PartyMember::countsForReadiness).count() == party.getTargetSize()
+                && domainEvents != null) domainEvents.publishEvent(new com.queuemate.common.party.PartyReadyReached(partyId));
 
         MDC.put(MdcKeys.PARTY_ID, partyId.toString());
         log.info("파티 준비 변경 ready={} allReady={} status={}", ready, allReady, party.getStatus());
