@@ -7,12 +7,12 @@ test('빈 결과에서도 필터 수정과 매칭 시작 액션이 남는다', a
   await selectBoardFilter(page, '찾는 상대 티어', '챌린저');
   await expect(page.getByRole('heading', { name: '조건에 맞는 매칭이 없어요' })).toBeVisible();
   await expect(page.getByRole('button', { name: '찾는 상대 티어', exact: true })).toBeEnabled();
-  await expect(page.locator('.intro-launch > button')).toBeEnabled();
+  await expect(page.locator('.recruitment-composer-shell button[type=submit]')).toBeEnabled();
 });
 test('활동 재확인과 조건 한 개 변경은 사용자 선택 후에만 적용된다', async ({ page }) => {
   await page.clock.install();
   await login(page);
-  await page.locator('.intro-launch > button').click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   await selectButton(page.locator('.recruitment-composer-shell').getByRole('group', { name: '주 포지션', exact: true }), '탑');
   await page.locator('.recruitment-composer-shell').getByRole('group', { name: '찾는 상대 포지션', exact: true }).getByRole('button', { name: '탑', exact: true }).click();
   await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
@@ -36,7 +36,7 @@ test('활동 재확인과 조건 한 개 변경은 사용자 선택 후에만 �
 test('위로 올리기 제한과 일시 중지·재개는 같은 매칭을 유지한다', async ({ page }) => {
   await login(page);
   const profile = page.getByRole('complementary', { name: '내 정보', exact: true });
-  await expect(profile.locator('.intro-launch > button')).toBeEnabled();
+  await expect(profile.locator('.recruitment-composer-shell button[type=submit]')).toBeEnabled();
   await startRealtimeMatch(page);
   await expect(profile).toBeVisible();
   await expect(profile.locator('.intro-launch > button')).toHaveCount(0);

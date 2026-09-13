@@ -55,7 +55,7 @@ test('실시간·예약 모두 네 모드를 같은 이름과 2인 정원으로 
 
 test('칼바람 소개는 포지션 입력을 숨기고 전송 조건만 무관으로 정리하며 작성하던 소개를 보존한다', async ({ page }) => {
   await page.clock.install(); await login(page);
-  await page.locator('.intro-launch > button').click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const dialog = page.locator('.recruitment-composer-shell');
   const queue = dialog.getByRole('group', { name: '원하는 큐 타입', exact: true });
   const primary = dialog.getByRole('group', { name: '주 포지션', exact: true });
@@ -83,7 +83,7 @@ test('칼바람 소개는 포지션 입력을 숨기고 전송 조건만 무관�
   await expect(desired).toHaveCount(0);
   await page.keyboard.press('Escape');
   await manageRecruitment(page, '매칭 종료');
-  await page.locator('.intro-launch > button').click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   await selectButton(queue, '랭크');
   await expect(primary.getByRole('button', { name: '바텀', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(desired.getByRole('button', { name: '서포터', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -95,7 +95,7 @@ for (const mode of modes) {
     await page.getByRole('tab', { name: `${mode.type} 매칭`, exact: true }).click();
     const filters = page.locator('.board-filter-bar');
     await filters.getByRole('group', { name: '찾는 큐 타입', exact: true }).getByRole('button', { name: mode.label, exact: true }).click();
-    await page.locator('.intro-launch > button').click();
+    await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
     const dialog = page.locator('.recruitment-composer-shell');
     await dialog.getByRole('group', { name: '원하는 큐 타입', exact: true }).getByRole('button', { name: mode.label, exact: true }).click();
     await dialog.getByRole('radio', { name: '수동 매칭', exact: true }).check();
@@ -120,7 +120,7 @@ for (const mode of modes) {
 
 test('저장된 랭크 소개가 있어도 칼바람 글에서 바로 참여하면 해당 모드로 소개를 연다', async ({ page }) => {
   await page.clock.install(); await login(page);
-  await page.locator('.intro-launch > button').click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const dialog = page.locator('.recruitment-composer-shell');
   await selectButton(dialog.getByRole('group', { name: '원하는 큐 타입', exact: true }), '랭크');
   await selectButton(dialog.getByRole('group', { name: '주 포지션', exact: true }), '미드');
@@ -146,7 +146,7 @@ test('첫 페이지 밖 신속 매칭과 자동 매칭돼도 상대 소개를 �
   await page.clock.install(); await login(page);
   await expect(page.locator('.recruitment-row .row-mode .recruitment-mode')).toHaveText(Array(10).fill('랭크'));
   await expect(page.getByRole('button', { name: '퇴근후십분 매칭 글 상세', exact: true })).toHaveCount(0);
-  await page.locator('.intro-launch > button').click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const dialog = page.locator('.recruitment-composer-shell');
   await selectButton(dialog.getByRole('group', { name: '원하는 큐 타입', exact: true }), '신속');
   await dialog.getByRole('radio', { name: '자동 매칭', exact: true }).check();

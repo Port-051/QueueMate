@@ -4,7 +4,9 @@ import { login, manageRecruitment } from './helpers';
 test('롤 전적은 직접 입력할 수 없으며 이전 수동 전적을 API 정보로 사용하지 않는다', async ({ page }) => {
   await login(page);
   await page.evaluate(() => localStorage.setItem('queuemate:introduction:v1:u-me:LOL', JSON.stringify({ primaryRole: 'MID', ownTier: 'GOLD', rankDivision: 'II', champions: ['아리'], winRate: 99, kda: 9, queueType: 'ANY' })));
-  await page.locator('.intro-launch > button').click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
+  await page.locator('.home-profile-link').click();
+  await page.locator('.side-nav a[href="/app/home"]').click();
   const form = page.locator('.recruitment-composer-shell');
   await expect(form.getByRole('region', { name: '롤 전적 정보' })).toHaveCount(0);
   await expect(form.locator('input[type="number"], select, .introduction-records')).toHaveCount(0);

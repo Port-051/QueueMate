@@ -16,18 +16,20 @@ test('활성 실시간 매칭은 하나만 가능하지만 예약 매칭은 별�
   await login(page); await startRealtimeMatch(page);
   await expect(page.locator('.intro-launch > button')).toHaveCount(0);
   await page.getByRole('tab', { name: '예약 매칭', exact: true }).click();
-  await expect(page.getByRole('button', { name: '예약하기' })).toBeEnabled();
+  await expect(page.locator('.recruitment-composer-shell')).toHaveAttribute('aria-label', '예약 매칭');
+  await expect(page.locator('.recruitment-composer-shell button[type=submit]')).toBeEnabled();
+  await page.getByRole('tab', { name: '실시간 매칭', exact: true }).click();
   await expect(page.locator('.my-recruitment')).toBeVisible();
 });
 test('매칭을 종료한 뒤 새로 시작해도 상대 조건을 유지한다', async ({ page }) => {
   await login(page);
-  await page.locator('.intro-launch > button').click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   await page.locator('.recruitment-composer-shell').getByRole('group', { name: '찾는 상대 포지션', exact: true }).getByRole('button', { name: '정글', exact: true }).click();
   await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(page.locator('.my-recruitment')).toBeVisible();
   await manageRecruitment(page, '매칭 종료');
   await expect(page.locator('.my-recruitment')).toHaveCount(0);
-  await page.locator('.intro-launch > button').click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '찾는 상대 포지션', exact: true }).getByRole('button', { name: '정글', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(page.locator('.my-recruitment')).toBeVisible();

@@ -3,7 +3,7 @@ import { login, manageRecruitment, selectBoardFilter } from './helpers';
 
 test('자기소개를 비워 두면 모든 조건이 무관이며 수동 매칭을 시작할 수 있다', async ({ page }) => {
   await login(page);
-  await page.locator('.intro-launch').getByRole('button', { name: '자기소개 작성' }).click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const dialog = page.locator('.recruitment-composer-shell');
   await expect(dialog.getByRole('group', { name: '주 포지션', exact: true }).getByRole('button', { name: '무관', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(dialog.getByRole('group', { name: '원하는 큐 타입', exact: true }).locator('[aria-pressed="true"]')).toHaveCount(0);
@@ -31,7 +31,7 @@ test('검색과 별개로 아이콘 버튼을 선택하고 수정·다시 시작
   const filters = page.locator('.board-filter-bar');
   await selectBoardFilter(page, '찾는 상대 티어', '다이아몬드');
   await filters.getByRole('button', { name: '칼바람', exact: true }).click();
-  await page.locator('.intro-launch > button').click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const form = page.locator('.recruitment-composer-shell');
   await expect(form.getByRole('group', { name: '원하는 큐 타입' }).locator('[aria-pressed="true"]')).toHaveCount(0);
   await form.getByRole('group', { name: '주 포지션', exact: true }).getByRole('button', { name: '미드', exact: true }).click();
@@ -49,7 +49,7 @@ test('검색과 별개로 아이콘 버튼을 선택하고 수정·다시 시작
   await expect(desired.locator('[aria-pressed="true"]')).toHaveCount(2);
   await expect(form.locator('input[type="number"], select')).toHaveCount(0);
   await page.keyboard.press('Escape'); await manageRecruitment(page, '매칭 종료');
-  await page.locator('.intro-launch > button').click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   await expect(form.getByLabel('한마디')).toHaveValue('미드에서 편하게 함께해요');
   await expect(form.getByRole('group', { name: '주 포지션', exact: true }).getByRole('button', { name: '미드', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
@@ -62,7 +62,7 @@ test('매칭 글 목록과 상세에서 자기소개 전적을 보여주고 최�
   await expect(row.locator('.recruitment-role-pair')).toHaveText('');
   await expect(row.getByRole('img', { name: '탑', exact: true })).toHaveAttribute('title', '탑');
   await expect(row.getByRole('img', { name: '무관', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: '바텀', exact: true })).toHaveAttribute('title', '바텀');
+  await expect(page.locator('.board-filter-bar').getByRole('button', { name: '바텀', exact: true })).toHaveAttribute('title', '바텀');
   await expect(page.getByRole('button', { name: 'LateGame 매칭 글 상세', exact: true }).getByRole('img', { name: '바텀', exact: true })).toBeVisible();
   await row.click();
   const dialog = page.getByRole('region', { name: '매칭 글 상세', exact: true });
@@ -82,4 +82,16 @@ test('내 전적은 매칭 조건 대신 개인 프로필에서 확인한다', a
   await login(page);
   await page.locator('.home-profile-link').click();
   await expect(page.getByRole('region', { name: '롤 전적 정보', exact: true })).toContainText('연동 대기');
+});
+
+test('저장한 소개가 있어도 홈 재진입 시 바로 조건 선택으로 시작한다', async ({ page }) => {
+  await login(page);
+  await page.evaluate(() => localStorage.setItem('queuemate:introduction:v1:u-me:LOL', JSON.stringify({ primaryRole: 'MID', queueType: 'ANY', bio: '저장된 소개' })));
+  await page.locator('.home-profile-link').click();
+  await page.locator('.side-nav a[href="/app/home"]').click();
+  const form = page.locator('.recruitment-composer-shell');
+  await expect(form).toBeVisible();
+  await expect(form.getByLabel('한마디')).toHaveValue('저장된 소개');
+  await expect(form.getByRole('group', { name: '주 포지션', exact: true }).getByRole('button', { name: '미드', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.home-profile-introduction, .intro-launch')).toHaveCount(0);
 });

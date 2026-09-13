@@ -12,8 +12,8 @@ import { MatchingRailPanel } from './MatchingRailPanel';
 import { ReservationFields } from './RecruitmentFields';
 import { SelfIntroductionFields } from './SelfIntroductionFields';
 
-export function RecruitmentComposer({ initial, editing, suspended, onClose, onSaved }: {
-  initial: board.BoardWrite; editing?: board.BoardRow; suspended?: boolean; onClose: (saved?: boolean) => void; onSaved: (row: board.BoardRow) => Promise<void>;
+export function RecruitmentComposer({ initial, editing, suspended, focusOnMount = true, onClose, onSaved }: {
+  initial: board.BoardWrite; editing?: board.BoardRow; suspended?: boolean; focusOnMount?: boolean; onClose: (saved?: boolean) => void; onSaved: (row: board.BoardRow) => Promise<void>;
 }) {
   const toast = useToast();
   const { user } = useAuth();
@@ -38,7 +38,7 @@ export function RecruitmentComposer({ initial, editing, suspended, onClose, onSa
     } catch (err) { setError(isApiError(err) ? err.message : '매칭을 저장하지 못했습니다. 다시 시도해 주세요.'); }
     finally { setBusy(false); }
   };
-  return <MatchingRailPanel showHeader={false} suspended={suspended} busy={busy} title={editing ? '매칭 수정' : value.type === 'REALTIME' ? '실시간 매칭' : '예약 매칭'} onClose={() => onClose()} className="recruitment-composer-shell">
+  return <MatchingRailPanel focusOnMount={focusOnMount} showHeader={false} suspended={suspended} busy={busy} title={editing ? '매칭 수정' : value.type === 'REALTIME' ? '실시간 매칭' : '예약 매칭'} onClose={() => onClose()} className="recruitment-composer-shell">
     <form onSubmit={event => { event.preventDefault(); void submit(); }}>
     <fieldset className="recruitment-composer" disabled={busy || suspended}>
       {error || validationError ? <div className="banner warn" role="alert">{error || validationError}</div> : null}

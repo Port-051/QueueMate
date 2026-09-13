@@ -179,7 +179,11 @@ export function HomePage() {
   const canCreate = query.type === 'RESERVATION' || (!active.some(r => r.type === 'REALTIME') && !liveRequest && !match.activePartyId);
   const sentToSelected = USE_MOCK && duoOffers.some(offer => offer.sourceId === source?.id && offer.peer.userId === selected?.userId && offer.status === 'SENT');
   const completed = USE_MOCK && !own && !liveRequest ? duoOffers.filter(offer => offer.status === 'MATCHED' && offer.peer.condition.game === query.condition.game && offer.peer.type === query.type).at(-1) : undefined;
-  const intro = user ? readIntroduction(user.id, query.condition.game) : null;
+  const idleComposer = Boolean(page && user && canCreate && !stageKey && !composer && (!own || own.type !== query.type || own.condition.game !== query.condition.game));
+  const form = composer ?? (idleComposer ? { initial: applyIntroduction({
+    type: query.type, condition: defaultCondition(query.condition.game), preferences: anyPreferences(),
+    description: '', autoMatch: false, availableFrom: query.availableFrom, availableTo: query.availableTo, playAmount: query.playAmount,
+  }, readIntroduction(user!.id, query.condition.game) ?? emptyIntroduction()), editing: undefined, joinId: undefined } : null);
   return <section className="page board-home" aria-label="듀오 찾기">
     <div className="board-layout"><div className="board-feed">
     <div className="board-workspace"><div className="board-main" ref={listRef} tabIndex={-1}>
@@ -206,8 +210,8 @@ export function HomePage() {
       </div> : null}
     </div></div>
     </div>
-    <HomeProfileRail user={user} game={query.condition.game} introduction={intro} gameAccount={gameAccounts.find(account => account.game === query.condition.game)} actionLabel={canCreate && !stageKey && !composer && !selected ? query.type === 'RESERVATION' ? '예약하기' : intro ? '매칭 시작' : '자기소개 작성' : undefined} onCompose={() => compose()}>
-    {own || liveRequest || match.activePartyId || match.proposal?.status === 'PENDING' ? <section hidden={Boolean(composer || selected) && match.proposal?.status !== 'PENDING'} className="match-stage" aria-label="내 매칭 진행" tabIndex={-1} ref={stageRef}>
+    <HomeProfileRail user={user} game={query.condition.game} gameAccount={gameAccounts.find(account => account.game === query.condition.game)}>
+    {own || liveRequest || match.activePartyId || match.proposal?.status === 'PENDING' ? <section hidden={Boolean(form || selected) && match.proposal?.status !== 'PENDING'} className="match-stage" aria-label="내 매칭 진행" tabIndex={-1} ref={stageRef}>
       {!USE_MOCK ? <MatchProgress step={match.proposal?.status === 'PENDING' ? 1 : match.activePartyId ? 2 : 0} /> : null}
       {connection !== 'connected' ? <p className="banner warn" role="status">서버에 다시 연결하고 있어요.</p> : null}
       {match.proposal?.status === 'PENDING' ? <>{composer ? <p className="hint">작성 중인 조건은 보관했어요.</p> : null}<InlineProposal knownRows={[...(page?.items ?? []), ...mine]} /></> : match.activePartyId ? <PartyRoomPage embedded /> : <>
@@ -217,22 +221,23 @@ export function HomePage() {
       </>}
     </section> : null}
 
+    {query.type === 'RESERVATION' && own?.type === 'RESERVATION' && !stageKey && !form && !selected ? <Button block onClick={() => compose()}>새 예약</Button> : null}
     {completed && !selected && !composer ? <section className="duo-completed" aria-label="매칭 성사"><h2>{completed.peer.nickname}님과 매칭됐어요</h2><p>메시지에서 대화와 보이스챗을 시작하세요.</p><Button block variant="primary" onClick={() => navigate(`/app/messages?user=${encodeURIComponent(completed.peer.userId)}`)}>메시지로 이동</Button></section> : null}
     {selected && !composer && match.proposal?.status !== 'PENDING' ? <RecruitmentDetail row={selected} joinLabel={USE_MOCK ? sentToSelected ? '오케이 보냄' : source ? '같이 할래요' : '자기소개 작성하고 오케이 보내기' : undefined} busy={busy} hasSource={Boolean(source)} disabled={sentToSelected || Boolean(source && source.status !== 'OPEN') || Boolean(match.activePartyId && selected.type === 'REALTIME')} disabledReason={sentToSelected ? '상대의 응답을 기다리며 계속 매칭 중이에요.' : match.activePartyId && selected.type === 'REALTIME' ? '현재 파티에 참여 중이에요. 파티에서 나온 뒤 실시간 매칭에 참여할 수 있어요.' : source && source.status !== 'OPEN' ? '내 매칭을 재개하거나 진행 중인 신청을 마친 뒤 참여해 주세요.' : undefined} onClose={() => { if (!busy) setSelected(null); }} onJoin={() => void join()} /> : null}
-    {composer ? <RecruitmentComposer suspended={match.proposal?.status === 'PENDING'} initial={composer.initial} editing={mine.find(row => row.id === composer.editing?.id) ?? composer.editing} onClose={saved => {
-      const editing = Boolean(composer.editing);
-      const joinId = composer.joinId;
+    {form ? <RecruitmentComposer key={composer ? `explicit:${composer.editing?.id ?? composer.joinId ?? 'new'}` : `idle:${query.condition.game}:${query.type}`} focusOnMount={Boolean(composer)} suspended={Boolean(selected) || match.proposal?.status === 'PENDING'} initial={form.initial} editing={mine.find(row => row.id === form.editing?.id) ?? form.editing} onClose={saved => {
+      const editing = Boolean(form.editing);
+      const joinId = form.joinId;
       setComposer(null);
-      if (!saved) requestAnimationFrame(() => {
-        const target = editing ? '.recruitment-edit' : joinId ? `[data-recruitment-id="${CSS.escape(joinId)}"]` : '.intro-launch > button';
+      if (!saved && composer) requestAnimationFrame(() => {
+        const target = editing ? '.recruitment-edit' : joinId ? `[data-recruitment-id="${CSS.escape(joinId)}"]` : '.board-main';
         document.querySelector<HTMLElement>(target)?.focus({ preventScroll: true });
       });
     }} onSaved={async row => {
       rememberCondition(row.condition); setOwnId(row.id); setFocusStage(true);
       if (row.type === 'REALTIME') await match.adoptRequest(row.id); else await match.refreshReservations();
-      if (composer.joinId) try {
-        if (USE_MOCK) (await import('../mocks/recruitment')).sendDuoInterest(row.id, composer.joinId);
-        else { await api.joinRecruitment(composer.joinId, row.id); toast('참여 신청을 보냈습니다', 'ok'); }
+      if (form.joinId) try {
+        if (USE_MOCK) (await import('../mocks/recruitment')).sendDuoInterest(row.id, form.joinId);
+        else { await api.joinRecruitment(form.joinId, row.id); toast('참여 신청을 보냈습니다', 'ok'); }
       } catch (err) { toast(`${errorMessage(err)} 내 매칭은 유지됩니다.`, 'error'); }
       await refresh(true);
     }} /> : null}

@@ -76,7 +76,7 @@ test('작성 중인 예약 입력은 시간이 지나도 보존하고 만료된 
   await page.clock.install({ time: startTime });
   await login(page);
   await page.getByRole('tab', { name: '예약 매칭', exact: true }).click();
-  await page.locator('.intro-launch').getByRole('button', { name: '예약하기' }).click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const dialog = page.locator('.recruitment-composer-shell');
   const from = await dialog.getByLabel('시작 가능 시각').inputValue();
   const to = await dialog.getByLabel('마지막 종료 시각').inputValue();
@@ -94,7 +94,7 @@ test('직접 등록한 예약은 원래 시간에 종료되고 다음 날 예시
   await page.clock.install({ time: startTime });
   await login(page);
   await page.getByRole('tab', { name: '예약 매칭', exact: true }).click();
-  await page.locator('.intro-launch').getByRole('button', { name: '예약하기' }).click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(page.locator('.my-recruitment')).toBeVisible();
   const own = await readOwn(page);

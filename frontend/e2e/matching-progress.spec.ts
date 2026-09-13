@@ -79,7 +79,7 @@ test('추천에 답하지 않아도 매칭을 잠그지 않고 조건을 수정�
 test('예약은 시작까지 남은 시간을 표시하고 시간이 되어도 음수로 내려가지 않는다', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-09-14T18:00:00+09:00') });
   await login(page); await page.getByRole('tab', { name: '예약 매칭', exact: true }).click();
-  await page.getByRole('button', { name: '예약하기' }).click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
   const countdown = page.getByRole('timer', { name: '예약 시작까지' });
   await expect(countdown).toBeVisible(); const before = seconds(await countdown.innerText());
@@ -118,7 +118,7 @@ test('360px 화면에서도 타이머·상세·오케이 발송을 조작할 수
 test('실시간과 예약을 함께 만들었을 때 탭에 맞는 매칭을 관리한다', async ({ page }) => {
   await login(page); await startRealtimeMatch(page);
   await page.getByRole('tab', { name: '예약 매칭', exact: true }).click();
-  await page.getByRole('button', { name: '예약하기' }).click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(page.getByRole('heading', { name: '내 예약 매칭', exact: true })).toBeVisible();
   await page.getByRole('tab', { name: '실시간 매칭', exact: true }).click();
@@ -158,7 +158,7 @@ test('조건 수정 중 이전 오케이가 성사되면 종료된 매칭 편집
   await manageRecruitment(page, '조건 수정');
   await page.getByLabel('한마디').fill('매칭 전 작성 중');
   await page.clock.fastForward(22_000);
-  await expect(page.locator('.recruitment-composer-shell')).toHaveCount(0);
+  await expect(page.locator('.recruitment-composer-shell')).toHaveAttribute('aria-label', '실시간 매칭');
   await expect(page.getByRole('region', { name: '매칭 성사', exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/app\/home$/);
 });
@@ -167,14 +167,16 @@ test('자기소개 작성 중에도 목록 필터를 쓸 수 있고 매칭 선�
   await login(page);
   const listTop = () => page.locator('.board-toolbar').evaluate(element => element.getBoundingClientRect().top + document.documentElement.scrollTop);
   const before = await listTop();
-  await page.locator('.intro-launch > button').click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const composer = page.locator('.home-profile .recruitment-composer-shell');
   await composer.getByLabel('한마디').fill('저장 전 자기소개');
   await page.locator('.board-filter-bar').getByRole('button', { name: '랭크', exact: true }).click();
   await page.getByRole('button', { name: 'PlayMaker 매칭 글 상세' }).click();
   await expect(composer.getByLabel('한마디')).toHaveValue('저장 전 자기소개');
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByRole('region', { name: '매칭 글 상세', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: '매칭 글 상세', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '매칭 글 상세 닫기', exact: true }).click();
+  await expect(composer).toBeVisible();
   await composer.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(page.locator('.home-profile .my-recruitment')).toContainText('저장 전 자기소개');
   expect(await listTop()).toBeCloseTo(before, 0);

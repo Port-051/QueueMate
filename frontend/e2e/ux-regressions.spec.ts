@@ -37,19 +37,19 @@ test('파티 준비 변경이 연결을 초기화하지 않고, 종료되면 통
   await expect(page.getByRole('button', { name: '연결 다시 시도' })).toHaveCount(0);
 });
 
-test('오른쪽 매칭 폼은 키보드로 조작하고 닫으면 시작 버튼으로 포커스가 돌아간다', async ({ page }) => {
+test('초기 조건 폼은 중간 단계 없이 보이며 키보드로 조작할 수 있다', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await login(page);
-  const launch = page.locator('.intro-launch > button');
-  await launch.click();
-  const start = page.getByRole('button', { name: '매칭 시작', exact: true });
-  await expect(start).toBeEnabled();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.keyboard.press('Tab');
-  await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '원하는 큐 타입', exact: true }).getByRole('button', { name: '랭크', exact: true })).toBeFocused();
+  const form = page.locator('.recruitment-composer-shell');
+  await expect(form).toBeVisible();
+  await expect(page.locator('.intro-launch, .home-profile-introduction')).toHaveCount(0);
+  const mode = form.getByRole('group', { name: '원하는 큐 타입', exact: true }).getByRole('button', { name: '랭크', exact: true });
+  await mode.focus();
+  await page.keyboard.press('Space');
+  await expect(mode).toHaveAttribute('aria-pressed', 'true');
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(launch).toBeFocused();
+  await expect(form).toBeVisible();
+  await expect(form.getByRole('button', { name: '매칭 시작', exact: true })).toBeEnabled();
 });
 
 test('친구 요청 탭, 검색 빈 상태, 신고 모달 키보드 포커스', async ({ page }) => {

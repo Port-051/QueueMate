@@ -35,7 +35,7 @@ test('매칭 중 계정을 바꾸면 이전 매칭과 제안을 표시하지 않
   await expect(page.locator('.my-recruitment')).toHaveCount(0);
   await expect(page.locator('.board-proposal')).toHaveCount(0);
   await expect(page.locator('.compact-party')).toHaveCount(0);
-  await expect(page.locator('.intro-launch > button')).toBeEnabled();
+  await expect(page.locator('.recruitment-composer-shell button[type=submit]')).toBeEnabled();
   await logout(page);
   await loginOriginalAccount(page);
   await expect(page.locator('.my-recruitment')).toBeVisible();

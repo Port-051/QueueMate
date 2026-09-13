@@ -195,7 +195,7 @@ test('예약 작성 중 시작 시각이 지나면 별도 입력 없이 저장�
   await page.clock.install({ time: new Date('2026-09-14T18:29:50+09:00') });
   await login(page);
   await page.getByRole('tab', { name: '예약 매칭', exact: true }).click();
-  await page.locator('.intro-launch').getByRole('button', { name: '예약하기' }).click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   await page.getByLabel('시작 가능 시각').fill('2026-09-14T18:30');
   await page.getByLabel('마지막 종료 시각').fill('2026-09-14T20:00');
   await expect(page.getByRole('button', { name: '매칭 시작', exact: true })).toBeEnabled();

@@ -34,7 +34,7 @@ test('종료된 매칭의 상태 응답이 늦어도 다른 매칭에 바로 참
   });
 
   await page.clock.install(); await login(page);
-  await page.locator('.intro-launch > button').click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const dialog = page.locator('.recruitment-composer-shell');
   await selectButton(dialog.getByRole('group', { name: '원하는 큐 타입', exact: true }), '랭크');
   await selectButton(dialog.getByRole('group', { name: '주 포지션', exact: true }), '미드');
@@ -45,7 +45,7 @@ test('종료된 매칭의 상태 응답이 늦어도 다른 매칭에 바로 참
   await expect.poll(() => page.evaluate(() => window.closedRequestSnapshots.held.length)).toBeGreaterThan(0);
   await expect(page.locator('.my-recruitment')).toHaveCount(0);
   await expect(page.locator('.match-stage')).toHaveCount(0);
-  await expect(page.locator('.intro-launch > button')).toBeEnabled();
+  await expect(page.locator('.recruitment-composer-shell button[type=submit]')).toBeEnabled();
 
   await page.locator('.board-filter-bar').getByRole('button', { name: '칼바람', exact: true }).click();
   await page.getByRole('button', { name: '포로간식 매칭 글 상세', exact: true }).click();

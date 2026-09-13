@@ -21,7 +21,7 @@ export async function selectBoardFilter(page: Page, label: '찾는 상대 티어
 }
 
 export async function startRealtimeMatch(page: Page, auto = false): Promise<void> {
-  await page.locator('.intro-launch > button').click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   await expect(page.locator('.home-profile .recruitment-composer-shell')).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   if (auto) await page.locator('.recruitment-composer-shell').getByRole('radio', { name: '자동 매칭', exact: true }).check();

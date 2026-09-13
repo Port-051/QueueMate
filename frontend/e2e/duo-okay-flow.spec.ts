@@ -115,7 +115,7 @@ test('모바일에서도 후보·오케이·매칭 상태를 팝업 없이 표�
 test('예약도 오케이 대기 동안 매칭을 유지하고 상호 수락 후에만 마감한다', async ({ page }) => {
   await page.clock.install(); await login(page);
   await page.getByRole('tab', { name: '예약 매칭', exact: true }).click();
-  await page.getByRole('button', { name: '예약하기', exact: true }).click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(page.locator('.my-recruitment')).toBeVisible();
   await send(page, 'PlayMaker');

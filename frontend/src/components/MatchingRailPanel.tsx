@@ -12,18 +12,18 @@ export function revealMatchingRail(element: HTMLElement) {
 }
 
 /** 목록을 가리지 않는 매칭 작업 영역. 닫으면 작업을 시작한 버튼으로 돌아간다. */
-export function MatchingRailPanel({ title, className = '', showHeader = true, suspended = false, busy = false, onClose, children }: {
-  title: string; className?: string; showHeader?: boolean; suspended?: boolean; busy?: boolean; onClose: () => void; children: ReactNode;
+export function MatchingRailPanel({ title, className = '', showHeader = true, focusOnMount = true, suspended = false, busy = false, onClose, children }: {
+  title: string; className?: string; showHeader?: boolean; focusOnMount?: boolean; suspended?: boolean; busy?: boolean; onClose: () => void; children: ReactNode;
 }) {
   const panel = useRef<HTMLElement>(null);
   useEffect(() => {
-    if (suspended) return;
+    if (suspended || !focusOnMount) return;
     const trigger = document.activeElement;
     if (panel.current) revealMatchingRail(panel.current);
     return () => {
       if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus({ preventScroll: true });
     };
-  }, [suspended]);
+  }, [suspended, focusOnMount]);
   return <section ref={panel} className={`matching-rail-panel ${className}`} aria-label={title} tabIndex={-1} hidden={suspended} onKeyDown={event => {
     if (event.key === 'Escape' && !busy) { event.stopPropagation(); onClose(); }
   }}>
