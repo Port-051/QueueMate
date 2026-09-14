@@ -81,13 +81,16 @@ Hard condition은 어떤 tier에서도 완화 금지.
 후보 계산과 실제 claim은 분리해서 생각한다.
 
 1. 후보 탐색
-2. Redis atomic claim으로 사용자 N명을 모두 잠금
-3. 한 명이라도 claim 실패하면 전체 rollback/retry
-4. proposal 저장
-5. queue에서 proposal 참가자를 제거
+2. 사용자별 Redis 분산 락을 정렬된 순서로 획득 (실시간·예약 공통)
+3. 같은 Redis 세션에서 락 소유권·활성 요청·활성 제안을 WATCH하고 Java에서 재검증
+4. MULTI/EXEC으로 전원 선점 기록과 queue 제거를 함께 적용
+5. 자기 작업 락을 해제하고 DB에 proposal과 사용자별 활성 참여 기록 저장
 
-절대 `GET → 애플리케이션 판단 → SET`만으로 구현하지 않는다.
-Lua script 또는 Redisson multi-lock/transaction 중 하나로 원자성을 보장한다.
+락 획득 실패나 WATCH 충돌이면 새 제안을 만들지 않는다. 유한한 임대가 검증 후 끝나도
+오래된 작업의 EXEC은 거부된다. DB 롤백은 기존 보상 경로로 선점 해제와 큐 복구를 수행한다.
+Redis 오류는 fail-closed하며, EXEC 응답 유실로 남은 상태는 TTL과 DB 기준 큐 복구로 정리한다.
+선점 업무 로직은 Java에서 관리하고 소유권 비교·삭제 같은 짧은 원시 연산만 Lua에 남긴다.
+채택 근거와 보장 범위는 [분산 락 선점 설계](18_REDIS_CLAIM_LOCK.md)를 따른다.
 
 ## 8. Proposal
 - 참가자 전원에게 동시에 전달

@@ -19,6 +19,7 @@ qm:queue:{game}:{mode}:{key}:{voice}:{purpose} ZSET(requestId, queuedAtEpoch)
 qm:request:{requestId}                         HASH + TTL
 qm:user:active-request:{userId}                STRING requestId
 qm:user:active-proposal:{userId}               STRING proposalId + TTL
+qm:lock:claim:{userId}                         STRING ownerToken + short TTL
 qm:proposal:{proposalId}                       HASH + TTL
 qm:proposal:members:{proposalId}               SET userIds
 qm:reservation:slot:{game}:{mode}:{slot}       SET reservationIds
@@ -92,12 +93,18 @@ bucket 안은 오래 기다린 순이므로, 방금 들어온 사람이 자기 t
 - 참가자 모두 active proposal key가 없음
 - 모든 guard를 한 atomic operation에서 설정
 
-추천 구현:
-- Lua script를 repository에 버전 관리
-- script input: proposalId, ttl, userIds, requestIds
-- any conflict → 아무 변경 없이 fail
-- success → 모든 `user:active-proposal` set + queue removal
-- 참가자마다 조건이 다를 수 있으므로 queue removal은 **참가자별 bucket key**를 받는다
+현재 구현:
+- `SET NX PX` 사용자별 분산 락을 정렬된 순서로 획득한다. 실시간과 예약이 같은 키를 쓴다.
+- `SessionCallback` 안에서 WATCH 후 락 소유권·활성 요청 ID·활성 제안 부재를 Java로 확인한다.
+- conflict → 선점 기록을 쓰지 않고 실패한다. 부분 획득한 작업 락은 자기 토큰일 때만 해제한다.
+- success → MULTI/EXEC으로 모든 `user:active-proposal` 설정, 참가자 집합과 queue 제거를 적용한다.
+- 참가자마다 조건이 다를 수 있으므로 queue removal은 **참가자별 bucket key**를 받는다.
+- 작업 락 기본 임대는 10초(`MATCH_CLAIM_LOCK_LEASE_MS`)다. 제안 수락 TTL과 별개다.
+- 만료/요청 변경으로 WATCH가 깨지면 EXEC을 거부한다. mutex 해제 실패는 로그·지표에 남기고 임대 만료로 정리한다.
+- 선점 업무 Lua 두 개는 제거했다. 작업 락과 제안 기록의 소유권 비교·삭제 및 큐 조회/등록 Lua는 유지한다.
+- Sentinel 전환의 기록 유실을 보장하는 설계는 아니다. DB 제약조건이 마지막 방어선이다.
+
+채택 이유·실험 결과·실패 처리와 지표는 [분산 락 선점 설계](18_REDIS_CLAIM_LOCK.md)에 정리한다.
 
 ## 6. Proposal TTL
 Redis key expiry만 믿지 않는다.
