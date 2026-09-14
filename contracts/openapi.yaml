@@ -1,0 +1,207 @@
+# 출처: queueMate 저장소 / 브랜치 feature/frontend / 경로 contracts/openapi.yaml (662줄)
+# 커밋: 825d673
+#
+# ★ 발췌본이다. app:matching 이 노출하는 엔드포인트와 그에 필요한 스키마만 옮겼다.
+#   auth / users / reservations / parties / friends / blocks / recent-players / reports 는
+#   app:platform 소관이라 뺐다. 전문이 필요하면 원본을 봐라.
+#
+# ★ 이 파일은 "계약"이고 현재 코드가 아니다. 코드와 어긋나는 지점은 contracts/README.md
+#   의 불일치 표에 정리돼 있다. 임의로 어느 한쪽에 맞추지 마라.
+
+openapi: 3.0.3
+info:
+  title: QueueMate API — app:matching 발췌
+  version: 1.0.0
+servers:
+  - url: /api/v1
+
+paths:
+  # ── gameconfig ────────────────────────────────────────────────
+  /games:
+    get:
+      summary: Supported games
+      description: |
+        app:matching 이 gameconfig 모듈을 포함하므로 이 앱 소관이다.
+        [미구현] 이 저장소에 해당 컨트롤러가 없다.
+      responses:
+        '200':
+          description: OK
+
+  # ── 실시간 매칭 ────────────────────────────────────────────────
+  /match-requests:
+    post:
+      summary: Start realtime matching
+      description: |
+        [구현됨] MatchingController#createMatchRequest
+        INV-1 위반 시 409.
+        Redis 장애 시 503 (INV-10 fail-closed) — 원본 계약에는 없는 응답이다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateMatchRequest' }
+      responses:
+        '201':
+          description: Queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MatchRequestView' }
+        '400': { description: Invalid match condition }
+        '409': { description: User already has active request }
+        '503': { description: Matching unavailable (Redis down, fail-closed) }
+
+  /match-requests/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Match request status
+      description: |
+        [미구현] 이 저장소에 @GetMapping 이 없다.
+        SSE 경로도 없으므로 현재 클라이언트가 매칭 진행 상황을 알 수단이 전혀 없다.
+        contracts/README.md "가장 큰 구멍" 참고.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MatchRequestView' }
+    delete:
+      summary: Cancel realtime matching
+      description: |
+        [구현됨] MatchingController#cancelMatchRequest
+        compare-and-delete — 저장된 requestId 와 경로 id 가 같을 때만 지운다.
+        구현은 계약에 없는 userId 쿼리 파라미터를 요구한다 (JWT 도입 전 임시).
+      responses:
+        '204': { description: Cancelled }
+        '404': { description: No active request, or requestId mismatch }
+        '503': { description: Matching unavailable (Redis down, fail-closed) }
+
+  # ── proposal ─────────────────────────────────────────────────
+  /proposals/{id}/accept:
+    post:
+      summary: Accept proposal
+      description: '[미구현] INV-4 / INV-5 를 지킬 수락 집계 Lua 가 아직 없다 (docs/11 #28).'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Acceptance updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProposalView' }
+
+  /proposals/{id}/decline:
+    post:
+      summary: Decline proposal
+      description: '[미구현]'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200': { description: Declined }
+
+components:
+  schemas:
+    GameKey:
+      type: string
+      enum: [LOL, VALORANT, PUBG]
+
+    VoicePreference:
+      type: string
+      # ⚠ 원본 계약은 [REQUIRED, OPTIONAL, NO_VOICE] 세 값이다.
+      #   코드(domain/VoicePreference.java)는 OPTIONAL 을 제거했고 그쪽이 맞다.
+      #   원본 계약이 낡았다. 여기에는 원본 값을 그대로 두고 불일치만 표시한다.
+      enum: [REQUIRED, OPTIONAL, NO_VOICE]
+
+    PlayPurpose:
+      type: string
+      enum: [RANK_UP, NORMAL, FUN]
+
+    KeyCondition:
+      type: object
+      required: [type, value]
+      properties:
+        type:
+          type: string
+          enum: [POSITION, ROLE, PLAY_STYLE]
+        value: { type: string }
+
+    MatchCondition:
+      type: object
+      required: [game, modeKey, keyCondition, voicePreference, playPurpose]
+      properties:
+        game: { $ref: '#/components/schemas/GameKey' }
+        modeKey: { type: string }
+        keyCondition: { $ref: '#/components/schemas/KeyCondition' }
+        voicePreference: { $ref: '#/components/schemas/VoicePreference' }
+        playPurpose: { $ref: '#/components/schemas/PlayPurpose' }
+
+    CreateMatchRequest:
+      allOf:
+        - $ref: '#/components/schemas/MatchCondition'
+      # ⚠ 구현은 여기에 두 필드를 더 받는다 (2026-09-11 확인).
+      #   userId (필수, String)      — JWT 도입 전 임시 필드다.
+      #   tier   (선택, String)      — 랭크 티어. gameconfig 의 tierRule 이 NONE 이 아닌
+      #                                모드에서는 사실상 필수이고, 빠지면 400 이다.
+      #                                조건이 아니라 derived/자격 조건이다 (docs/02 §6).
+      #                                라이엇 계정 연동이 붙으면 userId 와 함께 사라진다.
+
+    MatchRequestView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [QUEUED, PROPOSED, MATCHED, CANCELLED, EXPIRED] }
+        queuedAt: { type: string, format: date-time }
+        proposalId: { type: string, format: uuid, nullable: true }
+      # ⚠ 구현(dto/MatchRequestResponse.java)은 { requestId, status } 두 필드만 돌려준다.
+      #   필드명도 id 가 아니라 requestId 다.
+
+    ProposalMember:
+      type: object
+      properties:
+        userId: { type: string, format: uuid }
+        nickname: { type: string }
+        acceptance: { type: string, enum: [PENDING, ACCEPTED, DECLINED] }
+
+    ProposalView:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [PENDING, CONFIRMED, DECLINED, EXPIRED, CANCELLED] }
+        expiresAt: { type: string, format: date-time }
+        members:
+          type: array
+          items: { $ref: '#/components/schemas/ProposalMember' }
+        partyId: { type: string, format: uuid, nullable: true }
+
+    # ⚠ 원본 계약에는 ErrorResponse 스키마가 없다 (원본 contracts/events.md 의
+    #   "미해결 계약 구멍"이 직접 지적한다). 아래는 구현
+    #   common/error/ErrorResponse.java 에서 역으로 적은 것이며, 계약으로 승격하려면
+    #   queueMate 본 저장소에서 contract 변경 커밋을 먼저 만들어야 한다.
+    ErrorResponse:
+      type: object
+      required: [code, message, details]
+      properties:
+        code:
+          type: string
+          # 이 저장소가 실제로 내는 값
+          enum:
+            - INVALID_REQUEST          # @Valid 실패
+            - BAD_REQUEST              # 지원하지 않는 게임 등
+            - INVALID_MATCH_CONDITION  # 게임별 조건 검증 실패
+            - ALREADY_QUEUED           # INV-1
+            - MATCH_REQUEST_NOT_FOUND
+            - MATCH_REQUEST_MISMATCH
+            - MATCHING_UNAVAILABLE     # INV-10 fail-closed
+        message: { type: string }
+        details:
+          type: array
+          items: { type: string }

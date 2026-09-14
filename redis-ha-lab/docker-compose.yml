@@ -1,0 +1,185 @@
+# Redis Sentinel HA 실험 환경 - 기본 토폴로지 (T-A: 호스트 주소 announce)
+#
+# master 1 + replica 2 + Sentinel 3.
+#
+# 모든 노드가 자기 주소를 ${HOST_IP} 로 알린다. 컨테이너 내부 주소가 아니다.
+# 왜 그런지는 README.md "토폴로지를 왜 이렇게 잡았나" 에 근거를 적었다.
+# 한 줄로 줄이면: Sentinel 이 알려 주는 주소를 호스트의 앱(IDE 실행)과
+# 컨테이너 안의 노드가 둘 다 쓸 수 있어야 하는데, 그 교집합이 호스트 IP 뿐이다.
+#
+# 네트워크 파티션 실험(실험 5)은 이 토폴로지로는 못 한다.
+# docker-compose.netpart.yml 오버레이를 겹쳐서 T-B 로 바꿔 쓴다.
+
+name: qm-ha
+
+x-redis-common: &redis-common
+  image: ${REDIS_IMAGE:-redis:7-alpine}
+  restart: "no"                      # 죽인 노드가 저절로 살아나면 실험이 안 된다
+  entrypoint: ["/entrypoint.sh"]
+  healthcheck:
+    test: ["CMD", "redis-cli", "-p", "6379", "PING"]
+    interval: 2s
+    timeout: 1s
+    retries: 3
+  environment:
+    MIN_REPLICAS_TO_WRITE: ${MIN_REPLICAS_TO_WRITE:-0}
+    MIN_REPLICAS_MAX_LAG: ${MIN_REPLICAS_MAX_LAG:-10}
+
+x-sentinel-common: &sentinel-common
+  image: ${REDIS_IMAGE:-redis:7-alpine}
+  restart: "no"
+  entrypoint: ["/entrypoint.sh"]
+  depends_on:
+    qm-ha-master:
+      condition: service_healthy
+  environment: &sentinel-env
+    MASTER_IP: ${HOST_IP}
+    MASTER_PORT: 6379
+    QUORUM: ${QUORUM:-2}
+    DOWN_AFTER: ${DOWN_AFTER:-5000}
+    FAILOVER_TIMEOUT: ${FAILOVER_TIMEOUT:-60000}
+    PARALLEL_SYNCS: ${PARALLEL_SYNCS:-1}
+
+services:
+
+  qm-ha-master:
+    <<: *redis-common
+    container_name: qm-ha-master
+    environment:
+      TEMPLATE: master.conf
+      ANNOUNCE_IP: ${HOST_IP}
+      ANNOUNCE_PORT: 6379
+      MIN_REPLICAS_TO_WRITE: ${MIN_REPLICAS_TO_WRITE:-0}
+      MIN_REPLICAS_MAX_LAG: ${MIN_REPLICAS_MAX_LAG:-10}
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis:/templates:ro
+      - ./redis/entrypoint.sh:/entrypoint.sh:ro
+      - master-data:/data
+    networks:
+      qm-ha:
+        ipv4_address: 172.31.31.11
+
+  qm-ha-replica1:
+    <<: *redis-common
+    container_name: qm-ha-replica1
+    depends_on:
+      qm-ha-master:
+        condition: service_healthy
+    environment:
+      TEMPLATE: replica.conf
+      ANNOUNCE_IP: ${HOST_IP}
+      ANNOUNCE_PORT: 6380
+      MASTER_IP: ${HOST_IP}
+      MASTER_PORT: 6379
+      MIN_REPLICAS_TO_WRITE: ${MIN_REPLICAS_TO_WRITE:-0}
+      MIN_REPLICAS_MAX_LAG: ${MIN_REPLICAS_MAX_LAG:-10}
+    ports:
+      - "6380:6379"
+    volumes:
+      - ./redis:/templates:ro
+      - ./redis/entrypoint.sh:/entrypoint.sh:ro
+      - replica1-data:/data
+    networks:
+      qm-ha:
+        ipv4_address: 172.31.31.12
+
+  qm-ha-replica2:
+    <<: *redis-common
+    container_name: qm-ha-replica2
+    depends_on:
+      qm-ha-master:
+        condition: service_healthy
+    environment:
+      TEMPLATE: replica.conf
+      ANNOUNCE_IP: ${HOST_IP}
+      ANNOUNCE_PORT: 6381
+      MASTER_IP: ${HOST_IP}
+      MASTER_PORT: 6379
+      MIN_REPLICAS_TO_WRITE: ${MIN_REPLICAS_TO_WRITE:-0}
+      MIN_REPLICAS_MAX_LAG: ${MIN_REPLICAS_MAX_LAG:-10}
+    ports:
+      - "6381:6379"
+    volumes:
+      - ./redis:/templates:ro
+      - ./redis/entrypoint.sh:/entrypoint.sh:ro
+      - replica2-data:/data
+    networks:
+      qm-ha:
+        ipv4_address: 172.31.31.13
+
+  qm-ha-sentinel1:
+    <<: *sentinel-common
+    container_name: qm-ha-sentinel1
+    environment:
+      <<: *sentinel-env
+      ANNOUNCE_IP: ${HOST_IP}
+      ANNOUNCE_PORT: 26379
+    ports:
+      - "26379:26379"
+    volumes:
+      - ./sentinel:/templates:ro
+      - ./sentinel/entrypoint.sh:/entrypoint.sh:ro
+      - sentinel1-data:/data
+    networks:
+      qm-ha:
+        ipv4_address: 172.31.31.21
+
+  qm-ha-sentinel2:
+    <<: *sentinel-common
+    container_name: qm-ha-sentinel2
+    environment:
+      <<: *sentinel-env
+      ANNOUNCE_IP: ${HOST_IP}
+      ANNOUNCE_PORT: 26380
+    ports:
+      - "26380:26380"
+    volumes:
+      - ./sentinel:/templates:ro
+      - ./sentinel/entrypoint.sh:/entrypoint.sh:ro
+      - sentinel2-data:/data
+    networks:
+      qm-ha:
+        ipv4_address: 172.31.31.22
+
+  qm-ha-sentinel3:
+    <<: *sentinel-common
+    container_name: qm-ha-sentinel3
+    environment:
+      <<: *sentinel-env
+      ANNOUNCE_IP: ${HOST_IP}
+      ANNOUNCE_PORT: 26381
+    ports:
+      - "26381:26381"
+    volumes:
+      - ./sentinel:/templates:ro
+      - ./sentinel/entrypoint.sh:/entrypoint.sh:ro
+      - sentinel3-data:/data
+    networks:
+      qm-ha:
+        ipv4_address: 172.31.31.23
+
+# /data 는 전부 named volume 이다. 바인드 마운트가 아니다.
+#   - Sentinel 과 redis 가 여기에 자기 상태를 계속 고쳐 쓴다 (entrypoint.sh 주석)
+#   - 호스트가 /mnt/c 라 바인드 마운트하면 WSL2 에서 fsync 가 느리고
+#     파일 권한이 0777 로 뭉개진다
+# 판을 새로 깔 때는 scripts/reset.sh 가 down -v 로 통째로 지운다.
+volumes:
+  master-data:
+  replica1-data:
+  replica2-data:
+  sentinel1-data:
+  sentinel2-data:
+  sentinel3-data:
+
+networks:
+  qm-ha:
+    name: qm-ha
+    driver: bridge
+    ipam:
+      config:
+        # 고정 주소를 박아 둔다. T-B(네트워크 파티션 실험)가 이 주소를
+        # announce 값으로 그대로 쓴다. 172.31.31.0/24 는 기존 프로젝트가 쓰는
+        # 172.22.x (WSL eth0) / 172.17.x (docker0 기본) 와 겹치지 않게 고른 것이다.
+        - subnet: 172.31.31.0/24

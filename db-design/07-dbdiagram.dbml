@@ -1,0 +1,311 @@
+// =====================================================================
+//  파티 매칭 서비스 — dbdiagram.io 용 DBML
+//  https://dbdiagram.io  →  좌측 편집기에 전체 붙여넣기 (로그인 불필요)
+//  Export 메뉴에서 PNG / PDF / PostgreSQL DDL 로 내려받을 수 있습니다.
+// =====================================================================
+
+Project party_matching {
+  database_type: 'PostgreSQL'
+  Note: '롤 파티 매칭 서비스 — 기능 명세서 대주제 1~5 기준. PostgreSQL 16.'
+}
+
+Enum voice_mode      { REQUIRED AVAILABLE NONE }
+Enum play_purpose    { CASUAL WIN LEARN SKILLED }
+Enum play_mood       { RELAXED FOCUSED INTENSE }
+Enum lol_position    { TOP JUNGLE MID BOT SUPPORT }
+Enum queue_type      { SOLO_DUO FLEX NORMAL }
+Enum match_kind      { IMMEDIATE SCHEDULED }
+Enum request_status  { RESERVED QUEUED PROPOSED REFILLING CONFIRMED CANCELED FAILED }
+Enum offer_status    { PENDING REFILLING CONFIRMED FAILED }
+Enum seat_status     { OPEN PENDING FILLED }
+Enum seat_response   { PENDING ACCEPTED_LOCKED DECLINED TIMED_OUT }
+Enum ready_state     { NONE READY LATE }
+Enum riot_link_status { OK NEEDS_CHECK FAILED }
+Enum busy_source     { REQUEST PARTY }
+Enum discord_channel_status { REQUESTED CREATED SKIPPED FAILED DELETED }
+Enum discord_member_status  { PENDING GRANTED NOT_JOINED FAILED }
+Enum outbox_topic    { NOTIFICATION DISCORD }
+Enum delivery_status { SENT FAILED EXPIRED_SUBSCRIPTION }
+
+// ---------------------------------------------------------------- 게임
+Table game {
+  id        smallserial [pk]
+  code      text [unique, note: 'LOL / VALORANT …']
+  name      text [not null]
+  is_active boolean [not null, default: true]
+  Note: '멀티게임 확장 탈출구. 지금은 1행뿐.'
+}
+
+// -------------------------------------------------------------- 사용자
+Table app_user {
+  id                 bigserial [pk]
+  discord_id         text [unique, not null, note: 'OAuth2 신원 · 1.1.1']
+  discord_username   text [not null, note: '확정 후 공개 · 1.7.4']
+  nickname           text [not null, note: '초기값 Discord 표시명 · 1.2.1']
+  voice_mode         voice_mode [not null]
+  purpose            play_purpose [not null]
+  mood               play_mood [not null, note: '표시 전용 · 1.2.5']
+  primary_position   lol_position
+  discord_dm_enabled boolean [not null, default: false, note: '기본 꺼짐 · 5.4.2']
+  created_at         timestamptz [not null]
+  updated_at         timestamptz [not null]
+}
+
+Table riot_account {
+  user_id           bigint [pk]
+  game_name         text [not null, note: 'Riot ID 앞부분']
+  tag_line          text [not null]
+  puuid             text [unique]
+  solo_tier         text
+  solo_tier_order   smallint [note: '★ 양방향 티어 판정용 정수 · 2.2.4']
+  solo_division     text
+  solo_lp           int
+  solo_wins         int
+  solo_losses       int
+  solo_in_placement boolean [not null, default: false, note: '배치 중 · 1.3.7']
+  flex_tier         text
+  flex_tier_order   smallint
+  flex_division     text
+  flex_lp           int
+  flex_wins         int
+  flex_losses       int
+  flex_in_placement boolean [not null, default: false]
+  link_status       riot_link_status [not null, note: '1.3.8']
+  refreshed_at      timestamptz [note: '마지막 갱신 · 1.3.9']
+  indexes { (game_name, tag_line) [unique] }
+}
+
+Table user_sub_position {
+  user_id  bigint
+  position lol_position
+  indexes { (user_id, position) [pk] }
+  Note: '프로필 부 포지션 다중값 · 1.2.7'
+}
+
+Table push_subscription {
+  id         bigserial [pk]
+  user_id    bigint [not null]
+  endpoint   text [unique, not null, note: 'Web Push · 1.9.1']
+  p256dh     text [not null]
+  auth       text [not null]
+  created_at timestamptz [not null]
+  revoked_at timestamptz [note: '410 Gone 감지 · 4.2.3']
+}
+
+// ---------------------------------------------------------- 매칭 요청
+Table match_request {
+  id                     bigserial [pk]
+  user_id                bigint [not null]
+  game_id                smallint [not null]
+  kind                   match_kind [not null]
+  queue                  queue_type [not null]
+  target_size            smallint [not null, note: 'CHECK: FLEX 4인 차단 · INV-9 · 1.4.8']
+  status                 request_status [not null, note: '진행 중 1건만 · INV-1 부분 유니크']
+  requested_at           timestamptz [not null, note: 'FCFS 1차 정렬키 · 2.4.1']
+  play_minutes           int [not null]
+  max_wait_minutes       int [note: '즉시 전용']
+  play_date              date [note: '예약 전용 · 1.4.13']
+  window_start           timestamptz [note: '시작 가능 범위 · 1.4.15']
+  window_end             timestamptz
+  tier_snapshot          text [note: '요청 시점 고정 · 1.4.19']
+  tier_snapshot_order    smallint [note: '★ 비교용 정수']
+  tier_snapshot_at       timestamptz [note: '신선도 · 1.3.11']
+  allowed_tier_min_order smallint [not null, note: 'CHECK: min <= max']
+  allowed_tier_max_order smallint [not null]
+  primary_position       lol_position [not null]
+  purpose                play_purpose [not null]
+  voice_mode             voice_mode [not null]
+  conditions             jsonb [note: '게임 확장 여지']
+  version                int [not null, default: 0, note: '낙관적 락 · 1.5.9']
+  created_at             timestamptz [not null]
+  updated_at             timestamptz [not null]
+}
+
+Table request_sub_position {
+  request_id bigint
+  position   lol_position
+  indexes { (request_id, position) [pk] }
+  Note: '상관없음 전개 후 · 1.4.18'
+}
+
+Table user_busy_interval {
+  id          bigserial [pk]
+  user_id     bigint [not null, note: 'EXCLUDE 대상']
+  during      tstzrange [not null, note: '★ EXCLUDE USING gist — 겹침 금지 · INV-2 · 1.4.17']
+  source_type busy_source [not null]
+  request_id  bigint [note: 'CHECK: request_id / party_id 둘 중 하나만']
+  party_id    bigint
+  Note: '진행 중 요청과 확정 파티가 공유하는 시간 점유 테이블'
+}
+
+// ---------------------------------------------------------- 파티 제안
+Table match_offer {
+  id          bigserial [pk]
+  game_id     smallint [not null]
+  queue       queue_type [not null]
+  target_size smallint [not null]
+  purpose     play_purpose [not null, note: '합의 조건 · 2.7.5']
+  voice_party boolean [not null, note: '2.3.5 / 2.3.6']
+  combo_hash  text [unique, not null, note: '활성 제안 중복 방지']
+  status      offer_status [not null]
+  created_at  timestamptz [not null]
+  respond_by  timestamptz [not null, note: '최초 응답 만료 · 1.6.3']
+  refill_by   timestamptz [not null, note: '전체 충원 제한 · 1.6.21']
+  closed_at   timestamptz
+}
+
+Table offer_seat {
+  id                   bigserial [pk]
+  offer_id             bigint [not null]
+  position             lol_position [not null]
+  status               seat_status [not null, note: '거절 시 OPEN 으로 재개방 · 2.8.18']
+  filled_by_request_id bigint [unique, note: '수락 확정자 · 2.8.17']
+  opened_at            timestamptz [not null]
+  closed_at            timestamptz
+  indexes { (offer_id, position) [unique, note: '포지션 중복 방지 · 2.5.2'] }
+}
+
+Table offer_participant {
+  id           bigserial [pk]
+  offer_id     bigint [not null]
+  seat_id      bigint [not null, note: 'INV-7 · PENDING 은 좌석당 1명']
+  request_id   bigint [not null]
+  user_id      bigint [not null]
+  round        smallint [not null, default: 1, note: '충원 회차 · 2.8.19']
+  response     seat_response [not null, note: '1.6.11']
+  offered_at   timestamptz [not null]
+  expires_at   timestamptz [not null, note: '1.6.8']
+  responded_at timestamptz [note: '조건부 전이로 멱등 · 1.6.9']
+  indexes {
+    (seat_id, round)      [unique]
+    (offer_id, request_id) [unique, note: 'INV-8 재등장 금지 · 2.8.4 / 2.8.5']
+  }
+}
+
+// -------------------------------------------------------- 확정 파티
+Table party {
+  id           bigserial [pk]
+  game_id      smallint [not null]
+  offer_id     bigint [unique, note: 'INV-6 한 제안에서 파티 1개 · 예약은 NULL']
+  queue        queue_type [not null, note: '합의 스냅샷 · 1.7.6']
+  target_size  smallint [not null]
+  purpose      play_purpose [not null]
+  voice_party  boolean [not null, note: '1.7.5']
+  start_at     timestamptz [not null]
+  end_at       timestamptz [not null, note: 'CHECK: end > start']
+  confirmed_at timestamptz [not null, note: '1.6.25']
+  Note: '확정 후 취소 · 해체 · 구성원 변경 없음 · 1.7.13~1.7.16'
+}
+
+Table party_member {
+  request_id  bigint [pk, note: 'PK 자체가 INV-3 — 한 요청은 한 파티에만']
+  party_id    bigint [not null]
+  user_id     bigint [not null]
+  position    lol_position [not null]
+  ready_state ready_state [not null, note: '1.7.7 / 1.7.8']
+  ready_at    timestamptz
+  joined_at   timestamptz [not null]
+  indexes {
+    (party_id, position) [unique, note: 'INV-4 포지션 중복 금지']
+    (party_id, user_id)  [unique]
+  }
+}
+
+// -------------------------------------------------------- 연동 · 운영
+Table party_discord_channel {
+  party_id     bigint [pk, note: 'INV-11 · PK 자체가 명령 멱등키 · 5.6.7']
+  guild_id     text
+  category_id  text
+  channel_id   text [unique]
+  status       discord_channel_status [not null]
+  fail_reason  text [note: '권한부족 / 서버미가입 / API장애 · 5.6.1']
+  created_at   timestamptz
+  delete_after timestamptz [not null, note: 'end_at + 24h · 5.5.1']
+  deleted_at   timestamptz
+}
+
+Table party_discord_member {
+  party_id    bigint [note: '★ FK 는 party — 채널 생성 실패해도 기록 유지']
+  user_id     bigint
+  status      discord_member_status [not null, note: '5.3.4']
+  granted_at  timestamptz
+  fail_reason text [note: '5.6.5']
+  updated_at  timestamptz [not null]
+  indexes { (party_id, user_id) [pk, note: '5.6.8 중복 권한 부여 방지'] }
+}
+
+Table outbox_event {
+  id           bigserial [pk]
+  event_id     uuid [unique, not null, note: 'INV-5 중복 발행 금지 · 1.9.9']
+  topic        outbox_topic [not null, note: 'SQS 큐 구분']
+  event_type   text [not null, note: '4.1.2']
+  party_id     bigint [note: 'nullable — 매칭 실패 알림']
+  user_id      bigint
+  payload      jsonb [not null]
+  available_at timestamptz [not null, note: '리마인더 지연 발송 · 4.3.11~13']
+  published_at timestamptz
+  attempts     smallint [not null, default: 0, note: '4.4.2']
+  last_error   text
+  created_at   timestamptz [not null]
+  Note: 'Outbox — 파티 확정과 같은 트랜잭션에서 적재'
+}
+
+Table push_delivery {
+  id              bigserial [pk]
+  event_id        uuid [not null]
+  subscription_id bigint [not null]
+  status          delivery_status [not null]
+  http_status     smallint [note: '4.2.5']
+  error           text
+  sent_at         timestamptz [not null, note: '4.2.4']
+  indexes { (event_id, subscription_id) [unique, note: 'INV-12 · 4.4.1'] }
+}
+
+Table reservation_batch_run {
+  play_date       date [pk, note: 'INV-10 하루 1회 · 3.1.7']
+  started_at      timestamptz [not null]
+  cutoff_at       timestamptz [not null, note: '처리 경계 · 3.1.3']
+  finished_at     timestamptz
+  processed_count int [not null, default: 0]
+  party_count     int [not null, default: 0]
+  failed_count    int [not null, default: 0]
+  error           text
+  Note: 'FK 없는 독립 테이블 — 예약 배치 실행 기록 · 3.5.6'
+}
+
+// ----------------------------------------------------------- 관계
+Ref: riot_account.user_id           - app_user.id
+Ref: user_sub_position.user_id      > app_user.id
+Ref: push_subscription.user_id      > app_user.id
+Ref: match_request.user_id          > app_user.id
+Ref: match_request.game_id          > game.id
+Ref: request_sub_position.request_id > match_request.id
+Ref: user_busy_interval.user_id     > app_user.id
+Ref: user_busy_interval.request_id  > match_request.id
+Ref: user_busy_interval.party_id    > party.id
+Ref: match_offer.game_id            > game.id
+Ref: offer_seat.offer_id            > match_offer.id
+Ref: offer_seat.filled_by_request_id - match_request.id
+Ref: offer_participant.offer_id     > match_offer.id
+Ref: offer_participant.seat_id      > offer_seat.id
+Ref: offer_participant.request_id   > match_request.id
+Ref: offer_participant.user_id      > app_user.id
+Ref: party.game_id                  > game.id
+Ref: party.offer_id                 - match_offer.id
+Ref: party_member.request_id        - match_request.id
+Ref: party_member.party_id          > party.id
+Ref: party_member.user_id           > app_user.id
+Ref: party_discord_channel.party_id - party.id
+Ref: party_discord_member.party_id  > party.id
+Ref: party_discord_member.user_id   > app_user.id
+Ref: outbox_event.party_id          > party.id
+Ref: outbox_event.user_id           > app_user.id
+Ref: push_delivery.event_id         > outbox_event.event_id
+Ref: push_delivery.subscription_id  > push_subscription.id
+
+// ------------------------------------------------------- 테이블 그룹
+TableGroup "사용자"      { app_user riot_account user_sub_position push_subscription }
+TableGroup "매칭 요청"   { match_request request_sub_position user_busy_interval }
+TableGroup "파티 제안"   { match_offer offer_seat offer_participant }
+TableGroup "확정 파티"   { party party_member }
+TableGroup "연동 · 운영" { party_discord_channel party_discord_member outbox_event push_delivery reservation_batch_run }

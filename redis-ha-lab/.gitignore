@@ -1,0 +1,5 @@
+# 실행할 때 만들어지는 것들. 커밋하지 않는다.
+.env
+.last-kill-ms
+k6/out/
+out-*.txt

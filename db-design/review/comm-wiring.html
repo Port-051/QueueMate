@@ -1,0 +1,938 @@
+<title>매칭 서비스 통신 배선도</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&display=swap">
+
+<style>
+  :root {
+    --bg: #EEF1F2;
+    --surface: #FFFFFF;
+    --surface-2: #F6F9FA;
+    --ink: #161F24;
+    --ink-2: #34454D;
+    --muted: #5E7078;
+    --line: #D5DEE1;
+    --line-soft: #E5ECEE;
+    --wire: #A6B4BA;
+    --accent: #1E5E86;
+    --accent-tint: #E3EEF5;
+    --ok: #2C6E5D;
+    --ok-tint: #E2F0EC;
+    --warn: #A0650F;
+    --warn-tint: #F9EEDC;
+    --bad: #A5382B;
+    --bad-tint: #F9E6E3;
+    --on-status: #FFFFFF;
+    --shadow: 0 1px 2px rgba(22,31,36,.05), 0 8px 24px -12px rgba(22,31,36,.18);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0D1316;
+      --surface: #151D21;
+      --surface-2: #192328;
+      --ink: #DFE7EA;
+      --ink-2: #B4C3C9;
+      --muted: #8698A0;
+      --line: #26333A;
+      --line-soft: #1E282E;
+      --wire: #405259;
+      --accent: #6BB2E0;
+      --accent-tint: #14303F;
+      --ok: #62BB9E;
+      --ok-tint: #15302A;
+      --warn: #DFA64C;
+      --warn-tint: #31260F;
+      --bad: #E4806E;
+      --bad-tint: #34201C;
+      --on-status: #0D1316;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px -14px rgba(0,0,0,.6);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0D1316;
+    --surface: #151D21;
+    --surface-2: #192328;
+    --ink: #DFE7EA;
+    --ink-2: #B4C3C9;
+    --muted: #8698A0;
+    --line: #26333A;
+    --line-soft: #1E282E;
+    --wire: #405259;
+    --accent: #6BB2E0;
+    --accent-tint: #14303F;
+    --ok: #62BB9E;
+    --ok-tint: #15302A;
+    --warn: #DFA64C;
+    --warn-tint: #31260F;
+    --bad: #E4806E;
+    --bad-tint: #34201C;
+    --on-status: #0D1316;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px -14px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    font-weight: 400;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1060px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+    display: grid;
+    gap: 56px;
+  }
+
+  .mono { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  /* ---------- header ---------- */
+
+  .head { display: grid; gap: 18px; }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(30px, 5vw, 44px);
+    font-weight: 600;
+    letter-spacing: -.02em;
+    line-height: 1.18;
+    text-wrap: balance;
+  }
+
+  .lede {
+    margin: 0;
+    max-width: 62ch;
+    font-size: 16.5px;
+    color: var(--ink-2);
+    font-weight: 300;
+  }
+  .lede b { font-weight: 600; color: var(--ink); }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .stat { background: var(--surface); padding: 16px 18px; display: grid; gap: 4px; }
+  .stat .k { font-size: 12px; color: var(--muted); letter-spacing: .01em; }
+  .stat .v {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 26px; font-weight: 600; line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat.is-bad .v { color: var(--bad); }
+  .stat.is-warn .v { color: var(--warn); }
+
+  /* ---------- section ---------- */
+
+  section { display: grid; gap: 20px; }
+
+  h2 {
+    margin: 0;
+    font-size: 21px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  h2::before {
+    content: "";
+    width: 22px; height: 2px;
+    background: var(--accent);
+    flex: none;
+    transform: translateY(-6px);
+  }
+
+  .sec-note { margin: -8px 0 0; font-size: 14.5px; color: var(--muted); max-width: 64ch; }
+
+  /* ---------- diagram ---------- */
+
+  .board {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .board-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line-soft);
+    background: var(--surface-2);
+  }
+
+  .bar-label {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+  }
+
+  .toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+  .tg {
+    appearance: none; border: 0; cursor: pointer;
+    background: transparent; color: var(--muted);
+    font-family: inherit; font-size: 13px; font-weight: 500;
+    padding: 7px 16px;
+    transition: background .16s ease, color .16s ease;
+  }
+  .tg + .tg { border-left: 1px solid var(--line); }
+  .tg:hover { color: var(--ink); }
+  .tg.on { background: var(--accent); color: var(--surface); }
+  :root[data-theme="dark"] .tg.on, :root:not([data-theme="light"]) .tg.on { color: #0D1316; }
+  .tg:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  .canvas { padding: 8px 4px 4px; overflow-x: auto; }
+  svg.dgm { display: block; width: 100%; min-width: 720px; height: auto; font-family: "IBM Plex Sans KR", system-ui, sans-serif; }
+
+  .node rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+  .node.hub rect { fill: var(--accent-tint); stroke: var(--accent); stroke-width: 2; }
+  .n-title { font-size: 14.5px; font-weight: 600; fill: var(--ink); text-anchor: middle; }
+  .n-sub { font-size: 11px; fill: var(--muted); text-anchor: middle; }
+
+  .wire { fill: none; stroke: var(--wire); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#ar-neutral); transition: stroke .25s ease, opacity .25s ease; }
+  .mk-neutral { fill: var(--wire); }
+  .mk-ok { fill: var(--ok); }
+  .mk-warn { fill: var(--warn); }
+  .mk-bad { fill: var(--bad); }
+
+  .badge circle { fill: var(--wire); stroke: var(--surface); stroke-width: 3; transition: fill .25s ease; }
+  .badge text {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px; font-weight: 600; fill: var(--on-status);
+    text-anchor: middle; dominant-baseline: central;
+  }
+  .link { transition: opacity .25s ease; }
+
+  /* current state */
+  .dgm[data-state="now"] .link[data-now="bad"] .wire { stroke: var(--bad); marker-end: url(#ar-bad); }
+  .dgm[data-state="now"] .link[data-now="bad"] .badge circle { fill: var(--bad); }
+  .dgm[data-state="now"] .link[data-now="missing"] .wire { stroke: var(--bad); stroke-dasharray: 5 7; marker-end: url(#ar-bad); }
+  .dgm[data-state="now"] .link[data-now="missing"] .badge circle { fill: var(--bad); }
+  .dgm[data-state="now"] .link[data-now="warn"] .wire { stroke: var(--warn); marker-end: url(#ar-warn); }
+  .dgm[data-state="now"] .link[data-now="warn"] .badge circle { fill: var(--warn); }
+
+  /* fixed state */
+  .dgm[data-state="fixed"] .link[data-fixed="new"] .wire { stroke: var(--ok); marker-end: url(#ar-ok); }
+  .dgm[data-state="fixed"] .link[data-fixed="new"] .badge circle { fill: var(--ok); }
+  .dgm[data-state="fixed"] .link[data-fixed="gone"] { opacity: .12; }
+
+  .dgm .link.dim { opacity: .18; }
+
+  /* ---------- legend table ---------- */
+
+  .tablewrap { overflow-x: auto; border-top: 1px solid var(--line-soft); }
+  table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 14px; }
+  thead th {
+    text-align: left; font-weight: 500; font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); padding: 12px 14px; background: var(--surface-2);
+    border-bottom: 1px solid var(--line-soft); white-space: nowrap;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  tbody td { padding: 12px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr { transition: background .14s ease; }
+  tbody tr:hover { background: var(--surface-2); }
+  td.num {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums; color: var(--muted); width: 1%; padding-right: 4px;
+  }
+  td.path { font-weight: 500; white-space: nowrap; }
+  td.now, td.fix { color: var(--ink-2); }
+  .arrow { color: var(--muted); padding: 0 2px; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 500; line-height: 1;
+    padding: 5px 9px; border-radius: 999px; white-space: nowrap;
+  }
+  .chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+  .chip.ok { color: var(--ok); background: var(--ok-tint); }
+  .chip.warn { color: var(--warn); background: var(--warn-tint); }
+  .chip.bad { color: var(--bad); background: var(--bad-tint); }
+  .chip.info { color: var(--accent); background: var(--accent-tint); }
+
+  .scope {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    font-size: 13px; color: var(--muted);
+    padding: 12px 16px;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: 9px;
+  }
+  .scope b { color: var(--ink-2); font-weight: 600; }
+
+  .decide {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 10px;
+    padding: 18px 20px;
+    display: grid; gap: 14px;
+  }
+  .decide h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .decide > p { margin: 0; font-size: 14.5px; color: var(--ink-2); max-width: 68ch; }
+  .opts { display: grid; gap: 12px; }
+  @media (min-width: 700px) { .opts { grid-template-columns: 1fr 1fr; } }
+  .opt {
+    border: 1px solid var(--line-soft);
+    border-radius: 9px;
+    padding: 14px 16px;
+    background: var(--surface-2);
+    display: grid; gap: 7px;
+    font-size: 14px;
+  }
+  .opt.pick { border-color: var(--accent); background: var(--accent-tint); }
+  .opt-h { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14.5px; }
+  .opt ul { margin: 0; padding-left: 18px; color: var(--ink-2); display: grid; gap: 4px; }
+
+  /* ---------- problem cards ---------- */
+
+  .cards { display: grid; gap: 16px; }
+  @media (min-width: 760px) { .cards { grid-template-columns: 1fr 1fr; } }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    display: grid;
+    grid-template-rows: auto 1fr;
+    overflow: hidden;
+  }
+  .card-top {
+    padding: 16px 18px 14px;
+    border-bottom: 1px solid var(--line-soft);
+    display: grid; gap: 10px;
+  }
+  .card-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .card-no {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px; font-weight: 600;
+    width: 24px; height: 24px; border-radius: 6px;
+    display: inline-grid; place-items: center; flex: none;
+  }
+  .card.sev-bad .card-no { background: var(--bad); color: var(--on-status); }
+  .card.sev-warn .card-no { background: var(--warn); color: var(--on-status); }
+  .card h3 { margin: 0; font-size: 16.5px; font-weight: 600; letter-spacing: -.005em; line-height: 1.4; }
+  .card-body { padding: 14px 18px 18px; display: grid; gap: 12px; }
+
+  .row { display: grid; grid-template-columns: 54px 1fr; gap: 12px; align-items: start; }
+  .row dt {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); padding-top: 4px;
+  }
+  .row dd { margin: 0; font-size: 14.5px; color: var(--ink-2); }
+  .row dd b { font-weight: 600; color: var(--ink); }
+  .row.fix dd { color: var(--ink); }
+
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .88em;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+
+  .flow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--ink-2);
+    overflow-x: auto;
+    white-space: pre;
+    line-height: 1.7;
+  }
+
+  /* ---------- pattern list ---------- */
+
+  .patterns {
+    display: grid; gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .pat {
+    background: var(--surface);
+    padding: 18px;
+    display: grid; gap: 8px;
+  }
+  @media (min-width: 780px) { .pat { grid-template-columns: 190px 1fr; gap: 8px 24px; align-items: start; } }
+  .pat-name { font-weight: 600; font-size: 15px; display: grid; gap: 4px; }
+  .pat-how {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px; color: var(--accent); font-weight: 500;
+  }
+  .pat-body { font-size: 14.5px; color: var(--ink-2); display: grid; gap: 6px; }
+  .pat-body .why { color: var(--muted); font-size: 13.5px; }
+
+  /* ---------- risk ---------- */
+
+  .risk {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--warn);
+    border-radius: 10px;
+    padding: 18px 20px;
+    display: grid; gap: 10px;
+  }
+  .risk h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .risk p { margin: 0; font-size: 14.5px; color: var(--ink-2); max-width: 68ch; }
+
+  .foot {
+    font-size: 13px; color: var(--muted);
+    border-top: 1px solid var(--line-soft);
+    padding-top: 20px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="head">
+    <div class="eyebrow">게임 파티 매칭 서비스 · 아키텍처 리뷰</div>
+    <h1>서비스끼리 어떻게 말을 거는가</h1>
+    <p class="lede">
+      통신 설계의 <b>큰 틀은 맞다</b>. SQS와 Redis를 나눠 쓴 판단도, 큐를 둘로 쪼갠 것도 적절하다.
+      통신 경로 <b>13개를 전수로 봤고 7개를 고쳐야 한다.</b> 그중 4개는 서비스끼리 주고받는 방식 문제고,
+      3개는 외부 API 호출과 내부 스케줄링에 있다. 한 개는 네가 정해야 결정된다.
+    </p>
+    <div class="stats">
+      <div class="stat"><span class="k">검토한 통신 경로</span><span class="v">13</span></div>
+      <div class="stat is-bad"><span class="k">서비스 간 링크 문제</span><span class="v">4</span></div>
+      <div class="stat is-warn"><span class="k">배선도 밖 문제</span><span class="v">3</span></div>
+      <div class="stat"><span class="k">결정 대기</span><span class="v">1</span></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>배선도</h2>
+    <p class="sec-note">화살표 하나가 서비스 간 통신 하나다. 빨강은 방식이 틀렸거나 없는 것, 주황은 없어도 되는 것.</p>
+
+    <div class="board">
+      <div class="board-bar">
+        <span class="bar-label">Service-to-service links</span>
+        <div class="toggle" role="group" aria-label="배선 상태 전환">
+          <button type="button" class="tg on" data-target="now">현재</button>
+          <button type="button" class="tg" data-target="fixed">수정 후</button>
+        </div>
+      </div>
+
+      <div class="canvas">
+        <svg class="dgm" id="dgm" data-state="now" viewBox="0 0 960 552" role="img" aria-label="다섯 개 서비스 사이의 통신 배선도">
+          <defs>
+            <marker id="ar-neutral" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path class="mk-neutral" d="M0,1 L9,5 L0,9 z"/>
+            </marker>
+            <marker id="ar-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path class="mk-ok" d="M0,1 L9,5 L0,9 z"/>
+            </marker>
+            <marker id="ar-warn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path class="mk-warn" d="M0,1 L9,5 L0,9 z"/>
+            </marker>
+            <marker id="ar-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path class="mk-bad" d="M0,1 L9,5 L0,9 z"/>
+            </marker>
+          </defs>
+
+          <!-- links -->
+          <g class="link" data-id="1" data-now="ok" data-fixed="ok">
+            <path class="wire" d="M176,256 L324,256"/>
+            <path class="wire" d="M324,292 L176,292"/>
+            <g class="badge"><circle cx="250" cy="274" r="13"/><text x="250" y="274">1</text></g>
+          </g>
+
+          <g class="link" data-id="2" data-now="bad" data-fixed="new">
+            <path class="wire" d="M385,332 L385,448"/>
+            <g class="badge"><circle cx="385" cy="390" r="13"/><text x="385" y="390">2</text></g>
+          </g>
+
+          <g class="link" data-id="3" data-now="ok" data-fixed="ok">
+            <path class="wire" d="M440,448 L440,332"/>
+            <g class="badge"><circle cx="440" cy="390" r="13"/><text x="440" y="390">3</text></g>
+          </g>
+
+          <g class="link" data-id="4" data-now="warn" data-fixed="gone">
+            <path class="wire" d="M495,448 L495,332"/>
+            <g class="badge"><circle cx="495" cy="390" r="13"/><text x="495" y="390">4</text></g>
+          </g>
+
+          <g class="link" data-id="5" data-now="ok" data-fixed="ok">
+            <path class="wire" d="M542,250 C594,250 606,190 654,190"/>
+            <g class="badge"><circle cx="600" cy="212" r="13"/><text x="600" y="212">5</text></g>
+          </g>
+
+          <g class="link" data-id="6" data-now="ok" data-fixed="ok">
+            <path class="wire" d="M542,300 C594,300 606,360 654,360"/>
+            <g class="badge"><circle cx="600" cy="332" r="13"/><text x="600" y="332">6</text></g>
+          </g>
+
+          <g class="link" data-id="7" data-now="missing" data-fixed="new">
+            <path class="wire" d="M656,398 C582,398 562,352 544,328"/>
+            <g class="badge"><circle cx="598" cy="376" r="13"/><text x="598" y="376">7</text></g>
+          </g>
+
+          <g class="link" data-id="8" data-now="warn" data-fixed="new">
+            <path class="wire" style="marker-end:none" d="M532,64 L906,64 L906,380"/>
+            <path class="wire" d="M906,190 L866,190"/>
+            <path class="wire" d="M906,380 L866,380"/>
+            <g class="badge"><circle cx="722" cy="64" r="13"/><text x="722" y="64">8</text></g>
+          </g>
+
+          <!-- nodes -->
+          <g class="node">
+            <rect x="24" y="246" width="152" height="56" rx="9"/>
+            <text class="n-title" x="100" y="270">웹 클라이언트</text>
+            <text class="n-sub" x="100" y="288">React · PWA</text>
+          </g>
+
+          <g class="node">
+            <rect x="340" y="36" width="192" height="56" rx="9"/>
+            <text class="n-title" x="436" y="60">예약 매칭 RunTask</text>
+            <text class="n-sub" x="436" y="78">KST 00시 배치</text>
+          </g>
+
+          <g class="node hub">
+            <rect x="330" y="218" width="212" height="114" rx="10"/>
+            <text class="n-title" x="436" y="264">Core API + SSE</text>
+            <text class="n-sub" x="436" y="284">요청 · 상태 · 확정 · 실시간 전달</text>
+            <text class="n-sub" x="436" y="302">모든 링크가 여기로 모인다</text>
+          </g>
+
+          <g class="node">
+            <rect x="340" y="448" width="192" height="56" rx="9"/>
+            <text class="n-title" x="436" y="472">즉시 매칭 서비스</text>
+            <text class="n-sub" x="436" y="490">대기열 · 후보 구성 · 선점</text>
+          </g>
+
+          <g class="node">
+            <rect x="654" y="160" width="212" height="60" rx="9"/>
+            <text class="n-title" x="760" y="186">Notification Worker</text>
+            <text class="n-sub" x="760" y="204">Web Push 발송</text>
+          </g>
+
+          <g class="node">
+            <rect x="654" y="350" width="212" height="60" rx="9"/>
+            <text class="n-title" x="760" y="376">Discord Worker</text>
+            <text class="n-sub" x="760" y="394">채널 생성 · 권한 · 삭제</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>경로</th>
+              <th>현재</th>
+              <th>수정 후</th>
+            </tr>
+          </thead>
+          <tbody id="legend">
+            <tr data-link="1">
+              <td class="num">1</td>
+              <td class="path">웹 클라이언트 <span class="arrow">↔</span> Core API</td>
+              <td class="now"><span class="chip ok">정상</span> 동기 HTTP · SSE</td>
+              <td class="fix">그대로</td>
+            </tr>
+            <tr data-link="2">
+              <td class="num">2</td>
+              <td class="path">Core API <span class="arrow">→</span> 즉시 매칭</td>
+              <td class="now"><span class="chip bad">방식 틀림</span> 동기 HTTP</td>
+              <td class="fix">Redis 대기열에 직접 push</td>
+            </tr>
+            <tr data-link="3">
+              <td class="num">3</td>
+              <td class="path">즉시 매칭 <span class="arrow">→</span> Core API</td>
+              <td class="now"><span class="chip ok">정상</span> Redis Pub/Sub · 제안 생성</td>
+              <td class="fix">그대로 + 클라 폴백 폴링</td>
+            </tr>
+            <tr data-link="4">
+              <td class="num">4</td>
+              <td class="path">즉시 매칭 <span class="arrow">→</span> Core API</td>
+              <td class="now"><span class="chip warn">불필요</span> 대기 만료 통보</td>
+              <td class="fix">링크 삭제 — Core API가 직접 판정</td>
+            </tr>
+            <tr data-link="5">
+              <td class="num">5</td>
+              <td class="path">Core API <span class="arrow">→</span> Notification</td>
+              <td class="now"><span class="chip ok">정상</span> Outbox → SQS</td>
+              <td class="fix">그대로</td>
+            </tr>
+            <tr data-link="6">
+              <td class="num">6</td>
+              <td class="path">Core API <span class="arrow">→</span> Discord</td>
+              <td class="now"><span class="chip ok">정상</span> Outbox → SQS</td>
+              <td class="fix">그대로</td>
+            </tr>
+            <tr data-link="7">
+              <td class="num">7</td>
+              <td class="path">Discord <span class="arrow">→</span> Core API</td>
+              <td class="now"><span class="chip bad">링크 없음</span> 채널 생성 결과를 알릴 길이 없음</td>
+              <td class="fix">Redis Pub/Sub 신설</td>
+            </tr>
+            <tr data-link="8">
+              <td class="num">8</td>
+              <td class="path">RunTask <span class="arrow">→</span> Worker 2개</td>
+              <td class="now"><span class="chip warn">일관성 깨짐</span> SQS 직접 발행</td>
+              <td class="fix">Outbox 경유로 통일</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>배선도 안 — 고칠 것 넷</h2>
+    <p class="sec-note">서비스가 서로에게 말을 거는 방식의 문제. 위 배선도의 ②④⑦⑧에 해당한다.</p>
+
+    <div class="cards">
+
+      <article class="card sev-bad">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="card-no">2</span>
+            <span class="chip bad">방식 틀림</span>
+          </div>
+          <h3>Core API가 즉시 매칭을 동기 HTTP로 부른다</h3>
+        </div>
+        <div class="card-body">
+          <dl class="row">
+            <dt>증상</dt>
+            <dd>매칭 서비스가 배포 중이거나 죽어 있으면 <b>매칭 신청 API 자체가 실패</b>한다. Core API는 멀쩡한데도.</dd>
+          </dl>
+          <dl class="row">
+            <dt>이유</dt>
+            <dd>가용성이 두 서비스의 곱이 된다. 응답을 안 기다리게 바꿔도, 그 순간 상대가 죽어 있으면 요청이 <b>조용히 사라진다</b> — 에러조차 안 나서 더 나쁘다.</dd>
+          </dl>
+          <dl class="row fix">
+            <dt>수정</dt>
+            <dd>Core API가 Redis 대기열에 직접 넣고, 매칭 서비스는 그 대기열만 폴링한다. <b>부를 대상 자체가 사라진다.</b></dd>
+          </dl>
+          <div class="flow">Core API  →  Redis 대기열  →  즉시 매칭
+                 ↑ 매칭이 죽어도 여기 그대로 쌓임</div>
+        </div>
+      </article>
+
+      <article class="card sev-bad">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="card-no">7</span>
+            <span class="chip bad">링크 없음</span>
+          </div>
+          <h3>Discord Worker가 Core API에 말을 걸 수 없다</h3>
+        </div>
+        <div class="card-body">
+          <dl class="row">
+            <dt>증상</dt>
+            <dd>채널을 만들고 나서 <b>“다 됐다”를 알릴 방법이 없다.</b> 아키텍처 그림에서 Discord Worker를 빠져나가는 화살표는 Discord API 방향뿐이다.</dd>
+          </dl>
+          <dl class="row">
+            <dt>근거</dt>
+            <dd>명세 <code>5.2.8</code> 생성 완료 이벤트 발행, <code>1.8.12</code> Discord 연결 상태 SSE 전달 — 둘 다 이 링크를 전제로 쓰여 있다.</dd>
+          </dl>
+          <dl class="row fix">
+            <dt>수정</dt>
+            <dd>링크 3과 <b>같은 Redis Pub/Sub</b>을 쓴다. 목적이 같으니 메커니즘도 같아야 한다 — 새 통신 방식을 늘리지 않는 게 핵심.</dd>
+          </dl>
+          <div class="flow">Discord Worker
+  ① party_discord_channel INSERT
+  ② PUBLISH sse:party:{partyId}
+         ↓
+Core API 구독 → SSE로 파티원 전원</div>
+        </div>
+      </article>
+
+      <article class="card sev-warn">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="card-no">8</span>
+            <span class="chip warn">일관성 깨짐</span>
+          </div>
+          <h3>예약 RunTask만 Outbox를 건너뛴다</h3>
+        </div>
+        <div class="card-body">
+          <dl class="row">
+            <dt>증상</dt>
+            <dd>Core API는 <code>outbox_event</code>를 거치는데 RunTask만 SQS로 직접 쏜다. DB 커밋과 메시지 발행이 <b>따로 논다.</b></dd>
+          </dl>
+          <dl class="row">
+            <dt>이유</dt>
+            <dd>party 저장은 됐는데 발행이 실패하면 <b>채널도 알림도 영영 안 온다.</b> 반대면 없는 파티의 알림이 나간다. 둘을 한 트랜잭션으로 묶을 방법은 없다.</dd>
+          </dl>
+          <dl class="row fix">
+            <dt>수정</dt>
+            <dd>RunTask도 <code>outbox_event</code> INSERT까지만 하고 끝낸다. 발행은 릴레이가 맡는다. <b>발행 경로가 한 곳으로 모이고</b> 재시도·DLQ도 한 번만 만들면 된다.</dd>
+          </dl>
+        </div>
+      </article>
+
+      <article class="card sev-warn">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="card-no">4</span>
+            <span class="chip warn">불필요</span>
+          </div>
+          <h3>대기 만료를 굳이 매칭 서비스가 통보한다</h3>
+        </div>
+        <div class="card-body">
+          <dl class="row">
+            <dt>증상</dt>
+            <dd>매칭 서비스가 만료를 발견해 Core API에 알리고, Core API가 상태를 바꾼다. <b>왕복이 한 번 돈다.</b></dd>
+          </dl>
+          <dl class="row">
+            <dt>이유</dt>
+            <dd>만료는 <code>requested_at + max_wait_minutes</code>만 보면 된다. <b>남과 비교할 필요가 없는 판단</b>이라 매칭 서비스가 알 이유가 없다.</dd>
+          </dl>
+          <dl class="row fix">
+            <dt>수정</dt>
+            <dd>Core API가 10초마다 직접 스캔한다. 명세 1.4 도입부의 “혼자 판정 가능한 건 Core API” 원칙 그대로. 같은 이유로 <b>대기 인원 집계</b>도 Core API가 Redis에서 바로 센다.</dd>
+          </dl>
+          <div class="flow">UPDATE match_request SET status = 'FAILED'
+WHERE status = 'QUEUED'
+  AND requested_at + max_wait &lt; now();</div>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>배선도 밖 — 고칠 것 셋</h2>
+    <p class="sec-note">서비스 사이가 아니라 <b>바깥으로 나가는 호출</b>과 <b>서비스 안에서 스스로 돌리는 작업</b>에 있는 문제. 배선도에는 안 그려지지만 요청 방식 문제인 건 같다.</p>
+
+    <div class="scope">
+      <span><b>검토 범위</b></span>
+      <span>서비스 간 링크 8</span><span class="arrow">·</span>
+      <span>외부 API 호출 3</span><span class="arrow">·</span>
+      <span>내부 예약 작업 2</span>
+      <span class="arrow">=</span><span><b>13개 경로</b></span>
+    </div>
+
+    <div class="cards">
+
+      <article class="card sev-bad">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="card-no">A</span>
+            <span class="chip info">외부 API</span>
+            <span class="chip bad">막힘</span>
+          </div>
+          <h3>채널 삭제 예약을 SQS로 하려 하면 아예 막힌다</h3>
+        </div>
+        <div class="card-body">
+          <dl class="row">
+            <dt>증상</dt>
+            <dd>명세 <code>5.5.2</code>는 “삭제 예정시각에 실행할 작업을 등록한다”인데 <b>어디에 등록하는지가 없다.</b></dd>
+          </dl>
+          <dl class="row">
+            <dt>함정</dt>
+            <dd>SQS 지연 메시지의 최대값은 <b>900초, 즉 15분</b>이다. 필요한 지연은 파티 종료 + 24시간. <b>애초에 불가능하다</b> — 모르고 시작하면 하루를 버린다.</dd>
+          </dl>
+          <dl class="row fix">
+            <dt>수정</dt>
+            <dd>DB 폴링. <code>party_discord_channel</code>에 <code>delete_after</code>와 <code>deleted_at</code>이 <b>이미 있다.</b> 1시간 주기면 충분하다 — 24시간 뒤 삭제인데 1시간 오차는 의미가 없다.</dd>
+          </dl>
+          <div class="flow">SELECT * FROM party_discord_channel
+WHERE delete_after &lt; now()
+  AND deleted_at IS NULL
+  AND status = 'CREATED';</div>
+        </div>
+      </article>
+
+      <article class="card sev-warn">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="card-no">B</span>
+            <span class="chip info">외부 API</span>
+            <span class="chip warn">격리 없음</span>
+          </div>
+          <h3>Riot API를 사용자 요청 한가운데서 동기로 부른다</h3>
+        </div>
+        <div class="card-body">
+          <dl class="row">
+            <dt>증상</dt>
+            <dd>Riot이 5초 걸리면 <b>사용자도 5초를 기다린다.</b> Riot이 느려지는 순간 매칭 신청 API 전체가 같이 느려진다.</dd>
+          </dl>
+          <dl class="row">
+            <dt>이유</dt>
+            <dd>명세 <code>1.3.12</code>에 “장애 시 저장된 정보를 쓴다”는 <b>폴백은 있는데</b>, 무엇을 장애로 볼지 — 즉 타임아웃 기준이 없다. 그러면 폴백이 발동을 안 한다.</dd>
+          </dl>
+          <dl class="row fix">
+            <dt>수정</dt>
+            <dd>타임아웃 <b>2초</b>를 넘으면 즉시 캐시로 폴백. 연속 실패가 쌓이면 <b>서킷 브레이커</b>로 호출 자체를 건너뛴다. <code>1.3.13</code> 동시 조회 통합은 Redis 락으로 처리.</dd>
+          </dl>
+        </div>
+      </article>
+
+      <article class="card sev-warn">
+        <div class="card-top">
+          <div class="card-meta">
+            <span class="card-no">C</span>
+            <span class="chip info">유실 대비</span>
+            <span class="chip warn">복구 경로 없음</span>
+          </div>
+          <h3>Redis Pub/Sub은 아무도 안 듣고 있으면 그냥 사라진다</h3>
+        </div>
+        <div class="card-body">
+          <dl class="row">
+            <dt>증상</dt>
+            <dd>매칭이 제안을 발행한 순간 Core API가 배포로 재시작 중이면 <b>메시지가 증발한다.</b> 사용자는 제안 화면을 못 보고, 아무도 응답하지 않은 채 만료된다.</dd>
+          </dl>
+          <dl class="row">
+            <dt>절반은 막혀 있음</dt>
+            <dd>제안은 <code>match_offer</code>에 남아 있어서 SSE를 <b>재연결하면</b> <code>1.8.14</code>로 복구된다. 문제는 연결이 멀쩡할 때다 — 재연결 트리거가 없어 영영 모른다.</dd>
+          </dl>
+          <dl class="row fix">
+            <dt>수정</dt>
+            <dd>클라이언트가 <b>대기·제안 상태일 때만</b> 30초마다 현재 상태를 재조회한다. <b>코드 10줄</b>이면 되고, Pub/Sub을 Stream으로 갈아엎는 것보다 훨씬 싸다.</dd>
+          </dl>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>네가 정해야 하는 것 하나</h2>
+
+    <div class="decide">
+      <h3>파티 제안을 RDS에 쓰는 주인이 누구인가</h3>
+      <p>
+        매칭 서비스가 RDS를 <b>읽을</b> 이유는 없다는 건 정리됐다. 요청 조건을 Core API가 정제해서 넘겨주니까.
+        남은 건 <code>match_offer</code>·<code>offer_participant</code>를 <b>누가 INSERT 하느냐</b>다. 이게 정해져야 링크 ③의 성격이 확정된다.
+      </p>
+      <div class="opts">
+        <div class="opt">
+          <div class="opt-h">안 1 · 매칭 서비스가 직접 쓴다</div>
+          <ul>
+            <li>명세 2.7 그대로라 수정 불필요</li>
+            <li>매칭에 RDS 커넥션과 스키마 지식이 필요</li>
+            <li>선점 실패 시 롤백을 매칭이 처리 (2.6.7)</li>
+          </ul>
+        </div>
+        <div class="opt pick">
+          <div class="opt-h">안 2 · Core API가 쓴다 <span class="chip info">권장</span></div>
+          <ul>
+            <li>매칭 서비스의 <b>RDS 커넥션이 0개</b>가 된다</li>
+            <li>매칭 담당자가 DB 스키마를 몰라도 됨</li>
+            <li>매칭 엔진이 입력→출력 순수 함수 — 2.4.10 “동일 입력 동일 결과”가 단위 테스트로 바로 증명됨</li>
+            <li>대신 명세 2.7을 “이벤트 발행만”으로 고쳐야 함</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>수정 후 남는 통신 방식은 셋</h2>
+    <p class="sec-note">넷에서 셋으로 준다. 사라지는 건 <b>서비스 간 동기 HTTP</b> — 하나도 남지 않는다.</p>
+
+    <div class="patterns">
+      <div class="pat">
+        <div class="pat-name">작업 지시<span class="pat-how">Redis 자료구조</span></div>
+        <div class="pat-body">
+          <div>Core API <span class="arrow">→</span> 즉시 매칭</div>
+          <div class="why">순서가 필요하고, 유실되면 안 되고, 소비자가 폴링으로 가져간다. 부르는 쪽이 받는 쪽의 존재를 몰라도 된다.</div>
+        </div>
+      </div>
+      <div class="pat">
+        <div class="pat-name">실시간 통보<span class="pat-how">Redis Pub/Sub</span></div>
+        <div class="pat-body">
+          <div>즉시 매칭 <span class="arrow">→</span> Core API &nbsp;·&nbsp; Discord <span class="arrow">→</span> Core API</div>
+          <div class="why">여러 Core API 인스턴스 중 그 사용자가 붙어 있는 곳으로 흘려보내야 한다. 팬아웃이 필요하고 지연에 민감하다. 유실돼도 DB에 원본이 있어 복구된다.</div>
+        </div>
+      </div>
+      <div class="pat">
+        <div class="pat-name">외부 부수효과<span class="pat-how">Outbox → SQS</span></div>
+        <div class="pat-body">
+          <div>Core API · RunTask <span class="arrow">→</span> Worker 2개</div>
+          <div class="why">유실되면 알림을 못 받거나 채널이 안 생긴다. 외부 API 호출이라 재시도와 DLQ가 필요하고, 응답을 기다릴 이유는 없다.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>대신 생기는 리스크</h2>
+    <div class="risk">
+      <h3>통신의 절반이 Redis를 탄다</h3>
+      <p>
+        Redis가 죽으면 대기열이 증발하고 Pub/Sub이 끊긴다. ElastiCache 레플리카가 30초~1분 안에 페일오버하지만,
+        그동안 매칭은 멈춘다. <b>Core API가 <code>QUEUED</code> 요청을 대기열에 다시 채워 넣는 복구 경로</b>만 있으면
+        데이터는 하나도 잃지 않는다 — 원본은 항상 RDS에 있으니까.
+      </p>
+      <p>
+        다만 배치 자체는 잘 잡혔다. <b>잃으면 안 되는 것은 SQS</b>(관리형이라 사실상 안 죽는다), <b>빨라야 하는 것은 Redis</b>(죽어도 다시 채우면 된다).
+        반대로 놨다면 그게 진짜 문제였을 것이다.
+      </p>
+    </div>
+  </section>
+
+  <p class="foot">
+    기능 명세서 대주제 1–5 · AWS MVP 아키텍처 기준 · 통신 경로 13개 전수 검토
+    <br>서비스 간 링크 8 · 외부 API 호출 3 · 내부 예약 작업 2
+  </p>
+
+</div>
+
+<script>
+  (function () {
+    var dgm = document.getElementById('dgm');
+    var legend = document.getElementById('legend');
+
+    document.querySelectorAll('.tg').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.tg').forEach(function (b) { b.classList.remove('on'); });
+        btn.classList.add('on');
+        dgm.setAttribute('data-state', btn.dataset.target);
+      });
+    });
+
+    var links = Array.prototype.slice.call(dgm.querySelectorAll('.link'));
+
+    function focusLink(id) {
+      links.forEach(function (l) {
+        l.classList.toggle('dim', id !== null && l.dataset.id !== id);
+      });
+    }
+
+    legend.querySelectorAll('tr').forEach(function (tr) {
+      tr.addEventListener('mouseenter', function () { focusLink(tr.dataset.link); });
+      tr.addEventListener('mouseleave', function () { focusLink(null); });
+    });
+  })();
+</script>

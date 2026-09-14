@@ -1,0 +1,173 @@
+package com.queuemate.matching.service;
+
+import com.queuemate.matching.domain.ProposalResult;
+import com.queuemate.matching.rule.lol.LolPartyKeys;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+/**
+ * 제안 수락 / 거절.
+ *
+ * <p>판정은 전부 Lua 안에서 한다. 이 클래스가 하는 일은 <b>키를 조립해 스크립트에
+ * 넘기고 돌아온 문자열을 enum 으로 바꾸는 것</b>뿐이다.
+ *
+ * <h2>지켜지는 것</h2>
+ * <ul>
+ *   <li><b>INV-4</b> — 참가자 전원이 수락하기 전에는 확정하지 않는다.
+ *       {@code accept-proposal.lua} 가 {@code SCARD} 로 세어 {@code target} 과 비교한다.
+ *   <li><b>INV-5</b> — 확정된 제안은 다시 뒤집히지 않는다. 두 스크립트 모두 쓰기 전에
+ *       {@code status} 를 먼저 본다. 거절된 제안은 {@code status} 자체가 지워져
+ *       ({@code decline-proposal.lua} 참고) 확정 경로에 아예 들어오지 못한다.
+ *   <li><b>원자성 규칙</b> (CLAUDE.md §4) — {@code GET → 애플리케이션 판단 → SET} 으로
+ *       위 둘을 지키지 않는다. 다섯 명이 동시에 누르면 확인과 쓰기 사이가 벌어져
+ *       둘 다 "내가 마지막이다"라고 판단한다. <b>수락 집계는 Lua 한 덩어리다</b>
+ *       (docs/11 #28).
+ *   <li><b>멱등</b> — <b>수락만</b> 멱등이다. 같은 수락이 두 번 들어와도 답이 같다.
+ *       <b>거절은 멱등이 아니다</b> — 재시도는 {@link ProposalResult#NOT_FOUND} 를 받는다.
+ *       왜 그래도 되는지는 {@code decline-proposal.lua} 의 "멱등성" 절에 있다.
+ * </ul>
+ *
+ * <h2>아직 없는 것</h2>
+ * <ul>
+ *   <li>확정 후속 처리 — {@code ProposalConfirmed.fifo} 발행, 파티/색인/활성 요청 정리,
+ *       {@code MATCH_CONFIRMED} 알림. 아래 TODO 참고.
+ *   <li>만료 sweeper — {@code expiresAt} 은 정원이 찰 때 파티 HASH 에 적히지만
+ *       그것을 읽어 만료시키는 주체가 아직 없다. 만료된 제안에 수락이 들어오면
+ *       지금은 그대로 확정된다.
+ * </ul>
+ *
+ * <h2>제안 상태를 어디에 두는가</h2>
+ * <p>{@code docs/07 §5-1} 은 {@code qm:proposal:{id}} / {@code qm:proposal:members:{id}} 를
+ * 따로 두라고 하지만 <b>따르지 않는다.</b> 그 설계는 proposal 과 party 를 별개로 보는
+ * 전제인데, 이 제품은 둘을 같은 것으로 정했다(CLAUDE.md §1). 그래서 {@code status} 와
+ * {@code expiresAt} 은 파티 HASH 에 얹고, 수락자만 {@code qm:proposal:accepts:{partyId}}
+ * SET 에 담는다. 문서와의 이 차이는 {@code docs/11} 에 기록해야 한다.
+ *
+ * <p><b>제안 id 는 partyId 다.</b> proposal 하나는 언제나 하나의 party 를 뜻하므로
+ * (CLAUDE.md §1) 별도 식별자를 두지 않는다. {@code MATCH_PROPOSAL_CREATED} 알림이
+ * payload 에 싣는 {@code partyId} 가 클라이언트가 여기로 되돌려 보내는 값이다.
+ */
+@Service
+@RequiredArgsConstructor
+public class ProposalService {
+
+    private final StringRedisTemplate redis;
+
+    /**
+     * {@code RedisScript<String>} 빈이 둘이라 Spring 은 <b>필드 이름</b>으로 고른다.
+     * 이 이름은 {@code RedisConfig} 의 빈 메서드 이름과 같아야 한다.
+     */
+    private final RedisScript<String> acceptProposalScript;
+    private final RedisScript<String> declineProposalScript;
+
+    private final MatchCancelService matchCancelService;
+    /**
+     * 수락자 집합. 제안 상태(status/expiresAt)는 파티 HASH 에 있으므로 따로 두는 키는
+     * 이것 하나다.
+     *
+     * <p>파티 키 접두사는 {@link LolPartyKeys#PARTY_PREFIX} 를 그대로 쓴다. 배정 Lua 와
+     * <b>문자열까지 같은 키</b>를 만들어야 하는데, 접두사를 여기 한 번 더 적어 두면
+     * 한쪽만 고쳐도 컴파일은 통과하고 그때부터 아무도 못 찾는 키를 만들게 된다.
+     * (이름이 Lol* 인 것은 그 클래스가 LoL 배정용이라서다. 접두사 자체는 게임을 가리지
+     * 않으며, 게임이 늘어 접두사를 공용 자리로 옮길 때 여기도 함께 따라간다.)
+     */
+    private static final String ACCEPTS_PREFIX = "qm:proposal:accepts:";
+
+    /**
+     * 한 참가자의 수락을 기록한다. 그 수락으로 전원이 차면 확정까지 한다.
+     *
+     * <p>같은 요청이 두 번 들어와도 결과가 같아야 한다 — 네트워크가 끊겨 응답을 못 읽은
+     * 클라이언트는 재시도하는 것이 정상이다. "이 사용자의 수락 상태를 ACCEPTED 로 둔다"는
+     * 멱등 연산으로 설계하면 재시도가 안전해진다.
+     *
+     * <p>스크립트가 {@code SADD} 결과로 끊지 않고 매번 다시 세기 때문에 재시도해도 답이
+     * 같다. 자세한 근거는 {@code accept-proposal.lua} 머리 주석에 있다.
+     *
+     * <p><b>TODO</b> — 확정({@link ProposalResult#CONFIRMED}) 뒤에 와야 할 것들. 이번
+     * 범위가 아니라 일부러 비워 뒀다.
+     * <ul>
+     *   <li>{@code ProposalConfirmed.fifo} 발행 (outbox). 파티를 DB 에 만드는 것은
+     *       {@code app:platform} 이다 (CLAUDE.md §9)
+     *   <li>{@code MATCH_CONFIRMED} 알림을 참가자 전원에게 발행
+     *   <li>확정된 파티의 색인 / 활성 요청 정리
+     * </ul>
+     *
+     * @param proposalId 제안 id (= partyId)
+     * @param userId     수락한 사용자
+     */
+    public ProposalResult accept(String proposalId, String userId) {
+        return run(acceptProposalScript, proposalId, userId);
+    }
+
+    /**
+     * 한 참가자의 거절을 기록하고 제안을 깬다.
+     *
+     * <p>거절로 제안이 깨져도 <b>수락했던 나머지 사람들은 큐에 남긴다.</b> 그들의
+     * 활성 요청까지 지우면, 잘못은 거절한 사람이 했는데 매칭을 기다리던 사람들이
+     * 함께 빠진다. 취소({@code leave-party.lua})와 다른 점이 이것이다.
+     *
+     * <p><b>스크립트는 {@code status} 를 {@code DECLINED} 로 바꾸지 않는다. 지운다.</b>
+     * {@code status}/{@code expiresAt} 과 수락자 집합만 지우고 파티와 참가자는 그대로 둔다.
+     * 그래야 거절자가 빠진 자리가 다시 찼을 때 {@code join-party*.lua} 의
+     * {@code HSETNX status 'PENDING'} 이 다시 성공해 새 제안이 열린다. 상태를 남기면
+     * {@code HSETNX} 가 0 을 돌려주어 {@code DECLINED} 로 굳은 좀비 파티가 된다 —
+     * 자세한 근거는 {@code decline-proposal.lua} 머리 주석에 있다.
+     *
+     * <p><b>거절한 본인은 큐에서 뺀다.</b> 스크립트가 답을 돌려준 뒤
+     * {@link MatchCancelService#cancel(String, String)} 을 부른다. 제안을 거절한 사람을
+     * 같은 파티에 그대로 두면 바로 다시 매칭될 수 있기 때문이다.
+     *
+     * <p><b>거절은 멱등이 아니다.</b> 첫 호출만 {@link ProposalResult#DECLINED} 이고,
+     * 같은 거절의 재시도는 {@code status} 가 이미 지워졌으므로
+     * {@link ProposalResult#NOT_FOUND} 다. 두 답 모두 클라이언트가 갈 화면은 같다
+     * (대기 화면 복귀) — 판단 근거는 스크립트 머리 주석에 적어 두었다.
+     *
+     * <p><b>TODO</b> — 거절 뒤에 와야 할 것들. 이번 범위가 아니다.
+     * <ul>
+     *   <li>남은 사람들에게 제안이 깨졌음을 알리기 ({@code MATCH_PROPOSAL_EXPIRED} 계열)
+     * </ul>
+     *
+     * @param proposalId 제안 id (= partyId)
+     * @param userId     거절한 사용자
+     * @param requestId  거절한 사용자의 활성 요청 id. 큐에서 빼는 compare-and-delete 에 쓴다
+     */
+    public ProposalResult decline(String proposalId, String userId, String requestId) {
+
+        ProposalResult answer = run(declineProposalScript, proposalId, userId);
+        if (answer == ProposalResult.DECLINED) {
+            matchCancelService.cancel(userId, requestId);
+        }
+        return answer;
+    }
+
+    /**
+     * 스크립트를 부르고 답을 enum 으로 바꾼다.
+     *
+     * <p><b>스크립트가 {@link ProposalResult} 에 없는 값을 돌려주면 여기서
+     * {@link IllegalArgumentException} 이 나고 500 으로 나간다.</b> 반환 문자열은
+     * Lua 안에 리터럴로 박혀 있어 컴파일러가 맞춰 주지 않으므로, 스크립트의 반환 문자열을
+     * 고칠 때는 이 enum 도 함께 봐야 한다. 잡아서 다른 결과로 뭉개지 않는 것은 의도다 —
+     * 계약이 어긋난 것을 성공처럼 보이게 하면 그 순간부터 아무도 못 찾는다.
+     *
+     * <p>스크립트가 {@code nil} 을 돌려주는 경로는 없다. 모든 분기가 문자열을 반환한다.
+     */
+    private ProposalResult run(RedisScript<String> script, String proposalId, String userId) {
+        String answer = redis.execute(script, keys(proposalId), userId);
+        return ProposalResult.valueOf(answer);
+    }
+
+    /**
+     * KEYS[1] = 파티 HASH, KEYS[2] = 수락자 SET.
+     *
+     * <p>proposalId 를 그대로 KEYS 에 넣으면 안 된다 — 클라이언트가 돌려보내는 값은
+     * partyId(UUID)이고 Redis 키가 아니다.
+     */
+    private List<String> keys(String proposalId) {
+        return List.of(LolPartyKeys.PARTY_PREFIX + proposalId, ACCEPTS_PREFIX + proposalId);
+    }
+
+}
