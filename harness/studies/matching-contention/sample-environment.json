@@ -1,0 +1,9 @@
+{
+  "postgresImage" : "postgres:16-alpine",
+  "monitorDelayMs" : 10,
+  "javaVersion" : "21.0.11",
+  "hikariMaximumPoolSize" : 10,
+  "matcherThreads" : 4,
+  "availableProcessors" : 10,
+  "redisImage" : "redis:7-alpine"
+}

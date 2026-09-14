@@ -1,0 +1,255 @@
+[ {
+  "round" : "round-1",
+  "users" : 100,
+  "modes" : 1,
+  "clientConcurrency" : 32,
+  "elapsedMs" : 1435.245125,
+  "http201" : 100,
+  "errors" : [ ],
+  "registration" : {
+    "maxMs" : 424.096625,
+    "count" : 100,
+    "p50Ms" : 364.16175,
+    "p95Ms" : 405.862417
+  },
+  "proposalObservedAfterRequestStart" : {
+    "maxMs" : 1213.905417,
+    "count" : 100,
+    "p50Ms" : 757.172208,
+    "p95Ms" : 1175.704125
+  },
+  "registrationLockCall" : {
+    "maxMs" : 215.675042,
+    "count" : 100,
+    "p50Ms" : 57.916875,
+    "p95Ms" : 209.763833
+  },
+  "matcherLockCall" : {
+    "maxMs" : 192.249833,
+    "count" : 25,
+    "p50Ms" : 76.457375,
+    "p95Ms" : 181.895
+  },
+  "pgAdvisoryWaitersMax" : 9,
+  "pgAdvisoryWaiterSamples" : 810,
+  "monitorSamples" : 119,
+  "hikariPendingMax" : 26,
+  "proposedUsers" : 100,
+  "queuedUsers" : 0,
+  "proposals" : 20,
+  "duplicateProposalUsers" : 0,
+  "wrongPartySize" : 0
+}, {
+  "round" : "round-1",
+  "users" : 100,
+  "modes" : 2,
+  "clientConcurrency" : 32,
+  "elapsedMs" : 674.531875,
+  "http201" : 100,
+  "errors" : [ ],
+  "registration" : {
+    "maxMs" : 273.709041,
+    "count" : 100,
+    "p50Ms" : 166.31125,
+    "p95Ms" : 195.765042
+  },
+  "proposalObservedAfterRequestStart" : {
+    "maxMs" : 599.608209,
+    "count" : 100,
+    "p50Ms" : 328.270083,
+    "p95Ms" : 542.714833
+  },
+  "registrationLockCall" : {
+    "maxMs" : 84.495417,
+    "count" : 100,
+    "p50Ms" : 28.997417,
+    "p95Ms" : 79.480167
+  },
+  "matcherLockCall" : {
+    "maxMs" : 71.716,
+    "count" : 26,
+    "p50Ms" : 15.197625,
+    "p95Ms" : 64.835209
+  },
+  "pgAdvisoryWaitersMax" : 8,
+  "pgAdvisoryWaiterSamples" : 315,
+  "monitorSamples" : 57,
+  "hikariPendingMax" : 26,
+  "proposedUsers" : 100,
+  "queuedUsers" : 0,
+  "proposals" : 20,
+  "duplicateProposalUsers" : 0,
+  "wrongPartySize" : 0
+}, {
+  "round" : "round-2",
+  "users" : 100,
+  "modes" : 2,
+  "clientConcurrency" : 32,
+  "elapsedMs" : 645.879958,
+  "http201" : 100,
+  "errors" : [ ],
+  "registration" : {
+    "maxMs" : 279.463583,
+    "count" : 100,
+    "p50Ms" : 166.904792,
+    "p95Ms" : 209.071791
+  },
+  "proposalObservedAfterRequestStart" : {
+    "maxMs" : 563.116292,
+    "count" : 100,
+    "p50Ms" : 317.5145,
+    "p95Ms" : 539.528375
+  },
+  "registrationLockCall" : {
+    "maxMs" : 99.755,
+    "count" : 100,
+    "p50Ms" : 27.897125,
+    "p95Ms" : 79.962083
+  },
+  "matcherLockCall" : {
+    "maxMs" : 81.3425,
+    "count" : 26,
+    "p50Ms" : 18.530083,
+    "p95Ms" : 80.7495
+  },
+  "pgAdvisoryWaitersMax" : 8,
+  "pgAdvisoryWaiterSamples" : 318,
+  "monitorSamples" : 54,
+  "hikariPendingMax" : 26,
+  "proposedUsers" : 100,
+  "queuedUsers" : 0,
+  "proposals" : 20,
+  "duplicateProposalUsers" : 0,
+  "wrongPartySize" : 0
+}, {
+  "round" : "round-2",
+  "users" : 100,
+  "modes" : 1,
+  "clientConcurrency" : 32,
+  "elapsedMs" : 1151.20325,
+  "http201" : 100,
+  "errors" : [ ],
+  "registration" : {
+    "maxMs" : 320.429792,
+    "count" : 100,
+    "p50Ms" : 295.480709,
+    "p95Ms" : 317.167625
+  },
+  "proposalObservedAfterRequestStart" : {
+    "maxMs" : 1029.432167,
+    "count" : 100,
+    "p50Ms" : 604.973125,
+    "p95Ms" : 981.49975
+  },
+  "registrationLockCall" : {
+    "maxMs" : 177.423375,
+    "count" : 100,
+    "p50Ms" : 47.916,
+    "p95Ms" : 149.775792
+  },
+  "matcherLockCall" : {
+    "maxMs" : 151.7525,
+    "count" : 25,
+    "p50Ms" : 70.170125,
+    "p95Ms" : 149.533209
+  },
+  "pgAdvisoryWaitersMax" : 9,
+  "pgAdvisoryWaiterSamples" : 671,
+  "monitorSamples" : 97,
+  "hikariPendingMax" : 26,
+  "proposedUsers" : 100,
+  "queuedUsers" : 0,
+  "proposals" : 20,
+  "duplicateProposalUsers" : 0,
+  "wrongPartySize" : 0
+}, {
+  "round" : "round-3",
+  "users" : 100,
+  "modes" : 1,
+  "clientConcurrency" : 32,
+  "elapsedMs" : 1074.559,
+  "http201" : 100,
+  "errors" : [ ],
+  "registration" : {
+    "maxMs" : 308.629583,
+    "count" : 100,
+    "p50Ms" : 272.119209,
+    "p95Ms" : 306.857667
+  },
+  "proposalObservedAfterRequestStart" : {
+    "maxMs" : 963.568417,
+    "count" : 100,
+    "p50Ms" : 542.577458,
+    "p95Ms" : 932.019833
+  },
+  "registrationLockCall" : {
+    "maxMs" : 165.631083,
+    "count" : 100,
+    "p50Ms" : 45.613833,
+    "p95Ms" : 144.746417
+  },
+  "matcherLockCall" : {
+    "maxMs" : 146.391834,
+    "count" : 25,
+    "p50Ms" : 63.527958,
+    "p95Ms" : 136.013625
+  },
+  "pgAdvisoryWaitersMax" : 9,
+  "pgAdvisoryWaiterSamples" : 617,
+  "monitorSamples" : 91,
+  "hikariPendingMax" : 26,
+  "proposedUsers" : 100,
+  "queuedUsers" : 0,
+  "proposals" : 20,
+  "duplicateProposalUsers" : 0,
+  "wrongPartySize" : 0
+}, {
+  "round" : "round-3",
+  "users" : 100,
+  "modes" : 2,
+  "clientConcurrency" : 32,
+  "elapsedMs" : 557.815583,
+  "http201" : 100,
+  "errors" : [ ],
+  "registration" : {
+    "maxMs" : 283.047958,
+    "count" : 100,
+    "p50Ms" : 145.020875,
+    "p95Ms" : 196.525833
+  },
+  "proposalObservedAfterRequestStart" : {
+    "maxMs" : 459.979625,
+    "count" : 100,
+    "p50Ms" : 222.729333,
+    "p95Ms" : 447.088792
+  },
+  "registrationLockCall" : {
+    "maxMs" : 66.390042,
+    "count" : 100,
+    "p50Ms" : 22.495,
+    "p95Ms" : 55.474792
+  },
+  "matcherLockCall" : {
+    "maxMs" : 49.031166,
+    "count" : 26,
+    "p50Ms" : 18.774291,
+    "p95Ms" : 48.934084
+  },
+  "pgAdvisoryWaitersMax" : 8,
+  "pgAdvisoryWaiterSamples" : 280,
+  "monitorSamples" : 48,
+  "hikariPendingMax" : 26,
+  "proposedUsers" : 100,
+  "queuedUsers" : 0,
+  "proposals" : 20,
+  "duplicateProposalUsers" : 0,
+  "wrongPartySize" : 0
+}, {
+  "experiment" : "matcher-paused-after-acquiring-mode-lock",
+  "otherModeHttpStatus" : 201,
+  "otherModeRegistrationMs" : 10.685333,
+  "sameModeFinishedBeforeRelease" : false,
+  "advisoryWaitersBeforeRelease" : 1,
+  "sameModeHttpStatus" : 201,
+  "sameModeRegistrationMs" : 21.859583
+} ]
