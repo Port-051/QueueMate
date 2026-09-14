@@ -1,0 +1,19 @@
+allprojects {
+    plugins.withId('java') {
+        sourceSets.test.java.srcDir(rootProject.file('../harness/studies/redis-claim'))
+        tasks.register('redisClaimStudy', Test) {
+            dependsOn tasks.named('testClasses')
+            testClassesDirs = sourceSets.test.output.classesDirs
+            classpath = sourceSets.test.runtimeClasspath
+            useJUnitPlatform()
+            filter { includeTestsMatching 'com.queuemate.study.ClaimStrategyStudy' }
+            systemProperty 'api.version', System.getenv('DOCKER_API_VERSION') ?: '1.41'
+            systemProperty 'study.classpath', sourceSets.test.runtimeClasspath.asPath
+            systemProperty 'study.output', System.getProperty('study.output', '/private/tmp/queuemate-redis-claim')
+            environment tasks.named('test').get().environment
+            reports.html.outputLocation = file(System.getProperty('study.output', '/private/tmp/queuemate-redis-claim') + '/report')
+            reports.junitXml.outputLocation = file(System.getProperty('study.output', '/private/tmp/queuemate-redis-claim') + '/xml')
+            outputs.upToDateWhen { false }
+        }
+    }
+}

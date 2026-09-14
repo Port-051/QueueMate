@@ -1,0 +1,1153 @@
+[ {
+  "run" : {
+    "id" : "r1-n2-false-lua",
+    "strategy" : "lua",
+    "contended" : false,
+    "partySize" : 2,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.210871958,
+  "attempts" : 4000,
+  "successes" : 4000,
+  "conflicts" : 0,
+  "errors" : 0,
+  "attemptsPerSecond" : 18968.85692122231,
+  "successesPerSecond" : 18968.85692122231,
+  "allLatencyMs" : {
+    "p95" : 2.626709,
+    "count" : 4000,
+    "p50" : 1.36875,
+    "p99" : 3.106375,
+    "max" : 5.296833
+  },
+  "successLatencyMs" : {
+    "p95" : 2.626709,
+    "count" : 4000,
+    "p50" : 1.36875,
+    "p99" : 3.106375,
+    "max" : 5.296833
+  },
+  "conflictLatencyMs" : {
+    "count" : 0
+  },
+  "unrelatedPingMs" : {
+    "p95" : 2.559916,
+    "count" : 57,
+    "p50" : 0.974875,
+    "p99" : 3.26875,
+    "max" : 3.26875
+  },
+  "redisCpuSeconds" : 0.13919099999999995,
+  "redisCpuMicrosPerAttempt" : 34.797749999999986,
+  "redisCpuPercentOfOneCore" : 66.00735409304633,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=8000,usec=9442,usec_per_call=1.18,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=8000,usec=7367,usec_per_call=0.92,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=4000,usec=3401,usec_per_call=0.85,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=35,usec_per_call=17.50,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=57,usec=26,usec_per_call=0.46,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=88444,usec_per_call=22.11,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=8000,usec=9296,usec_per_call=1.16,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=8000,usec=6707,usec_per_call=0.84,rejected_calls=0,failed_calls=0\r\ncmdstat_exists:calls=8000,usec=3903,usec_per_call=0.49,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=2,usec_per_call=2.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=19,usec_per_call=19.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r1-n2-false-lock",
+    "strategy" : "lock",
+    "contended" : false,
+    "partySize" : 2,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 1.171188959,
+  "attempts" : 4000,
+  "successes" : 4000,
+  "conflicts" : 0,
+  "errors" : 0,
+  "attemptsPerSecond" : 3415.3327430744675,
+  "successesPerSecond" : 3415.3327430744675,
+  "allLatencyMs" : {
+    "p95" : 13.1385,
+    "count" : 4000,
+    "p50" : 8.934875,
+    "p99" : 17.130666,
+    "max" : 46.049125
+  },
+  "successLatencyMs" : {
+    "p95" : 13.1385,
+    "count" : 4000,
+    "p50" : 8.934875,
+    "p99" : 17.130666,
+    "max" : 46.049125
+  },
+  "conflictLatencyMs" : {
+    "count" : 0
+  },
+  "unrelatedPingMs" : {
+    "p95" : 1.942375,
+    "count" : 335,
+    "p50" : 1.065583,
+    "p99" : 2.451208,
+    "max" : 3.819
+  },
+  "redisCpuSeconds" : 0.40175099999999997,
+  "redisCpuMicrosPerAttempt" : 100.43774999999998,
+  "redisCpuPercentOfOneCore" : 34.30283362157276,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=16000,usec=20736,usec_per_call=1.30,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=8000,usec=4974,usec_per_call=0.62,rejected_calls=0,failed_calls=0\r\ncmdstat_del:calls=8000,usec=4773,usec_per_call=0.60,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=4000,usec=3088,usec_per_call=0.77,rejected_calls=0,failed_calls=0\r\ncmdstat_watch:calls=4000,usec=14880,usec_per_call=3.72,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=27,usec_per_call=13.50,rejected_calls=0,failed_calls=0\r\ncmdstat_multi:calls=4000,usec=1041,usec_per_call=0.26,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=335,usec=188,usec_per_call=0.56,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=35889,usec_per_call=8.97,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=2,usec_per_call=2.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=8000,usec=12142,usec_per_call=1.52,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=0,usec_per_call=0.00,rejected_calls=0,failed_calls=0\r\ncmdstat_mget:calls=4000,usec=12676,usec_per_call=3.17,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=8000,usec=7161,usec_per_call=0.90,rejected_calls=0,failed_calls=0\r\ncmdstat_exec:calls=4000,usec=50183,usec_per_call=12.55,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=3,usec_per_call=3.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=20,usec_per_call=20.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r1-n2-true-lua",
+    "strategy" : "lua",
+    "contended" : true,
+    "partySize" : 2,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.181282542,
+  "attempts" : 4000,
+  "successes" : 1000,
+  "conflicts" : 3000,
+  "errors" : 0,
+  "attemptsPerSecond" : 22065.00392078571,
+  "successesPerSecond" : 5516.250980196428,
+  "allLatencyMs" : {
+    "p95" : 1.997792,
+    "count" : 4000,
+    "p50" : 1.284125,
+    "p99" : 2.998042,
+    "max" : 5.102083
+  },
+  "successLatencyMs" : {
+    "p95" : 2.009791,
+    "count" : 1000,
+    "p50" : 1.276417,
+    "p99" : 3.00475,
+    "max" : 4.755209
+  },
+  "conflictLatencyMs" : {
+    "p95" : 1.993542,
+    "count" : 3000,
+    "p50" : 1.284708,
+    "p99" : 2.997583,
+    "max" : 5.102083
+  },
+  "unrelatedPingMs" : {
+    "p95" : 2.135208,
+    "count" : 49,
+    "p50" : 1.183,
+    "p99" : 3.124791,
+    "max" : 3.124791
+  },
+  "redisCpuSeconds" : 0.0790160000000002,
+  "redisCpuMicrosPerAttempt" : 19.75400000000005,
+  "redisCpuPercentOfOneCore" : 43.5872087451202,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=2000,usec=1952,usec_per_call=0.98,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=2000,usec=1752,usec_per_call=0.88,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=1000,usec=696,usec_per_call=0.70,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=39,usec_per_call=19.50,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=49,usec=23,usec_per_call=0.47,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=40077,usec_per_call=10.02,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=2000,usec=2355,usec_per_call=1.18,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=2000,usec=1442,usec_per_call=0.72,rejected_calls=0,failed_calls=0\r\ncmdstat_exists:calls=5000,usec=2361,usec_per_call=0.47,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=2,usec_per_call=2.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=22,usec_per_call=22.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r1-n2-true-lock",
+    "strategy" : "lock",
+    "contended" : true,
+    "partySize" : 2,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.774196833,
+  "attempts" : 4000,
+  "successes" : 1000,
+  "conflicts" : 3000,
+  "errors" : 0,
+  "attemptsPerSecond" : 5166.644746530499,
+  "successesPerSecond" : 1291.6611866326248,
+  "allLatencyMs" : {
+    "p95" : 9.43925,
+    "count" : 4000,
+    "p50" : 5.440625,
+    "p99" : 11.969708,
+    "max" : 20.772916
+  },
+  "successLatencyMs" : {
+    "p95" : 10.864291,
+    "count" : 1000,
+    "p50" : 7.853167,
+    "p99" : 13.18125,
+    "max" : 14.017833
+  },
+  "conflictLatencyMs" : {
+    "p95" : 8.137209,
+    "count" : 3000,
+    "p50" : 4.288666,
+    "p99" : 9.212291,
+    "max" : 20.772916
+  },
+  "unrelatedPingMs" : {
+    "p95" : 1.861083,
+    "count" : 230,
+    "p50" : 0.94875,
+    "p99" : 2.205541,
+    "max" : 2.712375
+  },
+  "redisCpuSeconds" : 0.269404,
+  "redisCpuMicrosPerAttempt" : 67.351,
+  "redisCpuPercentOfOneCore" : 34.79786903235756,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=10000,usec=11933,usec_per_call=1.19,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=6543,usec=3253,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_del:calls=6543,usec=3422,usec_per_call=0.52,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=1000,usec=700,usec_per_call=0.70,rejected_calls=0,failed_calls=0\r\ncmdstat_watch:calls=2543,usec=8113,usec_per_call=3.19,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=33,usec_per_call=16.50,rejected_calls=0,failed_calls=0\r\ncmdstat_multi:calls=1000,usec=232,usec_per_call=0.23,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=230,usec=73,usec_per_call=0.32,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=28794,usec_per_call=7.20,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=2000,usec=3215,usec_per_call=1.61,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_mget:calls=2543,usec=8145,usec_per_call=3.20,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=2000,usec=2356,usec_per_call=1.18,rejected_calls=0,failed_calls=0\r\ncmdstat_exec:calls=1000,usec=13429,usec_per_call=13.43,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=2,usec_per_call=2.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=19,usec_per_call=19.00,rejected_calls=0,failed_calls=0\r\ncmdstat_unwatch:calls=1543,usec=3070,usec_per_call=1.99,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r1-n5-false-lua",
+    "strategy" : "lua",
+    "contended" : false,
+    "partySize" : 5,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.214538,
+  "attempts" : 4000,
+  "successes" : 4000,
+  "conflicts" : 0,
+  "errors" : 0,
+  "attemptsPerSecond" : 18644.71562147498,
+  "successesPerSecond" : 18644.71562147498,
+  "allLatencyMs" : {
+    "p95" : 2.16425,
+    "count" : 4000,
+    "p50" : 1.616125,
+    "p99" : 2.863875,
+    "max" : 3.595875
+  },
+  "successLatencyMs" : {
+    "p95" : 2.16425,
+    "count" : 4000,
+    "p50" : 1.616125,
+    "p99" : 2.863875,
+    "max" : 3.595875
+  },
+  "conflictLatencyMs" : {
+    "count" : 0
+  },
+  "unrelatedPingMs" : {
+    "p95" : 2.235167,
+    "count" : 55,
+    "p50" : 1.531625,
+    "p99" : 2.686292,
+    "max" : 2.686292
+  },
+  "redisCpuSeconds" : 0.2026110000000001,
+  "redisCpuMicrosPerAttempt" : 50.65275000000002,
+  "redisCpuPercentOfOneCore" : 94.44061191956673,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=20000,usec=19895,usec_per_call=0.99,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=20000,usec=14736,usec_per_call=0.74,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=4000,usec=2977,usec_per_call=0.74,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=33,usec_per_call=16.50,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=55,usec=17,usec_per_call=0.31,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=165217,usec_per_call=41.30,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=2,usec_per_call=2.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=20000,usec=19410,usec_per_call=0.97,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=20000,usec=12572,usec_per_call=0.63,rejected_calls=0,failed_calls=0\r\ncmdstat_exists:calls=20000,usec=8836,usec_per_call=0.44,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=16,usec_per_call=16.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=92,usec_per_call=92.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r1-n5-false-lock",
+    "strategy" : "lock",
+    "contended" : false,
+    "partySize" : 5,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 1.476930167,
+  "attempts" : 4000,
+  "successes" : 4000,
+  "conflicts" : 0,
+  "errors" : 0,
+  "attemptsPerSecond" : 2708.3203318440987,
+  "successesPerSecond" : 2708.3203318440987,
+  "allLatencyMs" : {
+    "p95" : 16.128542,
+    "count" : 4000,
+    "p50" : 11.300375,
+    "p99" : 19.241666,
+    "max" : 23.955375
+  },
+  "successLatencyMs" : {
+    "p95" : 16.128542,
+    "count" : 4000,
+    "p50" : 11.300375,
+    "p99" : 19.241666,
+    "max" : 23.955375
+  },
+  "conflictLatencyMs" : {
+    "count" : 0
+  },
+  "unrelatedPingMs" : {
+    "p95" : 1.813625,
+    "count" : 430,
+    "p50" : 1.057541,
+    "p99" : 2.219625,
+    "max" : 2.679542
+  },
+  "redisCpuSeconds" : 0.625786,
+  "redisCpuMicrosPerAttempt" : 156.4465,
+  "redisCpuPercentOfOneCore" : 42.37072367958478,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=40000,usec=47915,usec_per_call=1.20,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=20000,usec=10503,usec_per_call=0.53,rejected_calls=0,failed_calls=0\r\ncmdstat_del:calls=20000,usec=10567,usec_per_call=0.53,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=4000,usec=2849,usec_per_call=0.71,rejected_calls=0,failed_calls=0\r\ncmdstat_watch:calls=4000,usec=39845,usec_per_call=9.96,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=31,usec_per_call=15.50,rejected_calls=0,failed_calls=0\r\ncmdstat_multi:calls=4000,usec=784,usec_per_call=0.20,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=430,usec=146,usec_per_call=0.34,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=61916,usec_per_call=15.48,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=20000,usec=22975,usec_per_call=1.15,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_mget:calls=4000,usec=28180,usec_per_call=7.05,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=20000,usec=13698,usec_per_call=0.68,rejected_calls=0,failed_calls=0\r\ncmdstat_exec:calls=4000,usec=97283,usec_per_call=24.32,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=3,usec_per_call=3.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=19,usec_per_call=19.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r1-n5-true-lua",
+    "strategy" : "lua",
+    "contended" : true,
+    "partySize" : 5,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.179728167,
+  "attempts" : 4000,
+  "successes" : 1000,
+  "conflicts" : 3000,
+  "errors" : 0,
+  "attemptsPerSecond" : 22255.832609698846,
+  "successesPerSecond" : 5563.958152424711,
+  "allLatencyMs" : {
+    "p95" : 2.352417,
+    "count" : 4000,
+    "p50" : 1.294208,
+    "p99" : 2.833208,
+    "max" : 3.298416
+  },
+  "successLatencyMs" : {
+    "p95" : 2.324542,
+    "count" : 1000,
+    "p50" : 1.281875,
+    "p99" : 2.776083,
+    "max" : 3.282417
+  },
+  "conflictLatencyMs" : {
+    "p95" : 2.353375,
+    "count" : 3000,
+    "p50" : 1.299,
+    "p99" : 2.856041,
+    "max" : 3.298416
+  },
+  "unrelatedPingMs" : {
+    "p95" : 2.657833,
+    "count" : 47,
+    "p50" : 1.387958,
+    "p99" : 2.9285,
+    "max" : 2.9285
+  },
+  "redisCpuSeconds" : 0.12501499999999988,
+  "redisCpuMicrosPerAttempt" : 31.253749999999968,
+  "redisCpuPercentOfOneCore" : 69.55782284253746,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=5000,usec=5591,usec_per_call=1.12,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=5000,usec=4172,usec_per_call=0.83,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=1000,usec=886,usec_per_call=0.89,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=44,usec_per_call=22.00,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=47,usec=14,usec_per_call=0.30,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=78665,usec_per_call=19.67,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=5000,usec=7123,usec_per_call=1.42,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=0,usec_per_call=0.00,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=5000,usec=3284,usec_per_call=0.66,rejected_calls=0,failed_calls=0\r\ncmdstat_exists:calls=8000,usec=4707,usec_per_call=0.59,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=3,usec_per_call=3.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=20,usec_per_call=20.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r1-n5-true-lock",
+    "strategy" : "lock",
+    "contended" : true,
+    "partySize" : 5,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 1.106892417,
+  "attempts" : 4000,
+  "successes" : 1000,
+  "conflicts" : 3000,
+  "errors" : 0,
+  "attemptsPerSecond" : 3613.720663875503,
+  "successesPerSecond" : 903.4301659688757,
+  "allLatencyMs" : {
+    "p95" : 11.942333,
+    "count" : 4000,
+    "p50" : 8.378208,
+    "p99" : 13.133792,
+    "max" : 14.812125
+  },
+  "successLatencyMs" : {
+    "p95" : 13.018833,
+    "count" : 1000,
+    "p50" : 10.658042,
+    "p99" : 13.833292,
+    "max" : 14.812125
+  },
+  "conflictLatencyMs" : {
+    "p95" : 11.130542,
+    "count" : 3000,
+    "p50" : 7.342333,
+    "p99" : 12.12025,
+    "max" : 13.439708
+  },
+  "unrelatedPingMs" : {
+    "p95" : 1.590541,
+    "count" : 344,
+    "p50" : 0.933625,
+    "p99" : 1.790542,
+    "max" : 2.086209
+  },
+  "redisCpuSeconds" : 0.6801439999999999,
+  "redisCpuMicrosPerAttempt" : 170.03599999999997,
+  "redisCpuPercentOfOneCore" : 61.44626068027348,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=25000,usec=47011,usec_per_call=1.88,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=18584,usec=11997,usec_per_call=0.65,rejected_calls=0,failed_calls=0\r\ncmdstat_del:calls=18584,usec=13694,usec_per_call=0.74,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=1000,usec=1119,usec_per_call=1.12,rejected_calls=0,failed_calls=0\r\ncmdstat_watch:calls=2584,usec=34493,usec_per_call=13.35,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=62,usec_per_call=31.00,rejected_calls=0,failed_calls=0\r\ncmdstat_multi:calls=1000,usec=219,usec_per_call=0.22,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=344,usec=206,usec_per_call=0.60,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=81582,usec_per_call=20.40,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=5000,usec=13285,usec_per_call=2.66,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_mget:calls=2584,usec=26102,usec_per_call=10.10,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=5000,usec=5575,usec_per_call=1.12,rejected_calls=0,failed_calls=0\r\ncmdstat_exec:calls=1000,usec=39169,usec_per_call=39.17,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=4,usec_per_call=4.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=19,usec_per_call=19.00,rejected_calls=0,failed_calls=0\r\ncmdstat_unwatch:calls=1584,usec=10658,usec_per_call=6.73,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r2-n2-false-lock",
+    "strategy" : "lock",
+    "contended" : false,
+    "partySize" : 2,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.871400084,
+  "attempts" : 4000,
+  "successes" : 4000,
+  "conflicts" : 0,
+  "errors" : 0,
+  "attemptsPerSecond" : 4590.313994048226,
+  "successesPerSecond" : 4590.313994048226,
+  "allLatencyMs" : {
+    "p95" : 9.201792,
+    "count" : 4000,
+    "p50" : 6.719708,
+    "p99" : 10.645833,
+    "max" : 14.48625
+  },
+  "successLatencyMs" : {
+    "p95" : 9.201792,
+    "count" : 4000,
+    "p50" : 6.719708,
+    "p99" : 10.645833,
+    "max" : 14.48625
+  },
+  "conflictLatencyMs" : {
+    "count" : 0
+  },
+  "unrelatedPingMs" : {
+    "p95" : 1.518625,
+    "count" : 269,
+    "p50" : 0.92125,
+    "p99" : 2.084917,
+    "max" : 3.353916
+  },
+  "redisCpuSeconds" : 0.4079740000000003,
+  "redisCpuMicrosPerAttempt" : 101.99350000000007,
+  "redisCpuPercentOfOneCore" : 46.8182190351958,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=16000,usec=21359,usec_per_call=1.33,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=8000,usec=4789,usec_per_call=0.60,rejected_calls=0,failed_calls=0\r\ncmdstat_del:calls=8000,usec=5370,usec_per_call=0.67,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=4000,usec=3242,usec_per_call=0.81,rejected_calls=0,failed_calls=0\r\ncmdstat_watch:calls=4000,usec=15015,usec_per_call=3.75,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=30,usec_per_call=15.00,rejected_calls=0,failed_calls=0\r\ncmdstat_multi:calls=4000,usec=687,usec_per_call=0.17,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=269,usec=102,usec_per_call=0.38,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=39343,usec_per_call=9.84,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=8000,usec=11228,usec_per_call=1.40,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=3,usec_per_call=1.50,rejected_calls=0,failed_calls=0\r\ncmdstat_mget:calls=4000,usec=12543,usec_per_call=3.14,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=8000,usec=7180,usec_per_call=0.90,rejected_calls=0,failed_calls=0\r\ncmdstat_exec:calls=4000,usec=48347,usec_per_call=12.09,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=8,usec_per_call=8.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=20,usec_per_call=20.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r2-n2-false-lua",
+    "strategy" : "lua",
+    "contended" : false,
+    "partySize" : 2,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.224926875,
+  "attempts" : 4000,
+  "successes" : 4000,
+  "conflicts" : 0,
+  "errors" : 0,
+  "attemptsPerSecond" : 17783.55743394381,
+  "successesPerSecond" : 17783.55743394381,
+  "allLatencyMs" : {
+    "p95" : 2.692959,
+    "count" : 4000,
+    "p50" : 1.663708,
+    "p99" : 3.541083,
+    "max" : 4.288542
+  },
+  "successLatencyMs" : {
+    "p95" : 2.692959,
+    "count" : 4000,
+    "p50" : 1.663708,
+    "p99" : 3.541083,
+    "max" : 4.288542
+  },
+  "conflictLatencyMs" : {
+    "count" : 0
+  },
+  "unrelatedPingMs" : {
+    "p95" : 3.69875,
+    "count" : 56,
+    "p50" : 1.586417,
+    "p99" : 4.062542,
+    "max" : 4.062542
+  },
+  "redisCpuSeconds" : 0.19494100000000003,
+  "redisCpuMicrosPerAttempt" : 48.73525000000001,
+  "redisCpuPercentOfOneCore" : 86.66861174326102,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=8000,usec=12505,usec_per_call=1.56,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=8000,usec=7868,usec_per_call=0.98,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=4000,usec=4488,usec_per_call=1.12,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=31,usec_per_call=15.50,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=56,usec=13,usec_per_call=0.23,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=118991,usec_per_call=29.75,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=8000,usec=11882,usec_per_call=1.49,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=8000,usec=9765,usec_per_call=1.22,rejected_calls=0,failed_calls=0\r\ncmdstat_exists:calls=8000,usec=7586,usec_per_call=0.95,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=3,usec_per_call=3.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=18,usec_per_call=18.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 1,
+  "slowEvalMaxMicros" : 1072,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r2-n2-true-lock",
+    "strategy" : "lock",
+    "contended" : true,
+    "partySize" : 2,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.570287834,
+  "attempts" : 4000,
+  "successes" : 1000,
+  "conflicts" : 3000,
+  "errors" : 0,
+  "attemptsPerSecond" : 7014.0019855306955,
+  "successesPerSecond" : 1753.5004963826739,
+  "allLatencyMs" : {
+    "p95" : 6.653209,
+    "count" : 4000,
+    "p50" : 3.936375,
+    "p99" : 7.800917,
+    "max" : 12.361667
+  },
+  "successLatencyMs" : {
+    "p95" : 7.505416,
+    "count" : 1000,
+    "p50" : 5.867584,
+    "p99" : 10.763916,
+    "max" : 12.361667
+  },
+  "conflictLatencyMs" : {
+    "p95" : 5.705625,
+    "count" : 3000,
+    "p50" : 2.886209,
+    "p99" : 6.578333,
+    "max" : 10.745667
+  },
+  "unrelatedPingMs" : {
+    "p95" : 1.182542,
+    "count" : 188,
+    "p50" : 0.734042,
+    "p99" : 1.560584,
+    "max" : 3.172583
+  },
+  "redisCpuSeconds" : 0.2596280000000002,
+  "redisCpuMicrosPerAttempt" : 64.90700000000005,
+  "redisCpuPercentOfOneCore" : 45.52578268748412,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=10000,usec=12544,usec_per_call=1.25,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=6143,usec=3012,usec_per_call=0.49,rejected_calls=0,failed_calls=0\r\ncmdstat_del:calls=6143,usec=3650,usec_per_call=0.59,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=1000,usec=848,usec_per_call=0.85,rejected_calls=0,failed_calls=0\r\ncmdstat_watch:calls=2143,usec=7639,usec_per_call=3.56,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=27,usec_per_call=13.50,rejected_calls=0,failed_calls=0\r\ncmdstat_multi:calls=1000,usec=197,usec_per_call=0.20,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=188,usec=65,usec_per_call=0.35,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=27459,usec_per_call=6.86,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=2,usec_per_call=2.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=2000,usec=3543,usec_per_call=1.77,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_mget:calls=2143,usec=6946,usec_per_call=3.24,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=2000,usec=1842,usec_per_call=0.92,rejected_calls=0,failed_calls=0\r\ncmdstat_exec:calls=1000,usec=12685,usec_per_call=12.69,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=3,usec_per_call=3.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=19,usec_per_call=19.00,rejected_calls=0,failed_calls=0\r\ncmdstat_unwatch:calls=1143,usec=2032,usec_per_call=1.78,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r2-n2-true-lua",
+    "strategy" : "lua",
+    "contended" : true,
+    "partySize" : 2,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.122486792,
+  "attempts" : 4000,
+  "successes" : 1000,
+  "conflicts" : 3000,
+  "errors" : 0,
+  "attemptsPerSecond" : 32656.582270519422,
+  "successesPerSecond" : 8164.145567629856,
+  "allLatencyMs" : {
+    "p95" : 1.403417,
+    "count" : 4000,
+    "p50" : 0.90125,
+    "p99" : 1.559958,
+    "max" : 1.820458
+  },
+  "successLatencyMs" : {
+    "p95" : 1.37075,
+    "count" : 1000,
+    "p50" : 0.898625,
+    "p99" : 1.533667,
+    "max" : 1.820458
+  },
+  "conflictLatencyMs" : {
+    "p95" : 1.4085,
+    "count" : 3000,
+    "p50" : 0.902542,
+    "p99" : 1.562542,
+    "max" : 1.74975
+  },
+  "unrelatedPingMs" : {
+    "p95" : 1.616834,
+    "count" : 37,
+    "p50" : 0.931125,
+    "p99" : 1.867167,
+    "max" : 1.867167
+  },
+  "redisCpuSeconds" : 0.08305300000000004,
+  "redisCpuMicrosPerAttempt" : 20.76325000000001,
+  "redisCpuPercentOfOneCore" : 67.80567818283627,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=2000,usec=1906,usec_per_call=0.95,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=2000,usec=1762,usec_per_call=0.88,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=1000,usec=767,usec_per_call=0.77,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=32,usec_per_call=16.00,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=37,usec=23,usec_per_call=0.62,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=42242,usec_per_call=10.56,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=2000,usec=2532,usec_per_call=1.27,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=2000,usec=1550,usec_per_call=0.77,rejected_calls=0,failed_calls=0\r\ncmdstat_exists:calls=5000,usec=2568,usec_per_call=0.51,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=5,usec_per_call=5.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=19,usec_per_call=19.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r2-n5-false-lock",
+    "strategy" : "lock",
+    "contended" : false,
+    "partySize" : 5,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 1.223213208,
+  "attempts" : 4000,
+  "successes" : 4000,
+  "conflicts" : 0,
+  "errors" : 0,
+  "attemptsPerSecond" : 3270.075873804659,
+  "successesPerSecond" : 3270.075873804659,
+  "allLatencyMs" : {
+    "p95" : 12.024041,
+    "count" : 4000,
+    "p50" : 9.567542,
+    "p99" : 13.324583,
+    "max" : 16.404958
+  },
+  "successLatencyMs" : {
+    "p95" : 12.024041,
+    "count" : 4000,
+    "p50" : 9.567542,
+    "p99" : 13.324583,
+    "max" : 16.404958
+  },
+  "conflictLatencyMs" : {
+    "count" : 0
+  },
+  "unrelatedPingMs" : {
+    "p95" : 1.462917,
+    "count" : 381,
+    "p50" : 0.885792,
+    "p99" : 1.864583,
+    "max" : 2.444375
+  },
+  "redisCpuSeconds" : 0.619351,
+  "redisCpuMicrosPerAttempt" : 154.83775,
+  "redisCpuPercentOfOneCore" : 50.63311906291973,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=40000,usec=47459,usec_per_call=1.19,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=20000,usec=9223,usec_per_call=0.46,rejected_calls=0,failed_calls=0\r\ncmdstat_del:calls=20000,usec=10423,usec_per_call=0.52,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=4000,usec=2782,usec_per_call=0.70,rejected_calls=0,failed_calls=0\r\ncmdstat_watch:calls=4000,usec=40268,usec_per_call=10.07,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=31,usec_per_call=15.50,rejected_calls=0,failed_calls=0\r\ncmdstat_multi:calls=4000,usec=794,usec_per_call=0.20,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=381,usec=148,usec_per_call=0.39,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=60262,usec_per_call=15.07,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=20000,usec=24020,usec_per_call=1.20,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_mget:calls=4000,usec=26391,usec_per_call=6.60,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=20000,usec=13610,usec_per_call=0.68,rejected_calls=0,failed_calls=0\r\ncmdstat_exec:calls=4000,usec=98905,usec_per_call=24.73,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=4,usec_per_call=4.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=21,usec_per_call=21.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r2-n5-false-lua",
+    "strategy" : "lua",
+    "contended" : false,
+    "partySize" : 5,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.201106917,
+  "attempts" : 4000,
+  "successes" : 4000,
+  "conflicts" : 0,
+  "errors" : 0,
+  "attemptsPerSecond" : 19889.91756061777,
+  "successesPerSecond" : 19889.91756061777,
+  "allLatencyMs" : {
+    "p95" : 2.158542,
+    "count" : 4000,
+    "p50" : 1.545292,
+    "p99" : 2.5455,
+    "max" : 3.35775
+  },
+  "successLatencyMs" : {
+    "p95" : 2.158542,
+    "count" : 4000,
+    "p50" : 1.545292,
+    "p99" : 2.5455,
+    "max" : 3.35775
+  },
+  "conflictLatencyMs" : {
+    "count" : 0
+  },
+  "unrelatedPingMs" : {
+    "p95" : 2.15275,
+    "count" : 53,
+    "p50" : 1.562792,
+    "p99" : 2.470667,
+    "max" : 2.470667
+  },
+  "redisCpuSeconds" : 0.19750900000000016,
+  "redisCpuMicrosPerAttempt" : 49.37725000000004,
+  "redisCpuPercentOfOneCore" : 98.21094318700145,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=20000,usec=19283,usec_per_call=0.96,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=20000,usec=15269,usec_per_call=0.76,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=4000,usec=2724,usec_per_call=0.68,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=31,usec_per_call=15.50,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=53,usec=17,usec_per_call=0.32,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=162958,usec_per_call=40.74,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=20000,usec=18814,usec_per_call=0.94,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=20000,usec=12471,usec_per_call=0.62,rejected_calls=0,failed_calls=0\r\ncmdstat_exists:calls=20000,usec=9121,usec_per_call=0.46,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=56,usec_per_call=56.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=18,usec_per_call=18.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r2-n5-true-lock",
+    "strategy" : "lock",
+    "contended" : true,
+    "partySize" : 5,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.954701458,
+  "attempts" : 4000,
+  "successes" : 1000,
+  "conflicts" : 3000,
+  "errors" : 0,
+  "attemptsPerSecond" : 4189.791443682911,
+  "successesPerSecond" : 1047.4478609207279,
+  "allLatencyMs" : {
+    "p95" : 10.200792,
+    "count" : 4000,
+    "p50" : 7.259584,
+    "p99" : 11.2685,
+    "max" : 14.451667
+  },
+  "successLatencyMs" : {
+    "p95" : 10.873958,
+    "count" : 1000,
+    "p50" : 9.003417,
+    "p99" : 12.237458,
+    "max" : 14.451667
+  },
+  "conflictLatencyMs" : {
+    "p95" : 9.440625,
+    "count" : 3000,
+    "p50" : 6.117292,
+    "p99" : 10.374791,
+    "max" : 13.738125
+  },
+  "unrelatedPingMs" : {
+    "p95" : 1.342792,
+    "count" : 308,
+    "p50" : 0.808084,
+    "p99" : 1.559542,
+    "max" : 1.7635
+  },
+  "redisCpuSeconds" : 0.5230560000000009,
+  "redisCpuMicrosPerAttempt" : 130.7640000000002,
+  "redisCpuPercentOfOneCore" : 54.78738883417531,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=25000,usec=35853,usec_per_call=1.43,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=18404,usec=11019,usec_per_call=0.60,rejected_calls=0,failed_calls=0\r\ncmdstat_del:calls=18404,usec=10988,usec_per_call=0.60,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=1000,usec=1021,usec_per_call=1.02,rejected_calls=0,failed_calls=0\r\ncmdstat_watch:calls=2404,usec=25904,usec_per_call=10.78,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=35,usec_per_call=17.50,rejected_calls=0,failed_calls=0\r\ncmdstat_multi:calls=1000,usec=213,usec_per_call=0.21,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=308,usec=123,usec_per_call=0.40,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=66932,usec_per_call=16.73,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=5000,usec=12687,usec_per_call=2.54,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_mget:calls=2404,usec=19756,usec_per_call=8.22,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=5000,usec=4557,usec_per_call=0.91,rejected_calls=0,failed_calls=0\r\ncmdstat_exec:calls=1000,usec=33784,usec_per_call=33.78,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=3,usec_per_call=3.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=20,usec_per_call=20.00,rejected_calls=0,failed_calls=0\r\ncmdstat_unwatch:calls=1404,usec=9023,usec_per_call=6.43,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r2-n5-true-lua",
+    "strategy" : "lua",
+    "contended" : true,
+    "partySize" : 5,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.137957375,
+  "attempts" : 4000,
+  "successes" : 1000,
+  "conflicts" : 3000,
+  "errors" : 0,
+  "attemptsPerSecond" : 28994.462963650913,
+  "successesPerSecond" : 7248.615740912728,
+  "allLatencyMs" : {
+    "p95" : 1.507458,
+    "count" : 4000,
+    "p50" : 1.047791,
+    "p99" : 1.787417,
+    "max" : 2.015458
+  },
+  "successLatencyMs" : {
+    "p95" : 1.496375,
+    "count" : 1000,
+    "p50" : 1.040709,
+    "p99" : 1.760875,
+    "max" : 2.015458
+  },
+  "conflictLatencyMs" : {
+    "p95" : 1.510167,
+    "count" : 3000,
+    "p50" : 1.050209,
+    "p99" : 1.79775,
+    "max" : 1.998125
+  },
+  "unrelatedPingMs" : {
+    "p95" : 1.425833,
+    "count" : 41,
+    "p50" : 1.102042,
+    "p99" : 1.498583,
+    "max" : 1.498583
+  },
+  "redisCpuSeconds" : 0.12064200000000014,
+  "redisCpuMicrosPerAttempt" : 30.160500000000035,
+  "redisCpuPercentOfOneCore" : 87.44875002151943,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=5000,usec=6342,usec_per_call=1.27,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=5000,usec=4838,usec_per_call=0.97,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=1000,usec=913,usec_per_call=0.91,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=34,usec_per_call=17.00,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=41,usec=15,usec_per_call=0.37,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=79829,usec_per_call=19.96,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=2,usec_per_call=2.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=5000,usec=8120,usec_per_call=1.62,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=0,usec_per_call=0.00,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=5000,usec=3888,usec_per_call=0.78,rejected_calls=0,failed_calls=0\r\ncmdstat_exists:calls=8000,usec=5131,usec_per_call=0.64,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=4,usec_per_call=4.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=35,usec_per_call=35.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r3-n2-false-lua",
+    "strategy" : "lua",
+    "contended" : false,
+    "partySize" : 2,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.147356875,
+  "attempts" : 4000,
+  "successes" : 4000,
+  "conflicts" : 0,
+  "errors" : 0,
+  "attemptsPerSecond" : 27144.983903872828,
+  "successesPerSecond" : 27144.983903872828,
+  "allLatencyMs" : {
+    "p95" : 1.633584,
+    "count" : 4000,
+    "p50" : 1.10675,
+    "p99" : 1.925375,
+    "max" : 2.536917
+  },
+  "successLatencyMs" : {
+    "p95" : 1.633584,
+    "count" : 4000,
+    "p50" : 1.10675,
+    "p99" : 1.925375,
+    "max" : 2.536917
+  },
+  "conflictLatencyMs" : {
+    "count" : 0
+  },
+  "unrelatedPingMs" : {
+    "p95" : 1.971667,
+    "count" : 44,
+    "p50" : 1.09175,
+    "p99" : 2.032,
+    "max" : 2.032
+  },
+  "redisCpuSeconds" : 0.12073800000000023,
+  "redisCpuMicrosPerAttempt" : 30.184500000000057,
+  "redisCpuPercentOfOneCore" : 81.93577666464509,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=8000,usec=9090,usec_per_call=1.14,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=8000,usec=6606,usec_per_call=0.83,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=4000,usec=3166,usec_per_call=0.79,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=34,usec_per_call=17.00,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=44,usec=21,usec_per_call=0.48,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=84151,usec_per_call=21.04,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=8000,usec=8714,usec_per_call=1.09,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=8000,usec=6577,usec_per_call=0.82,rejected_calls=0,failed_calls=0\r\ncmdstat_exists:calls=8000,usec=3939,usec_per_call=0.49,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=4,usec_per_call=4.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=18,usec_per_call=18.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r3-n2-false-lock",
+    "strategy" : "lock",
+    "contended" : false,
+    "partySize" : 2,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.844865125,
+  "attempts" : 4000,
+  "successes" : 4000,
+  "conflicts" : 0,
+  "errors" : 0,
+  "attemptsPerSecond" : 4734.4835070568215,
+  "successesPerSecond" : 4734.4835070568215,
+  "allLatencyMs" : {
+    "p95" : 8.86525,
+    "count" : 4000,
+    "p50" : 6.531833,
+    "p99" : 10.150125,
+    "max" : 11.281875
+  },
+  "successLatencyMs" : {
+    "p95" : 8.86525,
+    "count" : 4000,
+    "p50" : 6.531833,
+    "p99" : 10.150125,
+    "max" : 11.281875
+  },
+  "conflictLatencyMs" : {
+    "count" : 0
+  },
+  "unrelatedPingMs" : {
+    "p95" : 1.517791,
+    "count" : 269,
+    "p50" : 0.824,
+    "p99" : 2.055458,
+    "max" : 2.458416
+  },
+  "redisCpuSeconds" : 0.4502100000000002,
+  "redisCpuMicrosPerAttempt" : 112.55250000000005,
+  "redisCpuPercentOfOneCore" : 53.287795492801315,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=16000,usec=24139,usec_per_call=1.51,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=8000,usec=5012,usec_per_call=0.63,rejected_calls=0,failed_calls=0\r\ncmdstat_del:calls=8000,usec=5302,usec_per_call=0.66,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=4000,usec=3547,usec_per_call=0.89,rejected_calls=0,failed_calls=0\r\ncmdstat_watch:calls=4000,usec=15593,usec_per_call=3.90,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=31,usec_per_call=15.50,rejected_calls=0,failed_calls=0\r\ncmdstat_multi:calls=4000,usec=1007,usec_per_call=0.25,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=269,usec=78,usec_per_call=0.29,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=41342,usec_per_call=10.34,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=0,usec_per_call=0.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=8000,usec=12342,usec_per_call=1.54,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_mget:calls=4000,usec=13132,usec_per_call=3.28,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=8000,usec=8060,usec_per_call=1.01,rejected_calls=0,failed_calls=0\r\ncmdstat_exec:calls=4000,usec=55218,usec_per_call=13.80,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=4,usec_per_call=4.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=20,usec_per_call=20.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r3-n2-true-lua",
+    "strategy" : "lua",
+    "contended" : true,
+    "partySize" : 2,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.123922625,
+  "attempts" : 4000,
+  "successes" : 1000,
+  "conflicts" : 3000,
+  "errors" : 0,
+  "attemptsPerSecond" : 32278.20585627524,
+  "successesPerSecond" : 8069.55146406881,
+  "allLatencyMs" : {
+    "p95" : 1.37425,
+    "count" : 4000,
+    "p50" : 0.933666,
+    "p99" : 1.53375,
+    "max" : 1.787417
+  },
+  "successLatencyMs" : {
+    "p95" : 1.39625,
+    "count" : 1000,
+    "p50" : 0.936209,
+    "p99" : 1.541542,
+    "max" : 1.787417
+  },
+  "conflictLatencyMs" : {
+    "p95" : 1.373125,
+    "count" : 3000,
+    "p50" : 0.932333,
+    "p99" : 1.529167,
+    "max" : 1.785791
+  },
+  "unrelatedPingMs" : {
+    "p95" : 1.430666,
+    "count" : 39,
+    "p50" : 0.959959,
+    "p99" : 1.566916,
+    "max" : 1.566916
+  },
+  "redisCpuSeconds" : 0.08215299999999992,
+  "redisCpuMicrosPerAttempt" : 20.53824999999998,
+  "redisCpuPercentOfOneCore" : 66.29378614276443,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=2000,usec=2133,usec_per_call=1.07,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=2000,usec=1474,usec_per_call=0.74,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=1000,usec=971,usec_per_call=0.97,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=32,usec_per_call=16.00,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=39,usec=30,usec_per_call=0.77,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=42992,usec_per_call=10.75,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=2000,usec=2570,usec_per_call=1.28,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=2,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=2000,usec=2015,usec_per_call=1.01,rejected_calls=0,failed_calls=0\r\ncmdstat_exists:calls=5000,usec=2312,usec_per_call=0.46,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=3,usec_per_call=3.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=18,usec_per_call=18.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r3-n2-true-lock",
+    "strategy" : "lock",
+    "contended" : true,
+    "partySize" : 2,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.588345834,
+  "attempts" : 4000,
+  "successes" : 1000,
+  "conflicts" : 3000,
+  "errors" : 0,
+  "attemptsPerSecond" : 6798.722399043962,
+  "successesPerSecond" : 1699.6805997609904,
+  "allLatencyMs" : {
+    "p95" : 7.382875,
+    "count" : 4000,
+    "p50" : 3.829792,
+    "p99" : 8.8865,
+    "max" : 15.26825
+  },
+  "successLatencyMs" : {
+    "p95" : 8.523042,
+    "count" : 1000,
+    "p50" : 6.221084,
+    "p99" : 12.313792,
+    "max" : 15.26825
+  },
+  "conflictLatencyMs" : {
+    "p95" : 5.908792,
+    "count" : 3000,
+    "p50" : 3.105708,
+    "p99" : 7.528458,
+    "max" : 13.693792
+  },
+  "unrelatedPingMs" : {
+    "p95" : 1.403125,
+    "count" : 191,
+    "p50" : 0.770958,
+    "p99" : 1.75925,
+    "max" : 2.847084
+  },
+  "redisCpuSeconds" : 0.2294249999999991,
+  "redisCpuMicrosPerAttempt" : 57.356249999999775,
+  "redisCpuPercentOfOneCore" : 38.994922160016365,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=10000,usec=11326,usec_per_call=1.13,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=6071,usec=2667,usec_per_call=0.44,rejected_calls=0,failed_calls=0\r\ncmdstat_del:calls=6071,usec=3154,usec_per_call=0.52,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=1000,usec=832,usec_per_call=0.83,rejected_calls=0,failed_calls=0\r\ncmdstat_watch:calls=2071,usec=5539,usec_per_call=2.67,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=44,usec_per_call=22.00,rejected_calls=0,failed_calls=0\r\ncmdstat_multi:calls=1000,usec=218,usec_per_call=0.22,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=191,usec=70,usec_per_call=0.37,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=24652,usec_per_call=6.16,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=2000,usec=3250,usec_per_call=1.62,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_mget:calls=2071,usec=5638,usec_per_call=2.72,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=2000,usec=1784,usec_per_call=0.89,rejected_calls=0,failed_calls=0\r\ncmdstat_exec:calls=1000,usec=11908,usec_per_call=11.91,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=4,usec_per_call=4.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=19,usec_per_call=19.00,rejected_calls=0,failed_calls=0\r\ncmdstat_unwatch:calls=1071,usec=1802,usec_per_call=1.68,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r3-n5-false-lua",
+    "strategy" : "lua",
+    "contended" : false,
+    "partySize" : 5,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.255663584,
+  "attempts" : 4000,
+  "successes" : 4000,
+  "conflicts" : 0,
+  "errors" : 0,
+  "attemptsPerSecond" : 15645.560221826508,
+  "successesPerSecond" : 15645.560221826508,
+  "allLatencyMs" : {
+    "p95" : 2.659792,
+    "count" : 4000,
+    "p50" : 1.995709,
+    "p99" : 3.119,
+    "max" : 3.60225
+  },
+  "successLatencyMs" : {
+    "p95" : 2.659792,
+    "count" : 4000,
+    "p50" : 1.995709,
+    "p99" : 3.119,
+    "max" : 3.60225
+  },
+  "conflictLatencyMs" : {
+    "count" : 0
+  },
+  "unrelatedPingMs" : {
+    "p95" : 2.749292,
+    "count" : 61,
+    "p50" : 1.890584,
+    "p99" : 3.570292,
+    "max" : 3.570292
+  },
+  "redisCpuSeconds" : 0.25032500000000013,
+  "redisCpuMicrosPerAttempt" : 62.581250000000026,
+  "redisCpuPercentOfOneCore" : 97.91187156321807,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=20000,usec=23435,usec_per_call=1.17,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=20000,usec=19341,usec_per_call=0.97,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=4000,usec=3054,usec_per_call=0.76,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=34,usec_per_call=17.00,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=61,usec=21,usec_per_call=0.34,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=199830,usec_per_call=49.96,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=20000,usec=25071,usec_per_call=1.25,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=20000,usec=16115,usec_per_call=0.81,rejected_calls=0,failed_calls=0\r\ncmdstat_exists:calls=20000,usec=11207,usec_per_call=0.56,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=3,usec_per_call=3.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=32,usec_per_call=32.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r3-n5-false-lock",
+    "strategy" : "lock",
+    "contended" : false,
+    "partySize" : 5,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 1.189198917,
+  "attempts" : 4000,
+  "successes" : 4000,
+  "conflicts" : 0,
+  "errors" : 0,
+  "attemptsPerSecond" : 3363.6088486279714,
+  "successesPerSecond" : 3363.6088486279714,
+  "allLatencyMs" : {
+    "p95" : 11.258625,
+    "count" : 4000,
+    "p50" : 9.362167,
+    "p99" : 12.23875,
+    "max" : 14.659
+  },
+  "successLatencyMs" : {
+    "p95" : 11.258625,
+    "count" : 4000,
+    "p50" : 9.362167,
+    "p99" : 12.23875,
+    "max" : 14.659
+  },
+  "conflictLatencyMs" : {
+    "count" : 0
+  },
+  "unrelatedPingMs" : {
+    "p95" : 1.3605,
+    "count" : 374,
+    "p50" : 0.879167,
+    "p99" : 1.627292,
+    "max" : 2.255292
+  },
+  "redisCpuSeconds" : 0.617503000000001,
+  "redisCpuMicrosPerAttempt" : 154.37575000000027,
+  "redisCpuPercentOfOneCore" : 51.925963871358036,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=40000,usec=46824,usec_per_call=1.17,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=20000,usec=9555,usec_per_call=0.48,rejected_calls=0,failed_calls=0\r\ncmdstat_del:calls=20000,usec=10716,usec_per_call=0.54,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=4000,usec=3049,usec_per_call=0.76,rejected_calls=0,failed_calls=0\r\ncmdstat_watch:calls=4000,usec=38492,usec_per_call=9.62,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=29,usec_per_call=14.50,rejected_calls=0,failed_calls=0\r\ncmdstat_multi:calls=4000,usec=660,usec_per_call=0.17,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=374,usec=168,usec_per_call=0.45,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=60496,usec_per_call=15.12,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=20000,usec=24277,usec_per_call=1.21,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_mget:calls=4000,usec=26540,usec_per_call=6.64,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=20000,usec=14345,usec_per_call=0.72,rejected_calls=0,failed_calls=0\r\ncmdstat_exec:calls=4000,usec=99348,usec_per_call=24.84,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=4,usec_per_call=4.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=19,usec_per_call=19.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r3-n5-true-lua",
+    "strategy" : "lua",
+    "contended" : true,
+    "partySize" : 5,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.138446583,
+  "attempts" : 4000,
+  "successes" : 1000,
+  "conflicts" : 3000,
+  "errors" : 0,
+  "attemptsPerSecond" : 28892.009562995136,
+  "successesPerSecond" : 7223.002390748784,
+  "allLatencyMs" : {
+    "p95" : 1.526,
+    "count" : 4000,
+    "p50" : 1.048209,
+    "p99" : 1.780417,
+    "max" : 3.722042
+  },
+  "successLatencyMs" : {
+    "p95" : 1.558792,
+    "count" : 1000,
+    "p50" : 1.027083,
+    "p99" : 1.837583,
+    "max" : 2.444709
+  },
+  "conflictLatencyMs" : {
+    "p95" : 1.519958,
+    "count" : 3000,
+    "p50" : 1.054292,
+    "p99" : 1.77625,
+    "max" : 3.722042
+  },
+  "unrelatedPingMs" : {
+    "p95" : 1.474334,
+    "count" : 43,
+    "p50" : 1.018125,
+    "p99" : 1.681709,
+    "max" : 1.681709
+  },
+  "redisCpuSeconds" : 0.11103200000000069,
+  "redisCpuMicrosPerAttempt" : 27.75800000000017,
+  "redisCpuPercentOfOneCore" : 80.19844014496239,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=5000,usec=5339,usec_per_call=1.07,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=5000,usec=4262,usec_per_call=0.85,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=1000,usec=832,usec_per_call=0.83,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=51,usec_per_call=25.50,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=43,usec=20,usec_per_call=0.47,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=72782,usec_per_call=18.20,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=2,usec_per_call=2.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=5000,usec=6781,usec_per_call=1.36,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=1,usec_per_call=0.50,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=5000,usec=3452,usec_per_call=0.69,rejected_calls=0,failed_calls=0\r\ncmdstat_exists:calls=8000,usec=4411,usec_per_call=0.55,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=3,usec_per_call=3.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=54,usec_per_call=54.00,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+}, {
+  "run" : {
+    "id" : "r3-n5-true-lock",
+    "strategy" : "lock",
+    "contended" : true,
+    "partySize" : 5,
+    "operations" : 1000
+  },
+  "elapsedSeconds" : 0.935225625,
+  "attempts" : 4000,
+  "successes" : 1000,
+  "conflicts" : 3000,
+  "errors" : 0,
+  "attemptsPerSecond" : 4277.042772432588,
+  "successesPerSecond" : 1069.260693108147,
+  "allLatencyMs" : {
+    "p95" : 9.97475,
+    "count" : 4000,
+    "p50" : 7.269375,
+    "p99" : 11.970708,
+    "max" : 16.461458
+  },
+  "successLatencyMs" : {
+    "p95" : 10.736084,
+    "count" : 1000,
+    "p50" : 8.752583,
+    "p99" : 13.219959,
+    "max" : 15.746417
+  },
+  "conflictLatencyMs" : {
+    "p95" : 9.264542,
+    "count" : 3000,
+    "p50" : 6.038958,
+    "p99" : 10.969042,
+    "max" : 16.461458
+  },
+  "unrelatedPingMs" : {
+    "p95" : 1.320334,
+    "count" : 302,
+    "p50" : 0.8385,
+    "p99" : 1.719042,
+    "max" : 2.422875
+  },
+  "redisCpuSeconds" : 0.46462100000000106,
+  "redisCpuMicrosPerAttempt" : 116.15525000000027,
+  "redisCpuPercentOfOneCore" : 49.68009724926016,
+  "commandstats" : "# Commandstats\r\ncmdstat_set:calls=25000,usec=31970,usec_per_call=1.28,rejected_calls=0,failed_calls=0\r\ncmdstat_get:calls=18435,usec=8049,usec_per_call=0.44,rejected_calls=0,failed_calls=0\r\ncmdstat_del:calls=18435,usec=8987,usec_per_call=0.49,rejected_calls=0,failed_calls=0\r\ncmdstat_expire:calls=1000,usec=941,usec_per_call=0.94,rejected_calls=0,failed_calls=0\r\ncmdstat_watch:calls=2435,usec=23363,usec_per_call=9.59,rejected_calls=0,failed_calls=0\r\ncmdstat_info:calls=2,usec=43,usec_per_call=21.50,rejected_calls=0,failed_calls=0\r\ncmdstat_multi:calls=1000,usec=176,usec_per_call=0.18,rejected_calls=0,failed_calls=0\r\ncmdstat_ping:calls=302,usec=87,usec_per_call=0.29,rejected_calls=0,failed_calls=0\r\ncmdstat_evalsha:calls=4000,usec=56130,usec_per_call=14.03,rejected_calls=0,failed_calls=0\r\ncmdstat_slowlog|reset:calls=1,usec=1,usec_per_call=1.00,rejected_calls=0,failed_calls=0\r\ncmdstat_zrem:calls=5000,usec=9854,usec_per_call=1.97,rejected_calls=0,failed_calls=0\r\ncmdstat_client|setinfo:calls=2,usec=0,usec_per_call=0.00,rejected_calls=0,failed_calls=0\r\ncmdstat_mget:calls=2435,usec=16889,usec_per_call=6.94,rejected_calls=0,failed_calls=0\r\ncmdstat_sadd:calls=5000,usec=3669,usec_per_call=0.73,rejected_calls=0,failed_calls=0\r\ncmdstat_exec:calls=1000,usec=29459,usec_per_call=29.46,rejected_calls=0,failed_calls=0\r\ncmdstat_hello:calls=1,usec=4,usec_per_call=4.00,rejected_calls=0,failed_calls=0\r\ncmdstat_config|resetstat:calls=1,usec=17,usec_per_call=17.00,rejected_calls=0,failed_calls=0\r\ncmdstat_unwatch:calls=1435,usec=6222,usec_per_call=4.34,rejected_calls=0,failed_calls=0\r\n",
+  "slowEvalOver1msCount" : 0,
+  "slowEvalMaxMicros" : 0,
+  "verified" : "winner ownership, exact member sets, loser no writes, queue removal, positive TTL, no remaining mutexes"
+} ]

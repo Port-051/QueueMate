@@ -1,0 +1,11 @@
+{
+  "arch" : "aarch64",
+  "java" : "21.0.11",
+  "redisInfo" : "# Server\r\nredis_version:7.4.11\r\nredis_git_sha1:00000000\r\nredis_git_dirty:0\r\nredis_build_id:c8d8130a4710f7c0\r\nredis_mode:standalone\r\nos:Linux 6.12.76-linuxkit aarch64\r\narch_bits:64\r\nmonotonic_clock:POSIX clock_gettime\r\nmultiplexing_api:epoll\r\natomicvar_api:c11-builtin\r\ngcc_version:14.2.0\r\nprocess_id:1\r\nprocess_supervised:no\r\nrun_id:9c71aa1ce4a04c9605aede02845cd3a3522420f3\r\ntcp_port:6379\r\nserver_time_usec:1789384802058183\r\nuptime_in_seconds:1\r\nuptime_in_days:0\r\nhz:10\r\nconfigured_hz:10\r\nlru_clock:10999905\r\nexecutable:/data/redis-server\r\nconfig_file:\r\nio_threads_active:0\r\nlistener0:name=tcp,bind=*,bind=-::*,port=6379\r\n",
+  "threadsPerWorker" : 8,
+  "scope" : "claim only; four JVMs, one local standalone Redis; no DB/HTTP/Sentinel",
+  "workers" : 4,
+  "os" : "Mac OS X",
+  "claimTtlSeconds" : 120,
+  "lockLeaseMs" : 10000
+}
