@@ -100,8 +100,35 @@ class RealtimeMatchingIntegrationTest {
     @Autowired UserRepository users;
     @Autowired StringRedisTemplate redis;
     @Autowired JdbcClient jdbc;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     private final AtomicInteger sequence = new AtomicInteger();
+
+    @Test
+    @DisplayName("분산 락 선점 뒤 DB 롤백은 참여 기록을 해제하고 원래 순서로 큐를 복구한다")
+    void rollbackAfterClaimRestoresQueueAndAllowsRetry() {
+        UUID first = newUser();
+        UUID second = newUser();
+        MatchRequest a = matchRequests.start(first, lol(LolPosition.JUNGLE));
+        MatchRequest b = matchRequests.start(second, lol(LolPosition.MID));
+        new org.springframework.transaction.support.TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            assertThat(matcher.tryMatch(GameKey.LOL, LOL_MODE)).isPresent();
+            assertThat(claimRepository.activeProposalOf(first)).isPresent();
+            status.setRollbackOnly();
+        });
+        assertThat(proposalRepository.count()).isZero();
+        assertThat(claimRepository.activeProposalOf(first)).isEmpty();
+        assertThat(claimRepository.activeProposalOf(second)).isEmpty();
+        assertThat(jdbc.sql("select count(*) from active_proposal_claims").query(Long.class).single()).isZero();
+        assertThat(requestRepository.findById(a.getId()).orElseThrow().getStatus()).isEqualTo(MatchRequestStatus.QUEUED);
+        for (var request : List.of(a, b)) {
+            var position = request.getId().equals(a.getId()) ? LolPosition.JUNGLE : LolPosition.MID;
+            var bucket = MatchBucket.of(lol(position));
+            assertThat(redis.opsForZSet().score(MatchingRedisKeys.queue(bucket), request.getId().toString()))
+                    .isEqualTo((double) request.getQueuedAt().toInstant().toEpochMilli());
+        }
+        assertThat(matcher.tryMatch(GameKey.LOL, LOL_MODE)).isPresent();
+    }
 
     @BeforeEach
     void reset() {

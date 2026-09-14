@@ -47,6 +47,11 @@ public final class MatchingRedisKeys {
         return PREFIX + "user:active-proposal:" + userId;
     }
 
+    /** 실시간·예약이 공유하는 사용자별 선점 작업 mutex. */
+    public static String claimLock(UUID userId) {
+        return PREFIX + "lock:claim:" + userId;
+    }
+
     /** proposal 참가자 userId 집합. proposal과 같은 TTL을 가진다. */
     public static String proposalMembers(UUID proposalId) {
         return PREFIX + "proposal:members:" + proposalId;

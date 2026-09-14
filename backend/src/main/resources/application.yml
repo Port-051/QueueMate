@@ -99,6 +99,8 @@ queuemate:
       # Sentinel이 아직 죽었다는 판정도 내리지 않은 시점이다.
       open-ms: ${REDIS_CIRCUIT_OPEN_MS:5000}
   matching:
+    # 참가자별 선점 작업 락의 임대. 만료되면 WATCH가 오래된 작업의 저장을 거부한다.
+    claim-lock-lease-ms: ${MATCH_CLAIM_LOCK_LEASE_MS:10000}
     # 매칭은 대기열이 변한 순간 돈다. 아래는 그 trigger를 잃었을 때를 위한 안전망 주기다.
     # 여기서 제안이 만들어진다면 주기를 줄일 것이 아니라 왜 trigger를 잃었는지 봐야 한다.
     sweep-ms: ${MATCH_SWEEP_MS:15000}

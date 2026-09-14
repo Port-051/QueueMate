@@ -1,6 +1,17 @@
 package com.queuemate.matching.infra;
 
 import com.queuemate.matching.domain.ClaimCandidate;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.data.redis.connection.DataType;
+import org.springframework.data.redis.core.RedisOperations;
+import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Repository;
@@ -11,105 +22,142 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 /**
- * 후보 전원을 하나의 proposal에 원자적으로 잠근다 (INV-2, docs/03 §7).
+ * 사용자별 Redis 분산 락 아래에서 Java로 참가자를 검증하고 전원을 선점한다.
  *
- * <p>후보 탐색과 claim은 분리된 단계다. 탐색 결과는 이미 낡았을 수 있으므로,
- * 실제 잠금은 Lua script 안에서 전원 검증과 함께 끝낸다.
- * GET → 애플리케이션 판단 → SET 으로 나누면 그 사이에 다른 matcher가 끼어든다.
- *
- * <p>Redis 장애 시 예외는 그대로 올린다. DB fallback으로 비원자적 매칭을 시도하지 않는다 (INV-10).
+ * <p>WATCH는 검증 후 락 임대 만료·요청 교체를 감지하고, MULTI/EXEC은 참가자 기록과 큐
+ * 제거를 함께 적용한다. Sentinel 기록 유실에 대한 최종 방어는 DB의 활성 참여 PK다.
+ * Redis 오류는 호출자에게 전파해 새 매칭을 중단한다 (INV-10).
  */
 @Repository
 public class ProposalClaimRepository {
-
+    private static final Logger log = LoggerFactory.getLogger(ProposalClaimRepository.class);
     private static final int MIN_PARTY_SIZE = 2;
-
     private final StringRedisTemplate redis;
-    private final RedisScript<Long> claimScript;
-    private final RedisScript<Long> reservationClaimScript;
+    private final RedisClaimLock lock;
+    private final MeterRegistry metrics;
     private final RedisScript<Long> releaseScript;
 
-    public ProposalClaimRepository(StringRedisTemplate redis) {
+    @Autowired
+    public ProposalClaimRepository(StringRedisTemplate redis, MeterRegistry metrics,
+                                   @Value("${queuemate.matching.claim-lock-lease-ms:10000}") long leaseMs) {
         this.redis = redis;
-        this.claimScript = LuaScripts.load("redis/atomic-proposal-claim.lua", Long.class);
-        this.reservationClaimScript =
-                LuaScripts.load("redis/atomic-reservation-claim.lua", Long.class);
+        this.metrics = metrics;
+        this.lock = new RedisClaimLock(redis, Duration.ofMillis(leaseMs), metrics);
         this.releaseScript = LuaScripts.load("redis/release-proposal-claim.lua", Long.class);
     }
 
-    /**
-     * 후보 전원을 잠근다. 한 명이라도 다른 proposal에 묶여 있거나 활성 요청이 바뀌었으면
-     * 아무것도 바꾸지 않고 실패한다.
-     *
-     * <p>성공하면 참가자의 requestId가 각자의 대기열 bucket에서 함께 제거된다.
-     *
-     * @param proposalId 새로 만들 proposal의 id
-     * @param ttl        proposal 수락 제한 시간
-     * @param candidates 잠글 후보. 최소 2명이고 중복될 수 없다. 각자 자기 bucket을 들고 온다
-     * @return 전원 잠금에 성공하면 true, 한 명이라도 충돌하면 false
-     */
-    public boolean claimAll(UUID proposalId, Duration ttl, List<ClaimCandidate> candidates) {
-        validate(proposalId, ttl, candidates);
-
-        // 참가자마다 조건이 달라 빠져나올 대기열 key도 다르다 (docs/07 §3.1).
-        List<String> keys = new ArrayList<>(1 + candidates.size() * 3);
-        keys.add(MatchingRedisKeys.proposalMembers(proposalId));
-        for (ClaimCandidate candidate : candidates) {
-            keys.add(MatchingRedisKeys.activeProposal(candidate.userId()));
-            keys.add(MatchingRedisKeys.activeRequest(candidate.userId()));
-            keys.add(MatchingRedisKeys.queue(candidate.bucket()));
-        }
-
-        Object[] args = new Object[2 + candidates.size() * 2];
-        args[0] = proposalId.toString();
-        args[1] = String.valueOf(ttl.toSeconds());
-        int i = 2;
-        for (ClaimCandidate candidate : candidates) {
-            args[i++] = candidate.requestId().toString();
-            args[i++] = candidate.userId().toString();
-        }
-
-        return Long.valueOf(1L).equals(redis.execute(claimScript, keys, args));
+    /** Redis 저장소 단독 테스트에서 사용하는 기본 구성. */
+    public ProposalClaimRepository(StringRedisTemplate redis) {
+        this(redis, new SimpleMeterRegistry(), 10_000);
     }
 
-    /**
-     * 예약 제안용 잠금. 실시간과 같은 active-proposal 키를 써서,
-     * 한 사람이 실시간 제안과 예약 제안을 동시에 들고 있지 않게 한다 (INV-2).
-     *
-     * @param userIds 잠글 사용자. 최소 2명이고 중복될 수 없다
-     * @return 전원 잠금에 성공하면 true
-     */
+    /** 참가자 모두 가능하면 선점 기록을 남기고 각자의 큐에서 제거한다. */
+    public boolean claimAll(UUID proposalId, Duration ttl, List<ClaimCandidate> candidates) {
+        if (candidates == null || candidates.stream().anyMatch(java.util.Objects::isNull)) {
+            throw new IllegalArgumentException("후보는 필수다");
+        }
+        List<UUID> userIds = candidates.stream().map(ClaimCandidate::userId).toList();
+        validate(proposalId, ttl, userIds);
+        return claim(proposalId, ttl, userIds, candidates, "realtime");
+    }
+
+    /** 예약도 같은 사용자별 mutex와 active-proposal 기록을 사용한다 (INV-2). */
     public boolean claimAllForReservation(UUID proposalId, Duration ttl, List<UUID> userIds) {
-        if (proposalId == null) {
-            throw new IllegalArgumentException("proposalId는 필수다");
-        }
-        if (ttl == null || ttl.isZero() || ttl.isNegative()) {
-            throw new IllegalArgumentException("ttl은 양수여야 한다. 영구 잠금을 만들지 않는다");
-        }
-        if (userIds == null || userIds.size() < MIN_PARTY_SIZE) {
-            throw new IllegalArgumentException("후보는 최소 " + MIN_PARTY_SIZE + "명이다");
-        }
-        if (userIds.size() != new HashSet<>(userIds).size()) {
-            throw new IllegalArgumentException("같은 사용자가 두 번 들어왔다");
-        }
+        validate(proposalId, ttl, userIds);
+        return claim(proposalId, ttl, userIds, List.of(), "reservation");
+    }
 
-        List<String> keys = new ArrayList<>(userIds.size() + 1);
-        keys.add(MatchingRedisKeys.proposalMembers(proposalId));
-        for (UUID userId : userIds) {
-            keys.add(MatchingRedisKeys.activeProposal(userId));
+    private boolean claim(UUID proposalId, Duration ttl, List<UUID> users,
+                          List<ClaimCandidate> candidates, String source) {
+        Timer.Sample sample = Timer.start(metrics);
+        String outcome = "error";
+        try {
+            boolean claimed = lock.execute(users, lease -> Boolean.TRUE.equals(redis.execute(new SessionCallback<Boolean>() {
+                @Override
+                @SuppressWarnings("unchecked")
+                public <K, V> Boolean execute(RedisOperations<K, V> operations) {
+                    return claimInSession((RedisOperations<String, String>) operations,
+                            lease, proposalId, ttl, users, candidates);
+                }
+            })));
+            outcome = claimed ? "success" : "conflict";
+            return claimed;
+        } catch (RuntimeException e) {
+            // EXEC 응답이 유실되면 반영 여부를 단정할 수 없다. 성공으로 재시도하지 않는다.
+            // DB는 롤백하며 유한한 제안 TTL과 기존 DB 기반 큐 복구가 남은 상태를 정리한다.
+            log.warn("분산 락 선점 실패 source={} proposalId={}", source, proposalId, e);
+            throw e;
+        } finally {
+            sample.stop(metrics.timer("qm.matching.claim.duration", "source", source, "outcome", outcome));
         }
+    }
 
-        Object[] args = new Object[2 + userIds.size()];
-        args[0] = proposalId.toString();
-        args[1] = String.valueOf(ttl.toSeconds());
-        for (int i = 0; i < userIds.size(); i++) {
-            args[2 + i] = userIds.get(i).toString();
+    private boolean claimInSession(RedisOperations<String, String> operations, RedisClaimLock.Lease lease,
+                                   UUID proposalId, Duration ttl, List<UUID> users, List<ClaimCandidate> candidates) {
+        List<String> proposalKeys = users.stream().map(MatchingRedisKeys::activeProposal).toList();
+        List<String> requestKeys = candidates.stream().map(c -> MatchingRedisKeys.activeRequest(c.userId())).toList();
+        String membersKey = MatchingRedisKeys.proposalMembers(proposalId);
+        List<String> watched = new ArrayList<>(lease.keys());
+        watched.addAll(proposalKeys);
+        watched.addAll(requestKeys);
+        watched.add(membersKey);
+        boolean watching = false;
+        boolean transaction = false;
+        try {
+            operations.watch(watched);
+            watching = true;
+            List<String> values = operations.opsForValue().multiGet(watched.subList(0, watched.size() - 1));
+            if (values == null) throw new DataAccessResourceFailureException("선점 상태를 읽지 못했다");
+            for (int i = 0; i < lease.keys().size(); i++) {
+                if (!lease.token().equals(values.get(i))) return false;
+            }
+            int offset = lease.keys().size();
+            for (int i = 0; i < users.size(); i++) {
+                if (values.get(offset + i) != null) return false;
+            }
+            offset += users.size();
+            for (int i = 0; i < candidates.size(); i++) {
+                if (!candidates.get(i).requestId().toString().equals(values.get(offset + i))) return false;
+            }
+            // 이미 사용한 proposalId 재사용 및 잘못된 큐 타입을 쓰기 전에 거부한다.
+            if (Boolean.TRUE.equals(operations.hasKey(membersKey))) return false;
+            for (String bucket : candidates.stream().map(c -> MatchingRedisKeys.queue(c.bucket())).distinct().toList()) {
+                DataType type = operations.type(bucket);
+                if (type != DataType.NONE && type != DataType.ZSET) {
+                    throw new DataAccessResourceFailureException("매칭 큐 타입이 올바르지 않다: " + bucket);
+                }
+            }
+            transaction = true;
+            operations.multi();
+            for (String key : proposalKeys) operations.opsForValue().set(key, proposalId.toString(), ttl);
+            operations.opsForSet().add(membersKey, users.stream().map(UUID::toString).toArray(String[]::new));
+            operations.expire(membersKey, ttl);
+            for (ClaimCandidate candidate : candidates) {
+                operations.opsForZSet().remove(MatchingRedisKeys.queue(candidate.bucket()), candidate.requestId().toString());
+            }
+            List<Object> results = operations.exec();
+            transaction = false;
+            watching = false;
+            if (results == null || results.isEmpty()) {
+                metrics.counter("qm.matching.claim.transaction.conflict").increment();
+                return false;
+            }
+            for (Object result : results) {
+                if (result instanceof Throwable error) throw new DataAccessResourceFailureException("선점 저장 오류", error);
+            }
+            return true;
+        } finally {
+            try {
+                if (transaction) operations.discard();
+                else if (watching) operations.unwatch();
+            } catch (RuntimeException cleanupError) {
+                metrics.counter("qm.matching.claim.transaction.cleanup.failure").increment();
+                log.warn("선점 Redis 세션 정리에 실패했다", cleanupError);
+            }
         }
-        return Long.valueOf(1L).equals(redis.execute(reservationClaimScript, keys, args));
     }
 
     /**
@@ -139,22 +187,15 @@ public class ProposalClaimRepository {
                 .map(UUID::fromString);
     }
 
-    private void validate(UUID proposalId, Duration ttl, List<ClaimCandidate> candidates) {
-        if (proposalId == null) {
-            throw new IllegalArgumentException("proposalId는 필수다");
-        }
-        if (ttl == null || ttl.isZero() || ttl.isNegative()) {
-            throw new IllegalArgumentException("ttl은 양수여야 한다. 영구 잠금을 만들지 않는다");
-        }
-        if (candidates == null || candidates.size() < MIN_PARTY_SIZE) {
+    private void validate(UUID proposalId, Duration ttl, List<UUID> userIds) {
+        if (proposalId == null) throw new IllegalArgumentException("proposalId는 필수다");
+        if (ttl == null || ttl.toMillis() < 1) throw new IllegalArgumentException("선점 TTL은 1ms 이상이어야 한다");
+        if (userIds == null || userIds.size() < MIN_PARTY_SIZE) {
             throw new IllegalArgumentException("후보는 최소 " + MIN_PARTY_SIZE + "명이다");
         }
-        Set<UUID> userIds = new HashSet<>();
-        for (ClaimCandidate candidate : candidates) {
-            if (!userIds.add(candidate.userId())) {
-                // INV-7. Lua도 막지만 여기서 걸러야 원인이 드러난다.
-                throw new IllegalArgumentException("같은 사용자가 두 번 들어왔다: " + candidate.userId());
-            }
+        if (userIds.stream().anyMatch(java.util.Objects::isNull)) throw new IllegalArgumentException("사용자는 필수다");
+        if (userIds.size() != new HashSet<>(userIds).size()) {
+            throw new IllegalArgumentException("같은 사용자가 두 번 들어왔다");
         }
     }
 }

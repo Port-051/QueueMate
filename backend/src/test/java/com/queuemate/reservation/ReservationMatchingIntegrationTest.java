@@ -94,8 +94,28 @@ class ReservationMatchingIntegrationTest {
     @Autowired UserRepository users;
     @Autowired StringRedisTemplate redis;
     @Autowired JdbcClient jdbc;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     private final AtomicInteger sequence = new AtomicInteger();
+
+    @Test
+    @DisplayName("예약도 분산 락 선점 뒤 DB가 롤백되면 다시 매칭할 수 있다")
+    void rollbackAfterClaimReleasesReservationParticipants() {
+        UUID first = newUser();
+        UUID second = newUser();
+        Reservation a = service.create(first, lol(LolPosition.JUNGLE), at("20:00"), at("23:00"), PlayAmount.ONE_GAME);
+        service.create(second, lol(LolPosition.MID), at("20:00"), at("23:00"), PlayAmount.ONE_GAME);
+        new org.springframework.transaction.support.TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            assertThat(matcher.tryMatchFor(a.getId())).isPresent();
+            assertThat(claims.activeProposalOf(first)).isPresent();
+            status.setRollbackOnly();
+        });
+        assertThat(claims.activeProposalOf(first)).isEmpty();
+        assertThat(claims.activeProposalOf(second)).isEmpty();
+        assertThat(jdbc.sql("select count(*) from active_proposal_claims").query(Long.class).single()).isZero();
+        assertThat(reservations.findById(a.getId()).orElseThrow().getStatus()).isEqualTo(ReservationStatus.ACTIVE);
+        assertThat(matcher.tryMatchFor(a.getId())).isPresent();
+    }
 
     @BeforeEach
     void reset() {
