@@ -123,10 +123,10 @@ QueueMate는 **조건 기반 팀원 자동 랜덤 매칭** 서비스다.
 | INV | 내용 | 어디서 지켜지나 | 상태 |
 |---|---|---|---|
 | **INV-1** | 한 사용자는 활성 실시간 매칭 요청을 1개만 가진다 | `backend/src/main/resources/redis/shared/claim-request.lua` — `EXISTS` + `HSET`을 한 원자 실행으로 묶고 마지막에 `EXPIRE 60`을 건다(선점만 하고 배정 전에 죽으면 그 사용자가 영영 막히는 것을 막는 안전장치). 호출은 `service/MatchRequestService.java#join()`. 실패 시 `controller/MatchingController.java`가 `409 ALREADY_QUEUED`. 배정에 성공한 스크립트가 `PERSIST`로 그 만료를 뗀다 | **구현·테스트됨** |
-| **INV-2** | 한 사용자는 동시에 하나의 활성 proposal에만 속한다 | proposal 수락/확정이 아직 없다. 현재 이 저장소가 보장하는 것은 그 전 단계인 **"한 사용자는 한 파티에만"** 이고, 배정 스크립트 4개(`redis/lol/create-or-check-party-untiered.lua` · `create-or-check-party-tiered.lua` · `join-party.lua` · `join-party-tiered.lua`)가 전부 `qm:user:active-request:{userId}` HASH의 `partyId` 필드 **하나만** 쓰는 것으로 지킨다. 그 필드를 지우는 것은 `redis/lol/leave-party.lua` 하나다 | **부분** |
+| **INV-2** | 한 사용자는 동시에 하나의 활성 proposal에만 속한다 | 수락/거절이 붙은 뒤에도 **여전히 "한 사용자는 한 파티에만"으로 근사된다.** 근사가 성립하는 이유는 **proposal이 곧 party**이기 때문이다 — `proposalId = partyId`이고 제안 상태(`status`/`expiresAt`)를 별도 레코드가 아니라 파티 HASH에 얹는다(`service/ProposalService.java` 클래스 주석). 그 한 파티를 지키는 것은 배정 스크립트 4개(`redis/lol/create-or-check-party-untiered.lua` · `create-or-check-party-tiered.lua` · `join-party.lua` · `join-party-tiered.lua`)가 전부 `qm:user:active-request:{userId}` HASH의 `partyId` 필드 **하나만** 쓰는 것이다. 그 필드를 지우는 것은 `redis/lol/leave-party.lua` 하나이고, 거절 시에는 `ProposalService#decline()`이 스크립트 뒤에 `MatchCancelService#cancel()`을 불러 거절한 본인만 큐에서 뺀다(수락해 놓고 기다리던 나머지는 남긴다). **확정돼도 활성 요청·파티는 정리되지 않는다**(`ProposalService#accept()`의 TODO) — 그래서 확정 뒤에도 그 사용자는 그 파티 하나에 묶인 채다 | **부분 (파티 단위 근사)** |
 | **INV-3** | 파티 인원은 mode의 target party size를 넘지 않는다 | `redis/lol/join-party.lua` / `join-party-tiered.lua` — 참가자를 `HSET` 한 뒤 `member:` 필드를 **세어** `size >= target`이면 그 파티를 **모든 needs 색인(티어 모드는 파티의 `tierLo`~`tierHi` 칸 전부)에서 제거**한다. 인원 카운터 필드는 두지 않는다 — Lua는 롤백이 없어 페일오버 뒤 재시도가 `HINCRBY`를 두 번 더하면 실제 멤버 수와 어긋나지만, `HSET` + 세기는 몇 번 해도 같기 때문이다. **주의: 세는 자리에는 target 확인 분기가 없다.** 초과를 막는 것은 ① 후보가 needs 색인(=아직 안 찬 파티)에서만 나온다는 것과 ② 후보 선택부터 합류까지가 `redis/PoolLock.java`의 후보 풀 락 안에 있다는 것, 두 겹이다. 그 락을 건너뛰는 호출부를 만들면 INV-3이 깨진다 | **구현·테스트됨** |
-| **INV-4** | proposal의 모든 참가자가 accept하기 전에는 party 확정 금지 | **미구현.** 확정 자체가 없다. 트리거 지점은 `rule/lol/UntieredAssigner.java#joinParty()` / `rule/lol/TieredAssigner.java#joinParty()`의 `JOINED_AND_FULL` 분기다 — Lua 반환 코드는 **`2`**(정원 참)이고 `3`이 아니다(`join-party.lua` / `join-party-tiered.lua` 헤더 주석). 그 자리는 이제 TODO가 아니라 `MATCH_PROPOSAL_CREATED` 알림을 파티 전원에게 실제로 발행한다(`notification/PushPublisher.java`). 즉 **"제안이 생겼다"는 통보만 있고 수락 집계·확정이 없다** | **미구현 (트리거·알림만 있음)** |
-| **INV-5** | expired/declined/cancelled proposal은 다시 confirm될 수 없다 | **미구현.** 껍데기만 있다 — `controller/ProposalController.java`(`POST /api/v1/proposals/{id}/accept`·`decline`)와 `domain/AcceptResult.java` / `domain/DeclineResult.java`가 응답 갈래까지 잡혀 있으나, `service/ProposalService.java`는 시그니처뿐이고 부르면 `UnsupportedOperationException`이 난다. `domain/ProposalStatus.java` / `domain/AcceptanceStatus.java` enum도 쓰는 코드가 없다. 설계상 자리는 수락 집계 Lua 안이다 (docs/11 #28) | **미구현** |
+| **INV-4** | proposal의 모든 참가자가 accept하기 전에는 party 확정 금지 | `redis/proposal/accept-proposal.lua` — **수락자 SET `qm:proposal:accepts:{partyId}`를 `SCARD`로 세어 파티 HASH의 `target`과 비교하고, `count >= target`일 때만 `HSET status 'CONFIRMED'`** 한 뒤 `CONFIRMED`를 돌려준다. 세기와 확정이 한 스크립트 안이라 마지막 두 명이 동시에 눌러도 둘 다 "내가 마지막"이 될 수 없다. `target`을 못 읽으면 확정하지 않고 수락만 기록한다(fail-closed). 쓰기가 `SADD`/`HSET`뿐이고 `SADD` 반환값으로 early return 하지 않아 **재시도해도 답이 같다**(카운터 대신 집합을 쓰는 이유 — 중간에 죽어도 다음 호출이 다시 세어 확정한다). `decline-proposal.lua`가 `DEL acceptsKey`까지 하는 것도 INV-4를 위해서다 — 옛 수락을 남기면 다시 찬 파티가 한 명만 눌러도 `SCARD`가 `target`에 닿는다. 제안이 열리는 자리는 `rule/lol/UntieredAssigner.java#joinParty()` / `rule/lol/TieredAssigner.java#joinParty()`의 `JOINED_AND_FULL`(Lua 반환 **`2`**) 분기이고, 거기서 `MATCH_PROPOSAL_CREATED` 알림을 파티 전원에게 발행한다. `status='PENDING'` + `expiresAt`을 쓰는 것은 `join-party.lua` / `join-party-tiered.lua`의 `HSETNX`다. **아직 없는 것**: 확정 후속 처리(`ProposalConfirmed.fifo` 발행, `MATCH_CONFIRMED` 알림, 확정 파티의 색인·활성 요청 정리 — `ProposalService#accept()`의 TODO)와 만료 처리(INV-5 참고) | **구현·테스트됨 (확정 후속 처리는 없음)** |
+| **INV-5** | expired/declined/cancelled proposal은 다시 confirm될 수 없다 | 네 갈래 중 **둘만 막혀 있다.** ① **declined — 막힘.** `redis/proposal/decline-proposal.lua`는 `status`를 `'DECLINED'`로 **바꾸지 않고 `HDEL status, expiresAt` + `DEL acceptsKey`로 지운다.** 남겨 두면 그 파티가 다시 찼을 때 `join-party*.lua`의 `HSETNX status 'PENDING'`이 0을 돌려주어 아무도 확정시킬 수 없는 **좀비 파티**가 되기 때문이다(그 파일 머리말). 그래서 거절된 제안에 들어온 수락은 `accept-proposal.lua` 1번에서 `NOT_FOUND`로 걸린다 — `status == 'DECLINED'` 분기는 현재 **도달하지 않는 방어 코드**다. ② **confirmed — 되돌릴 수 없음.** 두 스크립트 모두 쓰기 전에 `HGET status`를 먼저 보고, `CONFIRMED`면 수락은 `CONFIRMED`를 그대로, 거절은 `CONFIRMED`(=깨지 못함, 409)를 돌려준다. 페일오버 재실행 대비도 있다 — `join-party*.lua`가 `HSET`이 아니라 `HSETNX`로 `PENDING`을 써서 확정된 제안이 `PENDING`으로 되돌아가지 않는다. ③ **expired — 구멍.** `expiresAt`(= now + `queuemate.proposal.ttl-seconds`, 기본 20초)은 정원이 찰 때 **쓰이기만 하고 읽는 주체가 없다.** sweeper가 없어 `accept-proposal.lua`는 시한을 보지 않으므로 **만료된 제안에 수락이 들어오면 그대로 확정된다.** ④ **cancelled — 구멍.** `redis/lol/leave-party.lua`는 `member:` 필드만 지우고 `status` / `expiresAt` / 수락자 SET을 건드리지 않는다. `PENDING` 제안 도중 한 명이 취소하면 파티는 needs 색인으로 되돌아가지만 `status=PENDING`과 **취소자의 옛 수락이 SET에 남아**, 새로 합류한 사람의 수락으로 `SCARD`가 `target`에 닿아 확정될 수 있다(거절 경로는 해당 없음 — `decline-proposal.lua`가 먼저 지우고 그 뒤에 취소한다). 응답 갈래는 `domain/ProposalResult.java` 한 enum이 맡는다(`AcceptResult`/`DeclineResult`는 없어졌다). `domain/ProposalStatus.java` / `domain/AcceptanceStatus.java`는 **여전히 쓰는 코드가 없다** — 상태는 Redis의 문자열이다 | **부분 (declined·confirmed는 막힘, expired·cancelled는 구멍)** |
 | **INV-6** | block 관계 사용자는 같은 proposal/party에 들어갈 수 없다 | **미구현.** 두 겹으로 설계했는데 아랫단만 있다. ① **선필터(코드 있음)** — `rule/lol/LolCandidateRule.java#canJoin()`이 락을 잡기 전에 `block/BlockRepository.java#findBlockedUserIds()`를 실제로 부르고, Lua가 돌려준 후보 파티 멤버 목록을 `rule/lol/LolScriptSupport.java#blockedWith()`로 거른다(상한 `MAX_CANDIDATE_SCAN = 20`, 전부 차단이면 새 파티를 만든다). Redis 선필터(`qm:block:{userId}`)가 아니라 **DB 조회**다 (docs/11 D-2). ② **확정 직전 최종 검증(없음)** — `social.blocks` 동기 SELECT (docs/11 D-1). 확정 단계가 없으므로 이것도 없다. **그리고 ①은 스키마가 없어 실제로는 실패한다** — Flyway가 없고 `application.yaml`이 `ddl-auto: none`이라 기본 실행(H2)에 `social.blocks`가 없다. 배정은 `@Async` 안이라 요청은 201로 나가고 배정만 조용히 실패한다. 테스트만 `ConcurrencyTestSupport`의 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql`로 테이블을 만들어 통과한다. **차단 검증 없이 배포하지 않는다** (docs/11 #30) | **미구현 (선필터 코드만, 스키마 없음)** |
 | **INV-7** | 동일 사용자의 PartyMember 중복 금지 | 배정 스크립트 4개가 참가자를 `member:{userId} = keyValue` **HASH 필드**로 쓴다 — 새로 만들 때는 `create-or-check-party-untiered.lua` / `create-or-check-party-tiered.lua`의 `HSET`, 합류할 때는 `join-party.lua` / `join-party-tiered.lua`의 `HSET`. 같은 userId면 필드가 하나뿐이라 구조적으로 중복이 불가능하다. 앞단에서 INV-1이 이미 두 번째 요청을 막는다 | **구현됨** |
 | **INV-8** | 게임별 hard rule 위반 파티 생성 금지 | 두 겹이다. ① 값 검증 — `validation/lol/LolConditionValidator.java`가 modeKey 존재 여부, `positionUniqueness`에 맞는 포지션 값, 그리고 `tierRule`(**`NONE` / `EXIST`**)에 맞는 티어 값까지 확인한다. `EXIST`면 `qm:gameconfig:LOL:tier-range:{modeKey}` 표를 읽어 **줄이 없는 티어와 `SOLO_ONLY` 티어를 거른다**(표가 없는 모드는 그 모드 요청이 전부 400이다 — fail-closed다). `WINDOW`/`TABLE`과 `maxTierGap`은 없앴다. 폭으로 거를지 표로 거를지를 설정에 또 적으면 설정이 데이터와 어긋날 수 있었기 때문이다 — `WINDOW`라고 적어 놓고 `maxTierGap`을 빠뜨리면 폭이 0이 되어 자기 티어하고만 매칭되는데 **에러가 안 났다**. 지금은 "표가 있으면 그 표대로"가 전부다 (`seed/gameconfig.redis`). ② 구조적 분리 — 조건이 **Redis 키 이름**에 들어가므로(`qm:party:open:LOL:{mode}:{voice}:{purpose}:needs:{keyValue}`, 티어 모드는 뒤에 `:{tier}`가 더 붙어 (포지션 x 티어) 격자가 된다. 그 접미사는 **Lua가 스스로 붙인다** — 자바는 티어 없는 needs 키만 넘긴다) 조건이 다르면 애초에 같은 색인에 없다. 포지션 중복 금지는 Lua의 `unique` 분기가 처리 | **LoL만 구현·테스트됨** |
@@ -140,8 +140,9 @@ QueueMate는 **조건 기반 팀원 자동 랜덤 매칭** 서비스다.
 | `backend/src/test/java/.../concurrency/ActiveRequestConcurrencyTest.java` | INV-1 (같은 사용자 동시 100회 → 1건만 성공 / 다른 사용자 100명 → 전원 성공) |
 | `backend/src/test/java/.../concurrency/NaiveVsLuaComparisonTest.java` | INV-1 (순진한 `EXISTS`-후-`HSET`은 깨지고 Lua는 중복 0건임을 대조로 보인다) |
 | `backend/src/test/java/.../concurrency/PartyJoinConcurrencyTest.java` | INV-3 (정원 초과 없음), INV-8 (같은 포지션 2명 없음), INV-2 근사 (한 사용자 = 한 파티) |
+| `backend/src/test/java/.../proposal/ProposalIdempotencyTest.java` | INV-4 (전원 수락 전 확정 없음 / 재시도가 수락자 수를 부풀리지 않음), INV-5 (확정은 거절로 뒤집히지 않음, 거절된 제안은 확정 경로에 못 들어옴, 페일오버 재실행이 `CONFIRMED`를 `PENDING`으로 되돌리지 않음) |
 
-**동시성이 걸린 코드를 고쳤으면 위 3개를 반드시 다시 돌려라.**
+**동시성이 걸린 코드를 고쳤으면 위 표의 `concurrency/*` 3개를 반드시 다시 돌려라.**
 
 불변식 회귀는 아니지만 같은 Redis(DB 15)를 쓰는 테스트가 하나 더 있다 —
 `backend/src/test/java/.../notification/PushNotificationTest.java` (6건). `qm:pubsub:push:*`를
@@ -149,11 +150,11 @@ QueueMate는 **조건 기반 팀원 자동 랜덤 매칭** 서비스다.
 (의도된 설계다) 발행 코드가 틀려도 호출부는 조용히 지나간다 — 구독 말고는 검증할 방법이 없다.
 **알림 발행 코드를 고쳤으면 이것도 돌려라.**
 
-같은 Redis를 쓰는 테스트가 하나 더 있다 —
-`backend/src/test/java/.../proposal/ProposalIdempotencyTest.java` (11건). 수락/거절의
-**멱등성**을 본다(같은 수락을 두 번 보내도 답이 같은가, 거절은 왜 멱등이 아닌가,
-확정된 제안이 재실행으로 `PENDING`으로 되돌아가지 않는가). `proposal/*.lua`를 고쳤으면
-이것도 돌려라.
+표의 `ProposalIdempotencyTest`(11건)는 **단일 스레드**다. 동시성이 아니라 **멱등성**으로
+INV-4/5를 지킨다 — 같은 수락을 두 번 보내도 답이 같은가, 거절은 왜 멱등이 아닌가
+(첫 거절만 `DECLINED`, 재시도는 `NOT_FOUND`), 확정된 제안이 페일오버 재실행으로
+`PENDING`으로 되돌아가지 않는가. `proposal/*.lua`나 `join-party*.lua`의 `HSETNX` 분기를
+고쳤으면 이것도 돌려라.
 
 ### Lua 스크립트 목록 (`backend/src/main/resources/redis/`, 8개)
 
@@ -189,7 +190,7 @@ needs 키**를 넘기고 Lua가 `':' .. 티어이름`을 붙여 조립한다 —
 
 > **`GET → 애플리케이션 판단 → SET`으로 불변식을 지키지 마라.**
 
-확인과 쓰기 사이에 다른 요청이 끼어들면 불변식이 깨진다. INV-1/2/3/7은 전부
+확인과 쓰기 사이에 다른 요청이 끼어들면 불변식이 깨진다. INV-1/2/3/4/5/7은 전부
 **Lua 스크립트 한 덩어리**로 처리한다. 새 불변식을 추가할 때도 같은 방식을 따른다.
 Lua 안에 **후보를 순회하는 루프를 넣지 마라** — 쓰기를 한 스크립트는 `SCRIPT KILL`이
 안 되고 `SHUTDOWN NOSAVE`만 남는다 (docs/11 #33).

@@ -117,7 +117,12 @@ public class LolConditionValidator implements GameConditionValidator
         // tierRule 이 null 인 경우는 호출부에서 이미 걸렀다.
         if ("NONE".equals(tierRule))
         {
-            return true;
+            // 티어를 안 보는 모드에 티어가 실려 오면 거절한다. 그냥 무시하면 안 된다 —
+            // 배정 경로(LolCandidateRule)가 "tier 값이 있나"로 티어 모드인지를 가르기
+            // 때문에, 통과시키면 칼바람이 티어 모드로 넘어가 tier-range 표를 찾다가
+            // 없어서 배정이 -1 로 끝난다. 배정은 @Async 안이라 요청은 201 로 나가고
+            // 매칭만 조용히 안 된다. 여기서 400 으로 끊는 편이 낫다.
+            return c.getTier() == null;
         }
 
         if (c.getTier() == null)

@@ -18,10 +18,18 @@ import static com.queuemate.matching.rule.lol.LolScriptSupport.*;
  * 티어를 보는 모드의 배정. 자기 인자를 조립하고, 스크립트를 부르고, 결과를 읽는다.
  *
  * <p>티어 없는 배정과 다른 점은 색인이 (포지션 x 티어) 격자라는 것과, 그 격자를 다루려고
- * ARGV[9..12] 에 티어 정보를 싣는다는 것뿐이다. 그래서 keyValue 목록은 ARGV[13..] 부터다.
+ * ARGV[9] 에 내 티어 이름을 싣는다는 것뿐이다. 그래서 keyValue 목록은 ARGV[10..] 부터다.
  *
- * <p>tierRule(TABLE / WINDOW)을 해석하는 자리도 여기다. Lua 는 규칙을 모르고
- * 이미 환산된 [최저, 최고]만 받는다.
+ * <p><b>티어 규칙을 해석하는 자리는 여기가 아니라 Lua 다.</b> 예전에는 이 클래스가
+ * {@code tierRule} 을 보고 표/폭을 해석해 {@code [최저, 최고]} 로 환산한 뒤 숫자만
+ * 넘겼다. 지금은 스크립트가 직접 {@code tier-range} 표를 읽고 티어 사다리
+ * ({@code qm:gameconfig:LOL:tier}) 로 순번을 환산한다. 그래서 규칙이 바뀌어도
+ * 자바는 그대로다 — 고칠 곳이 Redis 데이터 한 곳으로 모인다.
+ *
+ * <p>같은 이유로 <b>격자를 KEYS 로 통째로 넘기지 않는다.</b> 티어 접미사가 없는 needs
+ * 키만 넘기고 칸 키는 스크립트가 {@code ':' .. 티어이름} 으로 조립한다. 단(division)이
+ * 들어가 티어가 32개가 되면 격자가 (포지션 6 x 티어 32) = 192 칸이라, 호출마다 그만큼을
+ * 넘겨야 했다. 지금은 {@code 4 + 포지션 개수} 로 고정이다.
  */
 @Slf4j
 @Component
@@ -47,10 +55,6 @@ public class TieredAssigner {
      */
     @Value("${queuemate.proposal.ttl-seconds}")
     private long proposalTtlSeconds;
-
-    /** 이번 요청이 받아들일 수 있는 티어 범위. 순번은 1부터다 */
-    private record TierRange(int myTier, int lo, int hi) {
-    }
 
     /**
      * 들어갈 파티를 정한다. <b>후보 풀 락을 쥔 채로 실행된다.</b>
@@ -218,11 +222,12 @@ public class TieredAssigner {
      * join-party-tiered.lua 인자. ARGV[1] 이 "들어갈 파티 id" 라는 점이 위와 다르다.
      *
      * <p>ARGV[8] 은 후보를 찾는 쪽의 start 자리인데 이쪽은 후보를 찾지 않는다. 비워 둘 수
-     * 없어서(포지션 개수를 {@code #ARGV - 12} 로 센다) 채우던 자리이므로, 그 칸에
+     * 없어서(포지션 개수를 {@code #ARGV - 9} 로 센다) 채우던 자리이므로, 그 칸에
      * {@code expiresAt} 을 싣는다. 인자 개수가 그대로라 개수 계산도 그대로다.
      *
-     * <p>티어 자리(ARGV[9..11])는 여전히 읽히지 않는다 — 파티가 받아들일 범위는 만들 때
-     * 정해졌고 다시 계산하지 않는다.
+     * <p>티어 자리(ARGV[9])는 이쪽에서 읽히지 않는다 — 파티가 받아들일 범위는 만들 때
+     * 정해져 파티 HASH 의 {@code tierLo}/{@code tierHi} 에 있고, 스크립트는 그것을 읽는다.
+     * 여기서 내 티어로 다시 계산하면 파티가 실제로 올라가 있는 칸과 어긋난다.
      */
     private List<String> joinArgs(CreateMatchRequestCommand command, ModeConfig config,
                                   String partyId, long now) {
