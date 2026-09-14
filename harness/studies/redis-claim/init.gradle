@@ -1,6 +1,7 @@
 allprojects {
     plugins.withId('java') {
         sourceSets.test.java.srcDir(rootProject.file('../harness/studies/redis-claim'))
+        sourceSets.test.resources.srcDir(rootProject.file('../harness/studies/redis-claim/resources'))
         tasks.register('redisClaimStudy', Test) {
             dependsOn tasks.named('testClasses')
             testClassesDirs = sourceSets.test.output.classesDirs

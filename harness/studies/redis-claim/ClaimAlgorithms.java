@@ -37,8 +37,8 @@ final class ClaimAlgorithms implements AutoCloseable {
     ClaimAlgorithms(RedisClient client) throws IOException {
         connection = client.connect();
         redis = connection.sync();
-        try (var stream = ClaimAlgorithms.class.getResourceAsStream("/redis/atomic-proposal-claim.lua")) {
-            if (stream == null) throw new IOException("Production claim Lua resource missing");
+        try (var stream = ClaimAlgorithms.class.getResourceAsStream("/study-baseline/atomic-proposal-claim.lua")) {
+            if (stream == null) throw new IOException("Historical claim Lua resource missing");
             claimSha = redis.scriptLoad(new String(stream.readAllBytes(), StandardCharsets.UTF_8));
         }
         unlockSha = redis.scriptLoad(UNLOCK);

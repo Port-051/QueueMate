@@ -1,7 +1,7 @@
 # Lua 선점과 Redis 분산 락 비교
 
-현재 제품의 `atomic-proposal-claim.lua`와, 참가자별 Redis 분산 락을 획득한 뒤 Java에서
-검증하는 실험 구현을 같은 Redis에서 비교한다. 제품의 선점 구현은 변경하지 않는다.
+전환 이전 제품의 `atomic-proposal-claim.lua`와, 참가자별 Redis 분산 락을 획득한 뒤 Java에서
+검증하는 실험 구현을 같은 Redis에서 비교한다. 하네스 실행은 제품의 선점 구현을 변경하지 않는다.
 기본 백엔드 테스트에는 들어가지 않는 명시적 실행용 하네스다.
 실행 결과와 채택 판단은 [RESULTS.md](RESULTS.md)에 정리했다.
 
@@ -25,13 +25,15 @@ Java 설치가 자동으로 탐지되지 않는 macOS에서는 설치된 JDK의 
 
 ### Lua
 
-제품 리소스를 그대로 `SCRIPT LOAD`하고 `EVALSHA`로 호출한다. 별도 복사한 스크립트나
-인위적인 반복 계산은 넣지 않는다. 기존 Repository와 동일하게 참가자별 활성 요청·제안
+전환 이전 제품 리소스의 사본을 `resources/study-baseline`에 보존하고 `SCRIPT LOAD`한 뒤
+`EVALSHA`로 호출한다. 내용은 결과 보고서의 SHA-256과 같으며 인위적인 반복 계산은 없다.
+전환 이전 Repository와 동일하게 참가자별 활성 요청·제안
 키 및 조건별 큐 키를 전달한다. Java 입력 검증·Spring Repository 호출 비용은 비교 대상에서 제외한다.
 
 ### 분산 락 + Java
 
-`ClaimAlgorithms.locked()`의 실험 구현이다. Redisson이나 Redlock의 성능 측정이 아니다.
+`ClaimAlgorithms.locked()`의 실험 구현이다. 이후 채택한 Spring 저장소나 Redisson,
+Redlock의 성능 측정이 아니다. 과거 측정값을 이후 제품 구현의 실측값으로 해석하지 않는다.
 
 1. 참가자별 mutex 키를 정렬해 `SET NX PX`로 획득한다. 임대 시간은 10초다.
 2. 하나라도 획득하지 못하면 획득한 mutex만 해제하고 실패한다. 대기·재시도는 하지 않는다.
