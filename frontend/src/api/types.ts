@@ -93,6 +93,11 @@ export interface MatchRequestView {
   proposalId: string | null;
 }
 
+export interface MatchHistoryView extends Omit<MatchRequestView, 'status'> {
+  status: 'MATCHED' | 'CANCELLED' | 'EXPIRED';
+  condition: MatchCondition;
+}
+
 export type ProposalStatus = 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'EXPIRED' | 'CANCELLED';
 export type Acceptance = 'PENDING' | 'ACCEPTED' | 'DECLINED';
 
@@ -149,6 +154,7 @@ export interface PartyMemberView {
   /** 서버가 null을 줄 수 있다 (docs/14 §7.1). `client.ts`가 정규화해서 넘긴다. */
   nickname: string;
   ready: boolean;
+  gameIds?: string[];
 }
 
 export interface PartyView {
@@ -207,6 +213,7 @@ export interface CreateReportRequest {
  */
 export type ServerEventType =
   | 'SESSION_SNAPSHOT'
+  | 'RECRUITMENT_UPDATED'
   | 'MATCH_PROPOSAL_CREATED'
   | 'MATCH_PROPOSAL_EXPIRED'
   | 'MATCH_CONFIRMED'

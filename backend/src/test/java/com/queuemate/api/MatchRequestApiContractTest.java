@@ -1,9 +1,12 @@
 package com.queuemate.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.queuemate.matching.domain.MatchRequest;
+import com.queuemate.matching.infra.MatchRequestRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -17,6 +20,61 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MatchRequestApiContractTest extends ApiContractTestSupport {
 
     private static final String MATCH_REQUESTS = "/api/v1/match-requests";
+    @Autowired MatchRequestRepository requests;
+
+    private static String storedCondition(String position) {
+        return """
+                {"game":"LOL","modeKey":"SOLO_DUO_RANKED","keyConditionType":"POSITION",
+                 "keyConditionValue":"%s","voicePreference":"OPTIONAL","playPurpose":"RANK_UP"}
+                """.formatted(position);
+    }
+
+    @Test
+    @DisplayName("지난 매칭은 본인의 최종 상태와 조건을 최신 신청 순으로 반환한다")
+    void historyIsOwnedTerminalAndNewestFirst() {
+        UUID alpha = alpha();
+        UUID bravo = bravo();
+        OffsetDateTime now = OffsetDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        MatchRequest cancelled = MatchRequest.queue(alpha, storedCondition("TOP"), now.minusMinutes(3));
+        cancelled.cancel();
+        requests.saveAndFlush(cancelled);
+        MatchRequest matched = MatchRequest.queue(alpha, storedCondition("MID"), now.minusMinutes(2));
+        UUID proposalId = UUID.randomUUID();
+        jdbc.sql("""
+                insert into match_proposals (id, source_type, status, expires_at, confirmed_at)
+                values (:id, 'REALTIME', 'CONFIRMED', :now, :now)
+                """).param("id", proposalId).param("now", now).update();
+        matched.attachToProposal(proposalId);
+        matched.markMatched();
+        requests.saveAndFlush(matched);
+        MatchRequest expired = MatchRequest.queue(alpha, storedCondition("TOP"), now.minusMinutes(1));
+        expired.expire();
+        requests.saveAndFlush(expired);
+        MatchRequest other = MatchRequest.queue(bravo, storedCondition("TOP"), now);
+        other.cancel();
+        requests.saveAndFlush(other);
+        requests.saveAndFlush(MatchRequest.queue(alpha, storedCondition("MID"), now));
+
+        ResponseEntity<String> response = get(MATCH_REQUESTS + "/history", alpha);
+        assertStatus(response, 200);
+        JsonNode history = body(response);
+        assertEquals(3, history.size());
+        assertEquals(expired.getId().toString(), history.get(0).path("id").asText());
+        assertEquals("EXPIRED", history.get(0).path("status").asText());
+        assertEquals("MATCHED", history.get(1).path("status").asText());
+        assertEquals("MID", history.get(1).path("condition").path("keyCondition").path("value").asText());
+        assertEquals("CANCELLED", history.get(2).path("status").asText());
+        assertEquals("LOL", history.get(2).path("condition").path("game").asText());
+        assertEquals(cancelled.getQueuedAt().toInstant(),
+                OffsetDateTime.parse(history.get(2).path("queuedAt").asText()).toInstant());
+    }
+
+    @Test
+    @DisplayName("지난 매칭은 인증이 필요하고 새 계정은 빈 목록이다")
+    void historyRequiresAuthenticationAndCanBeEmpty() {
+        assertError(get(MATCH_REQUESTS + "/history", null), 401, "UNAUTHORIZED");
+        assertEquals(0, body(get(MATCH_REQUESTS + "/history", alpha())).size());
+    }
 
     @Test
     @DisplayName("TC-MATCH-01 매칭을 시작하면 QUEUED 4필드가 온다")

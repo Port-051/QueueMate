@@ -2,10 +2,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
+import { isApiError } from '../api/error';
 import { createEventStream } from '../api/ws';
 import type { EventStream } from '../api/ws';
 import type {
-  MatchCondition, MatchRequestView, ProposalView, ReservationView, ServerEvent,
+  CreateReservationRequest, MatchCondition, MatchRequestView, ProposalView, ReservationView, ServerEvent,
   MatchConfirmedPayload, PartyClosedPayload, PartyPlayingPayload, ProposalCreatedPayload,
   ProposalSettledPayload, SessionSnapshotPayload,
 } from '../api/types';
@@ -13,7 +14,7 @@ import { useToast } from '../components/ui';
 import { rememberCondition } from './recentConditions';
 import { useAuth } from './AuthContext';
 
-const ACTIVE_PARTY_KEY = 'qm.activeParty';
+const ACTIVE_PARTY_KEY = 'qm.activeParty.';
 
 /**
  * 대기 중 매칭 요청을 REST로 다시 확인하는 주기.
@@ -33,6 +34,8 @@ interface MatchValue {
   proposalSource: ProposalSource | null;
   activePartyId: string | null;
   reservations: ReservationView[];
+  reservationsLoaded: boolean;
+  reservationsError: string | null;
   stream: EventStream | null;
   start(condition: MatchCondition): Promise<void>;
   /** 새로고침으로 context가 비었을 때 URL의 요청 id로 상태를 복구한다. */
@@ -43,26 +46,34 @@ interface MatchValue {
   accept(): Promise<void>;
   decline(): Promise<void>;
   refreshReservations(): Promise<void>;
+  saveReservation(body: CreateReservationRequest, id?: string): Promise<void>;
   setActivePartyId(id: string | null): void;
 }
 
 const MatchCtx = createContext<MatchValue | null>(null);
 
-const readActiveParty = () => {
-  try { return localStorage.getItem(ACTIVE_PARTY_KEY); } catch { return null; }
+const readActiveParty = (userId?: string) => {
+  if (!userId) return null;
+  try { return localStorage.getItem(`${ACTIVE_PARTY_KEY}${userId}`); } catch { return null; }
 };
 
-const writeActiveParty = (id: string | null) => {
+const writeActiveParty = (userId: string | undefined, id: string | null) => {
+  if (!userId) return;
   try {
-    if (id) localStorage.setItem(ACTIVE_PARTY_KEY, id);
-    else localStorage.removeItem(ACTIVE_PARTY_KEY);
+    if (id) localStorage.setItem(`${ACTIVE_PARTY_KEY}${userId}`, id);
+    else localStorage.removeItem(`${ACTIVE_PARTY_KEY}${userId}`);
   } catch {
     /* storage 접근 불가여도 세션 안에서는 state로 동작한다 */
   }
 };
 
 export function MatchProvider({ children }: { children: ReactNode }) {
-  const { status, token } = useAuth();
+  const { status, user } = useAuth();
+  return <MatchSession key={`${status}:${user?.id ?? ''}`}>{children}</MatchSession>;
+}
+
+function MatchSession({ children }: { children: ReactNode }) {
+  const { status, token, user } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
 
@@ -70,25 +81,56 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   const [condition, setCondition] = useState<MatchCondition | null>(null);
   const [proposal, setProposal] = useState<ProposalView | null>(null);
   const [proposalSource, setProposalSource] = useState<ProposalSource | null>(null);
-  const [activePartyId, setActivePartyIdState] = useState<string | null>(() => readActiveParty());
+  const [activePartyId, setActivePartyIdState] = useState<string | null>(() => readActiveParty(user?.id));
   const [reservations, setReservations] = useState<ReservationView[]>([]);
+  const [reservationsLoaded, setReservationsLoaded] = useState(false);
+  const [reservationsError, setReservationsError] = useState<string | null>(null);
   const [stream, setStream] = useState<EventStream | null>(null);
+  const userId = user?.id;
+  const [restoredUserId, setRestoredUserId] = useState<string | null>(null);
 
   const requestRef = useRef<MatchRequestView | null>(null);
   requestRef.current = request;
-
-  const setActivePartyId = useCallback((id: string | null) => {
-    writeActiveParty(id);
-    setActivePartyIdState(id);
+  const live = useRef(true);
+  useEffect(() => {
+    live.current = true;
+    return () => { live.current = false; };
   }, []);
 
+  const setActivePartyId = useCallback((id: string | null) => {
+    if (!live.current) return;
+    writeActiveParty(userId, id);
+    setActivePartyIdState(id);
+  }, [userId]);
+
   const refreshReservations = useCallback(async () => {
-    setReservations(await api.listReservations());
+    try {
+      const saved = await api.listReservations();
+      if (!live.current) return;
+      setReservations(saved);
+      setReservationsError(null);
+    } catch (err) {
+      if (live.current) setReservationsError('예약을 불러오지 못했습니다.');
+      throw err;
+    } finally {
+      if (live.current) setReservationsLoaded(true);
+    }
+  }, []);
+
+  const saveReservation = useCallback(async (body: CreateReservationRequest, id?: string) => {
+    const saved = id ? await api.updateReservation(id, body) : await api.createReservation(body);
+    if (!live.current) return;
+    setReservations((prev) => [...prev.filter((item) => item.id !== saved.id), saved]);
   }, []);
 
   useEffect(() => {
     if (status !== 'authenticated') {
       setStream(null);
+      if (status === 'anonymous') {
+        setRequest(null); setCondition(null); setProposal(null); setProposalSource(null); setReservations([]);
+        setRestoredUserId(null);
+        setReservationsLoaded(false); setReservationsError(null);
+      }
       return;
     }
     const created = createEventStream(token);
@@ -98,7 +140,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (status !== 'authenticated') return;
-    void refreshReservations();
+    void refreshReservations().catch(() => {});
   }, [status, refreshReservations]);
 
   const proposalRef = useRef<ProposalView | null>(null);
@@ -110,6 +152,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!stream) return;
     return stream.subscribe((event: ServerEvent) => {
+      if (!live.current) return;
       switch (event.type) {
         /**
          * 연결 직후 한 번 온다. 재연결도 첫 연결과 구분하지 않는다 (contracts/events.md).
@@ -132,7 +175,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
           // RESERVATION_UPDATED가 오지 않으므로 예약 목록은 직접 다시 읽는다.
           if (event.type === 'RESERVATION_PROPOSAL_CREATED') void refreshReservations();
           toast('조건에 맞는 팀원을 찾았습니다', 'ok');
-          navigate(`/app/proposals/${p.proposal.id}`);
+          navigate(window.location.pathname === '/app/home' ? '/app/home' : `/app/proposals/${p.proposal.id}`);
           break;
         }
         case 'MATCH_PROPOSAL_EXPIRED': {
@@ -145,10 +188,10 @@ export function MatchProvider({ children }: { children: ReactNode }) {
           if (current) {
             setRequest({ ...current, status: 'QUEUED', proposalId: null });
             toast('제안 시간이 지나 다시 팀원을 찾습니다', 'error');
-            navigate(`/app/match/waiting/${current.id}`);
+            navigate('/app/home');
           } else {
             toast('제안 시간이 지났습니다', 'error');
-            navigate('/app/reservations');
+            navigate('/app/home');
           }
           break;
         }
@@ -160,7 +203,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
           setCondition(null);
           setActivePartyId(p.partyId);
           toast('파티가 확정되었습니다', 'ok');
-          navigate(`/app/party/${p.partyId}`);
+          navigate(window.location.pathname === '/app/home' ? '/app/home' : `/app/party/${p.partyId}`);
           break;
         }
         // 누군가 거절했거나 취소됐다. payload는 proposalId 하나뿐이다.
@@ -195,13 +238,14 @@ export function MatchProvider({ children }: { children: ReactNode }) {
    */
   const openProposal = useCallback(async (proposalId: string, source: ProposalSource) => {
     const view = await api.getProposal(proposalId);
+    if (!live.current) return;
     if (view.status === 'CONFIRMED' && view.partyId) {
       setProposal(null);
       setProposalSource(null);
       setRequest(null);
       setCondition(null);
       setActivePartyId(view.partyId);
-      navigate(`/app/party/${view.partyId}`);
+      navigate(window.location.pathname === '/app/home' ? '/app/home' : `/app/party/${view.partyId}`);
       return;
     }
     // 만료·거절·취소된 제안으로는 화면을 옮기지 않는다.
@@ -209,12 +253,64 @@ export function MatchProvider({ children }: { children: ReactNode }) {
     setProposal(view);
     setProposalSource(source);
     setRequest((prev) => (prev ? { ...prev, status: 'PROPOSED', proposalId: view.id } : prev));
-    navigate(`/app/proposals/${view.id}`);
+    navigate(window.location.pathname === '/app/home' ? '/app/home' : `/app/proposals/${view.id}`);
   }, [navigate, setActivePartyId]);
 
+  // The home URL carries no request ID. Restore this account's request, then
+  // validate it with the server before showing it as active after a reload.
+  useEffect(() => {
+    if (status !== 'authenticated' || !userId) return;
+    let disposed = false;
+    let retryTimer: number | undefined;
+    const key = `qm.activeMatch.${userId}`;
+    const restore = async () => {
+      let verified = false;
+      try {
+        const raw = localStorage.getItem(key);
+        const saved = raw ? JSON.parse(raw) as { id: string; condition: MatchCondition } : null;
+        if (saved?.id && saved.condition) {
+          const current = await api.getMatchRequest(saved.id);
+          if (disposed) return;
+          if (requestRef.current) { verified = true; return; }
+          if (current.status === 'QUEUED' || current.status === 'PROPOSED') {
+            setCondition(saved.condition);
+            setRequest(current);
+          } else if (current.status === 'MATCHED' && current.proposalId) {
+            await openProposal(current.proposalId, 'REALTIME');
+          }
+        }
+        verified = true;
+      } catch (err) {
+        verified = (isApiError(err) && err.code === 'MATCH_REQUEST_NOT_FOUND') || err instanceof SyntaxError || (err instanceof DOMException && err.name === 'SecurityError');
+      } finally {
+        if (!disposed) {
+          if (verified) setRestoredUserId(userId);
+          else retryTimer = window.setTimeout(() => void restore(), MATCH_POLL_MS);
+        }
+      }
+    };
+    void restore();
+    return () => { disposed = true; window.clearTimeout(retryTimer); };
+  }, [status, userId, openProposal]);
+
+  useEffect(() => {
+    if (!userId || restoredUserId !== userId) return;
+    try {
+      const key = `qm.activeMatch.${userId}`;
+      if (request && condition) localStorage.setItem(key, JSON.stringify({ id: request.id, condition }));
+      else localStorage.removeItem(key);
+    } catch { /* Matching still works when browser storage is unavailable. */ }
+  }, [userId, restoredUserId, request, condition]);
+
   const adoptRequest = useCallback(async (requestId: string) => {
-    setRequest(await api.getMatchRequest(requestId));
-  }, []);
+    const current = await api.getMatchRequest(requestId);
+    if (!live.current) return;
+    if (current.status === 'QUEUED' || current.status === 'PROPOSED') setRequest(current);
+    else if (current.status === 'MATCHED' && current.proposalId) await openProposal(current.proposalId, 'REALTIME');
+    else {
+      setRequest(previous => previous?.id === requestId ? null : previous);
+    }
+  }, [openProposal]);
 
   const adoptProposal = useCallback(async (proposalId: string) => {
     await openProposal(proposalId, 'REALTIME');
@@ -246,7 +342,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
           setCondition(null);
           setActivePartyId(view.partyId);
           toast('파티가 확정되었습니다', 'ok');
-          navigate(`/app/party/${view.partyId}`);
+          navigate(window.location.pathname === '/app/home' ? '/app/home' : `/app/party/${view.partyId}`);
           return;
         }
         // 만료·거절·취소. 실시간이면 큐로 돌아가고 예약이면 예약 목록으로 돌린다.
@@ -255,10 +351,10 @@ export function MatchProvider({ children }: { children: ReactNode }) {
         const current = requestRef.current;
         if (current) {
           setRequest({ ...current, status: 'QUEUED', proposalId: null });
-          navigate(`/app/match/waiting/${current.id}`);
+          navigate('/app/home');
         } else {
           void refreshReservations();
-          navigate('/app/reservations');
+          navigate('/app/home');
         }
       } catch {
         /* 일시적인 실패는 다음 주기에 다시 시도한다 */
@@ -287,7 +383,7 @@ export function MatchProvider({ children }: { children: ReactNode }) {
         setRequest((prev) => (prev && prev.id === next.id ? next : prev));
         if (next.proposalId) {
           await openProposal(next.proposalId, 'REALTIME');
-        } else if (next.status === 'CANCELLED' || next.status === 'EXPIRED') {
+        } else if (next.status === 'CANCELLED' || next.status === 'EXPIRED' || next.status === 'MATCHED' && !next.proposalId) {
           setRequest(null);
           setCondition(null);
         }
@@ -302,16 +398,17 @@ export function MatchProvider({ children }: { children: ReactNode }) {
 
   const start = useCallback(async (next: MatchCondition) => {
     const created = await api.createMatchRequest(next);
+    if (!live.current) return;
     rememberCondition(next);
     setCondition(next);
     setRequest(created);
-    navigate(`/app/match/waiting/${created.id}`);
-  }, [navigate]);
+  }, []);
 
   const cancel = useCallback(async () => {
     const current = requestRef.current;
     if (!current) return;
     await api.cancelMatchRequest(current.id);
+    if (!live.current) return;
     setRequest(null);
     setCondition(null);
     setProposal(null);
@@ -321,30 +418,33 @@ export function MatchProvider({ children }: { children: ReactNode }) {
 
   const accept = useCallback(async () => {
     if (!proposal) return;
-    setProposal(await api.acceptProposal(proposal.id));
+    const accepted = await api.acceptProposal(proposal.id);
+    if (live.current) setProposal(accepted);
   }, [proposal]);
 
   const decline = useCallback(async () => {
     if (!proposal) return;
     await api.declineProposal(proposal.id);
+    if (!live.current) return;
     const source = proposalSource;
     setProposal(null);
     setProposalSource(null);
     const current = requestRef.current;
     if (source === 'REALTIME' && current) {
       setRequest({ ...current, status: 'QUEUED', proposalId: null });
-      navigate(`/app/match/waiting/${current.id}`);
+      navigate('/app/home');
     } else {
       await refreshReservations();
-      navigate('/app/reservations');
+      if (!live.current) return;
+      navigate('/app/home');
     }
   }, [proposal, proposalSource, navigate, refreshReservations]);
 
   const value = useMemo<MatchValue>(() => ({
-    request, condition, proposal, proposalSource, activePartyId, reservations, stream,
-    start, adoptRequest, adoptProposal, cancel, accept, decline, refreshReservations, setActivePartyId,
-  }), [request, condition, proposal, proposalSource, activePartyId, reservations, stream,
-    start, adoptRequest, adoptProposal, cancel, accept, decline, refreshReservations, setActivePartyId]);
+    request, condition, proposal, proposalSource, activePartyId, reservations, reservationsLoaded, reservationsError, stream,
+    start, adoptRequest, adoptProposal, cancel, accept, decline, refreshReservations, saveReservation, setActivePartyId,
+  }), [request, condition, proposal, proposalSource, activePartyId, reservations, reservationsLoaded, reservationsError, stream,
+    start, adoptRequest, adoptProposal, cancel, accept, decline, refreshReservations, saveReservation, setActivePartyId]);
 
   return <MatchCtx.Provider value={value}>{children}</MatchCtx.Provider>;
 }

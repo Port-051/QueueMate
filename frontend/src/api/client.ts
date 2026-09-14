@@ -2,14 +2,14 @@ import { request } from './http';
 import type {
   BlockView, CreateBlockRequest, CreateFriendRequest, CreateGameAccountRequest, CreateMatchRequest,
   CreateReportRequest, CreateReservationRequest, FriendRequestDirection, FriendRequestView, FriendView,
-  GameAccountView, GameKey, GameView, LoginRequest, MatchRequestView, MatchSchemaView,
+  GameAccountView, GameKey, GameView, LoginRequest, MatchHistoryView, MatchRequestView, MatchSchemaView,
   OAuthProviderView,
   PartyView, ProposalView, RecentPlayerView, ReservationView, SignupRequest, TokenResponse,
   UpdateUserRequest, UserProfile,
 } from './types';
 
 /**
- * contracts/openapi.yaml v2.0.0의 엔드포인트 38개.
+ * contracts/openapi.yaml의 엔드포인트.
  * 계약에 없는 경로를 부르지 않고, 계약에 있는 경로를 빠뜨리지 않는다.
  */
 
@@ -56,6 +56,7 @@ export const getMatchSchema = (gameKey: GameKey) => request<MatchSchemaView>(`/g
 export const createMatchRequest = (body: CreateMatchRequest) =>
   request<MatchRequestView>('/match-requests', { method: 'POST', body });
 export const getMatchRequest = (id: string) => request<MatchRequestView>(`/match-requests/${id}`);
+export const listMatchHistory = () => request<MatchHistoryView[]>('/match-requests/history');
 export const cancelMatchRequest = (id: string) => request<void>(`/match-requests/${id}`, { method: 'DELETE' });
 
 /* ---------- proposal ---------- */

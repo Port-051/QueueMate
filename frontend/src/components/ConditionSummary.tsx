@@ -1,4 +1,5 @@
 import type { MatchCondition, PlayAmount } from '../api/types';
+import { usesKeyCondition } from '../domain/gameConfig';
 import { PLAY_AMOUNT_LABEL, PURPOSE_LABEL, VOICE_LABEL, gameFullLabel, keyConditionLabel, keyConditionTitle, modeLabel } from '../domain/labels';
 import { formatRange } from '../domain/time';
 import { Card, CardHead, SummaryRow } from './ui';
@@ -15,7 +16,7 @@ export function ConditionSummary({ condition, title = '조건 요약', window: s
       <CardHead title={title} />
       <SummaryRow label="게임" value={gameFullLabel(condition.game)} />
       <SummaryRow label="게임 모드" value={modeLabel(condition.game, condition.modeKey)} />
-      <SummaryRow label={keyConditionTitle(condition.game)} value={keyConditionLabel(condition)} />
+      {usesKeyCondition(condition.game, condition.modeKey) ? <SummaryRow label={keyConditionTitle(condition.game)} value={keyConditionLabel(condition)} /> : null}
       <SummaryRow label="음성 사용" value={VOICE_LABEL[condition.voicePreference]} />
       <SummaryRow label="플레이 목적" value={PURPOSE_LABEL[condition.playPurpose]} />
       {slot ? (

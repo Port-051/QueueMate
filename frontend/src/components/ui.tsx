@@ -1,8 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { cloneElement, createContext, isValidElement, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactElement, ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import emptyNoMatch from '../assets/empty-no-match.webp';
 import emptyNoSocial from '../assets/empty-no-social.webp';
 import emptyNoReservation from '../assets/empty-no-reservation.webp';
+import { isApiError } from '../api/error';
 
 export function Card({ children, className = '', ...rest }: { children: ReactNode; className?: string } & HTMLAttributes<HTMLDivElement>) {
   return <div className={`card ${className}`} {...rest}>{children}</div>;
@@ -114,11 +116,15 @@ export function Avatar({ name, size = 38, status, avatarUrl }: {
 }
 
 export function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string; children: ReactNode }) {
+  const generatedId = useId();
+  const control = isValidElement<{ id?: string; 'aria-describedby'?: string }>(children) ? children : null;
+  const id = control?.props.id ?? generatedId;
+  const describedBy = [control?.props['aria-describedby'], error || hint ? `${id}-help` : null].filter(Boolean).join(' ') || undefined;
   return (
     <div className="field">
-      <label>{label}</label>
-      {children}
-      {error ? <div className="err">{error}</div> : hint ? <div className="hint">{hint}</div> : null}
+      <label htmlFor={id}>{label}</label>
+      {control ? cloneElement(control as ReactElement<Record<string, unknown>>, { id, 'aria-describedby': describedBy, 'aria-invalid': error ? true : undefined }) : children}
+      {error ? <div id={`${id}-help`} className="err" role="alert">{error}</div> : hint ? <div id={`${id}-help`} className="hint">{hint}</div> : null}
     </div>
   );
 }
@@ -202,22 +208,70 @@ export function EmptyState({
   );
 }
 
-export function Modal({ title, children, onClose, foot }: { title: string; children: ReactNode; onClose: () => void; foot?: ReactNode }) {
-  // scrim 클릭으로만 닫히면 키보드 사용자는 빠져나갈 길이 없다.
+export function Modal({ title, children, onClose, foot, className = '', titleContent, closeLabel, suspended = false }: { title: string; children: ReactNode; onClose: () => void; foot?: ReactNode; className?: string; titleContent?: ReactNode; closeLabel?: string; suspended?: boolean }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    if (suspended) return;
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previous = active?.closest('details.action-menu')?.querySelector('summary') ?? active;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const focusable = () => [...(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]') ?? [])].filter((el) => el.getClientRects().length > 0 && el.tabIndex >= 0 && el.getAttribute('aria-disabled') !== 'true');
+    (focusable()[0] ?? dialogRef.current)?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); closeRef.current(); }
+      if (e.key !== 'Tab') return;
+      const items = focusable();
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!first) { e.preventDefault(); dialogRef.current?.focus(); return; }
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-  return (
+    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener('keydown', onKey); if (previous?.isConnected) previous.focus(); };
+  }, [suspended]);
+  // 제안에 응답하는 동안 폼의 입력 상태는 보관하고 포커스 잠금만 해제한다.
+  if (suspended) return null;
+  // 부모의 sticky, overflow, transform에 영향받지 않는 화면 레이어에 표시한다.
+  return createPortal(
     <div className="modal-scrim" onClick={onClose} role="presentation">
-      <div className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
-        <h2>{title}</h2>
-        <div style={{ marginTop: 16 }}>{children}</div>
+      <div ref={dialogRef} tabIndex={-1} className={`modal ${className}`} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-heading"><h2 aria-label={titleContent ? title : undefined}>{titleContent ?? title}</h2>{closeLabel ? <button type="button" className="icon-btn modal-close" aria-label={closeLabel} onClick={onClose}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button> : null}</div>
+        <div className="modal-body" style={{ marginTop: 16 }}>{children}</div>
         {foot ? <div className="modal-foot">{foot}</div> : null}
       </div>
-    </div>
+    </div>,
+    document.body
   );
+}
+
+export function ActionMenu({ label, children }: { label: string; children: ReactNode }) {
+  return <details className="action-menu" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) event.currentTarget.open = false; }} onKeyDown={(event) => {
+    if (event.key === 'Escape') { event.stopPropagation(); event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus(); }
+  }}>
+    <summary aria-label={label} title={label}>···</summary>
+    <div className="action-menu-items">{children}</div>
+  </details>;
+}
+
+export function ConfirmDialog({ title, description, confirmLabel, onConfirm, onClose }: {
+  title: string; description: ReactNode; confirmLabel: string; onConfirm: () => Promise<void>; onClose: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const confirm = async () => {
+    setBusy(true);
+    try { await onConfirm(); onClose(); }
+    catch (error) { toast(isApiError(error) ? error.message : '처리하지 못했습니다. 다시 시도해주세요.', 'error'); }
+    finally { setBusy(false); }
+  };
+  return <Modal title={title} onClose={() => { if (!busy) onClose(); }} foot={<>
+    <Button disabled={busy} onClick={onClose}>돌아가기</Button>
+    <Button variant="danger" disabled={busy} onClick={() => void confirm()}>{busy ? '처리 중…' : confirmLabel}</Button>
+  </>}><div className="confirm-description">{description}</div></Modal>;
 }
 
 /* ---------- toasts ---------- */

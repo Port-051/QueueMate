@@ -1,35 +1,39 @@
-import { useRef, useState } from 'react';
+import { FilterTierIcon } from '../components/FilterSymbols';
+import '../styles/introduction.css';
+import { GameBadge } from '../components/GameSymbol';
+import { ProfileSettings } from '../components/ProfileSettings';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
 import type { GameKey } from '../api/types';
-import { IconCheck, IconPencil, IconTrash } from '../components/icons';
-import { AVATAR_CHOICES, Avatar, Button, Card, CardHead, Field, Modal, Tag, useToast } from '../components/ui';
+import { IconCheck, IconLogout, IconPencil, IconPlus, IconShield } from '../components/icons';
+import { AVATAR_CHOICES, Avatar, Button, ConfirmDialog, Field, Modal, useToast } from '../components/ui';
 import { GAMES } from '../domain/gameConfig';
-import { gameFullLabel, rankLabel } from '../domain/labels';
-import { relativeTime } from '../domain/time';
+import { gameFullLabel } from '../domain/labels';
 import { useAuth } from '../state/AuthContext';
 import { useSocial } from '../state/SocialContext';
 
-/** 계약의 업로드 한도(contracts/openapi.yaml `/users/me/avatar`). */
-const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
-const AVATAR_ACCEPT = 'image/png,image/jpeg,image/webp';
-
 export function MyInfoPage() {
-  const { user, gameAccounts, updateProfile, uploadAvatar, refreshGameAccounts } = useAuth();
-  const { friends, recentPlayers, blocks } = useSocial();
+  const { user, gameAccounts, updateProfile, refreshGameAccounts, logout } = useAuth();
+  const { blocks } = useSocial();
   const toast = useToast();
+  const navigate = useNavigate();
 
   const [nickname, setNickname] = useState(user?.nickname ?? '');
-  const [game, setGame] = useState<GameKey>('LOL');
+  const [linkGame, setLinkGame] = useState<GameKey | null>(null);
   const [externalId, setExternalId] = useState('');
   const [busy, setBusy] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [nicknameOpen, setNicknameOpen] = useState(false);
+  const [unlinkTarget, setUnlinkTarget] = useState<{ id: string; game: GameKey } | null>(null);
   // 모달 안에서만 쓰는 임시 선택이다. 저장 전까지 실제 프로필은 건드리지 않는다.
   const [picked, setPicked] = useState<string | null>(null);
   const [savingAvatar, setSavingAvatar] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
 
-  const unlinked = GAMES.filter((g) => !gameAccounts.some((a) => a.game === g.key));
+  const nicknameChanged = nickname.trim() !== user?.nickname;
+  const nicknameError = nicknameChanged && (nickname.trim().length < 2 || nickname.trim().length > 16) ? '닉네임은 2~16자로 입력해주세요.' : undefined;
 
   const saveNickname = async () => {
     const trimmed = nickname.trim();
@@ -37,6 +41,7 @@ export function MyInfoPage() {
     setBusy(true);
     try {
       await updateProfile({ nickname: trimmed });
+      setNicknameOpen(false);
       toast('닉네임을 변경했습니다', 'ok');
     } catch (err) {
       toast(isApiError(err) ? err.message : '닉네임을 변경하지 못했습니다', 'error');
@@ -48,29 +53,6 @@ export function MyInfoPage() {
   const openAvatarPicker = () => {
     setPicked(user?.avatarUrl ?? null);
     setAvatarOpen(true);
-  };
-
-  /**
-   * 업로드는 프리셋 선택과 달리 고른 즉시 올라간다. 저장 버튼을 기다리게 하면
-   * 파일을 화면에 미리 보여주기 위해 브라우저에만 있는 임시 상태를 또 만들어야 한다.
-   */
-  const pickFile = async (file: File | undefined) => {
-    if (!file) return;
-    // 서버도 같은 값으로 막지만, 5MiB를 왕복시킨 뒤 거절하는 것은 낭비다.
-    if (file.size > AVATAR_MAX_BYTES) { toast('사진은 5MB까지 올릴 수 있습니다', 'error'); return; }
-    setSavingAvatar(true);
-    try {
-      await uploadAvatar(file);
-      setPicked(null);
-      setAvatarOpen(false);
-      toast('프로필 사진을 변경했습니다', 'ok');
-    } catch (err) {
-      toast(isApiError(err) ? err.message : '사진을 올리지 못했습니다', 'error');
-    } finally {
-      setSavingAvatar(false);
-      // 같은 파일을 다시 고를 수 있어야 한다. 값이 남아 있으면 change가 안 뜬다.
-      if (fileInput.current) fileInput.current.value = '';
-    }
   };
 
   const saveAvatar = async () => {
@@ -90,123 +72,115 @@ export function MyInfoPage() {
   };
 
   const link = async () => {
+    if (!linkGame) return;
     if (!externalId.trim()) { toast('게임 아이디를 입력해주세요', 'error'); return; }
     setBusy(true);
     try {
-      await api.linkGameAccount({ game, externalGameId: externalId.trim(), region: 'KR' });
+      await api.linkGameAccount({ game: linkGame, externalGameId: externalId.trim(), region: 'KR' });
       await refreshGameAccounts();
       setExternalId('');
-      toast('게임 계정을 연결했습니다', 'ok');
+      setLinkGame(null);
+      toast('게임 ID를 등록했습니다', 'ok');
     } catch (err) {
-      toast(isApiError(err) ? err.message : '게임 계정을 연결하지 못했습니다', 'error');
+      toast(isApiError(err) ? err.message : '게임 ID를 등록하지 못했습니다', 'error');
     } finally {
       setBusy(false);
     }
   };
 
   const unlink = async (id: string) => {
-    setBusy(true);
+    await api.unlinkGameAccount(id);
+    await refreshGameAccounts();
+    toast('게임 계정 연결을 해제했습니다');
+  };
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
     try {
-      await api.unlinkGameAccount(id);
-      await refreshGameAccounts();
-      toast('게임 계정 연결을 해제했습니다');
-    } catch (err) {
-      toast(isApiError(err) ? err.message : '연결을 해제하지 못했습니다', 'error');
-    } finally {
-      setBusy(false);
+      await logout();
+    } catch {
+      // 서버 요청 실패 시에도 AuthContext가 로컬 세션을 정리한다.
     }
+    navigate('/', { replace: true });
   };
 
   return (
-    <section className="page">
-      <div className="page-head">
-        <h1>내 정보</h1>
-        <p>프로필과 게임 계정 연결을 관리합니다.</p>
-      </div>
-
-      <div className="page-grid">
-        <div className="stack">
-          <Card>
-            <CardHead title="프로필" sub="닉네임은 매칭 제안과 파티룸에서 팀원에게 보입니다." />
-            <div className="row" style={{ gap: 16, alignItems: 'flex-end' }}>
-              <button type="button" className="avatar-edit" aria-label="프로필 사진 변경" onClick={openAvatarPicker}>
-                <Avatar name={user?.nickname ?? '?'} size={64} avatarUrl={user?.avatarUrl ?? null} />
-              </button>
-              <div style={{ flex: 1 }}>
-                <Field label="닉네임" hint="2~16자">
-                  <input className="input" value={nickname} onChange={(e) => setNickname(e.target.value)} />
-                </Field>
-              </div>
-              <Button onClick={openAvatarPicker}><IconPencil size={13} /> 사진 변경</Button>
-              <Button variant="primary" disabled={busy} onClick={() => void saveNickname()}>저장</Button>
-            </div>
-          </Card>
-
-          <Card>
-            <CardHead title="연결된 게임 계정" sub="랭크·지역 같은 조건은 연결된 계정에서 시스템이 가져옵니다." />
-            {gameAccounts.length === 0 ? (
-              <div className="empty">연결된 게임 계정이 없습니다.</div>
-            ) : gameAccounts.map((a) => (
-              <div key={a.id} className="list-item">
-                <span className={`game-logo g-${a.game}`} style={{ width: 34, height: 34, fontSize: 11 }}>{a.game.slice(0, 3)}</span>
-                <div className="li-main">
-                  <b>
-                    {gameFullLabel(a.game)}
-                    {/* 두 큐는 배치도 티어도 따로 움직인다. 어느 쪽인지 밝히지 않으면
-                        자유 랭크가 솔로 랭크로 읽힌다. */}
-                    {rankLabel(a.rankCode) ? <Tag tone="accent">솔로 {rankLabel(a.rankCode)}</Tag> : null}
-                    {rankLabel(a.flexRankCode) ? <Tag>자유 {rankLabel(a.flexRankCode)}</Tag> : null}
-                    {/* Riot ID를 입력받았을 뿐 본인 계정인지는 확인하지 못했다. 그 사실을 숨기지 않는다. */}
-                    <Tag>미인증</Tag>
-                  </b>
-                  <p>{a.externalGameId}{a.region ? ` · ${a.region}` : ''}{a.verifiedAt ? ` · ${relativeTime(a.verifiedAt)} 연결` : ''}</p>
-                </div>
-                <Button size="sm" variant="danger" disabled={busy} onClick={() => void unlink(a.id)}>
-                  <IconTrash size={13} /> 해제
-                </Button>
-              </div>
-            ))}
-
-            {unlinked.length > 0 ? (
-              <div className="stack" style={{ marginTop: 18, gap: 12 }}>
-                <div className="opt-choices">
-                  {unlinked.map((g) => (
-                    <button key={g.key} type="button" className={g.key === game ? 'opt on' : 'opt'} onClick={() => setGame(g.key)}>
-                      {g.shortName}
-                    </button>
-                  ))}
-                </div>
-                <div className="row" style={{ gap: 10 }}>
-                  <input className="input" placeholder="게임 내 아이디 (예: QueueMaster#KR1)"
-                    value={externalId} onChange={(e) => setExternalId(e.target.value)} />
-                  <Button disabled={busy} onClick={() => void link()}>연결</Button>
-                </div>
-              </div>
-            ) : null}
-          </Card>
+    <section className="page profile-page" aria-label="프로필">
+      <header className="profile-identity">
+        <button type="button" className="profile-photo" aria-label="프로필 사진 변경" onClick={openAvatarPicker}>
+          <Avatar name={user?.nickname ?? '?'} size={88} avatarUrl={user?.avatarUrl ?? null} />
+          <span className="profile-photo-edit" aria-hidden="true"><IconPencil size={14} /></span>
+        </button>
+        <div className="profile-identity-info">
+          <h1>{user?.nickname}</h1>
+          <nav className="profile-activity" aria-label="내 활동">
+            <Link to="/app/messages">메시지</Link>
+          </nav>
         </div>
+        <Button className="profile-edit-name" variant="ghost" onClick={() => { setNickname(user?.nickname ?? ''); setNicknameOpen(true); }}><IconPencil size={15} />닉네임 변경</Button>
+      </header>
 
-        <div className="rail">
-          <Card>
-            <CardHead title="내 활동" />
-            <div className="summary-row"><span>친구</span><b>{friends.length}명</b></div>
-            <div className="summary-row"><span>최근 함께한 사람</span><b>{recentPlayers.length}명</b></div>
-            <div className="summary-row"><span>차단</span><b>{blocks.length}명</b></div>
-          </Card>
-          <Card>
-            <CardHead title="지원 게임" />
-            <div className="stack" style={{ gap: 8 }}>
-              {GAMES.map((g) => (
-                <div key={g.key} className="row" style={{ gap: 10 }}>
-                  <span className={`game-logo g-${g.key}`} style={{ width: 30, height: 30, fontSize: 10 }}>{g.shortName.slice(0, 3)}</span>
-                  <b style={{ fontSize: 13.5 }}>{g.name}</b>
-                  {gameAccounts.some((a) => a.game === g.key) ? <Tag tone="ok">연결됨</Tag> : <Tag>미연결</Tag>}
-                </div>
-              ))}
+      <div className="profile-sections">
+          <section className="profile-section" aria-labelledby="profile-games-heading">
+            <div className="profile-section-heading">
+              <h2 id="profile-games-heading">게임 ID</h2>
+              <p>매칭된 팀원에게 공유됩니다.</p>
             </div>
-          </Card>
+            <div className="profile-game-accounts">
+              {GAMES.flatMap((item) => {
+                const accounts = gameAccounts.filter((a) => a.game === item.key);
+                return (accounts.length ? accounts : [null]).map((account) => <div key={account?.id ?? item.key} className="profile-game-account account-row">
+                  <GameBadge game={item.key} />
+                  <div className="profile-game-detail"><h3>{item.name}</h3>{account ? <p className="profile-game-id">{account.externalGameId}</p> : null}</div>
+                  {account ? <Button size="sm" variant="ghost" className="profile-unlink" aria-label={`${item.name} 연결 해제`} onClick={() => setUnlinkTarget({ id: account.id, game: account.game })}>연결 해제</Button> : <Button size="sm" variant="ghost" aria-label={`${item.name} ID 등록`} onClick={() => { setExternalId(''); setLinkGame(item.key); }}><IconPlus size={15} />ID 등록</Button>}
+                </div>);
+              })}
+            </div>
+          </section>
+        <section className="profile-section" aria-labelledby="profile-record-heading">
+          <div className="profile-section-heading"><h2 id="profile-record-heading">내 전적</h2></div>
+          <section className="linked-game-record" aria-label="롤 전적 정보">
+            <div className="linked-record-heading"><FilterTierIcon game="LOL" tier={null} size={26} /><strong>리그 오브 레전드 전적</strong><span>연동 대기</span></div>
+            <dl><div><dt>티어</dt><dd>—</dd></div><div><dt>승률</dt><dd>—</dd></div><div><dt>KDA</dt><dd>—</dd></div></dl>
+            <div className="linked-record-champions" aria-label="챔피언 연동 대기"><span /><span /><span /><small>챔피언 · 최근 20경기</small></div>
+          </section>
+        </section>
+        <ProfileSettings />
+        <section className="profile-section" aria-labelledby="profile-privacy-heading">
+          <div className="profile-section-heading"><h2 id="profile-privacy-heading">개인정보와 안전</h2></div>
+          <div className="profile-privacy">
+            <Link className="profile-blocks" to="/app/messages?manage=blocks"><IconShield size={20} /><span>차단 목록</span><b>{blocks.length}</b><span aria-hidden="true">›</span></Link>
+            <details className="profile-privacy-details">
+              <summary>개인정보 처리 안내</summary>
+              <ul>
+                <li>파티 음성과 채팅은 파티원끼리 직접 연결되며 서버에 저장되지 않습니다.</li>
+                <li>신고는 사유와 식별자만 접수됩니다.</li>
+                <li>차단한 사용자는 이후 매칭에서 같은 파티가 되지 않습니다.</li>
+              </ul>
+            </details>
+          </div>
+        </section>
+        <div className="profile-signout">
+          <Button variant="ghost" disabled={loggingOut} onClick={() => void handleLogout()}>
+            <IconLogout size={16} /> {loggingOut ? '로그아웃 중…' : '로그아웃'}
+          </Button>
         </div>
       </div>
+      {nicknameOpen ? <Modal title="닉네임 변경" className="profile-edit-modal" onClose={() => { if (!busy) setNicknameOpen(false); }}>
+        <form className="profile-edit-form" onSubmit={(event) => { event.preventDefault(); if (nicknameChanged && !nicknameError && !busy) void saveNickname(); }}>
+          <Field label="닉네임" hint="2~16자" error={nicknameError}>
+            <input className="input" value={nickname} maxLength={16} disabled={busy} onChange={(event) => setNickname(event.target.value)} />
+          </Field>
+          <div className="profile-edit-actions"><Button variant="ghost" disabled={busy} onClick={() => setNicknameOpen(false)}>취소</Button><Button type="submit" variant="primary" disabled={busy || !nicknameChanged || Boolean(nicknameError)}>{busy ? '저장 중…' : '변경 사항 저장'}</Button></div>
+        </form>
+      </Modal> : null}
+      {linkGame ? <Modal title={`${gameFullLabel(linkGame)} ID 등록`} className="profile-edit-modal" onClose={() => { if (!busy) setLinkGame(null); }}>
+        <form className="profile-edit-form" onSubmit={(event) => { event.preventDefault(); if (!busy) void link(); }}>
+          <Field label="게임 ID" hint="게임에 표시되는 ID를 정확히 입력하세요."><input className="input" placeholder={linkGame === 'PUBG' ? '예: QueueMaster' : '예: QueueMaster#KR1'} value={externalId} disabled={busy} onChange={(event) => setExternalId(event.target.value)} /></Field>
+          <div className="profile-edit-actions"><Button variant="ghost" disabled={busy} onClick={() => setLinkGame(null)}>취소</Button><Button type="submit" disabled={busy || !externalId.trim()} variant="primary">{busy ? '등록 중…' : 'ID 등록'}</Button></div>
+        </form>
+      </Modal> : null}
+      {unlinkTarget ? <ConfirmDialog title={`${gameFullLabel(unlinkTarget.game)} 연결을 해제할까요?`} description="이 게임의 ID가 파티원에게 표시되지 않습니다. 나중에 다시 등록할 수 있습니다." confirmLabel="연결 해제" onConfirm={() => unlink(unlinkTarget.id)} onClose={() => setUnlinkTarget(null)} /> : null}
 
       {avatarOpen ? (
         <Modal
@@ -220,22 +194,6 @@ export function MyInfoPage() {
           )}
         >
           <div className="avatar-picker">
-            <button
-              type="button"
-              className="avatar-opt avatar-upload"
-              disabled={savingAvatar}
-              onClick={() => fileInput.current?.click()}
-            >
-              <span className="au-mark" aria-hidden="true"><IconPencil size={16} /></span>
-              <span>내 사진 올리기</span>
-            </button>
-            <input
-              ref={fileInput}
-              type="file"
-              accept={AVATAR_ACCEPT}
-              hidden
-              onChange={(e) => void pickFile(e.target.files?.[0])}
-            />
             <button
               type="button"
               className="avatar-opt"
@@ -261,10 +219,6 @@ export function MyInfoPage() {
               </button>
             ))}
           </div>
-          <p className="hint" style={{ marginTop: 14 }}>
-            올린 사진은 정사각형으로 잘려 저장됩니다. PNG·JPEG·WebP, 5MB까지.
-            기본을 고르면 닉네임에 맞춰 자동으로 배정된 사진이 쓰입니다.
-          </p>
         </Modal>
       ) : null}
     </section>

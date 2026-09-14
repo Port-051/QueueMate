@@ -80,6 +80,11 @@ public class RealtimeMatcher {
     private final BlockLookupPort blocks;
     private final RandomSource random;
     private final ApplicationEventPublisher events;
+    private com.queuemate.matching.domain.MatchPoolPolicy poolPolicy = com.queuemate.matching.domain.MatchPoolPolicy.UNRESTRICTED;
+
+    @Autowired(required = false)
+    public void setPoolPolicy(com.queuemate.matching.domain.MatchPoolPolicy policy) { this.poolPolicy = policy; }
+
     private final Clock clock;
     private final Duration proposalTtl;
     private final int scanSize;
@@ -135,6 +140,7 @@ public class RealtimeMatcher {
      */
     @Transactional
     public Optional<UUID> tryMatchAround(MatchBucket anchor) {
+        poolPolicy.lock(anchor.game(), anchor.modeKey());
         Optional<GameModeConfig> found = modes.findActive(anchor.game(), anchor.modeKey());
         if (found.isEmpty()) {
             return Optional.empty();
@@ -155,6 +161,7 @@ public class RealtimeMatcher {
      */
     @Transactional
     public Optional<UUID> tryMatch(GameKey game, String modeKey) {
+        poolPolicy.lock(game, modeKey);
         Optional<GameModeConfig> found = modes.findActive(game, modeKey);
         if (found.isEmpty()) {
             return Optional.empty();
@@ -183,7 +190,8 @@ public class RealtimeMatcher {
 
         int lastSeedIndex = Math.min(waiting.size() - config.targetPartySize(), seedAttempts - 1);
         for (int i = 0; i <= lastSeedIndex; i++) {
-            Optional<List<Candidate>> party = assembler.assembleFrom(i);
+            Optional<List<Candidate>> party = assembler.assembleFrom(i, (members, candidate) -> members.stream().allMatch(member ->
+                    poolPolicy.compatible(member.requestId(), member.condition(), candidate.requestId(), candidate.condition())));
             if (party.isEmpty()) {
                 continue;
             }
@@ -215,11 +223,16 @@ public class RealtimeMatcher {
 
         // 매칭 대상 행을 잠근다. 후보를 읽는 사이 사용자가 취소하면 어느 쪽 변경이
         // 유실될지 알 수 없기 때문이다. 쿼리가 queuedAt 순으로 돌려주므로 aging이 유지된다.
+        poolPolicy.prepare(bucketOf.keySet());
         List<Candidate> candidates = new ArrayList<>(bucketOf.size());
         Set<UUID> alive = new HashSet<>();
         for (MatchRequest request :
                 requests.lockAllByIdInAndStatus(bucketOf.keySet(), MatchRequestStatus.QUEUED)) {
             alive.add(request.getId());
+            if (!poolPolicy.automatic(request.getId())) {
+                queue.removeStale(bucketOf.get(request.getId()), List.of(request.getId()));
+                continue;
+            }
             candidates.add(new Candidate(request, codec.fromJson(request.getConditionJson()),
                     bucketOf.get(request.getId())));
         }
@@ -234,6 +247,27 @@ public class RealtimeMatcher {
         });
         stale.forEach(queue::removeStale);
         return candidates;
+    }
+
+    /** 직접 선택한 모집도 기존 atomic claim과 전원 수락 경로로 연결한다. */
+    @Transactional
+    public Optional<UUID> proposeSelected(List<UUID> ids) {
+        if (ids.isEmpty() || ids.stream().distinct().count() != ids.size()) return Optional.empty();
+        var first = requests.findById(ids.getFirst()).orElse(null);
+        if (first == null) return Optional.empty();
+        var condition = codec.fromJson(first.getConditionJson());
+        poolPolicy.lock(condition.game(), condition.modeKey());
+        var config = modes.findActive(condition.game(), condition.modeKey()).orElse(null);
+        if (config == null || ids.size() != config.targetPartySize()) return Optional.empty();
+        poolPolicy.prepare(ids);
+        var party = requests.lockAllByIdInAndStatus(ids, MatchRequestStatus.QUEUED).stream()
+                .map(r -> new Candidate(r, codec.fromJson(r.getConditionJson()),
+                        MatchBucket.of(codec.fromJson(r.getConditionJson())))).toList();
+        if (party.size() != ids.size()) return Optional.empty();
+        return PartyAssembler.over(party, config, blocks, random)
+                .assembleFrom(0, (members, candidate) -> members.stream().allMatch(member ->
+                        poolPolicy.compatible(member.requestId(), member.condition(), candidate.requestId(), candidate.condition())))
+                .flatMap(selected -> claimAndPropose(selected, config));
     }
 
     private Optional<UUID> claimAndPropose(List<Candidate> party, GameModeConfig config) {

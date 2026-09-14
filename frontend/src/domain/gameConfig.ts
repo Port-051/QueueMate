@@ -48,8 +48,8 @@ export interface GameConfig {
 export const GAMES: GameConfig[] = [
   {
     key: 'LOL',
-    name: 'League of Legends',
-    shortName: 'LoL',
+    name: '리그 오브 레전드',
+    shortName: '리그 오브 레전드',
     tagline: '포지션이 맞는 팀원과',
     keyCondition: {
       type: 'POSITION',
@@ -59,7 +59,7 @@ export const GAMES: GameConfig[] = [
         { value: 'TOP', label: '탑' },
         { value: 'JUNGLE', label: '정글' },
         { value: 'MID', label: '미드' },
-        { value: 'ADC', label: '원딜' },
+        { value: 'ADC', label: '바텀' },
         { value: 'SUPPORT', label: '서포터' },
         { value: 'ANY', label: '전체' },
       ],
@@ -67,8 +67,8 @@ export const GAMES: GameConfig[] = [
   },
   {
     key: 'VALORANT',
-    name: 'VALORANT',
-    shortName: 'VALORANT',
+    name: '발로란트',
+    shortName: '발로란트',
     tagline: '역할군이 맞는 팀원과',
     keyCondition: {
       type: 'ROLE',
@@ -84,8 +84,8 @@ export const GAMES: GameConfig[] = [
   },
   {
     key: 'PUBG',
-    name: 'PUBG: BATTLEGROUNDS',
-    shortName: 'PUBG',
+    name: '배틀그라운드',
+    shortName: '배틀그라운드',
     tagline: '플레이 스타일이 맞는 팀원과',
     keyCondition: {
       type: 'PLAY_STYLE',
@@ -105,9 +105,10 @@ export const GAMES: GameConfig[] = [
  * 라벨이 없다고 선택지를 감추지는 않는다. 감추면 서버가 지원하는 모드를 못 고르게 된다.
  */
 const MODE_LABELS: Record<string, string> = {
-  SOLO_DUO_RANKED: '솔로/듀오 랭크',
-  NORMAL_DRAFT: '일반 게임',
-  ARAM: '칼바람 나락',
+  SOLO_DUO_RANKED: '랭크',
+  NORMAL_DRAFT: '일반',
+  SWIFTPLAY: '신속',
+  ARAM: '칼바람',
   COMPETITIVE: '경쟁전',
   UNRATED: '일반전',
   DUO: '듀오',
@@ -184,6 +185,18 @@ export function modeConfig(game: GameKey, modeKey: string): ModeConfig | undefin
 
 export function targetPartySize(game: GameKey, modeKey: string): number {
   return modeConfig(game, modeKey)?.targetPartySize ?? 2;
+}
+
+/** 칼바람은 포지션을 정하지 않으므로 검색·매칭 조건에서도 제외한다. */
+export function usesKeyCondition(game: GameKey, modeKey: string): boolean {
+  return game !== 'LOL' || modeKey !== 'ARAM';
+}
+
+export function conditionForMode(condition: MatchCondition, modeKey: string): MatchCondition {
+  return {
+    ...condition, modeKey,
+    keyCondition: usesKeyCondition(condition.game, modeKey) ? condition.keyCondition : { ...condition.keyCondition, value: 'ANY' },
+  };
 }
 
 /**

@@ -52,7 +52,7 @@ export interface MockDb {
   friendRequests: FriendRequestView[];
   blocks: BlockView[];
   recentPlayers: RecentPlayerView[];
-  matchRequests: Map<string, { view: MatchRequestView; condition: MatchCondition; sim: QueueSim }>;
+  matchRequests: Map<string, { view: MatchRequestView; condition: MatchCondition; sim: QueueSim; userId?: string }>;
   proposals: Map<string, MockProposal>;
   parties: Map<string, MockParty>;
   reservations: ReservationView[];

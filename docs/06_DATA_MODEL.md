@@ -1,5 +1,7 @@
 # 06. Data Model
 
+> 2026-09-13 변경: 모집 게시판·직접 참여·양방향 선호·모집 생명주기는 [16번 명세](16_RECRUITMENT_BOARD.md)가 우선한다. 기존 자동매칭·예약·정원·차단 규칙은 유지한다.
+
 PostgreSQL이 영속 데이터 source of truth다.
 
 ## Core tables

@@ -101,6 +101,25 @@ public class MatchRequestService {
         return request;
     }
 
+    @Transactional
+    public MatchRequest edit(UUID userId, UUID requestId, MatchCondition condition) {
+        requireActiveMode(condition);
+        var request = requests.findByIdForUpdate(requestId).orElseThrow(() -> notFound(requestId));
+        if (!request.getUserId().equals(userId)) throw notFound(requestId);
+        if (request.getStatus() != MatchRequestStatus.QUEUED)
+            throw new ConflictException("MATCH_REQUEST_NOT_EDITABLE", "대기 중인 조건만 바꿀 수 있습니다");
+        var previous = MatchBucket.of(codec.fromJson(request.getConditionJson()));
+        var next = MatchBucket.of(condition);
+        request.editCondition(codec.toJson(condition));
+        // 원래 대기 시각과 guard를 유지한다. DB 커밋 전에는 Redis를 건드리지 않는다.
+        AfterCommit.run(() -> {
+            queue.removeStale(previous, List.of(requestId));
+            queue.requeue(MatchingRedisKeys.queue(next), requestId, request.getQueuedAt().toInstant());
+            trigger.onQueued(next);
+        });
+        return request;
+    }
+
     /** 대기를 취소한다. 이미 취소된 요청에 다시 불러도 성공으로 본다. */
     @Transactional
     public void cancel(UUID userId, UUID requestId) {
@@ -129,6 +148,16 @@ public class MatchRequestService {
     @Transactional(readOnly = true)
     public MatchRequest get(UUID userId, UUID requestId) {
         return ownedRequest(userId, requestId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MatchRequest> history(UUID userId) {
+        return requests.findByUserIdAndStatusInOrderByQueuedAtDescIdDesc(userId,
+                List.of(MatchRequestStatus.MATCHED, MatchRequestStatus.CANCELLED, MatchRequestStatus.EXPIRED));
+    }
+
+    public MatchCondition conditionOf(MatchRequest request) {
+        return codec.fromJson(request.getConditionJson());
     }
 
     private MatchRequest ownedRequest(UUID userId, UUID requestId) {

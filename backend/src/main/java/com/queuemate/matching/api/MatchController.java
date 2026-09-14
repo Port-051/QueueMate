@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /** 실시간 매칭 요청 API (contracts/openapi.yaml /match-requests). */
@@ -43,6 +44,18 @@ public class MatchController {
     @GetMapping("/{id}")
     public MatchRequestView get(CurrentUser currentUser, @PathVariable UUID id) {
         return MatchRequestView.of(service.get(currentUser.userId(), id));
+    }
+
+    @GetMapping("/history")
+    public List<MatchHistoryView> history(CurrentUser currentUser) {
+        return service.history(currentUser.userId()).stream().map(request -> {
+            MatchCondition condition = service.conditionOf(request);
+            return new MatchHistoryView(request.getId(), request.getStatus(), request.getQueuedAt(),
+                    new MatchConditionRequest(condition.game(), condition.modeKey(),
+                            new MatchConditionRequest.KeyConditionRequest(
+                                    condition.keyCondition().type().name(), condition.keyCondition().value()),
+                            condition.voicePreference(), condition.playPurpose()), request.getProposalId());
+        }).toList();
     }
 
     @DeleteMapping("/{id}")
@@ -71,6 +84,11 @@ public class MatchController {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("알 수 없는 조건 종류다: " + raw, e);
         }
+    }
+
+    /** openapi MatchHistoryView. */
+    public record MatchHistoryView(UUID id, MatchRequestStatus status, OffsetDateTime queuedAt,
+                                   MatchConditionRequest condition, UUID proposalId) {
     }
 
     /** openapi MatchRequestView. */

@@ -89,7 +89,8 @@ public class RealtimeEventPublisher {
             log.error("이벤트 직렬화 실패 type={}", event.type(), e);
             return;
         }
-        int delivered = sender.deliver(userIds, payload);
+        int delivered = event.type() == EventType.RECRUITMENT_UPDATED && event.payload().isEmpty()
+                ? sender.deliverAll(payload) : sender.deliver(userIds, payload);
         metrics.eventDelivered("LOCAL", delivered);
         // 이 노드에 전부 있었더라도 넘긴다. 같은 사용자가 다른 노드에도 탭을 열어 둘 수 있어
         // 로컬 전송 수만으로는 남은 대상이 있는지 알 수 없다.

@@ -1,3 +1,4 @@
+import { GameBadge } from '../components/GameSymbol';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
@@ -11,7 +12,7 @@ export function OnboardingPage() {
   const { user, gameAccounts, updateProfile, refreshGameAccounts } = useAuth();
   const navigate = useNavigate();
 
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(user?.nickname ? 1 : 0);
   const [nickname, setNickname] = useState(user?.nickname ?? '');
   const [game, setGame] = useState<GameKey>('LOL');
   const [externalId, setExternalId] = useState('');
@@ -76,13 +77,13 @@ export function OnboardingPage() {
           <>
             <h1 style={{ fontSize: 24, fontWeight: 800 }}>플레이할 게임 계정을 연결하세요</h1>
             <p style={{ color: 'var(--muted)', marginTop: 8, fontSize: 14 }}>
-              랭크·지역 같은 조건은 연결된 계정에서 시스템이 가져옵니다. 직접 입력하지 않습니다.
+              게임에서 초대받을 ID를 등록하세요. 파티원에게 표시되며, 현재 랭크나 지역을 자동 조회하지는 않습니다.
             </p>
 
             <div className="game-picker" style={{ marginTop: 22 }}>
               {GAMES.map((g) => (
                 <button key={g.key} type="button" className={g.key === game ? 'game-card on' : 'game-card'} onClick={() => setGame(g.key)}>
-                  <span className={`game-logo g-${g.key}`}>{g.shortName.slice(0, 3).toUpperCase()}</span>
+                  <GameBadge game={g.key} />
                   <div>
                     <div className="gc-name">{g.name}</div>
                     <div className="gc-sub">{g.tagline}</div>

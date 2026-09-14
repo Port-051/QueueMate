@@ -21,7 +21,7 @@ public final class PartyDtos {
     ) {
     }
 
-    public record MemberView(UUID userId, String nickname, boolean ready) {
+    public record MemberView(UUID userId, String nickname, boolean ready, List<String> gameIds) {
     }
 
     public record ReadyRequest(@NotNull Boolean ready) {

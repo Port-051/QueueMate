@@ -60,7 +60,7 @@ public class EventFanout implements MessageListener {
      * 이벤트는 상태의 소스가 아니라 알림이고, 클라이언트는 재연결 스냅샷으로 메운다.
      */
     public void broadcast(Collection<UUID> userIds, ServerEvent event) {
-        if (userIds.isEmpty()) {
+        if (userIds.isEmpty() && !(event.type() == EventType.RECRUITMENT_UPDATED && event.payload().isEmpty())) {
             return;
         }
         try {
@@ -96,7 +96,8 @@ public class EventFanout implements MessageListener {
             log.error("전달받은 이벤트 직렬화 실패 type={}", received.event().type(), e);
             return;
         }
-        int delivered = sender.deliver(received.userIds(), payload);
+        int delivered = received.event().type() == EventType.RECRUITMENT_UPDATED && received.event().payload().isEmpty()
+                ? sender.deliverAll(payload) : sender.deliver(received.userIds(), payload);
         // 원격 비중이 곧 노드 간 전달이 실제로 필요한 정도다. 0에 가까우면
         // 같은 파티원이 같은 노드에 몰린다는 뜻이라 방송 비용을 다시 볼 근거가 된다.
         metrics.eventDelivered("REMOTE", delivered);

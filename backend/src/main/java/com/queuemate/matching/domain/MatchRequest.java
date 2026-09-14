@@ -37,7 +37,7 @@ public class MatchRequest {
     private MatchRequestStatus status;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "condition_json", nullable = false, updatable = false)
+    @Column(name = "condition_json", nullable = false)
     private String conditionJson;
 
     @Column(name = "queued_at", nullable = false, updatable = false)
@@ -80,6 +80,11 @@ public class MatchRequest {
 
     public void markMatched() {
         transitionTo(MatchRequestStatus.MATCHED);
+    }
+
+    public void editCondition(String json) {
+        if (status != MatchRequestStatus.QUEUED) throw new IllegalStateException("대기 중인 조건만 바꿀 수 있습니다");
+        this.conditionJson = json;
     }
 
     public void cancel() {

@@ -38,6 +38,8 @@ public class SessionMessageSender {
         return delivered;
     }
 
+    public int deliverAll(String payload) { return deliver(sessions.userIds(), payload); }
+
     public boolean send(WebSocketSession session, String payload) {
         try {
             // WebSocketSession은 동시 전송에 안전하지 않다. 같은 session으로 두 스레드가

@@ -26,11 +26,9 @@ export class MockPartyClient implements PartyClient {
   }
 
   async connect(): Promise<void> {
-    this.opts.handlers.onStatus('connecting');
     this.timers.push(window.setTimeout(() => {
-      this.opts.handlers.onStatus('connected');
       this.members.forEach((m) => this.opts.handlers.onPeer({ userId: m.userId, connected: true }));
-      this.system('음성 채널에 연결되었습니다. mock 모드에서는 실제 음성이 전송되지 않습니다.');
+      this.system('데모 파티에 연결되었습니다.');
     }, 700));
 
     this.members.slice(0, GREETINGS.length).forEach((m, i) => {
@@ -43,16 +41,22 @@ export class MockPartyClient implements PartyClient {
     });
   }
 
+  async startVoice(): Promise<void> {
+    this.opts.handlers.onStatus('connected');
+    this.system('데모 모드에서는 실제 음성이 전송되지 않습니다.');
+  }
+
   syncMembers(memberIds: string[]): void {
     this.members = this.members.filter((m) => memberIds.includes(m.userId));
   }
 
-  sendChat(text: string): void {
+  sendChat(text: string): number {
     const message: PartyChatMessage = {
       id: crypto.randomUUID(), userId: this.opts.selfUserId,
       nickname: this.opts.selfNickname, text, at: new Date().toISOString(),
     };
     this.opts.handlers.onChat(message);
+    return this.members.length;
   }
 
   setMuted(muted: boolean): void {

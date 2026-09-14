@@ -18,6 +18,9 @@ public interface MatchRequestRepository extends JpaRepository<MatchRequest, UUID
     /** INV-1 확인용. DB의 partial unique index 덕분에 결과는 최대 하나다. */
     Optional<MatchRequest> findByUserIdAndStatusIn(UUID userId, Collection<MatchRequestStatus> statuses);
 
+    List<MatchRequest> findByUserIdAndStatusInOrderByQueuedAtDescIdDesc(
+            UUID userId, Collection<MatchRequestStatus> statuses);
+
     List<MatchRequest> findAllByIdInAndStatus(Collection<UUID> ids, MatchRequestStatus status);
 
     /**

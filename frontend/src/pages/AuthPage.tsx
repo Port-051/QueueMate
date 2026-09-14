@@ -1,18 +1,11 @@
+import { Logo } from '../components/Logo';
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { isApiError } from '../api/error';
 import { SocialLoginButtons } from '../components/SocialLoginButtons';
 import { Button, Field } from '../components/ui';
-import { IconBolt, IconMic, IconShield, IconTarget } from '../components/icons';
 import { USE_MOCK } from '../config';
 import { useAuth } from '../state/AuthContext';
-
-const POINTS = [
-  { icon: <IconBolt size={16} />, title: '빠른 매칭', desc: '복잡한 과정 없이 조건만 고르면 매칭이 시작됩니다.' },
-  { icon: <IconTarget size={16} />, title: '핵심 조건 매칭', desc: '게임 모드, 핵심 조건, 음성, 플레이 목적만 봅니다.' },
-  { icon: <IconMic size={16} />, title: '음성 채팅', desc: 'WebRTC 기반으로 파티원과 바로 대화합니다.' },
-  { icon: <IconShield size={16} />, title: '안전한 플레이', desc: '차단·신고로 불쾌한 매칭을 걸러냅니다.' },
-];
 
 export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   const { login, signup } = useAuth();
@@ -55,39 +48,16 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   return (
     <div className="auth">
       <aside className="auth-aside">
-        <Link to="/" className="brand" style={{ padding: 0 }}>
-          <span className="brand-mark">Q</span>
-          <span className="brand-name">Queue<span>Mate</span></span>
-        </Link>
+        <Link to="/" aria-label="QueueMate 홈"><Logo /></Link>
         <div>
           <h2>조건이 맞는 팀원과<br /><em>지금, 바로 플레이</em></h2>
-          <p style={{ marginTop: 16 }}>
-            QueueMate는 LoL · VALORANT · PUBG에서 게임별 핵심 조건만으로<br />
-            호환되는 팀원을 자동으로 매칭해주는 서비스입니다.
-          </p>
-        </div>
-        <div className="auth-points">
-          {POINTS.map((p) => (
-            <div key={p.title} className="auth-point">
-              <span className="fi" style={{ color: 'var(--accent-2)' }}>{p.icon}</span>
-              <div>
-                <b>{p.title}</b>
-                <p>{p.desc}</p>
-              </div>
-            </div>
-          ))}
+          <p style={{ marginTop: 16 }}>리그 오브 레전드 · 발로란트 · 배틀그라운드</p>
         </div>
       </aside>
 
       <main className="auth-main">
         <div className="auth-card">
-          <div className="tabs" style={{ marginBottom: 22 }}>
-            <button type="button" className={isSignup ? '' : 'on'} onClick={() => navigate('/login')}>로그인</button>
-            <button type="button" className={isSignup ? 'on' : ''} onClick={() => navigate('/signup')}>회원가입</button>
-          </div>
-
           <h1>{isSignup ? '회원가입' : '로그인'}</h1>
-          <p className="sub">{isSignup ? '계정을 만들고 바로 매칭을 시작하세요.' : 'QueueMate에 오신 것을 환영합니다!'}</p>
 
           <SocialLoginButtons redirectTo={from} onError={setError} />
 
@@ -97,7 +67,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
                 value={email} onChange={(e) => setEmail(e.target.value)} />
             </Field>
             {isSignup ? (
-              <Field label="닉네임" hint="2~16자. 파티원에게 보이는 이름입니다.">
+              <Field label="닉네임" hint="2~16자">
                 <input className="input" type="text" placeholder="닉네임을 입력하세요"
                   value={nickname} onChange={(e) => setNickname(e.target.value)} />
               </Field>
@@ -120,7 +90,6 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
 
           {USE_MOCK ? (
             <div className="auth-hint">
-              backend 없이 동작하는 mock 모드입니다.<br />
               데모 계정: <b>demo@queuemate.gg</b> / <b>queuemate1</b>
             </div>
           ) : null}

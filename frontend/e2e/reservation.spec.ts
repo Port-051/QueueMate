@@ -1,58 +1,46 @@
-import { expect, test } from '@playwright/test';
-import { login } from './helpers';
-
-async function openNewReservation(page: import('@playwright/test').Page) {
-  await page.locator('.side-nav a[href="/app/reservations"]').click();
-  await expect(page.getByRole('heading', { name: '예약 매칭 관리' })).toBeVisible();
-  await page.getByRole('button', { name: '새 예약' }).click();
-  await expect(page.getByRole('heading', { name: '예약 매칭 설정' })).toBeVisible();
+import { expect, test, type Page } from '@playwright/test';
+import { manageRecruitment, login } from './helpers';
+test.use({ timezoneId: 'Asia/Seoul' });
+async function open(page: Page) {
+  await page.getByRole('tab', { name: '예약 매칭', exact: true }).click();
+  if (await page.getByRole('button', { name: '새 예약', exact: true }).isVisible()) await page.getByRole('button', { name: '새 예약', exact: true }).click();
+  await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
 }
-
-test('예약 등록 후 목록에 진행 중으로 남는다', async ({ page }) => {
-  await login(page);
-  await openNewReservation(page);
-
-  await page.getByRole('button', { name: '2판 이상' }).click();
-  await page.getByRole('button', { name: '예약 등록' }).click();
-
-  await expect(page).toHaveURL(/\/app\/reservations$/);
-  await expect(page.getByText('2판 이상')).toBeVisible();
-  await expect(page.getByText('대기 중')).toBeVisible();
+test('예약은 별도 탭에서 등록하고 겹치는 예약은 서버가 거절한다', async ({ page }) => {
+  await login(page); await open(page);
+  await page.locator('.recruitment-composer-shell').getByRole('group', { name: '플레이 양' }).getByRole('button', { name: '두 게임 이상' }).click();
+  await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
+  await expect(page.locator('.my-recruitment')).toContainText('예약');
+  await open(page); await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('시간이 겹치는 예약');
 });
-
-test('시간이 겹치는 예약은 등록할 수 없다 (INV-9)', async ({ page }) => {
-  await login(page);
-  await openNewReservation(page);
-  await page.getByRole('button', { name: '예약 등록' }).click();
-  await expect(page).toHaveURL(/\/app\/reservations$/);
-
-  await page.getByRole('button', { name: '새 예약' }).click();
-  await page.getByRole('button', { name: '예약 등록' }).click();
-
-  await expect(page.locator('.toast.error')).toContainText('시간이 겹치는 예약');
-  await expect(page).toHaveURL(/\/app\/reservations\/new/);
+test('자정을 넘는 예약은 수정할 때도 날짜와 플레이 양을 유지한다', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-09-13T10:00:00+09:00'));
+  await login(page); await open(page);
+  await page.locator('.recruitment-composer-shell').getByLabel('시작 가능 시각').fill('2026-09-14T23:30');
+  await page.locator('.recruitment-composer-shell').getByLabel('마지막 종료 시각').fill('2026-09-15T00:30');
+  await page.locator('.recruitment-composer-shell').getByRole('group', { name: '플레이 양' }).getByRole('button', { name: '두 게임 이상' }).click();
+  await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
+  await manageRecruitment(page, '조건 수정');
+  await expect(page.locator('.recruitment-composer-shell').getByLabel('시작 가능 시각')).toHaveValue('2026-09-14T23:30');
+  await expect(page.locator('.recruitment-composer-shell').getByLabel('마지막 종료 시각')).toHaveValue('2026-09-15T00:30');
+  await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '플레이 양' }).getByRole('button', { name: '두 게임 이상' })).toHaveAttribute('aria-pressed', 'true');
 });
-
-test('예약을 취소하면 지난 예약으로 이동한다', async ({ page }) => {
-  await login(page);
-  await openNewReservation(page);
-  await page.getByRole('button', { name: '예약 등록' }).click();
-  await expect(page).toHaveURL(/\/app\/reservations$/);
-
-  await page.getByRole('button', { name: '취소' }).click();
-  await expect(page.getByText('진행 중인 예약이 없습니다')).toBeVisible();
-
-  await page.getByRole('button', { name: /지난 예약/ }).click();
-  await expect(page.getByText('취소됨')).toBeVisible();
+test('과거·역전·30분 경계가 아닌 시간은 제출 전에 알려준다', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-09-13T10:00:00+09:00'));
+  await login(page); await open(page);
+  const start = page.locator('.recruitment-composer-shell').getByLabel('시작 가능 시각');
+  const end = page.locator('.recruitment-composer-shell').getByLabel('마지막 종료 시각');
+  const submit = page.getByRole('button', { name: '매칭 시작', exact: true });
+  await start.fill('2026-09-13T09:00'); await expect(submit).toBeDisabled();
+  await start.fill('2026-09-14T22:00'); await end.fill('2026-09-14T20:00'); await expect(submit).toBeDisabled();
+  await end.fill('2026-09-14T23:15'); await expect(submit).toBeDisabled();
+  await end.fill('2026-09-14T23:30'); await expect(submit).toBeEnabled();
 });
-
-test('종료 시간이 시작보다 빠르면 등록 버튼이 잠긴다', async ({ page }) => {
-  await login(page);
-  await openNewReservation(page);
-
-  await page.locator('.time-range select').first().selectOption('22:00');
-  await page.locator('.time-range select').nth(1).selectOption('20:00');
-
-  await expect(page.getByText('종료 시간이 시작 시간보다 늦어야 합니다')).toBeVisible();
-  await expect(page.getByRole('button', { name: '예약 등록' })).toBeDisabled();
+test('예약 매칭을 종료하면 신규 예약을 다시 등록할 수 있다', async ({ page }) => {
+  await login(page); await open(page); await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
+  await manageRecruitment(page, '매칭 종료');
+  await expect(page.locator('.my-recruitment')).toHaveCount(0);
+  await open(page); await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
+  await expect(page.locator('.my-recruitment')).toContainText('예약');
 });

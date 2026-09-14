@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: QueueMate API
-  version: 2.0.0
+  version: 2.1.0
   description: |
     **이 파일이 정본이다.** 구현과 어긋나면 이 파일이 아니라 구현을 고친다.
 
@@ -25,6 +25,24 @@ servers:
 security:
   - bearerAuth: []
 paths:
+  /recruitments/search:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1search'
+  /recruitments/mine:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1mine'
+  /recruitments:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments'
+  /recruitments/{id}:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1{id}'
+  /recruitments/{id}/actions:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1{id}~1actions'
+  /recruitments/{id}/join:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1{id}~1join'
+  /recruitments/{id}/respond:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1{id}~1respond'
+  /recruitments/{id}/suggestions:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1{id}~1suggestions'
+  /recruitments/impressions:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1impressions'
   /auth/signup:
     post:
       security: []
@@ -362,6 +380,22 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /match-requests/history:
+    get:
+      summary: List my past realtime matches
+      description: >
+        인증된 사용자의 MATCHED, CANCELLED, EXPIRED 요청만 반환한다.
+        최초 매칭 시작 시각(queuedAt) 내림차순이며 같은 시각은 id 내림차순이다.
+        queuedAt은 결과가 발생한 시각이 아니다. 조건과 최종 상태는 DB 기록을 사용한다.
+      responses:
+        '200':
+          description: Past matches, newest request first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MatchHistoryView' }
+        '401': { description: Authentication required }
   /match-requests/{id}:
     parameters:
       - name: id
@@ -1045,6 +1079,15 @@ components:
           format: date-time
           description: 최초 대기 시작 시각. 제안을 거절하고 큐로 돌아와도 유지된다
         proposalId: { type: string, format: uuid, nullable: true }
+    MatchHistoryView:
+      type: object
+      required: [id, status, queuedAt, condition]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [MATCHED, CANCELLED, EXPIRED] }
+        queuedAt: { type: string, format: date-time, description: 최초 매칭 시작 시각 }
+        condition: { $ref: '#/components/schemas/MatchCondition' }
+        proposalId: { type: string, format: uuid, nullable: true }
     PlayAmount:
       type: string
       enum: [ONE_GAME, TWO_PLUS]
@@ -1114,3 +1157,7 @@ components:
               userId: { type: string, format: uuid }
               nickname: { type: string }
               ready: { type: boolean }
+              gameIds:
+                type: array
+                items: { type: string }
+                description: 파티 게임에 등록한 초대용 게임 ID 목록. 해당 파티 참여자에게만 제공하며 미등록이면 빈 배열.

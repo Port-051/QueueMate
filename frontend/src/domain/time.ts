@@ -60,12 +60,33 @@ export function formatDay(iso: string): string {
 }
 
 export function formatRange(from: string, to: string): string {
-  return `${formatDay(from)} ${formatTime(from)} ~ ${formatTime(to)}`;
+  const endDay = toDateKey(new Date(from)) === toDateKey(new Date(to)) ? '' : `${formatDay(to)} `;
+  return `${formatDay(from)} ${formatTime(from)} ~ ${endDay}${formatTime(to)}`;
+}
+
+export function addDays(dateKey: string, count: number): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  return toDateKey(new Date(y, m - 1, d + count));
+}
+
+export function defaultReservationWindow(now = new Date()): { from: Date; to: Date } {
+  const evening = new Date(now);
+  evening.setHours(20, 0, 0, 0);
+  const nextSlot = floorToSlot(now);
+  nextSlot.setMinutes(nextSlot.getMinutes() + SLOT_MINUTES);
+  const from = evening > now ? evening : nextSlot;
+  return { from, to: new Date(from.getTime() + 2 * 60 * 60 * 1000) };
 }
 
 export function formatDuration(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+}
+
+/** 매칭 경과/예약 카운트다운. 1시간 이상도 분이 무한히 늘어나지 않게 표시한다. */
+export function formatElapsed(seconds: number): string {
+  const s = Math.max(0, Math.floor(Number.isFinite(seconds) ? seconds : 0));
+  return s >= 3600 ? `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}` : formatDuration(s);
 }
 
 export function relativeTime(iso: string, now = Date.now()): string {

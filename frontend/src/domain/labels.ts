@@ -2,16 +2,17 @@ import type {
   Acceptance, GameKey, MatchCondition, PartyStatus, PlayAmount, PlayPurpose,
   ReportReason, ReservationStatus, VoicePreference,
 } from '../api/types';
-import { gameConfig, modeConfig } from './gameConfig';
+import { gameConfig, modeConfig, usesKeyCondition } from './gameConfig';
 
 export const gameLabel = (g: GameKey) => gameConfig(g).shortName;
 export const gameFullLabel = (g: GameKey) => gameConfig(g).name;
 
 export function modeLabel(game: GameKey, modeKey: string): string {
-  return modeConfig(game, modeKey)?.label ?? modeKey;
+  return modeKey === 'ANY' ? '큐 무관' : modeConfig(game, modeKey)?.label ?? modeKey;
 }
 
 export function keyConditionLabel(condition: MatchCondition): string {
+  if (condition.keyCondition.value === 'ANY') return '무관';
   const cfg = gameConfig(condition.game);
   return cfg.keyCondition.options.find((o) => o.value === condition.keyCondition.value)?.label ?? condition.keyCondition.value;
 }
@@ -45,9 +46,9 @@ export const RESERVATION_STATUS_LABEL: Record<ReservationStatus, string> = {
 };
 
 export const PARTY_STATUS_LABEL: Record<PartyStatus, string> = {
-  OPEN: '모집 완료',
+  OPEN: '매칭 완료',
   READY: '준비 완료',
-  PLAYING: '게임 중',
+  PLAYING: '전원 준비 확인됨',
   CLOSED: '종료됨',
 };
 
@@ -68,7 +69,7 @@ export const REPORT_REASONS: { value: ReportReason; label: string }[] = [
 
 /** 조건 한 줄 요약. 카드/리스트에서 재사용한다. */
 export function conditionSummary(c: MatchCondition): string[] {
-  return [modeLabel(c.game, c.modeKey), keyConditionLabel(c), VOICE_LABEL[c.voicePreference], PURPOSE_LABEL[c.playPurpose]];
+  return [modeLabel(c.game, c.modeKey), ...(usesKeyCondition(c.game, c.modeKey) ? [keyConditionLabel(c)] : []), VOICE_LABEL[c.voicePreference], PURPOSE_LABEL[c.playPurpose]];
 }
 
 /**

@@ -289,7 +289,10 @@ function partyView(party) {
     targetSize: party.targetSize,
     status: party.status,
     members: party.members.filter((m) => !m.left)
-      .map((m) => ({ userId: m.userId, nickname: m.nickname, ready: m.ready })),
+      .map((m) => ({
+        userId: m.userId, nickname: m.nickname, ready: m.ready,
+        gameIds: [...db.gameAccounts.values()].filter((a) => a.userId === m.userId && a.game === party.game).map((a) => a.externalGameId).sort(),
+      })),
   };
 }
 

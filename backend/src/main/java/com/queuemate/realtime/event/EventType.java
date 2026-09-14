@@ -7,6 +7,7 @@ package com.queuemate.realtime.event;
 public enum EventType {
     /** 연결 직후 한 번. 끊긴 동안 바뀐 것을 현재 상태로 대신 알린다. */
     SESSION_SNAPSHOT,
+    RECRUITMENT_UPDATED,
     MATCH_QUEUE_UPDATED,
     MATCH_PROPOSAL_CREATED,
     MATCH_PROPOSAL_EXPIRED,

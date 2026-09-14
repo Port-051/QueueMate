@@ -1,3 +1,4 @@
+import { handleBoardMock, boardSimulationPeers } from './recruitment';
 import { ApiError } from '../api/error';
 import type {
   BlockView, CreateBlockRequest, CreateFriendRequest, CreateGameAccountRequest, CreateReportRequest,
@@ -65,13 +66,13 @@ function socialAccount(provider: OAuthProviderView) {
 
 const isBlocked = (userId: string) => db.blocks.some((b) => b.userId === userId);
 
-/** 서버가 정하는 파티 정원. 클라이언트가 보내는 값이 아니다 (docs/03 §9). */
+/** 체험용 카탈로그가 정하는 파티 정원. 실제 서버 설정과의 차이는 contract.ts 참고. */
 const partySizeOf = (condition: MatchCondition): number =>
   modeOf(condition.game, condition.modeKey)?.targetPartySize ?? 2;
 
 /**
- * 조건을 계약대로 검증한다. 실서버·mock-server와 같은 code로 실패해야
- * mock 모드에서만 통과하는 조건이 생기지 않는다 (docs/14 §4.1).
+ * 체험용 카탈로그의 조건을 검증한다. 오류 코드는 기존 계약과 맞추되,
+ * 허용 모드와 매칭 정원은 승인된 프론트엔드 시안에 따른다 (contract.ts).
  */
 function validateCondition(raw: unknown): MatchCondition {
   const c = raw as Partial<MatchCondition> | undefined;
@@ -130,8 +131,8 @@ function startQueueSim(requestId: string): void {
   entry.sim.timers.push(fire);
 }
 
-function buildProposal(memberCount: number): ProposalView {
-  const mates = pickCandidates(memberCount - 1);
+function buildProposal(memberCount: number, selected?: MockUser[]): ProposalView {
+  const mates = selected ?? pickCandidates(memberCount - 1);
   const members: ProposalMember[] = [
     { userId: db.me.id, nickname: db.me.nickname, acceptance: 'PENDING' },
     ...mates.map((m) => ({ userId: m.userId, nickname: m.nickname, acceptance: 'PENDING' as const })),
@@ -149,8 +150,10 @@ function createProposalForRequest(requestId: string): void {
   const entry = db.matchRequests.get(requestId);
   if (!entry || entry.view.status !== 'QUEUED') return;
 
+  const peers = boardSimulationPeers(requestId);
+  if (peers === null) return;
   const size = partySizeOf(entry.condition);
-  const view = buildProposal(size);
+  const view = buildProposal(size, peers);
   const proposal = { view, condition: entry.condition, requestId, timers: [] as number[] };
   db.proposals.set(view.id, proposal);
 
@@ -168,8 +171,10 @@ function createProposalForReservation(reservationId: string): void {
   const reservation = db.reservations.find((r) => r.id === reservationId);
   if (!reservation || reservation.status !== 'ACTIVE') return;
 
+  const peers = boardSimulationPeers(reservationId);
+  if (peers === null) return;
   const size = partySizeOf(reservation.condition);
-  const view = buildProposal(size);
+  const view = buildProposal(size, peers);
   const proposal = { view, condition: reservation.condition, reservationId, timers: [] as number[] };
   db.proposals.set(view.id, proposal);
 
@@ -226,7 +231,9 @@ function confirmProposal(proposalId: string): void {
     modeKey: condition.modeKey,
     targetSize: partySizeOf(condition),
     status: 'OPEN',
-    members: proposal.view.members.map((m) => ({ userId: m.userId, nickname: m.nickname, ready: false })),
+    members: proposal.view.members.map((m) => ({ userId: m.userId, nickname: m.nickname, ready: false,
+      gameIds: m.userId === db.me.id ? db.gameAccounts.filter((a) => a.game === condition.game).map((a) => a.externalGameId).sort() : [],
+    })),
   };
   const mockParty = { view: party, condition, timers: [] as number[] };
   db.parties.set(party.id, mockParty);
@@ -459,10 +466,14 @@ const routes: Route[] = [
     if (activeMatchRequest()) throw new ApiError(409, 'ACTIVE_MATCH_REQUEST_EXISTS', '이미 진행 중인 매칭이 있습니다');
     if (activeProposalForMe()) throw new ApiError(409, 'ACTIVE_MATCH_REQUEST_EXISTS', '응답하지 않은 매칭 제안이 있습니다');
     const view: MatchRequestView = { id: uid(), status: 'QUEUED', queuedAt: nowIso(), proposalId: null };
-    db.matchRequests.set(view.id, { view, condition, sim: { timers: [] } });
+    db.matchRequests.set(view.id, { view, condition, sim: { timers: [] }, userId: db.me.id });
     startQueueSim(view.id);
     return view;
   }],
+  ['GET', /^\/match-requests\/history$/, () => [...db.matchRequests.values()]
+    .filter((entry) => entry.userId === db.me.id && ['MATCHED', 'CANCELLED', 'EXPIRED'].includes(entry.view.status))
+    .map(({ view, condition }) => ({ ...view, condition }))
+    .sort((a, b) => b.queuedAt.localeCompare(a.queuedAt) || b.id.localeCompare(a.id))],
   ['GET', /^\/match-requests\/([^/]+)$/, ({ params }) => {
     const entry = db.matchRequests.get(params[0]);
     if (!entry) throw new ApiError(404, 'MATCH_REQUEST_NOT_FOUND', '매칭 요청을 찾을 수 없습니다');
@@ -716,6 +727,8 @@ function lookupNickname(userId: string): string {
   return CANDIDATES.find((c) => c.userId === userId)?.nickname
     ?? db.recentPlayers.find((p) => p.userId === userId)?.nickname
     ?? db.friends.find((f) => f.userId === userId)?.nickname
+    ?? [...db.parties.values()].flatMap(party => party.view.members).find(member => member.userId === userId)?.nickname
+    ?? [...db.proposals.values()].flatMap(proposal => proposal.view.members).find(member => member.userId === userId)?.nickname
     ?? '알 수 없는 사용자';
 }
 
@@ -764,6 +777,16 @@ export async function handleMockRequest<T>(
   await delay(LATENCY_MS);
   const [path, search = ''] = fullPath.split('?');
   const query = new URLSearchParams(search);
+  if (path.startsWith('/recruitments')) {
+    requireSession(token);
+    return handleBoardMock(method, path, body, (verb, legacyPath, payload) => {
+      for (const [routeMethod, pattern, handler] of routes) {
+        const match = pattern.exec(legacyPath);
+        if (verb === routeMethod && match) return handler({ params: match.slice(1), body: payload, query: new URLSearchParams() });
+      }
+      throw new ApiError(404, 'NO_MOCK_ROUTE', legacyPath);
+    }, (id, type) => type === 'REALTIME' ? createProposalForRequest(id) : createProposalForReservation(id)) as T;
+  }
 
   for (const [routeMethod, pattern, handler, isPublic] of routes) {
     if (routeMethod !== method) continue;
