@@ -8,7 +8,7 @@ import { RecruitmentClock } from './RecruitmentClock';
 import { usesKeyCondition } from '../domain/gameConfig';
 import { useNow } from '../state/useNow';
 import { MatchConditionSummary } from './MatchConditionSummary';
-import { IconPencil, IconX } from './icons';
+import { IconPause, IconPlay, IconPencil, IconX } from './icons';
 import { ParticipantIntroduction } from './ParticipantIntroduction';
 
 export function RecruitmentPanel({ row, onChanged, onEdit }: { row: api.BoardRow; onChanged: () => Promise<void>; onEdit: () => void }) {
@@ -64,7 +64,7 @@ export function RecruitmentPanel({ row, onChanged, onEdit }: { row: api.BoardRow
       {row.status === 'OPEN' && !stale && timed ? <button className="match-bump" aria-label="위로 올리기" disabled={busy || bumpIn > 0} title={bumpIn ? `${bumpIn}분 후 다시 올릴 수 있어요` : undefined} onClick={() => action('BUMP')}>↑ 위로 올리기</button> : null}
       <div className="my-recruitment-actions compact-match-actions">
         <Button className="recruitment-edit" aria-label="조건 수정" disabled={busy || !independent} onClick={onEdit}><IconPencil size={15} />수정</Button>
-        <Button aria-label={row.status === 'PAUSED' ? '매칭 재개' : '잠시 멈춤'} disabled={busy} onClick={() => action(row.status === 'PAUSED' ? 'RESUME' : 'PAUSE')}>{row.status === 'PAUSED' ? '재개' : '일시정지'}</Button>
+        <Button aria-label={row.status === 'PAUSED' ? '매칭 재개' : '잠시 멈춤'} disabled={busy} onClick={() => action(row.status === 'PAUSED' ? 'RESUME' : 'PAUSE')}>{row.status === 'PAUSED' ? <IconPlay size={14} /> : <IconPause size={14} />}{row.status === 'PAUSED' ? '재개' : '일시정지'}</Button>
         <Button variant="ghost" aria-label="매칭 종료" disabled={busy} onClick={() => action('CLOSE')}><IconX size={15} />종료</Button>
       </div>
     </> : null}

@@ -104,7 +104,7 @@ body:has(.board-home) .toast-host { pointer-events: none; }
 .match-condition-summary .recruitment-role-targets { gap: 2px; flex-wrap: nowrap; }
 .match-condition-summary .recruitment-role-icon svg { width: 17px; height: 17px; }
 .match-condition-summary .recruitment-role-arrow { width: 12px; }
-.match-condition-summary .recruitment-voice { margin-left: auto; width: auto; min-width: 30px; }
+.match-condition-summary .recruitment-voice { margin-left: 0; width: auto; min-width: 30px; }
 .home-profile .recruitment-description { font-size: 12px; line-height: 1.5; margin: 10px 0 0; }
 .home-profile .compact-match-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 18px; }
 .home-profile .compact-match-actions > .btn { min-height: 34px; padding: 6px; font-size: 12px; gap: 4px; background: #ffffff04; }
@@ -117,10 +117,12 @@ body:has(.board-home) .toast-host { pointer-events: none; }
 .home-profile .duo-offer-person { gap: 8px; font-size: 14px; margin-bottom: 12px; }
 .duo-offer-person > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: 1; }
 .duo-offer-person .row-tier { flex: none; font-size: 11px; }
-.duo-offer .row-introduction-stats { margin-top: 12px; gap: 8px; font-size: 11px; flex-wrap: wrap; }
+.duo-offer .row-introduction-stats { margin-top: 0; gap: 8px; font-size: 11px; flex-wrap: wrap; }
 .duo-offer .preferred-champion-portrait { width: 24px; height: 24px; }
-.duo-offer-bio { margin-top: 9px; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
-.duo-decision-actions { display: flex; justify-content: center; gap: 14px; margin-top: 14px; }
+.duo-offer-bio { margin: 9px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.duo-offer-bottom { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; margin-top: 12px; }
+.duo-offer-copy { min-width: 0; }
+.duo-decision-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .home-profile .duo-decision { border-radius: 50%; padding: 0; width: 40px; height: 40px; min-height: 40px; }
 .home-profile .duo-decision.dismiss { background: #ffffff06; border-color: #ffffff16; color: #c5c6d3; }
 .home-profile .duo-decision.accept { box-shadow: 0 3px 12px #8050ff30; }
