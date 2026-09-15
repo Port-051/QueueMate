@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { login, startRealtimeMatch } from './helpers';
 
-test('포지션 필터는 작성자를 조회하고 네 아이콘은 두 줄이다', async ({ page }) => {
+test('포지션 필터는 작성자를 조회하고 네 아이콘은 한 줄이다', async ({ page }) => {
   await login(page);
   const form = page.locator('.recruitment-composer-shell');
   const own = form.getByRole('group', { name: '내 포지션', exact: true });
@@ -14,7 +14,7 @@ test('포지션 필터는 작성자를 조회하고 네 아이콘은 두 줄이�
   await expect(icons).toHaveCount(4);
   const first = await icons.nth(0).boundingBox();
   const fourth = await icons.nth(3).boundingBox();
-  expect(fourth!.y).toBeGreaterThan(first!.y);
+  expect(Math.abs(fourth!.y - first!.y)).toBeLessThan(1);
   await expect(row.locator('.recruitment-role-arrow')).toHaveCount(0);
   await page.locator('.board-filter-line').getByRole('group', { name: '포지션', exact: true }).getByRole('button', { name: '미드', exact: true }).click();
   await expect(row).toBeVisible();
