@@ -37,9 +37,9 @@
 
 | type | 발행하는 곳 | 상태 |
 |---|---|---|
-| `MATCH_QUEUE_UPDATED` | `rule/lol/UntieredAssigner.java` · `TieredAssigner.java` (새 파티 생성 / 정원 미달 합류) | **발행됨.** payload `{memberNumber}` |
+| `MATCH_QUEUE_UPDATED` | `rule/lol/LolUntieredAssigner.java` · `LolTieredAssigner.java` (새 파티 생성 / 정원 미달 합류) | **발행됨.** payload `{memberNumber}` |
 | `MATCH_PROPOSAL_CREATED` | 같은 두 클래스의 `JOINED_AND_FULL` 분기 | **발행됨.** payload `{memberNumber, target, partyId}` |
-| `MATCH_CANCELLED` | `rule/lol/PartyLeaver.java` (남은 파티원에게만, 취소한 본인 제외) | **발행됨.** payload `{memberNumber}` |
+| `MATCH_CANCELLED` | `rule/lol/LolPartyLeaver.java` (남은 파티원에게만, 취소한 본인 제외) | **발행됨.** payload `{memberNumber}` |
 | `MATCH_PROPOSAL_EXPIRED` | — | **미구현.** 만료 sweeper가 없다 |
 | `MATCH_CONFIRMED` | — | **미구현.** 수락 집계/확정이 없다 (`service/ProposalService.java`) |
 

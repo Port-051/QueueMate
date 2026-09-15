@@ -1,6 +1,6 @@
 # HANDOFF — 다음 세션 인계
 
-**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-15 (화) 13:24 KST
+**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-15 (화) 13:38 KST
 **읽는 순서:** `CLAUDE.md` → `START_HERE.md` → **이 파일**
 
 이 파일은 "지금 어디까지 왔고 무엇이 열려 있는가"만 담는다. 규칙은 `CLAUDE.md`,
@@ -20,7 +20,11 @@
 - **PUBG 시드 들어감** (모드 8 / 티어 사다리 27 / 랭크 티어 범위 표 4). **모드 목록 SET 은 LoL·PUBG 모두 없앴다.**
 - **PUBG validator 커밋됨** (`validation/pubg/PubgConditionValidator.java`). PUBG 배정 규칙은 사용자가 작성 중.
 - **Lua 스크립트 빈 설정을 나눴다.** `config/RedisConfig`(공통: claim·accept·decline + `readScript()`) /
-  `config/lol/LolRedisConfig`(LoL 5개). 빈 이름은 그대로라 기존 주입은 안 바뀌었다(`02d654f`).
+  `config/lol/LolRedisConfig`(LoL 5개) (`02d654f`).
+- **LoL 클래스와 스크립트 빈에 게임 접두사를 붙였다** (`bf4b0da`). `LolModeConfig` `LolPartyLeaver`
+  `LolTieredAssigner` `LolUntieredAssigner` / 빈 `lolCreateOrCheckParty{Untiered,Tiered}Script`
+  `lolJoinParty{Untiered,Tiered}Script` `lolLeavePartyScript`. 티어 합류 빈은 이름이
+  `joinTieredPartyUntieredScript` 로 틀려 있던 것을 `lolJoinPartyTieredScript` 로 같이 고쳤다.
 - **GitHub**: private 저장소 `github.com/rlaehddus302/queuemate-matching` (`main`).
 
 ### 테스트 — 커밋 `8d7f094` 기준 24건 통과 (2026-09-15)
@@ -29,6 +33,7 @@
 결과 로그에서 `ERR Error running script` / `RedisSystemException` / ERROR 로그도 0건이었다.
 
 **설정 분리(`02d654f`)도 같은 24건으로 컨텍스트 기동까지 확인했다** (HEAD `31d23f7` + 설정 두 파일, PUBG 파일 제외).
+**접두사 변경(`bf4b0da`)도 같은 24건 통과, 기동 오류 0건.**
 
 그 전 커밋 중 자바를 바꾼 것은 `4c1c492`(PUBG validator 추가)다. 나머지(`af3b7ff` 시드 ·
 `3198f74` `07b77be` `13dea28` 문서)는 자바를 건드리지 않았고, 테스트는 자기 시드를 직접 심으므로 영향이 없다.
@@ -51,8 +56,9 @@
 claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 
 **작업 트리에 커밋 안 된 것 — 건드리지 마라.**
-- 사용자 작성 중: `rule/pubg/` 전체(`PubgCandidateRule` `PubgPartyKeys` `PubgScriptSupport` `TieredAssigner` `UntieredAssigner`),
-  `resources/redis/pubg/create-or-check-party-{tiered,untiered}.lua`
+- 사용자 작성 중: `rule/pubg/` 전체(`PubgCandidateRule` `PubgModeConfig` `PubgPartyKeys` `PubgScriptSupport`
+  `PubgTieredAssigner` `PubgUntieredAssigner`), `resources/redis/pubg/create-or-check-party-{tiered,untiered}.lua`.
+  `PubgPartyKeys` 는 IntelliJ 가 스테이징해 둔 상태(`AM`)다 — 커밋에 딸려 들어가지 않게 조심해라
 - **Claude 가 만들었지만 일부러 안 올린 것:** `config/pubg/PubgRedisConfig.java` — 위 PUBG Lua 두 개를 읽는 빈이다.
   Lua 가 커밋되지 않은 채 이것만 올리면 커밋된 코드로는 앱이 안 뜬다. **사용자가 PUBG Lua 를 올릴 때 같이 올려라.**
 
@@ -100,10 +106,11 @@ claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 - `rule/pubg/PubgPartyKeys` — `LolPartyKeys` 가 `qm:party:open:LOL:` 과 `qm:gameconfig:LOL:` 을 **박아 두었으므로**
   재사용할 수 없다. 색인 키는 `qm:party:open:PUBG:{mode}:{voice}:{purpose}:needs:{STEAM|KAKAO}` (+ 랭크는 `:{티어}` 를 Lua 가 붙인다)
 - `rule/pubg/PubgCandidateRule` + Assigner — **사용자가 작성 중이다.** 이어받기 전에 물어라
-- **스크립트 빈 이름에 `pubg` 접두사가 붙는다** (`pubgCreateOrCheckPartyTieredScript` 등, `config/pubg/PubgRedisConfig`).
-  같은 타입(`RedisScript<List>`) 빈이 여럿이라 Spring 은 **주입 필드 이름 = 빈 이름**으로 고른다. PUBG Assigner 가
-  LoL 이름(`createOrCheckPartyTieredScript`)으로 필드를 선언하면 **LoL 스크립트가 주입된다** — 컴파일도 기동도 통과하고
-  배그가 롤 Lua 로 돈다. 필드 이름을 반드시 `pubg...` 로 맞춰라
+- **스크립트 빈 이름은 게임 접두사가 붙는다** — LoL 은 `lol*`(`config/lol/LolRedisConfig`), PUBG 는 `pubg*`
+  (`pubgCreateOrCheckPartyTieredScript` 등, `config/pubg/PubgRedisConfig`). 같은 타입(`RedisScript<List>`) 빈이 여럿이라
+  Spring 은 **주입 필드 이름 = 빈 이름**으로 고른다. PUBG Assigner 가 LoL 이름(`lolCreateOrCheckPartyTieredScript`)으로
+  필드를 선언하면 **LoL 스크립트가 주입된다** — 컴파일도 기동도 통과하고 배그가 롤 Lua 로 돈다. 필드 이름을 반드시
+  `pubg...` 로 맞춰라. 클래스 이름도 같은 이유로 `Pubg*` 다(같은 이름이면 빈 이름이 겹쳐 기동이 실패한다)
 - `redis/pubg/*.lua` — **LoL 스크립트를 고쳐 쓰지 말고 자기 디렉터리에** (D-7)
 - **PUBG 동시성 테스트** — 스크립트를 나눈 대가다(CLAUDE.md §4 "게임마다 테스트")
 
@@ -130,8 +137,6 @@ claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 - **`join-party.lua`(티어 없는 쪽)에 파티 존재 확인이 없다.** 찾기와 합류 사이 수 마이크로초에
   그 파티의 마지막 멤버가 취소하면 `HSET` 이 파티를 되살려 유령 파티가 된다. 취소가 풀 락을
   안 잡아서 이론상 가능하나 **확률은 극히 낮다.** 티어 쪽은 `HMGET tierLo` 가드로 막혀 있다.
-- `CLAUDE.md` §3 "`MATCH_PROPOSAL_EXPIRED`/`MATCH_CONFIRMED` 는 **확정**·만료가 미구현" — 확정은
-  구현됐고 알림만 없다. 낡은 문장.
 - `CLAUDE.md` §4 INV-8 상태가 "**LoL만 구현·테스트됨**" — PUBG 도 값 검증(validator)과 시드는 생겼다. 테스트가 없으니
   "테스트됨"은 여전히 LoL 만 맞지만, PUBG 동시성 테스트가 붙으면 그 행을 갱신해라.
 - `contracts/openapi.yaml` 이 아직 `PLAY_STYLE` — 계약 파일이라 안 고쳤다(`contracts/README.md` #14 에 기록).
@@ -141,10 +146,11 @@ claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 ## 4. 이미 끝나서 다시 보지 않아도 되는 것
 
 `decline` 의 무조건 `cancel()`(가드 들어감) / `LolConditionValidator` 키 문자열 하드코딩
-(`keys.tierRangeKey` 로) / `TieredAssigner` 의 `TierRange` 죽은 코드 / 문서 전반의
+(`keys.tierRangeKey` 로) / `LolTieredAssigner` 의 `TierRange` 죽은 코드 / 문서 전반의
 `TABLE`·`WINDOW`·`maxTierGap`·`LolTier` 서술 / `CLAUDE.md` INV-2·4·5 상태 열 / `PLAY_STYLE` → `PLATFORM` 문서 반영 /
 모드 목록 SET 제거와 그 문서 반영 / PUBG validator 의 뒤집힌 티어 분기·null 가드·파일명 오타 /
-`RedisConfig` 를 공통·게임별로 분리.
+`RedisConfig` 공통/게임별 분리, LoL 클래스·빈 게임 접두사 /
+`CLAUDE.md` §3 의 "확정·만료가 미구현" 낡은 문장과 INV-5 행의 `ProposalStatus`/`AcceptanceStatus` 서술.
 
 ---
 

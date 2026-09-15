@@ -225,7 +225,7 @@ A-3이 "가장 큰 구멍"이라고 적은 `rank eligibility = hard`가 들어�
 | 요청 필드 | `dto/CreateMatchRequestCommand.java` 의 `tier` (선택 필드, String). 어느 사다리의 티어인지는 `modeKey`가 정한다 |
 | 규칙 | gameconfig 의 `tierRule` — `NONE` / `WINDOW`(±`maxTierGap`) / `TABLE`(`qm:gameconfig:LOL:tier-range:{modeKey}` 표, 값은 `MIN:MAX` 또는 `SOLO_ONLY`) |
 | 검증 | `validation/lol/LolConditionValidator.java#validTier` — 규칙에 맞지 않으면 400 |
-| 배정 | `rule/lol/TieredAssigner.java` + `redis/lol/create-or-check-party-tiered.lua` / `join-party-tiered.lua` |
+| 배정 | `rule/lol/LolTieredAssigner.java` + `redis/lol/create-or-check-party-tiered.lua` / `join-party-tiered.lua` |
 | 색인 | `...:needs:{포지션}:{티어}` — (포지션 x 티어) **격자** |
 
 **A-3의 걱정("티어를 키 이름에 넣으면 후보 풀이 또 쪼개진다")은 실제로 그렇게 됐다.**
@@ -352,7 +352,7 @@ score 를 빼면 단계 차이가 나오므로, 롤의 "다이아는 2단 이내
 ### C-5. `tierRule` 해석 자리가 자바에서 Lua로 옮겨갔다
 
 B-1 이 "`tierRule` 해석은 전부 자바가 하고 Lua는 환산된 `[최저, 최고]` 순번만 받는다"고
-적은 것은 **반대가 됐다.** `TieredAssigner#tierRange()` 와 `TierRange` 레코드,
+적은 것은 **반대가 됐다.** `LolTieredAssigner#tierRange()` 와 `TierRange` 레코드,
 `addTierArgs()` 가 없어졌고, Lua 가 tier-range 표와 티어 사다리를 직접 읽는다.
 파티 HASH 의 `tierLo`/`tierHi` 는 `ZRANK + 1` (1부터 시작하는 사다리 순번)이다.
 `join` 과 `leave` 는 자기 tier-range 를 다시 읽지 않고 그 두 값을 되돌려 칸을 만든다.

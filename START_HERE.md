@@ -191,7 +191,8 @@ backend/src/main/java/com/queuemate/
 └── matching/
     ├── config/
     │   ├── AsyncConfig.java              matchingExecutor (core4/max8/queue200, CallerRunsPolicy)
-    │   ├── RedisConfig.java              Lua 8개를 기동 시 문자열로 읽어 RedisScript 빈으로
+    │   ├── RedisConfig.java              공통 Lua 3개(claim·accept·decline) 빈 + readScript()
+    │   ├── lol/LolRedisConfig.java       LoL Lua 5개 빈. 빈 이름에 lol 접두사 (lolJoinPartyTieredScript 등)
     │   └── RedissonConfig.java           분산 락 전용 클라이언트. 단일 노드 / Sentinel 두 갈래
     ├── controller/
     │   ├── MatchingController.java       ★ 진입점. POST/GET/DELETE /api/v1/match-requests
@@ -218,13 +219,13 @@ backend/src/main/java/com/queuemate/
     │   ├── CandidateRule.java            게임별 파티 배정 규칙 인터페이스
     │   └── lol/
     │       ├── LolCandidateRule.java     ★ 설정 읽기 + 차단 목록 조회 + 락 잡고 assigner 호출
-    │       ├── UntieredAssigner.java     ★ 티어 안 보는 배정. JOINED_AND_FULL 분기가 제안 트리거
-    │       ├── TieredAssigner.java       ★ (포지션 x 티어) 격자 배정. tierRule 해석은 Lua 가 한다
+    │       ├── LolUntieredAssigner.java  ★ 티어 안 보는 배정. JOINED_AND_FULL 분기가 제안 트리거
+    │       ├── LolTieredAssigner.java    ★ (포지션 x 티어) 격자 배정. tierRule 해석은 Lua 가 한다
     │       │                               (자바는 티어 접미사 없는 needs 키만 넘긴다)
-    │       ├── PartyLeaver.java          취소. MATCH_CANCELLED 알림도 여기서 발행
+    │       ├── LolPartyLeaver.java       취소. MATCH_CANCELLED 알림도 여기서 발행
     │       ├── LolPartyKeys.java         Redis 키 조립을 한 자리에 모은 것
     │       ├── LolScriptSupport.java     반환 코드 읽기 / 멤버 추출 / 차단 판정 / 스캔 상한 50
-    │       └── ModeConfig.java           gameconfig 에서 읽은 모드 설정 record
+    │       └── LolModeConfig.java        gameconfig 에서 읽은 모드 설정 record
     └── validation/
         ├── MatchConditionValidator.java  게임별 validator로 라우팅
         ├── GameConditionValidator.java
@@ -279,8 +280,8 @@ POST /api/v1/match-requests
     │           (maxTierGap 은 없어졌다. 허용 범위는 tier-range 표가 전부다)
     │         · BlockRepository.findBlockedUserIds()   ← 락 밖에서 DB 한 번 (INV-6 선필터)
     │         · PoolLock.run(poolKey) 안에서 tier 유무로 assigner 선택
-    │              Untiered/TieredAssigner.assign()   최대 20회 후보를 훑는다
-    │                                                (LolScriptSupport.MAX_CANDIDATE_SCAN)
+    │              LolUntiered/LolTieredAssigner.assign()   최대 20회 후보를 훑는다
+    │                                                   (LolScriptSupport.MAX_CANDIDATE_SCAN)
     │              ├ create-or-check-party-*.lua → {코드, ...}
     │              │    1=새로 만들고 들어감(→ MATCH_QUEUE_UPDATED, 여기서 끝)
     │              │    2=후보를 찾음(멤버 목록 반환) -1=안 맞는 값 -2=claim 만료
@@ -317,7 +318,7 @@ POST /api/v1/match-requests
 범위는 **만든 사람 기준으로 생성 시 한 번** 정해지고 그 뒤 바뀌지 않는다 — 그 범위를
 파티 HASH 의 `tierLo/tierHi` 에 적어 둬야 정원이 찼다가 풀릴 때 어느 칸으로 되돌릴지 알 수 있다.
 대가로 서로 직접은 안 받을 두 사람이 같은 파티가 될 수 있다 (의도한 것이다).
-`tierRule` 해석은 **Lua 가 한다.** 예전에는 `TieredAssigner#tierRange()` 가 표를 읽어
+`tierRule` 해석은 **Lua 가 한다.** 예전에는 `LolTieredAssigner#tierRange()` 가 표를 읽어
 `[최저, 최고]` 로 환산해 숫자만 넘겼는데, 그 메서드가 없어졌다. 지금은 Lua 가 tier-range
 표(`KEYS[3]`)와 티어 사다리(`KEYS[4]`)를 직접 읽고 `ZRANK + 1` 을 `tierLo/tierHi` 에 적는다.
 `join` 과 `leave` 는 **자기 tier-range 를 다시 읽지 않는다** — 파티의 `tierLo/tierHi` 를
@@ -412,7 +413,7 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 - **랭크 티어 (있다)** — 티어 사다리 `qm:gameconfig:LOL:tier` (ZSET, 자바 enum 은 없다),
   gameconfig 의 `tierRule`(`NONE`/`EXIST`), `qm:gameconfig:LOL:tier-range:*` 표,
   (포지션 x 티어) 격자 색인,
-  `TieredAssigner` + `create-or-check-party-tiered.lua` / `join-party-tiered.lua`.
+  `LolTieredAssigner` + `create-or-check-party-tiered.lua` / `join-party-tiered.lua`.
   이건 `docs/02` §3 의 `rank eligibility = hard`(자격 조건)를 채운 것이다.
 - **compatibility tier / 단계적 완화 (없다)** — `docs/02` §4, `docs/03` §5 가 말하는
   "시간이 지나면 조건을 느슨하게 푼다"는 그것. 지금 매칭은 여전히 **완전 일치**이고,
@@ -426,7 +427,7 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 **(c) 매칭 성사는 알림으로 나간다. 없는 것은 "지금 상태" 조회다.**
 
 정원이 차면 `MATCH_PROPOSAL_CREATED` 가 파티 전원의 `qm:pubsub:push:{userId}` 채널로
-나간다 (`UntieredAssigner` / `TieredAssigner` 의 `JOINED_AND_FULL` 분기). SSE 배달은
+나간다 (`LolUntieredAssigner` / `LolTieredAssigner` 의 `JOINED_AND_FULL` 분기). SSE 배달은
 `app:realtime` 몫이므로 이 저장소에는 없는 게 맞다.
 
 **남은 구멍은 두 개다.**
@@ -455,7 +456,7 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
   그 클래스는 **없다.**
 - `redis/PoolLock.java`의 클래스 주석이 "지금은 아직 아무 데서도 쓰이지 않는다"고 하는데
   `LolCandidateRule#canJoin`이 **실제로 쓴다.**
-- `rule/lol/TieredAssigner.java`의 클래스 주석이 "`tierRule`(TABLE / WINDOW)을 해석하는
+- `rule/lol/LolTieredAssigner.java`의 클래스 주석이 "`tierRule`(TABLE / WINDOW)을 해석하는
   자리도 여기다 / Lua 는 환산된 [최저, 최고]만 받는다"고 하는데 **사실이 아니다.**
   해석은 Lua 로 옮겨갔고 `TABLE`/`WINDOW` 라는 값 자체가 없다. 같은 주석의
   "ARGV[9..12] 에 티어 정보를 싣는다 / keyValue 목록은 ARGV[13..] 부터다"도 낡았다 —
@@ -501,7 +502,7 @@ find backend/src -type d -empty                       # 빈 게임 패키지
 
 | # | 할 일 | 시작 지점 | 왜 이 순서인가 |
 |---|---|---|---|
-| 1 | **proposal 레코드 만들기** | `rule/lol/UntieredAssigner.java#joinParty()` / `TieredAssigner.java#joinParty()` 의 `JOINED_AND_FULL` 분기 (Lua 반환 코드 **`2`**). 지금은 `MATCH_PROPOSAL_CREATED` 알림만 쏘고 끝난다 — 여기에 `qm:proposal:{partyId}` HASH + TTL 을 만든다 (`application.yaml` 의 `queuemate.proposal.ttl-seconds`, 기본 20 — **아직 아무도 안 읽는다**) | 나머지 전부가 이 레코드 위에 얹힌다. 수락을 기록할 곳도, 만료를 판정할 대상도 없다. **제안 id 는 partyId 다** (`ProposalController` 주석) |
+| 1 | **proposal 레코드 만들기** | `rule/lol/LolUntieredAssigner.java#joinParty()` / `LolTieredAssigner.java#joinParty()` 의 `JOINED_AND_FULL` 분기 (Lua 반환 코드 **`2`**). 지금은 `MATCH_PROPOSAL_CREATED` 알림만 쏘고 끝난다 — 여기에 `qm:proposal:{partyId}` HASH + TTL 을 만든다 (`application.yaml` 의 `queuemate.proposal.ttl-seconds`, 기본 20 — **아직 아무도 안 읽는다**) | 나머지 전부가 이 레코드 위에 얹힌다. 수락을 기록할 곳도, 만료를 판정할 대상도 없다. **제안 id 는 partyId 다** (`ProposalController` 주석) |
 | 2 | **수락 집계 + 확정 (INV-4/INV-5)** | `service/ProposalService.java` — 시그니처와 결과 갈래(`AcceptResult`/`DeclineResult`)는 이미 잡혀 있고 컨트롤러도 붙어 있다. 본문이 `UnsupportedOperationException` 이다. 새 Lua 스크립트로 사용자별 `PENDING/ACCEPTED/DECLINED` 를 담고 **한 번의 원자 실행**으로 중복 확인 + 제안 생존 확인 + 전원 판정 + 상태 전이 (docs/11 #28, docs/14 §18) | `INCR` 카운터로 하면 중복 수락을 못 막아 INV-4가 깨진다. `SADD`로 하면 거절을 표현할 수 없다 |
 | 3 | **만료 sweeper** | `@Scheduled` 가 아직 0건이다. TTL만으로는 "만료됐다"를 알릴 주체가 없다. `queuemate.sweep.interval-ms`(기본 1000) 자리가 이미 있다. 만료/확정 시 `MATCH_PROPOSAL_EXPIRED` / `MATCH_CONFIRMED` 알림 발행이 함께 붙는다 (`PushEventType` 에 값은 있고 발행 코드가 없다) | 만료 처리 없이는 사용자가 영원히 대기 화면에 남는다 |
 | 4 | **상태 조회 `GET /match-requests/{id}`** | `controller/MatchingController.java#getMatchRequest` — 껍데기가 이미 있고 **501** 을 돌려준다. 그 메서드 주석에 왜 필요한지, `userId` 로 찾는 판이 왜 함께 필요한지, 계약(`MatchRequestView`)과 어디가 다른지가 적혀 있다 | 알림(Pub/Sub)은 **사건**만 전한다. 새로고침한 클라이언트가 "지금 상태"를 물어볼 곳이 없다. 알림은 at-most-once 라 놓친 상태 복구도 이 REST 몫이다 |

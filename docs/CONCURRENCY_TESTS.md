@@ -204,11 +204,11 @@ cd backend      # 스프링 프로젝트는 저장소 루트의 backend/ 에 있
 |---|---|---|
 | Testcontainers | 미적용 | Spring Boot 4.1 BOM에서 `org.testcontainers:junit-jupiter` 해석 실패 (Testcontainers 2.x 모듈 구조 변경). 대신 로컬 Redis DB 15번 + `flushDb`로 갔다 |
 | 실행 전제 | 로컬 Redis 필요 | CI에서 돌리려면 Redis 서비스 컨테이너를 붙여야 한다. 지금은 로컬에서만 재현 가능 |
-| 요청 취소 | 동시성 테스트 없음 | 구현은 있다 (`MatchCancelService` + `rule/lol/PartyLeaver` + `leave-party.lua`). 배정과 취소가 동시에 같은 파티를 건드리는 경합을 검증하지 않았다 |
+| 요청 취소 | 동시성 테스트 없음 | 구현은 있다 (`MatchCancelService` + `rule/lol/LolPartyLeaver` + `leave-party.lua`). 배정과 취소가 동시에 같은 파티를 건드리는 경합을 검증하지 않았다 |
 | 제안(proposal) | 테스트 없음 | 정원이 차면(**코드 2**) `MATCH_PROPOSAL_CREATED` 알림까지는 나가지만 수락 집계·확정이 없다. INV-2/INV-4/INV-5 미검증 |
 | 만료 sweeper | 테스트 없음 | 제안 TTL 만료 처리 자체가 아직 없다 |
 | 차단(INV-6) | 동시성 테스트 없음 | 선필터 코드는 배정 경로에 있다 (`LolCandidateRule#canJoin` → `BlockRepository`). 그런데 `social.blocks` 스키마가 없어 테스트는 H2에 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql` 로 **빈 테이블만** 만들어 두고 돌린다 — 즉 "차단이 없는 경우"만 지나간다. 확정 직전 최종 검증은 미구현 (docs/11 #30). 차단 검증 없이 배포하지 않는다 |
-| 티어 배정 | 동시성 테스트 없음 | `TieredAssigner` + `-tiered` 스크립트 2개가 (포지션 x 티어) 격자 색인을 다루는데, 동시성 테스트는 전부 티어 없는 모드다. 알림 테스트만 티어 모드를 한 번 밟는다 (`PushNotificationTest.tieredAssignerPublishesTheSameEnvelopes`) |
+| 티어 배정 | 동시성 테스트 없음 | `LolTieredAssigner` + `-tiered` 스크립트 2개가 (포지션 x 티어) 격자 색인을 다루는데, 동시성 테스트는 전부 티어 없는 모드다. 알림 테스트만 티어 모드를 한 번 밟는다 (`PushNotificationTest.tieredAssignerPublishesTheSameEnvelopes`) |
 | 후보 풀 락 | 테스트 없음 | `PoolLock` 자체(대기 시간 초과 → 503, 유지 시간 초과)를 겨냥한 테스트가 없다. 지금은 배정 테스트가 간접적으로만 지나간다 |
 | ARAM 경로 | 테스트 없음 | 시드는 하지만(`ARAM_5`) `positionUniqueness=false` 경로를 동시성으로 검증하지 않았다. docs/11 #35의 "칼바람 5인이 2/2/1로 쪼개진" 버그가 났던 경로다 |
 | 다중 인스턴스 | 미검증 | 한 JVM 안의 100 스레드로만 검증했다. Lua의 원자성은 Redis 쪽 성질이라 인스턴스가 늘어도 동일해야 하지만, 실측하지는 않았다 |
