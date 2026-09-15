@@ -20,7 +20,7 @@
 >    `matching`이 proposal **확정(confirm)** 단계까지 구현하게 되면 —
 >    `match_proposals` + `proposal_members` + `outbox`를 단일 트랜잭션으로 쓰는 그 지점 —
 >    비로소 필요해지는 근거다. 현재 미구현임은 저장소 자신이 이미 기록해 두었다
->    (`docs/11_DECISION_LOG.md:421-434` "색인된 결정 중 이 저장소가 아직 구현하지 않은 것").
+>    (`docs/11_DECISION_LOG.md:433-445` "색인된 결정 중 이 저장소가 아직 구현하지 않은 것").
 > 3. **"왜 관계형인가"를 논증한 결정 항목은 존재하지 않는다.** 아래 §0을 반드시 읽어라.
 >    이 문서의 근거는 전부 **스키마와 문서에서 역으로 도출한 것**이다.
 
@@ -53,10 +53,10 @@
 
 | 문서 | 위치 | 실제로 다루는 것 |
 |---|---|---|
-| `docs/11_DECISION_LOG.md` #4 | `matching/docs/11_DECISION_LOG.md:13` | *"PostgreSQL을 영속 DB로 사용한다."* — **한 줄 선언뿐.** 근거·영향·기각 대안이 전부 없다 |
+| `docs/11_DECISION_LOG.md` #4 | `matching/docs/11_DECISION_LOG.md:25` | *"PostgreSQL을 영속 DB로 사용한다."* — **한 줄 선언뿐.** 근거·영향·기각 대안이 전부 없다 |
 | `docs/14` §3 "DB를 **몇 개로** 할까" | queueMate `feature/frontend:docs/14_ARCHITECTURE_RATIONALE.md:43-57` | database-per-service vs 인스턴스 1개 + 스키마 분리. **관계형이라는 전제 위에서 개수를 고른다** |
 | `docs/14` §19 "매칭 요청을 **어디에** 둘까" | `matching/docs/14_ARCHITECTURE_RATIONALE.md:198-231` | 전부 DB vs Redis-only + 확정만 DB. **무엇을 넣을지**를 고른다 |
-| `docs/11` #27 | `matching/docs/11_DECISION_LOG.md:210-236` | 위 §19의 결정 기록 |
+| `docs/11` #27 | `matching/docs/11_DECISION_LOG.md:222-247` | 위 §19의 결정 기록 |
 
 즉 **"MongoDB 대신 PostgreSQL"류의 비교가 기록된 적이 없다.**
 "PostgreSQL을 쓴다"는 #1~#13과 나란히 놓인 **초기 전제(fixed decision)**로 출발했고,
@@ -72,11 +72,11 @@
 | 어디 | 무엇 |
 |---|---|
 | queueMate `feature/frontend-v2` (현재 체크아웃) | `backend/src/main/resources/db/migration/V1__init_schema.sql:105-127`에 **`match_requests` 테이블이 실재한다** |
-| queueMate `feature/frontend` `docs/11` #27 | *"`match_requests` 테이블을 만들지 않는다"*, *"영향: `match_requests` 테이블 삭제"* (`matching/docs/11_DECISION_LOG.md:210-211`, `:230`) |
+| queueMate `feature/frontend` `docs/11` #27 | *"`match_requests` 테이블을 만들지 않는다"*, *"영향: `match_requests` 테이블 삭제"* (`matching/docs/11_DECISION_LOG.md:222-223`, `:242`) |
 
 **v2 백엔드 스키마가 #27(2026-09-01) 결정 이전 스펙이기 때문이다.**
 증거가 하나 더 있다 — #27은 같은 자리에서 세 가지 후속 변경을 지시하는데
-(`matching/docs/11_DECISION_LOG.md:230-233`), V1 스키마에는 셋 다 반영돼 있지 않다.
+(`matching/docs/11_DECISION_LOG.md:242-245`), V1 스키마에는 셋 다 반영돼 있지 않다.
 
 | #27이 지시한 것 | V1 스키마의 실제 |
 |---|---|
@@ -225,7 +225,7 @@ INV-2("한 사용자는 동시에 하나의 활성 proposal에만 속한다")는
 
 `docs/14` §19의 결론 표는 확정 지점을 이렇게 못박는다
 (`matching/docs/14_ARCHITECTURE_RATIONALE.md:211`, `docs/11` #27도 동일 —
-`matching/docs/11_DECISION_LOG.md:219`):
+`matching/docs/11_DECISION_LOG.md:231`):
 
 > | 확정된 것 | DB — `match_proposals` + `proposal_members` + `outbox`, **단일 트랜잭션** |
 
@@ -265,7 +265,7 @@ COMMIT;                                       -- 셋이 함께 남거나, 셋 �
 (`CLAUDE.md` §3: Kafka/RabbitMQ 추가 금지, SQS만 예외).
 
 동일 트랜잭션 안에서 읽을 수 있다는 성질은 INV-6 검증에서도 그대로 쓰인다.
-`docs/11` #19 (`matching/docs/11_DECISION_LOG.md:89-91`):
+`docs/11` #19 (`matching/docs/11_DECISION_LOG.md:101-103`):
 
 > REST 재검증은 검증과 claim 사이에 창이 다시 생겨 문제를 풀지 못하고,
 > **뷰는 atomic claim과 같은 트랜잭션 안에서 읽을 수 있다.**
@@ -459,7 +459,7 @@ CONSTRAINT users_nickname_length_check  CHECK (char_length(nickname) BETWEEN 2 A
 
 > **한 줄 요약: DB는 "성사된 매칭"만 안다.** 시도했다 실패한 요청은 DB를 치지 않는다.
 
-`matching/docs/14_ARCHITECTURE_RATIONALE.md:206-211` / `docs/11` #27 (`:213-219`):
+`matching/docs/14_ARCHITECTURE_RATIONALE.md:206-211` / `docs/11` #27 (`:225-231`):
 
 | 무엇 | 어디 |
 |---|---|
@@ -481,7 +481,7 @@ CONSTRAINT users_nickname_length_check  CHECK (char_length(nickname) BETWEEN 2 A
 DB에 요구되는 성질이 **처리량이 아니라 정확성**으로 좁혀진다.
 초당 수만 건을 받는 저장소였다면 제약·트랜잭션·FK의 비용을 다시 따져야 했을 텐데,
 파티 확정은 초당 수 회다 (`docs/11` #19: *"파티 확정은 초당 수 회라 동기 읽기 비용도 무시할 만하다"*,
-`matching/docs/11_DECISION_LOG.md:91`).
+`matching/docs/11_DECISION_LOG.md:103`).
 
 **감수하는 것도 §19가 명시한다** (`matching/docs/14_ARCHITECTURE_RATIONALE.md:222-227`):
 
@@ -497,7 +497,7 @@ DB에 요구되는 성질이 **처리량이 아니라 정확성**으로 좁혀�
 
 **INV-1을 DB는 partial unique index로, matching은 Redis Lua로 푼다. 논리 구조가 같다.**
 
-`backend/src/main/resources/redis/shared/claim-request.lua:1-21` — 파일 자신이 그 논리를 적어 두었다:
+`backend/src/main/resources/redis/shared/claim-request.lua:1-30` — 파일 자신이 그 논리를 적어 두었다:
 
 ```lua
 -- 사용자의 활성 매칭 요청 자리를 원자적으로 선점한다.
@@ -510,6 +510,10 @@ if redis.call('EXISTS', KEYS[1]) == 1 then
     return 0
 end
 redis.call('HSET', KEYS[1], unpack(ARGV))
+
+-- …(6-14행 KEYS/ARGV/반환 설명, 21-27행 만료를 거는 이유 주석은 생략)…
+redis.call('EXPIRE', KEYS[1], 60)
+
 return 1
 ```
 
@@ -521,15 +525,15 @@ return 1
 | | **DB — partial unique index** | **Redis — Lua 스크립트** |
 |---|---|---|
 | 불변식 | INV-1 | INV-1 |
-| 구현 | `V1__init_schema.sql:120-122` | `redis/shared/claim-request.lua:15-21` |
-| 호출부 | (미구현) | `MatchRequestService.java:38-46` / 스크립트 등록 `RedisConfig.java:39` |
+| 구현 | `V1__init_schema.sql:120-122` | `redis/shared/claim-request.lua:15-28` |
+| 호출부 | (미구현) | `MatchRequestService#join()` / 스크립트 등록 `RedisConfig#claimRequestScript()` |
 | 원자성의 출처 | **인덱스 유일성 + 트랜잭션 격리** | **Lua 실행이 단일 스레드에서 통째로 도는 것** |
 | "조회 후 삽입" 창 | 조회 자체를 없앤다. INSERT 하나만 남는다 | 조회와 저장이 한 스크립트 안이라 사이에 끼어들 수 없다 |
 | "활성"의 정의 | `WHERE status IN ('QUEUED','PROPOSED')` — **상태 컬럼으로** | 키 존재 여부 — **`qm:user:active-request:{userId}`가 있으면 활성** |
-| 해제 방법 | `UPDATE`로 status를 활성 밖으로 옮긴다 (행은 남는다) | `DEL` (`leave-party.lua:52`, `:67`, `:88`) — **행 자체가 사라진다** |
-| 위반 시 | `SQLIntegrityConstraintViolation` → 앱이 409로 번역 | 스크립트가 `0` 반환 → `MatchRequestService.java:43-46`이 `Optional.empty()` → 409 |
+| 해제 방법 | `UPDATE`로 status를 활성 밖으로 옮긴다 (행은 남는다) | `DEL userKey` (`leave-party.lua` 의 세 갈래 — 배정 전 취소 / 파티가 비어 삭제 / 파티가 남음) — **행 자체가 사라진다** |
+| 위반 시 | `SQLIntegrityConstraintViolation` → 앱이 409로 번역 | 스크립트가 `0` 반환 → `MatchRequestService#join()`이 `Optional.empty()` → 409 |
 | 이력 | **남는다.** 취소·완료 요청이 행으로 축적된다 | **안 남는다.** 취소하면 흔적이 없다 |
-| 장애 시 | DB가 죽으면 확정이 안 된다 | Redis가 죽으면 **fail-closed** (INV-10, `GlobalExceptionHandler.java:36`) |
+| 장애 시 | DB가 죽으면 확정이 안 된다 | Redis가 죽으면 **fail-closed** (INV-10, `GlobalExceptionHandler#handleRedisFailure()`) |
 | 검증 | (미구현이라 테스트 없음) | `ActiveRequestConcurrencyTest.onlyOneRequestSucceedsPerUser` |
 
 ### 6-2. "틈이 있으면 실제로 깨진다"를 이 저장소가 이미 증명했다
@@ -545,11 +549,11 @@ return 1
  *
  * 같은 부하를 두 방식에 그대로 걸어 결과를 비교한다.
  *   순진한 방식 — 자바에서 EXISTS 확인 후 HSET. 명령 두 개 사이에 틈이 있다.
- *   Lua        — 확인과 저장이 한 덩어리라 틈이 없다.
+ *   Lua        — 확인과 저장이 한 원자 실행 안이라 틈이 없다.
  */
 ```
 
-측정 결과 (`docs/CONCURRENCY_TESTS.md:44-60`).
+측정 결과 (`docs/CONCURRENCY_TESTS.md:57-71`).
 조건: 같은 `userId`로 **100 스레드 동시 요청 × 5 라운드, 인위적 지연 없음**:
 
 | | 순진한 방식 (자바에서 `EXISTS` 후 `HSET`) | Lua |
@@ -560,8 +564,8 @@ return 1
 **인위적 지연 없이도 100건 중 99건이 통과한다.** "이론상 가능한 race"가 아니라
 평범한 부하에서 거의 항상 깨진다는 뜻이다.
 `naiveApproachBreaksUnderConcurrency`는 `totalDuplicates > 0`을 **단언**하고
-(`NaiveVsLuaComparisonTest.java:67-68`), 실패하면 코드가 좋아진 게 아니라
-비교의 전제가 무너진 것으로 읽는다 (`docs/CONCURRENCY_TESTS.md:28-30`).
+(`NaiveVsLuaComparisonTest.java:67-70`), 실패하면 코드가 좋아진 게 아니라
+비교의 전제가 무너진 것으로 읽는다 (`docs/CONCURRENCY_TESTS.md:31-33`).
 
 **이 숫자를 DB 쪽으로 그대로 옮겨 읽으면 §1의 주장이 된다.**
 INV-9 검사를 앱에서 "조회 후 삽입"으로 짜면 같은 일이 벌어진다.
@@ -588,14 +592,15 @@ exclusion constraint와 Lua는 **같은 처방을 서로 다른 층에서 쓴 �
 > **파티 데이터를 만지는 모든 코드가 먼저 락을 잡는다는 약속**에 기대고 있다.
 > 그 점에서 DB의 제약(constraint)이 주는 보증과는 여전히 성격이 다르다.
 
-`leave-party.lua:1-9`가 왜 한 덩어리여야 하는지를 직접 적어 두었다:
+`leave-party.lua:3-6`이 왜 한 덩어리여야 하는지를 직접 적어 두었다:
 
+> 빼기 / 인원 감소 / 색인 되돌리기 / 빈 파티 삭제 / 활성 요청 삭제가 한 덩어리여야 한다.
 > 자바에서 나눠 하다 중간에 죽으면 이런 게 남는다.
 > · 파티에선 빠졌는데 색인에 안 돌아감 → 그 자리에 아무도 못 들어온다
-> · size는 줄었는데 `member:` 필드가 남음 → 인원 수가 어긋난다
+> · 활성 요청은 지웠는데 파티에 member: 필드가 남음 → 유령 인원이 자리를 먹는다
 
 **이건 DB의 트랜잭션이 공짜로 주는 성질(§2)을 Redis에서 손으로 만든 것이다.**
-`leave-party.lua:8-9`의 compare-and-delete(`HGET userKey 'requestId' ~= requestId`면 `-1`)는
+`leave-party.lua:12-13`(코드는 `:87-89`)의 compare-and-delete(`HGET userKey 'requestId' ~= requestId`면 `-1`)는
 관계형이라면 낙관적 락 버전 컬럼이 했을 일이다.
 
 ### 6-4. 두 층이 같은 방향을 보고 있다는 뜻
@@ -605,10 +610,10 @@ exclusion constraint와 Lua는 **같은 처방을 서로 다른 층에서 쓴 �
 | 관장 범위 | 진행 중 — 요청, 파티 채우기, 수락 집계 | 확정된 것 — proposal, party, outbox |
 | 원자성 도구 | Lua 스크립트 | 트랜잭션 + 제약 |
 | 다루는 불변식 | INV-1, INV-3, INV-7, INV-8 | INV-1(이력), INV-3, INV-4, INV-5, INV-7, INV-9 |
-| 이 저장소의 구현 | **있다** | **없다** (`docs/11_DECISION_LOG.md:429-430`) |
+| 이 저장소의 구현 | **있다** | **없다** (`docs/11_DECISION_LOG.md:441-442`) |
 
-`matching`이 확정 단계를 구현하는 순간, `create-or-check-party-untiered.lua`가 반환코드 `3`
-(정원이 찼다, `:109`)을 내는 지점부터 §2의 단일 트랜잭션이 필요해진다.
+`matching`이 확정 후속 처리(DB 반영·outbox)를 구현하는 순간, `accept-proposal.lua`가 `CONFIRMED`를
+돌려주는 지점(`ProposalService#accept()`의 TODO)부터 §2의 단일 트랜잭션이 필요해진다.
 **그때 이 문서가 근거로 쓰인다.**
 
 ---
@@ -630,17 +635,18 @@ exclusion constraint와 Lua는 **같은 처방을 서로 다른 층에서 쓴 �
 
 | 경로 | 인용 부분 |
 |---|---|
-| `docs/11_DECISION_LOG.md` | `:13` (#4), `:57-64` (#17), `:85-96` (#19), `:210-236` (#27), `:392-410` 색인표, `:421-434` 미구현 목록 |
-| `docs/14_ARCHITECTURE_RATIONALE.md` | `:198-227` (§19). **§3은 이 발췌본에서 빠져 있다** (`:10-11`의 "뺀 절" 목록) |
-| `docs/CONCURRENCY_TESTS.md` | `:31-37` 불변식표, `:44-60` 측정 결과 |
-| `backend/src/main/resources/redis/shared/claim-request.lua` | 전체 (21줄) |
-| `backend/src/main/resources/redis/lol/create-or-check-party-untiered.lua` | `:74`, `:94-110` |
-| `backend/src/main/resources/redis/lol/leave-party.lua` | `:1-9`, `:39-89` |
-| `backend/src/main/java/com/queuemate/matching/service/MatchRequestService.java` | `:38-46` |
-| `backend/src/main/java/com/queuemate/matching/config/RedisConfig.java` | `:39` |
-| `backend/src/test/java/.../NaiveVsLuaComparisonTest.java` | `:13-19`, `:42-68`, `:75-97` |
-| `backend/build.gradle` | `:21-34` (의존성 목록) |
-| `backend/src/main/resources/application.yaml` | `:1-10` |
+| `docs/11_DECISION_LOG.md` | `:25` (#4), `:69-78` (#17), `:97-109` (#19), `:222-247` (#27), `:404-424` 색인표, `:433-445` 미구현 목록 |
+| `docs/14_ARCHITECTURE_RATIONALE.md` | `:198-228` (§19). **§3은 이 발췌본에서 빠져 있다** (`:10-11`의 "뺀 절" 목록) |
+| `docs/CONCURRENCY_TESTS.md` | `:35-45` 불변식표, `:57-71` 측정 결과 |
+| `backend/src/main/resources/redis/shared/claim-request.lua` | 전체 (30줄) |
+| `backend/src/main/resources/redis/lol/create-or-check-party-untiered.lua` | `:74` |
+| `backend/src/main/resources/redis/proposal/accept-proposal.lua` | `CONFIRMED` 반환 분기 (§6-4) |
+| `backend/src/main/resources/redis/lol/leave-party.lua` | `:3-6`, `:12-13`, `:87-89`, `DEL userKey` |
+| `backend/src/main/java/com/queuemate/matching/service/MatchRequestService.java` | `#join()` |
+| `backend/src/main/java/com/queuemate/matching/config/RedisConfig.java` | `#claimRequestScript()` |
+| `backend/src/test/java/.../NaiveVsLuaComparisonTest.java` | `:13-19`, `:41-71`, `:73-98` |
+| `backend/build.gradle` | `:20-45` (의존성 목록) |
+| `backend/src/main/resources/application.yaml` | `:32-46` (`spring.datasource` · `spring.jpa`) |
 
 ### 확인하지 못한 것
 

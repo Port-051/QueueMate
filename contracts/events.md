@@ -31,7 +31,7 @@
 | `MATCH_CONFIRMED` | `app:matching` | 전원 수락으로 확정 (INV-4) |
 | `MATCH_CANCELLED` | `app:matching` | 매칭 취소 |
 
-<!-- 아래 "구현 상태" 줄은 계약 본문이 아니라 이 저장소가 붙인 주석이다. 2026-09-11 갱신. -->
+<!-- 아래 "구현 상태" 줄은 계약 본문이 아니라 이 저장소가 붙인 주석이다. 2026-09-15 갱신. -->
 **구현 상태: 5종 중 3종이 발행된다.** `notification/PushPublisher.java` 가
 `qm:pubsub:push:{userId}` 채널에 publish 한다.
 
@@ -40,8 +40,8 @@
 | `MATCH_QUEUE_UPDATED` | `rule/lol/LolUntieredAssigner.java` · `LolTieredAssigner.java` (새 파티 생성 / 정원 미달 합류) | **발행됨.** payload `{memberNumber}` |
 | `MATCH_PROPOSAL_CREATED` | 같은 두 클래스의 `JOINED_AND_FULL` 분기 | **발행됨.** payload `{memberNumber, target, partyId}` |
 | `MATCH_CANCELLED` | `rule/lol/LolPartyLeaver.java` (남은 파티원에게만, 취소한 본인 제외) | **발행됨.** payload `{memberNumber}` |
-| `MATCH_PROPOSAL_EXPIRED` | — | **미구현.** 만료 sweeper가 없다 |
-| `MATCH_CONFIRMED` | — | **미구현.** 수락 집계/확정이 없다 (`service/ProposalService.java`) |
+| `MATCH_PROPOSAL_EXPIRED` | — | **미구현.** 만료 처리(sweeper)가 없어 발행할 자리가 없다. `expiresAt` 은 정원이 찰 때 파티 HASH 에 쓰이기만 하고 읽는 코드가 없다(`@Scheduled` 0건, `queuemate.sweep.interval-ms` 도 읽는 코드 없음). 거절로 제안이 깨졌을 때 남은 사람에게 알리는 것도 없다(`ProposalService#decline()` TODO) |
+| `MATCH_CONFIRMED` | — | **미구현 — 확정은 되지만 알림이 없다.** 확정 자체는 구현돼 있다: `POST /api/v1/proposals/{proposalId}/accept`(`controller/ProposalController.java`) → `service/ProposalService.java#accept()` → `redis/proposal/accept-proposal.lua` 가 수락자 SET 을 `SCARD` 로 세어 `target` 에 닿으면 `status = CONFIRMED` 를 찍는다(INV-4). 없는 것은 **확정 후속 처리** 전부다 — 이 알림 발행, `ProposalConfirmed.fifo` 발행, 확정 파티의 색인·활성 요청 정리(`ProposalService#accept()` TODO) |
 
 payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약 구멍"이 지적한 그대로
 14종 전부 payload 스키마가 비어 있어서, 구현이 먼저 정하고 여기에 적어 둔 것이다.
