@@ -219,3 +219,12 @@
 .board-home .row-roles .recruitment-role-pair::after { content: ''; position: absolute; left: 50%; top: 50%; width: 1px; height: 16px; background: var(--line); transform: translate(-50%, -50%); }
 .recruitment-voice.voice-optional { color: var(--muted); }
 @container (max-width: 680px) { .board-home .row-meta { padding-inline: 0; } }
+
+.board-filter-line > .filter-role-options { border: 0; padding: 0; gap: 5px; }
+.board-filter-line > .filter-role-options > .filter-role { width: 40px; height: 48px; border: 1px solid var(--line); border-radius: 8px; }
+.home-profile .intro-mode-options,
+.home-profile .intro-voice-options { border: 1px solid var(--line); border-radius: 8px; padding: 3px; gap: 3px; }
+.home-profile .intro-mode-options > .filter-mode,
+.home-profile .intro-voice-options > .filter-mode { border: 0; }
+.board-home .home-profile .self-introduction .introduction-fields input[aria-label="한마디"] { border: 1px solid var(--line); border-radius: 8px; }
+.board-home .home-profile .self-introduction .introduction-fields input[aria-label="한마디"]:focus { border-color: var(--accent); }
