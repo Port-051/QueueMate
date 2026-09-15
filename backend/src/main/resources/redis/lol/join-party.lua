@@ -64,7 +64,7 @@ local memberField = 'member:' .. userId
 -- (4 명짜리 파티가 "꽉 찼다"고 판정되어 INV-3 이 깨진다),
 -- HSET 과 세기는 몇 번 해도 결과가 같다.
 --
--- 접두사 'member:' 는 자바의 LolScriptSupport#memberIds() 와 같은 값이어야 한다.
+-- 접두사 'member:' 는 자바의 ScriptSupport#memberIds() 와 같은 값이어야 한다.
 local function memberCount(partyKey)
     local fields = redis.call('HKEYS', partyKey)
     local n = 0

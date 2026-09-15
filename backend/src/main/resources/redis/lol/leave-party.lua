@@ -66,7 +66,7 @@ local tiered = myTier ~= 'NONE'
 -- HINCRBY 는 두 번 빼져 인원 수가 실제 멤버 수와 어긋나지만,
 -- HDEL 과 세기는 몇 번 해도 결과가 같다.
 --
--- 접두사 'member:' 는 자바의 LolScriptSupport#memberIds() 와 같은 값이어야 한다.
+-- 접두사 'member:' 는 자바의 ScriptSupport#memberIds() 와 같은 값이어야 한다.
 local function memberCount(key)
     local fields = redis.call('HKEYS', key)
     local count = 0
