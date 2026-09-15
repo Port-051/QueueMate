@@ -1,11 +1,13 @@
 # 게임 모드 설정 (GameConfig)
 
-QueueMate 실시간 매칭 MVP는 LoL만 지원하고 DB 없이 Redis만 쓴다.
-매칭 엔진이 파티를 묶을 때 필요한 모드별 규칙(`targetPartySize`, `positionUniqueness`,
+QueueMate 실시간 매칭 MVP는 DB 없이 Redis만 쓴다. 설정은 **LoL과 PUBG** 두 게임이 심겨 있다
+(배정 규칙이 커밋된 것은 아직 LoL뿐이다. PUBG는 시드와 validator까지다).
+매칭 엔진이 파티를 묶을 때 필요한 모드별 규칙(`targetPartySize`, `positionUniqueness`(LoL만),
 `tierRule`)과 **티어 사다리**, 그리고 티어 허용 범위 표가 이 문서가 말하는 "게임 모드 설정"이다.
 
 > **티어 값의 원본도 여기다.** 예전에는 자바 enum(`LolTier`)이 티어 이름과 순서를 들고
-> 있었지만 그 enum은 **삭제됐다.** 지금은 ZSET `qm:gameconfig:LOL:tier`가 원본이다.
+> 있었지만 그 enum은 **삭제됐다.** 지금은 ZSET `qm:gameconfig:LOL:tier`
+> (PUBG는 `qm:gameconfig:PUBG:tier`)가 원본이다.
 > 뺀 이유는 모드 설정을 뺀 이유와 같다 — 단(division)을 넣거나 라이엇이 티어를 추가할
 > 때마다 재배포해야 한다면 설정을 데이터로 분리한 의미가 없다.
 
@@ -23,7 +25,7 @@ QueueMate 실시간 매칭 MVP는 LoL만 지원하고 DB 없이 Redis만 쓴다.
 | 앱의 역할 | 쓰기 + 읽기 | 읽기 전용 |
 | 설정 원본 | 코드 | 시드 파일 |
 
-## 모드 12개
+## LoL 모드 12개
 
 | modeKey | 한글 이름 | targetPartySize | positionUniqueness | tierRule |
 |---|---|---|---|---|
@@ -69,7 +71,7 @@ QueueMate 실시간 매칭 MVP는 LoL만 지원하고 DB 없이 Redis만 쓴다.
 - **`tierRule`이 `EXIST`인데 표가 없으면 그 모드 요청은 전부 400이다.** 표에 줄이 없는
   티어도 마찬가지다 (fail-closed). 모드를 추가할 때 표를 같이 심어야 하는 이유다.
 
-## 티어 사다리 (32개)
+## LoL 티어 사다리 (32개)
 
 롤에 어떤 티어가 있고 누가 더 높은지를 정하는 곳. **티어 값의 원본이다.**
 
@@ -103,7 +105,7 @@ QueueMate 실시간 매칭 MVP는 LoL만 지원하고 DB 없이 Redis만 쓴다.
 > 그 파티들이 **엉뚱한 칸을 가리킨다.** 정원이 찼다 풀릴 때 되돌아갈 자리를 못 찾아
 > 색인에 유령이 남는다. **큐가 비어 있을 때 바꿔라.**
 
-## 티어 허용 범위 표 (4개 모드)
+## LoL 티어 허용 범위 표 (4개 모드)
 
 `tierRule`이 `NONE`이 **아닌** 모드는 티어별 허용 범위를 표로 갖는다.
 현재 표가 있는 모드는 `RANKED_SOLO` + `RANKED_FLEX_2` / `_3` / `_5` **넷**이고,
@@ -202,18 +204,127 @@ QueueMate 실시간 매칭 MVP는 LoL만 지원하고 DB 없이 Redis만 쓴다.
 조합이 남는다.** 라이엇 계정 연동이 붙어도 MMR은 여전히 안 보인다.
 표를 더 좁혀서 맞출 수 있는 종류의 문제가 아니다.
 
+## PUBG
+
+LoL과 같은 구조(모드 HASH / 티어 사다리 ZSET / 티어 허용 범위 표 HASH)다.
+**기준은 PC다.** 스팀과 카카오는 규칙이 같고 서버만 다르다(카카오 38.1 공지가 글로벌과 같은 문구).
+그래서 표를 플랫폼별로 나누지 않는다 — 플랫폼은 keyCondition(`STEAM` / `KAKAO`)이라 색인 키가 알아서 갈린다.
+
+> PUBG는 **시드와 validator(`validation/pubg/PubgConditionValidator.java`)까지** 들어갔다.
+> 배정 규칙(`CandidateRule`)과 PUBG Lua는 아직 커밋되지 않았다.
+
+### PUBG 모드 8개
+
+| modeKey | 한글 이름 | targetPartySize | tierRule |
+|---|---|---|---|
+| `NORMAL_DUO_TPP` | 일반 듀오 3인칭 | 2 | `NONE` |
+| `NORMAL_DUO_FPP` | 일반 듀오 1인칭 | 2 | `NONE` |
+| `NORMAL_SQUAD_TPP` | 일반 스쿼드 3인칭 | 4 | `NONE` |
+| `NORMAL_SQUAD_FPP` | 일반 스쿼드 1인칭 | 4 | `NONE` |
+| `RANKED_DUO_TPP` | 랭크 듀오 3인칭 | 2 | `EXIST` |
+| `RANKED_DUO_FPP` | 랭크 듀오 1인칭 | 2 | `EXIST` |
+| `RANKED_SQUAD_TPP` | 랭크 스쿼드 3인칭 | 4 | `EXIST` |
+| `RANKED_SQUAD_FPP` | 랭크 스쿼드 1인칭 | 4 | `EXIST` |
+
+**각주 — 왜 이런 값인가**
+
+- **`positionUniqueness` 필드가 없다.** 배그에는 포지션이 없고 keyValue가 플랫폼이라 한 파티에
+  같은 값이 여럿 들어가는 것이 당연하다 — 중복을 금지할 대상 자체가 없다. 롤은 포지션 중복
+  금지 여부가 모드마다 달라서(칼바람만 허용) 그 필드가 필요했다. 예전 시드로 채워진 Redis에
+  남은 필드는 시드가 `HDEL`로 걷어낸다.
+- **시점(TPP/FPP)은 조건이 아니라 modeKey에 접었다.** 파티 구성을 막지 않는 큐 선택이기 때문이다.
+- **TPP/FPP가 같은 티어 표를 쓴다.** 티어/RP는 시즌 36부터 듀오/스쿼드와 TPP/FPP에 걸쳐
+  통합돼 있어 시점별 티어가 따로 없다.
+- PUBG validator는 모드 HASH의 `tierRule` 하나로 모드 존재를 판단한다. `tierRule`이 없으면 그
+  모드 요청은 전부 거부된다 (fail-closed). `NONE` 모드는 `tier`가 **null**이어야 통과한다(LoL과 같은 규약).
+
+### PUBG 티어 사다리 (27개)
+
+```
+0  UNRANKED
+1  BRONZE_4    2  BRONZE_3    3  BRONZE_2    4  BRONZE_1
+5  SILVER_4    6  SILVER_3    7  SILVER_2    8  SILVER_1
+9  GOLD_4     10  GOLD_3     11  GOLD_2     12  GOLD_1
+13 PLATINUM_4 14  PLATINUM_3 15  PLATINUM_2 16  PLATINUM_1
+17 CRYSTAL_4  18  CRYSTAL_3  19  CRYSTAL_2  20  CRYSTAL_1
+21 DIAMOND_4  22  DIAMOND_3  23  DIAMOND_2  24  DIAMOND_1
+25 MASTER     26  SURVIVOR
+```
+
+**각주**
+
+- **시즌 36(2025-06-05) 개편 이후 체계다.** 브론즈~다이아몬드 6티어는 각 4단(4가 낮다).
+  크리스탈이 새로 생겼고 서바이버가 구 Top 500을 대체했다. `MASTER` / `SURVIVOR`는 단이 없다.
+- **확인하지 못한 것:** 단이 없는 마스터/서바이버를 몇 단계로 세는지(여기선 1씩),
+  배치 전(`UNRANKED`) 상태가 배그에 있는지.
+- LoL 사다리와 같은 주의가 그대로 걸린다 — `NONE`이라는 티어를 넣지 말고, **큐가 비어 있을 때만 바꿔라.**
+
+### PUBG 티어 허용 범위 표 (랭크 4개 모드)
+
+표가 있는 모드는 `RANKED_DUO_TPP` / `RANKED_DUO_FPP` / `RANKED_SQUAD_TPP` / `RANKED_SQUAD_FPP` **넷**이고,
+필드는 각각 27개다 (사다리와 같은 수). 값의 뜻은 LoL 표와 같다.
+
+- **듀오 = ±11 단계, 스쿼드 = ±5 단계.** 사다리 끝(`BRONZE_4` / `SURVIVOR`)에서 잘린다.
+- **`UNRANKED`는 `SOLO_ONLY`다.**
+- TPP와 FPP의 표는 내용이 같다.
+
+| 티어 | 듀오 (`RANKED_DUO_*`) | 스쿼드 (`RANKED_SQUAD_*`) |
+|---|---|---|
+| `UNRANKED` | `SOLO_ONLY` | `SOLO_ONLY` |
+| `BRONZE_4` | `BRONZE_4:GOLD_1` | `BRONZE_4:SILVER_3` |
+| `BRONZE_3` | `BRONZE_4:PLATINUM_4` | `BRONZE_4:SILVER_2` |
+| `BRONZE_2` | `BRONZE_4:PLATINUM_3` | `BRONZE_4:SILVER_1` |
+| `BRONZE_1` | `BRONZE_4:PLATINUM_2` | `BRONZE_4:GOLD_4` |
+| `SILVER_4` | `BRONZE_4:PLATINUM_1` | `BRONZE_4:GOLD_3` |
+| `SILVER_3` | `BRONZE_4:CRYSTAL_4` | `BRONZE_4:GOLD_2` |
+| `SILVER_2` | `BRONZE_4:CRYSTAL_3` | `BRONZE_3:GOLD_1` |
+| `SILVER_1` | `BRONZE_4:CRYSTAL_2` | `BRONZE_2:PLATINUM_4` |
+| `GOLD_4` | `BRONZE_4:CRYSTAL_1` | `BRONZE_1:PLATINUM_3` |
+| `GOLD_3` | `BRONZE_4:DIAMOND_4` | `SILVER_4:PLATINUM_2` |
+| `GOLD_2` | `BRONZE_4:DIAMOND_3` | `SILVER_3:PLATINUM_1` |
+| `GOLD_1` | `BRONZE_4:DIAMOND_2` | `SILVER_2:CRYSTAL_4` |
+| `PLATINUM_4` | `BRONZE_3:DIAMOND_1` | `SILVER_1:CRYSTAL_3` |
+| `PLATINUM_3` | `BRONZE_2:MASTER` | `GOLD_4:CRYSTAL_2` |
+| `PLATINUM_2` | `BRONZE_1:SURVIVOR` | `GOLD_3:CRYSTAL_1` |
+| `PLATINUM_1` | `SILVER_4:SURVIVOR` | `GOLD_2:DIAMOND_4` |
+| `CRYSTAL_4` | `SILVER_3:SURVIVOR` | `GOLD_1:DIAMOND_3` |
+| `CRYSTAL_3` | `SILVER_2:SURVIVOR` | `PLATINUM_4:DIAMOND_2` |
+| `CRYSTAL_2` | `SILVER_1:SURVIVOR` | `PLATINUM_3:DIAMOND_1` |
+| `CRYSTAL_1` | `GOLD_4:SURVIVOR` | `PLATINUM_2:MASTER` |
+| `DIAMOND_4` | `GOLD_3:SURVIVOR` | `PLATINUM_1:SURVIVOR` |
+| `DIAMOND_3` | `GOLD_2:SURVIVOR` | `CRYSTAL_4:SURVIVOR` |
+| `DIAMOND_2` | `GOLD_1:SURVIVOR` | `CRYSTAL_3:SURVIVOR` |
+| `DIAMOND_1` | `PLATINUM_4:SURVIVOR` | `CRYSTAL_2:SURVIVOR` |
+| `MASTER` | `PLATINUM_3:SURVIVOR` | `CRYSTAL_1:SURVIVOR` |
+| `SURVIVOR` | `PLATINUM_2:SURVIVOR` | `DIAMOND_4:SURVIVOR` |
+
+**각주**
+
+- **공식 규칙은 "미리 결성된 파티 인원의 단계 차이 최대 12단계"다 (패치 38.1, 2025-10-14).**
+- **왜 12가 아니라 11인가.** 12를 포함하는지(이하/미만) 확인하지 못했다 — 38.1 이후 실측 제보가
+  없다. 12로 잡았다 틀리면 게임에서 큐가 안 잡히는 파티가 생기고, 11로 잡았다 틀리면 딱 12칸
+  차이 파티만 놓친다. 그래서 **fail-closed로 11**이다. 12가 확인되면 표만 넓혀라.
+- **왜 스쿼드는 절반(±5)인가.** 규칙은 "파티 최고와 최저의 차이"인데, 우리 엔진은 파티를 만든
+  사람의 범위 안이면 누구든 받는다. 2인은 쌍 하나만 맞으면 되니 ±11이 곧 규칙이지만, 4인에
+  ±11을 쓰면 만든 사람 위아래로 한 명씩 들어와 **파티 폭이 22**가 된다. ±5면 누가 들어와도
+  폭이 최대 10이다. LoL 솔랭/자랭을 다르게 한 것과 같은 이유다(2인은 대칭만, 3인 이상은 전이까지 필요).
+  대가로 스쿼드는 실제로 가능한 조합 일부를 버린다. 틀린 파티를 만드는 것보다 낫다.
+- **손으로 쓰지 않았다.** 생성 후 비대칭 0건 / 듀오 최대 차 11 / 스쿼드 최대 폭 10을 기계로
+  확인했다. 고칠 때도 생성해서 같은 검증을 돌려라.
+
 ## Redis 키 구조
 
 `qm:` prefix를 쓴다.
 
 | 키 | 타입 | 내용 | 쓰는 곳 |
 |---|---|---|---|
-| `qm:gameconfig:{game}:{modeKey}` | HASH | 필드 `targetPartySize`, `positionUniqueness`, `tierRule`(`NONE` / `EXIST`) | 매칭 엔진이 파티 규칙 판정 |
+| `qm:gameconfig:{game}:{modeKey}` | HASH | 필드 `targetPartySize`, `positionUniqueness`(LoL만. PUBG에는 없다), `tierRule`(`NONE` / `EXIST`) | 매칭 엔진이 파티 규칙 판정 |
 | `qm:gameconfig:{game}:tier` | ZSET | 멤버 = 티어 이름, score = 사다리 단계 번호. **티어 값의 원본** | Lua가 `ZRANK`로 순번을 뽑고 `ZRANGE`로 색인 칸 목록을 만든다 |
 | `qm:gameconfig:{game}:tier-range:{modeKey}` | HASH | 필드 = 티어 이름, 값 = `MIN:MAX` 또는 `SOLO_ONLY` | `tierRule`이 `NONE`이 아닌 모드의 티어 검증 + 파티 생성 시 범위 결정 |
 
 예: `qm:gameconfig:LOL:RANKED_FLEX_5`, `qm:gameconfig:LOL:tier`,
-`qm:gameconfig:LOL:tier-range:RANKED_SOLO`, `qm:gameconfig:PUBG:tier`.
+`qm:gameconfig:LOL:tier-range:RANKED_SOLO`, `qm:gameconfig:PUBG:RANKED_SQUAD_FPP`, `qm:gameconfig:PUBG:tier`,
+`qm:gameconfig:PUBG:tier-range:RANKED_DUO_TPP`.
 
 > **모드 목록 SET(`qm:gameconfig:modes:{game}`)은 없앴다 (2026-09-15).** 모드가 있는지는 모드 HASH가
 > 답한다 — 없는 모드면 `HMGET`이 필드를 전부 null로 돌려주고 validator가 그걸로 거른다
@@ -221,7 +332,7 @@ QueueMate 실시간 매칭 MVP는 LoL만 지원하고 DB 없이 Redis만 쓴다.
 > 한쪽만 고치면 어긋난다. 이 저장소 코드에는 그 SET을 읽는 곳이 없었다. UI가 모드 목록이 필요해지면
 > 조회 API를 만들어 모드 HASH에서 뽑아라(`contracts/README.md` #7 `GET /games`).
 
-> ⚠️ **`qm:gameconfig:LOL:tier`는 다른 키들과 무게가 다르다.** 모드 HASH는 고쳐도 그 모드의
+> ⚠️ **티어 사다리(`qm:gameconfig:LOL:tier` / `qm:gameconfig:PUBG:tier`)는 다른 키들과 무게가 다르다.** 모드 HASH는 고쳐도 그 모드의
 > 다음 요청부터 적용되고 끝이지만, 사다리는 **이미 만들어진 파티가 순번으로 참조한다.**
 > 사다리 중간에 값을 끼워 넣으면 그 파티들의 `tierLo`/`tierHi`가 엉뚱한 칸을 가리켜
 > 색인에 유령이 남는다. **큐가 비어 있을 때만 바꿔라.**
@@ -237,13 +348,14 @@ docker exec -i qm-redis redis-cli < seed/gameconfig.redis
 멱등하다. 여러 번 실행해도 결과가 같다.
 
 - `HSET`은 같은 값을 다시 써도 결과가 같다.
-- 모드 목록 SET은 `SADD`만 하지 않고 `MULTI` / `DEL` / `SADD` / `EXEC`로 통째로 갈아끼운다.
-  `SADD`만 하면 추가는 반영되지만 시드 파일에서 **제거**한 모드가 Redis에 남아
-  삭제된 모드가 UI 선택지에 계속 뜬다. `MULTI`로 묶는 이유는
-  `DEL`과 `SADD` 사이에 목록이 비는 순간 들어온 매칭 요청이 fail-closed 되는 걸 막기 위해서다.
-- 티어 표도 같은 이유로 `MULTI` / `DEL` / `HSET` / `EXEC`로 통째로 갈아끼운다.
-  `HSET`만 하면 시드 파일에서 지운 티어가 Redis에 남아,
-  규칙이 좁아졌는데 옛 범위가 살아 있는 상태가 된다.
+- 모드 HASH에서 없앤 필드(LoL `maxTierGap`, PUBG `positionUniqueness`)는 `HSET`으로 지워지지
+  않으므로 시드가 `HDEL`로 걷어낸다. `HDEL`도 멱등하다.
+- 티어 사다리는 `MULTI` / `DEL` / `ZADD` / `EXEC`, 티어 표는 `MULTI` / `DEL` / `HSET` / `EXEC`로
+  통째로 갈아끼운다. `ZADD`/`HSET`만 하면 시드 파일에서 지운 티어가 Redis에 남아,
+  규칙이 좁아졌는데 옛 범위가 살아 있는 상태가 된다. `MULTI`로 묶는 이유는 `DEL`과 다시 쓰기
+  사이에 키가 비는 순간 들어온 매칭 요청이 fail-closed 되는 걸 막기 위해서다.
+- **모드 HASH 자체는 시드가 지우지 않는다.** 시드 파일에서 모드 줄을 지워도 Redis에는 남는다
+  (아래 "삭제" 참고). 예전의 모드 목록 SET을 갈아끼우던 단계는 SET과 함께 없어졌다.
 - `redis-cli`는 파이프 입력에서 `#` 주석을 지원하지 않는다(`unknown command '#'`).
   그래서 시드 파일의 주석은 `ECHO`로 남겼고, 실행하면 진행 로그처럼 출력된다.
 
@@ -260,36 +372,46 @@ docker exec qm-redis redis-cli HGETALL qm:gameconfig:LOL:RANKED_SOLO
 docker exec qm-redis redis-cli --scan --pattern 'qm:gameconfig:LOL:*' | grep -v ':tier'
 docker exec qm-redis redis-cli --scan --pattern 'qm:gameconfig:PUBG:*' | grep -v ':tier'
 
-# 티어 사다리 보기 (32개여야 한다)
+# 티어 사다리 보기 (LoL 32개 / PUBG 27개여야 한다)
 docker exec qm-redis redis-cli ZRANGE qm:gameconfig:LOL:tier 0 -1 WITHSCORES
 docker exec qm-redis redis-cli ZCARD qm:gameconfig:LOL:tier
+docker exec qm-redis redis-cli ZCARD qm:gameconfig:PUBG:tier
 
-# 티어 허용 범위 표 보기 (모드마다 32개여야 한다. 표를 갖는 모드는 넷)
+# 티어 허용 범위 표 보기 (LoL 모드마다 32개 / PUBG 모드마다 27개여야 한다. 표를 갖는 모드는 게임마다 넷)
 docker exec qm-redis redis-cli HGETALL qm:gameconfig:LOL:tier-range:RANKED_SOLO
 for m in RANKED_SOLO RANKED_FLEX_2 RANKED_FLEX_3 RANKED_FLEX_5; do
   docker exec qm-redis redis-cli HLEN qm:gameconfig:LOL:tier-range:$m
 done
+for m in RANKED_DUO_TPP RANKED_DUO_FPP RANKED_SQUAD_TPP RANKED_SQUAD_FPP; do
+  docker exec qm-redis redis-cli HLEN qm:gameconfig:PUBG:tier-range:$m
+done
 ```
+
+> `--scan ... | grep -v ':tier'`는 사다리(`...:tier`)와 표(`...:tier-range:*`)를 걸러 모드 HASH만 남긴다.
+> 시드 전부가 들어간 Redis의 `qm:gameconfig:*` 키는 LoL 17개(모드 12 + 사다리 1 + 표 4) +
+> PUBG 13개(모드 8 + 사다리 1 + 표 4) = **30개**다.
 
 ## 모드 추가 / 삭제 (재배포 없음)
 
 ### 추가
 
-1. `seed/gameconfig.redis`에 `HSET` 한 줄을 넣고, `SADD` 줄의 목록에 modeKey를 추가한다.
-   `HSET` 줄에는 `targetPartySize`, `positionUniqueness`, `tierRule`을 전부 쓴다.
-2. **`tierRule`이 `EXIST`면 `qm:gameconfig:LOL:tier-range:<modeKey>` 표를 같이 심는다.**
+1. `seed/gameconfig.redis`에 `HSET` 한 줄을 넣는다. 모드 목록 SET이 없으므로 이 한 줄이 곧 모드 추가다.
+   LoL은 `targetPartySize`, `positionUniqueness`, `tierRule`을 전부 쓰고,
+   PUBG는 `targetPartySize`, `tierRule` 둘을 쓴다(`positionUniqueness`는 없다).
+2. **`tierRule`이 `EXIST`면 `qm:gameconfig:{game}:tier-range:<modeKey>` 표를 같이 심는다.**
    표는 `MULTI` / `DEL` / `HSET` / `EXEC`로 통째로 갈아끼운다.
-   **사다리에 있는 티어 전부(32개)에 줄이 있어야 한다.** 한 줄이라도 비면 그 티어의 요청만
-   400이 되는데, 모드는 목록에 멀쩡히 떠 있어서 증상이 모드 문제로 보이지 않는다.
+   **사다리에 있는 티어 전부(LoL 32개 / PUBG 27개)에 줄이 있어야 한다.** 한 줄이라도 비면 그 티어의
+   요청만 400이 되는데, 모드 HASH는 멀쩡히 있어서 증상이 모드 문제로 보이지 않는다.
 3. 시드를 다시 실행한다: `docker exec -i qm-redis redis-cli < seed/gameconfig.redis`
-4. `SMEMBERS`로 모드를, `HLEN ... tier-range:<modeKey>`로 표를 확인한다.
+4. `HGETALL qm:gameconfig:{game}:<modeKey>`로 모드를, `HLEN ... tier-range:<modeKey>`로 표를 확인한다.
 
 앱 재배포 불필요. 다음 매칭 요청부터 바로 적용된다.
 
 > **`tierRule`을 빠뜨리면 그 모드의 매칭 요청이 전부 400으로 거부된다.**
 > `LolConditionValidator`는 `positionUniqueness`나 `tierRule` 중 하나라도 없으면
-> 설정이 불완전한 것으로 보고 통과시키지 않는다 (fail-closed).
-> 필드 하나가 빠진 모드는 목록에는 떠 있고 요청만 거부되므로 증상이 모드 누락처럼 보이지 않는다.
+> 설정이 불완전한 것으로 보고 통과시키지 않는다 (fail-closed). `PubgConditionValidator`는 `tierRule`이
+> 없으면 거부한다. 모드가 있는지를 모드 HASH가 답하므로, **`tierRule`이 빠진 모드는 validator 입장에서
+> 없는 모드와 구별되지 않는다** — `HGETALL`로는 멀쩡히 보이는데 요청만 거부된다.
 
 > **`tierRule=EXIST`인데 `tier-range` 표를 안 심으면 그 모드 요청도 전부 400이다.**
 > `maxTierGap`이 있던 시절에는 값이 없어도 폭 0으로 조용히 돌아갔지만, 지금은
@@ -303,17 +425,17 @@ done
 
 ### 삭제
 
-1. `seed/gameconfig.redis`에서 해당 `HSET` 줄을 지우고 `SADD` 목록에서도 modeKey를 뺀다.
-2. 시드를 다시 실행한다. → `DEL` + `SADD` 덕분에 목록에서는 즉시 사라진다.
-3. **HASH 키는 자동으로 지워지지 않으므로 직접 지운다.**
+1. `seed/gameconfig.redis`에서 해당 모드의 `HSET` 줄(과 티어 표 블록)을 지운다.
+2. **Redis의 HASH 키는 시드를 다시 실행해도 지워지지 않으므로 직접 지운다.**
    `tierRule`이 `EXIST`이던 모드면 티어 표 키도 같이 지운다.
    ```bash
-   docker exec qm-redis redis-cli DEL qm:gameconfig:LOL:<지울 modeKey>
-   docker exec qm-redis redis-cli DEL qm:gameconfig:LOL:tier-range:<지울 modeKey>
+   docker exec qm-redis redis-cli DEL qm:gameconfig:{game}:<지울 modeKey>
+   docker exec qm-redis redis-cli DEL qm:gameconfig:{game}:tier-range:<지울 modeKey>
    ```
 
-> 목록(SET)에서만 빼고 HASH를 남겨두면 UI에는 안 뜨지만 키는 계속 남는다.
-> 반대로 HASH만 지우고 목록에 남기면 UI에 뜬 모드가 매칭에서 거부된다. 항상 둘 다 처리한다.
+> 시드 파일에서만 지우고 `DEL`을 빠뜨리면 **그 모드는 Redis에서 계속 살아 있다.**
+> 모드가 있는지를 모드 HASH가 답하기 때문에 validator가 그 모드 요청을 계속 통과시킨다.
+> 모드 목록 SET이 있던 시절과 달리 지울 곳이 HASH 하나뿐이니, 그 하나는 반드시 지운다.
 
 ## 주의: Redis가 재시작하면 설정이 날아간다
 
@@ -321,10 +443,10 @@ done
 INV-10에 따라 설정을 못 읽었을 때 기본값으로 매칭을 진행하는 fallback은 만들지 않는다.
 즉 Redis 컨테이너를 재시작하면 서비스가 사실상 멈춘다.
 
-날아가는 것은 모드 HASH 12개와 모드 목록 SET만이 아니다.
-**티어 사다리 `qm:gameconfig:LOL:tier`** 와 티어 허용 범위 표 4개
-(`RANKED_SOLO` + `RANKED_FLEX_2`/`_3`/`_5`)도 같이 사라진다.
-표만 없어도 `tierRule=EXIST`인 모드 넷의 요청은 표에서 티어를 못 찾아 전부 거부되고,
+날아가는 것은 모드 HASH(LoL 12개 / PUBG 8개)만이 아니다.
+**티어 사다리 `qm:gameconfig:LOL:tier` / `qm:gameconfig:PUBG:tier`** 와 티어 허용 범위 표
+(LoL `RANKED_SOLO` + `RANKED_FLEX_2`/`_3`/`_5`, PUBG `RANKED_{DUO,SQUAD}_{TPP,FPP}` 각 4개)도 같이 사라진다.
+표만 없어도 `tierRule=EXIST`인 모드(게임마다 넷)의 요청은 표에서 티어를 못 찾아 전부 거부되고,
 **사다리가 없으면 Lua가 티어 이름을 순번으로 환산하지 못해 그 모드의 배정 자체가 안 된다**
 (`ZRANK`가 `false`를 돌려주면 `-1`로 끝낸다). 자바에 티어 값이 없으므로 복구할 방법도
 시드를 다시 실행하는 것뿐이다.
