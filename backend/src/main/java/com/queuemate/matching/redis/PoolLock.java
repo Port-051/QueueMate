@@ -27,9 +27,11 @@ import java.util.function.Supplier;
  * 락이 저 혼자 풀리고, 그 사이 들어온 다른 요청과 같은 파티에 동시에 손을 대게 된다.
  * 잠근 구간은 Redis 명령 몇 개로 끝나야 한다.
  *
- * <p><b>이 락은 Lua 를 대체하려고 만든 것이다.</b> 지금은 아직 아무 데서도 쓰이지 않고
- * {@code create-or-check-party-untiered.lua} 가 그대로 돌고 있다. 호출부를 바꾸는 시점에
- * CLAUDE.md §4 의 "GET → 판단 → SET 금지"와 원자성 규칙도 함께 정리해야 한다.
+ * <p><b>이 락은 Lua 를 대체하지 않고 두 Lua 사이의 틈을 막는다.</b> 배정은 후보 찾기
+ * ({@code create-or-check-party-*.lua})와 합류({@code join-party*.lua})의 두 스크립트로
+ * 나뉘어 있고, 그 사이에 자바의 차단 검증이 낀다. 각 스크립트 안의 확인+쓰기는 여전히
+ * Lua 한 덩어리가 원자적으로 하고(CLAUDE.md §4 원자성 규칙), 두 호출 사이에 다른 요청이
+ * 같은 파티에 끼어드는 것만 이 락이 막는다. 호출부는 {@code LolCandidateRule#canJoin()} 이다.
  *
  * <p><b>Lua 와 달리 이 락은 저장소가 강제하지 않는다.</b> Redis 에는 "이 키는 잠겨 있다"는
  * 개념이 없다. 파티 데이터를 만지는 모든 코드가 먼저 이 락을 잡는다는 약속을 지켜야만

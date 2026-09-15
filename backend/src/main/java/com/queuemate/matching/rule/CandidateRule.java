@@ -12,10 +12,11 @@ import com.queuemate.matching.dto.CreateMatchRequestCommand;
  * 판단 기준이 게임마다 다르다.
  *   LoL       — 모드 설정 positionUniqueness가 true면 이미 찬 포지션은 거부
  *   VALORANT  — 미구현
- *   PUBG      — 플레이 스타일 중복 허용(같은 스타일 여럿이 한 파티).
- *               단 스타일 자체는 hard 조건이라 스타일이 다르면 애초에 다른 색인이다
+ *   PUBG      — 플랫폼(STEAM/KAKAO) 중복 허용(같은 플랫폼 여럿이 한 파티).
+ *               단 플랫폼 자체는 hard 조건이라 플랫폼이 다르면 애초에 다른 색인이다
  *
- * 배관은 AbstractCandidateRule에 있다. 새 게임은 거기서 추상 메서드 3개만 채운다.
+ * 공통 추상 클래스는 없다. 게임마다 이 인터페이스를 직접 구현한다(LoL 은 LolCandidateRule).
+ * 호출부(MatchTrigger · MatchCancelService)가 supports(GameKey) 로 구현체를 고른다.
  */
 public interface CandidateRule {
 
