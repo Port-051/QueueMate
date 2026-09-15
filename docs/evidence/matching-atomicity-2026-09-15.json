@@ -1,0 +1,92 @@
+{
+  "recorded_date": "2026-09-15",
+  "source_head": "fd70bbef59c3647e12529eff3f0fcb9e35e5a081",
+  "kind": "selected_local_test_results_not_production_incident_or_latency_benchmark",
+  "user_worktree_changes_preserved": true,
+  "gradle_result": "BUILD SUCCESSFUL",
+  "bootJar_result": "UP-TO-DATE",
+  "java_home": "/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home",
+  "containers": [
+    "redis:7-alpine",
+    "postgres:16-alpine"
+  ],
+  "extra_test_properties": {
+    "spring.lifecycle.timeout-per-shutdown-phase": "1s",
+    "spring.test.context.cache.maxSize": "1"
+  },
+  "summary": {
+    "tests": 16,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "suites": [
+    {
+      "class": "com.queuemate.matching.MatchQueueRecoveryIntegrationTest",
+      "timestamp": "2026-09-15T11:09:24.127Z",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "Redis가 통째로 비워져도 DB의 활성 요청으로 대기열을 다시 세운다",
+        "살아 있는 guard는 정합성 정리가 건드리지 않는다",
+        "DB에는 끝났는데 Redis에만 남은 guard를 걷어 낸다",
+        "정상 상태에서 복구를 돌려도 아무것도 망가지지 않는다",
+        "복구해도 오래 기다린 사람이 앞자리를 지킨다"
+      ]
+    },
+    {
+      "class": "com.queuemate.matching.RealtimeMatchingIntegrationTest",
+      "timestamp": "2026-09-15T11:09:29.402Z",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "분산 락 선점 뒤 DB 롤백은 참여 기록을 해제하고 원래 순서로 큐를 복구한다"
+      ]
+    },
+    {
+      "class": "com.queuemate.matching.infra.ProposalDistributedLockTest",
+      "timestamp": "2026-09-15T11:09:31.327Z",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "requestChangedAfterJavaValidationPreventsWholeClaim()",
+        "partialLockAcquisitionDoesNotLeaveOwnMutexOrChangeClaims()",
+        "realtimeAndReservationCompeteForSameUserAcrossIndependentClients()",
+        "wrongQueueTypeFailsBeforeAnyParticipantIsClaimed()",
+        "unlockFailureDoesNotTurnCommittedClaimIntoFailure()",
+        "expiredHolderCannotCommitOrDeleteNewOwnersLock()",
+        "exceptionBeforeExecDiscardsWritesAndSessionCanBeReused()",
+        "lostExecReplyFailsClosedEvenWhenRedisAppliedClaim()",
+        "reservationUsesSameLeaseValidationAndRejectsDuplicateParticipants()"
+      ]
+    },
+    {
+      "class": "com.queuemate.reservation.ReservationMatchingIntegrationTest",
+      "timestamp": "2026-09-15T11:09:32.944Z",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "예약도 분산 락 선점 뒤 DB가 롤백되면 다시 매칭할 수 있다"
+      ]
+    }
+  ],
+  "source_sha256": {
+    "backend/src/main/java/com/queuemate/matching/infra/RedisClaimLock.java": "c806da436b3fdb0255ce85655f9bd0aecb0af92bfb31207b9675f1b46a445edf",
+    "backend/src/main/java/com/queuemate/matching/infra/ProposalClaimRepository.java": "723e7314789f462a6fafab41fbbc9e3f8b30a5f8171afc7b717c9eb449c2ca8d",
+    "backend/src/main/java/com/queuemate/matching/app/RealtimeMatcher.java": "a6ab40db29b00ab72e11819ecf4d96441a3b333feca450aba7491d84a7880ee7",
+    "backend/src/main/java/com/queuemate/reservation/app/ReservationMatcher.java": "fc73374e3fe93a3cc282883059bfdc02db8050feb92268de14e76f68dbb13f43",
+    "backend/src/main/java/com/queuemate/matching/app/MatchQueueRecoveryService.java": "29a9432fc5176e9c680946c53117b5e02c6b523275e4c00111ec3f99a2138f3b",
+    "backend/src/test/java/com/queuemate/matching/infra/ProposalDistributedLockTest.java": "ec17989ad1664f3998efd6b5ffe62a41f50557caac1e18636d3b2fe1a2029d1b",
+    "backend/src/test/java/com/queuemate/matching/RealtimeMatchingIntegrationTest.java": "6b1a8395101c68eb1ac14b54bb6a2595af450cf58b2acb89670143ce5af3c774",
+    "backend/src/test/java/com/queuemate/reservation/ReservationMatchingIntegrationTest.java": "c4a4495f49be33f826fca8032929968a5931a4ec62140f94e3563a3fb0be9804",
+    "backend/src/test/java/com/queuemate/matching/MatchQueueRecoveryIntegrationTest.java": "7979cd67cd202416e4b2ff43cabbbf7fc43c8c6be620d1f353b858c8ec060ed5"
+  }
+}
