@@ -1,0 +1,222 @@
+{
+  "verified_date": "2026-09-15",
+  "currency": "USD",
+  "aws_region": "ap-northeast-2",
+  "appsync_operation": 1e-06,
+  "appsync_minute": 8e-08,
+  "gateway_message_tiers": [
+    [
+      1000000000,
+      1.14e-06
+    ],
+    [
+      null,
+      9.4e-07
+    ]
+  ],
+  "gateway_minute": 2.85e-07,
+  "http_request_tiers": [
+    [
+      300000000,
+      1.23e-06
+    ],
+    [
+      null,
+      1.11e-06
+    ]
+  ],
+  "lambda_request": 2e-07,
+  "lambda_gb_second_tiers": [
+    [
+      6000000000,
+      1.66667e-05
+    ],
+    [
+      15000000000,
+      1.5e-05
+    ],
+    [
+      null,
+      1.33334e-05
+    ]
+  ],
+  "aws_egress_tiers": [
+    [
+      10240,
+      0.126
+    ],
+    [
+      51200,
+      0.122
+    ],
+    [
+      153600,
+      0.117
+    ],
+    [
+      null,
+      0.108
+    ]
+  ],
+  "cf_monthly_base": 5,
+  "cf_do_million_requests": 0.15,
+  "cf_do_million_gb_seconds": 12.5,
+  "cf_worker_million_requests": 0.3,
+  "cf_worker_million_cpu_ms": 0.02,
+  "cloudflare_sources": [
+    "https://developers.cloudflare.com/durable-objects/platform/pricing/",
+    "https://developers.cloudflare.com/workers/platform/pricing/"
+  ],
+  "aws_evidence": [
+    {
+      "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonApiGateway/20260911124408/ap-northeast-2/index.json",
+      "publication_date": "2026-09-11T12:44:08Z",
+      "sku": "PQU69GVGAVJHFCJY",
+      "usage": "APN2-ApiGatewayMessage",
+      "begin": "0",
+      "end": "1000000000",
+      "unit": "Messages",
+      "usd": "0.0000011400"
+    },
+    {
+      "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonApiGateway/20260911124408/ap-northeast-2/index.json",
+      "publication_date": "2026-09-11T12:44:08Z",
+      "sku": "PQU69GVGAVJHFCJY",
+      "usage": "APN2-ApiGatewayMessage",
+      "begin": "1000000000",
+      "end": "Inf",
+      "unit": "Messages",
+      "usd": "0.0000009400"
+    },
+    {
+      "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonApiGateway/20260911124408/ap-northeast-2/index.json",
+      "publication_date": "2026-09-11T12:44:08Z",
+      "sku": "39KUCJQBWR4UQ68S",
+      "usage": "APN2-ApiGatewayHttpRequest",
+      "begin": "0",
+      "end": "300000000",
+      "unit": "Requests",
+      "usd": "0.0000012300"
+    },
+    {
+      "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonApiGateway/20260911124408/ap-northeast-2/index.json",
+      "publication_date": "2026-09-11T12:44:08Z",
+      "sku": "39KUCJQBWR4UQ68S",
+      "usage": "APN2-ApiGatewayHttpRequest",
+      "begin": "300000000",
+      "end": "Inf",
+      "unit": "Requests",
+      "usd": "0.0000011100"
+    },
+    {
+      "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonApiGateway/20260911124408/ap-northeast-2/index.json",
+      "publication_date": "2026-09-11T12:44:08Z",
+      "sku": "AZ3BEBAF9Q3X6QAQ",
+      "usage": "APN2-ApiGatewayMinute",
+      "begin": "0",
+      "end": "Inf",
+      "unit": "minutes",
+      "usd": "0.0000002850"
+    },
+    {
+      "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSAppSync/20260911124525/ap-northeast-2/index.json",
+      "publication_date": "2026-09-11T12:45:25Z",
+      "sku": "5FFNRUXK7HS5V9FR",
+      "usage": "APN2-EventAPI-Operation",
+      "begin": "0",
+      "end": "Inf",
+      "unit": "Operation",
+      "usd": "0.0000010000"
+    },
+    {
+      "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSAppSync/20260911124525/ap-northeast-2/index.json",
+      "publication_date": "2026-09-11T12:45:25Z",
+      "sku": "WDM3ZJNGXXWFVYA9",
+      "usage": "APN2-EventAPI-ConnectionDuration",
+      "begin": "0",
+      "end": "Inf",
+      "unit": "Minute",
+      "usd": "0.0000000800"
+    },
+    {
+      "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSLambda/20260911173510/ap-northeast-2/index.json",
+      "publication_date": "2026-09-11T17:35:10Z",
+      "sku": "NFXH9EUGP7BUPE4A",
+      "usage": "APN2-Request",
+      "begin": "0",
+      "end": "Inf",
+      "unit": "Request",
+      "usd": "0.0000002000"
+    },
+    {
+      "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSLambda/20260911173510/ap-northeast-2/index.json",
+      "publication_date": "2026-09-11T17:35:10Z",
+      "sku": "AW8K7Q9ZMMBBP9W6",
+      "usage": "APN2-Lambda-GB-Second",
+      "begin": "0",
+      "end": "6000000000",
+      "unit": "Lambda-GB-Second",
+      "usd": "0.0000166667"
+    },
+    {
+      "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSLambda/20260911173510/ap-northeast-2/index.json",
+      "publication_date": "2026-09-11T17:35:10Z",
+      "sku": "AW8K7Q9ZMMBBP9W6",
+      "usage": "APN2-Lambda-GB-Second",
+      "begin": "6000000000",
+      "end": "15000000000",
+      "unit": "Lambda-GB-Second",
+      "usd": "0.0000150000"
+    },
+    {
+      "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSLambda/20260911173510/ap-northeast-2/index.json",
+      "publication_date": "2026-09-11T17:35:10Z",
+      "sku": "AW8K7Q9ZMMBBP9W6",
+      "usage": "APN2-Lambda-GB-Second",
+      "begin": "15000000000",
+      "end": "Inf",
+      "unit": "Lambda-GB-Second",
+      "usd": "0.0000133334"
+    },
+    {
+      "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSDataTransfer/20260911133359/ap-northeast-2/index.json",
+      "publication_date": "2026-09-11T13:33:59Z",
+      "sku": "9AS8NERTGECRPGT7",
+      "usage": "APN2-DataTransfer-Out-Bytes",
+      "begin": "0",
+      "end": "10240",
+      "unit": "GB",
+      "usd": "0.1260000000"
+    },
+    {
+      "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSDataTransfer/20260911133359/ap-northeast-2/index.json",
+      "publication_date": "2026-09-11T13:33:59Z",
+      "sku": "9AS8NERTGECRPGT7",
+      "usage": "APN2-DataTransfer-Out-Bytes",
+      "begin": "10240",
+      "end": "51200",
+      "unit": "GB",
+      "usd": "0.1220000000"
+    },
+    {
+      "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSDataTransfer/20260911133359/ap-northeast-2/index.json",
+      "publication_date": "2026-09-11T13:33:59Z",
+      "sku": "9AS8NERTGECRPGT7",
+      "usage": "APN2-DataTransfer-Out-Bytes",
+      "begin": "51200",
+      "end": "153600",
+      "unit": "GB",
+      "usd": "0.1170000000"
+    },
+    {
+      "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSDataTransfer/20260911133359/ap-northeast-2/index.json",
+      "publication_date": "2026-09-11T13:33:59Z",
+      "sku": "9AS8NERTGECRPGT7",
+      "usage": "APN2-DataTransfer-Out-Bytes",
+      "begin": "153600",
+      "end": "Inf",
+      "unit": "GB",
+      "usd": "0.1080000000"
+    }
+  ]
+}
