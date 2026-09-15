@@ -102,5 +102,7 @@ race, E2E, WebRTC reconnect, outage runbook.
 
 ## Merge policy
 - `main` always runnable.
-- 각 member branch는 자신의 owner directory 중심.
+- 공통 기준은 `main` 하나이며 작업별 짧은 브랜치로 자신의 owner directory 중심 변경을 만든다.
+- PR의 CI와 다른 팀원 1명의 확인 후 병합하고 작업 브랜치를 삭제한다.
+- 실행·공유·기존 DB 전환은 [팀 개발 안내](18_TEAM_WORKFLOW.md)를 따른다.
 - shared contract 변경과 feature 구현을 한 giant commit에 섞지 않는다.
