@@ -209,12 +209,17 @@ QueueMate 실시간 매칭 MVP는 LoL만 지원하고 DB 없이 Redis만 쓴다.
 | 키 | 타입 | 내용 | 쓰는 곳 |
 |---|---|---|---|
 | `qm:gameconfig:{game}:{modeKey}` | HASH | 필드 `targetPartySize`, `positionUniqueness`, `tierRule`(`NONE` / `EXIST`) | 매칭 엔진이 파티 규칙 판정 |
-| `qm:gameconfig:modes:{game}` | SET | 그 게임의 modeKey 목록 | UI가 선택지를 그릴 때 |
 | `qm:gameconfig:{game}:tier` | ZSET | 멤버 = 티어 이름, score = 사다리 단계 번호. **티어 값의 원본** | Lua가 `ZRANK`로 순번을 뽑고 `ZRANGE`로 색인 칸 목록을 만든다 |
 | `qm:gameconfig:{game}:tier-range:{modeKey}` | HASH | 필드 = 티어 이름, 값 = `MIN:MAX` 또는 `SOLO_ONLY` | `tierRule`이 `NONE`이 아닌 모드의 티어 검증 + 파티 생성 시 범위 결정 |
 
-예: `qm:gameconfig:LOL:RANKED_FLEX_5`, `qm:gameconfig:modes:LOL`,
-`qm:gameconfig:LOL:tier`, `qm:gameconfig:LOL:tier-range:RANKED_SOLO`.
+예: `qm:gameconfig:LOL:RANKED_FLEX_5`, `qm:gameconfig:LOL:tier`,
+`qm:gameconfig:LOL:tier-range:RANKED_SOLO`, `qm:gameconfig:PUBG:tier`.
+
+> **모드 목록 SET(`qm:gameconfig:modes:{game}`)은 없앴다 (2026-09-15).** 모드가 있는지는 모드 HASH가
+> 답한다 — 없는 모드면 `HMGET`이 필드를 전부 null로 돌려주고 validator가 그걸로 거른다
+> (`LolConditionValidator` 참고). 목록을 따로 두면 모드를 추가·삭제할 때 두 곳을 같이 고쳐야 하고
+> 한쪽만 고치면 어긋난다. 이 저장소 코드에는 그 SET을 읽는 곳이 없었다. UI가 모드 목록이 필요해지면
+> 조회 API를 만들어 모드 HASH에서 뽑아라(`contracts/README.md` #7 `GET /games`).
 
 > ⚠️ **`qm:gameconfig:LOL:tier`는 다른 키들과 무게가 다르다.** 모드 HASH는 고쳐도 그 모드의
 > 다음 요청부터 적용되고 끝이지만, 사다리는 **이미 만들어진 파티가 순번으로 참조한다.**
@@ -251,9 +256,9 @@ docker exec qm-redis redis-cli KEYS 'qm:gameconfig:*'
 # 특정 모드 설정 보기
 docker exec qm-redis redis-cli HGETALL qm:gameconfig:LOL:RANKED_SOLO
 
-# 모드 목록 보기 (12개여야 한다)
-docker exec qm-redis redis-cli SMEMBERS qm:gameconfig:modes:LOL
-docker exec qm-redis redis-cli SCARD qm:gameconfig:modes:LOL
+# 모드가 들어갔는지 보기 (모드 HASH 키 목록. LoL 12개 / PUBG 8개여야 한다)
+docker exec qm-redis redis-cli --scan --pattern 'qm:gameconfig:LOL:*' | grep -v ':tier'
+docker exec qm-redis redis-cli --scan --pattern 'qm:gameconfig:PUBG:*' | grep -v ':tier'
 
 # 티어 사다리 보기 (32개여야 한다)
 docker exec qm-redis redis-cli ZRANGE qm:gameconfig:LOL:tier 0 -1 WITHSCORES

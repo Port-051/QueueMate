@@ -44,7 +44,7 @@ qm:party:ready:{partyId}                       SET userIds
 qm:rate:{scope}:{identity}:{window}            counter
 qm:lock:reservation-batch                      short lease (전역 1개, docs/11 #24)
 qm:block:{userId}                              SET blockedUserIds (read model)
-qm:gameconfig:modes:{game}                     STRING JSON + TTL (활성 mode 목록 캐시)
+qm:gameconfig:modes:{game}                     (없앴다 2026-09-15 — 모드 HASH 존재로 판단. docs/GAME_CONFIG.md)
 qm:gameconfig:{game}:{mode}                    HASH + TTL (mode 설정 캐시, DB가 원본)
 qm:pubsub:push:{userId}                        PUB/SUB channel (사용자 알림 fanout)
 qm:sse:conn:{userId}                           SET connectionIds (연결 관측용)

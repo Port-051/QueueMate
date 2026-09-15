@@ -118,8 +118,9 @@ docker compose up -d redis
 # 모드 설정 시드 (matching 저장소 **루트**에서 — seed/ 는 backend/ 밖이다)
 docker exec -i qm-redis redis-cli < seed/gameconfig.redis
 
-# 확인 — 12가 나와야 한다
-docker exec qm-redis redis-cli SCARD qm:gameconfig:modes:LOL
+# 확인 — 티어 사다리가 LoL 32 / PUBG 27 이어야 한다
+docker exec qm-redis redis-cli ZCARD qm:gameconfig:LOL:tier
+docker exec qm-redis redis-cli ZCARD qm:gameconfig:PUBG:tier
 ```
 
 ### 앱 실행
@@ -299,7 +300,6 @@ POST /api/v1/match-requests
 | 키 | 타입 | 뜻 |
 |---|---|---|
 | `qm:gameconfig:LOL:{modeKey}` | HASH | `targetPartySize`, `positionUniqueness`, `tierRule`(`NONE` / `EXIST`). 시드가 원본. `maxTierGap` 은 **없앴다** — 시드가 `HDEL` 로 걷어낸다 |
-| `qm:gameconfig:modes:LOL` | SET | 모드 목록 |
 | `qm:gameconfig:LOL:tier` | ZSET | **티어 사다리. 티어 값의 원본이다** (자바 enum 은 없다). score = 단계 번호 `0 UNRANKED`, `1 IRON_4` … `31 CHALLENGER` (32개). Lua 가 `ZRANK` 로 순번을 뽑고 `ZRANGE` 로 칸 목록을 만든다. **중간에 값을 끼워 넣으면 이미 만들어진 파티의 `tierLo`/`tierHi` 가 엉뚱한 칸을 가리킨다** — 큐가 비어 있을 때 바꿔라 |
 | `qm:gameconfig:LOL:tier-range:{modeKey}` | HASH | `tierRule` 이 `NONE` 이 **아닌** 모드가 갖는다(지금은 `RANKED_SOLO` + `RANKED_FLEX_2/3/5` 넷). `GOLD_4 → SILVER_4:PLATINUM_1` 처럼 **단 단위** 허용 범위. `SOLO_ONLY` 면 그 티어는 파티를 못 만든다. 줄이 없으면 그 티어는 400이다(fail-closed) |
 | `qm:user:active-request:{userId}` | HASH | 활성 요청. `requestId/game/modeKey/voicePreference/playPurpose/keyValue/tier/partyId`. 이 키의 존재 자체가 INV-1 선점이다 (`claim-request.lua`). 배정 전까지는 TTL 60초 |

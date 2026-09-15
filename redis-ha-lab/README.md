@@ -59,7 +59,8 @@ tail -1 .env                      # HOST_IP=172.22.x.x 가 마지막 줄이어�
 
 # (3) 앱 시드. 기존 절차와 같다 (START_HERE.md).
 docker exec -i qm-ha-master redis-cli < ../seed/gameconfig.redis
-docker exec qm-ha-master redis-cli SCARD qm:gameconfig:modes:LOL     # 12 가 나와야 한다
+docker exec qm-ha-master redis-cli ZCARD qm:gameconfig:LOL:tier      # 32 가 나와야 한다
+# (2026-09-15 이전에는 모드 목록 SET 을 SCARD 로 봤으나 그 키는 없앴다)
 
 # (4) 첫 페일오버. master 를 죽이고 승격을 지켜본다.
 ./scripts/kill-master.sh

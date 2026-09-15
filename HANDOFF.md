@@ -19,35 +19,28 @@
 - 쓰이지 않던 `AcceptanceStatus` / `ProposalStatus` 삭제.
 - **GitHub**: private 저장소 `github.com/rlaehddus302/queuemate-matching` (`main`).
 
-### ⚠️ 테스트를 마지막으로 돌린 뒤에 코드가 바뀌었다
+### 테스트 — HEAD 기준 24건 통과 (2026-09-15)
 
-마지막 통과 기록은 `concurrency.*` 7건 + `PushNotificationTest` 6건이다. 그 뒤에
-validator(`NONE` 모드에 tier 가 오면 400), `TieredAssigner` 정리, enum 삭제,
-`KeyConditionType` 변경이 들어갔다. **컴파일만 확인했다.**
-`ProposalIdempotencyTest`(11건)는 티어 변경 뒤 한 번도 안 돌렸다.
-
-→ **다음 세션 첫 작업으로 셋 다 돌려라.** 방법은 아래 §5.
+`concurrency.*` 7 + `PushNotificationTest` 6 + `ProposalIdempotencyTest` 11 = **24/24 통과.**
+결과 로그에서 `ERR Error running script` / `RedisSystemException` / ERROR 로그도 0건이었다.
+**작업 트리가 아니라 커밋된 HEAD 를 풀어서 돌린 결과다** — 아래 파일 때문에 작업 트리는 컴파일이 안 된다.
 
 ### 작업 트리에 커밋 안 된 것
 
-`validation/pubg/PubgConditoinValidator.java` — **사용자가 작성 중**이다(플랫폼 값 검증을
-시작한 상태). 건드리지 말고, 이어서 할지 사용자에게 물어라. 참고로:
-- 파일명 오타(`Conditoin`), `@Component` 가 없어 **빈으로 등록되지 않는다**
+`validation/pubg/PubgConditoinValidator.java` — **사용자가 작성 중**이다. 건드리지 마라.
+- 작성 중이라 **작업 트리 전체가 컴파일되지 않을 수 있다.** 그러면 테스트는 HEAD 를 풀어서 돌려라
+- `@Service` 가 붙어 있어 완성되면 빈으로 등록된다
+- 모드 존재는 모드 HASH 의 `tierRule` 로 보도록 이미 바뀌었다(모드 목록 SET 은 없앴다)
+- 파일명 오타(`Conditoin`)
 - `command.getKeyCondition()` 이 null 일 수 있다(DTO 에 `@NotNull` 없음) — `LolConditionValidator` 첫 가드 참고
 
 ---
 
-## 2. 사용자 결정 대기 — 시작 전에 물어라
+## 2. 사용자가 정한 것 (2026-09-15)
 
-1. **"lol 폴더 지워라"가 어느 폴더인가.** `domain/lol/` 은 `LolPosition.java` 하나만 남았는데
-   `LolCandidateRule` · `PartyLeaver` · `LolConditionValidator` 3곳이 써서 지우면 빌드가 깨진다.
-   빈 폴더는 `rule/pubg/`, `rule/valorant/`, `validation/valorant/` 이다.
-2. **`domain/common/` 구조.** "공통인 건 common 폴더 하나에" 요청. `domain/` 최상위 8개
-   (`GameKey` `KeyConditionType` `VoicePreference` `PlayPurpose` `ActiveRequest`
-   `CancelResult` `MatchRequestStatus` `ProposalResult`)를 `domain/common/` 으로 옮기고
-   `domain/lol/` 을 남기는 안을 제시했고 **답을 못 받았다.** import 가 넓게 바뀌니 한 번에 해라.
-3. **PUBG 모드를 8개(TPP/FPP 분리)로 갈지.** 시점은 파티 구성을 막지 않는 큐 선택이라
-   `modeKey` 에 접기로 했으나 확정 답은 없다.
+- **폴더는 아무것도 지우지 않는다.** `domain/lol/LolPosition` 은 쓰인다.
+- **`domain/` 구조는 그대로 유지한다.** `domain/common/` 으로 옮기지 않는다.
+- **PUBG 모드는 8개** (NORMAL/RANKED × DUO/SQUAD × TPP/FPP).
 
 ---
 
@@ -55,12 +48,12 @@ validator(`NONE` 모드에 tier 가 오면 400), `TieredAssigner` 정리, enum �
 
 ### A. PUBG 구현 (진행 중)
 
-**설계는 끝났고 시드·코드는 아직 없다.**
+**시드는 들어갔다(`seed/gameconfig.redis` 의 PUBG 섹션, 생성·검증 완료). 코드는 아직 없다.**
+모드 목록 SET(`qm:gameconfig:modes:*`)은 사용자 결정으로 **없앴다** — 모드 존재는 모드 HASH 로 판단한다.
 
 | 키 | 내용 |
 |---|---|
 | `qm:gameconfig:PUBG:{modeKey}` | `NORMAL_{DUO,SQUAD}_{TPP,FPP}` → `tierRule NONE` / `RANKED_{DUO,SQUAD}_{TPP,FPP}` → `EXIST`. 듀오 2, 스쿼드 4. `positionUniqueness false` |
-| `qm:gameconfig:modes:PUBG` | 위 8개 |
 | `qm:gameconfig:PUBG:tier` | ZSET 27개. `0 UNRANKED`, `1 BRONZE_4` … `24 DIAMOND_1`, `25 MASTER`, `26 SURVIVOR` (크리스탈 포함 6티어 × 4단) |
 | `qm:gameconfig:PUBG:tier-range:{modeKey}` | **듀오 ±11 / 스쿼드 ±5.** `UNRANKED` 는 `SOLO_ONLY` |
 
@@ -76,7 +69,6 @@ validator(`NONE` 모드에 tier 가 오면 400), `TieredAssigner` 정리, enum �
 **표는 손으로 쓰지 말고 생성 스크립트로 만들고**, 비대칭 0건 / 파티 폭을 기계로 검증해라.
 
 남은 코드:
-- `seed/gameconfig.redis` 에 PUBG 섹션
 - `validation/pubg/` — 위 §1 참고
 - `rule/pubg/PubgCandidateRule` + Assigner
 - `redis/pubg/*.lua` — **LoL 스크립트를 고쳐 쓰지 말고 자기 디렉터리에** (D-7)
