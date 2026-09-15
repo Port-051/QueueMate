@@ -7,6 +7,6 @@ import java.util.List;
  *
  * <p>티어를 보는 배정과 보지 않는 배정이 같은 값을 쓰므로 어느 한쪽에 두지 않는다.
  */
-public record ModeConfig(String targetPartySize, boolean unique, List<String> keyValues,
+public record LolModeConfig(String targetPartySize, boolean unique, List<String> keyValues,
                          String tierRule) {
 }

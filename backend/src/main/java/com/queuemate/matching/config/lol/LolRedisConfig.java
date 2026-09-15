@@ -11,35 +11,39 @@ import static com.queuemate.matching.config.RedisConfig.readScript;
 /**
  * LoL 배정·취소 Lua 스크립트 빈 ({@code resources/redis/lol/}).
  *
- * <p><b>메서드 이름을 바꾸지 마라.</b> 다섯 개가 전부 {@code RedisScript<List>} 라 Spring 은 주입받는
- * 필드 이름({@code rule/lol/*Assigner.java}, {@code PartyLeaver.java})으로 고른다. 바꾸면 컴파일은
- * 통과하고 기동 때 터진다. LoL 은 게임을 나누기 전에 생긴 이름이라 게임 접두사가 없다 — 다른 게임의
- * 빈은 이 이름과 겹치지 않게 접두사를 붙인다({@link com.queuemate.matching.config.pubg.PubgRedisConfig}).
+ * <p><b>빈 이름 = 주입 필드 이름이다. 메서드 이름을 바꾸면 필드도 같이 바꿔라.</b> 다섯 개가 전부
+ * {@code RedisScript<List>} 라 Spring 은 주입받는 필드 이름({@code rule/lol/Lol*Assigner.java},
+ * {@code LolPartyLeaver.java}, 테스트의 {@code ProposalIdempotencyTest})으로 고른다. 한쪽만 바꾸면
+ * 컴파일은 통과하고 기동 때 터진다.
+ *
+ * <p><b>{@code lol} 접두사를 붙인다.</b> PUBG 도 같은 타입의 빈을 두므로({@code pubg} 접두사,
+ * {@link com.queuemate.matching.config.pubg.PubgRedisConfig}) 접두사가 없으면 이름이 겹치거나, 다른
+ * 게임 Assigner 가 롤 이름으로 필드를 선언했을 때 <b>에러 없이 롤 스크립트가 주입된다.</b>
  */
 @Configuration
 public class LolRedisConfig {
 
     @Bean
     @SuppressWarnings("rawtypes")
-    public RedisScript<List> createOrCheckPartyUntieredScript() {
+    public RedisScript<List> lolCreateOrCheckPartyUntieredScript() {
         return RedisScript.of(readScript("redis/lol/create-or-check-party-untiered.lua"), List.class);
     }
 
     @Bean
     @SuppressWarnings("rawtypes")
-    public RedisScript<List> joinPartyUntieredScript() {
+    public RedisScript<List> lolJoinPartyUntieredScript() {
         return RedisScript.of(readScript("redis/lol/join-party.lua"), List.class);
     }
 
     @Bean
     @SuppressWarnings("rawtypes")
-    public RedisScript<List> joinTieredPartyUntieredScript() {
+    public RedisScript<List> lolJoinPartyTieredScript() {
         return RedisScript.of(readScript("redis/lol/join-party-tiered.lua"), List.class);
     }
 
     @Bean
     @SuppressWarnings("rawtypes")
-    public RedisScript<List> createOrCheckPartyTieredScript() {
+    public RedisScript<List> lolCreateOrCheckPartyTieredScript() {
         return RedisScript.of(readScript("redis/lol/create-or-check-party-tiered.lua"), List.class);
     }
 
@@ -50,7 +54,7 @@ public class LolRedisConfig {
      */
     @Bean
     @SuppressWarnings("rawtypes")
-    public RedisScript<List> leavePartyScript() {
+    public RedisScript<List> lolLeavePartyScript() {
         return RedisScript.of(readScript("redis/lol/leave-party.lua"), List.class);
     }
 }

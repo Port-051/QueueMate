@@ -15,29 +15,39 @@ import java.util.*;
 import static com.queuemate.matching.rule.lol.LolScriptSupport.*;
 
 /**
- * 티어를 보지 않는 모드의 배정. 자기 인자를 조립하고, 스크립트를 부르고, 결과를 읽는다.
+ * 티어를 보는 모드의 배정. 자기 인자를 조립하고, 스크립트를 부르고, 결과를 읽는다.
  *
- * <p>색인이 keyValue 하나짜리 1차원이라 KEYS[3..] 도 keyValue 개수만큼이고
- * ARGV 도 티어 자리 없이 ARGV[9..] 부터 바로 keyValue 목록이다. 티어 자리를
- * 비워 두고 맞추던 시절이 있었으나, 두 배정이 인자를 따로 조립하게 되면서 없앴다.
+ * <p>티어 없는 배정과 다른 점은 색인이 (포지션 x 티어) 격자라는 것과, 그 격자를 다루려고
+ * ARGV[9] 에 내 티어 이름을 싣는다는 것뿐이다. 그래서 keyValue 목록은 ARGV[10..] 부터다.
+ *
+ * <p><b>티어 규칙을 해석하는 자리는 여기가 아니라 Lua 다.</b> 예전에는 이 클래스가
+ * {@code tierRule} 을 보고 표/폭을 해석해 {@code [최저, 최고]} 로 환산한 뒤 숫자만
+ * 넘겼다. 지금은 스크립트가 직접 {@code tier-range} 표를 읽고 티어 사다리
+ * ({@code qm:gameconfig:LOL:tier}) 로 순번을 환산한다. 그래서 규칙이 바뀌어도
+ * 자바는 그대로다 — 고칠 곳이 Redis 데이터 한 곳으로 모인다.
+ *
+ * <p>같은 이유로 <b>격자를 KEYS 로 통째로 넘기지 않는다.</b> 티어 접미사가 없는 needs
+ * 키만 넘기고 칸 키는 스크립트가 {@code ':' .. 티어이름} 으로 조립한다. 단(division)이
+ * 들어가 티어가 32개가 되면 격자가 (포지션 6 x 티어 32) = 192 칸이라, 호출마다 그만큼을
+ * 넘겨야 했다. 지금은 {@code 4 + 포지션 개수} 로 고정이다.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class UntieredAssigner {
+public class LolTieredAssigner {
 
     private final StringRedisTemplate redis;
     private final LolPartyKeys keys;
 
     @SuppressWarnings("rawtypes")
-    private final RedisScript<List> createOrCheckPartyUntieredScript;
+    private final RedisScript<List> lolCreateOrCheckPartyTieredScript;
     @SuppressWarnings("rawtypes")
-    private final RedisScript<List> joinPartyUntieredScript;
+    private final RedisScript<List> lolJoinPartyTieredScript;
     private final PushPublisher pushPublisher;
 
     /**
      * 제안의 시한(초). 정원이 차는 순간 {@code expiresAt = now + ttl} 로 환산해
-     * 파티 HASH 에 적는다 — 그 뒤로는 늘어나지 않는다(join-party.lua 의 HSETNX).
+     * 파티 HASH 에 적는다 — 그 뒤로는 늘어나지 않는다(join-party-tiered.lua 의 HSETNX).
      *
      * <p>생성자 주입이 아니라 필드 주입인 것은 Lombok 의 {@code @RequiredArgsConstructor}
      * 가 {@code @Value} 를 생성자 파라미터로 옮겨 주지 않기 때문이다
@@ -45,6 +55,7 @@ public class UntieredAssigner {
      */
     @Value("${queuemate.proposal.ttl-seconds}")
     private long proposalTtlSeconds;
+
     /**
      * 들어갈 파티를 정한다. <b>후보 풀 락을 쥔 채로 실행된다.</b>
      *
@@ -54,17 +65,16 @@ public class UntieredAssigner {
      *
      * <p>그래서 이 안에서는 Redis 명령만 실행한다. 차단 조회는 호출부가 이미 끝냈다.
      */
-    public void assign(CreateMatchRequestCommand command, ModeConfig config, Set<String> blockedUserIds) {
+    public void assign(CreateMatchRequestCommand command, LolModeConfig config, Set<String> blockedUserIds) {
         String newPartyId = UUID.randomUUID().toString();
         long now = System.currentTimeMillis();
         List<String> scriptKeys = scriptKeys(command, config, newPartyId);
 
         for (int start = 0; start < MAX_CANDIDATE_SCAN; start++) {
-            List<Object> found = execute(redis, createOrCheckPartyUntieredScript, scriptKeys,
+            List<Object> found = execute(redis, lolCreateOrCheckPartyTieredScript, scriptKeys,
                     createOrCheckArgs(command, config, newPartyId, now, start));
             long code = code(found);
 
-            // 1 = 후보가 없어 새로 만들고 들어갔다 / -1 = 설정과 맞지 않는 keyValue
             // 음수는 배정하지 않고 끝낸다는 뜻이다.
             //   -1 = 설정과 맞지 않는 keyValue
             //   -2 = claim 의 TTL 이 먼저 끝나 활성 요청이 사라졌다 (claim-request.lua 참고)
@@ -72,7 +82,8 @@ public class UntieredAssigner {
                 log.debug("create-or-check result code={} userId={}", code, command.getUserId());
                 return;
             }
-            if (code == CREATED_NEW_PARTY) {
+            if (code == CREATED_NEW_PARTY)
+            {
                 pushPublisher.publishAll(List.of(command.getUserId()),
                         PushEventType.MATCH_QUEUE_UPDATED,
                         Map.of("memberNumber", 1));
@@ -87,15 +98,16 @@ public class UntieredAssigner {
             return;
         }
 
-        // 상한까지 봤는데 전부 차단이었다. 더 훑는 대신 새 파티를 만든다.
+        // 상한까지 봤는데 전부 차단이었다. 여기서 그냥 끝내면 이 사용자는 파티도 없고
+        // 색인에도 안 올라간 채 활성 요청만 남아 영영 매칭되지 않는다.
         createNewParty(command, config, scriptKeys, newPartyId, now);
     }
 
     /** 찾아 둔 후보 파티에 들어간다. */
-    private void joinParty(CreateMatchRequestCommand command, ModeConfig config,
+    private void joinParty(CreateMatchRequestCommand command, LolModeConfig config,
                            List<String> scriptKeys, String partyId, long now,
                            List<String> memberIds) {
-        List<Object> result = execute(redis, joinPartyUntieredScript, scriptKeys,
+        List<Object> result = execute(redis, lolJoinPartyTieredScript, scriptKeys,
                 joinArgs(command, config, partyId, now));
         long code = code(result);
 
@@ -149,18 +161,19 @@ public class UntieredAssigner {
     }
 
     /**
-     * 새 파티를 만들고 들어간다.
+     * 후보가 전부 차단이었을 때 새 파티를 만든다.
      *
      * <p>스크립트는 후보를 못 찾았을 때만 새로 만든다. 색인 끝을 지나는 start 를 주면
      * 후보가 잡히지 않으므로 그 분기로 간다. 락을 쥐고 있어 색인 크기는 그동안 변하지 않는다.
      */
-    private void createNewParty(CreateMatchRequestCommand command, ModeConfig config,
+    private void createNewParty(CreateMatchRequestCommand command, LolModeConfig config,
                                 List<String> scriptKeys, String newPartyId, long now) {
-        Long candidateCount = redis.opsForZSet()
-                .zCard(keys.needsKey(command, command.getKeyCondition().getValue()));
+        String myNeedsKey = keys.needsKey(command,
+                command.getKeyCondition().getValue(), command.getTier());
+        Long candidateCount = redis.opsForZSet().zCard(myNeedsKey);
         long pastTheEnd = candidateCount == null ? 0 : candidateCount;
 
-        List<Object> result = execute(redis, createOrCheckPartyUntieredScript, scriptKeys,
+        List<Object> result = execute(redis, lolCreateOrCheckPartyTieredScript, scriptKeys,
                 createOrCheckArgs(command, config, newPartyId, now, pastTheEnd));
         long code = code(result);
 
@@ -170,25 +183,26 @@ public class UntieredAssigner {
         if (code != CREATED_NEW_PARTY) {
             log.warn("새 파티를 만들지 못했다 code={} userId={}", code, command.getUserId());
         }
-        else
-        {
+        else {
             pushPublisher.publishAll(List.of(command.getUserId()),
                     PushEventType.MATCH_QUEUE_UPDATED,
                     Map.of("memberNumber", 1));
         }
     }
 
-    /** 두 스크립트가 같은 KEYS 를 쓴다. join-party 쪽은 KEYS[1] 을 보지 않는다. */
-    private List<String> scriptKeys(CreateMatchRequestCommand command, ModeConfig config, String newPartyId) {
+    /** 두 스크립트가 같은 KEYS 를 쓴다. join 쪽은 KEYS[1] 을 보지 않는다. */
+    private List<String> scriptKeys(CreateMatchRequestCommand command, LolModeConfig config, String newPartyId) {
         List<String> scriptKeys = new ArrayList<>();
-        scriptKeys.add(keys.partyKey(newPartyId));                                  // KEYS[1]
-        scriptKeys.add(keys.activeRequestKey(command.getUserId()));                 // KEYS[2]
-        config.keyValues().forEach(v -> scriptKeys.add(keys.needsKey(command, v))); // KEYS[3..]
+        scriptKeys.add(keys.partyKey(newPartyId));                          // KEYS[1]
+        scriptKeys.add(keys.activeRequestKey(command.getUserId()));         // KEYS[2]
+        scriptKeys.add(keys.tierRangeKey(command));                         // KEYS[3]
+        scriptKeys.add(keys.tierKey());                                     // KEYS[4]
+        config.keyValues().forEach(v -> scriptKeys.add(keys.needsKey(command, v))); // KEYS[5..]
         return scriptKeys;
     }
 
-    /** create-or-check-party-untiered.lua 인자. ARGV[1] 은 후보가 없을 때 만들 파티 id 다. */
-    private List<String> createOrCheckArgs(CreateMatchRequestCommand command, ModeConfig config,
+    /** create-or-check-party-tiered.lua 인자. ARGV[1] 은 후보가 없을 때 만들 파티 id 다. */
+    private List<String> createOrCheckArgs(CreateMatchRequestCommand command, LolModeConfig config,
                                            String newPartyId, long now, long start) {
         List<String> args = new ArrayList<>();
         args.add(newPartyId);                               // ARGV[1]
@@ -199,18 +213,23 @@ public class UntieredAssigner {
         args.add(LolPartyKeys.PARTY_PREFIX);                // ARGV[6]
         args.add(command.getUserId());                      // ARGV[7]
         args.add(String.valueOf(start));                    // ARGV[8] 색인의 몇 번째부터 볼지
-        args.addAll(config.keyValues());                    // ARGV[9..]
+        args.add(command.getTier());                        // ARGV[9]
+        args.addAll(config.keyValues());                    // ARGV[10..]
         return args;
     }
 
     /**
-     * join-party.lua 인자. ARGV[1] 이 "들어갈 파티 id" 라는 점이 위와 다르다.
+     * join-party-tiered.lua 인자. ARGV[1] 이 "들어갈 파티 id" 라는 점이 위와 다르다.
      *
      * <p>ARGV[8] 은 후보를 찾는 쪽의 start 자리인데 이쪽은 후보를 찾지 않는다. 비워 둘 수
-     * 없어서(keyValue 개수를 {@code #ARGV - 8} 로 센다) 채우던 자리이므로, 그 칸에
+     * 없어서(포지션 개수를 {@code #ARGV - 9} 로 센다) 채우던 자리이므로, 그 칸에
      * {@code expiresAt} 을 싣는다. 인자 개수가 그대로라 개수 계산도 그대로다.
+     *
+     * <p>티어 자리(ARGV[9])는 이쪽에서 읽히지 않는다 — 파티가 받아들일 범위는 만들 때
+     * 정해져 파티 HASH 의 {@code tierLo}/{@code tierHi} 에 있고, 스크립트는 그것을 읽는다.
+     * 여기서 내 티어로 다시 계산하면 파티가 실제로 올라가 있는 칸과 어긋난다.
      */
-    private List<String> joinArgs(CreateMatchRequestCommand command, ModeConfig config,
+    private List<String> joinArgs(CreateMatchRequestCommand command, LolModeConfig config,
                                   String partyId, long now) {
         List<String> args = new ArrayList<>();
         args.add(partyId);                                  // ARGV[1]
@@ -221,7 +240,8 @@ public class UntieredAssigner {
         args.add(LolPartyKeys.PARTY_PREFIX);                // ARGV[6]
         args.add(command.getUserId());                      // ARGV[7]
         args.add(String.valueOf(expiresAt(now)));           // ARGV[8] 제안 시한
-        args.addAll(config.keyValues());                    // ARGV[9..]
+        args.add(command.getTier());                        // ARGV[9]
+        args.addAll(config.keyValues());                    // ARGV[10..]
         return args;
     }
 

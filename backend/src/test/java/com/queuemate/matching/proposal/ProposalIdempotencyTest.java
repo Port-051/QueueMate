@@ -65,7 +65,7 @@ class ProposalIdempotencyTest extends ConcurrencyTestSupport {
     /** 페일오버 재실행을 흉내 내려고 직접 부른다. 이름이 곧 빈 선택이다 */
     @SuppressWarnings("rawtypes")
     @Autowired
-    private RedisScript<List> joinPartyUntieredScript;
+    private RedisScript<List> lolJoinPartyUntieredScript;
 
     // ── 제안이 열리는 순간 ───────────────────────────────────────────────────
 
@@ -287,7 +287,7 @@ class ProposalIdempotencyTest extends ConcurrencyTestSupport {
     /**
      * {@code join-party.lua} 를 같은 파티에 대고 한 번 더 실행한다.
      *
-     * <p>KEYS / ARGV 배치는 {@code UntieredAssigner#scriptKeys} · {@code #joinArgs} 와
+     * <p>KEYS / ARGV 배치는 {@code LolUntieredAssigner#scriptKeys} · {@code #joinArgs} 와
      * 같아야 한다. 그쪽이 private 이라 여기서 다시 조립한다 — 배치가 어긋나면 이 테스트는
      * 스크립트가 아니라 제 조립을 검사하게 되므로, 그 두 메서드를 고치면 여기도 봐야 한다.
      */
@@ -312,7 +312,7 @@ class ProposalIdempotencyTest extends ConcurrencyTestSupport {
         args.addAll(positions);                             // ARGV[9..]
 
         @SuppressWarnings("unchecked")
-        List<Object> result = redis.execute(joinPartyUntieredScript, keys, args.toArray());
+        List<Object> result = redis.execute(lolJoinPartyUntieredScript, keys, args.toArray());
         // 2 = 들어갔고 정원이 찼다. 재실행이므로 인원은 늘지 않는다
         assertThat(((Number) result.get(0)).longValue()).isEqualTo(2);
     }

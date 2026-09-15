@@ -23,7 +23,7 @@ import java.nio.charset.StandardCharsets;
  * <p><b>빈 이름 주의.</b> 스크립트 빈은 같은 타입({@code RedisScript<List>} 등)이 여럿이라 Spring 은
  * <b>주입받는 필드 이름 = 빈 메서드 이름</b>으로 고른다. 메서드 이름을 바꾸면 컴파일은 통과하고
  * 기동 때 터진다. 서로 다른 설정 클래스에 같은 메서드 이름을 두면 빈 이름이 겹쳐 역시 기동이 실패한다 —
- * 그래서 게임별 빈은 게임 접두사를 붙인다(LoL 은 접두사 없이 먼저 생긴 이름을 그대로 쓴다).
+ * 그래서 게임별 빈은 {@code lol} / {@code pubg} 처럼 게임 접두사를 붙인다. 여기 있는 공통 빈만 접두사가 없다.
  */
 @Configuration
 public class RedisConfig {

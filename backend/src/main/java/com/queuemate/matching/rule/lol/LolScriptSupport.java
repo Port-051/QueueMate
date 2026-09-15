@@ -9,7 +9,7 @@ import java.util.Set;
 /**
  * LoL 의 Lua 스크립트를 부르는 쪽들이 함께 쓰는 조각들.
  *
- * <p>배정({@link UntieredAssigner} / {@link TieredAssigner})과 취소({@link PartyLeaver})가
+ * <p>배정({@link LolUntieredAssigner} / {@link LolTieredAssigner})과 취소({@link LolPartyLeaver})가
  * 모두 {@code RedisScript<List>} 를 부르고 <b>첫 칸을 코드로 읽는다.</b> 그 두 가지
  * ({@link #execute} / {@link #code})는 배정과 무관한 배관이라 여기 있다 —
  * 취소가 쓰기 시작하면서 {@code LolAssignSupport} 라는 이름이 사실과 어긋나 이름을 바꿨다.

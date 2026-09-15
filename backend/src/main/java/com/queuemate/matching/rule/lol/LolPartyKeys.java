@@ -42,7 +42,7 @@ public class LolPartyKeys {
     /**
      * 티어 격자의 한 칸을 가리키는 needs 키.
      *
-     * <p>배정({@link TieredAssigner})과 취소({@link PartyLeaver})가 <b>문자열까지 같은 키</b>를
+     * <p>배정({@link LolTieredAssigner})과 취소({@link LolPartyLeaver})가 <b>문자열까지 같은 키</b>를
      * 만들어야 한다. 취소는 배정이 색인에 올려 둔 파티를 그 키에서 빼거나 되돌리는데,
      * 접미사 규칙이 한쪽만 달라지면 컴파일은 통과하고 비운 자리를 아무도 못 찾게 된다.
      * 그래서 양쪽 다 인라인으로 붙이던 {@code ":" + tier} 를 여기 한 자리로 모았다.

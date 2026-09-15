@@ -22,9 +22,9 @@ import java.util.Set;
  *
  * <p>배정도 취소도 직접 하지 않는다. 모드 설정을 읽고, 차단 목록을 (락 밖에서) 가져오고,
  * 티어 유무로 assigner 를 골라 후보 풀 락 안에서 부르는 데까지가 배정에 대한 몫이다.
- * 실제 인자 조립과 스크립트 호출은 {@link UntieredAssigner} / {@link TieredAssigner} 가 한다.
+ * 실제 인자 조립과 스크립트 호출은 {@link LolUntieredAssigner} / {@link LolTieredAssigner} 가 한다.
  *
- * <p>취소도 같은 모양이다. {@link PartyLeaver} 가 통째로 맡는다 — 배정과 달리 고를 것이
+ * <p>취소도 같은 모양이다. {@link LolPartyLeaver} 가 통째로 맡는다 — 배정과 달리 고를 것이
  * 없어(스크립트가 한 벌이다) 여기서는 넘기기만 한다.
  */
 @Component
@@ -35,9 +35,9 @@ public class LolCandidateRule implements CandidateRule {
     private final PoolLock poolLock;
     private final BlockRepository blockRepository;
     private final LolPartyKeys keys;
-    private final UntieredAssigner untieredAssigner;
-    private final TieredAssigner tieredAssigner;
-    private final PartyLeaver partyLeaver;
+    private final LolUntieredAssigner untieredAssigner;
+    private final LolTieredAssigner tieredAssigner;
+    private final LolPartyLeaver partyLeaver;
 
     @Override
     public boolean supports(GameKey game) {
@@ -46,7 +46,7 @@ public class LolCandidateRule implements CandidateRule {
 
     @Override
     public void canJoin(CreateMatchRequestCommand command) {
-        ModeConfig config = loadModeConfig(command);
+        LolModeConfig config = loadModeConfig(command);
 
         // 내 차단 목록은 어느 후보를 보든 같다. 후보마다 다시 물을 이유가 없으므로
         // 락을 잡기 전에 한 번만 가져온다. 락 안에서 DB 를 치면 응답이 늦을 때
@@ -63,7 +63,7 @@ public class LolCandidateRule implements CandidateRule {
     }
 
     /** 이번 배정에 필요한 모드 설정. gameconfig 는 Redis 에서 읽기만 한다 (CLAUDE.md §3). */
-    private ModeConfig loadModeConfig(CreateMatchRequestCommand command) {
+    private LolModeConfig loadModeConfig(CreateMatchRequestCommand command) {
         HashOperations<String, String, String> ops = redis.opsForHash();
         List<String> config = ops.multiGet(
                 keys.gameConfigKey(command),
@@ -77,11 +77,11 @@ public class LolCandidateRule implements CandidateRule {
                 ? Arrays.stream(LolPosition.values()).map(Enum::name).toList()
                 : List.of(command.getKeyCondition().getValue());
 
-        return new ModeConfig(config.get(0), unique, keyValues, config.get(2));
+        return new LolModeConfig(config.get(0), unique, keyValues, config.get(2));
     }
 
     /**
-     * 매칭 요청을 취소하고 파티에서 뺀다. {@link PartyLeaver} 에 그대로 넘긴다.
+     * 매칭 요청을 취소하고 파티에서 뺀다. {@link LolPartyLeaver} 에 그대로 넘긴다.
      *
      * <p>배정처럼 티어 유무로 갈라 주지 않는다. {@code leave-party.lua} 는 한 벌이고
      * 티어 모드를 T 가 1보다 큰 격자로만 볼 뿐이라, 고를 것이 애초에 없다.

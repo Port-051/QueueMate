@@ -21,7 +21,7 @@ import static com.queuemate.matching.rule.lol.LolScriptSupport.*;
 /**
  * LoL 의 매칭 요청 취소. 자기 인자를 조립하고, 스크립트를 부르고, 결과를 읽는다.
  *
- * <p>배정이 {@link UntieredAssigner} / {@link TieredAssigner} 둘로 나뉜 것과 달리
+ * <p>배정이 {@link LolUntieredAssigner} / {@link LolTieredAssigner} 둘로 나뉜 것과 달리
  * <b>취소는 클래스가 하나다.</b> {@code leave-party.lua} 가 색인에 하는 일은 ZREM / ZADD
  * 뿐이고, 티어 유무의 차이는 칸 키에 티어 접미사가 붙느냐 하나뿐이다. 티어를 보지 않는
  * 모드는 접미사가 빈 문자열이라 keyValue 하나당 키 하나로 접힌다 — 티어를 도입하기 전의
@@ -31,13 +31,13 @@ import static com.queuemate.matching.rule.lol.LolScriptSupport.*;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class PartyLeaver {
+public class LolPartyLeaver {
 
     private final StringRedisTemplate redis;
     private final LolPartyKeys keys;
 
     @SuppressWarnings("rawtypes")
-    private final RedisScript<List> leavePartyScript;
+    private final RedisScript<List> lolLeavePartyScript;
 
     private final PushPublisher pushPublisher;
 
@@ -66,7 +66,7 @@ public class PartyLeaver {
         List<String> keyValues = keyValues(active, unique);
         boolean tiered = tiered(active);
 
-        List<Object> result = execute(redis, leavePartyScript,
+        List<Object> result = execute(redis, lolLeavePartyScript,
                 scriptKeys(active, keyValues),
                 leaveArgs(active, expectedRequestId, keyValues, unique, tiered));
 
