@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react';
 import * as api from '../api/client';
 import { readTokens, setAuthLostHandler, subscribeTokens, writeTokens } from '../api/http';
-import type { GameAccountView, UpdateUserRequest, UserProfile } from '../api/types';
+import type { GameAccountView, TokenResponse, UpdateUserRequest, UserProfile } from '../api/types';
 
 type Status = 'loading' | 'authenticated' | 'anonymous';
 
@@ -12,9 +12,12 @@ interface AuthValue {
   token: string | null;
   gameAccounts: GameAccountView[];
   login(email: string, password: string): Promise<void>;
+  /** 소셜 로그인 콜백이 들려준 일회용 코드로 세션을 연다. */
+  completeOAuth(code: string): Promise<void>;
   signup(email: string, password: string, nickname: string): Promise<void>;
   logout(): Promise<void>;
   updateProfile(patch: UpdateUserRequest): Promise<void>;
+  uploadAvatar(file: File): Promise<void>;
   refreshGameAccounts(): Promise<void>;
 }
 
@@ -70,8 +73,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, [refreshGameAccounts]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const tokens = await api.login({ email, password });
+  // 토큰을 어디서 받았든 세션을 여는 절차는 같다. 비밀번호와 소셜이 갈라지는 곳은 그 앞뿐이다.
+  const adoptTokens = useCallback(async (tokens: TokenResponse) => {
     writeTokens({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken });
     setToken(tokens.accessToken);
     const me = await api.getMe();
@@ -79,6 +82,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await refreshGameAccounts();
     setStatus('authenticated');
   }, [refreshGameAccounts]);
+
+  const login = useCallback(async (email: string, password: string) => {
+    await adoptTokens(await api.login({ email, password }));
+  }, [adoptTokens]);
+
+  const completeOAuth = useCallback(async (code: string) => {
+    await adoptTokens(await api.exchangeOAuthCode(code));
+  }, [adoptTokens]);
 
   const signup = useCallback(async (email: string, password: string, nickname: string) => {
     await api.signup({ email, password, nickname });
@@ -102,9 +113,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await api.updateMe(patch));
   }, []);
 
+  const uploadAvatar = useCallback(async (file: File) => {
+    setUser(await api.uploadAvatar(file));
+  }, []);
+
   const value = useMemo<AuthValue>(() => ({
-    status, user, token, gameAccounts, login, signup, logout, updateProfile, refreshGameAccounts,
-  }), [status, user, token, gameAccounts, login, signup, logout, updateProfile, refreshGameAccounts]);
+    status, user, token, gameAccounts, login, completeOAuth, signup, logout, updateProfile, uploadAvatar, refreshGameAccounts,
+  }), [status, user, token, gameAccounts, login, completeOAuth, signup, logout, updateProfile, uploadAvatar, refreshGameAccounts]);
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }

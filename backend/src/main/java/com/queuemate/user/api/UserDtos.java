@@ -77,12 +77,14 @@ public final class UserDtos {
             String externalGameId,
             String region,
             String rankCode,
+            String flexRankCode,
             OffsetDateTime verifiedAt
     ) {
         public static GameAccountView from(GameAccount account) {
             return new GameAccountView(
                     account.getId(), account.getProviderGame(), account.getExternalGameId(),
-                    account.getRegion(), account.getRankCode(), account.getVerifiedAt());
+                    account.getRegion(), account.getRankCode(), account.getFlexRankCode(),
+                    account.getVerifiedAt());
         }
     }
 

@@ -21,6 +21,12 @@ export const USE_MOCK = API_MODE === 'mock';
  */
 export const API_BASE: string = import.meta.env.VITE_API_BASE || '/api/v1';
 
+/**
+ * 소셜 로그인은 XHR이 아니라 브라우저 이동이라 `API_BASE`의 프록시를 타지 않는다.
+ * base가 절대 URL이면 그 origin을 앞에 붙여야 같은 서버로 간다.
+ */
+export const API_ORIGIN: string = API_BASE.startsWith('http') ? new URL(API_BASE).origin : '';
+
 /** WebSocket 경로. `/api/v1` 밖이다 (docs/14 §0.1). */
 export const WS_PATH = '/ws';
 

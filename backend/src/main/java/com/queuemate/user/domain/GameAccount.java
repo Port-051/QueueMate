@@ -39,8 +39,17 @@ public class GameAccount {
     @Column(name = "rank_code", length = 40)
     private String rankCode;
 
+    @Column(name = "flex_rank_code", length = 40)
+    private String flexRankCode;
+
     @Column(name = "verified_at")
     private OffsetDateTime verifiedAt;
+
+    @Column(name = "rank_updated_at")
+    private OffsetDateTime rankUpdatedAt;
+
+    @Column(name = "rank_synced_at")
+    private OffsetDateTime rankSyncedAt;
 
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -87,7 +96,40 @@ public class GameAccount {
         return rankCode;
     }
 
+    public String getFlexRankCode() {
+        return flexRankCode;
+    }
+
     public OffsetDateTime getVerifiedAt() {
         return verifiedAt;
+    }
+
+    public OffsetDateTime getRankUpdatedAt() {
+        return rankUpdatedAt;
+    }
+
+    public OffsetDateTime getRankSyncedAt() {
+        return rankSyncedAt;
+    }
+
+    /**
+     * 외부 API에서 읽어 온 티어를 반영한다.
+     *
+     * <p>둘 다 null이면 언랭이거나 아직 배치가 안 끝난 계정이다. 그것도 조회 결과이므로
+     * 시도한 시각은 남긴다. 남기지 않으면 랭크 없는 계정을 매 조회마다 다시 물어보게 된다.
+     *
+     * <p>verified_at은 건드리지 않는다. Riot ID가 존재한다는 것과 그 계정이 이 사용자의
+     * 것이라는 것은 다른 이야기다. 소유권은 RSO를 붙이기 전까지 확인할 수 없다.
+     */
+    public void applyRank(String soloRankCode, String flexRankCode, OffsetDateTime syncedAt) {
+        this.rankSyncedAt = syncedAt;
+        // 한 번의 조회로 두 큐를 함께 읽으므로, 없다고 온 큐는 지운다. 남겨 두면 시즌
+        // 초기화로 배치가 풀린 뒤에도 지난 시즌 티어가 계속 보인다.
+        // 조회에 실패했을 때는 여기까지 오지 않는다 (RiotRankService).
+        this.rankCode = soloRankCode;
+        this.flexRankCode = flexRankCode;
+        if (soloRankCode != null || flexRankCode != null) {
+            this.rankUpdatedAt = syncedAt;
+        }
     }
 }

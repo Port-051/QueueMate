@@ -212,6 +212,63 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/UserProfile' }
         '409': { description: Nickname already taken }
+  /users/me/avatar:
+    post:
+      summary: Upload a profile photo
+      description: |
+        사용자가 올린 이미지를 프로필 사진으로 쓴다. 프리셋 아바타를 고르는 것은
+        기존대로 `PATCH /users/me`의 `avatarUrl`이고, 이 엔드포인트는 파일을 받는 쪽이다.
+        둘은 같은 `avatarUrl` 한 칸을 공유한다. 마지막에 한 것이 이긴다.
+
+        서버가 **정사각 512px PNG로 정규화해서** 저장한다. 원본 그대로 두지 않는 이유는
+        두 가지다. 원본 크기를 그대로 내려주면 목록 화면에서 38px 자리에 수 MB가 오고,
+        업로드된 바이트를 그대로 서빙하면 이미지인 척하는 파일을 그대로 돌려주게 된다.
+
+        사진을 지우는 별도 엔드포인트는 없다. `PATCH /users/me`에 `avatarUrl: null`이다.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: PNG / JPEG / WebP. 5MiB 이하
+      responses:
+        '200':
+          description: 업로드됨. 갱신된 프로필을 돌려준다
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        '400': { description: 이미지로 열리지 않는다 (VALIDATION_FAILED) }
+        '413': { description: 5MiB 초과 (AVATAR_TOO_LARGE) }
+        '415': { description: 허용하지 않는 형식 (UNSUPPORTED_MEDIA_TYPE) }
+  /files/avatars/{objectId}:
+    get:
+      security: []
+      summary: Serve an uploaded profile photo
+      description: |
+        **인증을 걸지 않는다.** access token은 `localStorage`에 있고 `Authorization`
+        헤더로만 나가는데, `<img src>`는 그 헤더를 붙일 수 없다. 대신 `objectId`를
+        추측 불가능한 UUID로 두고 그것을 아는 사람만 받게 한다. 프리셋 아바타가
+        `/avatars/*.webp`로 이미 공개인 것과 같은 수준이다.
+
+        사진이 프로필에서 내려가면 파일도 지운다. 그때부터 이 경로는 404다.
+      parameters:
+        - name: objectId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+        '404': { description: 지워졌거나 없는 사진 (AVATAR_NOT_FOUND) }
   /users/me/game-accounts:
     get:
       summary: My linked game accounts
@@ -789,7 +846,21 @@ components:
         game: { $ref: '#/components/schemas/GameKey' }
         externalGameId: { type: string }
         region: { type: string, nullable: true }
-        rankCode: { type: string, nullable: true }
+        rankCode:
+          type: string
+          nullable: true
+          example: GOLD_2
+          description: |
+            **솔로/듀오 랭크.** 서버가 외부 API에서 읽어 채우는 파생 값이라 요청으로 넣을 수 없다.
+            형식은 `TIER_단계`이고, 마스터 위로는 단계가 없어 티어 이름만 온다 (`MASTER`).
+            언랭이거나 아직 읽지 못했으면 null이다.
+        flexRankCode:
+          type: string
+          nullable: true
+          example: PLATINUM_4
+          description: |
+            **자유 랭크.** `rankCode`와 같은 형식·같은 규칙이다. 둘은 서로 독립이라
+            한쪽만 있을 수 있다. LoL이 아닌 게임에서는 둘 다 null이다.
         verifiedAt: { type: string, format: date-time, nullable: true }
     CreateGameAccountRequest:
       type: object
@@ -830,6 +901,7 @@ components:
             - FRIENDSHIP_NOT_FOUND
             - BLOCK_NOT_FOUND
             - GAME_ACCOUNT_NOT_FOUND
+            - AVATAR_NOT_FOUND
             - FRIEND_REQUEST_NOT_FOUND
             # 409
             - EMAIL_ALREADY_IN_USE
@@ -860,6 +932,8 @@ components:
             - FRIEND_REQUEST_NOT_PENDING
             - BLOCKED_RELATION
             - ALREADY_BLOCKED
+            # 413
+            - AVATAR_TOO_LARGE
             # 415
             - UNSUPPORTED_MEDIA_TYPE
             # 429

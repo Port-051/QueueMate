@@ -4,6 +4,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import com.queuemate.common.error.ErrorResponseEntryPoint;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -41,6 +42,9 @@ public class SecurityConfig {
                         // 소셜 로그인은 토큰을 받기 전에 오가는 구간이라 인증을 걸 수 없다.
                         // 대신 state와 일회용 교환 코드로 흐름 자체를 검증한다.
                         .requestMatchers("/api/v1/auth/oauth/**").permitAll()
+                        // 업로드된 프로필 사진. <img src>는 Authorization 헤더를 못 붙인다.
+                        // 대신 objectId가 추측 불가능한 UUID다 (AvatarFileController).
+                        .requestMatchers(HttpMethod.GET, "/api/v1/files/avatars/*").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         // container의 error dispatch까지 막으면 인증된 요청의 404가 401로 뒤바뀐다.
                         // 응답 본문은 GlobalExceptionHandler가 만들고 여기서 새는 정보는 없다.

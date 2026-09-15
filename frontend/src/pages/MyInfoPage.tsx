@@ -2,7 +2,7 @@ import { FilterTierIcon } from '../components/FilterSymbols';
 import '../styles/introduction.css';
 import { GameBadge } from '../components/GameSymbol';
 import { ProfileSettings } from '../components/ProfileSettings';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
@@ -10,12 +10,16 @@ import type { GameKey } from '../api/types';
 import { IconCheck, IconLogout, IconPencil, IconPlus, IconShield } from '../components/icons';
 import { AVATAR_CHOICES, Avatar, Button, ConfirmDialog, Field, Modal, useToast } from '../components/ui';
 import { GAMES } from '../domain/gameConfig';
-import { gameFullLabel } from '../domain/labels';
+import { gameFullLabel, rankLabel } from '../domain/labels';
 import { useAuth } from '../state/AuthContext';
 import { useSocial } from '../state/SocialContext';
 
+/** 계약의 업로드 한도(contracts/openapi.yaml `/users/me/avatar`). */
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+const AVATAR_ACCEPT = 'image/png,image/jpeg,image/webp';
+
 export function MyInfoPage() {
-  const { user, gameAccounts, updateProfile, refreshGameAccounts, logout } = useAuth();
+  const { user, gameAccounts, updateProfile, uploadAvatar, refreshGameAccounts, logout } = useAuth();
   const { blocks } = useSocial();
   const toast = useToast();
   const navigate = useNavigate();
@@ -31,6 +35,11 @@ export function MyInfoPage() {
   // 모달 안에서만 쓰는 임시 선택이다. 저장 전까지 실제 프로필은 건드리지 않는다.
   const [picked, setPicked] = useState<string | null>(null);
   const [savingAvatar, setSavingAvatar] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const lolAccount = gameAccounts.find((account) => account.game === 'LOL');
+  const soloRank = rankLabel(lolAccount?.rankCode ?? null);
+  const flexRank = rankLabel(lolAccount?.flexRankCode ?? null);
 
   const nicknameChanged = nickname.trim() !== user?.nickname;
   const nicknameError = nicknameChanged && (nickname.trim().length < 2 || nickname.trim().length > 16) ? '닉네임은 2~16자로 입력해주세요.' : undefined;
@@ -53,6 +62,29 @@ export function MyInfoPage() {
   const openAvatarPicker = () => {
     setPicked(user?.avatarUrl ?? null);
     setAvatarOpen(true);
+  };
+
+  /**
+   * 업로드는 프리셋 선택과 달리 고른 즉시 올라간다. 저장 버튼을 기다리게 하면
+   * 파일을 화면에 미리 보여주기 위해 브라우저에만 있는 임시 상태를 또 만들어야 한다.
+   */
+  const pickFile = async (file: File | undefined) => {
+    if (!file) return;
+    // 서버도 같은 값으로 막지만, 5MiB를 왕복시킨 뒤 거절하는 것은 낭비다.
+    if (file.size > AVATAR_MAX_BYTES) { toast('사진은 5MB까지 올릴 수 있습니다', 'error'); return; }
+    setSavingAvatar(true);
+    try {
+      await uploadAvatar(file);
+      setPicked(null);
+      setAvatarOpen(false);
+      toast('프로필 사진을 변경했습니다', 'ok');
+    } catch (err) {
+      toast(isApiError(err) ? err.message : '사진을 올리지 못했습니다', 'error');
+    } finally {
+      setSavingAvatar(false);
+      // 같은 파일을 다시 고를 수 있어야 한다. 값이 남아 있으면 change가 안 뜬다.
+      if (fileInput.current) fileInput.current.value = '';
+    }
   };
 
   const saveAvatar = async () => {
@@ -140,8 +172,8 @@ export function MyInfoPage() {
         <section className="profile-section" aria-labelledby="profile-record-heading">
           <div className="profile-section-heading"><h2 id="profile-record-heading">내 전적</h2></div>
           <section className="linked-game-record" aria-label="롤 전적 정보">
-            <div className="linked-record-heading"><FilterTierIcon game="LOL" tier={null} size={26} /><strong>리그 오브 레전드 전적</strong><span>연동 대기</span></div>
-            <dl><div><dt>티어</dt><dd>—</dd></div><div><dt>승률</dt><dd>—</dd></div><div><dt>KDA</dt><dd>—</dd></div></dl>
+            <div className="linked-record-heading"><FilterTierIcon game="LOL" tier={lolAccount?.rankCode?.split('_')[0] ?? null} size={26} /><strong>리그 오브 레전드 전적</strong><span>{soloRank || flexRank ? '랭크 연동' : '연동 대기'}</span></div>
+            <dl><div><dt>솔로 랭크</dt><dd>{soloRank ?? '—'}</dd></div><div><dt>자유 랭크</dt><dd>{flexRank ?? '—'}</dd></div><div><dt>승률</dt><dd>—</dd></div><div><dt>KDA</dt><dd>—</dd></div></dl>
             <div className="linked-record-champions" aria-label="챔피언 연동 대기"><span /><span /><span /><small>챔피언 · 최근 20경기</small></div>
           </section>
         </section>
@@ -194,6 +226,22 @@ export function MyInfoPage() {
           )}
         >
           <div className="avatar-picker">
+            <button
+              type="button"
+              className="avatar-opt avatar-upload"
+              disabled={savingAvatar}
+              onClick={() => fileInput.current?.click()}
+            >
+              <span className="au-mark" aria-hidden="true"><IconPencil size={16} /></span>
+              <span>내 사진 올리기</span>
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept={AVATAR_ACCEPT}
+              hidden
+              onChange={(e) => void pickFile(e.target.files?.[0])}
+            />
             <button
               type="button"
               className="avatar-opt"

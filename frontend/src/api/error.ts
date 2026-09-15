@@ -22,6 +22,7 @@ export type ErrorCode =
   | 'FRIENDSHIP_NOT_FOUND'
   | 'BLOCK_NOT_FOUND'
   | 'GAME_ACCOUNT_NOT_FOUND'
+  | 'AVATAR_NOT_FOUND'
   | 'FRIEND_REQUEST_NOT_FOUND'
   /* 409 */
   | 'EMAIL_ALREADY_IN_USE'
@@ -52,6 +53,8 @@ export type ErrorCode =
   | 'FRIEND_REQUEST_NOT_PENDING'
   | 'BLOCKED_RELATION'
   | 'ALREADY_BLOCKED'
+  /* 413 */
+  | 'AVATAR_TOO_LARGE'
   /* 415 */
   | 'UNSUPPORTED_MEDIA_TYPE'
   /* 429 */

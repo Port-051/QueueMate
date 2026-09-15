@@ -3,6 +3,7 @@ import { AppShell } from './components/AppShell';
 import { RequireAuth } from './components/RequireAuth';
 import { RequireGameCatalog } from './components/RequireGameCatalog';
 import { RequireOnboarding } from './components/RequireOnboarding';
+import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { AuthPage } from './pages/AuthPage';
 import { HomePage } from './pages/HomePage';
 import { MatchConditionPage } from './pages/MatchConditionPage';
@@ -29,6 +30,8 @@ export function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/signup" element={<AuthPage mode="signup" />} />
+      {/* 소셜 로그인 콜백. 서버가 브라우저를 이 경로로 돌려보낸다. */}
+      <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/onboarding" element={<RequireAuth><OnboardingPage /></RequireAuth>} />
 
       <Route path="/app" element={<RequireAuth><RequireOnboarding><RequireGameCatalog><AppShell /></RequireGameCatalog></RequireOnboarding></RequireAuth>}>
