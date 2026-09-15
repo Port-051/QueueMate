@@ -9,7 +9,7 @@ import { ActiveMatchCard } from '../components/ActiveMatchCard';
 import type { AppShellOutletContext } from '../components/AppShell';
 import { HomeProfileRail } from '../components/HomeProfileRail';
 import { RecruitmentComposer } from '../components/RecruitmentComposer';
-import { BoardFilters, BoardPositionFilters } from '../components/BoardFilters';
+import { BoardFilters } from '../components/BoardFilters';
 import { RecruitmentPanel } from '../components/RecruitmentPanel';
 import { RecruitmentList, RecruitmentDetail } from '../components/RecruitmentList';
 import { InlineProposal } from '../components/InlineProposal';
@@ -196,7 +196,6 @@ export function HomePage() {
         (event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role=tab]')[index])?.focus();
       }}>{type === 'REALTIME' ? '실시간 매칭' : '예약 매칭'}</button>)}</div></div>
       <BoardFilters value={filter} onChange={value => { setFilter(value); if (!recruitmentInputError(value)) changeQuery(value); }} onReset={() => changeQuery({ ...browseSearch(query.condition.game), type: query.type, availableFrom: query.availableFrom, availableTo: query.availableTo, playAmount: query.playAmount })} />
-      <BoardPositionFilters value={filter} onChange={value => { setFilter(value); if (!recruitmentInputError(value)) changeQuery(value); }} />
       <div className="board-results-head"><span className="board-result-count" aria-live="polite" aria-atomic="true" aria-busy={loading}>{page ? <><b>{page.total.toLocaleString('ko-KR')}</b>명이 매칭 중이에요</> : loading ? <span className="board-count-placeholder" aria-hidden="true" /> : null}</span></div>
       {error ? <div className="banner warn" role="alert">{error}<Button size="sm" onClick={() => void refresh(true)}>다시 불러오기</Button></div> : null}
       {loading && !page ? <div className="board-empty" role="status">매칭 글 목록을 불러오는 중…</div> : null}

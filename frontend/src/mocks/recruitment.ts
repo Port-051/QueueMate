@@ -48,7 +48,14 @@ function seed() {
       const c = nickname ? { userId: `u-lol-${mode.modeKey.toLowerCase()}-${i}`, nickname } : CANDIDATES[i];
       const condition: MatchCondition = { game, modeKey: mode.modeKey, keyCondition: { type: config.keyConditionType, value: game === 'LOL' && mode.modeKey === 'ARAM' ? 'ANY' : config.values[i % config.values.length] }, voicePreference: i % 4 === 0 ? 'NO_VOICE' : i % 4 === 1 ? 'REQUIRED' : 'OPTIONAL', playPurpose: i % 3 === 0 ? 'FUN' : game === 'LOL' && mode.modeKey !== 'SOLO_DUO_RANKED' ? 'NORMAL' : 'RANK_UP' };
       const r: BoardRow = { id: uid(), userId: c.userId, nickname: game === 'LOL' || modeIndex === 0 ? c.nickname : `${c.nickname} · ${mode.modeKey === 'SQUAD' ? '스쿼드' : '일반'}`, type, condition,
-        preferences: { ...anyPreferences(), ownTier: ['SILVER', 'GOLD', 'PLATINUM'][i % 3] },
+        preferences: { ...anyPreferences(), ownTier: ['SILVER', 'GOLD', 'PLATINUM'][i % 3],
+          ...(hasPositions(condition) ? (() => {
+            const roles = config.values.filter(role => role !== 'ANY');
+            const ownCount = [1, 2, 3, 4, roles.length, 2, 1, 4, 3, roles.length][i];
+            const wantedCount = [2, 1, 4, 3, 1, roles.length, 3, 2, roles.length, 4][i];
+            const take = (count: number, offset: number) => Array.from({ length: Math.min(count, roles.length) }, (_, n) => roles[(n + offset) % roles.length]);
+            return { ownKeys: take(ownCount, i), desiredKeys: take(wantedCount, i + 2) };
+          })() : {}), },
         description: ['서로 존중하면서 편하게 해요', '함께 한 판 하실 분 구해요', '차분하게 소통하며 즐겨요'][i % 3], autoMatch: i % 4 !== 0,
         ...(type === 'RESERVATION' ? reservationWindow() : { availableFrom: null, availableTo: null, playAmount: null }),
         status: 'OPEN', createdAt: new Date(Date.now() - (modeIndex * 10 + i + 1) * 40_000).toISOString(), confirmedAt: new Date(Date.now() - i * 20_000).toISOString(), bumpedAt: null,

@@ -196,3 +196,7 @@
   .board-home .row-voice { grid-column: 2; grid-row: 3; justify-self: end; }
   .board-home .row-roles { grid-column: 1; }
 }
+
+.board-home.page { max-width: 1320px; }
+.board-home .board-filter-line { flex-wrap: wrap; overflow: visible; }
+.board-home .board-filter-line .filter-reset { flex-shrink: 0; }

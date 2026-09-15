@@ -24,6 +24,6 @@ test('본인 포지션 여러 개가 저장되고 목록에 본인과 상대가 
   await expect(own.locator('[aria-pressed=true]')).toHaveCount(2);
   await expect(page.getByRole('button', { name: '매칭 조건 저장' })).toBeDisabled();
   await page.getByRole('button', { name: '취소', exact: true }).click();
-  await page.locator('.board-position-filters').getByRole('group', { name: '내 포지션', exact: true }).getByRole('button', { name: '정글', exact: true }).click();
+  await page.locator('.board-filter-line').getByRole('group', { name: '포지션', exact: true }).getByRole('button', { name: '정글', exact: true }).click();
   await expect(row).toBeVisible();
 });
