@@ -26,25 +26,24 @@
 그 뒤 커밋(`af3b7ff` 시드, `3198f74` 문서)은 **자바를 건드리지 않았다** — 테스트는 자기 시드를 직접 심으므로
 결과는 그대로 유효하다. **아래 사용자 작성 파일은 그 테스트에 포함되지 않았다.**
 
-### 작업 트리에 커밋 안 된 것
+### PUBG validator — 커밋됨, 규칙은 사용자가 작성 중
 
-`validation/pubg/PubgConditoinValidator.java` — **사용자가 작성 중**이다. 사용자에게 묻기 전에 고치지 마라.
+`validation/pubg/PubgConditionValidator.java` (파일명 오타 `Conditoin` 고침). 사용자 코드에 세 가지를 고쳐 커밋했다.
+- 뒤집혀 있던 티어 분기(`EXIST` 모드가 `"NONE"` 만 통과시키던 것)
+- **티어 없음 규약을 롤과 맞춤** — `NONE` 모드는 `tier` 가 **null** 이어야 통과. 클라이언트는 tier 를 안 싣는다
+- `keyCondition` null 가드 + `type == PLATFORM` 확인
 
-지금은 **컴파일되고 `@Service` 라 빈으로 떠 있다** — 즉 PUBG 요청이 이미 이 validator 를 탄다.
-갱신 시점에 코드를 읽고 확인한 것 (사용자에게 전할 것):
+⚠️ **새 빈 등록인데 컨텍스트 기동 테스트(`MatchingApplicationTests`)는 안 돌렸다.** 의존성이
+`StringRedisTemplate` 하나로 `LolConditionValidator` 와 같은 모양이라 위험은 낮지만, Redis 를 띄울 일이
+생기면 같이 확인해라.
 
-- **43~45행 분기가 뒤집혀 있다.** `if (tierRule.equals("EXIST")) return tier.equals("NONE");` —
-  랭크 모드에 진짜 티어(`GOLD_2`)를 보내면 거절되고, `"NONE"` 을 보내면 통과한다
-- **`NONE` 모드는 아래 ZSET 조회로 떨어진다.** 티어가 없으면(null) 조회가 터지고, `"NONE"` 이면 `score == null` 로 거절된다 — 일반 모드가 전부 막힌다
-- **티어 없음 표기가 롤과 다르다.** 롤 validator 는 `NONE` 모드에 **tier 가 null 이어야** 통과시킨다(tier 를 실어 오면 400). 이 파일은 문자열 `"NONE"` 을 전제한다. 게임마다 클라이언트 규약이 달라지지 않게 맞춰야 한다
-- `command.getKeyCondition()` null 가드가 없다(DTO 에 `@NotNull` 없음 → NPE → 500). `LolConditionValidator` 첫 두 가드 참고 — `keyCondition.type == PLATFORM` 확인도 없다
-- 파일명 오타(`Conditoin`)
-- 모드 존재는 모드 HASH 의 `tierRule` 로 본다 — 모드 목록 SET 을 없앤 결정과 맞다
+**아직 남은 문제 (사용자가 알고 있고 나중에 올린다고 했다):** validator 는 떴는데 PUBG `CandidateRule` 이
+없다. PUBG 요청이 검증을 통과하면 `claim-request.lua` 가 활성 요청을 선점한 뒤 `MatchTrigger` 가 규칙을 못 찾아
+`IllegalArgumentException("파티 배정 규칙이 없는 게임")` 으로 끝난다. `@Async` 라 201 로 나가고 그 사용자는
+claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 
-**그리고 validator 가 먼저 떠서 생기는 일:** PUBG 요청이 검증을 통과하면 `claim-request.lua` 가
-활성 요청을 선점(INV-1)한 뒤 `MatchTrigger` 가 PUBG `CandidateRule` 을 못 찾아
-`IllegalArgumentException("파티 배정 규칙이 없는 게임")` 으로 끝난다. `@Async` 라 요청은 201 로 나가고,
-그 사용자는 claim 의 `EXPIRE 60` 이 끝날 때까지 **60초 동안 다른 매칭을 못 잡는다.** `PubgCandidateRule` 이 붙기 전까지 그렇다.
+**작업 트리에 커밋 안 된 것:** `rule/pubg/PubgCandidateRuel.java` — **사용자가 작성 중.** 파일명 오타(`Ruel`).
+IntelliJ 가 새 파일을 git 에 자동으로 올리므로 커밋할 때 `git status` 를 보고 이 파일이 딸려 가지 않게 해라.
 
 ---
 
