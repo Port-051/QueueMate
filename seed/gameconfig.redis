@@ -156,16 +156,28 @@ ECHO "# 그래서 표를 플랫폼별로 나누지 않는다. 플랫폼은 keyCo
 
 ECHO "-- [PUBG 1/3] 모드별 설정 (HASH) --"
 ECHO "# 시점(TPP/FPP)은 파티 구성을 막지 않는 큐 선택이라 조건이 아니라 modeKey 에 접었다."
-ECHO "# positionUniqueness false: 포지션이 없고 keyValue 가 플랫폼이라 한 파티에 같은 값이 여럿 들어간다."
+ECHO "# positionUniqueness 필드는 두지 않는다. 배그에는 포지션이 없고 keyValue 가 플랫폼(STEAM/KAKAO)이라"
+ECHO "# 한 파티에 같은 값이 여럿 들어가는 것이 당연하다 -- 중복을 금지할 대상 자체가 없다."
+ECHO "# 롤은 포지션 중복 금지 여부가 모드마다 달라서(칼바람만 허용) 그 필드가 필요했다."
 ECHO "# 티어/RP 는 시즌 36 부터 듀오/스쿼드와 TPP/FPP 에 걸쳐 통합돼 있어 시점별 티어가 따로 없다."
-HSET qm:gameconfig:PUBG:NORMAL_DUO_TPP targetPartySize 2 positionUniqueness false tierRule NONE
-HSET qm:gameconfig:PUBG:NORMAL_DUO_FPP targetPartySize 2 positionUniqueness false tierRule NONE
-HSET qm:gameconfig:PUBG:NORMAL_SQUAD_TPP targetPartySize 4 positionUniqueness false tierRule NONE
-HSET qm:gameconfig:PUBG:NORMAL_SQUAD_FPP targetPartySize 4 positionUniqueness false tierRule NONE
-HSET qm:gameconfig:PUBG:RANKED_DUO_TPP targetPartySize 2 positionUniqueness false tierRule EXIST
-HSET qm:gameconfig:PUBG:RANKED_DUO_FPP targetPartySize 2 positionUniqueness false tierRule EXIST
-HSET qm:gameconfig:PUBG:RANKED_SQUAD_TPP targetPartySize 4 positionUniqueness false tierRule EXIST
-HSET qm:gameconfig:PUBG:RANKED_SQUAD_FPP targetPartySize 4 positionUniqueness false tierRule EXIST
+HSET qm:gameconfig:PUBG:NORMAL_DUO_TPP targetPartySize 2 tierRule NONE
+HSET qm:gameconfig:PUBG:NORMAL_DUO_FPP targetPartySize 2 tierRule NONE
+HSET qm:gameconfig:PUBG:NORMAL_SQUAD_TPP targetPartySize 4 tierRule NONE
+HSET qm:gameconfig:PUBG:NORMAL_SQUAD_FPP targetPartySize 4 tierRule NONE
+HSET qm:gameconfig:PUBG:RANKED_DUO_TPP targetPartySize 2 tierRule EXIST
+HSET qm:gameconfig:PUBG:RANKED_DUO_FPP targetPartySize 2 tierRule EXIST
+HSET qm:gameconfig:PUBG:RANKED_SQUAD_TPP targetPartySize 4 tierRule EXIST
+HSET qm:gameconfig:PUBG:RANKED_SQUAD_FPP targetPartySize 4 tierRule EXIST
+
+ECHO "# 예전 시드로 채워진 Redis 에 남은 positionUniqueness 를 걷어낸다. HSET 으로는 안 지워진다. HDEL 은 멱등하다."
+HDEL qm:gameconfig:PUBG:NORMAL_DUO_TPP positionUniqueness
+HDEL qm:gameconfig:PUBG:NORMAL_DUO_FPP positionUniqueness
+HDEL qm:gameconfig:PUBG:NORMAL_SQUAD_TPP positionUniqueness
+HDEL qm:gameconfig:PUBG:NORMAL_SQUAD_FPP positionUniqueness
+HDEL qm:gameconfig:PUBG:RANKED_DUO_TPP positionUniqueness
+HDEL qm:gameconfig:PUBG:RANKED_DUO_FPP positionUniqueness
+HDEL qm:gameconfig:PUBG:RANKED_SQUAD_TPP positionUniqueness
+HDEL qm:gameconfig:PUBG:RANKED_SQUAD_FPP positionUniqueness
 
 ECHO "-- [PUBG 2/3] 티어 사다리 (ZSET) --"
 ECHO "# 시즌 36(2025-06-05) 개편 이후 체계. 브론즈~다이아몬드 6티어는 각 4단(4가 낮다)."
