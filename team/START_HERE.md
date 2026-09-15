@@ -1,23 +1,25 @@
 # START HERE — 3명이 바로 Claude Code 병렬 실행
 
-## 0. 저장소 초기화
-압축 해제 후:
+## 0. 저장소 받기
+
 ```bash
-git init
-git add .
-git commit -m "chore: bootstrap QueueMate spec and harness"
+git clone https://github.com/Port-051/QueueMate.git
+cd QueueMate
+git switch main
+git pull --ff-only
 ```
 
-## 1. Branch / worktree
-```bash
-git branch feature/frontend
-git branch feature/matching-core
-git branch feature/party-platform
+## 1. 작업 브랜치
 
-git worktree add ../qm-frontend feature/frontend
-git worktree add ../qm-matching feature/matching-core
-git worktree add ../qm-platform feature/party-platform
+장기 개인 브랜치 대신 작업마다 최신 `main`에서 짧게 분리한다.
+
+```bash
+git switch -c codex/작업명
 ```
+
+커밋 후 푸시하고 `main` 대상 PR을 만든다. CI와 팀원 확인 후 병합하고 작업 브랜치를 삭제한다. 선택적으로 `git worktree add ../qm-작업명 -b codex/다른작업명 main`을 사용한다.
+
+공유 UI와 검증·DB 전환 절차는 [팀 개발 안내](../docs/18_TEAM_WORKFLOW.md)를 따른다.
 
 ## 2. Claude Code 실행
 각 worktree에서 각각:

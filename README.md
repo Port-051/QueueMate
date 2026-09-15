@@ -18,6 +18,13 @@
 **League of Legends / VALORANT / PUBG: BATTLEGROUNDS만 지원한다.**
 다른 게임은 UI/코드/문서에 추가하지 않는다.
 
+## 팀 개발과 공유 데모
+
+공통 기준 브랜치는 `main`입니다. 작업별 짧은 브랜치 → PR → CI 확인 → 병합 → 브랜치 삭제 순서로 진행합니다.
+
+- [공유 UI 데모](https://port-051.github.io/QueueMate/#/app/home)
+- [브랜치·검증·배포와 기존 DB 전환 안내](docs/18_TEAM_WORKFLOW.md)
+
 ## 시작 순서
 1. `CLAUDE.md`를 읽는다.
 2. `docs/00_PRODUCT_SPEC.md` ~ `docs/12_ELBOW_CONDITION_SELECTION.md`를 읽는다.

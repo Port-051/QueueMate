@@ -13,6 +13,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -86,6 +87,32 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleInvalidArgument(IllegalArgumentException e) {
         log.debug("도메인 인자 오류", e);
         return ResponseEntity.badRequest().body(new ErrorResponse("VALIDATION_FAILED", e.getMessage()));
+    }
+
+    /**
+     * 본문을 열어 보고 내린 415. 요청 Content-Type을 보는
+     * {@link HttpMediaTypeNotSupportedException}과 상태코드만 같고 근거가 다르다.
+     */
+    @ExceptionHandler(UnsupportedMediaTypeException.class)
+    public ResponseEntity<ErrorResponse> handleUnsupportedUpload(UnsupportedMediaTypeException e) {
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(new ErrorResponse("UNSUPPORTED_MEDIA_TYPE", e.getMessage()));
+    }
+
+    @ExceptionHandler(PayloadTooLargeException.class)
+    public ResponseEntity<ErrorResponse> handleTooLarge(PayloadTooLargeException e) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(new ErrorResponse(e.getCode(), e.getMessage()));
+    }
+
+    /**
+     * 서블릿 컨테이너가 먼저 끊은 경우. 여기까지 오면 본문은 이미 버려졌고
+     * 서비스 코드의 크기 검사에는 닿지 못한다. 같은 code로 맞춰 준다.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSize(MaxUploadSizeExceededException e) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(new ErrorResponse("AVATAR_TOO_LARGE", "사진이 너무 큽니다"));
     }
 
     @ExceptionHandler(ConflictException.class)

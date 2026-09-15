@@ -12,6 +12,7 @@ import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 
@@ -24,8 +25,8 @@ import java.util.Set;
  * 환경 변수는 설정되지 않은 것과 빈 값을 구분하지 못하는 배포가 많아, 그대로 두면
  * master 이름이 빈 sentinel 연결을 시도하다 뜨지 않는다. 여기서 공백을 명시적으로 걸러 낸다.
  *
- * <p>둘째, sentinel도 host도 없는 설정은 기동 자체를 막는다. 자동 설정은 이때 localhost로
- * 붙어 버려서, 빈 Redis를 정상으로 읽고 guard가 전부 통과한다.
+ * <p>둘째, 명령 타임아웃에 기본값을 준다. Lettuce 기본값 60초는 failover 6초짜리 장애를
+ * 분 단위 정지로 바꾼다. 자동 설정은 값이 없으면 그 60초를 그대로 쓴다.
  *
  * <p>셋째, <b>읽기는 반드시 master에서 한다</b>. replica 읽기를 켜면 복제 지연 동안
  * {@code active-request}/{@code active-proposal} guard가 낡은 값을 돌려주고, 그 순간
@@ -37,16 +38,33 @@ public class RedisConfig {
 
     private static final Logger log = LoggerFactory.getLogger(RedisConfig.class);
 
+    /**
+     * 설정이 없을 때 쓰는 명령 타임아웃.
+     *
+     * <p>Lettuce 기본값은 60초다. 그대로 두면 failover 동안 매칭 trigger 스레드 4개가
+     * 각각 최대 60초를 죽은 master에 매달린 채 보내고, 그 사이 들어온 일감이 큐(512)를 채우다
+     * 넘치면 버려진다. down-after 5초 + 선출·승격이 끝나는 데 실측 6초대이므로
+     * 그보다 짧게 끊고 다시 물어보는 편이 낫다.
+     *
+     * <p>2초로 둔 근거는 이 서비스가 감당할 수 있는 재시도 간격이다. 제안 TTL이 20초라
+     * 2초 타임아웃이면 한 요청이 실패를 확인하고 물러나기까지 예산의 10%만 쓴다.
+     * 더 짧게 잡으면 평소의 느린 Lua 한 번을 장애로 오인한다.
+     */
+    static final Duration DEFAULT_COMMAND_TIMEOUT = Duration.ofSeconds(2);
+
     @Bean
     public LettuceConnectionFactory redisConnectionFactory(RedisProperties properties) {
-        LettuceClientConfiguration.LettuceClientConfigurationBuilder client =
+        Duration timeout = properties.getTimeout() == null
+                ? DEFAULT_COMMAND_TIMEOUT
+                : properties.getTimeout();
+        LettuceClientConfiguration client =
                 LettuceClientConfiguration.builder()
                         // 복제 지연이 곧 guard 오작동이다. 읽기를 replica로 보내지 않는다.
-                        .readFrom(ReadFrom.MASTER);
-        if (properties.getTimeout() != null) {
-            client.commandTimeout(properties.getTimeout());
-        }
-        return new LettuceConnectionFactory(topologyOf(properties), client.build());
+                        .readFrom(ReadFrom.MASTER)
+                        .commandTimeout(timeout)
+                        .build();
+        log.info("Redis 명령 타임아웃 {}ms", timeout.toMillis());
+        return new LettuceConnectionFactory(topologyOf(properties), client);
     }
 
     /** 테스트가 직접 부를 수 있게 열어 둔다. 어떤 토폴로지를 고르는지가 이 클래스의 전부다. */
@@ -54,11 +72,7 @@ public class RedisConfig {
         RedisProperties.Sentinel sentinel = properties.getSentinel();
         if (sentinel == null || !hasText(sentinel.getMaster()) || isEmpty(sentinel.getNodes())) {
             if (!hasText(properties.getHost())) {
-                // 운영에서 접속 설정을 통째로 빠뜨린 경우다. localhost의 빈 Redis에 조용히
-                // 붙는 것보다 뜨지 않는 편이 낫다 (application-prod.yml 첫 줄과 같은 판단).
-                throw new IllegalStateException(
-                        "Redis 접속 설정이 없다. REDIS_HOST를 주거나 "
-                                + "REDIS_SENTINEL_MASTER/REDIS_SENTINEL_NODES를 채워라");
+                throw new IllegalStateException("Redis 접속 설정이 없다. REDIS_HOST 또는 Sentinel 설정이 필요하다");
             }
             log.info("Redis 단일 인스턴스로 붙는다 host={} port={}",
                     properties.getHost(), properties.getPort());

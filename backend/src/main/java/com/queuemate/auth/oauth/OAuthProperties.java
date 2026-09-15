@@ -17,6 +17,12 @@ public record OAuthProperties(
         String defaultRedirectPath,
         long stateTtlSeconds,
         long handoffTtlSeconds,
+        /**
+         * 자격 증명이 없는 제공자도 목록에 내보낼 것인가.
+         * 개발 중에는 켠다. 등록 전에도 화면을 볼 수 있어야 한다.
+         * 운영에서는 끈다. 누르면 실패할 버튼을 그려두지 않기 위해서다.
+         */
+        boolean exposeUnconfiguredProviders,
         Map<String, Registration> providers
 ) {
 

@@ -14,6 +14,21 @@ spring:
       ddl-auto: validate
     open-in-view: false
 
+  servlet:
+    multipart:
+      # 계약상 한도는 5MiB다. 컨테이너 쪽은 약간 위에 둔다. 멀티파트 헤더 때문에
+      # 정확히 5MiB짜리 파일의 요청 전체는 5MiB를 조금 넘는다.
+      max-file-size: 5MB
+      max-request-size: 6MB
+
+server:
+  tomcat:
+    # 한도를 넘은 업로드에 413을 돌려주려면 남은 본문을 끝까지 읽어서 버려야 한다.
+    # 기본값(2MiB)이면 5MiB 초과 요청에서 Tomcat이 먼저 연결을 끊고, 클라이언트는
+    # 413 대신 네트워크 오류를 본다. 요청 한도(6MiB)보다 조금 위에 둔다.
+    # 무제한으로 두지는 않는다. 그러면 거절하기로 한 요청을 끝까지 받아 주게 된다.
+    max-swallow-size: 8MB
+
 management:
   endpoints:
     web:
@@ -21,6 +36,28 @@ management:
         include: health,info,metrics,prometheus
 
 queuemate:
+  avatar:
+    # 업로드된 프로필 사진. 컨테이너 안 경로이고 운영에서는 볼륨을 붙인다.
+    dir: ${AVATAR_DIR:/var/lib/queuemate/avatars}
+    max-upload-size: ${AVATAR_MAX_UPLOAD_SIZE:5MB}
+    # 목록에서 38px, 내 정보에서 64px로 쓴다. 2배 화면까지 감안해 512로 저장한다.
+    edge-pixels: ${AVATAR_EDGE_PIXELS:512}
+    # 파일은 작아도 펼치면 큰 이미지를 거른다. 8000x5000 정도까지는 통과한다.
+    max-source-pixels: ${AVATAR_MAX_SOURCE_PIXELS:40000000}
+  riot:
+    # 개발자 키는 24시간마다 만료된다. 비어 있거나 죽어 있으면 티어를 비워 둘 뿐
+    # 계정 연결은 그대로 된다. 저장소에 두지 않는다 (docs/13).
+    api-key: ${RIOT_API_KEY:}
+    # Riot ID를 puuid로 바꾸는 account-v1은 대륙 라우팅이다. 한국은 asia.
+    account-base-url: ${RIOT_ACCOUNT_BASE_URL:https://asia.api.riotgames.com}
+    # 리그 정보는 플랫폼 라우팅이다. 한국은 kr.
+    platform-base-url: ${RIOT_PLATFORM_BASE_URL:https://kr.api.riotgames.com}
+    connect-timeout: ${RIOT_CONNECT_TIMEOUT:2s}
+    # 계정 연결 응답이 이만큼 이상 늦어지지 않게 한다.
+    read-timeout: ${RIOT_READ_TIMEOUT:3s}
+    rank-ttl: ${RIOT_RANK_TTL:6h}
+    # 언랭은 흔하고 잘 바뀌지 않는다. 매번 되묻지 않는다.
+    unranked-ttl: ${RIOT_UNRANKED_TTL:24h}
   oauth:
     # 제공자 콜백을 받은 뒤 브라우저를 돌려보낼 프론트엔드 주소.
     frontend-callback-uri: ${OAUTH_FRONTEND_CALLBACK_URI:http://localhost:5173/auth/callback}
@@ -29,6 +66,8 @@ queuemate:
     state-ttl-seconds: ${OAUTH_STATE_TTL_SECONDS:300}
     # 콜백에서 프론트엔드가 토큰을 받아가기까지의 시간. 한 번만 쓸 수 있다.
     handoff-ttl-seconds: ${OAUTH_HANDOFF_TTL_SECONDS:60}
+    # 기본은 끈다. 운영에서 누르면 실패할 버튼을 그리지 않기 위해서다. local에서만 켠다.
+    expose-unconfigured-providers: ${OAUTH_EXPOSE_UNCONFIGURED:false}
     providers:
       # client-id가 비어 있으면 그 제공자는 목록에 뜨지 않는다. secret은 저장소에 두지 않는다.
       kakao:
@@ -38,7 +77,9 @@ queuemate:
         authorization-uri: https://kauth.kakao.com/oauth/authorize
         token-uri: https://kauth.kakao.com/oauth/token
         user-info-uri: https://kapi.kakao.com/v2/user/me
-        scope: profile_nickname,account_email
+        # 이메일 동의항목은 비즈 앱 검수를 요구할 수 있다. 막히면 profile_nickname만 남긴다.
+        # 이메일이 없으면 계정은 이메일 없이 만들어진다(V4에서 NULL을 허용한 이유다).
+        scope: ${KAKAO_SCOPE:profile_nickname,account_email}
       naver:
         client-id: ${NAVER_CLIENT_ID:}
         client-secret: ${NAVER_CLIENT_SECRET:}
@@ -49,11 +90,19 @@ queuemate:
       dev:
         # 가짜 제공자. 빈 자체가 local/test 프로파일에서만 등록된다.
         redirect-uri: ${DEV_OAUTH_REDIRECT_URI:http://localhost:8080/api/v1/auth/oauth/dev/callback}
+  redis:
+    circuit:
+      # 연속 몇 번 실패해야 죽었다고 볼 것인가. 명령 타임아웃이 2초라 한 번의 실패가
+      # 이미 2초짜리 사건이다. 세 번 연속이면 우연으로 보기 어렵다.
+      failure-threshold: ${REDIS_CIRCUIT_FAILURE_THRESHOLD:3}
+      # 시도를 멈추고 기다리는 시간. Sentinel down-after와 같다. 그보다 일찍 확인해 봐야
+      # Sentinel이 아직 죽었다는 판정도 내리지 않은 시점이다.
+      open-ms: ${REDIS_CIRCUIT_OPEN_MS:5000}
   matching:
     # 매칭은 대기열이 변한 순간 돈다. 아래는 그 trigger를 잃었을 때를 위한 안전망 주기다.
     # 여기서 제안이 만들어진다면 주기를 줄일 것이 아니라 왜 trigger를 잃었는지 봐야 한다.
     sweep-ms: ${MATCH_SWEEP_MS:15000}
-    # 매칭은 요청 스레드가 아니라 여기서 돈다. 대기열이 길어도 요청 응답이 느려지지 않는다.
+    # 매칭을 요청 스레드가 아니라 여기서 돈다. 대기열이 길어도 요청 응답이 느려지지 않는다.
     trigger-threads: ${MATCH_TRIGGER_THREADS:4}
     trigger-queue: ${MATCH_TRIGGER_QUEUE:512}
   proposal:

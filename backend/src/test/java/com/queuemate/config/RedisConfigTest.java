@@ -8,10 +8,10 @@ import org.springframework.data.redis.connection.RedisSentinelConfiguration;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 
+import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 /**
  * 어떤 토폴로지로 붙을지 고르는 판단 (docs/07 §11).
@@ -22,6 +22,28 @@ import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 class RedisConfigTest {
 
     private final RedisConfig config = new RedisConfig();
+
+    @Test
+    @DisplayName("타임아웃을 주지 않아도 Lettuce 기본값 60초로 떨어지지 않는다")
+    void appliesDefaultCommandTimeout() {
+        // 60초가 걸리면 failover 6초짜리 장애 동안 trigger 스레드가 통째로 묶인다.
+        RedisProperties properties = new RedisProperties();
+        properties.setHost("redis");
+
+        assertThat(config.redisConnectionFactory(properties).getTimeout())
+                .isEqualTo(RedisConfig.DEFAULT_COMMAND_TIMEOUT.toMillis())
+                .isLessThan(Duration.ofSeconds(60).toMillis());
+    }
+
+    @Test
+    @DisplayName("타임아웃을 주면 그 값을 쓴다")
+    void respectsConfiguredCommandTimeout() {
+        RedisProperties properties = new RedisProperties();
+        properties.setHost("redis");
+        properties.setTimeout(Duration.ofMillis(750));
+
+        assertThat(config.redisConnectionFactory(properties).getTimeout()).isEqualTo(750);
+    }
 
     @Test
     @DisplayName("sentinel 설정이 아예 없으면 단일 인스턴스로 붙는다")
@@ -90,20 +112,6 @@ class RedisConfigTest {
 
         assertThat(config.redisConnectionFactory(properties).getClientConfiguration().getReadFrom())
                 .contains(ReadFrom.MASTER);
-    }
-
-    @Test
-    @DisplayName("host도 sentinel도 비어 있으면 기동을 막는다")
-    void failsWhenNeitherTopologyIsConfigured() {
-        // 운영 프로파일은 host 기본값이 없다. 여기서 막지 않으면 자동 설정이 localhost로
-        // 붙고, 빈 Redis가 모든 guard를 통과시킨다.
-        RedisProperties properties = sentinel("", List.of());
-        properties.setHost("");
-
-        assertThatIllegalStateException()
-                .isThrownBy(() -> config.topologyOf(properties))
-                .withMessageContaining("REDIS_HOST")
-                .withMessageContaining("REDIS_SENTINEL_MASTER");
     }
 
     private static RedisProperties sentinel(String master, List<String> nodes) {

@@ -80,7 +80,7 @@ test('매칭 글 목록과 상세에서 자기소개 전적을 보여주고 최�
 test('내 전적은 매칭 조건 대신 개인 프로필에서 확인한다', async ({ page }) => {
   await login(page);
   await page.locator('.home-profile-link').click();
-  await expect(page.getByRole('region', { name: '롤 전적 정보', exact: true })).toContainText('연동 대기');
+  await expect(page.getByRole('region', { name: '롤 전적 정보', exact: true })).toContainText('골드 2');
 });
 
 test('저장한 소개가 있어도 홈 재진입 시 바로 조건 선택으로 시작한다', async ({ page }) => {

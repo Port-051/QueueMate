@@ -2,7 +2,7 @@ import { request } from './http';
 import type {
   BlockView, CreateBlockRequest, CreateFriendRequest, CreateGameAccountRequest, CreateMatchRequest,
   CreateReportRequest, CreateReservationRequest, FriendRequestDirection, FriendRequestView, FriendView,
-  GameAccountView, GameKey, GameView, LoginRequest, MatchHistoryView, MatchRequestView, MatchSchemaView,
+  OAuthProviderView, GameAccountView, GameKey, GameView, LoginRequest, MatchHistoryView, MatchRequestView, MatchSchemaView,
   PartyView, ProposalView, RecentPlayerView, ReservationView, SignupRequest, TokenResponse,
   UpdateUserRequest, UserProfile,
 } from './types';
@@ -23,10 +23,23 @@ export const refresh = (refreshToken: string) =>
 export const logout = (refreshToken: string) =>
   request<void>('/auth/logout', { method: 'POST', body: { refreshToken }, anonymous: true });
 
+/** 자격 증명이 설정된 제공자만 내려온다. 눌러도 실패할 버튼을 그리지 않기 위해서다. */
+export const listOAuthProviders = () =>
+  request<OAuthProviderView[]>('/auth/oauth/providers', { anonymous: true });
+/** 콜백이 들려준 일회용 코드를 토큰으로 바꾼다. 두 번째 호출은 401이다. */
+export const exchangeOAuthCode = (code: string) =>
+  request<TokenResponse>('/auth/oauth/exchange', { method: 'POST', body: { code }, anonymous: true });
+
 /* ---------- user ---------- */
 export const getMe = () => request<UserProfile>('/users/me');
 /** 부분 수정이다. `avatarUrl: null`을 보내면 지워지고, 키를 빼면 유지된다. */
 export const updateMe = (body: UpdateUserRequest) => request<UserProfile>('/users/me', { method: 'PATCH', body });
+/**
+ * 프로필 사진 업로드. 서버가 정사각 512px PNG로 바꿔 저장하고 갱신된 프로필을 돌려준다.
+ * 지우는 것은 이쪽이 아니라 `updateMe({ avatarUrl: null })`이다.
+ */
+export const uploadAvatar = (file: File) =>
+  request<UserProfile>('/users/me/avatar', { method: 'POST', file });
 export const getGameAccounts = () => request<GameAccountView[]>('/users/me/game-accounts');
 export const linkGameAccount = (body: CreateGameAccountRequest) =>
   request<GameAccountView>('/users/me/game-accounts', { method: 'POST', body });

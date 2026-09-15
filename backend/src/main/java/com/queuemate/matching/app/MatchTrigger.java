@@ -2,6 +2,7 @@ package com.queuemate.matching.app;
 
 import com.queuemate.common.domain.GameKey;
 import com.queuemate.common.metrics.QueueMateMetrics;
+import com.queuemate.common.redis.RedisCircuit;
 import com.queuemate.gameconfig.domain.GameModeConfig;
 import com.queuemate.gameconfig.domain.GameModeConfigProvider;
 import com.queuemate.matching.domain.MatchBucket;
@@ -38,6 +39,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p>매칭은 호출한 스레드에서 하지 않는다. 그렇게 하면 매칭 요청의 응답 시간이 대기열 길이에
  * 끌려가고, 늦게 온 사람이 자기 요청 처리 중에 남의 파티를 만들어 주게 된다.
  *
+ * <p>Redis가 죽어 있는 구간에는 {@link RedisCircuit}이 시도 자체를 멈춘다. 매칭을 건너뛰는
+ * 결과는 같지만, 건너뛰기까지 스레드마다 타임아웃을 태우지 않는다.
+ *
  * <p>trigger를 잃어도(프로세스 종료, 큐 포화, Redis 일시 장애) 큐가 영영 멈추지 않도록
  * {@link MatchingScheduler}가 훨씬 긴 주기로 훑는다. 그쪽은 평소에 아무것도 찾지 못해야 정상이고,
  * {@code queuemate.match.proposal.created{source=SWEEP}}가 올라가면 event 경로가 새고 있다는 뜻이다.
@@ -50,6 +54,7 @@ public class MatchTrigger {
     private final RealtimeMatcher matcher;
     private final GameModeConfigProvider modes;
     private final QueueMateMetrics metrics;
+    private final RedisCircuit circuit;
     private final boolean enabled;
     private final int maxProposalsPerRun;
     private final ThreadPoolExecutor workers;
@@ -62,7 +67,7 @@ public class MatchTrigger {
     private final Set<MatchBucket> pending = ConcurrentHashMap.newKeySet();
 
     public MatchTrigger(RealtimeMatcher matcher, GameModeConfigProvider modes,
-                        QueueMateMetrics metrics,
+                        QueueMateMetrics metrics, RedisCircuit circuit,
                         @Value("${queuemate.matching.auto-trigger:true}") boolean enabled,
                         @Value("${queuemate.matching.max-proposals-per-run:20}")
                         int maxProposalsPerRun,
@@ -71,6 +76,7 @@ public class MatchTrigger {
         this.matcher = matcher;
         this.modes = modes;
         this.metrics = metrics;
+        this.circuit = circuit;
         this.enabled = enabled;
         this.maxProposalsPerRun = maxProposalsPerRun;
         this.workers = new ThreadPoolExecutor(
@@ -126,11 +132,18 @@ public class MatchTrigger {
     /** 이 bucket에서 더 만들 조합이 없을 때까지, 다만 상한을 두고 돈다. */
     private void drainAround(MatchBucket bucket) {
         for (int i = 0; i < maxProposalsPerRun; i++) {
+            // 실패가 이미 확정된 구간이면 부르지 않는다. 불러 봐야 타임아웃만 태운다.
+            if (!circuit.allowRequest()) {
+                metrics.redisCircuitShortCircuited();
+                return;
+            }
             Optional<UUID> proposalId;
             try {
                 proposalId = matcher.tryMatchAround(bucket);
+                circuit.recordSuccess();
             } catch (DataAccessException e) {
                 // Redis나 DB가 잠시 흔들렸다. 새 매칭을 억지로 만들지 않는다 (INV-10).
+                circuit.recordFailure();
                 log.warn("매칭을 건너뛴다 bucket={}", bucket.suffix(), e);
                 return;
             } catch (RuntimeException e) {
@@ -151,11 +164,18 @@ public class MatchTrigger {
     private int drainMode(GameModeConfig config) {
         int created = 0;
         for (int i = 0; i < maxProposalsPerRun; i++) {
+            if (!circuit.allowRequest()) {
+                metrics.redisCircuitShortCircuited();
+                return created;
+            }
             try {
                 if (matcher.tryMatch(config.game(), config.modeKey()).isEmpty()) {
+                    circuit.recordSuccess();
                     return created;
                 }
+                circuit.recordSuccess();
             } catch (DataAccessException e) {
+                circuit.recordFailure();
                 log.warn("매칭을 건너뛴다 game={} mode={}", config.game(), config.modeKey(), e);
                 return created;
             }

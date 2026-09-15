@@ -2,6 +2,7 @@ import { Logo } from '../components/Logo';
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { isApiError } from '../api/error';
+import { SocialLoginButtons } from '../components/SocialLoginButtons';
 import { Button, Field } from '../components/ui';
 import { USE_MOCK } from '../config';
 import { useAuth } from '../state/AuthContext';
@@ -57,6 +58,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
       <main className="auth-main">
         <div className="auth-card">
           <h1>{isSignup ? '회원가입' : '로그인'}</h1>
+
+          <SocialLoginButtons redirectTo={from} onError={setError} />
 
           <form className="auth-form" onSubmit={submit}>
             <Field label="이메일">

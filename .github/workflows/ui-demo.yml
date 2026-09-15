@@ -1,7 +1,7 @@
 name: UI demo
 on:
   push:
-    branches: [codex/ui-ux]
+    branches: [main]
     paths:
       - 'frontend/**'
       - '.github/workflows/ui-demo.yml'

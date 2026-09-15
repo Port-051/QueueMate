@@ -9,7 +9,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, develop]
+    branches: [main]
 
 concurrency:
   # 같은 브랜치에 새 커밋이 오면 이전 실행은 버린다. 러너를 낭비하지 않는다.
@@ -69,7 +69,7 @@ jobs:
           path: backend/build/reports/tests/test
 
   frontend:
-    name: 프론트엔드 빌드
+    name: 프론트엔드 빌드·회귀 테스트
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

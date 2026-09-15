@@ -68,6 +68,7 @@ class OAuthLoginFlowIntegrationTest {
 
     @Test
     void 제공자_목록에는_설정된_것만_나온다() {
+        // test 프로파일은 expose-unconfigured-providers가 꺼져 있다. 운영과 같은 판단이다.
         ResponseEntity<Map[]> res = http.getForEntity("/api/v1/auth/oauth/providers", Map[].class);
 
         assertEquals(HttpStatus.OK, res.getStatusCode());

@@ -51,3 +51,15 @@ test('게임 ID 등록 취소는 원래 게임 버튼으로 돌아가고 등록 
   await expect(account).not.toContainText('QueuePlayer');
   await expect(register).toBeVisible();
 });
+
+test('업로드한 프로필 사진과 연동한 솔로·자유 랭크를 표시한다', async ({ page }) => {
+  await login(page);
+  await page.locator('.side-nav').getByRole('link', { name: '프로필', exact: true }).click();
+  const record = page.getByRole('region', { name: '롤 전적 정보' });
+  await expect(record).toContainText('골드 2');
+  await expect(record).toContainText('플래티넘 4');
+  await page.getByRole('button', { name: '프로필 사진 변경' }).click();
+  await page.locator('input[type="file"]').setInputFiles('public/avatars/avatar-02.webp');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('.profile-photo img')).toHaveAttribute('src', /^data:image\/png/);
+});

@@ -4,6 +4,7 @@ import com.queuemate.auth.api.AuthDtos.OAuthExchangeRequest;
 import com.queuemate.auth.api.AuthDtos.OAuthProviderView;
 import com.queuemate.auth.api.AuthDtos.TokenResponse;
 import com.queuemate.auth.domain.OAuthProvider;
+import com.queuemate.auth.oauth.OAuthClient;
 import com.queuemate.auth.oauth.OAuthClients;
 import com.queuemate.auth.oauth.OAuthExchangeFailedException;
 import com.queuemate.auth.oauth.OAuthHandoffStore;
@@ -66,7 +67,7 @@ public class OAuthController {
 
     @GetMapping("/providers")
     public List<OAuthProviderView> providers() {
-        return clients.enabled().stream()
+        return clients.listed().stream()
                 .map(p -> new OAuthProviderView(p.name(), p.displayName(),
                         "/api/v1/auth/oauth/" + p.key() + "/authorize"))
                 .toList();
@@ -76,9 +77,15 @@ public class OAuthController {
     public ResponseEntity<Void> authorize(@PathVariable String provider,
                                           @RequestParam(required = false) String redirect) {
         OAuthProvider target = parse(provider);
+        OAuthClient client = clients.require(target);
+        // 개발 중에는 자격 증명 없이도 버튼이 보인다. 제공자로 내보내면 그쪽 오류 화면이
+        // 뜨므로, 나가기 전에 무엇이 빠졌는지 알려주고 되돌린다.
+        if (!client.configured()) {
+            log.warn("자격 증명이 없는 제공자로 로그인 시도 provider={}", target);
+            return redirectToFrontend(null, "PROVIDER_NOT_CONFIGURED", safeRedirect(redirect));
+        }
         String state = states.issue(safeRedirect(redirect));
-        URI uri = clients.require(target).authorizationUri(state);
-        return ResponseEntity.status(HttpStatus.FOUND).location(uri).build();
+        return ResponseEntity.status(HttpStatus.FOUND).location(client.authorizationUri(state)).build();
     }
 
     @GetMapping("/{provider}/callback")
@@ -87,6 +94,9 @@ public class OAuthController {
                                          @RequestParam(required = false) String state,
                                          @RequestParam(required = false) String error) {
         OAuthProvider target = parse(provider);
+        if (!clients.require(target).configured()) {
+            return redirectToFrontend(null, "PROVIDER_NOT_CONFIGURED", safeRedirect(null));
+        }
 
         // 사용자가 동의 화면에서 취소한 경우다. 실패가 아니라 선택이므로 조용히 돌려보낸다.
         if (error != null && !error.isBlank()) {
