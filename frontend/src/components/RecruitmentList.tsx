@@ -41,7 +41,6 @@ export function RecruitmentRoleIcons({ row }: { row: IntroductionRecord }) {
   };
   return <span className="recruitment-role-pair" role="group" aria-label={`${roleTitle(row)}: ${roleLabel(row)}, 찾는 상대: ${desiredLabel(row)}`}>
     <span className="recruitment-role-own" title={`본인: ${roleLabel(row)}`}>{displayRoles(ownRoles(row)).map(icon)}</span>
-    <svg className="recruitment-role-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6" /></svg>
     <span className="recruitment-role-targets" title={`찾는 상대: ${desiredLabel(row)}`}>{displayRoles(row.preferences.desiredKeys).map(icon)}</span>
   </span>;
 }
@@ -64,6 +63,7 @@ export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]
   }, []);
   const withoutRoles = rows.length > 0 && rows.every(row => !usesKeyCondition(row.condition.game, row.condition.modeKey));
   return <div className={`recruitment-list${withoutRoles ? ' without-roles' : ''}`} aria-label="매칭 글 목록">
+    {!withoutRoles ? <div className="board-column-head" aria-hidden="true"><span /><span /><div className="position-column-head"><span>내 포지션</span><span>찾는 포지션</span></div><span /></div> : null}
     {rows.map(row => {
       const introduction = introductionForRow(row);
       const hasRoles = usesKeyCondition(row.condition.game, row.condition.modeKey);

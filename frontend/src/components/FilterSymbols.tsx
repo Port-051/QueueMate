@@ -4,13 +4,9 @@ import { rankEmblem, rankEmblemBounds, RANK_EMBLEM_SOURCE_SIZE } from '../domain
 
 type SymbolProps = { size?: number };
 
-const ALL_ROLES = <>
-  <circle cx="12" cy="5.2" r="2.7" />
-  <circle cx="19.1" cy="10.4" r="2.7" />
-  <circle cx="16.4" cy="18.8" r="2.7" />
-  <circle cx="7.6" cy="18.8" r="2.7" />
-  <circle cx="4.9" cy="10.4" r="2.7" />
-</>;
+const ALL_ROLES = <g fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="miter">
+  <path d="M2.5 21V7l3-4 3 4v14M2.5 13h6M12 3v18h4M18.5 3v18H23" />
+</g>;
 
 const LOL_ROLES: Record<string, ReactNode> = {
   TOP: <>

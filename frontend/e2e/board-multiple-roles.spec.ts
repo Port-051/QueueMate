@@ -4,7 +4,7 @@ import { login } from './helpers';
 test('포지션 다중 선택은 합집합으로 검색하고 개별 해제와 초기화가 된다', async ({ page }) => {
   await login(page);
   const filters = page.getByRole('group', { name: '상대 검색 필터', exact: true });
-  const roles = filters.getByRole('group', { name: '찾는 포지션', exact: true });
+  const roles = page.locator('.board-position-filters').getByRole('group', { name: '내 포지션', exact: true });
   await filters.getByRole('button', { name: '랭크', exact: true }).click();
   await roles.getByRole('button', { name: '탑', exact: true }).click();
   await roles.getByRole('button', { name: '정글', exact: true }).click();

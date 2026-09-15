@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { login, startRealtimeMatch } from './helpers';
 
-test('본인 포지션 여러 개가 저장되고 목록에 본인과 상대가 화살표 양옆에 보인다', async ({ page }) => {
+test('본인 포지션 여러 개가 저장되고 목록에 본인과 상대가 각각의 컬럼에 보인다', async ({ page }) => {
   await login(page);
   const form = page.locator('.recruitment-composer-shell');
   const own = form.getByRole('group', { name: '내 포지션', exact: true });
@@ -24,6 +24,6 @@ test('본인 포지션 여러 개가 저장되고 목록에 본인과 상대가 
   await expect(own.locator('[aria-pressed=true]')).toHaveCount(2);
   await expect(page.getByRole('button', { name: '매칭 조건 저장' })).toBeDisabled();
   await page.getByRole('button', { name: '취소', exact: true }).click();
-  await page.locator('.board-filter-bar').getByRole('button', { name: '정글', exact: true }).click();
+  await page.locator('.board-position-filters').getByRole('group', { name: '내 포지션', exact: true }).getByRole('button', { name: '정글', exact: true }).click();
   await expect(row).toBeVisible();
 });

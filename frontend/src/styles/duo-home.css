@@ -173,5 +173,14 @@
 .recruitment-role-arrow { display: none; }
 .row-roles .recruitment-role-arrow { display: block; }
 
-.board-home .row-roles .recruitment-role-pair { display: grid; grid-template-columns: 94px 16px 94px; align-items: center; justify-items: center; gap: 4px; }
+.board-home .row-roles .recruitment-role-pair { display: grid; grid-template-columns: 70px 70px; align-items: center; justify-items: center; gap: 4px; }
 .board-home .row-roles .recruitment-role-own, .board-home .row-roles .recruitment-role-targets { justify-content: center; }
+
+.board-home .row-roles .recruitment-role-own, .board-home .row-roles .recruitment-role-targets { max-width: 70px; flex-wrap: wrap; gap: 2px; }
+.board-column-head { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; padding: 8px 16px; color: var(--muted); font-size: 11px; }
+.position-column-head { display: grid; grid-template-columns: 70px 70px; gap: 4px; padding-inline: 14px; text-align: center; }
+.board-position-filters { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 0 0 12px; }
+.board-position-filter { display: flex; align-items: center; gap: 10px; }
+.board-position-filter > span { color: var(--muted); font-size: 12px; }
+.board-position-filter .filter-role-options { border: 0; padding: 0; }
+@container (max-width: 680px) { .board-column-head { display: none; } }
