@@ -553,7 +553,7 @@ return 1
  */
 ```
 
-측정 결과 (`docs/CONCURRENCY_TESTS.md:57-71`).
+측정 결과 (`docs/CONCURRENCY_TESTS.md:66-80`).
 조건: 같은 `userId`로 **100 스레드 동시 요청 × 5 라운드, 인위적 지연 없음**:
 
 | | 순진한 방식 (자바에서 `EXISTS` 후 `HSET`) | Lua |
@@ -573,18 +573,21 @@ exclusion constraint와 Lua는 **같은 처방을 서로 다른 층에서 쓴 �
 
 ### 6-3. matching이 Redis Lua로 강제하는 불변식 전체
 
-`docs/CONCURRENCY_TESTS.md`에 근거한 목록. **2026-09-11 기준 스크립트는 6개다**
-(티어를 보는 판이 늘고, 차단 검증을 끼우려고 배정이 "찾기"와 "합류"로 쪼개졌다).
+`docs/CONCURRENCY_TESTS.md`와 `CLAUDE.md` §4에 근거한 목록. **2026-09-15 기준 커밋된 스크립트는 8개다**
+(`shared/` 1 · `lol/` 5 · `proposal/` 2. 티어를 보는 판이 늘고, 차단 검증을 끼우려고 배정이
+"찾기"와 "합류"로 쪼개졌고, 제안 수락·거절이 붙었다. 작업 트리의 `redis/pubg/` 는 작성 중이라 세지 않는다).
 줄 번호는 자주 어긋나므로 파일 이름과 명령으로 적는다.
 
 | 불변식 | 스크립트 | 강제 방식 | 테스트 |
 |---|---|---|---|
 | INV-1 | `claim-request.lua` | `EXISTS` 확인과 `HSET`이 한 원자 단위. 뒤에 `EXPIRE 60` | `ActiveRequestConcurrencyTest.onlyOneRequestSucceedsPerUser` / `.differentUsersAllSucceed` |
 | INV-1 (대조군) | — | 순진한 구현이면 실제로 깨진다 | `NaiveVsLuaComparisonTest.naiveApproachBreaksUnderConcurrency` |
-| INV-3 | `join-party.lua` / `join-party-tiered.lua` | `HINCRBY`로 인원을 올리고 `size >= target`이면 모든 needs 색인에서 제거. **단 `HINCRBY`에 target 확인 분기가 없어, 초과를 막는 것은 색인(안 찬 파티만 들어 있다) + `redis/PoolLock.java` 의 후보 풀 락까지 세 겹이다** | `PartyJoinConcurrencyTest.partyNeverExceedsTarget` |
+| INV-3 | `join-party.lua` / `join-party-tiered.lua` | 참가자를 `HSET member:{userId}` 한 뒤 **`member:` 필드를 세어** `size >= target`이면 모든 needs 색인에서 제거한다. 인원 카운터는 두지 않는다 — Lua 는 롤백이 없어 페일오버 뒤 재시도가 `HINCRBY`를 두 번 더하면 실제 멤버 수와 어긋나지만 `HSET` + 세기는 몇 번 해도 같다. **단 세는 자리에 target 확인 분기가 없어, 초과를 막는 것은 ① 후보가 needs 색인(=아직 안 찬 파티)에서만 나온다는 것과 ② 후보 선택부터 합류까지가 `redis/PoolLock.java` 의 후보 풀 락 안에 있다는 것, 두 겹이다** | `PartyJoinConcurrencyTest.partyNeverExceedsTarget` |
 | INV-3 / INV-8 | 〃 | `uniqueness=true`면 내 keyValue 색인에서 파티를 `ZREM` (티어판은 그 줄의 티어 전부) | `PartyJoinConcurrencyTest.positionIsUniqueWithinParty` |
 | INV-7 | `create-or-check-party-untiered.lua` / `-tiered` / `join-party.lua` / `join-party-tiered.lua` | 활성 요청 HASH에 `partyId`를 기록하고, 참가자를 `member:{userId}` **필드**로 써서 한 사용자가 한 번만 들어가게 한다 | `PartyJoinConcurrencyTest.userBelongsToOnlyOneParty` |
-| (취소 정합성) | `leave-party.lua` | 빼기·인원감소·색인복원·빈파티삭제·요청삭제가 한 덩어리. 삭제는 `requestId` compare-and-delete | 〃 |
+| INV-4 | `accept-proposal.lua` | 수락자 SET `qm:proposal:accepts:{partyId}`에 `SADD` → `SCARD`를 파티 HASH의 `target`과 비교해 `count >= target`일 때만 `HSET status CONFIRMED`. 세기와 확정이 한 스크립트라 마지막 두 명이 둘 다 "내가 마지막"이 될 수 없다. `target`을 못 읽으면 확정하지 않는다(fail-closed) | `ProposalIdempotencyTest` (단일 스레드 멱등성) |
+| INV-5 (declined·confirmed) | `decline-proposal.lua` / `accept-proposal.lua` / `join-party*.lua` | 거절은 `status`·`expiresAt`을 `HDEL`하고 수락자 SET을 `DEL` → 거절된 제안의 수락은 `NOT_FOUND`. 두 스크립트 모두 `status == CONFIRMED`면 쓰기 전에 돌려준다. `join-party*.lua`는 `HSETNX status PENDING`이라 재실행이 확정을 되돌리지 않는다. **expired·cancelled 갈래는 막혀 있지 않다** (§6-4) | 〃 |
+| (취소 정합성) | `leave-party.lua` | 빼기(`HDEL member:{userId}` — 인원을 세어 구하므로 이것이 곧 인원 감소)·색인복원·빈파티삭제·요청삭제가 한 덩어리. 삭제는 `requestId` compare-and-delete | 동시성 테스트 없음. 취소 경로는 `PushNotificationTest.cancelNotifiesOnlyRemainingMembers` 가 단일 흐름으로 밟는다 |
 
 > **이 절이 "Lua가 전부다"라고 읽히면 안 된다.** 배정이 두 스크립트로 쪼개지면서
 > 그 사이 구간은 Lua가 아니라 Redisson 분산 락(`redis/PoolLock.java`)이 막는다.
@@ -609,8 +612,13 @@ exclusion constraint와 Lua는 **같은 처방을 서로 다른 층에서 쓴 �
 |---|---|---|
 | 관장 범위 | 진행 중 — 요청, 파티 채우기, 수락 집계 | 확정된 것 — proposal, party, outbox |
 | 원자성 도구 | Lua 스크립트 | 트랜잭션 + 제약 |
-| 다루는 불변식 | INV-1, INV-3, INV-7, INV-8 | INV-1(이력), INV-3, INV-4, INV-5, INV-7, INV-9 |
-| 이 저장소의 구현 | **있다** | **없다** (`docs/11_DECISION_LOG.md:441-442`) |
+| 다루는 불변식 | INV-1, INV-3, INV-4, INV-5, INV-7, INV-8 | INV-1(이력), INV-3, INV-4, INV-5, INV-7, INV-9 |
+| 이 저장소의 구현 | **있다.** 단 INV-4 는 구현·테스트됨(확정 후속 처리 없음), INV-5 는 **부분** — declined·confirmed 는 막혔고 expired·cancelled 는 구멍이다 (`CLAUDE.md` §4) | **없다** (`docs/11_DECISION_LOG.md:441-442`) |
+
+INV-5 의 두 구멍은 이렇다. **expired** — `expiresAt` 은 정원이 찰 때 쓰이기만 하고 읽는 주체(sweeper)가
+없어, `accept-proposal.lua` 가 시한을 보지 않고 만료된 제안을 확정한다. **cancelled** — `leave-party.lua` 가
+`member:` 필드만 지우고 `status`·`expiresAt`·수락자 SET 을 건드리지 않아, `PENDING` 도중 취소한 사람의
+옛 수락이 남아 새로 합류한 사람의 수락으로 `SCARD` 가 `target` 에 닿을 수 있다.
 
 `matching`이 확정 후속 처리(DB 반영·outbox)를 구현하는 순간, `accept-proposal.lua`가 `CONFIRMED`를
 돌려주는 지점(`ProposalService#accept()`의 TODO)부터 §2의 단일 트랜잭션이 필요해진다.
@@ -637,10 +645,12 @@ exclusion constraint와 Lua는 **같은 처방을 서로 다른 층에서 쓴 �
 |---|---|
 | `docs/11_DECISION_LOG.md` | `:25` (#4), `:69-78` (#17), `:97-109` (#19), `:222-247` (#27), `:404-424` 색인표, `:433-445` 미구현 목록 |
 | `docs/14_ARCHITECTURE_RATIONALE.md` | `:198-228` (§19). **§3은 이 발췌본에서 빠져 있다** (`:10-11`의 "뺀 절" 목록) |
-| `docs/CONCURRENCY_TESTS.md` | `:35-45` 불변식표, `:57-71` 측정 결과 |
+| `docs/CONCURRENCY_TESTS.md` | `:35-45` 불변식표, `:66-80` 측정 결과 |
 | `backend/src/main/resources/redis/shared/claim-request.lua` | 전체 (30줄) |
 | `backend/src/main/resources/redis/lol/create-or-check-party-untiered.lua` | `:74` |
-| `backend/src/main/resources/redis/proposal/accept-proposal.lua` | `CONFIRMED` 반환 분기 (§6-4) |
+| `backend/src/main/resources/redis/proposal/accept-proposal.lua` | `CONFIRMED` 반환 분기 (§6-3, §6-4) |
+| `backend/src/main/resources/redis/proposal/decline-proposal.lua` | `HDEL status expiresAt` + `DEL acceptsKey` (§6-3) |
+| `backend/src/main/resources/redis/lol/join-party.lua` | `memberCount` 주석, `HSETNX status PENDING` (§6-3) |
 | `backend/src/main/resources/redis/lol/leave-party.lua` | `:3-6`, `:12-13`, `:87-89`, `DEL userKey` |
 | `backend/src/main/java/com/queuemate/matching/service/MatchRequestService.java` | `#join()` |
 | `backend/src/main/java/com/queuemate/matching/config/RedisConfig.java` | `#claimRequestScript()` |

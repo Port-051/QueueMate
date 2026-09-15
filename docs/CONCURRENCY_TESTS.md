@@ -40,19 +40,28 @@
 | INV-1 | (반대 방향) 서로 다른 사용자는 서로를 막지 않는다 | 〃 | `ActiveRequestConcurrencyTest.differentUsersAllSucceed` |
 | INV-1 | 순진한 구현이면 실제로 깨진다 | — (대조군) | `NaiveVsLuaComparisonTest.naiveApproachBreaksUnderConcurrency` |
 | INV-1 | 같은 부하에서 Lua는 중복 0 | `claim-request.lua` | `NaiveVsLuaComparisonTest.luaApproachHoldsUnderSameLoad` |
-| INV-3 | 파티 인원이 `targetPartySize`를 넘지 않는다 | `join-party.lua` 의 `HINCRBY` + 정원 시 색인 제거, **그리고** `redis/PoolLock.java` 의 후보 풀 락 | `PartyJoinConcurrencyTest.partyNeverExceedsTarget` |
+| INV-3 | 파티 인원이 `targetPartySize`를 넘지 않는다 | `join-party.lua` / `join-party-tiered.lua` 가 참가자를 `HSET member:{userId}` 한 뒤 **`member:` 필드를 세어** `size >= target` 이면 모든 needs 색인에서 제거, **그리고** `redis/PoolLock.java` 의 후보 풀 락 | `PartyJoinConcurrencyTest.partyNeverExceedsTarget` |
 | INV-3 / INV-8 | `positionUniqueness=true` 모드에서 같은 포지션이 둘 들어가지 않는다 | 〃 (`unique` 분기의 `ZREM`) | `PartyJoinConcurrencyTest.positionIsUniqueWithinParty` |
-| INV-7 | 한 사용자가 두 파티에 동시에 속하지 않는다 | `create-or-check-party-untiered.lua` / `join-party.lua` 가 `partyId` 필드를 하나만 쓴다 | `PartyJoinConcurrencyTest.userBelongsToOnlyOneParty` |
+| INV-2 근사 / INV-7 | 한 사용자가 두 파티에 동시에 속하지 않는다 | `create-or-check-party-untiered.lua` / `join-party.lua` 가 활성 요청 HASH 의 `partyId` 필드를 하나만 쓰고, 참가자를 `member:{userId}` 필드로 쓴다 | `PartyJoinConcurrencyTest.userBelongsToOnlyOneParty` |
 
-> **INV-3 을 Lua 혼자 지키지 않는다.** `join-party.lua` 의 `HINCRBY size 1` 에는 target
-> 확인 분기가 없다. 초과를 막는 것은 ① 후보가 needs 색인(=아직 안 찬 파티)에서만 나온다는
-> 것과 ② 후보 선택부터 합류까지가 후보 풀 락 안에 있다는 것, 두 겹이다.
+> **INV-3 을 Lua 혼자 지키지 않는다.** `join-party*.lua` 는 참가자를 먼저 `HSET` 하고 세는데,
+> 그 자리에 **target 을 넘으면 합류를 거절하는 분기가 없다** (`size >= target` 분기는 색인에서
+> 빼고 제안을 여는 일만 한다). 초과를 막는 것은 ① 후보가 needs 색인(=아직 안 찬 파티)에서만
+> 나온다는 것과 ② 후보 선택부터 합류까지가 후보 풀 락 안에 있다는 것, 두 겹이다.
+>
+> **인원 카운터 필드(`size`)는 없다.** 예전에는 `HINCRBY size 1` 로 인원을 올렸다. Lua 는 롤백이
+> 없어서 스크립트 중간에 Redis 가 죽으면 그때까지의 쓰기가 남고, 페일오버 뒤 재시도가 같은
+> 명령을 한 번 더 실행한다 — 그때 `HINCRBY` 는 두 번 더해져 카운터가 실제 멤버 수와 어긋나지만
+> (정원 미만 파티가 "꽉 찼다"고 판정된다), `HSET` + 세기는 몇 번 해도 결과가 같다
+> (`join-party.lua` 의 `memberCount` 주석). 취소도 같다 — `leave-party.lua` 는 `HDEL member:{userId}`
+> 뒤에 세므로 필드를 지우는 것이 곧 인원 감소다.
 
 포지션 유일성은 테스트 코드에서 INV-3으로 표기돼 있으나,
 CLAUDE.md 기준으로는 게임별 hard rule이므로 INV-8에도 걸린다.
 
-`partyNeverExceedsTarget`은 `size` 카운터와 실제 `member:*` 필드 수가
-일치하는지도 함께 본다. 둘이 어긋나면 정원 판정 자체가 무의미해진다.
+`partyNeverExceedsTarget`은 각 파티의 `member:*` 필드 수가 5 이하인지 보고, 파티 HASH 에
+`size` 필드가 **없는지**도 함께 단언한다. 카운터가 되살아나면 재시도 때 실제 멤버 수와
+어긋날 수 있으므로 그 회귀를 여기서 잡는다.
 
 ## 측정 결과
 
@@ -81,13 +90,22 @@ CLAUDE.md 기준으로는 게임별 hard rule이므로 INV-8에도 걸린다.
 
 ### 전체 테스트
 
-| 테스트 클래스 | 개수 | 결과 |
-|---|---|---|
-| `MatchingApplicationTests` | 1 | 통과 |
-| `ActiveRequestConcurrencyTest` | 2 | 통과 |
-| `PartyJoinConcurrencyTest` | 3 | 통과 |
-| `NaiveVsLuaComparisonTest` | 2 | 통과 |
-| **합계** | **8** | **8 통과** |
+`backend/src/test/java` 의 `@Test` 를 세어 적은 개수다. 동시성 테스트는 7건이고, 같은
+`ConcurrencyTestSupport`(Redis DB 15)를 상속하는 알림·제안 테스트와 컨텍스트 기동 테스트까지 합치면 25건이다.
+
+| 테스트 클래스 | 종류 | 개수 | 결과 |
+|---|---|---|---|
+| `concurrency/ActiveRequestConcurrencyTest` | 동시성 | 2 | 통과 |
+| `concurrency/PartyJoinConcurrencyTest` | 동시성 | 3 | 통과 |
+| `concurrency/NaiveVsLuaComparisonTest` | 동시성 | 2 | 통과 |
+| `notification/PushNotificationTest` | 알림 발행 (구독으로 확인) | 6 | 통과 |
+| `proposal/ProposalIdempotencyTest` | 제안 수락/거절 멱등성 (단일 스레드, INV-4/5) | 11 | 통과 |
+| **Redis 를 쓰는 테스트 합계** | | **24** | **24 통과** |
+| `MatchingApplicationTests` | 컨텍스트 기동 | 1 | 이번 기록에서 돌리지 않음 |
+
+결과 열은 `HANDOFF.md` §1 의 2026-09-15 실행 기록(커밋 `8d7f094`, `bf4b0da` 에서 24/24)을 옮긴 것이다.
+`MatchingApplicationTests` 는 CLAUDE.md §7 에 따라 설정·의존성을 건드릴 때만 돌린다.
+**24건은 전부 LoL 경로만 탄다** — PUBG 를 검증하는 테스트는 아직 없다.
 
 ## 왜 순진한 방식이 깨지는가
 
@@ -146,10 +164,10 @@ Redis는 명령을 싱글 스레드로 처리하고, Lua 스크립트를 **하�
 
 - `create-or-check-party-untiered.lua` — "색인 조회 → 없으면 파티 생성 → 색인 등록 →
   active-request에 partyId 기록 → claim 만료 해제(`PERSIST`)"
-- `join-party.lua` — "`HINCRBY size` → 참가자 기록 → partyId 기록 → `PERSIST` →
-  정원이 찼으면 모든 색인에서 제거"
+- `join-party.lua` — "참가자 기록(`HSET member:{userId}`) → `member:` 필드 세기 → partyId 기록 →
+  `PERSIST` → 정원이 찼으면 모든 색인에서 제거 + `HSETNX status PENDING`"
 
-각각을 나누면 예컨대 size는 늘었는데 색인이 안 정리되어 정원 초과가 난다 (docs/11 #34).
+각각을 나누면 예컨대 참가자는 들어갔는데 색인이 안 정리되어 정원 초과가 난다 (docs/11 #34).
 
 **다만 두 스크립트 사이는 Lua가 덮지 못한다.** "빈 파티가 있다"는 응답과 실제 합류
 사이에 마지막 자리가 차버릴 수 있고, 그 구간을 막는 것은 `redis/PoolLock.java` 의
@@ -180,6 +198,9 @@ cd backend      # 스프링 프로젝트는 저장소 루트의 backend/ 에 있
 
 # 같은 Redis(DB 15)를 쓰는 알림 테스트. 동시성 테스트는 아니지만 전제가 같다
 ./gradlew test --tests '*PushNotificationTest'
+
+# 같은 Redis(DB 15)를 쓰는 제안 멱등성 테스트 (단일 스레드)
+./gradlew test --tests '*ProposalIdempotencyTest'
 ```
 
 결과 XML: `backend/build/test-results/test/TEST-*.xml` (`<system-out>`에 라운드별 출력이 남는다)
@@ -205,14 +226,16 @@ cd backend      # 스프링 프로젝트는 저장소 루트의 backend/ 에 있
 | Testcontainers | 미적용 | Spring Boot 4.1 BOM에서 `org.testcontainers:junit-jupiter` 해석 실패 (Testcontainers 2.x 모듈 구조 변경). 대신 로컬 Redis DB 15번 + `flushDb`로 갔다 |
 | 실행 전제 | 로컬 Redis 필요 | CI에서 돌리려면 Redis 서비스 컨테이너를 붙여야 한다. 지금은 로컬에서만 재현 가능 |
 | 요청 취소 | 동시성 테스트 없음 | 구현은 있다 (`MatchCancelService` + `rule/lol/LolPartyLeaver` + `leave-party.lua`). 배정과 취소가 동시에 같은 파티를 건드리는 경합을 검증하지 않았다 |
-| 제안(proposal) | 테스트 없음 | 정원이 차면(**코드 2**) `MATCH_PROPOSAL_CREATED` 알림까지는 나가지만 수락 집계·확정이 없다. INV-2/INV-4/INV-5 미검증 |
-| 만료 sweeper | 테스트 없음 | 제안 TTL 만료 처리 자체가 아직 없다 |
+| 제안(proposal) | **동시성** 테스트 없음 | 수락 집계·확정·거절은 구현됐고(`accept-proposal.lua` / `decline-proposal.lua`) `ProposalIdempotencyTest`(11건)가 **단일 스레드 멱등성**으로 INV-4/INV-5 를 지킨다. 마지막 두 명이 동시에 수락하는 경합은 스크립트 원자성에 기대고 있고 동시 부하로 재현해 보지는 않았다 |
+| 만료 sweeper | 테스트 없음 | 제안 TTL 만료 처리 자체가 아직 없다 (INV-5 expired 구멍) |
+| 제안 도중 취소 | 테스트 없음 | `leave-party.lua` 가 `status` / 수락자 SET 을 건드리지 않아 INV-5 cancelled 구멍이 있다 (CLAUDE.md §4). 구멍 자체가 열려 있어 테스트도 없다 |
+| PUBG | 테스트 없음 | PUBG 배정 규칙·Lua 가 아직 커밋되지 않았다. 게임별로 스크립트를 나눈 대가로 붙어야 한다 (CLAUDE.md §4) |
 | 차단(INV-6) | 동시성 테스트 없음 | 선필터 코드는 배정 경로에 있다 (`LolCandidateRule#canJoin` → `BlockRepository`). 그런데 `social.blocks` 스키마가 없어 테스트는 H2에 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql` 로 **빈 테이블만** 만들어 두고 돌린다 — 즉 "차단이 없는 경우"만 지나간다. 확정 직전 최종 검증은 미구현 (docs/11 #30). 차단 검증 없이 배포하지 않는다 |
 | 티어 배정 | 동시성 테스트 없음 | `LolTieredAssigner` + `-tiered` 스크립트 2개가 (포지션 x 티어) 격자 색인을 다루는데, 동시성 테스트는 전부 티어 없는 모드다. 알림 테스트만 티어 모드를 한 번 밟는다 (`PushNotificationTest.tieredAssignerPublishesTheSameEnvelopes`) |
 | 후보 풀 락 | 테스트 없음 | `PoolLock` 자체(대기 시간 초과 → 503, 유지 시간 초과)를 겨냥한 테스트가 없다. 지금은 배정 테스트가 간접적으로만 지나간다 |
 | ARAM 경로 | 테스트 없음 | 시드는 하지만(`ARAM_5`) `positionUniqueness=false` 경로를 동시성으로 검증하지 않았다. docs/11 #35의 "칼바람 5인이 2/2/1로 쪼개진" 버그가 났던 경로다 |
 | 다중 인스턴스 | 미검증 | 한 JVM 안의 100 스레드로만 검증했다. Lua의 원자성은 Redis 쪽 성질이라 인스턴스가 늘어도 동일해야 하지만, 실측하지는 않았다 |
 
-**우선순위:** 제안 생성이 붙는 순간 INV-2(한 사용자는 하나의 활성 제안에만 속한다)와
-INV-4(전원 수락 전 파티 확정 금지)가 다음 동시성 위험 지점이다.
-수락 집계도 같은 방식(Lua + 대조군)으로 남긴다.
+**우선순위:** 제안 수락 집계는 붙었고 멱등성 테스트는 있다. 남은 동시성 위험 지점은
+만료 sweeper 와 확정 후속 처리(파티·색인·활성 요청 정리)가 붙을 때의 수락과의 경합, 그리고
+제안 도중 취소(INV-5 cancelled 구멍)다. 붙일 때 같은 방식(Lua + 대조군)으로 남긴다.

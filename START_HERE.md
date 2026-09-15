@@ -21,22 +21,27 @@
   · 이 저장소는 단일 Gradle 모듈이다. 스프링/Gradle 프로젝트는 backend/ 아래에 있고
     빌드도 거기서 돌린다. 진행 중 매칭 상태의 source of truth는 Redis뿐이고,
     DB를 치는 곳은 차단 조회 하나뿐이다. match_requests 테이블을 만들지 마라.
-  · 구현된 게임은 LoL 하나다. VALORANT/PUBG는 enum에만 있고 구현체가 없어
-    요청이 오면 400으로 거절된다.
+  · 배정까지 구현된 게임은 LoL 하나다. PUBG 는 조건 validator
+    (validation/pubg/PubgConditionValidator.java)와 seed/gameconfig.redis 의 PUBG 섹션만
+    커밋돼 있고, 배정 규칙·Lua·테스트는 아직 커밋되지 않았다(사용자 작성 중 — 이어받기 전에 물어라).
+    그래서 PUBG 요청은 검증을 통과하면 201 이 나가지만 배정에서 조용히 실패한다.
+    VALORANT 는 enum 에만 있어 요청이 오면 400 으로 거절된다.
   · 불변식은 Lua 안에서 지킨다. GET → 판단 → SET 으로 지키지 마라.
-    backend/src/main/resources/redis/ 의 lua 8개가 그 자리다. 후보 찾기와 합류가
+    backend/src/main/resources/redis/ 의 lua 8개(커밋 기준)가 그 자리다. 후보 찾기와 합류가
     두 스크립트로 나뉘어 있고, 그 사이 틈은 redis/PoolLock.java 의 후보 풀 락이 막는다.
   · 서버→클라 알림은 Redis Pub/Sub 으로 나간다 (qm:pubsub:push:{userId}).
     다만 "지금 상태가 뭐냐"를 묻는 조회 API가 없다 — GET /match-requests/{id} 는 501이다.
   · 제안 수락/거절과 확정은 구현돼 있다 (POST /api/v1/proposals/{id}/accept|decline →
     service/ProposalService.java → redis/proposal/*.lua). 없는 것은 만료 처리(sweeper)와
     확정 후속 처리(MATCH_CONFIRMED 알림, ProposalConfirmed.fifo, 파티·색인·활성 요청 정리)다.
-  · 이 저장소는 git 저장소가 아니다. git 명령을 쓰지 마라.
+  · 이 저장소는 git 저장소다. private 원격 github.com/rlaehddus302/queuemate-matching
+    (main)에 push 한다. 커밋 규칙은 CLAUDE.md §8. IntelliJ 가 새 파일을 자동으로
+    스테이징하므로 커밋은 `git commit -- <파일>` 로 파일을 지정해서 해라.
 
 빌드: cd backend && ./gradlew --offline compileJava compileTestJava
-테스트: cd backend && ./gradlew test   (동시성 테스트는 localhost:6379에 Redis가 떠 있어야 한다)
+테스트: cd backend && ./gradlew test   (동시성·알림·제안 테스트는 localhost:6379에 Redis가 떠 있어야 한다)
 
-작업 규칙은 CLAUDE.md가 전부다. 특히 §4 불변식 표와 §8 "하지 말 것"을 어기지 마라.
+작업 규칙은 CLAUDE.md가 전부다. 특히 §4 불변식 표와 §9 "하지 말 것"을 어기지 마라.
 ```
 
 ---
@@ -47,7 +52,7 @@
 |---|---|---|
 | 1 | `CLAUDE.md` | 규칙. INV-1~10이 **코드 어느 파일에서** 지켜지는지 표가 있다 |
 | 2 | **이 파일** | 빌드·테스트·구조·현재 진척 |
-| 3 | `contracts/README.md` | 코드 ↔ 계약 불일치 15건. 손대기 전에 봐야 한다 |
+| 3 | `contracts/README.md` | 코드 ↔ 계약 불일치 14건. 손대기 전에 봐야 한다 |
 | 4 | `docs/03_MATCHING_ENGINE_SPEC.md` | 매칭 엔진 설계 원문 |
 | 5 | `docs/07_REDIS_DESIGN.md` | Redis 키 설계 원문 |
 | 6 | `docs/CONCURRENCY_TESTS.md` | 동시성 테스트가 무엇을 왜 증명하는가 (사용자 원본) |
@@ -88,9 +93,13 @@ cd "/mnt/c/Users/kimye/OneDrive/바탕 화면/matching/backend"
 
 ### Redis가 필요한 것 (이 환경에서는 실행 못 함) ⚠️
 
-동시성 테스트 3종과 `PushNotificationTest` 는 `localhost:6379`의 Redis **DB 15번**을 쓰고
-매 테스트마다 `FLUSHDB` 한다 (`ConcurrencyTestSupport`. 알림 테스트도 그것을 상속한다).
-이 문서를 쓴 환경에는 `docker`도 `redis-cli`도 없어 **실행을 확인하지 못했다.**
+동시성 테스트 3종(7건), `PushNotificationTest`(6건), `ProposalIdempotencyTest`(11건,
+`backend/src/test/java/com/queuemate/matching/proposal/ProposalIdempotencyTest.java`)는
+`localhost:6379`의 Redis **DB 15번**을 쓰고 매 테스트마다 `FLUSHDB` 한다
+(`ConcurrencyTestSupport`. 알림·제안 테스트도 그것을 상속한다).
+이 문서를 처음 쓴 환경에는 `docker`도 `redis-cli`도 없어 실행을 확인하지 못했다.
+2026-09-15 에는 소스에서 빌드한 Redis(포트 6390, `REDIS_HOST`/`REDIS_PORT` 로 붙임)로
+이 24건 통과를 확인했다 — 환경 함정은 `HANDOFF.md` §5.
 명령 자체는 `docs/CONCURRENCY_TESTS.md`(사용자 원본)에 적힌 것과 동일하다.
 
 ```bash
@@ -107,6 +116,9 @@ cd "/mnt/c/Users/kimye/OneDrive/바탕 화면/matching/backend"
 
 # 알림 발행만 (실제로 qm:pubsub:push:* 를 구독해서 확인한다)
 ./gradlew test --tests '*PushNotificationTest'
+
+# 제안 수락/거절 멱등성만 (INV-4/5. 단일 스레드)
+./gradlew test --tests '*ProposalIdempotencyTest'
 ```
 
 Redis를 띄우는 법 — 이 저장소에는 `docker-compose.yml`이 **없다.**
@@ -229,14 +241,17 @@ backend/src/main/java/com/queuemate/
     │       │                               (자바는 티어 접미사 없는 needs 키만 넘긴다)
     │       ├── LolPartyLeaver.java       취소. MATCH_CANCELLED 알림도 여기서 발행
     │       ├── LolPartyKeys.java         Redis 키 조립을 한 자리에 모은 것
-    │       ├── LolScriptSupport.java     반환 코드 읽기 / 멤버 추출 / 차단 판정 / 스캔 상한 50
+    │       ├── LolScriptSupport.java     반환 코드 읽기 / 멤버 추출 / 차단 판정 / 스캔 상한 20
     │       └── LolModeConfig.java        gameconfig 에서 읽은 모드 설정 record
+    │                                     (rule/pubg/ 는 커밋돼 있지 않다 — 사용자 작성 중)
     └── validation/
         ├── MatchConditionValidator.java  게임별 validator로 라우팅
         ├── GameConditionValidator.java
-        └── lol/LolConditionValidator.java  포지션 + 티어(tierRule) 검증
+        ├── lol/LolConditionValidator.java    포지션 + 티어(tierRule) 검증
+        └── pubg/PubgConditionValidator.java  플랫폼(STEAM/KAKAO) + 모드 + 티어(tierRule) 검증
 
-backend/src/main/resources/redis/         ★ 불변식이 실제로 지켜지는 곳 (8개)
+backend/src/main/resources/redis/         ★ 불변식이 실제로 지켜지는 곳 (커밋된 것 8개.
+                                            redis/pubg/ 스크립트는 작성 중이라 세지 않는다)
 ├── shared/claim-request.lua            INV-1     EXISTS + HSET + EXPIRE 60
 ├── lol/create-or-check-party-untiered.lua        후보 찾기, 없으면 만들고 들어감 (티어 안 봄)
 ├── lol/create-or-check-party-tiered.lua          위의 (포지션 x 티어) 격자판. tier-range 표와
@@ -260,7 +275,8 @@ backend/src/test/java/com/queuemate/matching/
 └── proposal/ProposalIdempotencyTest.java   수락/거절 멱등성 11건
 
 backend/src/test/resources/schema.sql     테스트용 H2 에만 만드는 social.blocks
-seed/gameconfig.redis                     모드 설정 원본 (LoL 12모드 + 티어 사다리 32 + tier-range 표 4모드).
+seed/gameconfig.redis                     모드 설정 원본. LoL(12모드 + 티어 사다리 32 + tier-range 표 4모드)
+                                          + PUBG(8모드 + 티어 사다리 27 + tier-range 표 4모드).
                                           티어 값의 원본도 여기다. 앱은 읽기만 한다
 load-test/                                k6 + python 부하 테스트 자산
 redis-ha-lab/                             [실험용] Sentinel 페일오버 실습 자산
@@ -357,7 +373,8 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 > 그 전 판은 2026-09-06 시점 기록이었고, 그 사이에 티어 매칭 · 후보 풀 락 ·
 > 알림 발행 · claim TTL · proposal 껍데기가 들어오면서 상당 부분이 사실과 어긋났다.
 > **2026-09-15 에 제안(proposal) 수락·거절·확정 관련 서술만 코드를 읽고 다시 고쳤다** —
-> 그 사이 껍데기였던 `ProposalService` 에 수락 집계 Lua 가 붙었다. 그 밖의 서술은 09-11 판 그대로다.
+> 그 사이 껍데기였던 `ProposalService` 에 수락 집계 Lua 가 붙었다. 같은 날 PUBG 구현 현황(§4.3(a)),
+> git 저장소 여부(§4.3(f)), §4.3(e) 의 주석 목록도 코드를 읽고 고쳤다. 그 밖의 서술은 09-11 판 그대로다.
 > 이 절도 **금방 낡을 수 있다.** 손대기 전에 §4.4의 검증 명령을 돌려 직접 확인해라.
 
 ### 4.1 되는 것 ✅
@@ -396,7 +413,7 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 | **INV-6 차단 검증** | 선필터 코드는 **있다** (`LolCandidateRule#canJoin` → `BlockRepository.findBlockedUserIds` → `LolScriptSupport.blockedWith`). 그런데 `social.blocks` 스키마가 없다 — Flyway 미도입, `ddl-auto: none`. 기본 실행(H2)에서는 그 조회가 실패하고, 배정이 `@Async` 안이라 **요청은 201로 나가고 배정만 조용히 실패한다.** 테스트만 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql` 로 통과한다. 확정 직전 최종 검증(docs/11 D-1, `BlockRepository#findBlocksAmong`)은 확정 경로(`accept-proposal.lua`)에 붙어 있지 않아 미구현 |
 | **SQS outbox** | AWS SDK 의존성이 `backend/build.gradle` 에 없다 |
 | **인증** | JWT 없음. `userId`를 요청 바디와 쿼리 파라미터로 받는 임시 상태 |
-| **VALORANT / PUBG** | 구현체가 없다 (§4.3) |
+| **VALORANT / PUBG 배정** | VALORANT 는 구현체가 없다. PUBG 는 validator 와 시드만 커밋됐고 `CandidateRule` 구현체·Lua·테스트가 커밋돼 있지 않다 (§4.3) |
 | **`GET /games`** | 계약에 있으나 컨트롤러가 없다 |
 | **Dockerfile** | 없다 |
 
@@ -406,30 +423,38 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 
 ### 4.3 알아두면 헷갈리지 않을 것
 
-**(a) 지원 게임은 3개인데 구현은 LoL 하나뿐이다.**
+**(a) 지원 게임은 3개인데 배정까지 구현된 것은 LoL 하나다. PUBG 는 검증과 시드까지만 커밋됐다.**
 
 `GameKey` enum은 `LOL, VALORANT, PUBG` 셋이다 — 그건 **제품 경계**이지 구현 현황이 아니다
-(docs/11 #8). 실제 구현체는 각각 하나씩뿐이다:
+(docs/11 #8). 커밋된 구현체는 이렇다:
 
-- `GameConditionValidator` 구현체: `LolConditionValidator` **1개**
+- `GameConditionValidator` 구현체: `LolConditionValidator` / `PubgConditionValidator` **2개**
 - `CandidateRule` 구현체: `LolCandidateRule` **1개**
-- `rule/pubg`, `rule/valorant`, `validation/pubg`, `validation/valorant` 는 **빈 디렉터리**이고
+- `seed/gameconfig.redis` 는 LoL 섹션과 PUBG 섹션을 둘 다 갖는다. PUBG 는 모드 8
+  (`{NORMAL,RANKED}_{DUO,SQUAD}_{TPP,FPP}`) / 티어 사다리 27 (`qm:gameconfig:PUBG:tier`) /
+  랭크 모드 tier-range 표 4. 섹션마다 `seed done: ...` 줄이 하나씩 있다
+- `rule/valorant`, `validation/valorant` 는 **빈 디렉터리**이고
   `domain/pubg`, `domain/valorant` 에는 `.gitkeep` 만 있다
+- **커밋되지 않은 사용자 작업**: `rule/pubg/` 전체, `resources/redis/pubg/*.lua`,
+  `config/pubg/PubgRedisConfig.java`. PUBG 를 검증하는 테스트는 아직 하나도 없다.
+  이어받기 전에 사용자에게 물어라 (`HANDOFF.md` §1·§3-A)
 
-그래서 `game: "VALORANT"` 또는 `"PUBG"`로 요청하면:
-`MatchConditionValidator`의 `orElseThrow` → `IllegalArgumentException("지원하지 않는 게임: PUBG")`
-→ `GlobalExceptionHandler#handleIllegalArgument` → **400 `BAD_REQUEST`** 로 나간다.
-500으로 터지지는 않지만, 조건이 틀린 것과 게임이 미구현인 것이 **같은 400 코드로 묶여**
-클라이언트가 구분할 수 없다. 게임을 늘릴 때 여기부터 손봐라.
+그래서 요청 결과가 게임마다 다르다:
 
-이 범위 축소는 사고가 아니라 결정이다 — docs/11 **#30**("LoL만 / Tier 0만 / 차단 검증 제외").
+- `game: "VALORANT"` → `MatchConditionValidator`의 `orElseThrow` →
+  `IllegalArgumentException("지원하지 않는 게임: VALORANT")` → `GlobalExceptionHandler#handleIllegalArgument`
+  → **400 `BAD_REQUEST`**. 500으로 터지지는 않지만, 조건이 틀린 것과 게임이 미구현인 것이
+  **같은 400 코드로 묶여** 클라이언트가 구분할 수 없다. 게임을 늘릴 때 여기부터 손봐라.
+- `game: "PUBG"` → `PubgConditionValidator` 가 검증한다. 통과하면 `claim-request.lua` 가
+  활성 요청을 선점하고 **201** 이 나간 뒤, `@Async` 안의 `MatchTrigger` 가 규칙을 못 찾아
+  `IllegalArgumentException("파티 배정 규칙이 없는 게임: PUBG")` 으로 끝난다. 그 사용자는
+  claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 
-> 이력 참고: 15:51 이전에는 `seed/gameconfig.redis`에 PUBG 모드 2개(DUO/SQUAD)가 있고
-> `ConcurrencyTestSupport`에 PUBG 헬퍼가 있어서 **시드와 구현이 어긋난 상태**였다.
-> 15:51의 되돌리기로 둘 다 LoL 전용으로 돌아가 지금은 어긋나지 않는다.
-> 시드 마지막 줄이 `seed done: LoL 12 modes / tier ladder 32 / tier-range 4 modes` 이고
-> `docs/GAME_CONFIG.md`의 "모드 12개" 표와 맞는다.
-> **PUBG를 다시 넣을 때는 시드·테스트 헬퍼·구현체를 같은 커밋에서 함께 넣어라.**
+LoL 만으로 시작한 범위 축소는 사고가 아니라 결정이다 — docs/11 **#30**("LoL만 / Tier 0만 / 차단 검증 제외").
+
+> 이력 참고: 한때 PUBG 시드·테스트 헬퍼가 구현 없이 들어갔다가 LoL 전용으로 되돌린 적이 있다.
+> 지금은 PUBG 시드와 validator 가 다시 커밋됐고 배정 규칙·테스트는 아직이라, **시드·검증과
+> 배정이 다시 어긋난 상태**다. `ConcurrencyTestSupport` 의 시드 헬퍼는 여전히 LoL 전용이다.
 
 **(b) `docs/02`가 말하는 조건 완화(compatibility tier)는 여전히 코드에 없다. 랭크 티어는 이제 있다.**
 
@@ -466,6 +491,8 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 `load-test/match_latency.py` 가 성사를 감지하려고 HTTP 가 아니라 **Redis 를 직접 폴링**하는
 것은 그 스크립트가 알림 도입 전에 쓰였기 때문이다
 (`HGET qm:user:active-request:{uid} partyId` → `HGET qm:party:{pid} size`).
+**그 `size` 필드는 이제 없다** — 파티 HASH 는 인원을 `member:` 필드를 세어 구한다. 그래서 이
+스크립트는 지금 코드에서는 성사를 감지하지 못한다(코드 확인만 했고 고치지 않았다).
 
 **(d) 코드 주석의 결정 번호가 `docs/11`과 맞지 않는다.**
 
@@ -483,12 +510,6 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
   그 클래스는 **없다.**
 - `redis/PoolLock.java`의 클래스 주석이 "지금은 아직 아무 데서도 쓰이지 않는다"고 하는데
   `LolCandidateRule#canJoin`이 **실제로 쓴다.**
-- `rule/lol/LolTieredAssigner.java`의 클래스 주석이 "`tierRule`(TABLE / WINDOW)을 해석하는
-  자리도 여기다 / Lua 는 환산된 [최저, 최고]만 받는다"고 하는데 **사실이 아니다.**
-  해석은 Lua 로 옮겨갔고 `TABLE`/`WINDOW` 라는 값 자체가 없다. 같은 주석의
-  "ARGV[9..12] 에 티어 정보를 싣는다 / keyValue 목록은 ARGV[13..] 부터다"도 낡았다 —
-  티어 자리는 `ARGV[9]` 하나이고 keyValue 는 `ARGV[10..]` 이다. 쓰이지 않는
-  `TierRange` record 도 남아 있다.
 - `create-or-check-party-untiered.lua` · `join-party.lua` 머리의
   "티어를 보는 모드는 `join-or-create-party-tiered.lua`가 담당한다 (아직 없다)"도
   낡았다. 실제 파일명은 `create-or-check-party-tiered.lua` / `join-party-tiered.lua`다.
@@ -496,15 +517,22 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 이 저장소에 `join-or-create-party*.lua` 라는 파일은 **하나도 없다.** 그 이름이 보이면
 옛 이름이다 (docs/11 D-6).
 
-**(f) 이 저장소는 git 저장소가 아니다.** `git` 명령을 쓰지 마라. 버전 이력은
-IntelliJ Local History에만 있다.
+(예전에 여기 있던 `LolTieredAssigner` 클래스 주석의 `TABLE`/`WINDOW`·`ARGV[9..12]`·`TierRange`
+항목은 주석과 코드가 고쳐져 뺐다. 지금 주석은 `ARGV[9]` = 티어 이름, keyValue 는 `ARGV[10..]` 로 코드와 맞다.)
+
+**(f) 이 저장소는 git 저장소다.** private 원격 `github.com/rlaehddus302/queuemate-matching`
+(`main`)에 push 한다. 커밋 규칙은 `CLAUDE.md` §8.
+**IntelliJ 가 새 파일을 자동으로 스테이징한다** — 사용자 작업 파일이 문서 커밋에 딸려 올라간
+적이 있다. 커밋은 `git commit -- <파일>` 로 파일을 지정하거나, 직전에 `git diff --cached --stat`
+으로 스테이징 목록을 확인해라 (`HANDOFF.md` §1).
 
 ### 4.4 위 서술을 다시 검증하는 명령
 
 ```bash
 cd "/mnt/c/Users/kimye/OneDrive/바탕 화면/matching"
 
-find backend/src/main/resources/redis -name '*.lua'   # lua 8개 (shared 1 / lol 5 / proposal 2)
+git ls-tree -r --name-only HEAD backend/src/main/resources/redis   # 커밋된 lua 8개 (shared 1 / lol 5 / proposal 2)
+                                                      # find 로 세면 작성 중인 redis/pubg/ 까지 잡힌다
 grep -rn "LolTier" backend/src/                       # 0건이어야 맞다 — 티어 enum 은 삭제됐다
 docker exec qm-redis redis-cli ZRANGE qm:gameconfig:LOL:tier 0 -1 WITHSCORES  # 티어 값의 원본 (32개)
 grep -rn "TODO" backend/src/                          # 남은 TODO 지점
@@ -517,7 +545,7 @@ grep -rln "implements CandidateRule" backend/src/     # 구현된 게임 목록
 grep -rln "implements GameConditionValidator" backend/src/
 grep -n "enum VoicePreference" -A2 backend/src/main/java/com/queuemate/matching/domain/VoicePreference.java
 grep -c "@Scheduled" -r backend/src/ | grep -v ':0'   # 비면 sweeper 없음
-tail -1 seed/gameconfig.redis                         # 시드가 커버하는 게임/모드 수
+grep "seed done" seed/gameconfig.redis                # 시드가 커버하는 게임/모드 수 (LoL 줄 + PUBG 줄)
 find backend/src -type d -empty                       # 빈 게임 패키지
 ```
 
@@ -556,4 +584,6 @@ find backend/src -type d -empty                       # 빈 게임 패키지
 - [ ] 알림 발행을 건드렸으면 `--tests '*PushNotificationTest'` 도 돌렸다
       (`PushPublisher` 가 예외를 삼키므로 구독해 보는 것 말고는 검증 수단이 없다)
 - [ ] 계약이 바뀌었으면 `contracts/README.md` 불일치 표를 갱신했다
-- [ ] 커밋을 `docs/**`·`contracts/**` 변경과 섞지 않았다 (`CLAUDE.md` §7)
+- [ ] 제안 Lua(`proposal/*.lua`)나 `join-party*.lua` 의 `HSETNX` 분기를 건드렸으면 `--tests '*ProposalIdempotencyTest'` 도 돌렸다
+- [ ] 커밋을 `docs/**`·`contracts/**` 변경과 섞지 않았다 (`CLAUDE.md` §8)
+- [ ] `git commit -- <파일>` 로 파일을 지정해 커밋했다 (IntelliJ 자동 스테이징 때문)
