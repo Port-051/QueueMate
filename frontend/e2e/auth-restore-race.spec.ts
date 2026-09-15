@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { DEMO } from './helpers';
 
-test('이전 세션 복원이 늦게 실패해도 새 로그인을 유지한다', async ({ page }) => {
+test('이전 세션을 확인하는 동안 로그인 입력을 보호한다', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('qm.tokens', JSON.stringify({ accessToken: 'expired-access', refreshToken: 'expired-refresh' })));
   await page.route('**/src/mocks/server.ts*', async route => {
     const response = await route.fetch();
@@ -18,6 +18,7 @@ test('이전 세션 복원이 늦게 실패해도 새 로그인을 유지한다'
   });
   await page.goto('/login');
   await page.waitForFunction(() => (window as unknown as { __expiredRestoreStarted?: boolean }).__expiredRestoreStarted === true);
+  await expect(page.getByPlaceholder('이메일 주소를 입력하세요')).toBeDisabled();
   await page.getByPlaceholder('이메일 주소를 입력하세요').fill(DEMO.email);
   await page.getByPlaceholder('비밀번호를 입력하세요').fill(DEMO.password);
   await page.locator('.auth-form button[type="submit"]').click();
