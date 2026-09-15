@@ -65,17 +65,24 @@ Rules:
 
 ## 5. PUBG
 ```text
-keyCondition.type  = PLAY_STYLE
-keyCondition.value = AGGRESSIVE | BALANCED | SURVIVAL
+keyCondition.type  = PLATFORM
+keyCondition.value = STEAM | KAKAO
 ```
 
-Rules:
-- game/mode/platform-or-region rule/block = hard when applicable
-- PLAY_STYLE는 soft. exact match 우선.
+> **2026-09-14 변경.** 원래 `PLAY_STYLE`(`AGGRESSIVE | BALANCED | SURVIVAL`, soft)이었으나
+> **플랫폼으로 교체했다.** 스팀과 카카오는 서버가 분리돼 서로 파티를 맺을 수 없다
+> (카카오게임즈 공식 FAQ: "스팀 및 기타 타 플랫폼 이용자와 게임 진행이 불가능합니다").
+> 플랫폼이 아래 규칙의 "platform rule = hard" 그 자체라, 따로 두지 않고 핵심 조건 자리에
+> 넣었다. 플레이 스타일은 어긋나도 게임이 되는 취향이라 뺐다. 조건 개수는 4개 그대로다.
+> 시점(TPP/FPP)은 파티 구성을 막지 않는 큐 선택이라 조건이 아니라 `modeKey` 에 접었다.
 
-초기 mode config:
-- `DUO`
-- `SQUAD`
+Rules:
+- game/mode/platform/block = hard
+- 플랫폼은 서로 다른 값끼리 절대 매칭하지 않는다 (색인 키가 갈린다)
+
+mode config (계획, 아직 시드에 없다):
+- `NORMAL_DUO_TPP` / `NORMAL_DUO_FPP` / `NORMAL_SQUAD_TPP` / `NORMAL_SQUAD_FPP` — `tierRule NONE`
+- `RANKED_DUO_TPP` / `RANKED_DUO_FPP` / `RANKED_SQUAD_TPP` / `RANKED_SQUAD_FPP` — `tierRule EXIST`
 
 TPP/FPP 등 세부 mode는 문자열 config로 확장하고 코드 enum을 불필요하게 늘리지 않는다.
 
@@ -130,7 +137,7 @@ playAmount         ONE_GAME | TWO_PLUS
 | 위치 | 본문 서술 | 구현 |
 |---|---|---|
 | §2 | "playPurpose는 soft condition이다. 일치 후보를 우선하지만 부족하면 완화할 수 있다" | **hard.** 완화 경로가 없다 |
-| §5 | "PLAY_STYLE는 soft. exact match 우선" | PUBG는 미구현이지만, 현재 구조에 얹으면 **hard가 된다** |
+| §5 | "PLAY_STYLE는 soft. exact match 우선" | PUBG는 미구현이지만, 현재 구조에 얹으면 **hard가 된다** — *(2026-09-14: `PLAY_STYLE` 자체가 `PLATFORM` 으로 교체돼 이 행은 당시 기준이다. 본문 §5 참고)* |
 
 근거는 후보 색인 키의 모양이다 (`rule/lol/LolCandidateRule.java#needsKey()`):
 

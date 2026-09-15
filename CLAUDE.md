@@ -2,6 +2,9 @@
 
 작업 전에 이 파일과 `START_HERE.md`, 그리고 `docs/`를 읽어라.
 
+> **이어서 하는 작업이 있다 — `HANDOFF.md` 를 먼저 읽어라.** 지금 상태, 사용자에게 먼저 물어야
+> 할 것, 다음 할 일, 테스트 환경 함정이 거기 있다. 이 파일에는 규칙만 둔다.
+
 이 저장소는 QueueMate의 **`app:matching` 배포 단위 하나**다.
 전체 시스템 규칙은 queueMate 본 저장소의 `CLAUDE.md`에 있고, 이 파일은 그중
 **매칭 엔진에 걸리는 부분만** 옮긴 것이다. 프런트엔드 / 소셜 / 파티 REST /
@@ -28,12 +31,15 @@ QueueMate는 **조건 기반 팀원 자동 랜덤 매칭** 서비스다.
 | | LoL | VALORANT | PUBG |
 |---|---|---|---|
 | 1 | 게임 모드 | 게임 모드 | 게임 모드 |
-| 2 | 희망 포지션 | 선호 역할군 | 플레이 스타일 |
+| 2 | 희망 포지션 | 선호 역할군 | 플랫폼 (스팀 / 카카오) |
 | 3 | 음성 사용 | 음성 사용 | 음성 사용 |
 | 4 | 플레이 목적 | 플레이 목적 | 플레이 목적 |
 
 2번 줄이 게임마다 이름만 다른 **핵심 조건(keyValue)** 이다. 코드에서는
-`KeyConditionType`(`POSITION` / `ROLE` / `PLAY_STYLE`) + `String value`로 통일해 다룬다.
+`KeyConditionType`(`POSITION` / `ROLE` / `PLATFORM`) + `String value`로 통일해 다룬다.
+PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했다** — 스팀과 카카오는 서버가 분리돼
+서로 파티를 맺을 수 없으므로 조건에 없으면 게임에 같이 못 들어가는 파티가 생긴다. 조건 개수는
+그대로 4개다(추가가 아니라 교체). 근거는 `domain/KeyConditionType.java` 클래스 주석.
 
 예약 매칭에만 붙는 추가 조건 (이 저장소 범위 밖, `app:platform` + `app:reservation-batch`):
 - 플레이 가능한 시간: 30분 단위 start/end
@@ -46,7 +52,7 @@ QueueMate는 **조건 기반 팀원 자동 랜덤 매칭** 서비스다.
 | 개념 | 코드 | 값 |
 |---|---|---|
 | 게임 | `domain/GameKey.java` | `LOL, VALORANT, PUBG` |
-| 조건 타입 | `domain/KeyConditionType.java` | `POSITION, ROLE, PLAY_STYLE` |
+| 조건 타입 | `domain/KeyConditionType.java` | `POSITION, ROLE, PLATFORM` |
 | 음성 | `domain/VoicePreference.java` | **`REQUIRED, NO_VOICE`** — `OPTIONAL`은 **제거됐다** |
 | 목적 | `domain/PlayPurpose.java` | `RANK_UP, NORMAL, FUN` |
 | LoL 포지션 | `domain/lol/LolPosition.java` | `TOP, JUNGLE, MID, ADC, SUPPORT, NONE` |

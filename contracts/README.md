@@ -28,7 +28,7 @@
 | 3 | `DELETE /match-requests/{id}` | 쿼리 파라미터 없음 | `?userId=` **필수** (`controller/MatchingController.java`) | 위와 같은 임시 조치 |
 | 4 | `MatchRequestView` | `{ id, status, queuedAt, proposalId }` | `{ requestId, status }` (`dto/MatchRequestResponse.java`) | **계약이 맞다.** 필드명도 `id` 여야 한다. 다만 `queuedAt`/`proposalId` 를 채우려면 proposal 구현이 먼저다 |
 | 5 | `GET /match-requests/{id}` | 있다 (`200` + `MatchRequestView`) | **껍데기만 있다** — `MatchingController#getMatchRequest` 가 `501 NOT_IMPLEMENTED` 를 돌려준다 | **계약이 맞다.** 501 은 "아직"이라는 표시다. 그 메서드 주석에 왜 필요한지와 무엇을 같이 정해야 하는지가 적혀 있다. 아래 "남은 구멍" 참고 |
-| 6 | `POST /proposals/{id}/accept`·`decline` | 있다 (`200`) | 엔드포인트는 **있고** (`controller/ProposalController.java`) 응답 갈래(`AcceptResult`/`DeclineResult`)도 잡혀 있으나, `service/ProposalService.java` 가 `UnsupportedOperationException` 을 던져 **부르면 500 이다** | 계약이 맞다. INV-4/INV-5 수락 집계 Lua 와 함께 구현해야 한다 |
+| 6 | `POST /proposals/{id}/accept`·`decline` | 있다 (`200`) | **구현됨.** `controller/ProposalController.java` → `service/ProposalService.java` → `redis/proposal/accept-proposal.lua`·`decline-proposal.lua`. 응답 갈래는 `domain/ProposalResult.java` 한 enum 이다(`AcceptResult`/`DeclineResult` 는 없어졌다). `decline` 은 `?requestId=` 도 받는다 | **구현이 앞서 있다.** `requestId` 쿼리 파라미터와 409/403 갈래가 계약에 없다 |
 | 6-1 | 위 두 엔드포인트의 성공 응답 | `200` (본문 스키마 없음) | `204 No Content` | **구현 쪽이 낫다고 보고 그렇게 뒀다.** 본문 스키마가 계약에 없어 `200` 이 돌려줄 것이 없고, 취소(`DELETE`)와 모양이 맞는다. 근거는 `ProposalController` 의 `decline` 주석. 계약을 `204` 로 고쳐야 한다 |
 | 7 | `GET /games` | 있다 | **없다** | 계약이 맞다. gameconfig 는 `seed/gameconfig.redis` 로만 다뤄지고 조회 API 가 없다 |
 | 8 | `ErrorResponse` 스키마 | **없다** (원본이 스스로 구멍이라고 지적) | 있다 (`common/error/ErrorResponse.java`: `{code, message, details}`) | **구현이 앞서 있다.** 계약으로 승격하려면 본 저장소에 contract 커밋이 필요하다 |
@@ -38,6 +38,8 @@
 | 11-1 | SSE payload 스키마 | **없다** (14종 전부 미정의 — 아래 "미해결 계약 구멍") | 구현이 먼저 정했다. `MATCH_QUEUE_UPDATED`·`MATCH_CANCELLED` = `{memberNumber}`, `MATCH_PROPOSAL_CREATED` = `{memberNumber, target, partyId}` | **구현이 앞서 있다.** 계약으로 승격하려면 본 저장소에 contract 커밋이 필요하다. `PushPublisher` 의 `payload` 가 `Map` 인 것도 그 때문이다 |
 | 12 | SQS `ProposalConfirmed` / `BlockChanged` | 있다 | **없다** — AWS SDK 의존성 없음 | 계약이 맞다 |
 | 13 | `CreateMatchRequest` 의 `tier` | **없다** | `tier` (선택 필드, String). `tierRule` 이 `NONE` 이 아닌(= `EXIST` 인) 모드에서는 사실상 필수이고 빠지면 400 이다 (`validation/lol/LolConditionValidator.java`). **값은 단(division)까지 적는다** — `GOLD` 가 아니라 `GOLD_2` 다. 허용되는 이름의 원본은 자바 enum 이 아니라 Redis ZSET `qm:gameconfig:LOL:tier` 다 (32개) | **구현이 앞서 있다.** 조건 5번째가 아니라 derived/자격 조건이다 (docs/02 §6, CLAUDE.md §2). 계약에 추가해야 하고, 계정 연동이 붙으면 요청 필드에서 사라진다 |
+
+| 14 | `KeyCondition.type` 의 PUBG 값 | `PLAY_STYLE` | `PLATFORM` (`domain/KeyConditionType.java`), 값은 `STEAM` / `KAKAO` | **코드가 맞다.** 스팀·카카오는 서로 파티를 맺을 수 없어 플레이 스타일(취향) 대신 플랫폼(hard)을 핵심 조건으로 교체했다. `openapi.yaml` 의 enum 을 고쳐야 한다. 근거는 enum 클래스 주석 |
 
 ### 계약에는 없지만 구현이 실제로 내는 에러 코드
 
