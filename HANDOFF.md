@@ -46,9 +46,13 @@
 `IllegalArgumentException("파티 배정 규칙이 없는 게임")` 으로 끝난다. `@Async` 라 201 로 나가고 그 사용자는
 claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 
-**작업 트리에 커밋 안 된 것:** `rule/pubg/PubgCandidateRule.java` — **사용자가 작성 중.** 건드리지 마라.
-IntelliJ 가 새 파일을 git 에 자동으로 올리므로(한 번 스테이징돼 있었다), 다른 걸 커밋할 때 `git status` 를
-보고 이 파일이 딸려 가지 않게 해라.
+**작업 트리에 커밋 안 된 것 — 전부 사용자가 작성 중이다. 건드리지 마라.**
+- `rule/pubg/PubgCandidateRule.java`
+- `resources/redis/pubg/create-or-check-party-tiered.lua`, `create-or-check-party-untiered.lua`
+
+⚠️ **IntelliJ 가 새 파일을 git 에 자동으로 스테이징한다.** 실제로 위 Lua 두 개가 문서 커밋 `b785297` 에
+딸려 올라갔다가 `e8932ad` 로 추적에서만 뺐다(원격 이력에는 남아 있다). 커밋은
+**`git commit <파일경로>` 로 파일을 지정**하거나, 하기 직전에 `git diff --cached --stat` 으로 스테이징된 목록을 확인해라.
 
 ---
 
