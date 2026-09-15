@@ -10,13 +10,26 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 
+/**
+ * <b>게임과 무관한</b> Lua 스크립트 빈. 게임별 스크립트는 {@code config/{game}/} 의 설정 클래스가 갖는다
+ * ({@link com.queuemate.matching.config.lol.LolRedisConfig},
+ * {@link com.queuemate.matching.config.pubg.PubgRedisConfig}).
+ *
+ * <p>나누는 기준은 {@code resources/redis/} 디렉터리와 같다 (docs/11 D-7).
+ * {@code shared/} 와 {@code proposal/} 은 여기, {@code lol/} · {@code pubg/} 는 각 게임 설정이다.
+ * 한 게임 스크립트를 고치러 들어온 사람이 다른 게임 빈을 건드리지 않게 하려는 것이다.
+ *
+ * <p><b>빈 이름 주의.</b> 스크립트 빈은 같은 타입({@code RedisScript<List>} 등)이 여럿이라 Spring 은
+ * <b>주입받는 필드 이름 = 빈 메서드 이름</b>으로 고른다. 메서드 이름을 바꾸면 컴파일은 통과하고
+ * 기동 때 터진다. 서로 다른 설정 클래스에 같은 메서드 이름을 두면 빈 이름이 겹쳐 역시 기동이 실패한다 —
+ * 그래서 게임별 빈은 게임 접두사를 붙인다(LoL 은 접두사 없이 먼저 생긴 이름을 그대로 쓴다).
+ */
 @Configuration
 public class RedisConfig {
 
     /**
-     * 스크립트를 기동 시 한 번만 읽어 문자열로 들고 있는다.
+     * 스크립트를 기동 시 한 번만 읽어 문자열로 들고 있는다. 게임별 설정도 이것을 쓴다.
      *
      * RedisScript.of(Resource, ...) 를 쓰면 Spring이 EVALSHA에 쓸 sha1을 구할 때마다
      * "파일이 바뀌었나"를 확인한다. 그 확인이 전역 락 안에서 클래스패스를 훑고
@@ -26,7 +39,7 @@ public class RedisConfig {
      *
      * 스크립트는 실행 중에 바뀌지 않으므로 매번 확인할 이유가 없다.
      */
-    private static String read(String path) {
+    public static String readScript(String path) {
         try (InputStream in = new ClassPathResource(path).getInputStream()) {
             return StreamUtils.copyToString(in, StandardCharsets.UTF_8);
         } catch (IOException e) {
@@ -34,55 +47,20 @@ public class RedisConfig {
         }
     }
 
+    /** 활성 요청 선점 (INV-1). 게임을 보지 않는다 — 나누면 게임마다 큐를 하나씩 잡을 수 있게 된다 */
     @Bean
     public RedisScript<Long> claimRequestScript() {
-        return RedisScript.of(read("redis/shared/claim-request.lua"), Long.class);
-    }
-
-    @Bean
-    @SuppressWarnings("rawtypes")
-    public RedisScript<List> createOrCheckPartyUntieredScript() {
-        return RedisScript.of(read("redis/lol/create-or-check-party-untiered.lua"), List.class);
-    }
-
-    @Bean
-    @SuppressWarnings("rawtypes")
-    public RedisScript<List> joinPartyUntieredScript() {
-        return RedisScript.of(read("redis/lol/join-party.lua"), List.class);
-    }
-
-    @Bean
-    @SuppressWarnings("rawtypes")
-    public RedisScript<List> joinTieredPartyUntieredScript() {
-        return RedisScript.of(read("redis/lol/join-party-tiered.lua"), List.class);
-    }
-
-    @Bean
-    @SuppressWarnings("rawtypes")
-    public RedisScript<List> createOrCheckPartyTieredScript() {
-        return RedisScript.of(read("redis/lol/create-or-check-party-tiered.lua"), List.class);
-    }
-
-
-    /**
-     * 매칭 요청을 취소하고 파티에서 뺀다.
-     *
-     * @return 1=취소, 2=취소 후 파티 삭제, 0=활성 요청 없음, -1=requestId 불일치
-     */
-    @Bean
-    @SuppressWarnings("rawtypes")
-    public RedisScript<List> leavePartyScript() {
-        return RedisScript.of(read("redis/lol/leave-party.lua"), List.class);
+        return RedisScript.of(readScript("redis/shared/claim-request.lua"), Long.class);
     }
 
     /**
-     * 제안 수락 + 확정 (INV-4 / INV-5).
+     * 제안 수락 + 확정 (INV-4 / INV-5). 파티 HASH 위에서만 돌고 조건을 읽지 않아 게임과 무관하다.
      *
      * @return NOT_FOUND | NOT_A_MEMBER | ACCEPTED | CONFIRMED | DECLINED
      */
     @Bean
     public RedisScript<String> acceptProposalScript() {
-        return RedisScript.of(read("redis/proposal/accept-proposal.lua"), String.class);
+        return RedisScript.of(readScript("redis/proposal/accept-proposal.lua"), String.class);
     }
 
     /**
@@ -96,6 +74,6 @@ public class RedisConfig {
      */
     @Bean
     public RedisScript<String> declineProposalScript() {
-        return RedisScript.of(read("redis/proposal/decline-proposal.lua"), String.class);
+        return RedisScript.of(readScript("redis/proposal/decline-proposal.lua"), String.class);
     }
 }
