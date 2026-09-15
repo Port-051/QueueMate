@@ -1,6 +1,6 @@
 # HANDOFF — 다음 세션 인계
 
-**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-15 (화) 12:57 KST
+**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-15 (화) 13:15 KST
 **읽는 순서:** `CLAUDE.md` → `START_HERE.md` → **이 파일**
 
 이 파일은 "지금 어디까지 왔고 무엇이 열려 있는가"만 담는다. 규칙은 `CLAUDE.md`,
@@ -17,14 +17,18 @@
   `qm:gameconfig:LOL:tier`(단 포함 32개). `tierRule` 은 `NONE`/`EXIST` 둘. Lua 가 칸 키를 조립한다.
 - **`KeyConditionType.PLAY_STYLE` → `PLATFORM`** (PUBG = `STEAM` / `KAKAO`).
 - 쓰이지 않던 `AcceptanceStatus` / `ProposalStatus` 삭제.
+- **PUBG 시드 들어감** (모드 8 / 티어 사다리 27 / 랭크 티어 범위 표 4). **모드 목록 SET 은 LoL·PUBG 모두 없앴다.**
+- **PUBG validator 커밋됨** (`validation/pubg/PubgConditionValidator.java`). PUBG 배정 규칙은 사용자가 작성 중.
 - **GitHub**: private 저장소 `github.com/rlaehddus302/queuemate-matching` (`main`).
 
 ### 테스트 — 커밋 `8d7f094` 기준 24건 통과 (2026-09-15)
 
 `concurrency.*` 7 + `PushNotificationTest` 6 + `ProposalIdempotencyTest` 11 = **24/24 통과.**
 결과 로그에서 `ERR Error running script` / `RedisSystemException` / ERROR 로그도 0건이었다.
-그 뒤 커밋(`af3b7ff` 시드, `3198f74` 문서)은 **자바를 건드리지 않았다** — 테스트는 자기 시드를 직접 심으므로
-결과는 그대로 유효하다. **아래 사용자 작성 파일은 그 테스트에 포함되지 않았다.**
+
+그 뒤 커밋 중 **자바를 바꾼 것은 `4c1c492`(PUBG validator 추가) 하나**다. 나머지(`af3b7ff` 시드 ·
+`3198f74` `07b77be` `13dea28` 문서)는 자바를 건드리지 않았고, 테스트는 자기 시드를 직접 심으므로 영향이 없다.
+**PUBG validator 는 그 24건에 포함되지 않았고, PUBG 를 검증하는 테스트는 아직 하나도 없다.**
 
 ### PUBG validator — 커밋됨, 규칙은 사용자가 작성 중
 
@@ -42,8 +46,9 @@
 `IllegalArgumentException("파티 배정 규칙이 없는 게임")` 으로 끝난다. `@Async` 라 201 로 나가고 그 사용자는
 claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 
-**작업 트리에 커밋 안 된 것:** `rule/pubg/PubgCandidateRuel.java` — **사용자가 작성 중.** 파일명 오타(`Ruel`).
-IntelliJ 가 새 파일을 git 에 자동으로 올리므로 커밋할 때 `git status` 를 보고 이 파일이 딸려 가지 않게 해라.
+**작업 트리에 커밋 안 된 것:** `rule/pubg/PubgCandidateRule.java` — **사용자가 작성 중.** 건드리지 마라.
+IntelliJ 가 새 파일을 git 에 자동으로 올리므로(한 번 스테이징돼 있었다), 다른 걸 커밋할 때 `git status` 를
+보고 이 파일이 딸려 가지 않게 해라.
 
 ---
 
@@ -59,7 +64,7 @@ IntelliJ 가 새 파일을 git 에 자동으로 올리므로 커밋할 때 `git 
 
 ### A. PUBG 구현 (진행 중)
 
-**시드는 들어갔다(`seed/gameconfig.redis` 의 PUBG 섹션, 생성·검증 완료). 코드는 아직 없다.**
+**시드와 validator 는 들어갔다. 배정 규칙·Lua·테스트는 아직 없다.**
 모드 목록 SET(`qm:gameconfig:modes:*`)은 사용자 결정으로 **없앴다** — 모드 존재는 모드 HASH 로 판단한다.
 
 | 키 | 내용 |
@@ -80,12 +85,11 @@ IntelliJ 가 새 파일을 git 에 자동으로 올리므로 커밋할 때 `git 
 **표는 손으로 쓰지 말고 생성 스크립트로 만들고**, 비대칭 0건 / 파티 폭을 기계로 검증해라.
 
 남은 코드:
-- `validation/pubg/` — 위 §1 참고
 - **붙이는 자리는 이미 있다.** `MatchConditionValidator` · `MatchTrigger` · `MatchCancelService` 가 전부
   `supports(GameKey)` 로 게임별 구현을 고른다. PUBG 는 `CandidateRule` 구현체를 `@Component` 로 하나 두면 된다
 - `rule/pubg/PubgPartyKeys` — `LolPartyKeys` 가 `qm:party:open:LOL:` 과 `qm:gameconfig:LOL:` 을 **박아 두었으므로**
   재사용할 수 없다. 색인 키는 `qm:party:open:PUBG:{mode}:{voice}:{purpose}:needs:{STEAM|KAKAO}` (+ 랭크는 `:{티어}` 를 Lua 가 붙인다)
-- `rule/pubg/PubgCandidateRule` + Assigner
+- `rule/pubg/PubgCandidateRule` + Assigner — **사용자가 `PubgCandidateRule.java` 를 작성 중이다.** 이어받기 전에 물어라
 - `redis/pubg/*.lua` — **LoL 스크립트를 고쳐 쓰지 말고 자기 디렉터리에** (D-7)
 - **PUBG 동시성 테스트** — 스크립트를 나눈 대가다(CLAUDE.md §4 "게임마다 테스트")
 
@@ -114,6 +118,8 @@ IntelliJ 가 새 파일을 git 에 자동으로 올리므로 커밋할 때 `git 
   안 잡아서 이론상 가능하나 **확률은 극히 낮다.** 티어 쪽은 `HMGET tierLo` 가드로 막혀 있다.
 - `CLAUDE.md` §3 "`MATCH_PROPOSAL_EXPIRED`/`MATCH_CONFIRMED` 는 **확정**·만료가 미구현" — 확정은
   구현됐고 알림만 없다. 낡은 문장.
+- `CLAUDE.md` §4 INV-8 상태가 "**LoL만 구현·테스트됨**" — PUBG 도 값 검증(validator)과 시드는 생겼다. 테스트가 없으니
+  "테스트됨"은 여전히 LoL 만 맞지만, PUBG 동시성 테스트가 붙으면 그 행을 갱신해라.
 - `contracts/openapi.yaml` 이 아직 `PLAY_STYLE` — 계약 파일이라 안 고쳤다(`contracts/README.md` #14 에 기록).
 
 ---
@@ -122,7 +128,8 @@ IntelliJ 가 새 파일을 git 에 자동으로 올리므로 커밋할 때 `git 
 
 `decline` 의 무조건 `cancel()`(가드 들어감) / `LolConditionValidator` 키 문자열 하드코딩
 (`keys.tierRangeKey` 로) / `TieredAssigner` 의 `TierRange` 죽은 코드 / 문서 전반의
-`TABLE`·`WINDOW`·`maxTierGap`·`LolTier` 서술 / `CLAUDE.md` INV-2·4·5 상태 열.
+`TABLE`·`WINDOW`·`maxTierGap`·`LolTier` 서술 / `CLAUDE.md` INV-2·4·5 상태 열 / `PLAY_STYLE` → `PLATFORM` 문서 반영 /
+모드 목록 SET 제거와 그 문서 반영 / PUBG validator 의 뒤집힌 티어 분기·null 가드·파일명 오타.
 
 ---
 
