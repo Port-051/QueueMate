@@ -25,6 +25,7 @@ public class PubgCandidateRule implements CandidateRule
     private final PubgPartyKeys keys;
     private final PubgTieredAssigner tieredAssigner;
     private final PubgUntieredAssigner untieredAssigner;
+    private final PubgPartyLeaver partyLeaver;
 
     @Override
     public boolean supports(GameKey game)
@@ -60,6 +61,6 @@ public class PubgCandidateRule implements CandidateRule
 
     @Override
     public CancelResult leave(ActiveRequest active, String expectedRequestId) {
-        return null;
+        return partyLeaver.leave(active, expectedRequestId);
     }
 }

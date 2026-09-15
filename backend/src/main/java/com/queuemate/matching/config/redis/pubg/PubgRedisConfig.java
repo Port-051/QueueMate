@@ -42,4 +42,10 @@ public class PubgRedisConfig {
     public RedisScript<List> pubgJoinPartyTieredScript() {
         return RedisScript.of(readScript("redis/pubg/join-party-tiered.lua"), List.class);
     }
+
+    @Bean
+    @SuppressWarnings("rawtypes")
+    public RedisScript<List> pubgLeavePartyScript() {
+        return RedisScript.of(readScript("redis/pubg/leave-party.lua"), List.class);
+    }
 }
