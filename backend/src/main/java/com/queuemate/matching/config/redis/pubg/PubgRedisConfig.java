@@ -36,4 +36,10 @@ public class PubgRedisConfig {
     public RedisScript<List> pubgCreateOrCheckPartyTieredScript() {
         return RedisScript.of(readScript("redis/pubg/create-or-check-party-tiered.lua"), List.class);
     }
+
+    @Bean
+    @SuppressWarnings("rawtypes")
+    public RedisScript<List> pubgJoinPartyTieredScript() {
+        return RedisScript.of(readScript("redis/pubg/join-party-tiered.lua"), List.class);
+    }
 }
