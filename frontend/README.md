@@ -112,3 +112,12 @@ e2e/          Playwright critical flow
 - 조건은 게임 모드 + 게임별 핵심 조건 1개 + 음성 + 플레이 목적. 예약은 여기에 30분 단위 시간과 플레이할 양만 더한다.
 - 상대팀/VS, 공개 탐색·게시판·피드, 프리미엄, 나이·챔피언 조건, 친구 추천은 만들지 않는다.
 - `design/` 이미지는 레이아웃 참고일 뿐이고 business data는 `CLAUDE.md`와 `docs/`가 우선한다.
+
+## 공유 UI 데모
+
+https://port-051.github.io/QueueMate/#/login
+
+`codex/ui-ux`의 프론트 변경을 푸시하면 GitHub Pages에 자동 배포됩니다.
+브라우저 Mock 모드이며 실제 사용자 간 데이터는 공유되지 않습니다.
+데모 계정: `demo@queuemate.gg` / `queuemate1`.
+Pages 배포만 hash 라우팅을 사용하며 로컬 개발 URL은 그대로 유지합니다.

@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, HashRouter } from 'react-router-dom';
 import { App } from './App';
 import { ToastProvider } from './components/ui';
 import { AuthProvider } from './state/AuthContext';
@@ -16,9 +16,11 @@ import './styles/recruitment.css';
 import './styles/sidebar.css';
 import './styles/profile.css';
 
+const Router = import.meta.env.VITE_ROUTER_MODE === 'hash' ? HashRouter : BrowserRouter;
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter>
+    <Router>
       <ToastProvider>
         <AuthProvider>
           <MatchProvider>
@@ -28,6 +30,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           </MatchProvider>
         </AuthProvider>
       </ToastProvider>
-    </BrowserRouter>
+    </Router>
   </React.StrictMode>,
 );
