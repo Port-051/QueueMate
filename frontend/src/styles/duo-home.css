@@ -47,8 +47,8 @@
 .filter-mode:hover, .filter-role:hover, .filter-voice:hover, .filter-reset:hover { background: #ffffff09; color: var(--text); }
 .filter-mode[aria-pressed="true"], .filter-role[aria-pressed="true"], .filter-voice[aria-checked="true"] { background: var(--accent); color: #fff; }
 .filter-mode svg, .filter-role svg, .filter-voice svg, .filter-select svg { flex: none; }
-.filter-reset { width: 36px; height: 36px; flex: none; margin-left: auto; padding: 0; border-radius: 50%; background: #ffffff0d; }
-.filter-reset:hover { background: #ffffff18; }
+.filter-reset { width: 36px; height: 36px; flex: none; margin-left: auto; padding: 0; border-radius: 50%; background: var(--accent); color: #fff; }
+.filter-reset:hover { background: var(--accent-2); color: #fff; }
 .board-filter-line button:focus-visible { outline: 2px solid var(--accent-2); outline-offset: -2px; }
 .filter-select { position: relative; flex: none; }
 .filter-select-trigger { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--text-dim); font: inherit; font-size: 14px; white-space: nowrap; cursor: pointer; }
