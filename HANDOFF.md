@@ -1,6 +1,6 @@
 # HANDOFF — 다음 세션 인계
 
-**작성:** 2026-09-15 (화) 12:29 KST
+**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-15 (화) 12:57 KST
 **읽는 순서:** `CLAUDE.md` → `START_HERE.md` → **이 파일**
 
 이 파일은 "지금 어디까지 왔고 무엇이 열려 있는가"만 담는다. 규칙은 `CLAUDE.md`,
@@ -19,20 +19,32 @@
 - 쓰이지 않던 `AcceptanceStatus` / `ProposalStatus` 삭제.
 - **GitHub**: private 저장소 `github.com/rlaehddus302/queuemate-matching` (`main`).
 
-### 테스트 — HEAD 기준 24건 통과 (2026-09-15)
+### 테스트 — 커밋 `8d7f094` 기준 24건 통과 (2026-09-15)
 
 `concurrency.*` 7 + `PushNotificationTest` 6 + `ProposalIdempotencyTest` 11 = **24/24 통과.**
 결과 로그에서 `ERR Error running script` / `RedisSystemException` / ERROR 로그도 0건이었다.
-**작업 트리가 아니라 커밋된 HEAD 를 풀어서 돌린 결과다** — 아래 파일 때문에 작업 트리는 컴파일이 안 된다.
+그 뒤 커밋(`af3b7ff` 시드, `3198f74` 문서)은 **자바를 건드리지 않았다** — 테스트는 자기 시드를 직접 심으므로
+결과는 그대로 유효하다. **아래 사용자 작성 파일은 그 테스트에 포함되지 않았다.**
 
 ### 작업 트리에 커밋 안 된 것
 
-`validation/pubg/PubgConditoinValidator.java` — **사용자가 작성 중**이다. 건드리지 마라.
-- 작성 중이라 **작업 트리 전체가 컴파일되지 않을 수 있다.** 그러면 테스트는 HEAD 를 풀어서 돌려라
-- `@Service` 가 붙어 있어 완성되면 빈으로 등록된다
-- 모드 존재는 모드 HASH 의 `tierRule` 로 보도록 이미 바뀌었다(모드 목록 SET 은 없앴다)
+`validation/pubg/PubgConditoinValidator.java` — **사용자가 작성 중**이다. 사용자에게 묻기 전에 고치지 마라.
+
+지금은 **컴파일되고 `@Service` 라 빈으로 떠 있다** — 즉 PUBG 요청이 이미 이 validator 를 탄다.
+갱신 시점에 코드를 읽고 확인한 것 (사용자에게 전할 것):
+
+- **43~45행 분기가 뒤집혀 있다.** `if (tierRule.equals("EXIST")) return tier.equals("NONE");` —
+  랭크 모드에 진짜 티어(`GOLD_2`)를 보내면 거절되고, `"NONE"` 을 보내면 통과한다
+- **`NONE` 모드는 아래 ZSET 조회로 떨어진다.** 티어가 없으면(null) 조회가 터지고, `"NONE"` 이면 `score == null` 로 거절된다 — 일반 모드가 전부 막힌다
+- **티어 없음 표기가 롤과 다르다.** 롤 validator 는 `NONE` 모드에 **tier 가 null 이어야** 통과시킨다(tier 를 실어 오면 400). 이 파일은 문자열 `"NONE"` 을 전제한다. 게임마다 클라이언트 규약이 달라지지 않게 맞춰야 한다
+- `command.getKeyCondition()` null 가드가 없다(DTO 에 `@NotNull` 없음 → NPE → 500). `LolConditionValidator` 첫 두 가드 참고 — `keyCondition.type == PLATFORM` 확인도 없다
 - 파일명 오타(`Conditoin`)
-- `command.getKeyCondition()` 이 null 일 수 있다(DTO 에 `@NotNull` 없음) — `LolConditionValidator` 첫 가드 참고
+- 모드 존재는 모드 HASH 의 `tierRule` 로 본다 — 모드 목록 SET 을 없앤 결정과 맞다
+
+**그리고 validator 가 먼저 떠서 생기는 일:** PUBG 요청이 검증을 통과하면 `claim-request.lua` 가
+활성 요청을 선점(INV-1)한 뒤 `MatchTrigger` 가 PUBG `CandidateRule` 을 못 찾아
+`IllegalArgumentException("파티 배정 규칙이 없는 게임")` 으로 끝난다. `@Async` 라 요청은 201 로 나가고,
+그 사용자는 claim 의 `EXPIRE 60` 이 끝날 때까지 **60초 동안 다른 매칭을 못 잡는다.** `PubgCandidateRule` 이 붙기 전까지 그렇다.
 
 ---
 
@@ -70,6 +82,10 @@
 
 남은 코드:
 - `validation/pubg/` — 위 §1 참고
+- **붙이는 자리는 이미 있다.** `MatchConditionValidator` · `MatchTrigger` · `MatchCancelService` 가 전부
+  `supports(GameKey)` 로 게임별 구현을 고른다. PUBG 는 `CandidateRule` 구현체를 `@Component` 로 하나 두면 된다
+- `rule/pubg/PubgPartyKeys` — `LolPartyKeys` 가 `qm:party:open:LOL:` 과 `qm:gameconfig:LOL:` 을 **박아 두었으므로**
+  재사용할 수 없다. 색인 키는 `qm:party:open:PUBG:{mode}:{voice}:{purpose}:needs:{STEAM|KAKAO}` (+ 랭크는 `:{티어}` 를 Lua 가 붙인다)
 - `rule/pubg/PubgCandidateRule` + Assigner
 - `redis/pubg/*.lua` — **LoL 스크립트를 고쳐 쓰지 말고 자기 디렉터리에** (D-7)
 - **PUBG 동시성 테스트** — 스크립트를 나눈 대가다(CLAUDE.md §4 "게임마다 테스트")
@@ -113,11 +129,12 @@
 
 ## 5. 테스트 돌리는 법 — 환경 함정
 
-- **Docker 엔진이 꺼져 있고 `redis-server` 가 설치돼 있지 않다.** `sudo` 는 비밀번호를 요구한다.
-- 지난 세션은 **Redis 7.2.5 를 소스에서 빌드해 스크래치패드에 두고 포트 6390** 으로 띄웠다.
+- **2026-09-15 확인 기준으로** Docker 엔진이 꺼져 있고 `redis-server` 가 설치돼 있지 않았다. `sudo` 는 비밀번호를 요구한다. 먼저 `docker ps` / `which redis-server` 로 다시 확인해라.
+- 이전에는 **Redis 7.2.5 를 소스에서 빌드해 스크래치패드에 두고 포트 6390** 으로 띄웠다(수 분 걸림).
   **스크래치패드는 세션마다 새로 생기므로 그 바이너리는 없다.** 다시 빌드하거나, 사용자에게
   Docker Desktop 을 켜 달라고 하거나, `! sudo apt install redis-server` 를 직접 쳐 달라고 해라.
 - 붙이기: `REDIS_HOST=127.0.0.1 REDIS_PORT=6390 ./gradlew test --tests '...'`
+- 작업 트리가 컴파일되지 않으면(사용자 작성 중 파일) `git archive HEAD backend` 를 스크래치패드에 풀어 거기서 돌려라
 - **6379 와 `queuemate-v2-*` 컨테이너는 다른 프로젝트 것이다. 절대 건드리지 마라.**
 - 끝나면 Redis 종료 + `./gradlew --stop`. `bootRun` 금지.
 
