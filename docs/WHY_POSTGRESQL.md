@@ -582,7 +582,7 @@ exclusion constraint와 Lua는 **같은 처방을 서로 다른 층에서 쓴 �
 |---|---|---|---|
 | INV-1 | `claim-request.lua` | `EXISTS` 확인과 `HSET`이 한 원자 단위. 뒤에 `EXPIRE 60` | `ActiveRequestConcurrencyTest.onlyOneRequestSucceedsPerUser` / `.differentUsersAllSucceed` |
 | INV-1 (대조군) | — | 순진한 구현이면 실제로 깨진다 | `NaiveVsLuaComparisonTest.naiveApproachBreaksUnderConcurrency` |
-| INV-3 | `join-party.lua` / `join-party-tiered.lua` | 참가자를 `HSET member:{userId}` 한 뒤 **`member:` 필드를 세어** `size >= target`이면 모든 needs 색인에서 제거한다. 인원 카운터는 두지 않는다 — Lua 는 롤백이 없어 페일오버 뒤 재시도가 `HINCRBY`를 두 번 더하면 실제 멤버 수와 어긋나지만 `HSET` + 세기는 몇 번 해도 같다. **단 세는 자리에 target 확인 분기가 없어, 초과를 막는 것은 ① 후보가 needs 색인(=아직 안 찬 파티)에서만 나온다는 것과 ② 후보 선택부터 합류까지가 `redis/PoolLock.java` 의 후보 풀 락 안에 있다는 것, 두 겹이다** | `PartyJoinConcurrencyTest.partyNeverExceedsTarget` |
+| INV-3 | `join-party.lua` / `join-party-tiered.lua` | 참가자를 `HSET member:{userId}` 한 뒤 **`member:` 필드를 세어** `size >= target`이면 모든 needs 색인에서 제거한다. 인원 카운터는 두지 않는다 — Lua 는 롤백이 없어 페일오버 뒤 재시도가 `HINCRBY`를 두 번 더하면 실제 멤버 수와 어긋나지만 `HSET` + 세기는 몇 번 해도 같다. **단 세는 자리에 target 확인 분기가 없어, 초과를 막는 것은 ① 후보가 needs 색인(=아직 안 찬 파티)에서만 나온다는 것과 ② 후보 선택부터 합류까지가 `redisLock/PoolLock.java` 의 후보 풀 락 안에 있다는 것, 두 겹이다** | `PartyJoinConcurrencyTest.partyNeverExceedsTarget` |
 | INV-3 / INV-8 | 〃 | `uniqueness=true`면 내 keyValue 색인에서 파티를 `ZREM` (티어판은 그 줄의 티어 전부) | `PartyJoinConcurrencyTest.positionIsUniqueWithinParty` |
 | INV-7 | `create-or-check-party-untiered.lua` / `-tiered` / `join-party.lua` / `join-party-tiered.lua` | 활성 요청 HASH에 `partyId`를 기록하고, 참가자를 `member:{userId}` **필드**로 써서 한 사용자가 한 번만 들어가게 한다 | `PartyJoinConcurrencyTest.userBelongsToOnlyOneParty` |
 | INV-4 | `accept-proposal.lua` | 수락자 SET `qm:proposal:accepts:{partyId}`에 `SADD` → `SCARD`를 파티 HASH의 `target`과 비교해 `count >= target`일 때만 `HSET status CONFIRMED`. 세기와 확정이 한 스크립트라 마지막 두 명이 둘 다 "내가 마지막"이 될 수 없다. `target`을 못 읽으면 확정하지 않는다(fail-closed) | `ProposalIdempotencyTest` (단일 스레드 멱등성) |
@@ -590,7 +590,7 @@ exclusion constraint와 Lua는 **같은 처방을 서로 다른 층에서 쓴 �
 | (취소 정합성) | `leave-party.lua` | 빼기(`HDEL member:{userId}` — 인원을 세어 구하므로 이것이 곧 인원 감소)·색인복원·빈파티삭제·요청삭제가 한 덩어리. 삭제는 `requestId` compare-and-delete | 동시성 테스트 없음. 취소 경로는 `PushNotificationTest.cancelNotifiesOnlyRemainingMembers` 가 단일 흐름으로 밟는다 |
 
 > **이 절이 "Lua가 전부다"라고 읽히면 안 된다.** 배정이 두 스크립트로 쪼개지면서
-> 그 사이 구간은 Lua가 아니라 Redisson 분산 락(`redis/PoolLock.java`)이 막는다.
+> 그 사이 구간은 Lua가 아니라 Redisson 분산 락(`redisLock/PoolLock.java`)이 막는다.
 > 락은 저장소가 강제하지 않으므로 — Redis에는 "이 키는 잠겨 있다"는 개념이 없다 —
 > **파티 데이터를 만지는 모든 코드가 먼저 락을 잡는다는 약속**에 기대고 있다.
 > 그 점에서 DB의 제약(constraint)이 주는 보증과는 여전히 성격이 다르다.
@@ -653,7 +653,7 @@ INV-5 의 두 구멍은 이렇다. **expired** — `expiresAt` 은 정원이 찰
 | `backend/src/main/resources/redis/lol/join-party.lua` | `memberCount` 주석, `HSETNX status PENDING` (§6-3) |
 | `backend/src/main/resources/redis/lol/leave-party.lua` | `:3-6`, `:12-13`, `:87-89`, `DEL userKey` |
 | `backend/src/main/java/com/queuemate/matching/service/MatchRequestService.java` | `#join()` |
-| `backend/src/main/java/com/queuemate/matching/config/RedisConfig.java` | `#claimRequestScript()` |
+| `backend/src/main/java/com/queuemate/matching/config/redis/RedisConfig.java` | `#claimRequestScript()` |
 | `backend/src/test/java/.../NaiveVsLuaComparisonTest.java` | `:13-19`, `:41-71`, `:73-98` |
 | `backend/build.gradle` | `:20-45` (의존성 목록) |
 | `backend/src/main/resources/application.yaml` | `:32-46` (`spring.datasource` · `spring.jpa`) |

@@ -32,7 +32,7 @@
 | 6-1 | 위 두 엔드포인트의 성공 응답 | `200` (본문 스키마 없음) | `204 No Content` | **구현 쪽이 낫다고 보고 그렇게 뒀다.** 본문 스키마가 계약에 없어 `200` 이 돌려줄 것이 없고, 취소(`DELETE`)와 모양이 맞는다. 근거는 `ProposalController` 의 `decline` 주석. 계약을 `204` 로 고쳐야 한다 |
 | 7 | `GET /games` | 있다 | **없다** | 계약이 맞다. gameconfig 는 `seed/gameconfig.redis` 로만 다뤄지고 조회 API 가 없다 |
 | 8 | `ErrorResponse` 스키마 | **없다** (원본이 스스로 구멍이라고 지적) | 있다 (`common/error/ErrorResponse.java`: `{code, message, details}`) | **구현이 앞서 있다.** 계약으로 승격하려면 본 저장소에 contract 커밋이 필요하다 |
-| 9 | `503 MATCHING_UNAVAILABLE` 응답 | 계약에 없다 | 있다 (`GlobalExceptionHandler#handleRedisFailure`, INV-10). 후보 풀 락 획득 실패(`redis/PoolLock.java`)도 같은 자리로 나간다 | 구현이 맞다. 계약에 추가해야 한다 |
+| 9 | `503 MATCHING_UNAVAILABLE` 응답 | 계약에 없다 | 있다 (`GlobalExceptionHandler#handleRedisFailure`, INV-10). 후보 풀 락 획득 실패(`redisLock/PoolLock.java`)도 같은 자리로 나간다 | 구현이 맞다. 계약에 추가해야 한다 |
 | 10 | `securitySchemes` (JWT bearer) | **없다** | 인증 자체가 없다 | 양쪽 다 비어 있다 |
 | 11 | SSE `MATCH_*` 5종 | 있다 | **3종 발행됨** — `MATCH_QUEUE_UPDATED` / `MATCH_PROPOSAL_CREATED` / `MATCH_CANCELLED` 를 `notification/PushPublisher.java` 가 `qm:pubsub:push:{userId}` 로 publish 한다. `MATCH_PROPOSAL_EXPIRED` / `MATCH_CONFIRMED` 는 확정·만료가 미구현이라 없다 | **부분 구현.** SSE 배달 자체는 `app:realtime` 몫이므로 이 저장소가 할 일은 publish 까지다. 상세는 `events.md` 의 "구현 상태" 표 |
 | 11-1 | SSE payload 스키마 | **없다** (14종 전부 미정의 — 아래 "미해결 계약 구멍") | 구현이 먼저 정했다. `MATCH_QUEUE_UPDATED`·`MATCH_CANCELLED` = `{memberNumber}`, `MATCH_PROPOSAL_CREATED` = `{memberNumber, target, partyId}` | **구현이 앞서 있다.** 계약으로 승격하려면 본 저장소에 contract 커밋이 필요하다. `PushPublisher` 의 `payload` 가 `Map` 인 것도 그 때문이다 |

@@ -1,6 +1,6 @@
 # HANDOFF — 다음 세션 인계
 
-**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-15 (화) 13:38 KST
+**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-15 (화) 14:29 KST
 **읽는 순서:** `CLAUDE.md` → `START_HERE.md` → **이 파일**
 
 이 파일은 "지금 어디까지 왔고 무엇이 열려 있는가"만 담는다. 규칙은 `CLAUDE.md`,
@@ -19,12 +19,19 @@
 - 쓰이지 않던 `AcceptanceStatus` / `ProposalStatus` 삭제.
 - **PUBG 시드 들어감** (모드 8 / 티어 사다리 27 / 랭크 티어 범위 표 4). **모드 목록 SET 은 LoL·PUBG 모두 없앴다.**
 - **PUBG validator 커밋됨** (`validation/pubg/PubgConditionValidator.java`). PUBG 배정 규칙은 사용자가 작성 중.
-- **Lua 스크립트 빈 설정을 나눴다.** `config/RedisConfig`(공통: claim·accept·decline + `readScript()`) /
-  `config/lol/LolRedisConfig`(LoL 5개) (`02d654f`).
+- **Lua 스크립트 빈 설정을 나눴다** (`02d654f`). 공통(claim·accept·decline + `readScript()`) / LoL 5개.
+- **Redis 설정 클래스를 `config/` 에서 `redis/` 패키지로 옮겼다** (`b99525a`). `redis/RedisConfig` ·
+  `redis/RedissonConfig`(게임 무관, `PoolLock` 옆) / `redis/lol/LolRedisConfig`(게임별). 빈 이름은 그대로다.
+  `config/` 에는 `AsyncConfig` 하나만 남았다. **규칙: Redis 설정은 `redis/`, 게임 무관은 바로 아래, 게임별은 `redis/{game}/`.**
 - **LoL 클래스와 스크립트 빈에 게임 접두사를 붙였다** (`bf4b0da`). `LolModeConfig` `LolPartyLeaver`
   `LolTieredAssigner` `LolUntieredAssigner` / 빈 `lolCreateOrCheckParty{Untiered,Tiered}Script`
   `lolJoinParty{Untiered,Tiered}Script` `lolLeavePartyScript`. 티어 합류 빈은 이름이
   `joinTieredPartyUntieredScript` 로 틀려 있던 것을 `lolJoinPartyTieredScript` 로 같이 고쳤다.
+- **부하 테스트 성사 감지 수정** (`32031a4`). `match_latency.py` 가 없어진 `size` 필드 대신 파티 HASH 의
+  `member:` 필드를 센다. **고치기만 했고 다시 돌리지는 않았다 — 지금은 그대로 못 돈다(§3-D).**
+- **코드와 어긋난 주석 수정** (`b05e2eb`). `PoolLock` · `CandidateRule` · `lol/create-or-check-party-untiered.lua` ·
+  `lol/join-party.lua` 주석만. 코드 줄은 그대로다.
+- **`docs/GAME_CONFIG.md` 에 PUBG 설정 반영, 모드 목록 SET 서술 제거** (`822599e`).
 - **GitHub**: private 저장소 `github.com/rlaehddus302/queuemate-matching` (`main`).
 
 ### 테스트 — 커밋 `8d7f094` 기준 24건 통과 (2026-09-15)
@@ -59,7 +66,7 @@ claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 - 사용자 작성 중: `rule/pubg/` 전체(`PubgCandidateRule` `PubgModeConfig` `PubgPartyKeys` `PubgScriptSupport`
   `PubgTieredAssigner` `PubgUntieredAssigner`), `resources/redis/pubg/create-or-check-party-{tiered,untiered}.lua`.
   `PubgPartyKeys` 는 IntelliJ 가 스테이징해 둔 상태(`AM`)다 — 커밋에 딸려 들어가지 않게 조심해라
-- **Claude 가 만들었지만 일부러 안 올린 것:** `config/pubg/PubgRedisConfig.java` — 위 PUBG Lua 두 개를 읽는 빈이다.
+- **Claude 가 만들었지만 일부러 안 올린 것:** `redis/pubg/PubgRedisConfig.java` — 위 PUBG Lua 두 개를 읽는 빈이다.
   Lua 가 커밋되지 않은 채 이것만 올리면 커밋된 코드로는 앱이 안 뜬다. **사용자가 PUBG Lua 를 올릴 때 같이 올려라.**
 
 ⚠️ **IntelliJ 가 새 파일을 git 에 자동으로 스테이징한다.** 실제로 위 Lua 두 개가 문서 커밋 `b785297` 에
@@ -106,8 +113,8 @@ claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 - `rule/pubg/PubgPartyKeys` — `LolPartyKeys` 가 `qm:party:open:LOL:` 과 `qm:gameconfig:LOL:` 을 **박아 두었으므로**
   재사용할 수 없다. 색인 키는 `qm:party:open:PUBG:{mode}:{voice}:{purpose}:needs:{STEAM|KAKAO}` (+ 랭크는 `:{티어}` 를 Lua 가 붙인다)
 - `rule/pubg/PubgCandidateRule` + Assigner — **사용자가 작성 중이다.** 이어받기 전에 물어라
-- **스크립트 빈 이름은 게임 접두사가 붙는다** — LoL 은 `lol*`(`config/lol/LolRedisConfig`), PUBG 는 `pubg*`
-  (`pubgCreateOrCheckPartyTieredScript` 등, `config/pubg/PubgRedisConfig`). 같은 타입(`RedisScript<List>`) 빈이 여럿이라
+- **스크립트 빈 이름은 게임 접두사가 붙는다** — LoL 은 `lol*`(`redis/lol/LolRedisConfig`), PUBG 는 `pubg*`
+  (`pubgCreateOrCheckPartyTieredScript` 등, `redis/pubg/PubgRedisConfig`). 같은 타입(`RedisScript<List>`) 빈이 여럿이라
   Spring 은 **주입 필드 이름 = 빈 이름**으로 고른다. PUBG Assigner 가 LoL 이름(`lolCreateOrCheckPartyTieredScript`)으로
   필드를 선언하면 **LoL 스크립트가 주입된다** — 컴파일도 기동도 통과하고 배그가 롤 Lua 로 돈다. 필드 이름을 반드시
   `pubg...` 로 맞춰라. 클래스 이름도 같은 이유로 `Pubg*` 다(같은 이름이면 빈 이름이 겹쳐 기동이 실패한다)
@@ -140,6 +147,16 @@ claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 - `CLAUDE.md` §4 INV-8 상태가 "**LoL만 구현·테스트됨**" — PUBG 도 값 검증(validator)과 시드는 생겼다. 테스트가 없으니
   "테스트됨"은 여전히 LoL 만 맞지만, PUBG 동시성 테스트가 붙으면 그 행을 갱신해라.
 - `contracts/openapi.yaml` 이 아직 `PLAY_STYLE` — 계약 파일이라 안 고쳤다(`contracts/README.md` #14 에 기록).
+- **부하 테스트는 성사 감지만 고쳤고(`32031a4`) 아직 다시 돌지 않는다.** 두 가지가 어긋난다 (2026-09-15 파일 확인).
+  ① 요청 바디: `load-test/match_latency.py` · `prefill.py`(그리고 `measure.js` · `stock.js` · `throughput.js` ·
+  `netpath/postload.js`)가 `modeKey: RANKED_SOLO` 를 `tier` 없이 보낸다. 시드의 `RANKED_SOLO` 는 `tierRule EXIST` 라
+  `LolConditionValidator#validTier` 가 tier null 을 거절 → **400**. ② 색인 키: `prefill.py`(`...:needs:JUNGLE`) ·
+  `run.sh` · `netpath/runpost.sh` · `runpost2.sh`(`K=...:needs` 뒤에 `:{포지션}`)가 티어 접미사 없는 needs 키를 `ZCARD`
+  하는데, 티어 모드는 Lua 가 `:{tier}` 를 붙이므로 그 키는 비어 있다. 다시 돌리려면 `NORMAL_2`(정원 2, 포지션 중복 금지,
+  `tierRule NONE`) 같은 모드로 바꾸거나, 바디에 `tier` 를 싣고 키에 같은 `:{tier}` 접미사를 붙여 맞춰라.
+- **LoL Lua 주석에 PUBG 흔적.** `resources/redis/lol/create-or-check-party-untiered.lua:19` · `join-party.lua:18` 의
+  `ARGV[3]` 주석이 "LoL 포지션 / VALORANT 역할 / **PUBG 플레이 스타일**" 이다 — 스크립트는 LoL 전용이 됐고 PUBG 조건은
+  `PLATFORM` 이다. 같은 두 파일 `:34`/`:36`(·`join-party.lua:111`)의 "칼바람이나 PUBG처럼" 도 같은 흔적. 코드 파일이라 이번엔 안 고쳤다.
 
 ---
 
@@ -149,7 +166,9 @@ claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 (`keys.tierRangeKey` 로) / `LolTieredAssigner` 의 `TierRange` 죽은 코드 / 문서 전반의
 `TABLE`·`WINDOW`·`maxTierGap`·`LolTier` 서술 / `CLAUDE.md` INV-2·4·5 상태 열 / `PLAY_STYLE` → `PLATFORM` 문서 반영 /
 모드 목록 SET 제거와 그 문서 반영 / PUBG validator 의 뒤집힌 티어 분기·null 가드·파일명 오타 /
-`RedisConfig` 공통/게임별 분리, LoL 클래스·빈 게임 접두사 /
+`RedisConfig` 공통/게임별 분리, LoL 클래스·빈 게임 접두사 / Redis 설정 `redis/` 패키지 이동(`b99525a`)과 문서 반영 /
+부하 테스트 성사 감지 `size` → `member:` 세기(`32031a4`, 재실행은 §3-D) / 낡은 코드 주석(`b05e2eb`) /
+`docs/GAME_CONFIG.md` PUBG 반영(`822599e`) /
 `CLAUDE.md` §3 의 "확정·만료가 미구현" 낡은 문장과 INV-5 행의 `ProposalStatus`/`AcceptanceStatus` 서술.
 
 ---

@@ -8,7 +8,7 @@
 
 > **2026-09-11 갱신.** 이 문서를 처음 쓸 때는 배정이 `create-or-check-party-untiered.lua`
 > **하나**로 끝났다. 지금은 차단 검증(자바)을 끼우려고 **찾기와 합류가 두 스크립트로
-> 나뉘어 있고**, 그 사이의 틈은 Lua가 아니라 `redis/PoolLock.java` 의 후보 풀 락이 막는다.
+> 나뉘어 있고**, 그 사이의 틈은 Lua가 아니라 `redisLock/PoolLock.java` 의 후보 풀 락이 막는다.
 > 티어를 보는 모드는 같은 역할의 `-tiered` 판을 쓴다. 아래 본문에서 배정 스크립트를
 > 하나로 적은 곳은 그 시절 서술이다.
 
@@ -40,7 +40,7 @@
 | INV-1 | (반대 방향) 서로 다른 사용자는 서로를 막지 않는다 | 〃 | `ActiveRequestConcurrencyTest.differentUsersAllSucceed` |
 | INV-1 | 순진한 구현이면 실제로 깨진다 | — (대조군) | `NaiveVsLuaComparisonTest.naiveApproachBreaksUnderConcurrency` |
 | INV-1 | 같은 부하에서 Lua는 중복 0 | `claim-request.lua` | `NaiveVsLuaComparisonTest.luaApproachHoldsUnderSameLoad` |
-| INV-3 | 파티 인원이 `targetPartySize`를 넘지 않는다 | `join-party.lua` / `join-party-tiered.lua` 가 참가자를 `HSET member:{userId}` 한 뒤 **`member:` 필드를 세어** `size >= target` 이면 모든 needs 색인에서 제거, **그리고** `redis/PoolLock.java` 의 후보 풀 락 | `PartyJoinConcurrencyTest.partyNeverExceedsTarget` |
+| INV-3 | 파티 인원이 `targetPartySize`를 넘지 않는다 | `join-party.lua` / `join-party-tiered.lua` 가 참가자를 `HSET member:{userId}` 한 뒤 **`member:` 필드를 세어** `size >= target` 이면 모든 needs 색인에서 제거, **그리고** `redisLock/PoolLock.java` 의 후보 풀 락 | `PartyJoinConcurrencyTest.partyNeverExceedsTarget` |
 | INV-3 / INV-8 | `positionUniqueness=true` 모드에서 같은 포지션이 둘 들어가지 않는다 | 〃 (`unique` 분기의 `ZREM`) | `PartyJoinConcurrencyTest.positionIsUniqueWithinParty` |
 | INV-2 근사 / INV-7 | 한 사용자가 두 파티에 동시에 속하지 않는다 | `create-or-check-party-untiered.lua` / `join-party.lua` 가 활성 요청 HASH 의 `partyId` 필드를 하나만 쓰고, 참가자를 `member:{userId}` 필드로 쓴다 | `PartyJoinConcurrencyTest.userBelongsToOnlyOneParty` |
 
@@ -170,7 +170,7 @@ Redis는 명령을 싱글 스레드로 처리하고, Lua 스크립트를 **하�
 각각을 나누면 예컨대 참가자는 들어갔는데 색인이 안 정리되어 정원 초과가 난다 (docs/11 #34).
 
 **다만 두 스크립트 사이는 Lua가 덮지 못한다.** "빈 파티가 있다"는 응답과 실제 합류
-사이에 마지막 자리가 차버릴 수 있고, 그 구간을 막는 것은 `redis/PoolLock.java` 의
+사이에 마지막 자리가 차버릴 수 있고, 그 구간을 막는 것은 `redisLock/PoolLock.java` 의
 후보 풀 락이다 — 후보를 훑는 루프 전체가 한 락 안에서 돈다.
 **그 락을 건너뛰는 호출부를 만들면 INV-3이 깨진다.**
 

@@ -28,7 +28,7 @@
     VALORANT 는 enum 에만 있어 요청이 오면 400 으로 거절된다.
   · 불변식은 Lua 안에서 지킨다. GET → 판단 → SET 으로 지키지 마라.
     backend/src/main/resources/redis/ 의 lua 8개(커밋 기준)가 그 자리다. 후보 찾기와 합류가
-    두 스크립트로 나뉘어 있고, 그 사이 틈은 redis/PoolLock.java 의 후보 풀 락이 막는다.
+    두 스크립트로 나뉘어 있고, 그 사이 틈은 redisLock/PoolLock.java 의 후보 풀 락이 막는다.
   · 서버→클라 알림은 Redis Pub/Sub 으로 나간다 (qm:pubsub:push:{userId}).
     다만 "지금 상태가 뭐냐"를 묻는 조회 API가 없다 — GET /match-requests/{id} 는 501이다.
   · 제안 수락/거절과 확정은 구현돼 있다 (POST /api/v1/proposals/{id}/accept|decline →
@@ -204,9 +204,11 @@ backend/src/main/java/com/queuemate/
 └── matching/
     ├── config/
     │   ├── AsyncConfig.java              matchingExecutor (core4/max8/queue200, CallerRunsPolicy)
-    │   ├── RedisConfig.java              공통 Lua 3개(claim·accept·decline) 빈 + readScript()
-    │   ├── lol/LolRedisConfig.java       LoL Lua 5개 빈. 빈 이름에 lol 접두사 (lolJoinPartyTieredScript 등)
-    │   └── RedissonConfig.java           분산 락 전용 클라이언트. 단일 노드 / Sentinel 두 갈래
+    │   └── redis/                        Redis 설정. 게임 무관은 바로 아래, 게임별은 config/redis/{game}/
+    │       ├── RedisConfig.java          공통 Lua 3개(claim·accept·decline) 빈 + readScript()
+    │       ├── RedissonConfig.java       분산 락 전용 클라이언트(qm:lock:* 만 만짐). 단일 노드 / Sentinel 두 갈래
+    │       └── lol/LolRedisConfig.java   LoL Lua 5개 빈. 빈 이름에 lol 접두사 (lolJoinPartyTieredScript 등)
+    │                                     (config/redis/pubg/ 는 커밋돼 있지 않다 — PUBG Lua 와 같이 올라간다)
     ├── controller/
     │   ├── MatchingController.java       ★ 진입점. POST/GET/DELETE /api/v1/match-requests
     │   │                                   GET 은 아직 501 NOT_IMPLEMENTED 다
@@ -222,7 +224,7 @@ backend/src/main/java/com/queuemate/
     ├── notification/
     │   ├── PushEventType.java            MATCH_* 5종. 실제 발행되는 것은 3종
     │   └── PushPublisher.java            ★ qm:pubsub:push:{userId} 로 publish. 예외를 안 던진다
-    ├── redis/PoolLock.java               ★ 후보 풀 분산 락 (Redisson). 배정 전체를 감싼다
+    ├── redisLock/PoolLock.java           ★ 후보 풀 분산 락 (Redisson). 배정 전체를 감싼다
     ├── failover/                         [실험용] Redis 페일오버 재시도. 기본 꺼짐
     │                                       (application.yaml 의 queuemate.failover 블록)
     ├── service/
@@ -234,6 +236,8 @@ backend/src/main/java/com/queuemate/
     │                                       ★ 확정 후속 처리는 accept() 의 TODO 로 비어 있다
     ├── rule/
     │   ├── CandidateRule.java            게임별 파티 배정 규칙 인터페이스
+    │   ├── ScriptSupport.java            게임 공통. 반환 코드 읽기 / 멤버 추출 / 차단 판정 / 스캔 상한 20
+    │   │                                   (게임 Lua 가 member:{userId} 필드 · {code, ...} 반환 약속을 지켜야 쓸 수 있다)
     │   └── lol/
     │       ├── LolCandidateRule.java     ★ 설정 읽기 + 차단 목록 조회 + 락 잡고 assigner 호출
     │       ├── LolUntieredAssigner.java  ★ 티어 안 보는 배정. JOINED_AND_FULL 분기가 제안 트리거
@@ -241,7 +245,6 @@ backend/src/main/java/com/queuemate/
     │       │                               (자바는 티어 접미사 없는 needs 키만 넘긴다)
     │       ├── LolPartyLeaver.java       취소. MATCH_CANCELLED 알림도 여기서 발행
     │       ├── LolPartyKeys.java         Redis 키 조립을 한 자리에 모은 것
-    │       ├── LolScriptSupport.java     반환 코드 읽기 / 멤버 추출 / 차단 판정 / 스캔 상한 20
     │       └── LolModeConfig.java        gameconfig 에서 읽은 모드 설정 record
     │                                     (rule/pubg/ 는 커밋돼 있지 않다 — 사용자 작성 중)
     └── validation/
@@ -302,7 +305,7 @@ POST /api/v1/match-requests
     │         · BlockRepository.findBlockedUserIds()   ← 락 밖에서 DB 한 번 (INV-6 선필터)
     │         · PoolLock.run(poolKey) 안에서 tier 유무로 assigner 선택
     │              LolUntiered/LolTieredAssigner.assign()   최대 20회 후보를 훑는다
-    │                                                   (LolScriptSupport.MAX_CANDIDATE_SCAN)
+    │                                                   (ScriptSupport.MAX_CANDIDATE_SCAN)
     │              ├ create-or-check-party-*.lua → {코드, ...}
     │              │    1=새로 만들고 들어감(→ MATCH_QUEUE_UPDATED, 여기서 끝)
     │              │    2=후보를 찾음(멤버 목록 반환) -1=안 맞는 값 -2=claim 만료
@@ -387,7 +390,7 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
   고정된다. 표는 라이엇 실제 규칙을 **단 단위**로 편 것이다 — 솔랭은 다이아가 안 끼면 ±1 티어,
   다이아가 끼면 ±2 단, 마스터 이상은 KR 규정상 `SOLO_ONLY`. 자유 랭크는 규정이 달라
   (`UNRANKED`~`DIAMOND_1`) / (`MASTER`~`CHALLENGER`) **두 덩어리**다
-- 후보 풀 분산 락 (`redis/PoolLock.java` + `config/RedissonConfig.java`) — 후보를 훑는
+- 후보 풀 분산 락 (`redisLock/PoolLock.java` + `config/redis/RedissonConfig.java`) — 후보를 훑는
   구간 전체를 한 락 안에 둔다. 락 실패는 503 으로 fail-closed 한다
 - claim TTL — `claim-request.lua` 가 `EXPIRE 60`, 배정 스크립트 4개가 `PERSIST`.
   배정 스크립트에는 `EXISTS` 가드(반환 `-2`)가 있어 만료된 선점에는 배정하지 않는다
@@ -410,7 +413,7 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 | **확정 후속 처리** | 확정 자체는 된다(§4.1). `accept-proposal.lua` 가 `status=CONFIRMED` 만 찍고 끝나며, 그 뒤에 와야 할 것이 `ProposalService#accept()` 의 TODO 로 비어 있다 — `MATCH_CONFIRMED` 알림 발행, `ProposalConfirmed.fifo` 발행, 확정 파티의 색인·활성 요청(·수락자 SET) 정리. 그래서 확정 뒤에도 사용자는 그 파티에 묶인 채다 |
 | **만료 sweeper** | `@Scheduled` 가 0건. `queuemate.sweep.interval-ms` 도 읽는 코드가 없다. `expiresAt`(= now + `queuemate.proposal.ttl-seconds`, 기본 20초 — `LolUntieredAssigner`/`LolTieredAssigner` 가 읽어 `join-party*.lua` 에 넘긴다)은 쓰이기만 하고 **읽는 주체가 없어**, 시한이 지난 제안에 수락이 오면 그대로 확정된다 (INV-5 expired 구멍). `MATCH_PROPOSAL_EXPIRED` / `MATCH_CONFIRMED` 알림도 발행 코드가 없다 |
 | **상태 조회** | `MatchingController#getMatchRequest` 가 **501 `NOT_IMPLEMENTED`** 를 돌려준다. 껍데기와 설계 메모만 있다. 알림은 사건만 전하므로 새로 접속한 클라이언트는 여전히 아무것도 알 수 없다 |
-| **INV-6 차단 검증** | 선필터 코드는 **있다** (`LolCandidateRule#canJoin` → `BlockRepository.findBlockedUserIds` → `LolScriptSupport.blockedWith`). 그런데 `social.blocks` 스키마가 없다 — Flyway 미도입, `ddl-auto: none`. 기본 실행(H2)에서는 그 조회가 실패하고, 배정이 `@Async` 안이라 **요청은 201로 나가고 배정만 조용히 실패한다.** 테스트만 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql` 로 통과한다. 확정 직전 최종 검증(docs/11 D-1, `BlockRepository#findBlocksAmong`)은 확정 경로(`accept-proposal.lua`)에 붙어 있지 않아 미구현 |
+| **INV-6 차단 검증** | 선필터 코드는 **있다** (`LolCandidateRule#canJoin` → `BlockRepository.findBlockedUserIds` → `ScriptSupport.blockedWith`). 그런데 `social.blocks` 스키마가 없다 — Flyway 미도입, `ddl-auto: none`. 기본 실행(H2)에서는 그 조회가 실패하고, 배정이 `@Async` 안이라 **요청은 201로 나가고 배정만 조용히 실패한다.** 테스트만 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql` 로 통과한다. 확정 직전 최종 검증(docs/11 D-1, `BlockRepository#findBlocksAmong`)은 확정 경로(`accept-proposal.lua`)에 붙어 있지 않아 미구현 |
 | **SQS outbox** | AWS SDK 의존성이 `backend/build.gradle` 에 없다 |
 | **인증** | JWT 없음. `userId`를 요청 바디와 쿼리 파라미터로 받는 임시 상태 |
 | **VALORANT / PUBG 배정** | VALORANT 는 구현체가 없다. PUBG 는 validator 와 시드만 커밋됐고 `CandidateRule` 구현체·Lua·테스트가 커밋돼 있지 않다 (§4.3) |
@@ -436,7 +439,7 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 - `rule/valorant`, `validation/valorant` 는 **빈 디렉터리**이고
   `domain/pubg`, `domain/valorant` 에는 `.gitkeep` 만 있다
 - **커밋되지 않은 사용자 작업**: `rule/pubg/` 전체, `resources/redis/pubg/*.lua`,
-  `config/pubg/PubgRedisConfig.java`. PUBG 를 검증하는 테스트는 아직 하나도 없다.
+  `config/redis/pubg/PubgRedisConfig.java`. PUBG 를 검증하는 테스트는 아직 하나도 없다.
   이어받기 전에 사용자에게 물어라 (`HANDOFF.md` §1·§3-A)
 
 그래서 요청 결과가 게임마다 다르다:
@@ -490,9 +493,10 @@ LoL 만으로 시작한 범위 축소는 사고가 아니라 결정이다 — do
 
 `load-test/match_latency.py` 가 성사를 감지하려고 HTTP 가 아니라 **Redis 를 직접 폴링**하는
 것은 그 스크립트가 알림 도입 전에 쓰였기 때문이다
-(`HGET qm:user:active-request:{uid} partyId` → `HGET qm:party:{pid} size`).
-**그 `size` 필드는 이제 없다** — 파티 HASH 는 인원을 `member:` 필드를 세어 구한다. 그래서 이
-스크립트는 지금 코드에서는 성사를 감지하지 못한다(코드 확인만 했고 고치지 않았다).
+(`HGET qm:user:active-request:{uid} partyId` → 파티 HASH 조회). 예전에는 `HGET qm:party:{pid} size` 를
+봤는데 **그 `size` 필드는 이제 없다** — 파티 HASH 는 인원을 `member:` 필드를 세어 구한다. 스크립트도
+`member:` 필드를 세도록 고쳤지만(`32031a4`) 요청 바디·색인 키가 지금 시드와 어긋나 아직 그대로는
+못 돈다(`HANDOFF.md` §3-D).
 
 **(d) 코드 주석의 결정 번호가 `docs/11`과 맞지 않는다.**
 
@@ -504,15 +508,13 @@ LoL 만으로 시작한 범위 축소는 사고가 아니라 결정이다 — do
 낡았거나 번호가 어긋난 것이다. 자세한 것은 `docs/11_DECISION_LOG.md` 맨 끝의
 "복원 시점 관찰 기록" 절.
 
-**(e) 코드 주석 몇 개가 자기보다 낡았다. 주석을 사실로 믿지 마라.**
+**(e) 코드 주석이 자기보다 낡은 적이 있다. 주석을 사실로 믿지 마라.**
 
-- `rule/CandidateRule.java`가 "배관은 `AbstractCandidateRule`에 있다"고 하는데
-  그 클래스는 **없다.**
-- `redis/PoolLock.java`의 클래스 주석이 "지금은 아직 아무 데서도 쓰이지 않는다"고 하는데
-  `LolCandidateRule#canJoin`이 **실제로 쓴다.**
-- `create-or-check-party-untiered.lua` · `join-party.lua` 머리의
-  "티어를 보는 모드는 `join-or-create-party-tiered.lua`가 담당한다 (아직 없다)"도
-  낡았다. 실제 파일명은 `create-or-check-party-tiered.lua` / `join-party-tiered.lua`다.
+여기 적혀 있던 세 건은 `b05e2eb` 에서 주석만 고쳐 해소됐다 — `rule/CandidateRule.java` 의
+없는 `AbstractCandidateRule` 언급, `redisLock/PoolLock.java`(당시 `redis/PoolLock.java`)의
+"아무 데서도 쓰이지 않는다"(`LolCandidateRule#canJoin` 이 쓴다), LoL
+`create-or-check-party-untiered.lua` · `join-party.lua` 머리의 "`join-or-create-party-tiered.lua`
+(아직 없다)". 남은 낡은 LoL Lua 주석(PUBG 흔적)은 `HANDOFF.md` §3-D 에 있다.
 
 이 저장소에 `join-or-create-party*.lua` 라는 파일은 **하나도 없다.** 그 이름이 보이면
 옛 이름이다 (docs/11 D-6).
