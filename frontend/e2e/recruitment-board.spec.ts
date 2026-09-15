@@ -42,24 +42,27 @@ test('위로 올리기 제한과 일시 중지·재개는 같은 매칭을 유�
   await expect(profile.locator('.intro-launch > button')).toHaveCount(0);
   await expect(profile.locator('.match-stage .my-recruitment')).toBeVisible();
   await expect(page.locator('.board-feed .match-stage')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '위로 올리기', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '위로 올리기', exact: true })).toHaveCount(0);
   await manageRecruitment(page, '잠시 멈춤');
   await expect(page.locator('.my-recruitment')).toContainText('잠시 멈춤');
   await page.getByRole('button', { name: '매칭 재개', exact: true }).click();
   await expect(page.locator('.my-recruitment')).toContainText('매칭 중');
   await expect(page.locator('.my-recruitment')).toHaveCount(1);
 });
-test('새 목록은 확인 버튼으로 반영하며 읽고 있던 행은 움직이지 않는다', async ({ page }) => {
+test('내 글도 목록에 보이고 마감된 글은 자동으로 사라진다', async ({ page }) => {
   await page.clock.install(); await login(page);
-  const first = await page.locator('.recruitment-row').first().getAttribute('data-recruitment-id');
   await startRealtimeMatch(page);
+  const ownRow = page.getByRole('button', { name: 'QueueMaster 매칭 글 상세', exact: true });
+  await expect(ownRow).toBeVisible();
+  await expect(page.locator('.recruitment-row').first()).toHaveAttribute('data-recruitment-id', (await ownRow.getAttribute('data-recruitment-id'))!);
+  await ownRow.click();
+  await expect(page.locator('.my-recruitment')).toBeVisible();
+  await expect(page.getByRole('region', { name: '매칭 글 상세', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'PlayMaker 매칭 글 상세' }).click();
   await page.getByRole('button', { name: '같이 할래요' }).click();
   await expect(page.getByRole('region', { name: '보낸 오케이' })).toBeVisible();
   await page.clock.fastForward(22000);
-  await expect(page.locator('.board-new-results')).toBeVisible();
-  await expect(page.locator('.recruitment-row').first()).toHaveAttribute('data-recruitment-id', first!);
-  await expect(page.locator('.recruitment-row').filter({ hasText: 'PlayMaker' })).toContainText('매칭 종료');
-  await page.locator('.board-new-results').click();
+  await expect(ownRow).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'PlayMaker 매칭 글 상세' })).toHaveCount(0);
+  await expect(page.locator('.board-new-results')).toHaveCount(0);
 });

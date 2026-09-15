@@ -264,10 +264,7 @@ test('실시간 갱신과 새 목록 반영은 이미 읽은 목록의 길이를
       return row.id;
     } finally { db.me = viewer; }
   });
-  await expect(page.locator('.board-new-results')).toBeVisible();
-  await expect(rows).toHaveCount(20);
-  expect(await rowIds(page)).toEqual(previous);
-  await page.locator('.board-new-results').click();
+  await expect(rows.first()).toHaveAttribute('data-recruitment-id', newId);
   await expect(page.locator('.board-new-results')).toHaveCount(0);
   await expect(rows).toHaveCount(20);
   expect(await rowIds(page)).toEqual([newId, ...previous.slice(0, 19)]);

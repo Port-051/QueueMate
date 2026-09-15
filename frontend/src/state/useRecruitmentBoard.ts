@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from '../api/recruitment';
-import { ApiError } from '../api/http';
 import { useMatch } from './MatchContext';
 import { useAuth } from './AuthContext';
 
@@ -31,14 +30,12 @@ export function useRecruitmentBoard(query: api.BoardSearch) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const [page, setPage] = useState<api.BoardPage | null>(null);
-  const [pending, setPending] = useState<api.BoardPage | null>(null);
   const [mine, setMine] = useState<api.BoardRow[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState('');
   const pageRef = useRef<api.BoardPage | null>(null);
-  const pendingRef = useRef<api.BoardPage | null>(null);
   const ownerRef = useRef(userId);
   const sessionRef = useRef<BoardSession | null>(null);
   // Pagination belongs to this hook; only filters start a new board session.
@@ -49,7 +46,6 @@ export function useRecruitmentBoard(query: api.BoardSearch) {
     if (session.running) return session.running;
     const active = () => sessionRef.current === session;
     const updatePage = (next: api.BoardPage) => { pageRef.current = next; setPage(next); };
-    const updatePending = (next: api.BoardPage | null) => { pendingRef.current = next; setPending(next); };
     const work = async () => {
       while (active() && (session.refreshRequested || session.appendRequested)) {
         // An append waiting behind a refresh gets the next turn, even during a busy stream.
@@ -65,9 +61,6 @@ export function useRecruitmentBoard(query: api.BoardSearch) {
             if (!previous) return;
             updatePage({ ...next, items: uniqueRows([...previous.items, ...next.items]) });
             session.lastPage = nextPage;
-            if (pendingRef.current) {
-              updatePending({ ...next, items: uniqueRows([...pendingRef.current.items, ...next.items]) });
-            }
             setLoadMoreError('');
           } catch {
             if (active()) setLoadMoreError('다음 매칭을 불러오지 못했습니다. 다시 시도해 주세요.');
@@ -83,7 +76,6 @@ export function useRecruitmentBoard(query: api.BoardSearch) {
           setLoadingMore(false);
           break;
         }
-        const reset = session.resetRequested || !session.ready;
         session.refreshRequested = false;
         session.resetRequested = false;
         session.operation = 'refresh';
@@ -96,33 +88,11 @@ export function useRecruitmentBoard(query: api.BoardSearch) {
           if (!active()) return;
           const last = pages[pages.length - 1]!;
           const next: api.BoardPage = { ...last, items: uniqueRows(pages.flatMap(result => result.items)) };
-          const previous = pageRef.current;
-          let lookupFailed = false;
-          if (reset || !previous) {
-            updatePage(next);
-            updatePending(null);
-          } else {
-            // Refresh every loaded page without moving or dropping rows being read.
-            const freshRows = new Map(next.items.map(row => [row.id, row]));
-            const updated = await Promise.all(previous.items.map(async row => {
-              const current = freshRows.get(row.id);
-              if (current) return current;
-              try { return await api.getRecruitment(row.id); }
-              catch (cause) {
-                if (cause instanceof ApiError && cause.status === 404) return { ...row, status: 'CLOSED' as const };
-                lookupFailed = true;
-                return row;
-              }
-            }));
-            if (!active()) return;
-            updatePage({ ...next, items: updated });
-            const changed = previous.items.length !== next.items.length ||
-              previous.items.some((row, index) => row.id !== next.items[index]?.id);
-            updatePending(changed ? next : null);
-          }
+          // 새 글과 마감된 글을 현재 필터·최신순에 맞춰 즉시 반영한다.
+          updatePage(next);
           session.ready = true;
           setMine(owned);
-          setError(lookupFailed ? '일부 매칭 정보를 갱신하지 못했습니다. 다시 확인해 주세요.' : '');
+          setError('');
         } catch {
           if (active()) setError('매칭 정보를 불러오지 못했습니다. 다시 확인해 주세요.');
         } finally {
@@ -175,8 +145,6 @@ export function useRecruitmentBoard(query: api.BoardSearch) {
     setError('');
     setLoadingMore(false);
     setLoadMoreError('');
-    pendingRef.current = null;
-    setPending(null);
     // Keep the current rows and count visible while a new filter is being calculated.
     void refresh(true);
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 15_000);
@@ -225,17 +193,14 @@ export function useRecruitmentBoard(query: api.BoardSearch) {
     return () => { observer.disconnect(); timers.forEach(timer => window.clearTimeout(timer)); };
   }, [visiblePage?.items.map(r => `${r.id}:${r.status}`).join(',')]);
 
-  // Re-fetch the loaded range so applying a pending update cannot discard an append.
-  const applyPending = useCallback(() => { void refresh(true); }, [refresh]);
   const currentScope = sessionRef.current?.key === scopeKey;
   return {
     page: visiblePage,
-    pending: currentScope ? pending : null,
     mine: ownerRef.current === userId ? mine : [],
     loading: !currentScope || loading,
     stale: Boolean(visiblePage) && (!currentScope || !sessionRef.current?.ready),
     error: currentScope ? error : '',
-    refresh, applyPending, loadMore,
+    refresh, loadMore,
     loadingMore: currentScope && loadingMore,
     loadMoreError: currentScope ? loadMoreError : '',
   };

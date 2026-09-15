@@ -48,7 +48,7 @@ export function HomePage() {
   const reservationTimes = useRef<Pick<api.BoardWrite, 'availableFrom' | 'availableTo' | 'playAmount'>>(reservationWindow());
   const previewReservationTimes = useRef(reservationTimes.current);
   if (query.type === 'RESERVATION') reservationTimes.current = { availableFrom: query.availableFrom!, availableTo: query.availableTo!, playAmount: query.playAmount };
-  const { page, pending, mine, loading, stale, error, refresh, applyPending, loadMore, loadingMore, loadMoreError } = useRecruitmentBoard(query);
+  const { page, mine, loading, stale, error, refresh, loadMore, loadingMore, loadMoreError } = useRecruitmentBoard(query);
   const [composer, setComposer] = useState<{ initial: api.BoardWrite; editing?: api.BoardRow; joinId?: string } | null>(null);
   const [selected, setSelected] = useState<api.BoardRow | null>(null);
   const [ownId, setOwnId] = useState<string | null>(null);
@@ -161,6 +161,7 @@ export function HomePage() {
   }, [location.state, navigate, match.adoptRequest]);
   const join = async () => {
     if (!selected) return;
+    if (selected.userId === user?.id) { setOwnId(selected.id); setSelected(null); setFocusStage(true); return; }
     if (!source) {
       if (query.type === 'REALTIME' && (active.some(r => r.type === 'REALTIME') || liveRequest)) toast('진행 중인 실시간 매칭을 확인해 주세요. 동시에 두 개를 등록할 수 없습니다.', 'info');
       else { compose(selected); setSelected(null); }
@@ -197,11 +198,11 @@ export function HomePage() {
       <BoardFilters value={filter} onChange={value => { setFilter(value); if (!recruitmentInputError(value)) changeQuery(value); }} onReset={() => changeQuery({ ...browseSearch(query.condition.game), type: query.type, availableFrom: query.availableFrom, availableTo: query.availableTo, playAmount: query.playAmount })} />
       <div className="board-results-head"><span className="board-result-count" aria-live="polite" aria-atomic="true" aria-busy={loading}>{page ? <><b>{page.total.toLocaleString('ko-KR')}</b>개 매칭 글</> : loading ? <span className="board-count-placeholder" aria-hidden="true" /> : null}</span></div>
       {error ? <div className="banner warn" role="alert">{error}<Button size="sm" onClick={() => void refresh(true)}>다시 불러오기</Button></div> : null}
-      {pending ? <button type="button" className="board-new-results" onClick={applyPending}>새 매칭 글 보기 ↓</button> : null}
       {loading && !page ? <div className="board-empty" role="status">매칭 글 목록을 불러오는 중…</div> : null}
       {!loading && !error && page?.items.length === 0 ? <div className="board-empty"><h2>조건에 맞는 매칭이 없어요</h2></div> : null}
       {page?.items.length ? <div className={`board-list-region${loading || stale ? ' is-updating' : ''}`} aria-busy={loading} aria-disabled={stale}><RecruitmentList rows={page.items} selected={selected?.id} onSelect={row => {
         if (loading || stale) return;
+        if (row.userId === user?.id) { setOwnId(row.id); setSelected(null); setComposer(null); setFocusStage(true); return; }
         if (composer) { toast('자기소개를 저장하거나 닫은 뒤 매칭을 선택해 주세요.', 'info'); return; }
         setSelected(row);
       }} /></div> : null}

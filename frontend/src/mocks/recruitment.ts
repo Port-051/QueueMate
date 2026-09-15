@@ -121,8 +121,8 @@ function compatible(ca: MatchCondition, pa: BoardPreferences, cb: MatchCondition
 }
 function matches(query: BoardSearch, row: BoardRow, viewerId = db.me.id) {
   refresh(row);
-  if (row.status !== 'OPEN' || row.userId === viewerId || row.type !== query.type || row.members.length >= row.targetSize
-    || row.members.some(member => member.userId === viewerId || db.blocks.some(block => block.userId === member.userId))) return false;
+  if (row.status !== 'OPEN' || (!query.browse && row.userId === viewerId) || row.type !== query.type || row.members.length >= row.targetSize
+    || row.members.some(member => (!query.browse && member.userId === viewerId) || db.blocks.some(block => block.userId === member.userId))) return false;
   if (query.browse) {
     // 탐색 필터는 상대의 공개 소개만 본다. 참여·자동 매칭에서만 양방향 조건을 확인한다.
     if (query.condition.game !== row.condition.game) return false;
