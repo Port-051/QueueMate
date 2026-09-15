@@ -25,7 +25,7 @@ function loadNotifications(userId: string): AppNotification[] {
     const items: unknown = JSON.parse(localStorage.getItem(storageKey(userId)) ?? '[]');
     if (!Array.isArray(items)) return [];
     return items.filter((item): item is AppNotification => Boolean(item && typeof item.id === 'string'
-      && KINDS.has(item.kind) && typeof item.title === 'string' && typeof item.body === 'string' && typeof item.href === 'string'
+      && !/^recruitment:.*:confirm:/.test(item.id) && KINDS.has(item.kind) && typeof item.title === 'string' && typeof item.body === 'string' && typeof item.href === 'string'
       && (item.href === '/app/home' || item.href.startsWith('/app/messages?'))
       && typeof item.createdAt === 'string' && Number.isFinite(Date.parse(item.createdAt))
       && typeof item.read === 'boolean')).slice(0, MAX_ITEMS);
@@ -105,26 +105,17 @@ export function useNotifications() {
     let disposed = false;
     let refreshing = false;
     let repeat = false;
-    let reminder: number | undefined;
     const refresh = async () => {
       if (refreshing) { repeat = true; return; }
       refreshing = true;
       try {
         const rows = await myRecruitments();
         if (disposed) return;
-        window.clearTimeout(reminder);
-        const now = Date.now();
         const entries: NotificationInput[] = [];
-        let nextReminder = Infinity;
         for (const row of rows.filter(row => row.userId === userId && ['OPEN', 'STALE'].includes(row.status))) {
-          const confirmAt = row.timing ? Date.parse(row.timing.confirmAt) : Date.parse(row.confirmedAt) + 10 * 60_000;
-          if (row.type === 'REALTIME' && (row.status === 'STALE' || confirmAt <= now)) {
-            entries.push({ id: `recruitment:${row.id}:confirm:${row.confirmedAt}`, kind: 'RECRUITMENT', title: '아직 팀원을 찾고 있나요?', body: '내 매칭을 유지하거나 조건을 수정해 보세요.', href: '/app/home', createdAt: new Date(Math.min(confirmAt, now)).toISOString() });
-          } else if (row.type === 'REALTIME' && Number.isFinite(confirmAt)) nextReminder = Math.min(nextReminder, confirmAt);
           for (const applicant of row.applicants) entries.push({ id: `recruitment:${row.id}:applicant:${applicant.id}`, kind: 'RECRUITMENT', title: `${applicant.nickname}님이 참여를 신청했어요`, body: '내 매칭에서 신청한 팀원을 확인해 주세요.', href: '/app/home', createdAt: new Date().toISOString() });
         }
         add(entries);
-        if (Number.isFinite(nextReminder)) reminder = window.setTimeout(() => void refresh(), Math.max(1000, nextReminder - now + 100));
       } catch { /* A notification refresh must not interrupt the current screen. */ }
       finally {
         refreshing = false;
@@ -135,7 +126,7 @@ export function useNotifications() {
     const onFocus = () => void refresh();
     void refresh();
     window.addEventListener('focus', onFocus);
-    return () => { disposed = true; window.clearTimeout(reminder); unsubscribe?.(); window.removeEventListener('focus', onFocus); };
+    return () => { disposed = true; unsubscribe?.(); window.removeEventListener('focus', onFocus); };
   }, [userId, stream, add]);
 
   useEffect(() => {

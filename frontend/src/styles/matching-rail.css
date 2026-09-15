@@ -147,3 +147,7 @@ body:has(.board-home) .toast-host { pointer-events: none; }
 .home-profile .compact-match-actions[data-bump=true] { grid-template-columns: 34px repeat(3, minmax(0, 1fr)); }
 .home-profile .recruitment-suggestions { display: flex; gap: 6px; overflow-x: auto; margin: 10px 0 0; padding-bottom: 2px; }
 .home-profile .recruitment-suggestions .suggestion-link { flex: 0 0 auto; width: auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 8px; font-size: 11px; }
+
+.match-status[data-active=true] i { animation: matching-pulse 1.8s ease-in-out infinite; }
+@keyframes matching-pulse { 0%, 100% { opacity: 1; box-shadow: 0 0 9px #9865ff90; } 50% { opacity: .35; box-shadow: 0 0 2px #9865ff30; } }
+@media (prefers-reduced-motion: reduce) { .match-status[data-active=true] i { animation: none; } }

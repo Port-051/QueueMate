@@ -74,7 +74,7 @@ function refresh(row: BoardRow): BoardRow {
   if (source?.status === 'PROPOSED' || source?.status === 'MATCHED') { row.status = source.status; row.proposalId = source.proposalId ?? null; }
   else if (source && ['CANCELLED', 'EXPIRED', 'COMPLETED'].includes(source.status)) row.status = 'CLOSED';
   else if (row.status === 'PROPOSED' && source) { row.status = 'OPEN'; row.proposalId = null; row.parentId = null; row.requestedParentId = null; row.members = [person(row)]; releaseMode(row); }
-  if (row.status === 'OPEN' && row.type === 'REALTIME' && Date.now() - new Date(row.confirmedAt).getTime() >= 12 * 60_000) row.status = 'STALE';
+  if (row.status === 'STALE') row.status = 'OPEN';
   if (row.type === 'RESERVATION' && row.availableTo && new Date(row.availableTo).getTime() <= Date.now()) row.status = 'CLOSED';
   return row;
 }
