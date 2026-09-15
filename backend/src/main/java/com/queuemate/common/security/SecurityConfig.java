@@ -1,0 +1,59 @@
+package com.queuemate.common.security;
+
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import com.queuemate.common.error.ErrorResponseEntryPoint;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+@EnableConfigurationProperties(AuthProperties.class)
+public class SecurityConfig {
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        // docs/13: BCrypt/Argon 계열.
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter,
+                                                  ErrorResponseEntryPoint entryPoint)
+            throws Exception {
+        return http
+                // JWT는 쿠키를 쓰지 않으므로 CSRF 대상이 아니다.
+                .csrf(csrf -> csrf.disable())
+                .cors(Customizer.withDefaults())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        // logout은 refresh token 자체가 자격 증명이다. access token이 만료된
+                        // 뒤에도 세션을 끊을 수 있어야 하므로 인증을 요구하지 않는다.
+                        .requestMatchers("/api/v1/auth/signup", "/api/v1/auth/login",
+                                "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
+                        // 소셜 로그인은 토큰을 받기 전에 오가는 구간이라 인증을 걸 수 없다.
+                        // 대신 state와 일회용 교환 코드로 흐름 자체를 검증한다.
+                        .requestMatchers("/api/v1/auth/oauth/**").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        // container의 error dispatch까지 막으면 인증된 요청의 404가 401로 뒤바뀐다.
+                        // 응답 본문은 GlobalExceptionHandler가 만들고 여기서 새는 정보는 없다.
+                        .requestMatchers("/error").permitAll()
+                        // WebSocket은 Authorization 헤더를 못 쓴다. handshake에서
+                        // Sec-WebSocket-Protocol로 인증한다 (contracts/events.md).
+                        // 여기서 막으면 interceptor에 닿기 전에 401이 난다.
+                        .requestMatchers("/ws").permitAll()
+                        // 나머지는 전부 인증 필요. 새 엔드포인트가 실수로 열리지 않게 한다.
+                        .anyRequest().authenticated())
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint(entryPoint))
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                .build();
+    }
+}

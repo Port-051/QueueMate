@@ -1,0 +1,52 @@
+.nav-label { min-width: 0; white-space: nowrap; font-size: 16px; line-height: 24px; }
+.nav-link.active .nav-label { font-weight: 700; }
+.nav-dot { flex: none; width: 8px; height: 8px; margin-left: auto; border-radius: 50%; background: var(--accent); }
+.nav-profile .avatar-wrap { border-radius: 50%; }
+.nav-profile.active .avatar-wrap { outline: 2px solid #fff; outline-offset: 3px; }
+.side-nav .nav-icon, .mobile-nav .nav-icon { position: relative; height: 32px; opacity: 1; }
+.side-nav .nav-badge, .mobile-nav .nav-badge { position: absolute; left: 14px; top: 14px; box-sizing: border-box; width: 24px; min-width: 24px; height: 24px; margin: 0; padding: 0; border: 3px solid #0b0e16; border-radius: 50%; background: var(--accent); color: #fff; font-size: 13px; font-weight: 500; line-height: 1; font-variant-numeric: tabular-nums; }
+.side-nav .nav-badge-long, .mobile-nav .nav-badge-long { font-size: 9px; }
+.mobile-nav .nav-icon { width: 32px; }
+.mobile-nav { gap: 8px; }
+.mobile-nav .nav-link { min-height: 48px; padding-block: 8px; gap: 12px; }
+.nav-notifications { width: 100%; background: transparent; text-align: left; cursor: pointer; }
+.sidebar-top { align-self: start; min-width: 0; }
+.sidebar-games { display: grid; gap: 8px; min-width: 0; pointer-events: auto; }
+.sidebar-games .nav-link { position: relative; width: 100%; min-height: 48px; padding: 8px 12px; gap: 12px; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.sidebar-games .nav-link:hover { background: rgba(255, 255, 255, .06); }
+.sidebar-games .nav-icon { width: 32px; height: 32px; opacity: 1; }
+.game-nav-logo { border-radius: 50%; }
+.game-nav-link.active .game-nav-logo { outline: 2px solid var(--accent); outline-offset: 3px; box-shadow: 0 0 10px 5px #7c4dff80, 0 0 24px 8px #7c4dff4d; }
+.mobile-games { padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--border); }
+
+@media (min-width: 768px) {
+  /* 접힌 메뉴 너비만 확보하고, 펼친 메뉴는 본문을 밀지 않는 레이어로 표시한다. */
+  .app-shell { --sidebar-w: 232px; grid-template-columns: 80px minmax(0, 1fr); }
+  .sidebar { display: block; width: 80px; min-width: 0; height: 100dvh; padding: 0; overflow: hidden; pointer-events: auto; background: none; border: 0; mix-blend-mode: screen; transition: width .26s cubic-bezier(.22, 1, .36, 1); }
+  .sidebar-navigation { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(min-content, 1fr) auto minmax(min-content, 1fr); row-gap: 16px; height: 100%; padding: 24px 12px 20px; opacity: 1; transform: translateX(0); transition: opacity .18s ease, transform .26s cubic-bezier(.22, 1, .36, 1); }
+  .sidebar.has-notifications-open { --sidebar-w: 400px; }
+  .sidebar.has-notifications-open .sidebar-navigation { opacity: 0; transform: translateX(-16px); transition: opacity .12s ease, transform .26s cubic-bezier(.22, 1, .36, 1); }
+  .sidebar:not(.navigation-picked):hover, .sidebar:has(:focus-visible), .sidebar.has-notifications-open { width: var(--sidebar-w); z-index: 30; background: #0b0e16; mix-blend-mode: normal; }
+  .sidebar-brand-link { display: block; align-self: start; min-width: 0; width: 100%; border-radius: var(--r-md); pointer-events: auto; }
+  .sidebar .brand { width: 208px; max-width: none; padding: 4px 11px 44px; gap: 10px; }
+  .sidebar .logo-mark { width: 34px; height: 34px; }
+  .sidebar .brand-wordmark { flex: none; width: 132px; }
+  .side-nav { pointer-events: auto; min-width: 0; width: 100%; gap: 8px; }
+  .side-nav .nav-link { position: relative; min-height: 48px; padding: 8px 12px; gap: 12px; border: 0; box-shadow: none; }
+  .side-nav .nav-icon { width: 32px; }
+  .side-nav .nav-label, .sidebar-games .nav-label { position: absolute; left: 56px; right: 12px; }
+  .side-nav .nav-dot { position: absolute; left: 39px; top: 7px; }
+  .sidebar .nav-label, .sidebar .brand-wordmark { opacity: 0; visibility: hidden; transform: translateX(-6px); transition: opacity .16s ease, transform .22s ease, visibility .16s; }
+  .sidebar:not(.navigation-picked):hover .nav-label, .sidebar:has(:focus-visible) .nav-label,
+  .sidebar:not(.navigation-picked):hover .brand-wordmark, .sidebar:has(:focus-visible) .brand-wordmark,
+  .sidebar.has-notifications-open .nav-label, .sidebar.has-notifications-open .brand-wordmark { opacity: 1; visibility: visible; transform: none; }
+  .sidebar.has-notifications-open { z-index: 45; }
+}
+@media (max-width: 767px) {
+  .sidebar { display: block; position: fixed; inset: 0; width: 100%; height: 100dvh; padding: 0; overflow: hidden; z-index: 45; background: #0b0e16; pointer-events: none; visibility: hidden; opacity: 0; transform: translateX(-100%); transition: transform .26s cubic-bezier(.22, 1, .36, 1), opacity .2s ease, visibility 0s .26s; }
+  .sidebar .sidebar-navigation { display: none; }
+  .sidebar.has-notifications-open { pointer-events: auto; visibility: visible; opacity: 1; transform: translateX(0); transition-delay: 0s; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar, .sidebar .sidebar-navigation, .sidebar.has-notifications-open .sidebar-navigation, .sidebar .nav-label, .sidebar .brand-wordmark { transition: none; }
+}

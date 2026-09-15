@@ -6,7 +6,7 @@ Java 21 + Spring Boot modular monolith.
 ```bash
 docker compose up -d postgres redis
 cd backend
-gradle bootRun
+./gradlew bootRun
 ```
 
 ## Package ownership

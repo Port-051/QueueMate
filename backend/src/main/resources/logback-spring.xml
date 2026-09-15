@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  로그 포맷과 레벨의 단일 소스. application-*.yml에 logging.level.* 을 두지 않는다.
+  필수 상관관계 필드(traceId/requestId/userId 등)는 MDC로 들어온다. docs/09 §3.
+  비밀번호/token/chat body는 어떤 프로파일에서도 남기지 않는다.
+-->
+<configuration>
+    <property name="MDC_PATTERN" value="[%X{requestId:-},%X{userId:-}]"/>
+
+    <springProfile name="local">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) ${MDC_PATTERN} %cyan(%logger{36}) - %msg%n</pattern>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <logger name="com.queuemate" level="DEBUG"/>
+    </springProfile>
+
+    <springProfile name="test">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%-5level ${MDC_PATTERN} %logger{20} - %msg%n</pattern>
+            </encoder>
+        </appender>
+        <!-- 테스트 출력은 실패 원인만 보이게 조용히 둔다. -->
+        <root level="WARN">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <logger name="com.queuemate" level="INFO"/>
+    </springProfile>
+
+    <springProfile name="prod">
+        <!-- 컨테이너 stdout을 수집기가 가져간다. 파일로 쓰지 않는다. -->
+        <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <customFields>{"service":"queuemate"}</customFields>
+                <!-- MDC 전체가 top-level field로 나간다. -->
+                <includeContext>false</includeContext>
+                <fieldNames>
+                    <timestamp>ts</timestamp>
+                    <level>level</level>
+                    <logger>logger</logger>
+                    <thread>thread</thread>
+                    <message>message</message>
+                </fieldNames>
+            </encoder>
+        </appender>
+        <!-- 로그 I/O가 요청 지연에 섞이지 않게 한다. WARN 이상은 버리지 않는다. -->
+        <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+            <queueSize>1024</queueSize>
+            <discardingThreshold>0</discardingThreshold>
+            <neverBlock>false</neverBlock>
+            <appender-ref ref="JSON"/>
+        </appender>
+        <root level="WARN">
+            <appender-ref ref="ASYNC"/>
+        </root>
+        <logger name="com.queuemate" level="INFO"/>
+    </springProfile>
+</configuration>

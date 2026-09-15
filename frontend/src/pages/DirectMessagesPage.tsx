@@ -1,0 +1,318 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { isApiError } from '../api/error';
+import { ConversationMenu, ConversationPin } from '../components/ConversationMenu';
+import { FriendManagementPanel, type ManagementTab } from '../components/FriendManagementPanel';
+import { DirectVoiceStage } from '../components/DirectVoiceStage';
+import { ReportModal } from '../components/ReportModal';
+import { IconChat, IconPencil, IconSearch, IconSend, IconParty, IconShield } from '../components/icons';
+import { ActionMenu, Avatar, Button, ConfirmDialog, Modal, useToast } from '../components/ui';
+import { USE_MOCK } from '../config';
+import { relativeTime } from '../domain/time';
+import { useAuth } from '../state/AuthContext';
+import { useSocial } from '../state/SocialContext';
+import {
+  deleteDirectConversation, ensureDirectContacts, markDirectMessagesRead, saveDirectMessageDraft, sendDirectMessage,
+  toggleDirectMessagePin, unreadMessages, useDirectMessages,
+} from '../state/directMessages';
+import type { DirectConversation, MessageContact } from '../state/directMessages';
+import '../styles/messages.css';
+
+interface Contact extends MessageContact { friend: boolean; recentAt?: string; }
+function BackArrow() {
+  return <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m14 5-7 7 7 7M7 12h13" /></svg>;
+}
+
+function messageTime(value: string): string {
+  return new Intl.DateTimeFormat('ko-KR', { hour: 'numeric', minute: '2-digit' }).format(new Date(value));
+}
+
+function messageDay(value: string): string {
+  return new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' }).format(new Date(value));
+}
+
+function localDay(value: string): string { return new Date(value).toDateString(); }
+
+export function DirectMessagesPage() {
+  const { user } = useAuth();
+  const social = useSocial();
+  const { snapshot } = useDirectMessages(user?.id);
+  const toast = useToast();
+  const [params, setParams] = useSearchParams();
+  const selectedId = params.get('user');
+  const managementParam = params.get('manage');
+  const [voiceContact, setVoiceContact] = useState<string | null>(null);
+  useEffect(() => setVoiceContact(null), [selectedId]);
+  const [query, setQuery] = useState('');
+  const [listTab, setListTab] = useState<'conversations' | 'unread' | 'recommended'>('conversations');
+  const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
+  const [newConversation, setNewConversation] = useState(false);
+  const [newQuery, setNewQuery] = useState('');
+  const [management, setManagement] = useState<ManagementTab | null>(null);
+  const [reportTarget, setReportTarget] = useState<MessageContact | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<{ contact: Contact; action: 'block' | 'remove' } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const selectedButtonRef = useRef<HTMLButtonElement>(null);
+  // The local social adapter may update the array in place; derive from IDs, not its reference.
+  const blockedKey = JSON.stringify(social.blocks.map(contact => contact.userId).sort());
+  const blockedIds = useMemo(() => new Set<string>(JSON.parse(blockedKey)), [blockedKey]);
+  const sourceContacts = useMemo(() => {
+    const contacts = new Map<string, Contact>();
+    [...social.receivedRequests, ...social.sentRequests].forEach(request => contacts.set(request.counterpartUserId, { userId: request.counterpartUserId, nickname: request.counterpartNickname, avatarUrl: null, friend: false }));
+    social.recentPlayers.forEach(contact => contacts.set(contact.userId, { ...contact, friend: false, recentAt: contact.lastPlayedAt }));
+    social.friends.forEach(contact => contacts.set(contact.userId, { ...contacts.get(contact.userId), ...contact, friend: true }));
+    return [...contacts.values()].filter(contact => contact.userId !== user?.id && !blockedIds.has(contact.userId));
+  }, [social.recentPlayers, social.friends, social.receivedRequests, social.sentRequests, user?.id, blockedIds]);
+
+  useEffect(() => { void social.refresh().catch(() => toast('연락처를 불러오지 못했습니다.', 'error')); }, [social.refresh, toast]);
+  useEffect(() => {
+    setManagement(managementParam ? managementParam === 'blocks' ? 'blocks' : managementParam === 'sent' ? 'sent' : managementParam === 'friends' ? 'friends' : 'received' : null);
+  }, [managementParam]);
+  useEffect(() => {
+    if (!user?.id || sourceContacts.length === 0) return;
+    try { ensureDirectContacts(user.id, sourceContacts, USE_MOCK); }
+    catch { setStorageError('대화를 저장하지 못했습니다. 브라우저 저장 공간을 확인해주세요.'); }
+  }, [user?.id, sourceContacts]);
+  useEffect(() => {
+    if (!user?.id) return;
+    try {
+      blockedIds.forEach(id => {
+        const blocked = snapshot.conversations[id];
+        if (blocked) markDirectMessagesRead(user.id, blocked.contact);
+      });
+    } catch { setStorageError('읽음 상태를 저장하지 못했습니다.'); }
+  }, [user?.id, blockedIds, snapshot]);
+
+  const contacts = useMemo(() => {
+    const all = new Map<string, Contact>();
+    Object.values(snapshot.conversations).forEach(conversation => {
+      if (!blockedIds.has(conversation.contact.userId)) all.set(conversation.contact.userId, { ...conversation.contact, friend: false });
+    });
+    sourceContacts.forEach(contact => all.set(contact.userId, contact));
+    return [...all.values()].sort((a, b) => {
+      const left = snapshot.conversations[a.userId]; const right = snapshot.conversations[b.userId];
+      const leftPin = left?.pinnedAt ?? 0; const rightPin = right?.pinnedAt ?? 0;
+      if (leftPin || rightPin) return rightPin - leftPin;
+      const lastTime = (conversation: DirectConversation | undefined, contact: Contact) => {
+        const last = conversation?.messages.at(-1)?.createdAt ?? contact.recentAt;
+        return last ? Date.parse(last) : 0;
+      };
+      return lastTime(right, b) - lastTime(left, a) || a.nickname.localeCompare(b.nickname, 'ko');
+    });
+  }, [snapshot, sourceContacts, blockedIds]);
+  const selected = contacts.find(contact => contact.userId === selectedId);
+  const conversation = selectedId ? snapshot.conversations[selectedId] : undefined;
+  const lastMessageId = conversation?.messages.at(-1)?.id;
+  const totalUnread = contacts.reduce((count, contact) => count + (snapshot.conversations[contact.userId] && user ? unreadMessages(snapshot.conversations[contact.userId], user.id) : 0), 0);
+  const shown = contacts.filter(contact => {
+    const thread = snapshot.conversations[contact.userId];
+    const term = query.trim().toLocaleLowerCase();
+    return (listTab === 'recommended' ? !thread?.messages.length : Boolean(thread?.messages.length))
+      && (!term || contact.nickname.toLocaleLowerCase().includes(term) || thread?.messages.some(message => message.text.toLocaleLowerCase().includes(term)))
+      && (listTab !== 'unread' || Boolean(thread && user && unreadMessages(thread, user.id)));
+  });
+  const pendingSent = social.sentRequests.find(request => request.counterpartUserId === selectedId);
+  const pendingReceived = social.receivedRequests.find(request => request.counterpartUserId === selectedId);
+
+  useEffect(() => {
+    if (!selected || !user || management) return;
+    const markRead = () => {
+      if (document.visibilityState !== 'visible') return;
+      try { markDirectMessagesRead(user.id, selected); }
+      catch { setStorageError('읽음 상태를 저장하지 못했습니다.'); }
+    };
+    markRead();
+    document.addEventListener('visibilitychange', markRead);
+    return () => document.removeEventListener('visibilitychange', markRead);
+  }, [selected?.userId, user?.id, lastMessageId, management]);
+  useEffect(() => { if (selectedId) headingRef.current?.focus({ preventScroll: true }); }, [selectedId]);
+
+  const choose = (contact: MessageContact) => {
+    const next = new URLSearchParams(params);
+    next.set('user', contact.userId);
+    next.delete('manage');
+    setManagement(null);
+    setParams(next);
+    setNewConversation(false);
+    setNewQuery('');
+  };
+  const backToList = () => {
+    const previous = selectedButtonRef.current;
+    const next = new URLSearchParams(params); next.delete('user'); setParams(next);
+    requestAnimationFrame(() => (previous?.isConnected ? previous : searchRef.current)?.focus({ preventScroll: true }));
+  };
+  const closeManagement = () => {
+    setManagement(null);
+    requestAnimationFrame(() => (headingRef.current ?? searchRef.current)?.focus({ preventScroll: true }));
+    if (managementParam) { const next = new URLSearchParams(params); next.delete('manage'); setParams(next, { replace: true }); }
+  };
+  const run = async (action: () => Promise<void>, message: string) => {
+    if (busy) return;
+    setBusy(true);
+    try { await action(); toast(message, 'ok'); }
+    catch (error) { toast(isApiError(error) ? error.message : '요청을 처리하지 못했습니다.', 'error'); }
+    finally { setBusy(false); }
+  };
+  const pin = (contact: Contact) => {
+    if (!user || !snapshot.conversations[contact.userId]?.messages.length) return;
+    try { toggleDirectMessagePin(user.id, contact); setStorageError(null); }
+    catch { setStorageError('고정 상태를 저장하지 못했습니다.'); }
+  };
+  const relationship = (contact: Contact) => contact.friend ? '친구' : contact.recentAt ? '최근 함께한 사람'
+    : [...social.receivedRequests, ...social.sentRequests].some(request => request.counterpartUserId === contact.userId) ? '친구 요청' : '연락처';
+
+  const renderContact = (contact: Contact) => {
+    const thread = snapshot.conversations[contact.userId];
+    const unread = thread && user ? unreadMessages(thread, user.id) : 0;
+    const last = thread?.messages.at(-1);
+    const isSelected = contact.userId === selectedId;
+    const isPinned = Boolean(thread?.messages.length && thread.pinnedAt);
+    return <li className={`dm-contact${isSelected ? ' is-selected' : ''}${unread ? ' is-unread' : ''}`} key={contact.userId}>
+      <button type="button" className="dm-contact-select" aria-label={`${contact.nickname} 대화${unread ? `, 읽지 않은 메시지 ${unread}개` : ''}`}
+        aria-current={isSelected ? 'true' : undefined} ref={isSelected ? selectedButtonRef : undefined} onClick={() => choose(contact)}>
+        <Avatar name={contact.nickname} avatarUrl={contact.avatarUrl} size={44} />
+        <span className="dm-contact-text"><span className="dm-contact-top"><b>{contact.nickname}</b>{isPinned ? <span className="dm-pinned-mark" role="img" aria-label="상단 고정"><ConversationPin /></span> : null}</span>
+          <span className="dm-contact-preview">
+            <span>{thread?.draft ? <><em>임시저장</em> {thread.draft}</> : last ? `${last.senderId === user?.id ? '나: ' : ''}${last.text}` : relationship(contact)}</span>
+            {!thread?.draft && last ? <time dateTime={last.createdAt}> · {relativeTime(last.createdAt)}</time> : null}
+          </span>
+        </span>
+        {unread > 0 ? <span className="dm-unread" aria-hidden="true">{unread > 99 ? '99+' : unread}</span> : null}
+      </button>
+      {thread?.messages.length ? <ConversationMenu nickname={contact.nickname} pinned={isPinned} onPin={() => pin(contact)} onDelete={() => setDeleteTarget(contact)} /> : null}
+    </li>;
+  };
+
+  return <section className={`page direct-messages-page${selectedId || management ? ' has-conversation' : ''}`} aria-label="메시지">
+    <div className="dm-layout">
+      <aside className="dm-sidebar" aria-label="대화 목록">
+        <header className="dm-list-header"><h1>메시지</h1><div className="dm-header-actions">
+          <button type="button" className="dm-icon-btn" aria-label="친구 관리" aria-pressed={Boolean(management)} onClick={() => { setVoiceContact(null); setManagement('friends'); }}><IconParty size={24} />{social.receivedRequests.length > 0 ? <span className="dm-request-dot" /> : null}</button>
+          <button type="button" className="dm-icon-btn" aria-label="새 대화" onClick={() => { setNewConversation(true); setNewQuery(''); }}><IconPencil size={22} /></button>
+        </div></header>
+        <div className="dm-search"><IconSearch size={17} /><input ref={searchRef} type="search" placeholder="대화 검색" aria-label="대화 검색" value={query} onChange={event => setQuery(event.target.value)} /></div>
+        <div className="dm-list-filters">{([{ key: 'conversations', label: '대화' }, { key: 'unread', label: '읽지 않음' }, { key: 'recommended', label: '추천' }] as const).map(tab => <button type="button" key={tab.key} className={listTab === tab.key ? 'on' : ''} aria-pressed={listTab === tab.key} onClick={() => { setListTab(tab.key); setQuery(''); }}>{tab.label}{tab.key === 'unread' && totalUnread ? <span>{totalUnread}</span> : null}</button>)}</div>
+        <div className="dm-contact-scroll">
+          {social.loading && contacts.length === 0 ? <p className="dm-list-empty" role="status">연락처 불러오는 중…</p> : shown.length === 0 ? <div className="dm-list-empty"><p>{query ? '검색 결과가 없습니다' : listTab === 'unread' ? '모두 읽었어요' : listTab === 'recommended' ? '추천할 사람이 없습니다' : '아직 나눈 대화가 없습니다'}</p>{query ? <Button variant="ghost" size="sm" onClick={() => setQuery('')}>검색 지우기</Button> : null}</div> : <ul>{shown.map(renderContact)}</ul>}
+        </div>
+      </aside>
+
+      <div className="dm-thread">
+        {management ? <FriendManagementPanel tab={management} setTab={setManagement} onClose={closeManagement} onChoose={choose} /> : selected && user ? <>
+          <header className="dm-thread-header">
+            <button type="button" className="dm-icon-btn dm-back" aria-label="대화 목록으로" onClick={backToList}><BackArrow /></button>
+            <Avatar name={selected.nickname} avatarUrl={selected.avatarUrl} size={40} />
+            <div className="dm-thread-person"><h2 ref={headingRef} tabIndex={-1}>{selected.nickname}</h2><span>{relationship(selected)}</span></div>
+            <div className="dm-thread-actions">
+              <button type="button" className="dm-icon-btn dm-call-button" aria-label="통화 시작" title={USE_MOCK ? '음성 통화 · 미리보기' : '음성 연결 준비 중'} disabled={!USE_MOCK || voiceContact === selected.userId} onClick={() => setVoiceContact(selected.userId)}><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 2.5 9 7.7a1.5 1.5 0 0 1-.4 1.7l-1.5 1.2a15 15 0 0 0 6.3 6.3l1.2-1.5a1.5 1.5 0 0 1 1.7-.4l5.2 2.4c.5.2.8.8.6 1.4l-.6 2c-.2.7-.9 1.2-1.6 1.2C10.1 22 2 13.9 2 4.1c0-.7.5-1.4 1.2-1.6l2-.6c.6-.2 1.2.1 1.4.6Z" /></svg></button>
+              {!selected.friend ? <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(
+                () => pendingReceived ? social.acceptRequest(pendingReceived.id) : pendingSent ? social.cancelRequest(pendingSent.id) : social.addFriend(selected.userId),
+                pendingReceived ? '친구 요청을 수락했습니다' : pendingSent ? '요청을 취소했습니다' : '친구 요청을 보냈습니다',
+              )}>{pendingReceived ? '요청 수락' : pendingSent ? '요청 취소' : '친구 추가'}</Button> : null}
+              <ActionMenu label={`${selected.nickname} 관리`}>
+                                <Button size="sm" onClick={() => setReportTarget(selected)}><IconShield size={14} />신고</Button>
+                <Button size="sm" onClick={() => setConfirmTarget({ contact: selected, action: 'block' })}>차단</Button>
+                {selected.friend ? <Button size="sm" variant="danger" onClick={() => setConfirmTarget({ contact: selected, action: 'remove' })}>친구 삭제</Button> : null}
+              </ActionMenu>
+            </div>
+          </header>
+          <Conversation key={`${user.id}:${selected.userId}`} ownerId={user.id} ownerName={user.nickname} voiceOpen={voiceContact === selected.userId} closeVoice={() => setVoiceContact(null)} contact={selected} conversation={conversation} onError={setStorageError} onSent={() => setListTab('conversations')} />
+        </> : <div className="dm-thread-empty">
+          {selectedId ? <button type="button" className="dm-icon-btn dm-back" aria-label="대화 목록으로" onClick={backToList}><BackArrow /></button> : null}
+          <span className="dm-empty-symbol"><IconChat size={35} /></span>
+          <h2>{selectedId ? blockedIds.has(selectedId) ? '차단한 사용자입니다' : social.loading ? '대화를 불러오는 중…' : '대화 상대를 찾을 수 없습니다' : '이야기를 이어가세요'}</h2>
+          {!selectedId ? <Button variant="primary" onClick={() => setNewConversation(true)}>새 대화</Button> : null}
+        </div>}
+        {storageError ? <div className="dm-storage-error" role="alert">{storageError}<button type="button" aria-label="저장 오류 안내 닫기" onClick={() => setStorageError(null)}>×</button></div> : null}
+      </div>
+    </div>
+
+    {newConversation ? <Modal title="새 대화" closeLabel="새 대화 닫기" className="dm-new-modal" onClose={() => setNewConversation(false)}>
+      <div className="dm-search"><IconSearch size={17} /><input type="search" autoFocus placeholder="이름 검색" aria-label="대화 상대 검색" value={newQuery} onChange={event => setNewQuery(event.target.value)} /></div>
+      <ul className="dm-new-contacts">{contacts.filter(contact => contact.nickname.toLocaleLowerCase().includes(newQuery.trim().toLocaleLowerCase())).map(contact => <li key={contact.userId}><button type="button" onClick={() => choose(contact)}><Avatar name={contact.nickname} avatarUrl={contact.avatarUrl} size={40} /><span><b>{contact.nickname}</b><small>{relationship(contact)}</small></span><span aria-hidden="true">›</span></button></li>)}</ul>
+      {!contacts.some(contact => contact.nickname.toLocaleLowerCase().includes(newQuery.trim().toLocaleLowerCase())) ? <p className="dm-list-empty">{newQuery ? '검색 결과가 없습니다' : '함께한 팀원이 여기에 표시됩니다.'}</p> : null}
+    </Modal> : null}
+
+    {deleteTarget && user ? <ConfirmDialog title={`${deleteTarget.nickname}님과의 대화를 삭제할까요?`} description="이 브라우저의 대화 기록과 초안이 삭제됩니다. 친구 관계는 유지됩니다." confirmLabel="대화 삭제" onClose={() => setDeleteTarget(null)} onConfirm={async () => {
+      deleteDirectConversation(user.id, deleteTarget);
+      if (selectedId === deleteTarget.userId) { setVoiceContact(null); backToList(); }
+      toast('대화를 삭제했습니다', 'ok');
+    }} /> : null}
+    {reportTarget ? <ReportModal targetUserId={reportTarget.userId} targetNickname={reportTarget.nickname} onClose={() => setReportTarget(null)} /> : null}
+    {confirmTarget ? <ConfirmDialog title={`${confirmTarget.contact.nickname}님을 ${confirmTarget.action === 'block' ? '차단' : '친구에서 삭제'}할까요?`}
+      description={confirmTarget.action === 'block' ? '대화 목록에서 제외되며 같은 파티로 매칭되지 않습니다. 친구 관리에서 차단을 해제할 수 있습니다.' : '친구 목록에서 삭제됩니다. 기존 대화는 유지됩니다.'}
+      confirmLabel={confirmTarget.action === 'block' ? '차단하기' : '친구 삭제'} onClose={() => setConfirmTarget(null)}
+      onConfirm={async () => {
+        if (confirmTarget.action === 'block') { await social.block(confirmTarget.contact.userId); backToList(); }
+        else await social.removeFriend(confirmTarget.contact.userId);
+        toast(confirmTarget.action === 'block' ? '사용자를 차단했습니다' : '친구를 삭제했습니다', 'ok');
+      }} /> : null}
+  </section>;
+}
+
+function Conversation({ ownerId, ownerName, voiceOpen, closeVoice, contact, conversation, onError, onSent }: {
+  ownerId: string; ownerName: string; voiceOpen: boolean; closeVoice: () => void; contact: Contact; conversation?: DirectConversation; onError: (message: string | null) => void; onSent: () => void;
+}) {
+  const [draft, setDraft] = useState(conversation?.draft ?? '');
+  const [announcement, setAnnouncement] = useState('');
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const atBottom = useRef(true);
+  const messages = conversation?.messages ?? [];
+
+  useEffect(() => { setDraft(conversation?.draft ?? ''); }, [conversation?.draft]);
+  useEffect(() => {
+    if (atBottom.current && messagesRef.current) messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+  }, [messages.length]);
+
+  const updateDraft = (value: string) => {
+    setDraft(value);
+    try { saveDirectMessageDraft(ownerId, contact, value); onError(null); }
+    catch { onError('초안을 저장하지 못했습니다. 대화를 이동하기 전에 내용을 복사해주세요.'); }
+  };
+  const send = () => {
+    if (!draft.trim()) return;
+    try {
+      atBottom.current = true;
+      sendDirectMessage(ownerId, contact, draft);
+      setDraft(''); setAnnouncement('메시지를 보냈습니다'); onError(null); onSent();
+      inputRef.current?.focus();
+    } catch (error) { onError(error instanceof Error && error.message.includes('2,000') ? error.message : '메시지를 저장하지 못했습니다. 다시 시도해주세요.'); }
+  };
+
+  return <>
+    {voiceOpen ? <DirectVoiceStage contact={contact} ownerName={ownerName} onClose={closeVoice} /> : null}
+    <div className="dm-messages" ref={messagesRef} role="log" aria-label={`${contact.nickname}님과의 메시지`} aria-live="polite" aria-relevant="additions" onScroll={() => {
+      const area = messagesRef.current;
+      if (area) atBottom.current = area.scrollHeight - area.scrollTop - area.clientHeight < 80;
+    }}>
+      {messages.length === 0 ? <p className="dm-first-message">가볍게 인사를 건네보세요.</p> : messages.map((message, index) => {
+        if (message.kind === 'MATCH') return <div className="dm-match-notice" role="note" key={message.id}><IconParty size={20} /><strong>매칭 성사</strong><p>{message.text}</p></div>;
+        const own = message.senderId === ownerId;
+        const showDay = index === 0 || localDay(messages[index - 1].createdAt) !== localDay(message.createdAt);
+        const grouped = !showDay && messages[index - 1].kind !== 'MATCH' && messages[index - 1].senderId === message.senderId
+          && Date.parse(message.createdAt) - Date.parse(messages[index - 1].createdAt) < 300_000;
+        return <div className={`dm-message-entry${grouped ? ' is-grouped' : ''}`} key={message.id}>
+          {showDay ? <div className="dm-date"><span>{messageDay(message.createdAt)}</span></div> : null}
+          <div className={`dm-message${own ? ' is-own' : ''}`}>
+            <Avatar name={own ? ownerName : contact.nickname} avatarUrl={own ? undefined : contact.avatarUrl} size={34} />
+            <div className="dm-message-body"><div className="dm-message-meta"><b>{own ? ownerName : contact.nickname}</b>
+            <time dateTime={message.createdAt} aria-label={`${own ? '내 메시지' : contact.nickname}, ${messageTime(message.createdAt)}`}>{messageTime(message.createdAt)}</time></div>
+            <p title={message.example ? '예시 대화' : '이 브라우저에 저장된 메시지'}>{message.text}</p>
+            </div>
+          </div>
+        </div>;
+      })}
+    </div>
+    <form className="dm-compose" onSubmit={event => { event.preventDefault(); send(); }}>
+      <textarea ref={inputRef} rows={1} maxLength={2000} aria-label={`${contact.nickname}에게 메시지`} placeholder={`@${contact.nickname}에게 메시지 보내기`} value={draft} onChange={event => updateDraft(event.target.value)} onKeyDown={event => {
+        if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); send(); }
+      }} />
+      <button type="submit" className="dm-send" disabled={!draft.trim()} aria-label="메시지 보내기" title="Enter로 보내기 · Shift+Enter로 줄바꿈"><IconSend size={20} /></button>
+      <span className="dm-sr-only" role="status">{announcement}</span>
+    </form>
+  </>;
+}

@@ -1,0 +1,72 @@
+.home-games { margin-top: 0; }
+.home-games > .section-head { margin-bottom: 40px; }
+.home-games h1 { font-size: 32px; font-weight: 700; line-height: 1.4; letter-spacing: -.025em; word-break: keep-all; }
+.home-game-tile { aspect-ratio: 1.9; }
+.home-workspace { --home-section-gap: 48px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 32px 48px; align-items: start; margin-top: var(--home-section-gap); }
+.home-match-columns { display: grid; gap: 24px; min-width: 0; }
+.home-match-column { min-width: 0; padding: 22px; border: 1px solid var(--line-soft); border-radius: 16px; background: rgba(255,255,255,.015); }
+.home-match-column > .section-head { display: flex; align-items: center; justify-content: space-between; margin: 0 0 22px; }
+.home-match-column h2 { display: flex; align-items: center; gap: 8px; font-size: 17px; }
+.home-match-column h2 svg { color: var(--muted); }
+.home-section-count { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.home-active-match { margin-top: 0; }
+.home-column-empty { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 142px; color: var(--muted); font-size: 14px; }
+.home-column-empty svg { flex: none; opacity: .5; }
+.match-live-card { display: grid; gap: 18px; container-type: inline-size; }
+.match-card-heading { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.match-card-game { min-width: 0; }
+.match-card-game h3 { font-size: 15px; font-weight: 650; line-height: 1.4; overflow-wrap: anywhere; }
+.match-card-game p { margin-top: 4px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.match-card-status { display: inline-flex; align-items: center; gap: 6px; align-self: start; padding-top: 3px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.match-card-status i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .65; }
+.match-card-status.is-live { color: var(--accent-2); }
+.match-card-status.is-live i { opacity: 1; box-shadow: 0 0 0 4px rgba(162,116,255,.1); animation: match-pulse 1.8s ease-in-out infinite; }
+.match-card-status.is-matched { color: var(--ok); }
+.match-card-conditions { display: flex; flex-wrap: wrap; gap: 6px; }
+.match-card-conditions li { max-width: 100%; padding: 4px 9px; border-radius: 6px; background: rgba(255,255,255,.045); color: var(--text-dim); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.match-card-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+.match-live-timer { display: flex; align-items: center; gap: 10px; }
+.match-live-timer > svg { color: var(--accent-2); }
+.match-live-timer > div { display: grid; gap: 2px; }
+.match-live-timer span { color: var(--muted); font-size: 12px; }
+.match-live-timer b { font-size: 24px; line-height: 1.2; font-variant-numeric: tabular-nums; font-weight: 600; letter-spacing: -.03em; }
+.match-card-footer > .btn { margin-left: auto; min-height: 40px; padding: 8px 14px; font-size: 13px; }
+.match-card-connection { color: var(--warn); font-size: 13px; line-height: 1.6; }
+.home-page .home-party-card { display: grid; grid-template-columns: 36px minmax(0, 1fr); margin: 0; padding: 8px 0 0; }
+.home-party-card > svg, .home-party-status { color: var(--ok); }
+.home-party-status { font-size: 13px; }
+.home-party-card h3 { font-size: 16px; margin-top: 8px; }
+.home-party-card .btn { grid-column: 1 / -1; margin-top: 12px; }
+.home-reservation-list { display: grid; gap: 12px; }
+.home-reservation-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 16px; border: 1px solid var(--line-soft); border-radius: 12px; background: rgba(255,255,255,.02); container-type: inline-size; }
+.match-card-schedule { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding-top: 2px; }
+.match-card-schedule > svg { flex: none; color: var(--muted); }
+.match-card-schedule b { font-size: 15px; font-weight: 600; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.match-card-schedule > span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.home-reservation-row > .reservation-actions { grid-column: 1; justify-content: flex-end; gap: 6px; }
+.home-reservation-row .btn { min-height: 36px; padding: 7px 12px; font-size: 13px; }
+.home-reservation-row .btn-ghost { border-color: transparent; background: rgba(255,255,255,.035); }
+.home-reservation-row .btn-ghost:hover { background: rgba(255,255,255,.08); }
+@container (max-width: 350px) {
+  .match-card-heading { grid-template-columns: 40px minmax(0, 1fr); gap: 6px 10px; }
+  .match-card-heading > .game-logo { grid-row: 1 / 3; align-self: start; }
+  .match-card-status { grid-column: 2; padding-top: 0; }
+}
+.home-load-error { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 12px; color: var(--warn); font-size: 13px; }
+@media (min-width: 1024px) {
+  .home-match-columns { position: sticky; top: var(--home-section-gap); max-height: calc(100dvh - var(--home-section-gap) - 24px); overflow-y: auto; align-content: start; }
+}
+@media (max-width: 1023px) {
+  .home-workspace { grid-template-columns: 1fr; }
+}
+@media (max-width: 767px) {
+  .home-games h1 { font-size: 26px; }
+  .home-workspace { --home-section-gap: 32px; gap: 28px; }
+  .home-match-columns { gap: 16px; }
+  .home-match-column { padding: 18px; }
+  .home-game-tile { aspect-ratio: auto; }
+  .home-reservation-row { padding: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .match-card-status.is-live i { animation: none; }
+}

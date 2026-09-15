@@ -1,0 +1,97 @@
+import { Logo } from '../components/Logo';
+import { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { isApiError } from '../api/error';
+import { Button, Field } from '../components/ui';
+import { USE_MOCK } from '../config';
+import { useAuth } from '../state/AuthContext';
+
+export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
+  const { login, signup, status } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from ?? '/app/home';
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [nickname, setNickname] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const isSignup = mode === 'signup';
+
+  const validate = (): string | null => {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return '이메일 형식을 확인해주세요';
+    if (password.length < 8) return '비밀번호는 8자 이상이어야 합니다';
+    if (isSignup && (nickname.trim().length < 2 || nickname.trim().length > 16)) return '닉네임은 2~16자로 입력해주세요';
+    return null;
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const invalid = validate();
+    if (invalid) { setError(invalid); return; }
+    setBusy(true);
+    setError(null);
+    try {
+      if (isSignup) await signup(email, password, nickname.trim());
+      else await login(email, password);
+      navigate(from, { replace: true });
+    } catch (err) {
+      setError(isApiError(err) ? err.message : '요청을 처리하지 못했습니다');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="auth">
+      <aside className="auth-aside">
+        <Link to="/" aria-label="QueueMate 홈"><Logo /></Link>
+        <div>
+          <h2>조건이 맞는 팀원과<br /><em>지금, 바로 플레이</em></h2>
+          <p style={{ marginTop: 16 }}>리그 오브 레전드 · 발로란트 · 배틀그라운드</p>
+        </div>
+      </aside>
+
+      <main className="auth-main">
+        <div className="auth-card">
+          <h1>{isSignup ? '회원가입' : '로그인'}</h1>
+
+          <form className="auth-form" onSubmit={submit}>
+            <Field label="이메일">
+              <input className="input" disabled={status === 'loading' || busy} type="email" autoComplete="email" placeholder="이메일 주소를 입력하세요"
+                value={email} onChange={(e) => setEmail(e.target.value)} />
+            </Field>
+            {isSignup ? (
+              <Field label="닉네임" hint="2~16자">
+                <input className="input" disabled={status === 'loading' || busy} type="text" placeholder="닉네임을 입력하세요"
+                  value={nickname} onChange={(e) => setNickname(e.target.value)} />
+              </Field>
+            ) : null}
+            <Field label="비밀번호" hint={isSignup ? '8자 이상' : undefined} error={error ?? undefined}>
+              <input className="input" disabled={status === 'loading' || busy} type="password" autoComplete={isSignup ? 'new-password' : 'current-password'}
+                placeholder="비밀번호를 입력하세요" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </Field>
+            <Button type="submit" variant="primary" size="lg" block disabled={busy || status === 'loading'}>
+              {busy ? '처리 중...' : isSignup ? '회원가입' : '로그인'}
+            </Button>
+          </form>
+
+          <div className="auth-alt">
+            {isSignup ? '이미 계정이 있으신가요? ' : '계정이 없으신가요? '}
+            <button type="button" onClick={() => navigate(isSignup ? '/login' : '/signup')}>
+              {isSignup ? '로그인하기' : '회원가입하기'}
+            </button>
+          </div>
+
+          {USE_MOCK ? (
+            <div className="auth-hint">
+              데모 계정: <b>demo@queuemate.gg</b> / <b>queuemate1</b>
+            </div>
+          ) : null}
+        </div>
+      </main>
+    </div>
+  );
+}

@@ -1,18 +1,18 @@
 spring:
   application:
     name: queuemate
-  datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/queuemate}
-    username: ${DB_USER:queuemate}
-    password: ${DB_PASSWORD:queuemate}
+  profiles:
+    # 프로파일을 안 주고 띄우면 local이다. 운영은 SPRING_PROFILES_ACTIVE=prod로 명시한다.
+    default: local
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    validate-on-migrate: true
   jpa:
     hibernate:
       ddl-auto: validate
     open-in-view: false
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
 
 management:
   endpoints:
@@ -21,7 +21,63 @@ management:
         include: health,info,metrics,prometheus
 
 queuemate:
+  oauth:
+    # 제공자 콜백을 받은 뒤 브라우저를 돌려보낼 프론트엔드 주소.
+    frontend-callback-uri: ${OAUTH_FRONTEND_CALLBACK_URI:http://localhost:5173/auth/callback}
+    default-redirect-path: /app/home
+    # 동의 화면에 머무는 시간을 감안한다. 너무 길면 재사용 위험이 커진다.
+    state-ttl-seconds: ${OAUTH_STATE_TTL_SECONDS:300}
+    # 콜백에서 프론트엔드가 토큰을 받아가기까지의 시간. 한 번만 쓸 수 있다.
+    handoff-ttl-seconds: ${OAUTH_HANDOFF_TTL_SECONDS:60}
+    providers:
+      # client-id가 비어 있으면 그 제공자는 목록에 뜨지 않는다. secret은 저장소에 두지 않는다.
+      kakao:
+        client-id: ${KAKAO_CLIENT_ID:}
+        client-secret: ${KAKAO_CLIENT_SECRET:}
+        redirect-uri: ${KAKAO_REDIRECT_URI:http://localhost:8080/api/v1/auth/oauth/kakao/callback}
+        authorization-uri: https://kauth.kakao.com/oauth/authorize
+        token-uri: https://kauth.kakao.com/oauth/token
+        user-info-uri: https://kapi.kakao.com/v2/user/me
+        scope: profile_nickname,account_email
+      naver:
+        client-id: ${NAVER_CLIENT_ID:}
+        client-secret: ${NAVER_CLIENT_SECRET:}
+        redirect-uri: ${NAVER_REDIRECT_URI:http://localhost:8080/api/v1/auth/oauth/naver/callback}
+        authorization-uri: https://nid.naver.com/oauth2.0/authorize
+        token-uri: https://nid.naver.com/oauth2.0/token
+        user-info-uri: https://openapi.naver.com/v1/nid/me
+      dev:
+        # 가짜 제공자. 빈 자체가 local/test 프로파일에서만 등록된다.
+        redirect-uri: ${DEV_OAUTH_REDIRECT_URI:http://localhost:8080/api/v1/auth/oauth/dev/callback}
+  matching:
+    # 매칭은 대기열이 변한 순간 돈다. 아래는 그 trigger를 잃었을 때를 위한 안전망 주기다.
+    # 여기서 제안이 만들어진다면 주기를 줄일 것이 아니라 왜 trigger를 잃었는지 봐야 한다.
+    sweep-ms: ${MATCH_SWEEP_MS:15000}
+    # 매칭은 요청 스레드가 아니라 여기서 돈다. 대기열이 길어도 요청 응답이 느려지지 않는다.
+    trigger-threads: ${MATCH_TRIGGER_THREADS:4}
+    trigger-queue: ${MATCH_TRIGGER_QUEUE:512}
   proposal:
     ttl-seconds: ${PROPOSAL_TTL_SECONDS:20}
   reservation:
     sweep-ms: ${RESERVATION_SWEEP_MS:30000}
+  party:
+    # 전원 준비가 이만큼 유지되면 게임에 들어갔다고 본다.
+    # 서버는 게임을 관측할 수 없어서 시간으로 추정한다. 근거는 PartyLifecycleProperties 주석에 있다.
+    play-start-delay-seconds: ${PLAY_START_DELAY_SECONDS:120}
+    # 게임 중으로 이만큼 남아 있으면 방치로 보고 닫는다. 6시간이다.
+    max-play-seconds: ${MAX_PLAY_SECONDS:21600}
+    sweep-ms: ${PARTY_SWEEP_MS:30000}
+  presence:
+    # 연결이 끊긴 뒤 이탈로 판정하기까지 기다리는 시간. 파티 상태마다 다르다.
+    # 게임 전은 기다리는 비용이 크고, 게임 중은 잘못 내보내는 비용이 크다.
+    # 세 값의 근거는 PresenceProperties 주석에 있다.
+    departure-grace-seconds: ${DEPARTURE_GRACE_SECONDS:10}
+    ready-grace-seconds: ${READY_GRACE_SECONDS:60}
+    playing-grace-seconds: ${PLAYING_GRACE_SECONDS:300}
+    sweep-ms: ${DEPARTURE_SWEEP_MS:10000}
+    # 파티 멤버와 접속 여부를 대조하는 주기. 서버가 강제 종료되면 이탈 예약 자체가
+    # 안 걸리는데, 그것을 뒤늦게라도 찾아내는 수리 작업이다.
+    reconcile-ms: ${PRESENCE_RECONCILE_MS:60000}
+
+# 로그 레벨/포맷은 logback-spring.xml이 프로파일별로 정한다.
+# 여기에 logging.level.* 을 넣으면 그 설정을 덮어쓰니 넣지 않는다.

@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QueueMate SVG 에셋 검수</title>
+<style>
+  :root{
+    --bg:#020715; --panel:#070E1D; --card:#141A2C;
+    --purple:#7E2DF2; --purple-lt:#9A56FF; --text:#E8E9F2;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family:"Pretendard","Malgun Gothic","Segoe UI",system-ui,sans-serif;}
+  body{padding:40px 48px 96px;max-width:1500px}
+  h1{font-size:22px;font-weight:650;letter-spacing:-.01em;margin:0 0 6px}
+  .sub{font-size:13px;color:#7b839c;margin:0 0 40px;line-height:1.7}
+  section{margin:0 0 44px}
+  h2{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+     color:#8b93ad;margin:0 0 6px}
+  .note{font-size:12.5px;color:#6c7490;margin:0 0 18px;line-height:1.7}
+  .panel{background:var(--panel);border:1px solid #1b2338;border-radius:14px;padding:26px 28px}
+  .row{display:flex;flex-wrap:wrap;gap:30px;align-items:flex-end}
+  .cell{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .box{display:flex;align-items:center;justify-content:center;min-height:132px}
+  .lbl{font-size:11px;color:#6c7490;text-align:center;line-height:1.6;font-variant-numeric:tabular-nums}
+  .lbl b{display:block;color:#9aa2bd;font-weight:600;font-size:11.5px}
+  .light{background:#E8E9F2;border-radius:10px;padding:14px;min-height:0}
+  .filechip{background:#E8E9F2;border-radius:8px;padding:8px;display:flex;color:#141A2C}
+  .swatchbar{display:flex;border-radius:8px;overflow:hidden}
+  .swatchbar i{display:block;width:52px;height:30px}
+  .swatchrow{display:flex;gap:0;font-size:9.5px;color:#6c7490;margin-top:6px}
+  .swatchrow span{width:52px;text-align:center;font-family:ui-monospace,Consolas,monospace}
+  img{display:block}
+  svg{display:block}
+  .noisewrap{position:relative;height:230px;border-radius:12px;overflow:hidden;
+    background:linear-gradient(155deg,#0d1638 0%,#060c20 55%,#020715 100%)}
+  .noisewrap .half{position:absolute;inset:0 0 0 50%;
+    background-image:url("../svg/noise-tile.svg");background-repeat:repeat;background-size:128px 128px}
+  .noisewrap .divider{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#2a3350}
+  .noisewrap .tag{position:absolute;bottom:12px;font-size:11px;color:#7b839c}
+  .noisewrap .tag.l{left:16px} .noisewrap .tag.r{left:calc(50% + 16px)}
+  .gamerow{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+  .gamecol{display:flex;flex-direction:column;align-items:center;gap:14px;
+    background:var(--card);border-radius:12px;padding:22px 30px}
+  .tint{display:flex;gap:24px;align-items:flex-end}
+  .iconbox{background:var(--card);border-radius:12px;padding:20px 30px;
+    display:flex;gap:30px;align-items:flex-end;flex-wrap:wrap;color:var(--text)}
+  .mono{font-family:ui-monospace,Consolas,monospace;font-size:10.5px}
+</style>
+</head>
+<body>
+
+<h1>QueueMate SVG 에셋 검수</h1>
+<p class="sub">배경은 실제 앱과 같은 <span class="mono">#020715</span>.<br>
+<b>brand-mark / favicon</b>은 색이 파일에 고정돼 있어 <span class="mono">&lt;img src&gt;</span>로 직접 참조한다 — 안 보이면 그 파일이 깨진 것이다.<br>
+<b>게임 심볼 / 아이콘</b>은 <span class="mono">stroke=currentColor</span>라 <span class="mono">&lt;img&gt;</span>로는 색이 안 들어간다. 그래서 색 검수는 인라인 SVG(파일 내용 그대로)로 하고, 파일 유효성은 각 항목의 밝은 칩 안 <span class="mono">&lt;img src&gt;</span>가 대신 검증한다.</p>
+
+<section>
+  <h2>1 · brand-mark.svg</h2>
+  <p class="note">열린 링 <b>1개</b>(stroke-width 4.5) + 중심으로 수렴하는 점 3개. 점은 중심에서 각각 20 / 13 / 5.5 만큼 떨어져 있고 각도는 210° / 330° / 90°로 벌렸다. 중심에 가까울수록 점이 커진다(r 3.2 → 3.6 → 4.0). 점 지름이 링 굵기보다 크므로 링에 묻히지 않는다.<br>보라 그라디언트 내장(<span class="mono">#9A56FF → #7E2DF2</span>), <span class="mono">currentColor</span> 미사용. <b>34 px에서 시각 요소가 링 1 + 점 3 = 4개로 세어져야 한다.</b></p>
+  <div class="panel">
+    <div class="row">
+      <div class="cell"><div class="box"><img src="../svg/brand-mark.svg" width="34" height="34" alt=""></div><span class="lbl"><b>34 px</b>앱 실제 표시 크기</span></div>
+      <div class="cell"><div class="box"><img src="../svg/brand-mark.svg" width="48" height="48" alt=""></div><span class="lbl"><b>48 px</b>viewBox 1:1</span></div>
+      <div class="cell"><div class="box"><img src="../svg/brand-mark.svg" width="128" height="128" alt=""></div><span class="lbl"><b>128 px</b>형태 확인용 확대</span></div>
+      <div class="cell"><div class="box"><img src="../svg/brand-mark.svg" width="16" height="16" alt=""></div><span class="lbl"><b>16 px</b>참고 · 이 크기는 favicon 담당</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>1-B · brand-mark ↔ game-symbol-pubg 모티프 충돌 확인</h2>
+  <p class="note">사이드바 로고와 게임 태그는 한 화면에 나란히 놓인다. 둘이 같은 도형으로 읽히면 실패다.
+  마크는 <b>굵은 열린 링 1개 + 꽉 찬 점 3개(비대칭)</b>, PUBG는 <b>가는 동심원 3겹(대칭)</b> — 스트로크 굵기·대칭성·fill 비중이 모두 다르다.</p>
+  <div class="panel">
+    <div class="row" style="align-items:center">
+      <div class="cell"><div class="box"><img src="../svg/brand-mark.svg" width="34" height="34" alt=""></div>
+        <span class="lbl"><b>34 px</b>brand-mark.svg</span></div>
+      <div class="cell"><div class="box" style="color:#F2A900"><svg width="34" height="34" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="20" cy="20" r="16"/><circle cx="20" cy="20" r="10"/><circle cx="22.2" cy="17.8" r="3.6"/></svg></div>
+        <span class="lbl"><b>34 px</b>game-symbol-pubg.svg</span></div>
+      <div class="cell"><div class="box"><div style="display:flex;align-items:center;gap:26px;background:var(--card);border-radius:12px;padding:16px 24px">
+          <img src="../svg/brand-mark.svg" width="34" height="34" alt="">
+          <span style="color:#F2A900"><svg width="34" height="34" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="20" cy="20" r="16"/><circle cx="20" cy="20" r="10"/><circle cx="22.2" cy="17.8" r="3.6"/></svg></span>
+        </div></div>
+        <span class="lbl"><b>나란히</b>실제 배치 상황</span></div>
+      <div class="cell"><div class="box"><img src="../svg/brand-mark.svg" width="128" height="128" alt=""></div>
+        <span class="lbl"><b>128 px</b>마크 확대</span></div>
+      <div class="cell"><div class="box" style="color:#F2A900"><svg width="128" height="128" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="20" cy="20" r="16"/><circle cx="20" cy="20" r="10"/><circle cx="22.2" cy="17.8" r="3.6"/></svg></div>
+        <span class="lbl"><b>128 px</b>PUBG 확대</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>2 · favicon.svg · favicon-32.png · apple-touch-icon-180.png</h2>
+  <p class="note">brand-mark에서 더 덜어냈다 — 열린 링 1개(stroke-width 3.8) + 점 2개(16 px에 점 3개는 안 들어간다). 색은 대비를 위해 밝은 보라 <span class="mono">#9A56FF</span> 단색. <span class="mono">#020715</span> 라운드 사각 배경판(rx 7)을 내장해서 밝은 테마 탭에서도 사라지지 않는다.</p>
+  <div class="panel">
+    <div class="row">
+      <div class="cell"><div class="box"><img src="../svg/favicon.svg" width="16" height="16" alt=""></div><span class="lbl"><b>16 px</b>SVG · 다크</span></div>
+      <div class="cell"><div class="box"><img src="../svg/favicon.svg" width="32" height="32" alt=""></div><span class="lbl"><b>32 px</b>SVG · 다크</span></div>
+      <div class="cell"><div class="box"><div class="light"><img src="../svg/favicon.svg" width="16" height="16" alt=""></div></div><span class="lbl"><b>16 px</b>SVG · 라이트 탭</span></div>
+      <div class="cell"><div class="box"><div class="light"><img src="../svg/favicon.svg" width="32" height="32" alt=""></div></div><span class="lbl"><b>32 px</b>SVG · 라이트 탭</span></div>
+      <div class="cell"><div class="box"><img src="../svg/favicon-32.png" width="32" height="32" alt=""></div><span class="lbl"><b>32 px</b>favicon-32.png</span></div>
+      <div class="cell"><div class="box"><img src="../svg/favicon.svg" width="96" height="96" alt=""></div><span class="lbl"><b>96 px</b>형태 확인용 확대</span></div>
+      <div class="cell"><div class="box"><img src="../svg/apple-touch-icon-180.png" width="90" height="90" alt=""></div><span class="lbl"><b>180 px → 90</b>apple-touch · 불투명 배경</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>3 · game-symbol-{lol,valorant,pubg}.svg</h2>
+  <p class="note">각 게임의 핵심 매칭 조건을 형상화. viewBox 40 · <span class="mono">stroke=currentColor</span> · stroke-width 2.2.
+  <b>30 px에서 세 실루엣이 서로 구분되는지</b>가 합격 기준이다.</p>
+  <div class="panel">
+    <div class="gamerow">
+      <div class="gamecol" style="color:#C8AA6E">
+        <div class="tint"><svg width="30" height="30"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="League of Legends"> <path d="M20 4 36 20 20 36 4 20Z"/> <path d="M13 27 27 13"/> <path d="M10 20 20 10"/> <path d="M20 30 30 20"/> </svg><svg width="34" height="34"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="League of Legends"> <path d="M20 4 36 20 20 36 4 20Z"/> <path d="M13 27 27 13"/> <path d="M10 20 20 10"/> <path d="M20 30 30 20"/> </svg><svg width="40" height="40"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="League of Legends"> <path d="M20 4 36 20 20 36 4 20Z"/> <path d="M13 27 27 13"/> <path d="M10 20 20 10"/> <path d="M20 30 30 20"/> </svg></div>
+        <svg width="96" height="96"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="League of Legends"> <path d="M20 4 36 20 20 36 4 20Z"/> <path d="M13 27 27 13"/> <path d="M10 20 20 10"/> <path d="M20 30 30 20"/> </svg>
+        <span class="lbl"><b>LoL — #C8AA6E</b>마름모 + 대각 레인 3줄<br>30 / 34 / 40 px · 확대 96 px</span>
+        <div class="filechip"><img src="../svg/game-symbol-lol.svg" width="40" height="40" alt="game-symbol-lol.svg"></div>
+        <span class="lbl mono">game-symbol-lol.svg</span>
+      </div>
+      <div class="gamecol" style="color:#EF4347">
+        <div class="tint"><svg width="30" height="30"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="VALORANT"> <rect x="11.5" y="11.5" width="17" height="17" rx="1.6"/> <path d="M8.9 8.9 5.7 5.7"/> <path d="M31.1 8.9 34.3 5.7"/> <path d="M8.9 31.1 5.7 34.3"/> <path d="M31.1 31.1 34.3 34.3"/> <circle cx="20" cy="20" r="1.9" fill="currentColor" stroke="none"/> </svg><svg width="34" height="34"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="VALORANT"> <rect x="11.5" y="11.5" width="17" height="17" rx="1.6"/> <path d="M8.9 8.9 5.7 5.7"/> <path d="M31.1 8.9 34.3 5.7"/> <path d="M8.9 31.1 5.7 34.3"/> <path d="M31.1 31.1 34.3 34.3"/> <circle cx="20" cy="20" r="1.9" fill="currentColor" stroke="none"/> </svg><svg width="40" height="40"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="VALORANT"> <rect x="11.5" y="11.5" width="17" height="17" rx="1.6"/> <path d="M8.9 8.9 5.7 5.7"/> <path d="M31.1 8.9 34.3 5.7"/> <path d="M8.9 31.1 5.7 34.3"/> <path d="M31.1 31.1 34.3 34.3"/> <circle cx="20" cy="20" r="1.9" fill="currentColor" stroke="none"/> </svg></div>
+        <svg width="96" height="96"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="VALORANT"> <rect x="11.5" y="11.5" width="17" height="17" rx="1.6"/> <path d="M8.9 8.9 5.7 5.7"/> <path d="M31.1 8.9 34.3 5.7"/> <path d="M8.9 31.1 5.7 34.3"/> <path d="M31.1 31.1 34.3 34.3"/> <circle cx="20" cy="20" r="1.9" fill="currentColor" stroke="none"/> </svg>
+        <span class="lbl"><b>VALORANT — #EF4347</b>정사각 조준 + 모서리 눈금 4개<br>30 / 34 / 40 px · 확대 96 px</span>
+        <div class="filechip"><img src="../svg/game-symbol-valorant.svg" width="40" height="40" alt="game-symbol-valorant.svg"></div>
+        <span class="lbl mono">game-symbol-valorant.svg</span>
+      </div>
+      <div class="gamecol" style="color:#F2A900">
+        <div class="tint"><svg width="30" height="30"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="PUBG"> <circle cx="20" cy="20" r="16"/> <circle cx="20" cy="20" r="10"/> <circle cx="22.2" cy="17.8" r="3.6"/> </svg><svg width="34" height="34"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="PUBG"> <circle cx="20" cy="20" r="16"/> <circle cx="20" cy="20" r="10"/> <circle cx="22.2" cy="17.8" r="3.6"/> </svg><svg width="40" height="40"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="PUBG"> <circle cx="20" cy="20" r="16"/> <circle cx="20" cy="20" r="10"/> <circle cx="22.2" cy="17.8" r="3.6"/> </svg></div>
+        <svg width="96" height="96"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="PUBG"> <circle cx="20" cy="20" r="16"/> <circle cx="20" cy="20" r="10"/> <circle cx="22.2" cy="17.8" r="3.6"/> </svg>
+        <span class="lbl"><b>PUBG — #F2A900</b>동심원 2겹 + 안쪽 치우친 원<br>30 / 34 / 40 px · 확대 96 px</span>
+        <div class="filechip"><img src="../svg/game-symbol-pubg.svg" width="40" height="40" alt="game-symbol-pubg.svg"></div>
+        <span class="lbl mono">game-symbol-pubg.svg</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>4 · icon-search.svg · icon-copy.svg</h2>
+  <p class="note">기존 손그림 아이콘 21종과 동일 규격: viewBox 24 · <span class="mono">fill=none</span> · <span class="mono">stroke=currentColor</span> · stroke-width 1.7 · round cap·join.
+  붙여넣기용 React 컴포넌트는 <span class="mono">svg/icons-snippet.tsx</span>.</p>
+  <div class="panel">
+    <div class="iconbox">
+      <div class="cell"><div class="box"><svg width="20" height="20"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"> <circle cx="11" cy="11" r="7"/> <path d="M20.5 20.5 16.1 16.1"/> </svg></div><span class="lbl"><b>20 px</b>icon-search</span></div>
+      <div class="cell"><div class="box"><svg width="24" height="24"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"> <circle cx="11" cy="11" r="7"/> <path d="M20.5 20.5 16.1 16.1"/> </svg></div><span class="lbl"><b>24 px</b>icon-search</span></div>
+      <div class="cell"><div class="box"><svg width="20" height="20"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"> <rect x="9" y="9" width="12" height="12" rx="2.5"/> <path d="M6 15.5H5.5A2.5 2.5 0 0 1 3 13V5.5A2.5 2.5 0 0 1 5.5 3H13a2.5 2.5 0 0 1 2.5 2.5V6"/> </svg></div><span class="lbl"><b>20 px</b>icon-copy</span></div>
+      <div class="cell"><div class="box"><svg width="24" height="24"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"> <rect x="9" y="9" width="12" height="12" rx="2.5"/> <path d="M6 15.5H5.5A2.5 2.5 0 0 1 3 13V5.5A2.5 2.5 0 0 1 5.5 3H13a2.5 2.5 0 0 1 2.5 2.5V6"/> </svg></div><span class="lbl"><b>24 px</b>icon-copy</span></div>
+      <div class="cell"><div class="box"><svg width="72" height="72" style="color:#9A56FF" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"> <circle cx="11" cy="11" r="7"/> <path d="M20.5 20.5 16.1 16.1"/> </svg></div><span class="lbl"><b>72 px</b>icon-search 확대</span></div>
+      <div class="cell"><div class="box"><svg width="72" height="72" style="color:#9A56FF" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"> <rect x="9" y="9" width="12" height="12" rx="2.5"/> <path d="M6 15.5H5.5A2.5 2.5 0 0 1 3 13V5.5A2.5 2.5 0 0 1 5.5 3H13a2.5 2.5 0 0 1 2.5 2.5V6"/> </svg></div><span class="lbl"><b>72 px</b>icon-copy 확대</span></div>
+      <div class="cell"><div class="box"><div class="filechip"><img src="../svg/icon-search.svg" width="24" height="24" alt="icon-search.svg"></div></div><span class="lbl"><b>파일 로드</b>icon-search.svg</span></div>
+      <div class="cell"><div class="box"><div class="filechip"><img src="../svg/icon-copy.svg" width="24" height="24" alt="icon-copy.svg"></div></div><span class="lbl"><b>파일 로드</b>icon-copy.svg</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>5 · noise-tile.svg</h2>
+  <p class="note">128×128 심리스 타일(<span class="mono">feTurbulence · stitchTiles="stitch"</span>), 실효 알파 약 3.5%.
+  왼쪽은 원본 그라디언트, 오른쪽은 같은 그라디언트 위에 타일을 반복해 깐 것이다. 오른쪽에서 밴딩 띠가 풀어지는지 본다.</p>
+  <div class="panel">
+    <div class="noisewrap">
+      <div class="half"></div>
+      <div class="divider"></div>
+      <span class="tag l">노이즈 없음 — 밴딩</span>
+      <span class="tag r">noise-tile.svg 적용</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>팔레트 대조</h2>
+  <div class="panel">
+    <div class="swatchbar">
+      <i style="background:#020715"></i><i style="background:#070E1D"></i><i style="background:#141A2C"></i><i style="background:#7E2DF2"></i><i style="background:#9A56FF"></i><i style="background:#24C254"></i><i style="background:#EF4347"></i><i style="background:#F6660E"></i><i style="background:#E8E9F2"></i><i style="background:#C8AA6E"></i><i style="background:#F2A900"></i>
+    </div>
+    <div class="swatchrow">
+      <span>020715</span><span>070E1D</span><span>141A2C</span><span>7E2DF2</span><span>9A56FF</span><span>24C254</span><span>EF4347</span><span>F6660E</span><span>E8E9F2</span><span>C8AA6E</span><span>F2A900</span>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

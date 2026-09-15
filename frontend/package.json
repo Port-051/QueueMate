@@ -4,8 +4,13 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "VITE_API_MODE=real vite --port 5173 --strictPort",
+    "dev:mock": "VITE_API_MODE=mock vite --port 5174 --strictPort",
+    "dev:mock-server": "sh -c 'node ../mock-server/server.js & MOCK_PID=$!; trap \"kill $MOCK_PID 2>/dev/null\" EXIT INT TERM; VITE_API_MODE=real vite --port 5173 --strictPort'",
+    "mock-server": "node ../mock-server/server.js",
+    "mock-server:smoke": "bash ../mock-server/contract-smoke.sh",
     "build": "tsc -b && vite build",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "e2e": "playwright test"
   },

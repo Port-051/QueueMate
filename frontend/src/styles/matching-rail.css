@@ -1,0 +1,153 @@
+/* 홈의 작성·대기·수락을 같은 오른쪽 영역에서 전환한다. */
+body:has(.board-home) .toast-host { pointer-events: none; }
+@media (min-width: 1100px) {
+  .board-home .board-layout { grid-template-columns: minmax(0, 1fr) 324px; gap: 36px; }
+  .home-profile-stack { position: sticky; top: 28px; max-height: calc(100dvh - 56px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; padding: 2px 4px 16px; margin: -2px -4px 0; }
+}
+.board-home .home-profile-content { position: static; max-height: none; overflow: visible; background: #111520; border: 1px solid #292e40; border-radius: 16px; padding: 20px; }
+.home-profile.has-workflow .home-profile-account { margin-bottom: 28px; }
+.home-profile .match-stage { margin: 0; padding: 0; scroll-margin-top: 28px; }
+.home-profile .matching-rail-panel, .home-profile .match-stage, .board-main { outline: none; }
+.matching-rail-panel[hidden], .home-profile .match-stage[hidden] { display: none; }
+.matching-rail-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 18px; }
+.matching-rail-heading h2 { font-size: 16px; line-height: 1.5; font-weight: 650; }
+.matching-rail-heading > .btn { flex: none; }
+.home-profile .btn { font-size: 13px; min-height: 40px; white-space: normal; }
+.home-profile .hint { font-size: 12px; line-height: 1.6; }
+.home-profile .recruitment-composer { border: 0; margin: 0; padding: 0; min-width: 0; gap: 22px; }
+.home-profile .introduction-fields { gap: 16px 12px; }
+.home-profile .introduction-fields label, .home-profile .introduction-desired legend, .home-profile .introduction-recent legend, .home-profile .reservation-fields label { font-size: 13px; }
+.home-profile .introduction-fields input, .home-profile .introduction-fields select, .home-profile .reservation-fields input, .home-profile .reservation-fields select { font-size: 14px; min-height: 42px; }
+.home-profile .introduction-desired .chip { font-size: 13px; }
+.home-profile .introduction-records > summary { font-size: 13px; }
+.home-profile .matching-choice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.home-profile .matching-choice-grid strong { font-size: 14px; }
+.home-profile .matching-choice-grid small { font-size: 12px; }
+.home-profile .reservation-fields { grid-template-columns: 1fr; }
+.home-profile .recent-results { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+.matching-rail-footer { position: sticky; bottom: -12px; padding: 16px 0 12px; background: #111520; z-index: 1; }
+.matching-rail-footer > .btn { min-height: 44px; font-size: 15px; }
+.home-profile .match-progress { justify-content: space-between; gap: 6px; margin: 0 0 22px; font-size: 12px; }
+.home-profile .match-progress li { gap: 6px; }
+.home-profile .match-progress li:not(:last-child)::after { display: none; }
+.home-profile .match-stage .my-recruitment, .home-profile .board-proposal, .home-profile .match-stage .compact-party > .card { padding: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.home-profile .recruitment-title { gap: 8px; }
+.home-profile .recruitment-title .row { flex-wrap: wrap; gap: 8px; }
+.home-profile .recruitment-title h2 { font-size: 16px; }
+.home-profile .recruitment-title > span { font-size: 13px; }
+.home-profile .recruitment-method { font-size: 12px; }
+.home-profile .recruitment-overview { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 22px 0; margin: 0; }
+.home-profile .recruitment-clock { border: 0; padding: 0; }
+.home-profile .recruitment-clock strong { font-size: 44px; letter-spacing: -1px; }
+.home-profile .recruitment-clock small { font-size: 12px; }
+.home-profile .recruitment-own-summary { font-size: 13px; flex-wrap: wrap; }
+.home-profile .recruitment-description { font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.home-profile .my-recruitment-actions, .matching-rail-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.home-profile .my-recruitment-actions > .btn { min-width: 0; padding: 10px 8px; font-size: 13px; }
+.home-profile .my-recruitment-actions > .btn[aria-pressed=true] { background: var(--accent-soft); color: var(--accent-2); border-color: var(--accent); }
+.home-profile .my-recruitment-actions > .btn span { font-size: 11px; color: var(--muted); }
+.home-profile .recruitment-notice { flex-direction: column; align-items: stretch; font-size: 13px; }
+.home-profile .recruitment-applicants { display: grid; grid-template-columns: minmax(0, 1fr); }
+.home-profile .recruitment-applicant { min-width: 0; }
+.home-profile .suggestion-link { width: 100%; text-align: left; font-size: 13px; line-height: 1.6; }
+.recruitment-condition-preview { border-top: 1px solid var(--line); margin-top: 20px; padding-top: 20px; font-size: 13px; line-height: 1.6; }
+.recruitment-condition-preview h3 { font-size: 15px; margin-bottom: 10px; }
+.recruitment-condition-preview .matching-rail-actions { margin-top: 16px; }
+.home-profile .recruitment-detail > .row { align-items: flex-start; }
+.home-profile .recruitment-detail p, .home-profile .recruitment-introduction dd { font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.home-profile .recruitment-introduction dt, .home-profile .introduction-detail-stats > span { font-size: 12px; }
+.home-profile .board-proposal .proposal-overview { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+.home-profile .board-proposal .proposal-countdown strong { font-size: 36px; }
+.home-profile .board-proposal .proposal-members { grid-template-columns: minmax(0, 1fr); max-height: clamp(180px, calc(100dvh - 420px), 360px); overflow-y: auto; padding-right: 4px; }
+.home-profile .board-proposal > .row:last-child { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.home-profile .board-proposal > .row:last-child > .btn { min-width: 0; }
+.home-profile .match-stage .compact-party { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.home-profile .match-stage .compact-party > .compact-chat { grid-column: auto; }
+.home-profile .compact-party > .card + .card { border-top: 1px solid var(--line); padding-top: 20px; }
+.home-profile .compact-party .chat-log { max-height: 240px; }
+@media (max-width: 1099px) {
+  .home-profile.has-workflow .home-profile-content { display: block; }
+  .home-profile.has-workflow .intro-launch { margin-top: 24px; }
+  .home-profile .matching-rail-panel, .home-profile .match-stage { max-width: 540px; margin-inline: auto; }
+  .matching-rail-footer { position: static; padding-bottom: 0; }
+}
+.duo-offers { margin: 0 0 22px; }
+.duo-offers h3 { font-size: 14px; font-weight: 650; margin-bottom: 12px; }
+.duo-offer { padding: 16px 0; border-top: 1px solid var(--line); }
+.duo-offer-person { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; font-size: 15px; }
+.duo-offer .matching-rail-actions { margin-top: 14px; }
+.duo-offer-received { color: var(--accent-2); font-size: 13px; margin-bottom: 12px; }
+.duo-sent { border-top: 1px solid var(--line); padding-top: 16px; }
+.duo-sent h3 > span { color: var(--accent-2); margin-left: 4px; }
+.duo-sent > p { color: var(--muted); font-size: 13px; line-height: 1.6; margin-bottom: 14px; }
+.duo-sent-person { display: flex; gap: 10px; align-items: center; padding: 10px 0; }
+.duo-sent-person > div { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.duo-sent-person strong { font-size: 14px; overflow-wrap: anywhere; }
+.duo-sent-person span { font-size: 12px; color: var(--muted); }
+.duo-completed { margin-top: 28px; }
+.duo-completed h2 { font-size: 17px; line-height: 1.6; }
+.duo-completed p { color: var(--muted); font-size: 14px; line-height: 1.7; margin: 12px 0 18px; }
+
+/* 내 매칭과 상대 제안을 분리한 컴팩트 패널. */
+.home-profile .compact-match-status { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; margin-bottom: 0; flex-wrap: nowrap; }
+.match-status { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-dim); }
+.match-status i, .discovery-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex: none; }
+.match-status[data-active=true] i, .discovery-dot { background: #a78bfa; box-shadow: 0 0 9px #9865ff90; }
+.home-profile .compact-match-status .recruitment-clock { text-align: right; }
+.home-profile .compact-match-status .recruitment-clock strong { font-size: 25px; line-height: 1.2; letter-spacing: -.6px; }
+.home-profile .compact-match-status .recruitment-clock small { font-size: 11px; }
+.match-condition-summary { display: flex; align-items: center; gap: 9px; min-width: 0; white-space: nowrap; color: var(--text-dim); font-size: 12px; }
+.match-condition-summary > * + * { border-left: 1px solid var(--line); padding-left: 9px; }
+.match-condition-mode { display: inline-flex; gap: 5px; align-items: center; }
+.match-condition-mode svg { width: 17px; height: 17px; }
+.match-condition-summary .recruitment-role-pair { gap: 4px; min-width: 0; }
+.match-condition-summary .recruitment-role-targets { gap: 2px; flex-wrap: nowrap; }
+.match-condition-summary .recruitment-role-icon svg { width: 17px; height: 17px; }
+.match-condition-summary .recruitment-role-arrow { width: 12px; }
+.match-condition-summary .recruitment-voice { margin-left: 0; width: auto; min-width: 30px; }
+.home-profile .recruitment-description { font-size: 12px; line-height: 1.5; margin: 10px 0 0; }
+.home-profile .compact-match-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 18px; }
+.home-profile .compact-match-actions > .btn { min-height: 34px; padding: 6px; font-size: 12px; gap: 4px; background: #ffffff04; }
+.home-profile .compact-match-actions > .btn:last-child { color: #e6a6ae; }
+.match-bump { display: grid; place-items: center; margin: 0; width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: #ffffff04; color: var(--accent-2); font-size: 20px; cursor: pointer; }
+.match-bump:disabled { opacity: .45; cursor: default; }
+.home-profile .duo-offers { display: grid; gap: 12px; margin: 14px 0 0; }
+.home-profile .duo-offer { background: #131522; border: 1px solid #66508e; border-radius: 16px; padding: 16px 18px; animation: duo-arrive .38s ease-out, duo-discovery-glow 2.4s ease-in-out infinite; }
+.duo-offer-label { display: flex; align-items: center; gap: 7px; color: #bca3fc; font-size: 11px; margin-bottom: 12px; }
+.home-profile .duo-offer-person { gap: 8px; font-size: 14px; margin-bottom: 12px; }
+.duo-offer-person > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.duo-offer-person .row-tier { display: inline-flex; align-items: center; gap: 6px; flex: none; margin: 0; font-size: 11px; white-space: nowrap; }
+.duo-offer .row-introduction-stats { margin-top: 0; gap: 8px; font-size: 11px; flex-wrap: wrap; }
+.duo-offer .preferred-champion-portrait { width: 24px; height: 24px; }
+.duo-offer-bio { margin: 9px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.duo-offer-bottom { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; margin-top: 12px; }
+.duo-offer-copy { min-width: 0; }
+.duo-decision-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.home-profile .duo-decision { border-radius: 50%; padding: 0; width: 40px; height: 40px; min-height: 40px; }
+.home-profile .duo-decision.dismiss { background: #ffffff06; border-color: #ffffff16; color: #c5c6d3; }
+.home-profile .duo-decision.accept { box-shadow: 0 3px 12px #8050ff30; }
+.duo-decision:focus-visible, .match-bump:focus-visible { outline: 2px solid #bca3fc; outline-offset: 3px; }
+.home-profile .duo-sent { border: 1px solid var(--line); border-radius: 14px; background: #111520; padding: 12px 16px; }
+.home-profile .duo-sent h3 { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
+.home-profile .duo-sent-person { padding: 6px 0; gap: 8px; }
+.home-profile .duo-sent-person strong { font-size: 12px; }
+.home-profile .duo-sent-person > .btn { min-height: 28px; padding: 4px; }
+@keyframes duo-arrive { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes duo-discovery-glow { 0%, 100% { box-shadow: 0 0 0 #9d75ff00; } 35% { box-shadow: 0 0 18px #9d75ff55, inset 0 0 12px #9d75ff12; border-color: #bca3fc; } }
+@media (prefers-reduced-motion: reduce) { .home-profile .duo-offer { animation: none; border-color: #a78bfa; } }
+@media (max-width: 1099px) { .home-profile-stack { position: static; } .home-profile-content { display: block; } }
+@media (max-width: 420px) { .board-home .home-profile-content { padding: 16px; } .home-profile .duo-offer { padding: 14px; } .match-condition-summary { gap: 6px; } .match-condition-summary > * + * { padding-left: 6px; } .match-condition-summary .recruitment-role-icon svg { width: 15px; height: 15px; } }
+
+.matching-edit-footer { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
+
+.compact-match-overview { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.compact-match-details { min-width: 0; }
+.compact-match-details .match-condition-summary { flex-wrap: wrap; row-gap: 7px; white-space: normal; }
+.home-profile .compact-match-actions { margin-top: 12px; padding-top: 12px; }
+.home-profile .compact-match-actions[data-bump=true] { grid-template-columns: 34px repeat(3, minmax(0, 1fr)); }
+.home-profile .recruitment-suggestions { display: flex; gap: 6px; overflow-x: auto; margin: 10px 0 0; padding-bottom: 2px; }
+.home-profile .recruitment-suggestions .suggestion-link { flex: 0 0 auto; width: auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 8px; font-size: 11px; }
+
+.match-status[data-active=true] i { animation: matching-pulse 1.8s ease-in-out infinite; }
+@keyframes matching-pulse { 0%, 100% { opacity: 1; box-shadow: 0 0 9px #9865ff90; } 50% { opacity: .35; box-shadow: 0 0 2px #9865ff30; } }
+@media (prefers-reduced-motion: reduce) { .match-status[data-active=true] i { animation: none; } }

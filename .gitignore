@@ -29,3 +29,7 @@ out/
 
 # Test / coverage
 coverage/
+
+# 에셋 생성 원본. 코덱스 출력물이라 용량이 크고, PROMPTS.md와
+# postprocess.py가 있으면 다시 뽑을 수 있으므로 추적하지 않는다.
+queuemate-assets/raw/

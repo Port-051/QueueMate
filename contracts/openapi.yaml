@@ -1,13 +1,58 @@
 openapi: 3.0.3
 info:
   title: QueueMate API
-  version: 1.0.0
+  version: 2.1.0
+  description: |
+    **이 파일이 정본이다.** 구현과 어긋나면 이 파일이 아니라 구현을 고친다.
+
+    강제 방법 — `backend/src/test/java/com/queuemate/api/`의 계약 테스트가
+    HTTP 계층에서 이 계약을 검증한다. CI가 merge 전에 돌린다.
+    사람이 지키기로 한 약속은 지켜지지 않는다는 것을 이미 한 번 확인했다
+    (v1에서 12건이 어긋난 채 쌓였다). 자세한 예시는 `docs/14`, 케이스는 `docs/15`.
+
+    ## 전역 규칙
+
+    - 인증: `Authorization: Bearer <accessToken>`.
+      `security: []`가 붙은 것만 예외다.
+    - **모든 4xx/5xx는 예외 없이 `{code, message}` 형태다.** 인증 필터가 막은 401도 같다.
+      `code`로 분기해도 되고, `message`는 바뀔 수 있다.
+    - 날짜는 ISO-8601 문자열. 오프셋이 `Z`와 `+09:00`으로 섞여 나올 수 있다.
+    - null인 필드도 생략하지 않고 `null`로 싣는다.
+    - **201에 `Location` 헤더를 붙이지 않는다.** 클라이언트는 본문의 `id`를 읽는다.
+    - 남의 리소스는 403이 아니라 **404**다. 존재 여부를 흘리지 않는다.
 servers:
   - url: /api/v1
+security:
+  - bearerAuth: []
 paths:
+  /recruitments/search:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1search'
+  /recruitments/mine:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1mine'
+  /recruitments:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments'
+  /recruitments/{id}:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1{id}'
+  /recruitments/{id}/actions:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1{id}~1actions'
+  /recruitments/{id}/join:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1{id}~1join'
+  /recruitments/{id}/respond:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1{id}~1respond'
+  /recruitments/{id}/suggestions:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1{id}~1suggestions'
+  /recruitments/impressions:
+    $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1impressions'
   /auth/signup:
     post:
+      security: []
       summary: Sign up
+      description: >
+        같은 IP에서의 가입 속도를 제한한다. 비밀번호 해싱이 의도적으로 비싼 연산이라
+        짧은 시간에 몰리면 인증 서버의 CPU를 소모하고, 계정이 양산되면 대기열에
+        가짜 참가자가 그만큼 늘어난다. 짧은 창과 하루 창을 함께 센다.
+        이미 가입된 계정을 가진 사용자를 막는 장치가 아니므로 차단 회피는 이것으로
+        막히지 않는다. 그건 신원 확인의 영역이다.
       requestBody:
         required: true
         content:
@@ -20,8 +65,10 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/UserProfile' }
         '409': { description: Email or nickname already in use }
+        '429': { description: 가입 속도 제한에 걸렸다 }
   /auth/login:
     post:
+      security: []
       summary: Login
       requestBody:
         required: true
@@ -35,8 +82,10 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/TokenResponse' }
         '401': { description: Invalid credentials }
+        '429': { description: 로그인 시도가 너무 잦다. 이메일별과 IP별을 함께 센다 }
   /auth/refresh:
     post:
+      security: []
       summary: Rotate refresh token
       requestBody:
         required: true
@@ -52,7 +101,11 @@ paths:
         '401': { description: Invalid or reused refresh token }
   /auth/logout:
     post:
+      security: []
       summary: Logout
+      description: >
+        refresh token 자체가 자격 증명이므로 access token을 요구하지 않는다.
+        access token이 만료된 뒤에도 세션을 끊을 수 있어야 한다.
       requestBody:
         required: true
         content:
@@ -60,6 +113,82 @@ paths:
             schema: { $ref: '#/components/schemas/RefreshRequest' }
       responses:
         '204': { description: Logged out }
+  /auth/oauth/providers:
+    get:
+      summary: 사용 가능한 소셜 로그인 제공자
+      description: >
+        자격 증명이 설정된 제공자만 돌려준다. 프론트엔드는 이 목록으로 버튼을 그린다.
+        설정되지 않은 제공자의 버튼을 그려두면 사용자가 누른 뒤에야 실패를 알게 된다.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/OAuthProviderView' }
+  /auth/oauth/{provider}/authorize:
+    get:
+      summary: 소셜 로그인 시작
+      description: >
+        제공자의 동의 화면으로 302 한다. XHR이 아니라 브라우저 이동으로 호출한다.
+        CSRF 방지용 state를 서버가 만들어 보관하고 callback에서 한 번만 소비한다.
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/OAuthProvider' }
+        - name: redirect
+          in: query
+          required: false
+          description: 로그인 후 돌아갈 앱 내부 경로. 외부 URL은 거부한다.
+          schema: { type: string }
+      responses:
+        '302': { description: 제공자 동의 화면으로 이동 }
+        '404': { description: 설정되지 않은 제공자 }
+  /auth/oauth/{provider}/callback:
+    get:
+      summary: 제공자 콜백
+      description: >
+        제공자가 브라우저를 여기로 돌려보낸다. 토큰을 URL에 싣지 않는다.
+        URL은 브라우저 기록과 Referer, 프록시 로그에 남기 때문이다. 대신 한 번만 쓸 수 있는
+        짧은 수명의 교환 코드를 붙여 프론트엔드로 302 하고, 토큰은 exchange에서 준다.
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/OAuthProvider' }
+        - name: code
+          in: query
+          required: false
+          schema: { type: string }
+        - name: state
+          in: query
+          required: false
+          schema: { type: string }
+        - name: error
+          in: query
+          required: false
+          description: 사용자가 동의를 거부하면 제공자가 채워 보낸다.
+          schema: { type: string }
+      responses:
+        '302': { description: 프론트엔드 콜백 경로로 이동 }
+  /auth/oauth/exchange:
+    post:
+      summary: 교환 코드를 토큰으로 바꾼다
+      description: 코드는 한 번만 쓸 수 있고 수명이 짧다. 두 번째 호출은 401이다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OAuthExchangeRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { description: 만료됐거나 이미 사용된 코드 }
   /users/me:
     get:
       summary: Current user
@@ -125,6 +254,46 @@ paths:
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/GameView' }
+  /games/{gameKey}/modes:
+    get:
+      parameters:
+        - name: gameKey
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/GameKey' }
+      summary: Active modes of a game
+      description: |
+        targetPartySize는 서버가 정한다. 클라이언트는 파티 정원을 보내지 않는다
+        (docs/03 §9).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/GameModeView' }
+  /games/{gameKey}/match-schema:
+    get:
+      parameters:
+        - name: gameKey
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/GameKey' }
+      summary: Match form schema of a game
+      description: 게임별 조건 폼의 선택지 전체. 프론트가 폼을 그리는 근거다.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MatchSchemaView' }
+        '404': { description: Unknown or inactive game }
   /match-requests:
     post:
       summary: Start realtime matching
@@ -139,7 +308,37 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/MatchRequestView' }
-        '409': { description: User already has active request }
+        '404':
+          description: Unknown or inactive game mode
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: User already has active request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          description: Matching store unavailable. 새 매칭은 fail-closed 한다 (INV-10)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /match-requests/history:
+    get:
+      summary: List my past realtime matches
+      description: >
+        인증된 사용자의 MATCHED, CANCELLED, EXPIRED 요청만 반환한다.
+        최초 매칭 시작 시각(queuedAt) 내림차순이며 같은 시각은 id 내림차순이다.
+        queuedAt은 결과가 발생한 시각이 아니다. 조건과 최종 상태는 DB 기록을 사용한다.
+      responses:
+        '200':
+          description: Past matches, newest request first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MatchHistoryView' }
+        '401': { description: Authentication required }
   /match-requests/{id}:
     parameters:
       - name: id
@@ -158,6 +357,22 @@ paths:
       summary: Cancel realtime matching
       responses:
         '204': { description: Cancelled }
+  /proposals/{id}:
+    get:
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      summary: Proposal detail
+      description: 참가자만 조회할 수 있다. 참가자가 아니면 404다.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProposalView' }
+        '404': { description: Not found or not a participant }
   /proposals/{id}/accept:
     post:
       parameters:
@@ -166,12 +381,21 @@ paths:
           required: true
           schema: { type: string, format: uuid }
       summary: Accept proposal
+      description: |
+        전원이 수락하면 그 자리에서 CONFIRMED가 된다 (INV-4).
+        만료·거절·확정된 제안은 다시 수락할 수 없다 (INV-5).
       responses:
         '200':
           description: Acceptance updated
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ProposalView' }
+        '404': { description: Not found or not a participant }
+        '409':
+          description: Proposal already expired or finished
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
   /proposals/{id}/decline:
     post:
       parameters:
@@ -180,8 +404,15 @@ paths:
           required: true
           schema: { type: string, format: uuid }
       summary: Decline proposal
+      description: 한 명이 거절하면 제안 전체가 끝나고 나머지는 대기 상태로 돌아간다.
       responses:
-        '200': { description: Declined }
+        '204': { description: Declined }
+        '404': { description: Not found or not a participant }
+        '409':
+          description: Proposal already finished
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
   /reservations:
     post:
       summary: Create reservation matching request
@@ -196,11 +427,21 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ReservationView' }
-        '409': { description: Overlapping active reservation }
+        '409':
+          description: Overlapping active reservation
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
     get:
       summary: List my reservations
       responses:
-        '200': { description: OK }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ReservationView' }
   /reservations/{id}:
     parameters:
       - name: id
@@ -210,11 +451,51 @@ paths:
     get:
       summary: Reservation detail
       responses:
-        '200': { description: OK }
-    patch:
-      summary: Edit active reservation
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReservationView' }
+    put:
+      summary: Replace an active reservation
+      description: >
+        전체 교체다. 네 필드가 전부 필수이므로 의미상 PUT이다.
+        같은 경로의 PATCH도 당분간 같은 동작으로 받는다(먼저 붙은 클라이언트 호환).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateReservationRequest' }
       responses:
-        '200': { description: Updated }
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReservationView' }
+        '404':
+          description: Not mine or unknown
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Overlapping active reservation, or not editable in this status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    patch:
+      deprecated: true
+      summary: PUT의 별칭. 동작이 같다
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateReservationRequest' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReservationView' }
     delete:
       summary: Cancel reservation
       responses:
@@ -241,6 +522,11 @@ paths:
           required: true
           schema: { type: string, format: uuid }
       summary: Set ready state
+      description: >
+        전원이 준비를 마치면 파티는 READY가 되고, 그 상태가 일정 시간 유지되면
+        PLAYING으로 넘어간다. 서버는 게임을 관측할 수 없으므로 시작 신호 대신
+        시간으로 판정한다. PLAYING 이후에는 준비 상태를 바꿀 수 없고, 되돌리려면
+        파티를 나가야 한다.
       requestBody:
         content:
           application/json:
@@ -251,6 +537,25 @@ paths:
                 ready: { type: boolean }
       responses:
         '200': { description: Updated }
+        '404': { description: 파티가 없거나 멤버가 아니다 }
+        '409': { description: 종료된 파티이거나 이미 게임이 시작됐다 }
+  /parties/{id}/leave:
+    post:
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      summary: Leave party
+      description: >
+        명시적 이탈은 유예 없이 즉시 처리한다. 연결 끊김은 재접속 유예를 거치지만
+        본인이 나가겠다고 한 경우는 기다릴 이유가 없다.
+        나간 사용자는 홈으로 돌아가며 매칭 요청이 자동으로 만들어지지 않는다.
+        남은 인원이 1명이 되면 파티는 CLOSED가 되고, 남은 사용자는 대기열로 복귀한다.
+      responses:
+        '204': { description: Left }
+        '404': { description: 파티가 없거나 멤버가 아니다 }
+        '409': { description: 이미 나갔거나 종료된 파티다 }
   /friends:
     get:
       summary: Friend list
@@ -410,6 +715,11 @@ paths:
       responses:
         '201': { description: Created }
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     SignupRequest:
       type: object
@@ -437,6 +747,24 @@ components:
       required: [refreshToken]
       properties:
         refreshToken: { type: string }
+    OAuthProvider:
+      type: string
+      description: DEV는 로컬 개발용 가짜 제공자다. local/test 프로파일에서만 켜진다.
+      enum: [KAKAO, NAVER, DEV]
+    OAuthProviderView:
+      type: object
+      required: [provider, displayName, authorizeUrl]
+      properties:
+        provider: { $ref: '#/components/schemas/OAuthProvider' }
+        displayName: { type: string }
+        authorizeUrl:
+          type: string
+          description: 브라우저를 이동시킬 경로. 프론트엔드가 직접 조립하지 않는다.
+    OAuthExchangeRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string }
     UserProfile:
       type: object
       required: [id, nickname]
@@ -446,6 +774,10 @@ components:
         avatarUrl: { type: string, nullable: true }
     UpdateUserRequest:
       type: object
+      description: |
+        부분 수정이다. **키를 생략한 항목은 건드리지 않는다.**
+        `avatarUrl`에 명시적으로 `null`을 보내면 아바타를 지운다.
+        `nickname`은 비울 수 없다. `null`을 보내면 400이다.
       properties:
         nickname: { type: string, minLength: 2, maxLength: 16 }
         avatarUrl: { type: string, nullable: true }
@@ -469,6 +801,117 @@ components:
     GameKey:
       type: string
       enum: [LOL, VALORANT, PUBG]
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      description: |
+        모든 4xx/5xx 응답의 공통 형태다. code는 클라이언트가 분기해도 되는 안정된 값이고,
+        message는 사람이 읽는 설명이라 바뀔 수 있다.
+
+        아래 목록이 전부다. **여기 없는 code가 나가면 그건 버그다.**
+        `CrossCuttingApiContractTest`의 TC-X-07이 이 목록을 강제한다.
+      properties:
+        code:
+          type: string
+          example: ACTIVE_MATCH_REQUEST_EXISTS
+          enum:
+            # 400
+            - VALIDATION_FAILED
+            # 401
+            - UNAUTHORIZED
+            # 404
+            - USER_NOT_FOUND
+            - UNKNOWN_GAME
+            - UNKNOWN_GAME_MODE
+            - MATCH_REQUEST_NOT_FOUND
+            - PROPOSAL_NOT_FOUND
+            - PARTY_NOT_FOUND
+            - RESERVATION_NOT_FOUND
+            - FRIENDSHIP_NOT_FOUND
+            - BLOCK_NOT_FOUND
+            - GAME_ACCOUNT_NOT_FOUND
+            - FRIEND_REQUEST_NOT_FOUND
+            # 409
+            - EMAIL_ALREADY_IN_USE
+            - NICKNAME_ALREADY_IN_USE
+            - EMAIL_OR_NICKNAME_ALREADY_IN_USE
+            - GAME_ACCOUNT_ALREADY_LINKED
+            - ACTIVE_MATCH_REQUEST_EXISTS
+            - MATCH_REQUEST_NOT_CANCELLABLE
+            - PROPOSAL_EXPIRED
+            - PROPOSAL_NOT_PENDING
+            - PROPOSAL_NOT_CONFIRMED
+            - PROPOSAL_NOT_FULLY_ACCEPTED
+            - PROPOSAL_MEMBER_MISMATCH
+            - PARTY_SIZE_MISMATCH
+            - PARTY_CLOSED
+            - PARTY_PLAYING
+            - ALREADY_LEFT
+            - BLOCKED_MEMBERS
+            - RESERVATION_NOT_EDITABLE
+            - RESERVATION_NOT_CANCELLABLE
+            - OVERLAPPING_RESERVATION
+            - SELF_FRIEND_REQUEST
+            - SELF_BLOCK
+            - SELF_REPORT
+            - ALREADY_FRIENDS
+            - REQUEST_ALREADY_PENDING
+            - INVERSE_REQUEST_PENDING
+            - FRIEND_REQUEST_NOT_PENDING
+            - BLOCKED_RELATION
+            - ALREADY_BLOCKED
+            # 415
+            - UNSUPPORTED_MEDIA_TYPE
+            # 429
+            - SIGNUP_RATE_EXCEEDED
+            - LOGIN_ATTEMPTS_EXCEEDED
+            # 503
+            - MATCHING_UNAVAILABLE
+        message: { type: string }
+    GameView:
+      type: object
+      required: [game, keyConditionType]
+      properties:
+        game: { $ref: '#/components/schemas/GameKey' }
+        keyConditionType:
+          type: string
+          enum: [POSITION, ROLE, PLAY_STYLE]
+    GameModeView:
+      type: object
+      required: [modeKey, targetPartySize, roleUniqueness]
+      properties:
+        modeKey: { type: string, example: SOLO_DUO_RANKED }
+        targetPartySize:
+          type: integer
+          minimum: 2
+          description: 확정 파티 인원. 서버가 정한다
+        roleUniqueness:
+          type: boolean
+          description: true면 파티 안에서 keyCondition 값이 겹칠 수 없다
+    MatchSchemaView:
+      type: object
+      required: [game, modes, keyCondition, voicePreferences, playPurposes]
+      properties:
+        game: { $ref: '#/components/schemas/GameKey' }
+        modes:
+          type: array
+          items: { $ref: '#/components/schemas/GameModeView' }
+        keyCondition:
+          type: object
+          required: [type, values]
+          properties:
+            type:
+              type: string
+              enum: [POSITION, ROLE, PLAY_STYLE]
+            values:
+              type: array
+              items: { type: string }
+        voicePreferences:
+          type: array
+          items: { $ref: '#/components/schemas/VoicePreference' }
+        playPurposes:
+          type: array
+          items: { $ref: '#/components/schemas/PlayPurpose' }
     FriendView:
       type: object
       required: [userId, nickname]
@@ -553,10 +996,23 @@ components:
         - $ref: '#/components/schemas/MatchCondition'
     MatchRequestView:
       type: object
+      required: [id, status, queuedAt]
       properties:
         id: { type: string, format: uuid }
         status: { type: string, enum: [QUEUED, PROPOSED, MATCHED, CANCELLED, EXPIRED] }
-        queuedAt: { type: string, format: date-time }
+        queuedAt:
+          type: string
+          format: date-time
+          description: 최초 대기 시작 시각. 제안을 거절하고 큐로 돌아와도 유지된다
+        proposalId: { type: string, format: uuid, nullable: true }
+    MatchHistoryView:
+      type: object
+      required: [id, status, queuedAt, condition]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [MATCHED, CANCELLED, EXPIRED] }
+        queuedAt: { type: string, format: date-time, description: 최초 매칭 시작 시각 }
+        condition: { $ref: '#/components/schemas/MatchCondition' }
         proposalId: { type: string, format: uuid, nullable: true }
     PlayAmount:
       type: string
@@ -571,10 +1027,27 @@ components:
         playAmount: { $ref: '#/components/schemas/PlayAmount' }
     ReservationView:
       type: object
+      required: [id, status, condition, availableFrom, availableTo, playAmount, createdAt]
       properties:
         id: { type: string, format: uuid }
         status: { type: string, enum: [ACTIVE, PROPOSED, MATCHED, CANCELLED, EXPIRED, COMPLETED] }
-        scheduledStart: { type: string, format: date-time, nullable: true }
+        condition: { $ref: '#/components/schemas/MatchCondition' }
+        availableFrom: { type: string, format: date-time }
+        availableTo: { type: string, format: date-time }
+        playAmount: { $ref: '#/components/schemas/PlayAmount' }
+        createdAt: { type: string, format: date-time }
+        scheduledStart:
+          type: string
+          format: date-time
+          nullable: true
+          description: 매칭이 붙은 뒤 정해지는 약속 시각. 겹치는 구간 중 가장 이른 30분 슬롯
+        proposalId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >
+            파티는 여기 실리지 않는다. proposalId로 GET /proposals/{id}를 부르면 partyId가 있다.
+            실시간 매칭(MatchRequestView)과 같은 규칙이다.
     ProposalMember:
       type: object
       properties:
@@ -598,7 +1071,10 @@ components:
         game: { $ref: '#/components/schemas/GameKey' }
         modeKey: { type: string }
         targetSize: { type: integer }
-        status: { type: string, enum: [OPEN, READY, PLAYING, CLOSED] }
+        status:
+          type: string
+          enum: [OPEN, READY, PLAYING, CLOSED]
+          description: OPEN 모이는 중, READY 전원 준비, PLAYING 게임 중, CLOSED 종료
         members:
           type: array
           items:
@@ -607,3 +1083,7 @@ components:
               userId: { type: string, format: uuid }
               nickname: { type: string }
               ready: { type: boolean }
+              gameIds:
+                type: array
+                items: { type: string }
+                description: 파티 게임에 등록한 초대용 게임 ID 목록. 해당 파티 참여자에게만 제공하며 미등록이면 빈 배열.
