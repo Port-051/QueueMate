@@ -1,5 +1,5 @@
-const SYMBOL = '/brand/queuemate-symbol.svg';
-const WORDMARK = '/brand/queuemate-wordmark.svg';
+const SYMBOL = `${import.meta.env.BASE_URL}brand/queuemate-symbol.svg`;
+const WORDMARK = `${import.meta.env.BASE_URL}brand/queuemate-wordmark.svg`;
 
 export function LogoMark({ size = 34, className = '' }: { size?: number; className?: string }) {
   return <img src={SYMBOL} width={size} height={size} className={`logo-mark ${className}`.trim()} alt="" aria-hidden="true" draggable={false} />;
