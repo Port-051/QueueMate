@@ -75,6 +75,11 @@ function stableIndex(seed: string, buckets: number): number {
   return h % buckets;
 }
 
+/** API에 저장하는 프리셋 경로는 유지하고 화면에서만 배포 하위 경로를 붙인다. */
+export function avatarImageSrc(src: string): string {
+  return src.startsWith('/avatars/') ? `${import.meta.env.BASE_URL}${src.slice(1)}` : src;
+}
+
 export function Avatar({ name, size = 38, status, avatarUrl }: {
   name?: string | null;
   size?: number;
@@ -103,7 +108,7 @@ export function Avatar({ name, size = 38, status, avatarUrl }: {
       {src ? (
         <img
           className="avatar-img"
-          src={src}
+          src={avatarImageSrc(src)}
           alt=""
           aria-hidden="true"
           draggable={false}

@@ -8,7 +8,7 @@ import * as api from '../api/client';
 import { isApiError } from '../api/error';
 import type { GameKey } from '../api/types';
 import { IconCheck, IconLogout, IconPencil, IconPlus, IconShield } from '../components/icons';
-import { AVATAR_CHOICES, Avatar, Button, ConfirmDialog, Field, Modal, useToast } from '../components/ui';
+import { AVATAR_CHOICES, avatarImageSrc, Avatar, Button, ConfirmDialog, Field, Modal, useToast } from '../components/ui';
 import { GAMES } from '../domain/gameConfig';
 import { gameFullLabel, rankLabel } from '../domain/labels';
 import { useAuth } from '../state/AuthContext';
@@ -262,7 +262,7 @@ export function MyInfoPage() {
                 disabled={savingAvatar}
                 onClick={() => setPicked(src)}
               >
-                <img className="ap-img" src={src} alt={`아바타 ${i + 1}`} draggable={false} />
+                <img className="ap-img" src={avatarImageSrc(src)} alt={`아바타 ${i + 1}`} draggable={false} />
                 {picked === src ? <span className="ap-check" aria-hidden="true"><IconCheck size={12} /></span> : null}
               </button>
             ))}
