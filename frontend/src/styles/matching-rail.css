@@ -89,7 +89,7 @@ body:has(.board-home) .toast-host { pointer-events: none; }
 .duo-completed p { color: var(--muted); font-size: 14px; line-height: 1.7; margin: 12px 0 18px; }
 
 /* 내 매칭과 상대 제안을 분리한 컴팩트 패널. */
-.home-profile .compact-match-status { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; margin-bottom: 14px; }
+.home-profile .compact-match-status { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; margin-bottom: 0; flex-wrap: nowrap; }
 .match-status { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-dim); }
 .match-status i, .discovery-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex: none; }
 .match-status[data-active=true] i, .discovery-dot { background: #a78bfa; box-shadow: 0 0 9px #9865ff90; }
@@ -109,7 +109,7 @@ body:has(.board-home) .toast-host { pointer-events: none; }
 .home-profile .compact-match-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 18px; }
 .home-profile .compact-match-actions > .btn { min-height: 34px; padding: 6px; font-size: 12px; gap: 4px; background: #ffffff04; }
 .home-profile .compact-match-actions > .btn:last-child { color: #e6a6ae; }
-.match-bump { display: block; margin: 12px 0 0 auto; padding: 4px 0; border: 0; background: none; color: var(--accent-2); font-size: 12px; cursor: pointer; }
+.match-bump { display: grid; place-items: center; margin: 0; width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: #ffffff04; color: var(--accent-2); font-size: 20px; cursor: pointer; }
 .match-bump:disabled { opacity: .45; cursor: default; }
 .home-profile .duo-offers { display: grid; gap: 12px; margin: 14px 0 0; }
 .home-profile .duo-offer { background: #131522; border: 1px solid #66508e; border-radius: 16px; padding: 16px 18px; animation: duo-arrive .38s ease-out, duo-discovery-glow 2.4s ease-in-out infinite; }
@@ -139,3 +139,11 @@ body:has(.board-home) .toast-host { pointer-events: none; }
 @media (max-width: 420px) { .board-home .home-profile-content { padding: 16px; } .home-profile .duo-offer { padding: 14px; } .match-condition-summary { gap: 6px; } .match-condition-summary > * + * { padding-left: 6px; } .match-condition-summary .recruitment-role-icon svg { width: 15px; height: 15px; } }
 
 .matching-edit-footer { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
+
+.compact-match-overview { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.compact-match-details { min-width: 0; }
+.compact-match-details .match-condition-summary { flex-wrap: wrap; row-gap: 7px; white-space: normal; }
+.home-profile .compact-match-actions { margin-top: 12px; padding-top: 12px; }
+.home-profile .compact-match-actions[data-bump=true] { grid-template-columns: 34px repeat(3, minmax(0, 1fr)); }
+.home-profile .recruitment-suggestions { display: flex; gap: 6px; overflow-x: auto; margin: 10px 0 0; padding-bottom: 2px; }
+.home-profile .recruitment-suggestions .suggestion-link { flex: 0 0 auto; width: auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 8px; font-size: 11px; }
