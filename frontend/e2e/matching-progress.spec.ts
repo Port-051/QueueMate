@@ -71,6 +71,8 @@ test('추천에 답하지 않아도 매칭을 잠그지 않고 조건을 수정�
   await expect(page.locator('.duo-offer')).toHaveCount(1);
   await expect(page.locator('.board-proposal')).toHaveCount(0);
   await manageRecruitment(page, '조건 수정');
+  await expect(page.getByRole('button', { name: '매칭 조건 저장', exact: true })).toBeDisabled();
+  await page.getByLabel('한마디').fill('조건 변경 가능 확인');
   await expect(page.getByRole('button', { name: '매칭 조건 저장', exact: true })).toBeEnabled();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('timer', { name: '매칭 시작 후', exact: true })).toBeVisible();

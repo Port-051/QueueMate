@@ -211,7 +211,7 @@ export function HomePage() {
       </div> : null}
     </div></div>
     </div>
-    <HomeProfileRail user={user} game={query.condition.game} gameAccount={gameAccounts.find(account => account.game === query.condition.game)} below={USE_MOCK && own && !form && !selected && !stageKey ? <DuoOffersPanel key={own.id} source={own} /> : null}>
+    <HomeProfileRail user={user} game={query.condition.game} gameAccount={gameAccounts.find(account => account.game === query.condition.game)} below={USE_MOCK && own && (!form || form.editing?.id === own.id) && !selected && !stageKey ? <DuoOffersPanel key={own.id} source={own} /> : null}>
     {own || liveRequest || match.activePartyId || match.proposal?.status === 'PENDING' ? <section hidden={Boolean(form || selected) && match.proposal?.status !== 'PENDING'} className="match-stage" aria-label="내 매칭 진행" tabIndex={-1} ref={stageRef}>
       {!USE_MOCK ? <MatchProgress step={match.proposal?.status === 'PENDING' ? 1 : match.activePartyId ? 2 : 0} /> : null}
       {connection !== 'connected' ? <p className="banner warn" role="status">서버에 다시 연결하고 있어요.</p> : null}

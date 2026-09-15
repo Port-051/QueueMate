@@ -57,3 +57,30 @@ test('좁은 화면에서도 네 포지션이 한 줄이며 X로 제안을 넘�
   await expect(page.locator('.duo-offer')).toHaveCount(0);
   await expect(page.locator('.my-recruitment')).toContainText('매칭 중');
 });
+
+test('조건 수정은 저장 전까지 상대와 원래 조건을 유지하고 취소할 수 있다', async ({ page }) => {
+  await page.clock.install(); await login(page); await startRealtimeMatch(page);
+  await page.clock.fastForward(7000);
+  const offer = page.locator('.duo-offer').first();
+  await expect(offer).toBeVisible();
+  const person = await offer.getAttribute('aria-label');
+  expect(await offer.evaluate(el => getComputedStyle(el).animationIterationCount)).toContain('infinite');
+  await page.getByRole('button', { name: '조건 수정', exact: true }).click();
+  await expect(offer).toHaveAttribute('aria-label', person!);
+  await expect(offer).toBeVisible();
+  const save = page.getByRole('button', { name: '매칭 조건 저장', exact: true });
+  const bio = page.getByLabel('한마디', { exact: true });
+  const original = await bio.inputValue();
+  await expect(save).toBeDisabled();
+  await bio.fill('취소할 변경');
+  await expect(save).toBeEnabled();
+  await bio.fill(original);
+  await expect(save).toBeDisabled();
+  await bio.fill('저장하지 않은 변경');
+  await page.getByRole('button', { name: '취소', exact: true }).click();
+  await expect(offer).toHaveAttribute('aria-label', person!);
+  await expect(page.locator('.my-recruitment')).not.toContainText('저장하지 않은 변경');
+  await page.getByRole('button', { name: '조건 수정', exact: true }).click();
+  await expect(bio).toHaveValue(original);
+  await expect(save).toBeDisabled();
+});
