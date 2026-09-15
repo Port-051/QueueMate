@@ -6,7 +6,7 @@ import com.queuemate.matching.domain.CancelResult;
 import com.queuemate.matching.domain.GameKey;
 import com.queuemate.matching.domain.lol.LolPosition;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
-import com.queuemate.matching.redis.PoolLock;
+import com.queuemate.matching.redisLock.PoolLock;
 import com.queuemate.matching.rule.CandidateRule;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.HashOperations;

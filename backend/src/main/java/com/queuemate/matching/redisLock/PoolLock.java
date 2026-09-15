@@ -1,4 +1,4 @@
-package com.queuemate.matching.redis;
+package com.queuemate.matching.redisLock;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
