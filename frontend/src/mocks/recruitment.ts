@@ -144,7 +144,7 @@ function matches(query: BoardSearch, row: BoardRow, viewerId = db.me.id) {
     const roles = query.preferences.desiredKeys.length ? query.preferences.desiredKeys : query.condition.keyCondition.value !== 'ANY' ? [query.condition.keyCondition.value] : [];
     if (hasPositions(query.condition) && roles.length && !ownRoles(effectiveCondition(row), row.preferences).some(role => roles.includes(role)) && ownRoles(effectiveCondition(row), row.preferences).length > 0) return false;
     if (hasPositions(query.condition) && query.preferences.ownKeys?.length && row.preferences.desiredKeys.length && !query.preferences.ownKeys.some(role => row.preferences.desiredKeys.includes(role))) return false;
-    if (query.condition.voicePreference !== 'OPTIONAL' && query.condition.voicePreference !== row.condition.voicePreference) return false;
+    if (query.condition.voicePreference !== 'OPTIONAL' && row.condition.voicePreference !== 'OPTIONAL' && query.condition.voicePreference !== row.condition.voicePreference) return false;
     if (!accepts({ ...query.preferences, desiredKeys: [], purposeRequired: false }, query.condition, row.preferences, row.condition)) return false;
   } else if (!row.members.every(m => compatible(query.condition, query.preferences, m.condition, m.preferences))) return false;
   if (row.type === 'RESERVATION') {

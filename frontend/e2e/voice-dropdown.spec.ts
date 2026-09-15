@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { login, startRealtimeMatch } from './helpers';
 
-test('마이크 무관은 모두 표시하고 사용과 미사용을 개별 검색한다', async ({ page }) => {
+test('마이크 사용과 미사용 필터는 무관인 글도 포함한다', async ({ page }) => {
   await login(page);
   const filter = page.locator('.board-filter-bar').getByRole('button', { name: '마이크', exact: true });
   const choose = async (label: string) => {
@@ -10,11 +10,15 @@ test('마이크 무관은 모두 표시하고 사용과 미사용을 개별 검�
   };
   const rows = page.locator('.recruitment-row');
   await choose('사용');
-  await expect(rows).toHaveCount(3);
-  await expect(rows.locator('.voice-required')).toHaveCount(3);
+  await expect(rows).toHaveCount(7);
+  await expect(rows.locator('.recruitment-voice.voice-required')).toHaveCount(3);
+  await expect(rows.locator('.recruitment-voice.voice-optional')).toHaveCount(4);
+  await expect(rows.locator('.recruitment-voice.voice-no_voice')).toHaveCount(0);
   await choose('미사용');
-  await expect(rows).toHaveCount(3);
-  await expect(rows.locator('.voice-no_voice')).toHaveCount(3);
+  await expect(rows).toHaveCount(7);
+  await expect(rows.locator('.recruitment-voice.voice-no_voice')).toHaveCount(3);
+  await expect(rows.locator('.recruitment-voice.voice-optional')).toHaveCount(4);
+  await expect(rows.locator('.recruitment-voice.voice-required')).toHaveCount(0);
   await choose('무관');
   await expect(rows).toHaveCount(10);
 });
