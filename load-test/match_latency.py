@@ -10,7 +10,9 @@ HTTP 201 은 접수만 알려준다. 파티 배정은 @Async 로 뒤에서 돌�
      폴러는 HTTP 응답을 기다리지 않고 t0 부터 바로 Redis 를 본다.
      (응답 뒤에 폴링을 시작하면 HTTP 응답시간이 그대로 측정 하한이 된다)
   3) t0 = B 의 HTTP 요청 직전. POST -> HTTP 응답 시각 t_http
-  4) B 의 active-request 에 partyId 가 박히고 그 파티 size 가 2 가 되는 순간 = t_match
+  4) B 의 active-request 에 partyId 가 박히고 그 파티 인원이 2 가 되는 순간 = t_match
+     인원은 파티 HASH 의 member: 필드 개수다. size 같은 카운터 필드는 없다 —
+     join-party.lua 의 memberCount() 와 같은 방식(HKEYS 후 member: 접두사 세기)으로 센다
   측정값 = t_match - t0
 
 측정 하한: 폴링 sleep 간격 + Redis RTT(호스트에서 약 0.11ms).
@@ -76,10 +78,11 @@ def poll_until(rd, uid, want, deadline, sleep=POLL_SLEEP):
                     time.sleep(sleep)
                 continue
             pid = v.decode()
-        sz = rd.cmd("HGET", "qm:party:" + pid, "size")
+        fields = rd.cmd("HKEYS", "qm:party:" + pid)
         polls += 1
         now = time.time()
-        if sz is not None and int(sz) >= want:
+        sz = sum(1 for f in (fields or []) if f.startswith(b"member:"))
+        if sz >= want:
             return now, polls, (now - prev) * 1000.0
         prev = t_send
         if sleep:
