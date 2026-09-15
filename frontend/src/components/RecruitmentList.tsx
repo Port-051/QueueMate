@@ -19,11 +19,10 @@ const ownRoles = (row: IntroductionRecord) => row.preferences.ownKeys ?? (row.co
 const roleLabel = (row: IntroductionRecord) => ownRoles(row).length ? ownRoles(row).map(value => keyConditionOptions(row.condition.game).find(role => role.value === value)?.label ?? value).join('·') : '전체';
 const queueLabel = (row: IntroductionRecord) => row.condition.modeKey === 'ANY' ? '큐 무관' : modeLabel(row.condition.game, row.condition.modeKey);
 const voiceLabel = (row: IntroductionRecord) => row.condition.voicePreference === 'OPTIONAL' ? '음성 무관' : VOICE_LABEL[row.condition.voicePreference];
-const roleTitle = (row?: IntroductionRecord) => row?.condition.game === 'VALORANT' ? '주 역할' : row?.condition.game === 'PUBG' ? '플레이 스타일' : '내 포지션';
+const roleTitle = (row?: IntroductionRecord) => row?.condition.game === 'VALORANT' ? '주 역할' : row?.condition.game === 'PUBG' ? '플레이 스타일' : '포지션';
 
 export function RecruitmentVoice({ row }: { row: IntroductionRecord }) {
   const preference = row.condition.voicePreference;
-  if (preference === 'OPTIONAL') return null;
   return <span className={`recruitment-voice voice-${preference.toLowerCase()}`} role="img" aria-label={voiceLabel(row)} title={voiceLabel(row)}>
     <VoiceIcon preference={preference} />
   </span>;
@@ -63,7 +62,7 @@ export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]
   }, []);
   const withoutRoles = rows.length > 0 && rows.every(row => !usesKeyCondition(row.condition.game, row.condition.modeKey));
   return <div className={`recruitment-list${withoutRoles ? ' without-roles' : ''}`} aria-label="매칭 글 목록">
-    <div className="board-column-head"><span>플레이어</span><span>티어</span>{!withoutRoles ? <div className="position-column-head"><span>내 포지션</span><span>찾는 포지션</span></div> : null}<span>마이크</span><span>게시 시간</span></div>
+    <div className="board-column-head"><span>플레이어</span><span>티어</span>{!withoutRoles ? <div className="position-column-head"><span>포지션</span><span>찾는 포지션</span></div> : null}<span>마이크</span><span>게시 시간</span></div>
     {rows.map(row => {
       const introduction = introductionForRow(row);
       const hasRoles = usesKeyCondition(row.condition.game, row.condition.modeKey);

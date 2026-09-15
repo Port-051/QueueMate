@@ -4,7 +4,7 @@ import { login, startRealtimeMatch } from './helpers';
 test('본인 포지션 여러 개가 저장되고 목록에 본인과 상대가 각각의 컬럼에 보인다', async ({ page }) => {
   await login(page);
   const form = page.locator('.recruitment-composer-shell');
-  const own = form.getByRole('group', { name: '내 포지션', exact: true });
+  const own = form.getByRole('group', { name: '포지션', exact: true });
   const target = form.getByRole('group', { name: '찾는 포지션', exact: true });
   await expect(own.getByRole('button', { name: '무관' })).toHaveCount(0);
   for (const button of await own.locator('[aria-pressed=true]').all()) await button.click();

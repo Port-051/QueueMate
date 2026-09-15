@@ -10,7 +10,7 @@ test('기본 랭크는 해제되지 않고 목록에는 모드 없이 별도 음
   await expect(modes.locator('[aria-pressed=true]')).toHaveCount(1);
   await expect(ranked).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.recruitment-row .row-mode')).toHaveCount(0);
-  await expect(page.locator('.recruitment-row .voice-optional')).toHaveCount(0);
+  await expect(page.locator('.recruitment-row .recruitment-voice.voice-optional').first()).toBeVisible();
   const enabled = page.locator('.row-voice .recruitment-voice.voice-required').first();
   const disabled = page.locator('.row-voice .recruitment-voice.voice-no_voice').first();
   await expect(enabled).toHaveCSS('color', 'rgb(74, 222, 128)');

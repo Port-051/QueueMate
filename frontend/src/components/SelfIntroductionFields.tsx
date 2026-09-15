@@ -16,7 +16,7 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
   const hasRoles = usesKeyCondition(game, value.queueType);
   const [championText, setChampionText] = useState(value.champions.join(', '));
   const patch = (next: Partial<SelfIntroduction>) => onChange({ ...value, ...next });
-  const roleTitle = game === 'LOL' ? '내 포지션' : game === 'VALORANT' ? '주 역할' : '플레이 스타일';
+  const roleTitle = game === 'LOL' ? '포지션' : game === 'VALORANT' ? '주 역할' : '플레이 스타일';
   const championTitle = game === 'LOL' ? '선호 챔피언' : game === 'VALORANT' ? '선호 요원' : '선호 무기';
   const wins = value.recentResults.filter(result => result === 'WIN').length;
   const losses = value.recentResults.filter(result => result === 'LOSS').length;

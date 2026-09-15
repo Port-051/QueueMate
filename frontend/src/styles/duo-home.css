@@ -211,3 +211,11 @@
 @container (max-width: 680px) {
   .board-home .row-rank, .board-home .row-fresh { padding-inline: 0; }
 }
+
+.board-home .row-meta { padding-inline: 20px; }
+.board-column-head > span:not(:first-child), .position-column-head { padding-inline: 20px; }
+.board-home .row-roles .recruitment-role-pair, .position-column-head { column-gap: 24px; }
+.board-home .row-roles .recruitment-role-pair { position: relative; }
+.board-home .row-roles .recruitment-role-pair::after { content: ''; position: absolute; left: 50%; top: 50%; width: 1px; height: 16px; background: var(--line); transform: translate(-50%, -50%); }
+.recruitment-voice.voice-optional { color: var(--muted); }
+@container (max-width: 680px) { .board-home .row-meta { padding-inline: 0; } }

@@ -11,7 +11,7 @@ test('조건은 메시지와 프로필을 다녀와도 유지되고 모드는 �
   await expect(rank).toHaveAttribute('aria-pressed', 'true');
   await modes.getByRole('button', { name: '일반', exact: true }).click();
   await modes.getByRole('button', { name: '일반', exact: true }).click();
-  await form.getByRole('group', { name: '내 포지션', exact: true }).getByRole('button', { name: '정글', exact: true }).click();
+  await form.getByRole('group', { name: '포지션', exact: true }).getByRole('button', { name: '정글', exact: true }).click();
   await form.getByRole('group', { name: '찾는 포지션', exact: true }).getByRole('button', { name: '미드', exact: true }).click();
   await form.getByRole('group', { name: '음성', exact: true }).getByRole('button', { name: '사용', exact: true }).click();
   await form.getByLabel('한마디').fill('조건을 유지해 주세요');
@@ -20,7 +20,7 @@ test('조건은 메시지와 프로필을 다녀와도 유지되고 모드는 �
     await page.locator('.side-nav a[href="/app/home"]').click();
     await expect(modes.locator('[aria-pressed="true"]')).toHaveCount(1);
     await expect(modes.getByRole('button', { name: '일반', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    await expect(form.getByRole('group', { name: '내 포지션', exact: true }).getByRole('button', { name: '정글', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(form.getByRole('group', { name: '포지션', exact: true }).getByRole('button', { name: '정글', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(form.getByRole('group', { name: '찾는 포지션', exact: true }).getByRole('button', { name: '미드', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(form.getByRole('group', { name: '음성', exact: true }).getByRole('button', { name: '사용', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(form.getByLabel('한마디')).toHaveValue('조건을 유지해 주세요');

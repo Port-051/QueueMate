@@ -13,7 +13,7 @@ test('활동 재확인과 조건 한 개 변경은 사용자 선택 후에만 �
   await page.clock.install();
   await login(page);
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
-  await selectButton(page.locator('.recruitment-composer-shell').getByRole('group', { name: '내 포지션', exact: true }), '탑');
+  await selectButton(page.locator('.recruitment-composer-shell').getByRole('group', { name: '포지션', exact: true }), '탑');
   await page.locator('.recruitment-composer-shell').getByRole('group', { name: '찾는 포지션', exact: true }).getByRole('button', { name: '탑', exact: true }).click();
   await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(page.locator('.my-recruitment')).toBeVisible();
@@ -31,7 +31,7 @@ test('활동 재확인과 조건 한 개 변경은 사용자 선택 후에만 �
   await expect(page.getByRole('region', { name: '조건 변경 미리 보기' })).toHaveCount(0);
   await manageRecruitment(page, '조건 수정');
   await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '찾는 포지션', exact: true }).getByRole('button', { name: '탑', exact: true })).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '내 포지션', exact: true }).getByRole('button', { name: '탑', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '포지션', exact: true }).getByRole('button', { name: '탑', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 test('위로 올리기 제한과 일시 중지·재개는 같은 매칭을 유지한다', async ({ page }) => {
   await login(page);

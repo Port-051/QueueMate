@@ -31,7 +31,7 @@ const strings = (value: unknown) => Array.isArray(value) ? value.filter((item): 
 
 export function normalizeDesiredRoles(game: GameKey, selected: string[]): string[] {
   const available = keyConditionOptions(game).filter(role => role.value !== 'ANY').map(role => role.value);
-  const valid = [...new Set(selected)].filter(role => available.includes(role));
+  const valid = available.filter(role => selected.includes(role));
   return valid;
 }
 

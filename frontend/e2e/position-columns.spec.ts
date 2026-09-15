@@ -4,7 +4,7 @@ import { login, startRealtimeMatch } from './helpers';
 test('포지션 필터는 작성자를 조회하고 네 아이콘은 한 줄이다', async ({ page }) => {
   await login(page);
   const form = page.locator('.recruitment-composer-shell');
-  const own = form.getByRole('group', { name: '내 포지션', exact: true });
+  const own = form.getByRole('group', { name: '포지션', exact: true });
   for (const button of await own.locator('[aria-pressed=true]').all()) await button.click();
   for (const name of ['탑', '정글', '미드', '바텀']) await own.getByRole('button', { name, exact: true }).click();
   await form.getByRole('group', { name: '찾는 포지션', exact: true }).getByRole('button', { name: '탑', exact: true }).click();
