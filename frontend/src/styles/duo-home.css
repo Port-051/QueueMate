@@ -74,7 +74,7 @@
 
 .board-home .recruitment-list { container-type: inline-size; display: grid; grid-template-columns: var(--recruitment-columns); --recruitment-columns: minmax(0, 1fr) repeat(5, max-content); }
 .board-home .recruitment-list.without-roles { --recruitment-columns: minmax(0, 1fr) repeat(4, max-content); }
-.board-home .recruitment-row { grid-column: 1 / -1; grid-template-columns: subgrid; gap: 0; min-height: 108px; padding: 18px 32px 18px 16px; }
+.board-home .recruitment-row { grid-column: 1 / -1; grid-template-columns: subgrid; gap: 0; min-height: 108px; padding: 18px 16px; }
 .board-home .recruitment-row:first-child { border-top: 0; }
 .board-home .row-player { gap: 12px; padding-right: 24px; }
 .board-home .row-player b { font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
@@ -98,7 +98,6 @@
 .board-home .row-voice { display: flex; align-items: center; justify-content: flex-start; }
 .board-home .row-fresh { gap: 5px; justify-items: start; padding-right: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
 .row-posted { color: var(--text-dim); }
-.board-home .row-fresh .row-arrow { right: -20px; top: 50%; transform: translateY(-50%); }
 .board-home .board-new-results, .board-home .board-empty p { font-size: 14px; }
 .board-feed .match-stage .compact-party { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .board-feed .match-stage .compact-party > .compact-chat { grid-column: 1 / -1; }
@@ -136,15 +135,19 @@
   .board-home .row-roles { grid-column: 2; grid-row: 3; width: 142px; max-width: none; justify-self: end; padding-left: 0; }
   .board-home .row-voice { grid-column: 3; grid-row: 3; }
   .board-home .row-meta.row-mode::before, .board-home .row-meta.row-voice::before { display: block; }
-  .board-home .row-fresh { grid-column: 2 / -1; grid-row: 4; justify-self: end; padding-right: 20px; }
+  .board-home .row-fresh { grid-column: 2 / -1; grid-row: 4; justify-self: end; padding-right: 0; }
   .board-home .recruitment-row.without-roles .row-roles { display: none; }
   .board-home .without-roles .row-voice { grid-column: 2; justify-self: end; }
   .board-home .without-roles .row-voice::before { display: none; }
   .board-home .without-roles .row-fresh { grid-column: 3; grid-row: 3; justify-self: start; }
   .board-home .without-roles .row-fresh::before { display: block; }
-  .board-home .row-fresh .row-arrow { right: 0; }
 }
 @media (max-width: 650px) {
   .board-home .board-tabs { gap: 22px; }
   .board-feed .match-stage .compact-party { grid-template-columns: minmax(0, 1fr); }
 }
+
+.board-home .row-rank .row-tier, .board-home .row-mode .recruitment-mode { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; text-align: center; }
+.board-home .row-mode { justify-items: center; }
+
+.board-home .row-rank { display: grid; justify-items: center; }
