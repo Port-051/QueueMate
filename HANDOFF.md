@@ -1,6 +1,6 @@
 # HANDOFF — 다음 세션 인계
 
-**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-15 (화) 13:15 KST
+**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-15 (화) 13:24 KST
 **읽는 순서:** `CLAUDE.md` → `START_HERE.md` → **이 파일**
 
 이 파일은 "지금 어디까지 왔고 무엇이 열려 있는가"만 담는다. 규칙은 `CLAUDE.md`,
@@ -19,6 +19,8 @@
 - 쓰이지 않던 `AcceptanceStatus` / `ProposalStatus` 삭제.
 - **PUBG 시드 들어감** (모드 8 / 티어 사다리 27 / 랭크 티어 범위 표 4). **모드 목록 SET 은 LoL·PUBG 모두 없앴다.**
 - **PUBG validator 커밋됨** (`validation/pubg/PubgConditionValidator.java`). PUBG 배정 규칙은 사용자가 작성 중.
+- **Lua 스크립트 빈 설정을 나눴다.** `config/RedisConfig`(공통: claim·accept·decline + `readScript()`) /
+  `config/lol/LolRedisConfig`(LoL 5개). 빈 이름은 그대로라 기존 주입은 안 바뀌었다(`02d654f`).
 - **GitHub**: private 저장소 `github.com/rlaehddus302/queuemate-matching` (`main`).
 
 ### 테스트 — 커밋 `8d7f094` 기준 24건 통과 (2026-09-15)
@@ -26,7 +28,9 @@
 `concurrency.*` 7 + `PushNotificationTest` 6 + `ProposalIdempotencyTest` 11 = **24/24 통과.**
 결과 로그에서 `ERR Error running script` / `RedisSystemException` / ERROR 로그도 0건이었다.
 
-그 뒤 커밋 중 **자바를 바꾼 것은 `4c1c492`(PUBG validator 추가) 하나**다. 나머지(`af3b7ff` 시드 ·
+**설정 분리(`02d654f`)도 같은 24건으로 컨텍스트 기동까지 확인했다** (HEAD `31d23f7` + 설정 두 파일, PUBG 파일 제외).
+
+그 전 커밋 중 자바를 바꾼 것은 `4c1c492`(PUBG validator 추가)다. 나머지(`af3b7ff` 시드 ·
 `3198f74` `07b77be` `13dea28` 문서)는 자바를 건드리지 않았고, 테스트는 자기 시드를 직접 심으므로 영향이 없다.
 **PUBG validator 는 그 24건에 포함되지 않았고, PUBG 를 검증하는 테스트는 아직 하나도 없다.**
 
@@ -46,9 +50,11 @@
 `IllegalArgumentException("파티 배정 규칙이 없는 게임")` 으로 끝난다. `@Async` 라 201 로 나가고 그 사용자는
 claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 
-**작업 트리에 커밋 안 된 것 — 전부 사용자가 작성 중이다. 건드리지 마라.**
-- `rule/pubg/PubgCandidateRule.java`
-- `resources/redis/pubg/create-or-check-party-tiered.lua`, `create-or-check-party-untiered.lua`
+**작업 트리에 커밋 안 된 것 — 건드리지 마라.**
+- 사용자 작성 중: `rule/pubg/` 전체(`PubgCandidateRule` `PubgPartyKeys` `PubgScriptSupport` `TieredAssigner` `UntieredAssigner`),
+  `resources/redis/pubg/create-or-check-party-{tiered,untiered}.lua`
+- **Claude 가 만들었지만 일부러 안 올린 것:** `config/pubg/PubgRedisConfig.java` — 위 PUBG Lua 두 개를 읽는 빈이다.
+  Lua 가 커밋되지 않은 채 이것만 올리면 커밋된 코드로는 앱이 안 뜬다. **사용자가 PUBG Lua 를 올릴 때 같이 올려라.**
 
 ⚠️ **IntelliJ 가 새 파일을 git 에 자동으로 스테이징한다.** 실제로 위 Lua 두 개가 문서 커밋 `b785297` 에
 딸려 올라갔다가 `e8932ad` 로 추적에서만 뺐다(원격 이력에는 남아 있다). 커밋은
@@ -93,7 +99,11 @@ claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
   `supports(GameKey)` 로 게임별 구현을 고른다. PUBG 는 `CandidateRule` 구현체를 `@Component` 로 하나 두면 된다
 - `rule/pubg/PubgPartyKeys` — `LolPartyKeys` 가 `qm:party:open:LOL:` 과 `qm:gameconfig:LOL:` 을 **박아 두었으므로**
   재사용할 수 없다. 색인 키는 `qm:party:open:PUBG:{mode}:{voice}:{purpose}:needs:{STEAM|KAKAO}` (+ 랭크는 `:{티어}` 를 Lua 가 붙인다)
-- `rule/pubg/PubgCandidateRule` + Assigner — **사용자가 `PubgCandidateRule.java` 를 작성 중이다.** 이어받기 전에 물어라
+- `rule/pubg/PubgCandidateRule` + Assigner — **사용자가 작성 중이다.** 이어받기 전에 물어라
+- **스크립트 빈 이름에 `pubg` 접두사가 붙는다** (`pubgCreateOrCheckPartyTieredScript` 등, `config/pubg/PubgRedisConfig`).
+  같은 타입(`RedisScript<List>`) 빈이 여럿이라 Spring 은 **주입 필드 이름 = 빈 이름**으로 고른다. PUBG Assigner 가
+  LoL 이름(`createOrCheckPartyTieredScript`)으로 필드를 선언하면 **LoL 스크립트가 주입된다** — 컴파일도 기동도 통과하고
+  배그가 롤 Lua 로 돈다. 필드 이름을 반드시 `pubg...` 로 맞춰라
 - `redis/pubg/*.lua` — **LoL 스크립트를 고쳐 쓰지 말고 자기 디렉터리에** (D-7)
 - **PUBG 동시성 테스트** — 스크립트를 나눈 대가다(CLAUDE.md §4 "게임마다 테스트")
 
@@ -133,7 +143,8 @@ claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 `decline` 의 무조건 `cancel()`(가드 들어감) / `LolConditionValidator` 키 문자열 하드코딩
 (`keys.tierRangeKey` 로) / `TieredAssigner` 의 `TierRange` 죽은 코드 / 문서 전반의
 `TABLE`·`WINDOW`·`maxTierGap`·`LolTier` 서술 / `CLAUDE.md` INV-2·4·5 상태 열 / `PLAY_STYLE` → `PLATFORM` 문서 반영 /
-모드 목록 SET 제거와 그 문서 반영 / PUBG validator 의 뒤집힌 티어 분기·null 가드·파일명 오타.
+모드 목록 SET 제거와 그 문서 반영 / PUBG validator 의 뒤집힌 티어 분기·null 가드·파일명 오타 /
+`RedisConfig` 를 공통·게임별로 분리.
 
 ---
 
