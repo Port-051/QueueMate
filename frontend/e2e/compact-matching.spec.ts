@@ -3,7 +3,7 @@ import { login, startRealtimeMatch } from './helpers';
 
 test('상대 포지션 전체 선택은 다섯 개 그대로 유지된다', async ({ page }) => {
   await login(page);
-  const roles = page.locator('.recruitment-composer-shell').getByRole('group', { name: '찾는 상대 포지션', exact: true });
+  const roles = page.locator('.recruitment-composer-shell').getByRole('group', { name: '찾는 포지션', exact: true });
   for (const role of ['탑', '정글', '미드', '바텀', '서포터']) await roles.getByRole('button', { name: role, exact: true }).click();
   await expect(roles.locator('[aria-pressed=true]')).toHaveCount(5);
   await expect(roles.getByRole('button', { name: '무관', exact: true })).toHaveCount(0);
@@ -45,7 +45,7 @@ test('좁은 화면에서도 네 포지션이 한 줄이며 X로 제안을 넘�
   await page.setViewportSize({ width: 360, height: 800 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.clock.install(); await login(page);
-  const roles = page.locator('.recruitment-composer-shell').getByRole('group', { name: '찾는 상대 포지션', exact: true });
+  const roles = page.locator('.recruitment-composer-shell').getByRole('group', { name: '찾는 포지션', exact: true });
   for (const role of ['탑', '정글', '미드', '바텀']) await roles.getByRole('button', { name: role, exact: true }).click();
   await startRealtimeMatch(page);
   await page.clock.fastForward(7000);

@@ -16,7 +16,7 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
   const hasRoles = usesKeyCondition(game, value.queueType);
   const [championText, setChampionText] = useState(value.champions.join(', '));
   const patch = (next: Partial<SelfIntroduction>) => onChange({ ...value, ...next });
-  const roleTitle = game === 'LOL' ? '주 포지션' : game === 'VALORANT' ? '주 역할' : '플레이 스타일';
+  const roleTitle = game === 'LOL' ? '내 포지션' : game === 'VALORANT' ? '주 역할' : '플레이 스타일';
   const championTitle = game === 'LOL' ? '선호 챔피언' : game === 'VALORANT' ? '선호 요원' : '선호 무기';
   const wins = value.recentResults.filter(result => result === 'WIN').length;
   const losses = value.recentResults.filter(result => result === 'LOSS').length;
@@ -30,7 +30,7 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
         <fieldset className="introduction-choice"><legend>{roleTitle}</legend><div className="intro-role-options" role="group" aria-label={roleTitle}>
           {roles.map(role => <button type="button" key={role.value} className="filter-role" aria-label={role.label} aria-pressed={ownRoles.includes(role.value)} onClick={() => { const next = ownRoles.includes(role.value) ? ownRoles.filter(item => item !== role.value) : [...ownRoles, role.value]; patch({ primaryRoles: next, primaryRole: next[0] ?? 'ANY' }); }}><FilterRoleIcon game={game} value={role.value} /><span>{role.label}</span></button>)}
         </div></fieldset>
-        <fieldset className="introduction-choice"><legend>{game === 'LOL' ? '찾는 상대 포지션' : game === 'VALORANT' ? '찾는 상대 역할' : '찾는 상대 스타일'}</legend><div className="intro-role-options" role="group" aria-label="찾는 상대 포지션">
+        <fieldset className="introduction-choice"><legend>{game === 'LOL' ? '찾는 포지션' : game === 'VALORANT' ? '찾는 상대 역할' : '찾는 상대 스타일'}</legend><div className="intro-role-options" role="group" aria-label="찾는 포지션">
           {roles.map(role => <button type="button" key={role.value} className="filter-role" aria-label={role.label} aria-pressed={value.desiredRoles.includes(role.value)} onClick={() => patch({ desiredRoles: normalizeDesiredRoles(game, value.desiredRoles.includes(role.value) ? value.desiredRoles.filter(item => item !== role.value) : [...value.desiredRoles, role.value]) })}><FilterRoleIcon game={game} value={role.value} /><span>{role.label}</span></button>)}
         </div></fieldset>
       </> : null}

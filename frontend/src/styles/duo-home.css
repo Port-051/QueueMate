@@ -73,8 +73,8 @@
 .filter-error { color: var(--warn); font-size: 14px; margin: 7px 0; }
 .recruitment-method { color: #b9a6ed; font-size: 13px; }
 
-.board-home .recruitment-list { container-type: inline-size; display: grid; grid-template-columns: var(--recruitment-columns); --recruitment-columns: minmax(0, 1fr) repeat(5, max-content); }
-.board-home .recruitment-list.without-roles { --recruitment-columns: minmax(0, 1fr) repeat(4, max-content); }
+.board-home .recruitment-list { container-type: inline-size; display: grid; grid-template-columns: var(--recruitment-columns); --recruitment-columns: minmax(0, 1fr) repeat(3, max-content); }
+.board-home .recruitment-list.without-roles { --recruitment-columns: minmax(0, 1fr) repeat(2, max-content); }
 .board-home .recruitment-row { grid-column: 1 / -1; grid-template-columns: subgrid; gap: 0; min-height: 108px; padding: 18px 16px; }
 .board-home .recruitment-row:first-child { border-top: 0; }
 .board-home .row-player { gap: 12px; padding-right: 24px; }
@@ -158,3 +158,17 @@
 .recruitment-role-targets { flex-wrap: nowrap; }
 .board-home .row-roles .recruitment-role-pair { gap: 6px; }
 .recruitment-role-targets .recruitment-role-icon { color: var(--muted); }
+
+.board-home .row-roles { width: auto; max-width: none; }
+.board-home .row-roles .recruitment-role-pair { flex-direction: row; align-items: center; gap: 4px; }
+.recruitment-voice.voice-required { color: #4ade80; }
+.recruitment-voice.voice-no_voice { color: #f87171; }
+@container (max-width: 680px) {
+  .board-home .recruitment-row { grid-template-columns: minmax(0, 1fr) auto; gap: 10px 12px; }
+  .board-home .row-rank { grid-column: 1; grid-row: 2; justify-self: start; }
+  .board-home .row-fresh, .board-home .without-roles .row-fresh { grid-column: 2; grid-row: 2; justify-self: end; }
+  .board-home .row-roles { grid-column: 1 / -1; grid-row: 3; justify-self: start; }
+}
+
+.recruitment-role-arrow { display: none; }
+.row-roles .recruitment-role-arrow { display: block; }

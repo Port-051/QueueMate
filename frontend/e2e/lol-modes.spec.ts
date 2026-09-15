@@ -21,7 +21,7 @@ test('실시간·예약 모두 네 모드를 같은 이름과 2인 정원으로 
   await page.clock.install(); await login(page);
   const filters = page.locator('.board-filter-bar');
   const modeGroup = filters.getByRole('group', { name: '찾는 큐 타입', exact: true });
-  const roleGroup = filters.getByRole('group', { name: '찾는 상대 포지션', exact: true });
+  const roleGroup = filters.getByRole('group', { name: '찾는 포지션', exact: true });
   const rows = page.locator('.recruitment-row');
   await expect(modeGroup.getByRole('button')).toHaveText(modes.map(mode => mode.label));
   await expect(page.locator('.board-results-head')).toContainText('40개 매칭 글');
@@ -58,8 +58,8 @@ test('칼바람 소개는 포지션 입력을 숨기고 전송 조건만 무관�
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const dialog = page.locator('.recruitment-composer-shell');
   const queue = dialog.getByRole('group', { name: '원하는 큐 타입', exact: true });
-  const primary = dialog.getByRole('group', { name: '주 포지션', exact: true });
-  const desired = dialog.getByRole('group', { name: '찾는 상대 포지션', exact: true });
+  const primary = dialog.getByRole('group', { name: '내 포지션', exact: true });
+  const desired = dialog.getByRole('group', { name: '찾는 포지션', exact: true });
   await expect(queue.getByRole('button')).toHaveText(modes.map(mode => mode.label));
   await selectButton(queue, '랭크');
   await selectButton(primary, '바텀');
@@ -122,7 +122,7 @@ test('저장된 랭크 소개가 있어도 칼바람 글에서 바로 참여하�
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const dialog = page.locator('.recruitment-composer-shell');
   await selectButton(dialog.getByRole('group', { name: '원하는 큐 타입', exact: true }), '랭크');
-  await selectButton(dialog.getByRole('group', { name: '주 포지션', exact: true }), '미드');
+  await selectButton(dialog.getByRole('group', { name: '내 포지션', exact: true }), '미드');
   await dialog.getByLabel('한마디', { exact: true }).fill('서로 존중하면서 즐겨요');
   await dialog.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(dialog).toHaveCount(0);
@@ -131,7 +131,7 @@ test('저장된 랭크 소개가 있어도 칼바람 글에서 바로 참여하�
   await page.getByRole('button', { name: '포로간식 매칭 글 상세', exact: true }).click();
   await page.getByRole('button', { name: '자기소개 작성하고 오케이 보내기', exact: true }).click();
   await expect(dialog.getByRole('group', { name: '원하는 큐 타입', exact: true }).getByRole('button', { name: '칼바람', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(dialog.getByRole('group', { name: '주 포지션', exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole('group', { name: '내 포지션', exact: true })).toHaveCount(0);
   await expect(dialog.getByLabel('한마디', { exact: true })).toHaveValue('서로 존중하면서 즐겨요');
   await dialog.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(dialog).toHaveCount(0);

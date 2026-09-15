@@ -37,7 +37,7 @@ test('종료된 매칭의 상태 응답이 늦어도 다른 매칭에 바로 참
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const dialog = page.locator('.recruitment-composer-shell');
   await selectButton(dialog.getByRole('group', { name: '원하는 큐 타입', exact: true }), '랭크');
-  await selectButton(dialog.getByRole('group', { name: '주 포지션', exact: true }), '미드');
+  await selectButton(dialog.getByRole('group', { name: '내 포지션', exact: true }), '미드');
   await dialog.getByLabel('한마디', { exact: true }).fill('서로 존중하면서 즐겨요');
   await dialog.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(dialog).toHaveCount(0);

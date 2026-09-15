@@ -157,7 +157,7 @@ test('로고 아래 게임 아이콘은 선택 링을 표시하고 게임을 바
   await expect(lol.locator('.game-nav-logo')).toHaveCSS('outline-color', 'rgb(124, 77, 255)');
 
   const filters = page.locator('.board-filter-bar');
-  const roleFilter = filters.getByRole('group', { name: '찾는 상대 포지션', exact: true });
+  const roleFilter = filters.getByRole('group', { name: '찾는 포지션', exact: true });
   const modeFilter = filters.getByRole('group', { name: '찾는 큐 타입', exact: true });
   const tierFilter = filters.getByRole('button', { name: '찾는 상대 티어', exact: true });
   await roleFilter.getByRole('button', { name: '서포터', exact: true }).click();

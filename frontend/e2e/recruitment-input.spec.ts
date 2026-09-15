@@ -26,7 +26,7 @@ test('상대 티어 하나를 고르면 바로 필터링되고 전체 티어로 
 test('포지션 아이콘은 재선택으로 해제되고 큐·음성 조건과 함께 목록을 좁힌다', async ({ page }) => {
   await login(page);
   const filters = page.locator('.board-filter-bar');
-  const roles = filters.getByRole('group', { name: '찾는 상대 포지션', exact: true });
+  const roles = filters.getByRole('group', { name: '찾는 포지션', exact: true });
   const modes = filters.getByRole('group', { name: '찾는 큐 타입', exact: true });
   const voice = filters.getByRole('switch', { name: '음성 사용 매칭만 보기', exact: true });
   const rows = page.locator('.recruitment-row');

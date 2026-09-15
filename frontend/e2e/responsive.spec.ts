@@ -45,7 +45,7 @@ test('모바일 필터는 한 줄로 스크롤되고 선택 팝업과 예약 입
   const line = filters.locator('.board-filter-line');
   const tier = filters.getByRole('button', { name: '찾는 상대 티어', exact: true });
   const voice = filters.getByRole('switch', { name: '음성 사용 매칭만 보기', exact: true });
-  const roles = filters.getByRole('group', { name: '찾는 상대 포지션', exact: true });
+  const roles = filters.getByRole('group', { name: '찾는 포지션', exact: true });
   const modes = filters.getByRole('group', { name: '찾는 큐 타입', exact: true });
   await expect(roles.getByRole('button')).toHaveCount(5);
   for (const name of ['탑', '정글', '미드', '바텀', '서포터']) {

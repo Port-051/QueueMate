@@ -15,7 +15,7 @@ export function BoardFilters({ value, onChange, onReset }: { value: BoardSearch;
   const selectedRoles = value.preferences.desiredKeys.length ? value.preferences.desiredKeys : value.condition.keyCondition.value !== 'ANY' ? [value.condition.keyCondition.value] : [];
   const toggleRole = (role: string) => onChange({ ...value, condition: { ...value.condition, keyCondition: { ...value.condition.keyCondition, value: 'ANY' } }, preferences: { ...value.preferences, desiredKeys: selectedRoles.includes(role) ? selectedRoles.filter(key => key !== role) : [...selectedRoles, role] }, page: 0 });
   const chooseMode = (modeKey: string) => onChange({ ...value, condition: conditionForMode(value.condition, modeKey), preferences: { ...value.preferences, desiredKeys: usesKeyCondition(game, modeKey) ? selectedRoles : [] }, page: 0 });
-  const filtered = value.condition.modeKey !== 'ANY' || selectedRoles.length > 0 || value.condition.voicePreference !== 'OPTIONAL' || Boolean(value.preferences.minTier);
+  const filtered = value.condition.modeKey !== visibleModes(game)[0].key || selectedRoles.length > 0 || value.condition.voicePreference !== 'OPTIONAL' || Boolean(value.preferences.minTier);
   return <div className="board-filter-bar">
     <div className="board-filter-line" role="group" aria-label="상대 검색 필터">
       <FilterSelect key={`${game}-tier`} className={`filter-tier${value.preferences.minTier ? ' is-filtered' : ''}`} label="찾는 상대 티어" value={value.preferences.minTier ?? ''} options={[
@@ -23,11 +23,11 @@ export function BoardFilters({ value, onChange, onReset }: { value: BoardSearch;
         ...tiers(game).map(tier => ({ value: tier, label: TIER_LABELS[tier], icon: <FilterTierIcon game={game} tier={tier} size={28} /> })),
       ]} onChange={tier => onChange({ ...value, preferences: { ...value.preferences, minTier: tier || null, maxTier: tier || null }, page: 0 })} />
       <div className="filter-mode-options" role="group" aria-label="찾는 큐 타입">
-        {visibleModes(game).map(mode => <button key={mode.key} type="button" className="filter-mode" aria-label={mode.label} aria-pressed={value.condition.modeKey === mode.key} onClick={() => chooseMode(value.condition.modeKey === mode.key ? 'ANY' : mode.key)}>
+        {visibleModes(game).map(mode => <button key={mode.key} type="button" className="filter-mode" aria-label={mode.label} aria-pressed={value.condition.modeKey === mode.key} onClick={() => chooseMode(mode.key)}>
           <FilterModeIcon mode={mode.key} /><span>{mode.label}</span>
         </button>)}
       </div>
-      {usesKeyCondition(game, value.condition.modeKey) ? <div className="filter-role-options" role="group" aria-label="찾는 상대 포지션">
+      {usesKeyCondition(game, value.condition.modeKey) ? <div className="filter-role-options" role="group" aria-label="찾는 포지션">
         {keyConditionOptions(game).filter(role => role.value !== 'ANY').map(role => <button key={role.value} type="button" className="filter-role" aria-label={role.label} title={role.label} aria-pressed={selectedRoles.includes(role.value)} onClick={() => toggleRole(role.value)}>
           <FilterRoleIcon game={game} value={role.value} />
         </button>)}
