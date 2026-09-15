@@ -21,18 +21,18 @@ test('실시간·예약 모두 네 모드를 같은 이름과 2인 정원으로 
   await page.clock.install(); await login(page);
   const filters = page.locator('.board-filter-bar');
   const modeGroup = filters.getByRole('group', { name: '찾는 큐 타입', exact: true });
-  const roleGroup = filters.getByRole('group', { name: '찾는 포지션', exact: true });
+  const roleGroup = filters.getByRole('group', { name: '포지션', exact: true });
   const rows = page.locator('.recruitment-row');
   await expect(modeGroup.getByRole('button')).toHaveText(modes.map(mode => mode.label));
-  await expect(page.locator('.board-results-head')).toContainText('40개 매칭 글');
+  await expect(page.locator('.board-results-head')).toContainText('10명이 매칭 중이에요');
 
   for (const type of ['실시간', '예약']) {
     await page.getByRole('tab', { name: `${type} 매칭`, exact: true }).click();
     for (const mode of modes) {
       await modeGroup.getByRole('button', { name: mode.label, exact: true }).click();
-      await expect(page.locator('.board-results-head')).toContainText('10개 매칭 글');
+      await expect(page.locator('.board-results-head')).toContainText('10명이 매칭 중이에요');
       await expect(rows).toHaveCount(10);
-      await expect(rows.locator('.row-mode .recruitment-mode')).toHaveText(Array(10).fill(mode.label));
+      await expect(rows.locator('.row-mode')).toHaveCount(0);
       if (mode.key === 'ARAM') {
         await expect(roleGroup).toHaveCount(0);
         await expect(rows.locator('.recruitment-role-pair')).toHaveCount(0);
@@ -44,13 +44,13 @@ test('실시간·예약 모두 네 모드를 같은 이름과 2인 정원으로 
   }
   await modeGroup.getByRole('button', { name: '랭크', exact: true }).click();
   await roleGroup.getByRole('button', { name: '탑', exact: true }).click();
-  await expect(page.locator('.board-results-head')).toContainText('2개 매칭 글');
+  await expect(rows).toHaveCount(7);
   await modeGroup.getByRole('button', { name: '칼바람', exact: true }).click();
   await expect(roleGroup).toHaveCount(0);
-  await expect(page.locator('.board-results-head')).toContainText('10개 매칭 글');
+  await expect(page.locator('.board-results-head')).toContainText('10명이 매칭 중이에요');
   await modeGroup.getByRole('button', { name: '랭크', exact: true }).click();
   await expect(roleGroup.getByRole('button', { pressed: true })).toHaveCount(0);
-  await expect(page.locator('.board-results-head')).toContainText('10개 매칭 글');
+  await expect(page.locator('.board-results-head')).toContainText('10명이 매칭 중이에요');
 });
 
 test('칼바람 소개는 포지션 입력을 숨기고 전송 조건만 무관으로 정리하며 작성하던 소개를 보존한다', async ({ page }) => {
@@ -143,7 +143,7 @@ test('저장된 랭크 소개가 있어도 칼바람 글에서 바로 참여하�
 
 test('첫 페이지 밖 신속 매칭과 자동 매칭돼도 상대 소개를 확인하고 수락할 수 있다', async ({ page }) => {
   await page.clock.install(); await login(page);
-  await expect(page.locator('.recruitment-row .row-mode .recruitment-mode')).toHaveText(Array(10).fill('랭크'));
+  await expect(page.locator('.recruitment-row')).toHaveCount(10);
   await expect(page.getByRole('button', { name: '퇴근후십분 매칭 글 상세', exact: true })).toHaveCount(0);
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const dialog = page.locator('.recruitment-composer-shell');
@@ -153,12 +153,8 @@ test('첫 페이지 밖 신속 매칭과 자동 매칭돼도 상대 소개를 �
   const proposal = page.locator('.duo-offer');
   await page.clock.fastForward(7000);
   await expect(proposal).toBeVisible();
-  const peer = proposal.locator('.participant-introduction');
-  await expect(peer.locator('.participant-facts')).toBeVisible();
-  await peer.getByText('소개 보기', { exact: true }).click();
-  await expect(peer.locator('.recruitment-introduction dl')).toContainText('신속');
-  await expect(peer.locator('.recruitment-introduction > p')).not.toBeEmpty();
-  await expect(peer).not.toContainText('불러오지 못했어요');
+  await expect(proposal.locator('.match-condition-summary')).toContainText('신속');
+  await expect(proposal.locator('.duo-offer-bio')).not.toBeEmpty();
   await proposal.getByRole('button', { name: '같이 할래요', exact: true }).click();
   await expect(page.getByRole('region', { name: '보낸 오케이' })).toBeVisible();
   await page.clock.fastForward(22000);

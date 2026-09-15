@@ -5,11 +5,10 @@ test('자동 추천의 소개를 읽는 동안 매칭 타이머와 수락 버튼
   await page.clock.install(); await login(page); await startRealtimeMatch(page);
   await page.clock.fastForward(7000);
   const proposal = page.locator('.duo-offer');
-  const introduction = proposal.locator('.participant-introduction');
+  const introduction = proposal.locator('.duo-offer-copy');
   await expect(introduction.locator('.row-introduction-stats')).toContainText('승률');
   await expect(introduction.locator('.row-introduction-stats')).toContainText('KDA');
-  await introduction.locator('summary').click();
-  await expect(introduction.locator('.recent-results > span')).toHaveCount(20);
+  await expect(proposal.locator('.match-condition-summary')).toBeVisible();
   const timer = page.getByRole('timer', { name: '매칭 시작 후', exact: true });
   const before = await timer.innerText();
   await page.clock.fastForward(2000); await expect(timer).not.toHaveText(before);

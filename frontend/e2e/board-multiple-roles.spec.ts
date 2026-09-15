@@ -11,7 +11,7 @@ test('포지션 다중 선택은 합집합으로 검색하고 개별 해제와 �
   await expect(roles.locator('[aria-pressed=true]')).toHaveCount(2);
   const rows = page.locator('.recruitment-row');
   await expect(rows.first()).toBeVisible();
-  expect(await rows.locator('.row-roles > .recruitment-role-pair').evaluateAll(nodes => nodes.every(node => ['탑', '정글', '전체'].some(role => (node.getAttribute('aria-label') ?? '').split(',')[0].includes(role))))).toBe(true);
+  await expect.poll(() => rows.locator('.row-roles > .recruitment-role-pair').evaluateAll(nodes => nodes.every(node => ['탑', '정글', '전체'].some(role => (node.getAttribute('aria-label') ?? '').split(',')[0].includes(role))))).toBe(true);
   await roles.getByRole('button', { name: '탑', exact: true }).click();
   await expect(rows.first()).toBeVisible();
   await expect(roles.getByRole('button', { name: '정글', exact: true })).toHaveAttribute('aria-pressed', 'true');

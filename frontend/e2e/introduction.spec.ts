@@ -5,7 +5,7 @@ test('기본 랭크 모드로 선택 단계 없이 매칭을 시작한다', asyn
   await login(page);
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const dialog = page.locator('.recruitment-composer-shell');
-  await expect(dialog.getByRole('group', { name: '포지션', exact: true }).getByRole('button', { name: '무관', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(dialog.getByRole('group', { name: '포지션', exact: true }).locator('[aria-pressed=true]')).toHaveCount(0);
   await expect(dialog.getByRole('group', { name: '원하는 큐 타입', exact: true }).locator('[aria-pressed="true"]')).toHaveCount(1);
   await expect(dialog.locator('.matching-rail-heading')).toHaveCount(0);
   await expect(dialog.getByLabel('내 티어', { exact: true })).toHaveCount(0);
@@ -60,9 +60,9 @@ test('매칭 글 목록과 상세에서 자기소개 전적을 보여주고 최�
   await expect(row.locator('.row-introduction-stats')).toContainText('KDA');
   await expect(row.locator('.recruitment-role-pair')).toHaveText('');
   await expect(row.getByRole('img', { name: '탑', exact: true })).toHaveAttribute('title', '탑');
-  await expect(row.getByRole('img', { name: '무관', exact: true })).toBeVisible();
+  await expect(row.locator('.recruitment-role-targets .recruitment-role-icon')).toHaveCount(2);
   await expect(page.locator('.board-filter-bar').getByRole('button', { name: '바텀', exact: true })).toHaveAttribute('title', '바텀');
-  await expect(page.getByRole('button', { name: 'LateGame 매칭 글 상세', exact: true }).getByRole('img', { name: '바텀', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'LateGame 매칭 글 상세', exact: true }).locator('.recruitment-role-own').getByRole('img', { name: '바텀', exact: true })).toBeVisible();
   await row.click();
   const dialog = page.getByRole('region', { name: '매칭 글 상세', exact: true });
   await expect(dialog).toContainText('예시 전적');

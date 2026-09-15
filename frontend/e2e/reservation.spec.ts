@@ -10,7 +10,8 @@ test('예약은 별도 탭에서 등록하고 겹치는 예약은 서버가 거�
   await login(page); await open(page);
   await page.locator('.recruitment-composer-shell').getByRole('group', { name: '플레이 양' }).getByRole('button', { name: '두 게임 이상' }).click();
   await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
-  await expect(page.locator('.my-recruitment')).toContainText('예약');
+  await expect(page.locator('.my-recruitment')).toBeVisible();
+  expect(await page.evaluate(async () => { const path = '/src/api/recruitment.ts'; const api = await import(/* @vite-ignore */ path); return (await api.myRecruitments()).some(row => row.type === 'RESERVATION'); })).toBe(true);
   await open(page); await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('시간이 겹치는 예약');
 });
@@ -42,5 +43,6 @@ test('예약 매칭을 종료하면 신규 예약을 다시 등록할 수 있다
   await manageRecruitment(page, '매칭 종료');
   await expect(page.locator('.my-recruitment')).toHaveCount(0);
   await open(page); await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
-  await expect(page.locator('.my-recruitment')).toContainText('예약');
+  await expect(page.locator('.my-recruitment')).toBeVisible();
+  expect(await page.evaluate(async () => { const path = '/src/api/recruitment.ts'; const api = await import(/* @vite-ignore */ path); return (await api.myRecruitments()).some(row => row.type === 'RESERVATION'); })).toBe(true);
 });
