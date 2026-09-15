@@ -102,12 +102,13 @@ function view(row: BoardRow) {
 function owned(id: string) { const row = rows.get(id); if (!row || row.userId !== db.me.id) throw new ApiError(404, 'RECRUITMENT_NOT_FOUND', '매칭을 찾을 수 없습니다'); return refresh(row); }
 function editable(row: BoardRow) { if (!['OPEN', 'STALE', 'PAUSED', 'REQUESTED', 'JOINED'].includes(row.status)) throw new ApiError(409, 'RECRUITMENT_CONFLICT', '현재 매칭 상태를 다시 확인해 주세요'); }
 function version(row: BoardRow, expected: number) { if (row.version !== expected) throw new ApiError(409, 'RECRUITMENT_CONFLICT', '다른 화면에서 매칭이 바뀌었습니다. 다시 확인해 주세요'); }
+function ownRoles(condition: MatchCondition, preferences: BoardPreferences) { return preferences.ownKeys ?? (condition.keyCondition.value === 'ANY' ? [] : [condition.keyCondition.value]); }
 function accepts(a: BoardPreferences, ca: MatchCondition, b: BoardPreferences, cb: MatchCondition) {
   if (a.minTier || a.maxTier) {
     const list = tiers(ca.game), value = b.ownTier ? list.indexOf(b.ownTier) : -1;
     if (value < 0 || (a.minTier && value < list.indexOf(a.minTier)) || (a.maxTier && value > list.indexOf(a.maxTier))) return false;
   }
-  return (!hasPositions(ca) || !hasPositions(cb) || !a.desiredKeys.length || cb.keyCondition.value === 'ANY' || a.desiredKeys.includes('ANY') || a.desiredKeys.includes(cb.keyCondition.value)) && (!a.purposeRequired || ca.playPurpose === cb.playPurpose);
+  return (!hasPositions(ca) || !hasPositions(cb) || !a.desiredKeys.length || !ownRoles(cb, b).length || a.desiredKeys.includes('ANY') || ownRoles(cb, b).some(role => a.desiredKeys.includes(role))) && (!a.purposeRequired || ca.playPurpose === cb.playPurpose);
 }
 function compatible(ca: MatchCondition, pa: BoardPreferences, cb: MatchCondition, pb: BoardPreferences): boolean {
   if (ca.game !== cb.game || (ca.modeKey !== 'ANY' && cb.modeKey !== 'ANY' && ca.modeKey !== cb.modeKey)) return false;
@@ -116,7 +117,12 @@ function compatible(ca: MatchCondition, pa: BoardPreferences, cb: MatchCondition
   const selectedMode = ca.modeKey === 'ANY' ? cb.modeKey : ca.modeKey;
   ca = conditionInMode(ca, selectedMode); cb = conditionInMode(cb, selectedMode);
   if ([ca.voicePreference, cb.voicePreference].includes('REQUIRED') && [ca.voicePreference, cb.voicePreference].includes('NO_VOICE')) return false;
-  if (modeOf(ca.game, selectedMode)?.roleUniqueness && ca.keyCondition.value !== 'ANY' && ca.keyCondition.value === cb.keyCondition.value) return false;
+  if (modeOf(ca.game, selectedMode)?.roleUniqueness && hasPositions(ca)) {
+    const available = GAME_SEED[ca.game].values.filter(role => role !== 'ANY');
+    const a = ownRoles(ca, pa).length ? ownRoles(ca, pa) : available;
+    const b = ownRoles(cb, pb).length ? ownRoles(cb, pb) : available;
+    if (!a.some(left => b.some(right => left !== right && (!pa.desiredKeys.length || pa.desiredKeys.includes(right)) && (!pb.desiredKeys.length || pb.desiredKeys.includes(left))))) return false;
+  }
   return accepts(pa, ca, pb, cb) && accepts(pb, cb, pa, ca);
 }
 function matches(query: BoardSearch, row: BoardRow, viewerId = db.me.id) {
@@ -129,7 +135,7 @@ function matches(query: BoardSearch, row: BoardRow, viewerId = db.me.id) {
     const modeKey = effectiveCondition(row).modeKey;
     if (query.condition.modeKey !== 'ANY' && modeKey !== 'ANY' && query.condition.modeKey !== modeKey) return false;
     const roles = query.preferences.desiredKeys.length ? query.preferences.desiredKeys : query.condition.keyCondition.value !== 'ANY' ? [query.condition.keyCondition.value] : [];
-    if (hasPositions(query.condition) && roles.length && !roles.includes(effectiveCondition(row).keyCondition.value)) return false;
+    if (hasPositions(query.condition) && roles.length && !ownRoles(effectiveCondition(row), row.preferences).some(role => roles.includes(role)) && ownRoles(effectiveCondition(row), row.preferences).length > 0) return false;
     if (query.condition.voicePreference !== 'OPTIONAL' && query.condition.voicePreference !== row.condition.voicePreference) return false;
     if (!accepts({ ...query.preferences, desiredKeys: [], purposeRequired: false }, query.condition, row.preferences, row.condition)) return false;
   } else if (!row.members.every(m => compatible(query.condition, query.preferences, m.condition, m.preferences))) return false;

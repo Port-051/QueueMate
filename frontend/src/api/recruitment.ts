@@ -1,6 +1,7 @@
 import { request } from './http';
 import type { MatchCondition, PlayAmount } from './types';
 export interface BoardPreferences {
+  ownKeys?: string[];
   ownTier: string | null;
   minTier: string | null;
   maxTier: string | null;

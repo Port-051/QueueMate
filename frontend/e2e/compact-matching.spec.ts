@@ -1,15 +1,17 @@
 import { expect, test } from '@playwright/test';
 import { login, startRealtimeMatch } from './helpers';
 
-test('상대 포지션 전체 선택은 무관 하나로 합쳐지고 유지된다', async ({ page }) => {
+test('상대 포지션 전체 선택은 다섯 개 그대로 유지된다', async ({ page }) => {
   await login(page);
   const roles = page.locator('.recruitment-composer-shell').getByRole('group', { name: '찾는 상대 포지션', exact: true });
   for (const role of ['탑', '정글', '미드', '바텀', '서포터']) await roles.getByRole('button', { name: role, exact: true }).click();
-  await expect(roles.locator('[aria-pressed=true]')).toHaveCount(1);
-  await expect(roles.getByRole('button', { name: '무관', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(roles.locator('[aria-pressed=true]')).toHaveCount(5);
+  await expect(roles.getByRole('button', { name: '무관', exact: true })).toHaveCount(0);
+  await expect(roles.locator('[aria-pressed=true]')).toHaveCount(5);
   await page.locator('.home-profile-link').click();
   await page.locator('.side-nav a[href="/app/home"]').click();
-  await expect(roles.getByRole('button', { name: '무관', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(roles.getByRole('button', { name: '무관', exact: true })).toHaveCount(0);
+  await expect(roles.locator('[aria-pressed=true]')).toHaveCount(5);
 });
 
 test('매칭 관리 세 버튼과 별도 발견 카드, 원형 수락 버튼이 작동한다', async ({ page }) => {

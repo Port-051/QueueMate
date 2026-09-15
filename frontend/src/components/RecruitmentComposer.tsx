@@ -28,7 +28,7 @@ export function RecruitmentComposer({ initial, editing, suspended, focusOnMount 
   });
   const [value, setValue] = useState(() => applyIntroduction({ ...writeFrom(initial), ...(!editing && initial.type === 'RESERVATION' && user ? readReservationDraft(user.id, initial.condition.game) : {}), autoMatch: editing ? initial.autoMatch : true }, introduction));
   const [originalValue] = useState(value);
-  const comparable = (input: board.BoardWrite) => JSON.stringify({ ...input, preferences: { ...input.preferences, desiredKeys: [...input.preferences.desiredKeys].sort() } });
+  const comparable = (input: board.BoardWrite) => JSON.stringify({ ...input, preferences: { ...input.preferences, ownKeys: [...(input.preferences.ownKeys ?? [])].sort(), desiredKeys: [...input.preferences.desiredKeys].sort() } });
   const unchanged = Boolean(editing) && comparable(value) === comparable(originalValue);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');

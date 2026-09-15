@@ -10,10 +10,10 @@ test('포지션 다중 선택은 합집합으로 검색하고 개별 해제와 �
   await roles.getByRole('button', { name: '정글', exact: true }).click();
   await expect(roles.locator('[aria-pressed=true]')).toHaveCount(2);
   const rows = page.locator('.recruitment-row');
-  await expect(rows).toHaveCount(4);
-  expect(await rows.locator('.row-roles > .recruitment-role-pair').evaluateAll(nodes => nodes.every(node => /주 포지션: (탑|정글),/.test(node.getAttribute('aria-label') ?? '')))).toBe(true);
+  await expect(rows).toHaveCount(5);
+  expect(await rows.locator('.row-roles > .recruitment-role-pair').evaluateAll(nodes => nodes.every(node => /주 포지션: (탑|정글|전체),/.test(node.getAttribute('aria-label') ?? '')))).toBe(true);
   await roles.getByRole('button', { name: '탑', exact: true }).click();
-  await expect(rows).toHaveCount(2);
+  await expect(rows).toHaveCount(3);
   await expect(roles.getByRole('button', { name: '정글', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await filters.getByRole('button', { name: '초기화', exact: true }).click();
   await expect(roles.locator('[aria-pressed=true]')).toHaveCount(0);

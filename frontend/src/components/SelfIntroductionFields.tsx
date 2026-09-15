@@ -12,6 +12,7 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
   game: GameKey; value: SelfIntroduction; onChange: (value: SelfIntroduction) => void; modeLocked?: boolean;
 }) {
   const roles = keyConditionOptions(game).filter(role => role.value !== 'ANY');
+  const ownRoles = value.primaryRoles ?? (value.primaryRole !== 'ANY' ? [value.primaryRole] : []);
   const hasRoles = usesKeyCondition(game, value.queueType);
   const [championText, setChampionText] = useState(value.champions.join(', '));
   const patch = (next: Partial<SelfIntroduction>) => onChange({ ...value, ...next });
@@ -27,10 +28,9 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
       </div></fieldset>
       {hasRoles ? <>
         <fieldset className="introduction-choice"><legend>{roleTitle}</legend><div className="intro-role-options" role="group" aria-label={roleTitle}>
-          {[{ value: 'ANY', label: '무관' }, ...roles].map(role => <button type="button" key={role.value} className="filter-role" aria-label={role.label} aria-pressed={value.primaryRole === role.value} onClick={() => patch({ primaryRole: value.primaryRole === role.value ? 'ANY' : role.value })}><FilterRoleIcon game={game} value={role.value} /><span>{role.label}</span></button>)}
+          {roles.map(role => <button type="button" key={role.value} className="filter-role" aria-label={role.label} aria-pressed={ownRoles.includes(role.value)} onClick={() => { const next = ownRoles.includes(role.value) ? ownRoles.filter(item => item !== role.value) : [...ownRoles, role.value]; patch({ primaryRoles: next, primaryRole: next[0] ?? 'ANY' }); }}><FilterRoleIcon game={game} value={role.value} /><span>{role.label}</span></button>)}
         </div></fieldset>
         <fieldset className="introduction-choice"><legend>{game === 'LOL' ? '찾는 상대 포지션' : game === 'VALORANT' ? '찾는 상대 역할' : '찾는 상대 스타일'}</legend><div className="intro-role-options" role="group" aria-label="찾는 상대 포지션">
-          <button type="button" className="filter-role" aria-label="무관" aria-pressed={!value.desiredRoles.length} onClick={() => patch({ desiredRoles: [] })}><FilterRoleIcon game={game} value="ANY" /><span>무관</span></button>
           {roles.map(role => <button type="button" key={role.value} className="filter-role" aria-label={role.label} aria-pressed={value.desiredRoles.includes(role.value)} onClick={() => patch({ desiredRoles: normalizeDesiredRoles(game, value.desiredRoles.includes(role.value) ? value.desiredRoles.filter(item => item !== role.value) : [...value.desiredRoles, role.value]) })}><FilterRoleIcon game={game} value={role.value} /><span>{role.label}</span></button>)}
         </div></fieldset>
       </> : null}

@@ -87,7 +87,7 @@
 .board-home .row-meta + .row-meta::before { content: ''; position: absolute; left: 0; top: 50%; width: 1px; height: 16px; background: var(--line); transform: translateY(-50%); }
 .board-home .row-rank { padding-left: 0; }
 .board-home .row-mode { display: grid; justify-items: start; color: var(--text-dim); }
-.board-home .row-roles { width: 170px; max-width: none; }
+.board-home .row-roles { width: 146px; max-width: none; }
 .board-home .row-roles .recruitment-role-pair { gap: 4px; white-space: nowrap; }
 .board-home .row-roles .recruitment-role-targets { flex-wrap: nowrap; gap: 2px; }
 .board-home .row-role-unavailable { color: var(--muted); text-align: center; }
@@ -133,7 +133,7 @@
   .board-home .row-meta + .row-meta::before { display: none; left: -14px; }
   .board-home .row-rank { grid-column: 2; grid-row: 2; justify-self: end; }
   .board-home .row-mode { grid-column: 3; grid-row: 2; justify-self: start; }
-  .board-home .row-roles { grid-column: 2; grid-row: 3; width: 142px; max-width: none; justify-self: end; padding-left: 0; }
+  .board-home .row-roles { grid-column: 2; grid-row: 3; width: 118px; max-width: none; justify-self: end; padding-left: 0; }
   .board-home .row-voice { grid-column: 3; grid-row: 3; }
   .board-home .row-meta.row-mode::before, .board-home .row-meta.row-voice::before { display: block; }
   .board-home .row-fresh { grid-column: 2 / -1; grid-row: 4; justify-self: end; padding-right: 0; }
@@ -152,3 +152,9 @@
 .board-home .row-mode { justify-items: center; }
 
 .board-home .row-rank { display: grid; justify-items: center; }
+
+.recruitment-role-own { display: inline-flex; align-items: center; gap: 2px; }
+.recruitment-role-pair { flex-direction: column; align-items: flex-start; gap: 6px; }
+.recruitment-role-targets { flex-wrap: nowrap; }
+.board-home .row-roles .recruitment-role-pair { gap: 6px; }
+.recruitment-role-targets .recruitment-role-icon { color: var(--muted); }
