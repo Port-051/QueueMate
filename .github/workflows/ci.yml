@@ -29,12 +29,12 @@ jobs:
       # 더미 서버는 의존성이 없다. 설치 단계가 필요 없다.
       - name: 더미 서버를 계약에 맞춰 검증한다
         run: |
-          node mock-server/server.js &
+          MOCK_AUTO_MATCH_MS=1000 node mock-server/server.js &
           for i in $(seq 1 30); do
             curl -sf http://localhost:8080/actuator/health >/dev/null && break
             sleep 1
           done
-          bash mock-server/contract-smoke.sh
+          MOCK_PORT=8080 bash mock-server/contract-smoke.sh
 
       - name: openapi.yaml이 유효한 YAML인지 본다
         run: |
