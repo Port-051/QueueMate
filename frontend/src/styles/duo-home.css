@@ -172,3 +172,6 @@
 
 .recruitment-role-arrow { display: none; }
 .row-roles .recruitment-role-arrow { display: block; }
+
+.board-home .row-roles .recruitment-role-pair { display: grid; grid-template-columns: 94px 16px 94px; align-items: center; justify-items: center; gap: 4px; }
+.board-home .row-roles .recruitment-role-own, .board-home .row-roles .recruitment-role-targets { justify-content: center; }

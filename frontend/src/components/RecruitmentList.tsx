@@ -32,12 +32,17 @@ export function RecruitmentVoice({ row }: { row: IntroductionRecord }) {
 export function RecruitmentRoleIcons({ row }: { row: IntroductionRecord }) {
   const game = row.condition.game;
   if (!usesKeyCondition(game, row.condition.modeKey)) return null;
-  const label = (value: string) => value === 'ANY' ? '무관' : keyConditionOptions(game).find(role => role.value === value)?.label ?? value;
+  const label = (value: string) => value === 'ANY' ? 'ALL' : keyConditionOptions(game).find(role => role.value === value)?.label ?? value;
   const icon = (value: string) => <span key={value} className="recruitment-role-icon" role="img" aria-label={label(value)} title={label(value)}><FilterRoleIcon game={game} value={value} size={22} /></span>;
+  const displayRoles = (selected: string[]) => {
+    const valid = normalizeDesiredRoles(game, selected);
+    const count = keyConditionOptions(game).filter(role => role.value !== 'ANY').length;
+    return !valid.length || valid.length === count ? ['ANY'] : valid;
+  };
   return <span className="recruitment-role-pair" role="group" aria-label={`${roleTitle(row)}: ${roleLabel(row)}, 찾는 상대: ${desiredLabel(row)}`}>
-    <span className="recruitment-role-own" title={`본인: ${roleLabel(row)}`}>{(ownRoles(row).length ? ownRoles(row) : keyConditionOptions(game).filter(role => role.value !== 'ANY').map(role => role.value)).map(icon)}</span>
+    <span className="recruitment-role-own" title={`본인: ${roleLabel(row)}`}>{displayRoles(ownRoles(row)).map(icon)}</span>
     <svg className="recruitment-role-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6" /></svg>
-    <span className="recruitment-role-targets" title={`찾는 상대: ${desiredLabel(row)}`}>{(normalizeDesiredRoles(game, row.preferences.desiredKeys).length ? normalizeDesiredRoles(game, row.preferences.desiredKeys) : keyConditionOptions(game).filter(role => role.value !== 'ANY').map(role => role.value)).map(icon)}</span>
+    <span className="recruitment-role-targets" title={`찾는 상대: ${desiredLabel(row)}`}>{displayRoles(row.preferences.desiredKeys).map(icon)}</span>
   </span>;
 }
 
