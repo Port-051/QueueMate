@@ -16,7 +16,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static com.queuemate.matching.rule.lol.LolScriptSupport.*;
+import static com.queuemate.matching.rule.ScriptSupport.*;
 
 /**
  * LoL 의 매칭 요청 취소. 자기 인자를 조립하고, 스크립트를 부르고, 결과를 읽는다.

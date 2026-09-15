@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.*;
 
-import static com.queuemate.matching.rule.lol.LolScriptSupport.*;
+import static com.queuemate.matching.rule.ScriptSupport.*;
 
 /**
  * 티어를 보지 않는 모드의 배정. 자기 인자를 조립하고, 스크립트를 부르고, 결과를 읽는다.
