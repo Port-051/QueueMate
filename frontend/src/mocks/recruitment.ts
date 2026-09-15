@@ -128,7 +128,8 @@ function matches(query: BoardSearch, row: BoardRow, viewerId = db.me.id) {
     if (query.condition.game !== row.condition.game) return false;
     const modeKey = effectiveCondition(row).modeKey;
     if (query.condition.modeKey !== 'ANY' && modeKey !== 'ANY' && query.condition.modeKey !== modeKey) return false;
-    if (hasPositions(query.condition) && query.condition.keyCondition.value !== 'ANY' && query.condition.keyCondition.value !== effectiveCondition(row).keyCondition.value) return false;
+    const roles = query.preferences.desiredKeys.length ? query.preferences.desiredKeys : query.condition.keyCondition.value !== 'ANY' ? [query.condition.keyCondition.value] : [];
+    if (hasPositions(query.condition) && roles.length && !roles.includes(effectiveCondition(row).keyCondition.value)) return false;
     if (query.condition.voicePreference !== 'OPTIONAL' && query.condition.voicePreference !== row.condition.voicePreference) return false;
     if (!accepts({ ...query.preferences, desiredKeys: [], purposeRequired: false }, query.condition, row.preferences, row.condition)) return false;
   } else if (!row.members.every(m => compatible(query.condition, query.preferences, m.condition, m.preferences))) return false;

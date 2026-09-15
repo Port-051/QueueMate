@@ -12,8 +12,10 @@ export function BoardFilters({ value, onChange, onReset }: { value: BoardSearch;
   const game = value.condition.game;
   const voiceEnabled = value.condition.voicePreference === 'REQUIRED';
   const condition = (patch: Partial<BoardSearch['condition']>) => onChange({ ...value, condition: { ...value.condition, ...patch }, page: 0 });
-  const chooseMode = (modeKey: string) => onChange({ ...value, condition: conditionForMode(value.condition, modeKey), page: 0 });
-  const filtered = value.condition.modeKey !== 'ANY' || value.condition.keyCondition.value !== 'ANY' || value.condition.voicePreference !== 'OPTIONAL' || Boolean(value.preferences.minTier);
+  const selectedRoles = value.preferences.desiredKeys.length ? value.preferences.desiredKeys : value.condition.keyCondition.value !== 'ANY' ? [value.condition.keyCondition.value] : [];
+  const toggleRole = (role: string) => onChange({ ...value, condition: { ...value.condition, keyCondition: { ...value.condition.keyCondition, value: 'ANY' } }, preferences: { ...value.preferences, desiredKeys: selectedRoles.includes(role) ? selectedRoles.filter(key => key !== role) : [...selectedRoles, role] }, page: 0 });
+  const chooseMode = (modeKey: string) => onChange({ ...value, condition: conditionForMode(value.condition, modeKey), preferences: { ...value.preferences, desiredKeys: usesKeyCondition(game, modeKey) ? selectedRoles : [] }, page: 0 });
+  const filtered = value.condition.modeKey !== 'ANY' || selectedRoles.length > 0 || value.condition.voicePreference !== 'OPTIONAL' || Boolean(value.preferences.minTier);
   return <div className="board-filter-bar">
     <div className="board-filter-line" role="group" aria-label="상대 검색 필터">
       <FilterSelect key={`${game}-tier`} className={`filter-tier${value.preferences.minTier ? ' is-filtered' : ''}`} label="찾는 상대 티어" value={value.preferences.minTier ?? ''} options={[
@@ -26,7 +28,7 @@ export function BoardFilters({ value, onChange, onReset }: { value: BoardSearch;
         </button>)}
       </div>
       {usesKeyCondition(game, value.condition.modeKey) ? <div className="filter-role-options" role="group" aria-label="찾는 상대 포지션">
-        {keyConditionOptions(game).filter(role => role.value !== 'ANY').map(role => <button key={role.value} type="button" className="filter-role" aria-label={role.label} title={role.label} aria-pressed={value.condition.keyCondition.value === role.value} onClick={() => condition({ keyCondition: { ...value.condition.keyCondition, value: value.condition.keyCondition.value === role.value ? 'ANY' : role.value } })}>
+        {keyConditionOptions(game).filter(role => role.value !== 'ANY').map(role => <button key={role.value} type="button" className="filter-role" aria-label={role.label} title={role.label} aria-pressed={selectedRoles.includes(role.value)} onClick={() => toggleRole(role.value)}>
           <FilterRoleIcon game={game} value={role.value} />
         </button>)}
       </div> : null}
