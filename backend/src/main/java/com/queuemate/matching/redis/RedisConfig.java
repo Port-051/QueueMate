@@ -1,4 +1,4 @@
-package com.queuemate.matching.config;
+package com.queuemate.matching.redis;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,9 +12,9 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 
 /**
- * <b>게임과 무관한</b> Lua 스크립트 빈. 게임별 스크립트는 {@code config/{game}/} 의 설정 클래스가 갖는다
- * ({@link com.queuemate.matching.config.lol.LolRedisConfig},
- * {@link com.queuemate.matching.config.pubg.PubgRedisConfig}).
+ * <b>게임과 무관한</b> Lua 스크립트 빈. 게임별 스크립트는 {@code redis/{game}/} 의 설정 클래스가 갖는다
+ * ({@link com.queuemate.matching.redis.lol.LolRedisConfig},
+ * {@link com.queuemate.matching.redis.pubg.PubgRedisConfig}).
  *
  * <p>나누는 기준은 {@code resources/redis/} 디렉터리와 같다 (docs/11 D-7).
  * {@code shared/} 와 {@code proposal/} 은 여기, {@code lol/} · {@code pubg/} 는 각 게임 설정이다.

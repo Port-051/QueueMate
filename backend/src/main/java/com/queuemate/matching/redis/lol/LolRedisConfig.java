@@ -1,4 +1,4 @@
-package com.queuemate.matching.config.lol;
+package com.queuemate.matching.redis.lol;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -6,7 +6,7 @@ import org.springframework.data.redis.core.script.RedisScript;
 
 import java.util.List;
 
-import static com.queuemate.matching.config.RedisConfig.readScript;
+import static com.queuemate.matching.redis.RedisConfig.readScript;
 
 /**
  * LoL 배정·취소 Lua 스크립트 빈 ({@code resources/redis/lol/}).
@@ -17,7 +17,7 @@ import static com.queuemate.matching.config.RedisConfig.readScript;
  * 컴파일은 통과하고 기동 때 터진다.
  *
  * <p><b>{@code lol} 접두사를 붙인다.</b> PUBG 도 같은 타입의 빈을 두므로({@code pubg} 접두사,
- * {@link com.queuemate.matching.config.pubg.PubgRedisConfig}) 접두사가 없으면 이름이 겹치거나, 다른
+ * {@link com.queuemate.matching.redis.pubg.PubgRedisConfig}) 접두사가 없으면 이름이 겹치거나, 다른
  * 게임 Assigner 가 롤 이름으로 필드를 선언했을 때 <b>에러 없이 롤 스크립트가 주입된다.</b>
  */
 @Configuration

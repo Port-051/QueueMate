@@ -1,4 +1,4 @@
-package com.queuemate.matching.config;
+package com.queuemate.matching.redis;
 
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
