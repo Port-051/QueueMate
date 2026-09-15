@@ -84,3 +84,15 @@ jobs:
       - name: 빌드
         working-directory: frontend
         run: npm run build
+      - name: 브라우저 설치
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: 프론트 회귀 테스트
+        working-directory: frontend
+        run: npx playwright test --workers=2
+      - name: 프론트 실패 자료
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-results
+          path: frontend/test-results
