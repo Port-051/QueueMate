@@ -10,7 +10,7 @@ import { Avatar, Button } from './ui';
 import { MatchingRailPanel } from './MatchingRailPanel';
 import { FilterModeIcon, FilterRoleIcon } from './FilterSymbols';
 import { RankBadge } from './RankBadge';
-import { IconMic, IconMicOff, IconMicOptional } from './icons';
+import { VoiceIcon } from './FilterSymbols';
 import { PerformanceValue, PreferredChampions } from './IntroductionVisuals';
 import '../styles/introduction.css';
 
@@ -25,7 +25,7 @@ export function RecruitmentVoice({ row }: { row: IntroductionRecord }) {
   const preference = row.condition.voicePreference;
   if (preference === 'OPTIONAL') return null;
   return <span className={`recruitment-voice voice-${preference.toLowerCase()}`} role="img" aria-label={voiceLabel(row)} title={voiceLabel(row)}>
-    <span aria-hidden="true">{preference === 'REQUIRED' ? <IconMic size={20} /> : preference === 'NO_VOICE' ? <IconMicOff size={20} /> : <IconMicOptional size={20} />}</span>
+    <VoiceIcon preference={preference} />
   </span>;
 }
 
@@ -63,14 +63,15 @@ export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]
   }, []);
   const withoutRoles = rows.length > 0 && rows.every(row => !usesKeyCondition(row.condition.game, row.condition.modeKey));
   return <div className={`recruitment-list${withoutRoles ? ' without-roles' : ''}`} aria-label="매칭 글 목록">
-    {!withoutRoles ? <div className="board-column-head" aria-hidden="true"><span /><span /><div className="position-column-head"><span>내 포지션</span><span>찾는 포지션</span></div><span /></div> : null}
+    <div className="board-column-head"><span>플레이어</span><span>티어</span>{!withoutRoles ? <div className="position-column-head"><span>내 포지션</span><span>찾는 포지션</span></div> : null}<span>마이크</span><span>게시 시간</span></div>
     {rows.map(row => {
       const introduction = introductionForRow(row);
       const hasRoles = usesKeyCondition(row.condition.game, row.condition.modeKey);
       return <button type="button" key={row.id} data-recruitment-id={row.id} className={`recruitment-row ${selected === row.id ? 'selected' : ''} ${row.status !== 'OPEN' ? 'unavailable' : ''}${hasRoles ? '' : ' without-roles'}`} aria-label={`${row.nickname} 매칭 글 상세`} aria-pressed={selected === row.id} onClick={() => onSelect(row)}>
-      <div className="row-player"><Avatar name={row.nickname} size={40} /><div><div className="row-player-heading"><b>{row.nickname}</b>{introduction.champions.length ? <PreferredChampions game={row.condition.game} names={introduction.champions} /> : null}<RecruitmentVoice row={row} /></div><IntroductionStats game={row.condition.game} introduction={introduction} showChampions={false} />{row.description ? <p>{row.description}</p> : null}</div></div>
+      <div className="row-player"><Avatar name={row.nickname} size={40} /><div><div className="row-player-heading"><b>{row.nickname}</b>{introduction.champions.length ? <PreferredChampions game={row.condition.game} names={introduction.champions} /> : null}</div><IntroductionStats game={row.condition.game} introduction={introduction} showChampions={false} />{row.description ? <p>{row.description}</p> : null}</div></div>
       <div className="row-meta row-rank"><RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /></div>
       {!withoutRoles ? <div className="row-meta row-roles">{hasRoles ? <RecruitmentRoleIcons row={row} /> : <span className="row-role-unavailable" role="img" aria-label="포지션 지정 없음">—</span>}</div> : null}
+      <div className="row-meta row-voice"><RecruitmentVoice row={row} /></div>
       <div className="row-meta row-fresh"><time className="row-posted" dateTime={row.createdAt} title={`게시: ${timeLabel(row.createdAt)}`}>{relativeBoardTime(row.createdAt, now)}</time>{row.status !== 'OPEN' ? <small>{BOARD_STATUS[row.status]}</small> : null}</div>
     </button>; })}
   </div>;

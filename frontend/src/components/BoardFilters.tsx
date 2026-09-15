@@ -4,7 +4,7 @@ import { localInput, tiers, TIER_LABELS } from '../domain/recruitment';
 import { recruitmentInputError } from '../domain/recruitmentValidation';
 import { FilterSelect } from './FilterSelect';
 import { FilterModeIcon, FilterRoleIcon, FilterTierIcon } from './FilterSymbols';
-import { IconMic, IconMicOff, IconMicOptional } from './icons';
+import { VoiceIcon } from './FilterSymbols';
 
 /** 목록에 보일 상대만 고른다. 내 소개와 내 매칭의 조건에는 쓰지 않는다. */
 export function BoardFilters({ value, onChange, onReset }: { value: BoardSearch; onChange: (value: BoardSearch) => void; onReset: () => void }) {
@@ -28,9 +28,9 @@ export function BoardFilters({ value, onChange, onReset }: { value: BoardSearch;
       </div>
 
       <FilterSelect label="마이크" className={value.condition.voicePreference !== 'OPTIONAL' ? 'is-filtered' : ''} value={value.condition.voicePreference} options={[
-        { value: 'OPTIONAL', label: '무관', icon: <IconMicOptional size={20} /> },
-        { value: 'REQUIRED', label: '사용', icon: <IconMic size={20} /> },
-        { value: 'NO_VOICE', label: '미사용', icon: <IconMicOff size={20} /> },
+        { value: 'OPTIONAL', label: '무관', icon: <VoiceIcon preference="OPTIONAL" /> },
+        { value: 'REQUIRED', label: '사용', icon: <VoiceIcon preference="REQUIRED" /> },
+        { value: 'NO_VOICE', label: '미사용', icon: <VoiceIcon preference="NO_VOICE" /> },
       ]} onChange={voice => condition({ voicePreference: voice as BoardSearch['condition']['voicePreference'] })} />
       {filtered ? <button type="button" className="filter-reset" aria-label="초기화" title="필터 초기화" onClick={onReset}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg></button> : null}
     </div>

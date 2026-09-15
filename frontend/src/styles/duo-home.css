@@ -73,8 +73,8 @@
 .filter-error { color: var(--warn); font-size: 14px; margin: 7px 0; }
 .recruitment-method { color: #b9a6ed; font-size: 13px; }
 
-.board-home .recruitment-list { container-type: inline-size; display: grid; grid-template-columns: var(--recruitment-columns); --recruitment-columns: minmax(0, 1fr) repeat(3, max-content); }
-.board-home .recruitment-list.without-roles { --recruitment-columns: minmax(0, 1fr) repeat(2, max-content); }
+.board-home .recruitment-list { container-type: inline-size; display: grid; grid-template-columns: var(--recruitment-columns); --recruitment-columns: minmax(0, 1fr) repeat(4, max-content); }
+.board-home .recruitment-list.without-roles { --recruitment-columns: minmax(0, 1fr) repeat(3, max-content); }
 .board-home .recruitment-row { grid-column: 1 / -1; grid-template-columns: subgrid; gap: 0; min-height: 108px; padding: 18px 16px; }
 .board-home .recruitment-row:first-child { border-top: 0; }
 .board-home .row-player { gap: 12px; padding-right: 24px; }
@@ -184,3 +184,15 @@
 .board-position-filter > span { color: var(--muted); font-size: 12px; }
 .board-position-filter .filter-role-options { border: 0; padding: 0; }
 @container (max-width: 680px) { .board-column-head { display: none; } }
+
+.board-position-filters { margin: 12px 0 0; }
+.board-column-head > span { text-align: center; }
+.board-column-head > span:first-child { text-align: left; }
+.board-home .row-voice { display: grid; place-items: center; min-width: 56px; }
+.voice-symbol { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.voice-symbol.voice-required { color: #4ade80; }
+.voice-symbol.voice-no_voice { color: #f87171; }
+@container (max-width: 680px) {
+  .board-home .row-voice { grid-column: 2; grid-row: 3; justify-self: end; }
+  .board-home .row-roles { grid-column: 1; }
+}

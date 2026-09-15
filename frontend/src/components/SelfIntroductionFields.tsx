@@ -5,7 +5,7 @@ import { TIER_LABELS, tiers } from '../domain/recruitment';
 import { normalizeDesiredRoles } from '../domain/introduction';
 import type { MatchResult, SelfIntroduction } from '../domain/introduction';
 import { FilterModeIcon, FilterRoleIcon } from './FilterSymbols';
-import { IconMic, IconMicOff, IconMicOptional } from './icons';
+import { VoiceIcon } from './FilterSymbols';
 import '../styles/introduction.css';
 
 export function SelfIntroductionFields({ game, value, onChange, modeLocked = false }: {
@@ -35,7 +35,7 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
         </div></fieldset>
       </> : null}
       <fieldset className="introduction-choice"><legend>음성</legend><div className="intro-voice-options" role="group" aria-label="음성">
-        {([{ value: 'OPTIONAL', label: '무관', Icon: IconMicOptional }, { value: 'REQUIRED', label: '사용', Icon: IconMic }, { value: 'NO_VOICE', label: '안 씀', Icon: IconMicOff }] as const).map(({ value: voice, label, Icon }) => <button type="button" key={voice} className="filter-mode" aria-label={label} aria-pressed={value.voice === voice} onClick={() => patch({ voice })}><Icon size={20} /><span>{label}</span></button>)}
+        {([{ value: 'OPTIONAL', label: '무관' }, { value: 'REQUIRED', label: '사용' }, { value: 'NO_VOICE', label: '안 씀' }] as const).map(({ value: voice, label }) => <button type="button" key={voice} className="filter-mode" aria-label={label} aria-pressed={value.voice === voice} onClick={() => patch({ voice })}><VoiceIcon preference={voice} /><span>{label}</span></button>)}
       </div></fieldset>
       {game !== 'LOL' ? <label>내 티어<select aria-label="내 티어" value={value.ownTier ?? ''} onChange={event => patch({ ownTier: event.target.value || null, rankDivision: null })}><option value="">미입력</option>{tiers(game).map(tier => <option key={tier} value={tier}>{TIER_LABELS[tier]}</option>)}</select></label> : null}
       {game !== 'LOL' ? <label className="introduction-wide">{championTitle}<input aria-label={championTitle} maxLength={100} placeholder={game === 'VALORANT' ? '예: 제트, 레이나' : '예: M416, 미니14'} value={championText} onChange={event => { setChampionText(event.target.value); patch({ champions: event.target.value.split(',').map(name => name.trim()).filter(Boolean) }); }} /></label> : null}
