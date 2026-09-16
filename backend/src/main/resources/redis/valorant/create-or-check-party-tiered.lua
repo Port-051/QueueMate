@@ -59,9 +59,14 @@
 --   tierLo / tierHi                지금 이 파티가 받아들이는 티어 **순번**(ZRANK, 0 부터) 범위.
 --                                  join 이 좁힐 수 있다
 --   minTier / maxTier              지금까지 들어온 사람의 최저/최고 티어 순번(ZRANK, 0 부터).
---                                  지금은 읽는 곳이 없고, 앞으로 leave 가 남은 사람 기준으로
---                                  범위를 되돌릴 때 쓴다
+--                                  join 이 갱신하고, leave 는 남은 사람들의 tier: 필드로
+--                                  다시 계산해 덮어쓴다
 --   member:{userId} = 역할군       참가자. 접두사 'member:' 는 자바 ScriptSupport#memberIds() 와 같아야 한다
+--   tier:{userId} = 티어 이름      그 참가자가 들고 온 티어. leave 가 취소된 사람을 뺀 **남은 사람들**의
+--                                  줄로 범위를 다시 구하려면 각자의 티어를 알아야 하는데, minTier/maxTier
+--                                  두 값만으로는 누가 나갔는지 구분할 수 없다.
+--                                  접두사가 'member:' 로 시작하면 안 된다 — memberCount 와 자바
+--                                  ScriptSupport#memberIds() 가 인원을 잘못 센다
 --
 -- ── 곁딸린 키 ────────────────────────────────────────────────────────
 --   qm:party:needs-roles:{partyId}  SET. 아직 비어 있는 역할군. join 이 범위를 좁혀
@@ -131,8 +136,8 @@ if #minMaxTier ~= 2 then
     return { -1, '', 0 }
 end
 
--- 티어 이름 -> 사다리 순번. ZRANK 는 0부터라 1을 더해 격자 순번(1..T)에 맞춘다.
--- leave-party.lua 가 tierLo/tierHi 를 격자 인덱스로 그대로 쓰기 때문이다
+-- 티어 이름 -> 사다리 순번. ZRANK 를 그대로(0부터) 적는다 —
+-- join/leave 가 tierLo/tierHi 를 ZRANGE 에 그대로 넘겨 칸 이름을 되돌리기 때문이다
 local loRank = redis.call('ZRANK', KEYS[4], minMaxTier[1])
 local hiRank = redis.call('ZRANK', KEYS[4], minMaxTier[2])
 
@@ -155,7 +160,9 @@ if #found == 0 then
             'tierHi', hiRank,
             'minTier', myTierRank,
             'maxTier', myTierRank,
-            memberField, myValue)
+            memberField, myValue,
+            -- 멤버별 티어. leave 가 남은 사람들의 줄로 범위를 되돌릴 때 읽는다 (머리말 참고)
+            'tier:' .. userId, myTier)
     redis.call('HSET', userKey, 'partyId', newPartyId)
     -- 배정됐다. 이제 claim 의 만료를 뗀다 (claim-request.lua 참고)
     redis.call('PERSIST', userKey)

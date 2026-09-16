@@ -111,7 +111,7 @@ end
 --    어긋나 일부 칸에 그대로 남는다 — 정원이 찼는데도 남의 눈에 후보로 보이는 유령이 되고
 --    INV-3 이 깨진다. 새 범위는 아래 2번에서 따로 구한다.
 --
---    create 가 tierLo/tierHi 를 ZRANK + 1 로 적어 두었으므로 되돌릴 때 1 을 뺀다.
+--    tierLo/tierHi 는 ZRANK 를 그대로(0부터) 적어 두었으므로 ZRANGE 에 그대로 넘긴다.
 --    쓰기보다 먼저 하는 이유는 Lua 에 롤백이 없기 때문이다 — 멤버만 넣고 색인 정리에서
 --    터지면 정원이 찬 파티가 색인에 남는다.
 local bound = redis.call('HMGET', partyKey, 'tierLo', 'tierHi')
@@ -181,7 +181,12 @@ end
 
 -- 3. 여기서부터 쓰기다. 위에서 읽기·검증이 전부 끝났다
 -- 참가자를 먼저 기록하고, 그다음 센다. 순서가 반대면 나를 빼고 세게 된다
-redis.call('HSET', partyKey, memberField, myValue)
+--
+-- 내 티어도 'tier:{userId}' 로 같이 남긴다. leave 가 취소한 사람을 뺀 **남은 사람들**의 줄로
+-- 파티 범위를 다시 구하려면 각자의 티어가 필요한데, minTier/maxTier 두 값만으로는
+-- 누가 나갔는지 구분할 수 없다. 접두사가 'member:' 로 시작하면 안 된다 —
+-- memberCount 와 자바 ScriptSupport#memberIds() 가 인원을 잘못 센다
+redis.call('HSET', partyKey, memberField, myValue, 'tier:' .. userId, myTier)
 local size = memberCount(partyKey)
 redis.call('HSET', userKey, 'partyId', partyId)
 -- 배정됐다. 이제 claim 의 만료를 뗀다 (claim-request.lua 참고)
@@ -244,8 +249,9 @@ if narrows then
     redis.call('HSET', partyKey, 'tierLo', newLo, 'tierHi', newHi)
 end
 
--- 파티의 최저·최고 티어를 갱신한다. 지금은 범위를 좁히는 데 쓰지 않지만,
--- 앞으로 leave 가 남은 사람 기준으로 범위를 되돌릴 때 필요하다
+-- 파티의 최저·최고 티어를 갱신한다. 범위를 좁히는 것은 위의 교집합이 하고,
+-- 이 값은 지금까지 들어온 사람의 폭을 보여 주는 기록이다
+-- (leave 는 남은 사람들의 tier: 필드로 다시 계산해 덮어쓴다)
 if myTierRank < partyMin then
     redis.call('HSET', partyKey, 'minTier', myTierRank)
 elseif partyMax < myTierRank then
