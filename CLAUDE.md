@@ -163,13 +163,16 @@ INV-4/5를 지킨다 — 같은 수락을 두 번 보내도 답이 같은가, �
 `PENDING`으로 되돌아가지 않는가. `proposal/*.lua`나 `join-party*.lua`의 `HSETNX` 분기를
 고쳤으면 이것도 돌려라.
 
-### Lua 스크립트 목록 (`backend/src/main/resources/redis/`, 8개)
+### Lua 스크립트 목록 (`backend/src/main/resources/redis/`, 15개)
+
+아래 표는 `shared` · `lol` · `proposal` 8개다. `pubg/` 5개와 `valorant/` 2개는
+그 아래 "Lua 스크립트는 게임별로 나눈다" 절에 있다.
 
 | 파일 | 하는 일 | 반환 코드 |
 |---|---|---|
 | `shared/claim-request.lua` | 활성 요청 선점 (INV-1). `EXISTS` + `HSET` + `EXPIRE 60` | `1` 선점 / `0` 이미 있음 |
 | `lol/create-or-check-party-untiered.lua` | 후보 파티 찾기. 없으면 새로 만들고 들어간다 | `1` 새로 만듦 / `2` 후보 찾음(멤버 목록 반환) / `-1` 설정과 안 맞는 값 / `-2` claim 만료 |
-| `lol/create-or-check-party-tiered.lua` | 위의 (포지션 x 티어) 격자판. tier-range 표와 티어 사다리를 **Lua가 직접 읽어** 이 파티가 받아들일 범위를 정하고 `tierLo`/`tierHi`(사다리 순번, `ZRANK + 1`)에 적는다 | 같음. `-1`에 "tier-range 표에 내 티어 줄이 없다 / `SOLO_ONLY`다 / 사다리에 없는 티어다"가 포함된다 |
+| `lol/create-or-check-party-tiered.lua` | 위의 (포지션 x 티어) 격자판. tier-range 표와 티어 사다리를 **Lua가 직접 읽어** 이 파티가 받아들일 범위를 정하고 `tierLo`/`tierHi`(사다리 순번, `ZRANK` 값 **그대로**라 0부터다)에 적는다 | 같음. `-1`에 "tier-range 표에 내 티어 줄이 없다 / `SOLO_ONLY`다 / 사다리에 없는 티어다"가 포함된다 |
 | `lol/join-party.lua` | 이미 찾아 둔 파티에 합류 | `1` 합류 / **`2` 합류했고 정원이 찼다** / `-1` / `-2` |
 | `lol/join-party-tiered.lua` | 위의 격자판. **자기 tier-range를 다시 읽지 않는다** — 파티의 `tierLo`/`tierHi`를 읽어 뺄 칸을 정한다 | 같음 |
 | `lol/leave-party.lua` | 취소. 티어 유/무 한 벌로 처리(티어를 안 보는 모드는 티어 이름 자리에 `"NONE"`을 넘겨 접미사를 빈 문자열로 접는다) | `1` 취소(파티 남음) / `2` 취소(파티 없음) / `0` 활성 요청 없음 / `-1` requestId 불일치 |
@@ -186,6 +189,11 @@ needs 키**를 넘기고 Lua가 `':' .. 티어이름`을 붙여 조립한다 —
 환산해 넘기던 방식은 없어졌다. Lua가 tier-range 표(`KEYS[3]`)와 티어 사다리(`KEYS[4]`)를 직접
 읽는다. 그래서 **티어 사다리 중간에 값을 끼워 넣으면 이미 만들어진 파티의 `tierLo`/`tierHi`가
 엉뚱한 칸을 가리킨다** — 사다리는 큐가 비어 있을 때 바꿔라.
+
+**`tierLo`/`tierHi`는 `ZRANK` 값 그대로다 — 0부터 센다.** 예전에는 `ZRANK + 1`로 적고 읽는
+쪽에서 1을 뺐는데, 더하고 빼는 자리가 둘로 갈려 한쪽만 고치면 칸이 어긋났다. 지금은 쓰는 쪽이
+`ZRANK`를 그대로 적고 읽는 쪽이 `ZRANGE lo hi`에 그대로 넘긴다. 티어를 안 보는 모드의 자리
+채움 값도 `1/1`이 아니라 **`0/0`**이다.
 
 **찾기와 합류가 두 스크립트로 나뉘어 있다.** 그 사이에 차단 검증(자바)이 끼기 때문이다.
 두 호출 사이의 틈은 Lua가 아니라 `redisLock/PoolLock.java`의 후보 풀 락(Redisson `RLock`,
@@ -211,12 +219,35 @@ backend/src/main/resources/redis/
 ├── lol/                       배정·취소 5개
 ├── proposal/                  수락·거절 2개. 게임을 보지 않는다 —
 │                              제안은 파티 HASH 위에서만 돌아가고 조건을 읽지 않는다
-├── pubg/                      (아직 없음)
-└── valorant/                  (아직 없음)
+├── pubg/                      배정·취소 5개. 색인이 (핵심조건 x 티어) 격자가 아니라
+│                              **티어 한 줄**이다 — 플랫폼은 한 파티에 겹쳐도 되기 때문이다
+└── valorant/                  티어 배정 2개(`create-or-check-party-tiered` ·
+                               `join-party-tiered`)뿐이다. untiered · leave 와
+                               `rule/valorant` · `config/redis/valorant` · 시드의
+                               VALORANT 항목은 아직 없다
 ```
 
 **한 게임의 수정이 다른 게임 스크립트에 닿지 않게 한다.** 게임을 추가할 때 기존 게임
 스크립트를 고쳐 쓰지 말고 그 게임 디렉터리에 자기 것을 둔다.
+
+**티어 범위를 다루는 방식이 게임마다 다르다.** LoL과 PUBG는 파티가 받아들일 범위를 **만든
+사람 기준으로 한 번** 정하고 그 뒤 바꾸지 않는다. **VALORANT는 합류할 때마다 좁힌다** —
+`valorant/join-party-tiered.lua`가 파티 범위를 "지금 범위 ∩ 들어온 사람의 tier-range 줄"로
+바꿔, 옛 범위 칸 전부에서 파티를 빼고 **아직 빈 역할군만** 새 범위 칸에 다시 올린다(정렬값은
+지금 시각이 아니라 파티의 `createdAt`이다 — now를 쓰면 이 파티만 색인에서 가장 새 것으로 밀린다).
+발로란트 규칙이 "파티 최고 티어 <= 한계(파티 최저 티어)"라 3인 파티는 방장 줄 하나로 표현되지
+않기 때문이다. 그 대신 후보로 잡힌 파티는 곧 같이 갈 수 있는 파티라, 찾기 쪽에 거르는 분기가 없다.
+
+그래서 VALORANT에만 딸린 것이 둘 있다.
+- `qm:party:needs-roles:{partyId}` SET — 아직 비어 있는 역할군. create가 `SADD`, join이
+  합류 때 `SREM`, 정원이 차면 `DEL`. 범위를 좁힌 뒤 어느 칸을 다시 만들지가 이 목록이다.
+  **취소(미구현)도 이 키를 되돌려야 한다.**
+- 파티 HASH의 `minTier`/`maxTier` — 지금까지 들어온 사람의 최저·최고 순번(`ZRANK`, 0부터).
+  지금은 읽는 곳이 없고, leave가 남은 사람 기준으로 범위를 되돌릴 때 쓸 값이다.
+
+**KEYS 배치도 LoL과 다르다.** `KEYS[5]`가 역할군·티어가 없는 **밑동** needs 키이고
+`KEYS[6..]`이 역할군별 needs 키다. 칸은 `KEYS[5 + p] .. ':' .. 티어이름`으로 조립하고,
+밑동은 `needs-roles`에서 받은 역할군 이름으로 칸을 다시 만들 때 쓴다.
 
 **게임 패키지(`rule/{game}` · `config/redis/{game}` 등) 안의 클래스는 `Lol*` / `Pubg*`, 스크립트 빈은
 `lol*` / `pubg*` 접두사를 붙인다.** 같은 타입(`RedisScript<List>`) 빈이 여럿이라 Spring은 주입 필드

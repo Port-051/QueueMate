@@ -349,12 +349,13 @@ score 를 빼면 단계 차이가 나오므로, 롤의 "다이아는 2단 이내
 **예전 `WINDOW maxTierGap 1` 은 라이엇이 요구한 적 없는 우리 자체 제약이었고** 후보 풀만
 쪼개고 있었다. 없앤 것이 맞다.
 
-### C-5. `tierRule` 해석 자리가 자바에서 Lua로 옮겨갔다
+### C-5. `tierRule` 해석 자리가 자바에서 Lua로 옮겨갔다 <sub>(2026-09-16: 순번 표기가 바뀌었다 — D-1)</sub>
 
 B-1 이 "`tierRule` 해석은 전부 자바가 하고 Lua는 환산된 `[최저, 최고]` 순번만 받는다"고
 적은 것은 **반대가 됐다.** `LolTieredAssigner#tierRange()` 와 `TierRange` 레코드,
 `addTierArgs()` 가 없어졌고, Lua 가 tier-range 표와 티어 사다리를 직접 읽는다.
 파티 HASH 의 `tierLo`/`tierHi` 는 `ZRANK + 1` (1부터 시작하는 사다리 순번)이다.
+*(2026-09-16 에 `+ 1` 이 없어졌다 — 지금은 `ZRANK` 그대로 0부터다. D-1 참고.)*
 `join` 과 `leave` 는 자기 tier-range 를 다시 읽지 않고 그 두 값을 되돌려 칸을 만든다.
 
 격자를 KEYS 로 통째로 넘기던 방식도 함께 버렸다. 단이 들어가 칸이 (포지션 6 x 티어 32)
@@ -372,3 +373,47 @@ needs 키만 넘기고 Lua 가 `':' .. 티어이름` 을 붙인다.
 남는다.** 라이엇 계정 연동이 붙어도 MMR 은 여전히 안 보인다. 이건 고칠 수 있는 버그가
 아니라 받아들여야 하는 한계다 — 사용자에게 "게임에서 큐가 안 잡힐 수 있다"고 말할지는
 제품 결정이다.
+
+---
+
+## 부록 D. 구현 대조 기록 갱신 (2026-09-16, `app:matching`)
+
+부록 C 를 쓴 뒤 코드가 또 바뀌었다. **C 는 기록이라 지우지 않고 여기에 갱신분만 적는다.**
+겹치는 항목은 이쪽이 우선한다.
+
+### D-1. `tierLo`/`tierHi` 가 `ZRANK` 값 그대로가 됐다 (0부터)
+
+C-5 가 적은 `ZRANK + 1`(1부터)이 없어졌다. 쓰는 쪽이 `ZRANK` 를 그대로 적고 읽는 쪽이
+`ZRANGE lo hi` 에 그대로 넘긴다. 티어를 안 보는 모드의 자리 채움 값도 `1/1` 이 아니라
+**`0/0`** 이다. 더하고 빼는 자리가 둘로 갈려 있으면 한쪽만 고쳤을 때 칸이 한 칸씩 어긋나는데
+에러가 나지 않기 때문이다. **저장하는 것이 여전히 이름이 아니라 순번이라는 것은 그대로다** —
+사다리 중간에 값을 끼워 넣지 마라(C-5 의 경고는 유효하다).
+
+### D-2. §4(VALORANT)의 구현이 시작됐다 — 티어 스크립트 2개까지
+
+본문 §4 는 조건 스키마이고 구현 현황이 아니다. 지금 있는 것만 적는다.
+
+| 있는 것 | 어디 |
+|---|---|
+| 역할군 값 | `domain/valorant/ValorantRole.java` — `DUELIST` / `INITIATOR` / `CONTROLLER` / `SENTINEL`. 한 파티에서 **겹치지 않는다**(LoL 포지션과 같은 규칙) |
+| 조건 검증 | `validation/valorant/ValorantConditionValidator.java` — 역할군 + 모드 + `tierRule` |
+| 배정 Lua | `redis/valorant/create-or-check-party-tiered.lua` / `join-party-tiered.lua` **2개**. 색인은 (역할군 x 티어) 격자 |
+
+**없는 것**: 티어를 안 보는 모드의 Lua, 취소 Lua, `rule/valorant`(빈 디렉터리),
+`config/redis/valorant`(스크립트 빈), `seed/gameconfig.redis` 의 VALORANT 항목.
+시드가 없으니 지금 VALORANT 요청은 validator 가 모드 설정을 못 읽어 **400** 이고,
+저 스크립트 2개는 아직 한 번도 실행되지 않는다.
+
+### D-3. 티어 범위를 언제 정하느냐가 게임마다 다르다
+
+B-1 이 적은 "파티가 받아들일 티어 범위를 **만든 사람 기준으로 생성 시 한 번** 정한다"는
+**LoL 과 PUBG 에만 해당한다.** VALORANT 는 합류할 때마다 파티 범위를 "지금 범위 ∩ 들어온
+사람의 tier-range 줄" 로 좁힌다 — 옛 범위 칸 전부에서 파티를 빼고 아직 빈 역할군만 새 범위
+칸에 다시 올린다(정렬값은 파티의 `createdAt`). 발로란트 규칙이 "파티 최고 티어 <= 한계(파티
+최저 티어)" 라, tier-range 표의 한 줄(= 둘이 같이 갈 수 있는 구간)로는 3인 파티를 표현할 수
+없기 때문이다.
+
+그래서 VALORANT 에만 딸린 것이 둘 있다 — `qm:party:needs-roles:{partyId}` SET(아직 빈 역할군.
+create 가 `SADD`, join 이 `SREM`, 정원이 차면 `DEL`)과 파티 HASH 의 `minTier`/`maxTier`
+(지금까지 들어온 사람의 최저·최고 순번. 읽는 곳은 아직 없고, 취소가 범위를 되돌릴 때 쓸 값이다).
+자세한 것은 `docs/11_DECISION_LOG.md` 의 Q-3 에 있다.

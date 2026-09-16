@@ -34,6 +34,23 @@
 - **`docs/GAME_CONFIG.md` 에 PUBG 설정 반영, 모드 목록 SET 서술 제거** (`822599e`).
 - **GitHub**: private 저장소 `github.com/rlaehddus302/queuemate-matching` (`main`).
 
+### 2026-09-16 갱신 — 아래 §1 본문 중 낡은 것
+
+이 절이 우선한다. 본문은 2026-09-15 기준이라 그대로 두었다.
+
+- **PUBG 배정이 전부 커밋됐다.** `rule/pubg/` 6개 · `config/redis/pubg/PubgRedisConfig.java` ·
+  `redis/pubg/*.lua` 5개. 아래 "작업 트리에 커밋 안 된 것"은 해소됐다.
+- **`tierLo`/`tierHi` 가 `ZRANK` 값 그대로(0부터)가 됐다** (`6fe3f99`). `+ 1` 로 적고 읽을 때
+  1 을 빼던 것을 없앴고, 티어를 안 보는 모드의 자리 채움 값도 `1/1` → **`0/0`** 이다.
+  LoL·PUBG 스크립트 8개를 같이 고쳤다 (docs/11 Q-1).
+- **VALORANT 티어 Lua 2개가 들어왔다** (`79a9c02`). `redis/valorant/create-or-check-party-tiered.lua` ·
+  `join-party-tiered.lua`. 색인은 (역할군 x 티어)이고 **합류마다 파티 티어 범위를 좁힌다** —
+  LoL·PUBG 의 "범위는 만든 사람 기준으로 한 번 정해진다"가 발로란트에는 해당하지 않는다.
+  곁딸린 키 `qm:party:needs-roles:{partyId}` SET 과 파티 HASH 의 `minTier`/`maxTier` 가 같이 생겼다.
+  **없는 것**: untiered·취소 Lua, `rule/valorant`, `config/redis/valorant`, 시드의 VALORANT 항목.
+  시드가 없어 지금 VALORANT 요청은 400 이고 저 스크립트 2개는 아직 실행되지 않는다.
+- 테스트는 여전히 **LoL 경로만** 탄다. PUBG·VALORANT 스크립트를 도는 테스트는 없다.
+
 ### 테스트 — 커밋 `8d7f094` 기준 24건 통과 (2026-09-15)
 
 `concurrency.*` 7 + `PushNotificationTest` 6 + `ProposalIdempotencyTest` 11 = **24/24 통과.**

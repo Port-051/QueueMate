@@ -21,13 +21,14 @@
   · 이 저장소는 단일 Gradle 모듈이다. 스프링/Gradle 프로젝트는 backend/ 아래에 있고
     빌드도 거기서 돌린다. 진행 중 매칭 상태의 source of truth는 Redis뿐이고,
     DB를 치는 곳은 차단 조회 하나뿐이다. match_requests 테이블을 만들지 마라.
-  · 배정까지 구현된 게임은 LoL 하나다. PUBG 는 조건 validator
-    (validation/pubg/PubgConditionValidator.java)와 seed/gameconfig.redis 의 PUBG 섹션만
-    커밋돼 있고, 배정 규칙·Lua·테스트는 아직 커밋되지 않았다(사용자 작성 중 — 이어받기 전에 물어라).
-    그래서 PUBG 요청은 검증을 통과하면 201 이 나가지만 배정에서 조용히 실패한다.
-    VALORANT 는 enum 에만 있어 요청이 오면 400 으로 거절된다.
+  · 배정까지 구현된 게임은 LoL 과 PUBG 둘이다(둘 다 validator + CandidateRule + Lua + 시드).
+    테스트는 여전히 LoL 경로만 탄다. VALORANT 는 중간이다 — 역할군 enum
+    (domain/valorant/ValorantRole.java)과 조건 validator, 티어 Lua 2개
+    (redis/valorant/create-or-check-party-tiered.lua · join-party-tiered.lua)까지 있고
+    untiered·취소 Lua, rule/valorant, config/redis/valorant, 시드의 VALORANT 항목이 없다.
+    시드가 없으므로 지금 VALORANT 요청은 validator 가 모드 설정을 못 읽어 400 으로 거절된다.
   · 불변식은 Lua 안에서 지킨다. GET → 판단 → SET 으로 지키지 마라.
-    backend/src/main/resources/redis/ 의 lua 8개(커밋 기준)가 그 자리다. 후보 찾기와 합류가
+    backend/src/main/resources/redis/ 의 lua 15개(커밋 기준)가 그 자리다. 후보 찾기와 합류가
     두 스크립트로 나뉘어 있고, 그 사이 틈은 redisLock/PoolLock.java 의 후보 풀 락이 막는다.
   · 서버→클라 알림은 Redis Pub/Sub 으로 나간다 (qm:pubsub:push:{userId}).
     다만 "지금 상태가 뭐냐"를 묻는 조회 API가 없다 — GET /match-requests/{id} 는 501이다.
@@ -207,8 +208,9 @@ backend/src/main/java/com/queuemate/
     │   └── redis/                        Redis 설정. 게임 무관은 바로 아래, 게임별은 config/redis/{game}/
     │       ├── RedisConfig.java          공통 Lua 3개(claim·accept·decline) 빈 + readScript()
     │       ├── RedissonConfig.java       분산 락 전용 클라이언트(qm:lock:* 만 만짐). 단일 노드 / Sentinel 두 갈래
-    │       └── lol/LolRedisConfig.java   LoL Lua 5개 빈. 빈 이름에 lol 접두사 (lolJoinPartyTieredScript 등)
-    │                                     (config/redis/pubg/ 는 커밋돼 있지 않다 — PUBG Lua 와 같이 올라간다)
+    │       ├── lol/LolRedisConfig.java   LoL Lua 5개 빈. 빈 이름에 lol 접두사 (lolJoinPartyTieredScript 등)
+    │       └── pubg/PubgRedisConfig.java PUBG Lua 5개 빈. 빈 이름에 pubg 접두사
+    │                                     (config/redis/valorant/ 는 아직 없다 — VALORANT Lua 를 읽는 빈이 없다)
     ├── controller/
     │   ├── MatchingController.java       ★ 진입점. POST/GET/DELETE /api/v1/match-requests
     │   │                                   GET 은 아직 501 NOT_IMPLEMENTED 다
@@ -219,7 +221,8 @@ backend/src/main/java/com/queuemate/
     │   │                                 + ProposalResult (수락·거절이 같이 쓰는 응답 갈래 한 enum)
     │   │                                 (ProposalStatus / AcceptanceStatus 는 삭제됐다)
     │   ├── lol/                          LolPosition.java (티어 enum 은 없다 — 사다리는 Redis 다)
-    │   └── pubg/ · valorant/             .gitkeep 만 있다
+    │   ├── valorant/                     ValorantRole.java (DUELIST/INITIATOR/CONTROLLER/SENTINEL)
+    │   └── pubg/                         .gitkeep 만 있다 (플랫폼 값은 validator 가 직접 본다)
     ├── block/                            Block.java / BlockRepository.java (social.blocks 읽기 전용)
     ├── notification/
     │   ├── PushEventType.java            MATCH_* 5종. 실제 발행되는 것은 3종
@@ -238,32 +241,42 @@ backend/src/main/java/com/queuemate/
     │   ├── CandidateRule.java            게임별 파티 배정 규칙 인터페이스
     │   ├── ScriptSupport.java            게임 공통. 반환 코드 읽기 / 멤버 추출 / 차단 판정 / 스캔 상한 20
     │   │                                   (게임 Lua 가 member:{userId} 필드 · {code, ...} 반환 약속을 지켜야 쓸 수 있다)
-    │   └── lol/
-    │       ├── LolCandidateRule.java     ★ 설정 읽기 + 차단 목록 조회 + 락 잡고 assigner 호출
-    │       ├── LolUntieredAssigner.java  ★ 티어 안 보는 배정. JOINED_AND_FULL 분기가 제안 트리거
-    │       ├── LolTieredAssigner.java    ★ (포지션 x 티어) 격자 배정. tierRule 해석은 Lua 가 한다
-    │       │                               (자바는 티어 접미사 없는 needs 키만 넘긴다)
-    │       ├── LolPartyLeaver.java       취소. MATCH_CANCELLED 알림도 여기서 발행
-    │       ├── LolPartyKeys.java         Redis 키 조립을 한 자리에 모은 것
-    │       └── LolModeConfig.java        gameconfig 에서 읽은 모드 설정 record
-    │                                     (rule/pubg/ 는 커밋돼 있지 않다 — 사용자 작성 중)
+    │   ├── lol/
+    │   │   ├── LolCandidateRule.java     ★ 설정 읽기 + 차단 목록 조회 + 락 잡고 assigner 호출
+    │   │   ├── LolUntieredAssigner.java  ★ 티어 안 보는 배정. JOINED_AND_FULL 분기가 제안 트리거
+    │   │   ├── LolTieredAssigner.java    ★ (포지션 x 티어) 격자 배정. tierRule 해석은 Lua 가 한다
+    │   │   │                               (자바는 티어 접미사 없는 needs 키만 넘긴다)
+    │   │   ├── LolPartyLeaver.java       취소. MATCH_CANCELLED 알림도 여기서 발행
+    │   │   ├── LolPartyKeys.java         Redis 키 조립을 한 자리에 모은 것
+    │   │   └── LolModeConfig.java        gameconfig 에서 읽은 모드 설정 record
+    │   └── pubg/                         PubgCandidateRule / PubgModeConfig / PubgPartyKeys /
+    │                                     PubgPartyLeaver / Pubg{Tiered,Untiered}Assigner
+    │                                     (rule/valorant/ 는 아직 빈 디렉터리다)
     └── validation/
         ├── MatchConditionValidator.java  게임별 validator로 라우팅
         ├── GameConditionValidator.java
         ├── lol/LolConditionValidator.java    포지션 + 티어(tierRule) 검증
-        └── pubg/PubgConditionValidator.java  플랫폼(STEAM/KAKAO) + 모드 + 티어(tierRule) 검증
+        ├── pubg/PubgConditionValidator.java  플랫폼(STEAM/KAKAO) + 모드 + 티어(tierRule) 검증
+        └── valorant/ValorantConditionValidator.java  역할군 + 모드 + 티어(tierRule) 검증.
+                                              시드에 VALORANT 항목이 없어 지금은 전부 400 이다
 
-backend/src/main/resources/redis/         ★ 불변식이 실제로 지켜지는 곳 (커밋된 것 8개.
-                                            redis/pubg/ 스크립트는 작성 중이라 세지 않는다)
+backend/src/main/resources/redis/         ★ 불변식이 실제로 지켜지는 곳 (15개)
 ├── shared/claim-request.lua            INV-1     EXISTS + HSET + EXPIRE 60
 ├── lol/create-or-check-party-untiered.lua        후보 찾기, 없으면 만들고 들어감 (티어 안 봄)
 ├── lol/create-or-check-party-tiered.lua          위의 (포지션 x 티어) 격자판. tier-range 표와
-│                                                 티어 사다리를 Lua 가 직접 읽어 tierLo/tierHi 를 정한다
+│                                                 티어 사다리를 Lua 가 직접 읽어 tierLo/tierHi 를
+│                                                 정한다 (ZRANK 그대로, 0 부터)
 ├── lol/join-party.lua                  INV-3/7   찾아 둔 파티에 합류. 반환 2 = 정원 참
 ├── lol/join-party-tiered.lua           INV-3/7   위의 격자판. 티어 범위를 다시 계산하지 않는다
 ├── lol/leave-party.lua                           취소. compare-and-delete + 색인 되돌리기
 │                                                 (티어를 안 보는 모드는 티어 이름에 "NONE" 을 넘겨
 │                                                  접미사를 빈 문자열로 접는다)
+├── pubg/ (5개)                                   배정·취소. 포지션도 중복 금지도 없어 색인이
+│                                                 (조건 x 티어) 격자가 아니라 티어 한 줄이다
+├── valorant/ (2개)                               create-or-check-party-tiered.lua /
+│                                                 join-party-tiered.lua 뿐이다. 역할군 x 티어 격자이고
+│                                                 합류마다 파티 티어 범위를 좁힌다.
+│                                                 untiered 와 leave 는 아직 없다
 ├── proposal/accept-proposal.lua        INV-4     수락 집계. 전원이 차면 확정까지
 └── proposal/decline-proposal.lua       INV-5     거절. 제안 흔적과 수락자 집합을 지운다
 
@@ -280,6 +293,7 @@ backend/src/test/java/com/queuemate/matching/
 backend/src/test/resources/schema.sql     테스트용 H2 에만 만드는 social.blocks
 seed/gameconfig.redis                     모드 설정 원본. LoL(12모드 + 티어 사다리 32 + tier-range 표 4모드)
                                           + PUBG(8모드 + 티어 사다리 27 + tier-range 표 4모드).
+                                          **VALORANT 항목은 아직 없다.**
                                           티어 값의 원본도 여기다. 앱은 읽기만 한다
 load-test/                                k6 + python 부하 테스트 자산
 redis-ha-lab/                             [실험용] Sentinel 페일오버 실습 자산
@@ -340,7 +354,7 @@ POST /api/v1/proposals/{partyId}/decline?userId=&requestId=
 | `qm:gameconfig:LOL:tier` | ZSET | **티어 사다리. 티어 값의 원본이다** (자바 enum 은 없다). score = 단계 번호 `0 UNRANKED`, `1 IRON_4` … `31 CHALLENGER` (32개). Lua 가 `ZRANK` 로 순번을 뽑고 `ZRANGE` 로 칸 목록을 만든다. **중간에 값을 끼워 넣으면 이미 만들어진 파티의 `tierLo`/`tierHi` 가 엉뚱한 칸을 가리킨다** — 큐가 비어 있을 때 바꿔라 |
 | `qm:gameconfig:LOL:tier-range:{modeKey}` | HASH | `tierRule` 이 `NONE` 이 **아닌** 모드가 갖는다(지금은 `RANKED_SOLO` + `RANKED_FLEX_2/3/5` 넷). `GOLD_4 → SILVER_4:PLATINUM_1` 처럼 **단 단위** 허용 범위. `SOLO_ONLY` 면 그 티어는 파티를 못 만든다. 줄이 없으면 그 티어는 400이다(fail-closed) |
 | `qm:user:active-request:{userId}` | HASH | 활성 요청. `requestId/game/modeKey/voicePreference/playPurpose/keyValue/tier/partyId`. 이 키의 존재 자체가 INV-1 선점이다 (`claim-request.lua`). 배정 전까지는 TTL 60초 |
-| `qm:party:{partyId}` | HASH | `partyId/target/createdAt/tierLo/tierHi` + `member:{userId} = keyValue` (+ 정원이 차면 `status`/`expiresAt`). 인원 수 필드는 없다 — `member:` 를 센다. `tierLo/tierHi` 는 사다리 **순번**(`ZRANK + 1`)이고 티어를 안 보는 모드도 `1/1` 로 같은 모양을 갖는다 |
+| `qm:party:{partyId}` | HASH | `partyId/target/createdAt/tierLo/tierHi` + `member:{userId} = keyValue` (+ 정원이 차면 `status`/`expiresAt`). 인원 수 필드는 없다 — `member:` 를 센다. `tierLo/tierHi` 는 사다리 **순번**이고 `ZRANK` 값 **그대로**라 0부터다 — 읽는 쪽이 `ZRANGE lo hi` 에 그대로 넘긴다. 티어를 안 보는 모드도 `0/0` 으로 같은 모양을 갖는다. VALORANT 파티는 여기에 `minTier`/`maxTier`(지금까지 들어온 사람의 최저·최고 순번)가 더 붙는다 |
 | `qm:proposal:accepts:{partyId}` | SET | 제안 수락자 userId. `accept-proposal.lua` 가 `SADD` 후 `SCARD` 로 세어 `target` 과 비교한다. 거절하면 `decline-proposal.lua` 가 `DEL` 한다. 제안 상태(`status`/`expiresAt`)는 별도 `qm:proposal:{id}` 레코드가 아니라 파티 HASH 에 있다 — **제안 id = partyId** |
 | `qm:party:open:LOL:{mode}:{voice}:{purpose}:needs:{keyValue}` | ZSET | **그 값을 아직 못 채운** 파티들. score = createdAt |
 | `qm:party:open:LOL:{mode}:{voice}:{purpose}:needs:{keyValue}:{tier}` | ZSET | 위의 티어판. 색인이 (포지션 x 티어) 격자가 된다. `:{tier}` 접미사는 **Lua 가 붙인다** — 자바는 접미사 없는 키만 KEYS 로 넘긴다 |
@@ -352,14 +366,24 @@ POST /api/v1/proposals/{partyId}/decline?userId=&requestId=
 그래서 claim 재시도 루프가 없다 (docs/11 #33).
 
 **티어가 붙으면서 달라진 것**: 색인이 (포지션 x 티어) 격자가 됐다. 파티가 받아들일 티어
-범위는 **만든 사람 기준으로 생성 시 한 번** 정해지고 그 뒤 바뀌지 않는다 — 그 범위를
-파티 HASH 의 `tierLo/tierHi` 에 적어 둬야 정원이 찼다가 풀릴 때 어느 칸으로 되돌릴지 알 수 있다.
+범위는 **LoL·PUBG 에서는 만든 사람 기준으로 생성 시 한 번** 정해지고 그 뒤 바뀌지 않는다 —
+그 범위를 파티 HASH 의 `tierLo/tierHi` 에 적어 둬야 정원이 찼다가 풀릴 때 어느 칸으로
+되돌릴지 알 수 있다. (**VALORANT 는 다르다** — 합류할 때마다 범위를 좁힌다. 아래를 보라.)
 대가로 서로 직접은 안 받을 두 사람이 같은 파티가 될 수 있다 (의도한 것이다).
 `tierRule` 해석은 **Lua 가 한다.** 예전에는 `LolTieredAssigner#tierRange()` 가 표를 읽어
 `[최저, 최고]` 로 환산해 숫자만 넘겼는데, 그 메서드가 없어졌다. 지금은 Lua 가 tier-range
-표(`KEYS[3]`)와 티어 사다리(`KEYS[4]`)를 직접 읽고 `ZRANK + 1` 을 `tierLo/tierHi` 에 적는다.
+표(`KEYS[3]`)와 티어 사다리(`KEYS[4]`)를 직접 읽고 **`ZRANK` 를 그대로**(0 부터)
+`tierLo/tierHi` 에 적는다. 읽는 쪽은 `ZRANGE lo hi` 에 그대로 넘긴다 — 더하고 빼는 자리가 없다.
 `join` 과 `leave` 는 **자기 tier-range 를 다시 읽지 않는다** — 파티의 `tierLo/tierHi` 를
 되돌려 칸을 만든다. 내 범위로 빼면 파티가 실제로 올라가 있는 칸과 어긋나 유령 색인이 남는다.
+
+**VALORANT 만 범위가 움직인다.** 발로란트 규칙은 "파티 최고 티어 <= 한계(파티 최저 티어)"라
+3인 파티를 방장 줄 하나로 표현할 수 없다. 그래서 `valorant/join-party-tiered.lua` 가 합류할
+때마다 파티 범위를 **지금 범위 ∩ 들어온 사람의 tier-range 줄** 로 좁힌다 — 옛 범위 칸 전부에서
+파티를 빼고, **아직 빈 역할군만**(`qm:party:needs-roles:{partyId}` SET) 새 범위 칸에 다시
+올린다. 정렬값은 지금 시각이 아니라 파티의 `createdAt` 이다. 파티 HASH 의 `minTier`/`maxTier`
+는 지금까지 들어온 사람의 최저·최고 순번이고, 읽는 곳은 아직 없다 — 취소가 범위를 되돌릴 때
+쓸 값이다. 취소 스크립트는 아직 없다.
 
 **격자를 KEYS 로 통째로 넘기지 않는다.** 단(division)이 들어가 칸이 (포지션 6 x 티어 32)
 = 192 개가 되면서, 자바가 격자를 평평하게 펴서 넘기던 방식(`KEYS[2 + (p-1)*T + t]`)을 버렸다.
@@ -416,7 +440,8 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 | **INV-6 차단 검증** | 선필터 코드는 **있다** (`LolCandidateRule#canJoin` → `BlockRepository.findBlockedUserIds` → `ScriptSupport.blockedWith`). 그런데 `social.blocks` 스키마가 없다 — Flyway 미도입, `ddl-auto: none`. 기본 실행(H2)에서는 그 조회가 실패하고, 배정이 `@Async` 안이라 **요청은 201로 나가고 배정만 조용히 실패한다.** 테스트만 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql` 로 통과한다. 확정 직전 최종 검증(docs/11 D-1, `BlockRepository#findBlocksAmong`)은 확정 경로(`accept-proposal.lua`)에 붙어 있지 않아 미구현 |
 | **SQS outbox** | AWS SDK 의존성이 `backend/build.gradle` 에 없다 |
 | **인증** | JWT 없음. `userId`를 요청 바디와 쿼리 파라미터로 받는 임시 상태 |
-| **VALORANT / PUBG 배정** | VALORANT 는 구현체가 없다. PUBG 는 validator 와 시드만 커밋됐고 `CandidateRule` 구현체·Lua·테스트가 커밋돼 있지 않다 (§4.3) |
+| **VALORANT 배정** | 티어 Lua 2개(`redis/valorant/create-or-check-party-tiered.lua` · `join-party-tiered.lua`)와 `ValorantRole` · `ValorantConditionValidator` 까지다. 티어를 안 보는 모드의 Lua, 취소 Lua, `rule/valorant`(빈 디렉터리), `config/redis/valorant`(스크립트 빈), `seed/gameconfig.redis` 의 VALORANT 항목이 전부 없다 — 그래서 아직 한 줄도 실행되지 않는 코드다 (§4.3) |
+| **PUBG·VALORANT 테스트** | 배정 Lua 는 PUBG 5개 · VALORANT 2개가 커밋됐지만 테스트 24건은 **전부 LoL 경로만** 탄다 (CLAUDE.md §4 "나눈 대가"). 테스트 없는 게임 스크립트는 아무도 실행하지 않는 코드다 |
 | **`GET /games`** | 계약에 있으나 컨트롤러가 없다 |
 | **Dockerfile** | 없다 |
 
@@ -426,17 +451,18 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 
 ### 4.3 알아두면 헷갈리지 않을 것
 
-**(a) 지원 게임은 3개인데 배정까지 구현된 것은 LoL 하나다. PUBG 는 검증과 시드까지만 커밋됐다.**
+**(a) 지원 게임은 3개인데 배정까지 구현된 것은 LoL 과 PUBG 둘이다. VALORANT 는 티어 Lua 2개까지다.**
 
 `GameKey` enum은 `LOL, VALORANT, PUBG` 셋이다 — 그건 **제품 경계**이지 구현 현황이 아니다
 (docs/11 #8). 커밋된 구현체는 이렇다:
 
-- `GameConditionValidator` 구현체: `LolConditionValidator` / `PubgConditionValidator` **2개**
-- `CandidateRule` 구현체: `LolCandidateRule` **1개**
+- `GameConditionValidator` 구현체: `LolConditionValidator` / `PubgConditionValidator` /
+  `ValorantConditionValidator` **3개**
+- `CandidateRule` 구현체: `LolCandidateRule` / `PubgCandidateRule` **2개**
 - `seed/gameconfig.redis` 는 LoL 섹션과 PUBG 섹션을 둘 다 갖는다. PUBG 는 모드 8
   (`{NORMAL,RANKED}_{DUO,SQUAD}_{TPP,FPP}`) / 티어 사다리 27 (`qm:gameconfig:PUBG:tier`) /
   랭크 모드 tier-range 표 4. 섹션마다 `seed done: ...` 줄이 하나씩 있다
-- `rule/valorant`, `validation/valorant` 는 **빈 디렉터리**이고
+- `rule/valorant` 는 **빈 디렉터리**이고 (`validation/valorant` 는 채워졌다)
   `domain/pubg`, `domain/valorant` 에는 `.gitkeep` 만 있다
 - **커밋되지 않은 사용자 작업**: `rule/pubg/` 전체, `resources/redis/pubg/*.lua`,
   `config/redis/pubg/PubgRedisConfig.java`. PUBG 를 검증하는 테스트는 아직 하나도 없다.
