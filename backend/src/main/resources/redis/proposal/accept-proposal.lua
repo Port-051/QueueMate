@@ -13,6 +13,7 @@
 --
 -- ── ARGV ─────────────────────────────────────────────────────────────
 -- ARGV[1] = userId. 수락한 사용자
+-- ARGV[2] = partyId (= proposalId). 만료 대기 목록에서 뺄 때만 쓴다
 --
 -- ── 반환 (문자열) ────────────────────────────────────────────────────
 --   NOT_FOUND     제안이 없다. 아직 정원이 안 찼거나, 파티 자체가 사라졌거나,
@@ -44,6 +45,7 @@
 local partyKey   = KEYS[1]
 local acceptsKey = KEYS[2]
 local userId     = ARGV[1]
+local partyId    = ARGV[2]
 
 -- 1. 제안이 있나. status 는 정원이 찰 때 join-party*.lua 가 만든다.
 --    없으면(Lua false) 아직 제안이 아니거나 파티가 사라진 것이다.
@@ -87,6 +89,8 @@ local target = tonumber(redis.call('HGET', partyKey, 'target'))
 --    확정하지 않고 수락만 기록한 채로 둔다 (fail-closed).
 if target ~= nil and count >= target then
     redis.call('HSET', partyKey, 'status', 'CONFIRMED')
+    -- 확정됐으니 만료 대상이 아니다. 목록에 남기면 스위퍼가 계속 꺼내 헛돈다
+    redis.call('ZREM', 'qm:proposal:pending', partyId)
     return 'CONFIRMED'
 end
 

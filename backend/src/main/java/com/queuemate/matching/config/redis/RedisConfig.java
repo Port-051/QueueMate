@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
  * <b>게임과 무관한</b> Lua 스크립트 빈. 게임별 스크립트는 {@code config/redis/{game}/} 의 설정 클래스가 갖는다
@@ -75,5 +76,23 @@ public class RedisConfig {
     @Bean
     public RedisScript<String> declineProposalScript() {
         return RedisScript.of(readScript("redis/proposal/decline-proposal.lua"), String.class);
+    }
+
+    /**
+     * 시한이 지난 제안 정리 (INV-5 expired).
+     *
+     * <p>수락·거절과 달리 {@code RedisScript<List>} 다. 돌려줄 것이 문자열 하나가 아니라
+     * <b>수락하지 않은 사용자 목록</b>이기 때문이다 — 스위퍼가 그 사람들만 큐에서 뺀다.
+     * 제네릭은 {@code List.class} 까지만 줄 수 있어 원시 타입을 쓴다(배정 스크립트들과 같다).
+     *
+     * <p>할 일이 없을 때(이미 확정·거절됐거나 아직 시한 전)는 <b>빈 목록</b>이 온다.
+     * Lua 배열에 {@code nil}/{@code false} 를 넣으면 거기서 잘리므로 "없음"은 빈 테이블로 돌려준다.
+     *
+     * @return 수락하지 않은 userId 목록. 비어 있으면 처리할 것이 없었다는 뜻이다
+     */
+    @Bean
+    @SuppressWarnings("rawtypes")
+    public RedisScript<List> expireProposalScript() {
+        return RedisScript.of(readScript("redis/proposal/expiry-proposal.lua"), List.class);
     }
 }

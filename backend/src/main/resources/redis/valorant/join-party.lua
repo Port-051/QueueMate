@@ -112,11 +112,14 @@ if size >= target then
     -- 만료된 제안이 되살아난다. 처음 성공한 한 번의 값이 끝까지 그대로여야 한다.
     if redis.call('HSETNX', partyKey, 'status', 'PENDING') == 1 then
         redis.call('HSET', partyKey, 'expiresAt', expiresAt)
+        -- 만료 대기 목록. 스위퍼가 이 ZSET 에서 시한이 지난 제안만 꺼낸다.
+        -- **HSETNX 가 성공한 이 자리여야 한다.** 분기 밖에 두면 재시도가 돌 때마다 점수를
+        -- 새 시각으로 덮어써, 파티 HASH 의 expiresAt 은 그대로인데 목록만 미래로 밀린다
+        redis.call('ZADD', 'qm:proposal:pending', expiresAt, partyId)
     end
 
     -- 정원이 찼으니 빈 역할군 목록은 쓸 일이 없다. TTL 이 없는 키라 여기서 안 지우면 영원히 남는다
     redis.call('DEL', 'qm:party:needs-roles:' .. partyId)
-
     return { 2, partyId, size }
 end
 

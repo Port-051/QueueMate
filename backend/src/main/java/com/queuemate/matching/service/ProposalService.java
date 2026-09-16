@@ -156,7 +156,9 @@ public class ProposalService {
      * <p>스크립트가 {@code nil} 을 돌려주는 경로는 없다. 모든 분기가 문자열을 반환한다.
      */
     private ProposalResult run(RedisScript<String> script, String proposalId, String userId) {
-        String answer = redis.execute(script, keys(proposalId), userId);
+        // ARGV[2] 는 만료 대기 목록(qm:proposal:pending)에서 뺄 때 쓴다. 제안이 끝나는 자리마다
+        // ZREM 을 해야 스위퍼가 이미 끝난 제안을 다시 꺼내지 않는다
+        String answer = redis.execute(script, keys(proposalId), userId, proposalId);
         return ProposalResult.valueOf(answer);
     }
 

@@ -31,6 +31,7 @@
 --
 -- ── ARGV ─────────────────────────────────────────────────────────────
 -- ARGV[1] = userId. 거절한 사용자
+-- ARGV[2] = partyId (= proposalId). 만료 대기 목록에서 뺄 때만 쓴다
 --
 -- ── 반환 (문자열) ────────────────────────────────────────────────────
 --   NOT_FOUND         제안이 없다. 아직 정원이 안 찼거나, 파티가 사라졌거나,
@@ -61,6 +62,7 @@
 local partyKey   = KEYS[1]
 local acceptsKey = KEYS[2]
 local userId     = ARGV[1]
+local partyId    = ARGV[2]
 
 -- 1. 제안이 있나. status 는 정원이 찰 때 join-party*.lua 가 만든다.
 --    거절이 흔적을 지우므로, 이미 깨진 제안도 거절 재시도도 여기서 끝난다.
@@ -88,4 +90,7 @@ end
 --    파티와 member:* 는 남으므로, 자리가 다시 차면 새 제안이 열린다.
 redis.call('DEL', acceptsKey)
 redis.call('HDEL', partyKey, 'status', 'expiresAt')
+-- 제안이 사라졌으니 만료 대기 목록에서도 뺀다. 안 빼면 스위퍼가 이미 깨진 제안을 꺼내
+-- 아무 잘못 없이 기다리던 사람들을 큐에서 빼 버린다
+redis.call('ZREM', 'qm:proposal:pending', partyId)
 return 'DECLINED'
