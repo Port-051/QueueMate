@@ -1,4 +1,4 @@
-ECHO "==== QueueMate gameconfig seed (LoL / PUBG) ===="
+ECHO "==== QueueMate gameconfig seed (LoL / PUBG / VALORANT) ===="
 ECHO "# redis-cli는 파이프 입력에서 '#' 주석을 지원하지 않는다(unknown command '#')."
 ECHO "# 그래서 주석을 ECHO로 남긴다. 실행하면 그대로 출력되어 진행 로그도 겸한다."
 ECHO "# 이 파일이 MVP의 사실상 원본(source of truth)이다."
@@ -216,3 +216,85 @@ HSET qm:gameconfig:PUBG:tier-range:RANKED_SQUAD_FPP UNRANKED SOLO_ONLY BRONZE_4 
 EXEC
 
 ECHO "==== seed done: PUBG 8 modes / tier ladder 27 / tier-range 4 modes ===="
+
+ECHO "==== VALORANT ===="
+ECHO "# 롤/배그와 같은 구조다. 기준: 한국 서버(KR), 라이엇 공식 경쟁전 FAQ."
+ECHO "# keyCondition 은 선호 역할군(DUELIST/INITIATOR/CONTROLLER/SENTINEL) 4개다."
+
+ECHO "-- [VALORANT 1/3] 모드별 설정 (HASH) --"
+ECHO "# 모드는 경쟁전(COMPETITIVE) / 일반전(UNRATED) x 듀오(2인) / 트리오(3인) 네 개다."
+ECHO "#"
+ECHO "# 5인 모드를 넣지 않았다. 한국 모집 글에서 5인은 대부분 '이미 4명 모인 파티의 빈자리"
+ECHO "# 채우기'라, 솔로를 0명부터 모아 올리는 우리 구조와 수요가 애초에 어긋난다."
+ECHO "# 4인 모드도 없다 -- 게임이 경쟁전 4인 파티 큐를 금지한다(롤 RANKED_FLEX_4 와 같은 이유)."
+ECHO "# 일반전은 4인이 가능하지만 경쟁전과 모드 목록을 맞춰 둔다. 수요가 확인되면 그때 연다."
+ECHO "#"
+ECHO "# positionUniqueness 가 지금 네 모드 전부 true 인데도 상수로 접지 않고 설정으로 둔다."
+ECHO "# 역할군 중복 금지는 게임 규칙이 아니라 우리 제품 규칙이기 때문이다 -- 발로란트는"
+ECHO "# 타격대 둘을 막지 않는다. 나중에 '같은 역할군끼리 모이는' 모드를 열 수 있고,"
+ECHO "# 그때 고칠 곳이 자바가 아니라 이 시드 한 곳이어야 한다."
+ECHO "#"
+ECHO "# tierRule: 경쟁전만 EXIST. 일반전은 게임 자체에 티어 제한이 없어 NONE 이다."
+HSET qm:gameconfig:VALORANT:COMPETITIVE_DUO  targetPartySize 2 positionUniqueness true tierRule EXIST
+HSET qm:gameconfig:VALORANT:COMPETITIVE_TRIO targetPartySize 3 positionUniqueness true tierRule EXIST
+HSET qm:gameconfig:VALORANT:UNRATED_DUO      targetPartySize 2 positionUniqueness true tierRule NONE
+HSET qm:gameconfig:VALORANT:UNRATED_TRIO     targetPartySize 3 positionUniqueness true tierRule NONE
+
+ECHO "-- [VALORANT 2/3] 티어 사다리 (ZSET) --"
+ECHO "# 9티어 x 3단 + 레디언트 + UNRANKED = 26칸. 레디언트만 단이 없다."
+ECHO "#"
+ECHO "# **주의: 발로란트는 숫자가 클수록 높다** (IRON_1 < IRON_2 < IRON_3 < BRONZE_1)."
+ECHO "# 롤/배그와 정반대다 -- 그쪽은 4가 낮고 1이 높다(골드4 -> 골드1). 라이엇이 같은 회사인데"
+ECHO "# 게임마다 표기가 다르다. 이름만 보고 다른 게임 표를 복사하면 사다리가 뒤집힌다."
+ECHO "# 순서의 원본은 이름이 아니라 아래 score 다. 코드는 score 만 보므로 헷갈릴 일이 없고,"
+ECHO "# 사람이 표를 손으로 고칠 때만 위험하다."
+ECHO "#"
+ECHO "# score = 사다리 단계 번호. 두 score 를 빼면 단계 차이가 나온다."
+ECHO "# UNRANKED 는 score 0 이지만 사다리 위의 값이 아니다 -- [VALORANT 3/3] 표가 SOLO_ONLY 로 막는다."
+ECHO "# 'NONE' 이라는 티어를 넣지 마라 (leave-party.lua 가 '티어를 안 보는 모드' 신호로 쓰는 값)."
+ECHO "# 중간에 값을 끼워 넣으면 이미 만들어진 파티의 tierLo/tierHi 가 엉뚱한 칸을 가리킨다. 큐가 비었을 때 바꿔라."
+MULTI
+DEL qm:gameconfig:VALORANT:tier
+ZADD qm:gameconfig:VALORANT:tier 0 UNRANKED 1 IRON_1 2 IRON_2 3 IRON_3 4 BRONZE_1 5 BRONZE_2 6 BRONZE_3 7 SILVER_1 8 SILVER_2 9 SILVER_3 10 GOLD_1 11 GOLD_2 12 GOLD_3 13 PLATINUM_1 14 PLATINUM_2 15 PLATINUM_3 16 DIAMOND_1 17 DIAMOND_2 18 DIAMOND_3 19 ASCENDANT_1 20 ASCENDANT_2 21 ASCENDANT_3 22 IMMORTAL_1 23 IMMORTAL_2 24 IMMORTAL_3 25 RADIANT
+EXEC
+
+ECHO "-- [VALORANT 3/3] 티어별 허용 범위 표 (HASH) --"
+ECHO "# 경쟁전 두 모드만 있다. 일반전은 tierRule NONE 이라 표를 읽지 않는다."
+ECHO "#"
+ECHO "# 공식 규칙은 한 줄이다: **파티 최고 티어 <= 한계(파티 최저 티어)**."
+ECHO "#   최저가 아이언/브론즈  -> 한계 SILVER_3"
+ECHO "#   최저가 실버          -> 한계 GOLD_3"
+ECHO "#   최저가 골드          -> 한계 PLATINUM_3"
+ECHO "#   최저가 플래티넘 이상 -> 한계 = 자기 순번 +3 (상한 RADIANT)"
+ECHO "# 낮은 구간이 '자기 +3' 이 아니라 고정 천장인 것은 공식 문구 그대로다 -- 아이언~브론즈는"
+ECHO "# 실력 편차가 커도 게임 영향이 작다고 보아 넓게 열어 두고, 위로 갈수록 좁힌다."
+ECHO "#"
+ECHO "# 한 줄 t 의 값은 't 와 둘이 같이 갈 수 있는 구간' [lo(t), limit(t)] 이다."
+ECHO "# lo(t) 는 limit(s) >= t 를 만족하는 가장 낮은 s -- 즉 '나를 받아 줄 수 있는 가장 낮은 티어'다."
+ECHO "# 그래서 표가 완전히 대칭이 된다. 우리 엔진은 '파티를 만든 사람의 범위'로 후보를 찾으므로"
+ECHO "# 비대칭이면 누가 먼저 큐를 눌렀느냐로 결과가 갈린다. 고칠 때 대칭을 깨지 마라."
+ECHO "#"
+ECHO "# UNRANKED 는 두 표 모두 SOLO_ONLY 다. 공식에 배치 전 계정 규정이 없어 보수적으로 막는다."
+ECHO "# 언랭끼리만 모으는 칸을 열면 사람이 모이지 않아 영영 매칭 안 되는 대기가 된다."
+ECHO "#"
+ECHO "# 듀오와 트리오가 다르다. 이 규칙은 전이(transitive)가 성립하지 않는다 --"
+ECHO "# 골드3~플래3 되고 플래3~다이아3 되지만 골드3~다이아3 은 불가다. 2인은 쌍이 하나뿐이라"
+ECHO "# 줄 하나로 충분하지만, 3인은 줄 하나만 보면 규칙을 어기는 파티가 만들어진다."
+ECHO "# 그래서 트리오는 join-party-tiered.lua 가 합류할 때마다 파티 범위를 새 멤버 줄과의"
+ECHO "# **교집합**으로 좁힌다. 표는 그 교집합의 출발점이다."
+ECHO "#"
+ECHO "# 트리오에서 IMMORTAL_1 이상이 전부 SOLO_ONLY 인 것과 남는 줄의 최고값을 ASCENDANT_3 으로"
+ECHO "# 자른 것은 게임이 불멸 이상의 3인 파티 큐를 막기 때문이다. 듀오 표에는 그 제한이 없다."
+ECHO "#"
+ECHO "# 손으로 쓰지 않았다. 생성 후 기계 검증 -- 듀오 비대칭 0건 / 규칙 불일치 0건(25x25)"
+ECHO "# / 트리오 표가 통과시키는 조합 317가지 전부 실제 규칙 만족(위반 0건)."
+ECHO "# 고칠 때도 생성해서 같은 검증을 돌려라."
+ECHO "# 사다리/표와 같은 이유로 DEL 후 HSET 한다. HSET 만 하면 이 파일에서 지운 티어가 Redis 에 남는다."
+MULTI
+DEL qm:gameconfig:VALORANT:tier-range:COMPETITIVE_DUO
+HSET qm:gameconfig:VALORANT:tier-range:COMPETITIVE_DUO UNRANKED SOLO_ONLY IRON_1 IRON_1:SILVER_3 IRON_2 IRON_1:SILVER_3 IRON_3 IRON_1:SILVER_3 BRONZE_1 IRON_1:SILVER_3 BRONZE_2 IRON_1:SILVER_3 BRONZE_3 IRON_1:SILVER_3 SILVER_1 IRON_1:GOLD_3 SILVER_2 IRON_1:GOLD_3 SILVER_3 IRON_1:GOLD_3 GOLD_1 SILVER_1:PLATINUM_3 GOLD_2 SILVER_1:PLATINUM_3 GOLD_3 SILVER_1:PLATINUM_3 PLATINUM_1 GOLD_1:DIAMOND_1 PLATINUM_2 GOLD_1:DIAMOND_2 PLATINUM_3 GOLD_1:DIAMOND_3 DIAMOND_1 PLATINUM_1:ASCENDANT_1 DIAMOND_2 PLATINUM_2:ASCENDANT_2 DIAMOND_3 PLATINUM_3:ASCENDANT_3 ASCENDANT_1 DIAMOND_1:IMMORTAL_1 ASCENDANT_2 DIAMOND_2:IMMORTAL_2 ASCENDANT_3 DIAMOND_3:IMMORTAL_3 IMMORTAL_1 ASCENDANT_1:RADIANT IMMORTAL_2 ASCENDANT_2:RADIANT IMMORTAL_3 ASCENDANT_3:RADIANT RADIANT IMMORTAL_1:RADIANT
+DEL qm:gameconfig:VALORANT:tier-range:COMPETITIVE_TRIO
+HSET qm:gameconfig:VALORANT:tier-range:COMPETITIVE_TRIO UNRANKED SOLO_ONLY IRON_1 IRON_1:SILVER_3 IRON_2 IRON_1:SILVER_3 IRON_3 IRON_1:SILVER_3 BRONZE_1 IRON_1:SILVER_3 BRONZE_2 IRON_1:SILVER_3 BRONZE_3 IRON_1:SILVER_3 SILVER_1 IRON_1:GOLD_3 SILVER_2 IRON_1:GOLD_3 SILVER_3 IRON_1:GOLD_3 GOLD_1 SILVER_1:PLATINUM_3 GOLD_2 SILVER_1:PLATINUM_3 GOLD_3 SILVER_1:PLATINUM_3 PLATINUM_1 GOLD_1:DIAMOND_1 PLATINUM_2 GOLD_1:DIAMOND_2 PLATINUM_3 GOLD_1:DIAMOND_3 DIAMOND_1 PLATINUM_1:ASCENDANT_1 DIAMOND_2 PLATINUM_2:ASCENDANT_2 DIAMOND_3 PLATINUM_3:ASCENDANT_3 ASCENDANT_1 DIAMOND_1:ASCENDANT_3 ASCENDANT_2 DIAMOND_2:ASCENDANT_3 ASCENDANT_3 DIAMOND_3:ASCENDANT_3 IMMORTAL_1 SOLO_ONLY IMMORTAL_2 SOLO_ONLY IMMORTAL_3 SOLO_ONLY RADIANT SOLO_ONLY
+EXEC
+
+ECHO "==== seed done: VALORANT 4 modes / tier ladder 26 / tier-range 2 modes ===="
