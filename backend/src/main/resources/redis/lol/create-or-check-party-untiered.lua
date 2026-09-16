@@ -86,8 +86,8 @@ if #found == 0 then
             'partyId', newPartyId,
             'target', target,
             'createdAt', score,
-            'tierLo', 1,
-            'tierHi', 1,
+            'tierLo', 0,
+            'tierHi', 0,
             memberField, myValue)
     redis.call('HSET', userKey, 'partyId', newPartyId)
     -- 배정됐다. 이제 claim 의 만료를 뗀다 (claim-request.lua 참고)

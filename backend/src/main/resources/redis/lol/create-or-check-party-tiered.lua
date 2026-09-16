@@ -48,13 +48,13 @@
 --                                         member: 필드를 세는 것이 인원이다.
 --                                         카운터를 두면 재시도 때 HINCRBY 가 두 번
 --                                         더해져 실제 멤버 수와 어긋난다
---   tierLo / tierHi                       이 파티가 받아들이는 티어 **순번** 범위.
+--   tierLo / tierHi                       이 파티가 받아들이는 티어 **순번**(ZRANK, 0부터) 범위.
 --                                         이름이 아니라 숫자다 — leave 가 이름↔순번을
 --                                         환산하지 않아도 되게 한다
 --   member:{userId} = keyValue            참가자. userId 를 필드로 쓰는 이유는
 --                                         칼바람처럼 같은 keyValue 를 여럿이
 --                                         가질 수 있기 때문이다
---   untiered 판도 tierLo=tierHi=1 로 같은 모양을 갖는다
+--   untiered 판도 tierLo=tierHi=0 로 같은 모양을 갖는다
 --
 -- ── 색인 등록 규칙 ───────────────────────────────────────────────────
 --   새로 만들 때 : (아직 필요한 포지션) x (tier-range 표가 준 티어 범위) 전부 ZADD
@@ -128,8 +128,8 @@ if #found == 0 then
         return { -1, '', 0 }
     end
 
-    -- 티어 이름 -> 사다리 순번. ZRANK 는 0부터라 1을 더해 격자 순번(1..T)에 맞춘다.
-    -- leave-party.lua 가 tierLo/tierHi 를 격자 인덱스로 그대로 쓰기 때문이다
+    -- 티어 이름 -> 사다리 순번. ZRANK 그대로 적는다(0 부터).
+    -- 읽는 쪽(join / leave)이 ZRANGE 에 그대로 넘기므로 더하고 빼는 자리가 없다
     local loRank = redis.call('ZRANK', KEYS[4], minMaxTier[1])
     local hiRank = redis.call('ZRANK', KEYS[4], minMaxTier[2])
     if loRank == false or hiRank == false then
@@ -141,8 +141,8 @@ if #found == 0 then
             'partyId', newPartyId,
             'target', target,
             'createdAt', score,
-            'tierLo', loRank + 1,
-            'tierHi', hiRank + 1,
+            'tierLo', loRank,
+            'tierHi', hiRank,
             memberField, myValue)
     redis.call('HSET', userKey, 'partyId', newPartyId)
     -- 배정됐다. 이제 claim 의 만료를 뗀다 (claim-request.lua 참고)

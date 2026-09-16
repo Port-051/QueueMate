@@ -96,8 +96,8 @@ end
 --    그리고 Lua 는 롤백이 없어서, 쓰기를 시작한 뒤에 읽기가 실패하면 멤버만 빠지고
 --    색인은 그대로인 상태가 남는다.
 --
---    범위는 파티를 만들 때 정해져 tierLo/tierHi 에 **순번**으로 적혀 있다
---    (create-or-check-party-tiered.lua 가 ZRANK + 1 로 적는다). 되돌릴 때 1 을 뺀다.
+--    범위는 파티를 만들 때 정해져 tierLo/tierHi 에 **순번**(ZRANK, 0 부터)으로 적혀 있다
+--    (create-or-check-party-tiered.lua). ZRANGE 에 그대로 넘긴다.
 local suffixes
 if tiered then
     local bound = redis.call('HMGET', partyKey, 'tierLo', 'tierHi')
@@ -110,7 +110,7 @@ if tiered then
         -- 사다리 전체를 훑는다. 덜 빼면 색인에 유령이 영구히 남지만, 더 빼는 것은 무해하다
         tiers = redis.call('ZRANGE', tierKey, 0, -1)
     else
-        tiers = redis.call('ZRANGE', tierKey, lo - 1, hi - 1)
+        tiers = redis.call('ZRANGE', tierKey, lo, hi)
     end
 
     suffixes = {}

@@ -85,7 +85,7 @@ local partyKey = prefix .. partyId
 --    파티가 실제로 올라가 있는 칸과 어긋나 일부 칸에 그대로 남는다 — 정원이 찼는데도
 --    남의 눈에 후보로 보이는 유령이 되고 INV-3 이 깨진다.
 --
---    create 가 tierLo/tierHi 를 ZRANK + 1 로 적어 두었으므로 되돌릴 때 1 을 뺀다.
+--    create 가 tierLo/tierHi 를 ZRANK 그대로(0 부터) 적어 두었으므로 ZRANGE 에 그대로 넘긴다.
 --    쓰기보다 먼저 하는 이유는 Lua 에 롤백이 없기 때문이다 — 멤버만 넣고 색인 정리에서
 --    터지면 정원이 찬 파티가 색인에 남는다.
 local bound = redis.call('HMGET', partyKey, 'tierLo', 'tierHi')
@@ -94,7 +94,7 @@ local hi = tonumber(bound[2])
 if lo == nil or hi == nil then
     return { -1, '', 0 }
 end
-local range = redis.call('ZRANGE', KEYS[4], lo - 1, hi - 1)
+local range = redis.call('ZRANGE', KEYS[4], lo, hi)
 
 -- 2. 그 파티에 들어간다
 -- 참가자를 먼저 기록하고, 그다음 센다. 순서가 반대면 나를 빼고 세게 된다

@@ -43,7 +43,7 @@
 -- ── 파티 HASH 구조 ───────────────────────────────────────────────────
 --   partyId / target / createdAt   메타데이터. 인원 수는 저장하지 않는다 — member: 필드를 센다.
 --                                  카운터를 두면 재시도 때 HINCRBY 가 두 번 더해져 어긋난다
---   tierLo / tierHi                받아들이는 티어 **순번** 범위 (ZRANK + 1). 이름이 아니라 숫자다
+--   tierLo / tierHi                받아들이는 티어 **순번** 범위 (ZRANK, 0 부터). 이름이 아니라 숫자다
 --   member:{userId} = 'EXIST'      참가자. 값은 자리 채움이고 읽지 않는다 (untiered 판과 같다).
 --                                  접두사 'member:' 는 자바 ScriptSupport#memberIds() 와 같아야 한다
 --
@@ -100,8 +100,8 @@ if #found == 0 then
         return { -1, '', 0 }
     end
 
-    -- 티어 이름 -> 사다리 순번. ZRANK 는 0부터라 1을 더해 순번(1..T)으로 적는다.
-    -- join-party-tiered.lua 가 1 을 빼서 사다리에서 이름을 되찾는다
+    -- 티어 이름 -> 사다리 순번. ZRANK 그대로 적는다(0 부터).
+    -- 읽는 쪽(join / leave)이 ZRANGE 에 그대로 넘기므로 더하고 빼는 자리가 없다
     local loRank = redis.call('ZRANK', KEYS[4], minMaxTier[1])
     local hiRank = redis.call('ZRANK', KEYS[4], minMaxTier[2])
     if loRank == false or hiRank == false then
@@ -113,8 +113,8 @@ if #found == 0 then
             'partyId', newPartyId,
             'target', target,
             'createdAt', score,
-            'tierLo', loRank + 1,
-            'tierHi', hiRank + 1,
+            'tierLo', loRank,
+            'tierHi', hiRank,
             memberField, 'EXIST')
     redis.call('HSET', userKey, 'partyId', newPartyId)
     -- 배정됐다. 이제 claim 의 만료를 뗀다 (claim-request.lua 참고)
