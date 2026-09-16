@@ -236,6 +236,18 @@ end
 -- 4. 여기서부터 쓰기다. 위에서 읽기가 전부 끝났다.
 --    먼저 지우고, 그다음 센다. 순서가 반대면 나를 넣고 세게 된다.
 --    세기는 몇 번 해도 같은 값이라 재시도에 안전하다 (머리말 참고)
+-- 제안이 열려 있는 동안 취소로 빠질 수 있다. 그때 제안의 흔적을 같이 지운다.
+--
+-- 남겨 두면 두 가지가 깨진다.
+--   · status 가 남아 파티가 다시 차도 join-party*.lua 의 HSETNX 가 0 을 돌려준다 —
+--     새 제안이 안 열리고 expiresAt 도 갱신되지 않아 아무도 확정시킬 수 없는 파티가 된다
+--   · 옛 수락자가 남아, 그 사람이 본 적도 없는 새 멤버와 함께 SCARD 가 target 에 닿아 확정된다 (INV-4/INV-5)
+--
+-- 거절 경로는 decline-proposal.lua 가 이미 같은 것을 지운다. 여기는 거절을 거치지 않는
+-- 순수 취소를 막는 자리다. HDEL/DEL 은 없는 값에 걸어도 무해하므로 두 번 지워도 상관없다.
+redis.call('HDEL', partyKey, 'status', 'expiresAt')
+redis.call('DEL', 'qm:proposal:accepts:' .. partyId)
+
 redis.call('HDEL', partyKey, 'member:' .. userId, 'tier:' .. userId)
 local size = memberCount(partyKey)
 
@@ -244,6 +256,8 @@ if size <= 0 then
     --    빈 파티를 남기면 색인의 유령이 그 자리를 영구히 점거한다.
     --    ZREM 은 없는 멤버에 걸어도 무해하므로 어느 칸에 있었는지 가릴 필요가 없다
     redis.call('DEL', partyKey)
+    -- 파티가 사라지면 수락자 집합도 쓸 곳이 없다. 남기면 아무도 안 지운다
+    redis.call('DEL', 'qm:proposal:accepts:' .. partyId)
     for i = 1, n do
         for _, suffix in ipairs(oldSuffixes) do
             redis.call('ZREM', KEYS[5 + i] .. suffix, partyId)
