@@ -4,7 +4,7 @@ import com.queuemate.matching.block.BlockRepository;
 import com.queuemate.matching.domain.ActiveRequest;
 import com.queuemate.matching.domain.CancelResult;
 import com.queuemate.matching.domain.GameKey;
-import com.queuemate.matching.domain.lol.LolPosition;
+import com.queuemate.matching.domain.condition.lol.LolPosition;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
 import com.queuemate.matching.redisLock.PoolLock;
 import com.queuemate.matching.rule.CandidateRule;

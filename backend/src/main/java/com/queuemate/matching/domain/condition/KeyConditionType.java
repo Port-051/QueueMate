@@ -1,7 +1,8 @@
-package com.queuemate.matching.domain;
+package com.queuemate.matching.domain.condition;
 
 /**
  * 게임마다 이름만 다른 핵심 조건(keyValue)의 종류. 게임당 하나다.
+ * 사용자가 요청에 실어 보내는 매칭 조건 4개 중 2번 줄이라 {@code domain.condition} 에 있다.
  *
  * <p><b>PUBG 는 플레이 스타일이 아니라 플랫폼이다.</b> 처음에는 {@code PLAY_STYLE} 이었으나
  * 바꿨다. 스팀과 카카오는 서버가 분리되어 있어 <b>서로 파티 자체를 맺을 수 없다</b>

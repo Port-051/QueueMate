@@ -1,7 +1,7 @@
 package com.queuemate.matching.validation.pubg;
 
 import com.queuemate.matching.domain.GameKey;
-import com.queuemate.matching.domain.KeyConditionType;
+import com.queuemate.matching.domain.condition.KeyConditionType;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
 import com.queuemate.matching.redisKeys.SharedKeys;
 import com.queuemate.matching.validation.GameConditionValidator;

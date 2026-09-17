@@ -1,9 +1,9 @@
 package com.queuemate.matching.concurrency;
 
 import com.queuemate.matching.domain.GameKey;
-import com.queuemate.matching.domain.PlayPurpose;
-import com.queuemate.matching.domain.VoicePreference;
-import com.queuemate.matching.domain.KeyConditionType;
+import com.queuemate.matching.domain.condition.PlayPurpose;
+import com.queuemate.matching.domain.condition.VoicePreference;
+import com.queuemate.matching.domain.condition.KeyConditionType;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;

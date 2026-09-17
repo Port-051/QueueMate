@@ -3,7 +3,7 @@ package com.queuemate.matching.proposal;
 import com.queuemate.matching.concurrency.ConcurrencyTestSupport;
 import com.queuemate.matching.domain.GameKey;
 import com.queuemate.matching.domain.ProposalResult;
-import com.queuemate.matching.domain.lol.LolPosition;
+import com.queuemate.matching.domain.condition.lol.LolPosition;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
 import com.queuemate.matching.rule.CandidateRule;
 import com.queuemate.matching.service.MatchRequestService;

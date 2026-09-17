@@ -2,7 +2,7 @@ package com.queuemate.matching.rule.lol;
 
 import com.queuemate.matching.domain.ActiveRequest;
 import com.queuemate.matching.domain.CancelResult;
-import com.queuemate.matching.domain.lol.LolPosition;
+import com.queuemate.matching.domain.condition.lol.LolPosition;
 import com.queuemate.matching.notification.PushEventType;
 import com.queuemate.matching.notification.PushPublisher;
 import lombok.RequiredArgsConstructor;

@@ -1,5 +1,8 @@
 package com.queuemate.matching.domain;
 
+import com.queuemate.matching.domain.condition.PlayPurpose;
+import com.queuemate.matching.domain.condition.VoicePreference;
+
 /**
  * qm:user:active-request:{userId} 에서 읽어온 활성 요청.
  *

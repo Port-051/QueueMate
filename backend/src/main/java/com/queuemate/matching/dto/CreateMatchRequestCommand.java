@@ -1,9 +1,9 @@
 package com.queuemate.matching.dto;
 
 import com.queuemate.matching.domain.GameKey;
-import com.queuemate.matching.domain.KeyConditionType;
-import com.queuemate.matching.domain.PlayPurpose;
-import com.queuemate.matching.domain.VoicePreference;
+import com.queuemate.matching.domain.condition.KeyConditionType;
+import com.queuemate.matching.domain.condition.PlayPurpose;
+import com.queuemate.matching.domain.condition.VoicePreference;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

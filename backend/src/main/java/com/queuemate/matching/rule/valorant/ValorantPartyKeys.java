@@ -2,7 +2,7 @@ package com.queuemate.matching.rule.valorant;
 
 import com.queuemate.matching.domain.ActiveRequest;
 import com.queuemate.matching.domain.GameKey;
-import com.queuemate.matching.domain.valorant.ValorantRole;
+import com.queuemate.matching.domain.condition.valorant.ValorantRole;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
 import com.queuemate.matching.redisKeys.SharedKeys;
 import org.springframework.stereotype.Component;
