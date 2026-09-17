@@ -1270,3 +1270,133 @@ O-4 / P-5 가 "확정 뒤가 없다" 로 적은 것 중 Redis 쪽 뒷정리와 �
 `shared` 1 / `lol` 5 / `pubg` 5 / `valorant` 5 / `proposal` 4. 새로 생긴 `proposal/` 의 둘은
 `expiry-proposal.lua` 와 `cleanup-confirmed.lua` 이고, 뒤엣것은 아직 커밋되지 않은 작업 트리에
 있다. 이번에도 코드는 건드리지 않았다.)
+
+---
+
+## 문서 정합성 점검 기록 (2026-09-17)
+
+Q-1~Q-6 뒤에 코드가 또 바뀌었다. **Q 는 기록이라 지우지 않고 여기에 갱신분만 적는다.**
+겹치는 항목은 이쪽이 우선한다.
+
+### R-1. 상태 조회가 구현됐다 — 그런데 **계약과 경로가 다르다**
+
+P-5 / Q-6 의 마지막 줄("`GET /api/v1/match-requests/{requestId}` 는 여전히 501")이 해소됐다.
+`controller/MatchingController#getMatchRequest` + `service/MatchQueryService` 가 들어왔고
+501 스텁은 없어졌다(`grep -rn NOT_IMPLEMENTED backend/src/` 0건).
+
+**다만 경로가 원본 계약과 다르다.**
+
+| | 계약 | 구현 |
+|---|---|---|
+| 경로 | `GET /match-requests/{requestId}` | `GET /match-requests?userId=...` — **경로 변수가 없다** |
+
+**왜 그렇게 정했나.** 둘이다.
+
+1. **활성 요청이 애초에 사용자 단위로 저장된다.** `qm:user:active-request:{userId}` 이고
+   `requestId` 는 그 HASH 안에 든 값이다(INV-1, #27 이 `match_requests` 테이블을 금지한 결과이기도
+   하다). `requestId` 로 찾으려면 `requestId → userId` 역색인을 새로 만들어야 하는데, 그 키의
+   수명을 관리할 자리가 또 생긴다.
+2. **이 조회가 가장 필요한 순간에 클라이언트는 `requestId` 를 잃은 상태다.** 쓰임새의 대부분이
+   "페이지를 새로 열었을 때 내가 지금 큐에 있나"인데, 그때 요구하면 정작 필요할 때 못 쓰는 API 가
+   된다. 취소(`DELETE`)가 `requestId` 를 받는 것은 **쓰기**라서다 — 늦게 도착한 취소가 그 사이
+   새로 만든 요청을 지우면 안 되기 때문이고(compare-and-delete), 조회에는 그 위험이 없다.
+
+**그래서 이것은 queueMate 본 저장소의 contract 변경이 필요한 사안이다** (CLAUDE.md §5).
+그때까지의 불일치는 `contracts/README.md` 표 #5 에 적어 두었다. JWT 가 붙으면 `userId` 쿼리
+파라미터가 사라지고 경로는 `/match-requests/me` 가 된다.
+
+**응답도 커졌다.** 계약의 `MatchRequestView` 는 `{id, status, queuedAt, proposalId}` 4필드인데
+`dto/MatchRequestResponse` 는 record 8필드다 — `{status, requestId, queuedAt, partyId, target,
+memberCount, expiresAt, isAccepted}`. `@JsonInclude(NON_NULL)` 이라 그 갈래에서 뜻이 없는 칸은
+응답에서 통째로 빠진다. 늘어난 넷(`target`/`memberCount`/`expiresAt`/`isAccepted`)은 클라이언트가
+대기 화면의 "3/5명"과 제안 화면의 남은 시간·내가 눌렀는지를 그리는 데 쓴다.
+
+**답할 수 없는 것이 하나 있다.** 갈래는 `IDLE` / `QUEUED` / `PROPOSED` / `MATCHED` 넷이고,
+`MatchRequestStatus` 에 있는 `CANCELLED` / `EXPIRED` 는 **조회가 절대 돌려주지 않는다** —
+취소도 만료도 활성 요청 키를 지우므로 서버에 근거가 남지 않아 `IDLE` 과 구분되지 않는다.
+"왜 큐에서 빠졌는지"를 알려면 알림을 받았어야 하는데 Pub/Sub 은 at-most-once 다.
+이유를 남기려면 근거가 될 키를 따로 두어야 하고, 그것은 #27(요청 이력을 남기지 않는다)과
+부딪힌다 — **지금은 남기지 않는 쪽을 택했다.**
+
+### R-2. `accept-proposal.lua` 가 시한을 직접 본다 — Q-5 의 "남는 창"이 닫혔다
+
+Q-5 가 "`accept-proposal.lua` 는 여전히 `expiresAt` 을 보지 않는다. 시한이 지나고 스위퍼가 그
+파티를 꺼내기 전(주기 기본 1초)에 도착한 수락은 그대로 확정된다"고 적은 것이 해소됐다.
+
+스크립트가 `ARGV[3] = now` 를 받아 `expiresAt <= now` 면 수락을 기록하지 않고 **`NOT_FOUND`** 를
+돌려준다. `NOT_FOUND` 인 이유는 클라이언트가 갈 곳이 스위퍼가 이미 걷어간 뒤와 같아서다(대기
+화면 복귀) — 상태 값을 하나 더 만들면 클라이언트가 같은 상황을 두 갈래로 다뤄야 한다.
+
+**흔적을 지우는 것은 여전히 스위퍼 몫이다.** 여기서 지우면 이 스크립트가 "수락 집계" 말고 다른
+일까지 하게 되고, **만료 알림(`MATCH_PROPOSAL_EXPIRED`)도 못 나간다** — 그 알림을 보내는 자리는
+`ProposalExpiryService` 이기 때문이다. 그래서 확인만 하고 정리는 넘긴다.
+
+INV-5 의 네 갈래가 이것으로 **전부** 막혔다. `CLAUDE.md` §4 INV-5 행의 상태를
+"구현됨 (만료는 스위퍼 주기만큼 늦다)" → **"구현·테스트됨"** 으로 고쳤다.
+
+### R-3. PUBG 동시성 테스트가 생겼다 — 세 게임 모두 테스트가 있다
+
+D-7 이 스크립트를 게임별로 나누면서 "나눈 대가로 게임마다 테스트가 있어야 한다"고 적었고,
+Q-4 시점까지 PUBG 만 비어 있었다. `concurrency/PubgPartyJoinConcurrencyTest` 9건이 들어와
+그 구멍이 메워졌다. 이제 **동시성 24건**(LoL 7 + VALORANT 8 + PUBG 9) + 제안 멱등성 11 +
+알림 6 = **41건**이다.
+
+PUBG 테스트가 다른 둘과 다르게 보는 것은 **핵심 조건이 겹쳐도 된다는 것**이다 —
+플랫폼은 LoL 포지션·VALORANT 역할군과 달리 한 파티에 여럿이 같아도 되므로, "같은 플랫폼만으로도
+파티가 정원까지 찬다"를 단언한다. 반대로 스팀과 카카오는 색인 자체가 갈려 섞이지 않는다는 것
+(INV-8 구조적 분리)도 같이 본다.
+
+`CLAUDE.md` §4 INV-8 의 상태 열을 "LoL만 구현·테스트됨" → **"세 게임 모두 구현·테스트됨"** 으로,
+같은 문서 D-7 절의 "PUBG 스크립트를 도는 테스트는 아직 하나도 없다"를 고쳤다.
+
+### R-4. 조건 값 enum 이 `domain/condition/` 으로 모였다
+
+`KeyConditionType` · `VoicePreference` · `PlayPurpose` 와 게임별 조건 값
+(`condition/lol/LolPosition` · `condition/valorant/ValorantRole` ·
+`condition/pubg/`(빈 디렉터리))이 그 아래로 옮겨졌다.
+
+**무엇이 남았는가가 이 구분의 뜻이다.** `GameKey` 는 `domain/` 에 남았다 — 게임은 사용자가 고르는
+**조건**이 아니라 그 위의 **갈래**이고, 실제로 `game` 은 후보 풀 키의 맨 앞에 붙어 조건들을
+담는 그릇 노릇을 한다. `ActiveRequest` · `CancelResult` · `MatchRequestStatus` ·
+`ProposalResult` 도 조건이 아니라 상태·결과라 남았다.
+
+`condition/pubg/` 가 빈 것은 사고가 아니다 — **PUBG 핵심 조건은 플랫폼 문자열이라 enum 이 없고**
+`PubgConditionValidator` 가 `STEAM`/`KAKAO` 를 직접 본다. LoL 티어가 자바에 없는 것(D-8)과는
+이유가 다르다. 저쪽은 값이 자주 바뀌어 Redis 로 뺀 것이고, 이쪽은 값이 둘뿐이라 enum 을 만들
+값이 없었다.
+
+### R-5. Redis 키 문자열이 `redisKeys/SharedKeys` 하나로 모였다
+
+**왜 모았나.** 같은 접두사를 여러 클래스가 각자 적고 있으면 **한쪽만 고쳐도 컴파일이 통과한다.**
+그때부터 서로 다른 키를 만들고, 아무도 못 찾는 데이터가 조용히 쌓인다. 실제로
+`ProposalService` / `ProposalExpiryService` 는 게임과 무관한데도 `LolPartyKeys.PARTY_PREFIX` 를
+빌려 쓰거나 같은 문자열을 따로 적고 있었다.
+
+**게임별 `*PartyKeys` 를 없애지는 않았다.** 게임을 가리는 것은 needs 색인과 gameconfig 뿐이고
+(조건이 키 이름에 들어가기 때문이다 — INV-8), 그 둘은 게임마다 격자 모양이 다르다.
+그래서 **조각만 `SharedKeys` 에 두고 게임 이름과 조건을 엮는 조립은 게임별 클래스**가 한다.
+
+**한계가 하나 있다. 같은 문자열이 Lua 안에도 리터럴로 있다.** 컴파일러가 맞춰 주지 않는 짝이라,
+값을 고치면 어느 스크립트를 같이 고쳐야 하는지가 `SharedKeys` 클래스 주석에 목록으로 있다.
+`PARTY_PREFIX` 만 예외다 — 배정 스크립트가 ARGV 로 받아 가므로 자바 쪽만 고치면 된다.
+
+### R-6. 활성 요청에 `queuedAt` 이 붙었다
+
+줄 선 시각(epoch millis). **Lua 가 아니라 `MatchRequestService#requestFields()` 가 필드로
+넘긴다** — `claim-request.lua` 는 받은 필드를 그대로 `HSET` 하므로 한 줄이면 됐다.
+
+둘 곳이 여기뿐이었다. 조회가 "얼마나 기다렸나"를 답하려면 요청이 살아 있는 동안 남는 자리가
+필요한데, **`match_requests` 테이블을 만들지 않으므로**(#27) 활성 요청 HASH 말고는 없다.
+
+`docs/07_REDIS_DESIGN.md` 는 원문 verbatim 이라 이 필드가 반영되지 않았다(그 문서는 활성 요청을
+아직 `STRING requestId` 로 적는다). **실제 키 구조는 `START_HERE.md` 의 Redis 키 표가 맞다.**
+
+### 점검 방법
+
+`backend/src/main` 의 자바와 Lua 를 직접 읽고 문서와 대조했다. 특히
+`MatchingController` · `MatchQueryService` · `MatchRequestResponse` · `MatchRequestStatus` ·
+`SharedKeys` · `MatchRequestService` · `redis/proposal/accept-proposal.lua` ·
+`PubgPartyJoinConcurrencyTest` 를 읽었고, `build.gradle` 에 Flyway·AWS SDK 가 없는 것과
+`MeterRegistry` 가 0건인 것을 grep 으로 확인했다.
+**코드는 건드리지 않았고 빌드·테스트도 돌리지 않았다** — 고친 것은 문서뿐이다.
+이번에 확인한 "아직 없는 것" 전체 목록과 우선순위는 `HANDOFF.md` §0 에 있다.

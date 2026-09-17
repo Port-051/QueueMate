@@ -1,13 +1,159 @@
 # HANDOFF — 다음 세션 인계
 
-**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-16 (수)
-**읽는 순서:** `CLAUDE.md` → `START_HERE.md` → **이 파일**
+**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-17 (목)
+**읽는 순서:** `CLAUDE.md` → `START_HERE.md` → **이 파일의 §0 부터**
 
 이 파일은 "지금 어디까지 왔고 무엇이 열려 있는가"만 담는다. 규칙은 `CLAUDE.md`,
 결정의 근거는 `docs/11_DECISION_LOG.md`(특히 **D-8**), 조사 원문과 출처는
 `WORKLOG_2026-09-14.md` 에 있다. 여기서 다시 설명하지 않는다.
 
 작업이 끝나면 이 파일을 갱신하거나, 전부 끝났으면 지워라.
+
+---
+
+## 0. 2026-09-17 — 남은 것 전부 (이 절만 읽고 이어갈 수 있다)
+
+아래 §1~§5 는 그날그날의 기록이라 겹치는 곳이 있다. **겹치면 이 절이 우선한다.**
+
+### 0-0. 방금 들어온 것 (문서가 "미구현"이라 적고 있던 것들)
+
+| 무엇 | 어디 | 비고 |
+|---|---|---|
+| **매칭 요청 상태 조회** | `controller/MatchingController#getMatchRequest` · `service/MatchQueryService` | **경로가 계약과 다르다** — 계약 `GET /match-requests/{requestId}` vs 구현 `GET /match-requests?userId=`. 경로 변수가 없다. 활성 요청이 `qm:user:active-request:{userId}` 로 **사용자 단위** 저장이라(INV-1) requestId 는 찾는 열쇠가 아니고, 이 조회가 가장 필요한 순간(페이지 새로 열기)에 클라이언트는 requestId 를 잃은 상태다. **contract 변경이 필요한 사안이다**(CLAUDE.md §5, 아래 0-1 ⑦). JWT 가 붙으면 `/match-requests/me` 가 된다 |
+| 응답 DTO 확장 | `dto/MatchRequestResponse` | **record 로 바뀌고 8필드**가 됐다 — `{status, requestId, queuedAt, partyId, target, memberCount, expiresAt, isAccepted}`. `@JsonInclude(NON_NULL)` 이라 그 갈래에서 뜻이 없는 칸은 응답에서 빠진다. 정적 팩토리 `idle`/`queued`/`proposed`/`matched` 로 만든다 |
+| `MatchRequestStatus.IDLE` | `domain/MatchRequestStatus` | 갈래는 `IDLE`(활성 요청 없음) / `QUEUED` / `PROPOSED` / `MATCHED`. **`CANCELLED`·`EXPIRED` 는 enum 에만 있고 조회가 절대 돌려주지 않는다** — 취소·만료는 활성 요청 키를 지우므로 `IDLE` 과 구분되지 않는다 |
+| `accept-proposal.lua` 가 시한을 본다 | `redis/proposal/accept-proposal.lua` | `ARGV[3] = now` 를 받아 `expiresAt <= now` 면 `NOT_FOUND`. **INV-5 expired 의 "스위퍼 주기만큼 남던 창"이 닫혔다.** 흔적 지우기는 여전히 스위퍼 몫이다(만료 알림이 거기서 나간다) |
+| 도메인 패키지 정리 | `domain/condition/` 신설 | `KeyConditionType`·`VoicePreference`·`PlayPurpose` + `condition/lol/LolPosition` · `condition/valorant/ValorantRole` · `condition/pubg/`(빈 디렉터리 — PUBG 핵심 조건은 플랫폼 문자열이라 enum 이 없다). `GameKey` 는 조건이 아니라 갈래라 `domain/` 에 남았고 `ActiveRequest`·`CancelResult`·`MatchRequestStatus`·`ProposalResult` 도 남았다 |
+| Redis 키 통합 | `redisKeys/SharedKeys` 신설 | 자바 쪽 키 문자열의 단일 출처. 게임별 `*PartyKeys` 는 남아서 조각을 조합한다. **Lua 안의 같은 문자열은 그대로다** — 어느 스크립트에 박혀 있는지가 `SharedKeys` 클래스 주석에 목록으로 있다 |
+| 활성 요청에 `queuedAt` | `service/MatchRequestService#requestFields()` | 줄 선 시각(epoch millis). **Lua 가 아니라 자바가 필드로 넘긴다** |
+| 취소 스크립트 정리 | `{lol,pubg,valorant}/leave-party.lua` | 중복 정리 2줄 제거. 동작 무변경 |
+| **PUBG 동시성 테스트 9건** | `concurrency/PubgPartyJoinConcurrencyTest` | **이제 세 게임 모두 테스트가 있다.** 총 41건 — 동시성 24(LoL 7 + VALORANT 8 + PUBG 9) + 제안 멱등성 11 + 알림 6 |
+
+### 0-1. 남은 것 — 우선순위 순
+
+우선순위 근거는 "안 하면 무엇이 안 되는가"다.
+
+#### ① 확정된 사용자를 파티에서 풀어 주는 경로가 없다 — **가장 급하다**
+
+**안 하면: 사용자가 매칭을 평생 한 번만 할 수 있다.** 확정되면
+`redis/proposal/cleanup-confirmed.lua` 가 활성 요청을 **지우지 않고** `status='PARTY'` 를 찍는다
+(지우면 그 순간 새 매칭을 걸 수 있어 한 사람이 두 파티에 속한다 — INV-2). 그 표시를 푸는 주체가
+**아무도 없다.** 그래서 확정된 사용자의 `qm:user:active-request:{userId}` 는 TTL 도 없이
+(배정 때 `PERSIST` 로 뗐다) 영원히 남고, 이후 모든 매칭 요청이 409 `ALREADY_QUEUED` 다.
+
+**왜 아직 없나** — 게임이 끝났는지를 이 앱은 모른다. 파티의 수명은 `app:platform` 것이다.
+
+**후보 셋. 사용자와 아직 결론이 안 났다 — 이어받기 전에 물어라.**
+1. `PartyClosed.fifo` 소비 — 계약대로다. 다만 `app:platform` 쪽이 먼저 있어야 하고 SQS 배선이
+   딸린다(아래 ③과 같은 작업 덩어리).
+2. "파티 나가기" API — 이 저장소만으로 닫을 수 있다. 다만 파티 수명을 이 앱이 아는 꼴이 되어
+   CLAUDE.md §9("파티를 DB 에 만드는 코드 금지")의 경계와 어디까지 다른지 정해야 한다.
+3. 긴 TTL 안전망 — `cleanup-confirmed.lua` 가 활성 요청에 넉넉한 `EXPIRE`(예: 한 게임 길이)를
+   건다. 가장 싸고 혼자 할 수 있지만 **시간이 지나면 저절로 풀리는 것**이라 정답은 아니다.
+   1·2 가 붙기 전까지의 임시방편으로는 쓸 만하다.
+
+**건드릴 곳**: `redis/proposal/cleanup-confirmed.lua` · `service/ProposalService#confirmed()` ·
+(1번이면) 새 SQS 소비자 패키지 · (2번이면) `MatchingController` + `MatchCancelService`.
+
+#### ② INV-6 차단 검증 — **배포 차단 조건**
+
+**안 하면: 배포할 수 없다.** CLAUDE.md §4 INV-6 과 docs/11 #30 이 "차단 검증 없이 배포하지
+않는다"고 못 박았다. 게다가 **지금은 기본 실행에서 배정이 조용히 실패한다.**
+
+- **선필터 코드는 있다** — `rule/lol/LolCandidateRule#canJoin()` 이 락을 잡기 전에
+  `block/BlockRepository#findBlockedUserIds()` 를 실제로 부르고 `rule/ScriptSupport#blockedWith()`
+  로 거른다.
+- **스키마가 없다** — `backend/build.gradle` 에 **Flyway 의존성이 없고**(확인함)
+  `application.yaml` 이 `ddl-auto: none` 이다. 기본 실행(H2)에 `social.blocks` 테이블이 없어
+  그 조회가 터진다. 배정이 `@Async` 안이라 **요청은 201 로 나가고 배정만 조용히 실패한다.**
+  테스트만 `ConcurrencyTestSupport` 의 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql`
+  로 통과한다.
+- **확정 직전 최종 검증이 없다** — docs/11 D-1 의 `social.blocks` 동기 SELECT.
+  이제 확정 경로(`accept-proposal.lua` → `ProposalService#accept()`)가 있으므로 그 앞에 붙일 수 있다.
+- **선필터가 LoL 에만 있다.** `rule/pubg` · `rule/valorant` 의 CandidateRule 도 같은 검사를
+  해야 하는지 확인해라 — 안 하면 두 게임은 차단 관계가 그대로 한 파티가 된다.
+
+**건드릴 곳**: `backend/build.gradle`(Flyway) · `backend/src/main/resources/db/migration/`(신설) ·
+`application.yaml` · `block/BlockRepository` · `service/ProposalService` ·
+`rule/{pubg,valorant}/*CandidateRule`.
+
+#### ③ 확정 후속 처리의 나머지 — outbox → `ProposalConfirmed.fifo`
+
+**안 하면: 확정돼도 파티가 DB 에 안 생긴다.** `app:platform` 이 파티를 만들 신호를 못 받는다.
+Redis 쪽 뒷정리(`cleanup-confirmed.lua`)와 `MATCH_CONFIRMED` 알림까지는 붙었는데 거기서 끝난다.
+
+- **AWS SDK 의존성부터 없다** (`backend/build.gradle` 확인함 — `outbox`/`sqs`/`ProposalConfirmed`
+  로 grep 하면 자바 코드는 0건이고 주석만 나온다).
+- `matching.outbox` 테이블도 없다(Flyway 가 없으므로 ② 와 같은 덩어리다).
+- ① 을 `PartyClosed` 로 풀기로 하면 그 소비도 여기 딸린다.
+
+**건드릴 곳**: `backend/build.gradle` · `service/ProposalService#confirmed()` ·
+새 `outbox/` 패키지 · Flyway 마이그레이션.
+
+#### ④ `BlockChanged.fifo` 소비 없음
+
+계약(`contracts/events.md`)에는 있고 코드에는 없다. **급하지 않다** — ② 가 DB 직접 조회로
+도는 한 필요 없다. Redis 선필터(`qm:block:{userId}`, docs/11 D-2)를 켜기로 할 때 필요해진다.
+
+#### ⑤ 메트릭 0건
+
+`CLAUDE.md` §6 Definition of done 4번이 요구하는데 `MeterRegistry` / `@Timed` / `Metrics.` 가
+`backend/src/main` 에 **0건**이다. `spring-boot-starter-actuator` 는 이미 의존성에 있고
+`/actuator/metrics` 도 열려 있어(`application.yaml`) JVM·HTTP 기본 지표는 나온다.
+**없는 것은 매칭 고유 지표다** — 큐 대기 시간(이제 `queuedAt` 이 있으니 잴 수 있다), 배정까지
+걸린 시간, 제안 수락률, 만료·취소 건수, 후보 풀 락 대기 시간.
+
+**건드릴 곳**: `service/*` · `rule/*/*Assigner` · `redisLock/PoolLock` · `ProposalSweeper`.
+
+#### ⑥ 부하 테스트가 안 돈다
+
+티어가 필수가 된 뒤로 `load-test/` 가 그대로는 못 돈다. 두 군데가 어긋난다 (재확인함).
+1. **요청 바디** — `load-test/match_latency.py` 의 `body()` 가 `modeKey: RANKED_SOLO` 를
+   `tier` 없이 보낸다. 시드의 `RANKED_SOLO` 는 `tierRule EXIST` 라 validator 가 400 을 낸다.
+   `prefill.py` · `measure.js` · `stock.js` · `throughput.js` · `netpath/postload.js` 도 같다.
+2. **색인 키** — `prefill.py` · `run.sh` · `netpath/runpost.sh` · `runpost2.sh` 가 티어 접미사
+   없는 needs 키를 `ZCARD` 하는데, 티어 모드는 Lua 가 `:{tier}` 를 붙이므로 그 키는 비어 있다.
+
+`tierRule NONE` 인 모드(`NORMAL_2` 등)로 바꾸거나, 바디에 `tier` 를 싣고 키에 같은 접미사를
+붙여 맞춰라. **성사 감지 자체는 이미 고쳐져 있다**(`32031a4`, `member:` 필드를 센다).
+
+#### ⑦ 계약 정리 — 본 저장소 contract 변경이 선행
+
+`contracts/openapi.yaml` 은 **원본의 발췌**라 여기서 고치지 않는다 (CLAUDE.md §5).
+지금 어긋난 것은 `contracts/README.md` 의 불일치 표에 전부 적어 두었다. 큰 것만:
+- `VoicePreference` 에 `OPTIONAL` 이 남아 있다 (#1, **코드가 맞다**)
+- `KeyCondition.type` 이 `PLAY_STYLE` 이다 — 코드는 `PLATFORM` (#14, **코드가 맞다**)
+- **상태 조회 경로** `/{requestId}` vs `?userId=` (#5, **코드가 맞다고 보고 그렇게 뒀다**)
+- `MatchRequestView` 4필드 vs `MatchRequestResponse` 8필드 (#4 — 이름은 계약이, 필드 수는
+  구현이 앞서 있다. `queuedAt` 은 타입도 다르다: 계약 `date-time` vs 구현 epoch millis)
+- **`POST /match-requests` 의 201 본문이 JSON 이 아니라 문자열 `"CREATED"` 다** (#5-1,
+  **계약이 맞다. 구현을 고쳐야 한다** — 아래 0-2 참고)
+- `tier` 필드가 계약에 없다 (#13), `GET /games` 가 구현에 없다 (#7)
+
+### 0-2. 코드에서 발견한 작은 것들 (문서로는 못 고친다)
+
+이번에 문서만 고쳤으므로 `backend/src/**` 는 손대지 않았다. 다음에 코드를 만질 때 같이 처리해라.
+
+| 무엇 | 어디 | 내용 |
+|---|---|---|
+| **접수 응답이 DTO 를 안 쓴다** | `MatchingController#createMatchRequest` | `.body("CREATED")` — 문자열이다. `MatchRequestResponse.queued(requestId, queuedAt)` 정적 팩토리가 이미 있는데 쓰이지 않는다. **클라이언트가 `requestId` 를 못 받아 취소(`DELETE /{requestId}`)를 부를 값을 잃는다**(조회로 되찾을 수는 있으나 왕복이 하나 는다). 계약도 여기서 `MatchRequestView` 를 돌려주게 돼 있다 |
+| 안 쓰는 import | `MatchingController` 5번째 줄 | 위 변경으로 `domain.MatchRequestStatus` 가 안 쓰이게 됐다 |
+| 낡은 주석 | `controller/ProposalController.java:64` | "알림을 놓쳤을 때의 복구는 조회로 한다 (`MatchingController#getMatchRequest` — **아직 미구현**)" — 구현됐다 |
+| 낡은 주석 | `rule/CandidateRule.java:14` | 인터페이스 머리말이 "`VALORANT` — **미구현**" 이라고 적고 있다. `ValorantCandidateRule` 은 커밋돼 있다 |
+| 낡은 주석 | `redis/pubg/create-or-check-party-untiered.lua:37` | "PUBG 취소 스크립트(`leave-party.lua`)가 **아직 없다**" — 있다 |
+| 남은 TODO | `service/ProposalService.java:161` | 거절 뒤에 **남은 사람들에게 제안이 깨졌음을 알리는 것**이 없다. 지금은 거절한 본인만 큐에서 빠지고, 수락해 놓고 기다리던 사람들은 제안 화면에 갇힌 채 아무 알림도 못 받는다 (만료 경로는 `MATCH_PROPOSAL_EXPIRED` 를 전원에게 보내는데 거절 경로에는 그 대응이 없다). 위 ①~③ 보다 작지만 **사용자가 실제로 겪는 문제**다 |
+| 낡은 주석 | `redis/lol/create-or-check-party-untiered.lua:19` · `join-party.lua:18` | `ARGV[3]` 주석의 "PUBG 플레이 스타일" — 지금 PUBG 조건은 `PLATFORM` 이고 이 스크립트는 LoL 전용이다. 같은 흔적이 `create-or-check-party-untiered.lua:36` · `join-party.lua:34` · `join-party.lua:111` 의 "칼바람이나 PUBG처럼" 에도 있다 (2026-09-17 줄 번호 재확인) |
+
+### 0-3. 이번에 고친 문서
+
+`contracts/README.md`(불일치 표 #4·#4-1·#5·#5-1, 501 항목 제거, "남은 구멍" → "메워진 구멍") ·
+`CLAUDE.md`(INV-5 ③ 만료 창, INV-8 상태 열, 회귀 테스트 표에 PUBG 행, `ProposalIdempotencyTest`
+경고 문단 삭제, `domain/condition/` 경로, `SharedKeys` 규칙 추가) · `START_HERE.md`(핵심 사실,
+스모크 호출, 패키지 트리, Redis 키 표의 `queuedAt`, §4.1/§4.2/§4.3, §5 표) ·
+`docs/11`(R 절) · `docs/02`(부록 D-4). **`docs/07_REDIS_DESIGN.md` 는 "원문 verbatim, 수정 금지"라
+건드리지 않았다** — 그 문서가 `qm:user:active-request:{userId}` 를 아직 `STRING requestId` 로,
+제안을 별도 `qm:proposal:{id}` 레코드로 적고 있는 것은 그래서다. 지금 구현은 HASH 이고
+제안 상태는 파티 HASH 에 얹힌다. **실제 키 구조는 `START_HERE.md` 의 Redis 키 표를 봐라.**
 
 ---
 
@@ -49,7 +195,8 @@
   `ValorantPartyJoinConcurrencyTest`. 색인은 (역할군 x 티어)이고 **합류마다 파티 티어 범위를
   좁힌다** — LoL·PUBG 의 "범위는 만든 사람 기준으로 한 번 정해진다"가 발로란트에는 해당하지 않는다.
   곁딸린 키 `qm:party:needs-roles:{partyId}` SET 과 파티 HASH 의 `minTier`/`maxTier` 가 같이 생겼다.
-- 테스트는 이제 LoL 과 VALORANT 경로를 탄다. **PUBG 스크립트를 도는 테스트는 아직 없다.**
+- 테스트는 이제 LoL 과 VALORANT 경로를 탄다. ~~PUBG 스크립트를 도는 테스트는 아직 없다.~~
+  **(2026-09-17 해소 — `PubgPartyJoinConcurrencyTest` 9건. §0-0)**
 - **취소가 제안의 흔적을 지운다** (`3d3efaf`). `{lol,pubg,valorant}/leave-party.lua` 가 멤버를 빼기
   전에 `status`/`expiresAt` HDEL + 수락자 SET DEL 을 한다. INV-5 의 cancelled 구멍이 막혔다.
 - **제안 만료를 구현했다** (`251453a`). 새 키 `qm:proposal:pending` ZSET(member = partyId,
@@ -60,8 +207,9 @@
   끝나는 모든 자리(확정·거절·취소·만료)에 있다. 정책은 **B안** — 만료되면 수락하지 않은 사람만
   큐에서 빼고, 수락한 사람은 파티에 남아 빈자리가 채워지면 **다시 눌러야 한다**(옛 수락 기록은
   지워진다). `MATCH_PROPOSAL_EXPIRED` 는 그 제안에 있던 전원에게 나간다.
-  INV-5 의 expired 구멍이 막혔다 — 다만 `accept-proposal.lua` 는 여전히 `expiresAt` 을 보지
-  않으므로 **시한 직후 스위퍼가 꺼내기 전까지(주기만큼)는 수락이 그대로 확정된다.**
+  INV-5 의 expired 구멍이 막혔다. ~~다만 `accept-proposal.lua` 는 여전히 `expiresAt` 을 보지
+  않으므로 시한 직후 스위퍼가 꺼내기 전까지(주기만큼)는 수락이 그대로 확정된다.~~
+  **(2026-09-17 해소 — `ARGV[3] = now` 로 시한을 보고 `NOT_FOUND` 를 돌려준다. §0-0)**
 - **확정 후속 처리의 절반이 들어왔다** (작업 트리, 아직 커밋 안 됨). 새 스크립트
   `redis/proposal/cleanup-confirmed.lua` 를 `ProposalService#accept()` 가 확정 직후 부른다 —
   파티원의 **활성 요청을 지우지 않고 `status='PARTY'` 를 찍고**(지우면 그 순간 새 매칭을 걸 수
@@ -71,16 +219,18 @@
   **이미 확정된 제안의 재수락에 `ALREADY_RESPONDED`** 를 돌려주도록 바뀌었고(확정 알림이 두 번
   나가지 않게 하려는 것이다), 컨트롤러는 수락 분기에서 `ACCEPTED`/`CONFIRMED`/`ALREADY_RESPONDED`
   를 **모두 204** 로 받는다(거절 분기의 `ALREADY_RESPONDED` 는 409 그대로다).
-- ⚠️ **`ProposalIdempotencyTest` 가 지금 작업 트리와 어긋난다.** "마지막 수락자가 두 번 보내도
-  두 번 다 `CONFIRMED`" 를 단언하는 자리(그 파일 세 곳)가 이제 `ALREADY_RESPONDED` 를 받는다.
-  **커밋 전에 테스트를 새 값에 맞춰 고쳐라.** 만료·확정 뒷정리를 덮는 테스트도 아직 없다
-  (`MATCH_PROPOSAL_EXPIRED` / `MATCH_CONFIRMED` 를 구독해 보는 `PushNotificationTest` 항목 포함).
-- **그래서 §3-B 는 대부분 해소됐다.** 남은 것은 `matching.outbox` 기록 + `ProposalConfirmed.fifo`
-  발행(파티가 DB 에 안 생긴다), `PartyClosed` 소비(확정된 사용자의 `status=PARTY` 를 푸는 자리),
-  `GET /api/v1/match-requests/{requestId}`(여전히 501), PUBG 동시성 테스트,
-  Flyway + `social.blocks`(INV-6, §3-C) 다.
+- ~~⚠️ `ProposalIdempotencyTest` 가 지금 작업 트리와 어긋난다.~~ **해소됐다** — 테스트가 새 값
+  (`ALREADY_RESPONDED`)에 맞춰졌고 11건 전부 통과한다. 다만 **만료·확정 뒷정리를 덮는 테스트는
+  아직 없다** (`MATCH_PROPOSAL_EXPIRED` / `MATCH_CONFIRMED` 를 구독해 보는 `PushNotificationTest`
+  항목 포함).
+- **그래서 §3-B 는 대부분 해소됐다.** 그중 상태 조회와 PUBG 동시성 테스트도 2026-09-17 에
+  들어왔다. **지금 남은 것은 §0-1 을 봐라** — `matching.outbox` + `ProposalConfirmed.fifo`,
+  확정된 사용자를 푸는 경로, Flyway + `social.blocks`(INV-6) 다.
 
 ### 테스트 — 커밋 `8d7f094` 기준 24건 통과 (2026-09-15)
+
+> **2026-09-17 기준은 41건이다** — 동시성 24(LoL 7 + VALORANT 8 + PUBG 9) + 제안 멱등성 11 +
+> 알림 6. 아래 24건 기록은 2026-09-15 시점이라 그대로 둔다.
 
 `concurrency.*` 7 + `PushNotificationTest` 6 + `ProposalIdempotencyTest` 11 = **24/24 통과.**
 결과 로그에서 `ERR Error running script` / `RedisSystemException` / ERROR 로그도 0건이었다.
@@ -131,9 +281,15 @@ claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 
 ## 3. 다음 할 일
 
-### A. PUBG 구현 (진행 중)
+> **2026-09-17: 이 절은 대부분 끝났다.** A(PUBG)는 테스트까지 들어와 완료됐고, B 는 §0-1 ①·③ 만
+> 남았다. C(INV-6)는 그대로 남아 §0-1 ② 다. D 는 아래 각 항목에 표시해 두었다.
+> **지금 할 일의 최신 목록은 §0-1 이다.**
 
-**시드와 validator 는 들어갔다. 배정 규칙·Lua·테스트는 아직 없다.**
+### A. PUBG 구현 (~~진행 중~~ **완료, 2026-09-17**)
+
+~~**시드와 validator 는 들어갔다. 배정 규칙·Lua·테스트는 아직 없다.**~~
+**전부 들어왔다** — 시드 · `PubgConditionValidator` · `rule/pubg/` 6개 · `redis/pubg/*.lua` 5개 ·
+`PubgRedisConfig` · `PubgPartyJoinConcurrencyTest` 9건. 아래 표와 설계 근거는 기록으로 남긴다.
 모드 목록 SET(`qm:gameconfig:modes:*`)은 사용자 결정으로 **없앴다** — 모드 존재는 모드 HASH 로 판단한다.
 
 | 키 | 내용 |
@@ -186,7 +342,7 @@ claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
   제안 도중에 부를 때만** 해당한다. **거절 버튼 경로는 문제없다** — `decline-proposal.lua` 가
   수락자 SET 과 `status` 를 먼저 지운 뒤 취소를 부른다.
 
-### C. INV-6 스키마 (Flyway) — 배포 전 필수
+### C. INV-6 스키마 (Flyway) — 배포 전 필수 <sub>(2026-09-17: 그대로 남아 있다 — §0-1 ②)</sub>
 
 ### D. 낮은 우선순위 (기록만, 급하지 않음)
 
@@ -195,10 +351,11 @@ claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 - **`join-party.lua`(티어 없는 쪽)에 파티 존재 확인이 없다.** 찾기와 합류 사이 수 마이크로초에
   그 파티의 마지막 멤버가 취소하면 `HSET` 이 파티를 되살려 유령 파티가 된다. 취소가 풀 락을
   안 잡아서 이론상 가능하나 **확률은 극히 낮다.** 티어 쪽은 `HMGET tierLo` 가드로 막혀 있다.
-- `CLAUDE.md` §4 INV-8 상태가 "**LoL만 구현·테스트됨**" — PUBG 도 값 검증(validator)과 시드는 생겼다. 테스트가 없으니
-  "테스트됨"은 여전히 LoL 만 맞지만, PUBG 동시성 테스트가 붙으면 그 행을 갱신해라.
+- ~~`CLAUDE.md` §4 INV-8 상태가 "LoL만 구현·테스트됨"~~ **2026-09-17 에 "세 게임 모두
+  구현·테스트됨" 으로 갱신했다.**
 - `contracts/openapi.yaml` 이 아직 `PLAY_STYLE` — 계약 파일이라 안 고쳤다(`contracts/README.md` #14 에 기록).
-- **부하 테스트는 성사 감지만 고쳤고(`32031a4`) 아직 다시 돌지 않는다.** 두 가지가 어긋난다 (2026-09-15 파일 확인).
+- **부하 테스트는 성사 감지만 고쳤고(`32031a4`) 아직 다시 돌지 않는다.** 두 가지가 어긋난다
+  (2026-09-15 확인, **2026-09-17 재확인 — 그대로다.** §0-1 ⑥).
   ① 요청 바디: `load-test/match_latency.py` · `prefill.py`(그리고 `measure.js` · `stock.js` · `throughput.js` ·
   `netpath/postload.js`)가 `modeKey: RANKED_SOLO` 를 `tier` 없이 보낸다. 시드의 `RANKED_SOLO` 는 `tierRule EXIST` 라
   `LolConditionValidator#validTier` 가 tier null 을 거절 → **400**. ② 색인 키: `prefill.py`(`...:needs:JUNGLE`) ·

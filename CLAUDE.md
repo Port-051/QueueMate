@@ -39,7 +39,7 @@ QueueMate는 **조건 기반 팀원 자동 랜덤 매칭** 서비스다.
 `KeyConditionType`(`POSITION` / `ROLE` / `PLATFORM`) + `String value`로 통일해 다룬다.
 PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했다** — 스팀과 카카오는 서버가 분리돼
 서로 파티를 맺을 수 없으므로 조건에 없으면 게임에 같이 못 들어가는 파티가 생긴다. 조건 개수는
-그대로 4개다(추가가 아니라 교체). 근거는 `domain/KeyConditionType.java` 클래스 주석.
+그대로 4개다(추가가 아니라 교체). 근거는 `domain/condition/KeyConditionType.java` 클래스 주석.
 
 예약 매칭에만 붙는 추가 조건 (이 저장소 범위 밖, `app:platform` + `app:reservation-batch`):
 - 플레이 가능한 시간: 30분 단위 start/end
@@ -52,10 +52,10 @@ PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했�
 | 개념 | 코드 | 값 |
 |---|---|---|
 | 게임 | `domain/GameKey.java` | `LOL, VALORANT, PUBG` |
-| 조건 타입 | `domain/KeyConditionType.java` | `POSITION, ROLE, PLATFORM` |
-| 음성 | `domain/VoicePreference.java` | **`REQUIRED, NO_VOICE`** — `OPTIONAL`은 **제거됐다** |
-| 목적 | `domain/PlayPurpose.java` | `RANK_UP, NORMAL, FUN` |
-| LoL 포지션 | `domain/lol/LolPosition.java` | `TOP, JUNGLE, MID, ADC, SUPPORT, NONE` |
+| 조건 타입 | `domain/condition/KeyConditionType.java` | `POSITION, ROLE, PLATFORM` |
+| 음성 | `domain/condition/VoicePreference.java` | **`REQUIRED, NO_VOICE`** — `OPTIONAL`은 **제거됐다** |
+| 목적 | `domain/condition/PlayPurpose.java` | `RANK_UP, NORMAL, FUN` |
+| LoL 포지션 | `domain/condition/lol/LolPosition.java` | `TOP, JUNGLE, MID, ADC, SUPPORT, NONE` |
 | LoL 티어 | **자바에 없다.** Redis ZSET `qm:gameconfig:LOL:tier` (`seed/gameconfig.redis`) | `UNRANKED`(score 0), `IRON_4` … `CHALLENGER`(score 31) — 단(division)까지 **32개**. **조건이 아니다, 아래 참고** |
 
 > **티어는 다섯 번째 조건이 아니다.** `tier`는 사용자가 고르는 조건이 아니라
@@ -77,7 +77,7 @@ PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했�
 > 낮다**(골드4 → 골드1 → 플래티넘4). `UNRANKED` / `MASTER` / `GRANDMASTER` / `CHALLENGER`는
 > 단이 없다. 값을 고치려면 자바가 아니라 `seed/gameconfig.redis`를 고쳐라.
 
-> `VoicePreference.OPTIONAL` 제거는 되돌리지 마라. 이유는 `VoicePreference.java`의
+> `VoicePreference.OPTIONAL` 제거는 되돌리지 마라. 이유는 `domain/condition/VoicePreference.java`의
 > 클래스 주석에 있다 — "매칭 전에 답이 정해지지 않는 조건은 조건이 아니다."
 > `contracts/openapi.yaml`은 아직 `OPTIONAL`을 남기고 있다. **코드가 맞고 계약이 낡았다**
 > (`contracts/README.md` 불일치 표 참고).
@@ -92,6 +92,15 @@ PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했�
   **빌드·테스트는 `backend/` 안에서 돌린다** (`cd backend && ./gradlew ...`).
   아래 표가 `service/...` `redis/...` 처럼 짧게 적은 경로는 `backend/src/main/`
   아래의 패키지 상대 표기다.
+- **Redis 키 문자열은 `redisKeys/SharedKeys.java` 한 곳에서 나온다.** 자바 쪽 단일 출처다 —
+  `qm:party:` · `qm:party:open:` · `:needs` · `qm:party:needs-roles:` · `qm:proposal:accepts:` ·
+  `qm:proposal:pending` · `qm:user:active-request:` · `qm:pubsub:push:` · `qm:gameconfig:` ·
+  `:tier` · `:tier-range:` · `qm:lock:pool:`. 같은 접두사를 여러 클래스가 각자 적고 있으면
+  **한쪽만 고쳐도 컴파일은 통과하고**, 그때부터 서로 다른 키를 만들어 아무도 못 찾는 데이터가
+  조용히 쌓인다. 게임별 `Lol/Pubg/ValorantPartyKeys`는 없어지지 않았다 — 조각만 `SharedKeys`에
+  두고 **게임 이름과 조건을 엮어 needs 색인을 조립하는 일은 그쪽 몫**이다.
+  **같은 문자열이 Lua 안에도 리터럴로 있다.** 컴파일러가 맞춰 주지 않는 짝이라, 값을 고치면
+  어느 스크립트를 같이 고쳐야 하는지가 `SharedKeys`의 클래스 주석에 목록으로 있다. 그것부터 읽어라.
 - **진행 중인 실시간 매칭 상태의 source of truth는 Redis다.**
   매칭 요청 / 아직 안 찬 파티 / 진행 중 proposal / 수락 집계 — 전부 Redis에만 둔다.
   - **`match_requests` 테이블을 만들지 않는다** (docs/11 #27).
@@ -138,10 +147,10 @@ PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했�
 | **INV-2** | 한 사용자는 동시에 하나의 활성 proposal에만 속한다 | 수락/거절이 붙은 뒤에도 **여전히 "한 사용자는 한 파티에만"으로 근사된다.** 근사가 성립하는 이유는 **proposal이 곧 party**이기 때문이다 — `proposalId = partyId`이고 제안 상태(`status`/`expiresAt`)를 별도 레코드가 아니라 파티 HASH에 얹는다(`service/ProposalService.java` 클래스 주석). 그 한 파티를 지키는 것은 배정 스크립트 4개(`redis/lol/create-or-check-party-untiered.lua` · `create-or-check-party-tiered.lua` · `join-party.lua` · `join-party-tiered.lua`)가 전부 `qm:user:active-request:{userId}` HASH의 `partyId` 필드 **하나만** 쓰는 것이다. 그 필드를 지우는 것은 `redis/lol/leave-party.lua` 하나이고, 거절 시에는 `ProposalService#decline()`이 스크립트 뒤에 `MatchCancelService#cancel()`을 불러 거절한 본인만 큐에서 뺀다(수락해 놓고 기다리던 나머지는 남긴다). **확정되면 `redis/proposal/cleanup-confirmed.lua`가 파티원의 활성 요청을 지우지 않고 `status='PARTY'`를 찍는다** — 지우면 그 순간 새 매칭을 걸 수 있어 한 사람이 두 파티에 속하기 때문이다. 그래서 확정 뒤에도 INV-1 선점이 그대로 유지되고, 그 사용자는 그 파티 하나에 묶인 채다. 파티 HASH도 남긴다(상태 조회와 수락 재전송이 읽는다). **이 상태를 푸는 것은 파티를 닫는 `app:platform`이고 아직 없다** — `PartyClosed` 소비가 없어 확정된 사용자는 큐에 다시 들어올 방법이 없다 | **부분 (파티 단위 근사)** |
 | **INV-3** | 파티 인원은 mode의 target party size를 넘지 않는다 | `redis/lol/join-party.lua` / `join-party-tiered.lua` — 참가자를 `HSET` 한 뒤 `member:` 필드를 **세어** `size >= target`이면 그 파티를 **모든 needs 색인(티어 모드는 파티의 `tierLo`~`tierHi` 칸 전부)에서 제거**한다. 인원 카운터 필드는 두지 않는다 — Lua는 롤백이 없어 페일오버 뒤 재시도가 `HINCRBY`를 두 번 더하면 실제 멤버 수와 어긋나지만, `HSET` + 세기는 몇 번 해도 같기 때문이다. **주의: 세는 자리에는 target 확인 분기가 없다.** 초과를 막는 것은 ① 후보가 needs 색인(=아직 안 찬 파티)에서만 나온다는 것과 ② 후보 선택부터 합류까지가 `redisLock/PoolLock.java`의 후보 풀 락 안에 있다는 것, 두 겹이다. 그 락을 건너뛰는 호출부를 만들면 INV-3이 깨진다 | **구현·테스트됨** |
 | **INV-4** | proposal의 모든 참가자가 accept하기 전에는 party 확정 금지 | `redis/proposal/accept-proposal.lua` — **수락자 SET `qm:proposal:accepts:{partyId}`를 `SCARD`로 세어 파티 HASH의 `target`과 비교하고, `count >= target`일 때만 `HSET status 'CONFIRMED'`** 한 뒤 `CONFIRMED`를 돌려준다. 세기와 확정이 한 스크립트 안이라 마지막 두 명이 동시에 눌러도 둘 다 "내가 마지막"이 될 수 없다. `target`을 못 읽으면 확정하지 않고 수락만 기록한다(fail-closed). 쓰기가 `SADD`/`HSET`뿐이고 `SADD` 반환값으로 early return 하지 않아 **재시도해도 답이 같다**(카운터 대신 집합을 쓰는 이유 — 중간에 죽어도 다음 호출이 다시 세어 확정한다). `decline-proposal.lua`가 `DEL acceptsKey`까지 하는 것도 INV-4를 위해서다 — 옛 수락을 남기면 다시 찬 파티가 한 명만 눌러도 `SCARD`가 `target`에 닿는다. 제안이 열리는 자리는 `rule/lol/LolUntieredAssigner.java#joinParty()` / `rule/lol/LolTieredAssigner.java#joinParty()`의 `JOINED_AND_FULL`(Lua 반환 **`2`**) 분기이고, 거기서 `MATCH_PROPOSAL_CREATED` 알림을 파티 전원에게 발행한다. `status='PENDING'` + `expiresAt`을 쓰는 것은 `join-party.lua` / `join-party-tiered.lua`의 `HSETNX`다. 확정 뒤에는 `ProposalService#accept()`가 `redis/proposal/cleanup-confirmed.lua`를 불러 파티원의 활성 요청에 `status='PARTY'`를 찍고(INV-2 참고) 수락자 SET에 TTL(`queuemate.proposal.confirmed-retention-seconds`, 기본 60초)을 건 뒤, 그 스크립트가 돌려준 파티원 전원에게 `MATCH_CONFIRMED`를 발행한다. 그 스크립트도 `status == 'CONFIRMED'`일 때만 도는 멱등 연산이다. **아직 없는 것**: `matching.outbox` 기록과 `ProposalConfirmed.fifo` 발행 — 그래서 파티가 DB에 만들어지지 않는다. `PartyClosed` 소비(확정된 파티를 푸는 자리)도 없다 | **구현·테스트됨 (outbox 발행은 없음)** |
-| **INV-5** | expired/declined/cancelled proposal은 다시 confirm될 수 없다 | 네 갈래가 **전부 막혀 있다.** ① **declined — 막힘.** `redis/proposal/decline-proposal.lua`는 `status`를 `'DECLINED'`로 **바꾸지 않고 `HDEL status, expiresAt` + `DEL acceptsKey`로 지운다.** 남겨 두면 그 파티가 다시 찼을 때 `join-party*.lua`의 `HSETNX status 'PENDING'`이 0을 돌려주어 아무도 확정시킬 수 없는 **좀비 파티**가 되기 때문이다(그 파일 머리말). 그래서 거절된 제안에 들어온 수락은 `accept-proposal.lua` 1번에서 `NOT_FOUND`로 걸린다 — `status == 'DECLINED'` 분기는 현재 **도달하지 않는 방어 코드**다. ② **confirmed — 되돌릴 수 없음.** 두 스크립트 모두 쓰기 전에 `HGET status`를 먼저 보고, `CONFIRMED`면 수락은 **`ALREADY_RESPONDED`**(확정 알림이 두 번 나가지 않게 `CONFIRMED`와 값을 갈라 놓았다. 컨트롤러는 이것도 204다), 거절은 `CONFIRMED`(=깨지 못함, 409)를 돌려준다. 페일오버 재실행 대비도 있다 — `join-party*.lua`가 `HSET`이 아니라 `HSETNX`로 `PENDING`을 써서 확정된 제안이 `PENDING`으로 되돌아가지 않는다. ③ **expired — 막힘.** `expiresAt`(= now + `queuemate.proposal.ttl-seconds`, 기본 20초)을 읽는 주체가 생겼다. 정원이 찰 때 합류 스크립트가 `HSETNX status 'PENDING'` **성공 분기 안에서** `qm:proposal:pending` ZSET에 `ZADD`(member = partyId, score = `expiresAt`)까지 하고, `service/ProposalSweeper.java`가 `queuemate.sweep.interval-ms`(기본 1초)마다 시한이 지난 것을 한 회차 100건씩 꺼내 `service/ProposalExpiryService.java`에 넘긴다. `redis/proposal/expiry-proposal.lua`는 `status == 'PENDING'`일 때만 `HDEL status, expiresAt` + `DEL acceptsKey` + `ZREM`을 하므로 **그사이 확정된 제안을 만료가 뒤집지 못한다**(PENDING이 아니면 pending 목록에서만 빼고 빈 목록을 돌려준다). 정책은 **수락하지 않은 사람만 큐에서 빼는 것**이다 — 수락한 사람은 파티에 남아 다시 기다리고, 옛 수락 기록이 지워지므로 빈자리가 채워져 제안이 새로 열리면 다시 눌러야 한다. **남는 창이 하나 있다**: `accept-proposal.lua`는 여전히 `expiresAt`을 보지 않으므로, 시한이 지나고 스위퍼가 그 파티를 꺼내기 전(주기만큼)에 도착한 수락은 그대로 확정된다. ④ **cancelled — 막힘.** `redis/{game}/leave-party.lua`가 `member:` 필드를 지우기 **전에** `HDEL status, expiresAt` + `DEL qm:proposal:accepts:{partyId}` + `ZREM qm:proposal:pending`을 한다(커밋 `3d3efaf`). 그래서 `PENDING` 제안 도중 한 명이 취소하면 제안 자체가 깨지고, 취소자의 옛 수락이 남아 새로 합류한 사람의 수락으로 `SCARD`가 `target`에 닿는 일이 없다(거절 경로는 `decline-proposal.lua`가 먼저 지우고 그 뒤에 취소한다). 응답 갈래는 `domain/ProposalResult.java` 한 enum이 맡는다(`AcceptResult`/`DeclineResult`는 없어졌다). 쓰는 코드가 없던 `domain/ProposalStatus.java` / `domain/AcceptanceStatus.java`는 **삭제됐다** — 상태는 Redis의 문자열이다 | **구현됨 (만료는 스위퍼 주기만큼 늦다)** |
+| **INV-5** | expired/declined/cancelled proposal은 다시 confirm될 수 없다 | 네 갈래가 **전부 막혀 있다.** ① **declined — 막힘.** `redis/proposal/decline-proposal.lua`는 `status`를 `'DECLINED'`로 **바꾸지 않고 `HDEL status, expiresAt` + `DEL acceptsKey`로 지운다.** 남겨 두면 그 파티가 다시 찼을 때 `join-party*.lua`의 `HSETNX status 'PENDING'`이 0을 돌려주어 아무도 확정시킬 수 없는 **좀비 파티**가 되기 때문이다(그 파일 머리말). 그래서 거절된 제안에 들어온 수락은 `accept-proposal.lua` 1번에서 `NOT_FOUND`로 걸린다 — `status == 'DECLINED'` 분기는 현재 **도달하지 않는 방어 코드**다. ② **confirmed — 되돌릴 수 없음.** 두 스크립트 모두 쓰기 전에 `HGET status`를 먼저 보고, `CONFIRMED`면 수락은 **`ALREADY_RESPONDED`**(확정 알림이 두 번 나가지 않게 `CONFIRMED`와 값을 갈라 놓았다. 컨트롤러는 이것도 204다), 거절은 `CONFIRMED`(=깨지 못함, 409)를 돌려준다. 페일오버 재실행 대비도 있다 — `join-party*.lua`가 `HSET`이 아니라 `HSETNX`로 `PENDING`을 써서 확정된 제안이 `PENDING`으로 되돌아가지 않는다. ③ **expired — 막힘.** `expiresAt`(= now + `queuemate.proposal.ttl-seconds`, 기본 20초)을 읽는 주체가 생겼다. 정원이 찰 때 합류 스크립트가 `HSETNX status 'PENDING'` **성공 분기 안에서** `qm:proposal:pending` ZSET에 `ZADD`(member = partyId, score = `expiresAt`)까지 하고, `service/ProposalSweeper.java`가 `queuemate.sweep.interval-ms`(기본 1초)마다 시한이 지난 것을 한 회차 100건씩 꺼내 `service/ProposalExpiryService.java`에 넘긴다. `redis/proposal/expiry-proposal.lua`는 `status == 'PENDING'`일 때만 `HDEL status, expiresAt` + `DEL acceptsKey` + `ZREM`을 하므로 **그사이 확정된 제안을 만료가 뒤집지 못한다**(PENDING이 아니면 pending 목록에서만 빼고 빈 목록을 돌려준다). 정책은 **수락하지 않은 사람만 큐에서 빼는 것**이다 — 수락한 사람은 파티에 남아 다시 기다리고, 옛 수락 기록이 지워지므로 빈자리가 채워져 제안이 새로 열리면 다시 눌러야 한다. **그 창도 닫혔다**: `accept-proposal.lua`가 `ARGV[3] = now`로 현재 시각을 받아 `expiresAt <= now`면 수락을 기록하지 않고 **`NOT_FOUND`**를 돌려준다. 그래서 시한이 지나고 스위퍼가 그 파티를 꺼내기 전(주기만큼)에 도착한 수락도 확정되지 않는다. `NOT_FOUND`인 이유는 클라이언트가 갈 곳이 스위퍼가 이미 걷어간 뒤와 같아서다(대기 화면 복귀) — 상태 값을 하나 더 만들면 같은 상황을 두 갈래로 다뤄야 한다. **흔적을 지우는 것은 여전히 스위퍼 몫이다** — 여기서 지우면 이 스크립트가 수락 집계 말고 다른 일까지 하게 되고 만료 알림도 못 나간다. ④ **cancelled — 막힘.** `redis/{game}/leave-party.lua`가 `member:` 필드를 지우기 **전에** `HDEL status, expiresAt` + `DEL qm:proposal:accepts:{partyId}` + `ZREM qm:proposal:pending`을 한다(커밋 `3d3efaf`). 그래서 `PENDING` 제안 도중 한 명이 취소하면 제안 자체가 깨지고, 취소자의 옛 수락이 남아 새로 합류한 사람의 수락으로 `SCARD`가 `target`에 닿는 일이 없다(거절 경로는 `decline-proposal.lua`가 먼저 지우고 그 뒤에 취소한다). 응답 갈래는 `domain/ProposalResult.java` 한 enum이 맡는다(`AcceptResult`/`DeclineResult`는 없어졌다). 쓰는 코드가 없던 `domain/ProposalStatus.java` / `domain/AcceptanceStatus.java`는 **삭제됐다** — 상태는 Redis의 문자열이다 | **구현·테스트됨** |
 | **INV-6** | block 관계 사용자는 같은 proposal/party에 들어갈 수 없다 | **미구현.** 두 겹으로 설계했는데 아랫단만 있다. ① **선필터(코드 있음)** — `rule/lol/LolCandidateRule.java#canJoin()`이 락을 잡기 전에 `block/BlockRepository.java#findBlockedUserIds()`를 실제로 부르고, Lua가 돌려준 후보 파티 멤버 목록을 `rule/ScriptSupport.java#blockedWith()`로 거른다(상한 `MAX_CANDIDATE_SCAN = 20`, 전부 차단이면 새 파티를 만든다). Redis 선필터(`qm:block:{userId}`)가 아니라 **DB 조회**다 (docs/11 D-2). ② **확정 직전 최종 검증(없음)** — `social.blocks` 동기 SELECT (docs/11 D-1). 확정 단계가 없으므로 이것도 없다. **그리고 ①은 스키마가 없어 실제로는 실패한다** — Flyway가 없고 `application.yaml`이 `ddl-auto: none`이라 기본 실행(H2)에 `social.blocks`가 없다. 배정은 `@Async` 안이라 요청은 201로 나가고 배정만 조용히 실패한다. 테스트만 `ConcurrencyTestSupport`의 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql`로 테이블을 만들어 통과한다. **차단 검증 없이 배포하지 않는다** (docs/11 #30) | **미구현 (선필터 코드만, 스키마 없음)** |
 | **INV-7** | 동일 사용자의 PartyMember 중복 금지 | 배정 스크립트 4개가 참가자를 `member:{userId} = keyValue` **HASH 필드**로 쓴다 — 새로 만들 때는 `create-or-check-party-untiered.lua` / `create-or-check-party-tiered.lua`의 `HSET`, 합류할 때는 `join-party.lua` / `join-party-tiered.lua`의 `HSET`. 같은 userId면 필드가 하나뿐이라 구조적으로 중복이 불가능하다. 앞단에서 INV-1이 이미 두 번째 요청을 막는다 | **구현됨** |
-| **INV-8** | 게임별 hard rule 위반 파티 생성 금지 | 두 겹이다. ① 값 검증 — `validation/lol/LolConditionValidator.java`가 modeKey 존재 여부, `positionUniqueness`에 맞는 포지션 값, 그리고 `tierRule`(**`NONE` / `EXIST`**)에 맞는 티어 값까지 확인한다. `EXIST`면 `qm:gameconfig:LOL:tier-range:{modeKey}` 표를 읽어 **줄이 없는 티어와 `SOLO_ONLY` 티어를 거른다**(표가 없는 모드는 그 모드 요청이 전부 400이다 — fail-closed다). `WINDOW`/`TABLE`과 `maxTierGap`은 없앴다. 폭으로 거를지 표로 거를지를 설정에 또 적으면 설정이 데이터와 어긋날 수 있었기 때문이다 — `WINDOW`라고 적어 놓고 `maxTierGap`을 빠뜨리면 폭이 0이 되어 자기 티어하고만 매칭되는데 **에러가 안 났다**. 지금은 "표가 있으면 그 표대로"가 전부다 (`seed/gameconfig.redis`). ② 구조적 분리 — 조건이 **Redis 키 이름**에 들어가므로(`qm:party:open:LOL:{mode}:{voice}:{purpose}:needs:{keyValue}`, 티어 모드는 뒤에 `:{tier}`가 더 붙어 (포지션 x 티어) 격자가 된다. 그 접미사는 **Lua가 스스로 붙인다** — 자바는 티어 없는 needs 키만 넘긴다) 조건이 다르면 애초에 같은 색인에 없다. 포지션 중복 금지는 Lua의 `unique` 분기가 처리 | **LoL만 구현·테스트됨** |
+| **INV-8** | 게임별 hard rule 위반 파티 생성 금지 | 두 겹이다. ① 값 검증 — `validation/lol/LolConditionValidator.java`가 modeKey 존재 여부, `positionUniqueness`에 맞는 포지션 값, 그리고 `tierRule`(**`NONE` / `EXIST`**)에 맞는 티어 값까지 확인한다. `EXIST`면 `qm:gameconfig:LOL:tier-range:{modeKey}` 표를 읽어 **줄이 없는 티어와 `SOLO_ONLY` 티어를 거른다**(표가 없는 모드는 그 모드 요청이 전부 400이다 — fail-closed다). `WINDOW`/`TABLE`과 `maxTierGap`은 없앴다. 폭으로 거를지 표로 거를지를 설정에 또 적으면 설정이 데이터와 어긋날 수 있었기 때문이다 — `WINDOW`라고 적어 놓고 `maxTierGap`을 빠뜨리면 폭이 0이 되어 자기 티어하고만 매칭되는데 **에러가 안 났다**. 지금은 "표가 있으면 그 표대로"가 전부다 (`seed/gameconfig.redis`). ② 구조적 분리 — 조건이 **Redis 키 이름**에 들어가므로(`qm:party:open:LOL:{mode}:{voice}:{purpose}:needs:{keyValue}`, 티어 모드는 뒤에 `:{tier}`가 더 붙어 (포지션 x 티어) 격자가 된다. 그 접미사는 **Lua가 스스로 붙인다** — 자바는 티어 없는 needs 키만 넘긴다) 조건이 다르면 애초에 같은 색인에 없다. 포지션 중복 금지는 Lua의 `unique` 분기가 처리. **PUBG 는 중복 금지가 없다** — 핵심 조건이 플랫폼이라 같은 값이 여럿 겹쳐도 되고, 대신 스팀과 카카오가 색인 자체로 갈린다 | **세 게임 모두 구현·테스트됨** (LoL · VALORANT · PUBG 각각 동시성 테스트가 있다) |
 | INV-9 | 시간이 겹치는 활성 예약 중복 등록 금지 | **이 저장소 범위 밖.** `app:platform`의 예약 REST가 검증한다 (docs/11 #24) | 해당 없음 |
 | **INV-10** | Redis 장애 시 중복 매칭을 감수하는 fallback 금지. 새 매칭을 fail-closed 한다 | `common/error/GlobalExceptionHandler.java#handleRedisFailure()` — `DataAccessException`을 `503 MATCHING_UNAVAILABLE` + `Retry-After: 5`로 바꾼다. 이미 성립한 파티는 건드리지 않고 새 요청만 거절한다 | **구현됨** |
 
@@ -153,20 +162,16 @@ PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했�
 | `backend/src/test/java/.../concurrency/NaiveVsLuaComparisonTest.java` | INV-1 (순진한 `EXISTS`-후-`HSET`은 깨지고 Lua는 중복 0건임을 대조로 보인다) |
 | `backend/src/test/java/.../concurrency/PartyJoinConcurrencyTest.java` | INV-3 (정원 초과 없음), INV-8 (같은 포지션 2명 없음), INV-2 근사 (한 사용자 = 한 파티) |
 | `backend/src/test/java/.../concurrency/ValorantPartyJoinConcurrencyTest.java` | 위와 같은 것을 VALORANT 경로로 (일반전·경쟁전 각각). 더해서 INV-8 의 "파티 최고 티어 <= 한계(파티 최저 티어)" 와 **INV-5 cancelled** (제안 도중 취소로 빠져도 파티가 다시 차면 새 제안이 열리고 옛 수락이 남지 않는다) |
+| `backend/src/test/java/.../concurrency/PubgPartyJoinConcurrencyTest.java` | 위와 같은 것을 PUBG 경로로 (일반전·랭크 각각). **PUBG 고유 두 가지**를 더 본다 — 핵심 조건이 플랫폼이라 **같은 값이 겹쳐도 되고**(LoL 포지션·VALORANT 역할군의 중복 금지가 여기엔 없다), 반대로 **스팀과 카카오는 한 파티에 섞이지 않는다**(INV-8 구조적 분리). 랭크는 파티 폭(최고-최저)이 10 을 넘지 않고 전원이 `tierLo`~`tierHi` 안인지, 정원이 차서 색인에서 빠진 파티가 한 명 취소로 원래 티어 칸 **전부**에 되돌아오는지까지 본다. **INV-5 cancelled** 도 VALORANT 와 같이 본다 |
 | `backend/src/test/java/.../proposal/ProposalIdempotencyTest.java` | INV-4 (전원 수락 전 확정 없음 / 재시도가 수락자 수를 부풀리지 않음), INV-5 (확정은 거절로 뒤집히지 않음, 거절된 제안은 확정 경로에 못 들어옴, 페일오버 재실행이 `CONFIRMED`를 `PENDING`으로 되돌리지 않음) |
 
-**동시성이 걸린 코드를 고쳤으면 위 표의 `concurrency/*` 3개를 반드시 다시 돌려라.**
+**동시성이 걸린 코드를 고쳤으면 위 표의 `concurrency/*` 5개를 반드시 다시 돌려라** (24건).
 
 불변식 회귀는 아니지만 같은 Redis(DB 15)를 쓰는 테스트가 하나 더 있다 —
 `backend/src/test/java/.../notification/PushNotificationTest.java` (6건). `qm:pubsub:push:*`를
 직접 구독해서 알림이 실제로 나갔는지 본다. `PushPublisher`가 예외를 밖으로 내보내지 않으므로
 (의도된 설계다) 발행 코드가 틀려도 호출부는 조용히 지나간다 — 구독 말고는 검증할 방법이 없다.
 **알림 발행 코드를 고쳤으면 이것도 돌려라.**
-
-> **주의 — 이 테스트는 지금 코드와 어긋나 있다.** `ProposalIdempotencyTest` 는 "마지막 수락자가
-> 두 번 보내도 두 번 다 `CONFIRMED`" 를 단언하는데(그 파일의 세 자리), `accept-proposal.lua` 는
-> 이미 확정된 제안의 재수락에 **`ALREADY_RESPONDED`** 를 돌려주도록 바뀌었다(확정 알림이 두 번
-> 나가지 않게 한 것이다 — 컨트롤러는 그 값도 204 로 받는다). **테스트를 새 값에 맞춰 고쳐야 한다.**
 
 표의 `ProposalIdempotencyTest`(11건)는 **단일 스레드**다. 동시성이 아니라 **멱등성**으로
 INV-4/5를 지킨다 — 같은 수락을 두 번 보내도 답이 같은가, 거절은 왜 멱등이 아닌가
@@ -285,9 +290,10 @@ backend/src/main/resources/redis/
 **나눈 대가가 있다. 게임마다 불변식 동시성 테스트가 있어야 한다.** 스크립트가 한 벌일
 때는 한 벌의 테스트가 전부를 지켰지만, 나뉜 뒤로는 테스트 없는 게임 스크립트가 **아무도
 실행하지 않는 코드**가 된다. 그러면 잘못된 수정이 그 게임에서만 조용히 깨진 채 배포된다 —
-나눠서 막으려던 일이 그렇게 일어난다. 현재 테스트는 **LoL 경로**(동시성 3종 + 알림 + 제안
-멱등성)와 **VALORANT 경로**(`ValorantPartyJoinConcurrencyTest`)를 탄다 —
-**PUBG 스크립트를 도는 테스트는 아직 하나도 없다.**
+나눠서 막으려던 일이 그렇게 일어난다. **이제 세 게임 모두 테스트가 있다** — **LoL 경로**
+(동시성 3종 + 알림 + 제안 멱등성) · **VALORANT 경로**(`ValorantPartyJoinConcurrencyTest`, 8건) ·
+**PUBG 경로**(`PubgPartyJoinConcurrencyTest`, 9건). 게임을 추가하면 그 게임의 동시성 테스트도
+같이 만들어라 — 그것이 나눈 대가다.
 
 **가드·TTL·반환 코드처럼 게임과 무관한 변경은 모든 게임 디렉터리에 같이 넣어야 한다.**
 2026-09-08 의 `EXISTS` 가드 + `PERSIST` 는 스크립트 4개에 같은 내용을 넣은 작업이었다.

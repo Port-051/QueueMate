@@ -105,7 +105,12 @@ CLAUDE.md 기준으로는 게임별 hard rule이므로 INV-8에도 걸린다.
 
 결과 열은 `HANDOFF.md` §1 의 2026-09-15 실행 기록(커밋 `8d7f094`, `bf4b0da` 에서 24/24)을 옮긴 것이다.
 `MatchingApplicationTests` 는 CLAUDE.md §7 에 따라 설정·의존성을 건드릴 때만 돌린다.
-**24건은 전부 LoL 경로만 탄다** — PUBG 를 검증하는 테스트는 아직 없다.
+~~**24건은 전부 LoL 경로만 탄다** — PUBG 를 검증하는 테스트는 아직 없다.~~
+
+> **2026-09-17 기준은 41건이다.** 위 표는 2026-09-15 실행 기록이라 그대로 둔다. 그 뒤
+> `ValorantPartyJoinConcurrencyTest`(8건)와 `PubgPartyJoinConcurrencyTest`(9건)가 들어와
+> **세 게임 모두 동시성 테스트가 있다** — 동시성 24(LoL 7 + VALORANT 8 + PUBG 9) +
+> 제안 멱등성 11 + 알림 6 = 41건. `docs/11` R-3 참고.
 
 ## 왜 순진한 방식이 깨지는가
 
@@ -227,9 +232,9 @@ cd backend      # 스프링 프로젝트는 저장소 루트의 backend/ 에 있
 | 실행 전제 | 로컬 Redis 필요 | CI에서 돌리려면 Redis 서비스 컨테이너를 붙여야 한다. 지금은 로컬에서만 재현 가능 |
 | 요청 취소 | 동시성 테스트 없음 | 구현은 있다 (`MatchCancelService` + `rule/lol/LolPartyLeaver` + `leave-party.lua`). 배정과 취소가 동시에 같은 파티를 건드리는 경합을 검증하지 않았다 |
 | 제안(proposal) | **동시성** 테스트 없음 | 수락 집계·확정·거절은 구현됐고(`accept-proposal.lua` / `decline-proposal.lua`) `ProposalIdempotencyTest`(11건)가 **단일 스레드 멱등성**으로 INV-4/INV-5 를 지킨다. 마지막 두 명이 동시에 수락하는 경합은 스크립트 원자성에 기대고 있고 동시 부하로 재현해 보지는 않았다 |
-| 만료 sweeper | 테스트 없음 | 만료 처리는 **구현됐다** (`qm:proposal:pending` ZSET + `ProposalSweeper` + `ProposalExpiryService` + `proposal/expiry-proposal.lua`). 검증되지 않은 경합은 "시한이 지나는 순간 들어온 수락" 이다 — `accept-proposal.lua` 가 `expiresAt` 을 보지 않으므로 스위퍼가 꺼내기 전에 도착한 수락은 확정된다 |
+| 만료 sweeper | 테스트 없음 | 만료 처리는 **구현됐다** (`qm:proposal:pending` ZSET + `ProposalSweeper` + `ProposalExpiryService` + `proposal/expiry-proposal.lua`). 검증되지 않은 경합은 "시한이 지나는 순간 들어온 수락" 이다 — **막혀는 있다**(2026-09-17: `accept-proposal.lua` 가 `ARGV[3] = now` 로 시한을 보고 `NOT_FOUND` 를 돌려준다, `docs/11` R-2). 그 분기를 밟는 테스트가 없을 뿐이다 |
 | 제안 도중 취소 | 테스트 없음 | 구멍은 막혔다 — `{lol,pubg,valorant}/leave-party.lua` 가 멤버를 빼기 전에 `status`/`expiresAt`/수락자 SET/pending 을 지운다 (CLAUDE.md §4 INV-5 ④). 막은 뒤의 경합(취소와 마지막 수락이 동시에)을 재현하는 테스트는 아직 없다 |
-| PUBG | 테스트 없음 | PUBG 배정 규칙·Lua 는 커밋됐는데 테스트만 없다. 게임별로 스크립트를 나눈 대가로 붙어야 한다 (CLAUDE.md §4). VALORANT 는 `ValorantPartyJoinConcurrencyTest` 가 생겼다 |
+| PUBG | **해소 (2026-09-17)** | `PubgPartyJoinConcurrencyTest` 9건이 붙었다. 다른 둘과 달리 **핵심 조건이 겹쳐도 되는 것**(같은 플랫폼만으로 파티가 정원까지 찬다)과 **스팀·카카오가 섞이지 않는 것**(INV-8 구조적 분리)을 같이 본다. 이제 세 게임 모두 테스트가 있다 |
 | 차단(INV-6) | 동시성 테스트 없음 | 선필터 코드는 배정 경로에 있다 (`LolCandidateRule#canJoin` → `BlockRepository`). 그런데 `social.blocks` 스키마가 없어 테스트는 H2에 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql` 로 **빈 테이블만** 만들어 두고 돌린다 — 즉 "차단이 없는 경우"만 지나간다. 확정 직전 최종 검증은 미구현 (docs/11 #30). 차단 검증 없이 배포하지 않는다 |
 | 티어 배정 | 동시성 테스트 없음 | `LolTieredAssigner` + `-tiered` 스크립트 2개가 (포지션 x 티어) 격자 색인을 다루는데, 동시성 테스트는 전부 티어 없는 모드다. 알림 테스트만 티어 모드를 한 번 밟는다 (`PushNotificationTest.tieredAssignerPublishesTheSameEnvelopes`) |
 | 후보 풀 락 | 테스트 없음 | `PoolLock` 자체(대기 시간 초과 → 503, 유지 시간 초과)를 겨냥한 테스트가 없다. 지금은 배정 테스트가 간접적으로만 지나간다 |

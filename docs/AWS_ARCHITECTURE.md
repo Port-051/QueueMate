@@ -136,7 +136,7 @@ SQS FIFO 3개.
 
 | 상대 | 방향 | 무엇을 | 이 저장소의 구현 상태 |
 |---|---|---|---|
-| ALB (← 클라이언트) | 수신 | 실시간 매칭 REST | **부분 (2026-09-16 갱신)** — `POST`/`DELETE /api/v1/match-requests` 와 `POST /proposals/{id}/accept\|decline` 은 된다 (`MatchingController` · `ProposalController`). `GET /match-requests/{id}` 는 여전히 **501** 이다 |
+| ALB (← 클라이언트) | 수신 | 실시간 매칭 REST | **구현됨 (2026-09-17 갱신)** — `POST`/`GET`/`DELETE /api/v1/match-requests` 와 `POST /proposals/{id}/accept\|decline` 이 전부 동작한다 (`MatchingController` · `ProposalController`). 501 스텁은 없어졌다. 다만 **조회 경로가 계약과 다르다** — 계약 `GET /match-requests/{requestId}` vs 구현 `GET /match-requests?userId=` (`contracts/README.md` #5). `GET /games` 는 여전히 없다 |
 | ElastiCache Redis | 읽기·쓰기 | gameconfig 읽기, 활성 요청 선점, 파티 색인, Lua atomic claim | **구현됨** (`backend/src/main/resources/redis/*.lua`) |
 | ElastiCache Redis | 분산 락 | 후보 풀 락 (`qm:lock:pool:*`, Redisson) | **구현됨** (`redisLock/PoolLock.java`, `config/redis/RedissonConfig.java`) |
 | ElastiCache Redis | publish | `MATCH_*` 5종 알림 | **구현됨 (2026-09-16 갱신)** — `notification/PushPublisher.java` 가 `qm:pubsub:push:{userId}` 로 **5종 전부** 발행한다. `MATCH_PROPOSAL_EXPIRED` 는 `service/ProposalExpiryService`(만료 스위퍼), `MATCH_CONFIRMED` 는 `service/ProposalService#accept()`(확정 뒷정리)가 낸다 |

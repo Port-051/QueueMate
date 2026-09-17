@@ -417,3 +417,31 @@ B-1 이 적은 "파티가 받아들일 티어 범위를 **만든 사람 기준�
 create 가 `SADD`, join 이 `SREM`, 정원이 차면 `DEL`)과 파티 HASH 의 `minTier`/`maxTier`
 (지금까지 들어온 사람의 최저·최고 순번. 읽는 곳은 아직 없고, 취소가 범위를 되돌릴 때 쓸 값이다).
 자세한 것은 `docs/11_DECISION_LOG.md` 의 Q-3 에 있다.
+
+### D-4. 조건 값 enum 이 `domain/condition/` 으로 모였다 (2026-09-17)
+
+D-2 가 `domain/valorant/ValorantRole.java` 로 적은 경로가 바뀌었다. 부록 A~D 가 인용한
+조건 enum 경로는 전부 아래로 읽어라.
+
+| 개념 | 예전 | 지금 |
+|---|---|---|
+| 조건 타입 | `domain/KeyConditionType.java` | `domain/condition/KeyConditionType.java` |
+| 음성 (§2) | `domain/VoicePreference.java` | `domain/condition/VoicePreference.java` |
+| 목적 (§2) | `domain/PlayPurpose.java` | `domain/condition/PlayPurpose.java` |
+| LoL 포지션 (§3) | `domain/lol/LolPosition.java` | `domain/condition/lol/LolPosition.java` |
+| VALORANT 역할군 (§4) | `domain/valorant/ValorantRole.java` | `domain/condition/valorant/ValorantRole.java` |
+| PUBG 핵심 조건 (§5) | `domain/pubg/` (빈 디렉터리) | `domain/condition/pubg/` (여전히 빈 디렉터리) |
+
+**값은 하나도 바뀌지 않았다. 옮기기만 했다.** A-4(`VoicePreference.OPTIONAL` 제거) ·
+A-5(LoL 포지션에 `NONE` 이 더 있다) 는 그대로 유효하다.
+
+**이 구분이 §1 Design rule 과 맞는다.** 이 문서가 다루는 것은 "사용자가 고르는 조건"이고,
+`domain/condition/` 아래에 있는 것이 정확히 그것이다. **`GameKey` 는 거기 들어가지 않았다** —
+게임은 조건이 아니라 그 위의 갈래이고, 실제로 후보 풀 키의 맨 앞에 붙어 조건들을 담는 그릇
+노릇을 한다. `tier` 도 enum 이 없다(C-1) — §6 derived 조건이라 사용자가 고르는 값이 아니고,
+값의 원본도 자바가 아니라 Redis ZSET 이다.
+
+**`condition/pubg/` 가 비어 있는 것은 사고가 아니다.** §5 의 PUBG 핵심 조건은 플랫폼
+(`STEAM` / `KAKAO`) 문자열이라 enum 을 두지 않았고 `PubgConditionValidator` 가 값을 직접 본다.
+C-1 이 LoL 티어를 자바에서 뺀 것과는 이유가 다르다 — 저쪽은 값이 자주 바뀌어(단 추가, 라이엇
+패치) 재배포를 피하려고 Redis 로 옮긴 것이고, 이쪽은 값이 둘뿐이라 enum 을 만들 값이 없었다.

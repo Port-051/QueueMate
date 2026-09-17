@@ -16,18 +16,20 @@
 
 ---
 
-## 코드 ↔ 계약 불일치 (2026-09-11 확인, 2026-09-16 갱신)
+## 코드 ↔ 계약 불일치 (2026-09-11 확인, 2026-09-17 갱신)
 
 계약과 구현이 어긋난 지점이다. **한쪽에 맞추기 전에 어느 쪽이 맞는지부터 판단해라.**
 아래 "판정" 열이 그 판단이다.
 
 | # | 지점 | 계약 | 구현 | 판정 |
 |---|---|---|---|---|
-| 1 | `VoicePreference` enum | `[REQUIRED, OPTIONAL, NO_VOICE]` | `[REQUIRED, NO_VOICE]` (`domain/VoicePreference.java`) | **코드가 맞다.** `OPTIONAL` 제거는 의도된 결정이고 근거가 enum 주석에 있다. 계약을 고쳐야 한다 |
+| 1 | `VoicePreference` enum | `[REQUIRED, OPTIONAL, NO_VOICE]` | `[REQUIRED, NO_VOICE]` (`domain/condition/VoicePreference.java`) | **코드가 맞다.** `OPTIONAL` 제거는 의도된 결정이고 근거가 enum 주석에 있다. 계약을 고쳐야 한다 |
 | 2 | `CreateMatchRequest` 바디 | `userId` 없음 (JWT 로 식별) | `userId` **필수** (`dto/CreateMatchRequestCommand.java`) | **계약이 맞다.** 구현의 `userId` 는 JWT 도입 전 임시다. 인증이 붙으면 지워야 한다 |
 | 3 | `DELETE /match-requests/{id}` | 쿼리 파라미터 없음 | `?userId=` **필수** (`controller/MatchingController.java`) | 위와 같은 임시 조치 |
-| 4 | `MatchRequestView` | `{ id, status, queuedAt, proposalId }` | `{ requestId, status }` (`dto/MatchRequestResponse.java`) | **계약이 맞다.** 필드명도 `id` 여야 한다. 다만 `queuedAt`/`proposalId` 를 채우려면 proposal 구현이 먼저다 |
-| 5 | `GET /match-requests/{id}` | 있다 (`200` + `MatchRequestView`) | **껍데기만 있다** — `MatchingController#getMatchRequest` 가 `501 NOT_IMPLEMENTED` 를 돌려준다 | **계약이 맞다.** 501 은 "아직"이라는 표시다. 그 메서드 주석에 왜 필요한지와 무엇을 같이 정해야 하는지가 적혀 있다. 아래 "남은 구멍" 참고 |
+| 4 | `MatchRequestView` **필드** | `{ id, status, queuedAt, proposalId }` **4개** | `MatchRequestResponse` **8개** — `{ status, requestId, queuedAt, partyId, target, memberCount, expiresAt, isAccepted }` (`dto/MatchRequestResponse.java`, **record** + `@JsonInclude(NON_NULL)`) | **양쪽 다 고쳐야 한다.** 이름은 **계약이 맞다** — `requestId` 가 아니라 `id` 여야 하고, `partyId` 도 계약 이름으로는 `proposalId` 다(확정되면 둘이 같은 값이다 — proposal = party). 반대로 **필드 수는 구현이 앞서 있다**: `target`/`memberCount`(대기 화면의 "3/5명"), `expiresAt`/`isAccepted`(제안 화면의 남은 시간과 내가 눌렀는지)는 계약에 자리가 없는데 클라이언트가 화면을 그리려면 필요하다. `queuedAt` 은 타입도 다르다 — 계약은 `date-time` 문자열, 구현은 **epoch millis `Long`**. `@JsonInclude(NON_NULL)` 이라 그 갈래에서 뜻이 없는 칸은 **응답에 아예 나타나지 않는다**(예: `IDLE` 은 `{"status":"IDLE"}` 하나뿐이다) |
+| 4-1 | `MatchRequestView.status` enum | `[QUEUED, PROPOSED, MATCHED, CANCELLED, EXPIRED]` | `domain/MatchRequestStatus.java` 에 **`IDLE` 이 추가**돼 6개다. 반대로 `CANCELLED`/`EXPIRED` 는 **enum 에만 있고 조회가 절대 돌려주지 않는다** | **구현이 맞다.** 취소·만료는 활성 요청 키를 지우므로 서버에 근거가 남지 않아 "원래 큐에 없었다"와 구분되지 않는다 — 둘 다 `IDLE` 로 나간다. 계약에 `IDLE` 을 추가해야 하고, `CANCELLED`/`EXPIRED` 는 남겨 둘지 정해야 한다(자리만 있는 값이라는 것이 enum 주석에 적혀 있다) |
+| 5 | **상태 조회의 경로** | `GET /match-requests/{requestId}` — **경로 변수**로 찾는다 | **구현됐다. 그러나 경로가 다르다** — `GET /match-requests?userId=...` 로 **쿼리 파라미터**다. 경로 변수가 아예 없다 (`MatchingController#getMatchRequest` → `service/MatchQueryService`) | **구현이 맞다고 보고 그렇게 뒀다. contract 변경이 필요한 사안이다 (CLAUDE.md §5).** 이유 둘: ① 활성 요청은 `qm:user:active-request:{userId}` 로 **사용자 단위** 저장이라(INV-1) `requestId` 는 그 HASH 안에 든 값이지 찾는 열쇠가 아니다. ② 이 조회가 가장 필요한 순간이 **페이지를 새로 열었을 때**인데 그때 클라이언트는 `requestId` 를 잃은 상태다 — 그 값을 요구하면 정작 필요할 때 못 쓰는 API 가 된다. 취소(`DELETE`)가 `requestId` 를 받는 것은 **쓰기**라서다(늦게 도착한 취소가 그 사이 새로 만든 요청을 지우면 안 된다). 조회에는 그 위험이 없다. **JWT 가 붙으면 `GET /match-requests/me` 형태가 된다** — 그때 `?userId=` 는 사라진다. 근거는 그 메서드 주석 |
+| 5-1 | `POST /match-requests` 의 **201 본문** | `MatchRequestView` | **JSON 이 아니라 문자열 `"CREATED"`** (`MatchingController#createMatchRequest` 가 `.body("CREATED")`) | **계약이 맞다. 구현을 고쳐야 한다.** `MatchRequestResponse` 는 `queued(requestId, queuedAt)` 정적 팩토리로 접수 직후 갈래를 이미 표현할 수 있는데 쓰이지 않고 있다. 접수 응답이 `requestId` 를 안 주면 클라이언트가 취소(`DELETE /{requestId}`)를 부를 값을 잃는다 — #5 의 조회로 되찾을 수는 있으나 왕복이 하나 는다 |
 | 6 | `POST /proposals/{id}/accept`·`decline` | 있다 (`200`) | **구현됨.** `controller/ProposalController.java` → `service/ProposalService.java` → `redis/proposal/accept-proposal.lua`·`decline-proposal.lua`. 응답 갈래는 `domain/ProposalResult.java` 한 enum 이다(`AcceptResult`/`DeclineResult` 는 없어졌다). `decline` 은 `?requestId=` 도 받는다 | **구현이 앞서 있다.** `requestId` 쿼리 파라미터와 409/403 갈래가 계약에 없다 |
 | 6-1 | 위 두 엔드포인트의 성공 응답 | `200` (본문 스키마 없음) | `204 No Content` | **구현 쪽이 낫다고 보고 그렇게 뒀다.** 본문 스키마가 계약에 없어 `200` 이 돌려줄 것이 없고, 취소(`DELETE`)와 모양이 맞는다. 근거는 `ProposalController` 의 `decline` 주석. 계약을 `204` 로 고쳐야 한다 |
 | 6-2 | **수락 재전송**의 응답 | 계약에 없다 | **`204`**. 이미 확정된 제안에 수락이 또 오면 `accept-proposal.lua` 가 `ALREADY_RESPONDED` 를 돌려주고, 컨트롤러가 `ACCEPTED` / `CONFIRMED` 와 **같이 묶어 204** 로 내보낸다 (`ProposalController#accept`) | **구현이 맞다.** 같은 명령을 두 번 보내 결과가 같으면 성공이다 — 응답이 유실돼 자동 재시도한 클라이언트에게 오류를 보이지 않는다. 스크립트가 `CONFIRMED` 와 값을 가른 것은 확정 알림(`MATCH_CONFIRMED`)이 두 번 나가지 않게 하려는 것이지 실패라는 뜻이 아니다. **거절 쪽 `ALREADY_RESPONDED` 는 409 그대로다** — 그쪽은 재시도가 아니라 "수락해 놓고 거절을 눌렀다"는 진짜 충돌이다 |
@@ -40,7 +42,7 @@
 | 12 | SQS `ProposalConfirmed` / `BlockChanged` | 있다 | **없다** — AWS SDK 의존성 없음. 확정 자체는 되고 Redis 쪽 뒷정리(`cleanup-confirmed.lua`)와 `MATCH_CONFIRMED` 알림까지 붙었지만, `matching.outbox` 기록과 `ProposalConfirmed.fifo` 발행이 없어 `app:platform` 이 파티를 만들지 못한다. 반대 방향인 `PartyClosed` 소비도 없어 확정된 사용자의 활성 요청에 찍힌 `status=PARTY` 를 푸는 코드가 없다 | 계약이 맞다 |
 | 13 | `CreateMatchRequest` 의 `tier` | **없다** | `tier` (선택 필드, String). `tierRule` 이 `NONE` 이 아닌(= `EXIST` 인) 모드에서는 사실상 필수이고 빠지면 400 이다 (`validation/lol/LolConditionValidator.java`). **값은 단(division)까지 적는다** — `GOLD` 가 아니라 `GOLD_2` 다. 허용되는 이름의 원본은 자바 enum 이 아니라 Redis ZSET `qm:gameconfig:LOL:tier` 다 (32개) | **구현이 앞서 있다.** 조건 5번째가 아니라 derived/자격 조건이다 (docs/02 §6, CLAUDE.md §2). 계약에 추가해야 하고, 계정 연동이 붙으면 요청 필드에서 사라진다 |
 
-| 14 | `KeyCondition.type` 의 PUBG 값 | `PLAY_STYLE` | `PLATFORM` (`domain/KeyConditionType.java`), 값은 `STEAM` / `KAKAO` | **코드가 맞다.** 스팀·카카오는 서로 파티를 맺을 수 없어 플레이 스타일(취향) 대신 플랫폼(hard)을 핵심 조건으로 교체했다. `openapi.yaml` 의 enum 을 고쳐야 한다. 근거는 enum 클래스 주석 |
+| 14 | `KeyCondition.type` 의 PUBG 값 | `PLAY_STYLE` | `PLATFORM` (`domain/condition/KeyConditionType.java`), 값은 `STEAM` / `KAKAO` | **코드가 맞다.** 스팀·카카오는 서로 파티를 맺을 수 없어 플레이 스타일(취향) 대신 플랫폼(hard)을 핵심 조건으로 교체했다. `openapi.yaml` 의 enum 을 고쳐야 한다. 근거는 enum 클래스 주석 |
 
 ### 계약에는 없지만 구현이 실제로 내는 에러 코드
 
@@ -54,8 +56,12 @@
 | 409 | `ALREADY_QUEUED` | INV-1 — 이미 활성 요청이 있다 |
 | 404 | `MATCH_REQUEST_NOT_FOUND` | 취소할 활성 요청이 없다 |
 | 404 | `MATCH_REQUEST_MISMATCH` | 저장된 requestId 와 다르다 (늦게 도착한 취소) |
-| 501 | `NOT_IMPLEMENTED` | `GET /match-requests/{id}` — 아직 구현되지 않았다 |
 | 503 | `MATCHING_UNAVAILABLE` | Redis 장애 또는 후보 풀 락 획득 실패. `Retry-After: 5` 헤더 동반 (INV-10 fail-closed) |
+
+`501 NOT_IMPLEMENTED` 는 **없어졌다** — 상태 조회가 구현되면서 그 스텁이 사라졌다(위 #5).
+**상태 조회는 에러를 내지 않는다.** 활성 요청이 없어도 404 가 아니라 `200 {"status":"IDLE"}` 이다 —
+"큐에 없음"은 오류가 아니라 답의 한 갈래이고, 클라이언트는 어느 경우든 `status` 하나로 화면을
+고르면 된다. 나갈 수 있는 실패는 Redis 장애의 503 뿐이다.
 
 `ProposalController` 가 실제로 내는 것은 셋이다 — `PROPOSAL_CONFLICT`(409, 이미 확정됐거나
 다른 참가자가 거절했거나 수락해 놓고 거절을 누른 경우) · `PROPOSAL_NOT_FOUND`(404, 진행 중인
@@ -65,24 +71,26 @@
 
 ---
 
-## 남은 구멍 — 클라이언트가 "지금 상태"를 물어볼 곳이 없다
+## 메워진 구멍 — "지금 상태"를 물어볼 곳이 생겼다 (2026-09-17)
 
 계약은 매칭 결과를 알리는 경로를 **두 가지**로 정의한다.
 
 1. SSE `MATCH_PROPOSAL_CREATED` / `MATCH_CONFIRMED` (`events.md`)
 2. 폴링 `GET /api/v1/match-requests/{id}` (`openapi.yaml`)
 
-**1번은 메워졌고 2번은 비어 있다.**
+**둘 다 메워졌다.** 다만 2번은 **계약과 다른 경로**로 메워졌다 — 위 표 #5 참고.
+아래 본문은 그 구멍이 왜 있었는지의 기록이라 남겨 둔다.
 
 - SSE — 이 앱의 몫인 Redis Pub/Sub publish 는 **된다**
   (`notification/PushPublisher.java`, 채널 `qm:pubsub:push:{userId}`). 정원이 차면
   `MATCH_PROPOSAL_CREATED` 가, 전원 수락으로 확정되면 `MATCH_CONFIRMED` 가, 시한이 지나면
   `MATCH_PROPOSAL_EXPIRED` 가 파티 전원에게 나간다. SSE 배달은 `app:realtime` 몫이고
   이 저장소에 `SseEmitter` 를 넣지 않는 것이 맞다 (CLAUDE.md §3).
-- 폴링 — `GET /match-requests/{id}` 가 **여전히 501** 이다
-  (`MatchingController#getMatchRequest`, 위 표 #5).
+- 폴링 — **구현됐다.** `GET /match-requests?userId=` → `service/MatchQueryService` 가
+  활성 요청 HASH 와 파티 HASH, 수락자 SET 을 읽어 `IDLE` / `QUEUED` / `PROPOSED` / `MATCHED`
+  네 갈래로 답한다. 경로가 계약과 다른 이유는 위 표 #5 에 있다.
 
-**그래서 남은 문제는 하나다.**
+**왜 필요했나 (기록).**
 
 1. **알림은 사건만 전한다.** "방금 이렇게 됐다"는 말하지만 "지금 이렇다"는 못 한다.
    앱을 껐다 켜거나 새로고침하거나 다른 기기로 접속한 클라이언트는 아무것도 모른 채
@@ -94,7 +102,17 @@
 (옛 2번 "수락 집계·확정이 없다"는 해소됐다 — `POST /proposals/{id}/accept|decline` 이
 동작하고 만료도 스위퍼가 처리한다.)
 
-구현 순서와 각 시작 지점은 `START_HERE.md` §5 에 있다.
+**이 조회가 답하지 못하는 것 두 가지.**
+
+- **취소·만료의 구분.** 둘 다 활성 요청 키를 지우므로 `IDLE` 과 같아진다(위 #4-1).
+  "왜 큐에서 빠졌는지"를 클라이언트가 알려면 알림(`MATCH_CANCELLED` /
+  `MATCH_PROPOSAL_EXPIRED`)을 받았어야 하는데, 그 알림은 at-most-once 라 놓칠 수 있다.
+  그때 사용자는 이유를 모른 채 대기 화면에서 시작 화면으로 돌아간다.
+- **파티 상세(누가 같이 있는지).** 여기서 답하지 않는다. 진행 중인 매칭 상태만 이 앱의
+  소유이고 확정된 파티는 `app:platform` 의 것이다 (CLAUDE.md §9). 그래서 `MATCHED` 응답은
+  `partyId` 까지만 준다.
+
+남은 작업과 우선순위는 `HANDOFF.md` 의 2026-09-17 블록에 있다.
 
 `load-test/match_latency.py` 가 성사를 감지하려고 HTTP 가 아니라 **Redis 를 직접 폴링**하는
 것(`HGET qm:user:active-request:{uid} partyId` → `HGET qm:party:{pid} size`)은 그 스크립트가

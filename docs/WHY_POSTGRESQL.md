@@ -616,9 +616,11 @@ exclusion constraint와 Lua는 **같은 처방을 서로 다른 층에서 쓴 �
 | 이 저장소의 구현 | **있다.** INV-4 는 구현·테스트됨, INV-5 는 네 갈래(declined·confirmed·expired·cancelled)가 전부 막혔다 (`CLAUDE.md` §4, 2026-09-16) | **없다** (`docs/11_DECISION_LOG.md:441-442`) |
 
 전에 여기 적혀 있던 두 구멍은 메워졌다. **expired** — `qm:proposal:pending` ZSET 과
-`ProposalSweeper` + `proposal/expiry-proposal.lua` 가 시한이 지난 제안을 깬다(다만
+`ProposalSweeper` + `proposal/expiry-proposal.lua` 가 시한이 지난 제안을 깬다. ~~다만
 `accept-proposal.lua` 는 여전히 `expiresAt` 을 보지 않으므로, 스위퍼가 꺼내기 전에 도착한 수락은
-확정된다 — 주기만큼의 창이다). **cancelled** — `leave-party.lua` 가 멤버를 빼기 전에
+확정된다 — 주기만큼의 창이다.~~ **(2026-09-17: 그 창도 닫혔다** — `accept-proposal.lua` 가
+`ARGV[3] = now` 로 시한을 보고 `expiresAt <= now` 면 `NOT_FOUND` 를 돌려준다. `docs/11` R-2**)**
+**cancelled** — `leave-party.lua` 가 멤버를 빼기 전에
 `status`·`expiresAt`·수락자 SET·pending 을 먼저 지운다.
 
 `matching`이 확정을 **DB 에 반영**하는 순간(outbox 기록 + `ProposalConfirmed.fifo` 발행 —
