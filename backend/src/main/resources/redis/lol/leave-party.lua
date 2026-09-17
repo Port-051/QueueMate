@@ -158,9 +158,6 @@ if size <= 0 then
     --    빈 파티를 남기면 색인의 유령이 그 자리를 영구히 점거한다.
     --    ZREM 은 없는 멤버에 걸어도 무해하므로 어느 칸에 있었는지 가릴 필요가 없다
     redis.call('DEL', partyKey)
-    -- 파티가 사라지면 수락자 집합도 쓸 곳이 없다. 남기면 아무도 안 지운다
-    redis.call('DEL', 'qm:proposal:accepts:' .. partyId)
-redis.call('ZREM', 'qm:proposal:pending', partyId)
     for i = 1, n do
         for _, suffix in ipairs(suffixes) do
             redis.call('ZREM', KEYS[3 + i] .. suffix, partyId)
