@@ -1,13 +1,17 @@
 package com.queuemate.matching.service;
 
 import com.queuemate.matching.domain.ProposalResult;
+import com.queuemate.matching.notification.PushEventType;
+import com.queuemate.matching.notification.PushPublisher;
 import com.queuemate.matching.rule.lol.LolPartyKeys;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 제안 수락 / 거절.
@@ -33,11 +37,11 @@ import java.util.List;
  *
  * <h2>아직 없는 것</h2>
  * <ul>
- *   <li>확정 후속 처리 — {@code ProposalConfirmed.fifo} 발행, 파티/색인/활성 요청 정리,
- *       {@code MATCH_CONFIRMED} 알림. 아래 TODO 참고.
- *   <li>만료 sweeper — {@code expiresAt} 은 정원이 찰 때 파티 HASH 에 적히지만
- *       그것을 읽어 만료시키는 주체가 아직 없다. 만료된 제안에 수락이 들어오면
- *       지금은 그대로 확정된다.
+ *   <li>{@code matching.outbox} 기록 → {@code ProposalConfirmed.fifo} 발행. 그것이 붙어야
+ *       {@code app:platform} 이 파티를 DB 에 만든다 (CLAUDE.md §9).
+ *   <li>{@code PartyClosed} 소비 — 확정된 사용자는 활성 요청이 {@code status = PARTY} 로
+ *       남아 새 매칭을 걸 수 없다. 그 파티가 닫혔다는 것을 이 앱은 알 수 없으므로,
+ *       platform 이 알려 줄 때까지 풀리지 않는다.
  * </ul>
  *
  * <h2>제안 상태를 어디에 두는가</h2>
@@ -63,6 +67,10 @@ public class ProposalService {
      */
     private final RedisScript<String> acceptProposalScript;
     private final RedisScript<String> declineProposalScript;
+    @SuppressWarnings("rawtypes")
+    private final RedisScript<List> cleanupConfirmedScript;
+
+    private final PushPublisher pushPublisher;
 
     private final MatchCancelService matchCancelService;
     /**
@@ -77,6 +85,18 @@ public class ProposalService {
      */
     private static final String ACCEPTS_PREFIX = "qm:proposal:accepts:";
 
+    /** 활성 요청 키 접두사. 정리 스크립트가 파티원마다 이 접두사로 키를 조립해 지운다 */
+    private static final String ACTIVE_REQUEST_PREFIX = "qm:user:active-request:";
+
+    /**
+     * 확정된 제안의 수락자 집합을 남겨 두는 시간(초).
+     *
+     * <p>생성자 주입이 아니라 필드 주입인 것은 Lombok 의 {@code @RequiredArgsConstructor} 가
+     * {@code @Value} 를 생성자 파라미터로 옮겨 주지 않기 때문이다.
+     */
+    @Value("${queuemate.proposal.confirmed-retention-seconds}")
+    private long confirmedRetentionSeconds;
+
     /**
      * 한 참가자의 수락을 기록한다. 그 수락으로 전원이 차면 확정까지 한다.
      *
@@ -87,20 +107,46 @@ public class ProposalService {
      * <p>스크립트가 {@code SADD} 결과로 끊지 않고 매번 다시 세기 때문에 재시도해도 답이
      * 같다. 자세한 근거는 {@code accept-proposal.lua} 머리 주석에 있다.
      *
-     * <p><b>TODO</b> — 확정({@link ProposalResult#CONFIRMED}) 뒤에 와야 할 것들. 이번
-     * 범위가 아니라 일부러 비워 뒀다.
-     * <ul>
-     *   <li>{@code ProposalConfirmed.fifo} 발행 (outbox). 파티를 DB 에 만드는 것은
-     *       {@code app:platform} 이다 (CLAUDE.md §9)
-     *   <li>{@code MATCH_CONFIRMED} 알림을 참가자 전원에게 발행
-     *   <li>확정된 파티의 색인 / 활성 요청 정리
-     * </ul>
+     * <p>확정되면 {@link #confirmed} 가 뒷정리와 알림을 맡는다. 아직 없는 것은
+     * {@code matching.outbox} 기록 → {@code ProposalConfirmed.fifo} 발행 하나다.
      *
      * @param proposalId 제안 id (= partyId)
      * @param userId     수락한 사용자
      */
     public ProposalResult accept(String proposalId, String userId) {
-        return run(acceptProposalScript, proposalId, userId);
+        ProposalResult value = run(acceptProposalScript, proposalId, userId);
+        if (value == ProposalResult.CONFIRMED) {
+            confirmed(proposalId);
+        }
+        return value;
+    }
+
+    /**
+     * 확정 직후에 할 일. <b>이 호출이 확정을 만든 그 한 번에서만 일어난다</b> —
+     * 이미 확정된 제안에 수락이 또 오면 스크립트가 {@link ProposalResult#ALREADY_RESPONDED} 를
+     * 돌려주므로, 알림이 파티 전원에게 두 번 나가지 않는다.
+     *
+     * <p>정리 스크립트는 파티원의 활성 요청을 <b>지우지 않고</b> {@code status = PARTY} 로 바꾼다.
+     * 확정된 사람은 이미 파티에 속해 있어서, 지우면 그 순간 새 매칭을 걸 수 있게 되어 한 사람이
+     * 두 파티에 속한다(INV-2). 이 상태를 푸는 것은 파티를 닫는 app:platform 쪽이다(미구현).
+     *
+     * <p><b>아직 없는 것</b>: {@code matching.outbox} 기록 → {@code ProposalConfirmed.fifo} 발행.
+     * 그것이 붙어야 app:platform 이 파티를 DB 에 만든다.
+     */
+    @SuppressWarnings("unchecked")
+    private void confirmed(String proposalId) {
+        List<String> members = redis.execute(cleanupConfirmedScript,
+                List.of(LolPartyKeys.PARTY_PREFIX + proposalId, ACCEPTS_PREFIX + proposalId),
+                ACTIVE_REQUEST_PREFIX, String.valueOf(confirmedRetentionSeconds));
+
+        if (members == null || members.isEmpty()) {
+            return;
+        }
+
+        // partyId 를 싣는 이유: 알림은 휘발성이고 순서 보장도 없어서, 클라이언트는
+        // 이것을 "다시 조회하라"는 신호로 쓴다 (contracts/events.md)
+        pushPublisher.publishAll(members, PushEventType.MATCH_CONFIRMED,
+                Map.of("partyId", proposalId));
     }
 
     /**
@@ -158,7 +204,10 @@ public class ProposalService {
     private ProposalResult run(RedisScript<String> script, String proposalId, String userId) {
         // ARGV[2] 는 만료 대기 목록(qm:proposal:pending)에서 뺄 때 쓴다. 제안이 끝나는 자리마다
         // ZREM 을 해야 스위퍼가 이미 끝난 제안을 다시 꺼내지 않는다
-        String answer = redis.execute(script, keys(proposalId), userId, proposalId);
+        // ARGV[3] 은 지금 시각이다. 수락 스크립트가 파티의 expiresAt 과 비교해, 스위퍼가
+        // 걷어가기 전이라도 시한이 지난 제안은 확정시키지 않는다 (INV-5 expired)
+        String answer = redis.execute(script, keys(proposalId),
+                userId, proposalId, String.valueOf(System.currentTimeMillis()));
         return ProposalResult.valueOf(answer);
     }
 

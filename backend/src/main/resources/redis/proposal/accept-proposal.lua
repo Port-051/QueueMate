@@ -14,13 +14,18 @@
 -- ── ARGV ─────────────────────────────────────────────────────────────
 -- ARGV[1] = userId. 수락한 사용자
 -- ARGV[2] = partyId (= proposalId). 만료 대기 목록에서 뺄 때만 쓴다
+-- ARGV[3] = now (epoch millis). 시한이 지난 제안을 확정시키지 않으려고 본다
 --
 -- ── 반환 (문자열) ────────────────────────────────────────────────────
 --   NOT_FOUND     제안이 없다. 아직 정원이 안 찼거나, 파티 자체가 사라졌거나,
 --                 **다른 참가자가 거절해 제안 흔적이 지워졌다** (decline-proposal.lua)
 --   NOT_A_MEMBER  이 파티의 참가자가 아니다
 --   ACCEPTED      수락이 기록됐다. 아직 전원이 수락하지는 않았다
---   CONFIRMED     전원이 수락해 확정됐다 (내 수락으로 찼든, 이미 확정돼 있었든)
+--   CONFIRMED     내 수락이 정원을 채워 확정됐다. **확정을 만든 그 한 번만** 이 값이다 —
+--                 자바가 이 분기에서만 MATCH_CONFIRMED 를 발행하므로, 재시도가 또 이 값을
+--                 받으면 같은 알림이 파티 전원에게 두 번 간다
+--   ALREADY_RESPONDED  이미 확정된 제안에 수락이 또 왔다. 확정은 유효하다 —
+--                 컨트롤러가 204 로 내보내 재전송이 실패로 보이지 않게 한다
 --   DECLINED      다른 참가자가 이미 거절해 제안이 깨졌다.
 --                 **지금 이 값이 나가는 경로는 없다** — 아래 3번 참고
 --
@@ -46,6 +51,7 @@ local partyKey   = KEYS[1]
 local acceptsKey = KEYS[2]
 local userId     = ARGV[1]
 local partyId    = ARGV[2]
+local now        = tonumber(ARGV[3])
 
 -- 1. 제안이 있나. status 는 정원이 찰 때 join-party*.lua 가 만든다.
 --    없으면(Lua false) 아직 제안이 아니거나 파티가 사라진 것이다.
@@ -71,10 +77,25 @@ end
 --    (예전에는 status 를 남겼다) 다시 바뀔 수 있는데, 그때 이 분기가 없으면 깨진
 --    제안에 수락이 쌓여 조용히 확정된다. 사라져도 해가 없는 세 줄이 그 위험보다 싸다.
 if status == 'CONFIRMED' then
-    return 'CONFIRMED'
+    return 'ALREADY_RESPONDED'
 end
 if status == 'DECLINED' then
     return 'DECLINED'
+end
+
+-- 3-1. 시한이 지난 제안은 확정시키지 않는다 (INV-5 expired).
+--
+--      스위퍼(ProposalSweeper)가 곧 걷어가지만 그것은 주기마다 도는 일이라, 시한이 지난
+--      직후부터 스위퍼가 이 파티를 꺼낼 때까지 창이 열린다. 그 사이에 마지막 수락이 오면
+--      **만료된 제안이 확정된다.** 시한을 여기서 직접 보는 것이 그 창을 닫는 유일한 방법이다.
+--
+--      NOT_FOUND 를 돌려주는 이유: 클라이언트가 갈 곳이 스위퍼가 이미 걷어간 뒤와 같다
+--      (대기 화면 복귀). 상태 값을 하나 더 만들면 클라이언트가 같은 상황을 두 갈래로
+--      다뤄야 한다. 흔적을 지우는 것은 스위퍼에 맡긴다 — 여기서 지우면 이 스크립트가
+--      "수락 집계" 말고 다른 일까지 하게 되고, 만료 알림도 못 나간다
+local expiresAt = tonumber(redis.call('HGET', partyKey, 'expiresAt'))
+if now ~= nil and expiresAt ~= nil and expiresAt <= now then
+    return 'NOT_FOUND'
 end
 
 -- 4. 수락을 기록한다. 반환값을 보지 않는다 (위 "멱등성" 참고).

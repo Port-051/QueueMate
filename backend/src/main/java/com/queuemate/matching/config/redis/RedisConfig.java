@@ -90,6 +90,20 @@ public class RedisConfig {
      *
      * @return 수락하지 않은 userId 목록. 비어 있으면 처리할 것이 없었다는 뜻이다
      */
+    /**
+     * 확정된 제안 뒷정리 (파티원의 활성 요청 삭제 + 파티·수락자 집합 TTL).
+     *
+     * <p>확정을 찍는 {@link #acceptProposalScript} 와 나눠 둔 이유는 그 스크립트의 멱등성 때문이다 —
+     * 수락자 집합을 다시 세어 판단하는데, 같은 실행에서 지워 버리면 재시도가 셀 근거를 잃는다.
+     *
+     * @return 정리한 파티원 userId 목록. 확정된 제안이 아니면 빈 목록
+     */
+    @Bean
+    @SuppressWarnings("rawtypes")
+    public RedisScript<List> cleanupConfirmedScript() {
+        return RedisScript.of(readScript("redis/proposal/cleanup-confirmed.lua"), List.class);
+    }
+
     @Bean
     @SuppressWarnings("rawtypes")
     public RedisScript<List> expireProposalScript() {

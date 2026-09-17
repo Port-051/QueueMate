@@ -28,9 +28,9 @@ import org.springframework.web.bind.annotation.RestController;
  * 뜻하므로(CLAUDE.md §1) 식별자를 따로 두지 않는다. {@code MATCH_PROPOSAL_CREATED}
  * 알림의 payload 에 실려 나간 그 값을 클라이언트가 그대로 되돌려 보낸다.
  *
- * <p><b>구현 상태.</b> 수락 집계 Lua(INV-4 / INV-5)가 붙어 두 엔드포인트 모두 동작한다.
- * 아직 없는 것은 확정 후속 처리({@code ProposalConfirmed.fifo} 발행, 파티 DB 반영,
- * {@code MATCH_CONFIRMED} 알림)와 만료 sweeper 다 — {@link ProposalService} 참고.
+ * <p><b>구현 상태.</b> 수락 집계(INV-4 / INV-5), 만료 스위퍼, 확정 뒷정리와 알림까지 붙었다.
+ * 아직 없는 것은 {@code matching.outbox} 기록 → {@code ProposalConfirmed.fifo} 발행(파티를
+ * DB 에 만드는 것은 app:platform 이다)과 {@code PartyClosed} 소비다 — {@link ProposalService} 참고.
  */
 @RestController
 @RequestMapping("/api/v1/proposals")
@@ -62,10 +62,15 @@ public class ProposalController {
             //
             // 알림을 놓쳤을 때의 복구는 조회로 한다
             // (MatchingController#getMatchRequest — 아직 미구현).
-            case ACCEPTED, CONFIRMED -> ResponseEntity.noContent().build();
-
-            // 409 는 "현재 상태와 충돌한다"는 뜻이다 (RFC 9110 §15.5.10).
-            case ALREADY_RESPONDED -> conflict(proposalId, "이미 응답한 제안입니다: ");
+            //
+            // ALREADY_RESPONDED 를 여기 묶는 이유: 수락에서 이 값은 "이미 확정된 제안에
+            // 또 수락이 왔다"는 뜻이다(accept-proposal.lua). 확정이 유효한데 재전송한
+            // 쪽만 실패로 받으면, 응답이 유실돼 자동 재시도한 사용자에게 오류가 뜬다.
+            // 같은 명령을 두 번 보내 결과가 같으면 성공으로 돌려준다.
+            //
+            // 확정 알림을 두 번 보내지 않으려고 스크립트가 값을 갈라 놓은 것이지
+            // 호출이 실패했다는 뜻이 아니다 — 거절 쪽 ALREADY_RESPONDED 는 409 그대로다
+            case ACCEPTED, CONFIRMED, ALREADY_RESPONDED -> ResponseEntity.noContent().build();
 
             // 수락을 눌렀는데 그사이 다른 참가자가 거절해 제안이 깨진 경우다
             case DECLINED -> conflict(proposalId, "다른 참가자가 거절한 제안입니다: ");

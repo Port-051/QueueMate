@@ -28,9 +28,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code matching/failover/} 가 같은 호출을 처음부터 다시 부른다. Lua 는 롤백이 없으므로
  * <b>같은 요청이 두 번 실행돼도 답과 상태가 같아야</b> 한다.
  *
- * <p>가장 위험한 경우는 <b>마지막 수락자</b>다. 그가 확정을 유발해 놓고 응답을 잃었는데
- * 재시도가 "이미 응답했다" 로 갈리면, 자기가 확정시켰다는 사실을 영영 듣지 못한다.
- * 그래서 {@code accept-proposal.lua} 는 {@code SADD} 결과로 끊지 않고 매번 다시 센다.
+ * <p>가장 위험한 경우는 <b>마지막 수락자</b>다. 그가 확정을 유발해 놓고 응답을 잃는 경우인데,
+ * 재시도는 {@link ProposalResult#ALREADY_RESPONDED} 를 받는다 — 확정을 만든 한 번만
+ * {@link ProposalResult#CONFIRMED} 여야 그 분기에서 나가는 {@code MATCH_CONFIRMED} 알림이
+ * 파티 전원에게 두 번 가지 않기 때문이다. 재전송이 실패로 보이지 않게 하는 것은 컨트롤러다
+ * (수락 경로에서 이 값을 204 로 내보낸다). 확정 자체가 뒤집히지 않는 근거는 따로다 —
+ * {@code accept-proposal.lua} 가 {@code SADD} 결과로 끊지 않고 매번 다시 센다.
  *
  * <p><b>거절은 예외다 — 멱등이 아니다.</b> 거절은 파티 HASH 의 제안 흔적
  * ({@code status} / {@code expiresAt})과 수락자 집합을 <b>지운다.</b> 그래야 거절자가
@@ -131,20 +134,22 @@ class ProposalIdempotencyTest extends ConcurrencyTestSupport {
     }
 
     @Test
-    @DisplayName("마지막 수락자가 두 번 보내도 두 번 다 CONFIRMED 다")
-    void theLastAcceptorSeesConfirmedOnRetry() {
+    @DisplayName("확정을 만든 호출만 CONFIRMED 다. 재시도는 ALREADY_RESPONDED")
+    void onlyTheConfirmingCallSeesConfirmed() {
         String partyId = fullParty();
 
         assertThat(proposalService.accept(partyId, "u1")).isEqualTo(ProposalResult.ACCEPTED);
 
-        // u2 의 수락이 정원을 채운다. 여기서 응답을 잃고 재시도하는 상황이다 —
-        // ALREADY_RESPONDED 로 갈리면 자기가 확정시킨 줄 모르게 된다
+        // u2 의 수락이 정원을 채운다. 확정을 만든 이 한 번만 CONFIRMED 다 —
+        // 그 분기에서만 MATCH_CONFIRMED 알림이 나가므로, 재시도가 또 CONFIRMED 를 받으면
+        // 같은 알림이 파티 전원에게 두 번 간다
         assertThat(proposalService.accept(partyId, "u2")).isEqualTo(ProposalResult.CONFIRMED);
-        assertThat(proposalService.accept(partyId, "u2")).isEqualTo(ProposalResult.CONFIRMED);
+        assertThat(proposalService.accept(partyId, "u2")).isEqualTo(ProposalResult.ALREADY_RESPONDED);
 
-        // 먼저 수락한 사람이 나중에 다시 물어도 같은 답을 들어야 한다
-        assertThat(proposalService.accept(partyId, "u1")).isEqualTo(ProposalResult.CONFIRMED);
+        // 먼저 수락한 사람이 다시 물어도 같다. 확정이 뒤집히지 않는 것이 요점이다 (INV-5)
+        assertThat(proposalService.accept(partyId, "u1")).isEqualTo(ProposalResult.ALREADY_RESPONDED);
 
+        // 재시도가 실패로 보이지 않게 컨트롤러는 이 값을 204 로 내보낸다 (ProposalController)
         assertThat(field(partyId, "status")).isEqualTo("CONFIRMED");
         assertThat(acceptCount(partyId)).isEqualTo(2);
     }

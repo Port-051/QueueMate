@@ -68,6 +68,9 @@ management:
 queuemate:
   proposal:
     ttl-seconds: ${PROPOSAL_TTL_SECONDS:20}
+    # 확정된 제안의 수락자 집합을 남겨 두는 시간. 확정 판정에 다 쓰인 값이라 바로 지워도
+    # 되지만, 재전송된 수락이 도착하는 창만큼은 남긴다
+    confirmed-retention-seconds: ${PROPOSAL_CONFIRMED_RETENTION_SECONDS:60}
   scan:
     interval-ms: ${SCAN_INTERVAL_MS:1000}
   sweep:
