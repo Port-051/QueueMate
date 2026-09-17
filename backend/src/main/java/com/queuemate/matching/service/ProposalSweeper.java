@@ -1,5 +1,6 @@
 package com.queuemate.matching.service;
 
+import com.queuemate.matching.redisKeys.SharedKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -47,7 +48,7 @@ public class ProposalSweeper {
         Set<String> expired;
         try {
             expired = redis.opsForZSet()
-                    .rangeByScore(ProposalExpiryService.PENDING_KEY, 0, now, 0, BATCH_SIZE);
+                    .rangeByScore(SharedKeys.PENDING_KEY, 0, now, 0, BATCH_SIZE);
         } catch (DataAccessException e) {
             logFailureQuietly(now, e);
             return;

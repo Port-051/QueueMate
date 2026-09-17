@@ -1,8 +1,10 @@
 package com.queuemate.matching.rule.valorant;
 
 import com.queuemate.matching.domain.ActiveRequest;
+import com.queuemate.matching.domain.GameKey;
 import com.queuemate.matching.domain.valorant.ValorantRole;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
+import com.queuemate.matching.redisKeys.SharedKeys;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
@@ -22,11 +24,8 @@ import java.util.List;
 @Component
 public class ValorantPartyKeys {
 
-    /** 파티 HASH 키 접두사. Lua 가 기존 파티 키를 조립할 때 ARGV 로도 받아 간다 */
-    public static final String PARTY_PREFIX = "qm:party:";
-
-    /** needs 키 뒤에 티어를 붙일 때 쓰는 구분자 */
-    private static final String TIER_SUFFIX_SEPARATOR = ":";
+    /** 이 클래스가 조립하는 것은 발로란트의 needs 색인과 gameconfig 뿐이다. 나머지는 {@link SharedKeys} */
+    private static final GameKey GAME = GameKey.VALORANT;
 
     /**
      * 역할군 <b>전체</b> 목록. 역할군 중복을 금지하는 모드가 색인 대상으로 쓴다.
@@ -45,16 +44,16 @@ public class ValorantPartyKeys {
 
     /** 잠글 후보 풀. needs 키에서 역할군만 뺀 조합이어야 같은 색인을 잠근다 (PoolLock 참고). */
     public String poolKey(CreateMatchRequestCommand command) {
-        return "qm:party:open:VALORANT:" + command.getModeKey() + ":"
-                + command.getVoicePreference().name() + ":"
-                + command.getPlayPurpose().name();
+        return SharedKeys.poolKey(GAME, command.getModeKey(),
+                command.getVoicePreference().name(),
+                command.getPlayPurpose().name());
     }
 
     /** 취소 경로의 후보 풀 키. 배정 쪽과 같은 문자열이어야 한다. */
     public String poolKey(ActiveRequest active) {
-        return "qm:party:open:VALORANT:" + active.modeKey() + ":"
-                + active.voicePreference().name() + ":"
-                + active.playPurpose().name();
+        return SharedKeys.poolKey(GAME, active.modeKey(),
+                active.voicePreference().name(),
+                active.playPurpose().name());
     }
 
     /**
@@ -65,12 +64,12 @@ public class ValorantPartyKeys {
      * 다시 만들어야 하기 때문에, 조립 재료가 되는 이 키가 따로 필요하다.
      */
     public String needsBaseKey(CreateMatchRequestCommand command) {
-        return poolKey(command) + ":needs";
+        return SharedKeys.needsBaseKey(poolKey(command));
     }
 
     /** 취소 경로의 needs 밑동. */
     public String needsBaseKey(ActiveRequest active) {
-        return poolKey(active) + ":needs";
+        return SharedKeys.needsBaseKey(poolKey(active));
     }
 
     /**
@@ -78,12 +77,12 @@ public class ValorantPartyKeys {
      * Lua 가 {@code ':' .. 티어이름} 을 붙여 칸을 만든다.
      */
     public String needsKey(CreateMatchRequestCommand command, String role) {
-        return needsBaseKey(command) + ":" + role;
+        return SharedKeys.needsKey(poolKey(command), role);
     }
 
     /** 취소 경로에서 쓰는 needs 키. 조립 규칙은 배정 쪽과 같아야 한다. */
     public String needsKey(ActiveRequest active, String role) {
-        return needsBaseKey(active) + ":" + role;
+        return SharedKeys.needsKey(poolKey(active), role);
     }
 
     /**
@@ -96,15 +95,15 @@ public class ValorantPartyKeys {
      * @param tierName 티어 사다리({@code qm:gameconfig:VALORANT:tier})에 있는 티어 이름
      */
     public String needsKey(CreateMatchRequestCommand command, String role, String tierName) {
-        return needsKey(command, role) + TIER_SUFFIX_SEPARATOR + tierName;
+        return SharedKeys.withTier(needsKey(command, role), tierName);
     }
 
     public String partyKey(String partyId) {
-        return PARTY_PREFIX + partyId;
+        return SharedKeys.partyKey(partyId);
     }
 
     public String activeRequestKey(String userId) {
-        return "qm:user:active-request:" + userId;
+        return SharedKeys.activeRequestKey(userId);
     }
 
     public String gameConfigKey(CreateMatchRequestCommand command) {
@@ -112,7 +111,7 @@ public class ValorantPartyKeys {
     }
 
     public String gameConfigKey(String modeKey) {
-        return "qm:gameconfig:VALORANT:" + modeKey;
+        return SharedKeys.gameConfigKey(GAME, modeKey);
     }
 
     /** 모드별 티어 범위 표. HASH, 필드 = 티어 이름, 값 = "최저:최고" 또는 SOLO_ONLY. */
@@ -121,11 +120,11 @@ public class ValorantPartyKeys {
     }
 
     public String tierRangeKey(String modeKey) {
-        return "qm:gameconfig:VALORANT:tier-range:" + modeKey;
+        return SharedKeys.tierRangeKey(GAME, modeKey);
     }
 
     /** 티어 사다리. ZSET, score = 단계 번호. */
     public String tierKey() {
-        return "qm:gameconfig:VALORANT:tier";
+        return SharedKeys.tierKey(GAME);
     }
 }

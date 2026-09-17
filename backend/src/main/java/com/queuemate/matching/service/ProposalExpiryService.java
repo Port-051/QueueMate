@@ -2,7 +2,7 @@ package com.queuemate.matching.service;
 
 import com.queuemate.matching.notification.PushEventType;
 import com.queuemate.matching.notification.PushPublisher;
-import com.queuemate.matching.rule.lol.LolPartyKeys;
+import com.queuemate.matching.redisKeys.SharedKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -34,11 +34,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ProposalExpiryService {
 
-    /** 만료 대기 목록. 제안이 열릴 때 join-party*.lua 가 ZADD 하고, 끝나는 모든 자리에서 ZREM 한다 */
-    static final String PENDING_KEY = "qm:proposal:pending";
-
-    private static final String ACCEPTS_PREFIX = "qm:proposal:accepts:";
-
     private final StringRedisTemplate redis;
     @SuppressWarnings("rawtypes")
     private final RedisScript<List> expireProposalScript;
@@ -53,7 +48,9 @@ public class ProposalExpiryService {
     @SuppressWarnings("unchecked")
     public void expire(String partyId) {
         List<Object> result = redis.execute(expireProposalScript,
-                List.of(LolPartyKeys.PARTY_PREFIX + partyId, ACCEPTS_PREFIX + partyId, PENDING_KEY),
+                List.of(SharedKeys.partyKey(partyId),
+                        SharedKeys.acceptsKey(partyId),
+                        SharedKeys.PENDING_KEY),
                 partyId);
 
         // 빈 결과는 할 일이 없었다는 뜻이다 — 이미 확정·거절됐거나 시한 전이다 (expiry-proposal.lua)

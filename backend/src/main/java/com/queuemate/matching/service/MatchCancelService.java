@@ -5,6 +5,7 @@ import com.queuemate.matching.domain.CancelResult;
 import com.queuemate.matching.domain.GameKey;
 import com.queuemate.matching.domain.PlayPurpose;
 import com.queuemate.matching.domain.VoicePreference;
+import com.queuemate.matching.redisKeys.SharedKeys;
 import com.queuemate.matching.rule.CandidateRule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +56,6 @@ public class MatchCancelService {
     }
 
     private String activeRequestKey(String userId) {
-        return "qm:user:active-request:" + userId;
+        return SharedKeys.activeRequestKey(userId);
     }
 }

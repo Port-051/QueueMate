@@ -5,6 +5,7 @@ import com.queuemate.matching.domain.KeyConditionType;
 import com.queuemate.matching.domain.lol.LolPosition;
 import com.queuemate.matching.rule.lol.LolPartyKeys;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
+import com.queuemate.matching.redisKeys.SharedKeys;
 import com.queuemate.matching.validation.GameConditionValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.HashOperations;
@@ -60,7 +61,7 @@ public class LolConditionValidator implements GameConditionValidator
 
         // 모드 이름이 아니라 설정값으로 가른다.
         // 이름 규칙(startsWith("ARAM"))에 기대면 포지션 없는 모드가 새로 생길 때 조용히 깨진다.
-        String configKey = "qm:gameconfig:" + GameKey.LOL + ":" + command.getModeKey();
+        String configKey = SharedKeys.gameConfigKey(GameKey.LOL, command.getModeKey());
         HashOperations<String, String, String> ops = redis.opsForHash();
         List<String> values = ops.multiGet(configKey, List.of("positionUniqueness", "tierRule"));
         String positionUniqueness = values.getFirst();

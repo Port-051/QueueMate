@@ -5,6 +5,7 @@ import com.queuemate.matching.domain.GameKey;
 import com.queuemate.matching.domain.KeyConditionType;
 import com.queuemate.matching.domain.valorant.ValorantRole;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
+import com.queuemate.matching.redisKeys.SharedKeys;
 import com.queuemate.matching.validation.GameConditionValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -47,7 +48,8 @@ public class ValorantConditionValidator implements GameConditionValidator
             return false;
         }
         String mode = command.getModeKey();
-        String tierRule = redis.<String, String>opsForHash().get("qm:gameconfig:VALORANT:" + mode, "tierRule");
+        String tierRule = redis.<String, String>opsForHash()
+                .get(SharedKeys.gameConfigKey(GameKey.VALORANT, mode), "tierRule");
         String tier = command.getTier();
         if (tierRule == null)
         {
@@ -63,7 +65,7 @@ public class ValorantConditionValidator implements GameConditionValidator
         {
             return false;
         }
-        Long exist = redis.<String, String>opsForZSet().rank("qm:gameconfig:VALORANT:tier", tier);
+        Long exist = redis.<String, String>opsForZSet().rank(SharedKeys.tierKey(GameKey.VALORANT), tier);
         if (exist == null)
         {
             return false;
@@ -73,7 +75,7 @@ public class ValorantConditionValidator implements GameConditionValidator
         // 여기서 통과시키면 요청은 201 로 나가고 비동기 배정의 Lua 가 -1 로 조용히 끝나
         // 사용자는 claim 이 만료될 때까지 대기 화면에 남는다. 그래서 표까지 본다.
         String range = redis.<String, String>opsForHash()
-                .get("qm:gameconfig:VALORANT:tier-range:" + mode, tier);
+                .get(SharedKeys.tierRangeKey(GameKey.VALORANT, mode), tier);
         return range != null && !range.equals("SOLO_ONLY");
     }
 }

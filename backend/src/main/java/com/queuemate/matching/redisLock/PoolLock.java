@@ -1,5 +1,6 @@
 package com.queuemate.matching.redisLock;
 
+import com.queuemate.matching.redisKeys.SharedKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -42,8 +43,6 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor
 public class PoolLock {
 
-    private static final String LOCK_PREFIX = "qm:lock:pool:";
-
     /** 락을 기다리는 시간. 매칭은 사용자가 대기 화면에서 보고 있으므로 짧게 끊는다. */
     private static final long WAIT_MILLIS = 3000;
 
@@ -61,7 +60,7 @@ public class PoolLock {
 
     public <T> T call(String poolKey, Supplier<T> work)
     {
-        RLock lock = redisson.getLock(LOCK_PREFIX + poolKey);
+        RLock lock = redisson.getLock(SharedKeys.poolLockKey(poolKey));
         boolean acquired;
 
         try {

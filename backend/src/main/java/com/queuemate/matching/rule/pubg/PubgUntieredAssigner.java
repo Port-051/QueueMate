@@ -3,6 +3,7 @@ package com.queuemate.matching.rule.pubg;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
 import com.queuemate.matching.notification.PushEventType;
 import com.queuemate.matching.notification.PushPublisher;
+import com.queuemate.matching.redisKeys.SharedKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -108,7 +109,7 @@ public class PubgUntieredAssigner {
         args.add(newPartyId);                               // ARGV[1]
         args.add(String.valueOf(now));                      // ARGV[2]
         args.add(config.targetPartySize());                 // ARGV[3]
-        args.add(PubgPartyKeys.PARTY_PREFIX);               // ARGV[4]
+        args.add(SharedKeys.PARTY_PREFIX);               // ARGV[4]
         args.add(command.getUserId());                      // ARGV[5]
         args.add(String.valueOf(start));                    // ARGV[6] 색인의 몇 번째 후보를 볼지
         return args;
@@ -166,7 +167,7 @@ public class PubgUntieredAssigner {
         args.add(partyId);                                  // ARGV[1]
         args.add(String.valueOf(now));                      // ARGV[2]
         args.add(config.targetPartySize());                 // ARGV[3]
-        args.add(PubgPartyKeys.PARTY_PREFIX);               // ARGV[4]
+        args.add(SharedKeys.PARTY_PREFIX);               // ARGV[4]
         args.add(command.getUserId());                      // ARGV[5]
         args.add(String.valueOf(expiresAt(now)));           // ARGV[6] 제안 시한
         return args;

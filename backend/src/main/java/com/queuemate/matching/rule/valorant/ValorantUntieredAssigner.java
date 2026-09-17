@@ -3,6 +3,7 @@ package com.queuemate.matching.rule.valorant;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
 import com.queuemate.matching.notification.PushEventType;
 import com.queuemate.matching.notification.PushPublisher;
+import com.queuemate.matching.redisKeys.SharedKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -201,7 +202,7 @@ public class ValorantUntieredAssigner {
         args.add(command.getKeyCondition().getValue());     // ARGV[3] 내 역할군
         args.add(config.targetPartySize());                 // ARGV[4]
         args.add(String.valueOf(config.unique()));          // ARGV[5]
-        args.add(ValorantPartyKeys.PARTY_PREFIX);           // ARGV[6]
+        args.add(SharedKeys.PARTY_PREFIX);           // ARGV[6]
         args.add(command.getUserId());                      // ARGV[7]
         args.add(String.valueOf(start));                    // ARGV[8] 색인의 몇 번째부터 볼지
         args.addAll(config.keyValues());                    // ARGV[9..]
@@ -223,7 +224,7 @@ public class ValorantUntieredAssigner {
         args.add(command.getKeyCondition().getValue());     // ARGV[3] 내 역할군
         args.add(config.targetPartySize());                 // ARGV[4]
         args.add(String.valueOf(config.unique()));          // ARGV[5]
-        args.add(ValorantPartyKeys.PARTY_PREFIX);           // ARGV[6]
+        args.add(SharedKeys.PARTY_PREFIX);           // ARGV[6]
         args.add(command.getUserId());                      // ARGV[7]
         args.add(String.valueOf(expiresAt(now)));           // ARGV[8] 제안 시한
         args.addAll(config.keyValues());                    // ARGV[9..]

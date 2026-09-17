@@ -3,7 +3,7 @@ package com.queuemate.matching.service;
 import com.queuemate.matching.domain.ProposalResult;
 import com.queuemate.matching.notification.PushEventType;
 import com.queuemate.matching.notification.PushPublisher;
-import com.queuemate.matching.rule.lol.LolPartyKeys;
+import com.queuemate.matching.redisKeys.SharedKeys;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -73,20 +73,6 @@ public class ProposalService {
     private final PushPublisher pushPublisher;
 
     private final MatchCancelService matchCancelService;
-    /**
-     * 수락자 집합. 제안 상태(status/expiresAt)는 파티 HASH 에 있으므로 따로 두는 키는
-     * 이것 하나다.
-     *
-     * <p>파티 키 접두사는 {@link LolPartyKeys#PARTY_PREFIX} 를 그대로 쓴다. 배정 Lua 와
-     * <b>문자열까지 같은 키</b>를 만들어야 하는데, 접두사를 여기 한 번 더 적어 두면
-     * 한쪽만 고쳐도 컴파일은 통과하고 그때부터 아무도 못 찾는 키를 만들게 된다.
-     * (이름이 Lol* 인 것은 그 클래스가 LoL 배정용이라서다. 접두사 자체는 게임을 가리지
-     * 않으며, 게임이 늘어 접두사를 공용 자리로 옮길 때 여기도 함께 따라간다.)
-     */
-    private static final String ACCEPTS_PREFIX = "qm:proposal:accepts:";
-
-    /** 활성 요청 키 접두사. 정리 스크립트가 파티원마다 이 접두사로 키를 조립해 지운다 */
-    private static final String ACTIVE_REQUEST_PREFIX = "qm:user:active-request:";
 
     /**
      * 확정된 제안의 수락자 집합을 남겨 두는 시간(초).
@@ -136,8 +122,8 @@ public class ProposalService {
     @SuppressWarnings("unchecked")
     private void confirmed(String proposalId) {
         List<String> members = redis.execute(cleanupConfirmedScript,
-                List.of(LolPartyKeys.PARTY_PREFIX + proposalId, ACCEPTS_PREFIX + proposalId),
-                ACTIVE_REQUEST_PREFIX, String.valueOf(confirmedRetentionSeconds));
+                keys(proposalId),
+                SharedKeys.ACTIVE_REQUEST_PREFIX, String.valueOf(confirmedRetentionSeconds));
 
         if (members == null || members.isEmpty()) {
             return;
@@ -212,13 +198,18 @@ public class ProposalService {
     }
 
     /**
-     * KEYS[1] = 파티 HASH, KEYS[2] = 수락자 SET.
+     * KEYS[1] = 파티 HASH, KEYS[2] = 수락자 SET. 수락 · 거절 · 확정 정리가 모두 같은 두 키를 받는다.
      *
      * <p>proposalId 를 그대로 KEYS 에 넣으면 안 된다 — 클라이언트가 돌려보내는 값은
      * partyId(UUID)이고 Redis 키가 아니다.
+     *
+     * <p>접두사는 {@link SharedKeys} 한 자리에서 온다. 배정 Lua 와 <b>문자열까지 같은 키</b>를
+     * 만들어야 하는데, 여기에 한 번 더 적어 두면 한쪽만 고쳐도 컴파일은 통과하고 그때부터
+     * 아무도 못 찾는 키를 만들게 된다. 제안은 게임을 보지 않으므로(조건을 읽지 않는다)
+     * 게임별 {@code *PartyKeys} 를 빌려 오지 않는다.
      */
     private List<String> keys(String proposalId) {
-        return List.of(LolPartyKeys.PARTY_PREFIX + proposalId, ACCEPTS_PREFIX + proposalId);
+        return List.of(SharedKeys.partyKey(proposalId), SharedKeys.acceptsKey(proposalId));
     }
 
 }

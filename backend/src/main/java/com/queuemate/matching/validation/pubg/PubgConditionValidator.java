@@ -3,6 +3,7 @@ package com.queuemate.matching.validation.pubg;
 import com.queuemate.matching.domain.GameKey;
 import com.queuemate.matching.domain.KeyConditionType;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
+import com.queuemate.matching.redisKeys.SharedKeys;
 import com.queuemate.matching.validation.GameConditionValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -48,7 +49,8 @@ public class PubgConditionValidator implements GameConditionValidator {
 
         // 모드가 있는지는 모드 HASH 가 답한다. 없는 모드면 필드가 null 로 온다.
         String mode = command.getModeKey();
-        String tierRule = redis.<String, String>opsForHash().get("qm:gameconfig:PUBG:" + mode, "tierRule");
+        String tierRule = redis.<String, String>opsForHash()
+                .get(SharedKeys.gameConfigKey(GameKey.PUBG, mode), "tierRule");
 
         if (tierRule == null)
         {
@@ -69,14 +71,15 @@ public class PubgConditionValidator implements GameConditionValidator {
             return false;
         }
 
-        Double score = redis.opsForZSet().score("qm:gameconfig:PUBG:tier",  tier);
+        Double score = redis.opsForZSet().score(SharedKeys.tierKey(GameKey.PUBG), tier);
 
         if(score == null)
         {
             return false;
         }
 
-        String range = redis.<String, String>opsForHash().get("qm:gameconfig:PUBG:tier-range:" + mode, tier);
+        String range = redis.<String, String>opsForHash()
+                .get(SharedKeys.tierRangeKey(GameKey.PUBG, mode), tier);
 
         return range != null && !range.equals("SOLO_ONLY");
     }

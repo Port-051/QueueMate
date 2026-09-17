@@ -1,5 +1,6 @@
 package com.queuemate.matching.notification;
 
+import com.queuemate.matching.redisKeys.SharedKeys;
 import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,8 +40,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PushPublisher {
 
-    private static final String CHANNEL_PREFIX = "qm:pubsub:push:";
-
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
 
@@ -67,7 +66,7 @@ public class PushPublisher {
                     // null 을 그대로 두면 payload: null 이 나가 받는 쪽이 필드를 읽다 터진다
                     payload == null ? Map.of() : payload));
 
-            Long received = redis.convertAndSend(CHANNEL_PREFIX + userId, body);
+            Long received = redis.convertAndSend(SharedKeys.pushChannel(userId), body);
 
             // received == 0 은 실패가 아니다. 그 사용자가 접속 중이 아닐 뿐이므로
             // 재시도하지 않는다. 구독자가 없는 메시지는 그냥 버려지는 것이 설계다
