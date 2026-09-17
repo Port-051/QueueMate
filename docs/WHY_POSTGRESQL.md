@@ -613,16 +613,18 @@ exclusion constraint와 Lua는 **같은 처방을 서로 다른 층에서 쓴 �
 | 관장 범위 | 진행 중 — 요청, 파티 채우기, 수락 집계 | 확정된 것 — proposal, party, outbox |
 | 원자성 도구 | Lua 스크립트 | 트랜잭션 + 제약 |
 | 다루는 불변식 | INV-1, INV-3, INV-4, INV-5, INV-7, INV-8 | INV-1(이력), INV-3, INV-4, INV-5, INV-7, INV-9 |
-| 이 저장소의 구현 | **있다.** 단 INV-4 는 구현·테스트됨(확정 후속 처리 없음), INV-5 는 **부분** — declined·confirmed 는 막혔고 expired·cancelled 는 구멍이다 (`CLAUDE.md` §4) | **없다** (`docs/11_DECISION_LOG.md:441-442`) |
+| 이 저장소의 구현 | **있다.** INV-4 는 구현·테스트됨, INV-5 는 네 갈래(declined·confirmed·expired·cancelled)가 전부 막혔다 (`CLAUDE.md` §4, 2026-09-16) | **없다** (`docs/11_DECISION_LOG.md:441-442`) |
 
-INV-5 의 두 구멍은 이렇다. **expired** — `expiresAt` 은 정원이 찰 때 쓰이기만 하고 읽는 주체(sweeper)가
-없어, `accept-proposal.lua` 가 시한을 보지 않고 만료된 제안을 확정한다. **cancelled** — `leave-party.lua` 가
-`member:` 필드만 지우고 `status`·`expiresAt`·수락자 SET 을 건드리지 않아, `PENDING` 도중 취소한 사람의
-옛 수락이 남아 새로 합류한 사람의 수락으로 `SCARD` 가 `target` 에 닿을 수 있다.
+전에 여기 적혀 있던 두 구멍은 메워졌다. **expired** — `qm:proposal:pending` ZSET 과
+`ProposalSweeper` + `proposal/expiry-proposal.lua` 가 시한이 지난 제안을 깬다(다만
+`accept-proposal.lua` 는 여전히 `expiresAt` 을 보지 않으므로, 스위퍼가 꺼내기 전에 도착한 수락은
+확정된다 — 주기만큼의 창이다). **cancelled** — `leave-party.lua` 가 멤버를 빼기 전에
+`status`·`expiresAt`·수락자 SET·pending 을 먼저 지운다.
 
-`matching`이 확정 후속 처리(DB 반영·outbox)를 구현하는 순간, `accept-proposal.lua`가 `CONFIRMED`를
-돌려주는 지점(`ProposalService#accept()`의 TODO)부터 §2의 단일 트랜잭션이 필요해진다.
-**그때 이 문서가 근거로 쓰인다.**
+`matching`이 확정을 **DB 에 반영**하는 순간(outbox 기록 + `ProposalConfirmed.fifo` 발행 —
+아직 없다), `accept-proposal.lua`가 `CONFIRMED`를 돌려주는 지점부터 §2의 단일 트랜잭션이
+필요해진다. 지금 그 자리에 있는 것은 Redis 안에서 끝나는 뒷정리
+(`proposal/cleanup-confirmed.lua`)와 `MATCH_CONFIRMED` 알림뿐이다. **그때 이 문서가 근거로 쓰인다.**
 
 ---
 

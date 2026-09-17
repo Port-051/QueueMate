@@ -227,15 +227,16 @@ cd backend      # 스프링 프로젝트는 저장소 루트의 backend/ 에 있
 | 실행 전제 | 로컬 Redis 필요 | CI에서 돌리려면 Redis 서비스 컨테이너를 붙여야 한다. 지금은 로컬에서만 재현 가능 |
 | 요청 취소 | 동시성 테스트 없음 | 구현은 있다 (`MatchCancelService` + `rule/lol/LolPartyLeaver` + `leave-party.lua`). 배정과 취소가 동시에 같은 파티를 건드리는 경합을 검증하지 않았다 |
 | 제안(proposal) | **동시성** 테스트 없음 | 수락 집계·확정·거절은 구현됐고(`accept-proposal.lua` / `decline-proposal.lua`) `ProposalIdempotencyTest`(11건)가 **단일 스레드 멱등성**으로 INV-4/INV-5 를 지킨다. 마지막 두 명이 동시에 수락하는 경합은 스크립트 원자성에 기대고 있고 동시 부하로 재현해 보지는 않았다 |
-| 만료 sweeper | 테스트 없음 | 제안 TTL 만료 처리 자체가 아직 없다 (INV-5 expired 구멍) |
-| 제안 도중 취소 | 테스트 없음 | `leave-party.lua` 가 `status` / 수락자 SET 을 건드리지 않아 INV-5 cancelled 구멍이 있다 (CLAUDE.md §4). 구멍 자체가 열려 있어 테스트도 없다 |
-| PUBG | 테스트 없음 | PUBG 배정 규칙·Lua 가 아직 커밋되지 않았다. 게임별로 스크립트를 나눈 대가로 붙어야 한다 (CLAUDE.md §4) |
+| 만료 sweeper | 테스트 없음 | 만료 처리는 **구현됐다** (`qm:proposal:pending` ZSET + `ProposalSweeper` + `ProposalExpiryService` + `proposal/expiry-proposal.lua`). 검증되지 않은 경합은 "시한이 지나는 순간 들어온 수락" 이다 — `accept-proposal.lua` 가 `expiresAt` 을 보지 않으므로 스위퍼가 꺼내기 전에 도착한 수락은 확정된다 |
+| 제안 도중 취소 | 테스트 없음 | 구멍은 막혔다 — `{lol,pubg,valorant}/leave-party.lua` 가 멤버를 빼기 전에 `status`/`expiresAt`/수락자 SET/pending 을 지운다 (CLAUDE.md §4 INV-5 ④). 막은 뒤의 경합(취소와 마지막 수락이 동시에)을 재현하는 테스트는 아직 없다 |
+| PUBG | 테스트 없음 | PUBG 배정 규칙·Lua 는 커밋됐는데 테스트만 없다. 게임별로 스크립트를 나눈 대가로 붙어야 한다 (CLAUDE.md §4). VALORANT 는 `ValorantPartyJoinConcurrencyTest` 가 생겼다 |
 | 차단(INV-6) | 동시성 테스트 없음 | 선필터 코드는 배정 경로에 있다 (`LolCandidateRule#canJoin` → `BlockRepository`). 그런데 `social.blocks` 스키마가 없어 테스트는 H2에 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql` 로 **빈 테이블만** 만들어 두고 돌린다 — 즉 "차단이 없는 경우"만 지나간다. 확정 직전 최종 검증은 미구현 (docs/11 #30). 차단 검증 없이 배포하지 않는다 |
 | 티어 배정 | 동시성 테스트 없음 | `LolTieredAssigner` + `-tiered` 스크립트 2개가 (포지션 x 티어) 격자 색인을 다루는데, 동시성 테스트는 전부 티어 없는 모드다. 알림 테스트만 티어 모드를 한 번 밟는다 (`PushNotificationTest.tieredAssignerPublishesTheSameEnvelopes`) |
 | 후보 풀 락 | 테스트 없음 | `PoolLock` 자체(대기 시간 초과 → 503, 유지 시간 초과)를 겨냥한 테스트가 없다. 지금은 배정 테스트가 간접적으로만 지나간다 |
 | ARAM 경로 | 테스트 없음 | 시드는 하지만(`ARAM_5`) `positionUniqueness=false` 경로를 동시성으로 검증하지 않았다. docs/11 #35의 "칼바람 5인이 2/2/1로 쪼개진" 버그가 났던 경로다 |
 | 다중 인스턴스 | 미검증 | 한 JVM 안의 100 스레드로만 검증했다. Lua의 원자성은 Redis 쪽 성질이라 인스턴스가 늘어도 동일해야 하지만, 실측하지는 않았다 |
 
-**우선순위:** 제안 수락 집계는 붙었고 멱등성 테스트는 있다. 남은 동시성 위험 지점은
-만료 sweeper 와 확정 후속 처리(파티·색인·활성 요청 정리)가 붙을 때의 수락과의 경합, 그리고
-제안 도중 취소(INV-5 cancelled 구멍)다. 붙일 때 같은 방식(Lua + 대조군)으로 남긴다.
+**우선순위:** 제안 수락 집계·확정 뒷정리·만료가 전부 붙었고, 멱등성 테스트는 수락/거절만
+덮는다. 남은 동시성 위험 지점은 **만료와 수락의 경합**(스위퍼가 꺼내는 순간 도착한 수락),
+**확정 뒷정리와 취소의 경합**(`cleanup-confirmed.lua` 가 `status=PARTY` 를 찍는 사이의 취소),
+그리고 **제안 도중 취소**다. 붙일 때 같은 방식(Lua + 대조군)으로 남긴다.

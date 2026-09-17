@@ -21,20 +21,20 @@
   · 이 저장소는 단일 Gradle 모듈이다. 스프링/Gradle 프로젝트는 backend/ 아래에 있고
     빌드도 거기서 돌린다. 진행 중 매칭 상태의 source of truth는 Redis뿐이고,
     DB를 치는 곳은 차단 조회 하나뿐이다. match_requests 테이블을 만들지 마라.
-  · 배정까지 구현된 게임은 LoL 과 PUBG 둘이다(둘 다 validator + CandidateRule + Lua + 시드).
-    테스트는 여전히 LoL 경로만 탄다. VALORANT 는 중간이다 — 역할군 enum
-    (domain/valorant/ValorantRole.java)과 조건 validator, 티어 Lua 2개
-    (redis/valorant/create-or-check-party-tiered.lua · join-party-tiered.lua)까지 있고
-    untiered·취소 Lua, rule/valorant, config/redis/valorant, 시드의 VALORANT 항목이 없다.
-    시드가 없으므로 지금 VALORANT 요청은 validator 가 모드 설정을 못 읽어 400 으로 거절된다.
+  · 배정까지 구현된 게임은 LoL · PUBG · VALORANT 셋이다
+    (전부 validator + CandidateRule + Lua + 시드). 테스트는 LoL 과 VALORANT 경로만 탄다 —
+    PUBG 경로를 도는 동시성 테스트가 아직 없다.
   · 불변식은 Lua 안에서 지킨다. GET → 판단 → SET 으로 지키지 마라.
-    backend/src/main/resources/redis/ 의 lua 15개(커밋 기준)가 그 자리다. 후보 찾기와 합류가
+    backend/src/main/resources/redis/ 의 lua 20개가 그 자리다. 후보 찾기와 합류가
     두 스크립트로 나뉘어 있고, 그 사이 틈은 redisLock/PoolLock.java 의 후보 풀 락이 막는다.
   · 서버→클라 알림은 Redis Pub/Sub 으로 나간다 (qm:pubsub:push:{userId}).
     다만 "지금 상태가 뭐냐"를 묻는 조회 API가 없다 — GET /match-requests/{id} 는 501이다.
-  · 제안 수락/거절과 확정은 구현돼 있다 (POST /api/v1/proposals/{id}/accept|decline →
-    service/ProposalService.java → redis/proposal/*.lua). 없는 것은 만료 처리(sweeper)와
-    확정 후속 처리(MATCH_CONFIRMED 알림, ProposalConfirmed.fifo, 파티·색인·활성 요청 정리)다.
+  · 제안 수락/거절/확정/만료가 전부 구현돼 있다 (POST /api/v1/proposals/{id}/accept|decline →
+    service/ProposalService.java → redis/proposal/*.lua, 만료는 ProposalSweeper +
+    ProposalExpiryService 가 qm:proposal:pending ZSET 을 훑는다). 확정되면
+    cleanup-confirmed.lua 가 파티원 활성 요청에 status=PARTY 를 찍고(지우지 않는다 — INV-2)
+    MATCH_CONFIRMED 가 파티 전원에게 나간다. 없는 것은 matching.outbox →
+    ProposalConfirmed.fifo 발행(그래서 파티가 DB 에 안 생긴다)과 PartyClosed 소비다.
   · 이 저장소는 git 저장소다. private 원격 github.com/rlaehddus302/queuemate-matching
     (main)에 push 한다. 커밋 규칙은 CLAUDE.md §8. IntelliJ 가 새 파일을 자동으로
     스테이징하므로 커밋은 `git commit -- <파일>` 로 파일을 지정해서 해라.
@@ -94,13 +94,14 @@ cd "/mnt/c/Users/kimye/OneDrive/바탕 화면/matching/backend"
 
 ### Redis가 필요한 것 (이 환경에서는 실행 못 함) ⚠️
 
-동시성 테스트 3종(7건), `PushNotificationTest`(6건), `ProposalIdempotencyTest`(11건,
+동시성 테스트 4종(LoL 3 + `ValorantPartyJoinConcurrencyTest`), `PushNotificationTest`(6건), `ProposalIdempotencyTest`(11건,
 `backend/src/test/java/com/queuemate/matching/proposal/ProposalIdempotencyTest.java`)는
 `localhost:6379`의 Redis **DB 15번**을 쓰고 매 테스트마다 `FLUSHDB` 한다
 (`ConcurrencyTestSupport`. 알림·제안 테스트도 그것을 상속한다).
 이 문서를 처음 쓴 환경에는 `docker`도 `redis-cli`도 없어 실행을 확인하지 못했다.
 2026-09-15 에는 소스에서 빌드한 Redis(포트 6390, `REDIS_HOST`/`REDIS_PORT` 로 붙임)로
-이 24건 통과를 확인했다 — 환경 함정은 `HANDOFF.md` §5.
+당시 24건 통과를 확인했다 — 그 뒤 VALORANT 동시성 테스트와 만료 구현이 들어왔으므로
+**그 숫자는 지금 기준이 아니다.** 환경 함정은 `HANDOFF.md` §5.
 명령 자체는 `docs/CONCURRENCY_TESTS.md`(사용자 원본)에 적힌 것과 동일하다.
 
 ```bash
@@ -198,7 +199,7 @@ docker exec -it qm-redis redis-cli PSUBSCRIBE 'qm:pubsub:push:*'
 
 ```
 backend/src/main/java/com/queuemate/
-├── MatchingApplication.java              @SpringBootApplication
+├── MatchingApplication.java              @SpringBootApplication + @EnableScheduling (만료 스위퍼)
 ├── common/error/
 │   ├── ErrorResponse.java                {code, message, details}
 │   └── GlobalExceptionHandler.java       ★ INV-10 fail-closed (503)이 여기
@@ -206,11 +207,12 @@ backend/src/main/java/com/queuemate/
     ├── config/
     │   ├── AsyncConfig.java              matchingExecutor (core4/max8/queue200, CallerRunsPolicy)
     │   └── redis/                        Redis 설정. 게임 무관은 바로 아래, 게임별은 config/redis/{game}/
-    │       ├── RedisConfig.java          공통 Lua 3개(claim·accept·decline) 빈 + readScript()
+    │       ├── RedisConfig.java          공통 Lua 5개 빈 + readScript()
+    │       │                             claim · accept · decline · expireProposal · cleanupConfirmed
     │       ├── RedissonConfig.java       분산 락 전용 클라이언트(qm:lock:* 만 만짐). 단일 노드 / Sentinel 두 갈래
     │       ├── lol/LolRedisConfig.java   LoL Lua 5개 빈. 빈 이름에 lol 접두사 (lolJoinPartyTieredScript 등)
-    │       └── pubg/PubgRedisConfig.java PUBG Lua 5개 빈. 빈 이름에 pubg 접두사
-    │                                     (config/redis/valorant/ 는 아직 없다 — VALORANT Lua 를 읽는 빈이 없다)
+    │       ├── pubg/PubgRedisConfig.java PUBG Lua 5개 빈. 빈 이름에 pubg 접두사
+    │       └── valorant/ValorantRedisConfig.java  VALORANT Lua 5개 빈. 빈 이름에 valorant 접두사
     ├── controller/
     │   ├── MatchingController.java       ★ 진입점. POST/GET/DELETE /api/v1/match-requests
     │   │                                   GET 은 아직 501 NOT_IMPLEMENTED 다
@@ -225,7 +227,7 @@ backend/src/main/java/com/queuemate/
     │   └── pubg/                         .gitkeep 만 있다 (플랫폼 값은 validator 가 직접 본다)
     ├── block/                            Block.java / BlockRepository.java (social.blocks 읽기 전용)
     ├── notification/
-    │   ├── PushEventType.java            MATCH_* 5종. 실제 발행되는 것은 3종
+    │   ├── PushEventType.java            MATCH_* 5종. **5종 모두 발행된다**
     │   └── PushPublisher.java            ★ qm:pubsub:push:{userId} 로 publish. 예외를 안 던진다
     ├── redisLock/PoolLock.java           ★ 후보 풀 분산 락 (Redisson). 배정 전체를 감싼다
     ├── failover/                         [실험용] Redis 페일오버 재시도. 기본 꺼짐
@@ -234,9 +236,16 @@ backend/src/main/java/com/queuemate/
     │   ├── MatchRequestService.java      join() — INV-1 선점 (claim-request.lua)
     │   ├── MatchTrigger.java             @Async — 톰캣 스레드를 놓고 파티 배정으로 넘긴다
     │   ├── MatchCancelService.java       Redis에 저장된 활성 요청을 읽어 게임별 규칙에 위임
-    │   └── ProposalService.java          제안 수락/거절 (accept/decline-proposal.lua). 거절이면
-    │                                       거절한 본인만 MatchCancelService 로 큐에서 뺀다.
-    │                                       ★ 확정 후속 처리는 accept() 의 TODO 로 비어 있다
+    │   ├── ProposalService.java          제안 수락/거절 (accept/decline-proposal.lua). 거절이면
+    │   │                                   거절한 본인만 MatchCancelService 로 큐에서 뺀다.
+    │   │                                   확정되면 cleanup-confirmed.lua 로 뒷정리하고
+    │   │                                   MATCH_CONFIRMED 를 파티 전원에게 발행한다
+    │   │                                   (outbox / ProposalConfirmed.fifo 는 아직 없다)
+    │   ├── ProposalSweeper.java          @Scheduled(fixedDelay = queuemate.sweep.interval-ms).
+    │   │                                   qm:proposal:pending 에서 시한 지난 것을 회차당 100건 꺼낸다
+    │   └── ProposalExpiryService.java    꺼낸 제안 하나를 만료시킨다 (expiry-proposal.lua).
+    │                                       무응답자만 큐에서 빼고 MATCH_PROPOSAL_EXPIRED 를
+    │                                       그 제안에 있던 전원에게 발행한다
     ├── rule/
     │   ├── CandidateRule.java            게임별 파티 배정 규칙 인터페이스
     │   ├── ScriptSupport.java            게임 공통. 반환 코드 읽기 / 멤버 추출 / 차단 판정 / 스캔 상한 20
@@ -249,18 +258,18 @@ backend/src/main/java/com/queuemate/
     │   │   ├── LolPartyLeaver.java       취소. MATCH_CANCELLED 알림도 여기서 발행
     │   │   ├── LolPartyKeys.java         Redis 키 조립을 한 자리에 모은 것
     │   │   └── LolModeConfig.java        gameconfig 에서 읽은 모드 설정 record
-    │   └── pubg/                         PubgCandidateRule / PubgModeConfig / PubgPartyKeys /
-    │                                     PubgPartyLeaver / Pubg{Tiered,Untiered}Assigner
-    │                                     (rule/valorant/ 는 아직 빈 디렉터리다)
+    │   ├── pubg/                         PubgCandidateRule / PubgModeConfig / PubgPartyKeys /
+    │   │                                 PubgPartyLeaver / Pubg{Tiered,Untiered}Assigner
+    │   └── valorant/                     같은 6개 (Valorant* 접두사).
+    │                                     합류마다 파티 티어 범위를 좁힌다
     └── validation/
         ├── MatchConditionValidator.java  게임별 validator로 라우팅
         ├── GameConditionValidator.java
         ├── lol/LolConditionValidator.java    포지션 + 티어(tierRule) 검증
         ├── pubg/PubgConditionValidator.java  플랫폼(STEAM/KAKAO) + 모드 + 티어(tierRule) 검증
-        └── valorant/ValorantConditionValidator.java  역할군 + 모드 + 티어(tierRule) 검증.
-                                              시드에 VALORANT 항목이 없어 지금은 전부 400 이다
+        └── valorant/ValorantConditionValidator.java  역할군 + 모드 + 티어(tierRule) 검증
 
-backend/src/main/resources/redis/         ★ 불변식이 실제로 지켜지는 곳 (15개)
+backend/src/main/resources/redis/         ★ 불변식이 실제로 지켜지는 곳 (20개)
 ├── shared/claim-request.lua            INV-1     EXISTS + HSET + EXPIRE 60
 ├── lol/create-or-check-party-untiered.lua        후보 찾기, 없으면 만들고 들어감 (티어 안 봄)
 ├── lol/create-or-check-party-tiered.lua          위의 (포지션 x 티어) 격자판. tier-range 표와
@@ -273,12 +282,15 @@ backend/src/main/resources/redis/         ★ 불변식이 실제로 지켜지�
 │                                                  접미사를 빈 문자열로 접는다)
 ├── pubg/ (5개)                                   배정·취소. 포지션도 중복 금지도 없어 색인이
 │                                                 (조건 x 티어) 격자가 아니라 티어 한 줄이다
-├── valorant/ (2개)                               create-or-check-party-tiered.lua /
-│                                                 join-party-tiered.lua 뿐이다. 역할군 x 티어 격자이고
-│                                                 합류마다 파티 티어 범위를 좁힌다.
-│                                                 untiered 와 leave 는 아직 없다
-├── proposal/accept-proposal.lua        INV-4     수락 집계. 전원이 차면 확정까지
-└── proposal/decline-proposal.lua       INV-5     거절. 제안 흔적과 수락자 집합을 지운다
+├── valorant/ (5개)                               배정·취소. 역할군 x 티어 격자이고
+│                                                 합류마다 파티 티어 범위를 좁힌다
+├── proposal/accept-proposal.lua        INV-4     수락 집계. 전원이 차면 확정까지.
+│                                                 확정 시 qm:proposal:pending 에서 뺀다
+├── proposal/decline-proposal.lua       INV-5     거절. 제안 흔적과 수락자 집합을 지운다
+├── proposal/expiry-proposal.lua        INV-5     만료. status 가 PENDING 일 때만 깨고,
+│                                                 무응답자 / 수락자 목록을 돌려준다
+└── proposal/cleanup-confirmed.lua                확정 뒷정리. 활성 요청에 status=PARTY 를 찍고
+                                                  수락자 SET 에만 TTL 을 건다 (INV-2)
 
 backend/src/test/java/com/queuemate/matching/
 ├── concurrency/
@@ -286,14 +298,15 @@ backend/src/test/java/com/queuemate/matching/
 │   │                                     + H2 ddl-auto=create-drop (social.blocks 때문)
 │   ├── ActiveRequestConcurrencyTest.java INV-1
 │   ├── PartyJoinConcurrencyTest.java     INV-3 / INV-8 / 한 사용자 한 파티
+│   ├── ValorantPartyJoinConcurrencyTest.java  같은 것을 VALORANT 경로로
 │   └── NaiveVsLuaComparisonTest.java     순진한 방식이 깨짐을 대조로 증명
 ├── notification/PushNotificationTest.java  알림 6건. 실제로 구독해서 받아 본다
 └── proposal/ProposalIdempotencyTest.java   수락/거절 멱등성 11건
 
 backend/src/test/resources/schema.sql     테스트용 H2 에만 만드는 social.blocks
 seed/gameconfig.redis                     모드 설정 원본. LoL(12모드 + 티어 사다리 32 + tier-range 표 4모드)
-                                          + PUBG(8모드 + 티어 사다리 27 + tier-range 표 4모드).
-                                          **VALORANT 항목은 아직 없다.**
+                                          + PUBG(8모드 + 티어 사다리 27 + tier-range 표 4모드)
+                                          + VALORANT(4모드 + 티어 사다리 26 + tier-range 표 2모드).
                                           티어 값의 원본도 여기다. 앱은 읽기만 한다
 load-test/                                k6 + python 부하 테스트 자산
 redis-ha-lab/                             [실험용] Sentinel 페일오버 실습 자산
@@ -327,20 +340,37 @@ POST /api/v1/match-requests
     │              └ join-party*.lua → {코드, partyId, 인원}
     │                   1=합류(→ MATCH_QUEUE_UPDATED)
     │                   2=합류 후 정원 참(→ MATCH_PROPOSAL_CREATED, payload 에 partyId)
-    │                     이때 파티 HASH 에 status=PENDING + expiresAt 을 HSETNX 로 쓴다
+    │                     이때 파티 HASH 에 status=PENDING + expiresAt 을 HSETNX 로 쓰고,
+                     그 성공 분기 안에서 qm:proposal:pending 에 ZADD 한다
     └ 201 {requestId, status:QUEUED}          (배정 결과를 기다리지 않는다)
 
 POST /api/v1/proposals/{partyId}/accept?userId=
  └ ProposalController → ProposalService.accept()
-    └ accept-proposal.lua   수락자 SET(qm:proposal:accepts:{partyId})에 SADD → SCARD 가
-                            target 에 닿으면 status=CONFIRMED (INV-4) → 204
-                            ★ 확정 뒤(MATCH_CONFIRMED 알림 / ProposalConfirmed.fifo /
-                              파티·색인·활성 요청 정리)는 아직 없다 (accept() TODO)
+    ├ accept-proposal.lua   수락자 SET(qm:proposal:accepts:{partyId})에 SADD → SCARD 가
+    │                       target 에 닿으면 status=CONFIRMED + pending 에서 ZREM (INV-4)
+    │                       이미 확정된 제안에 또 오면 ALREADY_RESPONDED (둘 다 204)
+    └ CONFIRMED 면 cleanup-confirmed.lua
+                            파티원 활성 요청에 status=PARTY, 수락자 SET 에 TTL,
+                            돌려받은 파티원 전원에게 MATCH_CONFIRMED (payload {partyId}) → 204
+                            ★ 아직 없는 것: matching.outbox + ProposalConfirmed.fifo 발행
+                              (그래서 파티가 DB 에 안 생긴다), PartyClosed 소비
 
 POST /api/v1/proposals/{partyId}/decline?userId=&requestId=
  └ ProposalController → ProposalService.decline()
-    ├ decline-proposal.lua  status/expiresAt HDEL + 수락자 SET DEL (파티와 참가자는 남긴다)
+    ├ decline-proposal.lua  status/expiresAt HDEL + 수락자 SET DEL + pending ZREM
+    │                       (파티와 참가자는 남긴다)
     └ DECLINED 면 MatchCancelService.cancel() — 거절한 본인만 큐에서 뺀다 → 204
+
+제안 만료 (REST 가 아니라 스케줄러다)
+ └ ProposalSweeper.sweep()  @Scheduled(fixedDelay = queuemate.sweep.interval-ms, 기본 1초)
+    ├ ZRANGEBYSCORE qm:proposal:pending 0 now LIMIT 0 100   (한 회차 100건, 파티별 try/catch)
+    └ ProposalExpiryService.expire(partyId)
+         ├ expiry-proposal.lua  status 가 PENDING 일 때만 status/expiresAt HDEL +
+         │                      수락자 SET DEL + pending ZREM.
+         │                      PENDING 이 아니면(이미 확정·거절됐다) pending 에서만 빼고
+         │                      빈 목록 → 만료가 확정을 뒤집지 못한다 (INV-5)
+         ├ 무응답자만 MatchCancelService.cancel()  — 수락한 사람은 파티에 남는다
+         └ MATCH_PROPOSAL_EXPIRED 를 그 제안에 있던 전원에게 (payload {partyId})
 ```
 
 배정에 성공한 스크립트는 `PERSIST` 로 claim 의 만료를 뗀다. 그래서 배정 전에 앱이 죽으면
@@ -353,9 +383,10 @@ POST /api/v1/proposals/{partyId}/decline?userId=&requestId=
 | `qm:gameconfig:LOL:{modeKey}` | HASH | `targetPartySize`, `positionUniqueness`, `tierRule`(`NONE` / `EXIST`). 시드가 원본. `maxTierGap` 은 **없앴다** — 시드가 `HDEL` 로 걷어낸다 |
 | `qm:gameconfig:LOL:tier` | ZSET | **티어 사다리. 티어 값의 원본이다** (자바 enum 은 없다). score = 단계 번호 `0 UNRANKED`, `1 IRON_4` … `31 CHALLENGER` (32개). Lua 가 `ZRANK` 로 순번을 뽑고 `ZRANGE` 로 칸 목록을 만든다. **중간에 값을 끼워 넣으면 이미 만들어진 파티의 `tierLo`/`tierHi` 가 엉뚱한 칸을 가리킨다** — 큐가 비어 있을 때 바꿔라 |
 | `qm:gameconfig:LOL:tier-range:{modeKey}` | HASH | `tierRule` 이 `NONE` 이 **아닌** 모드가 갖는다(지금은 `RANKED_SOLO` + `RANKED_FLEX_2/3/5` 넷). `GOLD_4 → SILVER_4:PLATINUM_1` 처럼 **단 단위** 허용 범위. `SOLO_ONLY` 면 그 티어는 파티를 못 만든다. 줄이 없으면 그 티어는 400이다(fail-closed) |
-| `qm:user:active-request:{userId}` | HASH | 활성 요청. `requestId/game/modeKey/voicePreference/playPurpose/keyValue/tier/partyId`. 이 키의 존재 자체가 INV-1 선점이다 (`claim-request.lua`). 배정 전까지는 TTL 60초 |
+| `qm:user:active-request:{userId}` | HASH | 활성 요청. `requestId/game/modeKey/voicePreference/playPurpose/keyValue/tier/partyId`. 이 키의 존재 자체가 INV-1 선점이다 (`claim-request.lua`). 배정 전까지는 TTL 60초. **제안이 확정되면 `status = PARTY` 필드가 붙는다** (`cleanup-confirmed.lua`) — 키를 지우면 그 순간 새 매칭을 걸 수 있어 INV-2 가 깨지므로 지우지 않고 표시만 한다. 이 상태를 푸는 것은 `app:platform`(`PartyClosed`)이고 아직 없다 |
 | `qm:party:{partyId}` | HASH | `partyId/target/createdAt/tierLo/tierHi` + `member:{userId} = keyValue` (+ 정원이 차면 `status`/`expiresAt`). 인원 수 필드는 없다 — `member:` 를 센다. `tierLo/tierHi` 는 사다리 **순번**이고 `ZRANK` 값 **그대로**라 0부터다 — 읽는 쪽이 `ZRANGE lo hi` 에 그대로 넘긴다. 티어를 안 보는 모드도 `0/0` 으로 같은 모양을 갖는다. VALORANT 파티는 여기에 `minTier`/`maxTier`(지금까지 들어온 사람의 최저·최고 순번)가 더 붙는다 |
-| `qm:proposal:accepts:{partyId}` | SET | 제안 수락자 userId. `accept-proposal.lua` 가 `SADD` 후 `SCARD` 로 세어 `target` 과 비교한다. 거절하면 `decline-proposal.lua` 가 `DEL` 한다. 제안 상태(`status`/`expiresAt`)는 별도 `qm:proposal:{id}` 레코드가 아니라 파티 HASH 에 있다 — **제안 id = partyId** |
+| `qm:proposal:accepts:{partyId}` | SET | 제안 수락자 userId. `accept-proposal.lua` 가 `SADD` 후 `SCARD` 로 세어 `target` 과 비교한다. 거절(`decline-proposal.lua`) · 만료(`expiry-proposal.lua`) · 취소(`leave-party.lua`)가 `DEL` 하고, 확정되면 `cleanup-confirmed.lua` 가 `EXPIRE`(`queuemate.proposal.confirmed-retention-seconds`, 기본 60초)만 건다 — 재전송된 수락이 도착하는 창만큼만 남긴다. 제안 상태(`status`/`expiresAt`)는 별도 `qm:proposal:{id}` 레코드가 아니라 파티 HASH 에 있다 — **제안 id = partyId** |
+| `qm:proposal:pending` | ZSET | **진행 중인 제안 목록.** member = partyId, score = `expiresAt`. 정원이 찰 때 합류 스크립트가 `HSETNX status 'PENDING'` 성공 분기 안에서 `ZADD` 하고, 제안이 끝나는 **모든** 자리(확정 · 거절 · 취소 · 만료)가 `ZREM` 한다. 읽는 쪽은 `ProposalSweeper#sweep()` 하나다 — `ZRANGEBYSCORE 0 now LIMIT 0 100` 으로 시한이 지난 것만 꺼낸다. 게임을 구분하지 않는 키가 하나뿐인 것은 제안이 파티 HASH 위에서만 돌기 때문이다 |
 | `qm:party:open:LOL:{mode}:{voice}:{purpose}:needs:{keyValue}` | ZSET | **그 값을 아직 못 채운** 파티들. score = createdAt |
 | `qm:party:open:LOL:{mode}:{voice}:{purpose}:needs:{keyValue}:{tier}` | ZSET | 위의 티어판. 색인이 (포지션 x 티어) 격자가 된다. `:{tier}` 접미사는 **Lua 가 붙인다** — 자바는 접미사 없는 키만 KEYS 로 넘긴다 |
 | `qm:lock:pool:qm:party:open:LOL:{mode}:{voice}:{purpose}` | — | Redisson 후보 풀 락 (`PoolLock`). keyValue 는 **들어가지 않는다** |
@@ -424,8 +455,15 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
   `status=CONFIRMED` (INV-4), 확정은 거절로 뒤집히지 않는다 (INV-5 의 confirmed 갈래).
   거절은 제안 흔적(`status`/`expiresAt`/수락자 SET)을 지우고 거절한 본인만 큐에서 뺀다.
   `ProposalIdempotencyTest` 11건이 멱등성으로 지킨다
+- 확정 뒷정리 — `cleanup-confirmed.lua` 가 파티원 활성 요청에 `status=PARTY` 를 찍고
+  (지우지 않는다 — INV-2) 수락자 SET 에만 TTL 을 건 뒤, 파티 전원에게 `MATCH_CONFIRMED` 를
+  발행한다. **`ProposalConfirmed.fifo` 발행은 아직 없다** (§4.2)
+- 제안 만료 — `qm:proposal:pending` ZSET + `ProposalSweeper`(`@Scheduled`, 기본 1초) +
+  `ProposalExpiryService` + `expiry-proposal.lua`. **수락하지 않은 사람만** 큐에서 빼고
+  (수락자는 파티에 남아 다시 기다린다) `MATCH_PROPOSAL_EXPIRED` 를 그 제안에 있던 전원에게 보낸다
 - 사용자 알림 publish — `qm:pubsub:push:{userId}` 로 `MATCH_QUEUE_UPDATED` /
-  `MATCH_PROPOSAL_CREATED` / `MATCH_CANCELLED` 3종. 봉투는 `{type, eventId, occurredAt, payload}`
+  `MATCH_PROPOSAL_CREATED` / `MATCH_CANCELLED` / `MATCH_PROPOSAL_EXPIRED` /
+  `MATCH_CONFIRMED` **5종 전부**. 봉투는 `{type, eventId, occurredAt, payload}`
 - INV-1 / INV-3 / INV-7 / INV-8(LoL) — Lua + 후보 풀 락으로 보장되고 동시성 테스트가 지킨다
 - INV-10 — Redis 장애 시 503 fail-closed
 - gameconfig를 Redis에서 읽기만 하는 구조 (재배포 없이 모드 추가/삭제)
@@ -434,14 +472,13 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 
 | 없는 것 | 근거 (직접 확인한 것) |
 |---|---|
-| **확정 후속 처리** | 확정 자체는 된다(§4.1). `accept-proposal.lua` 가 `status=CONFIRMED` 만 찍고 끝나며, 그 뒤에 와야 할 것이 `ProposalService#accept()` 의 TODO 로 비어 있다 — `MATCH_CONFIRMED` 알림 발행, `ProposalConfirmed.fifo` 발행, 확정 파티의 색인·활성 요청(·수락자 SET) 정리. 그래서 확정 뒤에도 사용자는 그 파티에 묶인 채다 |
-| **만료 sweeper** | `@Scheduled` 가 0건. `queuemate.sweep.interval-ms` 도 읽는 코드가 없다. `expiresAt`(= now + `queuemate.proposal.ttl-seconds`, 기본 20초 — `LolUntieredAssigner`/`LolTieredAssigner` 가 읽어 `join-party*.lua` 에 넘긴다)은 쓰이기만 하고 **읽는 주체가 없어**, 시한이 지난 제안에 수락이 오면 그대로 확정된다 (INV-5 expired 구멍). `MATCH_PROPOSAL_EXPIRED` / `MATCH_CONFIRMED` 알림도 발행 코드가 없다 |
+| **확정된 파티를 DB 에 만드는 것** | 확정과 그 뒷정리·알림은 된다(§4.1). 없는 것은 `matching.outbox` 기록과 `ProposalConfirmed.fifo` 발행이다 — 그래서 `app:platform` 이 파티를 만들 신호를 못 받는다. 반대 방향인 `PartyClosed` 소비도 없어, 확정된 사용자의 활성 요청에 찍힌 `status=PARTY` 를 푸는 코드가 없다 |
+| **만료 시한의 마지막 한 조각** | sweeper 는 있다(§4.1). 다만 `accept-proposal.lua` 가 `expiresAt` 을 직접 보지 않으므로, **시한이 지나고 스위퍼가 그 파티를 꺼내기 전(주기 기본 1초)에 도착한 수락은 그대로 확정된다.** 스크립트 안에서 시한을 보게 하려면 파티 HASH 의 `expiresAt` 을 읽는 분기를 하나 더 넣어야 한다 |
 | **상태 조회** | `MatchingController#getMatchRequest` 가 **501 `NOT_IMPLEMENTED`** 를 돌려준다. 껍데기와 설계 메모만 있다. 알림은 사건만 전하므로 새로 접속한 클라이언트는 여전히 아무것도 알 수 없다 |
 | **INV-6 차단 검증** | 선필터 코드는 **있다** (`LolCandidateRule#canJoin` → `BlockRepository.findBlockedUserIds` → `ScriptSupport.blockedWith`). 그런데 `social.blocks` 스키마가 없다 — Flyway 미도입, `ddl-auto: none`. 기본 실행(H2)에서는 그 조회가 실패하고, 배정이 `@Async` 안이라 **요청은 201로 나가고 배정만 조용히 실패한다.** 테스트만 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql` 로 통과한다. 확정 직전 최종 검증(docs/11 D-1, `BlockRepository#findBlocksAmong`)은 확정 경로(`accept-proposal.lua`)에 붙어 있지 않아 미구현 |
 | **SQS outbox** | AWS SDK 의존성이 `backend/build.gradle` 에 없다 |
 | **인증** | JWT 없음. `userId`를 요청 바디와 쿼리 파라미터로 받는 임시 상태 |
-| **VALORANT 배정** | 티어 Lua 2개(`redis/valorant/create-or-check-party-tiered.lua` · `join-party-tiered.lua`)와 `ValorantRole` · `ValorantConditionValidator` 까지다. 티어를 안 보는 모드의 Lua, 취소 Lua, `rule/valorant`(빈 디렉터리), `config/redis/valorant`(스크립트 빈), `seed/gameconfig.redis` 의 VALORANT 항목이 전부 없다 — 그래서 아직 한 줄도 실행되지 않는 코드다 (§4.3) |
-| **PUBG·VALORANT 테스트** | 배정 Lua 는 PUBG 5개 · VALORANT 2개가 커밋됐지만 테스트 24건은 **전부 LoL 경로만** 탄다 (CLAUDE.md §4 "나눈 대가"). 테스트 없는 게임 스크립트는 아무도 실행하지 않는 코드다 |
+| **PUBG 테스트** | VALORANT 는 `ValorantPartyJoinConcurrencyTest` 가 생겼지만 **PUBG 경로를 도는 테스트는 아직 하나도 없다** (CLAUDE.md §4 "나눈 대가"). 테스트 없는 게임 스크립트는 아무도 실행하지 않는 코드다 |
 | **`GET /games`** | 계약에 있으나 컨트롤러가 없다 |
 | **Dockerfile** | 없다 |
 
@@ -451,39 +488,27 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 
 ### 4.3 알아두면 헷갈리지 않을 것
 
-**(a) 지원 게임은 3개인데 배정까지 구현된 것은 LoL 과 PUBG 둘이다. VALORANT 는 티어 Lua 2개까지다.**
+**(a) 지원 게임 3개의 배정이 전부 구현됐다. 없는 것은 PUBG 테스트다.**
 
 `GameKey` enum은 `LOL, VALORANT, PUBG` 셋이다 — 그건 **제품 경계**이지 구현 현황이 아니다
 (docs/11 #8). 커밋된 구현체는 이렇다:
 
 - `GameConditionValidator` 구현체: `LolConditionValidator` / `PubgConditionValidator` /
   `ValorantConditionValidator` **3개**
-- `CandidateRule` 구현체: `LolCandidateRule` / `PubgCandidateRule` **2개**
-- `seed/gameconfig.redis` 는 LoL 섹션과 PUBG 섹션을 둘 다 갖는다. PUBG 는 모드 8
-  (`{NORMAL,RANKED}_{DUO,SQUAD}_{TPP,FPP}`) / 티어 사다리 27 (`qm:gameconfig:PUBG:tier`) /
-  랭크 모드 tier-range 표 4. 섹션마다 `seed done: ...` 줄이 하나씩 있다
-- `rule/valorant` 는 **빈 디렉터리**이고 (`validation/valorant` 는 채워졌다)
-  `domain/pubg`, `domain/valorant` 에는 `.gitkeep` 만 있다
-- **커밋되지 않은 사용자 작업**: `rule/pubg/` 전체, `resources/redis/pubg/*.lua`,
-  `config/redis/pubg/PubgRedisConfig.java`. PUBG 를 검증하는 테스트는 아직 하나도 없다.
-  이어받기 전에 사용자에게 물어라 (`HANDOFF.md` §1·§3-A)
-
-그래서 요청 결과가 게임마다 다르다:
-
-- `game: "VALORANT"` → `MatchConditionValidator`의 `orElseThrow` →
-  `IllegalArgumentException("지원하지 않는 게임: VALORANT")` → `GlobalExceptionHandler#handleIllegalArgument`
-  → **400 `BAD_REQUEST`**. 500으로 터지지는 않지만, 조건이 틀린 것과 게임이 미구현인 것이
-  **같은 400 코드로 묶여** 클라이언트가 구분할 수 없다. 게임을 늘릴 때 여기부터 손봐라.
-- `game: "PUBG"` → `PubgConditionValidator` 가 검증한다. 통과하면 `claim-request.lua` 가
-  활성 요청을 선점하고 **201** 이 나간 뒤, `@Async` 안의 `MatchTrigger` 가 규칙을 못 찾아
-  `IllegalArgumentException("파티 배정 규칙이 없는 게임: PUBG")` 으로 끝난다. 그 사용자는
-  claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
+- `CandidateRule` 구현체: `LolCandidateRule` / `PubgCandidateRule` / `ValorantCandidateRule` **3개**
+- `seed/gameconfig.redis` 는 LoL · PUBG · VALORANT 세 섹션을 갖는다. PUBG 는 모드 8
+  (`{NORMAL,RANKED}_{DUO,SQUAD}_{TPP,FPP}`) / 티어 사다리 27 / 랭크 tier-range 표 4,
+  VALORANT 는 모드 4 / 티어 사다리 26 / tier-range 표 2. 섹션마다 `seed done: ...` 줄이 하나씩 있다
+- `rule/valorant` 도 채워졌다 (`Valorant*` 6개). `domain/pubg` 에는 `.gitkeep` 만 있다 —
+  플랫폼 값은 validator 가 직접 본다
+- **남은 것은 PUBG 경로를 도는 테스트 하나다.** `ValorantPartyJoinConcurrencyTest` 가 본보기다
 
 LoL 만으로 시작한 범위 축소는 사고가 아니라 결정이다 — docs/11 **#30**("LoL만 / Tier 0만 / 차단 검증 제외").
 
 > 이력 참고: 한때 PUBG 시드·테스트 헬퍼가 구현 없이 들어갔다가 LoL 전용으로 되돌린 적이 있다.
-> 지금은 PUBG 시드와 validator 가 다시 커밋됐고 배정 규칙·테스트는 아직이라, **시드·검증과
-> 배정이 다시 어긋난 상태**다. `ConcurrencyTestSupport` 의 시드 헬퍼는 여전히 LoL 전용이다.
+> 지금은 시드·검증·배정이 세 게임 모두 맞춰져 있고, 어긋난 것은 테스트뿐이다 —
+> `ConcurrencyTestSupport` 의 시드 헬퍼는 **여전히 LoL 전용**이라 PUBG·VALORANT 테스트는
+> 자기 시드를 직접 심어야 한다 (`ValorantPartyJoinConcurrencyTest` 가 그렇게 한다).
 
 **(b) `docs/02`가 말하는 조건 완화(compatibility tier)는 여전히 코드에 없다. 랭크 티어는 이제 있다.**
 
@@ -513,9 +538,9 @@ LoL 만으로 시작한 범위 축소는 사고가 아니라 결정이다 — do
 1. 알림은 **사건**만 전한다. 새로고침하거나 다른 기기로 접속한 클라이언트는 아무것도
    모른다. 그걸 물어볼 `GET /match-requests/{id}` 가 **501** 이다
    (`MatchingController#getMatchRequest` 의 주석에 왜 필요한지와 함께 적혀 있다).
-2. 확정(`status=CONFIRMED`)은 되지만 `MATCH_CONFIRMED` 를 발행하는 코드가 없어
-   그 알림은 오지 않는다 (`ProposalService#accept()` TODO). 만료 알림(`MATCH_PROPOSAL_EXPIRED`)도
-   sweeper 가 없어 오지 않는다.
+2. 확정 알림(`MATCH_CONFIRMED`)과 만료 알림(`MATCH_PROPOSAL_EXPIRED`)은 **이제 나간다.**
+   남은 것은 그 뒤 — `ProposalConfirmed.fifo` 가 없어 파티가 DB 에 만들어지지 않고,
+   `PartyClosed` 소비가 없어 확정된 사용자의 `status=PARTY` 를 푸는 코드가 없다.
 
 `load-test/match_latency.py` 가 성사를 감지하려고 HTTP 가 아니라 **Redis 를 직접 폴링**하는
 것은 그 스크립트가 알림 도입 전에 쓰였기 때문이다
@@ -559,20 +584,20 @@ LoL 만으로 시작한 범위 축소는 사고가 아니라 결정이다 — do
 ```bash
 cd "/mnt/c/Users/kimye/OneDrive/바탕 화면/matching"
 
-git ls-tree -r --name-only HEAD backend/src/main/resources/redis   # 커밋된 lua 8개 (shared 1 / lol 5 / proposal 2)
-                                                      # find 로 세면 작성 중인 redis/pubg/ 까지 잡힌다
+git ls-tree -r --name-only HEAD backend/src/main/resources/redis   # lua 20개
+                                                      # shared 1 / lol 5 / pubg 5 / valorant 5 / proposal 4
 grep -rn "LolTier" backend/src/                       # 0건이어야 맞다 — 티어 enum 은 삭제됐다
 docker exec qm-redis redis-cli ZRANGE qm:gameconfig:LOL:tier 0 -1 WITHSCORES  # 티어 값의 원본 (32개)
 grep -rn "TODO" backend/src/                          # 남은 TODO 지점
 grep -rn "UnsupportedOperationException" backend/src/ # 0건이어야 맞다 — proposal 수락/거절은 구현됐다
-grep -n "TODO" backend/src/main/java/com/queuemate/matching/service/ProposalService.java  # 확정·거절 후속 처리 빈자리
+grep -rn "outbox\|ProposalConfirmed\|PartyClosed" backend/src/         # 0건이어야 맞다 — 아직 없는 확정 후속
 grep -rn "NOT_IMPLEMENTED" backend/src/               # 501 스텁
 grep -rn "PushEventType\." backend/src/main/          # 실제로 발행되는 알림 종류
 grep -rn "SseEmitter\|WebSocketConfig\|@MessageMapping" backend/src/ | wc -l   # 0이어야 맞다
 grep -rln "implements CandidateRule" backend/src/     # 구현된 게임 목록
 grep -rln "implements GameConditionValidator" backend/src/
 grep -n "enum VoicePreference" -A2 backend/src/main/java/com/queuemate/matching/domain/VoicePreference.java
-grep -c "@Scheduled" -r backend/src/ | grep -v ':0'   # 비면 sweeper 없음
+grep -rn "@Scheduled\|@EnableScheduling" backend/src/main/            # 만료 스위퍼 — 2건이어야 맞다
 grep "seed done" seed/gameconfig.redis                # 시드가 커버하는 게임/모드 수 (LoL 줄 + PUBG 줄)
 find backend/src -type d -empty                       # 빈 게임 패키지
 ```
@@ -590,17 +615,22 @@ find backend/src -type d -empty                       # 빈 게임 패키지
 > `qm:proposal:accepts:{partyId}` SET 에 담는다. 집계·확정은 `accept-proposal.lua`, 거절은
 > `decline-proposal.lua`, 응답 갈래는 `domain/ProposalResult.java` 한 enum 이다. 근거는
 > `service/ProposalService.java` 클래스 주석, 회귀 테스트는 `ProposalIdempotencyTest`(11건).
+>
+> **여기에 셋이 더 끝났다.** ① **만료 sweeper** — `qm:proposal:pending` ZSET + `ProposalSweeper`
+> + `ProposalExpiryService` + `proposal/expiry-proposal.lua`. 만료되면 **수락하지 않은 사람만**
+> 큐에서 빠지고 `MATCH_PROPOSAL_EXPIRED` 가 그 제안에 있던 전원에게 나간다. ② **확정 후속 처리의
+> 절반** — `proposal/cleanup-confirmed.lua` 가 활성 요청에 `status=PARTY` 를 찍고 수락자 SET 에
+> TTL 을 걸며, `MATCH_CONFIRMED` 가 파티 전원에게 나간다. **남은 절반은 아래 표의 outbox 항목이다.**
+> ③ **VALORANT 배정·취소** — Lua 5개 · `rule/valorant` 6개 · `ValorantRedisConfig` · 시드 ·
+> `ValorantPartyJoinConcurrencyTest` 까지 들어왔다.
 
 | # | 할 일 | 시작 지점 | 왜 이 순서인가 |
 |---|---|---|---|
-| 1 | **PUBG 배정 규칙 · Lua · 동시성 테스트** (진행 중) | 시드와 `validation/pubg/PubgConditionValidator.java` 는 들어갔다. 남은 것은 `CandidateRule` 구현체(`rule/pubg/`) + `redis/pubg/*.lua` + **PUBG 동시성 테스트**. **사용자가 작성 중이다 — 이어받기 전에 물어라.** 스크립트 빈·필드 이름은 `pubg*` 접두사여야 한다(아니면 LoL 스크립트가 주입된다). 자세한 것은 `HANDOFF.md` §3-A | validator 만 있고 규칙이 없어, PUBG 요청은 claim 을 잡은 뒤 `MatchTrigger` 에서 조용히 실패하고 그 사용자는 60초 동안 막힌다. 스크립트를 게임별로 나눈 대가로 게임마다 테스트가 있어야 한다 (CLAUDE.md §4) |
-| 2 | **만료 sweeper** | `@Scheduled` 가 아직 0건이다. `expiresAt` 은 파티 HASH 에 쓰이기만 하고 읽는 주체가 없어, 시한이 지난 제안에 수락이 오면 그대로 확정된다. `queuemate.sweep.interval-ms`(기본 1000) 자리가 이미 있다. 만료 시 `MATCH_PROPOSAL_EXPIRED` 알림 발행이 함께 붙는다 (`PushEventType` 에 값은 있고 발행 코드가 없다) | INV-5 의 expired 구멍이다. 만료 처리 없이는 응답하지 않은 제안이 영원히 남는다 |
-| 3 | **확정 후속 처리** | `service/ProposalService.java#accept()` 의 TODO. `CONFIRMED` 뒤에 `MATCH_CONFIRMED` 알림(파티 전원), 확정 파티의 색인·활성 요청·수락자 SET 정리. `ProposalConfirmed.fifo` 발행은 6번(outbox)과 묶인다 | 지금은 확정돼도 사용자가 그 파티와 활성 요청에 묶인 채라 다음 매칭을 못 잡는다 |
-| 4 | **INV-6 차단 검증 완성** | 선필터는 이미 돈다 (`LolCandidateRule#canJoin`). 남은 것은 ① **Flyway 도입 + `social.blocks` 스키마** — 지금은 테이블이 없어 기본 실행에서 배정이 통째로 실패한다 ② 확정 직전 동기 SELECT (`BlockRepository#findBlocksAmong`, docs/11 D-1) — 확정 경로(`accept-proposal.lua`)가 생겼으니 그 앞에 붙인다 | docs/11 #30: "차단 검증 없이 배포하지 않는다." **배포 전 필수.** ①은 사실상 버그 수정이다 |
-| 5 | **상태 조회 `GET /match-requests/{id}`** | `controller/MatchingController.java#getMatchRequest` — 껍데기가 이미 있고 **501** 을 돌려준다. 그 메서드 주석에 왜 필요한지, `userId` 로 찾는 판이 왜 함께 필요한지, 계약(`MatchRequestView`)과 어디가 다른지가 적혀 있다 | 알림(Pub/Sub)은 **사건**만 전한다. 새로고침한 클라이언트가 "지금 상태"를 물어볼 곳이 없다. 알림은 at-most-once 라 놓친 상태 복구도 이 REST 몫이다 |
-| 6 | **확정 트랜잭션 + outbox → SQS** | Flyway 3테이블(`match_proposals`/`proposal_members`/`outbox`) + `ProposalConfirmed.fifo` 발행. AWS SDK 의존성부터 없다 | 파티를 DB에 만드는 것은 `app:platform` 이다 (docs/11 #30) |
-| 7 | **VALORANT 규칙** | `rule/valorant`, `validation/valorant`, `domain/valorant` 를 채운다. **시드·테스트 헬퍼·구현체를 같은 커밋에** | 동시성 축과 PUBG 가 끝난 뒤 얹는 확장이다 |
-| 8 | **인증(JWT)** | 붙는 순간 `userId` 요청 필드와 `?userId=` 쿼리 파라미터를 제거한다 (`MatchingController` · `ProposalController` 둘 다) | 계약 불일치 #2, #3이 이때 해소된다 |
+| 1 | **PUBG 동시성 테스트** | 시드 · `validation/pubg/PubgConditionValidator.java` · `rule/pubg/` 6개 · `redis/pubg/*.lua` 5개 · `PubgRedisConfig` 는 전부 들어갔다. **남은 것은 PUBG 경로를 도는 동시성 테스트 하나다.** `ValorantPartyJoinConcurrencyTest` 가 본보기다 | 스크립트를 게임별로 나눈 대가로 게임마다 테스트가 있어야 한다 (CLAUDE.md §4). 테스트 없는 게임 스크립트는 아무도 실행하지 않는 코드다 |
+| 2 | **INV-6 차단 검증 완성** | 선필터는 이미 돈다 (`LolCandidateRule#canJoin`). 남은 것은 ① **Flyway 도입 + `social.blocks` 스키마** — 지금은 테이블이 없어 기본 실행에서 배정이 통째로 실패한다 ② 확정 직전 동기 SELECT (`BlockRepository#findBlocksAmong`, docs/11 D-1) — 확정 경로(`accept-proposal.lua`)가 생겼으니 그 앞에 붙인다 | docs/11 #30: "차단 검증 없이 배포하지 않는다." **배포 전 필수.** ①은 사실상 버그 수정이다 |
+| 3 | **상태 조회 `GET /match-requests/{id}`** | `controller/MatchingController.java#getMatchRequest` — 껍데기가 이미 있고 **501** 을 돌려준다. 그 메서드 주석에 왜 필요한지, `userId` 로 찾는 판이 왜 함께 필요한지, 계약(`MatchRequestView`)과 어디가 다른지가 적혀 있다 | 알림(Pub/Sub)은 **사건**만 전한다. 새로고침한 클라이언트가 "지금 상태"를 물어볼 곳이 없다. 알림은 at-most-once 라 놓친 상태 복구도 이 REST 몫이다 |
+| 4 | **확정 후속 처리의 남은 절반 — outbox → SQS** | Redis 쪽 뒷정리와 `MATCH_CONFIRMED` 알림은 이미 붙었다(`ProposalService#accept()` → `cleanup-confirmed.lua`). 남은 것은 Flyway 3테이블(`match_proposals`/`proposal_members`/`outbox`) + `ProposalConfirmed.fifo` 발행이고, AWS SDK 의존성부터 없다. **여기에 `PartyClosed` 소비가 딸린다** — 확정된 사용자의 활성 요청은 `status=PARTY` 로 남아 있고 그것을 푸는 코드가 아직 없다 | 파티를 DB에 만드는 것은 `app:platform` 이다 (docs/11 #30) |
+| 5 | **인증(JWT)** | 붙는 순간 `userId` 요청 필드와 `?userId=` 쿼리 파라미터를 제거한다 (`MatchingController` · `ProposalController` 둘 다) | 계약 불일치 #2, #3이 이때 해소된다 |
 
 ### 손대기 전 체크리스트
 

@@ -1195,7 +1195,78 @@ KEYS 배치도 LoL 과 다르다 — `KEYS[5]` 가 역할군·티어가 없는 *
 `KEYS[6..]` 이 역할군별 needs 키다. 칸은 `KEYS[5 + p] .. ':' .. 티어이름` 으로 조립하고,
 밑동은 `needs-roles` 에서 받은 역할군 이름으로 칸을 다시 만들 때 쓴다.
 
+### Q-4. VALORANT 가 끝까지 들어왔다 — Q-2 의 "없는 것" 이 해소됐다
+
+Q-2 가 "아직 없는 것" 으로 적은 다섯 가지(티어를 안 보는 모드의 Lua, 취소 Lua, `rule/valorant`,
+`config/redis/valorant`, 시드의 VALORANT 항목)가 전부 들어왔다. `redis/valorant/` 는 5개
+(배정 4 + 취소 1), `rule/valorant/` 는 `Valorant*` 6개, `config/redis/valorant/ValorantRedisConfig`,
+시드는 모드 4 / 티어 사다리 26 / tier-range 표 2다. 동시성 테스트도
+`concurrency/ValorantPartyJoinConcurrencyTest` 하나가 생겼다 — D-7 의 대가("게임마다 불변식
+테스트가 있어야 한다")가 이제 **PUBG 에만** 밀려 있다.
+
+Q-3 의 표 두 줄도 낡았다. `qm:party:needs-roles:{partyId}` 는 취소가 되돌리고
+(`valorant/leave-party.lua` 가 빠진 사람의 역할군을 `SADD` 한다), 파티 HASH 의
+`minTier`/`maxTier` 는 **읽는 곳이 생겼다** — `join-party-tiered.lua` 가 읽어 범위를 좁히고,
+취소가 남은 사람 기준으로 다시 적는다.
+
+### Q-5. 제안 만료가 구현됐다 — INV-5 의 expired 갈래가 막혔다
+
+O-4 / P-5 가 "만료 sweeper 가 없다" 로 적은 것이 해소됐다. `expiresAt` 을 읽는 주체가 생겼다.
+
+| 무엇 | 어디 |
+|---|---|
+| 진행 중인 제안 목록 | **새 키 `qm:proposal:pending` ZSET.** member = partyId, score = `expiresAt` |
+| 넣는 자리 | 합류 스크립트 6개(`{lol,pubg,valorant}/join-party.lua` · `join-party-tiered.lua`)의 `HSETNX status 'PENDING'` **성공 분기 안**. 분기 밖에 두면 재시도가 score 를 미래로 밀어 파티 HASH 의 `expiresAt` 과 어긋난다 |
+| 빼는 자리 | 제안이 끝나는 **모든** 곳 — `accept-proposal.lua`(확정 분기) · `decline-proposal.lua` · `{lol,pubg,valorant}/leave-party.lua` · `proposal/expiry-proposal.lua` |
+| 꺼내는 쪽 | `service/ProposalSweeper`(`@Scheduled(fixedDelay = queuemate.sweep.interval-ms)`, 한 회차 100건, 파티별 try/catch, Redis 장애 로그는 30초 억제). `MatchingApplication` 에 `@EnableScheduling` 을 붙였고 별도 설정 클래스는 두지 않았다 |
+| 실제 정리 | `redis/proposal/expiry-proposal.lua` — `status ~= 'PENDING'` 이면 pending 에서만 빼고 **빈 목록**(그사이 확정된 제안을 만료가 뒤집지 못한다). PENDING 이면 `status`/`expiresAt` HDEL + 수락자 SET DEL + ZREM 하고 `{무응답자 {userId, requestId} 쌍, 수락자 userId}` 를 돌려준다 |
+
+**정책(B안).** 만료되면 **수락하지 않은 사람만** 큐에서 뺀다(`MatchCancelService#cancel`).
+수락한 사람은 파티에 남아 다시 기다리고, 옛 수락 기록이 지워지므로 빈자리가 채워져 제안이
+새로 열리면 **다시 눌러야 한다** — 그 사람은 새 멤버를 본 적이 없기 때문이다.
+`MATCH_PROPOSAL_EXPIRED` 는 무응답자와 수락자를 **가리지 않고** 그 제안에 있던 전원에게 나간다
+(수락자가 못 받으면 제안 화면에 갇힌다).
+
+**남는 창이 하나 있다.** `accept-proposal.lua` 는 여전히 `expiresAt` 을 보지 않는다. 시한이
+지나고 스위퍼가 그 파티를 꺼내기 전(주기 기본 1초)에 도착한 수락은 그대로 확정된다. 스크립트
+안에서 시한을 보게 하려면 분기를 하나 더 넣어야 한다.
+
+**취소 갈래(INV-5 ④)도 같이 막혔다.** `{lol,pubg,valorant}/leave-party.lua` 가 멤버를 빼기
+**전에** `status`/`expiresAt` HDEL + 수락자 SET DEL + pending ZREM 을 한다. 전에는 `PENDING`
+상태와 취소자의 옛 수락이 남아, 새로 합류한 사람의 수락 하나로 `SCARD` 가 `target` 에 닿을 수
+있었다.
+
+### Q-6. 확정 후속 처리의 절반이 붙었다 — 활성 요청을 **지우지 않고** 표시한다
+
+O-4 / P-5 가 "확정 뒤가 없다" 로 적은 것 중 Redis 쪽 뒷정리와 알림이 들어왔다.
+`service/ProposalService#accept()` 가 확정 직후 새 스크립트
+`redis/proposal/cleanup-confirmed.lua` 를 한 번 부른다.
+
+- **활성 요청을 지우지 않는다.** 지우면 그 순간 새 매칭을 걸 수 있어 한 사람이 두 파티에 속한다
+  (INV-2). 그래서 지우는 대신 `status = 'PARTY'` 를 찍어 "파티 중"으로 표시하고 INV-1 선점을
+  유지한다. **이 상태를 푸는 것은 이 앱이 아니다** — 파티를 닫는 `app:platform` 이 `PartyClosed`
+  를 발행하면 그때 풀어야 하고, 그 소비는 **아직 없다.**
+- 파티 HASH 는 남긴다(상태 조회와 수락 재전송이 읽는다). 수락자 SET 에만 TTL
+  (`queuemate.proposal.confirmed-retention-seconds`, 기본 60초)을 건다.
+- 확정을 찍는 `accept-proposal.lua` 와 **합치지 않았다.** 그 스크립트는 수락자 집합을 다시 세는
+  것으로 멱등성을 얻는데, 거기서 같이 지우면 재시도가 셀 근거를 잃는다. 정리 스크립트는 스스로
+  `status == 'CONFIRMED'` 를 확인하므로 몇 번 불려도 결과가 같다.
+- `MATCH_CONFIRMED`(payload `{partyId}`)는 그 스크립트가 돌려준 파티원 전원에게 나간다.
+  **확정을 만든 그 한 번의 호출에서만** 나가는 것은 `accept-proposal.lua` 가 이미 확정된
+  제안의 재수락에 `CONFIRMED` 가 아니라 `ALREADY_RESPONDED` 를 돌려주기 때문이다. 컨트롤러는
+  수락 분기에서 그 값도 **204** 로 받는다 — 같은 명령을 두 번 보내 결과가 같으면 실패가 아니다
+  (거절 분기의 `ALREADY_RESPONDED` 는 409 그대로다).
+
+**아직 없는 것**: `matching.outbox` 기록과 `ProposalConfirmed.fifo` 발행. 그래서 파티가 DB 에
+만들어지지 않는다(#21 / #27 이 정한 경로 그대로 비어 있다). `PartyClosed` 소비도 없고,
+`GET /api/v1/match-requests/{requestId}` 는 여전히 **501** 이다(P-5 의 마지막 줄은 유효하다).
+
 ### 점검 방법
 
 `backend/src/main/resources/redis/` 의 Lua 15개와 `seed/gameconfig.redis` 를 직접 읽고
 문서와 대조했다. **코드는 건드리지 않았고 빌드·테스트도 돌리지 않았다** — 고친 것은 문서뿐이다.
+
+(Q-4~Q-6 은 그 뒤 같은 날 다시 대조한 것이다. 그때는 Lua 가 **20개**였다 —
+`shared` 1 / `lol` 5 / `pubg` 5 / `valorant` 5 / `proposal` 4. 새로 생긴 `proposal/` 의 둘은
+`expiry-proposal.lua` 와 `cleanup-confirmed.lua` 이고, 뒤엣것은 아직 커밋되지 않은 작업 트리에
+있다. 이번에도 코드는 건드리지 않았다.)

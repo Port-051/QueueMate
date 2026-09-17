@@ -31,22 +31,23 @@
 | `MATCH_CONFIRMED` | `app:matching` | 전원 수락으로 확정 (INV-4) |
 | `MATCH_CANCELLED` | `app:matching` | 매칭 취소 |
 
-<!-- 아래 "구현 상태" 줄은 계약 본문이 아니라 이 저장소가 붙인 주석이다. 2026-09-15 갱신. -->
-**구현 상태: 5종 중 3종이 발행된다.** `notification/PushPublisher.java` 가
+<!-- 아래 "구현 상태" 줄은 계약 본문이 아니라 이 저장소가 붙인 주석이다. 2026-09-16 갱신. -->
+**구현 상태: 5종 모두 발행된다.** `notification/PushPublisher.java` 가
 `qm:pubsub:push:{userId}` 채널에 publish 한다.
 
 | type | 발행하는 곳 | 상태 |
 |---|---|---|
-| `MATCH_QUEUE_UPDATED` | `rule/lol/LolUntieredAssigner.java` · `LolTieredAssigner.java` (새 파티 생성 / 정원 미달 합류) | **발행됨.** payload `{memberNumber}` |
-| `MATCH_PROPOSAL_CREATED` | 같은 두 클래스의 `JOINED_AND_FULL` 분기 | **발행됨.** payload `{memberNumber, target, partyId}` |
-| `MATCH_CANCELLED` | `rule/lol/LolPartyLeaver.java` (남은 파티원에게만, 취소한 본인 제외) | **발행됨.** payload `{memberNumber}` |
-| `MATCH_PROPOSAL_EXPIRED` | — | **미구현.** 만료 처리(sweeper)가 없어 발행할 자리가 없다. `expiresAt` 은 정원이 찰 때 파티 HASH 에 쓰이기만 하고 읽는 코드가 없다(`@Scheduled` 0건, `queuemate.sweep.interval-ms` 도 읽는 코드 없음). 거절로 제안이 깨졌을 때 남은 사람에게 알리는 것도 없다(`ProposalService#decline()` TODO) |
-| `MATCH_CONFIRMED` | — | **미구현 — 확정은 되지만 알림이 없다.** 확정 자체는 구현돼 있다: `POST /api/v1/proposals/{proposalId}/accept`(`controller/ProposalController.java`) → `service/ProposalService.java#accept()` → `redis/proposal/accept-proposal.lua` 가 수락자 SET 을 `SCARD` 로 세어 `target` 에 닿으면 `status = CONFIRMED` 를 찍는다(INV-4). 없는 것은 **확정 후속 처리** 전부다 — 이 알림 발행, `ProposalConfirmed.fifo` 발행, 확정 파티의 색인·활성 요청 정리(`ProposalService#accept()` TODO) |
+| `MATCH_QUEUE_UPDATED` | `rule/{lol,pubg,valorant}/*Assigner.java` (새 파티 생성 / 정원 미달 합류) | **발행됨.** payload `{memberNumber}` |
+| `MATCH_PROPOSAL_CREATED` | 같은 클래스들의 `JOINED_AND_FULL` 분기 | **발행됨.** payload `{memberNumber, target, partyId}` |
+| `MATCH_CANCELLED` | `rule/{lol,pubg,valorant}/*PartyLeaver.java` (남은 파티원에게만, 취소한 본인 제외) | **발행됨.** payload `{memberNumber}` |
+| `MATCH_PROPOSAL_EXPIRED` | `service/ProposalExpiryService.java#expire()` | **발행됨.** payload `{partyId}`. 시한이 지난 제안을 `service/ProposalSweeper.java`(`@Scheduled`, `queuemate.sweep.interval-ms`, 기본 1초)가 `qm:proposal:pending` ZSET 에서 꺼내 `redis/proposal/expiry-proposal.lua` 로 깬다. **받는 사람은 그 제안에 있던 전원**이다 — 수락하지 않은 사람(큐에서도 빠진다)과 수락한 사람(파티에 남아 다시 기다린다)을 가리지 않는다. 수락자도 받아야 제안 화면에 갇히지 않기 때문이다. **거절**로 제안이 깨졌을 때 남은 사람에게 알리는 것은 여전히 없다(계약에 그 type 이 없다 — 아래 "미해결 계약 구멍") |
+| `MATCH_CONFIRMED` | `service/ProposalService.java#accept()` | **발행됨.** payload `{partyId}`. `redis/proposal/accept-proposal.lua` 가 수락자 SET 을 `SCARD` 로 세어 `target` 에 닿으면 `status = CONFIRMED` 를 찍고(INV-4), 이어서 `redis/proposal/cleanup-confirmed.lua` 가 돌려준 파티원 전원에게 나간다. **확정을 만든 그 한 번의 호출에서만 나간다** — 이미 확정된 제안에 수락이 또 오면 스크립트가 `CONFIRMED` 가 아니라 `ALREADY_RESPONDED` 를 돌려주므로 같은 알림이 두 번 나가지 않는다. 아직 없는 것은 `ProposalConfirmed.fifo` 발행이다 — 그래서 `app:platform` 이 파티를 DB 에 만들지 못한다 |
 
 payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약 구멍"이 지적한 그대로
 14종 전부 payload 스키마가 비어 있어서, 구현이 먼저 정하고 여기에 적어 둔 것이다.
 발행 여부는 `backend/src/test/java/com/queuemate/matching/notification/PushNotificationTest.java`
-가 실제로 구독해서 검증한다.
+가 실제로 구독해서 검증한다. **다만 그 6건이 보는 것은 앞의 3종뿐이다** —
+`MATCH_PROPOSAL_EXPIRED` / `MATCH_CONFIRMED` 를 구독해서 확인하는 테스트는 아직 없다.
 
 ## Envelope
 

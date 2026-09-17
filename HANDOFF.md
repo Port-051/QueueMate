@@ -1,6 +1,6 @@
 # HANDOFF — 다음 세션 인계
 
-**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-15 (화) 14:29 KST
+**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-16 (수)
 **읽는 순서:** `CLAUDE.md` → `START_HERE.md` → **이 파일**
 
 이 파일은 "지금 어디까지 왔고 무엇이 열려 있는가"만 담는다. 규칙은 `CLAUDE.md`,
@@ -43,13 +43,42 @@
 - **`tierLo`/`tierHi` 가 `ZRANK` 값 그대로(0부터)가 됐다** (`6fe3f99`). `+ 1` 로 적고 읽을 때
   1 을 빼던 것을 없앴고, 티어를 안 보는 모드의 자리 채움 값도 `1/1` → **`0/0`** 이다.
   LoL·PUBG 스크립트 8개를 같이 고쳤다 (docs/11 Q-1).
-- **VALORANT 티어 Lua 2개가 들어왔다** (`79a9c02`). `redis/valorant/create-or-check-party-tiered.lua` ·
-  `join-party-tiered.lua`. 색인은 (역할군 x 티어)이고 **합류마다 파티 티어 범위를 좁힌다** —
-  LoL·PUBG 의 "범위는 만든 사람 기준으로 한 번 정해진다"가 발로란트에는 해당하지 않는다.
+- **VALORANT 가 전부 들어왔다** (`79a9c02` 티어 Lua 2개 → `7559b89` 배정·취소 →
+  `c4c946c` 시드 → `b256769` 동시성 테스트). Lua 5개 · `rule/valorant` 6개 ·
+  `ValorantRedisConfig` · 시드(모드 4 / 사다리 26 / tier-range 표 2) ·
+  `ValorantPartyJoinConcurrencyTest`. 색인은 (역할군 x 티어)이고 **합류마다 파티 티어 범위를
+  좁힌다** — LoL·PUBG 의 "범위는 만든 사람 기준으로 한 번 정해진다"가 발로란트에는 해당하지 않는다.
   곁딸린 키 `qm:party:needs-roles:{partyId}` SET 과 파티 HASH 의 `minTier`/`maxTier` 가 같이 생겼다.
-  **없는 것**: untiered·취소 Lua, `rule/valorant`, `config/redis/valorant`, 시드의 VALORANT 항목.
-  시드가 없어 지금 VALORANT 요청은 400 이고 저 스크립트 2개는 아직 실행되지 않는다.
-- 테스트는 여전히 **LoL 경로만** 탄다. PUBG·VALORANT 스크립트를 도는 테스트는 없다.
+- 테스트는 이제 LoL 과 VALORANT 경로를 탄다. **PUBG 스크립트를 도는 테스트는 아직 없다.**
+- **취소가 제안의 흔적을 지운다** (`3d3efaf`). `{lol,pubg,valorant}/leave-party.lua` 가 멤버를 빼기
+  전에 `status`/`expiresAt` HDEL + 수락자 SET DEL 을 한다. INV-5 의 cancelled 구멍이 막혔다.
+- **제안 만료를 구현했다** (`251453a`). 새 키 `qm:proposal:pending` ZSET(member = partyId,
+  score = `expiresAt`) + `service/ProposalSweeper`(`@Scheduled`, `queuemate.sweep.interval-ms`,
+  회차당 100건) + `service/ProposalExpiryService` + `redis/proposal/expiry-proposal.lua`.
+  `MatchingApplication` 에 `@EnableScheduling` 을 붙였다(별도 `SchedulingConfig` 는 두지 않았다).
+  **ZADD 는 합류 스크립트 6개의 `HSETNX status 'PENDING'` 성공 분기 안**이고, ZREM 은 제안이
+  끝나는 모든 자리(확정·거절·취소·만료)에 있다. 정책은 **B안** — 만료되면 수락하지 않은 사람만
+  큐에서 빼고, 수락한 사람은 파티에 남아 빈자리가 채워지면 **다시 눌러야 한다**(옛 수락 기록은
+  지워진다). `MATCH_PROPOSAL_EXPIRED` 는 그 제안에 있던 전원에게 나간다.
+  INV-5 의 expired 구멍이 막혔다 — 다만 `accept-proposal.lua` 는 여전히 `expiresAt` 을 보지
+  않으므로 **시한 직후 스위퍼가 꺼내기 전까지(주기만큼)는 수락이 그대로 확정된다.**
+- **확정 후속 처리의 절반이 들어왔다** (작업 트리, 아직 커밋 안 됨). 새 스크립트
+  `redis/proposal/cleanup-confirmed.lua` 를 `ProposalService#accept()` 가 확정 직후 부른다 —
+  파티원의 **활성 요청을 지우지 않고 `status='PARTY'` 를 찍고**(지우면 그 순간 새 매칭을 걸 수
+  있어 INV-2 가 깨진다), 파티 HASH 는 남기고, 수락자 SET 에만 TTL
+  (`queuemate.proposal.confirmed-retention-seconds`, 기본 60)을 건다. 돌려받은 파티원 전원에게
+  `MATCH_CONFIRMED`(payload `{partyId}`)를 발행한다. 같은 작업 트리에서 `accept-proposal.lua` 가
+  **이미 확정된 제안의 재수락에 `ALREADY_RESPONDED`** 를 돌려주도록 바뀌었고(확정 알림이 두 번
+  나가지 않게 하려는 것이다), 컨트롤러는 수락 분기에서 `ACCEPTED`/`CONFIRMED`/`ALREADY_RESPONDED`
+  를 **모두 204** 로 받는다(거절 분기의 `ALREADY_RESPONDED` 는 409 그대로다).
+- ⚠️ **`ProposalIdempotencyTest` 가 지금 작업 트리와 어긋난다.** "마지막 수락자가 두 번 보내도
+  두 번 다 `CONFIRMED`" 를 단언하는 자리(그 파일 세 곳)가 이제 `ALREADY_RESPONDED` 를 받는다.
+  **커밋 전에 테스트를 새 값에 맞춰 고쳐라.** 만료·확정 뒷정리를 덮는 테스트도 아직 없다
+  (`MATCH_PROPOSAL_EXPIRED` / `MATCH_CONFIRMED` 를 구독해 보는 `PushNotificationTest` 항목 포함).
+- **그래서 §3-B 는 대부분 해소됐다.** 남은 것은 `matching.outbox` 기록 + `ProposalConfirmed.fifo`
+  발행(파티가 DB 에 안 생긴다), `PartyClosed` 소비(확정된 사용자의 `status=PARTY` 를 푸는 자리),
+  `GET /api/v1/match-requests/{requestId}`(여전히 501), PUBG 동시성 테스트,
+  Flyway + `social.blocks`(INV-6, §3-C) 다.
 
 ### 테스트 — 커밋 `8d7f094` 기준 24건 통과 (2026-09-15)
 
@@ -142,6 +171,11 @@ claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 한국 서버 FPP 큐 유무(리전별로 패치마다 바뀜).
 
 ### B. 만료 처리 + 확정 후속 (INV-4/5 의 남은 구멍)
+
+> **2026-09-16: 아래 세 줄 중 앞의 둘은 끝났다.** 만료는 `qm:proposal:pending` + 스위퍼로,
+> 확정 후속은 `cleanup-confirmed.lua` + `MATCH_CONFIRMED` 로 처리한다. 취소 구멍도 `3d3efaf`
+> 로 막혔다. 남은 것은 **outbox → `ProposalConfirmed.fifo`** 와 **`PartyClosed` 소비**뿐이다.
+> 자세한 것은 §1 의 "2026-09-16 갱신" 블록.
 
 - **만료:** `expiresAt` 을 쓰기만 하고 읽는 주체가 없다 → 시한이 지난 제안에 수락이 오면 그대로
   확정된다. sweeper 필요(`queuemate.sweep.interval-ms` 설정만 있고 읽는 코드 없음).

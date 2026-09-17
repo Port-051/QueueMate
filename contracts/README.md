@@ -16,7 +16,7 @@
 
 ---
 
-## 코드 ↔ 계약 불일치 (2026-09-11 확인)
+## 코드 ↔ 계약 불일치 (2026-09-11 확인, 2026-09-16 갱신)
 
 계약과 구현이 어긋난 지점이다. **한쪽에 맞추기 전에 어느 쪽이 맞는지부터 판단해라.**
 아래 "판정" 열이 그 판단이다.
@@ -30,13 +30,14 @@
 | 5 | `GET /match-requests/{id}` | 있다 (`200` + `MatchRequestView`) | **껍데기만 있다** — `MatchingController#getMatchRequest` 가 `501 NOT_IMPLEMENTED` 를 돌려준다 | **계약이 맞다.** 501 은 "아직"이라는 표시다. 그 메서드 주석에 왜 필요한지와 무엇을 같이 정해야 하는지가 적혀 있다. 아래 "남은 구멍" 참고 |
 | 6 | `POST /proposals/{id}/accept`·`decline` | 있다 (`200`) | **구현됨.** `controller/ProposalController.java` → `service/ProposalService.java` → `redis/proposal/accept-proposal.lua`·`decline-proposal.lua`. 응답 갈래는 `domain/ProposalResult.java` 한 enum 이다(`AcceptResult`/`DeclineResult` 는 없어졌다). `decline` 은 `?requestId=` 도 받는다 | **구현이 앞서 있다.** `requestId` 쿼리 파라미터와 409/403 갈래가 계약에 없다 |
 | 6-1 | 위 두 엔드포인트의 성공 응답 | `200` (본문 스키마 없음) | `204 No Content` | **구현 쪽이 낫다고 보고 그렇게 뒀다.** 본문 스키마가 계약에 없어 `200` 이 돌려줄 것이 없고, 취소(`DELETE`)와 모양이 맞는다. 근거는 `ProposalController` 의 `decline` 주석. 계약을 `204` 로 고쳐야 한다 |
+| 6-2 | **수락 재전송**의 응답 | 계약에 없다 | **`204`**. 이미 확정된 제안에 수락이 또 오면 `accept-proposal.lua` 가 `ALREADY_RESPONDED` 를 돌려주고, 컨트롤러가 `ACCEPTED` / `CONFIRMED` 와 **같이 묶어 204** 로 내보낸다 (`ProposalController#accept`) | **구현이 맞다.** 같은 명령을 두 번 보내 결과가 같으면 성공이다 — 응답이 유실돼 자동 재시도한 클라이언트에게 오류를 보이지 않는다. 스크립트가 `CONFIRMED` 와 값을 가른 것은 확정 알림(`MATCH_CONFIRMED`)이 두 번 나가지 않게 하려는 것이지 실패라는 뜻이 아니다. **거절 쪽 `ALREADY_RESPONDED` 는 409 그대로다** — 그쪽은 재시도가 아니라 "수락해 놓고 거절을 눌렀다"는 진짜 충돌이다 |
 | 7 | `GET /games` | 있다 | **없다** | 계약이 맞다. gameconfig 는 `seed/gameconfig.redis` 로만 다뤄지고 조회 API 가 없다 |
 | 8 | `ErrorResponse` 스키마 | **없다** (원본이 스스로 구멍이라고 지적) | 있다 (`common/error/ErrorResponse.java`: `{code, message, details}`) | **구현이 앞서 있다.** 계약으로 승격하려면 본 저장소에 contract 커밋이 필요하다 |
 | 9 | `503 MATCHING_UNAVAILABLE` 응답 | 계약에 없다 | 있다 (`GlobalExceptionHandler#handleRedisFailure`, INV-10). 후보 풀 락 획득 실패(`redisLock/PoolLock.java`)도 같은 자리로 나간다 | 구현이 맞다. 계약에 추가해야 한다 |
 | 10 | `securitySchemes` (JWT bearer) | **없다** | 인증 자체가 없다 | 양쪽 다 비어 있다 |
-| 11 | SSE `MATCH_*` 5종 | 있다 | **3종 발행됨** — `MATCH_QUEUE_UPDATED` / `MATCH_PROPOSAL_CREATED` / `MATCH_CANCELLED` 를 `notification/PushPublisher.java` 가 `qm:pubsub:push:{userId}` 로 publish 한다. `MATCH_PROPOSAL_EXPIRED` / `MATCH_CONFIRMED` 는 확정·만료가 미구현이라 없다 | **부분 구현.** SSE 배달 자체는 `app:realtime` 몫이므로 이 저장소가 할 일은 publish 까지다. 상세는 `events.md` 의 "구현 상태" 표 |
-| 11-1 | SSE payload 스키마 | **없다** (14종 전부 미정의 — 아래 "미해결 계약 구멍") | 구현이 먼저 정했다. `MATCH_QUEUE_UPDATED`·`MATCH_CANCELLED` = `{memberNumber}`, `MATCH_PROPOSAL_CREATED` = `{memberNumber, target, partyId}` | **구현이 앞서 있다.** 계약으로 승격하려면 본 저장소에 contract 커밋이 필요하다. `PushPublisher` 의 `payload` 가 `Map` 인 것도 그 때문이다 |
-| 12 | SQS `ProposalConfirmed` / `BlockChanged` | 있다 | **없다** — AWS SDK 의존성 없음 | 계약이 맞다 |
+| 11 | SSE `MATCH_*` 5종 | 있다 | **5종 모두 발행됨** — 앞의 3종에 더해 `MATCH_PROPOSAL_EXPIRED`(`service/ProposalExpiryService.java`) · `MATCH_CONFIRMED`(`service/ProposalService.java#accept()`)가 붙었다. 전부 `notification/PushPublisher.java` 가 `qm:pubsub:push:{userId}` 로 publish 한다 | **구현됨.** SSE 배달 자체는 `app:realtime` 몫이므로 이 저장소가 할 일은 publish 까지다. 상세는 `events.md` 의 "구현 상태" 표 |
+| 11-1 | SSE payload 스키마 | **없다** (14종 전부 미정의 — 아래 "미해결 계약 구멍") | 구현이 먼저 정했다. `MATCH_QUEUE_UPDATED`·`MATCH_CANCELLED` = `{memberNumber}`, `MATCH_PROPOSAL_CREATED` = `{memberNumber, target, partyId}`, `MATCH_PROPOSAL_EXPIRED`·`MATCH_CONFIRMED` = `{partyId}` | **구현이 앞서 있다.** 계약으로 승격하려면 본 저장소에 contract 커밋이 필요하다. `PushPublisher` 의 `payload` 가 `Map` 인 것도 그 때문이다 |
+| 12 | SQS `ProposalConfirmed` / `BlockChanged` | 있다 | **없다** — AWS SDK 의존성 없음. 확정 자체는 되고 Redis 쪽 뒷정리(`cleanup-confirmed.lua`)와 `MATCH_CONFIRMED` 알림까지 붙었지만, `matching.outbox` 기록과 `ProposalConfirmed.fifo` 발행이 없어 `app:platform` 이 파티를 만들지 못한다. 반대 방향인 `PartyClosed` 소비도 없어 확정된 사용자의 활성 요청에 찍힌 `status=PARTY` 를 푸는 코드가 없다 | 계약이 맞다 |
 | 13 | `CreateMatchRequest` 의 `tier` | **없다** | `tier` (선택 필드, String). `tierRule` 이 `NONE` 이 아닌(= `EXIST` 인) 모드에서는 사실상 필수이고 빠지면 400 이다 (`validation/lol/LolConditionValidator.java`). **값은 단(division)까지 적는다** — `GOLD` 가 아니라 `GOLD_2` 다. 허용되는 이름의 원본은 자바 enum 이 아니라 Redis ZSET `qm:gameconfig:LOL:tier` 다 (32개) | **구현이 앞서 있다.** 조건 5번째가 아니라 derived/자격 조건이다 (docs/02 §6, CLAUDE.md §2). 계약에 추가해야 하고, 계정 연동이 붙으면 요청 필드에서 사라진다 |
 
 | 14 | `KeyCondition.type` 의 PUBG 값 | `PLAY_STYLE` | `PLATFORM` (`domain/KeyConditionType.java`), 값은 `STEAM` / `KAKAO` | **코드가 맞다.** 스팀·카카오는 서로 파티를 맺을 수 없어 플레이 스타일(취향) 대신 플랫폼(hard)을 핵심 조건으로 교체했다. `openapi.yaml` 의 enum 을 고쳐야 한다. 근거는 enum 클래스 주석 |
@@ -56,10 +57,11 @@
 | 501 | `NOT_IMPLEMENTED` | `GET /match-requests/{id}` — 아직 구현되지 않았다 |
 | 503 | `MATCHING_UNAVAILABLE` | Redis 장애 또는 후보 풀 락 획득 실패. `Retry-After: 5` 헤더 동반 (INV-10 fail-closed) |
 
-아래 코드들은 `ProposalController` 에 **자리는 잡혀 있으나 실제로 나오지 않는다** —
-`ProposalService` 가 먼저 `UnsupportedOperationException` 을 던지기 때문이다:
-`PROPOSAL_EXPIRED`(410) · `PROPOSAL_DECLINED`(409) · `PROPOSAL_ALREADY_RESPONDED`(409) ·
-`NOT_PROPOSAL_MEMBER`(403) · `PROPOSAL_NOT_FOUND`(404).
+`ProposalController` 가 실제로 내는 것은 셋이다 — `PROPOSAL_CONFLICT`(409, 이미 확정됐거나
+다른 참가자가 거절했거나 수락해 놓고 거절을 누른 경우) · `PROPOSAL_NOT_FOUND`(404, 진행 중인
+제안이 없다) · `NOT_PROPOSAL_MEMBER`(403, 남의 제안). 예전에 여기 적혀 있던
+`PROPOSAL_EXPIRED`(410) · `PROPOSAL_DECLINED` · `PROPOSAL_ALREADY_RESPONDED` 는
+`ProposalService` 가 껍데기이던 시절의 목록이고, 지금 코드에는 없다.
 
 ---
 
@@ -70,24 +72,27 @@
 1. SSE `MATCH_PROPOSAL_CREATED` / `MATCH_CONFIRMED` (`events.md`)
 2. 폴링 `GET /api/v1/match-requests/{id}` (`openapi.yaml`)
 
-**1번은 절반 메워졌고 2번은 비어 있다.**
+**1번은 메워졌고 2번은 비어 있다.**
 
 - SSE — 이 앱의 몫인 Redis Pub/Sub publish 는 **된다**
   (`notification/PushPublisher.java`, 채널 `qm:pubsub:push:{userId}`). 정원이 차면
-  `MATCH_PROPOSAL_CREATED` 가 파티 전원에게 나간다. 다만 `MATCH_CONFIRMED` 는 수락
-  집계·확정이 없어 영원히 오지 않는다. SSE 배달은 `app:realtime` 몫이고 이 저장소에
-  `SseEmitter` 를 넣지 않는 것이 맞다 (CLAUDE.md §3).
-- 폴링 — `GET /match-requests/{id}` 가 **501** 이다.
+  `MATCH_PROPOSAL_CREATED` 가, 전원 수락으로 확정되면 `MATCH_CONFIRMED` 가, 시한이 지나면
+  `MATCH_PROPOSAL_EXPIRED` 가 파티 전원에게 나간다. SSE 배달은 `app:realtime` 몫이고
+  이 저장소에 `SseEmitter` 를 넣지 않는 것이 맞다 (CLAUDE.md §3).
+- 폴링 — `GET /match-requests/{id}` 가 **여전히 501** 이다
+  (`MatchingController#getMatchRequest`, 위 표 #5).
 
-**그래서 남은 문제는 두 개다.**
+**그래서 남은 문제는 하나다.**
 
 1. **알림은 사건만 전한다.** "방금 이렇게 됐다"는 말하지만 "지금 이렇다"는 못 한다.
    앱을 껐다 켜거나 새로고침하거나 다른 기기로 접속한 클라이언트는 아무것도 모른 채
-   "매칭 시작" 버튼을 그리고, 누르면 409 `ALREADY_QUEUED` 를 받는다. 게다가 Pub/Sub 은
+   "매칭 시작" 버튼을 그리고, 누르면 409 `ALREADY_QUEUED` 를 받는다. 확정된 사용자는
+   활성 요청에 `status=PARTY` 가 찍힌 채 남아 있어 더욱 그렇다. 게다가 Pub/Sub 은
    at-most-once 라 놓친 알림의 복구도 이 REST 몫이다 — 계약이 "놓친 상태는 REST 로
    복구한다"고 정한 그 REST 가 이것이다.
-2. **수락 집계·확정이 없다.** `MATCH_PROPOSAL_CREATED` 를 받아 수락 창을 띄워도
-   누를 곳(`POST /proposals/{id}/accept`)이 500 을 돌려준다.
+
+(옛 2번 "수락 집계·확정이 없다"는 해소됐다 — `POST /proposals/{id}/accept|decline` 이
+동작하고 만료도 스위퍼가 처리한다.)
 
 구현 순서와 각 시작 지점은 `START_HERE.md` §5 에 있다.
 

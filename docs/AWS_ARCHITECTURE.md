@@ -136,12 +136,12 @@ SQS FIFO 3개.
 
 | 상대 | 방향 | 무엇을 | 이 저장소의 구현 상태 |
 |---|---|---|---|
-| ALB (← 클라이언트) | 수신 | 실시간 매칭 REST | **부분** — `POST`/`DELETE /api/v1/match-requests` 는 된다 (`MatchingController`). `GET /match-requests/{id}` 는 501, `POST /proposals/{id}/accept\|decline` 은 엔드포인트만 있고 500 이다 (`ProposalController`) |
+| ALB (← 클라이언트) | 수신 | 실시간 매칭 REST | **부분 (2026-09-16 갱신)** — `POST`/`DELETE /api/v1/match-requests` 와 `POST /proposals/{id}/accept\|decline` 은 된다 (`MatchingController` · `ProposalController`). `GET /match-requests/{id}` 는 여전히 **501** 이다 |
 | ElastiCache Redis | 읽기·쓰기 | gameconfig 읽기, 활성 요청 선점, 파티 색인, Lua atomic claim | **구현됨** (`backend/src/main/resources/redis/*.lua`) |
 | ElastiCache Redis | 분산 락 | 후보 풀 락 (`qm:lock:pool:*`, Redisson) | **구현됨** (`redisLock/PoolLock.java`, `config/redis/RedissonConfig.java`) |
-| ElastiCache Redis | publish | `MATCH_*` 5종 알림 | **부분 (2026-09-11 갱신)** — `notification/PushPublisher.java` 가 `qm:pubsub:push:{userId}` 로 3종(`MATCH_QUEUE_UPDATED` / `MATCH_PROPOSAL_CREATED` / `MATCH_CANCELLED`)을 발행한다. `MATCH_PROPOSAL_EXPIRED` / `MATCH_CONFIRMED` 는 확정·만료 미구현이라 없다 |
+| ElastiCache Redis | publish | `MATCH_*` 5종 알림 | **구현됨 (2026-09-16 갱신)** — `notification/PushPublisher.java` 가 `qm:pubsub:push:{userId}` 로 **5종 전부** 발행한다. `MATCH_PROPOSAL_EXPIRED` 는 `service/ProposalExpiryService`(만료 스위퍼), `MATCH_CONFIRMED` 는 `service/ProposalService#accept()`(확정 뒷정리)가 낸다 |
 | RDS `social.blocks` | 읽기 | INV-6 검증 | **미구현** — 부르는 코드는 있다 (`LolCandidateRule#canJoin` 의 차단 선필터). 그런데 Flyway 미도입이라 스키마가 없어 기본 실행에서는 그 조회가 실패한다 |
-| SQS `ProposalConfirmed.fifo` | 발행 | 확정된 제안 → 파티 생성 | **미구현** — AWS SDK 의존성이 없다 |
+| SQS `ProposalConfirmed.fifo` | 발행 | 확정된 제안 → 파티 생성 | **미구현** — AWS SDK 의존성이 없다. 확정과 Redis 쪽 뒷정리(`proposal/cleanup-confirmed.lua`)·`MATCH_CONFIRMED` 알림까지는 붙었고, `matching.outbox` 기록과 발행만 남았다 |
 | SQS `BlockChanged.fifo` | 소비 | 차단 목록 갱신 | **미구현** |
 | CloudWatch | 송신 | 로그·지표 | 부분 — `/actuator` 노출은 켜져 있다 (`application.yaml`) |
 | Secrets Manager | 읽기 | DB 자격증명 | 아직 없음 — `application.yaml` 이 `DB_URL`/`DB_USER`/`DB_PASSWORD` 환경변수로 받는다 (기본값은 H2 인메모리) |
