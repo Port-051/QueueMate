@@ -1,6 +1,7 @@
 package com.queuemate.matching.service;
 
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
+import com.queuemate.matching.redisKeys.SharedKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -59,7 +60,7 @@ public class MatchRequestService {
 
     /** 사용자의 활성 요청. 요청 내용도 여기 함께 담긴다. */
     private String activeRequestKey(String userId) {
-        return "qm:user:active-request:" + userId;
+        return SharedKeys.activeRequestKey(userId);
     }
 
     /**
@@ -76,6 +77,10 @@ public class MatchRequestService {
         fields.put("playPurpose", command.getPlayPurpose().name());
         fields.put("keyValue", command.getKeyCondition().getValue());
         fields.put("tier", command.getTier());
+        // 줄 선 시각. 조회가 "얼마나 기다렸나"를 답하려면 어딘가에 남아 있어야 하는데,
+        // 활성 요청 HASH 말고는 요청이 살아 있는 동안 남는 자리가 없다 (match_requests 테이블은
+        // 만들지 않는다 — docs/11 #27). 스크립트는 넘긴 필드를 그대로 HSET 하므로 이 한 줄이면 된다
+        fields.put("queuedAt", String.valueOf(System.currentTimeMillis()));
         return fields;
     }
 }
