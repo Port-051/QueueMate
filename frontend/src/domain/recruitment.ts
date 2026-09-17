@@ -8,7 +8,7 @@ export const tiers = (game: GameKey) => game === 'LOL'
   ? ['IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'EMERALD', 'DIAMOND', 'MASTER', 'GRANDMASTER', 'CHALLENGER']
   : game === 'VALORANT' ? ['IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND', 'ASCENDANT', 'IMMORTAL', 'RADIANT']
   : ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND', 'MASTER'];
-export const BOARD_STATUS: Record<BoardRow['status'], string> = { OPEN: '매칭 중', PAUSED: '잠시 멈춤', STALE: '활동 확인 필요', REQUESTED: '신청 응답 대기', JOINED: '매칭 중', PROPOSED: '서로 수락 대기', MATCHED: '매칭 확정', CLOSED: '매칭 종료' };
+export const BOARD_STATUS: Record<BoardRow['status'], string> = { OPEN: '매칭 중', PAUSED: '잠시 멈춤', STALE: '매칭 중', REQUESTED: '신청 응답 대기', JOINED: '매칭 중', PROPOSED: '서로 수락 대기', MATCHED: '매칭 확정', CLOSED: '매칭 종료' };
 export function reservationWindow() {
   const start = Math.ceil((Date.now() + 30 * 60_000) / (30 * 60_000)) * (30 * 60_000);
   return { availableFrom: new Date(start).toISOString(), availableTo: new Date(start + 60 * 60_000).toISOString(), playAmount: 'ONE_GAME' as const };

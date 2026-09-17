@@ -157,7 +157,7 @@ test('로고 아래 게임 아이콘은 선택 링을 표시하고 게임을 바
   await expect(lol.locator('.game-nav-logo')).toHaveCSS('outline-color', 'rgb(124, 77, 255)');
 
   const filters = page.locator('.board-filter-bar');
-  const roleFilter = filters.getByRole('group', { name: '찾는 상대 포지션', exact: true });
+  const roleFilter = filters.getByRole('group', { name: '포지션', exact: true });
   const modeFilter = filters.getByRole('group', { name: '찾는 큐 타입', exact: true });
   const tierFilter = filters.getByRole('button', { name: '찾는 상대 티어', exact: true });
   await roleFilter.getByRole('button', { name: '서포터', exact: true }).click();
@@ -174,7 +174,7 @@ test('로고 아래 게임 아이콘은 선택 링을 표시하고 게임을 바
   await expect(roleFilter.getByRole('button')).toHaveCount(4);
   await expect(roleFilter.getByRole('button', { pressed: true })).toHaveCount(0);
   await expect(modeFilter.getByRole('button')).toHaveText(['경쟁전', '일반전']);
-  await expect(modeFilter.getByRole('button', { pressed: true })).toHaveCount(0);
+  await expect(modeFilter.getByRole('button', { pressed: true })).toHaveCount(1);
   await expect(tierFilter).toContainText('모든 티어');
   await tierFilter.click();
   const tierOptions = page.getByRole('listbox', { name: '찾는 상대 티어', exact: true });
@@ -192,7 +192,7 @@ test('로고 아래 게임 아이콘은 선택 링을 표시하고 게임을 바
   await expect(roleFilter.getByRole('button')).toHaveCount(3);
   await expect(roleFilter.getByRole('button', { pressed: true })).toHaveCount(0);
   await expect(modeFilter.getByRole('button')).toHaveText(['듀오', '스쿼드']);
-  await expect(modeFilter.getByRole('button', { pressed: true })).toHaveCount(0);
+  await expect(modeFilter.getByRole('button', { pressed: true })).toHaveCount(1);
   await tierFilter.click();
   await expect(tierOptions.getByRole('option', { name: '마스터', exact: true })).toBeVisible();
   await expect(tierOptions.getByRole('option', { name: '레디언트', exact: true })).toHaveCount(0);

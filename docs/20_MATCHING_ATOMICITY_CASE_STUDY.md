@@ -38,7 +38,7 @@ HTTP 등록 응답은 그 배정 작업의 완료를 기다리지 않는다. 따
 현재는 업무 조건을 Java에서 탐색·수정·디버깅하기 위해 분산 락과 Java 검증으로 옮겼다.
 이 전환을 성능 개선이라고 설명하지 않는다. 별도 비교 실험에서는 분산 락 대안의 성능 비용이 확인됐고,
 유지보수성을 우선해 그 비용을 수용했다. 비교 대상은 당시 Lettuce 실험 구현이며 현재 제품 전체가 아니다.
-[전환 판단](18_REDIS_CLAIM_LOCK.md), [전환 전 비교 기록](../harness/studies/redis-claim/RESULTS.md).
+[전환 판단](21_REDIS_CLAIM_LOCK.md), [전환 전 비교 기록](../harness/studies/redis-claim/RESULTS.md).
 
 | 장치 | 맡긴 책임 |
 |---|---|
@@ -293,4 +293,4 @@ JUnit 결과는 `backend/build/test-results/test/TEST-*.xml`, HTML 보고서는
 이 설계에서 원자성은 하나의 거대한 보장이 아니다.
 **락 소유권이 유효한지, Redis 변경이 실행됐는지, DB가 커밋됐는지를 각각 판단하고,
 경계에서 실패했을 때 남는 상태를 복구하도록 책임을 나눴다.**
-관련 명령의 의미와 구현 세부는 [분산 락 선점 설계](18_REDIS_CLAIM_LOCK.md)에 정리되어 있다.
+관련 명령의 의미와 구현 세부는 [분산 락 선점 설계](21_REDIS_CLAIM_LOCK.md)에 정리되어 있다.

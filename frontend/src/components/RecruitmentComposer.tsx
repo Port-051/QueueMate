@@ -27,16 +27,19 @@ export function RecruitmentComposer({ initial, editing, suspended, focusOnMount 
     return initial.condition.game === 'LOL' ? { ...saved, ownTier: null, rankDivision: null, champions: [], winRate: null, kda: null, recentResults: emptyIntroduction().recentResults } : saved;
   });
   const [value, setValue] = useState(() => applyIntroduction({ ...writeFrom(initial), ...(!editing && initial.type === 'RESERVATION' && user ? readReservationDraft(user.id, initial.condition.game) : {}), autoMatch: editing ? initial.autoMatch : true }, introduction));
+  const [originalValue] = useState(value);
+  const comparable = (input: board.BoardWrite) => JSON.stringify({ ...input, preferences: { ...input.preferences, ownKeys: [...(input.preferences.ownKeys ?? [])].sort(), desiredKeys: [...input.preferences.desiredKeys].sort() } });
+  const unchanged = Boolean(editing) && comparable(value) === comparable(originalValue);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const validationError = (!visibleModes(value.condition.game).some(mode => mode.key === value.condition.modeKey) ? '게임 모드를 선택해 주세요.' : '') || introductionInputError(introduction) || recruitmentInputError(value, editing ? undefined : now);
   const updateIntroduction = (next: typeof introduction) => {
     setIntroduction(next);
     setValue(current => applyIntroduction(current, next));
-    if (user) saveIntroduction(user.id, value.condition.game, next);
+    if (user && !editing) saveIntroduction(user.id, value.condition.game, next);
   };
   const submit = async () => {
-    if (busy || suspended || validationError) return;
+    if (busy || suspended || validationError || unchanged) return;
     setBusy(true); setError('');
     try {
       const row = editing ? await board.editRecruitment(editing, value) : await board.createRecruitment(value);
@@ -53,7 +56,7 @@ export function RecruitmentComposer({ initial, editing, suspended, focusOnMount 
       <SelfIntroductionFields game={value.condition.game} value={introduction} modeLocked={Boolean(editing)} onChange={updateIntroduction} />
       {value.type === 'RESERVATION' ? <ReservationFields value={value} onChange={time => { setValue({ ...value, ...time }); if (user && !editing) saveReservationDraft(user.id, value.condition.game, time); }} /> : null}
     </fieldset>
-    <div className="matching-rail-footer"><Button block type="submit" variant="primary" disabled={busy || suspended || Boolean(validationError)}><IconMatch size={20} />{busy ? '저장 중…' : editing ? '매칭 조건 저장' : '매칭 시작'}</Button></div>
+    <div className={`matching-rail-footer${editing ? ' matching-edit-footer' : ''}`}>{editing ? <Button type="button" disabled={busy || suspended} onClick={() => onClose()}>취소</Button> : null}<Button block type="submit" variant="primary" disabled={busy || suspended || unchanged || Boolean(validationError)}><IconMatch size={20} />{busy ? '저장 중…' : editing ? '매칭 조건 저장' : '매칭 시작'}</Button></div>
     </form>
   </MatchingRailPanel>;
 }

@@ -24,7 +24,7 @@ function startLabel(displayName: string): string {
 }
 
 export function SocialLoginButtons({ redirectTo, onError }: { redirectTo: string; onError(message: string): void }) {
-  const { completeOAuth } = useAuth();
+  const { completeOAuth, status } = useAuth();
   const navigate = useNavigate();
   const [providers, setProviders] = useState<OAuthProviderView[]>([]);
   const [busy, setBusy] = useState(false);
@@ -69,7 +69,7 @@ export function SocialLoginButtons({ redirectTo, onError }: { redirectTo: string
           key={p.provider}
           type="button"
           className={`social-btn s-${p.provider}`}
-          disabled={busy}
+          disabled={busy || status === 'loading'}
           onClick={() => void start(p)}
         >
           {startLabel(p.displayName)}

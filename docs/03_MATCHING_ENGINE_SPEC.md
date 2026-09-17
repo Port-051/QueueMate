@@ -90,7 +90,7 @@ Hard condition은 어떤 tier에서도 완화 금지.
 오래된 작업의 EXEC은 거부된다. DB 롤백은 기존 보상 경로로 선점 해제와 큐 복구를 수행한다.
 Redis 오류는 fail-closed하며, EXEC 응답 유실로 남은 상태는 TTL과 DB 기준 큐 복구로 정리한다.
 선점 업무 로직은 Java에서 관리하고 소유권 비교·삭제 같은 짧은 원시 연산만 Lua에 남긴다.
-채택 근거와 보장 범위는 [분산 락 선점 설계](18_REDIS_CLAIM_LOCK.md)를 따른다.
+채택 근거와 보장 범위는 [분산 락 선점 설계](21_REDIS_CLAIM_LOCK.md)를 따른다.
 
 ## 8. Proposal
 - 참가자 전원에게 동시에 전달

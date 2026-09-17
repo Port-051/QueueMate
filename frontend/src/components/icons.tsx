@@ -58,3 +58,6 @@ export const IconPencil = ({ size }: P) => (<svg {...s(size)}><path d="M4.5 19.5
 export const IconSend = ({ size }: P) => (<svg {...s(size)}><path d="M21 3 10.5 13.5M21 3l-7 18-3.5-7.5L3 10z" /></svg>);
 export const IconSearch = ({ size }: P) => (<svg {...s(size)}><circle cx="11" cy="11" r="7" /><path d="M20.5 20.5 16.1 16.1" /></svg>);
 export const IconCopy = ({ size }: P) => (<svg {...s(size)}><rect x="9" y="9" width="12" height="12" rx="2.5" /><path d="M6 15.5H5.5A2.5 2.5 0 0 1 3 13V5.5A2.5 2.5 0 0 1 5.5 3H13a2.5 2.5 0 0 1 2.5 2.5V6" /></svg>);
+
+export const IconPause = ({ size }: P) => (<svg {...s(size)} aria-hidden="true"><path d="M8 5v14M16 5v14" /></svg>);
+export const IconPlay = ({ size }: P) => (<svg {...s(size)} aria-hidden="true"><path d="m8 5 11 7-11 7z" /></svg>);

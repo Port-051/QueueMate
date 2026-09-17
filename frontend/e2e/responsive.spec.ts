@@ -21,7 +21,7 @@ test('홈의 내 정보는 큰 화면 오른쪽과 작은 화면 상단에 배�
     }
     const homeBox = (await home.boundingBox())!;
     const mainBox = (await page.locator('main.main').boundingBox())!;
-    expect(homeBox.width).toBeLessThanOrEqual(1200);
+    expect(homeBox.width).toBeLessThanOrEqual(1320);
     expect(Math.abs((homeBox.x - mainBox.x) - (mainBox.x + mainBox.width - homeBox.x - homeBox.width)), `홈 좌우 여백 ${width}px`).toBeLessThanOrEqual(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `홈 가로 넘침 ${width}px`).toBe(true);
     for (const [selector, minimum] of [
@@ -38,14 +38,14 @@ test('홈의 내 정보는 큰 화면 오른쪽과 작은 화면 상단에 배�
   }
 });
 
-test('모바일 필터는 한 줄로 스크롤되고 선택 팝업과 예약 입력은 잘리지 않는다', async ({ page }, testInfo) => {
+test('모바일 필터는 줄바꿈되고 선택 팝업과 예약 입력은 잘리지 않는다', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
   const filters = page.locator('.board-filter-bar');
   const line = filters.locator('.board-filter-line');
   const tier = filters.getByRole('button', { name: '찾는 상대 티어', exact: true });
-  const voice = filters.getByRole('switch', { name: '음성 사용 매칭만 보기', exact: true });
-  const roles = filters.getByRole('group', { name: '찾는 상대 포지션', exact: true });
+  const voice = filters.getByRole('button', { name: '마이크', exact: true });
+  const roles = filters.getByRole('group', { name: '포지션', exact: true });
   const modes = filters.getByRole('group', { name: '찾는 큐 타입', exact: true });
   await expect(roles.getByRole('button')).toHaveCount(5);
   for (const name of ['탑', '정글', '미드', '바텀', '서포터']) {
@@ -59,28 +59,15 @@ test('모바일 필터는 한 줄로 스크롤되고 선택 팝업과 예약 입
       return box.y + box.height / 2;
     }),
   }));
-  expect(layout.content).toBeGreaterThan(layout.width);
-  expect(Math.max(...layout.centers) - Math.min(...layout.centers), '필터 버튼이 두 줄로 줄바꿈되지 않는다').toBeLessThanOrEqual(2);
-  await voice.focus();
-  await expect(voice).toBeInViewport();
-  expect(await line.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
-  await expect(voice).toHaveAttribute('aria-checked', 'false');
-  await expect(voice).toHaveText('');
-  await expect(voice.locator('svg')).toHaveCount(1);
-  const voiceBox = (await voice.boundingBox())!;
-  expect(voiceBox.x).toBeGreaterThanOrEqual(0);
-  expect(voiceBox.x + voiceBox.width).toBeLessThanOrEqual(390);
+  expect(layout.content).toBeLessThanOrEqual(layout.width);
+  for (const control of [voice, tier, roles, modes]) {
+    const box = (await control.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(390);
+  }
   await voice.click();
-  await expect(voice).toHaveAttribute('aria-checked', 'true');
-  await expect(voice).toHaveAttribute('title', '음성 필터 켜짐');
-  await expect(page.getByRole('listbox')).toHaveCount(0);
-  await expect(page.locator('.board-results-head')).toContainText('12개 매칭 글');
-  await page.keyboard.press('Space');
-  await expect(voice).toHaveAttribute('aria-checked', 'false');
-  await expect(page.locator('.board-results-head')).toContainText('40개 매칭 글');
-  await page.keyboard.press('Enter');
-  await expect(voice).toHaveAttribute('aria-checked', 'true');
-  await expect(page.locator('.board-results-head')).toContainText('12개 매칭 글');
+  await page.getByRole('listbox', { name: '마이크', exact: true }).getByRole('option', { name: '사용', exact: true }).click();
+  await expect(page.locator('.board-results-head')).toContainText('7명이 매칭 중이에요');
 
   await tier.scrollIntoViewIfNeeded();
   await tier.click();
@@ -104,8 +91,7 @@ test('모바일 필터는 한 줄로 스크롤되고 선택 팝업과 예약 입
   await challenger.click();
   await expect(tier).toContainText('챌린저');
   await filters.getByRole('button', { name: '초기화', exact: true }).click();
-  await expect(voice).toHaveAttribute('aria-checked', 'false');
-  await expect(voice).toHaveAttribute('title', '음성 필터 꺼짐');
+  await expect(voice).toContainText('무관');
   await modes.getByRole('button', { name: '일반', exact: true }).click();
   await expect(modes.getByRole('button', { name: '일반', exact: true })).toHaveAttribute('aria-pressed', 'true');
 

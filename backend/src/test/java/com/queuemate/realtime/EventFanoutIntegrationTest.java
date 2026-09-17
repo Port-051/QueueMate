@@ -201,12 +201,12 @@ class EventFanoutIntegrationTest {
         collector.next();
 
         // signaling은 OFFER 다음에 ICE가 와야 한다. 순서가 섞이면 통화가 성립하지 않는다.
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 100; i++) {
             publishAsOtherNode(other, List.of(a),
                     ServerEvent.of(EventType.WEBRTC_SIGNAL, Map.of("seq", i)));
         }
 
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 100; i++) {
             assertEquals(i, collector.next().get("payload").get("seq").asInt());
         }
     }

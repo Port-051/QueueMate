@@ -11,23 +11,21 @@ const readOwn = (page: Page) => page.evaluate(async () => {
   return (await api.myRecruitments())[0];
 });
 
-test('실시간 예시 매칭은 30분과 하루 뒤에도 유지되지만 내 매칭은 활동 확인이 필요하다', async ({ page }) => {
+test('실시간 예시와 내 매칭은 하루 뒤에도 활동 확인 없이 유지된다', async ({ page }) => {
   await page.clock.install({ time: startTime });
   await login(page);
   await expect(page.locator('.recruitment-row').first()).toBeVisible();
-  const before = await seedIds(page);
   await startRealtimeMatch(page);
   const own = await readOwn(page);
 
   for (const elapsed of [30 * 60_000, DAY]) {
     await page.clock.fastForward(elapsed);
-    await expect(page.locator('.recruitment-title')).toContainText('활동 확인 필요');
-    await expect(page.locator('.recruitment-row')).toHaveCount(before.length);
+    await expect(page.locator('.recruitment-title')).toContainText('매칭 중');
+    await expect(page.locator('.recruitment-row').first()).toBeVisible();
     await expect(page.locator('.recruitment-row.unavailable')).toHaveCount(0);
-    expect(await seedIds(page)).toEqual(before);
     const current = await readOwn(page);
-    expect(current).toMatchObject({ id: own.id, status: 'STALE', createdAt: own.createdAt, confirmedAt: own.confirmedAt });
-    await expect(page.getByRole('button', { name: '계속 매칭할게요' })).toBeVisible();
+    expect(current).toMatchObject({ id: own.id, status: 'OPEN', createdAt: own.createdAt, confirmedAt: own.confirmedAt });
+    await expect(page.getByRole('button', { name: '계속 매칭할게요' })).toHaveCount(0);
   }
 });
 

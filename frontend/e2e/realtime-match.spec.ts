@@ -24,13 +24,13 @@ test('활성 실시간 매칭은 하나만 가능하지만 예약 매칭은 별�
 test('매칭을 종료한 뒤 새로 시작해도 상대 조건을 유지한다', async ({ page }) => {
   await login(page);
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
-  await page.locator('.recruitment-composer-shell').getByRole('group', { name: '찾는 상대 포지션', exact: true }).getByRole('button', { name: '정글', exact: true }).click();
+  await page.locator('.recruitment-composer-shell').getByRole('group', { name: '찾는 포지션', exact: true }).getByRole('button', { name: '정글', exact: true }).click();
   await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(page.locator('.my-recruitment')).toBeVisible();
   await manageRecruitment(page, '매칭 종료');
   await expect(page.locator('.my-recruitment')).toHaveCount(0);
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
-  await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '찾는 상대 포지션', exact: true }).getByRole('button', { name: '정글', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '찾는 포지션', exact: true }).getByRole('button', { name: '정글', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: '매칭 시작', exact: true }).click();
   await expect(page.locator('.my-recruitment')).toBeVisible();
 });

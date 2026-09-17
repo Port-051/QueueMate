@@ -3,7 +3,7 @@ import { login } from './helpers';
 
 test('프로필 편집을 취소하면 변경되지 않고, 사진을 저장하면 사이드바에도 반영된다', async ({ page }) => {
   await login(page);
-  await page.getByRole('link', { name: '프로필', exact: true }).click();
+  await page.locator('.side-nav').getByRole('link', { name: '프로필', exact: true }).click();
   const rename = page.getByRole('button', { name: '닉네임 변경', exact: true });
   await rename.click();
   await page.getByRole('textbox', { name: '닉네임', exact: true }).fill('저장하지않을이름');
@@ -31,7 +31,7 @@ test('프로필 편집을 취소하면 변경되지 않고, 사진을 저장하�
 
 test('게임 ID 등록 취소는 원래 게임 버튼으로 돌아가고 등록 후 연결 해제할 수 있다', async ({ page }) => {
   await login(page);
-  await page.getByRole('link', { name: '프로필', exact: true }).click();
+  await page.locator('.side-nav').getByRole('link', { name: '프로필', exact: true }).click();
   const register = page.getByRole('button', { name: '배틀그라운드 ID 등록', exact: true });
   await register.click();
   await expect(page.getByRole('button', { name: 'ID 등록', exact: true })).toBeDisabled();
@@ -50,4 +50,16 @@ test('게임 ID 등록 취소는 원래 게임 버튼으로 돌아가고 등록 
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(account).not.toContainText('QueuePlayer');
   await expect(register).toBeVisible();
+});
+
+test('업로드한 프로필 사진과 연동한 솔로·자유 랭크를 표시한다', async ({ page }) => {
+  await login(page);
+  await page.locator('.side-nav').getByRole('link', { name: '프로필', exact: true }).click();
+  const record = page.getByRole('region', { name: '롤 전적 정보' });
+  await expect(record).toContainText('골드 2');
+  await expect(record).toContainText('플래티넘 4');
+  await page.getByRole('button', { name: '프로필 사진 변경' }).click();
+  await page.locator('input[type="file"]').setInputFiles('public/avatars/avatar-02.webp');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('.profile-photo img')).toHaveAttribute('src', /^data:image\/png/);
 });

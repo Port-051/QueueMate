@@ -23,46 +23,24 @@ test('상대 티어 하나를 고르면 바로 필터링되고 전체 티어로 
   await expect(page.locator('.recruitment-row')).toHaveCount(initialCount);
 });
 
-test('포지션 아이콘은 재선택으로 해제되고 큐·음성 조건과 함께 목록을 좁힌다', async ({ page }) => {
+test('포지션 다중 선택과 음성 드롭다운을 조합하고 초기화한다', async ({ page }) => {
   await login(page);
   const filters = page.locator('.board-filter-bar');
-  const roles = filters.getByRole('group', { name: '찾는 상대 포지션', exact: true });
-  const modes = filters.getByRole('group', { name: '찾는 큐 타입', exact: true });
-  const voice = filters.getByRole('switch', { name: '음성 사용 매칭만 보기', exact: true });
+  const roles = filters.getByRole('group', { name: '포지션', exact: true });
   const rows = page.locator('.recruitment-row');
-  await expect(rows).toHaveCount(10);
-  await expect(roles.getByRole('button')).toHaveCount(5);
-  await expect(roles.getByRole('button', { pressed: true })).toHaveCount(0);
-  await expect(modes.getByRole('button', { pressed: true })).toHaveCount(0);
-  await expect(modes.getByRole('button', { name: '전체', exact: true })).toHaveCount(0);
-
-  await modes.getByRole('button', { name: '랭크', exact: true }).click();
   await roles.getByRole('button', { name: '미드', exact: true }).click();
   await expect(roles.getByRole('button', { name: '미드', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(rows).toHaveCount(2);
-  await expect(rows.locator('.row-player b')).toHaveText(['SupportLife', 'SilentJungle']);
-  await voice.click();
-  await expect(voice).toHaveAttribute('aria-checked', 'true');
-  await expect(rows).toHaveCount(0);
-  await expect(page.locator('.board-empty')).toContainText('조건에 맞는 매칭이 없어요');
-
+  await expect(rows).toHaveCount(5);
+  await filters.getByRole('button', { name: '마이크', exact: true }).click();
+  await page.getByRole('listbox', { name: '마이크', exact: true }).getByRole('option', { name: '사용', exact: true }).click();
+  await expect(rows).toHaveCount(4);
+  await expect(rows.locator('.recruitment-voice.voice-no_voice')).toHaveCount(0);
   await roles.getByRole('button', { name: '미드', exact: true }).click();
-  await expect(roles.getByRole('button', { pressed: true })).toHaveCount(0);
-  await expect(modes.getByRole('button', { name: '랭크', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(rows).toHaveCount(3);
-  await expect(rows.locator('.row-player b')).toHaveText(['PlayMaker', 'AimKing', 'HealingYou']);
+  await expect(rows).toHaveCount(7);
   await filters.getByRole('button', { name: '초기화', exact: true }).click();
-  await expect(modes.getByRole('button', { pressed: true })).toHaveCount(0);
-  await expect(roles.getByRole('button', { pressed: true })).toHaveCount(0);
-  await expect(voice).toHaveAttribute('aria-checked', 'false');
-  await expect(voice).toHaveAttribute('title', '음성 필터 꺼짐');
   await expect(rows).toHaveCount(10);
-  const ranked = modes.getByRole('button', { name: '랭크', exact: true });
-  await ranked.click();
-  await expect(page.locator('.board-results-head')).toContainText('10개 매칭 글');
-  await ranked.click();
-  await expect(modes.getByRole('button', { pressed: true })).toHaveCount(0);
-  await expect(page.locator('.board-results-head')).toContainText('40개 매칭 글');
+  await expect(roles.locator('[aria-pressed=true]')).toHaveCount(0);
+  await expect(filters.getByRole('button', { name: '랭크', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('티어 팝업은 키보드로 선택하고 Escape와 바깥 클릭으로 닫을 수 있다', async ({ page }) => {
@@ -113,7 +91,7 @@ test('티어 팝업은 키보드로 선택하고 Escape와 바깥 클릭으로 �
   expect(selectedBox.y + selectedBox.height).toBeLessThanOrEqual(listBox.y + listBox.height);
   await page.keyboard.press('Tab');
   await expect(tiers).toHaveCount(0);
-  await expect(page.locator('.board-filter-bar').getByRole('group', { name: '찾는 큐 타입', exact: true }).getByRole('button', { name: '랭크', exact: true })).toBeFocused();
+  await expect(page.locator('.board-filter-bar').getByRole('group', { name: '포지션', exact: true }).getByRole('button', { name: '탑', exact: true })).toBeFocused();
   await expect(tier).toContainText('챌린저');
   await tier.click();
   await expect(tiers).toBeVisible();
@@ -122,53 +100,18 @@ test('티어 팝업은 키보드로 선택하고 Escape와 바깥 클릭으로 �
   await expect(tier).toContainText('챌린저');
 });
 
-test('마이크 아이콘은 클릭·Enter·Space로 바로 켜고 끄며 초기화하면 음성 필터도 꺼진다', async ({ page }) => {
+test('마이크 드롭다운은 키보드 선택과 초기화를 지원한다', async ({ page }) => {
   await login(page);
-  const filters = page.locator('.board-filter-bar');
-  const voice = filters.getByRole('switch', { name: '음성 사용 매칭만 보기', exact: true });
-  const rows = page.locator('.recruitment-row');
-  const count = page.locator('.board-results-head');
-  await expect(rows).toHaveCount(10);
-  await expect(voice).toHaveText('');
-  await expect(voice.locator('svg')).toHaveCount(1);
-  await expect(voice).toHaveAttribute('aria-checked', 'false');
-  await expect(voice).toHaveAttribute('title', '음성 필터 꺼짐');
-
-  await voice.click();
-  await expect(voice).toHaveAttribute('aria-checked', 'true');
-  await expect(voice).toHaveAttribute('title', '음성 필터 켜짐');
-  await expect(page.getByRole('listbox')).toHaveCount(0);
-  await expect(rows).toHaveCount(10);
-  await expect(count).toContainText('12개 매칭 글');
-  await expect(rows.getByRole('img', { name: '음성 사용', exact: true })).toHaveCount(10);
-  await expect(rows.locator('.recruitment-voice')).toHaveText(Array(10).fill(''));
-  await voice.click();
-  await expect(voice).toHaveAttribute('aria-checked', 'false');
-  await expect(count).toContainText('40개 매칭 글');
-  await expect(rows).toHaveCount(10);
-
-  await voice.focus();
-  await page.keyboard.press('Enter');
-  await expect(voice).toHaveAttribute('aria-checked', 'true');
-  await expect(voice).toBeFocused();
-  await expect(rows).toHaveCount(10);
-  await page.keyboard.press('Space');
-  await expect(voice).toHaveAttribute('aria-checked', 'false');
-  await expect(voice).toBeFocused();
-  await expect(rows).toHaveCount(10);
-  await expect(count).toContainText('40개 매칭 글');
-  await expect(page.getByRole('listbox')).toHaveCount(0);
-
-  await page.keyboard.press('Space');
-  await expect(voice).toHaveAttribute('aria-checked', 'true');
-  await expect(rows).toHaveCount(10);
-  await filters.getByRole('button', { name: '초기화', exact: true }).click();
-  await expect(voice).toHaveAttribute('aria-checked', 'false');
-  await expect(voice).toHaveAttribute('title', '음성 필터 꺼짐');
-  await expect(voice).toHaveText('');
-  await expect(rows).toHaveCount(10);
-  await expect(count).toContainText('40개 매칭 글');
-  await expect(filters.getByRole('button', { name: '초기화', exact: true })).toHaveCount(0);
+  const trigger = page.locator('.board-filter-bar').getByRole('button', { name: '마이크', exact: true });
+  await trigger.focus(); await page.keyboard.press('Enter');
+  const list = page.getByRole('listbox', { name: '마이크', exact: true });
+  await expect(list.getByRole('option', { name: '무관', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
+  await expect(trigger).toContainText('사용');
+  await expect(page.locator('.recruitment-row')).toHaveCount(7);
+  await page.getByRole('button', { name: '초기화', exact: true }).click();
+  await expect(trigger).toContainText('무관');
+  await expect(page.locator('.recruitment-row')).toHaveCount(10);
 });
 
 test('예약 필터의 잘못된 시간을 고쳐야 목록에 적용된다', async ({ page }) => {

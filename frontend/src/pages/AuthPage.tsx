@@ -8,7 +8,7 @@ import { USE_MOCK } from '../config';
 import { useAuth } from '../state/AuthContext';
 
 export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
-  const { login, signup } = useAuth();
+  const { login, signup, status } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? '/app/home';
@@ -63,20 +63,20 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
 
           <form className="auth-form" onSubmit={submit}>
             <Field label="이메일">
-              <input className="input" type="email" autoComplete="email" placeholder="이메일 주소를 입력하세요"
+              <input className="input" disabled={status === 'loading' || busy} type="email" autoComplete="email" placeholder="이메일 주소를 입력하세요"
                 value={email} onChange={(e) => setEmail(e.target.value)} />
             </Field>
             {isSignup ? (
               <Field label="닉네임" hint="2~16자">
-                <input className="input" type="text" placeholder="닉네임을 입력하세요"
+                <input className="input" disabled={status === 'loading' || busy} type="text" placeholder="닉네임을 입력하세요"
                   value={nickname} onChange={(e) => setNickname(e.target.value)} />
               </Field>
             ) : null}
             <Field label="비밀번호" hint={isSignup ? '8자 이상' : undefined} error={error ?? undefined}>
-              <input className="input" type="password" autoComplete={isSignup ? 'new-password' : 'current-password'}
+              <input className="input" disabled={status === 'loading' || busy} type="password" autoComplete={isSignup ? 'new-password' : 'current-password'}
                 placeholder="비밀번호를 입력하세요" value={password} onChange={(e) => setPassword(e.target.value)} />
             </Field>
-            <Button type="submit" variant="primary" size="lg" block disabled={busy}>
+            <Button type="submit" variant="primary" size="lg" block disabled={busy || status === 'loading'}>
               {busy ? '처리 중...' : isSignup ? '회원가입' : '로그인'}
             </Button>
           </form>

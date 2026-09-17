@@ -1,16 +1,13 @@
 import type { ReactNode } from 'react';
+import { IconMic, IconMicOff, IconMicOptional } from './icons';
 import type { GameKey } from '../api/types';
 import { rankEmblem, rankEmblemBounds, RANK_EMBLEM_SOURCE_SIZE } from '../domain/rankAssets';
 
 type SymbolProps = { size?: number };
 
-const ALL_ROLES = <>
-  <circle cx="12" cy="5.2" r="2.7" />
-  <circle cx="19.1" cy="10.4" r="2.7" />
-  <circle cx="16.4" cy="18.8" r="2.7" />
-  <circle cx="7.6" cy="18.8" r="2.7" />
-  <circle cx="4.9" cy="10.4" r="2.7" />
-</>;
+const ALL_ROLES = <g transform="translate(0 2.4) scale(0.97 0.8)" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="miter">
+  <path d="M2.5 21V7l3-4 3 4v14M2.5 13h6M12 3v18h4M18.5 3v18H23" />
+</g>;
 
 const LOL_ROLES: Record<string, ReactNode> = {
   TOP: <>
@@ -122,4 +119,9 @@ export function FilterModeIcon({ mode, size = 16 }: SymbolProps & { mode: string
     glyph = <><path d="M6 21V3m0 1h13l-3 4 3 4H6" /><path d="M3 21h6" /></>;
   }
   return <svg className="filter-mode-symbol" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">{glyph}</svg>;
+}
+
+export function VoiceIcon({ preference, size = 20 }: SymbolProps & { preference: string }) {
+  const Icon = preference === 'REQUIRED' ? IconMic : preference === 'NO_VOICE' ? IconMicOff : IconMicOptional;
+  return <span className={`voice-symbol voice-${preference.toLowerCase()}`} aria-hidden="true"><Icon size={size} /></span>;
 }

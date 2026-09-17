@@ -71,6 +71,9 @@ public class RedisConfig {
     RedisConfiguration topologyOf(RedisProperties properties) {
         RedisProperties.Sentinel sentinel = properties.getSentinel();
         if (sentinel == null || !hasText(sentinel.getMaster()) || isEmpty(sentinel.getNodes())) {
+            if (!hasText(properties.getHost())) {
+                throw new IllegalStateException("Redis 접속 설정이 없다. REDIS_HOST 또는 Sentinel 설정이 필요하다");
+            }
             log.info("Redis 단일 인스턴스로 붙는다 host={} port={}",
                     properties.getHost(), properties.getPort());
             RedisStandaloneConfiguration standalone =

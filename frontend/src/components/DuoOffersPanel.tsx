@@ -36,11 +36,15 @@ export function DuoOffersPanel({ source }: { source: BoardRow }) {
         <div className="duo-offer-label"><span className="discovery-dot" />{offer.status === 'RECEIVED' ? '먼저 오케이를 보냈어요' : '상대 발견'}</div>
         <div className="duo-offer-person"><Avatar name={offer.peer.nickname} size={32} /><strong>{offer.peer.nickname}</strong><RankBadge game={offer.peer.condition.game} tier={offer.peer.preferences.ownTier} division={introduction.rankDivision} /></div>
         <MatchConditionSummary record={offer.peer} />
-        <IntroductionStats game={offer.peer.condition.game} introduction={introduction} />
-        {offer.peer.description ? <p className="duo-offer-bio">{offer.peer.description}</p> : null}
-        <div className="duo-decision-actions">
-          <Button className="duo-decision dismiss" aria-label="다음에" title="다음에" disabled={Boolean(busy)} onClick={() => void act(offer.id)}><IconX size={21} /></Button>
-          <Button className="duo-decision accept" aria-label="같이 할래요" title="같이 할래요" variant="primary" disabled={Boolean(busy) || source.status !== 'OPEN'} onClick={() => void act(offer.id, offer.peer.id)}><IconCheck size={23} /></Button>
+        <div className="duo-offer-bottom">
+          <div className="duo-offer-copy">
+            <IntroductionStats game={offer.peer.condition.game} introduction={introduction} />
+            {offer.peer.description ? <p className="duo-offer-bio">{offer.peer.description}</p> : null}
+          </div>
+          <div className="duo-decision-actions">
+              <Button className="duo-decision dismiss" aria-label="다음에" title="다음에" disabled={Boolean(busy)} onClick={() => void act(offer.id)}><IconX size={21} /></Button>
+              <Button className="duo-decision accept" aria-label="같이 할래요" title="같이 할래요" variant="primary" disabled={Boolean(busy) || source.status !== 'OPEN'} onClick={() => void act(offer.id, offer.peer.id)}><IconCheck size={23} /></Button>
+          </div>
         </div>
       </article>;
     })}

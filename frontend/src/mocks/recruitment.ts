@@ -48,7 +48,14 @@ function seed() {
       const c = nickname ? { userId: `u-lol-${mode.modeKey.toLowerCase()}-${i}`, nickname } : CANDIDATES[i];
       const condition: MatchCondition = { game, modeKey: mode.modeKey, keyCondition: { type: config.keyConditionType, value: game === 'LOL' && mode.modeKey === 'ARAM' ? 'ANY' : config.values[i % config.values.length] }, voicePreference: i % 4 === 0 ? 'NO_VOICE' : i % 4 === 1 ? 'REQUIRED' : 'OPTIONAL', playPurpose: i % 3 === 0 ? 'FUN' : game === 'LOL' && mode.modeKey !== 'SOLO_DUO_RANKED' ? 'NORMAL' : 'RANK_UP' };
       const r: BoardRow = { id: uid(), userId: c.userId, nickname: game === 'LOL' || modeIndex === 0 ? c.nickname : `${c.nickname} · ${mode.modeKey === 'SQUAD' ? '스쿼드' : '일반'}`, type, condition,
-        preferences: { ...anyPreferences(), ownTier: ['SILVER', 'GOLD', 'PLATINUM'][i % 3] },
+        preferences: { ...anyPreferences(), ownTier: ['SILVER', 'GOLD', 'PLATINUM'][i % 3],
+          ...(hasPositions(condition) ? (() => {
+            const roles = config.values.filter(role => role !== 'ANY');
+            const ownCount = [1, 2, 3, 4, roles.length, 2, 1, 4, 3, roles.length][i];
+            const wantedCount = [2, 1, 4, 3, 1, roles.length, 3, 2, roles.length, 4][i];
+            const take = (count: number, offset: number) => Array.from({ length: Math.min(count, roles.length) }, (_, n) => roles[(n + offset) % roles.length]);
+            return { ownKeys: take(ownCount, i), desiredKeys: take(wantedCount, i + 2) };
+          })() : {}), },
         description: ['서로 존중하면서 편하게 해요', '함께 한 판 하실 분 구해요', '차분하게 소통하며 즐겨요'][i % 3], autoMatch: i % 4 !== 0,
         ...(type === 'RESERVATION' ? reservationWindow() : { availableFrom: null, availableTo: null, playAmount: null }),
         status: 'OPEN', createdAt: new Date(Date.now() - (modeIndex * 10 + i + 1) * 40_000).toISOString(), confirmedAt: new Date(Date.now() - i * 20_000).toISOString(), bumpedAt: null,
@@ -74,7 +81,7 @@ function refresh(row: BoardRow): BoardRow {
   if (source?.status === 'PROPOSED' || source?.status === 'MATCHED') { row.status = source.status; row.proposalId = source.proposalId ?? null; }
   else if (source && ['CANCELLED', 'EXPIRED', 'COMPLETED'].includes(source.status)) row.status = 'CLOSED';
   else if (row.status === 'PROPOSED' && source) { row.status = 'OPEN'; row.proposalId = null; row.parentId = null; row.requestedParentId = null; row.members = [person(row)]; releaseMode(row); }
-  if (row.status === 'OPEN' && row.type === 'REALTIME' && Date.now() - new Date(row.confirmedAt).getTime() >= 12 * 60_000) row.status = 'STALE';
+  if (row.status === 'STALE') row.status = 'OPEN';
   if (row.type === 'RESERVATION' && row.availableTo && new Date(row.availableTo).getTime() <= Date.now()) row.status = 'CLOSED';
   return row;
 }
@@ -102,12 +109,13 @@ function view(row: BoardRow) {
 function owned(id: string) { const row = rows.get(id); if (!row || row.userId !== db.me.id) throw new ApiError(404, 'RECRUITMENT_NOT_FOUND', '매칭을 찾을 수 없습니다'); return refresh(row); }
 function editable(row: BoardRow) { if (!['OPEN', 'STALE', 'PAUSED', 'REQUESTED', 'JOINED'].includes(row.status)) throw new ApiError(409, 'RECRUITMENT_CONFLICT', '현재 매칭 상태를 다시 확인해 주세요'); }
 function version(row: BoardRow, expected: number) { if (row.version !== expected) throw new ApiError(409, 'RECRUITMENT_CONFLICT', '다른 화면에서 매칭이 바뀌었습니다. 다시 확인해 주세요'); }
+function ownRoles(condition: MatchCondition, preferences: BoardPreferences) { return preferences.ownKeys ?? (condition.keyCondition.value === 'ANY' ? [] : [condition.keyCondition.value]); }
 function accepts(a: BoardPreferences, ca: MatchCondition, b: BoardPreferences, cb: MatchCondition) {
   if (a.minTier || a.maxTier) {
     const list = tiers(ca.game), value = b.ownTier ? list.indexOf(b.ownTier) : -1;
     if (value < 0 || (a.minTier && value < list.indexOf(a.minTier)) || (a.maxTier && value > list.indexOf(a.maxTier))) return false;
   }
-  return (!hasPositions(ca) || !hasPositions(cb) || !a.desiredKeys.length || cb.keyCondition.value === 'ANY' || a.desiredKeys.includes('ANY') || a.desiredKeys.includes(cb.keyCondition.value)) && (!a.purposeRequired || ca.playPurpose === cb.playPurpose);
+  return (!hasPositions(ca) || !hasPositions(cb) || !a.desiredKeys.length || !ownRoles(cb, b).length || a.desiredKeys.includes('ANY') || ownRoles(cb, b).some(role => a.desiredKeys.includes(role))) && (!a.purposeRequired || ca.playPurpose === cb.playPurpose);
 }
 function compatible(ca: MatchCondition, pa: BoardPreferences, cb: MatchCondition, pb: BoardPreferences): boolean {
   if (ca.game !== cb.game || (ca.modeKey !== 'ANY' && cb.modeKey !== 'ANY' && ca.modeKey !== cb.modeKey)) return false;
@@ -116,20 +124,27 @@ function compatible(ca: MatchCondition, pa: BoardPreferences, cb: MatchCondition
   const selectedMode = ca.modeKey === 'ANY' ? cb.modeKey : ca.modeKey;
   ca = conditionInMode(ca, selectedMode); cb = conditionInMode(cb, selectedMode);
   if ([ca.voicePreference, cb.voicePreference].includes('REQUIRED') && [ca.voicePreference, cb.voicePreference].includes('NO_VOICE')) return false;
-  if (modeOf(ca.game, selectedMode)?.roleUniqueness && ca.keyCondition.value !== 'ANY' && ca.keyCondition.value === cb.keyCondition.value) return false;
+  if (modeOf(ca.game, selectedMode)?.roleUniqueness && hasPositions(ca)) {
+    const available = GAME_SEED[ca.game].values.filter(role => role !== 'ANY');
+    const a = ownRoles(ca, pa).length ? ownRoles(ca, pa) : available;
+    const b = ownRoles(cb, pb).length ? ownRoles(cb, pb) : available;
+    if (!a.some(left => b.some(right => left !== right && (!pa.desiredKeys.length || pa.desiredKeys.includes(right)) && (!pb.desiredKeys.length || pb.desiredKeys.includes(left))))) return false;
+  }
   return accepts(pa, ca, pb, cb) && accepts(pb, cb, pa, ca);
 }
 function matches(query: BoardSearch, row: BoardRow, viewerId = db.me.id) {
   refresh(row);
-  if (row.status !== 'OPEN' || row.userId === viewerId || row.type !== query.type || row.members.length >= row.targetSize
-    || row.members.some(member => member.userId === viewerId || db.blocks.some(block => block.userId === member.userId))) return false;
+  if (row.status !== 'OPEN' || (!query.browse && row.userId === viewerId) || row.type !== query.type || row.members.length >= row.targetSize
+    || row.members.some(member => (!query.browse && member.userId === viewerId) || db.blocks.some(block => block.userId === member.userId))) return false;
   if (query.browse) {
     // 탐색 필터는 상대의 공개 소개만 본다. 참여·자동 매칭에서만 양방향 조건을 확인한다.
     if (query.condition.game !== row.condition.game) return false;
     const modeKey = effectiveCondition(row).modeKey;
     if (query.condition.modeKey !== 'ANY' && modeKey !== 'ANY' && query.condition.modeKey !== modeKey) return false;
-    if (hasPositions(query.condition) && query.condition.keyCondition.value !== 'ANY' && query.condition.keyCondition.value !== effectiveCondition(row).keyCondition.value) return false;
-    if (query.condition.voicePreference !== 'OPTIONAL' && query.condition.voicePreference !== row.condition.voicePreference) return false;
+    const roles = query.preferences.desiredKeys.length ? query.preferences.desiredKeys : query.condition.keyCondition.value !== 'ANY' ? [query.condition.keyCondition.value] : [];
+    if (hasPositions(query.condition) && roles.length && !ownRoles(effectiveCondition(row), row.preferences).some(role => roles.includes(role)) && ownRoles(effectiveCondition(row), row.preferences).length > 0) return false;
+    if (hasPositions(query.condition) && query.preferences.ownKeys?.length && row.preferences.desiredKeys.length && !query.preferences.ownKeys.some(role => row.preferences.desiredKeys.includes(role))) return false;
+    if (query.condition.voicePreference !== 'OPTIONAL' && row.condition.voicePreference !== 'OPTIONAL' && query.condition.voicePreference !== row.condition.voicePreference) return false;
     if (!accepts({ ...query.preferences, desiredKeys: [], purposeRequired: false }, query.condition, row.preferences, row.condition)) return false;
   } else if (!row.members.every(m => compatible(query.condition, query.preferences, m.condition, m.preferences))) return false;
   if (row.type === 'RESERVATION') {

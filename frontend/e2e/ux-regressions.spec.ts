@@ -83,11 +83,11 @@ test('친구 요청 탭, 검색 빈 상태, 신고 모달 키보드 포커스', 
 
 test('검색 필터는 내 매칭을 바꾸지 않고 게임과 필터 선택을 유지한다', async ({ page }) => {
   await login(page); await startRealtimeMatch(page);
-  const roles = page.locator('.board-filter-bar').getByRole('group', { name: '찾는 상대 포지션', exact: true });
+  const roles = page.locator('.board-filter-bar').getByRole('group', { name: '포지션', exact: true });
   await roles.getByRole('button', { name: '미드', exact: true }).click();
-  await expect(page.locator('.my-recruitment .recruitment-own-summary')).toContainText('무관');
+  await expect(page.locator('.my-recruitment .recruitment-role-own').getByRole('img', { name: 'ALL', exact: true })).toBeVisible();
   await manageRecruitment(page, '조건 수정');
-  await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '주 포지션', exact: true }).getByRole('button', { name: '무관', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.recruitment-composer-shell').getByRole('group', { name: '포지션', exact: true }).locator('[aria-pressed=true]')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: '발로란트 매칭', exact: true }).click();
   await expect(roles.getByRole('button', { name: '타격대', exact: true })).toBeVisible();

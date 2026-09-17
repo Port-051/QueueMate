@@ -9,7 +9,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, develop]
+    branches: [main]
 
 concurrency:
   # 같은 브랜치에 새 커밋이 오면 이전 실행은 버린다. 러너를 낭비하지 않는다.
@@ -29,12 +29,12 @@ jobs:
       # 더미 서버는 의존성이 없다. 설치 단계가 필요 없다.
       - name: 더미 서버를 계약에 맞춰 검증한다
         run: |
-          node mock-server/server.js &
+          MOCK_AUTO_MATCH_MS=1000 node mock-server/server.js &
           for i in $(seq 1 30); do
             curl -sf http://localhost:8080/actuator/health >/dev/null && break
             sleep 1
           done
-          bash mock-server/contract-smoke.sh
+          MOCK_PORT=8080 bash mock-server/contract-smoke.sh
 
       - name: openapi.yaml이 유효한 YAML인지 본다
         run: |
@@ -69,7 +69,7 @@ jobs:
           path: backend/build/reports/tests/test
 
   frontend:
-    name: 프론트엔드 빌드
+    name: 프론트엔드 빌드·회귀 테스트
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -84,3 +84,15 @@ jobs:
       - name: 빌드
         working-directory: frontend
         run: npm run build
+      - name: 브라우저 설치
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: 프론트 회귀 테스트
+        working-directory: frontend
+        run: npx playwright test --workers=2
+      - name: 프론트 실패 자료
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-results
+          path: frontend/test-results

@@ -10,32 +10,37 @@ import { Avatar, Button } from './ui';
 import { MatchingRailPanel } from './MatchingRailPanel';
 import { FilterModeIcon, FilterRoleIcon } from './FilterSymbols';
 import { RankBadge } from './RankBadge';
-import { IconMic, IconMicOff, IconMicOptional } from './icons';
+import { VoiceIcon } from './FilterSymbols';
 import { PerformanceValue, PreferredChampions } from './IntroductionVisuals';
 import '../styles/introduction.css';
 
-export const desiredLabel = (row: IntroductionRecord) => normalizeDesiredRoles(row.condition.game, row.preferences.desiredKeys).length ? normalizeDesiredRoles(row.condition.game, row.preferences.desiredKeys).map(v => keyConditionOptions(row.condition.game).find(k => k.value === v)?.label ?? v).join('·') : '무관';
-const roleLabel = (row: IntroductionRecord) => row.condition.keyCondition.value === 'ANY' ? '무관' : keyConditionLabel(row.condition);
+export const desiredLabel = (row: IntroductionRecord) => normalizeDesiredRoles(row.condition.game, row.preferences.desiredKeys).length ? normalizeDesiredRoles(row.condition.game, row.preferences.desiredKeys).map(v => keyConditionOptions(row.condition.game).find(k => k.value === v)?.label ?? v).join('·') : '전체';
+const ownRoles = (row: IntroductionRecord) => row.preferences.ownKeys ?? (row.condition.keyCondition.value !== 'ANY' ? [row.condition.keyCondition.value] : []);
+const roleLabel = (row: IntroductionRecord) => ownRoles(row).length ? ownRoles(row).map(value => keyConditionOptions(row.condition.game).find(role => role.value === value)?.label ?? value).join('·') : '전체';
 const queueLabel = (row: IntroductionRecord) => row.condition.modeKey === 'ANY' ? '큐 무관' : modeLabel(row.condition.game, row.condition.modeKey);
 const voiceLabel = (row: IntroductionRecord) => row.condition.voicePreference === 'OPTIONAL' ? '음성 무관' : VOICE_LABEL[row.condition.voicePreference];
-const roleTitle = (row?: IntroductionRecord) => row?.condition.game === 'VALORANT' ? '주 역할' : row?.condition.game === 'PUBG' ? '플레이 스타일' : '주 포지션';
+const roleTitle = (row?: IntroductionRecord) => row?.condition.game === 'VALORANT' ? '주 역할' : row?.condition.game === 'PUBG' ? '플레이 스타일' : '포지션';
 
 export function RecruitmentVoice({ row }: { row: IntroductionRecord }) {
   const preference = row.condition.voicePreference;
   return <span className={`recruitment-voice voice-${preference.toLowerCase()}`} role="img" aria-label={voiceLabel(row)} title={voiceLabel(row)}>
-    <span aria-hidden="true">{preference === 'REQUIRED' ? <IconMic size={20} /> : preference === 'NO_VOICE' ? <IconMicOff size={20} /> : <IconMicOptional size={20} />}</span>
+    <VoiceIcon preference={preference} />
   </span>;
 }
 
 export function RecruitmentRoleIcons({ row }: { row: IntroductionRecord }) {
   const game = row.condition.game;
   if (!usesKeyCondition(game, row.condition.modeKey)) return null;
-  const label = (value: string) => value === 'ANY' ? '무관' : keyConditionOptions(game).find(role => role.value === value)?.label ?? value;
+  const label = (value: string) => value === 'ANY' ? 'ALL' : keyConditionOptions(game).find(role => role.value === value)?.label ?? value;
   const icon = (value: string) => <span key={value} className="recruitment-role-icon" role="img" aria-label={label(value)} title={label(value)}><FilterRoleIcon game={game} value={value} size={22} /></span>;
+  const displayRoles = (selected: string[]) => {
+    const valid = normalizeDesiredRoles(game, selected);
+    const count = keyConditionOptions(game).filter(role => role.value !== 'ANY').length;
+    return !valid.length || valid.length === count ? ['ANY'] : valid;
+  };
   return <span className="recruitment-role-pair" role="group" aria-label={`${roleTitle(row)}: ${roleLabel(row)}, 찾는 상대: ${desiredLabel(row)}`}>
-    {icon(row.condition.keyCondition.value)}
-    <svg className="recruitment-role-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6" /></svg>
-    <span className="recruitment-role-targets">{(normalizeDesiredRoles(game, row.preferences.desiredKeys).length ? normalizeDesiredRoles(game, row.preferences.desiredKeys) : ['ANY']).map(icon)}</span>
+    <span className="recruitment-role-own" title={`본인: ${roleLabel(row)}`}>{displayRoles(ownRoles(row)).map(icon)}</span>
+    <span className="recruitment-role-targets" title={`찾는 상대: ${desiredLabel(row)}`}>{displayRoles(row.preferences.desiredKeys).map(icon)}</span>
   </span>;
 }
 
@@ -57,16 +62,16 @@ export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]
   }, []);
   const withoutRoles = rows.length > 0 && rows.every(row => !usesKeyCondition(row.condition.game, row.condition.modeKey));
   return <div className={`recruitment-list${withoutRoles ? ' without-roles' : ''}`} aria-label="매칭 글 목록">
+    <div className="board-column-head"><span>플레이어</span><span>티어</span>{!withoutRoles ? <div className="position-column-head"><span>포지션</span><span>찾는 포지션</span></div> : null}<span>마이크</span><span>게시 시간</span></div>
     {rows.map(row => {
       const introduction = introductionForRow(row);
       const hasRoles = usesKeyCondition(row.condition.game, row.condition.modeKey);
       return <button type="button" key={row.id} data-recruitment-id={row.id} className={`recruitment-row ${selected === row.id ? 'selected' : ''} ${row.status !== 'OPEN' ? 'unavailable' : ''}${hasRoles ? '' : ' without-roles'}`} aria-label={`${row.nickname} 매칭 글 상세`} aria-pressed={selected === row.id} onClick={() => onSelect(row)}>
       <div className="row-player"><Avatar name={row.nickname} size={40} /><div><div className="row-player-heading"><b>{row.nickname}</b>{introduction.champions.length ? <PreferredChampions game={row.condition.game} names={introduction.champions} /> : null}</div><IntroductionStats game={row.condition.game} introduction={introduction} showChampions={false} />{row.description ? <p>{row.description}</p> : null}</div></div>
       <div className="row-meta row-rank"><RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /></div>
-      <div className="row-meta row-mode"><span className="recruitment-mode"><FilterModeIcon mode={row.condition.modeKey} /><span>{queueLabel(row)}</span></span>{row.targetSize > 2 ? <small>{row.members.length}/{row.targetSize}명</small> : null}</div>
       {!withoutRoles ? <div className="row-meta row-roles">{hasRoles ? <RecruitmentRoleIcons row={row} /> : <span className="row-role-unavailable" role="img" aria-label="포지션 지정 없음">—</span>}</div> : null}
       <div className="row-meta row-voice"><RecruitmentVoice row={row} /></div>
-      <div className="row-meta row-fresh"><time className="row-posted" dateTime={row.createdAt} title={`게시: ${timeLabel(row.createdAt)}`}>{relativeBoardTime(row.createdAt, now)}</time>{row.status !== 'OPEN' ? <small>{BOARD_STATUS[row.status]}</small> : null}<span className="row-arrow" aria-hidden="true">↗</span></div>
+      <div className="row-meta row-fresh"><time className="row-posted" dateTime={row.createdAt} title={`게시: ${timeLabel(row.createdAt)}`}>{relativeBoardTime(row.createdAt, now)}</time>{row.status !== 'OPEN' ? <small>{BOARD_STATUS[row.status]}</small> : null}</div>
     </button>; })}
   </div>;
 }

@@ -71,6 +71,8 @@ test('추천에 답하지 않아도 매칭을 잠그지 않고 조건을 수정�
   await expect(page.locator('.duo-offer')).toHaveCount(1);
   await expect(page.locator('.board-proposal')).toHaveCount(0);
   await manageRecruitment(page, '조건 수정');
+  await expect(page.getByRole('button', { name: '매칭 조건 저장', exact: true })).toBeDisabled();
+  await page.getByLabel('한마디').fill('조건 변경 가능 확인');
   await expect(page.getByRole('button', { name: '매칭 조건 저장', exact: true })).toBeEnabled();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('timer', { name: '매칭 시작 후', exact: true })).toBeVisible();
@@ -130,12 +132,11 @@ test('실시간과 예약을 함께 만들었을 때 탭에 맞는 매칭을 관
   await expect(page.getByRole('button', { name: '매칭 재개', exact: true })).toBeVisible();
 });
 
-test('한 시간 이상 지난 매칭도 활동 재확인 후 원래 경과 시간을 유지한다', async ({ page }) => {
+test('한 시간 이상 지난 매칭도 활동 확인 없이 원래 경과 시간을 유지한다', async ({ page }) => {
   await page.clock.install(); await login(page); await startRealtimeMatch(page);
   await page.clock.fastForward(61 * 60_000);
   await expect(page.getByRole('timer', { name: '매칭 시작 후', exact: true })).toHaveText(/^01:01:/);
-  await expect(page.getByRole('button', { name: '계속 매칭할게요' })).toBeVisible();
-  await page.getByRole('button', { name: '계속 매칭할게요' }).click();
+  await expect(page.getByRole('button', { name: '계속 매칭할게요' })).toHaveCount(0);
   await expect(page.locator('.recruitment-title')).toContainText('매칭 중');
   await expect(page.getByRole('timer', { name: '매칭 시작 후', exact: true })).toHaveText(/^01:01:/);
 });

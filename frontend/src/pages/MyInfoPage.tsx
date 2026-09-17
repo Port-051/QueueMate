@@ -2,15 +2,15 @@ import { FilterTierIcon } from '../components/FilterSymbols';
 import '../styles/introduction.css';
 import { GameBadge } from '../components/GameSymbol';
 import { ProfileSettings } from '../components/ProfileSettings';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
 import type { GameKey } from '../api/types';
 import { IconCheck, IconLogout, IconPencil, IconPlus, IconShield } from '../components/icons';
-import { AVATAR_CHOICES, Avatar, Button, ConfirmDialog, Field, Modal, useToast } from '../components/ui';
+import { AVATAR_CHOICES, avatarImageSrc, Avatar, Button, ConfirmDialog, Field, Modal, useToast } from '../components/ui';
 import { GAMES } from '../domain/gameConfig';
-import { gameFullLabel } from '../domain/labels';
+import { gameFullLabel, rankLabel } from '../domain/labels';
 import { useAuth } from '../state/AuthContext';
 import { useSocial } from '../state/SocialContext';
 
@@ -31,6 +31,10 @@ export function MyInfoPage() {
   // 모달 안에서만 쓰는 임시 선택이다. 저장 전까지 실제 프로필은 건드리지 않는다.
   const [picked, setPicked] = useState<string | null>(null);
   const [savingAvatar, setSavingAvatar] = useState(false);
+
+  const lolAccount = gameAccounts.find((account) => account.game === 'LOL');
+  const soloRank = rankLabel(lolAccount?.rankCode ?? null);
+  const flexRank = rankLabel(lolAccount?.flexRankCode ?? null);
 
   const nicknameChanged = nickname.trim() !== user?.nickname;
   const nicknameError = nicknameChanged && (nickname.trim().length < 2 || nickname.trim().length > 16) ? '닉네임은 2~16자로 입력해주세요.' : undefined;
@@ -140,8 +144,8 @@ export function MyInfoPage() {
         <section className="profile-section" aria-labelledby="profile-record-heading">
           <div className="profile-section-heading"><h2 id="profile-record-heading">내 전적</h2></div>
           <section className="linked-game-record" aria-label="롤 전적 정보">
-            <div className="linked-record-heading"><FilterTierIcon game="LOL" tier={null} size={26} /><strong>리그 오브 레전드 전적</strong><span>연동 대기</span></div>
-            <dl><div><dt>티어</dt><dd>—</dd></div><div><dt>승률</dt><dd>—</dd></div><div><dt>KDA</dt><dd>—</dd></div></dl>
+            <div className="linked-record-heading"><FilterTierIcon game="LOL" tier={lolAccount?.rankCode?.split('_')[0] ?? null} size={26} /><strong>리그 오브 레전드 전적</strong><span>{soloRank || flexRank ? '랭크 연동' : '연동 대기'}</span></div>
+            <dl><div><dt>솔로 랭크</dt><dd>{soloRank ?? '—'}</dd></div><div><dt>자유 랭크</dt><dd>{flexRank ?? '—'}</dd></div><div><dt>승률</dt><dd>—</dd></div><div><dt>KDA</dt><dd>—</dd></div></dl>
             <div className="linked-record-champions" aria-label="챔피언 연동 대기"><span /><span /><span /><small>챔피언 · 최근 20경기</small></div>
           </section>
         </section>
@@ -214,7 +218,7 @@ export function MyInfoPage() {
                 disabled={savingAvatar}
                 onClick={() => setPicked(src)}
               >
-                <img className="ap-img" src={src} alt={`아바타 ${i + 1}`} draggable={false} />
+                <img className="ap-img" src={avatarImageSrc(src)} alt={`아바타 ${i + 1}`} draggable={false} />
                 {picked === src ? <span className="ap-check" aria-hidden="true"><IconCheck size={12} /></span> : null}
               </button>
             ))}

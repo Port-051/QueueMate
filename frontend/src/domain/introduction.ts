@@ -8,6 +8,7 @@ export type MatchResult = 'WIN' | 'LOSS' | null;
 export type IntroductionRecord = Pick<BoardRow, 'userId' | 'condition' | 'preferences'> & { description?: string };
 export interface SelfIntroduction {
   primaryRole: string;
+  primaryRoles?: string[];
   desiredRoles: string[];
   ownTier: string | null;
   rankDivision?: LolRankDivision | null;
@@ -30,14 +31,15 @@ const strings = (value: unknown) => Array.isArray(value) ? value.filter((item): 
 
 export function normalizeDesiredRoles(game: GameKey, selected: string[]): string[] {
   const available = keyConditionOptions(game).filter(role => role.value !== 'ANY').map(role => role.value);
-  const valid = [...new Set(selected)].filter(role => available.includes(role));
-  return available.length && available.every(role => valid.includes(role)) ? [] : valid;
+  const valid = available.filter(role => selected.includes(role));
+  return valid;
 }
 
 function normalize(value: Partial<SelfIntroduction>, game: GameKey): SelfIntroduction {
   const defaults = emptyIntroduction();
   return {
     primaryRole: text(value.primaryRole, defaults.primaryRole) || 'ANY',
+    primaryRoles: normalizeDesiredRoles(game, value.primaryRoles ?? (value.primaryRole && value.primaryRole !== 'ANY' ? [value.primaryRole] : [])),
     desiredRoles: normalizeDesiredRoles(game, strings(value.desiredRoles)),
     ownTier: typeof value.ownTier === 'string' && value.ownTier ? value.ownTier : null,
     ...normalizeLolRankDetails(game === 'LOL' ? value.ownTier : null, value.rankDivision),
@@ -72,6 +74,7 @@ export function introductionFromBoard(value: Pick<BoardWrite, 'condition' | 'pre
   const rankTier = value.condition.game === 'LOL' && saved?.ownTier === value.preferences.ownTier ? value.preferences.ownTier : null;
   return {
     ...(saved ?? emptyIntroduction()), primaryRole: hasRoles ? value.condition.keyCondition.value || 'ANY' : saved?.primaryRole ?? 'ANY',
+    primaryRoles: hasRoles ? [...(value.preferences.ownKeys ?? (value.condition.keyCondition.value !== 'ANY' ? [value.condition.keyCondition.value] : []))] : saved?.primaryRoles ?? [],
     desiredRoles: hasRoles ? [...value.preferences.desiredKeys] : [...(saved?.desiredRoles ?? [])], ownTier: value.preferences.ownTier,
     ...normalizeLolRankDetails(rankTier, saved?.rankDivision),
     queueType: value.condition.modeKey || 'ANY', voice: value.condition.voicePreference, bio: value.description ?? saved?.bio ?? '',
@@ -83,7 +86,7 @@ export function applyIntroduction(value: BoardWrite, introduction: SelfIntroduct
   return {
     ...value,
     condition: conditionForMode({ ...value.condition, keyCondition: { ...value.condition.keyCondition, value: introduction.primaryRole || 'ANY' }, voicePreference: introduction.voice }, modeKey),
-    preferences: { ...value.preferences, ownTier: introduction.ownTier, desiredKeys: usesKeyCondition(value.condition.game, modeKey) ? normalizeDesiredRoles(value.condition.game, introduction.desiredRoles) : [] },
+    preferences: { ...value.preferences, ownKeys: usesKeyCondition(value.condition.game, modeKey) ? normalizeDesiredRoles(value.condition.game, introduction.primaryRoles ?? (introduction.primaryRole !== 'ANY' ? [introduction.primaryRole] : [])) : [], ownTier: introduction.ownTier, desiredKeys: usesKeyCondition(value.condition.game, modeKey) ? normalizeDesiredRoles(value.condition.game, introduction.desiredRoles) : [] },
     description: introduction.bio,
   };
 }

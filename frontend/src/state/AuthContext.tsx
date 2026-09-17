@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import * as api from '../api/client';
 import { readTokens, setAuthLostHandler, subscribeTokens, writeTokens } from '../api/http';
@@ -24,6 +24,7 @@ interface AuthValue {
 const AuthCtx = createContext<AuthValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const authAttempt = useRef(0);
   const [status, setStatus] = useState<Status>('loading');
   const [user, setUser] = useState<UserProfile | null>(null);
   const [token, setToken] = useState<string | null>(() => readTokens()?.accessToken ?? null);
@@ -48,6 +49,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    const attempt = authAttempt.current;
+    const isObsolete = () => cancelled || attempt !== authAttempt.current;
     const stored = readTokens();
     if (!stored) {
       setStatus('anonymous');
@@ -56,15 +59,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         const me = await api.getMe();
-        if (cancelled) return;
+        if (isObsolete()) return;
+        const accounts = await api.getGameAccounts();
+        if (isObsolete()) return;
         setUser(me);
         setToken(stored.accessToken);
-        // 연결된 게임 계정까지 채운 뒤 인증 완료로 바꾼다. 온보딩 판정이 깜빡이지 않아야 한다.
-        await refreshGameAccounts();
-        if (cancelled) return;
+        setGameAccounts(accounts);
         setStatus('authenticated');
       } catch {
-        if (cancelled) return;
+        if (isObsolete()) return;
         writeTokens(null);
         setToken(null);
         setStatus('anonymous');
@@ -84,10 +87,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshGameAccounts]);
 
   const login = useCallback(async (email: string, password: string) => {
+    authAttempt.current += 1;
     await adoptTokens(await api.login({ email, password }));
   }, [adoptTokens]);
 
   const completeOAuth = useCallback(async (code: string) => {
+    authAttempt.current += 1;
     await adoptTokens(await api.exchangeOAuthCode(code));
   }, [adoptTokens]);
 
@@ -97,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [login]);
 
   const logout = useCallback(async () => {
+    authAttempt.current += 1;
     const stored = readTokens();
     try {
       if (stored) await api.logout(stored.refreshToken);
