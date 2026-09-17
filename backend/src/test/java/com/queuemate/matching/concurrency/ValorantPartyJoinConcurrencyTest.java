@@ -1,7 +1,7 @@
 package com.queuemate.matching.concurrency;
 
 import com.queuemate.matching.domain.GameKey;
-import com.queuemate.matching.domain.KeyConditionType;
+import com.queuemate.matching.domain.condition.KeyConditionType;
 import com.queuemate.matching.domain.ProposalResult;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
 import com.queuemate.matching.rule.CandidateRule;
@@ -138,7 +138,7 @@ class ValorantPartyJoinConcurrencyTest extends ConcurrencyTestSupport {
         command.setTier(tier);
 
         String requestId = matchRequestService.join(command).orElseThrow(
-                () -> new IllegalStateException("활성 요청 선점 실패: " + userId));
+                () -> new IllegalStateException("활성 요청 선점 실패: " + userId)).requestId();
         candidateRules.stream()
                 .filter(rule -> rule.supports(command.getGame()))
                 .findFirst()

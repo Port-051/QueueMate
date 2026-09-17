@@ -316,7 +316,7 @@ class PushNotificationTest extends ConcurrencyTestSupport {
     /** 활성 요청을 만들고 배정까지 태운다. 컨트롤러가 하는 두 단계와 같다 */
     private String enqueue(CreateMatchRequestCommand command) {
         String requestId = matchRequestService.join(command).orElseThrow(
-                () -> new IllegalStateException("활성 요청 선점에 실패했다: " + command.getUserId()));
+                () -> new IllegalStateException("활성 요청 선점에 실패했다: " + command.getUserId())).requestId();
         lolRule().canJoin(command);
         return requestId;
     }

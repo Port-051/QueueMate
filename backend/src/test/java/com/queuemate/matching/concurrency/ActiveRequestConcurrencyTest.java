@@ -5,6 +5,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import com.queuemate.matching.dto.AcceptedRequest;
+
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -27,7 +29,7 @@ class ActiveRequestConcurrencyTest extends ConcurrencyTestSupport {
         AtomicInteger accepted = new AtomicInteger();
 
         runConcurrently(100, i -> {
-            Optional<String> requestId = matchRequestService.join(command("u1", "RANKED_SOLO", "TOP"));
+            Optional<AcceptedRequest> requestId = matchRequestService.join(command("u1", "RANKED_SOLO", "TOP"));
             if (requestId.isPresent()) {
                 accepted.incrementAndGet();
             }
@@ -43,7 +45,7 @@ class ActiveRequestConcurrencyTest extends ConcurrencyTestSupport {
         AtomicInteger accepted = new AtomicInteger();
 
         runConcurrently(100, i -> {
-            Optional<String> requestId = matchRequestService.join(command("u" + i, "RANKED_SOLO", "TOP"));
+            Optional<AcceptedRequest> requestId = matchRequestService.join(command("u" + i, "RANKED_SOLO", "TOP"));
             if (requestId.isPresent()) {
                 accepted.incrementAndGet();
             }

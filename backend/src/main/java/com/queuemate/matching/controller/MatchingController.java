@@ -3,9 +3,11 @@ package com.queuemate.matching.controller;
 import com.queuemate.common.error.ErrorResponse;
 import com.queuemate.matching.domain.CancelResult;
 import com.queuemate.matching.domain.MatchRequestStatus;
+import com.queuemate.matching.dto.AcceptedRequest;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
 import com.queuemate.matching.dto.MatchRequestResponse;
 import com.queuemate.matching.service.MatchCancelService;
+import com.queuemate.matching.service.MatchQueryService;
 import com.queuemate.matching.service.MatchRequestService;
 import com.queuemate.matching.service.MatchTrigger;
 import com.queuemate.matching.validation.MatchConditionValidator;
@@ -33,6 +35,8 @@ public class MatchingController {
     private final MatchRequestService matchRequestService;
     private final MatchTrigger matchTrigger;
     private final MatchCancelService matchCancelService;
+    private final MatchQueryService matchQueryService;
+
 
     @PostMapping
     public ResponseEntity<?> createMatchRequest(@RequestBody @Valid CreateMatchRequestCommand request) {
@@ -43,20 +47,21 @@ public class MatchingController {
                     "지원하지 않는 매칭 조건입니다: " + request.getGame() + " / " + request.getModeKey()));
         }
 
-        Optional<String> requestId = matchRequestService.join(request);
-        if (requestId.isEmpty()) {
+        Optional<AcceptedRequest> accepted = matchRequestService.join(request);
+        if (accepted.isEmpty()) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(
                     "ALREADY_QUEUED", "이미 진행 중인 매칭 요청이 있습니다"));
         }
 
         matchTrigger.trigger(request);
 
+        // 접수 응답도 조회와 같은 모양이다. requestId 를 돌려줘야 클라이언트가 취소를 부를 수 있다
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new MatchRequestResponse(requestId.get(), MatchRequestStatus.QUEUED));
+                .body(MatchRequestResponse.queued(accepted.get().requestId(), accepted.get().queuedAt()));
     }
 
     /**
-     * 매칭 요청의 현재 상태를 조회한다. <b>아직 구현되지 않았다 — 501 을 돌려준다.</b>
+     * 이 사용자의 매칭 요청이 지금 어떤 상태인지 답한다.
      *
      * <h2>왜 필요한가</h2>
      * 알림(SSE)은 <b>사건</b>을 전한다. "방금 이렇게 됐다"는 말은 하지만 "지금 이렇다"는
@@ -67,35 +72,43 @@ public class MatchingController {
      * 서버:  이 사람 매칭 대기 중, 파티에도 들어가 있음
      * 클라:  아무것도 모름 → "매칭 시작" 버튼을 그림 → 누르면 409 ALREADY_QUEUED
      * </pre>
-     * 클라이언트가 상태를 로컬에 들고 있는 것으로는 못 푼다. 다른 기기에서는 없고,
-     * 서버에서 이미 만료됐는데 클라만 "대기 중"으로 아는 경우가 더 나쁘다.
-     * <b>물어볼 곳이 있어야 한다.</b>
+     * 게다가 Redis Pub/Sub 은 구독자가 없으면 그대로 버린다 — 페이지를 나가 있는 동안 발행된
+     * 알림은 사라지고, 다시 들어와도 오지 않는다. 계약이 "놓친 상태는 REST 로 복구한다"고
+     * 정해 둔 그 REST 가 이것이다.
      *
-     * <p>알림은 휘발성이라 재전송 보장이 없다는 것도 같은 결론으로 간다 — 계약이
-     * "놓친 상태는 REST 로 복구한다"고 정해 두었는데 그 REST 가 이것이다.
+     * <h2>왜 userId 로 찾나</h2>
+     * <b>활성 요청이 애초에 사용자 단위로 저장된다</b> ({@code qm:user:active-request:{userId}},
+     * INV-1). {@code requestId} 는 그 HASH 안에 든 값이지 찾는 열쇠가 아니다.
      *
-     * <h2>구현할 때 같이 정해야 하는 것</h2>
-     * <b>requestId 를 모르는 경우를 덮지 못한다.</b> 응답을 못 받았거나 클라이언트가 그 값을
-     * 잃으면, 취소({@code DELETE /match-requests/{requestId}})도 이 조회도 부를 수 없다.
-     * 파티에 배정되고 나면 claim 의 TTL 도 떼이므로(claim-request.lua) 스스로 빠져나올
-     * 길이 없어진다.
+     * <p>그리고 이 조회가 가장 필요한 순간이 <b>페이지를 새로 열었을 때</b>인데, 그때
+     * 클라이언트는 {@code requestId} 를 잃은 상태다. 그 값을 요구하면 정작 필요할 때 못 쓰는
+     * API 가 된다. 취소({@code DELETE})가 {@code requestId} 를 받는 것은 <b>쓰기</b>라서다 —
+     * 늦게 도착한 취소가 그 사이 새로 만든 요청을 지우면 안 되기 때문이고, 조회에는 그 위험이 없다.
      *
-     * <p>그래서 <b>userId 로 찾는 판</b>이 함께 필요하다 — {@code GET /match-requests?userId=}
-     * 같은 모양이다. 계약에는 없으므로 queueMate 본 저장소에서 contract 변경 커밋을
-     * 먼저 만들어야 한다 (CLAUDE.md §5).
+     * <p><b>계약에 없는 형태다.</b> 원본 계약({@code GET /match-requests/{requestId}})과 경로가
+     * 다르므로 queueMate 본 저장소에서 contract 변경 커밋이 필요하다 (CLAUDE.md §5).
+     * 그때까지의 불일치는 {@code contracts/README.md} 에 적어 두었다.
      *
-     * <p>응답 형태도 계약과 맞춰야 한다. 계약의 {@code MatchRequestView} 는
-     * {@code {id, status, queuedAt, proposalId}} 인데 구현의
-     * {@link com.queuemate.matching.dto.MatchRequestResponse} 는 {@code {requestId, status}} 뿐이다
-     * (contracts/README.md 불일치 표 4번). {@code queuedAt} / {@code proposalId} 를 채우려면
-     * proposal 구현이 먼저다.
+     * <h2>무엇을 답하나</h2>
+     * <ul>
+     *   <li>{@code IDLE} — 활성 요청이 없다. 취소·만료로 빠진 경우도 여기로 온다
+     *       (키를 지우므로 "원래 없었다"와 구분되지 않는다)
+     *   <li>{@code QUEUED} — 기다리는 중. 파티가 잡혔으면 {@code target}/{@code memberCount} 로
+     *       "3/5명"을 그릴 수 있다
+     *   <li>{@code PROPOSED} — 제안이 떠 있다. {@code expiresAt} 으로 남은 시간을,
+     *       {@code isAccepted} 로 내가 이미 눌렀는지를 안다
+     *   <li>{@code MATCHED} — 확정됐다. 파티 상세는 app:platform 이 답한다
+     * </ul>
+     *
+     * <p>파티 상세(누가 같이 있는지)는 여기서 답하지 않는다. 진행 중인 매칭 상태만 이 앱의
+     * 소유이고, 확정된 파티는 {@code app:platform} 의 것이다 (CLAUDE.md §9).
+     *
+     * <p>userId 는 JWT 를 붙이기 전까지만 쓰는 임시 파라미터다. 그때는 경로가 {@code /me} 가 된다.
      */
-    @GetMapping("/{requestId}")
-    public ResponseEntity<?> getMatchRequest(@PathVariable String requestId,
-                                             @RequestParam String userId) {
+    @GetMapping
+    public ResponseEntity<MatchRequestResponse> getMatchRequest(@RequestParam String userId) {
 
-        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(ErrorResponse.of(
-                "NOT_IMPLEMENTED", "매칭 요청 조회는 아직 구현되지 않았습니다"));
+        return ResponseEntity.ok(matchQueryService.find(userId));
     }
 
     /**
