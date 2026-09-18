@@ -28,7 +28,7 @@ export function RecruitmentVoice({ row }: { row: IntroductionRecord }) {
   </span>;
 }
 
-export function RecruitmentRoleIcons({ row }: { row: IntroductionRecord }) {
+export function RecruitmentRoleIcons({ row, side }: { row: IntroductionRecord; side?: 'own' | 'desired' }) {
   const game = row.condition.game;
   if (!usesKeyCondition(game, row.condition.modeKey)) return null;
   const label = (value: string) => value === 'ANY' ? 'ALL' : keyConditionOptions(game).find(role => role.value === value)?.label ?? value;
@@ -38,6 +38,13 @@ export function RecruitmentRoleIcons({ row }: { row: IntroductionRecord }) {
     const count = keyConditionOptions(game).filter(role => role.value !== 'ANY').length;
     return !valid.length || valid.length === count ? ['ANY'] : valid;
   };
+  if (side) {
+    const own = side === 'own';
+    const title = own ? `${roleTitle(row)}: ${roleLabel(row)}` : `찾는 상대: ${desiredLabel(row)}`;
+    return <span className={own ? 'recruitment-role-own' : 'recruitment-role-targets'} role="group" aria-label={title} title={title}>
+      {displayRoles(own ? ownRoles(row) : row.preferences.desiredKeys).map(icon)}
+    </span>;
+  }
   return <span className="recruitment-role-pair" role="group" aria-label={`${roleTitle(row)}: ${roleLabel(row)}, 찾는 상대: ${desiredLabel(row)}`}>
     <span className="recruitment-role-own" title={`본인: ${roleLabel(row)}`}>{displayRoles(ownRoles(row)).map(icon)}</span>
     <span className="recruitment-role-targets" title={`찾는 상대: ${desiredLabel(row)}`}>{displayRoles(row.preferences.desiredKeys).map(icon)}</span>
