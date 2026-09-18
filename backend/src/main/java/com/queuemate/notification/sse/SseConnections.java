@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Map;
 import java.util.Set;
@@ -30,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SseConnections {
 
     private final UserChannelSubscriber subscriber;
+    private final ObjectMapper objectMapper;
 
     private final Map<String, Set<SseEmitter>> connections = new ConcurrentHashMap<>();
 
@@ -66,7 +68,22 @@ public class SseConnections {
      * {@code id:} 필드에 싣는다. 보내기 실패는 그 연결만 버리고 예외를 밖으로 올리지 않는다.
      */
     public void send(String userId, String json) {
-        // TODO: json 에서 eventId 만 꺼내 id: 로, json 전체를 data: 로 각 emitter 에 보낸다. 실패한 emitter 는 completeWithError 후 remove
+        Set<SseEmitter> sseEmitters = connections.get(userId);
+        if (sseEmitters == null) {
+            return;
+        }
+        String eventId = eventIdOf(json);
+        sseEmitters.forEach(sseEmitter -> {
+            SseEmitter.SseEventBuilder eventBuilder = SseEmitter.event().data(json);
+            if (eventId != null) {
+                eventBuilder.id(eventId);
+            }
+            try {
+                sseEmitter.send(eventBuilder);
+            } catch (Exception e) {
+                sseEmitter.completeWithError(e);
+            }
+        });
     }
 
     /**
@@ -83,5 +100,17 @@ public class SseConnections {
                 }
             }
         });
+    }
+
+    /**
+     * 봉투에서 {@code eventId} 하나만 꺼낸다. 다른 필드는 보지 않는다 (CLAUDE.md §2).
+     * JSON 이 깨졌거나 필드가 없으면 {@code null} 이다. 그래도 본문은 그대로 전달한다.
+     */
+    private String eventIdOf(String json) {
+        try {
+            return objectMapper.readTree(json).path("eventId").asString(null);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }
