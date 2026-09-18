@@ -41,7 +41,7 @@ matching  ──PUBLISH──▶  Redis Pub/Sub               ──SUBSCRIBE─
 | 채널 | `qm:pubsub:push:{userId}` | `redisKeys/SharedKeys.java`의 `PUSH_CHANNEL_PREFIX = "qm:pubsub:push:"` + `pushChannel(userId)` |
 | 봉투 | `{type, eventId, occurredAt, payload}` 네 칸 고정 | `notification/PushPublisher.java`의 `record Envelope` |
 | `type` | `PushEventType` 이름 문자열 | `notification/PushEventType.java` |
-| `eventId` | 매번 새 UUID 문자열. **SSE `id:` 필드에 그대로 싣는다**(`eventId` = `Last-Event-ID`) | `PushPublisher#publish()` · `contracts/events.md` "재개" |
+| `eventId` | 매번 새 UUID 문자열. **SSE `id:` 필드에 그대로 싣는다.** 클라이언트가 중복을 거르는 데 쓴다 — `Last-Event-ID` 로 이어 보내지는 **않는다**(아래 "재연결") | `PushPublisher#publish()` · `contracts/events.md` "재연결" |
 | `occurredAt` | ISO-8601 UTC, 밀리초 단위 (`Instant.truncatedTo(MILLIS)`) | `PushPublisher#publish()` |
 | `payload` | 객체. 담을 것이 없어도 `null`이 아니라 `{}` | `PushPublisher#publish()` |
 
@@ -106,7 +106,6 @@ matching  ──PUBLISH──▶  Redis Pub/Sub               ──SUBSCRIBE─
 |---|---|
 | 인증 | `EventSource`는 요청 헤더를 붙일 수 없다. 쿼리 파라미터 토큰이냐 쿠키냐 |
 | 엔드포인트 경로 | `contracts/events.md`는 `GET /api/v1/events`라고 적지만 `contracts/openapi.yaml`에는 아직 없다 |
-| `Last-Event-ID` 재개 | `contracts/events.md` "재개"는 유한 버퍼로 재개한다고 적는다. 이 서비스의 결정은 **재전송 없음**(§2)이다. 계약과 어긋나 있으므로 계약을 고칠지 정해야 한다 |
 
 ## 8. 저장소 구성과 커밋 규칙
 
@@ -161,7 +160,7 @@ queuemate/
 | 무엇 | 경로 |
 |---|---|
 | 매칭 엔진 규칙 | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/CLAUDE.md` |
-| 알림 계약 (봉투·재개·하트비트·순서) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/contracts/events.md` |
+| 알림 계약 (봉투·재연결·하트비트·순서) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/contracts/events.md` |
 | 봉투를 만드는 코드 | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/backend/src/main/java/com/queuemate/matching/notification/PushPublisher.java` |
 | 알림 종류 5종 | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/backend/src/main/java/com/queuemate/matching/notification/PushEventType.java` |
 | 채널 접두사 원본 | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/backend/src/main/java/com/queuemate/matching/redisKeys/SharedKeys.java` (`PUSH_CHANNEL_PREFIX`) |
