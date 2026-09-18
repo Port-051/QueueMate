@@ -1,3 +1,22 @@
 spring:
   application:
     name: notification
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+
+server:
+  port: ${SERVER_PORT:8081}
+
+queuemate:
+  sse:
+    # 15~30초. 프록시/ALB 유휴 타임아웃(300초)보다 짧아야 한다
+    heartbeat-interval-ms: ${SSE_HEARTBEAT_INTERVAL_MS:20000}
+    # 무한(0)으로 두면 죽은 연결이 안 빠진다. 끊기면 EventSource 가 알아서 재접속한다
+    timeout-ms: ${SSE_TIMEOUT_MS:1800000}
+
+logging:
+  level:
+    com.queuemate: INFO
