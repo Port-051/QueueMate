@@ -1,13 +1,15 @@
 package com.queuemate.notification.controller;
 
 import com.queuemate.notification.sse.SseConnections;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.io.IOException;
 
 /**
  * 브라우저가 SSE 연결을 여는 입구. {@code GET /api/v1/events?userId=}
@@ -21,13 +23,22 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  */
 @RestController
 @RequestMapping("/api/v1/events")
-@RequiredArgsConstructor
 public class EventStreamController {
 
     private final SseConnections connections;
+    private final long timeoutMs;
+
+    public EventStreamController(SseConnections connections,
+                                 @Value("${queuemate.sse.timeout-ms}") long timeoutMs) {
+        this.connections = connections;
+        this.timeoutMs = timeoutMs;
+    }
 
     @GetMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter stream(@RequestParam String userId) {
-        return new SseEmitter();
+    public SseEmitter stream(@RequestParam String userId) throws IOException {
+        SseEmitter emitter = new SseEmitter(timeoutMs);
+        emitter.send(SseEmitter.event().comment("connected"));
+        connections.add(userId, emitter);
+        return emitter;
     }
 }

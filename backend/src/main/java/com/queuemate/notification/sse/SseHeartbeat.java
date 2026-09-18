@@ -19,6 +19,6 @@ public class SseHeartbeat {
 
     @Scheduled(fixedDelayString = "${queuemate.sse.heartbeat-interval-ms}")
     public void beat() {
-        // TODO: connections.broadcastComment("heartbeat") 를 부른다
+        connections.broadcastComment("heartbeat");
     }
 }

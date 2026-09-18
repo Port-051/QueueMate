@@ -37,14 +37,26 @@ public class SseConnections {
      * 연결을 등록한다. 그 사용자의 첫 연결이면 같은 compute 안에서 구독도 건다.
      */
     public void add(String userId, SseEmitter emitter) {
-        // TODO: compute 안에서 집합에 넣고, 새로 만든 집합이면 subscriber.subscribe(userId) 를 부른다
+        connections.compute(userId, (id, sseEmitters) -> {
+            if (sseEmitters == null) {
+                sseEmitters = ConcurrentHashMap.newKeySet();
+            }
+            sseEmitters.add(emitter);
+            return sseEmitters;
+        });
+        emitter.onCompletion(() -> remove(userId, emitter));
+        emitter.onTimeout(() -> remove(userId, emitter));
+        emitter.onError(e -> remove(userId, emitter));
     }
 
     /**
      * 연결을 뺀다. 그 사용자의 마지막 연결이면 같은 compute 안에서 구독도 푼다.
      */
     public void remove(String userId, SseEmitter emitter) {
-        // TODO: compute 안에서 집합에서 빼고, 비면 subscriber.unsubscribe(userId) 를 부르고 null 을 돌려줘 키를 지운다
+        connections.computeIfPresent(userId, (id, sseEmitters) -> {
+            sseEmitters.remove(emitter);
+            return sseEmitters.isEmpty() ? null : sseEmitters;
+        });
     }
 
     /**
@@ -62,6 +74,14 @@ public class SseConnections {
      * 브라우저 {@code EventSource} 는 주석 줄을 이벤트로 올리지 않는다.
      */
     public void broadcastComment(String comment) {
-        // TODO: 모든 emitter 에 SseEmitter.event().comment(comment) 를 보내고, 실패한 연결은 remove
+        connections.forEach((userId, sseEmitters) -> {
+            for (SseEmitter sseEmitter : sseEmitters) {
+                try {
+                    sseEmitter.send(SseEmitter.event().comment(comment));
+                } catch (Exception e) {
+                    sseEmitter.completeWithError(e);
+                }
+            }
+        });
     }
 }
