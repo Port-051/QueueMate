@@ -1,8 +1,10 @@
 package com.queuemate.notification.subscription;
 
+import com.queuemate.notification.redisKeys.PushChannels;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.stereotype.Component;
 
@@ -36,13 +38,13 @@ public class UserChannelSubscriber {
      * 그 사용자의 채널을 구독한다. 첫 연결이 생겼을 때 한 번만 불린다.
      */
     public void subscribe(String userId) {
-        // TODO: container.addMessageListener(listenerProvider.getObject(), new ChannelTopic(PushChannels.pushChannel(userId)))
+        container.addMessageListener(listenerProvider.getObject(), new ChannelTopic(PushChannels.pushChannel(userId)));
     }
 
     /**
      * 그 사용자의 채널 구독을 푼다. 마지막 연결이 끊겼을 때 한 번만 불린다.
      */
     public void unsubscribe(String userId) {
-        // TODO: container.removeMessageListener(listenerProvider.getObject(), new ChannelTopic(PushChannels.pushChannel(userId)))
+        container.removeMessageListener(listenerProvider.getObject(), new ChannelTopic(PushChannels.pushChannel(userId)));
     }
 }

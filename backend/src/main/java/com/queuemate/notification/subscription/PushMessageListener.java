@@ -1,6 +1,7 @@
 package com.queuemate.notification.subscription;
 
 import com.queuemate.notification.config.AsyncConfig;
+import com.queuemate.notification.redisKeys.PushChannels;
 import com.queuemate.notification.sse.SseConnections;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -8,7 +9,9 @@ import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * Redis 에서 받은 메시지를 해당 사용자의 SSE 연결로 넘긴다.
@@ -41,7 +44,17 @@ public class PushMessageListener implements MessageListener {
      */
     @Override
     public void onMessage(Message message, byte[] pattern) {
-        // TODO: 채널명(message.getChannel()) → PushChannels.userIdOf(), 본문(message.getBody()) → UTF-8 문자열로 바꾼 뒤
-        //       pushExecutor.execute(() -> connections.send(userId, json)) 으로 넘기고 즉시 리턴한다
+        String channel = new String(message.getChannel(), StandardCharsets.UTF_8);
+        String userId = PushChannels.userIdOf(channel);
+        if (userId == null) {
+            return;
+        }
+        String json = new String(message.getBody(), StandardCharsets.UTF_8);
+        try {
+            pushExecutor.execute(() -> connections.send(userId, json));
+        } catch (RejectedExecutionException e) {
+            // 알림은 휘발성이다. 넘친 것은 버리고 클라이언트가 상태 조회로 복구한다
+            log.warn("전송 풀이 가득 차 알림을 버린다 userId={}", userId);
+        }
     }
 }

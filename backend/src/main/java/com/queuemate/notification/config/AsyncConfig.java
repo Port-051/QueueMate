@@ -30,7 +30,16 @@ public class AsyncConfig {
     public Executor ssePushExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setThreadNamePrefix("sse-push-");
-        // TODO: 풀 크기(core/max), 큐 용량, 거부 정책을 정한다. 큐가 넘치면 알림은 버려도 되지만 리스너를 막으면 안 된다
+        // 전송은 소켓에 몇 줄 쓰는 짧은 일이라 스레드가 많이 필요 없다.
+        // max 는 큐가 가득 찬 뒤에야 쓰인다 (ThreadPoolExecutor 의 규칙). 평소에는 core 로 돈다
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(8);
+        // 반드시 유한해야 한다. 무제한이면 느린 클라이언트가 많을 때 밀린 알림이 메모리를 다 먹는다
+        executor.setQueueCapacity(1000);
+        // 거부 정책은 기본값(AbortPolicy, 예외를 던진다)을 그대로 둔다. 넘친 알림은
+        // PushMessageListener 가 예외를 잡아 버린다 - 알림은 휘발성이고 클라이언트가 조회로 복구한다.
+        // CallerRunsPolicy 로 바꾸지 마라. 넘치는 순간 Redis 리스너 스레드가 직접 전송하게 되어
+        // 느린 클라이언트 하나가 모든 사용자의 알림을 막는다 (CLAUDE.md §5)
         executor.initialize();
         return executor;
     }

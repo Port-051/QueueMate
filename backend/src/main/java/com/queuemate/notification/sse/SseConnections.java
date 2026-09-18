@@ -42,6 +42,7 @@ public class SseConnections {
         connections.compute(userId, (id, sseEmitters) -> {
             if (sseEmitters == null) {
                 sseEmitters = ConcurrentHashMap.newKeySet();
+                subscriber.subscribe(id);
             }
             sseEmitters.add(emitter);
             return sseEmitters;
@@ -57,7 +58,11 @@ public class SseConnections {
     public void remove(String userId, SseEmitter emitter) {
         connections.computeIfPresent(userId, (id, sseEmitters) -> {
             sseEmitters.remove(emitter);
-            return sseEmitters.isEmpty() ? null : sseEmitters;
+            if (sseEmitters.isEmpty()) {
+                subscriber.unsubscribe(id);
+                return null;
+            }
+            return sseEmitters;
         });
     }
 
