@@ -29,7 +29,14 @@ public class RedisConfig {
     public RedisMessageListenerContainer redisMessageListenerContainer(RedisConnectionFactory connectionFactory) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
-        // TODO: 구독 처리용 TaskExecutor, 연결 끊김 시 재구독 간격(recoveryInterval), 에러 핸들러를 정한다
+        // 나머지는 기본값을 쓴다. 2026-09-19 에 Redis 를 껐다 켜며 확인한 동작이다.
+        //  - 재연결: Redis 가 재시작돼도 열려 있던 SSE 연결은 다시 알림을 받는다. 컨테이너가 다시 붙으면서
+        //    등록돼 있던 채널을 전부 다시 구독한다. 그 사이 발행된 알림은 사라진다 - Pub/Sub 의 성질이고
+        //    클라이언트가 상태 조회로 복구한다
+        //  - Redis 가 죽어 있는 동안 마지막 연결이 닫혀도 구독 해제는 예외를 던지지 않는다. 맵에서 정상으로
+        //    빠지고, 복구 뒤 그 사용자가 재접속하면 구독이 새로 걸린다
+        //  - 에러 핸들러: PushMessageListener 가 예외를 안에서 다 잡으므로 따로 두지 않는다
+        //  - 리스너 스레드: onMessage 는 전송 풀에 넘기고 바로 끝나므로 기본 실행기로 충분하다
         return container;
     }
 }
