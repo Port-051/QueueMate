@@ -46,14 +46,14 @@ QueueMate는 **조건 기반 팀원 자동 랜덤 매칭** 서비스다 — "조
 | **파티** — `ProposalConfirmed.fifo`를 소비해 **DB에 파티를 만든다.** 확정된 파티와 파티원의 기록. 파티가 닫히면 `PartyClosed.fifo` 발행(소비도 이 앱). 파티룸의 **나가기·지금 누가 있나**는 `room`의 일이다(D-16) | docs/11 #21 · D-13 · D-16 · docs/00 §5 · `matching/CLAUDE.md` §9 |
 | **파티 모집 게시판(오래 남는 쪽)** — 모집 글 쓰기·수정, 게시판 목록, **차단 관계 거르기**(`social.blocks`가 같은 앱에 있다), 글의 상태(모집 중/확정/만료), **방장 확정과 파티원 기록**, **입장권 발급**(글이 모집 중이고 차단 관계가 아닐 때만 서명해 준다). 목록·확정 때 `room`의 방 키를 **읽는다**(§3.3) | docs/11 D-11 · D-16 |
 | **소셜** — 친구 요청/수락/거절/삭제, 차단/해제, 신고, 최근 함께한 사람. **`social.blocks`의 소유자**다. 차단은 **DB에 저장하는 것으로 끝낸다** — `BlockChanged.fifo`는 만들지 않는다(§3.4) | docs/00 §5 · D-1 · D-2 · D-12 |
-| **알림 발행** — `PARTY_*`·`FRIEND_*` 7종. 그중 방 입장·퇴장·강퇴 알림을 어느 앱이 어떤 `type`으로 내는지는 미정(D-16). `WEBRTC_SIGNAL`은 `room`이 발행한다 | contracts/events.md · docs/11 D-16 |
+| **알림 발행** — `PARTY_*`·`FRIEND_*` 7종(이름과 `payload`는 미정 — §7). **방 입장·퇴장·방 닫힘·강퇴 알림과 `WEBRTC_SIGNAL`은 `room`이 발행한다** — `PARTY_*`를 다시 쓰지 않고 새 이름(`ROOM_MEMBER_ENTERED` 등)을 지었다(§3.3) | contracts/events.md · docs/11 D-16 · `../room/contracts/room-api.md` "알림" |
 
 platform 소관 자원(contracts/openapi.yaml 머리말): `auth` `users` `parties` `friends` `blocks` `recent-players` `reports`. **경로와 스키마는 거기 없다**(§3.1). 머리말은 `reservations`도 platform 소관으로 적지만 D-15로 `app:reservation`의 것이 됐다.
 
 | 안 한다 | 왜 / 누가 |
 |---|---|
-| 매칭·제안·수락·확정, 매칭 Redis 키(`qm:party:*` `qm:user:*` `qm:proposal:*` `qm:gameconfig:*` `qm:lock:*`) 접근. **예외가 없다** — 활성 요청 키(`qm:user:active-request:{userId}`)를 쓰고 지우는 일은 `room`으로 갔다(D-16이 D-11 16번을 개정) | `matching`의 일이다. 진행 중 매칭 상태의 원본은 Redis이고 그 주인은 `matching`이다 (docs/11 #27) |
-| **방 안의 일** — 입장·나가기·강퇴, 정원 5명 검사, 접속 확인과 방장 이탈 감지, 활성 요청 키 쓰고 지우기, 시그널 `POST` 받기와 `WEBRTC_SIGNAL` 발행 | **`room`(`app:room`)** 의 일이다 (docs/11 D-16). 금방 사라지는 상태라 Redis에만 둔다. 이 앱과 `room`은 **서로 호출하지 않는다** — 입장권과 방 키로 잇는다(§3.3) |
+| 매칭·제안·수락·확정, 매칭 Redis 키(`qm:party:*` `qm:user:*` `qm:proposal:*` `qm:gameconfig:*` `qm:lock:*`) 접근. **예외가 없다** — "한 번에 하나만"은 키 둘로 지키고 **이 앱은 둘 다 만지지 않는다**: 활성 요청 키(`qm:user:active-request:{userId}`)는 `matching`만, 입장 표시 키(`qm:user:active-room:{userId}`)는 `room`만 쓰고 지우며 서로 상대 키를 `EXISTS`로만 본다(D-19가 D-11 16번과 D-16의 해당 대목을 개정) | `matching`의 일이다. 진행 중 매칭 상태의 원본은 Redis이고 그 주인은 `matching`이다 (docs/11 #27) |
+| **방 안의 일** — 방 만들기·입장·나가기·강퇴, 정원 5명 검사, 접속 확인과 방장 이탈 감지, 입장 표시 키 쓰고 지우기(활성 요청 키는 `EXISTS`로 보기만 한다 — D-19), 방 알림(`ROOM_*`) 발행, 시그널 `POST` 받기와 `WEBRTC_SIGNAL` 발행 | **`room`(`app:room`)** 의 일이다 (docs/11 D-16 · D-19). 금방 사라지는 상태라 Redis에만 둔다. 이 앱과 `room`은 **서로 호출하지 않는다** — 입장권과 방 키로 잇는다(§3.3) |
 | 브라우저 연결 보유 — `SseEmitter` / WebSocket | `notification`의 일이다. 이 앱은 **stateless REST**로 남아야 무중단 교체가 자유롭다 (docs/11 #15 · docs/14 §6). WebSocket은 어느 앱에도 없다 (D-9) |
 | **예약 전부** — 예약 REST(`/api/v1/reservations` 등록·조회·수정·취소, INV-9 검증), 짝 찾기 배치, `RESERVATION_*` 발행 | **`app:reservation`(AWS Lambda)** 의 일이다 (docs/11 D-15 — #24의 "예약 REST는 `app:platform`"과 `app:reservation-batch`를 대체한다). 예약은 이 앱의 다른 모듈과 같은 트랜잭션으로 묶일 일이 없다 |
 | TURN 단기 credential 발급, 음성·텍스트 채팅 중계/저장 | TURN은 Cloudflare 관리형이고 발급 주체는 `app:realtime`이다 (docs/11 #25). 음성·텍스트는 브라우저 직결(WebRTC audio + DataChannel)이라 서버를 거치지 않는다 (#6). (참고: 지금은 공개 STUN만으로 개발을 시작한다) |
@@ -94,17 +94,37 @@ Redis `PUBLISH qm:pubsub:push:{userId}`에 **JSON 문자열 하나**를 보낸�
 - 클라이언트는 알림을 "다시 조회하라"는 신호로 다룬다(contracts/events.md "순서 보장 범위"). 그러므로
   알림이 가리키는 상태는 **REST로 조회할 수 있어야 한다.**
 
-### 3.3 `room`과 잇는 법 — 입장권과 방 키 (docs/11 D-16). 시그널링은 이 앱의 일이 아니다
+### 3.3 `room`과 잇는 법 — 입장권과 방 키 (docs/11 D-16 · D-19). 시그널링은 이 앱의 일이 아니다
 
 - **WebRTC 시그널 `POST`와 `WEBRTC_SIGNAL` 발행은 `room`의 일이다** (D-16이 D-9의 `app:platform`을 개정). 규칙은 `../room/CLAUDE.md` §3.3.
+  방 알림(`ROOM_MEMBER_ENTERED` · `ROOM_MEMBER_LEFT` · `ROOM_CLOSED`, 강퇴 알림 `ROOM_MEMBER_KICKED`는 구현 중)도 `room`이 발행한다 — `payload`는 `docs/ROOM_CONTRACT.md` "알림".
 - **입장권.** 글을 누르면 브라우저가 먼저 이 앱에 입장권을 요청한다. 글이 **모집 중인지·차단 관계가 아닌지** 확인하고 **서명된 입장권**(방
   식별자, 방장이 누구인지, 만료 시각 등)을 준다. `room`은 서명만 검증하고 이 앱에 묻지 않는다. **확정되거나 만료된 글에는 입장권을 내주지
   않는다** — 그래서 "확정 뒤에는 새 사람이 못 들어온다"와 "만료된 글은 못 들어간다"가 `room`이 글의 상태를 몰라도 지켜진다.
 - **방 키를 읽는다 — 이 앱이 남의 Redis 키를 만지는 유일한 예외다.** 목록을 만들 때 글마다 "방이 살아 있는가·몇 명인가"를 조회하고(가득 찬 방
   표시), 방이 사라져 있으면 그 자리에서 글을 만료로 바꾼다. 방장 확정 때도 같은 키에서 현재 인원을 읽어 파티원으로 기록한다. **쓰지는 않는다.**
   단 확정 순간의 경쟁(미리 받은 입장권으로 누가 들어오는 것)을 막으려 확정 직전에 "닫힘" 표시를 쓰는 방법이 **가능성으로** 있다 — 미정(§7.1).
+- **방 키는 정해졌다.** 원본 상수는 `room`의 `redisKeys/RoomKeys.java`, 계약은 `../room/contracts/room-api.md` "Redis 키" 절이다(이 폴더의 사본은 `docs/ROOM_CONTRACT.md`).
+
+  | 키 | 자료형 | 값 | 뜻 |
+  |---|---|---|---|
+  | `qm:room:{roomId}:host` | STRING | 방장의 `userId` | **이 키가 있다 = 방이 있다.** "방이 살아 있는가"는 이 키 하나를 `EXISTS` 하면 된다 |
+  | `qm:room:{roomId}:members` | SET | 방에 있는 사람의 `userId`(방장 포함) | `SCARD`가 현재 인원이다. 정원은 5 |
+  | `qm:user:active-room:{userId}` | STRING | 들어가 있는 방의 `roomId` | 입장 표시 키(D-19). `matching`도 `EXISTS`로 본다. **이 앱은 이 키를 만지지 않는다**(§2) |
+
+  - 세 키 모두 수명 600초(`room`의 `ROOM_TTL_SECONDS`)이고 브라우저가 1분마다 `room`에 보내는 접속 확인(`POST …/heartbeat`)이 늘린다. **방의 수명은 방장의
+    신호만 늘린다** — 방장이 명시적으로 나가든 말없이 사라지든(연결 끊김) 방장 키가 없어진다. 방장이 나가면 방에 다른 사람이 있어도 방을 통째로 없앤다(방장 확정 전까지).
+    그래서 **방장 키가 없으면 방장이 나갔거나 사라진 것**이다. 대가 — 방장이 말없이 사라진 방은 최대 10분 살아 있는 것처럼 보인다.
+  - 멤버 SET에는 말없이 사라진 사람의 이름이 잠깐 남을 수 있다(방장의 접속 확인이 뺀다) — **이 앱이 읽는 인원수는 길어야 수명만큼 부풀 수 있다.**
+  - **`room`은 방이 없어져도 이 앱에 알리지 않는다**(서비스 간 호출도 큐도 없다 — D-16 그대로). 이 앱이 목록을 그릴 때와 입장권을 내줄 때 방장 키를 보고 스스로
+    글을 만료시킨다. `room` 쪽에도 안전망이 있다 — 없는 방에는 입장이 404 `ROOM_NOT_FOUND`로 거절된다.
+  - **방은 `room`의 "방 만들기" 요청(`POST /api/v1/rooms/{roomId}`)이 만든다.** 부른 사람이 방장이고 곧바로 들어와 있다. **입장은 방을 만들지 않는다.** 그래서
+    **글을 쓴 직후, 방 만들기를 부르기 전에는 방장 키가 없다** — "방장 키가 없다 → 글을 만료로"를 그대로 적용하면 방금 쓴 글을 만료시킨다. 가리는 법은 **미정**이다 → §7.1.
 - **방 키의 이름·구조는 두 앱의 약속이다.** 알림 채널 접두사(§3.2)와 같은 위험이다 — 어긋나면 테스트가 통과한 채로 목록이 조용히 틀린다.
-  상수 한 곳에만 두고 원본이 `room`임을 적는다. 형식·서명 방식·키 이름은 **미정**이다 → §7.1.
+  이 앱을 구현할 때 접두사는 **상수 한 곳에만** 두고 **원본이 `room`의 `RoomKeys`임을 주석에 적는다.** 바꿀 때는 `room`과 같이 바꾼다.
+  **입장권**의 형식·서명 방식은 여전히 **미정**이다 → §7.1.
+- **`room`은 지금 입장권 없이 돈다.** 이 앱이 없어 인증·입장권·방장 확인을 임시 처리(`TEMP-NO-PLATFORM`)로 비워 뒀다 — 누구나 아무 `roomId`로 방을 만들고 방장이 된다.
+  **이 앱이 생기면 채워 줘야 하는 자리의 목록**은 `../room/START_HERE.md` §2다(access 토큰의 사용자, 입장권 서명 검증, 글의 상태·차단 확인).
 
 ### 3.4 서버 간 이벤트 — transactional outbox + SQS FIFO (docs/11 #21)
 
@@ -173,12 +193,12 @@ Redis `PUBLISH qm:pubsub:push:{userId}`에 **JSON 문자열 하나**를 보낸�
 
 | 항목 | 상황 |
 |---|---|
-| **파티 모집 게시판의 세부** | 하는 것·방의 규칙·두 앱의 분담은 정해졌다(docs/11 D-11 · D-16, §7.1). **남은 것** — 방장 확정의 세부, 차단을 보는 범위, 입장권과 방 키의 형식, 확정 순간의 경쟁, 만료 글 보존 기간, 글의 내용·정렬·필터, 도배 대응 등. 개발하면서 정한다 — 해당 지점에 닿으면 그때 묻는다 |
+| **파티 모집 게시판의 세부** | 하는 것·방의 규칙·두 앱의 분담은 정해졌다(docs/11 D-11 · D-16, §7.1). 방 키도 정해졌다(§3.3). **남은 것** — 방장 확정의 세부, 차단을 보는 범위, 입장권의 형식, **"아직 안 만들어진 방"과 "사라진 방"을 가리는 법**, 확정 순간의 경쟁, 만료 글 보존 기간, 글의 내용·정렬·필터, 도배 대응 등. 개발하면서 정한다 — 해당 지점에 닿으면 그때 묻는다 |
 | 모든 엔드포인트의 경로·스키마, `PARTY_*`·`FRIEND_*` 7종의 이름과 `payload` | 원본 계약이 이 컴퓨터에 없다(§3.1). 문서에 이름이 나오는 것은 예시로 든 `PARTY_MEMBER_JOINED` 하나뿐이다 (contracts/events.md) |
 | SQS 메시지 본문 3종 | `ProposalConfirmed`에 무엇이 실려 오는지, 파티 id를 `proposalId`와 같게 둘지 — `matching`은 클라이언트에 `MATCH_CONFIRMED {partyId}`(= `proposalId`)를 **이미 내려 주고**, 파티는 비동기로 생기므로 그 직후 조회는 비어 있을 수 있다 (contracts/events.md "`PARTY_CREATED` 이벤트가 없다") |
-| **확정된 사용자를 푸는 길** | `matching`은 확정된 사용자의 활성 요청에 `status=PARTY`를 찍어 두고, 푸는 주체가 없다. 후보 셋(`PartyClosed` 소비 / 나가기 API / 긴 TTL)이 **결론 나지 않았다** (HANDOFF.md ①). `PartyClosed.fifo`의 소비자는 platform 하나로 확정했다(§3.4) — 그래서 **`matching`의 `status=PARTY`를 누가 어떻게 푸는지는 여전히 열려 있다.** 활성 요청 키를 다루는 앱이 `room`이 됐으므로(D-11 16번 · D-16) **방이 닫힐 때 `room`이 그 키를 지우는 것이 한 가지 해법이 될 수 있다 — 가능성일 뿐이다.** 이 앱은 그 키를 만지지 않는다 |
+| **확정된 사용자를 푸는 길** | `matching`은 확정된 사용자의 활성 요청에 `status=PARTY`를 찍어 두고, 푸는 주체가 없다. 후보 셋(`PartyClosed` 소비 / 나가기 API / 긴 TTL)이 **결론 나지 않았다** (HANDOFF.md ①). `PartyClosed.fifo`의 소비자는 platform 하나로 확정했다(§3.4) — 그래서 **`matching`의 `status=PARTY`를 누가 어떻게 푸는지는 여전히 열려 있다.** D-13 · D-16이 가능성으로 적은 "방이 닫힐 때 `room`이 활성 요청 키를 지운다"는 **D-19로 없어졌다** — `room`은 그 키에 쓰지도 지우지도 않는다. **푸는 주체는 `matching`이나 이 앱 쪽에서 찾아야 한다**(이 앱은 지금 그 키를 만지지 않는다 — 만지게 된다면 그것부터가 결정이다). 확정된 사용자는 활성 요청 키가 남아 있어 **그대로는 `room` 입장도 거절된다**(409 `ALREADY_QUEUED`) — 자동 매칭 파티의 방 입장(§7.1)을 정할 때 같이 풀어야 한다 |
 | 테이블 컬럼, DB 롤 | 롤은 이름(`matching`은 `qm_matching`), 한 앱이 네 스키마를 어떤 롤로 붙는지, 롤/GRANT를 누가 만드는지 |
-| 인증 세부 | 방식은 정해졌다(§5, docs/11 D-14). **남은 것** — ① 쿠키 속성(`HttpOnly`·`Secure`·`SameSite` Lax/Strict·`Path`·`Domain`·수명, refresh 쿠키의 `Path`를 재발급 경로로 좁힐지) ② **CSRF 대응**(`SameSite`만인가, CSRF 토큰·`Origin` 검사를 더하는가 — 시그널 `POST`·방 입장·차단·매칭 요청이 전부 해당) ③ `matching`·`notification`이 access 토큰을 검증하는 법(HS256 비밀 키 공유 / RS256 공개 키 검증, 키를 나눠 갖는 법, 클레임 구성) ④ access·refresh 수명, access denylist를 둘지 ⑤ refresh의 Redis 키 이름·값·TTL(매칭 키와 겹치지 않는 접두사), 기기별 허용 개수, 옛 값 재사용(탈취 신호) 처리 ⑥ SSE와 토큰 만료 — `EventSource`는 200이 아닌 응답에 재접속을 멈춘다 ⑦ 로컬 개발의 CORS·`credentials`·`withCredentials` ⑧ 인증이 붙기 전 임시 식별(두 서비스는 지금 `userId` 파라미터를 받는다)과 전환 시점 |
+| 인증 세부 | 방식은 정해졌다(§5, docs/11 D-14). **남은 것** — ① 쿠키 속성(`HttpOnly`·`Secure`·`SameSite` Lax/Strict·`Path`·`Domain`·수명, refresh 쿠키의 `Path`를 재발급 경로로 좁힐지) ② **CSRF 대응**(`SameSite`만인가, CSRF 토큰·`Origin` 검사를 더하는가 — 시그널 `POST`·방 입장·차단·매칭 요청이 전부 해당) ③ `matching`·`notification`·`room`이 access 토큰을 검증하는 법(HS256 비밀 키 공유 / RS256 공개 키 검증, 키를 나눠 갖는 법, 클레임 구성) ④ access·refresh 수명, access denylist를 둘지 ⑤ refresh의 Redis 키 이름·값·TTL(매칭 키와 겹치지 않는 접두사), 기기별 허용 개수, 옛 값 재사용(탈취 신호) 처리 ⑥ SSE와 토큰 만료 — `EventSource`는 200이 아닌 응답에 재접속을 멈춘다 ⑦ 로컬 개발의 CORS·`credentials`·`withCredentials` ⑧ 인증이 붙기 전 임시 식별(`matching`·`notification`·`room` 세 서비스가 지금 `userId` 파라미터를 받는다. `room`은 그 자리를 `TEMP-NO-PLATFORM`으로 표시해 뒀다)과 전환 시점 |
 | 게임 계정 연동 | 라이엇 등 외부 API 연동 범위. `matching`의 티어는 지금 자기신고다 (`matching/CLAUDE.md` §2) |
 | `reservation` 스키마의 마이그레이션 | 예약은 `app:reservation`(Lambda)으로 빠졌다(D-15). Spring/Flyway가 없는 Lambda가 스스로 마이그레이션하기 어렵다 — **이 앱이 대신 갖는지 별도 절차인지 미정이다.** 정해지기 전에 이 앱에 `reservation` 마이그레이션을 넣지 않는다 |
 | Redis의 다른 용도 | 파티 presence/ready(`qm:party:presence:*`·`qm:party:ready:*`), rate limit은 원본 docs/07의 **키 이름만** 있다. 누가 쓰는지(presence는 D-16으로 `room` 쪽 성질이 됐다), `matching`의 `qm:party:*`와 접두사가 겹치는 것을 어떻게 할지 |
@@ -188,21 +208,30 @@ Redis `PUBLISH qm:pubsub:push:{userId}`에 **JSON 문자열 하나**를 보낸�
 
 **정해진 것.**
 - 모집 글을 올리면 **그것이 곧 파티방**이다. 자동 매칭 뒤에 생기는 파티방과 **같은 개념의 방**을 쓴다. 목적은 **모집의 응답성**이다.
-- **글·목록·글의 상태·방장 확정·파티원 기록·입장권 발급은 이 앱**, 입장·나가기·강퇴·정원·접속 확인·활성 요청 키·시그널은 **`room`** 이다(D-16).
+- **글·목록·글의 상태·방장 확정·파티원 기록·입장권 발급은 이 앱**, 방 만들기·입장·나가기·강퇴·정원·접속 확인·입장 표시 키·방 알림·시그널은 **`room`** 이다(D-16 · D-19).
 - **차단 관계가 있으면 그 방은 목록에 아예 보이지 않는다**(막는 것이 아니라 보이지 않게). **어느 쪽이 차단했든** 같다. 목록을 만들 때 이 앱이 거른다.
 - **파티원은 방장이 확정한다.** 확정하면 **더 이상 새 사람이 들어올 수 없다** — 확정된 글에 입장권을 내주지 않는 것으로 지킨다.
-- **방장이 나가면 글은 지우지 않고 "만료"로 표시한다.** 목록에 남지만 들어갈 수 없다. 방장 이탈은 `room`이 판단하고, **이 앱은 목록을 그리거나
-  입장권을 요청받을 때 방 키가 사라진 것을 보고 글을 만료로 바꾼다** — 만료가 즉시는 아니지만 목록을 그리는 순간 걸러지므로 보이는 차이는 없다.
-- 입장 승인 없음·둘러보는 상태·강퇴·최대 5명·"자동 매칭 대기와 방은 한 번에 하나만"·음성 제어(브라우저에서 끝난다)는 `room`과 프런트 쪽 규칙이다.
+- **방장이 나가면 글은 지우지 않고 "만료"로 표시한다.** 목록에 남지만 들어갈 수 없다. 방장 이탈은 `room`이 판단하고(명시적 나가기와 **연결 끊김 둘 다** — 방의 수명은
+  방장의 접속 확인만 늘린다), **이 앱은 목록을 그리거나 입장권을 요청받을 때 방장 키(`qm:room:{roomId}:host`)가 사라진 것을 보고 글을 만료로 바꾼다** — `room`은 알려 주지
+  않는다. 만료가 즉시는 아니지만 목록을 그리는 순간 걸러지므로 보이는 차이는 없다(방장이 말없이 사라진 경우는 수명이 다할 때까지 최대 10분 늦는다 — §3.3).
+- **방 키의 이름·구조·수명**이 정해졌다(§3.3 · `docs/ROOM_CONTRACT.md`). **방은 `room`의 "방 만들기" 요청이 만든다** — 입장은 방을 만들지 않는다(없는 방은 404).
+- **`room`이 내는 알림이 정해졌다** — `ROOM_MEMBER_ENTERED` · `ROOM_MEMBER_LEFT` · `ROOM_CLOSED` · `WEBRTC_SIGNAL`(강퇴 알림 `ROOM_MEMBER_KICKED`는 구현 중).
+  `PARTY_*`를 다시 쓰지 않고 새 이름을 지었다 — 그 7종의 이름과 `payload`가 이 컴퓨터의 문서에 없어서다(`../room/contracts/room-api.md` "알림").
+- 입장 승인 없음·둘러보는 상태·강퇴·최대 5명·음성 제어(브라우저에서 끝난다)는 `room`과 프런트 쪽 규칙이다. "자동 매칭 대기와 방은 한 번에 하나만"은 `room`과 `matching`이
+  키 둘로 지킨다(D-19) — 이 앱은 관여하지 않는다.
 
 **정할 것 — 개발하면서 정한다.** 구현하다 해당 지점에 닿으면 **그때 묻고 정한다.** 임의로 정해 구현하지 마라.
 - **방장 확정의 세부** — 대상이 그 순간 방에 있는 **전원**인가 방장이 **고른 사람만**인가(고르지 않은 사람은 나가게 되는가). 확정된 글의 목록 표시(만료와 같은가). 확정된 방이 자동 매칭 파티방과 **같은 기능(Ready 등)**을 갖는가, "최근 함께한 사람"을 확정된 파티원 기준으로 기록하는가. 확정 뒤 빈자리가 생기면 다시 모집을 열 수 있는가.
 - **차단을 보는 범위** — **방장과의 사이에서만**인가 **방 안의 누구와든**인가(뒤쪽이면 목록을 만들 때 방 키의 인원까지 읽어야 한다). 목록을 본 뒤 차단이 생긴 경우, 같은 방의 두 사람 사이에 차단이 생긴 경우.
-- **입장권**의 형식·서명 방식·수명·담는 정보, 서명 키를 두 앱이 나눠 갖는 법. **방 키**의 이름·구조·수명(원본은 `room`).
+- **입장권**의 형식·서명 방식·수명·담는 정보, 서명 키를 두 앱이 나눠 갖는 법. 입장권이 정해지면 `room`의 "방 만들기"가 **방장임을 입장권으로 확인**한다 — 그 요청이
+  그대로 남는지 방장의 첫 입장에 합쳐지는지도 그때 다시 정한다(`../room/CLAUDE.md` §7).
+- **"아직 안 만들어진 방"과 "사라진 방"을 가리는 법** — 방장이 글을 쓴 직후, `room`의 방 만들기를 부르기 **전**에는 방장 키가 없다. 목록을 그리면서 "방장 키가 없다 →
+  방이 사라졌다 → 글을 만료로"를 그대로 적용하면 **방금 쓴 글을 만료시킨다.** 방법의 예 — 글 작성 직후 일정 시간은 만료 검사를 건너뛴다 / 방이 한 번 생긴 적이 있는
+  글만 검사한다. **정해지지 않았다.**
 - **확정 순간의 경쟁** — "닫힘" 표시를 이 앱이 쓰는가(쓰면 `room`의 키 공간에 쓰는 예외가 하나 생긴다).
-- **자동 매칭으로 확정된 파티의 방은 어떻게 생기는가** — 이 앱이 파티를 DB에 만든 뒤 파티원이 입장권으로 들어오는 것이 자연스럽지만 미정이다. 강퇴당한 사람의 재입장을 입장권으로 막을지.
+- **자동 매칭으로 확정된 파티의 방은 어떻게 생기는가** — 이 앱이 파티를 DB에 만든 뒤 파티원이 입장권으로 들어오는 것이 자연스럽지만 미정이다. **확정된 사용자는 활성 요청 키(`status=PARTY`)가 남아 있어 그대로는 `room` 입장이 거절된다** — §7 "확정된 사용자를 푸는 길"과 같이 풀어야 한다(D-19 "아직 미정"). 강퇴당한 사람의 재입장을 입장권으로 막을지.
 - 만료된 글을 **언제까지** 목록에 두는가, 만석일 때의 목록 표시. 글에 담는 것(게임·모드·원하는 조건·한 줄 소개 등), 목록의 정렬·필터. **도배 글 대응**과 신고(docs/11 #13)의 연결.
-- **알림 종류** — 방 입장·퇴장 알림을 어느 앱이 어떤 `type`으로 내는가(`PARTY_*`의 이름이 이 컴퓨터의 문서에 없다, §3.2). 모든 엔드포인트 경로·스키마·테이블.
+- **알림 종류** — 방 입장·퇴장·방 닫힘은 `room`이 새 이름으로 내는 것으로 정해졌다(위). **이 앱이 낼 알림**(`PARTY_*` · `FRIEND_*` — 방장 확정 알림 등)의 이름과 `payload`는 여전히 미정이다(§3.2). 계약 원본과 합칠 때 `ROOM_*`과 `PARTY_*`가 같은 뜻인지 맞춰야 한다. 모든 엔드포인트 경로·스키마·테이블.
 
 ## 8. 저장소 구성과 커밋 규칙
 
@@ -210,10 +239,11 @@ Redis `PUBLISH qm:pubsub:push:{userId}`에 **JSON 문자열 하나**를 보낸�
 
 ```
 queuemate/
-├── matching/       main 브랜치
+├── matching/       matching 브랜치
 ├── notification/   notification 브랜치
 ├── room/           room 브랜치. 방 안의 일 (D-16)
 └── platform/       platform 브랜치 (이 폴더)
+    ├── docs/       옆 폴더 문서의 사본 (ROOM_CONTRACT.md — §10)
     └── backend/    스프링 앱을 둘 자리 (아직 없다). matching/backend/ 와 같은 모양으로 만든다
 ```
 
@@ -257,6 +287,15 @@ queuemate/
 - `bootRun`으로 앱을 띄웠으면 **반드시 종료해라.** 안 죽이면 포트가 물려 다음 검증이 실패한다.
   끝나면 `./gradlew --stop`도 한다. 빌드·테스트는 `backend/` 안에서 돌린다.
 - **옆 폴더 `matching`, `notification`, `room`의 파일은 여기서 고치지 않는다.** 읽기만 한다. 고칠 것은 그 폴더에서 따로 작업한다.
+- **Claude가 파일을 고친 뒤에는 IntelliJ에서 `Ctrl+Alt+Y`(디스크에서 다시 읽기)를 눌러야 한다.** 안 누르고 그 파일을 계속 치면 다음 저장 때 IntelliJ가 메모리의
+  옛 버전으로 덮어써 Claude의 변경이 사라진다. 반대로 소유자가 IntelliJ에서 **저장하지 않은 코드는 Claude가 볼 수 없다.**
+- **셸은 zsh다.** 함수나 스크립트에서 `qm:room:$1:host`처럼 쓰면 `$1:h`가 특수 문법으로 해석돼 문자열이 깨진다 — 변수는 `${1}`처럼 **중괄호로 감싼다.**
+- **`docker.exe` 출력에는 `\r`이 섞인다.** 값을 비교하기 전에 `tr -d '\r'`.
+- `platform` · `room` · `notification` 폴더는 git worktree이고 WSL에서 만들어서 `.git` 파일에 `/mnt/c/…` 경로가 적혀 있다 — Windows의 git(IntelliJ)은 이 폴더를
+  저장소로 인식하지 못해 **IntelliJ에 Commit 탭이 뜨지 않는다. 커밋은 WSL에서 한다.**
+- `notification`을 띄운 직후 첫 SSE는 Redis 구독이 걸리기까지 **7초쯤** 걸렸고 그 사이의 알림은 오지 않았다(2026-09-20 측정. 원인은 확인하지 않았다).
+  SSE로 도착을 확인할 때는 `PUBSUB NUMSUB`으로 **구독자가 1이 된 것을 본 뒤에** 움직인다.
+- 위 함정은 전부 `room`을 만들며 실제로 겪은 것이다. 명령과 그 밖의 환경 함정(`pkill -f` 금지, 느린 빌드)은 `../room/docs/NOTIFICATION_LESSONS.md`에 있다.
 
 ## 10. 함께 봐야 할 곳
 
@@ -264,7 +303,10 @@ queuemate/
 |---|---|
 | 매칭 엔진 규칙 (제품 경계·INV·Contract first의 원형) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/CLAUDE.md` |
 | 알림 배달 규칙 (받는 쪽이 메시지를 어떻게 다루나) / **방 안의 일의 규칙**(입장권을 받는 쪽, 방 키의 원본) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/notification/CLAUDE.md` · `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/room/CLAUDE.md` |
-| 결정 로그 — #13~#17 · #20~#26 · D-1~D-4 · **D-9** · **D-11**~**D-16** · **D-18** | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/docs/11_DECISION_LOG.md` |
+| **`room` 계약의 사본** — 이 앱이 읽는 Redis 키, 방 만들기·입장·접속 확인, `room`이 내는 알림, 이 앱에서 그것이 뜻하는 것. 옆 폴더가 없어도 읽을 수 있다. **낡는다** — 머리의 확인 명령을 돌린다 | `docs/ROOM_CONTRACT.md` (이 폴더) |
+| `room` 계약의 원본 (요청 전부 · 알림 · "Redis 키" 절) / 방 키 상수의 원본 / 이 앱이 생기면 채워 줘야 하는 자리(`TEMP-NO-PLATFORM`, §2) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/room/contracts/room-api.md` · `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/room/backend/src/main/java/com/queuemate/room/redisKeys/RoomKeys.java` · `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/room/START_HERE.md` |
+| 로컬 환경 함정 (띄우고 죽이기 · IntelliJ · worktree · 테스트) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/room/docs/NOTIFICATION_LESSONS.md` |
+| 결정 로그 — #13~#17 · #20~#26 · D-1~D-4 · **D-9** · **D-11**~**D-16** · **D-18** · **D-19**(D-11 16번과 D-16의 활성 요청 키 대목을 개정 — 파일 머리의 "낡은 항목 주의"로 걸러 읽는다) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/docs/11_DECISION_LOG.md` |
 | 알림 계약 (봉투·발행 주체·`WEBRTC_SIGNAL`·SQS FIFO·계약 구멍) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/contracts/events.md` |
 | 계약 사본의 지위와 앞서간 변경을 적는 법 / platform 소관 자원 목록(머리말) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/contracts/README.md` · `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/contracts/openapi.yaml` |
 | 봉투를 만드는 코드(본보기) / 채널 접두사 원본(`PUSH_CHANNEL_PREFIX`) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/backend/src/main/java/com/queuemate/matching/notification/PushPublisher.java` · `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/backend/src/main/java/com/queuemate/matching/redisKeys/SharedKeys.java` |
@@ -276,8 +318,8 @@ queuemate/
 
 ## 11. 이 저장소에서 하지 말 것 (요약)
 
-- 매칭 로직, 매칭 Redis 키 접근(**예외 없음** — 활성 요청 키는 `room`의 일이 됐다, D-16) — `matching`의 일이다. `SseEmitter` / WebSocket / 연결 보유 — `notification`의 일이다
-- **방 안의 일**(입장·나가기·강퇴·정원·접속 확인·활성 요청 키·시그널 `POST`·`WEBRTC_SIGNAL`) — `room`의 일이다(D-16). `room`을 호출하지도 마라 — 입장권과 방 키 읽기로만 잇는다. 방 키에 **쓰지 마라**("닫힘" 표시는 미정)
+- 매칭 로직, 매칭 Redis 키 접근(**예외 없음** — 활성 요청 키는 `matching`만, 입장 표시 키는 `room`만 쓴다. 이 앱은 둘 다 만지지 않는다, D-19) — `matching`의 일이다. `SseEmitter` / WebSocket / 연결 보유 — `notification`의 일이다
+- **방 안의 일**(방 만들기·입장·나가기·강퇴·정원·접속 확인·입장 표시 키·방 알림·시그널 `POST`·`WEBRTC_SIGNAL`) — `room`의 일이다(D-16 · D-19). `room`을 호출하지도 마라 — 입장권과 방 키 읽기로만 잇는다. 방 키에 **쓰지 마라**("닫힘" 표시는 미정). **방장 키가 없다고 방금 쓴 글을 만료시키지 마라** — 아직 안 만들어진 방일 수 있다(§7.1 미정)
 - 예약(REST·짝 찾기·`RESERVATION_*` — `app:reservation`, D-15), TURN credential 발급, gameconfig — 각각 다른 배포 단위의 일이다
 - 엔드포인트 경로·스키마·payload 필드·테이블 컬럼을 **지어내기** — 묻고, 정한 것은 `contracts/`에 적는다
 - 공개 사용자 탐색(사람 검색·둘러보기)·길드·피드·팔로우·좋아요·모집과 무관한 공개 채팅방 — 여전히 금지다(§1 · D-11)
