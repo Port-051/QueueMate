@@ -41,7 +41,7 @@
     status=PARTY 를 푸는 길이다(PartyClosed 는 app:platform 만 소비한다 — docs/11 D-13.
     누가 푸는지는 미정이다).
   · 이 저장소는 git 저장소다. private 원격 github.com/rlaehddus302/queuemate-matching
-    (main)에 push 한다. 커밋 규칙은 CLAUDE.md §8. IntelliJ 가 새 파일을 자동으로
+    (matching)에 push 한다. 커밋 규칙은 CLAUDE.md §8. IntelliJ 가 새 파일을 자동으로
     스테이징하므로 커밋은 `git commit -- <파일>` 로 파일을 지정해서 해라.
 
 빌드: cd backend && ./gradlew --offline compileJava compileTestJava
@@ -615,7 +615,7 @@ LoL 만으로 시작한 범위 축소는 사고가 아니라 결정이다 — do
 항목은 주석과 코드가 고쳐져 뺐다. 지금 주석은 `ARGV[9]` = 티어 이름, keyValue 는 `ARGV[10..]` 로 코드와 맞다.)
 
 **(f) 이 저장소는 git 저장소다.** private 원격 `github.com/rlaehddus302/queuemate-matching`
-(`main`)에 push 한다. 커밋 규칙은 `CLAUDE.md` §8.
+(`matching`)에 push 한다. 커밋 규칙은 `CLAUDE.md` §8.
 **IntelliJ 가 새 파일을 자동으로 스테이징한다** — 사용자 작업 파일이 문서 커밋에 딸려 올라간
 적이 있다. 커밋은 `git commit -- <파일>` 로 파일을 지정하거나, 직전에 `git diff --cached --stat`
 으로 스테이징 목록을 확인해라 (`HANDOFF.md` §1).
