@@ -37,7 +37,7 @@ class PartyJoinConcurrencyTest extends ConcurrencyTestSupport {
      */
     private void join(String userId, String modeKey, String keyValue) {
         var command = command(userId, modeKey, keyValue);
-        matchRequestService.join(command).orElseThrow(
+        matchRequestService.join(command).accepted().orElseThrow(
                 () -> new IllegalStateException("활성 요청 선점 실패: " + userId));
         candidateRules.stream()
                 .filter(rule -> rule.supports(command.getGame()))

@@ -137,7 +137,7 @@ class ValorantPartyJoinConcurrencyTest extends ConcurrencyTestSupport {
                 command(userId, GameKey.VALORANT, KeyConditionType.ROLE, modeKey, role);
         command.setTier(tier);
 
-        String requestId = matchRequestService.join(command).orElseThrow(
+        String requestId = matchRequestService.join(command).accepted().orElseThrow(
                 () -> new IllegalStateException("활성 요청 선점 실패: " + userId)).requestId();
         candidateRules.stream()
                 .filter(rule -> rule.supports(command.getGame()))

@@ -280,7 +280,7 @@ class ProposalIdempotencyTest extends ConcurrencyTestSupport {
 
     /** 활성 요청을 만들고 배정까지 태운다. 컨트롤러가 하는 두 단계와 같다 */
     private void enqueue(CreateMatchRequestCommand command) {
-        matchRequestService.join(command).orElseThrow(
+        matchRequestService.join(command).accepted().orElseThrow(
                 () -> new IllegalStateException("활성 요청 선점에 실패했다: " + command.getUserId()));
         candidateRules.stream()
                 .filter(rule -> rule.supports(GameKey.LOL))

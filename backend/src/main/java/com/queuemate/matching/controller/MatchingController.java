@@ -5,6 +5,7 @@ import com.queuemate.matching.domain.CancelResult;
 import com.queuemate.matching.domain.MatchRequestStatus;
 import com.queuemate.matching.dto.AcceptedRequest;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
+import com.queuemate.matching.dto.JoinResult;
 import com.queuemate.matching.dto.MatchRequestResponse;
 import com.queuemate.matching.service.MatchCancelService;
 import com.queuemate.matching.service.MatchQueryService;
@@ -24,7 +25,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/v1/match-requests")
@@ -47,17 +47,22 @@ public class MatchingController {
                     "지원하지 않는 매칭 조건입니다: " + request.getGame() + " / " + request.getModeKey()));
         }
 
-        Optional<AcceptedRequest> accepted = matchRequestService.join(request);
-        if (accepted.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(
+        JoinResult result = matchRequestService.join(request);
+        return switch (result.status()) {
+            case ALREADY_QUEUED -> ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(
                     "ALREADY_QUEUED", "이미 진행 중인 매칭 요청이 있습니다"));
-        }
+            // 한 사용자는 자동 매칭 대기와 게시판 방 중 한 번에 하나만 할 수 있다 (docs/11 D-11 15번)
+            case IN_ROOM -> ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.of(
+                    "IN_ROOM", "파티방에 들어가 있는 동안에는 매칭을 시작할 수 없습니다"));
+            case ACCEPTED -> {
+                matchTrigger.trigger(request);
 
-        matchTrigger.trigger(request);
-
-        // 접수 응답도 조회와 같은 모양이다. requestId 를 돌려줘야 클라이언트가 취소를 부를 수 있다
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(MatchRequestResponse.queued(accepted.get().requestId(), accepted.get().queuedAt()));
+                // 접수 응답도 조회와 같은 모양이다. requestId 를 돌려줘야 클라이언트가 취소를 부를 수 있다
+                AcceptedRequest accepted = result.request();
+                yield ResponseEntity.status(HttpStatus.CREATED)
+                        .body(MatchRequestResponse.queued(accepted.requestId(), accepted.queuedAt()));
+            }
+        };
     }
 
     /**

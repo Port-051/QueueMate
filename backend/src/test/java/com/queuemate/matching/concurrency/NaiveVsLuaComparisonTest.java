@@ -80,7 +80,7 @@ class NaiveVsLuaComparisonTest extends ConcurrencyTestSupport {
             AtomicInteger accepted = new AtomicInteger();
 
             runConcurrently(THREADS, i -> {
-                if (matchRequestService.join(command("u1", "RANKED_SOLO", "TOP")).isPresent()) {
+                if (matchRequestService.join(command("u1", "RANKED_SOLO", "TOP")).accepted().isPresent()) {
                     accepted.incrementAndGet();
                 }
             });

@@ -1,6 +1,6 @@
 package com.queuemate.matching.service;
 
-import com.queuemate.matching.dto.AcceptedRequest;
+import com.queuemate.matching.dto.JoinResult;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
 import com.queuemate.matching.redisKeys.SharedKeys;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -24,6 +23,9 @@ public class MatchRequestService {
     /** claim-request.lua의 반환값. 1이면 활성 요청 자리를 선점했다. */
     private static final long CLAIMED = 1L;
 
+    /** claim-request.lua의 반환값. -1이면 게시판 방에 들어가 있다 (app:room 의 입장 표시 키가 있다). */
+    private static final long IN_ROOM = -1L;
+
     private final StringRedisTemplate redis;
     private final RedisScript<Long> claimRequestScript;
 
@@ -33,8 +35,11 @@ public class MatchRequestService {
      * "이미 대기 중인가?"를 확인하고 등록하는 두 동작 사이에 다른 요청이 끼어들면
      * 한 사용자가 활성 요청을 둘 가질 수 있다 (INV-1 위반).
      * 확인과 기록을 claim-request.lua 하나에 담아 그 틈을 없앤다.
+     *
+     * 게시판 방에 들어가 있는 사용자도 같은 자리에서 거절된다 — 스크립트가 app:room 의
+     * 입장 표시 키도 함께 본다 (docs/11 D-11 15번).
      */
-    public Optional<AcceptedRequest> join(CreateMatchRequestCommand command)
+    public JoinResult join(CreateMatchRequestCommand command)
     {
         String requestId = UUID.randomUUID().toString();
         long queuedAt = System.currentTimeMillis();
@@ -48,16 +53,21 @@ public class MatchRequestService {
 
         Long result = redis.execute(
                 claimRequestScript,
-                List.of(activeKey),
+                List.of(activeKey, SharedKeys.activeRoomKey(command.getUserId())),
                 args.toArray());
 
+        if (Long.valueOf(IN_ROOM).equals(result)) {
+            log.debug("is in a room: userId={}", command.getUserId());
+            return JoinResult.inRoom();
+        }
+        // 1 이 아닌 나머지(0, 그리고 올 리 없는 null)는 전부 "이미 있다"로 닫는다 — 모르는 값을 접수로 읽지 않는다
         if (!Long.valueOf(CLAIMED).equals(result)) {
             log.debug("already has an active request: userId={}", command.getUserId());
-            return Optional.empty();
+            return JoinResult.alreadyQueued();
         }
 
         log.debug("joined requestId={} userId={}", requestId, command.getUserId());
-        return Optional.of(new AcceptedRequest(requestId, queuedAt));
+        return JoinResult.accepted(requestId, queuedAt);
     }
 
     /** 사용자의 활성 요청. 요청 내용도 여기 함께 담긴다. */

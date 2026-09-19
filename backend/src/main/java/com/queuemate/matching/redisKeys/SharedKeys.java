@@ -115,6 +115,15 @@ public final class SharedKeys {
     public static final String ACTIVE_REQUEST_PREFIX = "qm:user:active-request:";
 
     /**
+     * app:room 의 입장 표시 키 접두사. <b>이 앱이 정하는 값이 아니다</b> — 원본은 {@code room} 의
+     * {@code redisKeys/RoomKeys.java} {@code ACTIVE_ROOM_PREFIX} 다. 게시판 방에 들어가 있는 동안 있는 키이고,
+     * 이 앱은 {@code claim-request.lua} 에서 <b>있는지만 본다</b>(쓰지도 지우지도 값을 읽지도 않는다).
+     * 따로 바꾸거나 오타를 내면 컴파일도 테스트도 통과한 채로 방에 있는 사람의 매칭 요청을 받게 된다.
+     * <pre>{@code "qm:user:active-room:"  →  qm:user:active-room:u123}</pre>
+     */
+    public static final String ACTIVE_ROOM_PREFIX = "qm:user:active-room:";
+
+    /**
      * 푸시 알림 채널 접두사. 배달은 app:realtime 이 한다 (CLAUDE.md §3).
      * <pre>{@code "qm:pubsub:push:"  →  qm:pubsub:push:u123}</pre>
      */
@@ -170,6 +179,14 @@ public final class SharedKeys {
      */
     public static String activeRequestKey(String userId) {
         return ACTIVE_REQUEST_PREFIX + userId;
+    }
+
+    /**
+     * 사용자가 게시판 방에 들어가 있다는 app:room 의 표시. 있는지만 본다.
+     * <pre>{@code qm:user:active-room:u123}</pre>
+     */
+    public static String activeRoomKey(String userId) {
+        return ACTIVE_ROOM_PREFIX + userId;
     }
 
     /**

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import com.queuemate.matching.dto.AcceptedRequest;
+import com.queuemate.matching.dto.JoinResult;
 
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -29,7 +30,7 @@ class ActiveRequestConcurrencyTest extends ConcurrencyTestSupport {
         AtomicInteger accepted = new AtomicInteger();
 
         runConcurrently(100, i -> {
-            Optional<AcceptedRequest> requestId = matchRequestService.join(command("u1", "RANKED_SOLO", "TOP"));
+            Optional<AcceptedRequest> requestId = matchRequestService.join(command("u1", "RANKED_SOLO", "TOP")).accepted();
             if (requestId.isPresent()) {
                 accepted.incrementAndGet();
             }
@@ -40,17 +41,55 @@ class ActiveRequestConcurrencyTest extends ConcurrencyTestSupport {
     }
 
     @Test
+    @DisplayName("INV-1: 이미 활성 요청이 있으면 두 번째 요청은 ALREADY_QUEUED 다")
+    void secondRequestIsAlreadyQueued() {
+        assertThat(matchRequestService.join(command("u1", "RANKED_SOLO", "TOP")).status())
+                .isEqualTo(JoinResult.Status.ACCEPTED);
+
+        assertThat(matchRequestService.join(command("u1", "RANKED_SOLO", "TOP")).status())
+                .isEqualTo(JoinResult.Status.ALREADY_QUEUED);
+    }
+
+    @Test
     @DisplayName("INV-1: 서로 다른 사용자 100명은 모두 성공한다")
     void differentUsersAllSucceed() throws InterruptedException {
         AtomicInteger accepted = new AtomicInteger();
 
         runConcurrently(100, i -> {
-            Optional<AcceptedRequest> requestId = matchRequestService.join(command("u" + i, "RANKED_SOLO", "TOP"));
+            Optional<AcceptedRequest> requestId = matchRequestService.join(command("u" + i, "RANKED_SOLO", "TOP")).accepted();
             if (requestId.isPresent()) {
                 accepted.incrementAndGet();
             }
         });
 
         assertThat(accepted.get()).isEqualTo(100);
+    }
+
+    @Test
+    @DisplayName("D-11 15번: 게시판 방에 들어가 있는 사용자의 매칭 요청은 거절되고 아무것도 쓰이지 않는다")
+    void userInRoomIsRejected() {
+        // app:room 이 입장 때 쓰는 표시다. 이 앱은 있는지만 본다
+        redis.opsForValue().set("qm:user:active-room:u1", "room-1");
+
+        JoinResult result = matchRequestService.join(command("u1", "RANKED_SOLO", "TOP"));
+
+        assertThat(result.status()).isEqualTo(JoinResult.Status.IN_ROOM);
+        assertThat(result.accepted()).isEmpty();
+        assertThat(redis.hasKey("qm:user:active-request:u1")).isFalse();
+        // 남의 키를 건드리지 않았다
+        assertThat(redis.opsForValue().get("qm:user:active-room:u1")).isEqualTo("room-1");
+    }
+
+    @Test
+    @DisplayName("D-11 15번: 방에서 나가 입장 표시 키가 사라지면 다시 매칭 요청을 할 수 있다")
+    void userWhoLeftRoomCanQueue() {
+        redis.opsForValue().set("qm:user:active-room:u1", "room-1");
+        assertThat(matchRequestService.join(command("u1", "RANKED_SOLO", "TOP")).status())
+                .isEqualTo(JoinResult.Status.IN_ROOM);
+
+        redis.delete("qm:user:active-room:u1");
+
+        assertThat(matchRequestService.join(command("u1", "RANKED_SOLO", "TOP")).status())
+                .isEqualTo(JoinResult.Status.ACCEPTED);
     }
 }

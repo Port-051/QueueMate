@@ -6,14 +6,24 @@
 --
 -- KEYS[1]   = qm:user:active-request:{userId}
 --             HASH. 활성 요청 표시이자, 나중에 키를 되조립할 재료를 담는다.
+-- KEYS[2]   = qm:user:active-room:{userId}
+--             app:room 의 입장 표시 키. 있는지만 본다 — 쓰지도 지우지도 값을 읽지도 않는다.
 -- ARGV[1..] = HASH 필드 쌍 (field, value, field, value, ...)
 --
 -- 반환
 --   1 = 선점 성공
 --   0 = 이미 활성 요청이 있음 (409)
+--  -1 = 게시판 방에 들어가 있음 (409)
 
 if redis.call('EXISTS', KEYS[1]) == 1 then
     return 0
+end
+
+-- 한 사용자는 자동 매칭 대기와 게시판 방 중 한 번에 하나만 할 수 있다 (docs/11 D-11 15번).
+-- 반대 방향(대기 중이면 방에 못 들어간다)은 app:room 의 입장 스크립트가 KEYS[1] 을 보고 지킨다.
+-- 두 스크립트가 각자 "두 키를 확인하고 자기 키만 쓴다"를 원자적으로 하므로 먼저 돈 쪽이 이긴다.
+if redis.call('EXISTS', KEYS[2]) == 1 then
+    return -1
 end
 
 redis.call('HSET', KEYS[1], unpack(ARGV))
