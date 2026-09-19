@@ -20,6 +20,23 @@
 > `PartyClosed.fifo` 의 소비자는 `app:platform` 하나다** — `app:matching` 은 그 큐를 읽지 않는다.
 > 이것도 **그림과 아래 표에는 반영되지 않았다.** 아래에서 `BlockChanged.fifo` · "차단 목록 갱신" ·
 > "`BlockChanged.fifo`의 유일한 소비자"를 만나면 이 문단을 함께 봐라.
+>
+> **같은 날 결정 D-15 로 예약(등록 REST + 짝 찾기 배치)은 AWS Lambda 로 빠진다.** `app:reservation-batch`
+> (Fargate 상시 1개)는 **`app:reservation`(Lambda)** 이 대체하고, 예약 REST 도 `app:platform` 이 아니라
+> `app:reservation` 의 일이 된다. HTTP 진입점과 CloudFront 경로 라우팅, VPC 배치는 미정이다. 이것도
+> **그림과 아래 표에는 반영되지 않았다.** 아래에서 `app:reservation-batch` · "상시 1개 · 내부 1분 주기" ·
+> "예약 REST … 는 `app:platform`이 서빙한다"를 만나면 이 문단을 함께 봐라. **결정 D-17 로 예약 배치는 1분 주기가 아니라
+> 요일 구분에 따라 하루 중 정해진 시각에만 돈다** — 아래의 "내부 1분 주기"도 함께 걸러 읽는다.
+>
+> **같은 날 결정 D-16 으로 방이 별도 서비스 `app:room` 으로 분리된다.** 입장 · 나가기 · 강퇴 · 정원 · 접속
+> 확인 · 시그널 `POST` · `WEBRTC_SIGNAL` 발행은 `app:room` 의 일이고, `app:room` 은 Redis 만 쓴다(RDS 에 붙지
+> 않는다). 모집 글 · 목록 · 방장 확정 · 계정 · 친구 · 차단은 `app:platform` 에 남는다. 배포 단위는
+> `app:matching` / `app:platform` / `app:room` / `app:realtime` / `app:reservation`(Lambda) 다섯이 된다.
+> **그림과 아래 표에는 `app:room` 상자가 없다.** ALB 경로 라우팅은 미정이다.
+>
+> **같은 날 결정 D-18 로 Stage 1(단일 EC2 + Docker Compose)을 적용하지 않는다.** 이 그림이 그리는 Stage 2
+> (ECS Fargate) 구성이 목표 상태가 아니라 **배포 기준**이 된다. 위 머리말의 "현재 개발 단계는 Stage 1 … 이
+> 그림은 목표 상태다"는 그렇게 걸러 읽는다.
 
 ---
 
