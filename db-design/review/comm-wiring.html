@@ -1,3 +1,11 @@
+<!--
+  [2026-09-19 추가] 이 페이지는 그 시점(2026-08)의 검토 기록이다. 본문은 고치지 않았다.
+  검토 대상은 옛 설계(Core API + SSE / 즉시 매칭 / 예약 RunTask / Notification Worker / Discord Worker, LoL 전용,
+  Discord 채널, Web Push, 매칭 요청·제안을 RDS 에 저장)의 통신 경로 13개다. 그 설계는 그 뒤 전면 개정됐다.
+  현재 배포 단위는 app:platform / app:matching / app:realtime(notification) / app:reservation-batch 이고,
+  통신은 REST · Redis Pub/Sub → SSE · transactional outbox → SQS FIFO 다 (docs/11 #15·#21·#22·D-9).
+  현재 상태와 대조표는 ../README.md 를 보라. 글로 된 짝은 ../아키텍처_리뷰_할일.md 다.
+-->
 <title>매칭 서비스 통신 배선도</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -422,6 +430,11 @@
 
   <header class="head">
     <div class="eyebrow">게임 파티 매칭 서비스 · 아키텍처 리뷰</div>
+    <p style="margin:8px 0 16px;padding:10px 14px;border:1px solid var(--warn);border-radius:8px;background:var(--warn-tint);color:var(--ink);font-size:14px;line-height:1.6">
+      <b>[2026-09-19 추가] 이 페이지는 옛 설계를 대상으로 한 검토 기록이다.</b> 본문은 고치지 않았다.
+      검토한 5서비스 구조(Core API · 즉시 매칭 · 예약 RunTask · Notification Worker · Discord Worker)는 그 뒤 전면 개정됐다.
+      현재 상태는 같은 폴더 위의 <code>README.md</code> 를 보라.
+    </p>
     <h1>서비스끼리 어떻게 말을 거는가</h1>
     <p class="lede">
       통신 설계의 <b>큰 틀은 맞다</b>. SQS와 Redis를 나눠 쓴 판단도, 큐를 둘로 쪼갠 것도 적절하다.

@@ -1,4 +1,114 @@
 -- =====================================================================
+--  [2026-09-19 개정 안내] 이 파일은 옛 설계의 스키마다. 현재 기준이 아니다.
+-- =====================================================================
+--
+--  (a) 이 파일의 지위
+--    프로젝트 초기(2026-08) 설계 — LoL 전용 / Discord 로그인 / 매칭 요청과 제안을 DB 에 저장 /
+--    단일 스키마 — 의 PostgreSQL DDL 이다. 이 안내 블록 아래의 본문은 한 글자도 고치지 않았다.
+--    새 스키마로 다시 쓰지도 않았다 — app:platform 이 소유할 테이블의 컬럼이 아직 정해지지
+--    않았기 때문이다 (../platform/CLAUDE.md §7). 이 파일로 DB 를 만들지 마라.
+--    출처 표기(docs/…, CLAUDE.md)는 저장소 루트 matching/ 기준이고 ../platform 은 옆 폴더다.
+--    전체 대조표와 파일별 처분은 이 폴더의 README.md 에 있다.
+--
+--  (b) 어떤 결정으로 무엇이 폐기·변경됐나
+--
+--    [폐기 — Redis 로 이동]  docs/11 #27·#28·#32·#33, CLAUDE.md §3
+--      match_request, request_sub_position
+--      match_offer, offer_seat, offer_participant
+--      그에 딸린 enum: request_status, offer_status, seat_status, seat_response, match_kind
+--      그에 딸린 인덱스: uq_active_request_per_user, uq_offer_combo_active,
+--                        uq_seat_filled_request, uq_seat_active_candidate
+--      - 진행 중인 실시간 매칭 상태(요청 / 아직 안 찬 파티 / 진행 중 제안 / 수락 집계)는 Redis 에만
+--        둔다. match_requests 테이블을 만들지 않는다. "사용자당 활성 요청 1건"은 부분 유니크
+--        인덱스가 아니라 Redis Lua(claim-request.lua)가 지킨다 (프로젝트 INV-1).
+--      - 좌석·충원 회차(round)·REFILLING 이라는 개념 자체가 없어졌다. 대기 상태는 "아직 안 찬
+--        파티"이고 파티를 "아직 필요한 핵심 조건 값"으로 역색인한다.
+--      - DB 는 확정된 것만 안다: matching.match_proposals + matching.proposal_members +
+--        matching.outbox 를 단일 트랜잭션으로 쓴다 (docs/11 #27. 아직 구현되지 않았다).
+--
+--    [폐기 — Discord 연동]  docs/11 #16(자체 계정 + JWT), #6·#25(자체 WebRTC 음성/텍스트)
+--      app_user.discord_id, app_user.discord_username, app_user.discord_dm_enabled
+--      party_discord_channel, party_discord_member
+--      enum discord_channel_status, discord_member_status, outbox_topic 의 'DISCORD'
+--
+--    [폐기 — Web Push]  contracts/events.md, docs/11 D-9·D-10, ../notification/CLAUDE.md §2
+--      push_subscription, push_delivery, enum delivery_status, outbox_topic 의 'NOTIFICATION'
+--      - 알림은 SSE 하나다. Redis Pub/Sub 으로 흘려보내고 이력을 저장하지 않는다.
+--        (Web Push 는 "나중에 보완으로" 미뤄져 있을 뿐이다 — docs/WHY_SPRING_BOOT.md §5-3)
+--
+--    [변경 — 사용자 PK]  ../platform/CLAUDE.md §3.5 (2026-09-19 확정), docs/11 D-4
+--      app_user.id 의 일련번호 PK 와 그것을 가리키는 모든 user_id 정수 FK
+--      - 사용자 id 는 가입할 때 정한 로그인 아이디(문자열)다. uuid 나 일련번호를 사용자
+--        식별자로 두지 않는다. 자리는 account.users 이고, 자체 로그인에 필요한
+--        account.credentials/refresh_tokens 가 이 파일에는 없다.
+--
+--    [변경 — 단일 게임 전제]  docs/11 #8, CLAUDE.md §1·§2
+--      game 테이블의 LOL 1행, enum lol_position / queue_type, riot_account,
+--      app_user.primary_position, user_sub_position, party_member.position
+--      - 게임은 LoL / VALORANT / PUBG 셋이다. 핵심 조건이 게임마다 다르고(LoL 포지션 /
+--        VALORANT 역할군 / PUBG 플랫폼) 요청에는 값 하나만 싣는다 — 주·부 포지션이 없다.
+--      - 큐(queue_type)와 목표 인원(target_size)은 사용자 입력이 아니다. 게임 모드(modeKey)가
+--        인원까지 정하고(docs/11 #31), 모드 설정은 앱이 Redis qm:gameconfig:* 에서 읽는다.
+--      - riot_account 의 자리는 게임 셋을 담는 account.game_accounts 다. 외부 API 연동 범위는
+--        미정이고 매칭에 쓰는 티어는 지금 자기신고다.
+--
+--    [변경 — 조건 값]  CLAUDE.md §2 (코드가 원본)
+--      enum voice_mode   ('REQUIRED','AVAILABLE','NONE')      -> REQUIRED / NO_VOICE  ("가능"은 제거됐다)
+--      enum play_purpose ('CASUAL','WIN','LEARN','SKILLED')   -> RANK_UP / NORMAL / FUN
+--      enum lol_position (... 'BOT' ...)                      -> TOP/JUNGLE/MID/ADC/SUPPORT/NONE
+--      *_tier_order, allowed_tier_min_order / allowed_tier_max_order
+--        -> 티어 순번은 DB 컬럼이 아니라 Redis ZSET 의 score 다. 사용자가 고르는 허용 범위는 없다.
+--      - 네이티브 ENUM 대신 varchar + CHECK 를 쓴다 (docs/WHY_POSTGRESQL.md §4-3).
+--      - play_mood(플레이 분위기)는 현재 결정에 대응하는 답이 없다.
+--
+--    [변경 — 예약]  docs/04, docs/11 #23·#24
+--      match_request 의 kind='SCHEDULED' · play_date · window_start/end · play_minutes,
+--      reservation_batch_run
+--      - 예약은 match_request 에 합쳐 두지 않는다. 자리는 reservation.reservations 이고 필드는
+--        "기존 매칭 조건 + availableFrom/availableTo(30분 단위, UTC) + playAmount" 다.
+--      - 하루 1회 00시 배치가 아니라 1분 주기 배치다. play_date PK 로 "하루 1회"를 강제하던
+--        reservation_batch_run 은 전제가 사라졌다.
+--      - user_busy_interval: 실시간 요청은 시간 점유 대상이 아니다. 겹침 금지는 활성 예약끼리의
+--        규칙이다 (프로젝트 INV-9).
+--
+--    [변경 — 파티와 outbox]  docs/11 #21, docs/00 §5, ../platform/CLAUDE.md §3.4·§3.5
+--      party, party_member, outbox_event
+--      - 자리는 party.parties / party.party_members 다. party.offer_id FK 와
+--        party_member.request_id PK/FK 는 성립하지 않는다 — 둘 다 Redis 에만 있는 id 다.
+--        파티룸에 나가기가 생겼다(옛 설계는 나가기가 없어 left_at 을 걷어냈다).
+--      - outbox 는 스키마마다 따로 둔다(matching.outbox / party.outbox / social.outbox). 나르는
+--        것은 알림·Discord 명령이 아니라 SQS FIFO 의 ProposalConfirmed / PartyClosed 다.
+--        (BlockChanged.fifo 는 2026-09-19 에 폐기됐다.)
+--
+--    [변경 — 스키마 구조]  docs/11 #17·D-1
+--      이 파일 전체가 단일 스키마 + 테이블 간 FK 전제다. 지금은 PostgreSQL 인스턴스 1개에
+--      schema-per-service(account / gameconfig / matching / reservation / party / social)이고
+--      크로스 스키마 FK·JOIN 을 금지하며 스키마별 DB 롤로 접속한다. 유일한 예외는 matching 롤에
+--      준 social.blocks 의 SELECT 다.
+--
+--    [이 파일에 아예 없는 것]  docs/11 #13
+--      친구 · 차단 · 신고 · 최근 함께한 사람. 옛 설계는 이것들을 제외 기능으로 두었으나 지금은
+--      필수다 — social.friend_requests / friendships / blocks / reports / recent_players.
+--      이 중 social.blocks 만 모양이 정해져 있다(matching 이 이미 읽는다):
+--        id 일련번호 PK · blocker_id 문자열 · blocked_id 문자열 · (blocker_id, blocked_id) UNIQUE
+--
+--  (c) 지금도 참고할 만한 것 — 테이블이 아니라 기법이다
+--    - btree_gist + EXCLUDE USING gist 로 "시간 구간이 겹치면 거절"을 DB 제약으로 강제하는 법
+--      (user_busy_interval). 프로젝트 INV-9 에 그대로 쓰는 기법이다 (docs/WHY_POSTGRESQL.md §1-1).
+--    - 부분 유니크 인덱스(WHERE 절)로 "활성인 것만 하나"를 강제하는 법.
+--    - outbox 테이블의 모양(유일한 이벤트 id, 발행 시각, 시도 횟수)과 확정 트랜잭션 안에서
+--      이벤트를 같이 적재한다는 생각.
+--    - 티어를 문자열이 아니라 순번으로 비교해야 한다는 주의.
+--
+--  현재 기준
+--    스키마 배치와 테이블 이름 : docs/WHY_POSTGRESQL.md §3, ../platform/CLAUDE.md §3.5
+--    결정                     : docs/11_DECISION_LOG.md #17 · #21 · #27 · D-1 · D-4
+--    matching 이 읽는 테이블   : backend/src/main/java/com/queuemate/matching/block/Block.java,
+--                               backend/src/test/resources/schema.sql
+--    테이블 컬럼              : 아직 정해지지 않았다 (../platform/CLAUDE.md §7)
+-- =====================================================================
+
+-- =====================================================================
 --  LoL 파티 매칭 서비스 — PostgreSQL 16 스키마
 --  기준: 기능 명세서 대주제 1~5
 -- =====================================================================
