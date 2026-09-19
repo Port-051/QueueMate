@@ -8,6 +8,19 @@
 - 그림 제목: **Cloud Architecture** / 부제: `QueueMate — 게임 팀원 자동 매칭 · AWS ap-northeast-2 | ECS Fargate · SQS FIFO · SSE · WebRTC`
 - 그림이 그리는 것은 **Stage 2 (ECS Fargate)** 구성이다. 현재 개발 단계는 Stage 1(단일 EC2 + Docker Compose)이므로 이 그림은 목표 상태다.
 
+> **[2026-09-19 추가] 결정 D-9(`docs/11_DECISION_LOG.md`, #22 개정)로 `/ws` 경로와
+> `app:realtime` 의 WebSocket 은 없어진다.** `WEBRTC_SIGNAL` 도 SSE 로 받아 SSE 는 14종이 아니라
+> 15종이 되고, 시그널을 보내는 쪽은 `app:platform` 의 REST `POST` 다.
+> **그림과 아래 표에는 아직 반영되지 않았다** — 표는 그림을 그대로 옮긴 것이라 그림과 같이
+> 고쳐야 한다. 아래에서 `/ws` · `WS(WEBRTC_SIGNAL)` · `SSE 14종` · "SSE + WebSocket" 을 만나면
+> 이 문단을 함께 봐라.
+>
+> **같은 날 결정 D-12 로 `BlockChanged.fifo` 는 없어진다**(차단은 `app:platform` 이 `social.blocks` 에
+> 저장하면 끝이고, `app:matching` 은 확정 직전에 그 테이블을 직접 조회한다). **결정 D-13 으로
+> `PartyClosed.fifo` 의 소비자는 `app:platform` 하나다** — `app:matching` 은 그 큐를 읽지 않는다.
+> 이것도 **그림과 아래 표에는 반영되지 않았다.** 아래에서 `BlockChanged.fifo` · "차단 목록 갱신" ·
+> "`BlockChanged.fifo`의 유일한 소비자"를 만나면 이 문단을 함께 봐라.
+
 ---
 
 ## 0. 한 줄 요약

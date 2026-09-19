@@ -69,6 +69,9 @@
 
 운영 제약: 프록시 idle timeout(Stage 2 ALB 300초)보다 짧게 **heartbeat 15~30초** 필수.
 
+<!-- 아래 한 줄은 원문 본문이 아니라 이 저장소가 붙인 주석이다. -->
+> [matching 저장소 주석, 2026-09-19] 이 선택은 결정 로그 **D-9**(`docs/11_DECISION_LOG.md`, #22 개정)로 개정됐다 — WebSocket(`/ws`)은 없어지고 `WEBRTC_SIGNAL` 도 SSE 로 받는다(15종). 보내는 쪽은 `app:platform` 의 REST `POST` 다.
+
 ---
 
 ## 6. 알림을 어느 서버가 보낼까
