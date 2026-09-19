@@ -24,13 +24,15 @@ QueueMate는 **조건 기반 팀원 자동 랜덤 매칭** 서비스다.
 - 공개 사용자 탐색, 길드, 피드, 팔로우, 좋아요, 공개 채팅방을 만들지 않는다.
   - **예외 하나 — 파티 모집 게시판은 허용된다** (docs/11 D-11, #14 개정). 모집 글을 올리면 그것이 곧
     파티방이고, 글을 누른 사용자는 그 방에 들어와(둘러보러 온 상태이지 파티원이 아니다) 음성으로 바로
-    말을 건다. **`app:platform` 의 일이다. 이 저장소(매칭 엔진)에 게시판 코드를 넣지 않는다.**
+    말을 건다. **글 · 목록 · 방장 확정은 `app:platform`, 방 안의 일(입장 · 나가기 · 강퇴 · 정원 · 시그널)은
+    `app:room` 의 일이다 (docs/11 D-16). 이 저장소(매칭 엔진)에 게시판 코드를 넣지 않는다.**
   - **한 사용자는 자동 매칭 대기와 게시판 방 중 한 번에 하나만 할 수 있다** (D-11, INV-2 의 취지와 같다).
-    지키는 자리는 **활성 요청 키 `qm:user:active-request:{userId}` 하나**다 — 방에 들어올 때 `app:platform` 이
-    이 키를 쓰고(이미 있으면 입장 거절) 나갈 때 지운다. 방에 있는 사용자의 매칭 요청은
+    지키는 자리는 **활성 요청 키 `qm:user:active-request:{userId}` 하나**다 — 방에 들어올 때 `app:room` 이
+    (docs/11 D-16 이 D-11 16번의 `app:platform` 을 개정했다) 이 키를 쓰고(이미 있으면 입장 거절) 나갈 때
+    지운다. 방에 있는 사용자의 매칭 요청은
     `redis/shared/claim-request.lua` 의 기존 `EXISTS` 검사가 그대로 거절하므로 **새 검사 로직은 넣지 않는다.**
-    이 키는 이제 **두 앱이 쓰는 키**다(`app:platform` 이 만지는 매칭 키는 이것 하나뿐이다). 다만 남이 쓴 값을
-    읽는 쪽(`MatchQueryService` 상태 조회 · `MatchCancelService` 취소)은 손봐야 할 수 있다. HASH 에 무엇을 써
+    이 키는 이제 **두 앱이 쓰는 키**다(`app:room` 이 만지는 매칭 키는 이것 하나뿐이고, `app:platform` 은
+    만지지 않는다). 다만 남이 쓴 값을 읽는 쪽(`MatchQueryService` 상태 조회 · `MatchCancelService` 취소)은 손봐야 할 수 있다. HASH 에 무엇을 써
     넣는지는 **미정**이다 — 필드 구성이 정해지기 전에 이 저장소에 그 용도의 코드를 넣지 않는다.
   - 게시판이 보여 주는 것은 **사람 목록이 아니라 모집 글(방) 목록**이다. 사람을 검색하고 둘러보는
     공개 사용자 탐색은 여전히 금지다.
@@ -55,7 +57,7 @@ PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했�
 서로 파티를 맺을 수 없으므로 조건에 없으면 게임에 같이 못 들어가는 파티가 생긴다. 조건 개수는
 그대로 4개다(추가가 아니라 교체). 근거는 `domain/condition/KeyConditionType.java` 클래스 주석.
 
-예약 매칭에만 붙는 추가 조건 (이 저장소 범위 밖, `app:platform` + `app:reservation-batch`):
+예약 매칭에만 붙는 추가 조건 (이 저장소 범위 밖, `app:reservation` — Lambda, docs/11 D-15. 예전 서술의 `app:platform` 예약 REST + `app:reservation-batch` 를 대체한다):
 - 플레이 가능한 시간: 30분 단위 start/end
 - 플레이할 양: `ONE_GAME` / `TWO_PLUS`
 
@@ -149,8 +151,8 @@ PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했�
 - 게임 모드 설정(`gameconfig`)은 **Redis에서 읽기만 한다.** 앱이 부팅 시 밀어넣지 않는다.
   밀어넣으면 모드 추가마다 재배포가 필요해져 설정을 데이터로 뺀 의미가 사라진다
   (`seed/gameconfig.redis`, `docs/GAME_CONFIG.md`).
-- 현재 배포 기준은 Stage 1(단일 EC2 + Docker Compose)다.
-  **k8s/HPA/sticky session을 전제한 구현 금지.**
+- 배포 기준은 **Stage 2(ECS Fargate)** 다. Stage 1(단일 EC2 + Docker Compose)은 적용하지 않는다 (docs/11 D-18).
+  **k8s/HPA/sticky session을 전제한 구현 금지**는 그대로다.
 
 ## 4. 불변식 (INV) — 매칭 해당분과 그것이 지켜지는 자리
 
@@ -166,7 +168,7 @@ PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했�
 | **INV-6** | block 관계 사용자는 같은 proposal/party에 들어갈 수 없다 | **미구현.** 두 겹으로 설계했는데 아랫단만 있다. ① **선필터(코드 있음)** — `rule/lol/LolCandidateRule.java#canJoin()`이 락을 잡기 전에 `block/BlockRepository.java#findBlockedUserIds()`를 실제로 부르고, Lua가 돌려준 후보 파티 멤버 목록을 `rule/ScriptSupport.java#blockedWith()`로 거른다(상한 `MAX_CANDIDATE_SCAN = 20`, 전부 차단이면 새 파티를 만든다). Redis 선필터(`qm:block:{userId}`)가 아니라 **DB 조회**다 (docs/11 D-2. 그 선필터와 `BlockChanged.fifo`는 D-12로 폐기됐다). ② **확정 직전 최종 검증(없음)** — `social.blocks` 동기 SELECT (docs/11 D-1). 확정 단계가 없으므로 이것도 없다. **그리고 ①은 스키마가 없어 실제로는 실패한다** — Flyway가 없고 `application.yaml`이 `ddl-auto: none`이라 기본 실행(H2)에 `social.blocks`가 없다. 배정은 `@Async` 안이라 요청은 201로 나가고 배정만 조용히 실패한다. 테스트만 `ConcurrencyTestSupport`의 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql`로 테이블을 만들어 통과한다. **차단 검증 없이 배포하지 않는다** (docs/11 #30) | **미구현 (선필터 코드만, 스키마 없음)** |
 | **INV-7** | 동일 사용자의 PartyMember 중복 금지 | 배정 스크립트 4개가 참가자를 `member:{userId} = keyValue` **HASH 필드**로 쓴다 — 새로 만들 때는 `create-or-check-party-untiered.lua` / `create-or-check-party-tiered.lua`의 `HSET`, 합류할 때는 `join-party.lua` / `join-party-tiered.lua`의 `HSET`. 같은 userId면 필드가 하나뿐이라 구조적으로 중복이 불가능하다. 앞단에서 INV-1이 이미 두 번째 요청을 막는다 | **구현됨** |
 | **INV-8** | 게임별 hard rule 위반 파티 생성 금지 | 두 겹이다. ① 값 검증 — `validation/lol/LolConditionValidator.java`가 modeKey 존재 여부, `positionUniqueness`에 맞는 포지션 값, 그리고 `tierRule`(**`NONE` / `EXIST`**)에 맞는 티어 값까지 확인한다. `EXIST`면 `qm:gameconfig:LOL:tier-range:{modeKey}` 표를 읽어 **줄이 없는 티어와 `SOLO_ONLY` 티어를 거른다**(표가 없는 모드는 그 모드 요청이 전부 400이다 — fail-closed다). `WINDOW`/`TABLE`과 `maxTierGap`은 없앴다. 폭으로 거를지 표로 거를지를 설정에 또 적으면 설정이 데이터와 어긋날 수 있었기 때문이다 — `WINDOW`라고 적어 놓고 `maxTierGap`을 빠뜨리면 폭이 0이 되어 자기 티어하고만 매칭되는데 **에러가 안 났다**. 지금은 "표가 있으면 그 표대로"가 전부다 (`seed/gameconfig.redis`). ② 구조적 분리 — 조건이 **Redis 키 이름**에 들어가므로(`qm:party:open:LOL:{mode}:{voice}:{purpose}:needs:{keyValue}`, 티어 모드는 뒤에 `:{tier}`가 더 붙어 (포지션 x 티어) 격자가 된다. 그 접미사는 **Lua가 스스로 붙인다** — 자바는 티어 없는 needs 키만 넘긴다) 조건이 다르면 애초에 같은 색인에 없다. 포지션 중복 금지는 Lua의 `unique` 분기가 처리. **PUBG 는 중복 금지가 없다** — 핵심 조건이 플랫폼이라 같은 값이 여럿 겹쳐도 되고, 대신 스팀과 카카오가 색인 자체로 갈린다 | **세 게임 모두 구현·테스트됨** (LoL · VALORANT · PUBG 각각 동시성 테스트가 있다) |
-| INV-9 | 시간이 겹치는 활성 예약 중복 등록 금지 | **이 저장소 범위 밖.** `app:platform`의 예약 REST가 검증한다 (docs/11 #24) | 해당 없음 |
+| INV-9 | 시간이 겹치는 활성 예약 중복 등록 금지 | **이 저장소 범위 밖.** `app:reservation`(Lambda)의 예약 REST가 검증한다 (docs/11 #24를 D-15가 개정 — 예전에는 `app:platform`이었다) | 해당 없음 |
 | **INV-10** | Redis 장애 시 중복 매칭을 감수하는 fallback 금지. 새 매칭을 fail-closed 한다 | `common/error/GlobalExceptionHandler.java#handleRedisFailure()` — `DataAccessException`을 `503 MATCHING_UNAVAILABLE` + `Retry-After: 5`로 바꾼다. 이미 성립한 파티는 건드리지 않고 새 요청만 거절한다 | **구현됨** |
 
 ### 불변식 회귀 테스트
@@ -388,7 +390,7 @@ AngularJS commit convention. 형식: `type(scope): subject`
 ## 9. 이 저장소에서 하지 말 것 (요약)
 
 - `SseEmitter` / `WebSocketConfig` / `@MessageMapping` 추가 — `app:realtime`의 일이다
-- 예약 REST(`/api/v1/reservations`) 서빙 — `app:platform`의 일이다
+- 예약 REST(`/api/v1/reservations`) 서빙 — `app:reservation`(Lambda)의 일이다 (docs/11 D-15)
 - 파티를 DB에 만드는 코드 — `app:platform`이 `ProposalConfirmed.fifo`를 소비해서 한다
 - `match_requests` 테이블 — docs/11 #27이 금지한다
 - Redis 장애 시 우회 매칭 경로 — INV-10이 금지한다

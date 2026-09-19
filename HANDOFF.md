@@ -54,9 +54,10 @@
 
 > **2026-09-19 추가.** 후보 1(`PartyClosed.fifo` 소비)은 **닫혔다** — 그 큐의 소비자는 `app:platform`
 > 하나이고 이 앱은 읽지 않는다 (docs/11 D-13). 큐 하나를 두 앱이 읽으면 메시지를 나눠 갖게 된다.
-> **새 가능성이 하나 생겼다** — docs/11 D-11 16번으로 `app:platform` 이 활성 요청 키
-> (`qm:user:active-request:{userId}`)를 쓰고 지울 수 있게 됐으므로, 파티가 닫힐 때 `app:platform` 이 이
-> 키를 지우는 길이 있다. **가능성일 뿐 정해진 것이 아니다.** 후보 2·3 은 그대로 열려 있다.
+> **새 가능성이 하나 생겼다** — docs/11 D-11 16번으로 게시판 방을 맡는 앱이 활성 요청 키
+> (`qm:user:active-request:{userId}`)를 쓰고 지울 수 있게 됐다. 그 앱은 D-16 으로 **`app:room`** 이다
+> (처음에는 `app:platform` 으로 적었다). 그러므로 방이 닫힐 때 `app:room` 이 이 키를 지우는 길이 있다.
+> **가능성일 뿐 정해진 것이 아니다.** 후보 2·3 은 그대로 열려 있다.
 
 **건드릴 곳**: `redis/proposal/cleanup-confirmed.lua` · `service/ProposalService#confirmed()` ·
 (1번이면) 새 SQS 소비자 패키지 · (2번이면) `MatchingController` + `MatchCancelService`.
