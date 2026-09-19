@@ -41,13 +41,16 @@ matching  ──PUBLISH──▶  Redis Pub/Sub               ──SUBSCRIBE─
 | 채널 | `qm:pubsub:push:{userId}` | `redisKeys/SharedKeys.java`의 `PUSH_CHANNEL_PREFIX = "qm:pubsub:push:"` + `pushChannel(userId)` |
 | 봉투 | `{type, eventId, occurredAt, payload}` 네 칸 고정 | `notification/PushPublisher.java`의 `record Envelope` |
 | `type` | `PushEventType` 이름 문자열 | `notification/PushEventType.java` |
-| `eventId` | 매번 새 UUID 문자열. **SSE `id:` 필드에 그대로 싣는다.** 클라이언트가 중복을 거르는 데 쓴다 — `Last-Event-ID` 로 이어 보내지는 **않는다**(아래 "재연결") | `PushPublisher#publish()` · `contracts/events.md` "재연결" |
+| `eventId` | 매번 새 UUID 문자열. **SSE `id:` 필드에 그대로 싣는다.** 클라이언트가 중복을 거르는 데 쓴다 — `Last-Event-ID` 로 이어 보내지는 **않는다**(`contracts/events.md` "재연결") | `PushPublisher#publish()` · `contracts/events.md` "재연결" |
 | `occurredAt` | ISO-8601 UTC, 밀리초 단위 (`Instant.truncatedTo(MILLIS)`) | `PushPublisher#publish()` |
 | `payload` | 객체. 담을 것이 없어도 `null`이 아니라 `{}` | `PushPublisher#publish()` |
 
 `matching`이 발행하는 종류는 5종이다 — `MATCH_QUEUE_UPDATED`, `MATCH_PROPOSAL_CREATED`,
-`MATCH_PROPOSAL_EXPIRED`, `MATCH_CONFIRMED`, `MATCH_CANCELLED`. 전체 SSE 계약은 14종이고
-나머지 9종(`RESERVATION_*`, `PARTY_*`, `FRIEND_*`)은 다른 앱이 발행한다(`contracts/events.md`).
+`MATCH_PROPOSAL_EXPIRED`, `MATCH_CONFIRMED`, `MATCH_CANCELLED`. 전체 SSE 계약은 15종이고
+나머지 10종(`RESERVATION_*`, `PARTY_*`, `FRIEND_*`, `WEBRTC_SIGNAL`)은 다른 앱이 발행한다
+(`contracts/events.md`). **`WEBRTC_SIGNAL`도 다른 알림과 똑같이 흘려보낸다** — 시그널을 받는 길이
+SSE 이고 보내는 쪽은 `app:platform`의 REST `POST`다. WebSocket(`/ws`)은 없어졌으니 여기 만들지 않는다
+(`matching`의 `docs/11_DECISION_LOG.md` D-9).
 
 > **채널 접두사는 이 서비스가 정하지 않는다.** 원본은 `matching`의 `SharedKeys.PUSH_CHANNEL_PREFIX`다.
 > 여기서 값을 따로 바꾸거나 오타를 내면 **컴파일도 테스트도 통과한 채로 알림이 전부 끊긴다**
@@ -110,7 +113,10 @@ matching  ──PUBLISH──▶  Redis Pub/Sub               ──SUBSCRIBE─
 | 항목 | 상황 |
 |---|---|
 | 인증 | `EventSource`는 요청 헤더를 붙일 수 없다. 쿼리 파라미터 토큰이냐 쿠키냐 |
-| 엔드포인트 경로 | `contracts/events.md`는 `GET /api/v1/events`라고 적지만 `contracts/openapi.yaml`에는 아직 없다 |
+
+정해진 것 (2026-09-18): 엔드포인트 경로는 **`GET /api/v1/events`**다. 인증이 정해질 때까지 `userId`를
+쿼리 파라미터로 그대로 받는다 — 인증이 붙으면 이 파라미터는 없어진다. 계약 원본의
+`contracts/openapi.yaml`에는 이 경로가 아직 없다.
 
 ## 8. 저장소 구성과 커밋 규칙
 
@@ -121,6 +127,7 @@ matching  ──PUBLISH──▶  Redis Pub/Sub               ──SUBSCRIBE─
 queuemate/
 ├── matching/       main 브랜치
 └── notification/   notification 브랜치 (이 폴더)
+    └── backend/    스프링 앱. matching/backend/ 와 같은 모양이다
 ```
 
 커밋은 `matching`과 같은 AngularJS commit convention을 따른다. 형식: `type(scope): subject`

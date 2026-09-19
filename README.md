@@ -15,14 +15,17 @@ matching  ──publish──▶  Redis Pub/Sub               ──subscribe─
 
 매칭 로직은 하나도 없다. 메시지 봉투(`{type, eventId, occurredAt, payload}`)는
 `matching` 의 `notification/PushPublisher.java` 가 정하고, 여기서는 **해석하지 않고 전달만** 한다.
-종류는 `matching` 의 `notification/PushEventType.java` 5종이다.
+`matching` 이 발행하는 종류는 `notification/PushEventType.java` 5종이고, 전체 SSE 계약은 15종이다.
+다른 앱이 발행한 것(`PARTY_*`, `FRIEND_*`, `RESERVATION_*`, `WEBRTC_SIGNAL`)도 같은 채널로 들어오면
+**종류를 가리지 않고 그대로** 흘려보낸다. 종류가 늘어도 이 서비스는 다시 배포하지 않는다.
 
 ## 이 서비스가 하지 않는 일
 
 - **놓친 알림을 다시 보내지 않는다.** Redis Pub/Sub 은 구독자가 없으면 메시지를 버린다.
   페이지를 나가 있던 동안의 알림은 사라지고, 다시 들어온 사용자는 `matching` 의 상태 조회
   (`GET /api/v1/match-requests?userId=`)로 현재 상태를 따라잡는다. 이력을 쌓으려 하지 마라.
-- 매칭 상태를 읽거나 바꾸지 않는다. Redis 에서 만지는 것은 `qm:pubsub:push:*` 구독뿐이다.
+- 매칭 상태를 읽거나 바꾸지 않는다. Redis 에서 만지는 것은 접속 중인 사용자의
+  `qm:pubsub:push:{userId}` 채널 구독뿐이다.
 
 ## 저장소 구성
 
@@ -33,9 +36,10 @@ matching  ──publish──▶  Redis Pub/Sub               ──subscribe─
 queuemate/
 ├── matching/       main 브랜치
 └── notification/   notification 브랜치 (이 폴더)
+    └── backend/    스프링 앱. matching/backend/ 와 같은 모양이다
 ```
 
-## 설계 메모 (구현 전에 정한 것)
+## 설계 메모
 
 - **구독은 사용자별로 건다.** 연결이 생기면 `qm:pubsub:push:{userId}` 를 구독하고, 그 사용자의
   마지막 연결이 끊기면 푼다. `qm:pubsub:push:*` 패턴 구독은 사용자가 늘면 모든 인스턴스가 모든
@@ -55,4 +59,6 @@ queuemate/
 ## 아직 정할 것
 
 - 인증 — SSE(`EventSource`)는 헤더를 못 붙인다. 쿼리 파라미터 토큰이냐 쿠키냐
-- 엔드포인트 경로 — `GET /api/v1/events` 가 계약에 아직 없다
+
+엔드포인트 경로는 `GET /api/v1/events` 로 정했다. 인증이 정해질 때까지 `userId` 를 쿼리 파라미터로
+받는다. 계약 원본의 `contracts/openapi.yaml` 에는 이 경로가 아직 없다.
