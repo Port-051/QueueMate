@@ -58,7 +58,9 @@ queuemate/
 
 ## 아직 정할 것
 
-- 인증 — SSE(`EventSource`)는 헤더를 못 붙인다. 쿼리 파라미터 토큰이냐 쿠키냐
+- 인증 — 방식은 **쿠키**로 정해졌다(`matching` docs/11 D-14. access 토큰은 쿠키로 오는 JWT 라 브라우저가 SSE 연결에도
+  자동으로 붙인다). 구현은 아직이다. 남은 것은 토큰 검증 방법(키 공유), 토큰이 없거나 만료됐을 때의 응답(401 을 주면
+  `EventSource` 가 재접속을 멈춘다), `?userId=` 를 토큰의 사용자로 바꾸는 전환, 로컬 개발의 CORS 다
 
-엔드포인트 경로는 `GET /api/v1/events` 로 정했다. 인증이 정해질 때까지 `userId` 를 쿼리 파라미터로
+엔드포인트 경로는 `GET /api/v1/events` 로 정했다. 인증이 구현될 때까지 `userId` 를 쿼리 파라미터로
 받는다. 계약 원본의 `contracts/openapi.yaml` 에는 이 경로가 아직 없다.
