@@ -47,7 +47,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/MatchRequestView' }
         '400': { description: Invalid match condition }
-        '409': { description: User already has active request }
+        '409': { description: User already has active request (ALREADY_QUEUED) or is in a board room (IN_ROOM) }
         '503': { description: Matching unavailable (Redis down, fail-closed) }
 
   /match-requests/{id}:
@@ -198,6 +198,7 @@ components:
             - BAD_REQUEST              # 지원하지 않는 게임 등
             - INVALID_MATCH_CONDITION  # 게임별 조건 검증 실패
             - ALREADY_QUEUED           # INV-1
+            - IN_ROOM                  # 게시판 방에 들어가 있다 (docs/11 D-11 15번) — contracts/README.md A-10
             - MATCH_REQUEST_NOT_FOUND
             - MATCH_REQUEST_MISMATCH
             - MATCHING_UNAVAILABLE     # INV-10 fail-closed

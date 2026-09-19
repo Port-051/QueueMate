@@ -32,6 +32,7 @@
 | A-7 | 2026-09-19 | `events.md` "`app:matching` 이 발행하는 5종" 머리의 발행 주체 목록 | `RESERVATION_*` 2종의 발행 주체는 `app:reservation-batch` 다. 예약 REST 는 `app:platform` 이 서빙한다 | **`app:reservation`(AWS Lambda)이 `app:reservation-batch` 를 대체한다.** 예약 등록 REST 도 `app:platform` 이 아니라 `app:reservation` 의 일이다 (docs/11 D-15). 발행 방식과 종류 수는 그대로다 | `events.md` 의 발행 주체 표기. `openapi.yaml` 의 `/reservations` 소관 표기(`app:platform` → `app:reservation`) — HTTP 진입점과 경로 라우팅은 미정이다 |
 | A-8 | 2026-09-19 | `events.md` 맨 위 개정 이력 · 발행 주체 목록 · "`WEBRTC_SIGNAL` 의 전달" · "이 저장소가 전송하지 않는 것" | 원본에는 `app:room` 이 없다. A-2 는 시그널 `POST` 를 받고 `WEBRTC_SIGNAL` 을 발행하는 앱을 `app:platform` 으로 적었다 | **`app:room` 이 시그널 `POST` 를 받고 `WEBRTC_SIGNAL` 을 발행한다** (docs/11 D-16 — 방을 별도 서비스로 분리). 확인 대상은 "같은 방에 들어와 있는 사람"(자동 매칭 파티방은 같은 파티원)이다. `PARTY_*` 가운데 방 입장 · 퇴장 · 강퇴 알림의 발행 주체와 `type` 은 **미정**이라 옮기지 않았다 | A-2 의 ③ 을 고쳐 읽는다 — 시그널 `POST` 엔드포인트는 `app:platform` 이 아니라 `app:room` 의 것이다. 발행 주체 표에 `app:room` 추가. 경로 · 스키마 · `payload` 는 여전히 미정이다 |
 | A-9 | 2026-09-19 | (이 사본에 해당 자리 없음 — `events.md` · `openapi.yaml` 발췌본은 예약 배치의 주기를 적지 않는다) | 원본 `docs/04` §6 · #23 — 예약 매칭은 **1분 주기** 배치 단일 경로, 최소 리드타임 30분, 시간 기반 tier 완화 | **예약 짝 찾기 배치는 요일 구분에 따라 하루 중 정해진 시각에만 돈다**(시각은 설정값). "배치 단일 경로"는 그대로다. 리드타임 · tier 완화 · 제안 수락 방식은 **미정**이 됐다 (docs/11 D-17) | 원본 `docs/04` §6 · §6-1 · §6-2 와 결정 로그 #23. `openapi.yaml` 의 `/reservations` 가 "슬롯 시작까지 30분 미만이면 `400`"을 적고 있다면 그 규칙도 D-17 의 미정에 걸린다(원본 전문은 이 컴퓨터에 없어 확인하지 못했다) |
+| A-10 | 2026-09-19 | `openapi.yaml` `POST /match-requests` 의 `409` · `ErrorResponse.code` | `409` 는 "User already has active request" 하나다. 에러 코드는 `ALREADY_QUEUED` 뿐이다 | **`409` 의 에러 코드가 둘이 된다 — `ALREADY_QUEUED`(이미 활성 요청이 있다) / `IN_ROOM`(게시판 방에 들어가 있다).** `claim-request.lua` 가 `app:room` 의 입장 표시 키 `qm:user:active-room:{userId}` 를 `EXISTS` 로 보고 있으면 거절한다. 한 사용자는 자동 매칭 대기와 게시판 방 중 한 번에 하나만 할 수 있다 (docs/11 D-11 15번). **D-11 16번("활성 요청 키 하나로 지킨다")을 키 둘로 개정한 결정에 따른 것이다 (docs/11 D-19)** | `openapi.yaml` 의 `409` 설명과 `ErrorResponse.code` enum 에 `IN_ROOM` 추가 |
 
 ---
 
@@ -73,6 +74,7 @@
 | 400 | `BAD_REQUEST` | `IllegalArgumentException` — 예: 지원하는 규칙이 없는 게임 |
 | 400 | `INVALID_MATCH_CONDITION` | 게임별 조건 검증 실패 (없는 modeKey, 모드에 안 맞는 포지션 값, `tierRule` 에 안 맞는 티어, `tierRule=EXIST` 인데 `tier-range` 표에 줄이 없거나 `SOLO_ONLY` 인 티어) |
 | 409 | `ALREADY_QUEUED` | INV-1 — 이미 활성 요청이 있다 |
+| 409 | `IN_ROOM` | 게시판 방에 들어가 있다 — `app:room` 의 입장 표시 키(`qm:user:active-room:{userId}`)가 있다. 방에서 나와야 매칭을 시작할 수 있다 (docs/11 D-11 15번 · D-19, 위 A-10) |
 | 404 | `MATCH_REQUEST_NOT_FOUND` | 취소할 활성 요청이 없다 |
 | 404 | `MATCH_REQUEST_MISMATCH` | 저장된 requestId 와 다르다 (늦게 도착한 취소) |
 | 503 | `MATCHING_UNAVAILABLE` | Redis 장애 또는 후보 풀 락 획득 실패. `Retry-After: 5` 헤더 동반 (INV-10 fail-closed) |
