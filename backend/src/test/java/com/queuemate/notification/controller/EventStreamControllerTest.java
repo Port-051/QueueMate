@@ -6,6 +6,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
@@ -18,6 +19,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.never;
@@ -47,6 +50,10 @@ class EventStreamControllerTest {
     private SseConnections connections;
     @MockitoBean
     private UserChannelSubscriber subscriber;
+    @Value("${queuemate.sse.reconnect-delay-min-ms}")
+    private long reconnectDelayMinMs;
+    @Value("${queuemate.sse.reconnect-delay-max-ms}")
+    private long reconnectDelayMaxMs;
 
     /**
      * MockMvc 요청은 끊기지 않으므로 연결이 맵에 남는다. 다른 테스트(같은 컨텍스트를 나눠 쓰는
@@ -88,10 +95,44 @@ class EventStreamControllerTest {
         connections.send("u2", "{\"eventId\":\"not-for-u1\"}");
 
         String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertThat(body).startsWith(":connected\n\n");
+        assertThat(body).startsWith(":connected\n");
         assertThat(body).contains("data:" + json + "\n");
         assertThat(body).contains("id:e-42\n");
         assertThat(body).doesNotContain("not-for-u1");
+    }
+
+    @Test
+    @DisplayName("연결 직후 :connected 다음 줄이 retry:<숫자> 이고 값이 설정 범위 안이다")
+    void 연결_직후_retry_를_설정_범위_안에서_내려_준다() throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/v1/events").param("userId", "u1").accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        // 값은 연결마다 무작위다. 모양과 범위만 본다
+        Matcher matcher = Pattern.compile("\\A:connected\nretry:(\\d+)\n\n\\z").matcher(body);
+        assertThat(matcher.matches()).as("연결 직후 본문: %s", body).isTrue();
+        assertThat(Long.parseLong(matcher.group(1))).isBetween(reconnectDelayMinMs, reconnectDelayMaxMs);
+    }
+
+    @Test
+    @DisplayName("retry: 줄은 연결 직후 한 번뿐이고 이후 send 로 나간 부분에는 없다")
+    void retry_는_연결할_때_한_번만_나간다() throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/v1/events").param("userId", "u1").accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        String onConnect = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        connections.send("u1", "{\"type\":\"MATCH_CONFIRMED\",\"eventId\":\"e-1\",\"payload\":{}}");
+        connections.send("u1", "{\"type\":\"MATCH_CANCELLED\",\"eventId\":\"e-2\",\"payload\":{}}");
+
+        String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(retry_줄_수(onConnect)).isEqualTo(1);
+        assertThat(body).startsWith(onConnect);
+        String afterConnect = body.substring(onConnect.length());
+        assertThat(afterConnect).contains("id:e-1\n").contains("id:e-2\n");
+        assertThat(retry_줄_수(afterConnect)).isZero();
+        assertThat(retry_줄_수(body)).isEqualTo(1);
     }
 
     @Test
@@ -110,6 +151,10 @@ class EventStreamControllerTest {
 
         verify(subscriber, times(1)).unsubscribe("u1");
         assertThat(연결_맵()).doesNotContainKey("u1");
+    }
+
+    private static long retry_줄_수(String wire) {
+        return wire.lines().filter(line -> line.startsWith("retry:")).count();
     }
 
     @SuppressWarnings("unchecked")

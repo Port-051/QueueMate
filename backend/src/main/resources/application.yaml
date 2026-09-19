@@ -16,6 +16,11 @@ queuemate:
     heartbeat-interval-ms: ${SSE_HEARTBEAT_INTERVAL_MS:20000}
     # 무한(0)으로 두면 죽은 연결이 안 빠진다. 끊기면 EventSource 가 알아서 재접속한다
     timeout-ms: ${SSE_TIMEOUT_MS:1800000}
+    # 브라우저에 내려 주는 재접속 대기 시간(retry:). 연결마다 이 범위에서 무작위로 뽑아
+    # 재배포 직후 재접속이 한순간에 몰리지 않게 한다.
+    # 짧으면 끊김 뒤 알림 공백이 짧고(제안 수명이 20초다), 길고 넓으면 몰림이 더 잘 흩어진다
+    reconnect-delay-min-ms: ${SSE_RECONNECT_DELAY_MIN_MS:1000}
+    reconnect-delay-max-ms: ${SSE_RECONNECT_DELAY_MAX_MS:2000}
 
 logging:
   level:

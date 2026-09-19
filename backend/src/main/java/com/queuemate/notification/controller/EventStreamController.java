@@ -1,5 +1,6 @@
 package com.queuemate.notification.controller;
 
+import com.queuemate.notification.sse.ReconnectDelay;
 import com.queuemate.notification.sse.SseConnections;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -26,18 +27,24 @@ import java.io.IOException;
 public class EventStreamController {
 
     private final SseConnections connections;
+    private final ReconnectDelay reconnectDelay;
     private final long timeoutMs;
 
     public EventStreamController(SseConnections connections,
+                                 ReconnectDelay reconnectDelay,
                                  @Value("${queuemate.sse.timeout-ms}") long timeoutMs) {
         this.connections = connections;
+        this.reconnectDelay = reconnectDelay;
         this.timeoutMs = timeoutMs;
     }
 
     @GetMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@RequestParam String userId) throws IOException {
         SseEmitter emitter = new SseEmitter(timeoutMs);
-        emitter.send(SseEmitter.event().comment("connected"));
+        // retry: 는 여기서 한 번만 내려 준다. 브라우저가 기억한다 (ReconnectDelay 참고)
+        emitter.send(SseEmitter.event()
+                .comment("connected")
+                .reconnectTime(reconnectDelay.nextMs()));
         connections.add(userId, emitter);
         return emitter;
     }
