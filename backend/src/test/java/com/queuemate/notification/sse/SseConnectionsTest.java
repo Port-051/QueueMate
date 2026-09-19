@@ -37,6 +37,9 @@ class SseConnectionsTest {
     private static final String JSON_U1 =
             "{\"type\":\"MATCH_CONFIRMED\",\"eventId\":\"e-1\",\"occurredAt\":\"2026-01-01T00:00:00.000Z\",\"payload\":{}}";
 
+    /** 하트비트 하나가 SSE 로 나가는 글자 그대로. 실제로 찍어 보고 적은 값이다 */
+    private static final String HEARTBEAT_WIRE = "event:heartbeat\ndata:heartbeat\n\n";
+
     private UserChannelSubscriber subscriber;
     private SseConnections connections;
 
@@ -195,6 +198,21 @@ class SseConnectionsTest {
         }
 
         @Test
+        @DisplayName("알림에는 event: 줄도 retry: 줄도 없다 (이름 없는 이벤트여야 프런트 onmessage 로 간다 / retry 는 연결할 때 한 번만)")
+        void 알림은_이름_없는_이벤트이고_retry_를_싣지_않는다() {
+            RecordingEmitter emitter = new RecordingEmitter();
+            connections.add("u1", emitter);
+
+            connections.send("u1", JSON_U1);
+
+            // 줄 단위로 본다. 본문 JSON 안에 우연히 "event:" 같은 글자가 있어도 흔들리지 않게 한다
+            assertThat(emitter.sent).hasSize(1);
+            assertThat(emitter.sent.get(0).split("\n"))
+                    .noneMatch(line -> line.startsWith("event:"))
+                    .noneMatch(line -> line.startsWith("retry:"));
+        }
+
+        @Test
         @DisplayName("eventId 가 없는 JSON 도 전달된다, id 줄만 없다 (있었던 버그: eventId 가 null 이면 안 보냄 / id 가 \"null\" 로 나감)")
         void eventId_가_없어도_보내고_id_는_싣지_않는다() {
             String json = "{\"type\":\"MATCH_CANCELLED\",\"payload\":{}}";
@@ -273,6 +291,73 @@ class SseConnectionsTest {
     }
 
     @Nested
+    @DisplayName("broadcastHeartbeat - 프런트에 닿는 이름 있는 이벤트")
+    class 하트비트 {
+
+        @Test
+        @DisplayName("모든 사용자의 모든 emitter 에 event:heartbeat 이벤트가 나간다")
+        void 모든_연결에_하트비트_이벤트를_보낸다() {
+            RecordingEmitter u1tab1 = new RecordingEmitter();
+            RecordingEmitter u1tab2 = new RecordingEmitter();
+            RecordingEmitter u2 = new RecordingEmitter();
+            connections.add("u1", u1tab1);
+            connections.add("u1", u1tab2);
+            connections.add("u2", u2);
+
+            connections.broadcastHeartbeat();
+
+            assertThat(u1tab1.sent).containsExactly(HEARTBEAT_WIRE);
+            assertThat(u1tab2.sent).containsExactly(HEARTBEAT_WIRE);
+            assertThat(u2.sent).containsExactly(HEARTBEAT_WIRE);
+        }
+
+        @Test
+        @DisplayName("주석 줄이 아니다 (EventSource 는 주석 줄을 자바스크립트에 올리지 않아 프런트가 죽은 연결을 알 수 없다)")
+        void 하트비트는_주석_줄이_아니다() {
+            assertThat(하트비트_줄들()).noneMatch(line -> line.startsWith(":"));
+        }
+
+        @Test
+        @DisplayName("이벤트 이름이 있다 (이름이 없으면 프런트 onmessage 로 들어가 알림 JSON 파싱이 터진다)")
+        void 하트비트에는_이벤트_이름이_있다() {
+            assertThat(하트비트_줄들()).containsOnlyOnce("event:" + SseConnections.HEARTBEAT_EVENT_NAME);
+        }
+
+        @Test
+        @DisplayName("이벤트 이름은 프런트와 맞춘 계약 값 heartbeat 다")
+        void 이벤트_이름은_heartbeat_다() {
+            assertThat(SseConnections.HEARTBEAT_EVENT_NAME).isEqualTo("heartbeat");
+        }
+
+        @Test
+        @DisplayName("data 가 비어 있지 않다 (data 가 빈 이벤트는 브라우저가 디스패치하지 않는다)")
+        void 하트비트의_data_는_비어_있지_않다() {
+            List<String> dataLines = 하트비트_줄들().stream()
+                    .filter(line -> line.startsWith("data:"))
+                    .toList();
+
+            assertThat(dataLines).hasSize(1);
+            assertThat(dataLines.get(0).substring("data:".length())).isNotBlank();
+        }
+
+        @Test
+        @DisplayName("연결이 하나도 없어도 예외가 없다")
+        void 연결이_없어도_아무_일_없다() {
+            assertThatCode(() -> connections.broadcastHeartbeat()).doesNotThrowAnyException();
+        }
+
+        private List<String> 하트비트_줄들() {
+            RecordingEmitter emitter = new RecordingEmitter();
+            connections.add("u1", emitter);
+
+            connections.broadcastHeartbeat();
+
+            assertThat(emitter.sent).hasSize(1);
+            return List.of(emitter.sent.get(0).split("\n"));
+        }
+    }
+
+    @Nested
     @DisplayName("전송 실패 격리 - 실패한 연결만 버린다")
     class 실패_격리 {
 
@@ -312,32 +397,14 @@ class SseConnectionsTest {
         }
 
         @Test
-        @DisplayName("broadcastComment: 모든 사용자의 모든 emitter 에 주석 줄이 나간다")
-        void broadcastComment_는_모든_연결에_주석_줄을_보낸다() {
-            RecordingEmitter u1tab1 = new RecordingEmitter();
-            RecordingEmitter u1tab2 = new RecordingEmitter();
-            RecordingEmitter u2 = new RecordingEmitter();
-            connections.add("u1", u1tab1);
-            connections.add("u1", u1tab2);
-            connections.add("u2", u2);
-
-            connections.broadcastComment("heartbeat");
-
-            // SSE 주석 줄은 ':' 로 시작한다. EventSource 는 이를 이벤트로 올리지 않는다
-            assertThat(u1tab1.sent).containsExactly(":heartbeat\n\n");
-            assertThat(u1tab2.sent).containsExactly(":heartbeat\n\n");
-            assertThat(u2.sent).containsExactly(":heartbeat\n\n");
-        }
-
-        @Test
-        @DisplayName("broadcastComment: 한 emitter 가 IOException 을 던져도 같은 사용자·다른 사용자 emitter 는 받는다")
-        void broadcastComment_IOException_은_그_연결만_버린다() {
+        @DisplayName("broadcastHeartbeat: 한 emitter 가 IOException 을 던져도 같은 사용자·다른 사용자 emitter 는 받는다")
+        void broadcastHeartbeat_IOException_은_그_연결만_버린다() {
             브로드캐스트_실패는_그_연결만_버린다(new IOException("Broken pipe"));
         }
 
         @Test
-        @DisplayName("broadcastComment: 한 emitter 가 IllegalStateException 을 던져도 같은 사용자·다른 사용자 emitter 는 받는다")
-        void broadcastComment_IllegalStateException_은_그_연결만_버린다() {
+        @DisplayName("broadcastHeartbeat: 한 emitter 가 IllegalStateException 을 던져도 같은 사용자·다른 사용자 emitter 는 받는다")
+        void broadcastHeartbeat_IllegalStateException_은_그_연결만_버린다() {
             브로드캐스트_실패는_그_연결만_버린다(new IllegalStateException("ResponseBodyEmitter has already completed"));
         }
 
@@ -351,7 +418,7 @@ class SseConnectionsTest {
             connections.add("u1", healthy2);
             connections.add("u2", otherUser);
 
-            assertThatCode(() -> connections.broadcastComment("heartbeat")).doesNotThrowAnyException();
+            assertThatCode(() -> connections.broadcastHeartbeat()).doesNotThrowAnyException();
 
             assertThat(healthy1.sent).hasSize(1);
             assertThat(healthy2.sent).hasSize(1);

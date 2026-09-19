@@ -30,6 +30,23 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class SseConnections {
 
+    /**
+     * 하트비트 이벤트 이름. <b>프런트와 맞춘 계약 값이다</b> — 프런트가
+     * {@code addEventListener("heartbeat", ...)} 로 받는다. 바꾸려면 프런트와 같이 바꾼다.
+     *
+     * <p><b>이름이 반드시 있어야 한다.</b> 이름 없이 data 만 보내면 프런트 {@code onmessage} 로
+     * 들어가 알림 처리 코드가 JSON 으로 파싱하다 터진다.
+     */
+    public static final String HEARTBEAT_EVENT_NAME = "heartbeat";
+
+    /**
+     * 하트비트 이벤트의 data. 의미 없는 채움값이고 프런트는 읽지 않는다.
+     *
+     * <p><b>비워 두면 안 된다.</b> data 가 빈 이벤트는 브라우저가 디스패치하지 않아 주석 줄과
+     * 똑같이 프런트에 닿지 않는다.
+     */
+    static final String HEARTBEAT_DATA = "heartbeat";
+
     private final UserChannelSubscriber subscriber;
     private final ObjectMapper objectMapper;
 
@@ -92,14 +109,25 @@ public class SseConnections {
     }
 
     /**
-     * 모든 연결에 SSE 주석 줄({@code :} 로 시작)을 보낸다. 하트비트가 쓴다.
-     * 브라우저 {@code EventSource} 는 주석 줄을 이벤트로 올리지 않는다.
+     * 살아 있는 모든 연결에 하트비트를 보낸다. {@link SseHeartbeat} 가 주기적으로 부른다.
+     *
+     * <p>SSE 주석 줄이 아니라 <b>이름 있는 이벤트</b>로 보낸다. 주석 줄은 브라우저
+     * {@code EventSource} 가 자바스크립트에 올려 주지 않아, 프런트가 "연결이 조용히 죽었다"
+     * (공유기 재부팅, 인터넷만 끊긴 와이파이, 절전 복귀, 서버 기계가 통째로 죽음처럼 종료 신호 없이
+     * 길만 사라진 경우)를 알아챌 재료가 없다. 브라우저는 읽기만 하므로 쓰기 실패로 알 수도 없다.
+     * 이벤트로 보내면 프런트가 마지막 하트비트 시각을 적어 두다가 한동안 안 오면 닫고 다시 연다.
+     * 프록시 유휴 타임아웃을 피하고 서버가 죽은 연결을 발견하는 역할은 그대로다 — 바이트가
+     * 흐르는 것은 같다.
+     *
+     * <p>알림({@link #send})은 계속 <b>이름 없는 이벤트</b>다. 이름이 있는 것은 하트비트뿐이다.
+     *
+     * <p>보내기 실패는 그 연결만 버리고 예외를 밖으로 올리지 않는다.
      */
-    public void broadcastComment(String comment) {
+    public void broadcastHeartbeat() {
         connections.forEach((userId, sseEmitters) -> {
             for (SseEmitter sseEmitter : sseEmitters) {
                 try {
-                    sseEmitter.send(SseEmitter.event().comment(comment));
+                    sseEmitter.send(SseEmitter.event().name(HEARTBEAT_EVENT_NAME).data(HEARTBEAT_DATA));
                 } catch (Exception e) {
                     sseEmitter.completeWithError(e);
                 }
