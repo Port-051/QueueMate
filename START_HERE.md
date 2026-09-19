@@ -37,7 +37,9 @@
     ProposalExpiryService 가 qm:proposal:pending ZSET 을 훑는다). 확정되면
     cleanup-confirmed.lua 가 파티원 활성 요청에 status=PARTY 를 찍고(지우지 않는다 — INV-2)
     MATCH_CONFIRMED 가 파티 전원에게 나간다. 없는 것은 matching.outbox →
-    ProposalConfirmed.fifo 발행(그래서 파티가 DB 에 안 생긴다)과 PartyClosed 소비다.
+    ProposalConfirmed.fifo 발행(그래서 파티가 DB 에 안 생긴다)과, 확정된 사용자의
+    status=PARTY 를 푸는 길이다(PartyClosed 는 app:platform 만 소비한다 — docs/11 D-13.
+    누가 푸는지는 미정이다).
   · 이 저장소는 git 저장소다. private 원격 github.com/rlaehddus302/queuemate-matching
     (main)에 push 한다. 커밋 규칙은 CLAUDE.md §8. IntelliJ 가 새 파일을 자동으로
     스테이징하므로 커밋은 `git commit -- <파일>` 로 파일을 지정해서 해라.
@@ -374,7 +376,8 @@ POST /api/v1/proposals/{partyId}/accept?userId=
                             파티원 활성 요청에 status=PARTY, 수락자 SET 에 TTL,
                             돌려받은 파티원 전원에게 MATCH_CONFIRMED (payload {partyId}) → 204
                             ★ 아직 없는 것: matching.outbox + ProposalConfirmed.fifo 발행
-                              (그래서 파티가 DB 에 안 생긴다), PartyClosed 소비
+                              (그래서 파티가 DB 에 안 생긴다), status=PARTY 를 푸는 길
+                              (PartyClosed 소비는 이 앱의 일이 아니다 — docs/11 D-13)
 
 POST /api/v1/proposals/{partyId}/decline?userId=&requestId=
  └ ProposalController → ProposalService.decline()
@@ -498,7 +501,7 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 
 | 없는 것 | 근거 (직접 확인한 것) |
 |---|---|
-| **확정된 파티를 DB 에 만드는 것** | 확정과 그 뒷정리·알림은 된다(§4.1). 없는 것은 `matching.outbox` 기록과 `ProposalConfirmed.fifo` 발행이다 — 그래서 `app:platform` 이 파티를 만들 신호를 못 받는다. 반대 방향인 `PartyClosed` 소비도 없어, 확정된 사용자의 활성 요청에 찍힌 `status=PARTY` 를 푸는 코드가 없다 |
+| **확정된 파티를 DB 에 만드는 것** | 확정과 그 뒷정리·알림은 된다(§4.1). 없는 것은 `matching.outbox` 기록과 `ProposalConfirmed.fifo` 발행이다 — 그래서 `app:platform` 이 파티를 만들 신호를 못 받는다. 확정된 사용자의 활성 요청에 찍힌 `status=PARTY` 를 푸는 코드도 없다 — `PartyClosed.fifo` 는 `app:platform` 만 소비하므로(docs/11 D-13) 이 앱이 그 큐로 푸는 길은 닫혔고, 누가 푸는지는 미정이다(§8 의 1번) |
 | **취소·만료의 구분** | 상태 조회는 생겼지만(§4.1) **왜 큐에서 빠졌는지는 답하지 못한다.** 취소도 만료도 활성 요청 키를 지우므로 `IDLE` 과 구분되지 않는다 — `MatchRequestStatus` 에 `CANCELLED`/`EXPIRED` 가 있지만 조회가 그 값을 돌려주는 경로는 없다(그 enum 주석에 "자리만 남겨 둔다"고 적혀 있다). 이유를 알려면 알림을 받았어야 하는데 Pub/Sub 은 at-most-once 다 |
 | **접수 응답의 본문** | `POST /match-requests` 가 `MatchRequestView` 가 아니라 문자열 `"CREATED"` 를 돌려준다. `MatchRequestResponse.queued(requestId, queuedAt)` 정적 팩토리가 이미 있는데 쓰이지 않는다 — 클라이언트가 `requestId` 를 못 받아 취소를 부르려면 조회를 한 번 더 해야 한다 (`contracts/README.md` #5-1) |
 | **INV-6 차단 검증** | 선필터 코드는 **있다** (`LolCandidateRule#canJoin` → `BlockRepository.findBlockedUserIds` → `ScriptSupport.blockedWith`). 그런데 `social.blocks` 스키마가 없다 — Flyway 미도입, `ddl-auto: none`. 기본 실행(H2)에서는 그 조회가 실패하고, 배정이 `@Async` 안이라 **요청은 201로 나가고 배정만 조용히 실패한다.** 테스트만 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql` 로 통과한다. 확정 직전 최종 검증(docs/11 D-1, `BlockRepository#findBlocksAmong`)은 확정 경로(`accept-proposal.lua`)에 붙어 있지 않아 미구현 |
@@ -571,7 +574,8 @@ LoL 만으로 시작한 범위 축소는 사고가 아니라 결정이다 — do
    `IDLE` 과 구분되지 않는다 (§4.2).
 2. 확정 알림(`MATCH_CONFIRMED`)과 만료 알림(`MATCH_PROPOSAL_EXPIRED`)은 **이제 나간다.**
    남은 것은 그 뒤 — `ProposalConfirmed.fifo` 가 없어 파티가 DB 에 만들어지지 않고,
-   `PartyClosed` 소비가 없어 확정된 사용자의 `status=PARTY` 를 푸는 코드가 없다.
+   확정된 사용자의 `status=PARTY` 를 푸는 코드가 없다(`PartyClosed` 소비는 이 앱의 일이 아니다 —
+   docs/11 D-13. 누가 푸는지는 미정이다).
 
 `load-test/match_latency.py` 가 성사를 감지하려고 HTTP 가 아니라 **Redis 를 직접 폴링**하는
 것은 그 스크립트가 알림 도입 전에 쓰였기 때문이다
@@ -665,10 +669,10 @@ find backend/src -type d -empty                       # 빈 게임 패키지
 
 | # | 할 일 | 시작 지점 | 왜 이 순서인가 |
 |---|---|---|---|
-| 1 | **확정된 사용자를 파티에서 풀어 주는 경로** | `proposal/cleanup-confirmed.lua` 가 활성 요청에 `status='PARTY'` 를 찍는데(INV-2 때문에 지우지 않는다) 그것을 푸는 주체가 없다. 후보 셋 — `PartyClosed` 소비 / "파티 나가기" API / 긴 TTL 안전망. **어느 것으로 갈지 사용자와 결론이 안 났다** | **지금 사용자는 매칭을 평생 한 번만 할 수 있다.** 확정되면 활성 요청이 영원히 남아 새 매칭이 전부 409 `ALREADY_QUEUED` 다 |
+| 1 | **확정된 사용자를 파티에서 풀어 주는 경로** | `proposal/cleanup-confirmed.lua` 가 활성 요청에 `status='PARTY'` 를 찍는데(INV-2 때문에 지우지 않는다) 그것을 푸는 주체가 없다. 후보 셋 — `PartyClosed` 소비 / "파티 나가기" API / 긴 TTL 안전망. **`PartyClosed` 소비는 닫혔다**(docs/11 D-13 — 그 큐는 `app:platform` 만 읽는다). 새 가능성 하나 — `app:platform` 이 활성 요청 키를 쓸 수 있게 됐으므로(D-11 16번) 파티를 닫을 때 그 키를 지울 수 있다. **어느 것으로 갈지는 여전히 결론이 안 났다** | **지금 사용자는 매칭을 평생 한 번만 할 수 있다.** 확정되면 활성 요청이 영원히 남아 새 매칭이 전부 409 `ALREADY_QUEUED` 다 |
 | 2 | **INV-6 차단 검증 완성** | 선필터는 이미 돈다 (`LolCandidateRule#canJoin`). 남은 것은 ① **Flyway 도입 + `social.blocks` 스키마** — 지금은 테이블이 없어 기본 실행에서 배정이 통째로 실패한다 ② 확정 직전 동기 SELECT (`BlockRepository#findBlocksAmong`, docs/11 D-1) — 확정 경로(`accept-proposal.lua`)가 생겼으니 그 앞에 붙인다 | docs/11 #30: "차단 검증 없이 배포하지 않는다." **배포 전 필수.** ①은 사실상 버그 수정이다 |
-| 3 | **확정 후속 처리의 남은 절반 — outbox → SQS** | Redis 쪽 뒷정리와 `MATCH_CONFIRMED` 알림은 이미 붙었다(`ProposalService#accept()` → `cleanup-confirmed.lua`). 남은 것은 Flyway 3테이블(`match_proposals`/`proposal_members`/`outbox`) + `ProposalConfirmed.fifo` 발행이고, AWS SDK 의존성부터 없다. **1번을 `PartyClosed` 로 풀기로 하면 그 소비도 여기 딸린다** | 파티를 DB에 만드는 것은 `app:platform` 이다 (docs/11 #30) |
-| 4 | **`BlockChanged.fifo` 소비** | 없다. 계약(`contracts/events.md`)에는 있다 | 2번이 DB 직접 조회로 도는 한 급하지 않다 — Redis 선필터(docs/11 D-2)를 켤 때 필요해진다 |
+| 3 | **확정 후속 처리의 남은 절반 — outbox → SQS** | Redis 쪽 뒷정리와 `MATCH_CONFIRMED` 알림은 이미 붙었다(`ProposalService#accept()` → `cleanup-confirmed.lua`). 남은 것은 Flyway 3테이블(`match_proposals`/`proposal_members`/`outbox`) + `ProposalConfirmed.fifo` 발행이고, AWS SDK 의존성부터 없다. (1번을 `PartyClosed` 소비로 푸는 길은 docs/11 D-13 으로 닫혔다 — 여기 딸리는 소비는 없다) | 파티를 DB에 만드는 것은 `app:platform` 이다 (docs/11 #30) |
+| 4 | ~~**`BlockChanged.fifo` 소비**~~ | **할 일이 아니게 됐다** — `BlockChanged.fifo` 와 Redis 선필터(`qm:block:{userId}`)는 폐기됐다 (docs/11 D-12). 계약 사본도 그렇게 고쳤다(`contracts/README.md` A-5) | 차단은 2번의 DB 직접 조회 한 겹으로 지킨다 |
 | 5 | **메트릭** | `MeterRegistry` 가 `backend/src/main` 에 0건이다. actuator 는 이미 있다 | `CLAUDE.md` §6 Definition of done 4번 |
 | 6 | **부하 테스트 복구** | `load-test/` 가 티어 필수화 뒤로 안 돈다 (요청 바디에 `tier` 없음 + 색인 키에 티어 접미사 없음) | 성능 근거를 다시 재려면 필요하다 |
 | 7 | **계약 정리** | `openapi.yaml` 이 `OPTIONAL` · `PLAY_STYLE` · 조회 경로 · 새 모드 키를 반영하지 않는다. **본 저장소 contract 변경이 선행** (CLAUDE.md §5) | 불일치 표(`contracts/README.md`)가 길어질수록 어느 쪽이 맞는지 판단하는 비용이 는다 |

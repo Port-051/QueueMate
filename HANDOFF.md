@@ -1,6 +1,6 @@
 # HANDOFF — 다음 세션 인계
 
-**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-17 (목)
+**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-17 (목) · 2026-09-19 (§0 의 ①·③·④ 에 docs/11 D-11·D-12·D-13 반영)
 **읽는 순서:** `CLAUDE.md` → `START_HERE.md` → **이 파일의 §0 부터**
 
 이 파일은 "지금 어디까지 왔고 무엇이 열려 있는가"만 담는다. 규칙은 `CLAUDE.md`,
@@ -52,6 +52,12 @@
    건다. 가장 싸고 혼자 할 수 있지만 **시간이 지나면 저절로 풀리는 것**이라 정답은 아니다.
    1·2 가 붙기 전까지의 임시방편으로는 쓸 만하다.
 
+> **2026-09-19 추가.** 후보 1(`PartyClosed.fifo` 소비)은 **닫혔다** — 그 큐의 소비자는 `app:platform`
+> 하나이고 이 앱은 읽지 않는다 (docs/11 D-13). 큐 하나를 두 앱이 읽으면 메시지를 나눠 갖게 된다.
+> **새 가능성이 하나 생겼다** — docs/11 D-11 16번으로 `app:platform` 이 활성 요청 키
+> (`qm:user:active-request:{userId}`)를 쓰고 지울 수 있게 됐으므로, 파티가 닫힐 때 `app:platform` 이 이
+> 키를 지우는 길이 있다. **가능성일 뿐 정해진 것이 아니다.** 후보 2·3 은 그대로 열려 있다.
+
 **건드릴 곳**: `redis/proposal/cleanup-confirmed.lua` · `service/ProposalService#confirmed()` ·
 (1번이면) 새 SQS 소비자 패키지 · (2번이면) `MatchingController` + `MatchCancelService`.
 
@@ -85,12 +91,15 @@ Redis 쪽 뒷정리(`cleanup-confirmed.lua`)와 `MATCH_CONFIRMED` 알림까지�
 - **AWS SDK 의존성부터 없다** (`backend/build.gradle` 확인함 — `outbox`/`sqs`/`ProposalConfirmed`
   로 grep 하면 자바 코드는 0건이고 주석만 나온다).
 - `matching.outbox` 테이블도 없다(Flyway 가 없으므로 ② 와 같은 덩어리다).
-- ① 을 `PartyClosed` 로 풀기로 하면 그 소비도 여기 딸린다.
+- ~~① 을 `PartyClosed` 로 풀기로 하면 그 소비도 여기 딸린다.~~ (2026-09-19: docs/11 D-13 으로 그 길은 닫혔다)
 
 **건드릴 곳**: `backend/build.gradle` · `service/ProposalService#confirmed()` ·
 새 `outbox/` 패키지 · Flyway 마이그레이션.
 
-#### ④ `BlockChanged.fifo` 소비 없음
+#### ④ `BlockChanged.fifo` 소비 없음 — **2026-09-19 닫힘: 할 일이 아니다**
+
+> `BlockChanged.fifo` 와 Redis 선필터(`qm:block:{userId}`)는 **폐기됐다** (docs/11 D-12). 차단은 ② 의
+> DB 직접 조회 한 겹으로 지킨다. 계약 사본도 그렇게 고쳤다(`contracts/README.md` A-5). 아래는 그 전의 서술이다.
 
 계약(`contracts/events.md`)에는 있고 코드에는 없다. **급하지 않다** — ② 가 DB 직접 조회로
 도는 한 필요 없다. Redis 선필터(`qm:block:{userId}`, docs/11 D-2)를 켜기로 할 때 필요해진다.
