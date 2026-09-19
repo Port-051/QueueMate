@@ -9,10 +9,26 @@
 | 파일 | 원본 | 발췌 기준 |
 |---|---|---|
 | `openapi.yaml` | queueMate `feature/frontend:contracts/openapi.yaml` (662줄) | `/games`, `/match-requests*`, `/proposals/{id}/accept|decline` + 그에 필요한 스키마 |
-| `events.md` | queueMate `feature/frontend:contracts/events.md` (110줄) | `MATCH_*` 5종 + SQS FIFO 2개(`ProposalConfirmed` 생산 / `BlockChanged` 소비) |
+| `events.md` | queueMate `feature/frontend:contracts/events.md` (110줄) | `MATCH_*` 5종 + SQS FIFO 1개(`ProposalConfirmed` 생산). 원본은 `BlockChanged` 소비까지 2개였다 — docs/11 D-12 로 폐기(아래 A-5) |
 
 **계약을 바꿔야 하면 여기서 바꾸지 마라.** queueMate 본 저장소에서 contract 변경 커밋을
 먼저 만들고, 그 뒤 이 사본을 다시 뜬다. 소유 영역 밖 계약을 임의로 바꾸지 않는다.
+
+### 이 사본이 원본보다 앞서간 변경
+
+위 규칙의 예외다. **원본 저장소가 이 컴퓨터에 없어** 원본을 먼저 바꿀 수 없었고, 결정이 난
+내용을 사본에 먼저 적었다. 사본의 각 자리에는 `> 개정 이력:` 으로 무엇을 언제 왜 바꿨는지
+남겨 두었다. **원본(queueMate `feature/frontend`)에 contract 변경 커밋으로 반영해야 하고,
+반영되면 이 표에서 지운다.**
+
+| # | 날짜 | 파일 · 자리 | 원본 | 이 사본 | 원본에 반영할 것 |
+|---|---|---|---|---|---|
+| A-1 | 2026-09-18 | `events.md` "재연결" | `Last-Event-ID` 로 유한 버퍼에서 재개한다 | **재전송하지 않는다.** 클라이언트가 재연결 직후 상태를 조회한다 | `events.md` "재연결" 절 |
+| A-2 | 2026-09-19 | `events.md` 맨 위 전송 표 · `app:realtime` 설명 · "이 저장소가 전송하지 않는 것" · 새 절 "`WEBRTC_SIGNAL` 의 전달" | 전송 2종 — SSE 14종 + WebSocket(`/ws`) `WEBRTC_SIGNAL` 1종 | **전송은 SSE 하나, 15종.** `/ws` 는 없다. `WEBRTC_SIGNAL` 은 SSE 로 받고, 보내는 쪽은 `app:platform` 의 REST `POST` 다 (docs/11 D-9) | ① `events.md` 전송 표(SSE 15종)와 `WEBRTC_SIGNAL` 전달 규약 ② `/ws` 제거 ③ `openapi.yaml` 에 `app:platform` 의 시그널 `POST` 엔드포인트 추가 — **경로와 요청/응답 스키마, `WEBRTC_SIGNAL` 의 `payload` 스키마는 미정이다.** 이 저장소의 `openapi.yaml` 발췌본은 `app:matching` 엔드포인트만 담으므로 고치지 않았다 |
+| A-3 | 2026-09-19 | `events.md` "heartbeat" | 서버는 15~30초마다 heartbeat(**코멘트 라인**)를 보낸다. 클라이언트가 할 일은 적혀 있지 않다 | **이름 있는 이벤트**(`event: heartbeat` / `data: heartbeat`)로 보낸다. 간격(15~30초)과 기존 역할(idle timeout, 서버의 죽은 연결 정리)은 그대로다. 클라이언트는 `addEventListener("heartbeat", ...)` 로 받고(`onmessage` 로는 오지 않는다), 일정 시간(권장 60초 정도) 아무것도 오지 않으면 연결을 닫고 새로 연 뒤 상태를 조회한다 (docs/11 D-10) | `events.md` "heartbeat" 절 — 형식, 클라이언트 감시 규칙, 이유. 감시 기준 시간은 권장값이지 확정 수치가 아니다 |
+| A-4 | 2026-09-19 | `events.md` "재연결" 의 `retry:` 항목 | 발췌본에 `retry:` 서술이 없다 (원본 전문은 이 컴퓨터에 없어 확인하지 못했다) | 서버가 **연결할 때 한 번** SSE `retry:` 로 재접속 대기 시간을 내려 준다. 값은 연결마다 무작위다(현재 구현 기본 1000~2000ms, 설정 가능). 재배포 직후 재접속 몰림을 흩는다. 클라이언트가 할 일은 없다 (docs/11 D-10) | `events.md` "재연결" 절에 `retry:` 항목 추가. 범위 수치는 구현 기본값이지 계약 값이 아니다 |
+| A-5 | 2026-09-19 | `events.md` "서버 간 이벤트 — SQS FIFO" 의 큐 표 | `app:matching` 이 걸린 큐는 2개 — `ProposalConfirmed.fifo` 생산 / `BlockChanged.fifo` 소비(`qm:block:{userId}` read model 갱신) | **`BlockChanged.fifo` 는 폐기됐다 — 만들지 않는다.** 이 앱이 걸린 큐는 `ProposalConfirmed.fifo` 생산 1개다. 차단은 `app:platform` 이 `social.blocks` 에 저장하면 끝이고, 이 앱은 확정 직전에 그 테이블을 직접 조회한다 (docs/11 D-12 · D-1) | `events.md` 의 큐 목록에서 `BlockChanged.fifo` 와 `qm:block:{userId}` read model 서술 제거. 원본의 큐는 3개 → 2개가 된다 |
+| A-6 | 2026-09-19 | `events.md` 같은 절의 `PartyClosed.fifo` 한 줄 | 발췌본에 `PartyClosed.fifo` 서술이 없다 (원본 전문은 이 컴퓨터에 없어 확인하지 못했다) | **`PartyClosed.fifo` 의 소비자는 `app:platform` 하나다.** `app:matching` 은 이 큐를 읽지 않는다 (docs/11 D-13) | 원본 `events.md` 의 `PartyClosed.fifo` 소비자 표기를 `app:platform` 하나로 분명히 한다 |
 
 ---
 
@@ -36,10 +52,10 @@
 | 7 | `GET /games` | 있다 | **없다** | 계약이 맞다. gameconfig 는 `seed/gameconfig.redis` 로만 다뤄지고 조회 API 가 없다 |
 | 8 | `ErrorResponse` 스키마 | **없다** (원본이 스스로 구멍이라고 지적) | 있다 (`common/error/ErrorResponse.java`: `{code, message, details}`) | **구현이 앞서 있다.** 계약으로 승격하려면 본 저장소에 contract 커밋이 필요하다 |
 | 9 | `503 MATCHING_UNAVAILABLE` 응답 | 계약에 없다 | 있다 (`GlobalExceptionHandler#handleRedisFailure`, INV-10). 후보 풀 락 획득 실패(`redisLock/PoolLock.java`)도 같은 자리로 나간다 | 구현이 맞다. 계약에 추가해야 한다 |
-| 10 | `securitySchemes` (JWT bearer) | **없다** | 인증 자체가 없다 | 양쪽 다 비어 있다 |
+| 10 | `securitySchemes` (JWT bearer — docs/11 D-14 로 bearer 가 아니라 **cookie** 방식이 됐다) | **없다** | 인증 자체가 없다 | 양쪽 다 비어 있다 |
 | 11 | SSE `MATCH_*` 5종 | 있다 | **5종 모두 발행됨** — 앞의 3종에 더해 `MATCH_PROPOSAL_EXPIRED`(`service/ProposalExpiryService.java`) · `MATCH_CONFIRMED`(`service/ProposalService.java#accept()`)가 붙었다. 전부 `notification/PushPublisher.java` 가 `qm:pubsub:push:{userId}` 로 publish 한다 | **구현됨.** SSE 배달 자체는 `app:realtime` 몫이므로 이 저장소가 할 일은 publish 까지다. 상세는 `events.md` 의 "구현 상태" 표 |
-| 11-1 | SSE payload 스키마 | **없다** (14종 전부 미정의 — 아래 "미해결 계약 구멍") | 구현이 먼저 정했다. `MATCH_QUEUE_UPDATED`·`MATCH_CANCELLED` = `{memberNumber}`, `MATCH_PROPOSAL_CREATED` = `{memberNumber, target, partyId}`, `MATCH_PROPOSAL_EXPIRED`·`MATCH_CONFIRMED` = `{partyId}` | **구현이 앞서 있다.** 계약으로 승격하려면 본 저장소에 contract 커밋이 필요하다. `PushPublisher` 의 `payload` 가 `Map` 인 것도 그 때문이다 |
-| 12 | SQS `ProposalConfirmed` / `BlockChanged` | 있다 | **없다** — AWS SDK 의존성 없음. 확정 자체는 되고 Redis 쪽 뒷정리(`cleanup-confirmed.lua`)와 `MATCH_CONFIRMED` 알림까지 붙었지만, `matching.outbox` 기록과 `ProposalConfirmed.fifo` 발행이 없어 `app:platform` 이 파티를 만들지 못한다. 반대 방향인 `PartyClosed` 소비도 없어 확정된 사용자의 활성 요청에 찍힌 `status=PARTY` 를 푸는 코드가 없다 | 계약이 맞다 |
+| 11-1 | SSE payload 스키마 | **없다** (15종 전부 미정의 — `events.md` 의 "미해결 계약 구멍". 원본은 14종이고 `WEBRTC_SIGNAL` 이 더해졌다 — 위 A-2) | 구현이 먼저 정했다. `MATCH_QUEUE_UPDATED`·`MATCH_CANCELLED` = `{memberNumber}`, `MATCH_PROPOSAL_CREATED` = `{memberNumber, target, partyId}`, `MATCH_PROPOSAL_EXPIRED`·`MATCH_CONFIRMED` = `{partyId}` | **구현이 앞서 있다.** 계약으로 승격하려면 본 저장소에 contract 커밋이 필요하다. `PushPublisher` 의 `payload` 가 `Map` 인 것도 그 때문이다 |
+| 12 | SQS `ProposalConfirmed` (`BlockChanged` 는 docs/11 D-12 로 폐기 — 위 A-5) | 있다 | **없다** — AWS SDK 의존성 없음. 확정 자체는 되고 Redis 쪽 뒷정리(`cleanup-confirmed.lua`)와 `MATCH_CONFIRMED` 알림까지 붙었지만, `matching.outbox` 기록과 `ProposalConfirmed.fifo` 발행이 없어 `app:platform` 이 파티를 만들지 못한다. 확정된 사용자의 활성 요청에 찍힌 `status=PARTY` 를 푸는 코드도 없다 — `PartyClosed` 는 `app:platform` 만 소비하므로(docs/11 D-13) 이 앱이 그 큐로 푸는 길은 닫혔고, 누가 푸는지는 미정이다(`HANDOFF.md` ①) | `ProposalConfirmed` 는 계약이 맞다 |
 | 13 | `CreateMatchRequest` 의 `tier` | **없다** | `tier` (선택 필드, String). `tierRule` 이 `NONE` 이 아닌(= `EXIST` 인) 모드에서는 사실상 필수이고 빠지면 400 이다 (`validation/lol/LolConditionValidator.java`). **값은 단(division)까지 적는다** — `GOLD` 가 아니라 `GOLD_2` 다. 허용되는 이름의 원본은 자바 enum 이 아니라 Redis ZSET `qm:gameconfig:LOL:tier` 다 (32개) | **구현이 앞서 있다.** 조건 5번째가 아니라 derived/자격 조건이다 (docs/02 §6, CLAUDE.md §2). 계약에 추가해야 하고, 계정 연동이 붙으면 요청 필드에서 사라진다 |
 
 | 14 | `KeyCondition.type` 의 PUBG 값 | `PLAY_STYLE` | `PLATFORM` (`domain/condition/KeyConditionType.java`), 값은 `STEAM` / `KAKAO` | **코드가 맞다.** 스팀·카카오는 서로 파티를 맺을 수 없어 플레이 스타일(취향) 대신 플랫폼(hard)을 핵심 조건으로 교체했다. `openapi.yaml` 의 enum 을 고쳐야 한다. 근거는 enum 클래스 주석 |
