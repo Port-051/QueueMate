@@ -12,6 +12,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -446,6 +447,63 @@ class SseConnectionsTest {
         }
     }
 
+    @Nested
+    @DisplayName("closeAll - 앱 종료 전에 연결을 먼저 닫는다")
+    class 전부_닫기 {
+
+        @Test
+        @DisplayName("모든 사용자의 모든 emitter 가 정상 종료(complete)되고 닫은 수를 돌려준다")
+        void 모든_연결을_정상_종료한다() {
+            RecordingEmitter u1tab1 = new RecordingEmitter();
+            RecordingEmitter u1tab2 = new RecordingEmitter();
+            RecordingEmitter u2tab1 = new RecordingEmitter();
+            connections.add("u1", u1tab1);
+            connections.add("u1", u1tab2);
+            connections.add("u2", u2tab1);
+
+            int closed = connections.closeAll();
+
+            assertThat(closed).isEqualTo(3);
+            assertThat(u1tab1.completedCount).hasValue(1);
+            assertThat(u1tab2.completedCount).hasValue(1);
+            assertThat(u2tab1.completedCount).hasValue(1);
+            // 에러 종료가 아니다 - 의도한 정상 종료다
+            assertThat(u1tab1.completedWithErrors).isEmpty();
+        }
+
+        @Test
+        @DisplayName("한 emitter 의 complete 가 예외를 던져도 나머지는 닫고 예외가 밖으로 안 나온다")
+        void 하나가_실패해도_나머지를_닫는다() {
+            RecordingEmitter broken = new RecordingEmitter();
+            broken.failOnComplete = true;
+            RecordingEmitter healthy = new RecordingEmitter();
+            connections.add("u1", broken);
+            connections.add("u2", healthy);
+
+            assertThatCode(() -> connections.closeAll()).doesNotThrowAnyException();
+
+            assertThat(healthy.completedCount).hasValue(1);
+        }
+
+        @Test
+        @DisplayName("맵을 직접 비우지 않는다 - 정리는 onCompletion 콜백이 remove 로 한다 (구독 해제가 한 곳에서만 일어나게)")
+        void 구독_해제는_콜백에_맡긴다() {
+            connections.add("u1", new RecordingEmitter());
+
+            connections.closeAll();
+
+            // 서블릿이 없는 단위 테스트에서는 콜백이 돌지 않는다. closeAll 이 스스로 unsubscribe 를
+            // 부르지 않는다는 것만 확인한다. 콜백 배선은 EventStreamControllerTest 가 본다
+            verify(subscriber, never()).unsubscribe("u1");
+        }
+
+        @Test
+        @DisplayName("연결이 하나도 없어도 예외 없이 0 을 돌려준다")
+        void 연결이_없어도_된다() {
+            assertThat(connections.closeAll()).isZero();
+        }
+    }
+
     /**
      * 서블릿 없이 쓰는 테스트용 emitter. 소켓에 쓰는 대신 SSE 로 나갈 글자를 그대로 기록한다.
      *
@@ -455,7 +513,10 @@ class SseConnectionsTest {
 
         final List<String> sent = new CopyOnWriteArrayList<>();
         final List<Throwable> completedWithErrors = new CopyOnWriteArrayList<>();
+        final AtomicInteger completedCount = new AtomicInteger();
         private final Exception failure;
+        /** true 면 complete() 가 예외를 던진다 */
+        boolean failOnComplete;
 
         RecordingEmitter() {
             this(null);
@@ -483,6 +544,14 @@ class SseConnectionsTest {
         @Override
         public void completeWithError(Throwable ex) {
             completedWithErrors.add(ex);
+        }
+
+        @Override
+        public void complete() {
+            completedCount.incrementAndGet();
+            if (failOnComplete) {
+                throw new IllegalStateException("complete 실패 흉내");
+            }
         }
     }
 }

@@ -136,6 +136,31 @@ public class SseConnections {
     }
 
     /**
+     * 열려 있는 연결을 전부 정상 종료한다. 앱이 꺼질 때 {@link SseShutdown} 이 부른다.
+     *
+     * <p>맵은 여기서 비우지 않는다. {@code complete()} 가 {@code onCompletion} 콜백을 부르고, 그
+     * 콜백이 {@link #remove} 로 맵에서 빼고 마지막 연결이면 구독도 푼다. 같은 일을 두 군데서 하면
+     * 구독 해제가 빠지거나 두 번 불린다.
+     *
+     * @return 닫기를 시도한 연결 수
+     */
+    public int closeAll() {
+        int closed = 0;
+        for (Set<SseEmitter> sseEmitters : connections.values()) {
+            for (SseEmitter sseEmitter : sseEmitters) {
+                try {
+                    sseEmitter.complete();
+                } catch (Exception e) {
+                    // 하나가 실패해도 나머지는 닫는다. 어차피 곧 프로세스가 끝난다
+                    log.debug("종료 중 SSE 연결 닫기 실패: {}", e.toString());
+                }
+                closed++;
+            }
+        }
+        return closed;
+    }
+
+    /**
      * 봉투에서 {@code eventId} 하나만 꺼낸다. 다른 필드는 보지 않는다 (CLAUDE.md §2).
      * JSON 이 깨졌거나 필드가 없으면 {@code null} 이다. 그래도 본문은 그대로 전달한다.
      */
