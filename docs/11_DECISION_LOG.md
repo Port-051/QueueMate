@@ -64,6 +64,16 @@
 > 읽는다. 같은 이유로 그 항목들의 본문은 고치지 않았다. D-18 은
 > [이 저장소에서 내린 결정](#이-저장소에서-내린-결정-2026-09-07) 절에 있고, 겹치면 D-18 이 우선한다.
 
+> **낡은 항목 주의 (2026-09-19 추가).** **D-11 16번("9번과 15번은 활성 요청 키 하나로 지킨다")과 그에 딸린
+> D-11 의 "아직 미정"(16번 세부) · "영향" 대목, D-16 의 "`app:room` 이 활성 요청 키를 쓰고 지운다" · "이 저장소의
+> 코드는 바뀌지 않는다"는 D-19 로 개정됐다.** 키를 둘로 나눈다 — `app:matching` 은 활성 요청 키
+> `qm:user:active-request:{userId}` 를, `app:room` 은 입장 표시 키 `qm:user:active-room:{userId}` 를 쓰고, 상대
+> 키는 `EXISTS` 로 있는지만 본다. 방에 있는 사용자의 매칭 요청은 409 `IN_ROOM` 이다. **D-13 · D-16 이 가능성으로
+> 적은 "방(파티)이 닫힐 때 방을 맡는 앱이 활성 요청 키를 지워 `status=PARTY` 를 푼다"도 없어졌다.** 위 D-16
+> 주의가 "활성 요청 키"의 주어를 `app:room` 으로 읽으라고 한 것도 D-19 로 걸러 읽는다. D-11 의 9번 · 15번(규칙
+> 자체)은 그대로다. 같은 이유로 그 항목들의 본문은 고치지 않았다. D-19 는
+> [이 저장소에서 내린 결정](#이-저장소에서-내린-결정-2026-09-07) 절에 있고, 겹치면 D-19 가 우선한다.
+
 변경 시 날짜/근거/영향을 추가한다.
 
 ## Fixed decisions
@@ -1869,6 +1879,166 @@ Stage 1 보다 비싸다. #20 이 Stage 1 을 둔 근거는 "배포 단위를 4�
 - `docs/AWS_ARCHITECTURE.md` 의 그림은 원래 Stage 2(ECS Fargate) 구성을 그린 것이다. 머리 주석만 달았다 —
   그 문서의 "현재 개발 단계는 Stage 1 … 이 그림은 목표 상태다"는 이제 "이 그림이 배포 기준이다"로 읽는다.
 - #20 이 말한 운영 문서(docs/09)는 이 저장소에 없다.
+
+---
+
+### D-19. "한 번에 하나만"을 키 둘로 지킨다 — `app:matching` 은 활성 요청 키, `app:room` 은 입장 표시 키를 쓰고 상대 키는 `EXISTS` 로만 본다 (D-11 16번 개정 · D-16 의 해당 대목 개정, 2026-09-19)
+
+> **이 결정은 매칭 엔진만의 결정이 아니다.** `app:matching` 과 `app:room` 두 앱에 걸리는 결정이고, 이
+> 저장소에 먼저 적어 둔 D-11(16번)과 D-16 의 개정이다. 원본 결정 로그가 있는 queueMate 본 저장소가 이
+> 컴퓨터에 없어 여기에 먼저 적는다. 본 저장소와 합칠 때 D-11 · D-16 과 함께 올려야 한다. **D-11 · D-13 ·
+> D-16 의 본문은 고치지 않았다** (이 파일은 기록이다). 다른 D-항목과 달리 **이 결정은 이 저장소의 코드를
+> 바꾼다**(아래 "영향").
+
+**원안.** D-11 16번은 "한 사용자는 자동 매칭 대기와 게시판 방 중 한 번에 하나만"(D-11 9번 · 15번)을
+**활성 요청 키 `qm:user:active-request:{userId}` 하나**로 지키게 했다. 방에 들어올 때 방을 맡는 앱(D-16 이
+`app:platform` 을 `app:room` 으로 개정했다)이 그 키에 값을 써 넣고 나갈 때 지운다. 그러면
+`redis/shared/claim-request.lua` 의 기존 `EXISTS` 검사가 그대로 거절하므로 `app:matching` 에 새 검사 로직이
+필요 없다 — 이것이 그 결정의 근거였다.
+
+**결정. 키를 둘로 나눈다.**
+
+| | `app:matching` | `app:room` |
+|---|---|---|
+| 자기 키 | 활성 요청 키 `qm:user:active-request:{userId}` (HASH) | **입장 표시 키 `qm:user:active-room:{userId}`** (STRING, 값은 `roomId`) |
+| 자기 키에 하는 일 | 쓰고, 지우고, 수명을 건다 | 쓰고, 지우고, 수명을 건다 |
+| 상대 키에 하는 일 | **`EXISTS` 로 있는지만 본다** | **`EXISTS` 로 있는지만 본다** |
+
+1. **각자 자기 키만 쓰고 지운다. 상대 키는 있는지만 본다** — 값을 읽지 않고, 쓰지도 지우지도 `EXPIRE` 를
+   걸지도 않는다.
+2. **9번(매칭 대기 중이면 방에 못 들어간다)** — `app:room` 의 입장 Lua 가 활성 요청 키를 `EXISTS` 로 보고,
+   있으면 입장을 거절한다.
+3. **15번(방에 있으면 매칭을 못 돌린다)** — `claim-request.lua` 가 `KEYS[2]` 로 입장 표시 키를 받아 `EXISTS` 로
+   보고, 있으면 **`-1`** 을 돌려준다. `service/MatchRequestService.java#join()` 이 그것을
+   `JoinResult.Status.IN_ROOM` 으로 바꾸고 `controller/MatchingController.java` 가 **409 `IN_ROOM`** 으로
+   내보낸다. 기존 409 `ALREADY_QUEUED`(반환 `0`)와 구분된다 — 둘 다 409 지만 클라이언트가 할 일이 다르다
+   (`ALREADY_QUEUED` 면 상태 조회로 대기 화면을 복구하고, `IN_ROOM` 이면 방에서 나와야 한다 —
+   `dto/JoinResult.java` 주석).
+4. **입장 표시 키 접두사의 원본은 `app:room` 이다.** `../room/backend/src/main/java/com/queuemate/room/redisKeys/RoomKeys.java`
+   의 `ACTIVE_ROOM_PREFIX = "qm:user:active-room:"` 가 원본이고, 이 저장소의 `redisKeys/SharedKeys.java`
+   `ACTIVE_ROOM_PREFIX` 가 **따라 적는다.** 활성 요청 키 접두사는 반대다 — 원본이 이 저장소의
+   `SharedKeys.ACTIVE_REQUEST_PREFIX` 이고 `app:room` 이 따라 적는다(D-11 16번 그대로).
+5. **두 앱의 약속은 입장 표시 키의 "이름"뿐이다.** 자료형 · 값 · 수명은 `app:room` 이 혼자 정한다 —
+   `app:matching` 은 `EXISTS` 만 보므로 그것들을 몰라도 된다.
+6. **서비스 간 호출은 여전히 없다** (#15). 두 앱은 같은 Redis 를 볼 뿐이다.
+
+**D-11 · D-16 · D-13 과의 관계.**
+
+- **D-11 16번** "9번과 15번은 활성 요청 키 하나로 지킨다 · 방을 맡는 앱이 이 키에 값을 써 넣고 나갈 때
+  지운다 · `claim-request.lua` 의 기존 검사가 그대로 거절한다 · `app:matching` 에 새 검사 로직을 넣지 않아도
+  된다" → **전부 이 항목으로 바뀐다.** 9번 · 15번의 규칙 자체(한 번에 하나만)는 그대로이고 바뀌는 것은 지키는
+  방법이다. 16번의 *(코드 메모)* — 배정 스크립트와 `leave-party.lua` 가 활성 요청 키를 `EXISTS` 로 보는 것은
+  뜻이 반대다 — 는 그대로 맞다.
+- **D-11 "아직 미정"의 16번 세부** — "HASH 에 무엇을 써 넣는가", "`app:matching` 이 게시판 표시가 든 키를 읽을
+  때", "언제 지우는가"는 **물음 자체가 없어진다.** 활성 요청 HASH 에 남이 쓰는 값이 없기 때문이다. "없으면
+  쓴다를 원자적으로"와 "안 지워지는 경우"는 `app:room` 이 **자기 키**에 대해 풀 문제로 남는다.
+- **D-11 "영향"** 의 "새 검사 로직은 넣지 않는다", "남이 쓴 값을 읽는 쪽(상태 조회 · 취소)은 손봐야 할 수
+  있다", "활성 요청 키가 두 앱이 쓰는 키가 됐다" → 셋 다 뒤집힌다. 검사 한 줄이 `claim-request.lua` 에
+  들어갔고, 상태 조회 · 취소는 손볼 필요가 없어졌고, 활성 요청 키를 **쓰는** 앱은 다시 `app:matching`
+  하나다(`app:room` 은 읽기만, 그것도 `EXISTS` 만 한다).
+- **D-16** 의 `app:room` 기능 분담 가운데 "**활성 요청 키 쓰고 지우기**" → **"입장 표시 키 쓰고 지우기 +
+  활성 요청 키를 `EXISTS` 로 보기"** 로 읽는다. "D-11 16번의 나머지(키 하나로 양방향을 지킨다 … )는 그대로이고
+  주어만 `app:room` 으로 바뀐다"도 이 항목으로 바뀐다. D-16 "영향"의 "이 저장소의 코드는 바뀌지 않는다"도
+  이 항목으로 더는 맞지 않는다.
+- **D-16 "아직 미정"의 접속 확인** — "같은 신호로 활성 요청 키의 수명도 늘리면"은 **"입장 표시 키의 수명도
+  늘리면"** 으로 읽는다. `app:room` 은 활성 요청 키에 `EXPIRE` 를 걸지 않는다(결정 1).
+- **D-16 의 "세 번째 공유 약속"(방 키)** 은 이제 네 번째다 — 알림 채널 접두사, 활성 요청 키 접두사, **입장
+  표시 키 접두사**, 방 키.
+- **D-13 · D-16 이 적은 가능성 "파티(방)가 닫힐 때 방을 맡는 앱이 활성 요청 키를 지워 `status=PARTY` 를
+  푼다"는 없어진다.** `app:room` 은 이제 활성 요청 키에 쓰지 않는다(아래 "아직 미정").
+
+**근거.**
+
+1. **활성 요청 키는 자물쇠가 아니라 `app:matching` 의 요청 기록이다.** `SharedKeys.ACTIVE_REQUEST_PREFIX` 의
+   주석 그대로 "INV-1 의 선점 자리이자 키를 되조립할 재료"다 — `requestId` · 게임 · 조건 · `partyId` ·
+   `status` 가 들어 있다. 상호 배제만 보면 자물쇠 하나를 같이 쓰는 것이 맞아 보이지만, 이 키에 남이 쓰면
+   자물쇠를 같이 쓰는 것이 아니라 **남의 장부에 줄을 끼워 넣는 것**이 된다. `app:matching` 에서 이 키를 읽는
+   모든 자리가 "남이 쓴 값일 수 있다"를 가려야 한다. 실제로 D-11 "아직 미정"의 16번 세부가 이미 적어 둔
+   문제다 — 상태 조회(`service/MatchQueryService.java#find()`)는 방에 있는 사용자를 `QUEUED`(`requestId` 가
+   비어 있는)라고 답하고, 취소(`service/MatchCancelService.java#cancel()`)는 `game` 필드가 없어 `valueOf` 에서
+   예외로 끝난다. **키를 나누면 방에 있는 사용자에게는 활성 요청이 없으므로 조회는 `IDLE`, 취소는
+   `NOT_FOUND` 로 고치지 않아도 옳게 답한다**(두 서비스 모두 HASH 가 비어 있으면 그렇게 답하는 분기가 이미
+   있다).
+2. **쓰는 주인은 하나여야 한다.** 한 키에 작성자 둘 · 형식 둘이면 앞으로 이 키를 읽는 코드가 늘 때마다 같은
+   부담이 생긴다. 나누면 두 앱이 서로에 대해 아는 것이 **"저 키가 있는가" 하나**로 줄어든다 — 같은 Redis 를
+   쓰는 두 서비스 사이에서 가능한 가장 약한 결합이다.
+3. **사고가 번지는 범위 — 결정적인 이유다.** 키 하나에서는 `app:room` 의 버그가 매칭 엔진의 상태를
+   망가뜨린다. 늦게 도착한 나가기가 그 사이 새로 건 매칭 요청을 `DEL` 할 수 있고, 접속 확인의 `EXPIRE` 가
+   `app:matching` 이 `PERSIST` 해 둔 키에 수명을 걸 수 있다 — 그러면 파티 HASH 에는 멤버로 남았는데 활성 요청은
+   사라진다. *(이 두 시나리오는 코드를 읽고 추론한 것이고 실험으로 확인하지는 않았다.)* 막으려면 `app:room` 의
+   **모든** 스크립트가 "이 키가 내 것인가"를 먼저 확인해야 하고, 하나만 빠져도 사고다. **나누면 `app:room`
+   버그의 최악은 자기 키가 남는 것이고, 그것은 수명이 풀어 준다.** 방을 떼어 낸 이유(D-16 — 방 쪽 문제로 다른
+   것이 죽지 않게)와 같은 방향이다.
+4. **수명 정책이 다르다.** `app:matching` 은 claim 때 60초 → 배정에 성공하면 `PERSIST` 다. `app:room` 은 접속
+   확인으로 연장하는 임대다(방법 · 주기는 D-16 의 미정). 한 키에 두 정책을 얹지 않는다.
+5. **"`app:matching` 을 안 고쳐도 된다"는 옛 근거는 이미 무너져 있었다.** D-11 16번 세부가 "남이 쓴 값을 읽는
+   쪽(상태 조회 · 취소)은 손봐야 할 수 있다"고 적었다. 어차피 고친다면 `claim-request.lua` 에 `EXISTS` 하나를
+   넣는 쪽이 조회 · 취소 · 상태 enum(`MatchRequestStatus`)을 고치는 쪽보다 작다.
+6. **원자성은 그대로다.** Redis 는 스크립트를 하나씩 돌린다. 양쪽이 각각 **"두 키를 확인 → 자기 키만
+   쓴다"를 Lua 하나로** 하면 먼저 돈 쪽이 이긴다. 서비스 간 호출도 여전히 없다(#15).
+
+**감수하는 것.**
+
+- **규칙이 이제 양쪽 스크립트가 둘 다 상대 키를 확인해야 성립한다.** 한쪽이 빠뜨리면 조용히 뚫린다. 다만
+  뚫렸을 때의 피해는 "방에 있으면서 매칭도 도는 **제품 규칙 위반**"이고, 키 하나에서의 어긋남(**엔진 데이터
+  오염**)보다 가볍다.
+- **서로의 접두사를 아는 공유 약속이 하나에서 둘이 됐다.** 오타 위험도 두 군데다 — 어느 쪽이 틀려도 컴파일 ·
+  테스트는 통과한다. `app:matching` 이 입장 표시 키 접두사를 틀리면 방에 있는 사람의 매칭 요청을 받게 되고,
+  `app:room` 이 활성 요청 키 접두사를 틀리면 매칭 대기 중인 사람을 방에 들인다. 이 저장소의 테스트는
+  접두사 문자열을 직접 적어 입장 표시 키를 만들므로(`ActiveRequestConcurrencyTest`) **이 저장소 안에서의**
+  어긋남(`SharedKeys` 와 Lua 호출부)은 잡지만, `app:room` 과의 어긋남은 잡지 못한다.
+- **세 번째 참가자(예: 예약)가 같은 규칙에 걸리면 확인할 키가 또 는다.** 그때는 **중립 자물쇠 키**(예: 사용자별
+  슬롯 키 하나에 소유자를 적는 방식)로 옮기는 것을 다시 본다. **지금 그렇게 하지 않는 이유** — `app:matching`
+  의 Lua 20개 가운데 활성 요청이 끝나는 모든 출구(취소 · 거절 · 만료, 그리고 아직 없는 확정 해제)가 자물쇠도
+  같이 풀어야 하고, 하나만 빠져도 배정 때 `PERSIST` 된 뒤라 그 사용자가 영원히 잠긴다. 돌아가는 엔진에 "항상
+  같이 살고 같이 죽어야 하는 키 둘"을 심는 위험이 얻는 것보다 크다. 기존 활성 요청 키가 "`app:matching` 의
+  점유 표시" 역할을 이미 정확히 하고 있으므로 그대로 둔다.
+
+**아직 미정 — 임의로 지어내지 않는다.**
+
+- **입장 표시 키의 수명(TTL).** 접속 확인의 방법 · 주기(D-16 의 미정)와 묶인다. `app:room` 이 혼자 정한다.
+- **`status=PARTY` 해제**(`HANDOFF.md` §0 ①). D-13 · D-16 이 가능성으로 적은 "방이 닫힐 때 `app:room` 이 이
+  키를 지운다"는 **없어졌다.** 푸는 주체는 `app:matching` 이나 `app:platform` 쪽에서 찾아야 한다.
+  `HANDOFF.md` §0 ① 의 후보 2("파티 나가기" API) · 3(긴 TTL 안전망)은 그대로 열려 있다.
+- **확정된 사용자의 방 입장.** 확정된 사용자는 활성 요청 키가 `status=PARTY` 로 남아 있으므로 **그대로는
+  `app:room` 입장도 거절된다**(결정 2 — `app:room` 은 값을 읽지 않고 `EXISTS` 만 본다). "자동 매칭으로 확정된
+  파티의 방은 어떻게 생기는가"(D-16 의 미정)를 정할 때 같이 풀어야 한다.
+- 그 밖에 D-11 · D-16 의 미정 목록 가운데 이 항목이 없애지 않은 것 전부.
+
+**영향.**
+
+- **이 저장소(`app:matching`)의 코드가 바뀌었다.** 경로는 `backend/src/main/` 아래의 상대 표기다.
+  - `resources/redis/shared/claim-request.lua` — `KEYS[2]`(입장 표시 키)를 받는다. 활성 요청 키 `EXISTS`(`0`)
+    다음, `HSET` 앞에서 `EXISTS KEYS[2]` 를 보고 있으면 **`-1`** 을 돌려준다. 그 경우 아무것도 쓰지 않는다.
+  - `java/com/queuemate/matching/redisKeys/SharedKeys.java` — `ACTIVE_ROOM_PREFIX` 상수와 `activeRoomKey(userId)`.
+    주석에 원본이 `room` 의 `RoomKeys.ACTIVE_ROOM_PREFIX` 임을 적었다.
+  - `java/com/queuemate/matching/dto/JoinResult.java`(새 파일) — `Status` 가 `ACCEPTED` / `ALREADY_QUEUED` /
+    `IN_ROOM` 셋이다. 거절 갈래가 둘이 되어 `Optional<AcceptedRequest>` 로는 모자라게 됐다.
+  - `java/com/queuemate/matching/service/MatchRequestService.java` — `join()` 의 반환이
+    `Optional<AcceptedRequest>` 에서 `JoinResult` 로 바뀌었고, 스크립트에 키를 둘 넘긴다. `-1` 은 `IN_ROOM`,
+    `1` 이 아닌 나머지는 전부 `ALREADY_QUEUED` 로 닫는다(모르는 값을 접수로 읽지 않는다).
+  - `java/com/queuemate/matching/controller/MatchingController.java` — `IN_ROOM` 을 **409 `IN_ROOM`** 으로 내보낸다.
+  - 테스트 `backend/src/test/java/com/queuemate/matching/concurrency/ActiveRequestConcurrencyTest.java` 에 3건 —
+    `secondRequestIsAlreadyQueued`(두 번째 요청은 `ALREADY_QUEUED`) · `userInRoomIsRejected`(입장 표시 키가
+    있으면 `IN_ROOM` 이고 활성 요청 키가 생기지 않으며 **입장 표시 키의 값이 그대로다**) ·
+    `userWhoLeftRoomCanQueue`(입장 표시 키가 사라지면 다시 접수된다). 동시성 테스트는 24건에서 **27건**이 됐다.
+    `join()` 의 반환형이 바뀌어 그것을 부르는 다른 테스트 6개(`NaiveVsLuaComparisonTest` ·
+    `PartyJoinConcurrencyTest` · `PubgPartyJoinConcurrencyTest` · `ValorantPartyJoinConcurrencyTest` ·
+    `PushNotificationTest` · `ProposalIdempotencyTest`)의 호출부도 한 줄씩 맞췄다.
+  - **바뀌지 않은 것** — 상태 조회(`MatchQueryService`) · 취소(`MatchCancelService`) · `MatchRequestStatus` ·
+    나머지 Lua 19개. 입장 표시 키를 보는 자리는 `claim-request.lua` 하나다.
+- **계약 사본.** `contracts/README.md` 의 **A-10**(원본에 반영할 것 — `POST /match-requests` 의 409 에러 코드가
+  `ALREADY_QUEUED` / `IN_ROOM` 둘이 된다)과 에러 코드 표의 409 `IN_ROOM` 줄, `contracts/openapi.yaml` 의 `409`
+  설명과 `ErrorResponse.code` enum 의 `IN_ROOM`. A-10 이 가리키는 D-항목이 이 항목이다.
+- **`app:room`(`../room/`).** 원본 상수 `RoomKeys.ACTIVE_ROOM_PREFIX` 와 활성 요청 키 접두사의 사본
+  (`../room/backend/src/main/java/com/queuemate/room/redisKeys/SharedKeys.java`)이 있다. 입장 Lua 는 이 항목을
+  쓰는 시점에 작성 중이다. `../room/` 의 규칙 문서(`CLAUDE.md` §3.2 · §7, `START_HERE.md`, `README.md`,
+  `docs/PROJECT_OVERVIEW.md`)는 같은 날 이 결정에 맞췄다. 그 폴더의 사본(`docs/DECISIONS.md` ·
+  `docs/MATCHING_REFERENCE.md`)은 이 항목이 커밋된 뒤 다시 떠 간다.
+- 알림 서비스 · `app:platform` 은 바뀌지 않는다. `app:platform` 은 D-16 부터 활성 요청 키를 만지지 않았고 입장
+  표시 키도 만지지 않는다.
+- `CLAUDE.md` §1(게시판 예외 대목) · §3(`SharedKeys` 접두사 목록) · §4(INV-1 · INV-2 행, 회귀 테스트 표, Lua
+  스크립트 표), `START_HERE.md`, `HANDOFF.md` §0 ① 을 이 결정에 맞췄다.
 
 ---
 

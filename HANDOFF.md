@@ -1,6 +1,6 @@
 # HANDOFF — 다음 세션 인계
 
-**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-17 (목) · 2026-09-19 (§0 의 ①·③·④ 에 docs/11 D-11·D-12·D-13 반영)
+**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-17 (목) · 2026-09-19 (§0 의 ①·③·④ 에 docs/11 D-11·D-12·D-13 반영, §0-0 · ① 에 D-19 반영)
 **읽는 순서:** `CLAUDE.md` → `START_HERE.md` → **이 파일의 §0 부터**
 
 이 파일은 "지금 어디까지 왔고 무엇이 열려 있는가"만 담는다. 규칙은 `CLAUDE.md`,
@@ -28,6 +28,7 @@
 | 활성 요청에 `queuedAt` | `service/MatchRequestService#requestFields()` | 줄 선 시각(epoch millis). **Lua 가 아니라 자바가 필드로 넘긴다** |
 | 취소 스크립트 정리 | `{lol,pubg,valorant}/leave-party.lua` | 중복 정리 2줄 제거. 동작 무변경 |
 | **PUBG 동시성 테스트 9건** | `concurrency/PubgPartyJoinConcurrencyTest` | **이제 세 게임 모두 테스트가 있다.** 총 41건 — 동시성 24(LoL 7 + VALORANT 8 + PUBG 9) + 제안 멱등성 11 + 알림 6 |
+| **방에 있으면 매칭 거절 — 409 `IN_ROOM`** (2026-09-19, docs/11 D-19) | `redis/shared/claim-request.lua`(`KEYS[2]`, 반환 `-1`) · `redisKeys/SharedKeys`(`ACTIVE_ROOM_PREFIX` · `activeRoomKey`) · `dto/JoinResult` · `service/MatchRequestService#join()` · `controller/MatchingController` | "한 번에 하나만"을 **키 둘**로 지킨다 — `app:room` 의 입장 표시 키 `qm:user:active-room:{userId}` 를 `EXISTS` 로 보기만 한다. 활성 요청 키는 다시 이 앱만 쓴다. `join()` 의 반환이 `Optional<AcceptedRequest>` 에서 `JoinResult` 로 바뀌었다. `ActiveRequestConcurrencyTest` 에 3건이 붙어 `@Test` 개수로 동시성 27 · 총 44건이다(윗줄의 41건은 09-17 기록이라 그대로 둔다). 계약 사본은 `contracts/README.md` A-10 |
 
 ### 0-1. 남은 것 — 우선순위 순
 
@@ -58,6 +59,14 @@
 > (`qm:user:active-request:{userId}`)를 쓰고 지울 수 있게 됐다. 그 앱은 D-16 으로 **`app:room`** 이다
 > (처음에는 `app:platform` 으로 적었다). 그러므로 방이 닫힐 때 `app:room` 이 이 키를 지우는 길이 있다.
 > **가능성일 뿐 정해진 것이 아니다.** 후보 2·3 은 그대로 열려 있다.
+
+> **2026-09-19 추가 (docs/11 D-19).** **바로 위의 "새 가능성"은 없어졌다.** "한 번에 하나만"을 키 둘로
+> 지키게 되면서 `app:room` 은 활성 요청 키에 **쓰지 않는다** — 자기 입장 표시 키
+> `qm:user:active-room:{userId}` 만 쓰고 지우고, 활성 요청 키는 `EXISTS` 로 있는지만 본다. 그러므로 방이 닫힐 때
+> `app:room` 이 `status=PARTY` 를 푸는 길은 없다. **푸는 주체는 `app:matching` 이나 `app:platform` 쪽에서
+> 찾아야 한다** — 후보 2·3 은 그대로 열려 있다. **이 문제가 하나 더 물고 들어온다**: 확정된 사용자는 활성 요청
+> 키가 남아 있으므로 매칭(409 `ALREADY_QUEUED`)뿐 아니라 **`app:room` 입장도 그대로는 거절된다.** 자동
+> 매칭으로 확정된 파티의 방 입장(D-16 미정)을 정할 때 같이 풀어야 한다. 여전히 **미정**이다.
 
 **건드릴 곳**: `redis/proposal/cleanup-confirmed.lua` · `service/ProposalService#confirmed()` ·
 (1번이면) 새 SQS 소비자 패키지 · (2번이면) `MatchingController` + `MatchCancelService`.

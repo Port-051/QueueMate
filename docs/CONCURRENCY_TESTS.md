@@ -38,6 +38,9 @@
 |---|---|---|---|
 | INV-1 | 한 사용자는 활성 매칭 요청을 1개만 가진다 | `claim-request.lua` | `ActiveRequestConcurrencyTest.onlyOneRequestSucceedsPerUser` |
 | INV-1 | (반대 방향) 서로 다른 사용자는 서로를 막지 않는다 | 〃 | `ActiveRequestConcurrencyTest.differentUsersAllSucceed` |
+| INV-1 | 이미 활성 요청이 있으면 두 번째 요청은 `IN_ROOM` 이 아니라 `ALREADY_QUEUED` 다 | 〃 (반환 `0`) | `ActiveRequestConcurrencyTest.secondRequestIsAlreadyQueued` |
+| docs/11 D-11 15번 · D-19 | 게시판 방에 들어가 있는 사용자의 매칭 요청은 거절되고(`IN_ROOM`), 활성 요청 키가 생기지 않으며, `app:room` 의 입장 표시 키(`qm:user:active-room:{userId}`)를 건드리지 않는다 | `claim-request.lua` 의 `EXISTS KEYS[2]` (반환 `-1`) | `ActiveRequestConcurrencyTest.userInRoomIsRejected` |
+| docs/11 D-11 15번 · D-19 | 입장 표시 키가 사라지면 다시 매칭 요청을 할 수 있다 | 〃 | `ActiveRequestConcurrencyTest.userWhoLeftRoomCanQueue` |
 | INV-1 | 순진한 구현이면 실제로 깨진다 | — (대조군) | `NaiveVsLuaComparisonTest.naiveApproachBreaksUnderConcurrency` |
 | INV-1 | 같은 부하에서 Lua는 중복 0 | `claim-request.lua` | `NaiveVsLuaComparisonTest.luaApproachHoldsUnderSameLoad` |
 | INV-3 | 파티 인원이 `targetPartySize`를 넘지 않는다 | `join-party.lua` / `join-party-tiered.lua` 가 참가자를 `HSET member:{userId}` 한 뒤 **`member:` 필드를 세어** `size >= target` 이면 모든 needs 색인에서 제거, **그리고** `redisLock/PoolLock.java` 의 후보 풀 락 | `PartyJoinConcurrencyTest.partyNeverExceedsTarget` |
@@ -111,6 +114,12 @@ CLAUDE.md 기준으로는 게임별 hard rule이므로 INV-8에도 걸린다.
 > `ValorantPartyJoinConcurrencyTest`(8건)와 `PubgPartyJoinConcurrencyTest`(9건)가 들어와
 > **세 게임 모두 동시성 테스트가 있다** — 동시성 24(LoL 7 + VALORANT 8 + PUBG 9) +
 > 제안 멱등성 11 + 알림 6 = 41건. `docs/11` R-3 참고.
+
+> **2026-09-19 — `@Test` 개수로 44건이다.** `ActiveRequestConcurrencyTest` 가 2건에서 5건이 됐다
+> (`secondRequestIsAlreadyQueued` · `userInRoomIsRejected` · `userWhoLeftRoomCanQueue` — docs/11 D-19).
+> 동시성 27(LoL 10 + VALORANT 8 + PUBG 9) + 제안 멱등성 11 + 알림 6 = 44건. 새 3건은 **단일 스레드**다 —
+> 동시에 누르는 경합이 아니라 `claim-request.lua` 의 반환 갈래(`0` / `-1`)를 본다. 위 표들은 실행 기록이라
+> 그대로 둔다.
 
 ## 왜 순진한 방식이 깨지는가
 
