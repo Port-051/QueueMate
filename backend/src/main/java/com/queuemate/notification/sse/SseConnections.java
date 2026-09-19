@@ -142,22 +142,23 @@ public class SseConnections {
      * 콜백이 {@link #remove} 로 맵에서 빼고 마지막 연결이면 구독도 푼다. 같은 일을 두 군데서 하면
      * 구독 해제가 빠지거나 두 번 불린다.
      *
-     * @return 닫기를 시도한 연결 수
+     * @return 닫은 연결 수. 닫다가 실패한 것은 세지 않는다
      */
     public int closeAll() {
-        int closed = 0;
+        int count = 0;
         for (Set<SseEmitter> sseEmitters : connections.values()) {
             for (SseEmitter sseEmitter : sseEmitters) {
                 try {
                     sseEmitter.complete();
+                    ++count;
                 } catch (Exception e) {
-                    // 하나가 실패해도 나머지는 닫는다. 어차피 곧 프로세스가 끝난다
+                    // 닫는 것 자체가 실패했다. 다시 닫으려 들지 않는다 - 그 호출이 또 던지면 순회가
+                    // 끊겨 나머지를 못 닫는다. 어차피 곧 프로세스가 끝난다
                     log.debug("종료 중 SSE 연결 닫기 실패: {}", e.toString());
                 }
-                closed++;
             }
         }
-        return closed;
+        return count;
     }
 
     /**
