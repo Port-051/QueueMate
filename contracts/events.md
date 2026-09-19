@@ -1,7 +1,7 @@
 <!-- 출처: queueMate 저장소 / 브랜치 feature/frontend / 경로 contracts/events.md (110줄) -->
 <!-- 커밋: 825d673 -->
 <!-- ★ 발췌본이다. app:matching 이 발행하는 이벤트와 그 전달 규약만 옮겼다. -->
-<!-- ★ 이 사본이 원본보다 앞서 개정된 부분이 있다 — "재연결"(2026-09-18), 전송 표와 WEBRTC_SIGNAL(2026-09-19), heartbeat 와 retry(2026-09-19), SQS 큐 표의 BlockChanged 폐기(2026-09-19). 각 자리의 "개정 이력"과 contracts/README.md 를 봐라. -->
+<!-- ★ 이 사본이 원본보다 앞서 개정된 부분이 있다 — "재연결"(2026-09-18), 전송 표와 WEBRTC_SIGNAL(2026-09-19), heartbeat 와 retry(2026-09-19), SQS 큐 표의 BlockChanged 폐기(2026-09-19), RESERVATION_* 발행 주체(2026-09-19), WEBRTC_SIGNAL 발행 주체 app:room(2026-09-19). 각 자리의 "개정 이력"과 contracts/README.md 를 봐라. -->
 
 # Server Event Contract — app:matching 발췌
 
@@ -15,7 +15,8 @@
 > `WEBRTC_SIGNAL` 1종"이라고 적었다. 2026-09-19 에 위와 같이 바꿨다 (docs/11 D-9) —
 > WebSocket 을 남긴 유일한 이유인 클라→서버 방향은 REST `POST` 로 충분하고, 1종 때문에
 > WebSocket 스택 전체를 따로 만들어 운영하는 것이 과하다. 시그널을 **보내는** 쪽은
-> `app:platform` 의 REST `POST` 다 — 아래 "`WEBRTC_SIGNAL` 의 전달" 절.
+> `app:room` 의 REST `POST` 다 — 아래 "`WEBRTC_SIGNAL` 의 전달" 절. (D-9 는 `app:platform` 으로 적었고
+> 같은 날 D-16 이 `app:room` 으로 개정했다.)
 
 > **연결을 받는 것은 `app:realtime` 하나다.**
 > 이 저장소(`app:matching`)는 SSE 를 열지 않는다. WebSocket 은 어느 앱에도 없다.
@@ -27,7 +28,16 @@
 
 전체 15종 중 이 앱이 발행 주체인 것만 옮긴다.
 나머지 10종(`RESERVATION_*` 2종 = `app:reservation-batch`,
-`PARTY_*`·`FRIEND_*` 7종과 `WEBRTC_SIGNAL` 1종 = `app:platform`)은 이 저장소 소관이 아니다.
+`PARTY_*`·`FRIEND_*` 7종 = `app:platform`, `WEBRTC_SIGNAL` 1종 = `app:room`)은 이 저장소 소관이 아니다.
+
+> 개정 이력: 예전 판은 "`PARTY_*`·`FRIEND_*` 7종과 `WEBRTC_SIGNAL` 1종 = `app:platform`"이라고 적었다.
+> 2026-09-19 에 방이 `app:room` 으로 분리되면서(docs/11 D-16) **`WEBRTC_SIGNAL` 의 발행 주체는 `app:room`**
+> 이 됐다. **`PARTY_*` 가운데 방 입장 · 퇴장 · 강퇴 알림을 어느 앱이 어떤 `type` 으로 내는지는 미정이다
+> (D-16)** — 그래서 `PARTY_*` 는 옮기지 않고 그대로 두었다. 7종의 이름이 이 컴퓨터에 없어 가를 수도 없다.
+
+> 개정 이력: `RESERVATION_*` 2종의 발행 주체 `app:reservation-batch` 는 2026-09-19 에
+> **`app:reservation`(AWS Lambda)이 대체한다** (docs/11 D-15). 예약 등록 REST 와 짝 찾기 배치가 한
+> 덩어리가 되어 Lambda 로 빠졌다. 발행 방식(Redis `PUBLISH`)과 종류 수는 그대로다.
 
 | type | 발행 주체 | 언제 |
 |---|---|---|
@@ -122,22 +132,27 @@ payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약
 - 알림은 휘발성이라 재전송 보장이 없다. 놓친 상태는 REST 로 복구한다.
   (`WEBRTC_SIGNAL` 은 예외다 — 서버에 상태가 없어 REST 로 복구할 수 없다. 아래 절.)
 
-### `WEBRTC_SIGNAL` 의 전달 — 받기는 SSE, 보내기는 `app:platform` 의 REST `POST`
+### `WEBRTC_SIGNAL` 의 전달 — 받기는 SSE, 보내기는 `app:room` 의 REST `POST`
 
 > 개정 이력: 2026-09-19 에 새로 넣은 절이다 (docs/11 D-9). 예전 판은 `WEBRTC_SIGNAL` 을
 > `app:realtime` 의 WebSocket(`/ws`) 소관으로 두었다. **이 저장소(`app:matching`)는
 > `WEBRTC_SIGNAL` 을 발행하지 않는다** — 15종을 세는 근거와 복구 책임을 남기려고 적는다.
+>
+> 개정 이력: 이 절은 처음에 `POST` 를 받고 발행하는 앱을 `app:platform` 으로 적었다(D-9). 같은 날 방을
+> `app:room` 으로 분리하면서(docs/11 D-16) 아래와 같이 바꿨다 — 지금 방에 누가 있는지를 아는 앱이
+> `app:room` 이다. 확인하는 대상도 자동 매칭 파티방에서는 "같은 파티원", 게시판 방에서는 "같은 방에 들어와
+> 있는 사람"이다(D-11).
 
 - **받기** — 다른 알림과 같은 SSE 다. 같은 envelope 에 `type` 이 `WEBRTC_SIGNAL` 이다.
   `app:realtime` 은 `type` 을 해석하지 않고 그대로 흘려보내므로 바뀌는 것이 없다.
-- **보내기** — 클라이언트가 `app:platform` 에 REST `POST` 한다. `app:platform` 이 보내는 사람과
-  받는 사람이 **같은 파티원인지 확인한 뒤** `qm:pubsub:push:{상대 userId}` 에 publish 한다.
-  파티를 소유한 앱이 `app:platform` 이기 때문이다. 발행 주체는 `app:platform` 이다.
+- **보내기** — 클라이언트가 `app:room` 에 REST `POST` 한다. `app:room` 이 보내는 사람과
+  받는 사람이 **같은 방에 들어와 있는지(같은 파티원인지) 확인한 뒤** `qm:pubsub:push:{상대 userId}` 에
+  publish 한다. 방 안에 누가 있는지를 아는 앱이 `app:room` 이기 때문이다. 발행 주체는 `app:room` 이다.
 - **순서** — 여러 `POST` 는 도착 순서가 보장되지 않는다. 받는 쪽은 offer 가 오기 전에 도착한
   ICE 후보를 모아 두어야 한다. 통화 시작 시 ICE 후보마다 `POST` 가 나가므로 HTTP/2 를 전제한다.
 - **놓친 시그널은 클라이언트가 복구한다.** 받는 쪽 SSE 가 끊긴 순간의 시그널은 사라진다
   (WebSocket 이어도 같다). 시그널은 서버에 저장되지 않으므로 위 "재연결"의 상태 조회로는
-  되찾을 수 없다. 복구의 기준점은 서버에 저장된 **파티원 목록**이다.
+  되찾을 수 없다. 복구의 기준점은 서버에 저장된 **파티원 목록**(게시판 방은 방에 있는 사람 목록)이다.
   - 답이 없으면 offer 를 다시 보낸다.
   - SSE 재연결 시 파티원 목록과 실제 peer 연결을 비교해 빠진 상대에게 재협상한다.
   - peer 연결이 `failed` 면 ICE restart 를 한다.
@@ -152,7 +167,7 @@ payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약
 **미정이다 — 임의로 지어내지 않는다.**
 
 - `POST` 엔드포인트의 경로와 요청/응답 스키마. (`POST /api/v1/parties/{partyId}/signals` 는
-  **후보**일 뿐이다.) 이 발췌본의 `openapi.yaml` 에는 들어오지 않는다 — `app:platform` 소관이다.
+  **후보**일 뿐이다.) 이 발췌본의 `openapi.yaml` 에는 들어오지 않는다 — `app:room` 소관이다.
 - `WEBRTC_SIGNAL` 의 `payload` 스키마. 정해야 할 항목: 보낸 사람 식별자 / 파티 식별자 /
   종류(offer · answer · ICE candidate) / SDP 또는 candidate 본문 / 재협상 시도를 구분할 식별자.
 
@@ -189,7 +204,7 @@ payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약
 ## 이 저장소가 전송하지 않는 것
 
 - 파티 텍스트 채팅 본문 / 음성 미디어 — WebRTC DataChannel·audio track 을 탄다
-- `WEBRTC_SIGNAL` — `app:platform` 이 발행한다. 받는 길은 다른 알림과 같은 SSE 다
+- `WEBRTC_SIGNAL` — `app:room` 이 발행한다 (docs/11 D-16. D-9 는 `app:platform` 으로 적었다). 받는 길은 다른 알림과 같은 SSE 다
   (위 "`WEBRTC_SIGNAL` 의 전달")
 
   > 개정 이력: 예전 판은 "`app:realtime` 의 `/ws` 소관"이라고 적었다. 2026-09-19 에 `/ws` 가
