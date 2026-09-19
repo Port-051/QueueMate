@@ -51,7 +51,7 @@ matching  ──PUBLISH──▶  Redis Pub/Sub               ──SUBSCRIBE─
 `MATCH_PROPOSAL_EXPIRED`, `MATCH_CONFIRMED`, `MATCH_CANCELLED`. 전체 SSE 계약은 15종이고
 나머지 10종(`RESERVATION_*`, `PARTY_*`, `FRIEND_*`, `WEBRTC_SIGNAL`)은 다른 앱이 발행한다
 (`contracts/events.md`). **`WEBRTC_SIGNAL`도 다른 알림과 똑같이 흘려보낸다** — 시그널을 받는 길이
-SSE 이고 보내는 쪽은 `app:platform`의 REST `POST`다. WebSocket(`/ws`)은 없어졌으니 여기 만들지 않는다
+SSE 이고 보내는 쪽은 `app:room`의 REST `POST`다(`matching` docs/11 D-16. D-9 는 `app:platform`으로 적었다). WebSocket(`/ws`)은 없어졌으니 여기 만들지 않는다
 (`matching`의 `docs/11_DECISION_LOG.md` D-9).
 
 > **채널 접두사는 이 서비스가 정하지 않는다.** 원본은 `matching`의 `SharedKeys.PUSH_CHANNEL_PREFIX`다.
@@ -105,8 +105,8 @@ SSE 이고 보내는 쪽은 `app:platform`의 REST `POST`다. WebSocket(`/ws`)�
 
 ## 6. 배포 기준
 
-현재 배포 기준은 **Stage 1(단일 EC2 + Docker Compose)**다.
-**k8s / HPA / sticky session을 전제한 구현 금지.**
+배포 기준은 **Stage 2(ECS Fargate)**다. Stage 1(단일 EC2 + Docker Compose)은 적용하지 않는다
+(`matching` docs/11 D-18). **k8s / HPA / sticky session을 전제한 구현 금지**는 그대로다.
 
 ## 7. 미정 사항
 
