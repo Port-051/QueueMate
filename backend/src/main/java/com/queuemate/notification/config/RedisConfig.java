@@ -29,6 +29,11 @@ public class RedisConfig {
     public RedisMessageListenerContainer redisMessageListenerContainer(RedisConnectionFactory connectionFactory) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
+        // 웹 서버보다 먼저 시작시킨다(phase 가 작을수록 먼저 시작하고 나중에 멈춘다). 기본값(Integer.MAX_VALUE)이면
+        // Tomcat 이 요청을 받기 시작한 뒤에 컨테이너가 Redis 에 붙는다 - 그 1~2초 사이에 들어온 SSE 연결의 채널은
+        // 구독이 걸리지 않거나(알림이 안 간다) 구독 연결이 둘 생긴다(알림이 두 번 간다). 2026-09-20 에 재현했다.
+        // 시작 때 게시판 채널이 등록돼 있으므로(BoardChannelSubscriber) 첫 요청이 오기 전에 구독 연결이 하나로 선다
+        container.setPhase(0);
         // 나머지는 기본값을 쓴다. 2026-09-19 에 Redis 를 껐다 켜며 확인한 동작이다.
         //  - 재연결: Redis 가 재시작돼도 열려 있던 SSE 연결은 다시 알림을 받는다. 컨테이너가 다시 붙으면서
         //    등록돼 있던 채널을 전부 다시 구독한다. 그 사이 발행된 알림은 사라진다 - Pub/Sub 의 성질이고
