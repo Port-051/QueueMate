@@ -136,6 +136,33 @@ public class SseConnections {
     }
 
     /**
+     * 살아 있는 모든 연결에 같은 알림을 보낸다. 게시판 채널처럼 받는 사람이 정해지지 않은 알림에 쓴다.
+     *
+     * <p>빌더는 <b>연결마다 새로 만든다.</b> {@code send} 가 부르는 {@code build()} 는 부를 때마다 빌더 안의
+     * 조각 목록에 줄바꿈을 하나 더 쌓는다 — 빌더 하나를 돌려 쓰면 N 번째 연결은 조각을 N 개 더 쓰게 되어
+     * 연결 수의 제곱으로 느려진다 (2026-09-20 에 연결 3개로 빈 줄 1 · 2 · 3개를 확인했다).
+     */
+    public void sendAll(String json)
+    {
+        String eventId = eventIdOf(json);
+        connections.forEach((userId, sseEmitters) -> {
+            for (SseEmitter sseEmitter : sseEmitters) {
+                SseEmitter.SseEventBuilder eventBuilder = SseEmitter.event().data(json);
+                if (eventId != null)
+                {
+                    eventBuilder.id(eventId);
+                }
+                try
+                {
+                    sseEmitter.send(eventBuilder);
+                } catch (Exception e) {
+                    sseEmitter.completeWithError(e);
+                }
+            }
+        });
+    }
+
+    /**
      * 열려 있는 연결을 전부 정상 종료한다. 앱이 꺼질 때 {@link SseShutdown} 이 부른다.
      *
      * <p>맵은 여기서 비우지 않는다. {@code complete()} 가 {@code onCompletion} 콜백을 부르고, 그
