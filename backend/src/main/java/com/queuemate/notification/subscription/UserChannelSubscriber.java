@@ -32,19 +32,19 @@ import org.springframework.stereotype.Component;
 public class UserChannelSubscriber {
 
     private final RedisMessageListenerContainer container;
-    private final ObjectProvider<PushMessageListener> listenerProvider;
+    private final ObjectProvider<PushMessageListener> pushListenerProvider;
 
     /**
      * 그 사용자의 채널을 구독한다. 첫 연결이 생겼을 때 한 번만 불린다.
      */
     public void subscribe(String userId) {
-        container.addMessageListener(listenerProvider.getObject(), new ChannelTopic(PushChannels.pushChannel(userId)));
+        container.addMessageListener(pushListenerProvider.getObject(), new ChannelTopic(PushChannels.pushChannel(userId)));
     }
 
     /**
      * 그 사용자의 채널 구독을 푼다. 마지막 연결이 끊겼을 때 한 번만 불린다.
      */
     public void unsubscribe(String userId) {
-        container.removeMessageListener(listenerProvider.getObject(), new ChannelTopic(PushChannels.pushChannel(userId)));
+        container.removeMessageListener(pushListenerProvider.getObject(), new ChannelTopic(PushChannels.pushChannel(userId)));
     }
 }
