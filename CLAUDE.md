@@ -21,7 +21,8 @@ matching  ──PUBLISH──▶  Redis Pub/Sub               ──SUBSCRIBE─
 - **매칭 로직이 하나도 없다.** 매칭·제안·수락·확정은 전부 `matching`의 일이다.
 - 공개 채팅, 피드, 게시판처럼 사용자끼리 주고받는 기능을 여기 만들지 않는다.
   파티 모집 게시판은 제품에 들어오지만(`matching` docs/11 D-11) `platform`의 일이고, 이 서비스는
-  그 알림을 다른 알림처럼 흘려보낼 뿐이다.
+  그 알림을 다른 알림처럼 흘려보낼 뿐이다. 게시판 목록을 F5 없이 갱신하려고 **주제 채널 구독**이 생기지만
+  (D-20. **정해졌고 구현 전이다** — §7.1) 그것도 받은 것을 그대로 흘려보내는 일이다.
 
 ## 2. 하는 일 / 하지 않는 일
 
@@ -29,7 +30,7 @@ matching  ──PUBLISH──▶  Redis Pub/Sub               ──SUBSCRIBE─
 |---|---|
 | 사용자의 SSE 연결을 들고 있는다 | **놓친 알림 재전송.** Pub/Sub은 구독자가 없으면 메시지를 버린다. 재접속한 사용자는 `matching`의 `GET /api/v1/match-requests?userId=`로 현재 상태를 복구한다 |
 | `qm:pubsub:push:{userId}`로 들어온 메시지를 **해석하지 않고 그대로** 그 사용자 연결로 흘려보낸다 | **알림 이력 저장.** DB도, Redis List/Stream도 쓰지 않는다 |
-| | **매칭 상태 읽기/쓰기.** 매칭 Redis 키(`qm:party:*`, `qm:user:*`, `qm:proposal:*`, `qm:gameconfig:*`)에 접근하지 않는다. Redis에서 만지는 것은 `qm:pubsub:push:{userId}` 구독뿐이다 |
+| | **매칭 상태 읽기/쓰기.** 매칭 Redis 키(`qm:party:*`, `qm:user:*`, `qm:proposal:*`, `qm:gameconfig:*`)에 접근하지 않는다. Redis에서 만지는 것은 `qm:pubsub:push:{userId}` 구독뿐이다(주제 채널 `qm:pubsub:board:{game}` 구독이 더해진다 — 구현 전, §7.1) |
 | | **`type`별 분기·필터링.** 모르는 `type`이 와도 그대로 보낸다. 종류가 늘 때 이 서비스를 재배포하지 않기 위해서다 |
 
 ## 3. 메시지 계약
@@ -112,6 +113,47 @@ SSE 이고 보내는 쪽은 `app:room`의 REST `POST`다(`matching` docs/11 D-16
 
 정하기 전에 임의로 구현하지 말고 사용자에게 물어라.
 
+### 7.1 주제 채널 구독 — 정해졌고 구현 전이다 (`matching` docs/11 D-20, 2026-09-20)
+
+**왜 생기나.** 파티 모집 게시판의 목록이 **F5 없이 갱신**돼야 한다(다른 사람이 글을 올리거나 방의 인원이 바뀌면 보고 있는 화면에 반영). 지금 알림은 사용자 한 명의
+채널(`qm:pubsub:push:{userId}`)로 가는데, 목록을 보는 사람은 발행하는 쪽이 **"누구인지 모르는 다수"**다. 그래서 사용자 채널과 별개인 **주제 채널**을 둔다.
+
+**정해진 것.**
+
+| 항목 | 값 |
+|---|---|
+| 채널 | **`qm:pubsub:board:{game}`** — `{game}`은 `LOL` · `VALORANT` · `PUBG` |
+| 발행하는 앱 | `platform`(글이 생기거나 사라지거나 상태가 바뀔 때) · `room`(방의 인원이 바뀔 때). **둘 다 아직 발행하지 않는다** — `platform`은 코드가 없고 `room`은 이 서비스의 주제 구독이 먼저다 |
+| 메시지 | 사용자 채널과 같은 네 칸 봉투다. `type`은 **`BOARD_CHANGED`**, **`payload`는 빈 객체 `{}`** — `roomId`도 싣지 않는다 |
+| 클라이언트가 구독을 알리는 법 | **SSE를 열 때 쿼리 파라미터 `topics=board:LOL`** (예: `GET /api/v1/events?topics=board:LOL`) |
+| 받은 클라이언트가 하는 일 | `platform`의 목록을 `GET`으로 다시 요청한다(몇 초에 한 번으로 묶어서). **이 신호는 "다시 받아라"일 뿐이다** — 데이터와 차단 거르기는 그 응답에서 온다 |
+
+**이 서비스의 원칙과 어떻게 맞물리나.**
+
+- **"본문을 열어 보지 않고 그대로 흘려보낸다"(§2 · §3)는 그대로다.** 주제 채널로 들어온 메시지도 해석하지 않고 SSE `data:`에 그대로 싣는다. `type`별 분기·필터링도 여전히 없다.
+  새로 생기는 것은 **"연결이 사용자 채널 말고 주제 채널도 구독할 수 있다"**는 개념 하나다.
+- **신호에 데이터가 없는 이유가 이 서비스에 있다.** 방송은 사람별로 거를 수 없고, 이 서비스는 거르지 않는다(§2). 그래서 차단 관계에 따라 달라지는 목록 데이터는 방송에 싣지 않고
+  `platform`의 조회에서만 나간다. **이 서비스에 사람별 거르기를 넣자는 요구가 오면 그것은 이 결정과 반대다** — 묻는다.
+- **구독은 주제별로 건다 — 패턴 구독 금지(§5)는 그대로다.** 사용자별 구독과 같은 모양이다: 그 주제를 보는 **첫 연결**이 생기면 `SUBSCRIBE`, **마지막 연결**이 끊기면 푼다.
+  `qm:pubsub:board:*` 패턴 구독을 하지 않는다. *(이 줄은 §5의 사용자별 구독 규칙을 주제에 그대로 옮긴 것이다. D-20이 따로 정한 것은 아니다 — 구현할 때 확인한다.)*
+- **정리(§5)에 주제가 더해진다.** `onCompletion` / `onTimeout` / `onError` 셋 모두에서 주제 쪽 연결 목록에서도 빼야 한다. 빠뜨리면 죽은 연결과 구독이 조용히 쌓이는 것은 같다.
+- **sticky session이 필요 없다는 점도 그대로다.** 어느 인스턴스에 붙든 그 인스턴스가 그 주제 채널을 구독하고 Redis가 모든 구독자에게 뿌린다.
+- **놓친 신호를 다시 보내지 않는다(§2)도 그대로다.** 클라이언트는 SSE를 (다시) 연결한 직후 목록을 다시 받는다.
+- **채널 이름은 `qm:pubsub:push:` 접두사와 같은 위험이다**(§3) — 발행하는 앱 둘과 이 서비스가 어긋나도 컴파일·테스트가 통과한 채로 목록이 조용히 갱신되지 않는다. 상수 한 곳에만 둔다.
+- 매칭 Redis 키에 접근하지 않는다는 규칙(§2)과 부딪히지 않는다 — `qm:pubsub:board:*`는 키가 아니라 Pub/Sub 채널이고 이 서비스는 구독만 한다.
+
+**미정 — 지어내지 마라.**
+
+- 게시판 채널 접두사의 **원본 상수를 어느 서비스에 둘지.** 알림 채널 접두사는 `matching`의 `SharedKeys`가 원본이다 — 같은 방식으로 갈지 정해지지 않았다.
+- **한 연결이 여러 주제를 구독할 때의 `topics` 표기**(쉼표로 나열하는지 등). 모르는 주제·형식이 틀린 `topics`에 어떻게 답하는지도 같이다 — 400을 주면 `EventSource`가 재접속을 멈춘다(아래 인증 ②와 같은 성질).
+- 프런트가 재요청을 묶는 간격(이 서비스의 일은 아니다).
+- `room`이 어느 게임의 채널에 발행할지를 어떻게 아는가(`room`은 지금 방이 어느 게임의 것인지 모른다 — `room`·`platform` 쪽 미정이다).
+- 주제 구독에 인증이 필요한가, `?userId=` 없이 주제만 구독하는 연결을 허용하는가 — D-20이 정하지 않았다.
+
+급하면 프런트가 몇 초마다 목록을 다시 받는 방식으로 먼저 시작해도 된다(D-20) — 그 경우 이 서비스는 바뀌지 않는다.
+
+### 7.2 그 밖의 미정
+
 | 항목 | 상황 |
 |---|---|
 | 인증 | **방식은 쿠키로 정해졌다 (`matching` docs/11 D-14). 구현은 아직이다.** access 토큰은 쿠키로 오는 JWT이고 브라우저가 SSE 연결에도 자동으로 붙인다. 이 서비스에 남은 미정 — ① access 토큰을 **검증하는 방법**(서명 방식과 키를 나눠 갖는 법) ② 토큰이 **없거나 만료됐을 때의 응답** — 401을 주면 `EventSource`는 재접속을 영구히 멈춘다 ③ 인증이 붙으면 `?userId=` 쿼리 파라미터가 없어지고 **토큰의 사용자로 대체**된다 — 그 전환 ④ 로컬 개발의 CORS(출처가 포트마다 다르고, 자격증명을 실으면 허용 출처에 `*`를 못 쓴다) |
@@ -127,7 +169,7 @@ SSE 이고 보내는 쪽은 `app:room`의 REST `POST`다(`matching` docs/11 D-16
 
 ```
 queuemate/
-├── matching/       main 브랜치
+├── matching/       matching 브랜치
 └── notification/   notification 브랜치 (이 폴더)
     └── backend/    스프링 앱. matching/backend/ 와 같은 모양이다
 ```
@@ -177,6 +219,7 @@ queuemate/
 | 알림 계약 (봉투·재연결·하트비트·순서) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/contracts/events.md` |
 | 봉투를 만드는 코드 | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/backend/src/main/java/com/queuemate/matching/notification/PushPublisher.java` |
 | 알림 종류 5종 | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/backend/src/main/java/com/queuemate/matching/notification/PushEventType.java` |
+| 주제 채널 구독의 결정 (D-20) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/docs/11_DECISION_LOG.md` (`### D-20.`으로 검색) |
 | 채널 접두사 원본 | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/backend/src/main/java/com/queuemate/matching/redisKeys/SharedKeys.java` (`PUSH_CHANNEL_PREFIX`) |
 
 ## 11. 이 저장소에서 하지 말 것 (요약)
@@ -184,7 +227,8 @@ queuemate/
 - 메시지 `type`/`payload` 해석, 종류별 분기 — 그대로 흘려보낸다
 - 놓친 알림 재전송, 알림 이력 저장 — 복구는 `matching` 상태 조회가 맡는다
 - 매칭 Redis 키(`qm:party:*`, `qm:user:*`, `qm:proposal:*`, `qm:gameconfig:*`) 접근
-- `qm:pubsub:push:*` 패턴 구독 — 사용자별 구독만 쓴다
+- `qm:pubsub:push:*` 패턴 구독 — 사용자별 구독만 쓴다. 주제 채널(§7.1)이 생겨도 `qm:pubsub:board:*` 패턴 구독을 하지 않는다
+- 주제 채널의 메시지를 열어 보거나 사람별로 거르기 — `BOARD_CHANGED`도 그대로 흘려보낸다. 거르기는 `platform`의 목록 조회가 한다(D-20)
 - 채널 접두사를 `matching`과 따로 바꾸기
 - Redis 리스너 스레드에서 직접 전송
 - k8s/HPA/sticky session 전제 구현

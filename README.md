@@ -34,7 +34,7 @@ matching  ──publish──▶  Redis Pub/Sub               ──subscribe─
 
 ```
 queuemate/
-├── matching/       main 브랜치
+├── matching/       matching 브랜치
 └── notification/   notification 브랜치 (이 폴더)
     └── backend/    스프링 앱. matching/backend/ 와 같은 모양이다
 ```
@@ -55,6 +55,17 @@ queuemate/
 - **느린 클라이언트가 리스너를 막지 않게** Redis 리스너 스레드에서 바로 보내지 않고 별도 풀로 넘긴다.
 - **보내기 실패는 그 연결만 버린다.** 알림 하나 때문에 다른 사용자가 영향받으면 안 된다.
 - 인스턴스가 늘어도 sticky session 이 필요 없다 — Redis 가 모든 구독자에게 뿌린다.
+
+## 정해졌고 구현 전인 것 — 주제 채널 구독 (`matching` docs/11 D-20)
+
+파티 모집 게시판의 목록을 F5 없이 갱신하려고, 사용자 채널과 별개인 **주제 채널 `qm:pubsub:board:{game}`**(`{game}` 은 `LOL` · `VALORANT` · `PUBG`)을
+구독해 "게시판을 보고 있는 연결"에 흘려보낸다. 목록을 보는 사람은 발행하는 쪽(`platform` · `room`)이 누구인지 모르는 다수라서 사용자 채널로는 보낼 수 없다.
+
+- 메시지는 같은 네 칸 봉투이고 `type` 은 `BOARD_CHANGED`, `payload` 는 빈 객체 `{}` 다. **여기서도 열어 보지 않고 그대로 흘려보낸다.**
+- 클라이언트는 SSE 를 열 때 `topics=board:LOL` 로 구독을 알린다 — `GET /api/v1/events?topics=board:LOL`.
+- 신호는 "다시 받아라"일 뿐이다. 받은 프런트가 `platform` 의 목록을 다시 요청하고, 데이터와 차단 거르기는 그 응답에서 온다. 그래서 이 서비스는 사람별로 거르지 않아도 된다.
+- 새로 생기는 것은 **"연결이 사용자 채널 말고 주제 채널도 구독할 수 있다"**는 개념 하나다. 패턴 구독 금지 · sticky session 불필요 · 놓친 것을 다시 보내지 않는다는 그대로다.
+- 미정 — 채널 접두사의 원본 상수를 어느 서비스에 둘지, 한 연결이 여러 주제를 구독할 때의 `topics` 표기. 상세는 `CLAUDE.md` §7.1.
 
 ## 아직 정할 것
 
