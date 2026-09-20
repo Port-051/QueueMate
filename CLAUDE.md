@@ -156,6 +156,7 @@ SSE 이고 보내는 쪽은 `app:room`의 REST `POST`다(`matching` docs/11 D-16
 
 | 항목 | 상황 |
 |---|---|
+| 알림 종류의 수 | `room`이 새 알림 `type` 다섯(`ROOM_MEMBER_ENTERED` · `ROOM_MEMBER_LEFT` · `ROOM_CLOSED` · `ROOM_MEMBER_KICKED` · `ROOM_CONFIRMED`)을 발행한다(`matching` docs/11 D-21 · `../room/contracts/room-api.md` "알림"). **§3의 "전체 SSE 계약은 15종"이 어떻게 달라지는지는 계약 원본에서 정할 일이라 여기서 고치지 않았다** — 그 다섯이 `PARTY_*`와 같은 뜻인지에 달려 있다. **이 서비스의 코드는 바뀌지 않는다** — `type`을 열어 보지 않고 그대로 흘려보낸다 |
 | 인증 | **방식은 쿠키로 정해졌다 (`matching` docs/11 D-14). 구현은 아직이다.** access 토큰은 쿠키로 오는 JWT이고 브라우저가 SSE 연결에도 자동으로 붙인다. 이 서비스에 남은 미정 — ① access 토큰을 **검증하는 방법**(서명 방식과 키를 나눠 갖는 법) ② 토큰이 **없거나 만료됐을 때의 응답** — 401을 주면 `EventSource`는 재접속을 영구히 멈춘다 ③ 인증이 붙으면 `?userId=` 쿼리 파라미터가 없어지고 **토큰의 사용자로 대체**된다 — 그 전환 ④ 로컬 개발의 CORS(출처가 포트마다 다르고, 자격증명을 실으면 허용 출처에 `*`를 못 쓴다) |
 
 정해진 것 (2026-09-18): 엔드포인트 경로는 **`GET /api/v1/events`**다. 인증이 **구현될** 때까지 `userId`를
@@ -170,6 +171,8 @@ SSE 이고 보내는 쪽은 `app:room`의 REST `POST`다(`matching` docs/11 D-16
 ```
 queuemate/
 ├── matching/       matching 브랜치
+├── platform/       platform 브랜치
+├── room/           room 브랜치
 └── notification/   notification 브랜치 (이 폴더)
     └── backend/    스프링 앱. matching/backend/ 와 같은 모양이다
 ```
