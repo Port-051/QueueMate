@@ -54,7 +54,7 @@ public class PushMessageListener implements MessageListener {
             pushExecutor.execute(() -> connections.send(userId, json));
         } catch (RejectedExecutionException e) {
             // 알림은 휘발성이다. 넘친 것은 버리고 클라이언트가 상태 조회로 복구한다
-            log.warn("전송 풀이 가득 차 알림을 버린다 userId={}", userId);
+            log.warn("전송 풀이 가득 차 알림을 버린다 channel={}", channel);
         }
     }
 }
