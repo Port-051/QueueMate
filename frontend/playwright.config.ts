@@ -9,21 +9,45 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: {
-    baseURL: 'http://localhost:5174',
     viewport: { width: 1600, height: 900 },
     locale: 'ko-KR',
     trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
   },
-  projects: [{
-    name: 'chromium',
-    use: { ...devices['Desktop Chrome'], viewport: { width: 1600, height: 900 } },
-  }],
-  // E2E는 mock 서버를 쓴다. real은 backend 상태에 따라 결과가 흔들려서 회귀 판정이 안 된다.
-  // 포트를 나눠 둬서 real 서버가 5173에 떠 있어도 그쪽으로 잘못 붙지 않는다.
-  webServer: {
-    command: 'npm run dev:mock',
-    url: 'http://localhost:5174',
-    reuseExistingServer: true,
-    timeout: 120_000,
-  },
+  projects: [
+    {
+      name: 'chromium',
+      testIgnore: /room-decks\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1600, height: 900 },
+        baseURL: 'http://localhost:5194',
+      },
+    },
+    {
+      name: 'room-decks',
+      testMatch: /room-decks\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1600, height: 900 },
+        baseURL: 'http://localhost:5195',
+      },
+    },
+  ],
+  // 기존 실시간/예약 흐름과 새 방 UI는 서로 다른 Mock 서버에서 검증한다.
+  // 개발 중인 5174 서버를 재사용하지 않아 환경 변수나 체크아웃이 결과에 영향을 주지 않는다.
+  webServer: [
+    {
+      command: 'VITE_HOME_LAYOUT=legacy npm run dev:mock -- --port 5194',
+      url: 'http://localhost:5194',
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+    {
+      command: 'npm run dev:mock -- --port 5195',
+      url: 'http://localhost:5195',
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+  ],
 });
