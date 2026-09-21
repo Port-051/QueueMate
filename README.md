@@ -65,7 +65,7 @@ queuemate/
   발행하는 쪽(`room` · `platform`)은 게임을 몰라도 된다 — 둘 다 같은 채널 하나에 `{}` 를 발행한다.
 - **`topics` 파라미터는 없앴다**(D-22. D-20 은 `GET /api/v1/events?topics=board:LOL` 로 구독을 알리게 했다). **거르는 것은 클라이언트다** — 게시판 페이지(어느 게임이든)를 보고 있으면
   목록을 묶어서 다시 요청하고, 게시판 페이지가 아니면 무시한다. 대가는 다른 게임의 변화에도 재요청이 나가는 것과 게시판을 안 보는 연결에도 작은 이벤트가 가는 것이고 MVP 규모에서 받아들인다.
-- 구현(2026-09-20) — `BoardChannelSubscriber` 가 기동 때 `qm:pubsub:board` 하나를 한 번만 구독하고 풀지 않는다. `PushBoardListener` → `SseConnections.sendAll`. 채널 이름 상수는 `redisKeys/BoardChannels.java`, 게임 enum 은 없다. **`room` 과 `platform` 의 발행은 아직 없다.**
+- 구현(2026-09-20) — `BoardChannelSubscriber` 가 기동 때 `qm:pubsub:board` 하나를 한 번만 구독하고 풀지 않는다. `PushBoardListener` → `SseConnections.sendAll`. 채널 이름 상수는 `redisKeys/BoardChannels.java`, 게임 enum 은 없다. **`room` 의 발행은 구현됐다(2026-09-21, D-23). `platform` 은 아직 없다.**
 - 신호는 "다시 받아라"일 뿐이다. 받은 프런트가 `platform` 의 목록을 다시 요청하고, 데이터와 차단 거르기는 그 응답에서 온다. 그래서 이 서비스는 사람별로 거르지 않아도 된다.
 - "연결이 주제 채널도 구독한다"는 개념은 생기지 않는다 — 연결마다 주제를 기억하지 않는다. 패턴 구독 금지 · sticky session 불필요 · 놓친 것을 다시 보내지 않는다는 그대로다.
 - 미정 — 채널 이름의 원본 상수를 어느 서비스에 둘지(`topics` 표기와 "`room` 이 방의 게임을 아는 법"의 미정은 D-22 로 없어졌다). 상세는 `CLAUDE.md` §7.1.
