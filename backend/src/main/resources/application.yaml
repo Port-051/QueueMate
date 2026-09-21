@@ -1,0 +1,65 @@
+spring:
+  application:
+    name: platform
+
+  # 설정은 전부 환경변수 + 기본값이다 (CLAUDE.md §5).
+  #
+  # 기본 포트가 5433 · 6380 인 이유 — 이 컴퓨터의 5432 · 6379 는 다른 프로젝트(queuemate-v2-*)의 것이다 (CLAUDE.md §9).
+  # 기본값은 로컬 테스트용 컨테이너에 맞춰 두었다 (START_HERE.md §6). 배포 환경에서는 환경변수로 덮는다.
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:queuemate}
+    # 로컬 테스트용 컨테이너의 계정이다. 이 앱이 어떤 롤로 붙는지는 미정이다 (CLAUDE.md §7 "테이블 컬럼, DB 롤")
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+
+  jpa:
+    hibernate:
+      # 스키마는 Flyway 가 만든다. Hibernate 는 엔티티와 테이블이 맞는지 검증만 한다
+      ddl-auto: validate
+    # 컨트롤러 · 뷰까지 커넥션을 붙잡고 있지 않게 한다
+    open-in-view: false
+
+  flyway:
+    # 마이그레이션은 db/migration/<schema>/ 로 나눈다 (docs/11 #17 · CLAUDE.md §3.5). 하위 폴더까지 훑는다.
+    # 지금은 주석뿐인 V1__baseline.sql 하나다 — 테이블 컬럼이 미정이라 아무것도 만들지 않는다 (CLAUDE.md §7)
+    locations: classpath:db/migration
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6380}
+      timeout: 2s
+
+server:
+  # matching 8080, notification 8081 다음이다. room 은 8083. 로컬에서 같이 띄우려면 달라야 한다 (8082 는 제안이다 — CLAUDE.md §4)
+  port: ${SERVER_PORT:8082}
+  # 종료 신호를 받으면 처리 중인 요청을 끝내고 내려간다 (docs/11 #20 "단계가 바뀌어도 안 바뀌는 것")
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      # actuator 를 /actuator 아래가 아니라 루트에 둔다 — CLAUDE.md §5 가 적은 주소 /health/live · /health/ready 를 맞추려는 것이다.
+      # (health 그룹의 additional-path 는 /livez 처럼 한 마디짜리 주소만 받아서 /health/live 를 만들 수 없었다.)
+      # room 은 기본값이라 /actuator/health/liveness 다 — 이 앱에는 /actuator/… 주소가 없다
+      base-path: /
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      # 컨테이너가 살아 있는지(liveness)와 요청을 받을 준비가 됐는지(readiness)를 따로 본다 — room 과 같은 방식이다.
+      # 이것이 livenessState · readinessState 를 켠다. /health/liveness · /health/readiness 로도 답한다
+      probes:
+        enabled: true
+      group:
+        # /health/live · /health/ready. readiness 에 DB · Redis 를 넣을지는 정해지지 않았다 — 지금은 앱의 준비 상태만 본다
+        live:
+          include: livenessState
+        ready:
+          include: readinessState
+
+# 로그는 stdout 으로 나간다 (파일로 쓰지 않는다). CLAUDE.md §5 는 "stdout JSON 로그"를 적는다 —
+# JSON 형식(logging.structured.format.console 의 ecs / logstash 등)은 정해지지 않아 켜지 않았다
+logging:
+  level:
+    com.queuemate: INFO
