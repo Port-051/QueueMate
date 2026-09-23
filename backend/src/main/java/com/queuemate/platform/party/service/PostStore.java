@@ -14,6 +14,7 @@ import com.queuemate.platform.party.repository.RecruitPostRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Limit;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -149,11 +150,26 @@ public class PostStore {
         return postIds.isEmpty() ? List.of() : postRepository.findAllById(postIds);
     }
 
-    /** 게시판 목록에 오를 글. {@code game} 이 {@code null} 이면 세 게임 전부다 */
+    /**
+     * 게시판 목록에 오를 글 <b>한 페이지</b>. {@code game} 이 {@code null} 이면 세 게임 전부다.
+     *
+     * @param cursor {@code null} 이면 맨 위부터, 아니면 그 커서가 가리키는 줄 <b>다음</b>부터다
+     * @param limit  많아야 이만큼 읽는다. 부르는 쪽이 <b>보여 줄 것보다 하나 더</b> 달라고 해서 "다음이 있는가"를 안다
+     *               ({@code PostService#list})
+     */
     @Transactional(readOnly = true)
-    public List<RecruitPost> findBoard(Game game, Instant closedAfter)
+    public List<RecruitPost> findBoard(Game game, Instant closedAfter, BoardCursor cursor, int limit)
     {
-        return (game == null) ? postRepository.findBoard(closedAfter) : postRepository.findBoardByGame(game, closedAfter);
+        Limit max = Limit.of(limit);
+        if(cursor == null)
+        {
+            return (game == null) ? postRepository.findBoard(closedAfter, max)
+                    : postRepository.findBoardByGame(game, closedAfter, max);
+        }
+        return (game == null)
+                ? postRepository.findBoardAfter(closedAfter, cursor.statusOrder(), cursor.createdAt(), cursor.postId(), max)
+                : postRepository.findBoardAfterByGame(game, closedAfter, cursor.statusOrder(), cursor.createdAt(),
+                        cursor.postId(), max);
     }
 
     /**

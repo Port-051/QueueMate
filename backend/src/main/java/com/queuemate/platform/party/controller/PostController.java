@@ -59,11 +59,21 @@ public class PostController {
         return ResponseEntity.noContent().build();
     }
 
-    /** {@code game} 이 없으면 세 게임 전부다 */
+    /**
+     * {@code game} 이 없으면 세 게임 전부다.
+     *
+     * <p><b>페이지는 커서로 나눈다</b>(2026-09-23 소유자 결정) — {@code limit} 은 없으면 20, 최대 100(벗어나면 400 {@code VALIDATION_FAILED}),
+     * {@code cursor} 는 앞선 응답의 {@code nextCursor} 를 <b>그대로</b> 보내는 불투명한 문자열이다(못 읽으면 400).
+     * {@code limit} 이 숫자가 아니면 형 변환에서 400 이다({@code GlobalExceptionHandler#handleTypeMismatch}).
+     * 게시판 신호를 받았을 때는 <b>커서 없이 펼친 만큼의 {@code limit}</b> 으로 맨 위부터 다시 받는다.
+     */
     @GetMapping
-    public PostListResponse list(@CurrentUserId Long userId, @RequestParam(name = "game", required = false) String game)
+    public PostListResponse list(@CurrentUserId Long userId,
+                                 @RequestParam(name = "game", required = false) String game,
+                                 @RequestParam(name = "limit", required = false) Integer limit,
+                                 @RequestParam(name = "cursor", required = false) String cursor)
     {
-        return postService.list(userId, game);
+        return postService.list(userId, game, limit, cursor);
     }
 
     @GetMapping("/{postId}")

@@ -74,7 +74,7 @@ class PostServiceRedisDownTest extends PostTestSupport {
         jdbcTemplate.update("update party.recruit_posts set created_at = now() - interval '11 minutes' where id = ?", old);
 
         PostService service = withBrokenRedis();
-        PostResponse line = service.list(viewerId, "LOL").posts().stream()
+        PostResponse line = service.list(viewerId, "LOL", null, null).posts().stream()
                 .filter(post -> post.postId().equals(seen)).findFirst().orElseThrow();
 
         assertThat(line.status()).isEqualTo("RECRUITING");
@@ -82,7 +82,7 @@ class PostServiceRedisDownTest extends PostTestSupport {
         assertThat(line.memberCount()).isZero();
         assertThat(line.full()).isFalse();
         assertThat(line.host().userId()).isEqualTo(hostId);
-        assertThat(service.list(viewerId, null).posts()).extracting(PostResponse::postId).contains(seen, old);
+        assertThat(service.list(viewerId, null, null, null).posts()).extracting(PostResponse::postId).contains(seen, old);
         assertThat(service.get(viewerId, seen).status()).isEqualTo("RECRUITING");
 
         assertThat(statusOf(seen)).isEqualTo("RECRUITING");
@@ -129,7 +129,7 @@ class PostServiceRedisDownTest extends PostTestSupport {
 
         PostService service = withBrokenRedis();
 
-        assertThat(service.list(blockedId, "LOL").posts()).extracting(PostResponse::postId).doesNotContain(postId);
-        assertThat(service.list(hostId, "LOL").posts()).extracting(PostResponse::postId).contains(postId);
+        assertThat(service.list(blockedId, "LOL", null, null).posts()).extracting(PostResponse::postId).doesNotContain(postId);
+        assertThat(service.list(hostId, "LOL", null, null).posts()).extracting(PostResponse::postId).contains(postId);
     }
 }

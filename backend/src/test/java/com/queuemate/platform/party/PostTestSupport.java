@@ -5,6 +5,7 @@ import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
@@ -142,10 +143,47 @@ abstract class PostTestSupport extends ApiTestSupport {
         return objectMapper.readTree(actions.andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
     }
 
+    /** 기본 페이지({@code limit} 을 주지 않는다 — 20개)의 {@code posts} 만. 글이 몇 개 안 되는 테스트가 쓴다 */
     protected JsonNode list(Cookie cookie, String game) throws Exception
     {
         return body(mockMvc.perform(get("/api/v1/posts").param("game", game).cookie(cookie)).andExpect(status().isOk()))
                 .get("posts");
+    }
+
+    /**
+     * 목록 응답 <b>전체</b>({@code posts} · {@code nextCursor}) — 페이지 나누기를 보는 테스트가 쓴다.
+     * {@code null} 인 파라미터는 보내지 않는다(그때의 기본값을 보려는 것이다).
+     */
+    protected JsonNode listPage(Cookie cookie, String game, Integer limit, String cursor) throws Exception
+    {
+        MockHttpServletRequestBuilder request = get("/api/v1/posts").cookie(cookie);
+        if(game != null)
+        {
+            request.param("game", game);
+        }
+        if(limit != null)
+        {
+            request.param("limit", String.valueOf(limit));
+        }
+        if(cursor != null)
+        {
+            request.param("cursor", cursor);
+        }
+        return body(mockMvc.perform(request).andExpect(status().isOk()));
+    }
+
+    /**
+     * 모집 글을 <b>SQL 로 직접</b> 넣는다 — 여러 사람의 글이 여러 개 필요할 때다("모집 중인 글은 한 사람에 하나"라 방장이 저마다 달라야 하고,
+     * 가입 · 로그인을 그만큼 되풀이하면 느리다). 방장은 보통 가입하지 않은 사용자 번호({@code unknownUserId()})라 카드의 닉네임 · 프로필이 {@code null} 이다.
+     * 글 쓰기 경로(검증 · 신호 · 전적 긁기)를 보는 테스트는 이것을 쓰지 말고 {@link #createPost} 를 쓴다.
+     */
+    protected Long insertRecruitPost(Long hostId, String game, String title, java.time.Instant createdAt)
+    {
+        java.sql.Timestamp at = java.sql.Timestamp.from(createdAt);
+        return jdbcTemplate.queryForObject("insert into party.recruit_posts "
+                + "(host_id, game, mode, title, voice, purpose, conditions, status, created_at, updated_at) "
+                + "values (?, ?, 'SOLO_RANK', ?, 'REQUIRED', 'RANK_UP', '{}'::jsonb, 'RECRUITING', ?, ?) returning id",
+                Long.class, hostId, game, title, at, at);
     }
 
     /** 목록에서 그 글의 줄. 없으면 {@code null} 이다 — DB 가 테스트 사이에 남아 남의 글이 섞여 있으므로 늘 id 로 찾는다 */

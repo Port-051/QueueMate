@@ -26,6 +26,24 @@ final class PostValidation {
     {
     }
 
+    /**
+     * 목록의 페이지 크기 — 없으면 {@value BoardProperties#DEFAULT_PAGE_LIMIT}, 1 미만이거나 {@value BoardProperties#MAX_PAGE_LIMIT} 초과면 400 이다
+     * (2026-09-23 소유자 결정). <b>상한으로 잘라 주지 않는다</b> — 200개를 달라고 했는데 조용히 100개를 주면 클라이언트가 "다 받았다"고 읽는다.
+     * 숫자가 아닌 값은 여기 오지 않는다 — 컨트롤러의 형 변환이 먼저 400 이다({@code GlobalExceptionHandler#handleTypeMismatch}).
+     */
+    static int limit(Integer limit)
+    {
+        if(limit == null)
+        {
+            return BoardProperties.DEFAULT_PAGE_LIMIT;
+        }
+        if(limit < 1 || limit > BoardProperties.MAX_PAGE_LIMIT)
+        {
+            throw ApiException.validationFailed("limit", "1 ~ " + BoardProperties.MAX_PAGE_LIMIT + " 이어야 합니다");
+        }
+        return limit;
+    }
+
     static Game game(String name)
     {
         return Game.fromName(name).orElseThrow(

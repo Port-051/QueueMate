@@ -94,14 +94,57 @@ public class PostService {
         postStore.expireByHost(me, postId, now());
     }
 
-    /** 게시판 목록. 차단 관계로 숨겨진 글은 빠져 있다 — 빠졌다는 흔적도 없다 */
-    public PostListResponse list(Long me, String gameName)
+    /**
+     * 게시판 목록 <b>한 페이지</b>. 차단 관계로 숨겨진 글은 빠져 있다 — 빠졌다는 흔적도 없다.
+     *
+     * <p><b>페이지는 커서로 나눈다</b>(2026-09-23 소유자 결정 — {@code contracts/platform-api.md}). {@code limit} 은 없으면
+     * {@value BoardProperties#DEFAULT_PAGE_LIMIT}, 많아야 {@value BoardProperties#MAX_PAGE_LIMIT} 이다. {@code cursor} 가 없으면 맨 위부터다.
+     * <b>신호({@code BOARD_CHANGED})를 받은 프런트는 커서를 쓰지 않는다</b> — 펼친 만큼을 {@code limit} 으로 맨 위부터 다시 받는다.
+     *
+     * <p><b>차단 거르기는 글을 읽어 온 뒤에 한다</b>(방 안에 누가 있는지를 Redis 에서 읽어야 안다) — 그래서 {@code limit} 만큼 읽어도
+     * 보이는 것이 그보다 적을 수 있다. 모자라면 <b>그 뒤를 더 읽어 채운다</b>({@code platform.board.max-refills} 번까지. 그래도 모자라면 있는 만큼이다).
+     * 채우기 한 번은 목록 조립 한 벌(글 쿼리 · Redis 파이프라인 한 번 · 프로필 · 차단)이고 <b>그 안에서는 글이 몇 개든 왕복이 늘지 않는다.</b>
+     *
+     * <p><b>{@code nextCursor} 는 "마지막으로 읽은 줄"이다</b> — 마지막으로 <b>보여 준</b> 줄이 아니다. 숨겨진 글을 다음 페이지에서 또 읽지 않게 하려는 것이다.
+     * 다음이 있는지는 <b>보여 줄 것보다 한 개 더 읽어</b> 안다.
+     *
+     * <p><b>만료 · 확정 옮겨 적기는 읽은 글에만 걸린다</b> — 목록을 전부 읽지 않으므로 깊은 곳의 글은 누가 그 페이지를 볼 때 옮겨진다.
+     * 입장권 발급도 그 글을 보고 같은 일을 하므로 "들어갈 수 있는 죽은 방"은 생기지 않는다({@code contracts/platform-api.md}).
+     */
+    public PostListResponse list(Long me, String gameName, Integer limitParam, String cursorParam)
     {
         Game game = (gameName == null || gameName.isBlank()) ? null : PostValidation.game(gameName);
+        int limit = PostValidation.limit(limitParam);
+        BoardCursor cursor = BoardCursor.decode(cursorParam);
         Instant now = now();
-        List<RecruitPost> posts = postStore.findBoard(game, now.minus(boardProperties.closedRetention()));
-        Observed observed = observe(posts, now, false);
-        return new PostListResponse(renderAll(me, observed.posts(), observed.members(), true));
+        Instant closedAfter = now.minus(boardProperties.closedRetention());
+
+        List<PostResponse> visible = new ArrayList<>();
+        boolean more = false;
+        // 첫 읽기 + 채우기. 채우기의 상한이 없으면 차단이 많은 사용자의 한 번의 목록 조회가 게시판을 끝까지 훑는다
+        int reads = 1 + Math.max(0, boardProperties.maxRefills());
+        for(int read = 0; read < reads && visible.size() < limit; read++)
+        {
+            int want = limit - visible.size();
+            List<RecruitPost> rows = postStore.findBoard(game, closedAfter, cursor, want + 1);
+            if(rows.isEmpty())
+            {
+                more = false;
+                break;
+            }
+            more = rows.size() > want;
+            // 하나 더 읽은 줄은 "다음이 있는가"를 본 것뿐이다 — 이 페이지에서 다루지 않고 다음 페이지가 처음부터 읽는다
+            List<RecruitPost> page = more ? rows.subList(0, want) : rows;
+            // 커서는 옮겨 적기 전의 줄로 만든다 — 이 페이지를 고른 쿼리의 정렬이 그 상태를 기준으로 했다
+            cursor = BoardCursor.of(page.getLast());
+            Observed observed = observe(page, now, false);
+            visible.addAll(renderAll(me, observed.posts(), observed.members(), true));
+            if(!more)
+            {
+                break;
+            }
+        }
+        return new PostListResponse(visible, more ? cursor.encode() : null);
     }
 
     /** 단건. 차단 관계로 숨겨진 글은 없는 글과 똑같이 404 다 — 숨겨졌다는 것을 알려 주지 않는다 */
