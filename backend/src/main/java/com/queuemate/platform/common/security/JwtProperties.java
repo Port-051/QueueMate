@@ -24,4 +24,21 @@ public record JwtProperties(
         @DefaultValue("PT24H") Duration accessTokenTtl,
         @DefaultValue(".dev-keys") String devKeyDir
 ) {
+
+    /** 환경변수로 키를 받았는가 — 아니면 개발용 키를 만들어 쓴다({@link JwtKeys#load}) */
+    public boolean configured()
+    {
+        return privateKey != null && !privateKey.isBlank() && publicKey != null && !publicKey.isBlank();
+    }
+
+    /**
+     * <b>키가 실수로 로그에 찍히지 않게 한다</b> — record 의 기본 {@code toString} 은 모든 칸을 찍는다.
+     * 개인 키는 이 앱만 갖는 값이라 로그 · 에러 응답 · actuator 어디에도 나가면 안 된다 (CLAUDE.md §5.1 (가)).
+     */
+    @Override
+    public String toString()
+    {
+        return "JwtProperties[configured=" + configured() + ", keyId=" + keyId
+                + ", accessTokenTtl=" + accessTokenTtl + ", devKeyDir=" + devKeyDir + "]";
+    }
 }
