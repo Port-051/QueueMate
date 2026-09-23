@@ -1,0 +1,303 @@
+package com.queuemate.platform.party;
+
+import jakarta.servlet.http.Cookie;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.ResultActions;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+/**
+ * 모집 글 쓰기 · 고치기 · 지우기 — {@code contracts/platform-api.md} "모집 글 · 목록 · 입장권" 의 앞 세 요청. 방의 상태가 걸리는 것은 {@link PostBoardTest} 다.
+ */
+class PostApiTest extends PostTestSupport {
+
+    @Test
+    @DisplayName("글을 쓰면 201 과 글 한 줄이 온다 — 방은 아직 없고(members 가 비었다) host 는 채워져 있다")
+    void create() throws Exception
+    {
+        String host = newLoginId();
+        Cookie cookie = signupAndLogin(host);
+        Long hostId = userIdOf(host);
+        putGameAccount(cookie, "LOL", json("gameNickname", "달콤한 인생#KR7", "tier", "EMERALD_4", "mainPosition", "MID"));
+
+        createPost(cookie, lolPostBody("에메 듀오 구해요", "SUPPORT", "MID", "SUPPORT"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.postId").isNumber())
+                .andExpect(jsonPath("$.hostId").value(equalTo(hostId), Long.class))
+                .andExpect(jsonPath("$.game").value("LOL"))
+                .andExpect(jsonPath("$.mode").value("SOLO_RANK"))
+                .andExpect(jsonPath("$.title").value("에메 듀오 구해요"))
+                .andExpect(jsonPath("$.description").value("즐겁게"))
+                .andExpect(jsonPath("$.voice").value("REQUIRED"))
+                .andExpect(jsonPath("$.purpose").value("RANK_UP"))
+                .andExpect(jsonPath("$.conditions").isMap())
+                .andExpect(jsonPath("$.conditions").isEmpty())
+                // 겹친 값은 하나로 치고, 그 게임의 포지션 순서로 온다
+                .andExpect(jsonPath("$.wantedPositions.length()").value(2))
+                .andExpect(jsonPath("$.wantedPositions[0]").value("MID"))
+                .andExpect(jsonPath("$.wantedPositions[1]").value("SUPPORT"))
+                .andExpect(jsonPath("$.filledPositions").isEmpty())
+                .andExpect(jsonPath("$.status").value("RECRUITING"))
+                .andExpect(jsonPath("$.createdAt").isString())
+                .andExpect(jsonPath("$.memberCount").value(0))
+                .andExpect(jsonPath("$.capacity").value(5))
+                .andExpect(jsonPath("$.full").value(false))
+                .andExpect(jsonPath("$.host.userId").value(equalTo(hostId), Long.class))
+                .andExpect(jsonPath("$.host.nickname").value(nicknameOf(host)))
+                .andExpect(jsonPath("$.host.host").value(true))
+                .andExpect(jsonPath("$.host.profile.gameNickname").value("달콤한 인생#KR7"))
+                .andExpect(jsonPath("$.host.profile.mainPosition").value("MID"))
+                .andExpect(jsonPath("$.members").isEmpty());
+    }
+
+    @Test
+    @DisplayName("PUBG 글은 conditions.perspective 가 필수이고 포지션이 없다. 게임 계정이 없는 방장의 profile 은 null 이다")
+    void createPubg() throws Exception
+    {
+        Cookie cookie = signupAndLogin(newLoginId());
+
+        createPost(cookie, postBody("PUBG", "치킨 먹자", "{\"perspective\":\"FPP\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.game").value("PUBG"))
+                .andExpect(jsonPath("$.conditions.perspective").value("FPP"))
+                .andExpect(jsonPath("$.wantedPositions").isEmpty())
+                .andExpect(jsonPath("$.host.profile").isEmpty());
+    }
+
+    @Test
+    @DisplayName("검증 실패는 400 VALIDATION_FAILED 이고 어느 필드인지 details 에 온다")
+    void validation() throws Exception
+    {
+        Cookie cookie = signupAndLogin(newLoginId());
+
+        createPost(cookie, "{}").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(detailFor("game")).andExpect(detailFor("title"))
+                .andExpect(detailFor("voice")).andExpect(detailFor("purpose"));
+        createPost(cookie, postBody("OVERWATCH", "x", "{}")).andExpect(status().isBadRequest()).andExpect(detailFor("game"));
+        createPost(cookie, lolPostBody("가".repeat(61))).andExpect(status().isBadRequest()).andExpect(detailFor("title"));
+        createPost(cookie, lolPostBody("   ")).andExpect(status().isBadRequest()).andExpect(detailFor("title"));
+        createPost(cookie, lolPostBody("x").replace("즐겁게", "가".repeat(301)))
+                .andExpect(status().isBadRequest()).andExpect(detailFor("description"));
+        createPost(cookie, lolPostBody("x").replace("SOLO_RANK", "M".repeat(31)))
+                .andExpect(status().isBadRequest()).andExpect(detailFor("mode"));
+        createPost(cookie, lolPostBody("x").replace("REQUIRED", "LOUD")).andExpect(status().isBadRequest()).andExpect(detailFor("voice"));
+        createPost(cookie, lolPostBody("x").replace("RANK_UP", "WIN")).andExpect(status().isBadRequest()).andExpect(detailFor("purpose"));
+        // 다른 게임의 포지션 · PUBG 의 포지션
+        createPost(cookie, lolPostBody("x", "DUELIST")).andExpect(status().isBadRequest()).andExpect(detailFor("wantedPositions"));
+        createPost(cookie, postBody("PUBG", "x", "{\"perspective\":\"TPP\"}", "MID"))
+                .andExpect(status().isBadRequest()).andExpect(detailFor("wantedPositions"));
+        // conditions — PUBG 는 perspective 필수 · 모르는 값 · 모르는 키, 다른 게임은 {} 뿐
+        createPost(cookie, postBody("PUBG", "x", "{}")).andExpect(status().isBadRequest()).andExpect(detailFor("conditions"));
+        createPost(cookie, postBody("PUBG", "x", "null")).andExpect(status().isBadRequest()).andExpect(detailFor("conditions"));
+        createPost(cookie, postBody("PUBG", "x", "{\"perspective\":\"VR\"}"))
+                .andExpect(status().isBadRequest()).andExpect(detailFor("conditions"));
+        createPost(cookie, postBody("PUBG", "x", "{\"perspective\":\"TPP\",\"map\":\"ERANGEL\"}"))
+                .andExpect(status().isBadRequest()).andExpect(detailFor("conditions"));
+        createPost(cookie, postBody("LOL", "x", "{\"perspective\":\"TPP\"}"))
+                .andExpect(status().isBadRequest()).andExpect(detailFor("conditions"));
+        mockMvc.perform(get("/api/v1/posts").param("game", "OVERWATCH").cookie(cookie))
+                .andExpect(status().isBadRequest()).andExpect(detailFor("game"));
+        mockMvc.perform(get("/api/v1/posts/not-a-number").cookie(cookie)).andExpect(status().isBadRequest());
+
+        // 하나도 만들어지지 않았다 — 검증에 걸린 글이 "모집 중인 글 하나"의 자리를 차지하지 않는다
+        createPost(cookie, lolPostBody("이제 된다")).andExpect(status().isCreated());
+    }
+
+    @Test
+    @DisplayName("모집 중인 글이 있으면 또 쓸 수 없다(409 ALREADY_RECRUITING). 지우면(만료) 다시 쓸 수 있다")
+    void oneRecruitingPostPerHost() throws Exception
+    {
+        String host = newLoginId();
+        Cookie cookie = signupAndLogin(host);
+        Long hostId = userIdOf(host);
+        Long first = createLolPost(cookie);
+
+        createPost(cookie, postBody("VALORANT", "다른 게임이어도 안 된다", "{}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ALREADY_RECRUITING"));
+
+        mockMvc.perform(delete("/api/v1/posts/" + first).cookie(cookie)).andExpect(status().isNoContent());
+        createLolPost(cookie);
+
+        assertThat(jdbcTemplate.queryForObject("select count(*) from party.recruit_posts where host_id = ? and status = 'RECRUITING'",
+                Integer.class, hostId)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from party.recruit_posts where host_id = ?",
+                Integer.class, hostId)).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("같은 사람의 글 쓰기를 여러 스레드가 동시에 보내면 하나만 201 이고 나머지는 409 다 — DB 의 부분 UNIQUE 인덱스가 지킨다")
+    void concurrentCreates() throws Exception
+    {
+        String host = newLoginId();
+        Cookie cookie = signupAndLogin(host);
+        Long hostId = userIdOf(host);
+
+        int threads = 8;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        CountDownLatch ready = new CountDownLatch(threads);
+        CountDownLatch go = new CountDownLatch(1);
+        List<Future<Integer>> futures = new ArrayList<>();
+        try
+        {
+            for(int i = 0; i < threads; i++)
+            {
+                String body = lolPostBody("동시에 " + i);
+                Callable<Integer> task = () -> {
+                    ready.countDown();
+                    go.await();
+                    return createPost(cookie, body).andReturn().getResponse().getStatus();
+                };
+                futures.add(pool.submit(task));
+            }
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            go.countDown();
+
+            List<Integer> statuses = new ArrayList<>();
+            for(Future<Integer> future : futures)
+            {
+                statuses.add(future.get(60, TimeUnit.SECONDS));
+            }
+            assertThat(statuses).filteredOn(status -> status == 201).hasSize(1);
+            assertThat(statuses).filteredOn(status -> status == 409).hasSize(threads - 1);
+        }
+        finally
+        {
+            pool.shutdownNow();
+        }
+        assertThat(jdbcTemplate.queryForObject("select count(*) from party.recruit_posts where host_id = ?",
+                Integer.class, hostId)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("고치기는 준 것만 바꾼다. 빈 문자열은 mode · description 을 비우고, 빈 배열은 찾는 포지션을 비운다")
+    void edit() throws Exception
+    {
+        Cookie cookie = signupAndLogin(newLoginId());
+        Long postId = createLolPost(cookie, "MID", "SUPPORT");
+
+        editPost(cookie, postId, "{\"title\":\"제목만 바꾼다\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("제목만 바꾼다"))
+                .andExpect(jsonPath("$.mode").value("SOLO_RANK"))
+                .andExpect(jsonPath("$.description").value("즐겁게"))
+                .andExpect(jsonPath("$.voice").value("REQUIRED"))
+                .andExpect(jsonPath("$.wantedPositions.length()").value(2));
+
+        editPost(cookie, postId, "{\"mode\":\"\",\"description\":\"\",\"voice\":\"NO_VOICE\",\"purpose\":\"FUN\","
+                + "\"wantedPositions\":[\"TOP\",\"MID\"]}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("제목만 바꾼다"))
+                .andExpect(jsonPath("$.mode").isEmpty())
+                .andExpect(jsonPath("$.description").isEmpty())
+                .andExpect(jsonPath("$.voice").value("NO_VOICE"))
+                .andExpect(jsonPath("$.purpose").value("FUN"))
+                .andExpect(jsonPath("$.wantedPositions[0]").value("TOP"))
+                .andExpect(jsonPath("$.wantedPositions[1]").value("MID"));
+        editPost(cookie, postId, "{\"wantedPositions\":[]}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.wantedPositions").isEmpty());
+
+        // 다시 읽어도 같다 — 응답을 요청에서 되짚어 만든 것이 아니다
+        mockMvc.perform(get("/api/v1/posts/" + postId).cookie(cookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("제목만 바꾼다"))
+                .andExpect(jsonPath("$.voice").value("NO_VOICE"))
+                .andExpect(jsonPath("$.wantedPositions").isEmpty());
+
+        editPost(cookie, postId, "{\"title\":\"\"}").andExpect(status().isBadRequest()).andExpect(detailFor("title"));
+        editPost(cookie, postId, "{\"wantedPositions\":[\"SENTINEL\"]}")
+                .andExpect(status().isBadRequest()).andExpect(detailFor("wantedPositions"));
+        editPost(cookie, postId, "{\"conditions\":{\"perspective\":\"TPP\"}}")
+                .andExpect(status().isBadRequest()).andExpect(detailFor("conditions"));
+    }
+
+    @Test
+    @DisplayName("남의 글은 고치지도 지우지도 못한다(403 NOT_POST_HOST). 없는 글은 404 POST_NOT_FOUND 다")
+    void onlyHostCanEditOrDelete() throws Exception
+    {
+        Cookie hostCookie = signupAndLogin(newLoginId());
+        Cookie otherCookie = signupAndLogin(newLoginId());
+        Long postId = createLolPost(hostCookie);
+
+        editPost(otherCookie, postId, "{\"title\":\"내 것처럼\"}")
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("NOT_POST_HOST"));
+        mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(otherCookie))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("NOT_POST_HOST"));
+        assertThat(statusOf(postId)).isEqualTo("RECRUITING");
+
+        long nowhere = NO_SUCH_POST;
+        editPost(hostCookie, nowhere, "{\"title\":\"x\"}")
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
+        mockMvc.perform(delete("/api/v1/posts/" + nowhere).cookie(hostCookie))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
+        mockMvc.perform(get("/api/v1/posts/" + nowhere).cookie(hostCookie))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("지우면 줄은 남고 만료가 된다. 두 번 지워도 204 다. 만료된 글은 고칠 수 없다(409 POST_NOT_RECRUITING)")
+    void deleteExpires() throws Exception
+    {
+        Cookie cookie = signupAndLogin(newLoginId());
+        Long postId = createLolPost(cookie);
+
+        mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(cookie)).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(cookie)).andExpect(status().isNoContent());
+
+        assertThat(statusOf(postId)).isEqualTo("EXPIRED");
+        assertThat(jdbcTemplate.queryForObject("select expired_at is not null from party.recruit_posts where id = ?",
+                Boolean.class, postId)).isTrue();
+        mockMvc.perform(get("/api/v1/posts/" + postId).cookie(cookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("EXPIRED"))
+                .andExpect(jsonPath("$.host.host").value(true));
+        editPost(cookie, postId, "{\"title\":\"늦었다\"}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("POST_NOT_RECRUITING"));
+    }
+
+    @Test
+    @DisplayName("글은 로그인해야 하고, 상태를 바꾸는 요청은 Origin 검사를 거친다")
+    void requiresLoginAndOrigin() throws Exception
+    {
+        Cookie cookie = signupAndLogin(newLoginId());
+
+        mockMvc.perform(get("/api/v1/posts")).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+        mockMvc.perform(post("/api/v1/posts").contentType(MediaType.APPLICATION_JSON).content(lolPostBody("x")))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/v1/posts/" + NO_SUCH_POST + "/ticket").cookie(cookie)
+                        .header(HttpHeaders.ORIGIN, "https://evil.example"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ORIGIN_NOT_ALLOWED"));
+    }
+
+    private ResultActions editPost(Cookie cookie, long postId, String body) throws Exception
+    {
+        return mockMvc.perform(patch("/api/v1/posts/" + postId).cookie(cookie)
+                .contentType(MediaType.APPLICATION_JSON).content(body));
+    }
+}

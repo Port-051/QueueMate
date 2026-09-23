@@ -1,0 +1,25 @@
+package com.queuemate.platform.party.service;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
+
+import java.time.Duration;
+
+/**
+ * 게시판의 설정값. {@code application.yaml} 의 {@code platform.board.*}. 값의 원본은 {@code contracts/platform-api.md} "모집 글 · 목록 · 입장권" 이다.
+ *
+ * @param roomTicketTtl   입장권의 수명(환경변수 {@code ROOM_TICKET_TTL}). 받은 즉시 쓰는 것이라 짧다 — 입장권을 받은 뒤 들어오기 전의
+ *                        차단 경쟁(D-20 미정)의 창도 이만큼이다
+ * @param roomGrace       방 만들기를 아직 안 부른 글({@code room_seen_at} 이 없다)을 만료시키지 않고 기다려 주는 시간. {@code room} 의 방 수명
+ *                        ({@code ROOM_TTL_SECONDS} 600초)과 같은 값이다
+ * @param closedRetention 만료 · 확정된 글이 목록에 남아 있는 시간
+ */
+@ConfigurationProperties(prefix = "platform.board")
+public record BoardProperties(
+        @DefaultValue("PT60S") Duration roomTicketTtl,
+        @DefaultValue("PT10M") Duration roomGrace,
+        @DefaultValue("PT10M") Duration closedRetention
+) {
+    /** 정원 — 방장 포함 5명. {@code room} 이 지키는 값이고(D-11 10번) 이 앱은 {@code capacity} · {@code full} 을 그릴 때만 쓴다 */
+    public static final int ROOM_CAPACITY = 5;
+}
