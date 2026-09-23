@@ -8,7 +8,8 @@ spring:
   # 기본값은 로컬 테스트용 컨테이너에 맞춰 두었다 (START_HERE.md §6). 배포 환경에서는 환경변수로 덮는다.
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:queuemate}
-    # 로컬 테스트용 컨테이너의 계정이다. 이 앱이 어떤 롤로 붙는지는 미정이다 (CLAUDE.md §7 "테이블 컬럼, DB 롤")
+    # 로컬 테스트용 컨테이너의 계정이다. 운영에서 이 앱이 붙는 DB 계정은 환경변수로 넣는다 — 앱 하나가 롤 하나로 붙고 스키마별 롤은 두지 않는다 (CLAUDE.md §3.5).
+    # 그 계정의 이름과 권한, 마이그레이션 계정과 나눌지는 아직 미정이다 (CLAUDE.md §7 "운영의 DB 롤")
     username: ${DB_USER:postgres}
     password: ${DB_PASSWORD:postgres}
 
@@ -21,7 +22,8 @@ spring:
 
   flyway:
     # 마이그레이션은 db/migration/<schema>/ 로 나눈다 (docs/11 #17 · CLAUDE.md §3.5). 하위 폴더까지 훑는다.
-    # 지금은 주석뿐인 V1__baseline.sql 하나다 — 테이블 컬럼이 미정이라 아무것도 만들지 않는다 (CLAUDE.md §7)
+    # 버전 번호는 폴더 사이에서 하나의 순서다 — V1 baseline(주석뿐), V2 account/ (1단계), V3 account/ (게임 프로필 · 소셜 로그인), V4 social/ (차단),
+    # V5 party/ (모집 글 · 파티 기록), V6 social/ (친구 · 신고 · 최근 함께한 사람) …
     locations: classpath:db/migration
 
   data:
@@ -31,7 +33,7 @@ spring:
       timeout: 2s
 
 server:
-  # matching 8080, notification 8081 다음이다. room 은 8083. 로컬에서 같이 띄우려면 달라야 한다 (8082 는 제안이다 — CLAUDE.md §4)
+  # matching 8080, notification 8081 다음이다. room 은 8083. 로컬에서 같이 띄우려면 달라야 한다 (8082 확정 — 2026-09-21)
   port: ${SERVER_PORT:8082}
   # 종료 신호를 받으면 처리 중인 요청을 끝내고 내려간다 (docs/11 #20 "단계가 바뀌어도 안 바뀌는 것")
   shutdown: graceful
@@ -52,14 +54,104 @@ management:
       probes:
         enabled: true
       group:
-        # /health/live · /health/ready. readiness 에 DB · Redis 를 넣을지는 정해지지 않았다 — 지금은 앱의 준비 상태만 본다
+        # /health/live · /health/ready.
+        # readiness 에 DB 를 넣는다 — DB 에 못 붙으면 가입도 로그인도 안 되니 요청을 받을 준비가 안 된 것이다.
+        # Redis 는 넣지 않는다 — Redis 가 죽어도 로그인은 된다(알림 발행은 실패해도 본 작업을 뒤집지 않는다 — CLAUDE.md §3.2).
+        # liveness 에는 아무것도 더하지 않는다 — DB 가 죽었다고 컨테이너를 다시 띄워 봐야 낫지 않는다
         live:
           include: livenessState
         ready:
-          include: readinessState
+          include: readinessState,db
+
+# 인증과 브라우저 쪽 설정. 환경변수의 이름과 기본값은 contracts/platform-api.md "공통" · "access 토큰" 이 원본이다
+platform:
+  jwt:
+    # RS256. 개인 키(PKCS#8 PEM)는 이 앱만 갖고, 공개 키(X.509 PEM)는 옆 서비스도 받는다 (CLAUDE.md §5.1 (가)).
+    # 둘 다 비어 있으면 개발용 키를 dev-key-dir 에 만들어 다시 쓴다(경고 로그). 하나만 주면 기동하지 않는다.
+    # 운영에서는 반드시 둘 다 넣는다 (Secrets Manager)
+    private-key: ${JWT_PRIVATE_KEY:}
+    public-key: ${JWT_PUBLIC_KEY:}
+    # JWT 헤더의 kid. 키를 바꿀 때 값을 올린다
+    key-id: ${JWT_KEY_ID:dev-1}
+    # TEMP-NO-REFRESH: refresh 토큰이 없는 동안의 임시값이다 — 24시간. refresh 를 붙이면 PT15M 으로 줄인다.
+    #                  배포 전에는 refresh 가 있어야 한다 (CLAUDE.md §5.1 (라)). 이 값은 쿠키의 Max-Age 이기도 하다
+    access-token-ttl: ${ACCESS_TOKEN_TTL:PT24H}
+    # 작업 디렉터리 기준이다 — backend/ 에서 띄우면 backend/.dev-keys/ (.gitignore 에 있다).
+    # 옆 서비스는 그 폴더의 public.pem 으로 검증한다. 테스트는 임시 폴더를 쓴다 (src/test/resources/config/application.yaml)
+    dev-key-dir: .dev-keys
+  web:
+    # 상태를 바꾸는 요청(POST/PUT/PATCH/DELETE)에 허용하는 Origin. 쉼표로 구분한다. 운영은 CloudFront 도메인 하나다.
+    # CORS 설정이 아니다 — CORS 는 넣지 않는다(프런트 개발 서버의 프록시가 같은 출처로 만든다 — CLAUDE.md §5.1 (사))
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+    # access 쿠키의 Secure. 운영은 true. 로컬은 http 라서 켜면 브라우저가 쿠키를 버린다
+    cookie-secure: ${COOKIE_SECURE:false}
+  auth:
+    # 로그인 실패 제한 — 계정 단위로 세고 틀릴수록 잠금이 길어진다 (contracts/platform-api.md "계정"의 "로그인 실패 제한").
+    # 15분 안에 5번 틀리면 1분 잠그고, 그 뒤로 틀릴 때마다 두 배(2 → 4 → 8분), 상한은 15분이다. 영구 잠금은 없다.
+    # 횟수는 Redis 에 둔다(qm:auth:login-fail:{userId} · qm:auth:login-lock:{userId}). Redis 가 죽으면 제한 없이 통과시킨다
+    login-throttle:
+      max-failures: 5
+      window: PT15M
+      first-lock: PT1M
+      max-lock: PT15M
+  # 파티 모집 게시판 (contracts/platform-api.md "모집 글 · 목록 · 입장권")
+  board:
+    # 입장권의 수명. 받은 즉시 room 에 들고 가는 것이라 짧다
+    room-ticket-ttl: ${ROOM_TICKET_TTL:PT60S}
+    # 방 만들기를 아직 안 부른 글(room_seen_at 이 없다)을 만료시키지 않고 기다려 주는 시간 — room 의 방 수명(ROOM_TTL_SECONDS 600초)과 같다
+    room-grace: PT10M
+    # 만료 · 확정된 글이 목록에 남아 있는 시간
+    closed-retention: PT10M
+  # 게임 전적 동기화 (Riot API — LoL 만). 환경변수의 이름은 contracts/platform-api.md "게임 프로필" 이 원본이다.
+  # 긁는 시점은 둘이다(2026-09-23 소유자 결정) — 게임 계정을 연결할 때(신선도를 보지 않는다) · 모집 글을 쓸 때(신선하면 건너뛴다).
+  # 둘 다 커밋된 뒤에 비동기로 돈다 — 실패해도 본 요청은 성공하고 stats 는 예전 값으로 남는다.
+  riot:
+    # 비어 있으면 긁는 일 자체를 하지 않는다 — 기동은 정상이고 stats 가 null 로 남는다(시작할 때 INFO 한 줄을 남긴다).
+    # 운영에서는 Secrets Manager 로 넣는다. 로그에 찍지 않는다 — RiotProperties#toString 이 이 칸을 뺀다
+    api-key: ${RIOT_API_KEY:}
+    # Riot 의 주소는 둘로 갈린다 — 계정(account-v1) · 경기(match-v5)는 대륙 주소, 소환사(summoner-v4) · 리그(league-v4)는 플랫폼 주소다.
+    # 테스트는 둘 다 가짜 서버로 덮는다
+    regional-base-url: ${RIOT_REGIONAL_BASE_URL:https://asia.api.riotgames.com}
+    platform-base-url: ${RIOT_PLATFORM_BASE_URL:https://kr.api.riotgames.com}
+    # 최근 몇 경기로 평균 · 모스트 챔피언을 낼지. 경기 하나가 요청 하나다 — 개발용 키의 한도(2분당 100회)를 생각해 작게 둔다
+    match-count: 20
+    # 글을 쓸 때 synced_at 이 이보다 새것이면 긁지 않는다. 게임 계정을 연결할 때는 보지 않는다
+    freshness: PT30M
+    # Riot 이 느려지면 전용 풀(작다 — GameStatsAsyncConfig)이 묶인다. 짧게 끊는다
+    connect-timeout: PT3S
+    read-timeout: PT3S
+  # 소셜 로그인(카카오 · 디스코드). 환경변수의 이름과 기본값은 contracts/platform-api.md "소셜 로그인" 이 원본이다.
+  # Spring 의 oauth2-client 를 쓰지 않는다(세션을 쓴다) — 인가 코드 흐름을 직접 짰다 (account.oauth.OAuthClient)
+  oauth:
+    # 제공자에 등록하는 Redirect URI 는 이 값 + /api/v1/auth/oauth/{provider}/callback 이다. 운영은 CloudFront 도메인이다
+    redirect-base-url: ${OAUTH_REDIRECT_BASE_URL:http://localhost:8082}
+    # 콜백이 끝나고 브라우저를 돌려보내는 곳 — / · /signup/social · /login?error=OAUTH_FAILED
+    front-base-url: ${FRONT_BASE_URL:http://localhost:5173}
+    # 제공자를 부를 때의 타임아웃. 제공자가 느려지면 콜백을 붙잡은 요청 스레드가 같이 묶인다
+    connect-timeout: PT3S
+    read-timeout: PT3S
+    # client-id 가 비어 있으면 그 제공자는 꺼진 것이다 — start 가 404 OAUTH_PROVIDER_NOT_CONFIGURED 로 답한다.
+    # 주소 셋은 실제 주소가 기본값이다. 테스트는 가짜 제공자 서버로 돌린다
+    kakao:
+      client-id: ${KAKAO_CLIENT_ID:}
+      # 카카오는 없어도 된다(콘솔에서 client secret 을 켠 앱만 넣는다). 있을 때만 토큰 요청에 싣는다
+      client-secret: ${KAKAO_CLIENT_SECRET:}
+      authorize-uri: https://kauth.kakao.com/oauth/authorize
+      token-uri: https://kauth.kakao.com/oauth/token
+      user-info-uri: https://kapi.kakao.com/v2/user/me
+    discord:
+      client-id: ${DISCORD_CLIENT_ID:}
+      client-secret: ${DISCORD_CLIENT_SECRET:}
+      authorize-uri: https://discord.com/oauth2/authorize
+      token-uri: https://discord.com/api/oauth2/token
+      user-info-uri: https://discord.com/api/users/@me
 
 # 로그는 stdout 으로 나간다 (파일로 쓰지 않는다). CLAUDE.md §5 는 "stdout JSON 로그"를 적는다 —
-# JSON 형식(logging.structured.format.console 의 ecs / logstash 등)은 정해지지 않아 켜지 않았다
+# 여기서는 켜지 않는다(로컬에서 읽기 어렵다). 운영에서 환경변수 LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs 로 켠다
 logging:
   level:
     com.queuemate: INFO
+    # 이 앱은 중복을 DB 의 제약 위반으로 안다(중복 가입 · 중복 차단 · 모집 중인 글이 이미 있다 — CLAUDE.md §5). 그것이 정상 경로라서
+    # Hibernate 가 그때마다 WARN 두 줄(SQLState 23505 와 위반 메시지)을 찍는다 — 409 한 번에 경고 두 줄이면 진짜 경고가 묻힌다. ERROR 로 올려 끈다.
+    # 진짜 SQL 오류는 묻히지 않는다 — 아는 제약이 아니면 예외가 그대로 올라가 GlobalExceptionHandler 가 "처리하지 못한 예외다"로 스택째 남긴다(500)
+    org.hibernate.orm.jdbc.error: ERROR

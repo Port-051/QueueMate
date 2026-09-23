@@ -20,10 +20,15 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	// Redis 의 용도는 셋이다 — 알림 발행 · refresh 토큰 · room 의 방 키 읽기 (CLAUDE.md §4). 방 키에는 쓰지 않는다 (§3.3)
+	// Redis 의 용도는 넷이다 — 알림 발행 · 로그인 실패 제한(refresh 토큰도 여기 온다) · room 의 방 키 읽기 · 전적 동기화 락
+	// (CLAUDE.md §4 · contracts/platform-api.md "전적을 긁는 것"). 방 키에는 쓰지 않는다 (§3.3)
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	// 스키마는 Flyway 가 만든다 (docs/11 #17). Hibernate 는 검증만 한다 (application.yaml 의 ddl-auto: validate)
 	implementation 'org.springframework.boot:spring-boot-starter-flyway'
+	// 인증 — access 토큰(JWT · RS256)을 NimbusJwtEncoder 로 서명하고 NimbusJwtDecoder 로 검증한다 (CLAUDE.md §5.1 (가)).
+	// jjwt 등 다른 JWT 라이브러리를 들이지 않는다. Boot 4 에서 스타터 이름이 바뀌었다 (옛 이름: spring-boot-starter-oauth2-resource-server)
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	// Flyway 의 PostgreSQL 지원 모듈. Flyway 10 부터 DB 별 지원이 코어에서 따로 떨어져 나왔다
@@ -34,14 +39,14 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok'
 
 	// ---- 아직 넣지 않은 것 — 미정 사항이 정해지면 그때 넣는다 (CLAUDE.md §7) ----
-	// Spring Security : 인증 세부(§7 "인증 세부")를 정하면서 넣는다. 먼저 넣으면 기본 설정이 모든 요청을 막는다 (§5)
-	// JWT 라이브러리   : access 토큰의 서명 방식(HS256 / RS256)과 키를 나눠 갖는 법이 미정이다 (§7 "인증 세부" ③)
 	// AWS SDK (SQS)   : ProposalConfirmed.fifo 소비 · PartyClosed.fifo 와 outbox 의 배선 시점이 미정이다 (§7 "SQS 배선 시점")
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-redis-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-flyway-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testCompileOnly 'org.projectlombok:lombok'
