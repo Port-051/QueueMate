@@ -3,7 +3,7 @@
 > **지위.** 계약 원본(queueMate 본 저장소 `feature/frontend` 의 `contracts/`)이 이 컴퓨터에 없어 **여기에 먼저 적는다**(`CLAUDE.md` §3.1).
 > 2026-09-21 에 소유자가 "네가 만들어 봐라"고 맡겼고, 아래는 Claude 가 정해 구현한 것이다 — **소유자가 아직 항목별로 검토하지 않았다.**
 > **2026-09-22 에 소유자가 직접 정한 것이 둘 있다** — **모든 테이블의 PK 를 `bigint identity` 로 하고 `userId`(사용자 번호)와 `loginId`(로그인 아이디)를 가른 것**(P-11. 2026-09-19 의 결정을 개정한다)과 **스키마별 DB 롤을 두지 않는 것**(아래 "차단"). 그 둘은 "소유자 결정"이라고 적었다.
-> **2026-09-23 에 소유자가 정한 것이 하나 더 있다** — **LoL 의 전적을 Riot API 에서 긁는 것**(P-13. 아래 "게임 프로필" 의 "전적을 긁는 것" — 긁는 시점 둘 · 비동기 · 평점은 넣지 않는다).
+> **2026-09-23 에 소유자가 정한 것이 둘 더 있다** — **LoL 의 전적을 Riot API 에서 긁는 것**(P-13. 아래 "게임 프로필" 의 "전적을 긁는 것" — 긁는 시점 둘 · 비동기 · 평점은 넣지 않는다)과 **게시판 목록의 페이지 나누기(커서 방식)**(P-14. 아래 "모집 글 · 목록 · 입장권" 의 "목록의 페이지 나누기").
 > 원본과 합칠 때 맨 아래 "원본에 올려야 할 것" 표를 들고 간다. ERD 는 <https://claude.ai/artifact/LBngVYThyCjipLUkatC6Bq>, 테이블의 원본은 `backend/src/main/resources/db/migration/` 이다.
 
 ## 공통
@@ -181,7 +181,7 @@
 | `POST /api/v1/posts` | `{game, mode, title, description, voice, purpose, conditions, wantedPositions: []}` | 201 글 한 줄(아래) | 409 `ALREADY_RECRUITING`(모집 중인 글은 한 사람에 하나) · 400 |
 | `PATCH /api/v1/posts/{postId}` | `{mode, title, description, voice, purpose, conditions, wantedPositions}` (준 것만 바꾼다) | 200 글 한 줄 | 403 `NOT_POST_HOST` · 409 `POST_NOT_RECRUITING` · 404 `POST_NOT_FOUND` |
 | `DELETE /api/v1/posts/{postId}` | — | 204. **지우지 않고 "만료"로 바꾼다.** 이미 만료면 그대로 204 | 403 `NOT_POST_HOST` · 409 `POST_CONFIRMED` · 404 |
-| `GET /api/v1/posts?game=LOL` | — | 200 `{posts: [글 한 줄…]}`. `game` 이 없으면 세 게임 전부 | — |
+| `GET /api/v1/posts?game=LOL&limit=20&cursor=…` | — | 200 `{posts: [글 한 줄…], nextCursor: "…" 또는 null}`. `game` 이 없으면 세 게임 전부 | 400 `VALIDATION_FAILED`(`limit` 이 1~100 이 아니다 · 읽을 수 없는 `cursor`) |
 | `GET /api/v1/posts/{postId}` | — | 200 글 한 줄 | 404 `POST_NOT_FOUND`(차단 관계로 숨겨진 글도 404 다) |
 | `POST /api/v1/posts/{postId}/ticket` | — | 200 `{ticket, roomId, hostId, expiresAt}` | 404 `POST_NOT_FOUND`(없는 글 · **차단 관계로 숨겨진 글**) · 409 `POST_NOT_RECRUITING` |
 | `POST /api/v1/posts/{postId}/confirm` | — | 200 글 한 줄(`status: CONFIRMED`, `members` = 파티원) | 409 `ROOM_NOT_CONFIRMED`(`room` 에 확정 표시 키가 없다) · 404 |
@@ -209,7 +209,17 @@
 
 - `title` 1~60자, `description` 300자까지(없어도 된다), `mode` 30자까지의 자유 문자열(없어도 된다 — 모드의 목록은 `matching` 의 gameconfig 가 원본이다). `wantedPositions` 는 그 게임의 포지션 이름(위 `mainPosition` 과 같은 목록. PUBG 는 빈 배열).
 - **`filledPositions` 는 이 앱이 계산한다** — `wantedPositions ∩ 방 안 사람들의 주 포지션`(그 글의 게임에 연결한 게임 계정의 것). 카드의 `profile` 도 그 게임 계정에서 온다. 게임 계정이 없으면 `profile` 이 `null` 이다.
-- **목록의 정렬** — 모집 중인 글이 먼저, 그 안에서는 새 글이 먼저. **만료 · 확정된 글은 그렇게 된 뒤 10분 동안만 목록에 남는다**(`status` 로 구분해 보여 준다. 멤버는 비운다). 만석인 방은 `full: true` 로 목록에 남는다.
+- **목록의 정렬** — 모집 중인 글이 먼저, 그 안에서는 새 글이 먼저(같은 시각이면 글 번호 순). **만료 · 확정된 글은 그렇게 된 뒤 10분 동안만 목록에 남는다**(`status` 로 구분해 보여 준다. 멤버는 비운다). 만석인 방은 `full: true` 로 목록에 남는다.
+- **목록의 페이지 나누기 — 커서 방식**(2026-09-23 **소유자 결정** · P-14). 게시판은 `BOARD_CHANGED` 신호가 올 때마다 목록을 다시 받으므로 전부 내려 주면 그 큰 응답이 몇 초마다 되풀이된다.
+  - **`limit`** — 한 페이지에 보여 줄 글의 수. 없으면 **20**, **최대 100**. 1 미만이거나 100 초과면 **400 `VALIDATION_FAILED`**(`details` 에 `limit`). 숫자가 아니면 형 변환에서 같은 400 이다. **상한으로 잘라 주지 않는다** — 조용히 100개를 주면 클라이언트가 "다 받았다"고 읽는다.
+  - **`cursor`** — 없으면 맨 위부터. **불투명한 문자열이다** — 클라이언트는 뜯어보지 말고 받은 그대로 보낸다(속은 정렬에 쓰는 값 셋 — 모집 중인가 · `createdAt` · `postId` — 을 base64url 로 적은 것이고 **서명하지 않는다.** 숨길 것이 없고 위조해도 남의 글이 보이지 않는다 — 차단 거르기는 페이지마다 다시 한다). 못 읽는 값이면 **400 `VALIDATION_FAILED`**(`details` 에 `cursor`) — 500 이 아니다. 빈 값은 안 준 것과 같다.
+  - **`nextCursor`** — 더 볼 것이 있으면 값, 없으면 `null`. 다음이 있는지는 **보여 줄 것보다 한 개 더 읽어** 안다.
+  - **`offset` 이 아닌 이유** — 1페이지를 보는 동안에도 글이 올라온다. `offset` 이면 그만큼 줄이 밀려 2페이지에 같은 글이 또 나오거나 사이의 글이 빠진다.
+  - **신호(`BOARD_CHANGED`)를 받았을 때 프런트는 커서를 쓰지 않는다** — **펼친 만큼을 `limit` 으로 맨 위부터 다시 받는다**(`GET /api/v1/posts?game=LOL&limit=60`). 커서는 "더 보기"에만 쓴다.
+  - **차단으로 모자라면 채운다** — 차단 거르기는 방 안에 누가 있는지를 Redis 에서 읽은 **뒤에** 하므로 `limit` 만큼 읽어도 보이는 것이 그보다 적을 수 있다. 그러면 **그 뒤를 더 읽어 채운다**(`platform.board.max-refills`, 기본 **3번**까지. 채우기 한 번이 목록 조립 한 벌이라 상한이 있다). 다 써도 모자라면 **있는 만큼**(빈 목록일 수도 있다) 내려 주고 `nextCursor` 로 이어 받게 한다.
+  - **`nextCursor` 는 "마지막으로 읽은 줄"이다** — 마지막으로 **보여 준** 줄이 아니다. 숨겨진 글을 다음 페이지에서 또 읽지 않게 하려는 것이다.
+  - **만료 · 확정 옮겨 적기는 읽은 글에만 걸린다**(아래 `room_seen_at`) — 이제 목록이 글 전부를 읽지 않으므로 **깊은 곳의 글은 누가 그 페이지를 볼 때 만료된다.** 받아들인 대가다 — 입장권 발급도 그 글을 보고 같은 판단을 하므로 "목록에 안 보이지만 들어갈 수 있는 죽은 방"은 생기지 않는다.
+  - **필터는 `game` 하나 그대로다.** 정렬도 그대로다 — 페이지는 그 정렬을 자른 것뿐이다.
 - **차단 거르기** — 방 안(멤버 SET)에 나와 차단 관계(어느 방향이든)인 사람이 한 명이라도 있으면 **그 글을 목록에서 빼고 입장권도 내주지 않는다**(`CLAUDE.md` §7.1 · D-20). 방이 아직 없는 글은 방장과의 사이를 본다.
 - **Redis 를 못 읽으면** — 목록 · 단건은 방 정보를 비운 채 글만 내려 주고 **만료 판정을 하지 않는다**(못 읽은 것을 "방이 없다"로 읽으면 멀쩡한 글이 전부 만료된다). 입장권은 **503 `ROOM_STATE_UNAVAILABLE`**(차단 대조를 못 했는데 내줄 수 없다).
 - **`postId` · `hostId` · 카드의 `userId` 는 전부 숫자다**(JSON 숫자로 나간다 — 문자열이 아니다).
@@ -254,7 +264,7 @@
 - 멤버 SET 에 **사용자 번호로 팔 수 없는 값**(숫자가 아닌 문자열 · 0 이하)이 있으면 방 키를 읽는 자리에서 **건너뛴다**(`room` 이 아직 인증 없이 돌아 아무 문자열이나 들어올 수 있다) — 카드 · 파티원 · `memberCount` 어디에도 들지 않는다. **숫자이지만 가입하지 않은 번호는 그대로 둔다**(카드에 `nickname: null` 로 남고 파티원으로도 기록된다).
 - `wantedPositions` · `filledPositions` 는 늘 그 게임의 정해진 순서(TOP · JUNGLE · MID …)로 나간다.
 - 로그인 실패의 잠금은 별도 키 `qm:auth:login-lock:{loginId}`(수명 = 잠금 길이)에 둔다. 잠글 때 횟수 키의 수명을 "잠금 + 15분"으로 늘린다 — 안 늘리면 잠금이 끝날 때 횟수도 사라져 잠금이 1분으로 되돌아간다.
-- 설정 — `platform.board.room-grace` · `closed-retention`(둘 다 `PT10M`) · `room-ticket-ttl`(`ROOM_TICKET_TTL`) · `platform.auth.login-throttle.*`.
+- 설정 — `platform.board.room-grace` · `closed-retention`(둘 다 `PT10M`) · `room-ticket-ttl`(`ROOM_TICKET_TTL`) · `max-refills`(3 — 목록의 차단 채우기) · `platform.auth.login-throttle.*`. 목록의 페이지 크기(기본 20 · 상한 100)는 코드의 상수다(`party/service/BoardProperties`).
 
 ## 친구 · 신고 · 최근 함께한 사람 — `friend-requests` · `friends` · `reports` · `recent-players`
 
@@ -311,6 +321,7 @@
 | P-10 | 로그인 실패 제한(429 `TOO_MANY_LOGIN_ATTEMPTS`) | |
 | P-8 | 게임 프로필 · 전적 스냅숏 · 글의 `voice` · `purpose` · `conditions` | 전적을 가져오는 법은 미정이다(`CLAUDE.md` §7 "게임 계정 연동") |
 | P-13 | **전적 동기화(Riot API · LoL 만)** — 긁는 시점 둘(게임 계정 연결 · 글 쓰기) · 신선도 30분 · 비동기이고 실패해도 본 요청은 성공 · `external_id` 는 `puuid` · `verified` 는 켜지 않는다 · **평점은 넣지 않는다**(소유자 결정 2026-09-23. 위 "전적을 긁는 것") | VALORANT · PUBG 는 아직 없다(VALORANT 의 전적 API 는 Riot 의 별도 승인이 필요하다). Redis 락 키 `qm:riot:sync:{gameAccountId}` 가 늘었다 — 이 앱의 접두사다 |
+| P-14 | **게시판 목록의 페이지 나누기(커서 방식)** — `limit`(기본 20 · 최대 100 · 벗어나면 400) · `cursor`(불투명 · 서명하지 않는다 · 못 읽으면 400) · `nextCursor`(**마지막으로 읽은 줄** 기준) · 차단으로 모자라면 최대 3번 더 읽어 채우는 것 · 신호가 왔을 때는 커서 없이 맨 위부터 `limit` 만큼 다시 받는 것 (소유자 결정 2026-09-23. 위 "목록의 페이지 나누기") | 커서의 속(정렬 셋 · base64url) · 채우기의 상한 · `nextCursor` 를 "읽은 줄"로 잡은 것은 Claude 가 정한 세부다. **만료 · 확정 옮겨 적기가 읽은 글에만 걸리게 됐다** — 목록 깊은 곳의 글은 누가 그 페이지를 볼 때 만료된다 |
 | P-11 | **모든 테이블의 PK 는 `bigint GENERATED ALWAYS AS IDENTITY` 이고, `userId` 는 사용자 번호다. 로그인 아이디는 `loginId` 로 따로 둔다**(2026-09-22 **소유자 결정** — 2026-09-19 의 "사용자 id 는 가입할 때 정한 로그인 아이디(문자열)"를 개정한다. **docs/11 D-4 와 얽힌다**) | 다른 항목과 달리 **소유자가 직접 정한 것**이다 — docs/11 에 D-항목으로 남기는 것이 남았다. 걸리는 것 — ① **`matching` 의 `block/Block.java` 를 `Long` 으로 바꿔야 한다**(`blocker_id` · `blocked_id` 가 bigint 가 됐다. 아직 안 바꿨다 — 그 폴더의 일이다) ② Redis 채널 `qm:pubsub:push:{userId}` · `room` 의 방 키와 멤버 SET 의 `{userId}` · `{roomId}` 는 **숫자의 문자열**이 된다(`matching` · `notification` · `room` 은 그 값을 문자열로 다뤄 코드 변경이 없다) ③ 자동 매칭 파티(`source='MATCH'`)가 `matching` 의 UUID `partyId` 를 어디에 두는지는 **미정이다** — 6단계에서 정한다 |
 
 표에 없지만 docs/11 에 D-항목으로 남겨야 하는 것 — **스키마별 DB 롤을 두지 않는 것**(2026-09-22 소유자 결정. 위 "차단"). 앱 하나가 롤 하나로 붙고 `matching` 은 별도 롤 없이 `social.blocks` 를 읽는다 — docs/11 #17 의 "스키마별 DB 롤" 대목과 D-1 의 GRANT 를 개정한다(아직 안 남겼다).
