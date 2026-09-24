@@ -13,15 +13,16 @@
                                  ├──── PUBLISH qm:pubsub:push:{userId} ──▶ Redis ──▶ notification ──SSE──▶ 브라우저
                                  ├──── PUBLISH qm:pubsub:board (BOARD_CHANGED · {}) ──▶ Redis ──▶ notification ──SSE──▶ 모든 연결
                                  ├──── 읽기만 ◀── Redis qm:room:{roomId}:host · :members · :confirmed   (room 이 쓴다. 이 앱은 쓰지 않는다)
+                                 ├──── 읽기만 ◀── Redis qm:gameconfig:{GAME}:{MODE} · :tier        (운영자가 seed 로 심는 공유 설정. mode · tier 검증)
                                  ├──── 인가 코드 흐름 ──▶ 카카오 · 디스코드   (소셜 로그인 — 회원 번호와 닉네임만 받는다)
                                  └──── 입장권(서명) ──▶ 브라우저 ──▶ room      (room 은 서명만 검증한다. 서로 호출하지 않는다)
 ```
 
 **계정과 인증 · 소셜 로그인(카카오 · 디스코드) · 게임 프로필 · 차단 · 파티 모집 게시판(글 · 목록 · 입장권 · 게시판 신호) · 방장 확정의 기록 · 친구 · 신고가 구현돼 있다**(2026-09-21 — 빈 뼈대에서 하루 만에 들어왔다. 테스트는 PostgreSQL 5433 · Redis 6380 에서 돈다).
-**없는 것** — 자동 매칭 파티(`ProposalConfirmed.fifo` · `PartyClosed.fifo` — SQS 배선이 미정이다), **VALORANT · PUBG 의 전적**(그 둘의 `stats` 는 늘 `null` 이고 `verified` 를 켜는 길도 없다). **2026-09-23 소유자 결정 셋이 붙었다** — refresh 토큰(access 15분 · refresh 7일이고 `TEMP-NO-REFRESH` 가 없어졌다 — `CLAUDE.md` §5.1 (라) · (마)) · **LoL 전적 동기화**(Riot API — `CLAUDE.md` §7) · **게시판 목록의 페이지 나누기**(커서 방식 — `CLAUDE.md` §7.1). 친구 · 신고 · 최근 함께한 사람(읽기)과 알림 `FRIEND_REQUEST_RECEIVED` · `FRIEND_REQUEST_ACCEPTED` 도 같은 날 들어왔다(통과 여부는 `START_HERE.md` §1 의 표) — **최근 함께한 사람은 채우는 주체가 없어 늘 빈 목록이다.**
+**없는 것** — 자동 매칭 파티(`ProposalConfirmed.fifo` · `PartyClosed.fifo` — SQS 배선이 미정이다), **VALORANT · PUBG 의 전적**(그 둘의 `stats` 는 늘 `null` 이고 `verified` 를 켜는 길도 없다). **2026-09-23 소유자 결정 셋이 붙었다** — refresh 토큰(access 15분 · refresh 7일이고 `TEMP-NO-REFRESH` 가 없어졌다 — `CLAUDE.md` §5.1 (라) · (마)) · **LoL 전적 동기화**(Riot API — `CLAUDE.md` §7) · **게시판 목록의 페이지 나누기**(커서 방식 — `CLAUDE.md` §7.1). **2026-09-24 소유자 결정 하나가 더 붙었다** — **`mode` · `tier` 의 값을 `matching` 의 gameconfig(Redis)에서 읽어 검증한다**(`CLAUDE.md` §3.6 — `mode` 가 필수가 됐고, Redis 를 못 읽으면 검증만 건너뛴다). 친구 · 신고 · 최근 함께한 사람(읽기)과 알림 `FRIEND_REQUEST_RECEIVED` · `FRIEND_REQUEST_ACCEPTED` 도 같은 날 들어왔다(통과 여부는 `START_HERE.md` §1 의 표) — **최근 함께한 사람은 채우는 주체가 없어 늘 빈 목록이다.**
 
 > **지위.** 소유자가 "네가 platform 을 만들어 봐라"고 맡겼고, 문서가 "미정"으로 묶어 둔 것들을 **Claude 가 정해 구현했다. 소유자는 아직 항목별로 검토하지 않았다.** 정한 것의 원본은 **`contracts/platform-api.md`**
-> (머리의 "지위" · 맨 아래 "원본에 올려야 할 것" P-1~P-15 — P-11 ~ P-15 는 소유자가 직접 정한 것이다)이고 **`matching` 의 결정 로그(docs/11)에 D-항목이 없다.** 소유자가 직접 정한 것은 "소유자 확정" · "소유자 지시"라고 적었다.
+> (머리의 "지위" · 맨 아래 "원본에 올려야 할 것" P-1~P-16 — P-11 ~ P-16 은 소유자가 직접 정한 것이다)이고 **`matching` 의 결정 로그(docs/11)에 D-항목이 없다.** 소유자가 직접 정한 것은 "소유자 확정" · "소유자 지시"라고 적었다.
 
 처음 열었으면 **`START_HERE.md`** 부터 읽는다 — 지금 어디까지 됐나, 만드는 순서, 다음에 닿기 전에 물어야 하는 것 · 소유자가 검토해야 하는 것이 거기 있다. 규칙은 `CLAUDE.md`, 이 폴더에서 정한 계약은 `contracts/platform-api.md`, `room` 계약의 사본은 `docs/ROOM_CONTRACT.md` 다.
 
@@ -35,7 +36,8 @@
    **소셜 로그인 — 카카오 · 디스코드**(2026-09-21 소유자 지시). 로그인 아이디는 여전히 "가입할 때 정하는 것"이라 소셜로 **처음** 온 사람은 로그인 아이디 · 닉네임을 정하는 한 단계를 거치고, 두 번째부터는 바로 로그인된다. 인가 코드 흐름을 세션 없이 직접 짰다. **가짜 제공자로만 테스트했다**(`contracts/platform-api.md` "소셜 로그인").
    **게임 프로필** — 게임 계정(자기신고: 게임 닉네임 · 티어 · 주 포지션 · PUBG 의 서버)에 읽기 전용 `verified` · `stats`(게임사 API 에서 가져온 전적의 스냅숏)를 붙여 밖에 보여 주는 모양이다. `users/me` 와 게시판 목록의 카드가 같이 쓴다.
    **LoL 의 전적은 Riot API 에서 긁는다**(2026-09-23 소유자 결정 — 게임 계정을 연결할 때와 모집 글을 쓸 때, 커밋된 뒤에 **비동기로.** 실패해도 본 요청은 성공이고 `RIOT_API_KEY` 가 없으면 긁지 않는다).
-   **VALORANT · PUBG 의 `stats` 는 아직 늘 `null` 이고, `verified` 를 켜는 길(Riot 의 RSO 인증)도 없다**(`contracts/platform-api.md` "게임 프로필" · "전적을 긁는 것")
+   **VALORANT · PUBG 의 `stats` 는 아직 늘 `null` 이고, `verified` 를 켜는 길(Riot 의 RSO 인증)도 없다**(`contracts/platform-api.md` "게임 프로필" · "전적을 긁는 것").
+   **자기신고 `tier` 는 값이 있으면 그 게임의 티어 사다리에 있는 이름이어야 한다**(2026-09-24 소유자 결정 — 목록의 원본은 `matching` 의 gameconfig(Redis)이고 이 앱이 그것을 읽어서 본다. `CLAUDE.md` §3.6)
 2. **파티** — `matching` 이 확정한 제안(`ProposalConfirmed.fifo`)을 받아 DB 에 파티를 만들고, 확정된 파티와
    파티원을 기록한다. 파티가 닫히면 `PartyClosed.fifo` 로 알려 "최근 함께한 사람"을 만든다
    (보내는 쪽도 받는 쪽도 이 앱이다 — `matching` docs/11 D-13). **구현된 것은 게시판의 방장 확정으로 생기는 파티의 기록뿐이다** — SQS 쪽은 하나도 없다(아래 "만드는 순서" 6단계)
@@ -53,7 +55,8 @@
    **목록의 한 줄은 게임마다 다른 정보를 보여 준다**(2026-09-21 소유자 지시 — 본보기는 OP.GG 의 듀오 찾기. LoL: 이름#태그 · 인증 · 포지션 · 티어 · 찾는 포지션 · 모스트 챔피언 · 승/패 · KDA · 메모, VALORANT: 모스트 요원 · 주 무기 · 헤드샷률,
    PUBG: 모드 · 티어 · 음성/목적 태그 · 서버/시점 · 평균 데미지 · K/D · 치킨률). **세 게임 모두 가로 한 줄이고, 글을 눌러 펼치지 않고 방 안 전원을 그 자리에서 다 보여 준다** — 그래서 목록 응답의 `members[]` 에 게임 프로필 전체가 실린다.
    **구현돼 있다**(2026-09-21) — **`roomId` 는 글의 id** 이고(`party.recruit_posts.id` — **bigint identity.** 2026-09-22 전에는 UUID 였다. `room` 의 방 키에는 숫자가 문자열로 들어간다), 입장권은 access 토큰과 같은 키로 서명한 60초짜리 JWT(`token_use` = `room_ticket`)이며, "아직 안 만들어진 방"과 "사라진 방"은 글의 `room_seen_at` 으로 가른다.
-   방장 확정은 길 둘로 기록한다(브라우저가 `room` 의 확정 뒤에 `POST …/confirm` 을 부른다 + 목록이 확정 표시 키를 발견한다 — **`parties` 의 `UNIQUE (post_id)` 가 멱등을 지킨다**). Redis 를 못 읽으면 만료 판정을 하지 않는다(`contracts/platform-api.md` "모집 글 · 목록 · 입장권")
+   방장 확정은 길 둘로 기록한다(브라우저가 `room` 의 확정 뒤에 `POST …/confirm` 을 부른다 + 목록이 확정 표시 키를 발견한다 — **`parties` 의 `UNIQUE (post_id)` 가 멱등을 지킨다**). Redis 를 못 읽으면 만료 판정을 하지 않는다(`contracts/platform-api.md` "모집 글 · 목록 · 입장권").
+   **글의 `mode` 는 필수이고 그 게임의 gameconfig 에 있는 모드여야 한다**(2026-09-24 소유자 결정 — 옛날에는 30자까지의 자유 문자열이었다. 고치기에서 빈 문자열로 비우는 길이 없어졌다. `CLAUDE.md` §3.6)
 4. **소셜** — 친구, 차단, 신고, 최근 함께한 사람. 차단 테이블(`social.blocks`)의 주인이다 — `matching` 이
    "차단 관계는 같은 파티가 될 수 없다"(INV-6)를 지키려고 이 테이블을 직접 읽는다. 차단은 DB 에 저장하면
    끝이고 SQS 로 따로 알리지 않는다(`BlockChanged.fifo` 폐기 — docs/11 D-12). **차단은 구현돼 있다.** 스키마별 DB 롤은 두지 않는다(2026-09-22 소유자 결정) — 앱 하나가 롤 하나로 붙고, `matching` 은 별도 롤 없이 `social.blocks` 를 읽는다(`CLAUDE.md` §3.5).
@@ -69,9 +72,11 @@
 
 ## 이 서비스가 하지 않는 일
 
-- **매칭을 하지 않는다.** 매칭·제안·수락·확정은 `matching` 의 일이고, 매칭 Redis 키를 만지지 않는다. 예외가 없다 —
+- **매칭을 하지 않는다.** 매칭·제안·수락·확정은 `matching` 의 일이고, 매칭 Redis 키(`qm:party:*` · `qm:user:*` · `qm:proposal:*` · `qm:lock:*`)를 만지지 않는다. 예외가 없다 —
   "자동 매칭 대기와 방은 한 번에 하나만"은 키 둘로 지킨다: 활성 요청 키는 `matching` 만, 입장 표시 키
   (`qm:user:active-room:{userId}`)는 `room` 만 쓰고 지우며 서로 상대 키가 있는지만 본다. 이 앱은 둘 다 만지지 않는다(docs/11 D-19).
+  **`qm:gameconfig:*` 만은 예외로 읽는다**(2026-09-24 소유자 결정 — `mode` · `tier` 가 있는 값인지 보려는 것이다. 운영자가 배포 때 심는 공유 설정이고 쓰는 앱이 없다 — `matching` 도 읽는 쪽이다).
+  **쓰지 않고 seed 를 심지도 않으며 gameconfig 모듈(모드 설정을 정하고 해석하는 것)은 여전히 `matching` 의 것이다**(`CLAUDE.md` §3.6 · §11).
 - **방 안의 일을 하지 않는다.** 방 만들기·입장·나가기·강퇴, 정원 5명 검사, 접속 확인과 방장 이탈 감지, 입장 표시 키, 방 알림,
   WebRTC 시그널 `POST` 와 `WEBRTC_SIGNAL` 발행은 `room`(`app:room`)의 일이다 (docs/11 D-16 · D-19). 두 앱은 서로 호출하지 않는다 —
   입장권과 방 키 읽기로만 잇는다. `room` 은 방이 없어져도 이 앱에 알리지 않는다 — 이 앱이 방장 키를 보고 스스로 글을 만료시킨다.
@@ -96,10 +101,10 @@ queuemate/
 └── platform/       platform 브랜치 (이 폴더)
     ├── START_HERE.md   시작 안내 — 지금 어디까지 됐나 · 만드는 순서 · 다음에 닿기 전에 물어야 하는 것
     ├── CLAUDE.md       규칙
-    ├── contracts/      platform-api.md — 이 폴더에서 정한 계약(경로 · 스키마 · 에러 코드 · 토큰 · 입장권 · 알림)과 "원본에 올려야 할 것" P-1~P-15
+    ├── contracts/      platform-api.md — 이 폴더에서 정한 계약(경로 · 스키마 · 에러 코드 · 토큰 · 입장권 · 알림 · gameconfig 를 읽는 것)과 "원본에 올려야 할 것" P-1~P-16
     ├── docs/           옆 폴더 문서의 사본 (ROOM_CONTRACT.md — room 계약 가운데 이 앱에 걸리는 부분)
     └── backend/        스프링 앱. matching/backend/ · room/backend/ 와 같은 모양
-                        패키지는 도메인 먼저 — common(에러 · Origin 검사 · 토큰 · 알림 봉투) · account(계정 · 게임 프로필 · oauth) · social(차단 · 친구 · 신고 · 최근 함께한 사람) · party(글 · 목록 · 입장권 · 확정 기록 · room 키 읽기 · 게시판 신호)
+                        패키지는 도메인 먼저 — common(에러 · Origin 검사 · 토큰 · 알림 봉투 · gameconfig 읽기) · account(계정 · 게임 프로필 · oauth) · social(차단 · 친구 · 신고 · 최근 함께한 사람) · party(글 · 목록 · 입장권 · 확정 기록 · room 키 읽기 · 게시판 신호)
                         마이그레이션은 db/migration/ 의 V1 + account/ · social/ · party/ (번호는 폴더 사이에서 하나의 순서다 — 테이블의 원본이다)
                         .dev-keys/ 는 앱이 만드는 개발용 JWT 키다(git 에 올리지 않는다 — 옆 서비스는 그 public.pem 으로 검증한다)
 ```
@@ -153,13 +158,14 @@ ERD 는 <https://claude.ai/artifact/LBngVYThyCjipLUkatC6Bq> 다.
 
 > **2026-09-21 에 이 목록에서 많은 것이 빠졌다** — 엔드포인트의 경로와 스키마, 입장권, `roomId`, "아직 안 만들어진 방"을 가르는 법, 확정된 글에서 방장 키가 없을 때, 방장 확정을 아는 법, 테이블 컬럼, 로그인 아이디의 허용 문자 · 길이,
 > 인증의 남은 것(쿠키 이름 · `iss` · 키 · 환경변수), 패키지 · readiness · 포트. **소유자가 직접 정한 것은 인증 세부와 그 남은 것 · 소셜 로그인을 넣는다는 것 · 목록의 한 줄이 게임마다 다르다는 것 · 닉네임의 대소문자 구별 · 포트이고,
-> 나머지는 Claude 가 정해 구현했으며 소유자가 항목별로 검토하지 않았다**(`contracts/platform-api.md` P-1~P-15 · `START_HERE.md` §4 "소유자가 검토해야 하는 것"). **아래 남은 것은 여전히 묻고 정한다 — 지어내지 않는다.**
+> 나머지는 Claude 가 정해 구현했으며 소유자가 항목별로 검토하지 않았다**(`contracts/platform-api.md` P-1~P-16 · `START_HERE.md` §4 "소유자가 검토해야 하는 것"). **아래 남은 것은 여전히 묻고 정한다 — 지어내지 않는다.**
 
-- **소유자의 검토와 결정 로그** — `contracts/platform-api.md` 의 P-1~P-10(Claude 가 정해 구현한 것). **P-11 ~ P-15 는 소유자가 직접 정한 것이라 검토가 아니라 docs/11 에 올리는 것이 남았다**(P-15 가 refresh 토큰이다). 계약 원본(queueMate 본 저장소 `feature/frontend`)에 platform 엔드포인트가 이미 있으면 그쪽과 맞춰야 한다. **docs/11 에 정한 것이 하나도 안 올라갔다**(`matching` 폴더의 일이다 —
+- **소유자의 검토와 결정 로그** — `contracts/platform-api.md` 의 P-1~P-10(Claude 가 정해 구현한 것). **P-11 ~ P-16 은 소유자가 직접 정한 것이라 검토가 아니라 docs/11 에 올리는 것이 남았다**(P-15 가 refresh 토큰 · **P-16 이 gameconfig 를 읽어 `mode` · `tier` 를 검증하는 것이다** — 그것은 `CLAUDE.md` §2 · §11 의 "`qm:gameconfig:*` 접근 — 예외가 없다"와 docs/11 #15 를 개정한다). 계약 원본(queueMate 본 저장소 `feature/frontend`)에 platform 엔드포인트가 이미 있으면 그쪽과 맞춰야 한다. **docs/11 에 정한 것이 하나도 안 올라갔다**(`matching` 폴더의 일이다 —
   인증 세부 `CLAUDE.md` §5.1 은 #16 의 access denylist 를 개정한다)
 - **식별자 결정(2026-09-22 소유자 결정 — P-11)의 뒤처리** — 검토가 아니라 **할 일**이다. ① **`matching` 의 `block/Block.java` 를 `Long` 으로 바꾸기**(`social.blocks` 의 두 칸이 bigint 가 됐다. 바꾸기 전까지 `matching` 은 그 테이블을 읽다가 런타임에 깨진다 — 그 폴더의 일이다)
   ② docs/11 에 D-항목으로 남기기(2026-09-19 의 결정과 D-4 를 개정한다) ③ **자동 매칭 파티(`source='MATCH'`)가 `matching` 의 UUID `partyId` 를 어디에 드는지 — 미정이다.** `parties.id` 가 bigint 라서 생긴 물음이고 6단계(SQS)에 닿을 때 묻는다
 - **refresh 토큰에 남은 것** — 도입은 됐다(2026-09-23 소유자 결정 — `CLAUDE.md` §5.1 (라) · (마) · `contracts/platform-api.md` P-15). **남은 것** — ① **한 사용자의 refresh 를 한꺼번에 끊는 길이 없다**(사용자별 토큰 집합을 두지 않았다 — 비밀번호를 바꾸거나 계정이 털렸을 때 모든 기기를 로그아웃시킬 수 없다. 둘지부터가 미정이다) ② **프런트의 재발급 흐름**(access 가 만료되기 전에 프런트가 불러야 하고 서버 쪽 장치는 없다 — 맞춰 본 적이 없다)
+- **gameconfig 검증에 남은 것** — 읽어서 검증하는 것은 2026-09-24 소유자 결정으로 정해져 구현됐다(`CLAUDE.md` §3.6 · `contracts/platform-api.md` "gameconfig 를 읽는 것" · P-16). **남은 것** — **`party.recruit_posts.mode` 를 `NOT NULL` 로 조일지와 옛 글의 빈 `mode` 를 어떻게 할지**(마이그레이션을 새로 만들지 않았다 — 컬럼은 `NULL` 허용 그대로이고 응답에 `mode: null` 이 나갈 수 있다. 값의 목록이 Redis 에 있어 DB 로는 강제할 수 없는 종류다)
 - **SQS 배선과 메시지 본문** — `ProposalConfirmed.fifo` 소비, `PartyClosed.fifo`, outbox 테이블. `matching` 쪽 발행이 없다. **파티가 "닫혔다"를 무엇으로 판단하는가**도 문서에 없다 — 그래서 최근 함께한 사람을 채우지 못한다. `PARTY_*` 알림의 이름과 payload 도 미정이다
 - **확정된 사용자를 매칭에서 풀어 주는 길** — `matching` 이 기다리고 있는 결정이다 (`matching/HANDOFF.md` ①). "방이 닫힐 때 `room` 이
   활성 요청 키를 지운다"는 가능성은 없어졌다(docs/11 D-19) — 푸는 주체는 `matching` 이나 이 앱 쪽에서 찾아야 한다. 확정된 사용자는
