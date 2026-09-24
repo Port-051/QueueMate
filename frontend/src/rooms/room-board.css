@@ -182,3 +182,78 @@
 @media (max-width:720px) {
   .room-deck-back, .room-deck:hover .room-deck-back { transform:translateY(calc((var(--card-index) + 1) * -4px)); }
 }
+
+/* Persistent matching rail and uniform room rows. */
+.room-home { max-width:1680px; padding:24px; }
+.room-home .room-home-layout { grid-template-columns:minmax(0,1fr) 340px; gap:24px; }
+.room-home .room-deck-grid { grid-template-columns:minmax(0,1fr); gap:12px; }
+.room-quick-rail,.room-conversation-rail,.room-composer-rail { position:sticky; top:24px; min-width:0; max-height:calc(100dvh - 48px); overflow-y:auto; }
+.room-board-count { padding:14px 0; }
+.room-home .room-board-section-heading { margin-bottom:14px; }
+.room-home .room-board-section-heading p { display:none; }
+.room-compact { border:1px solid #343440; border-radius:12px; padding:14px; background:#15151f; height:222px; display:flex; flex-direction:column; }
+.room-compact:hover { border-color:#8970bc; background:#1b1827; }
+.compact-room-header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
+.compact-room-header>div { min-width:0; }
+.compact-room-mode { font-size:10px; color:#a6a1b6; }
+.compact-room-header h3 { margin:5px 0 0; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.compact-room-header .room-status { font-size:11px; }
+.compact-room-header b { margin-left:5px; color:#e7dff7; font-size:15px; }
+.compact-members { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:6px; flex:1; min-height:0; }
+.compact-member { min-width:0; padding:8px 6px; border-radius:7px; background:#20202b; display:flex; flex-direction:column; gap:5px; }
+.compact-member-name { display:flex; align-items:center; gap:4px; min-width:0; }
+.compact-member-name strong { font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.compact-member-name small { font-size:8px; color:#c6afff; flex:none; }
+.compact-member .room-rank { justify-content:flex-start; min-height:19px; gap:2px; }
+.compact-member .room-rank img,.compact-member .room-rank svg { width:20px; height:20px; }
+.compact-member .room-rank strong { font-size:10px; }
+.compact-member-stats { color:#a7a1b8; font-size:8px; white-space:nowrap; }
+.compact-member-stats .performance-value,.compact-member-stats .room-unknown-stat { display:inline; font-size:10px; min-height:0; }
+.compact-member-picks { display:flex; gap:5px; align-items:center; }
+.compact-member-picks .preferred-champion-portrait { width:18px; height:18px; }
+.compact-member-picks .room-role-icons svg { width:14px; height:14px; }
+.compact-seat { align-items:center; justify-content:center; background:transparent; border:1px dashed #393343; color:#8e839e; }
+.compact-seat>span { font-size:21px; }
+.compact-seat strong,.compact-seat small { font-size:10px; font-weight:400; }
+.compact-room-footer { display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:10px; color:#aaa0ba; }
+.compact-room-footer>span { display:flex; align-items:center; gap:8px; }
+.room-quick-rail .room-quick-connect { display:block; padding:20px; margin:0; min-height:440px; border-radius:14px; }
+.room-quick-rail .quick-connect-heading { flex-direction:column; align-items:stretch; gap:16px; }
+.room-quick-rail .quick-role-options { display:grid; grid-template-columns:repeat(3,1fr); }
+.room-quick-rail .quick-role-options button { flex-direction:column; padding:10px 5px; }
+.room-conversation-rail .room-conversation { height:calc(100dvh - 48px); min-height:590px; }
+@media(max-width:1150px) and (min-width:901px) {
+  .room-home { padding:20px 16px; }
+  .room-home .room-home-layout { grid-template-columns:minmax(0,1fr) 300px; gap:16px; }
+  .compact-member-name>.avatar-wrap,.compact-member-name>.avatar { display:none; }
+  .compact-member-name small { display:none; }
+  .compact-member-stats { white-space:normal; }
+}
+@media(max-width:900px) {
+  .room-home .room-home-layout { grid-template-columns:minmax(0,1fr); }
+  .room-quick-rail,.room-conversation-rail,.room-composer-rail { position:static; grid-row:1; max-height:none; }
+  .room-quick-rail .room-quick-connect { min-height:0; }
+  .room-quick-rail .quick-role-options { grid-template-columns:repeat(5,1fr); }
+}
+@media(max-width:580px) {
+  .room-home { padding:16px 12px; }
+  .room-compact { height:232px; padding:10px; }
+  .compact-members { gap:3px; }
+  .compact-member { padding:7px 3px; }
+  .compact-member-name>.avatar-wrap,.compact-member-name>.avatar,.compact-member-name small { display:none; }
+  .compact-member .room-rank img { display:none; }
+  .compact-member-stats { white-space:normal; line-height:1.6; }
+  .compact-member-picks { flex-wrap:wrap; gap:2px; }
+  .compact-room-header .room-status { flex-direction:column; gap:3px; }
+}
+
+.room-compact { height:246px; }
+.compact-room-header,.compact-room-footer { flex-shrink:0; }
+.compact-members { min-height:120px; }
+.compact-member { gap:4px; overflow:hidden; }
+.compact-member-picks { margin-top:auto; }
+.compact-room-footer { margin-top:10px; min-height:21px; }
+/* Details open directly; no stacked-card fan animation. */
+.room-spread-card,.room-spread-backdrop[data-phase=open] .room-spread-card { transform:none; transition:none; }
+.room-spread-card.is-member { opacity:1; }
+.compact-member-stats { font-size:9px; }

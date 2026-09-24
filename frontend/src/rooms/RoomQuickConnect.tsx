@@ -25,12 +25,6 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onOpen, onCreat
   const reset = () => { setStarted(false); setSkipped([]); };
 
   return <section className="room-quick-connect" aria-label="빠른 연결">
-    <div className="quick-connect-intro">
-      <span className="quick-connect-eyebrow">QUICK CONNECT <span>미리보기</span></span>
-      <h1>찾는 건 맡기고,<br />함께할 팀을 만나세요.</h1>
-      <p>직접 둘러보는 방 중에서<br />내 조건에 맞는 방을 하나씩 제안해요.</p>
-      <ol aria-label="빠른 연결 과정"><li>조건 선택</li><li>방 확인</li><li>합류·대화</li></ol>
-    </div>
     <div className="quick-connect-content">
       <div className="quick-connect-heading"><h2>빠른 연결</h2><select aria-label="빠른 연결 게임 모드" value={modeKey} onChange={event => onModeChange(event.target.value)}>{visibleModes(game).map(mode => <option key={mode.key} value={mode.key}>{mode.label} · 지금 플레이</option>)}</select></div>
       <div className="quick-connect-controls">

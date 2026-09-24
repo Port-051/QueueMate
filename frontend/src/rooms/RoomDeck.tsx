@@ -73,8 +73,18 @@ export function RoomMemberCard({ room, member }: { room: GameRoom; member: RoomM
 }
 
 export function RoomDeck({ room, onOpen }: { room: GameRoom; onOpen: (room: GameRoom, button: HTMLButtonElement) => void }) {
-  return <button type="button" className={`room-deck${room.status === 'CONFIRMED' ? ' is-confirmed' : ''}`} data-status={room.status} aria-label={`${room.title} 방 펼치기`} onClick={event => onOpen(room, event.currentTarget)}>
-    <span className="room-deck-backs" aria-hidden="true">{room.members.slice(0, 5).map((member, index) => <span className="room-deck-back" key={member.id} style={{ '--card-index': index } as React.CSSProperties}><Avatar name={member.nickname} avatarUrl={member.avatarUrl} size={20} /></span>)}</span>
-    <RoomSummaryCard room={room} showMembers />
+  const closed = room.status === 'CONFIRMED';
+  return <button type="button" className={`room-deck room-compact${closed ? ' is-confirmed' : ''}`} data-status={room.status} aria-label={`${room.title} 방 펼치기`} onClick={event => onOpen(room, event.currentTarget)}>
+    <div className="compact-room-header"><div><span className="compact-room-mode">{roomModeLabel(room)} · {roomVoiceLabel(room)}{room.availableFrom ? ` · ${timeLabel(room.availableFrom)}` : ''}</span><h3>{room.title}</h3></div><span className={`room-status${closed ? ' is-confirmed' : ''}`}>{closed ? '모집 마감' : '모집 중'}<b>{room.members.length}/{room.capacity}</b></span></div>
+    <div className="compact-members" style={{ gridTemplateColumns: `repeat(${room.capacity}, minmax(0, 1fr))` }} aria-label="방 구성원 정보">
+      {room.members.map(member => <div className="compact-member" key={member.id}>
+        <div className="compact-member-name"><Avatar name={member.nickname} avatarUrl={member.avatarUrl} size={23}/><strong title={member.nickname}>{member.nickname}</strong>{member.id === room.ownerId ? <small>방장</small> : null}</div>
+        <RoomRank game={room.game} tier={member.tier} division={member.division}/>
+        <span className="compact-member-stats"><Stat kind="winRate" value={member.winRate}/> 승률 · <Stat kind="kda" value={member.kda}/> KDA</span>
+        <div className="compact-member-picks">{usesKeyCondition(room.game, room.modeKey) ? <RoomRoles game={room.game} roles={member.roles}/> : null}<PreferredChampions game={room.game} names={member.champions.slice(0,2)}/></div>
+      </div>)}
+      {Array.from({length:Math.max(0,room.capacity-room.members.length)},(_,i)=><div className="compact-member compact-seat" key={`seat-${i}`}><span>+</span><strong>{closed ? '모집 마감' : '팀원 모집'}</strong><small>빈 자리</small></div>)}
+    </div>
+    <div className="compact-room-footer"><span>{closed ? '추가 입장 마감' : '찾는 포지션'} {!closed && usesKeyCondition(room.game,room.modeKey) ? <RoomRoles game={room.game} roles={room.desiredRoles}/> : null}</span><span>멤버 자세히 보기 →</span></div>
   </button>;
 }
