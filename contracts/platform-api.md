@@ -4,10 +4,11 @@
 > 2026-09-21 에 소유자가 "네가 만들어 봐라"고 맡겼고, 아래는 Claude 가 정해 구현한 것이다 — **소유자가 아직 항목별로 검토하지 않았다.**
 > **2026-09-22 에 소유자가 직접 정한 것이 둘 있다** — **모든 테이블의 PK 를 `bigint identity` 로 하고 `userId`(사용자 번호)와 `loginId`(로그인 아이디)를 가른 것**(P-11. 2026-09-19 의 결정을 개정한다)과 **스키마별 DB 롤을 두지 않는 것**(아래 "차단"). 그 둘은 "소유자 결정"이라고 적었다.
 > **2026-09-23 에 소유자가 정한 것이 셋 더 있다** — **LoL 의 전적을 Riot API 에서 긁는 것**(P-13. 아래 "게임 프로필" 의 "전적을 긁는 것" — 비동기 · 평점은 넣지 않는다. **그날 정한 "긁는 시점 둘" 은 2026-09-24 에 하나로 줄었다** — 바로 아래) · **게시판 목록의 페이지 나누기(커서 방식)**(P-14. 아래 "모집 글 · 목록 · 입장권" 의 "목록의 페이지 나누기") · **refresh 토큰**(P-15. 아래 "refresh 토큰" — access 가 `PT15M` 으로 줄고 `TEMP-NO-REFRESH` 가 없어졌다).
-> **2026-09-24 에 소유자가 정한 것이 셋 더 있다** — ① **`mode` 와 `tier` 의 값을 `matching` 의 gameconfig(Redis)에서 읽어 검증하는 것**(P-16. 아래 "gameconfig 를 읽는 것" — 읽는다 · Redis 를 못 읽으면 통과시킨다(fail-open) · `mode` 가 필수가 됐다 · `tier` 도 같이 본다)
+> **2026-09-24 에 소유자가 정한 것이 다섯 더 있다** — ① **`mode` 와 `tier` 의 값을 `matching` 의 gameconfig(Redis)에서 읽어 검증하는 것**(P-16. 아래 "gameconfig 를 읽는 것" — 읽는다 · Redis 를 못 읽으면 통과시킨다(fail-open) · `mode` 가 필수가 됐다 · `tier` 도 같이 본다)
 > ② **모집 글을 쓸 때 전적을 긁던 것을 없앤 것**(**P-13 의 개정이다 — 새 번호를 두지 않는다.** 아래 "전적을 긁는 것" — 긁는 시점이 하나가 되고 신선도 장치가 없어졌다)
 > ③ **"전적 갱신" 요청을 둔 것**(P-17. 아래 "전적을 긁는 것" 의 "전적 갱신" — `POST …/game-accounts/{game}/refresh` · **동기** · 쿨타임 2분 · 상한 30초. ②로 낡은 채 남게 된 전적을 사용자가 직접 갱신하는 길이라 **긁는 시점이 다시 둘이 됐다**).
 > ④ **게시판 목록의 정렬과 커서를 `id` 하나로 한 것**(**P-14 의 개정이다 — 새 번호를 두지 않는다.** 아래 "모집 글 · 목록 · 입장권" 의 "목록의 정렬" 과 "목록의 페이지 나누기" — 전날 정한 커서의 속을 고친다. **정렬 키가 변하면 커서가 중복을 낸다**).
+> ⑤ **글 한 줄에서 `filledPositions`(찾는 포지션 가운데 이미 채워진 것의 강조)를 없앤 것**(P-18. 아래 "모집 글 · 목록 · 입장권" 의 "글 한 줄" — **주 포지션은 그 방에서 할 포지션이 아니다.** **docs/11 D-20 의 ③ 을 개정한다**).
 > 원본과 합칠 때 맨 아래 "원본에 올려야 할 것" 표를 들고 간다. ERD 는 <https://claude.ai/artifact/LBngVYThyCjipLUkatC6Bq>, 테이블의 원본은 `backend/src/main/resources/db/migration/` 이다.
 
 ## 공통
@@ -277,7 +278,7 @@ access 가 짧아진 만큼(15분) 그것을 이어 주는 것이 refresh 다. *
 {
   "postId": 123, "hostId": 42, "game": "LOL", "mode": "RANKED_SOLO", "title": "…", "description": "…",
   "voice": "REQUIRED | NO_VOICE", "purpose": "RANK_UP | NORMAL | FUN", "conditions": {"perspective": "TPP"},
-  "wantedPositions": ["MID", "SUPPORT"], "filledPositions": ["MID"],
+  "wantedPositions": ["MID", "SUPPORT"],
   "status": "RECRUITING | CONFIRMED | EXPIRED", "createdAt": "…",
   "memberCount": 3, "capacity": 5, "full": false,
   "host": {"userId": 42, "nickname": "…", "host": true, "profile": {게임 프로필 또는 null}},
@@ -294,7 +295,11 @@ access 가 짧아진 만큼(15분) 그것을 이어 주는 것이 refresh 다. *
 
 - `title` 1~60자, `description` 300자까지(없어도 된다), **`mode` 는 필수이고 그 게임의 gameconfig 에 있는 모드여야 한다**(2026-09-24 소유자 결정 — 위 "gameconfig 를 읽는 것". 30자까지 — seed 의 모드 이름이 그보다 짧다. 없는 모드 · 다른 게임의 모드 · 빈 문자열은 400 `VALIDATION_FAILED`).
   **옛 글의 `mode` 는 비어 있을 수 있다**(그때는 없어도 되는 칸이었다) — 컬럼은 `NULL` 을 허용한 채로 두었고 응답의 `mode` 가 `null` 로 나갈 수 있다. **`NOT NULL` 로 조일지 · 옛 글의 빈 `mode` 를 어떻게 할지는 미정이다**(P-16). `wantedPositions` 는 그 게임의 포지션 이름(위 `mainPosition` 과 같은 목록. PUBG 는 빈 배열).
-- **`filledPositions` 는 이 앱이 계산한다** — `wantedPositions ∩ 방 안 사람들의 주 포지션`(그 글의 게임에 연결한 게임 계정의 것). 카드의 `profile` 도 그 게임 계정에서 온다. 게임 계정이 없으면 `profile` 이 `null` 이다.
+- **카드의 `profile` 은 그 글의 게임에 연결한 게임 계정에서 온다.** 게임 계정이 없으면 `profile` 이 `null` 이다.
+- **`filledPositions`(찾는 포지션 가운데 이미 방 안에 채워진 것의 강조)는 없앴다**(2026-09-24 **소유자 결정** · P-18 — **docs/11 D-20 의 ③ 을 개정한다**). 그 값은 `wantedPositions ∩ 방 안 사람들의 주 포지션` 으로 계산했는데, **주 포지션은 "내가 주로 하는 것" 이지 "이 방에서 할 것" 이 아니다** —
+  주 포지션이 정글인 사람이 미드를 구하는 방에 미드를 하러 들어갈 수 있는데 그 계산은 그 방의 미드 자리를 **안 찼다고** 표시했다. **틀린 정보를 자신 있게 보여 주는 것**이라 없앴다.
+  **카드의 `profile.mainPosition` 은 그대로 보여 준다** — 방 안에 누가 무엇을 주로 하는지는 사실이고, 그것으로 자리가 찼는지를 **판단하는 것만** 그만둔 것이다.
+  **다시 둘 것인가는 미정이다** — 소유자가 "일단" 없앴다. **입장할 때 포지션을 고르게 하는 방식은 하지 않기로 이미 정해져 있다**(`CLAUDE.md` §7.1 — 그러면 `room` 이 포지션을 들어야 하고 멤버 SET 을 HASH 로 바꿔야 해서 방 키 약속이 바뀐다).
 - **목록의 정렬 — `id` 내림차순 하나(= 최신순)다**(2026-09-24 **소유자 결정** · P-14). **`id` 가 `bigint GENERATED ALWAYS AS IDENTITY` 라 넣은 순서대로 커지고, 겹치지 않고, 변하지 않는다** — 그래서 "들어온 순서" 가 곧 `id` 순서이고 tiebreaker 가 필요 없다.
   **글의 상태도 `createdAt` 도 정렬에 쓰지 않는다.** 그날 아침까지는 `(모집 중인가, createdAt desc, id)` 였다 — **왜 뒤집었는지는 아래 "목록의 페이지 나누기" 에 적었다**(정렬 키가 변하면 커서가 중복을 낸다).
   `createdAt` 컬럼과 응답의 `createdAt` 은 **그대로 있다** — 화면의 "몇 분 전" 이 그 값이다. 정렬과 커서에서만 안 쓴다.
@@ -360,7 +365,7 @@ access 가 짧아진 만큼(15분) 그것을 이어 주는 것이 refresh 다. *
 - 확정 · 만료된 글은 목록 · 단건에서 `members` 가 비고 `memberCount` 가 0 이다. **`POST …/confirm` 의 응답만** DB 에 기록한 파티원을 싣는다.
 - 입장권은 숨김(404)을 상태(409)보다 먼저 본다 — 차단 관계인 사람에게는 "모집이 끝났다"도 알려 주지 않는다. 남의 글을 `PATCH` · `DELETE` 하면 차단 관계여도 403 `NOT_POST_HOST` 다.
 - 멤버 SET 에 **사용자 번호로 팔 수 없는 값**(숫자가 아닌 문자열 · 0 이하)이 있으면 방 키를 읽는 자리에서 **건너뛴다**(`room` 이 아직 인증 없이 돌아 아무 문자열이나 들어올 수 있다) — 카드 · 파티원 · `memberCount` 어디에도 들지 않는다. **숫자이지만 가입하지 않은 번호는 그대로 둔다**(카드에 `nickname: null` 로 남고 파티원으로도 기록된다).
-- `wantedPositions` · `filledPositions` 는 늘 그 게임의 정해진 순서(TOP · JUNGLE · MID …)로 나간다.
+- `wantedPositions` 는 늘 그 게임의 정해진 순서(TOP · JUNGLE · MID …)로 나간다.
 - 로그인 실패의 잠금은 별도 키 `qm:auth:login-lock:{loginId}`(수명 = 잠금 길이)에 둔다. 잠글 때 횟수 키의 수명을 "잠금 + 15분"으로 늘린다 — 안 늘리면 잠금이 끝날 때 횟수도 사라져 잠금이 1분으로 되돌아간다.
 - 설정 — `platform.board.room-grace` · `closed-retention`(둘 다 `PT10M`) · `room-ticket-ttl`(`ROOM_TICKET_TTL`) · `max-refills`(3 — 목록의 차단 채우기) · `platform.auth.login-throttle.*`. 목록의 페이지 크기(기본 20 · 상한 100)는 코드의 상수다(`party/service/BoardProperties`).
 
@@ -424,5 +429,6 @@ access 가 짧아진 만큼(15분) 그것을 이어 주는 것이 refresh 다. *
 | P-15 | **refresh 토큰**(2026-09-23 **소유자 결정**) — 불투명 UUID · Redis `qm:auth:refresh:{uuid}` → 사용자 번호 · `P7D` · 쿠키 `qm_refresh`(`Path=/api/v1/auth/refresh`) · `POST /api/v1/auth/refresh` · **rotation 필수**(`GETDEL` 한 번) · 실패는 전부 같은 401 `INVALID_REFRESH_TOKEN` · 로그아웃이 Redis 의 줄과 쿠키 둘을 지운다 · **access 가 `PT15M` 으로 줄고 `TEMP-NO-REFRESH` 가 없어졌다**(위 "refresh 토큰") | 소유자가 직접 정한 것이다 — docs/11 에 D-항목으로 남겨야 한다(`CLAUDE.md` §5.1 (라) · (마)가 설계로만 적어 둔 것이 구현됐다. #16 의 access denylist 개정과 같은 묶음이다). **옆 서비스에는 걸리지 않는다** — 서명 · 검증이 달라지지 않고 access 의 수명만 짧아진다(`matching` · `notification` · `room` 은 공개 키로 검증만 한다). 넣지 않은 것 — 탈취 감지(토큰 계보 추적) · 기기 수 제한 · 한 사용자의 refresh 를 한꺼번에 끊는 길 |
 | P-16 | **`mode` 와 `tier` 의 값을 gameconfig(Redis)에서 읽어 검증하는 것**(2026-09-24 **소유자 결정** — 위 "gameconfig 를 읽는 것"). 읽는 키 둘(`qm:gameconfig:{GAME}:{MODE}` 의 `EXISTS` · `:tier` 의 `ZSCORE`) · **Redis 를 못 읽으면 통과시킨다(fail-open)** · **`mode` 가 필수가 됐다**(`PATCH` 에서 빈 문자열로 비우는 길이 없어졌다) · `tier` 는 값이 있을 때만 본다 | 소유자가 직접 정한 것이다 — **`CLAUDE.md` §2 · §11 의 "`qm:gameconfig:*` 접근 — 예외가 없다"와 docs/11 #15 를 개정한다.** `matching` 폴더에서 docs/11 에 D-항목으로 남겨야 한다(아직 안 남겼다). **미정 — `party.recruit_posts.mode` 를 `NOT NULL` 로 조일지, 옛 글의 빈 `mode` 를 어떻게 할지**(값의 목록이 Redis 에 있어 DB 가 강제할 수 없는 종류다 — 마이그레이션을 새로 만들지 않았다). Claude 가 정한 것 — 클래스의 자리(`common/gameconfig/GameConfigKeys` · `GameConfigReader`) · 안 심긴 gameconfig 도 통과시키는 것과 그것을 티어 사다리 키로 가르는 것 · 에러의 글귀 · `tier` 의 `@Pattern` 을 남긴 것 |
 | P-11 | **모든 테이블의 PK 는 `bigint GENERATED ALWAYS AS IDENTITY` 이고, `userId` 는 사용자 번호다. 로그인 아이디는 `loginId` 로 따로 둔다**(2026-09-22 **소유자 결정** — 2026-09-19 의 "사용자 id 는 가입할 때 정한 로그인 아이디(문자열)"를 개정한다. **docs/11 D-4 와 얽힌다**) | 다른 항목과 달리 **소유자가 직접 정한 것**이다 — docs/11 에 D-항목으로 남기는 것이 남았다. 걸리는 것 — ① **`matching` 의 `block/Block.java` 를 `Long` 으로 바꿔야 한다**(`blocker_id` · `blocked_id` 가 bigint 가 됐다. 아직 안 바꿨다 — 그 폴더의 일이다) ② Redis 채널 `qm:pubsub:push:{userId}` · `room` 의 방 키와 멤버 SET 의 `{userId}` · `{roomId}` 는 **숫자의 문자열**이 된다(`matching` · `notification` · `room` 은 그 값을 문자열로 다뤄 코드 변경이 없다) ③ 자동 매칭 파티(`source='MATCH'`)가 `matching` 의 UUID `partyId` 를 어디에 두는지는 **미정이다** — 6단계에서 정한다 |
+| P-18 | **글 한 줄에서 `filledPositions` 를 없앤 것**(2026-09-24 **소유자 결정** — 위 "글 한 줄"). 응답에 그 칸이 없다. **글의 `wantedPositions` 와 카드의 `profile.mainPosition` 은 그대로다** | 소유자가 직접 정한 것이다 — **docs/11 D-20 의 ③("글의 '찾는 포지션' 가운데 이미 방 안에 있는 포지션의 강조")을 개정한다.** `matching` 폴더에서 docs/11 에 D-항목으로 남겨야 한다(아직 안 남겼다). **D-20 의 ①②④(인원 · 방 안 사람들의 카드 · F5 없이 갱신)는 그대로 유효하다.** 왜 — **주 포지션은 그 방에서 할 포지션이 아니라 틀린 정보였다**(위 "글 한 줄"). 테이블 · 컬럼은 바뀌지 않았다(마이그레이션 없음). **다시 둘 것인가는 미정이다** — 입장할 때 포지션을 고르게 하는 방식은 하지 않기로 이미 정해져 있다(`CLAUDE.md` §7.1) |
 
 표에 없지만 docs/11 에 D-항목으로 남겨야 하는 것 — **스키마별 DB 롤을 두지 않는 것**(2026-09-22 소유자 결정. 위 "차단"). 앱 하나가 롤 하나로 붙고 `matching` 은 별도 롤 없이 `social.blocks` 를 읽는다 — docs/11 #17 의 "스키마별 DB 롤" 대목과 D-1 의 GRANT 를 개정한다(아직 안 남겼다).
