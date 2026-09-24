@@ -26,7 +26,6 @@ import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -35,6 +34,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 게임 전적 동기화 — {@code contracts/platform-api.md} "게임 프로필" 의 "전적을 긁는 것"(2026-09-23 소유자 결정)을
  * <b>가짜 Riot API</b>({@link FakeRiotApi})에 붙여서 본다. 진짜 Riot 을 부르지 않는다.
+ *
+ * <p><b>긁는 시점은 하나다 — 게임 계정을 저장할 때</b>(2026-09-24 소유자 결정). 모집 글을 쓸 때도 긁던 것이 없어졌고
+ * 신선도 장치도 함께 없어졌다 — 그것이 되살아나지 않게 {@link #noSyncOnPostCreate()} 가 지킨다.
  *
  * <p>{@code @DynamicPropertySource} 가 설정을 바꾸므로 <b>이 클래스만 스프링 컨텍스트를 따로 띄운다</b>. 키가 없을 때는 기본 컨텍스트에서 본다
  * ({@link GameStatsNotConfiguredTest}).
@@ -55,7 +57,6 @@ class GameStatsSyncTest extends ApiTestSupport {
         registry.add("platform.riot.regional-base-url", FAKE::baseUrl);
         registry.add("platform.riot.platform-base-url", FAKE::baseUrl);
         registry.add("platform.riot.match-count", () -> 20);
-        registry.add("platform.riot.freshness", () -> "PT30M");
         // 로컬 가짜 서버라 짧게 둔다 — 타임아웃을 보는 테스트가 오래 기다리지 않게
         registry.add("platform.riot.connect-timeout", () -> "PT1S");
         registry.add("platform.riot.read-timeout", () -> "PT1S");
@@ -185,7 +186,7 @@ class GameStatsSyncTest extends ApiTestSupport {
         awaitStats(gameAccountId);
         assertThat(profile(cookie, "LOL").get("stats").get("winStreak").asInt()).isZero();
 
-        // 경기가 하나도 없는 계정으로 바꿔 다시 긁는다(계정 연결은 신선도를 보지 않는다)
+        // 경기가 하나도 없는 계정으로 바꿔 다시 긁는다(계정 연결은 무조건 긁는다)
         FAKE.stubAccount("무경기#KR1", puuid);
         FAKE.stubMatches(puuid, List.of());
         putGameAccount(cookie, "LOL", json("gameNickname", "무경기#KR1")).andExpect(status().isOk());
@@ -202,8 +203,8 @@ class GameStatsSyncTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("글을 쓸 때 — 전적이 신선하면 Riot 을 아예 부르지 않고, 오래됐으면 부른다")
-    void freshnessOnPostCreate() throws Exception
+    @DisplayName("글을 써도 전적을 긁지 않는다 — 전적이 아무리 오래됐어도 Riot 을 한 번도 부르지 않는다 (2026-09-24 소유자 결정)")
+    void noSyncOnPostCreate() throws Exception
     {
         String loginId = newLoginId();
         Cookie cookie = signupAndLogin(loginId);
@@ -212,20 +213,16 @@ class GameStatsSyncTest extends ApiTestSupport {
         Long gameAccountId = gameAccountId(userIdOf(loginId), "LOL");
         awaitStats(gameAccountId);
 
-        int callsBefore = FAKE.calls();
-        Long postId = createdPostId(cookie);
-        awaitSyncIdle();
-        // 방금 긁은 전적이라 신선하다 — 요청이 한 번도 나가지 않는다
-        assertThat(FAKE.calls()).isEqualTo(callsBefore);
-
-        // synced_at 을 한 시간 전으로 돌리고 글을 다시 쓴다(모집 중인 글은 한 사람에 하나라 먼저 지운다)
+        // 전적을 한 시간 전으로 돌린다 — "신선해서 건너뛴 것"이 아니라 그 길 자체가 없다는 것을 보려는 것이다
         touchSyncedAt(gameAccountId, Instant.now().minus(Duration.ofHours(1)));
-        mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(cookie)).andExpect(status().isNoContent());
+        int callsBefore = FAKE.calls();
+
         createdPostId(cookie);
         awaitSyncIdle();
 
-        assertThat(FAKE.calls()).isGreaterThan(callsBefore);
-        assertThat(syncedAt(gameAccountId)).isAfter(Instant.now().minus(Duration.ofMinutes(5)));
+        assertThat(FAKE.calls()).as("글 쓰기가 Riot 을 부르지 않는다").isEqualTo(callsBefore);
+        assertThat(syncedAt(gameAccountId)).as("전적을 다시 적지도 않는다")
+                .isBefore(Instant.now().minus(Duration.ofMinutes(30)));
     }
 
     @Test

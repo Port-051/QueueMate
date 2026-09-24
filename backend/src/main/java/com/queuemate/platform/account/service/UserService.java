@@ -73,7 +73,7 @@ public class UserService {
      *
      * <p><b>성공하면 전적을 긁는다</b>(2026-09-23 소유자 결정 — {@code contracts/platform-api.md} "게임 프로필"). 커밋된 뒤에 <b>비동기로</b> 시작하므로
      * 이 응답의 {@code stats} 는 아직 예전 값(보통 {@code null})이고 잠시 뒤에 채워진다 — Riot 을 부르는 수 초 동안 응답을 붙잡지 않는다.
-     * 신선도를 보지 않고 무조건 긁는다 — 닉네임이 바뀌었을 수 있다. 긁는 데 실패해도 이 요청은 성공이다.
+     * 무조건 긁는다 — 닉네임이 바뀌었을 수 있다(<b>전적이 갱신되는 것은 이 자리 하나다</b> — 2026-09-24 소유자 결정). 긁는 데 실패해도 이 요청은 성공이다.
      */
     @Transactional
     public GameProfileResponse putGameAccount(Long userId, String gameName, GameAccountRequest request)

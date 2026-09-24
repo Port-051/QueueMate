@@ -111,8 +111,9 @@ platform:
     # 페이지 크기의 기본값 20 · 상한 100 은 코드의 상수다 (BoardProperties)
     max-refills: 3
   # 게임 전적 동기화 (Riot API — LoL 만). 환경변수의 이름은 contracts/platform-api.md "게임 프로필" 이 원본이다.
-  # 긁는 시점은 둘이다(2026-09-23 소유자 결정) — 게임 계정을 연결할 때(신선도를 보지 않는다) · 모집 글을 쓸 때(신선하면 건너뛴다).
-  # 둘 다 커밋된 뒤에 비동기로 돈다 — 실패해도 본 요청은 성공하고 stats 는 예전 값으로 남는다.
+  # 긁는 시점은 하나다(2026-09-24 소유자 결정) — 게임 계정을 연결 · 수정할 때. 모집 글을 쓸 때도 긁던 것은 그날 없앴다
+  # (비동기라 글 쓰기 응답에 반영되지 않는데 Riot 호출 20여 번을 쓴다 — 그래서 신선도 설정도 함께 없앴다).
+  # 커밋된 뒤에 비동기로 돈다 — 실패해도 본 요청은 성공하고 stats 는 예전 값으로 남는다.
   riot:
     # 비어 있으면 긁는 일 자체를 하지 않는다 — 기동은 정상이고 stats 가 null 로 남는다(시작할 때 INFO 한 줄을 남긴다).
     # 운영에서는 Secrets Manager 로 넣는다. 로그에 찍지 않는다 — RiotProperties#toString 이 이 칸을 뺀다
@@ -123,8 +124,6 @@ platform:
     platform-base-url: ${RIOT_PLATFORM_BASE_URL:https://kr.api.riotgames.com}
     # 최근 몇 경기로 평균 · 모스트 챔피언을 낼지. 경기 하나가 요청 하나다 — 개발용 키의 한도(2분당 100회)를 생각해 작게 둔다
     match-count: 20
-    # 글을 쓸 때 synced_at 이 이보다 새것이면 긁지 않는다. 게임 계정을 연결할 때는 보지 않는다
-    freshness: PT30M
     # Riot 이 느려지면 전용 풀(작다 — GameStatsAsyncConfig)이 묶인다. 짧게 끊는다
     connect-timeout: PT3S
     read-timeout: PT3S

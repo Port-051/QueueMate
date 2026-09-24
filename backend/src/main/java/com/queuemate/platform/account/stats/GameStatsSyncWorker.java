@@ -2,10 +2,8 @@ package com.queuemate.platform.account.stats;
 
 import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.account.domain.GameAccount;
-import com.queuemate.platform.account.domain.GameAccountStats;
 import com.queuemate.platform.account.domain.GameAccountWithStats;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
@@ -20,45 +18,39 @@ import java.util.Optional;
  * 전적을 실제로 긁어 적는 곳 — <b>요청 스레드가 아니라 전용 풀에서 돈다</b>({@link GameStatsAsyncConfig}).
  * 부르는 곳은 {@link GameStatsSync} 하나다(그쪽이 "커밋된 뒤에" 를 맡는다).
  *
- * <p><b>어떤 예외도 밖으로 내보내지 않는다</b> — 전적은 곁가지다. 게임 계정 연결 · 글 쓰기는 이미 성공했고, 실패하면 로그만 남긴다
+ * <p><b>어떤 예외도 밖으로 내보내지 않는다</b> — 전적은 곁가지다. 게임 계정 저장은 이미 성공했고, 실패하면 로그만 남긴다
  * (알림 발행과 같은 원칙 — CLAUDE.md §3.2). 그래서 이 메서드 전체가 {@code try} 안에 있다.
  *
  * <p>순서는 넷이다. <b>게임사 API 를 부르기 전에</b> 걸러 낼 것을 다 거른다 — 키가 없다 · 그 게임의 구현이 없다 · 계정이 없다 ·
- * 신선하다 · 누가 이미 긁고 있다.
+ * 누가 이미 긁고 있다.
  * <ol>
  *   <li>그 게임의 구현({@link GameStatsProvider})을 찾는다 — 없으면(VALORANT · PUBG) 조용히 끝낸다</li>
- *   <li>게임 계정과 지금의 전적을 읽는다(쿼리 한 번) — 계정이 없으면 끝낸다. <b>글을 쓸 때만</b> 신선도를 본다</li>
+ *   <li>게임 계정을 읽는다(쿼리 한 번) — 계정이 없으면 끝낸다</li>
  *   <li>Redis 락을 잡는다 — 못 잡으면 <b>줄 서지 않고</b> 끝낸다({@link GameStatsSyncLock})</li>
  *   <li>긁어서 upsert 한다. <b>실패하면 기존 전적 줄을 그대로 둔다</b> — 옛 값이라도 있는 편이 낫다</li>
  * </ol>
  */
 @Slf4j
 @Component
-@EnableConfigurationProperties(RiotProperties.class)
 public class GameStatsSyncWorker {
 
-    private final RiotProperties properties;
     private final GameStatsStore store;
     private final GameStatsSyncLock lock;
     private final Map<Game, GameStatsProvider> providers = new EnumMap<>(Game.class);
 
-    public GameStatsSyncWorker(RiotProperties properties, GameStatsStore store, GameStatsSyncLock lock,
-                               List<GameStatsProvider> providers)
+    public GameStatsSyncWorker(GameStatsStore store, GameStatsSyncLock lock, List<GameStatsProvider> providers)
     {
-        this.properties = properties;
         this.store = store;
         this.lock = lock;
         providers.forEach(provider -> this.providers.put(provider.game(), provider));
     }
 
     /**
-     * 그 사람의 그 게임 전적을 긁는다.
-     *
-     * @param respectFreshness {@code true} 면 {@code synced_at} 이 {@code freshness} 안이면 건너뛴다(글을 쓸 때).
-     *                         {@code false} 면 신선도를 보지 않고 무조건 긁는다(게임 계정을 연결할 때 — 방금 바꾼 계정에 옛 전적이 남으면 안 된다)
+     * 그 사람의 그 게임 전적을 긁는다. <b>신선도를 보지 않는다</b> — 부르는 곳이 게임 계정을 저장한 직후 하나뿐이라
+     * 방금 바꾼 계정에 옛 전적이 남으면 안 된다(2026-09-24 소유자 결정 — {@link GameStatsSync}).
      */
     @Async(GameStatsAsyncConfig.EXECUTOR)
-    public void sync(Long userId, Game game, boolean respectFreshness)
+    public void sync(Long userId, Game game)
     {
         GameStatsSyncLock.Token token = null;
         try
@@ -77,12 +69,6 @@ public class GameStatsSyncWorker {
                 return;
             }
             GameAccount account = found.get().account();
-            GameAccountStats current = found.get().stats();
-            if(respectFreshness && fresh(current))
-            {
-                log.debug("전적이 신선해서 긁지 않는다 gameAccountId={} syncedAt={}", account.getId(), current.getSyncedAt());
-                return;
-            }
 
             token = lock.acquire(account.getId());
             if(!token.proceed())
@@ -112,11 +98,5 @@ public class GameStatsSyncWorker {
         {
             lock.release(token);
         }
-    }
-
-    /** {@code synced_at} 이 {@code freshness} 안인가. 전적 줄이 없으면 신선하지 않다 */
-    private boolean fresh(GameAccountStats stats)
-    {
-        return stats != null && stats.getSyncedAt().isAfter(Instant.now().minus(properties.freshness()));
     }
 }

@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <ul>
  *   <li>키 헤더({@code X-Riot-Token})가 없거나 다르면 <b>403</b> 이다. 실제 Riot 과 같은 자리에서 걸러진다</li>
  *   <li>{@link #failWith(int)} 로 모든 주소가 그 상태를 주게 한다(500 · 429). {@link #respondAfter(Duration)} 로 늦게 답한다(타임아웃)</li>
- *   <li>{@link #calls()} 는 <b>받은 요청의 수</b>다 — "신선하면 아예 부르지 않는지" 를 이것으로 본다</li>
+ *   <li>{@link #calls()} 는 <b>받은 요청의 수</b>다 — "아예 부르지 않는지" 를 이것으로 본다</li>
  *   <li>넣어 두지 않은 Riot ID · 소환사 · 경기는 <b>404</b> 다</li>
  * </ul>
  */

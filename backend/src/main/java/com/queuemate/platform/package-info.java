@@ -15,7 +15,8 @@
  *       도메인 둘({@code party} 의 모드 · {@code account} 의 티어)이 같이 쓰므로 여기 있다. <b>쓰지 않는다</b>)</li>
  *   <li>{@code account} — 가입 · 로그인 · 프로필 · 게임 계정(게임 프로필) · 소셜 로그인. 안에서 {@code controller} · {@code service} ·
  *       {@code domain} · {@code repository} · {@code dto} 로 나누고, 제공자와 주고받는 것은 {@code oauth} 에,
- *       <b>게임사 API 에서 전적을 긁는 것은 {@code stats}</b> 에 둔다(2026-09-23 — LoL 만. 비동기이고 실패가 본 작업을 뒤집지 않는다)</li>
+ *       <b>게임사 API 에서 전적을 긁는 것은 {@code stats}</b> 에 둔다(2026-09-23 — LoL 만. 비동기이고 실패가 본 작업을 뒤집지 않는다.
+ *       <b>거는 곳은 게임 계정을 저장하는 자리 하나뿐이라 {@code account} 안에서 끝난다</b> — 2026-09-24 소유자 결정으로 글 쓰기가 거는 길이 없어졌다)</li>
  *   <li>{@code social} — 차단 · 친구 요청과 친구 · 신고 · 최근 함께한 사람(읽는 쪽만 — 채우는 것은 SQS 가 정해진 뒤다).
  *       {@code account} 와 같은 모양이다. <b>사람을 검색하는 요청은 없다</b>(CLAUDE.md §1)</li>
  *   <li>{@code party} — 파티 모집 게시판의 글 쪽과 확정된 파티의 기록. 같은 모양에 둘이 더 있다 — {@code room}({@code room} 의 방 키를
@@ -24,8 +25,7 @@
  *
  * <p><b>도메인 사이는 "읽는 창구"로만 잇는다</b> — 남의 리포지토리를 직접 쓰거나 남의 스키마의 테이블을 JOIN 하지 않는다.
  * <ul>
- *   <li>{@code account.service.UserReader}(있는 사용자인가 · 닉네임) · {@code account.service.GameProfileReader}(여러 사용자의 게임 프로필 — 쿼리 한 번) ·
- *       {@code account.stats.GameStatsSync}(전적을 긁으라고 거는 창구 — 글을 쓸 때 {@code party} 가 부른다)</li>
+ *   <li>{@code account.service.UserReader}(있는 사용자인가 · 닉네임) · {@code account.service.GameProfileReader}(여러 사용자의 게임 프로필 — 쿼리 한 번)</li>
  *   <li>{@code social.service.BlockReader}(나와 어느 방향으로든 차단 관계인 사람 — 쿼리 한 번)</li>
  * </ul>
  *

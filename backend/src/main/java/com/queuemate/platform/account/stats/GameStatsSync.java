@@ -8,17 +8,15 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * <b>전적 동기화를 거는 창구</b> — {@code account} 밖(글 쓰기)에서도 이것만 부른다({@code account} 의 {@code UserReader} ·
- * {@code GameProfileReader} 와 같은 자리다 — CLAUDE.md §4). 안에서 무슨 일이 일어나는지는 {@link GameStatsSyncWorker} 다.
+ * <b>전적 동기화를 거는 창구</b> — 안에서 무슨 일이 일어나는지는 {@link GameStatsSyncWorker} 다.
  *
- * <p><b>긁는 시점은 둘이다</b>(2026-09-23 소유자 결정 · {@code contracts/platform-api.md} "게임 프로필").
- * <ul>
- *   <li>{@link #afterGameAccountLinked} — 게임 계정을 연결할 때({@code PUT …/game-accounts/{game}}). <b>신선도를 보지 않는다</b></li>
- *   <li>{@link #afterPostCreated} — 모집 글을 쓸 때({@code POST /posts}). 방장의 그 게임 계정을 보고 <b>{@code synced_at} 이 신선하면 건너뛴다</b></li>
- * </ul>
+ * <p><b>긁는 시점은 하나다 — 게임 계정을 연결 · 수정할 때</b>({@code PUT …/game-accounts/{game}}. 2026-09-24 소유자 결정 ·
+ * {@code contracts/platform-api.md} "전적을 긁는 것"). 2026-09-23 에는 <b>모집 글을 쓸 때</b>도 긁었고 그쪽만 {@code synced_at} 이
+ * 신선하면 건너뛰었다 — 긁는 것이 비동기라 방금 쓴 글의 응답에 반영되지 않는데 Riot 호출 20여 번을 쓴다는 이유로 되물렸다.
+ * <b>그래서 신선도를 보는 장치도 함께 없앴다</b>(넘기는 곳이 사라져 죽은 코드가 됐다).
  *
- * <p><b>커밋된 뒤에 시작한다</b>({@code common.push.PushPublisher} 와 같은 방식) — 되돌려진 변경(409 로 끝난 글 쓰기 등)의 전적을 긁지 않고,
- * 긁는 쪽이 방금 쓴 게임 계정을 반드시 볼 수 있게 한다. 트랜잭션 밖에서 부르면 바로 건다.
+ * <p><b>커밋된 뒤에 시작한다</b>({@code common.push.PushPublisher} 와 같은 방식) — 되돌려진 변경의 전적을 긁지 않고,
+ * 긁는 쪽이 방금 저장한 게임 계정을 반드시 볼 수 있게 한다. 트랜잭션 밖에서 부르면 바로 건다.
  *
  * <p><b>키가 없으면 아무것도 하지 않는다</b>({@code RIOT_API_KEY}) — 기동은 정상이고 {@code stats} 가 {@code null} 로 남는다.
  * 그 판단을 여기서 하므로 키가 없을 때는 전용 풀에 일이 쌓이지도 않는다.
@@ -46,19 +44,13 @@ public class GameStatsSync {
         }
     }
 
-    /** 게임 계정을 연결 · 수정했다. <b>신선도를 보지 않고 긁는다</b> — 닉네임이 바뀌었을 수 있어 옛 전적을 그대로 두면 안 된다 */
+    /** 게임 계정을 연결 · 수정했다. <b>무조건 긁는다</b> — 닉네임이 바뀌었을 수 있어 옛 전적을 그대로 두면 안 된다 */
     public void afterGameAccountLinked(Long userId, Game game)
     {
-        start(userId, game, false);
+        start(userId, game);
     }
 
-    /** 모집 글을 썼다. 그 글의 게임에 연결한 방장의 게임 계정을 본다 — 신선하면 건너뛴다(글마다 Riot 을 부르지 않는다) */
-    public void afterPostCreated(Long hostId, Game game)
-    {
-        start(hostId, game, true);
-    }
-
-    private void start(Long userId, Game game, boolean respectFreshness)
+    private void start(Long userId, Game game)
     {
         if(!properties.configured())
         {
@@ -66,14 +58,14 @@ public class GameStatsSync {
         }
         if(!TransactionSynchronizationManager.isSynchronizationActive())
         {
-            worker.sync(userId, game, respectFreshness);
+            worker.sync(userId, game);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit()
             {
-                worker.sync(userId, game, respectFreshness);
+                worker.sync(userId, game);
             }
         });
     }

@@ -4,7 +4,6 @@ import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.account.dto.GameProfileResponse;
 import com.queuemate.platform.account.dto.UserGameProfile;
 import com.queuemate.platform.account.service.GameProfileReader;
-import com.queuemate.platform.account.stats.GameStatsSync;
 import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.gameconfig.GameConfigReader;
 import com.queuemate.platform.party.domain.PartyMember;
@@ -65,23 +64,18 @@ public class PostService {
     private final BlockReader blockReader;
     private final RoomTicketIssuer roomTicketIssuer;
     private final BoardProperties boardProperties;
-    private final GameStatsSync gameStatsSync;
     private final GameConfigReader gameConfig;
 
     /**
-     * 글을 쓴다. <b>성공하면 방장의 전적을 긁는다</b>(2026-09-23 소유자 결정 — {@code contracts/platform-api.md} "게임 프로필") —
-     * 글 한 줄에 방장의 전적이 실리므로 글을 쓸 때가 갱신할 때다.
-     *
-     * <p><b>비동기이고 신선하면 건너뛴다</b>({@code platform.riot.freshness}) — 이 응답의 {@code host.profile.stats} 는 아직 예전 값이고
-     * 잠시 뒤에 채워진다(프런트가 게시판 신호를 받아 목록을 다시 받으면 보인다). {@link PostStore#create} 가 이미 커밋한 뒤라서 바로 걸린다 —
-     * 이 클래스에 트랜잭션을 들이지 않는다.
+     * 글을 쓴다. <b>전적을 긁지 않는다</b>(2026-09-24 소유자 결정 — 2026-09-23 의 "긁는 시점은 둘" 가운데 이쪽을 되물렸다.
+     * {@code contracts/platform-api.md} "전적을 긁는 것" · P-13) — 긁는 것은 <b>비동기</b>라 이 응답의 {@code host.profile.stats} 에
+     * 반영되지도 않으면서 Riot 호출 20여 번을 쓴다. 전적은 <b>게임 계정을 저장할 때만</b> 갱신된다.
      */
     public PostResponse create(Long me, PostCreateRequest request)
     {
         // gameconfig(Redis)를 읽는 검증은 여기서 한다 — PostStore 의 트랜잭션이 Redis 를 기다리며 DB 커넥션을 붙잡지 않게 (2026-09-24)
         PostValidation.mode(gameConfig, PostValidation.game(request.game()), request.mode());
         RecruitPost post = postStore.create(me, request, now());
-        gameStatsSync.afterPostCreated(me, post.getGame());
         // 방금 쓴 글이다 — 방이 있을 수 없다(브라우저가 이 응답의 id 로 room 의 방 만들기를 부른다). 방 키를 읽지 않는다
         return renderAll(me, List.of(post), Map.of(), false).getFirst();
     }

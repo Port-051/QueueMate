@@ -9,7 +9,7 @@ import com.queuemate.platform.account.domain.Game;
  * <p><b>지금 구현은 LoL 하나다</b>({@link LolStatsProvider} — Riot API). VALORANT 는 Riot 의 <b>별도 승인</b>이 필요하고
  * PUBG 는 다른 API 다 — 구현이 없는 게임은 {@link GameStatsSyncWorker} 가 조용히 끝낸다(CLAUDE.md §7 "게임 계정 연동").
  *
- * <p><b>구현은 게임사 API 를 부르기만 한다</b> — DB 에 쓰지 않고, 락도 신선도도 보지 않는다(그것은 {@link GameStatsSyncWorker} 의 몫이다).
+ * <p><b>구현은 게임사 API 를 부르기만 한다</b> — DB 에 쓰지 않고, 락도 보지 않는다(그것은 {@link GameStatsSyncWorker} 의 몫이다).
  */
 public interface GameStatsProvider {
 

@@ -17,8 +17,6 @@ import java.time.Duration;
  * @param regionalBaseUrl 대륙 주소 — {@code account-v1}(Riot ID → puuid) · {@code match-v5}(경기)
  * @param platformBaseUrl 플랫폼 주소 — {@code summoner-v4} · {@code league-v4}(솔로랭크의 승/패)
  * @param matchCount      최근 몇 경기를 읽어 평균을 낼지. 경기 하나가 요청 하나다 — 개발용 키의 한도(2분당 100회)를 생각해 작게 둔다
- * @param freshness       <b>글을 쓸 때만</b> 본다 — {@code synced_at} 이 이보다 새것이면 긁지 않는다.
- *                        <b>게임 계정을 연결할 때는 보지 않는다</b>(방금 바꾼 계정에 옛 전적이 남아 있으면 안 된다)
  * @param connectTimeout  Riot 을 부를 때의 연결 타임아웃
  * @param readTimeout     Riot 을 부를 때의 읽기 타임아웃. 긁는 것은 비동기라 요청 스레드를 붙잡지는 않지만, 느린 응답에 전용 풀이 묶이면 안 된다
  */
@@ -28,7 +26,6 @@ public record RiotProperties(
         @DefaultValue("https://asia.api.riotgames.com") String regionalBaseUrl,
         @DefaultValue("https://kr.api.riotgames.com") String platformBaseUrl,
         @DefaultValue("20") int matchCount,
-        @DefaultValue("PT30M") Duration freshness,
         @DefaultValue("PT3S") Duration connectTimeout,
         @DefaultValue("PT3S") Duration readTimeout
 ) {
@@ -43,7 +40,6 @@ public record RiotProperties(
     public String toString()
     {
         return "RiotProperties[configured=" + configured() + ", regionalBaseUrl=" + regionalBaseUrl
-                + ", platformBaseUrl=" + platformBaseUrl + ", matchCount=" + matchCount
-                + ", freshness=" + freshness + "]";
+                + ", platformBaseUrl=" + platformBaseUrl + ", matchCount=" + matchCount + "]";
     }
 }
