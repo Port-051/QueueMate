@@ -18,17 +18,17 @@
 ```
 
 **계정과 인증 · 소셜 로그인(카카오 · 디스코드) · 게임 프로필 · 차단 · 파티 모집 게시판(글 · 목록 · 입장권 · 게시판 신호) · 방장 확정의 기록 · 친구 · 신고가 구현돼 있다**(2026-09-21 — 빈 뼈대에서 하루 만에 들어왔다. 테스트는 PostgreSQL 5433 · Redis 6380 에서 돈다).
-**없는 것** — 자동 매칭 파티(`ProposalConfirmed.fifo` · `PartyClosed.fifo` — SQS 배선이 미정이다), refresh 토큰(access 24시간이 임시로 돈다 — `TEMP-NO-REFRESH`), 게임사 API 연동(전적 `stats` 는 늘 `null` 이다). 친구 · 신고 · 최근 함께한 사람(읽기)과 알림 `FRIEND_REQUEST_RECEIVED` · `FRIEND_REQUEST_ACCEPTED` 도 같은 날 들어왔다(통과 여부는 `START_HERE.md` §1 의 표) — **최근 함께한 사람은 채우는 주체가 없어 늘 빈 목록이다.**
+**없는 것** — 자동 매칭 파티(`ProposalConfirmed.fifo` · `PartyClosed.fifo` — SQS 배선이 미정이다), 게임사 API 연동(전적 `stats` 는 늘 `null` 이다). **refresh 토큰은 2026-09-23 소유자 결정으로 붙었다** — access 15분 · refresh 7일이고 `TEMP-NO-REFRESH` 가 없어졌다(`CLAUDE.md` §5.1 (라) · (마)). 친구 · 신고 · 최근 함께한 사람(읽기)과 알림 `FRIEND_REQUEST_RECEIVED` · `FRIEND_REQUEST_ACCEPTED` 도 같은 날 들어왔다(통과 여부는 `START_HERE.md` §1 의 표) — **최근 함께한 사람은 채우는 주체가 없어 늘 빈 목록이다.**
 
 > **지위.** 소유자가 "네가 platform 을 만들어 봐라"고 맡겼고, 문서가 "미정"으로 묶어 둔 것들을 **Claude 가 정해 구현했다. 소유자는 아직 항목별로 검토하지 않았다.** 정한 것의 원본은 **`contracts/platform-api.md`**
-> (머리의 "지위" · 맨 아래 "원본에 올려야 할 것" P-1~P-12)이고 **`matching` 의 결정 로그(docs/11)에 D-항목이 없다.** 소유자가 직접 정한 것은 "소유자 확정" · "소유자 지시"라고 적었다.
+> (머리의 "지위" · 맨 아래 "원본에 올려야 할 것" P-1~P-15 — P-11 ~ P-15 는 소유자가 직접 정한 것이다)이고 **`matching` 의 결정 로그(docs/11)에 D-항목이 없다.** 소유자가 직접 정한 것은 "소유자 확정" · "소유자 지시"라고 적었다.
 
 처음 열었으면 **`START_HERE.md`** 부터 읽는다 — 지금 어디까지 됐나, 만드는 순서, 다음에 닿기 전에 물어야 하는 것 · 소유자가 검토해야 하는 것이 거기 있다. 규칙은 `CLAUDE.md`, 이 폴더에서 정한 계약은 `contracts/platform-api.md`, `room` 계약의 사본은 `docs/ROOM_CONTRACT.md` 다.
 
 ## 이 서비스가 하는 일
 
 1. **계정** — 회원가입/로그인, 프로필, 게임 계정 연결. 인증 토큰을 발급한다 — access 는 쿠키(`qm_access`)로 주고받는 JWT,
-   refresh 는 Redis 에 저장하는 불투명 UUID 다(`matching` docs/11 D-14 — **refresh 는 아직 없다**). 서명은 RS256 이고 개인 키는 이 앱만 갖는다 — 다른 서비스는 공개 키로 검증만 한다(`CLAUDE.md` §5.1).
+   refresh 는 Redis 에 저장하는 불투명 UUID 다(`matching` docs/11 D-14). **refresh 도 붙었다**(2026-09-23 소유자 결정 — access 15분 · refresh 7일 · 재발급은 `POST /api/v1/auth/refresh` 이고 쓴 값은 그 자리에서 버린다). 서명은 RS256 이고 개인 키는 이 앱만 갖는다 — 다른 서비스는 공개 키로 검증만 한다(`CLAUDE.md` §5.1).
    access 토큰 · 입장권 · 소셜 가입 대기 토큰을 같은 키로 서명하고 **`token_use` 클레임으로 가른다.** 상태를 바꾸는 요청은 `Origin` 을 검사하고, 로그인은 계정 단위로 실패 횟수를 제한한다(`contracts/platform-api.md` "공통" · "계정").
    **식별자는 둘이다**(2026-09-22 소유자 결정 — `CLAUDE.md` §3.5 · `contracts/platform-api.md` P-11). **모든 테이블의 PK 가 `bigint identity` 이고, `userId` 는 DB 가 매기는 사용자 번호다** — JWT 의 `sub`(숫자를 문자열로) · 알림 채널 · 입장권 · URL · 본문이 전부 그것을 쓴다.
    가입 · 로그인에 쓰는 **로그인 아이디는 `loginId` 로 따로** 있다(`^[a-z0-9_]{4,20}$` · 중복은 409 `LOGIN_ID_TAKEN`). 2026-09-19 의 "사용자 id 는 가입할 때 정한 로그인 아이디(문자열)"를 개정하는 것이다 — **`matching` 의 `Block.java` 를 `Long` 으로 바꿔야 한다(그 폴더의 일이고 아직 안 바꿨다).**
@@ -95,7 +95,7 @@ queuemate/
 └── platform/       platform 브랜치 (이 폴더)
     ├── START_HERE.md   시작 안내 — 지금 어디까지 됐나 · 만드는 순서 · 다음에 닿기 전에 물어야 하는 것
     ├── CLAUDE.md       규칙
-    ├── contracts/      platform-api.md — 이 폴더에서 정한 계약(경로 · 스키마 · 에러 코드 · 토큰 · 입장권 · 알림)과 "원본에 올려야 할 것" P-1~P-12
+    ├── contracts/      platform-api.md — 이 폴더에서 정한 계약(경로 · 스키마 · 에러 코드 · 토큰 · 입장권 · 알림)과 "원본에 올려야 할 것" P-1~P-15
     ├── docs/           옆 폴더 문서의 사본 (ROOM_CONTRACT.md — room 계약 가운데 이 앱에 걸리는 부분)
     └── backend/        스프링 앱. matching/backend/ · room/backend/ 와 같은 모양
                         패키지는 도메인 먼저 — common(에러 · Origin 검사 · 토큰 · 알림 봉투) · account(계정 · 게임 프로필 · oauth) · social(차단 · 친구 · 신고 · 최근 함께한 사람) · party(글 · 목록 · 입장권 · 확정 기록 · room 키 읽기 · 게시판 신호)
@@ -139,7 +139,7 @@ ERD 는 <https://claude.ai/artifact/LBngVYThyCjipLUkatC6Bq> 다.
 
 미뤄도 되는 것:
 
-- refresh 토큰과 그 교체(rotation) — access 토큰만으로 시작했고 **지금도 그렇다**(access 24시간 — 코드에 `TEMP-NO-REFRESH` 로 표시했다). **배포 전에는 refresh 가 있어야 한다.** access denylist 는 미루는 것이 아니라 **두지 않는다**(2026-09-21 — `CLAUDE.md` §5.1 (라))
+- (**refresh 토큰과 그 교체(rotation) 는 이 목록에서 빠졌다** — 2026-09-23 소유자 결정으로 붙었다. access 15분 · refresh 7일 · 쓴 값은 그 자리에서 버린다 — `CLAUDE.md` §5.1 (라) · (마)). **access denylist 는 미루는 것이 아니라 두지 않는다**(2026-09-21 — 같은 절). 그래서 로그아웃한 access 는 **최대 15분** 살아 있다
 - 게임사 API 연동 — 게임 계정의 **자기신고**(게임 닉네임 · 티어 · 주 포지션 · 서버)와 전적 스냅숏을 담을 테이블까지는 들어왔다. **외부 API 로 전적을 채우고 본인 계정임을 인증하는 것(`verified`)이 미뤄져 있다** — API 키와 Riot 의 승인이 필요하다(VALORANT 의 전적 API 는 별도 승인이다)
 - 신고는 접수만 받는 최소 형태로 둔다(처리 화면 · 제재는 없다)
 - 이미 가입한 계정에 소셜 계정을 나중에 잇기 · 끊기, 소셜 가입자가 비밀번호를 만드는 것 — 하지 않았다(`contracts/platform-api.md` "소셜 로그인")
@@ -152,13 +152,13 @@ ERD 는 <https://claude.ai/artifact/LBngVYThyCjipLUkatC6Bq> 다.
 
 > **2026-09-21 에 이 목록에서 많은 것이 빠졌다** — 엔드포인트의 경로와 스키마, 입장권, `roomId`, "아직 안 만들어진 방"을 가르는 법, 확정된 글에서 방장 키가 없을 때, 방장 확정을 아는 법, 테이블 컬럼, 로그인 아이디의 허용 문자 · 길이,
 > 인증의 남은 것(쿠키 이름 · `iss` · 키 · 환경변수), 패키지 · readiness · 포트. **소유자가 직접 정한 것은 인증 세부와 그 남은 것 · 소셜 로그인을 넣는다는 것 · 목록의 한 줄이 게임마다 다르다는 것 · 닉네임의 대소문자 구별 · 포트이고,
-> 나머지는 Claude 가 정해 구현했으며 소유자가 항목별로 검토하지 않았다**(`contracts/platform-api.md` P-1~P-12 · `START_HERE.md` §4 "소유자가 검토해야 하는 것"). **아래 남은 것은 여전히 묻고 정한다 — 지어내지 않는다.**
+> 나머지는 Claude 가 정해 구현했으며 소유자가 항목별로 검토하지 않았다**(`contracts/platform-api.md` P-1~P-15 · `START_HERE.md` §4 "소유자가 검토해야 하는 것"). **아래 남은 것은 여전히 묻고 정한다 — 지어내지 않는다.**
 
-- **소유자의 검토와 결정 로그** — `contracts/platform-api.md` 의 P-1~P-10(Claude 가 정해 구현한 것). 계약 원본(queueMate 본 저장소 `feature/frontend`)에 platform 엔드포인트가 이미 있으면 그쪽과 맞춰야 한다. **docs/11 에 정한 것이 하나도 안 올라갔다**(`matching` 폴더의 일이다 —
+- **소유자의 검토와 결정 로그** — `contracts/platform-api.md` 의 P-1~P-10(Claude 가 정해 구현한 것). **P-11 ~ P-15 는 소유자가 직접 정한 것이라 검토가 아니라 docs/11 에 올리는 것이 남았다**(P-15 가 refresh 토큰이다). 계약 원본(queueMate 본 저장소 `feature/frontend`)에 platform 엔드포인트가 이미 있으면 그쪽과 맞춰야 한다. **docs/11 에 정한 것이 하나도 안 올라갔다**(`matching` 폴더의 일이다 —
   인증 세부 `CLAUDE.md` §5.1 은 #16 의 access denylist 를 개정한다)
 - **식별자 결정(2026-09-22 소유자 결정 — P-11)의 뒤처리** — 검토가 아니라 **할 일**이다. ① **`matching` 의 `block/Block.java` 를 `Long` 으로 바꾸기**(`social.blocks` 의 두 칸이 bigint 가 됐다. 바꾸기 전까지 `matching` 은 그 테이블을 읽다가 런타임에 깨진다 — 그 폴더의 일이다)
   ② docs/11 에 D-항목으로 남기기(2026-09-19 의 결정과 D-4 를 개정한다) ③ **자동 매칭 파티(`source='MATCH'`)가 `matching` 의 UUID `partyId` 를 어디에 드는지 — 미정이다.** `parties.id` 가 bigint 라서 생긴 물음이고 6단계(SQS)에 닿을 때 묻는다
-- **refresh 토큰의 도입** — 설계는 정해져 있고(`CLAUDE.md` §5.1 (라) · (마)) 코드가 없다. 재발급 경로와 refresh 쿠키의 이름은 닿으면 묻는다. **배포 전에 있어야 한다**
+- **refresh 토큰에 남은 것** — 도입은 됐다(2026-09-23 소유자 결정 — `CLAUDE.md` §5.1 (라) · (마) · `contracts/platform-api.md` P-15). **남은 것** — ① **한 사용자의 refresh 를 한꺼번에 끊는 길이 없다**(사용자별 토큰 집합을 두지 않았다 — 비밀번호를 바꾸거나 계정이 털렸을 때 모든 기기를 로그아웃시킬 수 없다. 둘지부터가 미정이다) ② **프런트의 재발급 흐름**(access 가 만료되기 전에 프런트가 불러야 하고 서버 쪽 장치는 없다 — 맞춰 본 적이 없다)
 - **SQS 배선과 메시지 본문** — `ProposalConfirmed.fifo` 소비, `PartyClosed.fifo`, outbox 테이블. `matching` 쪽 발행이 없다. **파티가 "닫혔다"를 무엇으로 판단하는가**도 문서에 없다 — 그래서 최근 함께한 사람을 채우지 못한다. `PARTY_*` 알림의 이름과 payload 도 미정이다
 - **확정된 사용자를 매칭에서 풀어 주는 길** — `matching` 이 기다리고 있는 결정이다 (`matching/HANDOFF.md` ①). "방이 닫힐 때 `room` 이
   활성 요청 키를 지운다"는 가능성은 없어졌다(docs/11 D-19) — 푸는 주체는 `matching` 이나 이 앱 쪽에서 찾아야 한다. 확정된 사용자는

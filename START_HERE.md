@@ -4,7 +4,7 @@
 > `CLAUDE.md` §7 에서도 뺀다(해당 절로 옮긴다).
 
 > **지위(2026-09-21) — 먼저 읽어라.** 이날 빈 뼈대에서 1 · 2 · 3 · 5단계와 7단계의 일부(친구 · 신고)가 구현됐다. 소유자가 "네가 platform 을 만들어 봐라"고 맡겼고, 문서가 "미정 — 임의로 정해 구현하지 마라"로 묶어 둔 것들을
-> **Claude 가 정해 구현했다. 소유자는 아직 항목별로 검토하지 않았다.** 그렇게 정한 것의 원본은 **`contracts/platform-api.md`**(머리의 "지위" 문단 · 맨 아래 "원본에 올려야 할 것" P-1~P-10)이고,
+> **Claude 가 정해 구현했다. 소유자는 아직 항목별로 검토하지 않았다.** 그렇게 정한 것의 원본은 **`contracts/platform-api.md`**(머리의 "지위" 문단 · 맨 아래 "원본에 올려야 할 것" P-1~P-15 — P-11 ~ P-15 는 소유자가 직접 정한 것이다)이고,
 > **docs/11 에 D-항목이 하나도 없다.** 소유자가 직접 정한 것은 이 파일에서 "소유자 확정" · "소유자 지시"라고 따로 적었다. **남은 미정(§4)에는 "묻고 정한다"가 그대로 걸린다.**
 
 **먼저 읽을 것 — 이 순서로.**
@@ -26,17 +26,21 @@
 ## 1. 지금 어디까지 됐나 (2026-09-21)
 
 **platform 은 1 · 2 · 3 · 5단계와 7단계의 일부가 됐다.** 빈 뼈대에서 하루 만에 계정과 인증 · 소셜 로그인 · 게임 프로필 · 차단 · 파티 모집 게시판(글 · 목록 · 입장권 · 게시판 신호) · 방장 확정의 기록 · 친구 · 신고가 들어왔다.
-**막힌 것은 6단계(SQS)와 거기에 매인 것들이고, 없는 것은 refresh 토큰과 게임사 API 연동이다.** 정한 것의 지위는 머리의 "지위"를 본다.
+**막힌 것은 6단계(SQS)와 거기에 매인 것들이고, 없는 것은 게임사 API 연동이다. refresh 토큰은 2026-09-23 소유자 결정으로 붙었다**(바로 아래). 정한 것의 지위는 머리의 "지위"를 본다.
 
 > **2026-09-22 소유자 결정 둘 — 코드 · 마이그레이션 · 계약이 전부 이 모양이다.**
 > ① **모든 테이블의 PK 가 `bigint GENERATED ALWAYS AS IDENTITY` 가 됐고, 사용자의 식별자가 둘로 갈렸다** — **`userId` 는 사용자 번호**(`account.users.id`)이고 가입 · 로그인에 쓰는 **로그인 아이디는 `loginId`** 다(중복은 409 `LOGIN_ID_TAKEN`).
 > **2026-09-19 의 "사용자 id 는 가입할 때 정한 로그인 아이디(문자열)"를 개정하는 것이다**(docs/11 D-4 와 얽힌다 — `CLAUDE.md` §3.5 · `contracts/platform-api.md` P-11). **`matching` 의 `block/Block.java` 를 `Long` 으로 바꿔야 한다(아직 안 바꿨다 — 그 폴더의 일이다).**
 > ② **스키마별 DB 롤은 두지 않는다**(아래 2단계 · §4 D). **둘 다 docs/11 에 D-항목이 없다.**
 
+> **2026-09-23 소유자 결정 — refresh 토큰을 붙였다.** access 수명이 `PT24H`(`TEMP-NO-REFRESH`)에서 **`PT15M`** 으로 줄고, 불투명 UUID 의 refresh(**`P7D` — 7일**)가 그것을 이어 준다.
+> 재발급은 **`POST /api/v1/auth/refresh`**(본문 없이 쿠키 `qm_refresh` 로만)이고 **실패는 전부 같은 401 `INVALID_REFRESH_TOKEN`** 이다. 로그아웃이 Redis 의 그 줄과 쿠키 둘을 지운다.
+> **`TEMP-NO-REFRESH` 표식이 `backend/src` 에 0건이 됐다.** 경로 · 쿠키 이름 · 401 을 하나로 합친 것 · Redis 가 죽었을 때의 갈림은 **Claude 가 정했다**(`CLAUDE.md` §5.1 (라) · (마) · `contracts/platform-api.md` "refresh 토큰" · P-15. **docs/11 에 D-항목이 없다**).
+
 | 순서 | 만들 것 | `README.md` 의 단계 | 상태 |
 |---|---|---|---|
 | 0 | 뼈대 — Spring Boot 4.1.1 · Java 21 · PostgreSQL + Flyway · Redis · 헬스 엔드포인트 | (1단계의 "기반" 가운데 일부) | ✅ 2026-09-21 |
-| 1 | 계정과 인증 — 가입 · 로그인 · 로그아웃 · `users/me` · 닉네임 변경 · 게임 계정(자기신고) · RS256 JWT 쿠키 · `Origin` 검사 · 로그인 실패 제한. 스키마 `account` | 1 | ✅ 2026-09-21. **식별자가 둘로 갈렸다**(2026-09-22 — `users.id`(사용자 번호) · `login_id`. 가입 · 로그인 본문은 `loginId` 이고 JWT 의 `sub` 는 사용자 번호의 문자열이다). **refresh 토큰은 없다** — access 24시간이 임시로 돈다(`TEMP-NO-REFRESH`) |
+| 1 | 계정과 인증 — 가입 · 로그인 · 로그아웃 · `users/me` · 닉네임 변경 · 게임 계정(자기신고) · RS256 JWT 쿠키 · `Origin` 검사 · 로그인 실패 제한. 스키마 `account` | 1 | ✅ 2026-09-21. **식별자가 둘로 갈렸다**(2026-09-22 — `users.id`(사용자 번호) · `login_id`. 가입 · 로그인 본문은 `loginId` 이고 JWT 의 `sub` 는 사용자 번호의 문자열이다). **refresh 토큰이 붙었다**(2026-09-23 소유자 결정 — access 15분 · refresh 7일 · 재발급 `POST /api/v1/auth/refresh`. `TEMP-NO-REFRESH` 가 없어졌다) |
 | 1+ | **소셜 로그인(카카오 · 디스코드)** — 소유자 지시. 인가 코드 흐름을 `RestClient` 로 직접(세션 없음). 처음 온 사람은 아이디 · 닉네임을 정한다 | (순서에 없던 것) | ✅ 2026-09-21. **가짜 제공자로만 테스트했다 — 실제 키로는 붙여 보지 않았다** |
 | 1+ | **게임 프로필 · 전적 스냅숏 테이블**(`account.game_account_stats`) — 목록의 한 줄이 게임마다 다른 정보를 보여 주려는 것(소유자 지시) | (순서에 없던 것) | 🟡 **읽는 쪽만 있다.** 채우는 기능(Riot · PUBG API 연동)이 없어 `stats` 는 늘 `null` 이고 `verified` 를 켜는 길도 없다 |
 | 2 | 차단 — `social.blocks`(`matching` 이 읽는 모양) · API 셋. **스키마별 DB 롤은 두지 않는다**(2026-09-22 소유자 결정 — `qm_matching` 롤과 GRANT 를 뺐다. `CLAUDE.md` §3.5) | 2 | ✅ 2026-09-21. **`blocker_id` · `blocked_id` 가 bigint 가 됐다**(2026-09-22) — **`matching` 의 `Block.java` 를 `Long` 으로 바꿔야 한다. 아직 안 바꿨다 — 그 폴더의 일이고, 바꾸기 전까지 `matching` 은 이 테이블을 읽다가 깨진다** |
@@ -46,11 +50,11 @@
 | 6 | 자동 매칭 파티 — `ProposalConfirmed.fifo` 소비(SQS · outbox) | 6 | ⛔ **막혔다.** `matching` 쪽 발행이 없고 SQS 배선 · 메시지 본문이 미정이다. `party.outbox` 도 만들지 않았다 |
 | 7 | 친구 · 신고 · 최근 함께한 사람(읽기) · 알림 `FRIEND_REQUEST_RECEIVED` · `FRIEND_REQUEST_ACCEPTED` | 7 | 🟡 **친구 · 신고 · 최근 함께한 사람(읽기) · 알림 둘이 들어왔다**(2026-09-21 — `social/V6__friends_reports_recent_players.sql` · `social` 패키지 · `common/push/`. 계약은 `contracts/platform-api.md` "친구 · 신고 · 최근 함께한 사람"). **구현한 세션이 `./gradlew cleanTest build` 로 전부 통과시켰다**(2026-09-21 — 아래). **`PartyClosed.fifo` 는 6단계와 같이 막혀 있다 — 최근 함께한 사람을 채우는 주체가 없다**(읽으면 늘 빈 목록이다) |
 
-- **테스트가 138건이고 전부 통과한다**(2026-09-22 — 식별자 변경(위)과 전적 테이블 변경까지 마친 뒤 `./gradlew cleanTest build` 를 돌리고 `build/test-results/test/*.xml` 을 세었다. tests 138 · failures 0 · errors 0 · **skipped 0**. 테스트용 PostgreSQL 5433 · Redis 6380).
-  같은 날 **앱을 띄워 curl 로도 끝까지 확인했다** — 가입(`loginId`) → 409 `LOGIN_ID_TAKEN` → 로그인 → JWT 의 `sub` 가 사용자 번호(`"517"`) → 게임 계정 → 글 쓰기(`postId` 가 숫자) → `room` 인 척 방 키를 넣고 목록(인원 · 카드 · `filledPositions` · **승/패가 있는 전적과 없는 전적 둘 다**) → 입장권(클레임은 문자열 · 본문은 숫자) → 차단하면 목록에서 빠지고 입장권이 404 → 경로의 숫자가 아닌 id 는 400 · 본문의 것은 404 → 글을 고치고 지울 때 `qm:pubsub:board` 에 `BOARD_CHANGED` 둘 → SIGTERM 에 곱게 내려갔다.
+- **테스트가 162건이고 전부 통과한다**(2026-09-24 — **refresh 토큰을 붙인 뒤** `./gradlew cleanTest build` 를 돌리고 `build/test-results/test/*.xml` 을 세었다. tests **155 → 162** · failures 0 · errors 0 · **skipped 0**. 테스트용 PostgreSQL 5433 · Redis 6380).
+  **2026-09-22 에는 앱을 띄워 curl 로도 끝까지 확인했다** — 가입(`loginId`) → 409 `LOGIN_ID_TAKEN` → 로그인 → JWT 의 `sub` 가 사용자 번호(`"517"`) → 게임 계정 → 글 쓰기(`postId` 가 숫자) → `room` 인 척 방 키를 넣고 목록(인원 · 카드 · `filledPositions` · **승/패가 있는 전적과 없는 전적 둘 다**) → 입장권(클레임은 문자열 · 본문은 숫자) → 차단하면 목록에서 빠지고 입장권이 404 → 경로의 숫자가 아닌 id 는 400 · 본문의 것은 404 → 글을 고치고 지울 때 `qm:pubsub:board` 에 `BOARD_CHANGED` 둘 → SIGTERM 에 곱게 내려갔다.
   **건너뛴 것을 통과로 읽지 마라**(5432 · 6379 면 전부 건너뛴다 — §6).
 - **테스트가 확인하는 것**(파일 이름이 곧 목록이다 — `backend/src/test/java/com/queuemate/platform/`) —
-  - `account/` — 마이그레이션의 제약(`AccountMigrationTest`), 가입 · 로그인 · 로그아웃과 **중복 가입을 DB 제약이 막는 것**(`AuthApiTest`), `users/me` · 닉네임 · 게임 계정(`UserApiTest`), 게임 프로필과 전적 스냅숏을 읽는 쪽(`GameProfileTest`), 로그인 실패 제한(`LoginThrottleTest`), 소셜 로그인 — **가짜 제공자 서버**(`oauth/FakeOAuthProvider`)로 시작 · 콜백 · 처음 온 사람의 가입 · 설정이 없을 때(`oauth/*`).
+  - `account/` — 마이그레이션의 제약(`AccountMigrationTest`), 가입 · 로그인 · 로그아웃과 **중복 가입을 DB 제약이 막는 것**(`AuthApiTest`), `users/me` · 닉네임 · 게임 계정(`UserApiTest`), 게임 프로필과 전적 스냅숏을 읽는 쪽(`GameProfileTest`), 로그인 실패 제한(`LoginThrottleTest`), **재발급과 rotation · 실패가 전부 같은 401 인 것 · 로그아웃이 Redis 의 refresh 를 지우는 것 · Redis 가 죽으면 로그인은 되고 재발급은 401 인 것**(`RefreshTokenApiTest` — 2026-09-23), 소셜 로그인 — **가짜 제공자 서버**(`oauth/FakeOAuthProvider`)로 시작 · 콜백 · 처음 온 사람의 가입 · 설정이 없을 때(`oauth/*`).
   - `common/` — 쿠키의 토큰 검증과 **`token_use` 가 다른 토큰을 거절하는 것**(`AuthenticationTest`), 키를 읽고 만드는 것(`JwtKeysTest`), **다른 출처의 `Origin` 을 단 POST 가 거절되는 것**(`OriginCheckTest`).
   - `social/` — 차단 API(`BlockApiTest`), **`social.blocks` 의 컬럼 이름 · 자료형과 제약이 약속대로 있는 것**(`BlockMigrationTest` — PostgreSQL 에서만 볼 수 있다. 롤 · GRANT 는 보지 않는다 — 스키마별 DB 롤을 두지 않는다.
     **두 칸이 bigint 가 됐으므로 `matching` 의 `Block.java` 쪽을 `Long` 으로 맞춰야 한다** — 그 폴더의 일이다). 친구 요청 · 수락 · 거절 · 거두기 · 목록 · 끊기(`FriendApiTest`), **상대의 채널을 구독해서 알림을 확인하는 것**(`FriendPushTest`)과 Redis 가 죽어도 본 작업이 되는 것(`FriendPushRedisDownTest`), 신고(`ReportApiTest`), 최근 함께한 사람의 읽기(`RecentPlayerApiTest`), 제약(`SocialMigrationTest`).
@@ -60,7 +64,7 @@
 - **그 밖에 정한 것**(전부 Claude 가 정했다 — 포트만 소유자 확정) — 패키지는 도메인 먼저(`common` · `account` · `social` · `party` — `backend/…/platform/package-info.java`), 에러 본문은 `matching` · `room` 과 같은 `{code, message, details: [문자열]}`,
   **readiness 에 `db` 를 넣었고 Redis 는 넣지 않았다**, **포트 8082 확정**, Hibernate 의 제약 위반 WARN 로거를 껐다(중복을 DB 제약 위반으로 아는 것이 정상 경로라서다 — `application.yaml` 의 주석), 마이그레이션의 **버전 번호는 스키마 폴더 사이에서 하나의 순서**다(V1 baseline · `account/` V2 · V3 · `social/` V4 · `party/` V5 · `social/` V6),
   개발용 키는 `backend/.dev-keys/`(gitignore — 옆 서비스는 그 `public.pem` 으로 검증한다. §2).
-- **넣지 않은 것** — AWS SDK(SQS)와 outbox 테이블(6단계 — `build.gradle` 에 넣을 자리만 주석으로 남겼다), refresh 토큰, 게임사 API 클라이언트, Spring 의 `oauth2-client`(세션을 쓴다 — 쓰지 않기로 했다), jjwt, **H2**(PostgreSQL 의 제약을 그대로 재현하지 못한다 — `CLAUDE.md` §5 · docs/11 D-3).
+- **넣지 않은 것** — AWS SDK(SQS)와 outbox 테이블(6단계 — `build.gradle` 에 넣을 자리만 주석으로 남겼다), 게임사 API 클라이언트, Spring 의 `oauth2-client`(세션을 쓴다 — 쓰지 않기로 했다), jjwt, **H2**(PostgreSQL 의 제약을 그대로 재현하지 못한다 — `CLAUDE.md` §5 · docs/11 D-3).
   이미 가입한 계정에 소셜 계정을 나중에 잇기 · 끊기, 소셜 가입자의 비밀번호 만들기, 신고의 처리 화면 · 제재도 없다(`contracts/platform-api.md`).
 - **뼈대의 기준은 Spring Initializr 다.** `start.spring.io` 에 Boot 4.1.1 · Java 21 · Gradle 로 `web, validation, data-jpa, postgresql, flyway, data-redis, actuator, lombok` 을 넣어 받은 것에서 시작했다(wrapper 는 Gradle 9.7.1 — `room/backend` 와 같은 파일).
   그 뒤 `spring-boot-starter-security` · `spring-boot-starter-security-oauth2-resource-server`(Boot 4 에서 바뀐 이름이다)와 그 테스트 스타터를 더했다. `application.properties` 대신 `application.yaml`, `.gitignore` 는 폴더 루트의 것을 쓴다(`room` 과 같다).
@@ -96,7 +100,7 @@
 |---|---|
 | 공개 키 | 로컬 — **`backend/.dev-keys/public.pem`**(X.509 PEM. 이 앱을 키 없이 한 번 띄우면 생긴다. git 에 없다). 운영 — 환경변수로 넣는다(이 앱의 이름은 `JWT_PUBLIC_KEY` 다. 옆 서비스가 같은 이름을 쓸지는 그 폴더에서 정한다). JWKS 엔드포인트는 없다 |
 | 공통 검증 | 서명(RS256 · 헤더에 `kid`) · **`iss` = `queuemate-platform`** · `exp` · **그리고 `token_use` 가 기대한 값인지** |
-| access 토큰 | 쿠키 **`qm_access`**. 클레임 `iss` · **`sub`(= `userId` — 사용자 번호를 십진 문자열로 찍은 것이다. `"42"`. 로그인 아이디가 아니다, 2026-09-22)** · `iat` · `exp` · `jti` · **`token_use` = `access`**. 수명은 지금 24시간이다(`TEMP-NO-REFRESH`) |
+| access 토큰 | 쿠키 **`qm_access`**. 클레임 `iss` · **`sub`(= `userId` — 사용자 번호를 십진 문자열로 찍은 것이다. `"42"`. 로그인 아이디가 아니다, 2026-09-22)** · `iat` · `exp` · `jti` · **`token_use` = `access`**. 수명은 **15분**이다(2026-09-23 소유자 결정으로 24시간에서 줄었다 — 이어 주는 것은 refresh 다. **옆 서비스는 refresh 를 받을 일이 없다** — 쿠키 `qm_refresh` 는 `Path=/api/v1/auth/refresh` 라 이 앱의 그 요청에만 실려 간다) |
 | 입장권 | 응답 본문의 `ticket`(쿠키가 아니다 — 브라우저가 `room` 에 어떻게 실어 보낼지는 `room` 의 계약에서 정한다). 클레임 `iss` · `iat` · `jti` · `sub`(입장하려는 사람) · **`token_use` = `room_ticket`** · **`room_id`**(글의 id = `roomId`. 주소의 `{roomId}` 와 같은지 본다) · **`host_id`**(글을 쓴 사람) · `exp`(발급 후 60초). **`sub` · `room_id` · `host_id` 는 전부 숫자를 십진 문자열로 찍은 것이다**(응답 본문의 `roomId` · `hostId` 는 숫자다) |
 
 - **`sub` 는 사용자 번호의 십진 문자열이다**(2026-09-22 소유자 결정). 검증하는 쪽은 서명 · `iss` · `exp` · `token_use` 에 더해 **`sub` 가 `^[0-9]{1,19}$` 인지도 본다**(이 앱의 `common/security/TokenClaims.SUBJECT_PATTERN` · `JwtConfig#jwtDecoder` 가 그 본보기다. 그 검사 자체는 Claude 가 정했다).
@@ -110,7 +114,7 @@
 - `matching` · `notification` 도 같은 방식이다 — 요청의 `userId` 파라미터를 그대로 믿는다. 그쪽에는 `TEMP-NO-PLATFORM` 표식이 없다.
 - **전환의 시점과 순서는 정해져 있다**(2026-09-21 소유자 확정 — `CLAUDE.md` §5.1 (아)). 로그인이 도는 것을 본 뒤(**이제 돈다**), 서비스별로 따로 옮긴다. 순서는 **`room` → `notification` → `matching`.** **아직 하나도 옮기지 않았다.**
   각 서비스에 "쿠키가 없으면 `userId` 파라미터를 받는" 개발용 스위치를 잠깐 남겨도 된다 — 임시 처리로 표시하고 운영에서는 끈다. `Origin` 검사(§5.1 (다))도 세 서비스에 걸리는 결정이다 — 언제 넣는지는 정하지 않았다(설정의 이름은 이 앱이 `ALLOWED_ORIGINS` 로 정했다). **바꾸는 작업은 각 폴더에서 한다.**
-- **이 앱의 임시 처리는 `TEMP-NO-REFRESH` 하나다** — `grep -rn "TEMP-NO-REFRESH" backend/src`(access 수명 24시간 · 로그아웃이 refresh 를 지우지 않는 자리). 임시 처리를 더 넣게 되면 같은 방식으로 표시한다 — 표식 문구를 담은 주석을 달아 검색 한 번으로 전부 찾을 수 있게 한다. 표시 없는 임시 처리는 구멍으로 남는다.
+- **이 앱에는 임시 처리 표식이 하나도 없다** — 2026-09-23 에 refresh 를 붙이며 `TEMP-NO-REFRESH` 를 걷었다(`grep -rn "TEMP-NO-REFRESH" backend/src` 가 **0건**이다). 임시 처리를 다시 넣게 되면 같은 방식으로 표시한다 — 표식 문구를 담은 주석을 달아 검색 한 번으로 전부 찾을 수 있게 한다. 표시 없는 임시 처리는 구멍으로 남는다.
 
 ## 3. 만드는 순서
 
@@ -124,7 +128,7 @@
 | 단계 | 만드는 것 | 정한 것 / 이미 정해져 있는 것 | 확인한 것 (✅) / **먼저 물을 것** (남은 단계) |
 |---|---|---|---|
 | **0** ✅ | 뼈대 | `CLAUDE.md` §4 | 뼈대를 만들 때 실행해서 봤다 — `./gradlew build`, `bootRun` 으로 `/health/live` · `/health/ready` 200, Flyway 기록 테이블, SIGTERM 에 graceful shutdown |
-| **1** ✅ | 기반(스키마 `account` · Flyway) + 계정(가입 · 로그인 · 로그아웃 · `users/me` · 닉네임 변경 · 게임 계정) · JWT 발급 · Spring Security(`oauth2-resource-server`) · `Origin` 검사 · 로그인 실패 제한 | **소유자 확정** — 인증 세부 여덟 가지와 그 남은 것(`CLAUDE.md` §5.1 — RS256 · 쿠키 `qm_access` · `iss` = `queuemate-platform` · RSA 2048 · `JWT_PRIVATE_KEY`/`JWT_PUBLIC_KEY`/`JWT_KEY_ID` · `ALLOWED_ORIGINS` · `ACCESS_TOKEN_TTL` 기본 `PT24H`(`TEMP-NO-REFRESH`) · `token_use`), **닉네임은 대소문자를 구별한다**, 로그인 실패 제한은 사례(OWASP · NIST)를 찾아 정하라고 맡겼다. **소유자 결정(2026-09-22)** — **모든 PK 는 `bigint identity` 이고 `userId`(사용자 번호)와 `loginId`(로그인 아이디)를 가른다**(2026-09-19 의 결정 · docs/11 D-4 를 개정한다. JWT 의 `sub` 가 숫자 문자열이 되고 중복 아이디는 409 `LOGIN_ID_TAKEN` 이다 — P-11). **Claude 가 정했다** — 경로와 에러 코드, 로그인 아이디 `^[a-z0-9_]{4,20}$`, 본문의 id 를 문자열로 받아 파는 것(숫자가 아니면 404 `USER_NOT_FOUND`)과 `sub` 가 숫자인지 보는 검증, 비밀번호 8~72자 · 72바이트 · `{bcrypt}`, 닉네임 2~16자 · 유일, 테이블 컬럼(`account/V2`), 로그인 실패 제한의 수치(15분 안에 5번 → 1분부터 두 배씩 최대 15분 · 영구 잠금 없음 · Redis 가 죽으면 통과), 에러 본문 · 패키지 · readiness(§1) | `AuthApiTest` · `UserApiTest` · `AccountMigrationTest` · `AuthenticationTest` · `JwtKeysTest` · `OriginCheckTest` · `LoginThrottleTest`(§1). **그 토큰을 `room` · `notification` · `matching` 이 공개 키로 검증할 수 있는지는 그 폴더에서 본다 — 아직 안 봤다**(§2). **refresh 가 없다**(§4 A) |
+| **1** ✅ | 기반(스키마 `account` · Flyway) + 계정(가입 · 로그인 · 로그아웃 · `users/me` · 닉네임 변경 · 게임 계정) · JWT 발급 · Spring Security(`oauth2-resource-server`) · `Origin` 검사 · 로그인 실패 제한 | **소유자 확정** — 인증 세부 여덟 가지와 그 남은 것(`CLAUDE.md` §5.1 — RS256 · 쿠키 `qm_access` · `iss` = `queuemate-platform` · RSA 2048 · `JWT_PRIVATE_KEY`/`JWT_PUBLIC_KEY`/`JWT_KEY_ID` · `ALLOWED_ORIGINS` · `ACCESS_TOKEN_TTL` · `token_use`), **닉네임은 대소문자를 구별한다**, 로그인 실패 제한은 사례(OWASP · NIST)를 찾아 정하라고 맡겼다. **소유자 결정(2026-09-23)** — **refresh 토큰을 붙인다**(access `ACCESS_TOKEN_TTL` 기본 `PT15M` · refresh `REFRESH_TOKEN_TTL` 기본 `P7D`(7일). `TEMP-NO-REFRESH` 가 없어졌다 — P-15). **소유자 결정(2026-09-22)** — **모든 PK 는 `bigint identity` 이고 `userId`(사용자 번호)와 `loginId`(로그인 아이디)를 가른다**(2026-09-19 의 결정 · docs/11 D-4 를 개정한다. JWT 의 `sub` 가 숫자 문자열이 되고 중복 아이디는 409 `LOGIN_ID_TAKEN` 이다 — P-11). **Claude 가 정했다** — 경로와 에러 코드, 로그인 아이디 `^[a-z0-9_]{4,20}$`, 본문의 id 를 문자열로 받아 파는 것(숫자가 아니면 404 `USER_NOT_FOUND`)과 `sub` 가 숫자인지 보는 검증, 비밀번호 8~72자 · 72바이트 · `{bcrypt}`, 닉네임 2~16자 · 유일, 테이블 컬럼(`account/V2`), 로그인 실패 제한의 수치(15분 안에 5번 → 1분부터 두 배씩 최대 15분 · 영구 잠금 없음 · Redis 가 죽으면 통과), 에러 본문 · 패키지 · readiness(§1) | `AuthApiTest` · `UserApiTest` · `AccountMigrationTest` · `AuthenticationTest` · `JwtKeysTest` · `OriginCheckTest` · `LoginThrottleTest` · `RefreshTokenApiTest`(§1). **그 토큰을 `room` · `notification` · `matching` 이 공개 키로 검증할 수 있는지는 그 폴더에서 본다 — 아직 안 봤다**(§2). **refresh 도 됐다**(2026-09-23 소유자 결정 — access 15분 · refresh 7일. 남은 것은 §4 A) |
 | **1+** ✅ | **소셜 로그인 — 카카오 · 디스코드**(순서에 없던 것. 2026-09-21 소유자 지시) | **소유자 지시** — 넣는다. **Claude 가 정했다** — 로그인 아이디는 여전히 가입할 때 정하는 것이라 **처음 온 사람은 로그인 아이디 · 닉네임을 정하는 한 단계**를 거친다(제공자의 회원 번호는 사용자 번호가 되지 않는다), Spring 의 `oauth2-client` 를 쓰지 않고 `RestClient` 로 직접(세션 없음), `state` 는 쿠키 `qm_oauth_state`, 가입 대기는 JWT 쿠키 `qm_social_signup`(`token_use` = `social_signup`), 제공자에게서 회원 번호와 닉네임만 받는다(`contracts/platform-api.md` "소셜 로그인" · P-7) | `SocialLoginApiTest` · `OAuthProviderSpecTest` · `OAuthNotConfiguredTest` — **가짜 제공자 서버로만.** **실제 카카오 · 디스코드 키로는 붙여 보지 않았다** — 앱 등록과 Redirect URI 등록은 소유자가 해야 한다(§4 F) |
 | **1+** 🟡 | **게임 프로필 · 전적 스냅숏**(순서에 없던 것. 목록의 한 줄이 게임마다 다른 정보를 보여 주려는 것 — 소유자 지시) | **Claude 가 정했다** — 게임 프로필의 모양(`game` · `gameNickname` · `verified` · `tier` · `mainPosition` · `server` · `stats`), `stats` 의 모양과 게임별 `detail`, `winRate` · `kda` 는 이 앱이 계산한다, 목록을 그릴 때 게임사 API 를 부르지 않는다(`contracts/platform-api.md` "게임 프로필" · P-8. 테이블은 `account/V3`) | `GameProfileTest` — **읽는 쪽만.** **먼저 물을 것(§4 C)** — 전적을 가져오는 주기와 방법, `verified` 를 켜는 법, API 키(Riot 의 승인 · VALORANT 는 별도 승인) |
 | **2** ✅ | 차단 — `social.blocks` · API 셋 | **이미 정해져 있던 것** — 테이블의 모양(`CLAUDE.md` §3.5 · docs/11 D-4), `BlockChanged.fifo` 는 만들지 않는다(D-12). **소유자 결정(2026-09-22)** — **스키마별 DB 롤은 두지 않는다.** 앱 하나가 롤 하나로 붙고 `matching` 은 별도 롤 없이 `social.blocks` 를 읽는다(`qm_matching` 롤과 D-1 의 GRANT 를 뺐다 — docs/11 #17 · D-1 을 개정하는 것이라 D-항목으로 남겨야 한다). **Claude 가 정했다** — 경로와 에러 코드, 내가 차단한 사람만 보여 준다, 차단은 친구 관계 · 이미 같은 방에 있는 상태를 건드리지 않는다(`contracts/platform-api.md` "차단") | `BlockApiTest` · `BlockMigrationTest`(UNIQUE 가 두 번 차단을 막는다 · 컬럼이 `matching` 의 `Block.java` 와 맞는다). **`matching` 을 같은 DB 에 붙여 차단 관계인 두 사람이 한 파티가 안 되는지는 아직 안 봤다.** **먼저 물을 것(§4 D)** — 운영에서 앱이 붙는 DB 계정 |
@@ -139,13 +143,14 @@
 **문서에 "미정"으로 남은 것만 모았다. 여기 적힌 선택지는 문서에 나온 것이고 추천이 아니다 — 임의로 정해 구현하지 않는다.** 2026-09-21 에 소유자가 맡겨 Claude 가 정해 구현한 것이 있다고 해서 **남은 것도 그렇게 해도 된다는 뜻이 아니다.**
 정해지면 `CLAUDE.md` §7 에서 빼고 해당 절로 옮기며, `contracts/platform-api.md` 에 적고, `matching` 폴더에서 docs/11 에 D-항목으로 남겨야 한다고 알린다.
 
-**A. refresh 토큰의 도입 — 배포 전에 있어야 한다** (`CLAUDE.md` §5.1 (라) · (마) · §7)
+**A. refresh 토큰에 남은 것 — 도입은 됐다** (`CLAUDE.md` §5.1 (라) · (마) · §7)
 
-설계는 정해져 있다(소유자 확정) — 불투명 UUID 를 Redis `qm:auth:refresh:{uuid}` → `userId` 에 두고, rotation 은 `GETDEL` 한 번, 옛 값은 그냥 401, refresh 쿠키의 `Path` 는 재발급 경로로 좁힌다, 붙이면 access 15분 · refresh 14일. **코드가 없다.** 닿으면 물을 것 —
+**2026-09-23 소유자 결정으로 붙었고 구현됐다** — access `PT15M` · refresh `P7D`(7일) · 불투명 UUID 를 Redis `qm:auth:refresh:{uuid}` → 사용자 번호에 두고 · rotation 은 `GETDEL` 한 번 · **`POST /api/v1/auth/refresh`**(본문 없이 쿠키 `qm_refresh` 로만. `Path` 는 그 경로 하나다) ·
+실패는 전부 같은 401 `INVALID_REFRESH_TOKEN`(그때도 refresh 쿠키를 지운다) · 로그아웃이 Redis 의 줄과 쿠키 둘을 지운다 · 소셜 로그인 · 소셜 가입도 같은 쿠키 둘을 받는다(`common/security/SessionCookies` · `RefreshTokenApiTest` · `contracts/platform-api.md` "refresh 토큰" · P-15). **남은 것 —**
 
-1. **재발급 요청의 경로**와 **refresh 쿠키의 이름**(access 는 `qm_access` 다).
-2. 소셜 로그인으로 들어온 사람도 같은 refresh 를 받는가(콜백 · 소셜 가입이 `qm_access` 를 주는 자리가 둘 더 있다).
-3. `TEMP-NO-REFRESH` 표식이 달린 자리를 전부 걷는다(`grep -rn "TEMP-NO-REFRESH" backend/src`) — `ACCESS_TOKEN_TTL` 기본값을 `PT15M` 으로.
+1. **한 사용자의 refresh 를 한꺼번에 끊는 길이 없다** — 사용자별 토큰 집합을 두지 않았고 `KEYS`/`SCAN` 은 쓰지 않는다. 그래서 **비밀번호를 바꾸거나 계정이 털렸을 때 모든 기기를 로그아웃시킬 수 없다.** 둘지부터가 미정이다(access denylist 를 두지 않는 것과 같이 본다 — `CLAUDE.md` §5.1 (라)).
+2. **프런트의 재발급 흐름** — access 가 만료되기 전에 프런트가 불러야 하고 **서버 쪽 장치는 없다**(SSE 쪽은 §5.1 (바)). 프런트가 이 컴퓨터에 없어 **맞춰 본 적이 없다.**
+3. **Redis 가 죽은 동안 로그인한 사람은 refresh 가 없다** — access 15분이 끝나면 다시 로그인한다. 로그아웃도 Redis 장애 때는 그 refresh 를 못 지운다(최대 7일 남는다). **감수하는 것으로 두었다**(`contracts/platform-api.md` "refresh 토큰").
 
 **B. SQS 배선 · 메시지 본문 · `status=PARTY` 해제 — 6단계와 `PartyClosed.fifo`** (`CLAUDE.md` §3.4 · §7 · §7.2 (나) · (다) · (라))
 
@@ -185,10 +190,10 @@
 2. **docs/11 결정 로그** — 2026-09-21 에 정한 것이 하나도 안 올라갔다. `matching` 폴더에서 해야 한다(인증 세부 §5.1 은 #16 을 개정한다).
 3. 계약 원본(queueMate 본 저장소 `feature/frontend` 의 `contracts/`)을 받아 올 수 있는가 — 거기에 platform 엔드포인트가 이미 있으면 `contracts/platform-api.md` 와 맞춰야 한다(P-1).
 
-### 소유자가 검토해야 하는 것 — `contracts/platform-api.md` 의 P-1 ~ P-12
+### 소유자가 검토해야 하는 것 — `contracts/platform-api.md` 의 P-1 ~ P-15
 
 **P-1 ~ P-10 은 Claude 가 정해 구현했고 소유자가 항목별로 검토하지 않은 것 전부다.** 원본은 그 파일 맨 아래 "원본에 올려야 할 것" 표다 — 여기는 가리키기만 한다. 뒤집으면 코드 · 계약 · `CLAUDE.md` 를 같이 고친다.
-**P-11 · P-12 는 소유자가 직접 정한 것이라 검토가 아니라 뒤처리가 남았다**(docs/11 에 올리기 · `matching` 의 `Block.java`).
+**P-11 ~ P-15 는 소유자가 직접 정한 것이라 검토가 아니라 뒤처리가 남았다**(docs/11 에 올리기 · `matching` 의 `Block.java`). 아래 표는 **P-11 과 P-15 만** 옮겨 적었다 — P-12 ~ P-14 는 그 파일의 표를 본다.
 
 | # | 무엇 | 특히 볼 것 |
 |---|---|---|
@@ -203,8 +208,9 @@
 | P-9 | 친구 · 신고 · 최근 함께한 사람의 경로와 `FRIEND_REQUEST_RECEIVED` · `FRIEND_REQUEST_ACCEPTED` | 원본 `events.md` 의 `FRIEND_*` 이름과 맞는가. 차단 관계면 친구 요청이 404 `USER_NOT_FOUND` 다 |
 | P-10 | 로그인 실패 제한(429 `TOO_MANY_LOGIN_ATTEMPTS`) | 수치(15분 · 5번 · 1분부터 두 배 · 최대 15분)와 "Redis 가 죽으면 통과". 세는 열쇠만 **로그인 아이디**다 |
 | **P-11** | **모든 PK 는 `bigint identity` · `userId` 는 사용자 번호 · 로그인 아이디는 `loginId` 로 따로**(2026-09-22 **소유자 결정** — 2026-09-19 의 결정과 docs/11 D-4 를 개정한다) | **검토가 아니라 뒤처리다** — ① docs/11 에 D-항목으로 남기기 ② **`matching` 의 `block/Block.java` 를 `Long` 으로**(아직 안 바꿨다 — 그 폴더의 일이다) ③ 자동 매칭 파티의 `partyId`(UUID)를 `parties`(bigint) 어디에 둘지는 **미정**(§4 B) |
+| **P-15** | **refresh 토큰**(2026-09-23 **소유자 결정** — 불투명 UUID · Redis `qm:auth:refresh:{uuid}` · `P7D` · 쿠키 `qm_refresh` · `POST /api/v1/auth/refresh` · rotation · access 가 `PT15M` 으로 줄었다) | **검토가 아니라 뒤처리다** — docs/11 에 D-항목으로 남기기(#16 의 access denylist 개정과 같은 묶음이다). **옆 서비스에는 걸리지 않는다.** 경로 · 쿠키 이름 · 실패를 401 하나로 합친 것 · Redis 가 죽었을 때의 갈림은 Claude 가 정했다. **남은 것** — 모든 기기 로그아웃 · 프런트의 재발급 흐름(§4 A) |
 
-그 표에 없지만 같이 볼 것 — 패키지를 나누는 법 · readiness 에 `db` 만 넣은 것 · Hibernate 의 제약 위반 WARN 로거를 끈 것. **소유자가 정한 것이지만 docs/11 에 올려야 하는 것 둘**(2026-09-22. 둘 다 `matching` 폴더에서 D-항목으로 남겨야 한다) — 스키마별 DB 롤을 두지 않는 것(docs/11 #17 · D-1 을 개정한다. §1 · D)과 **식별자(P-11 — 2026-09-19 의 결정 · D-4 를 개정한다. §1).**
+그 표에 없지만 같이 볼 것 — 패키지를 나누는 법 · readiness 에 `db` 만 넣은 것 · Hibernate 의 제약 위반 WARN 로거를 끈 것. **소유자가 정한 것이지만 docs/11 에 올려야 하는 것 셋**(`matching` 폴더에서 D-항목으로 남겨야 한다) — 스키마별 DB 롤을 두지 않는 것(2026-09-22. docs/11 #17 · D-1 을 개정한다. §1 · D) · **식별자**(2026-09-22. P-11 — 2026-09-19 의 결정 · D-4 를 개정한다. §1) · **refresh 토큰**(2026-09-23. P-15 — `CLAUDE.md` §5.1 (라) · (마)가 설계로만 적어 둔 것이 구현됐다. #16 의 access denylist 개정과 같은 묶음이다. §1 · §4 A).
 
 ## 5. 문서 지도
 
@@ -215,7 +221,7 @@
 | `START_HERE.md` | 이 파일. 진행 상황, 옆 서비스의 임시 처리와 이 앱이 주는 것, 만드는 순서, 다음에 닿기 전에 물을 것 · 소유자가 검토해야 하는 것 | 세션을 시작할 때마다. **단계가 끝나면 고친다** |
 | `CLAUDE.md` | 규칙 — 경계, 계약, 설계 규칙, 미정 사항(§7 · §7.1 · §7.2), 작업 방식 · 운영 규칙, 커밋 규칙 | 작업 전에 |
 | `README.md` | 하는 일 / 하지 않는 일의 짧은 소개, "만드는 순서"의 원본, "아직 정할 것" 요약 | 처음 한 번 |
-| **`contracts/platform-api.md`** | **이 폴더에서 정한 계약** — 공통(에러 본문 · 인증 · `Origin`) · access 토큰 · 계정 · 게임 프로필 · 소셜 로그인 · 차단 · 모집 글/목록/입장권 · 방장 확정의 기록 · 친구/신고/최근 함께한 사람 · 이 앱이 내는 알림 · **"원본에 올려야 할 것"(P-1~P-10).** Claude 가 정했고 소유자가 항목별로 검토하지 않았다(머리의 "지위") | 코드를 고치기 전에. **경로 · 스키마 · 에러 코드 · 클레임을 바꾸면 같이 고친다** |
+| **`contracts/platform-api.md`** | **이 폴더에서 정한 계약** — 공통(에러 본문 · 인증 · `Origin`) · access 토큰 · 계정 · 게임 프로필 · 소셜 로그인 · 차단 · 모집 글/목록/입장권 · 방장 확정의 기록 · 친구/신고/최근 함께한 사람 · 이 앱이 내는 알림 · **refresh 토큰** · **"원본에 올려야 할 것"(P-1~P-15).** Claude 가 정했고 소유자가 항목별로 검토하지 않았다(P-11 ~ P-15 는 소유자가 직접 정한 것이다 — 머리의 "지위") | 코드를 고치기 전에. **경로 · 스키마 · 에러 코드 · 클레임을 바꾸면 같이 고친다** |
 | `docs/ROOM_CONTRACT.md` | `room` 계약의 발췌 사본 — 이 앱이 읽는 Redis 키, 방 만들기 · 입장 · 방장 확정 · 접속 확인, `room` 이 내는 알림, 게시판 채널 신호. 머리 절만 이 폴더에서 쓴 글이다 | 3 · 5단계에 들어갈 때. **낡는다** — 머리의 확인 명령 둘을 돌린다(2026-09-21 에 다시 돌렸고 출력이 비어 있었다 — 사본 머리에 적힌 커밋 `0c6d9b9` 그대로다) |
 | `backend/` | Spring Boot 앱. 패키지를 나누는 법은 `backend/src/main/java/com/queuemate/platform/package-info.java` 가 말한다(`common` · `account` · `social` · `party`). **테이블의 원본은 `backend/src/main/resources/db/migration/`**, 설정과 환경변수의 목록은 `application.yaml` 이다 | 코드를 만질 때 |
 | (밖에 있다) ERD | <https://claude.ai/artifact/LBngVYThyCjipLUkatC6Bq>(어긋나면 마이그레이션이 맞다) | 테이블을 만질 때 |
