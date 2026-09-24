@@ -58,3 +58,15 @@ test('호스트 화면이 닫혀 있어도 자동 마감 기한이 지난 방은
   expect(quickConnectCandidates([room], criteria)).toEqual([]);
   expect(quickConnectCandidates([{ ...room, autoCloseAt: Date.now() + 60_000 }], criteria)).toHaveLength(1);
 });
+
+test('메인 폼에서 선택한 복수 포지션 중 하나라도 방 모집 조건과 맞으면 제안한다', () => {
+  expect(quickConnectCandidates([base], { ...criteria, role: 'TOP', roles: ['TOP', 'SUPPORT'] })).toHaveLength(1);
+  expect(quickConnectCandidates([base], { ...criteria, roles: ['TOP', 'JUNGLE'] })).toEqual([]);
+});
+
+test('찾는 포지션은 현재 방 멤버에 반영하고 칼바람에서는 무시한다', () => {
+  expect(quickConnectCandidates([base], { ...criteria, desiredRoles: ['MID'] })).toHaveLength(1);
+  expect(quickConnectCandidates([base], { ...criteria, desiredRoles: ['TOP'] })).toEqual([]);
+  expect(quickConnectCandidates([{ ...base, members: [{ ...member, roles: ['ANY'] }] }], { ...criteria, desiredRoles: ['TOP'] })).toHaveLength(1);
+  expect(quickConnectCandidates([{ ...base, modeKey: 'ARAM' }], { ...criteria, modeKey: 'ARAM', roles: [], desiredRoles: ['TOP'] })).toHaveLength(1);
+});
