@@ -3,7 +3,7 @@
 > **지위.** 계약 원본(queueMate 본 저장소 `feature/frontend` 의 `contracts/`)이 이 컴퓨터에 없어 **여기에 먼저 적는다**(`CLAUDE.md` §3.1).
 > 2026-09-21 에 소유자가 "네가 만들어 봐라"고 맡겼고, 아래는 Claude 가 정해 구현한 것이다 — **소유자가 아직 항목별로 검토하지 않았다.**
 > **2026-09-22 에 소유자가 직접 정한 것이 둘 있다** — **모든 테이블의 PK 를 `bigint identity` 로 하고 `userId`(사용자 번호)와 `loginId`(로그인 아이디)를 가른 것**(P-11. 2026-09-19 의 결정을 개정한다)과 **스키마별 DB 롤을 두지 않는 것**(아래 "차단"). 그 둘은 "소유자 결정"이라고 적었다.
-> **2026-09-23 에 소유자가 정한 것이 둘 더 있다** — **LoL 의 전적을 Riot API 에서 긁는 것**(P-13. 아래 "게임 프로필" 의 "전적을 긁는 것" — 긁는 시점 둘 · 비동기 · 평점은 넣지 않는다)과 **게시판 목록의 페이지 나누기(커서 방식)**(P-14. 아래 "모집 글 · 목록 · 입장권" 의 "목록의 페이지 나누기").
+> **2026-09-23 에 소유자가 정한 것이 셋 더 있다** — **LoL 의 전적을 Riot API 에서 긁는 것**(P-13. 아래 "게임 프로필" 의 "전적을 긁는 것" — 긁는 시점 둘 · 비동기 · 평점은 넣지 않는다) · **게시판 목록의 페이지 나누기(커서 방식)**(P-14. 아래 "모집 글 · 목록 · 입장권" 의 "목록의 페이지 나누기") · **refresh 토큰**(P-15. 아래 "refresh 토큰" — access 가 `PT15M` 으로 줄고 `TEMP-NO-REFRESH` 가 없어졌다).
 > 원본과 합칠 때 맨 아래 "원본에 올려야 할 것" 표를 들고 간다. ERD 는 <https://claude.ai/artifact/LBngVYThyCjipLUkatC6Bq>, 테이블의 원본은 `backend/src/main/resources/db/migration/` 이다.
 
 ## 공통
@@ -17,7 +17,7 @@
   **`userId` · `targetUserId` 가 숫자가 아니면 없는 사용자와 글자까지 같은 404 `USER_NOT_FOUND`** 다 — 400 으로 갈라 주면 "있을 수 있는 번호"와 아닌 것이 새어 나간다. `contextId` 는 사람을 가리키는 값이 아니라 400 `VALIDATION_FAILED` 다.
 - **에러 본문은 `matching` · `room` 과 같다** — `{"code": "…", "message": "…", "details": ["…"]}`. **`details` 는 문자열의 배열이다**(두 서비스의 `ErrorResponse` 가 `List<String>` 이다). 없으면 `[]`.
 - **인증** — access 토큰은 쿠키 **`qm_access`** 로 주고받는다(`CLAUDE.md` §5.1). 쿠키가 없거나 검증에 실패하면 **401 `UNAUTHENTICATED`**.
-  인증이 필요 없는 요청은 `/api/v1/auth/**`(가입 · 로그인 · 로그아웃 · 소셜 로그인) · `/health/**` · `/info` 뿐이다. 로그인하지 않은 채 모르는 경로를 부르면 404 가 아니라 401 이다.
+  인증이 필요 없는 요청은 `/api/v1/auth/**`(가입 · 로그인 · **재발급** · 로그아웃 · 소셜 로그인) · `/health/**` · `/info` 뿐이다. 로그인하지 않은 채 모르는 경로를 부르면 404 가 아니라 401 이다.
 - **`Origin` 검사** — POST/PUT/PATCH/DELETE 에 `Origin` 헤더가 있고 허용 목록(`ALLOWED_ORIGINS`, 쉼표로 구분. 기본값 `http://localhost:5173,http://localhost:3000`)에 없으면 **403 `ORIGIN_NOT_ALLOWED`**.
   `Origin` 이 없는 요청(curl · 서버 사이)은 통과한다 — 브라우저는 교차 출처 POST 에 `Origin` 을 반드시 단다. **상태를 바꾸는 GET 을 만들지 않는다.**
 - 공통 에러 — 400 `VALIDATION_FAILED`(`details` 에 `"필드: 사유"` 꼴로 필드마다 한 줄) · 401 `UNAUTHENTICATED` · 403 `ORIGIN_NOT_ALLOWED` · 404 `NOT_FOUND` · 500 `INTERNAL_ERROR`.
@@ -28,7 +28,7 @@
 |---|---|
 | 헤더 | `alg: RS256`, `kid`: 환경변수 `JWT_KEY_ID`(기본값 `dev-1`) |
 | 클레임 | `iss` = `queuemate-platform` · **`sub` = 사용자 번호를 십진 문자열로 찍은 것**(`"42"` — 로그인 아이디가 아니다. 2026-09-22 소유자 결정) · `iat` · `exp` · `jti`(UUID) · **`token_use` = `access`** |
-| 수명 | 환경변수 `ACCESS_TOKEN_TTL`(기본값 `PT24H` — **refresh 가 없는 동안의 임시값이다.** refresh 를 붙이면 `PT15M`) |
+| 수명 | 환경변수 `ACCESS_TOKEN_TTL`(기본값 **`PT15M`** — 2026-09-23 소유자 결정으로 `PT24H`(`TEMP-NO-REFRESH`)에서 줄었다. 이어 주는 것은 아래 "refresh 토큰" 이다) |
 | 키 | RSA 2048. 개인 키 `JWT_PRIVATE_KEY`(PKCS#8 PEM) · 공개 키 `JWT_PUBLIC_KEY`(X.509 PEM). **둘 다 비어 있으면 개발용 키를 `backend/.dev-keys/` 에 만들어 다시 쓴다**(git 에 올리지 않는다. 경고 로그를 남긴다) — 옆 서비스는 그 폴더의 `public.pem` 을 읽어 검증한다 |
 | 쿠키 | `qm_access` · `HttpOnly` · `SameSite=Lax` · `Path=/` · `Domain` 없음 · `Max-Age` = 토큰 수명 · `Secure` 는 `COOKIE_SECURE`(기본값 `false`, 운영은 `true`) |
 
@@ -37,13 +37,39 @@
 - **검증하는 쪽은 `sub` 가 사용자 번호(숫자 문자열)인지도 본다** — `^[0-9]{1,19}$`(원본 상수는 `common/security/TokenClaims.SUBJECT_PATTERN`. 이 앱은 `JwtConfig#jwtDecoder` 에서 그렇게 한다).
   아니면 컨트롤러에 닿기 전에 401 `UNAUTHENTICATED` 다 — 토큰이 이상한 것이지 서버가 고장 난 것이 아니다. 옆 서비스가 붙일 검증도 같은 모양이다(이 검사 자체는 Claude 가 정했다).
 
+### refresh 토큰 (불투명 UUID · Redis — 2026-09-23 소유자 결정 · P-15)
+
+access 가 짧아진 만큼(15분) 그것을 이어 주는 것이 refresh 다. **access 는 denylist 를 두지 않으므로**(`CLAUDE.md` §5.1 (라)) **서버가 무효화할 수 있는 것은 refresh 쪽 하나다** — 비밀번호를 바꾸거나 계정이 털렸을 때 끊을 수 있는 창이 24시간에서 15분으로 줄어든다.
+
+| 항목 | 값 |
+|---|---|
+| 형식 | **JWT 가 아니다** — 불투명한 **UUID**(`UUID.randomUUID()` · `SecureRandom`). 값에 아무 뜻이 없다(사용자 정보를 담지 않는다) |
+| 저장 | Redis **`qm:auth:refresh:{uuid}`** → 값은 **사용자 번호**. 수명이 곧 토큰의 수명이다 — 앱은 stateless 다. `qm:auth:` 는 이 앱의 접두사다(`matching` 의 `qm:user:*` · `room` 의 `qm:room:*` 와 겹치지 않는다) |
+| 수명 | 환경변수 **`REFRESH_TOKEN_TTL`**(기본값 **`P7D`** — 7일) |
+| 쿠키 | **`qm_refresh`** · `HttpOnly` · `SameSite=Lax` · `Domain` 없음 · `Max-Age` = 토큰 수명 · `Secure` 는 `COOKIE_SECURE`. **`Path` 는 `/api/v1/auth/refresh` 하나다** — access 쿠키(`Path=/`)와 다른 것은 `Path` 와 `Max-Age` 뿐이고, 그래서 이 값은 다른 요청에 실려 가지 않는다 |
+| 어디서 나오나 | 로그인 · 소셜 로그인의 콜백(이미 연결된 사람) · 소셜 가입 · 재발급. **가입(`POST /auth/signup`)은 쿠키를 주지 않는다**(로그인시키지 않는다) |
+| 기기 수 | 제한하지 않는다 — 토큰마다 키 하나다. 한 사용자의 refresh 를 전부 찾는 기능은 **없다**(`KEYS`/`SCAN` 을 쓰지 않는다) |
+
+- **`POST /api/v1/auth/refresh`** — 본문이 없고 **`qm_refresh` 쿠키로만** 받는다. **인증이 필요 없다**(`/api/v1/auth/**` 아래다).
+  성공은 **200** + 로그인과 **같은 본문**(`{userId, loginId, nickname}`) + `Set-Cookie` **둘**(새 access · 새 refresh).
+- **rotation 은 필수다** — 쓴 값은 즉시 버리고 새것을 준다. 읽기와 지우기는 **`GETDEL` 한 번**으로 한다(`조회 → 판단 → 삭제` 가 아니다 — 그 틈에 들어온 두 요청이 둘 다 통과해 한 값으로 세션이 둘 생긴다).
+  **옛 값을 다시 쓰면 그냥 401 이다** — 탈취 감지(토큰 계보 추적)는 넣지 않는다(`CLAUDE.md` §5.1 (마)).
+- **실패는 전부 같은 401 `INVALID_REFRESH_TOKEN` 이다** — 쿠키가 없든 · UUID 꼴이 아니든 · Redis 에 없든 · 이미 쓴 값이든 · 그 사용자가 사라졌든 · Redis 를 못 읽었든 **본문이 글자까지 같다.**
+  어느 쪽인지 알려 주면 그 값이 살아 있는지가 새어 나간다. **실패할 때도 refresh 쿠키를 지운다**(`Max-Age=0`) — 못 쓰는 값을 브라우저가 계속 들고 있게 두지 않는다. **access 쿠키는 건드리지 않는다**(아직 살아 있을 수 있다).
+- **로그인 실패 제한(429)을 걸지 않는다** — 그것은 로그인 아이디 단위로 세는 것이고 이 요청에는 아이디가 없다.
+- **로그아웃(`POST /auth/logout`)은 둘을 지운다** — ① Redis 의 `qm:auth:refresh:{uuid}` ② 쿠키 둘(`qm_access` · `qm_refresh`, 각각 `Max-Age=0`). **쿠키가 없어도 · Redis 가 죽어 있어도 204** 다(그때 그 refresh 는 수명이 다할 때까지 살아 있다).
+  access 는 서버에 지울 것이 없다 — **남는 최대 15분은 감수한다**(`CLAUDE.md` §5.1 (라)).
+- **Redis 가 죽었을 때** — 로그인 · 소셜 로그인은 **그대로 성공한다**(access 만 나가고 refresh 쿠키가 없다. 로그인 실패 제한이 Redis 장애에 통과시키는 것과 같은 원칙이다). **재발급은 401 이다**(fail-closed — 확인하지 못한 값을 통과시키면 폐기된 토큰도 통과한다). 로그아웃은 204.
+  **어느 경우에도 예외를 밖으로 내보내지 않는다 — 로그만 남긴다.** **토큰 값은 어느 로그에도 찍지 않는다**(사용자 번호까지만).
+
 ## 계정 — `auth` · `users`
 
 | 요청 | 본문 | 성공 | 실패 |
 |---|---|---|---|
 | `POST /api/v1/auth/signup` | `{loginId, password, nickname}` | 201 `{userId, loginId, nickname}` | 409 `LOGIN_ID_TAKEN` · 409 `NICKNAME_TAKEN` · 400 |
-| `POST /api/v1/auth/login` | `{loginId, password}` | 200 `{userId, loginId, nickname}` + `Set-Cookie: qm_access` | 401 `INVALID_CREDENTIALS`(아이디가 없는 것과 비밀번호가 틀린 것을 가르지 않는다) · 429 `TOO_MANY_LOGIN_ATTEMPTS` |
-| `POST /api/v1/auth/logout` | — | 204 + 쿠키 제거(`Max-Age=0`). 로그인하지 않았어도 204 | — |
+| `POST /api/v1/auth/login` | `{loginId, password}` | 200 `{userId, loginId, nickname}` + `Set-Cookie` **둘**(`qm_access` · `qm_refresh`) | 401 `INVALID_CREDENTIALS`(아이디가 없는 것과 비밀번호가 틀린 것을 가르지 않는다) · 429 `TOO_MANY_LOGIN_ATTEMPTS` |
+| `POST /api/v1/auth/refresh` | — (쿠키 `qm_refresh`) | 200 `{userId, loginId, nickname}` + `Set-Cookie` **둘**(새 `qm_access` · 새 `qm_refresh`) | 401 `INVALID_REFRESH_TOKEN`(이유를 가르지 않는다. 그때도 refresh 쿠키를 지운다) |
+| `POST /api/v1/auth/logout` | — | 204 + **쿠키 둘 제거**(`Max-Age=0`) + Redis 의 refresh 폐기. 쿠키가 없어도 · Redis 가 죽어 있어도 204 | — |
 | `GET /api/v1/users/me` | — | 200 `{userId, loginId, nickname, createdAt, socialProviders: ["KAKAO"], hasPassword, gameAccounts: [게임 프로필…]}` | 401 |
 | `PATCH /api/v1/users/me` | `{nickname}` | 200 (`GET` 과 같은 모양) | 409 `NICKNAME_TAKEN` |
 | `PUT /api/v1/users/me/game-accounts/{game}` | `{gameNickname, tier, mainPosition, server}` | 200 **게임 프로필**(아래 "게임 프로필") (없으면 만들고 있으면 바꾼다) | 400 |
@@ -322,6 +348,7 @@
 | P-8 | 게임 프로필 · 전적 스냅숏 · 글의 `voice` · `purpose` · `conditions` | 전적을 가져오는 법은 미정이다(`CLAUDE.md` §7 "게임 계정 연동") |
 | P-13 | **전적 동기화(Riot API · LoL 만)** — 긁는 시점 둘(게임 계정 연결 · 글 쓰기) · 신선도 30분 · 비동기이고 실패해도 본 요청은 성공 · `external_id` 는 `puuid` · `verified` 는 켜지 않는다 · **평점은 넣지 않는다**(소유자 결정 2026-09-23. 위 "전적을 긁는 것") | VALORANT · PUBG 는 아직 없다(VALORANT 의 전적 API 는 Riot 의 별도 승인이 필요하다). Redis 락 키 `qm:riot:sync:{gameAccountId}` 가 늘었다 — 이 앱의 접두사다 |
 | P-14 | **게시판 목록의 페이지 나누기(커서 방식)** — `limit`(기본 20 · 최대 100 · 벗어나면 400) · `cursor`(불투명 · 서명하지 않는다 · 못 읽으면 400) · `nextCursor`(**마지막으로 읽은 줄** 기준) · 차단으로 모자라면 최대 3번 더 읽어 채우는 것 · 신호가 왔을 때는 커서 없이 맨 위부터 `limit` 만큼 다시 받는 것 (소유자 결정 2026-09-23. 위 "목록의 페이지 나누기") | 커서의 속(정렬 셋 · base64url) · 채우기의 상한 · `nextCursor` 를 "읽은 줄"로 잡은 것은 Claude 가 정한 세부다. **만료 · 확정 옮겨 적기가 읽은 글에만 걸리게 됐다** — 목록 깊은 곳의 글은 누가 그 페이지를 볼 때 만료된다 |
+| P-15 | **refresh 토큰**(2026-09-23 **소유자 결정**) — 불투명 UUID · Redis `qm:auth:refresh:{uuid}` → 사용자 번호 · `P7D` · 쿠키 `qm_refresh`(`Path=/api/v1/auth/refresh`) · `POST /api/v1/auth/refresh` · **rotation 필수**(`GETDEL` 한 번) · 실패는 전부 같은 401 `INVALID_REFRESH_TOKEN` · 로그아웃이 Redis 의 줄과 쿠키 둘을 지운다 · **access 가 `PT15M` 으로 줄고 `TEMP-NO-REFRESH` 가 없어졌다**(위 "refresh 토큰") | 소유자가 직접 정한 것이다 — docs/11 에 D-항목으로 남겨야 한다(`CLAUDE.md` §5.1 (라) · (마)가 설계로만 적어 둔 것이 구현됐다. #16 의 access denylist 개정과 같은 묶음이다). **옆 서비스에는 걸리지 않는다** — 서명 · 검증이 달라지지 않고 access 의 수명만 짧아진다(`matching` · `notification` · `room` 은 공개 키로 검증만 한다). 넣지 않은 것 — 탈취 감지(토큰 계보 추적) · 기기 수 제한 · 한 사용자의 refresh 를 한꺼번에 끊는 길 |
 | P-11 | **모든 테이블의 PK 는 `bigint GENERATED ALWAYS AS IDENTITY` 이고, `userId` 는 사용자 번호다. 로그인 아이디는 `loginId` 로 따로 둔다**(2026-09-22 **소유자 결정** — 2026-09-19 의 "사용자 id 는 가입할 때 정한 로그인 아이디(문자열)"를 개정한다. **docs/11 D-4 와 얽힌다**) | 다른 항목과 달리 **소유자가 직접 정한 것**이다 — docs/11 에 D-항목으로 남기는 것이 남았다. 걸리는 것 — ① **`matching` 의 `block/Block.java` 를 `Long` 으로 바꿔야 한다**(`blocker_id` · `blocked_id` 가 bigint 가 됐다. 아직 안 바꿨다 — 그 폴더의 일이다) ② Redis 채널 `qm:pubsub:push:{userId}` · `room` 의 방 키와 멤버 SET 의 `{userId}` · `{roomId}` 는 **숫자의 문자열**이 된다(`matching` · `notification` · `room` 은 그 값을 문자열로 다뤄 코드 변경이 없다) ③ 자동 매칭 파티(`source='MATCH'`)가 `matching` 의 UUID `partyId` 를 어디에 두는지는 **미정이다** — 6단계에서 정한다 |
 
 표에 없지만 docs/11 에 D-항목으로 남겨야 하는 것 — **스키마별 DB 롤을 두지 않는 것**(2026-09-22 소유자 결정. 위 "차단"). 앱 하나가 롤 하나로 붙고 `matching` 은 별도 롤 없이 `social.blocks` 를 읽는다 — docs/11 #17 의 "스키마별 DB 롤" 대목과 D-1 의 GRANT 를 개정한다(아직 안 남겼다).
