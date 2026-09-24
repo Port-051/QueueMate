@@ -44,7 +44,7 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(jsonPath("$.postId").isNumber())
                 .andExpect(jsonPath("$.hostId").value(equalTo(hostId), Long.class))
                 .andExpect(jsonPath("$.game").value("LOL"))
-                .andExpect(jsonPath("$.mode").value("SOLO_RANK"))
+                .andExpect(jsonPath("$.mode").value(LOL_MODE))
                 .andExpect(jsonPath("$.title").value("에메 듀오 구해요"))
                 .andExpect(jsonPath("$.description").value("즐겁게"))
                 .andExpect(jsonPath("$.voice").value("REQUIRED"))
@@ -91,16 +91,23 @@ class PostApiTest extends PostTestSupport {
 
         createPost(cookie, "{}").andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
-                .andExpect(detailFor("game")).andExpect(detailFor("title"))
+                .andExpect(detailFor("game")).andExpect(detailFor("title")).andExpect(detailFor("mode"))
                 .andExpect(detailFor("voice")).andExpect(detailFor("purpose"));
         createPost(cookie, postBody("OVERWATCH", "x", "{}")).andExpect(status().isBadRequest()).andExpect(detailFor("game"));
         createPost(cookie, lolPostBody("가".repeat(61))).andExpect(status().isBadRequest()).andExpect(detailFor("title"));
         createPost(cookie, lolPostBody("   ")).andExpect(status().isBadRequest()).andExpect(detailFor("title"));
         createPost(cookie, lolPostBody("x").replace("즐겁게", "가".repeat(301)))
                 .andExpect(status().isBadRequest()).andExpect(detailFor("description"));
-        createPost(cookie, lolPostBody("x").replace("SOLO_RANK", "M".repeat(31)))
+        createPost(cookie, lolPostBody("x").replace(LOL_MODE, "M".repeat(31)))
                 .andExpect(status().isBadRequest()).andExpect(detailFor("mode"));
         createPost(cookie, lolPostBody("x").replace("REQUIRED", "LOUD")).andExpect(status().isBadRequest()).andExpect(detailFor("voice"));
+        // gameconfig 에 없는 모드 · 다른 게임의 모드(2026-09-24) — 같은 gameconfig 를 matching 이 읽는다
+        createPost(cookie, lolPostBody("x").replace(LOL_MODE, UNKNOWN_MODE))
+                .andExpect(status().isBadRequest()).andExpect(detailFor("mode"));
+        createPost(cookie, lolPostBody("x").replace(LOL_MODE, PUBG_MODE))
+                .andExpect(status().isBadRequest()).andExpect(detailFor("mode"));
+        createPost(cookie, lolPostBody("x").replace(LOL_MODE, ""))
+                .andExpect(status().isBadRequest()).andExpect(detailFor("mode"));
         createPost(cookie, lolPostBody("x").replace("RANK_UP", "WIN")).andExpect(status().isBadRequest()).andExpect(detailFor("purpose"));
         // 다른 게임의 포지션 · PUBG 의 포지션
         createPost(cookie, lolPostBody("x", "DUELIST")).andExpect(status().isBadRequest()).andExpect(detailFor("wantedPositions"));
@@ -118,6 +125,9 @@ class PostApiTest extends PostTestSupport {
         mockMvc.perform(get("/api/v1/posts").param("game", "OVERWATCH").cookie(cookie))
                 .andExpect(status().isBadRequest()).andExpect(detailFor("game"));
         mockMvc.perform(get("/api/v1/posts/not-a-number").cookie(cookie)).andExpect(status().isBadRequest());
+
+        // 이 앱은 gameconfig 를 읽기만 한다 — 없는 모드를 물어도 그 키가 생기지 않는다 (CLAUDE.md §11)
+        assertThat(Boolean.TRUE.equals(redisTemplate.hasKey("qm:gameconfig:LOL:" + UNKNOWN_MODE))).isFalse();
 
         // 하나도 만들어지지 않았다 — 검증에 걸린 글이 "모집 중인 글 하나"의 자리를 차지하지 않는다
         createPost(cookie, lolPostBody("이제 된다")).andExpect(status().isCreated());
@@ -190,7 +200,7 @@ class PostApiTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("고치기는 준 것만 바꾼다. 빈 문자열은 mode · description 을 비우고, 빈 배열은 찾는 포지션을 비운다")
+    @DisplayName("고치기는 준 것만 바꾼다. 빈 문자열은 description 을 비우고, 빈 배열은 찾는 포지션을 비운다. mode 는 gameconfig 에 있는 다른 모드로만 바꾼다")
     void edit() throws Exception
     {
         Cookie cookie = signupAndLogin(newLoginId());
@@ -199,16 +209,16 @@ class PostApiTest extends PostTestSupport {
         editPost(cookie, postId, "{\"title\":\"제목만 바꾼다\"}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("제목만 바꾼다"))
-                .andExpect(jsonPath("$.mode").value("SOLO_RANK"))
+                .andExpect(jsonPath("$.mode").value(LOL_MODE))
                 .andExpect(jsonPath("$.description").value("즐겁게"))
                 .andExpect(jsonPath("$.voice").value("REQUIRED"))
                 .andExpect(jsonPath("$.wantedPositions.length()").value(2));
 
-        editPost(cookie, postId, "{\"mode\":\"\",\"description\":\"\",\"voice\":\"NO_VOICE\",\"purpose\":\"FUN\","
+        editPost(cookie, postId, "{\"mode\":\"" + LOL_MODE_2 + "\",\"description\":\"\",\"voice\":\"NO_VOICE\",\"purpose\":\"FUN\","
                 + "\"wantedPositions\":[\"TOP\",\"MID\"]}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("제목만 바꾼다"))
-                .andExpect(jsonPath("$.mode").isEmpty())
+                .andExpect(jsonPath("$.mode").value(LOL_MODE_2))
                 .andExpect(jsonPath("$.description").isEmpty())
                 .andExpect(jsonPath("$.voice").value("NO_VOICE"))
                 .andExpect(jsonPath("$.purpose").value("FUN"))
@@ -226,6 +236,14 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(jsonPath("$.wantedPositions").isEmpty());
 
         editPost(cookie, postId, "{\"title\":\"\"}").andExpect(status().isBadRequest()).andExpect(detailFor("title"));
+        // mode 는 비울 수 없고(빈 문자열은 400) gameconfig 에 없는 이름도 400 이다 (2026-09-24). 안 주면 그대로다
+        editPost(cookie, postId, "{\"mode\":\"\"}").andExpect(status().isBadRequest()).andExpect(detailFor("mode"));
+        editPost(cookie, postId, "{\"mode\":\"" + UNKNOWN_MODE + "\"}")
+                .andExpect(status().isBadRequest()).andExpect(detailFor("mode"));
+        editPost(cookie, postId, "{\"mode\":\"" + PUBG_MODE + "\"}")
+                .andExpect(status().isBadRequest()).andExpect(detailFor("mode"));
+        editPost(cookie, postId, "{\"title\":\"모드는 안 준다\"}")
+                .andExpect(status().isOk()).andExpect(jsonPath("$.mode").value(LOL_MODE_2));
         editPost(cookie, postId, "{\"wantedPositions\":[\"SENTINEL\"]}")
                 .andExpect(status().isBadRequest()).andExpect(detailFor("wantedPositions"));
         editPost(cookie, postId, "{\"conditions\":{\"perspective\":\"TPP\"}}")

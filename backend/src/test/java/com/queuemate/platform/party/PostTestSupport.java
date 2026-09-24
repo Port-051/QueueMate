@@ -128,9 +128,23 @@ abstract class PostTestSupport extends ApiTestSupport {
         {
             quoted.add('"' + position + '"');
         }
-        return "{\"game\":\"" + game + "\",\"mode\":\"SOLO_RANK\",\"title\":\"" + title + "\",\"description\":\"즐겁게\","
+        return "{\"game\":\"" + game + "\",\"mode\":\"" + modeOf(game) + "\",\"title\":\"" + title + "\",\"description\":\"즐겁게\","
                 + "\"voice\":\"REQUIRED\",\"purpose\":\"RANK_UP\",\"conditions\":" + conditionsJson
                 + ",\"wantedPositions\":[" + String.join(",", quoted) + "]}";
+    }
+
+    /**
+     * 그 게임의 <b>gameconfig 에 있는</b> 모드(2026-09-24 — 없는 모드는 400 이다). 모르는 게임({@code OVERWATCH} 등)에는 LoL 의 것을 붙인다 —
+     * 그런 본문은 {@code game} 검증이 먼저 거절하므로 모드가 무엇이든 결과가 같다.
+     */
+    protected static String modeOf(String game)
+    {
+        return switch(game)
+        {
+            case "VALORANT" -> VALORANT_MODE;
+            case "PUBG" -> PUBG_MODE;
+            default -> LOL_MODE;
+        };
     }
 
     protected Long createdId(ResultActions created) throws Exception
@@ -182,8 +196,8 @@ abstract class PostTestSupport extends ApiTestSupport {
         java.sql.Timestamp at = java.sql.Timestamp.from(createdAt);
         return jdbcTemplate.queryForObject("insert into party.recruit_posts "
                 + "(host_id, game, mode, title, voice, purpose, conditions, status, created_at, updated_at) "
-                + "values (?, ?, 'SOLO_RANK', ?, 'REQUIRED', 'RANK_UP', '{}'::jsonb, 'RECRUITING', ?, ?) returning id",
-                Long.class, hostId, game, title, at, at);
+                + "values (?, ?, ?, ?, 'REQUIRED', 'RANK_UP', '{}'::jsonb, 'RECRUITING', ?, ?) returning id",
+                Long.class, hostId, game, modeOf(game), title, at, at);
     }
 
     /** 목록에서 그 글의 줄. 없으면 {@code null} 이다 — DB 가 테스트 사이에 남아 남의 글이 섞여 있으므로 늘 id 로 찾는다 */

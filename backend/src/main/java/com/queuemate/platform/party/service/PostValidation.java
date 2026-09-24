@@ -2,6 +2,7 @@ package com.queuemate.platform.party.service;
 
 import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.common.error.ApiException;
+import com.queuemate.platform.common.gameconfig.GameConfigReader;
 import com.queuemate.platform.party.domain.PlayPurpose;
 import com.queuemate.platform.party.domain.VoicePreference;
 
@@ -72,7 +73,27 @@ final class PostValidation {
         return title;
     }
 
-    /** 빈 문자열은 "없다"로 친다 — 고치기에서 {@code mode} · {@code description} 을 비우는 길이다({@code PostUpdateRequest}) */
+    /**
+     * <b>gameconfig 에 있는 모드여야 한다</b>(2026-09-24 소유자 결정 — {@code contracts/platform-api.md} "gameconfig 를 읽는 것").
+     * 이제 모든 글이 모드 하나를 갖는다 — 빈 문자열은 400 이고, 고치기에서 모드를 비우는 길은 없어졌다.
+     *
+     * <p><b>Redis 를 읽으므로 트랜잭션 밖에서 부른다</b>({@code PostService}) — {@code PostStore} 의 짧은 트랜잭션이 Redis 를 기다리며 DB 커넥션을 붙잡지 않게 한다.
+     * {@code game} 은 글이 정해진 뒤 바뀌지 않으므로 잠금 밖에서 읽은 게임으로 검증해도 안전하다. 값의 목록이 Redis 에 있어 <b>DB 로는 강제할 수 없는 종류</b>다(CLAUDE.md §5).
+     */
+    static String mode(GameConfigReader gameConfig, Game game, String mode)
+    {
+        if(mode == null || mode.isBlank())
+        {
+            throw ApiException.validationFailed("mode", "필요합니다");
+        }
+        if(!gameConfig.hasMode(game, mode))
+        {
+            throw ApiException.validationFailed("mode", game.name() + " 에 없는 모드입니다");
+        }
+        return mode;
+    }
+
+    /** 빈 문자열은 "없다"로 친다 — 고치기에서 {@code description} 을 비우는 길이다({@code PostUpdateRequest}) */
     static String blankToNull(String value)
     {
         return (value == null || value.isBlank()) ? null : value;

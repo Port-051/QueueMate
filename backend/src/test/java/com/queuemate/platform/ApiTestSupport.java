@@ -2,6 +2,7 @@ package com.queuemate.platform;
 
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.condition.DisabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,6 +24,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.startsWith;
@@ -46,6 +48,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <b>Redis 는 자기 키만 지운다</b>({@code FLUSHDB} 금지 — 같은 Redis 를 {@code room} 이 쓸 수 있다). 트랜잭션 롤백에 기대지 않는다 — MockMvc 의 요청은
  * 서비스의 트랜잭션에서 실제로 커밋되고, 동시성 테스트는 여러 스레드(여러 커넥션)를 쓴다.
  *
+ * <p><b>gameconfig 는 테스트가 스스로 심는다</b>({@link #seedGameConfig()}) — {@code mode} · {@code tier} 검증이 그 키를 읽기 때문이다(2026-09-24).
+ * <b>있던 키는 건드리지 않고</b>(소유자가 seed 를 심어 뒀을 수 있다) 없어서 심은 것만 끝나고 지운다.
+ *
  * <p>하위 클래스들이 설정을 바꾸지 않으므로 스프링 컨텍스트 하나를 같이 쓴다(/mnt/c 아래라 컨텍스트를 띄우는 것이 느리다).
  */
 @SpringBootTest
@@ -55,6 +60,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 public abstract class ApiTestSupport {
 
     protected static final String PASSWORD = "correct-horse-battery";
+
+    /** 테스트가 쓰는 모드 · 티어 — 이름은 전부 {@code matching/seed/gameconfig.redis} 의 것이다. 지어내면 검증이 400 으로 거절한다 */
+    protected static final String LOL_MODE = "RANKED_SOLO";
+    /** 모드를 <b>바꾸는</b> 테스트가 쓰는 두 번째 LoL 모드 */
+    protected static final String LOL_MODE_2 = "RANKED_FLEX_5";
+    protected static final String VALORANT_MODE = "COMPETITIVE_DUO";
+    protected static final String PUBG_MODE = "RANKED_DUO_TPP";
+    /** gameconfig 에 <b>없는</b> 모드 — 검증이 거절해야 하는 값이다. 심지 않는다 */
+    protected static final String UNKNOWN_MODE = "NO_SUCH_MODE";
+    /** 롤 사다리에는 단까지 적힌 이름만 있다({@code GOLD_4} … {@code GOLD_1}) — 단이 없는 이 이름은 없는 티어다. 심지 않는다 */
+    protected static final String UNKNOWN_TIER = "GOLD";
 
     @Autowired
     protected MockMvc mockMvc;
@@ -77,6 +93,9 @@ public abstract class ApiTestSupport {
     /** 아무도 아닌 번호({@link #unknownUserId()}) — 그 번호로 적힌 social · party 의 줄을 끝나면 지운다 */
     private final List<Long> unknownUserIds = new CopyOnWriteArrayList<>();
 
+    /** 이 테스트가 <b>없어서 심은</b> gameconfig 키. 있던 키는 여기 들어오지 않아 지워지지 않는다 */
+    private final List<String> seededGameConfigKeys = new CopyOnWriteArrayList<>();
+
     /**
      * 이 테스트가 받은 refresh 토큰. 끝나면 그 키만 지운다 — <b>{@code KEYS} · {@code FLUSHDB} 를 쓰지 않는다</b>
      * (같은 Redis 를 {@code room} 이 쓸 수 있다). {@link #refreshCookieOf} 가 적어 둔다
@@ -94,6 +113,56 @@ public abstract class ApiTestSupport {
     {
         String value = System.getenv(name);
         return (value == null || value.isBlank()) ? defaultValue : value.trim();
+    }
+
+    /**
+     * {@code mode} · {@code tier} 검증이 읽는 gameconfig 를 심는다 — <b>없는 키만</b>이다. 심지 않으면 검증이 fail-open 으로 통째로 꺼져
+     * "없는 모드는 400" 같은 테스트가 조용히 통과한다(무엇을 보는 테스트인지 사라진다).
+     *
+     * <p>모드는 <b>키가 있는지만</b> 보므로 필드가 하나 있으면 되고, 티어는 <b>이름이 사다리에 있는지만</b> 보므로 사다리의 일부만 심는다 —
+     * {@code score} 의 뜻(몇 단계 차이인가)은 매칭의 것이라 이 앱이 읽지 않는다. 값은 그래도 seed 의 것을 적었다.
+     */
+    @BeforeEach
+    void seedGameConfig()
+    {
+        seedIfAbsent("qm:gameconfig:LOL:" + LOL_MODE, key -> redisTemplate.opsForHash().put(key, "targetPartySize", "2"));
+        seedIfAbsent("qm:gameconfig:LOL:" + LOL_MODE_2, key -> redisTemplate.opsForHash().put(key, "targetPartySize", "5"));
+        seedIfAbsent("qm:gameconfig:VALORANT:" + VALORANT_MODE,
+                key -> redisTemplate.opsForHash().put(key, "targetPartySize", "2"));
+        seedIfAbsent("qm:gameconfig:PUBG:" + PUBG_MODE, key -> redisTemplate.opsForHash().put(key, "targetPartySize", "2"));
+        seedIfAbsent("qm:gameconfig:LOL:tier", key -> {
+            redisTemplate.opsForZSet().add(key, "UNRANKED", 0);
+            redisTemplate.opsForZSet().add(key, "GOLD_4", 13);
+            redisTemplate.opsForZSet().add(key, "GOLD_2", 15);
+            redisTemplate.opsForZSet().add(key, "GOLD_1", 16);
+            redisTemplate.opsForZSet().add(key, "EMERALD_4", 21);
+        });
+        seedIfAbsent("qm:gameconfig:VALORANT:tier", key -> {
+            redisTemplate.opsForZSet().add(key, "DIAMOND_2", 17);
+            redisTemplate.opsForZSet().add(key, "ASCENDANT_1", 19);
+        });
+        seedIfAbsent("qm:gameconfig:PUBG:tier", key -> {
+            redisTemplate.opsForZSet().add(key, "GOLD_1", 12);
+            redisTemplate.opsForZSet().add(key, "SURVIVOR", 26);
+        });
+    }
+
+    private void seedIfAbsent(String key, Consumer<String> seed)
+    {
+        if(Boolean.TRUE.equals(redisTemplate.hasKey(key)))
+        {
+            // 소유자가 심어 둔 진짜 seed 다 — 건드리지도, 지우지도 않는다
+            return;
+        }
+        seed.accept(key);
+        seededGameConfigKeys.add(key);
+    }
+
+    @AfterEach
+    void deleteSeededGameConfig()
+    {
+        redisTemplate.delete(seededGameConfigKeys);
+        seededGameConfigKeys.clear();
     }
 
     @AfterEach

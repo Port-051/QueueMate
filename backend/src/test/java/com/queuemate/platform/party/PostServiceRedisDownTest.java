@@ -3,6 +3,7 @@ package com.queuemate.platform.party;
 import com.queuemate.platform.account.service.GameProfileReader;
 import com.queuemate.platform.account.stats.GameStatsSync;
 import com.queuemate.platform.common.error.ApiException;
+import com.queuemate.platform.common.gameconfig.GameConfigReader;
 import com.queuemate.platform.party.dto.PostResponse;
 import com.queuemate.platform.party.room.RoomStateReader;
 import com.queuemate.platform.party.room.RoomStateUnavailableException;
@@ -46,13 +47,17 @@ class PostServiceRedisDownTest extends PostTestSupport {
     @Autowired
     GameStatsSync gameStatsSync;
 
+    /** gameconfig 는 진짜 빈이다 — 여기서 죽이는 것은 방 키를 읽는 창구뿐이다 */
+    @Autowired
+    GameConfigReader gameConfig;
+
     private PostService withBrokenRedis()
     {
         RoomStateReader broken = roomIds -> {
             throw new RoomStateUnavailableException(new IllegalStateException("테스트 — Redis 가 죽었다"));
         };
         return new PostService(postStore, broken, gameProfileReader, blockReader, roomTicketIssuer, boardProperties,
-                gameStatsSync);
+                gameStatsSync, gameConfig);
     }
 
     @Test

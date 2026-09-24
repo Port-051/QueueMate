@@ -357,7 +357,8 @@ class GameStatsSyncTest extends ApiTestSupport {
     /** LOL 글 하나를 쓰고 그 id 를 돌려준다 */
     private Long createdPostId(Cookie cookie) throws Exception
     {
-        String body = "{\"game\":\"LOL\",\"mode\":\"SOLO_RANK\",\"title\":\"같이 하실 분\",\"description\":\"즐겁게\","
+        // mode 는 gameconfig 에 있는 이름이어야 한다(2026-09-24) — ApiTestSupport 가 심어 둔다
+        String body = "{\"game\":\"LOL\",\"mode\":\"" + LOL_MODE + "\",\"title\":\"같이 하실 분\",\"description\":\"즐겁게\","
                 + "\"voice\":\"REQUIRED\",\"purpose\":\"RANK_UP\",\"conditions\":{},\"wantedPositions\":[\"MID\"]}";
         ResultActions created = mockMvc.perform(post("/api/v1/posts").cookie(cookie)
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated());

@@ -6,6 +6,7 @@ import com.queuemate.platform.account.dto.UserGameProfile;
 import com.queuemate.platform.account.service.GameProfileReader;
 import com.queuemate.platform.account.stats.GameStatsSync;
 import com.queuemate.platform.common.error.ApiException;
+import com.queuemate.platform.common.gameconfig.GameConfigReader;
 import com.queuemate.platform.party.domain.PartyMember;
 import com.queuemate.platform.party.domain.PostStatus;
 import com.queuemate.platform.party.domain.RecruitPost;
@@ -65,6 +66,7 @@ public class PostService {
     private final RoomTicketIssuer roomTicketIssuer;
     private final BoardProperties boardProperties;
     private final GameStatsSync gameStatsSync;
+    private final GameConfigReader gameConfig;
 
     /**
      * 글을 쓴다. <b>성공하면 방장의 전적을 긁는다</b>(2026-09-23 소유자 결정 — {@code contracts/platform-api.md} "게임 프로필") —
@@ -76,6 +78,8 @@ public class PostService {
      */
     public PostResponse create(Long me, PostCreateRequest request)
     {
+        // gameconfig(Redis)를 읽는 검증은 여기서 한다 — PostStore 의 트랜잭션이 Redis 를 기다리며 DB 커넥션을 붙잡지 않게 (2026-09-24)
+        PostValidation.mode(gameConfig, PostValidation.game(request.game()), request.mode());
         RecruitPost post = postStore.create(me, request, now());
         gameStatsSync.afterPostCreated(me, post.getGame());
         // 방금 쓴 글이다 — 방이 있을 수 없다(브라우저가 이 응답의 id 로 room 의 방 만들기를 부른다). 방 키를 읽지 않는다
@@ -84,6 +88,13 @@ public class PostService {
 
     public PostResponse edit(Long me, Long postId, PostUpdateRequest request)
     {
+        if(request.mode() != null)
+        {
+            // 모드를 검증하려면 글의 게임을 알아야 한다 — 글의 game 은 바뀌지 않으므로 잠금 밖에서 읽어도 뒤에 달라질 수 없다.
+            // 없는 글이면 여기서 이미 404 다(PostStore#edit 과 같다)
+            RecruitPost post = postStore.find(postId).orElseThrow(PostStore::postNotFound);
+            PostValidation.mode(gameConfig, post.getGame(), request.mode());
+        }
         postStore.edit(me, postId, request, now());
         // 고친 글은 방이 떠 있는 글이다 — 방 안 사람까지 채운 한 줄을 돌려준다. 방장의 글이라 차단으로 걸러지지 않는다
         return get(me, postId);

@@ -55,8 +55,9 @@ public class PostStore {
     public RecruitPost create(Long hostId, PostCreateRequest request, Instant now)
     {
         Game game = PostValidation.game(request.game());
+        // mode 는 부르는 쪽이 이미 검증했다 — gameconfig(Redis)를 읽어야 해서 트랜잭션 밖에서 본다 (PostService#create)
         RecruitPost post = new RecruitPost(hostId, game,
-                PostValidation.blankToNull(request.mode()), PostValidation.title(request.title()),
+                request.mode(), PostValidation.title(request.title()),
                 PostValidation.blankToNull(request.description()), PostValidation.voice(request.voice()),
                 PostValidation.purpose(request.purpose()), PostValidation.conditions(game, request.conditions()),
                 PostValidation.wantedPositions(game, request.wantedPositions()), now);
@@ -96,7 +97,8 @@ public class PostStore {
         }
         Game game = post.getGame();
         post.edit(
-                request.mode() == null ? post.getMode() : PostValidation.blankToNull(request.mode()),
+                // 준 mode 는 부르는 쪽이 이미 검증했다(트랜잭션 밖 — PostService#edit). 빈 문자열로 비우는 길은 없어졌다
+                request.mode() == null ? post.getMode() : request.mode(),
                 request.title() == null ? post.getTitle() : PostValidation.title(request.title()),
                 request.description() == null ? post.getDescription() : PostValidation.blankToNull(request.description()),
                 request.voice() == null ? post.getVoice() : PostValidation.voice(request.voice()),

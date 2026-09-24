@@ -10,7 +10,9 @@
  * <ul>
  *   <li>{@code common} — 도메인에 속하지 않는 것. {@code error}(에러 본문 · 예외 처리) · {@code web}({@code Origin} 검사) ·
  *       {@code security}(토큰 서명과 검증 · 보안 설정 · 현재 사용자) · {@code push}(개인 알림 발행과 봉투 — CLAUDE.md §3.2.
- *       채널 접두사는 {@code push.PushChannels} 한 곳에만 있고 원본은 {@code matching} 의 {@code SharedKeys} 다)</li>
+ *       채널 접두사는 {@code push.PushChannels} 한 곳에만 있고 원본은 {@code matching} 의 {@code SharedKeys} 다) ·
+ *       {@code gameconfig}(운영자가 심는 공유 설정을 <b>읽는</b> 곳 — {@code mode} · {@code tier} 가 있는 값인지 본다. 2026-09-24 소유자 결정.
+ *       도메인 둘({@code party} 의 모드 · {@code account} 의 티어)이 같이 쓰므로 여기 있다. <b>쓰지 않는다</b>)</li>
  *   <li>{@code account} — 가입 · 로그인 · 프로필 · 게임 계정(게임 프로필) · 소셜 로그인. 안에서 {@code controller} · {@code service} ·
  *       {@code domain} · {@code repository} · {@code dto} 로 나누고, 제공자와 주고받는 것은 {@code oauth} 에,
  *       <b>게임사 API 에서 전적을 긁는 것은 {@code stats}</b> 에 둔다(2026-09-23 — LoL 만. 비동기이고 실패가 본 작업을 뒤집지 않는다)</li>

@@ -14,6 +14,7 @@ import com.queuemate.platform.account.repository.UserRepository;
 import com.queuemate.platform.account.stats.GameStatsSync;
 import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.error.ConstraintViolations;
+import com.queuemate.platform.common.gameconfig.GameConfigReader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -41,6 +42,7 @@ public class UserService {
     private final CredentialRepository credentialRepository;
     private final SocialIdentityRepository socialIdentityRepository;
     private final GameStatsSync gameStatsSync;
+    private final GameConfigReader gameConfig;
 
     @Transactional(readOnly = true)
     public UserResponse me(Long userId)
@@ -77,6 +79,12 @@ public class UserService {
     public GameProfileResponse putGameAccount(Long userId, String gameName, GameAccountRequest request)
     {
         Game game = requireGame(gameName);
+        // 티어는 gameconfig 의 사다리에 있는 이름이어야 한다 (2026-09-24 소유자 결정 — contracts/platform-api.md "gameconfig 를 읽는 것").
+        // 자기신고라 안 적을 수 있다 — 값이 있을 때만 본다. 명령 하나이고 DB 에 쓰기 전이다
+        if(request.tier() != null && !gameConfig.hasTier(game, request.tier()))
+        {
+            throw ApiException.validationFailed("tier", game.name() + " 의 티어가 아닙니다");
+        }
         if(!game.allowsPosition(request.mainPosition()))
         {
             throw ApiException.validationFailed("mainPosition", game.positions().isEmpty()
