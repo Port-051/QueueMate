@@ -4,6 +4,7 @@
 > 2026-09-21 에 소유자가 "네가 만들어 봐라"고 맡겼고, 아래는 Claude 가 정해 구현한 것이다 — **소유자가 아직 항목별로 검토하지 않았다.**
 > **2026-09-22 에 소유자가 직접 정한 것이 둘 있다** — **모든 테이블의 PK 를 `bigint identity` 로 하고 `userId`(사용자 번호)와 `loginId`(로그인 아이디)를 가른 것**(P-11. 2026-09-19 의 결정을 개정한다)과 **스키마별 DB 롤을 두지 않는 것**(아래 "차단"). 그 둘은 "소유자 결정"이라고 적었다.
 > **2026-09-23 에 소유자가 정한 것이 셋 더 있다** — **LoL 의 전적을 Riot API 에서 긁는 것**(P-13. 아래 "게임 프로필" 의 "전적을 긁는 것" — 긁는 시점 둘 · 비동기 · 평점은 넣지 않는다) · **게시판 목록의 페이지 나누기(커서 방식)**(P-14. 아래 "모집 글 · 목록 · 입장권" 의 "목록의 페이지 나누기") · **refresh 토큰**(P-15. 아래 "refresh 토큰" — access 가 `PT15M` 으로 줄고 `TEMP-NO-REFRESH` 가 없어졌다).
+> **2026-09-24 에 소유자가 정한 것이 하나 더 있다** — **`mode` 와 `tier` 의 값을 `matching` 의 gameconfig(Redis)에서 읽어 검증하는 것**(P-16. 아래 "gameconfig 를 읽는 것" — 읽는다 · Redis 를 못 읽으면 통과시킨다(fail-open) · `mode` 가 필수가 됐다 · `tier` 도 같이 본다).
 > 원본과 합칠 때 맨 아래 "원본에 올려야 할 것" 표를 들고 간다. ERD 는 <https://claude.ai/artifact/LBngVYThyCjipLUkatC6Bq>, 테이블의 원본은 `backend/src/main/resources/db/migration/` 이다.
 
 ## 공통
@@ -62,6 +63,28 @@ access 가 짧아진 만큼(15분) 그것을 이어 주는 것이 refresh 다. *
 - **Redis 가 죽었을 때** — 로그인 · 소셜 로그인은 **그대로 성공한다**(access 만 나가고 refresh 쿠키가 없다. 로그인 실패 제한이 Redis 장애에 통과시키는 것과 같은 원칙이다). **재발급은 401 이다**(fail-closed — 확인하지 못한 값을 통과시키면 폐기된 토큰도 통과한다). 로그아웃은 204.
   **어느 경우에도 예외를 밖으로 내보내지 않는다 — 로그만 남긴다.** **토큰 값은 어느 로그에도 찍지 않는다**(사용자 번호까지만).
 
+## gameconfig 를 읽는 것 — `mode` · `tier` 의 값 검증 (2026-09-24 **소유자 결정** · P-16)
+
+**이 앱이 `qm:gameconfig:*` 를 읽어 `mode`(모집 글)와 `tier`(게임 계정)가 있는 값인지 본다.** 값의 원본은 **`matching/seed/gameconfig.redis`** 이고 **이 앱은 읽기만 한다.**
+
+| 무엇 | 키 | 자료형 | 이 앱이 보는 법 |
+|---|---|---|---|
+| 그 게임에 그 모드가 있나 | `qm:gameconfig:{GAME}:{MODE}`(모드별 설정 HASH) | HASH | **`EXISTS` 하나.** 내용(`targetPartySize` · `tierRule` 등)은 읽지 않는다 — 이 앱은 그 뜻을 모른다 |
+| 그 게임에 그 티어가 있나 | `qm:gameconfig:{GAME}:tier`(티어 사다리) | ZSET | **`ZSCORE`** — `null` 이면 없는 티어다. `score`(몇 단계 차이인가)는 매칭의 것이라 읽지 않는다 |
+
+- **모드 목록 SET 은 없다 — 원본 seed 가 일부러 없앴다**(목록을 따로 두면 모드를 하나 고칠 때 두 곳이 어긋난다). 그래서 모드가 있는지는 **HASH 의 `EXISTS` 가 답한다.**
+  **`qm:gameconfig:{GAME}:tier-range:{MODE}`(티어별 허용 범위)는 읽지 않는다** — 매칭의 판정 규칙이라 이 앱과 무관하다.
+- **Redis 를 못 읽으면 통과시킨다(fail-open — 소유자 결정).** 검증만 건너뛰고 글 쓰기 · 게임 계정 연결은 성공한다. 목록 조회가 이미 "Redis 를 못 읽으면 방 정보를 비운 채 글만 내려 준다"는 fail-open 이라 결을 맞춘 것이다.
+  **대가 — Redis 가 죽은 동안에는 이상한 모드가 들어올 수 있다.** WARN 한 줄을 남긴다. **fail-open 은 `common/gameconfig/GameConfigReader` 한 곳에만 있다**(Claude 가 정한 자리 — 모드는 `party`, 티어는 `account` 가 쓰므로 `common` 이다).
+- **gameconfig 가 아예 안 심긴 Redis 에서도 통과시킨다**(Claude 가 정한 세부) — 검증할 원본이 없는 것과 값이 틀린 것은 다르다. 가르는 열쇠는 **티어 사다리 키가 있는가**다(세 게임 모두 사다리가 있고, 모드에는 목록 키가 없어 "하나도 없다"를 물을 데가 없다).
+- **왜 MSA 위반이 아닌가.** gameconfig 는 `matching` 이 **쓰는 상태가 아니다** — 원본이 seed 파일이고 그 머리가 "앱은 부팅 시 설정을 밀어넣지 않고 Redis 에서 읽기만 한다"고 적었다. **쓰는 앱이 없고 `matching` 도 읽는 쪽이다.**
+  운영자가 배포 때 심는 공유 설정이라(Parameter Store · ConfigMap 이 있을 자리다) 여러 서비스가 읽어도 된다. 가르는 기준은 **"바뀌는 계기가 사용자의 행동인가, 운영자의 배포인가"** 다 — `room` 의 방 키(실시간으로 쓰이는 상태, `CLAUDE.md` §3.3)와는 성질이 다르다.
+  **이것은 `CLAUDE.md` §2 · §11 의 "매칭 Redis 키(… `qm:gameconfig:*` …) 접근 — 예외가 없다"와 docs/11 #15 를 개정한다** — `matching` 폴더에서 docs/11 에 D-항목으로 남겨야 한다.
+- **이 앱은 seed 를 심지 않는다.** 심게 만들면 모드를 하나 추가할 때마다 이 앱을 재배포해야 한다 — 설정을 데이터로 뺀 뜻이 사라진다(seed 머리가 그 이유를 적었다).
+- 거절은 **400 `VALIDATION_FAILED`** 이고 `details` 에 한 줄이다 — `"mode: {GAME} 에 없는 모드입니다"` · `"tier: {GAME} 의 티어가 아닙니다"`(글귀는 Claude 가 정했다).
+- **`PATCH` 에서 `mode` 의 검증은 방장 · 상태 검사보다 먼저 일어난다**(글의 게임을 읽어야 검증할 수 있어서다 — Claude 가 정한 세부) — 남의 글이나 만료된 글에 없는 모드를 주면 403 `NOT_POST_HOST` · 409 `POST_NOT_RECRUITING` 이 아니라 **400** 이다. 없는 글은 그대로 404 다.
+- **`mode` · `tier` 의 값 목록을 이 앱에 상수로 베껴 두지 않는다** — seed 와 조용히 어긋난다.
+
 ## 계정 — `auth` · `users`
 
 | 요청 | 본문 | 성공 | 실패 |
@@ -84,7 +107,8 @@ access 가 짧아진 만큼(15분) 그것을 이어 주는 것이 refresh 다. *
   로그인에 성공하면 횟수를 지운다. **영구 잠금은 없다** — 비밀번호를 되찾는 길(이메일)이 없어서 남이 내 계정을 영영 잠글 수 있게 된다(OWASP 가 경고하는 잠금 DoS). 이 방식이면 한 계정에 하루 100번쯤만 시도할 수 있다(NIST SP 800-63B §3.2.2 의 상한 100 과 같은 크기다).
   횟수는 Redis 에 둔다(**`qm:auth:login-fail:{loginId}`** — 세는 열쇠는 **로그인 아이디**다. 사용자 번호는 로그인에 성공해야 비로소 알게 되는 값이고, 없는 아이디도 세야 한다. 15분 뒤 저절로 사라진다 — 앱은 stateless 다). **없는 아이디에도 똑같이 센다**(잠기는지로 아이디의 존재가 새지 않게). 형식이 틀린 아이디는 세지 않는다. **Redis 가 죽으면 제한 없이 통과시킨다** — 로그인이 Redis 에 묶이지 않게 한다. IP 단위의 제한은 앱이 아니라 앞단(CloudFront/WAF 의 rate-based rule)의 일로 둔다.
 - **중복 가입은 DB 가 막는다** — `조회 → 판단 → 삽입`이 아니라 INSERT 의 제약 위반을 409 로 옮긴다(`CLAUDE.md` §5).
-- **`game`** — `LOL` · `VALORANT` · `PUBG`. 게임마다 계정 하나(`UNIQUE (user_id, game)`). **`tier`** 는 자기신고 문자열(`^[A-Z0-9_]{1,20}$`, 없어도 된다 — 값의 목록은 `matching` 의 gameconfig 가 원본이라 여기서 검증하지 않는다).
+- **`game`** — `LOL` · `VALORANT` · `PUBG`. 게임마다 계정 하나(`UNIQUE (user_id, game)`). **`tier`** 는 자기신고 문자열(`^[A-Z0-9_]{1,20}$`, 없어도 된다 — 안 적을 수 있다). **값이 있으면 그 게임의 티어 사다리에 있는 이름이어야 한다**(2026-09-24 소유자 결정 — 위 "gameconfig 를 읽는 것". 없는 이름 · 다른 게임의 티어는 400 `VALIDATION_FAILED`).
+  형식 `@Pattern` 은 사다리 검사보다 넓지만 **남겨 두었다** — Redis 를 못 읽어 검증을 건너뛸 때(fail-open) DB 칸(`varchar(20)`)에 들어갈 수 없는 값을 막는 것이 이것뿐이다(Claude 가 정한 세부).
   **`mainPosition`** — LOL 은 `TOP` `JUNGLE` `MID` `ADC` `SUPPORT`, VALORANT 는 `DUELIST` `INITIATOR` `CONTROLLER` `SENTINEL`(이름은 `matching` 의 `LolPosition` · `ValorantRole` 과 같다), PUBG 는 없다(`null` 만). 외부 API 연동은 하지 않는다.
 
 ### 게임 프로필 — 게임 계정 하나를 밖에 보여 주는 모양 (`users/me` · 목록의 카드가 같이 쓴다)
@@ -216,7 +240,7 @@ access 가 짧아진 만큼(15분) 그것을 이어 주는 것이 refresh 다. *
 
 ```json
 {
-  "postId": 123, "hostId": 42, "game": "LOL", "mode": "SOLO_RANK", "title": "…", "description": "…",
+  "postId": 123, "hostId": 42, "game": "LOL", "mode": "RANKED_SOLO", "title": "…", "description": "…",
   "voice": "REQUIRED | NO_VOICE", "purpose": "RANK_UP | NORMAL | FUN", "conditions": {"perspective": "TPP"},
   "wantedPositions": ["MID", "SUPPORT"], "filledPositions": ["MID"],
   "status": "RECRUITING | CONFIRMED | EXPIRED", "createdAt": "…",
@@ -233,7 +257,8 @@ access 가 짧아진 만큼(15분) 그것을 이어 주는 것이 refresh 다. *
 - **`voice` · `purpose` 의 값은 `matching` 의 `VoicePreference` · `PlayPurpose` 와 같은 이름이다.** 둘 다 필수다.
 - **`conditions`** — 게임별 조건을 담는 객체. PUBG 는 `{"perspective": "TPP" | "FPP"}`(필수), LOL · VALORANT 는 `{}`. 모르는 키는 400 이다. PUBG 의 서버(스팀 · 카카오)는 글이 아니라 방장의 게임 프로필(`server`)에서 온다.
 
-- `title` 1~60자, `description` 300자까지(없어도 된다), `mode` 30자까지의 자유 문자열(없어도 된다 — 모드의 목록은 `matching` 의 gameconfig 가 원본이다). `wantedPositions` 는 그 게임의 포지션 이름(위 `mainPosition` 과 같은 목록. PUBG 는 빈 배열).
+- `title` 1~60자, `description` 300자까지(없어도 된다), **`mode` 는 필수이고 그 게임의 gameconfig 에 있는 모드여야 한다**(2026-09-24 소유자 결정 — 위 "gameconfig 를 읽는 것". 30자까지 — seed 의 모드 이름이 그보다 짧다. 없는 모드 · 다른 게임의 모드 · 빈 문자열은 400 `VALIDATION_FAILED`).
+  **옛 글의 `mode` 는 비어 있을 수 있다**(그때는 없어도 되는 칸이었다) — 컬럼은 `NULL` 을 허용한 채로 두었고 응답의 `mode` 가 `null` 로 나갈 수 있다. **`NOT NULL` 로 조일지 · 옛 글의 빈 `mode` 를 어떻게 할지는 미정이다**(P-16). `wantedPositions` 는 그 게임의 포지션 이름(위 `mainPosition` 과 같은 목록. PUBG 는 빈 배열).
 - **`filledPositions` 는 이 앱이 계산한다** — `wantedPositions ∩ 방 안 사람들의 주 포지션`(그 글의 게임에 연결한 게임 계정의 것). 카드의 `profile` 도 그 게임 계정에서 온다. 게임 계정이 없으면 `profile` 이 `null` 이다.
 - **목록의 정렬** — 모집 중인 글이 먼저, 그 안에서는 새 글이 먼저(같은 시각이면 글 번호 순). **만료 · 확정된 글은 그렇게 된 뒤 10분 동안만 목록에 남는다**(`status` 로 구분해 보여 준다. 멤버는 비운다). 만석인 방은 `full: true` 로 목록에 남는다.
 - **목록의 페이지 나누기 — 커서 방식**(2026-09-23 **소유자 결정** · P-14). 게시판은 `BOARD_CHANGED` 신호가 올 때마다 목록을 다시 받으므로 전부 내려 주면 그 큰 응답이 몇 초마다 되풀이된다.
@@ -283,7 +308,8 @@ access 가 짧아진 만큼(15분) 그것을 이어 주는 것이 refresh 다. *
 
 ### 구현하며 채운 빈 곳 (2026-09-21)
 
-- `PATCH` — `null` 이나 없는 칸은 그대로 둔다. `mode` · `description` 은 빈 문자열이면 비우고 `wantedPositions` 는 `[]` 면 비운다. `title` 을 비우는 것은 400 이다.
+- `PATCH` — `null` 이나 없는 칸은 그대로 둔다. `description` 은 빈 문자열이면 비우고 `wantedPositions` 는 `[]` 면 비운다. `title` 을 비우는 것은 400 이다.
+  **`mode` 를 비우는 길은 없어졌다**(2026-09-24 — 모든 글이 모드 하나를 갖는다). `null` 은 그대로 두고 **빈 문자열은 400** 이다 — 바꾸려면 그 게임의 다른 모드 이름을 준다.
 - 만료된 글에 `confirm` → 409 `POST_NOT_RECRUITING`. 입장권 · `confirm` 에서 방 키를 못 읽으면 503 `ROOM_STATE_UNAVAILABLE`.
 - 확정 · 만료된 글은 목록 · 단건에서 `members` 가 비고 `memberCount` 가 0 이다. **`POST …/confirm` 의 응답만** DB 에 기록한 파티원을 싣는다.
 - 입장권은 숨김(404)을 상태(409)보다 먼저 본다 — 차단 관계인 사람에게는 "모집이 끝났다"도 알려 주지 않는다. 남의 글을 `PATCH` · `DELETE` 하면 차단 관계여도 403 `NOT_POST_HOST` 다.
@@ -349,6 +375,7 @@ access 가 짧아진 만큼(15분) 그것을 이어 주는 것이 refresh 다. *
 | P-13 | **전적 동기화(Riot API · LoL 만)** — 긁는 시점 둘(게임 계정 연결 · 글 쓰기) · 신선도 30분 · 비동기이고 실패해도 본 요청은 성공 · `external_id` 는 `puuid` · `verified` 는 켜지 않는다 · **평점은 넣지 않는다**(소유자 결정 2026-09-23. 위 "전적을 긁는 것") | VALORANT · PUBG 는 아직 없다(VALORANT 의 전적 API 는 Riot 의 별도 승인이 필요하다). Redis 락 키 `qm:riot:sync:{gameAccountId}` 가 늘었다 — 이 앱의 접두사다 |
 | P-14 | **게시판 목록의 페이지 나누기(커서 방식)** — `limit`(기본 20 · 최대 100 · 벗어나면 400) · `cursor`(불투명 · 서명하지 않는다 · 못 읽으면 400) · `nextCursor`(**마지막으로 읽은 줄** 기준) · 차단으로 모자라면 최대 3번 더 읽어 채우는 것 · 신호가 왔을 때는 커서 없이 맨 위부터 `limit` 만큼 다시 받는 것 (소유자 결정 2026-09-23. 위 "목록의 페이지 나누기") | 커서의 속(정렬 셋 · base64url) · 채우기의 상한 · `nextCursor` 를 "읽은 줄"로 잡은 것은 Claude 가 정한 세부다. **만료 · 확정 옮겨 적기가 읽은 글에만 걸리게 됐다** — 목록 깊은 곳의 글은 누가 그 페이지를 볼 때 만료된다 |
 | P-15 | **refresh 토큰**(2026-09-23 **소유자 결정**) — 불투명 UUID · Redis `qm:auth:refresh:{uuid}` → 사용자 번호 · `P7D` · 쿠키 `qm_refresh`(`Path=/api/v1/auth/refresh`) · `POST /api/v1/auth/refresh` · **rotation 필수**(`GETDEL` 한 번) · 실패는 전부 같은 401 `INVALID_REFRESH_TOKEN` · 로그아웃이 Redis 의 줄과 쿠키 둘을 지운다 · **access 가 `PT15M` 으로 줄고 `TEMP-NO-REFRESH` 가 없어졌다**(위 "refresh 토큰") | 소유자가 직접 정한 것이다 — docs/11 에 D-항목으로 남겨야 한다(`CLAUDE.md` §5.1 (라) · (마)가 설계로만 적어 둔 것이 구현됐다. #16 의 access denylist 개정과 같은 묶음이다). **옆 서비스에는 걸리지 않는다** — 서명 · 검증이 달라지지 않고 access 의 수명만 짧아진다(`matching` · `notification` · `room` 은 공개 키로 검증만 한다). 넣지 않은 것 — 탈취 감지(토큰 계보 추적) · 기기 수 제한 · 한 사용자의 refresh 를 한꺼번에 끊는 길 |
+| P-16 | **`mode` 와 `tier` 의 값을 gameconfig(Redis)에서 읽어 검증하는 것**(2026-09-24 **소유자 결정** — 위 "gameconfig 를 읽는 것"). 읽는 키 둘(`qm:gameconfig:{GAME}:{MODE}` 의 `EXISTS` · `:tier` 의 `ZSCORE`) · **Redis 를 못 읽으면 통과시킨다(fail-open)** · **`mode` 가 필수가 됐다**(`PATCH` 에서 빈 문자열로 비우는 길이 없어졌다) · `tier` 는 값이 있을 때만 본다 | 소유자가 직접 정한 것이다 — **`CLAUDE.md` §2 · §11 의 "`qm:gameconfig:*` 접근 — 예외가 없다"와 docs/11 #15 를 개정한다.** `matching` 폴더에서 docs/11 에 D-항목으로 남겨야 한다(아직 안 남겼다). **미정 — `party.recruit_posts.mode` 를 `NOT NULL` 로 조일지, 옛 글의 빈 `mode` 를 어떻게 할지**(값의 목록이 Redis 에 있어 DB 가 강제할 수 없는 종류다 — 마이그레이션을 새로 만들지 않았다). Claude 가 정한 것 — 클래스의 자리(`common/gameconfig/GameConfigKeys` · `GameConfigReader`) · 안 심긴 gameconfig 도 통과시키는 것과 그것을 티어 사다리 키로 가르는 것 · 에러의 글귀 · `tier` 의 `@Pattern` 을 남긴 것 |
 | P-11 | **모든 테이블의 PK 는 `bigint GENERATED ALWAYS AS IDENTITY` 이고, `userId` 는 사용자 번호다. 로그인 아이디는 `loginId` 로 따로 둔다**(2026-09-22 **소유자 결정** — 2026-09-19 의 "사용자 id 는 가입할 때 정한 로그인 아이디(문자열)"를 개정한다. **docs/11 D-4 와 얽힌다**) | 다른 항목과 달리 **소유자가 직접 정한 것**이다 — docs/11 에 D-항목으로 남기는 것이 남았다. 걸리는 것 — ① **`matching` 의 `block/Block.java` 를 `Long` 으로 바꿔야 한다**(`blocker_id` · `blocked_id` 가 bigint 가 됐다. 아직 안 바꿨다 — 그 폴더의 일이다) ② Redis 채널 `qm:pubsub:push:{userId}` · `room` 의 방 키와 멤버 SET 의 `{userId}` · `{roomId}` 는 **숫자의 문자열**이 된다(`matching` · `notification` · `room` 은 그 값을 문자열로 다뤄 코드 변경이 없다) ③ 자동 매칭 파티(`source='MATCH'`)가 `matching` 의 UUID `partyId` 를 어디에 두는지는 **미정이다** — 6단계에서 정한다 |
 
 표에 없지만 docs/11 에 D-항목으로 남겨야 하는 것 — **스키마별 DB 롤을 두지 않는 것**(2026-09-22 소유자 결정. 위 "차단"). 앱 하나가 롤 하나로 붙고 `matching` 은 별도 롤 없이 `social.blocks` 를 읽는다 — docs/11 #17 의 "스키마별 DB 롤" 대목과 D-1 의 GRANT 를 개정한다(아직 안 남겼다).
