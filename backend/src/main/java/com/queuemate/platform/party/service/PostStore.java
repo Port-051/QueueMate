@@ -169,9 +169,8 @@ public class PostStore {
                     : postRepository.findBoardByGame(game, closedAfter, max);
         }
         return (game == null)
-                ? postRepository.findBoardAfter(closedAfter, cursor.statusOrder(), cursor.createdAt(), cursor.postId(), max)
-                : postRepository.findBoardAfterByGame(game, closedAfter, cursor.statusOrder(), cursor.createdAt(),
-                        cursor.postId(), max);
+                ? postRepository.findBoardAfter(closedAfter, cursor.postId(), max)
+                : postRepository.findBoardAfterByGame(game, closedAfter, cursor.postId(), max);
     }
 
     /**

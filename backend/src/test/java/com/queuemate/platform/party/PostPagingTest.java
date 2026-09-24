@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,8 +25,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 게시판 목록의 <b>페이지 나누기(커서 방식)</b> — 2026-09-23 소유자 결정({@code contracts/platform-api.md} "모집 글 · 목록 · 입장권").
  *
  * <p>보는 것 — {@code limit} 의 기본값 · 상한, {@code cursor} 로 다음 페이지를 받는 것, <b>1페이지를 본 뒤 새 글이 올라와도 2페이지에 중복 · 누락이 없는 것</b>
- * (커서의 핵심이다 — {@code offset} 이면 깨진다), <b>차단으로 숨겨진 글 때문에 모자라면 그 뒤를 더 읽어 채우는 것</b>과 그 상한,
- * 정렬이 그대로인 것, SQL 문장 수가 페이지 크기에 비례해 늘지 않는 것.
+ * (커서의 핵심이다 — {@code offset} 이면 깨진다), <b>1페이지에 나간 글이 그 사이 만료돼도 2페이지에 다시 나오지 않는 것</b>
+ * (2026-09-24 로 정렬에서 상태가 빠진 이유다 — 정렬 키가 변하면 커서가 중복을 낸다), <b>차단으로 숨겨진 글 때문에 모자라면 그 뒤를 더 읽어 채우는 것</b>과 그 상한,
+ * 정렬이 {@code id} 내림차순 하나인 것, SQL 문장 수가 페이지 크기에 비례해 늘지 않는 것.
  *
  * <p><b>글은 SQL 로 직접 넣는다</b>({@link #insertRecruitPost}) — "모집 중인 글은 한 사람에 하나"라 글마다 방장이 달라야 하고 20~25명을 가입시키면 느리다.
  * 그 방장들은 가입하지 않은 사용자 번호라 카드가 {@code null} 로 나가지만 페이지 나누기는 그것과 무관하다.
@@ -61,7 +63,7 @@ class PostPagingTest extends PostTestSupport {
     void cursorIsNotOffset() throws Exception
     {
         Cookie viewer = signupAndLogin(newLoginId());
-        // 뒤에 올라올 글이 확실히 더 새것이도록 시각을 벌려서 넣는다
+        // 먼저 넣은 글이 곧 오래된 글이다 — 정렬이 id 내림차순이다. 시각도 같은 방향으로 벌려 둔다
         List<Long> before = insertPosts(15, "LOL", "before", Instant.now().minusSeconds(60));
 
         JsonNode first = listPage(viewer, "LOL", 5, null);
@@ -174,11 +176,11 @@ class PostPagingTest extends PostTestSupport {
 
         List<String> broken = new ArrayList<>(List.of(
                 "not base64 !!",
-                encode("0|1|"),            // 칸이 모자라다
-                encode("0|1|2|3"),         // 칸이 남는다
-                encode("7|1790000000000000|5"), // 있을 수 없는 statusOrder
-                encode("0|1790000000000000|0"),  // 있을 수 없는 글 번호
-                encode("0|not-a-number|5")));
+                encode("0"),                       // 있을 수 없는 글 번호
+                encode("-5"),
+                encode("not-a-number"),
+                encode("0|1790000000000000|5"),    // 옛 커서(칸 셋)다 — 호환을 두지 않았으니 그냥 400 이다
+                encode("5|3")));
         for(String bad : broken)
         {
             mockMvc.perform(get("/api/v1/posts").param("game", "LOL").param("cursor", bad).cookie(viewer))
@@ -191,26 +193,58 @@ class PostPagingTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("정렬은 그대로다 — 모집 중인 글이 먼저, 그 안에서는 새 글이 먼저. 페이지 경계를 넘어도 같고 game 필터와 같이 쓴다")
+    @DisplayName("정렬은 최신순 하나다 — 만료된 글이 사이에 끼어 있어도 제자리이고, 페이지 경계를 넘어도 같다. game 필터와 같이 쓴다")
     void orderAcrossPagesWithGameFilter() throws Exception
     {
         Cookie viewer = signupAndLogin(newLoginId());
-        List<Long> recruiting = insertPosts(4, "LOL", "recruiting");
-        List<Long> closed = insertPosts(3, "LOL", "closed");
+        List<Long> lol = insertPosts(7, "LOL", "order");
         List<Long> other = insertPosts(2, "VALORANT", "valorant");
-        // 만료된 글 — 그렇게 된 지 10분이 안 됐으니 목록에 남지만 모집 중인 글 뒤다
-        for(Long postId : closed)
+        // 둘째와 다섯째만 만료다 — 그렇게 된 지 10분이 안 됐으니 목록에 남는다. 맨 아래로 내려가지 않고 제자리다(2026-09-24 소유자 결정)
+        for(Long postId : List.of(lol.get(1), lol.get(4)))
         {
             jdbcTemplate.update("update party.recruit_posts set status = 'EXPIRED', expired_at = now() where id = ?", postId);
         }
 
-        List<Long> expected = new ArrayList<>(recruiting);
-        expected.addAll(closed);
-        assertThat(walk(viewer, "LOL", 2)).containsExactlyElementsOf(expected).doesNotContainAnyElementsOf(other);
-        assertThat(walk(viewer, "LOL", 3)).containsExactlyElementsOf(expected);
+        assertThat(walk(viewer, "LOL", 2)).containsExactlyElementsOf(lol).doesNotContainAnyElementsOf(other);
+        assertThat(walk(viewer, "LOL", 3)).containsExactlyElementsOf(lol);
         assertThat(walk(viewer, "VALORANT", 1)).containsExactlyElementsOf(other);
-        // game 을 주지 않으면 세 게임 전부다 — 다섯 게임이 섞여도 페이지가 이어진다
-        assertThat(walk(viewer, null, 3)).containsAll(expected).containsAll(other);
+        // game 을 주지 않으면 세 게임 전부다 — 여러 게임이 섞여도 페이지가 이어진다
+        assertThat(walk(viewer, null, 3)).containsAll(lol).containsAll(other);
+    }
+
+    @Test
+    @DisplayName("1쪽에 나간 글이 그 사이 만료돼도 2쪽에 다시 나오지 않는다 — 정렬에 상태를 쓰면 깨지는 자리다(2026-09-24)")
+    void expiredBetweenPagesIsNotShownTwice() throws Exception
+    {
+        Cookie viewer = signupAndLogin(newLoginId());
+        Cookie other = signupAndLogin(newLoginId());
+        List<Long> all = insertPosts(6, "LOL", "expiring");
+        // 1쪽에 나갈 셋만 방을 열어 둔다 — 목록이 방장 키를 보면 room_seen_at 이 적히고, 그 키가 사라지면 그 자리에서 만료된다
+        for(Long postId : all.subList(0, 3))
+        {
+            openRoom(postId, hostOf(postId));
+        }
+
+        JsonNode first = listPage(viewer, "LOL", 3, null);
+        assertThat(longs(first.get("posts"), "postId")).containsExactlyElementsOf(all.subList(0, 3));
+        String cursor = first.get("nextCursor").asString();
+
+        // 1쪽을 보는 동안 그 방 셋이 사라졌고, 다른 사람이 게시판을 맨 위부터 다시 받았다(BOARD_CHANGED 를 받은 프런트가 하는 일이다)
+        // — 그 조회가 셋을 만료로 옮겨 적는다. 목록 조회가 스스로 정렬 키를 바꾸던 자리다
+        for(Long postId : all.subList(0, 3))
+        {
+            closeRoom(postId);
+        }
+        listPage(other, "LOL", 6, null);
+        assertThat(statusOf(all.get(0))).isEqualTo("EXPIRED");
+
+        // 2쪽은 그 뒤만 준다 — 상태가 커서에 있었다면 만료된 셋이 "다음 묶음"으로 여기 다시 걸렸다
+        JsonNode second = listPage(viewer, "LOL", 3, cursor);
+        assertThat(longs(second.get("posts"), "postId")).containsExactlyElementsOf(all.subList(3, 6))
+                .doesNotContainAnyElementsOf(all.subList(0, 3));
+        assertThat(second.get("nextCursor").isNull()).isTrue();
+        // 만료된 글은 보존 기간(10분) 안에는 <b>제자리에</b> 남는다 — 맨 위부터 다시 받아도 순서가 그대로다
+        assertThat(longs(listPage(viewer, "LOL", 6, null).get("posts"), "postId")).containsExactlyElementsOf(all);
     }
 
     @Test
@@ -245,8 +279,10 @@ class PostPagingTest extends PostTestSupport {
     // ---- 도우미 ----
 
     /**
-     * 글 {@code count} 개를 <b>새 글부터</b> 넣는다 — {@code created_at} 을 1초씩 벌려서 정렬이 흔들리지 않게 한다.
-     * 돌려주는 순서가 곧 목록에 보일 순서다(새 글이 먼저). 방장은 글마다 다른, 가입하지 않은 사용자 번호다.
+     * 글 {@code count} 개를 <b>오래된 것부터</b> 넣고 <b>새 글이 먼저인 순서로</b> 돌려준다 — 그것이 곧 목록에 보일 순서다
+     * (정렬이 {@code id} 내림차순이므로 먼저 넣은 글이 뒤에 온다. 2026-09-24). {@code created_at} 도 같은 방향으로 1초씩 벌려 둔다 —
+     * 정렬에 쓰이지 않지만 "쓴 지 10분" 을 보는 만료 판정이 있어 어긋나 있으면 읽는 사람이 헷갈린다.
+     * 방장은 글마다 다른, 가입하지 않은 사용자 번호다.
      */
     private List<Long> insertPosts(int count, String game, String title)
     {
@@ -256,19 +292,25 @@ class PostPagingTest extends PostTestSupport {
     private List<Long> insertPosts(int count, String game, String title, Instant newest)
     {
         List<Long> ids = new ArrayList<>();
-        for(int i = 0; i < count; i++)
+        for(int i = count - 1; i >= 0; i--)
         {
             ids.add(insertRecruitPost(unknownUserId(), game, title + "-" + i, newest.minusSeconds(i)));
         }
+        Collections.reverse(ids);
         return ids;
+    }
+
+    /** 그 글의 방장(가입하지 않은 사용자 번호다) — 방 키를 열거나 차단할 때 쓴다 */
+    private Long hostOf(Long postId)
+    {
+        return jdbcTemplate.queryForObject("select host_id from party.recruit_posts where id = ?", Long.class, postId);
     }
 
     /** 그 글의 방장을 차단한다 — 방이 없는 글이라 목록에서 숨겨지는 기준은 방장과의 사이다 */
     private void blockHostOf(Long blockerId, Long postId)
     {
-        Long hostId = jdbcTemplate.queryForObject("select host_id from party.recruit_posts where id = ?", Long.class, postId);
         jdbcTemplate.update("insert into social.blocks (blocker_id, blocked_id, created_at) values (?, ?, now())",
-                blockerId, hostId);
+                blockerId, hostOf(postId));
     }
 
     /** 커서를 따라 끝까지 걸어 본 글의 번호. 페이지가 끝나지 않으면 실패한다 */

@@ -29,7 +29,11 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
 
     /**
      * 게시판 목록의 <b>첫 페이지</b>(세 게임 전부) — 모집 중인 글 전부와, 만료 · 확정된 지 {@code closedAfter} 가 안 지난 글.
-     * 모집 중인 글이 먼저, 그 안에서는 새 글이 먼저다. 찾는 포지션은 쿼리 한 번으로 같이 온다({@code RecruitPost#wantedPositions}).
+     * <b>정렬은 {@code id} 내림차순 하나 = 최신순이다</b>(2026-09-24 소유자 결정 — {@code id} 가 identity 라 넣은 순서대로 커진다).
+     * 찾는 포지션은 쿼리 한 번으로 같이 온다({@code RecruitPost#wantedPositions}).
+     *
+     * <p><b>정렬에 글의 상태도 {@code createdAt} 도 쓰지 않는다</b>(옛 정렬은 모집 중인 글을 앞으로 당기고 그 뒤에 {@code createdAt} 을 봤다).
+     * 커서는 정렬 키가 <b>변하지 않는다</b>는 전제 위에 서는데 상태는 변하고 이 목록 조회 자신이 바꾼다({@code BoardCursor} 의 주석).
      *
      * <p><b>{@code limit} 이 있다</b>(2026-09-23 소유자 결정) — 게시판은 신호가 올 때마다 다시 받으므로 전부 내려 주면 그 큰 응답이 되풀이된다.
      * 다음 줄이 있는지는 부르는 쪽이 <b>한 개 더 읽어</b> 안다({@code PostService#list}).
@@ -40,8 +44,7 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
              where (p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING
                     or p.confirmedAt > :closedAfter
                     or p.expiredAt > :closedAfter)
-             order by case when p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING then 0 else 1 end,
-                      p.createdAt desc, p.id
+             order by p.id desc
             """)
     List<RecruitPost> findBoard(@Param("closedAfter") Instant closedAfter, Limit limit);
 
@@ -53,17 +56,16 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
                and (p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING
                     or p.confirmedAt > :closedAfter
                     or p.expiredAt > :closedAfter)
-             order by case when p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING then 0 else 1 end,
-                      p.createdAt desc, p.id
+             order by p.id desc
             """)
     List<RecruitPost> findBoardByGame(@Param("game") Game game, @Param("closedAfter") Instant closedAfter, Limit limit);
 
     /**
      * {@link #findBoard} 의 <b>다음 페이지</b> — 커서({@code BoardCursor})가 가리키는 줄 <b>다음</b>부터다.
      *
-     * <p>조건은 정렬 셋의 <b>튜플 비교</b>다 — 정렬이 {@code statusOrder}, {@code createdAt desc}, {@code id} 순이므로
-     * "그 뒤"는 ① 다음 묶음이거나(모집 중 → 만료 · 확정) ② 같은 묶음에서 더 오래된 글이거나 ③ 같은 묶음 · 같은 시각에서 번호가 큰 글이다.
-     * <b>셋을 다 봐야 한다</b> — 시각만 보면 같은 밀리초에 쓰인 글을 건너뛰거나 두 번 보여 준다.
+     * <p>조건은 <b>{@code p.id < :postId} 한 줄이다</b> — 정렬이 {@code id desc} 이므로 "그 뒤" 는 번호가 <b>작은</b> 글이다
+     * (내림차순이라 부등호가 {@code <} 다 — 오름차순으로 착각해 {@code >} 를 쓰면 페이지가 거꾸로 걸린다).
+     * 번호가 겹치지 않아 {@code id} 하나로 충분하다 — 옛 정렬처럼 시각을 같이 보면 같은 시각의 글에서 건너뛰거나 두 번 보여 줄 위험을 스스로 만든다.
      *
      * <p>{@code offset} 이 아닌 이유 — 게시판은 1페이지를 보는 동안에도 글이 올라온다. {@code offset} 이면 그만큼 줄이 밀려
      * 2페이지에 같은 글이 또 나오거나 사이의 글이 빠진다. 커서는 값을 기준으로 잘라서 그런 일이 없다.
@@ -74,14 +76,10 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
              where (p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING
                     or p.confirmedAt > :closedAfter
                     or p.expiredAt > :closedAfter)
-               and ((case when p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING then 0 else 1 end) > :statusOrder
-                    or ((case when p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING then 0 else 1 end) = :statusOrder
-                        and (p.createdAt < :createdAt or (p.createdAt = :createdAt and p.id > :postId))))
-             order by case when p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING then 0 else 1 end,
-                      p.createdAt desc, p.id
+               and p.id < :postId
+             order by p.id desc
             """)
-    List<RecruitPost> findBoardAfter(@Param("closedAfter") Instant closedAfter, @Param("statusOrder") int statusOrder,
-                                     @Param("createdAt") Instant createdAt, @Param("postId") long postId, Limit limit);
+    List<RecruitPost> findBoardAfter(@Param("closedAfter") Instant closedAfter, @Param("postId") long postId, Limit limit);
 
     /** {@link #findBoardAfter} 와 같고 한 게임만이다 */
     @Query("""
@@ -91,14 +89,10 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
                and (p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING
                     or p.confirmedAt > :closedAfter
                     or p.expiredAt > :closedAfter)
-               and ((case when p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING then 0 else 1 end) > :statusOrder
-                    or ((case when p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING then 0 else 1 end) = :statusOrder
-                        and (p.createdAt < :createdAt or (p.createdAt = :createdAt and p.id > :postId))))
-             order by case when p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING then 0 else 1 end,
-                      p.createdAt desc, p.id
+               and p.id < :postId
+             order by p.id desc
             """)
     List<RecruitPost> findBoardAfterByGame(@Param("game") Game game, @Param("closedAfter") Instant closedAfter,
-                                           @Param("statusOrder") int statusOrder, @Param("createdAt") Instant createdAt,
                                            @Param("postId") long postId, Limit limit);
 
     /**

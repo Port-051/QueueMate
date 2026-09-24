@@ -369,11 +369,16 @@ public class PostService {
         return responses;
     }
 
-    /** 모집 중인 글이 먼저, 그 안에서는 새 글이 먼저. 같은 시각이면 id 로 가른다 — 응답이 매번 흔들리지 않게 */
-    private static final Comparator<RecruitPost> BOARD_ORDER = Comparator
-            .comparing((RecruitPost post) -> post.getStatus() == PostStatus.RECRUITING ? 0 : 1)
-            .thenComparing(RecruitPost::getCreatedAt, Comparator.reverseOrder())
-            .thenComparing(RecruitPost::getId);
+    /**
+     * <b>{@code id} 내림차순 하나 = 최신순이다</b>(2026-09-24 소유자 결정 — 옛 정렬은 모집 중인 글을 앞으로 당기고 그 뒤에 {@code createdAt} 을 봤다).
+     * {@code id} 가 identity 라 넣은 순서대로 커진다. <b>tiebreaker 가 없어도 된다</b> — PK 라 같은 값이 둘일 수 없다.
+     * 목록 쿼리의 {@code order by} 와 같은 값이어야 한다({@code RecruitPostRepository}).
+     *
+     * <p>글의 상태를 쓰지 않는 이유는 {@code BoardCursor} 의 주석에 있다 — 정렬 키는 변하지 않아야 하고 상태는 변한다.
+     * 만료 · 확정된 글이 목록 위쪽에 섞여 나오는 것은 받아들인 것이다(응답의 {@code status} 로 가른다).
+     */
+    private static final Comparator<RecruitPost> BOARD_ORDER =
+            Comparator.comparing(RecruitPost::getId, Comparator.reverseOrder());
 
     /**
      * 글들의 방장과 방 안 사람 가운데 나와 <b>어느 방향으로든</b> 차단 관계인 사람 — <b>쿼리 한 번이다</b>(글마다 묻지 않는다).

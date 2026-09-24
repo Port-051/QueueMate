@@ -128,7 +128,7 @@ class PostBoardTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("정렬과 game 필터 — 모집 중인 글이 먼저, 그 안에서는 새 글이 먼저. game 이 없으면 세 게임 전부다")
+    @DisplayName("정렬과 game 필터 — 최신순 하나다(만료된 글도 제자리에 남는다). game 이 없으면 세 게임 전부다")
     void orderAndGameFilter() throws Exception
     {
         Cookie first = signupAndLogin(newLoginId());
@@ -140,17 +140,14 @@ class PostBoardTest extends PostTestSupport {
         Long expired = createLolPost(second);
         Long newest = createLolPost(third);
         Long other = createdId(createPost(valorant, postBody("VALORANT", "발로 하실 분", "{}", "SENTINEL")).andExpect(status().isCreated()));
-        // created_at 이 같은 밀리초에 몰리지 않게 벌려 둔다
-        jdbcTemplate.update("update party.recruit_posts set created_at = created_at - interval '3 seconds' where id = ?", oldest);
-        jdbcTemplate.update("update party.recruit_posts set created_at = created_at - interval '2 seconds' where id = ?", expired);
-        jdbcTemplate.update("update party.recruit_posts set created_at = created_at - interval '1 seconds' where id = ?", newest);
+        // 순서는 쓴 순서(id)로 정해진다 — 시각을 벌려 둘 필요가 없다(2026-09-24). 이름대로 oldest 가 가장 먼저 쓴 글이다
         mockMvc.perform(delete("/api/v1/posts/" + expired).cookie(second)).andExpect(status().isNoContent());
 
         List<Long> lol = longs(list(viewer, "LOL"), "postId");
         assertThat(lol).contains(oldest, expired, newest).doesNotContain(other);
-        // 새 글이 먼저이고, 만료된 글은 더 새것이어도 모집 중인 글 뒤다
-        assertThat(lol.indexOf(newest)).isLessThan(lol.indexOf(oldest));
-        assertThat(lol.indexOf(oldest)).isLessThan(lol.indexOf(expired));
+        // 새 글이 먼저다. 가운데 글이 만료돼도 <b>맨 아래로 내려가지 않고 제자리에 남는다</b> — 2026-09-24 로 정렬에서 상태가 빠졌다
+        assertThat(lol.indexOf(newest)).isLessThan(lol.indexOf(expired));
+        assertThat(lol.indexOf(expired)).isLessThan(lol.indexOf(oldest));
 
         assertThat(longs(list(viewer, "VALORANT"), "postId")).contains(other).doesNotContain(newest);
         List<Long> all = longs(body(mockMvc.perform(get("/api/v1/posts").cookie(viewer)).andExpect(status().isOk())).get("posts"), "postId");

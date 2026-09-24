@@ -42,8 +42,10 @@ class PartyMigrationTest extends ApiTestSupport {
                         + "join pg_class target on target.oid = c.confrelid join pg_namespace tn on tn.oid = target.relnamespace "
                         + "where c.contype = 'f' and (sn.nspname = 'party') <> (tn.nspname = 'party')", Integer.class);
 
-        assertThat(indexes).contains("recruit_posts_one_recruiting_per_host", "recruit_posts_game_status_created_idx",
-                "party_members_user_id_idx", "parties_post_id_key");
+        // recruit_posts_game_id_idx 는 정렬이 id 내림차순 하나가 되며 옛 (game, status, created_at) 인덱스를 대신한 것이다 (2026-09-24 · V7)
+        assertThat(indexes).contains("recruit_posts_one_recruiting_per_host", "recruit_posts_game_id_idx",
+                        "party_members_user_id_idx", "parties_post_id_key")
+                .doesNotContain("recruit_posts_game_status_created_idx");
         assertThat(notBigint).isEmpty();
         assertThat(identities).containsExactlyInAnyOrder("recruit_posts", "parties");
         assertThat(unnamed).isEmpty();
