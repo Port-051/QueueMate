@@ -68,10 +68,18 @@ class AuthApiTest extends ApiTestSupport {
         String setCookie = loggedIn.getResponse().getHeader(HttpHeaders.SET_COOKIE);
         assertThat(setCookie).startsWith("qm_access=");
         assertThat(setCookie).contains("HttpOnly").contains("SameSite=Lax").contains("Path=/");
-        // 수명은 토큰 수명과 같다 — 기본값 PT24H
-        assertThat(setCookie).contains("Max-Age=" + Duration.ofHours(24).toSeconds());
+        // 수명은 토큰 수명과 같다 — 기본값 PT15M (2026-09-23 소유자 결정. refresh 가 이어 준다)
+        assertThat(setCookie).contains("Max-Age=" + Duration.ofMinutes(15).toSeconds());
         // 로컬 기본값은 Secure 를 붙이지 않고(COOKIE_SECURE=false), Domain 은 어디서든 붙이지 않는다(host-only)
         assertThat(setCookie).doesNotContain("Secure").doesNotContain("Domain");
+        // refresh 쿠키도 같이 온다 — Path 와 Max-Age 만 다르다
+        String refreshCookie = loggedIn.getResponse().getHeaders(HttpHeaders.SET_COOKIE).stream()
+                .filter(value -> value.startsWith("qm_refresh=")).findFirst().orElseThrow();
+        assertThat(refreshCookie).contains("HttpOnly").contains("SameSite=Lax")
+                .contains("Path=/api/v1/auth/refresh")
+                .contains("Max-Age=" + Duration.ofDays(7).toSeconds());
+        assertThat(refreshCookie).doesNotContain("Secure").doesNotContain("Domain");
+        refreshCookieOf(loggedIn);
 
         Cookie cookie = loggedIn.getResponse().getCookie("qm_access");
         mockMvc.perform(get("/api/v1/users/me").cookie(cookie))
@@ -104,7 +112,7 @@ class AuthApiTest extends ApiTestSupport {
         assertThat(claims.getStringClaim("token_use")).isEqualTo("access");
         assertThat(UUID.fromString(claims.getJWTID())).isNotNull();
         assertThat(Duration.between(claims.getIssueTime().toInstant(), claims.getExpirationTime().toInstant()))
-                .isEqualTo(Duration.ofHours(24));
+                .isEqualTo(Duration.ofMinutes(15));
     }
 
     @Test
@@ -285,7 +293,7 @@ class AuthApiTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("로그아웃은 Max-Age=0 인 쿠키를 돌려준다. 로그인하지 않았어도 204 다")
+    @DisplayName("로그아웃은 쿠키 둘을 Max-Age=0 으로 지운다. 로그인하지 않았어도 204 다")
     void logout() throws Exception
     {
         Cookie cookie = signupAndLogin(newLoginId());
@@ -295,10 +303,15 @@ class AuthApiTest extends ApiTestSupport {
                 mockMvc.perform(post("/api/v1/auth/logout")).andReturn()))
         {
             assertThat(result.getResponse().getStatus()).isEqualTo(204);
-            String setCookie = result.getResponse().getHeader(HttpHeaders.SET_COOKIE);
-            assertThat(setCookie).startsWith("qm_access=;");
-            // 발급 때와 속성이 같아야 브라우저가 같은 쿠키로 보고 지운다
-            assertThat(setCookie).contains("Max-Age=0").contains("Path=/").contains("HttpOnly").contains("SameSite=Lax");
+            List<String> setCookies = result.getResponse().getHeaders(HttpHeaders.SET_COOKIE);
+            String access = setCookies.stream().filter(value -> value.startsWith("qm_access=")).findFirst().orElseThrow();
+            String refresh = setCookies.stream().filter(value -> value.startsWith("qm_refresh=")).findFirst().orElseThrow();
+            assertThat(access).startsWith("qm_access=;");
+            assertThat(refresh).startsWith("qm_refresh=;");
+            // 발급 때와 속성이 같아야 브라우저가 같은 쿠키로 보고 지운다 — Path 가 특히 그렇다
+            assertThat(access).contains("Max-Age=0").contains("Path=/").contains("HttpOnly").contains("SameSite=Lax");
+            assertThat(refresh).contains("Max-Age=0").contains("Path=/api/v1/auth/refresh")
+                    .contains("HttpOnly").contains("SameSite=Lax");
         }
     }
 }

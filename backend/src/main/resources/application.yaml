@@ -73,9 +73,12 @@ platform:
     public-key: ${JWT_PUBLIC_KEY:}
     # JWT 헤더의 kid. 키를 바꿀 때 값을 올린다
     key-id: ${JWT_KEY_ID:dev-1}
-    # TEMP-NO-REFRESH: refresh 토큰이 없는 동안의 임시값이다 — 24시간. refresh 를 붙이면 PT15M 으로 줄인다.
-    #                  배포 전에는 refresh 가 있어야 한다 (CLAUDE.md §5.1 (라)). 이 값은 쿠키의 Max-Age 이기도 하다
-    access-token-ttl: ${ACCESS_TOKEN_TTL:PT24H}
+    # access 의 수명이자 쿠키 qm_access 의 Max-Age 다. 짧다 — denylist 를 두지 않아(CLAUDE.md §5.1 (라)) 이미 나간 access 를
+    # 서버가 무효화할 수 없고, 짧은 수명이 그 창이다. 이어 주는 것은 refresh 다 (2026-09-23 소유자 결정)
+    access-token-ttl: ${ACCESS_TOKEN_TTL:PT15M}
+    # refresh 의 수명이자 쿠키 qm_refresh 의 Max-Age 다 — 7일. JWT 가 아니라 불투명 UUID 이고 Redis(qm:auth:refresh:{uuid})에 둔다.
+    # 재발급(POST /api/v1/auth/refresh)이 쓴 값을 즉시 버리고 새것을 준다(rotation) — 그래서 이 값이 곧 "다시 로그인하지 않고 버티는 기간"이다
+    refresh-token-ttl: ${REFRESH_TOKEN_TTL:P7D}
     # 작업 디렉터리 기준이다 — backend/ 에서 띄우면 backend/.dev-keys/ (.gitignore 에 있다).
     # 옆 서비스는 그 폴더의 public.pem 으로 검증한다. 테스트는 임시 폴더를 쓴다 (src/test/resources/config/application.yaml)
     dev-key-dir: .dev-keys

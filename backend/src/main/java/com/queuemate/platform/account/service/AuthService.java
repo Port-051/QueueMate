@@ -9,6 +9,7 @@ import com.queuemate.platform.account.repository.CredentialRepository;
 import com.queuemate.platform.account.repository.UserRepository;
 import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.error.ConstraintViolations;
+import com.queuemate.platform.common.security.RefreshTokens;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -48,16 +49,18 @@ public class AuthService {
     private final CredentialRepository credentialRepository;
     private final PasswordEncoder passwordEncoder;
     private final LoginThrottle loginThrottle;
+    private final RefreshTokens refreshTokens;
     /** 없는 아이디로 로그인할 때 대신 비교하는 해시. 어떤 비밀번호와도 맞지 않는다 — 원문을 버렸다 */
     private final String dummyHash;
 
     public AuthService(UserRepository userRepository, CredentialRepository credentialRepository,
-                       PasswordEncoder passwordEncoder, LoginThrottle loginThrottle)
+                       PasswordEncoder passwordEncoder, LoginThrottle loginThrottle, RefreshTokens refreshTokens)
     {
         this.userRepository = userRepository;
         this.credentialRepository = credentialRepository;
         this.passwordEncoder = passwordEncoder;
         this.loginThrottle = loginThrottle;
+        this.refreshTokens = refreshTokens;
         this.dummyHash = passwordEncoder.encode(UUID.randomUUID().toString());
     }
 
@@ -137,6 +140,40 @@ public class AuthService {
         loginThrottle.clear(found.getLoginId());
         log.info("로그인 userId={} loginId={}", found.getId(), found.getLoginId());
         return new AuthResponse(found.getId(), found.getLoginId(), found.getNickname());
+    }
+
+    /**
+     * <b>재발급</b> — 쿠키의 refresh 토큰으로 "누구인가"까지만 낸다(새 토큰을 찍고 쿠키에 싣는 것은 컨트롤러다).
+     * 2026-09-23 소유자 결정이고 계약은 {@code contracts/platform-api.md} "refresh 토큰" 이다.
+     *
+     * <p><b>쓴 값은 그 자리에서 버린다(rotation)</b> — {@link RefreshTokens#consume} 가 {@code GETDEL} 한 번으로 한다.
+     * 그래서 같은 값으로 두 번째 재발급은 통하지 않는다.
+     *
+     * <p><b>실패의 이유를 가르지 않는다</b> — 쿠키가 없든 · 꼴이 아니든 · 이미 쓴 값이든 · 그 사용자가 사라졌든 · Redis 에 묻지 못했든
+     * 전부 빈 값이고, 컨트롤러가 <b>글자까지 같은 401 {@code INVALID_REFRESH_TOKEN}</b> 으로 답한다. 어느 쪽인지 알려 주면 값이 살아 있는지가 새어 나간다.
+     *
+     * <p><b>트랜잭션이 없다</b> — Redis 한 번과 사용자 한 줄을 읽을 뿐이고 아무것도 쓰지 않는다(지우는 것은 Redis 쪽이다).
+     * <b>로그인 실패 제한을 걸지 않는다</b> — 그것은 로그인 아이디 단위로 세는 것이고, 여기에는 아이디가 없다.
+     */
+    public Optional<AuthResponse> refresh(String refreshToken)
+    {
+        OptionalLong userId = refreshTokens.consume(refreshToken);
+        if(userId.isEmpty())
+        {
+            // 토큰 값은 남기지 않는다 — 로그를 보는 사람이 남의 세션을 이을 수 있다
+            log.warn("재발급 거절 — 쓸 수 없는 refresh 토큰이다");
+            return Optional.empty();
+        }
+        Optional<User> user = userRepository.findById(userId.getAsLong());
+        if(user.isEmpty())
+        {
+            // 값은 멀쩡했는데 그 사이에 계정이 없어졌다. 값은 이미 버려졌다
+            log.warn("재발급 거절 — 없는 사용자다 userId={}", userId.getAsLong());
+            return Optional.empty();
+        }
+        User found = user.orElseThrow();
+        log.info("재발급 userId={}", found.getId());
+        return Optional.of(new AuthResponse(found.getId(), found.getLoginId(), found.getNickname()));
     }
 
     /** 제약의 이름으로 가른다. 모르는 위반은 그대로 던진다(500) — 아는 에러 코드로 둔갑시키지 않는다 */

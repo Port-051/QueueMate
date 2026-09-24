@@ -73,6 +73,7 @@ class JwtKeysTest {
 
     private static JwtProperties properties(String privateKey, String publicKey, Path devKeyDir)
     {
-        return new JwtProperties(privateKey, publicKey, "dev-1", Duration.ofHours(24), devKeyDir.toString());
+        return new JwtProperties(privateKey, publicKey, "dev-1", Duration.ofMinutes(15), Duration.ofDays(7),
+                devKeyDir.toString());
     }
 }

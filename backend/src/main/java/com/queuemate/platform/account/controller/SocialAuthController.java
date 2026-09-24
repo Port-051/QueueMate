@@ -12,7 +12,7 @@ import com.queuemate.platform.account.oauth.SocialSignupTokens;
 import com.queuemate.platform.account.service.SocialLoginService;
 import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.error.ErrorCodes;
-import com.queuemate.platform.common.security.AccessTokenIssuer;
+import com.queuemate.platform.common.security.SessionCookies;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +29,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -52,7 +54,7 @@ public class SocialAuthController {
     private final OAuthStateCookie stateCookie;
     private final SocialSignupTokens socialSignupTokens;
     private final SocialLoginService socialLoginService;
-    private final AccessTokenIssuer accessTokenIssuer;
+    private final SessionCookies sessionCookies;
 
     /**
      * {@code state} 를 쿠키에 넣고 제공자의 동의 화면으로 보낸다. 브라우저가 링크로 직접 오는 요청이다(fetch 가 아니다).
@@ -115,11 +117,11 @@ public class SocialAuthController {
             if(linkedUserId.isPresent())
             {
                 log.info("소셜 로그인 userId={} provider={}", linkedUserId.get(), provider.get());
-                String accessToken = accessTokenIssuer.issue(linkedUserId.get());
-                return redirect(FRONT_HOME, accessTokenIssuer.cookie(accessToken).toString());
+                // 비밀번호 로그인과 같은 쿠키 둘이다 — access 와 refresh
+                return redirect(FRONT_HOME, sessionCookies.login(linkedUserId.get()));
             }
             String signupToken = socialSignupTokens.issue(provider.get(), user);
-            return redirect(FRONT_SOCIAL_SIGNUP, socialSignupTokens.cookie(signupToken).toString());
+            return redirect(FRONT_SOCIAL_SIGNUP, List.of(socialSignupTokens.cookie(signupToken).toString()));
         }
         catch(RuntimeException e)
         {
@@ -139,7 +141,7 @@ public class SocialAuthController {
     }
 
     /**
-     * 로그인 아이디 · 닉네임을 정해 가입한다. <b>곧바로 로그인시킨다</b>({@code qm_access}) — 비밀번호가 없어 따로 로그인할 길이 없다.
+     * 로그인 아이디 · 닉네임을 정해 가입한다. <b>곧바로 로그인시킨다</b>({@code qm_access} · {@code qm_refresh}) — 비밀번호가 없어 따로 로그인할 길이 없다.
      * {@code qm_social_signup} 은 지운다. POST 라서 {@code Origin} 검사를 거친다.
      */
     @PostMapping("/social/signup")
@@ -149,10 +151,10 @@ public class SocialAuthController {
     {
         SocialSignupTokens.Pending pending = requirePending(signupToken);
         AuthResponse response = socialLoginService.signup(pending.provider(), pending.providerUserId(), request);
-        String accessToken = accessTokenIssuer.issue(response.userId());
+        List<String> cookies = new ArrayList<>(sessionCookies.login(response.userId()));
+        cookies.add(socialSignupTokens.expiredCookie().toString());
         return ResponseEntity.status(HttpStatus.CREATED)
-                .header(HttpHeaders.SET_COOKIE, accessTokenIssuer.cookie(accessToken).toString(),
-                        socialSignupTokens.expiredCookie().toString())
+                .header(HttpHeaders.SET_COOKIE, SessionCookies.array(cookies))
                 .body(response);
     }
 
@@ -165,16 +167,16 @@ public class SocialAuthController {
     private ResponseEntity<Void> failed(String reason)
     {
         log.warn("소셜 로그인 실패 reason={}", reason);
-        return redirect(FRONT_LOGIN_FAILED, null);
+        return redirect(FRONT_LOGIN_FAILED, List.of());
     }
 
     /** 프런트로 302. {@code state} 쿠키는 늘 같이 지운다 */
-    private ResponseEntity<Void> redirect(String frontPath, String setCookie)
+    private ResponseEntity<Void> redirect(String frontPath, List<String> setCookies)
     {
         ResponseEntity.BodyBuilder builder = ResponseEntity.status(HttpStatus.FOUND)
                 .location(URI.create(oAuthProperties.frontUrl(frontPath)))
                 .header(HttpHeaders.SET_COOKIE, stateCookie.expiredCookie().toString());
-        if(setCookie != null)
+        for(String setCookie : setCookies)
         {
             builder.header(HttpHeaders.SET_COOKIE, setCookie);
         }

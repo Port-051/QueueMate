@@ -77,6 +77,12 @@ public abstract class ApiTestSupport {
     /** 아무도 아닌 번호({@link #unknownUserId()}) — 그 번호로 적힌 social · party 의 줄을 끝나면 지운다 */
     private final List<Long> unknownUserIds = new CopyOnWriteArrayList<>();
 
+    /**
+     * 이 테스트가 받은 refresh 토큰. 끝나면 그 키만 지운다 — <b>{@code KEYS} · {@code FLUSHDB} 를 쓰지 않는다</b>
+     * (같은 Redis 를 {@code room} 이 쓸 수 있다). {@link #refreshCookieOf} 가 적어 둔다
+     */
+    private final List<String> receivedRefreshTokens = new CopyOnWriteArrayList<>();
+
     /** application.yaml 의 기본값과 같아야 한다 — DB_PORT 5433, REDIS_PORT 6380. */
     public static boolean pointsAtForeignPorts()
     {
@@ -108,9 +114,15 @@ public abstract class ApiTestSupport {
         {
             deleteRowsOf(userId);
         }
+        for(String refreshToken : receivedRefreshTokens)
+        {
+            // 이름은 계약(contracts/platform-api.md "refresh 토큰")의 것이다. 받은 값만 지운다
+            redisTemplate.delete("qm:auth:refresh:" + refreshToken);
+        }
         createdLoginIds.clear();
         userIdsByLoginId.clear();
         unknownUserIds.clear();
+        receivedRefreshTokens.clear();
     }
 
     /** {@code account.users} 밖에 그 사용자 번호로 적힌 줄 전부 — FK 가 없어 CASCADE 로 지워지지 않는다 */
@@ -187,12 +199,34 @@ public abstract class ApiTestSupport {
                 .content(json("loginId", loginId, "password", password)));
     }
 
-    /** 새 계정을 만들고 로그인해서 그 쿠키를 돌려준다. 사용자 번호는 {@link #userIdOf} 로 꺼낸다 */
+    /** 새 계정을 만들고 로그인해서 <b>access 쿠키</b>를 돌려준다. 사용자 번호는 {@link #userIdOf} 로 꺼낸다 */
     protected Cookie signupAndLogin(String loginId) throws Exception
     {
         signup(loginId, PASSWORD, nicknameOf(loginId)).andExpect(status().isCreated());
         MvcResult result = login(loginId, PASSWORD).andExpect(status().isOk()).andReturn();
+        // 같이 온 refresh 는 끝나면 Redis 에서 지운다
+        refreshCookieOf(result);
         return result.getResponse().getCookie("qm_access");
+    }
+
+    /**
+     * 응답의 <b>refresh 쿠키</b>({@code qm_refresh}). 값이 있으면 끝에 지우도록 적어 둔다 — <b>refresh 를 받는 테스트는 이것으로 받는다.</b>
+     * 쿠키가 없거나(Redis 가 죽었다) 지우는 쿠키({@code Max-Age=0})면 적지 않는다.
+     */
+    protected Cookie refreshCookieOf(MvcResult result)
+    {
+        Cookie cookie = result.getResponse().getCookie("qm_refresh");
+        if(cookie != null && !cookie.getValue().isBlank() && cookie.getMaxAge() > 0)
+        {
+            receivedRefreshTokens.add(cookie.getValue());
+        }
+        return cookie;
+    }
+
+    /** 그 refresh 토큰이 Redis 에 있는가 — 로그아웃이 정말 지웠는지를 본다 */
+    protected boolean refreshTokenStored(String refreshToken)
+    {
+        return Boolean.TRUE.equals(redisTemplate.hasKey("qm:auth:refresh:" + refreshToken));
     }
 
     /** 가입 · 소셜 가입의 201 응답에서 사용자 번호를 받아 둔다 */

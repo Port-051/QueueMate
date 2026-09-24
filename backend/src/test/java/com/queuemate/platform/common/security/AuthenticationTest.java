@@ -183,10 +183,12 @@ class AuthenticationTest extends ApiTestSupport {
                         .contentType("application/json")
                         .content(json("loginId", loginId, "password", PASSWORD, "nickname", nicknameOf(loginId))))
                 .andExpect(status().isCreated());
-        mockMvc.perform(post("/api/v1/auth/login").cookie(broken)
+        // 로그인이 준 refresh 는 끝에 Redis 에서 지운다(테스트가 자기 키만 치운다 — ApiTestSupport)
+        refreshCookieOf(mockMvc.perform(post("/api/v1/auth/login").cookie(broken)
                         .contentType("application/json")
                         .content(json("loginId", loginId, "password", PASSWORD)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andReturn());
         mockMvc.perform(post("/api/v1/auth/logout").cookie(broken))
                 .andExpect(status().isNoContent());
     }
