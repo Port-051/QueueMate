@@ -8,10 +8,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import tools.jackson.databind.JsonNode;
 
@@ -29,14 +31,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * 게임 전적 동기화 — {@code contracts/platform-api.md} "게임 프로필" 의 "전적을 긁는 것"(2026-09-23 소유자 결정)을
  * <b>가짜 Riot API</b>({@link FakeRiotApi})에 붙여서 본다. 진짜 Riot 을 부르지 않는다.
  *
- * <p><b>긁는 시점은 하나다 — 게임 계정을 저장할 때</b>(2026-09-24 소유자 결정). 모집 글을 쓸 때도 긁던 것이 없어졌고
- * 신선도 장치도 함께 없어졌다 — 그것이 되살아나지 않게 {@link #noSyncOnPostCreate()} 가 지킨다.
+ * <p><b>긁는 시점은 둘이다</b>(2026-09-24 소유자 결정) — ① 게임 계정을 저장할 때(비동기) ② <b>사용자가 전적 갱신을 누를 때</b>
+ * ({@code POST …/game-accounts/{game}/refresh} — 동기이고 쿨타임 2분이 있다. 아래 "전적 갱신" 묶음).
+ * <b>모집 글을 쓸 때 긁던 것</b>과 신선도 장치는 같은 날 없어졌다 — 되살아나지 않게 {@link #noSyncOnPostCreate()} 가 지킨다.
  *
  * <p>{@code @DynamicPropertySource} 가 설정을 바꾸므로 <b>이 클래스만 스프링 컨텍스트를 따로 띄운다</b>. 키가 없을 때는 기본 컨텍스트에서 본다
  * ({@link GameStatsNotConfiguredTest}).
@@ -74,7 +78,8 @@ class GameStatsSyncTest extends ApiTestSupport {
 
     /**
      * 돌고 있는 갱신이 지워진 계정을 건드리지 않게 먼저 기다린다(하위 클래스의 {@code @AfterEach} 가 상위의 계정 삭제보다 먼저 돈다).
-     * 그 다음 이 앱의 락 키만 지운다 — <b>{@code FLUSHDB} 금지</b>(같은 Redis 를 {@code room} 이 쓸 수 있다).
+     * 그 다음 이 앱의 락 키와 <b>전적 갱신 쿨타임 키</b>만 지운다(쿨타임은 2분이라 그냥 두면 다음 테스트가 429 를 받는다) —
+     * <b>{@code FLUSHDB} 금지</b>(같은 Redis 를 {@code room} 이 쓸 수 있다).
      */
     @AfterEach
     void settleAndCleanLocks()
@@ -87,12 +92,18 @@ class GameStatsSyncTest extends ApiTestSupport {
         {
             // 기다려 주는 것이 목적이다 — 여기서 테스트를 깨지 않는다
         }
-        Set<String> locks = redisTemplate.keys(GameStatsSyncLock.SYNC_LOCK_PREFIX + "*");
-        if(!locks.isEmpty())
-        {
-            redisTemplate.delete(locks);
-        }
+        deleteKeys(GameStatsSyncLock.SYNC_LOCK_PREFIX + "*");
+        deleteKeys(GameStatsRefreshCooldown.REFRESH_KEY_PREFIX + "*");
         FAKE.reset();
+    }
+
+    private void deleteKeys(String pattern)
+    {
+        Set<String> keys = redisTemplate.keys(pattern);
+        if(!keys.isEmpty())
+        {
+            redisTemplate.delete(keys);
+        }
     }
 
     @Test
@@ -322,7 +333,180 @@ class GameStatsSyncTest extends ApiTestSupport {
                 .isEqualTo("someone-else");
     }
 
+    // ---- 전적 갱신 (POST …/game-accounts/{game}/refresh — 2026-09-24 소유자 결정) ----
+
+    @Test
+    @DisplayName("전적 갱신을 누르면 200 이고 그 자리에서 최신 전적을 준다 — 응답이 PUT 과 같은 게임 프로필이다")
+    void refreshReturnsFreshStats() throws Exception
+    {
+        String loginId = newLoginId();
+        Cookie cookie = signupAndLogin(loginId);
+        String puuid = stubLol("갱신#KR1", "sum-refresh", 10, 10, List.of(play("Ahri", 1, 1, 1, true)));
+        putGameAccount(cookie, "LOL", json("gameNickname", "갱신#KR1", "mainPosition", "MID")).andExpect(status().isOk());
+        Long gameAccountId = gameAccountId(userIdOf(loginId), "LOL");
+        awaitStats(gameAccountId);
+        Instant before = syncedAt(gameAccountId);
+        int callsBefore = FAKE.calls();
+
+        // 그 사이에 두 판 더 이겼다 — 갱신이 진짜로 다시 긁는지 보려는 것이다(games 1 → 3, 연승 1 → 3)
+        FAKE.stubMatches(puuid, List.of(
+                play("Samira", 9, 1, 3, true),
+                play("Samira", 7, 2, 4, true),
+                play("Ahri", 1, 1, 1, true)));
+
+        // 동기다 — 응답이 오면 이미 긁혀 있다(awaitStats 로 기다리지 않는다)
+        refresh(cookie, "LOL")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.game").value("LOL"))
+                .andExpect(jsonPath("$.gameNickname").value("갱신#KR1"))
+                .andExpect(jsonPath("$.stats.games").value(3))
+                .andExpect(jsonPath("$.stats.winStreak").value(3));
+
+        assertThat(FAKE.calls()).as("Riot 을 다시 불렀다").isGreaterThan(callsBefore);
+        assertThat(syncedAt(gameAccountId)).as("synced_at 이 새로워졌다").isAfterOrEqualTo(before);
+        assertThat(profile(cookie, "LOL").get("stats").get("games").asInt()).isEqualTo(3);
+        // 끝나면 자물쇠를 푼다. 쿨타임 키는 남는다 — 그것이 2분 동안 다음 갱신을 막는다
+        assertThat(redisTemplate.hasKey(GameStatsSyncLock.SYNC_LOCK_PREFIX + gameAccountId)).isFalse();
+        assertThat(redisTemplate.hasKey(GameStatsRefreshCooldown.REFRESH_KEY_PREFIX + gameAccountId)).isTrue();
+    }
+
+    @Test
+    @DisplayName("곧바로 또 갱신하면 429 TOO_MANY_STATS_REFRESHES + Retry-After 이고 Riot 을 부르지 않는다")
+    void refreshTwiceHitsCooldown() throws Exception
+    {
+        String loginId = newLoginId();
+        Cookie cookie = signupAndLogin(loginId);
+        stubLol("쿨타임#KR1", "sum-cool", 3, 3, List.of(play("Ahri", 1, 1, 1, true)));
+        putGameAccount(cookie, "LOL", json("gameNickname", "쿨타임#KR1")).andExpect(status().isOk());
+        Long gameAccountId = gameAccountId(userIdOf(loginId), "LOL");
+        awaitStats(gameAccountId);
+
+        refresh(cookie, "LOL").andExpect(status().isOk());
+        Instant refreshed = syncedAt(gameAccountId);
+        int callsBefore = FAKE.calls();
+
+        MvcResult rejected = refresh(cookie, "LOL")
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("TOO_MANY_STATS_REFRESHES"))
+                .andReturn();
+
+        long retryAfter = Long.parseLong(rejected.getResponse().getHeader(HttpHeaders.RETRY_AFTER));
+        assertThat(retryAfter).isBetween(1L, 120L);
+        assertThat(FAKE.calls()).as("거절은 Riot 을 부르지 않는다").isEqualTo(callsBefore);
+        assertThat(syncedAt(gameAccountId)).isEqualTo(refreshed);
+    }
+
+    @Test
+    @DisplayName("로그인하지 않으면 401 이다 — 경로가 me 라서 남의 게임 계정을 가리킬 길이 없다")
+    void refreshRequiresLogin() throws Exception
+    {
+        int callsBefore = FAKE.calls();
+
+        mockMvc.perform(post("/api/v1/users/me/game-accounts/LOL/refresh"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+
+        assertThat(FAKE.calls()).isEqualTo(callsBefore);
+    }
+
+    @Test
+    @DisplayName("연결한 게임 계정이 없으면 404 GAME_ACCOUNT_NOT_FOUND 다 — 쿨타임을 소모하지 않는다")
+    void refreshWithoutGameAccount() throws Exception
+    {
+        Cookie cookie = signupAndLogin(newLoginId());
+        int callsBefore = FAKE.calls();
+
+        refresh(cookie, "LOL")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("GAME_ACCOUNT_NOT_FOUND"));
+
+        assertThat(FAKE.calls()).isEqualTo(callsBefore);
+        assertThat(redisTemplate.keys(GameStatsRefreshCooldown.REFRESH_KEY_PREFIX + "*")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("긁는 구현이 없는 게임(VALORANT · PUBG)은 409 GAME_STATS_NOT_SUPPORTED 다 — 200 을 주면 거짓말이고, 쿨타임도 소모하지 않는다")
+    void refreshUnsupportedGame() throws Exception
+    {
+        String loginId = newLoginId();
+        Cookie cookie = signupAndLogin(loginId);
+        putGameAccount(cookie, "VALORANT", json("gameNickname", "제트#EU1", "mainPosition", "DUELIST"))
+                .andExpect(status().isOk());
+        putGameAccount(cookie, "PUBG", json("gameNickname", "chicken#KR", "server", "STEAM")).andExpect(status().isOk());
+        awaitSyncIdle();
+        int callsBefore = FAKE.calls();
+
+        for(String game : new String[]{"VALORANT", "PUBG"})
+        {
+            refresh(cookie, game)
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("GAME_STATS_NOT_SUPPORTED"));
+        }
+
+        assertThat(FAKE.calls()).isEqualTo(callsBefore);
+        assertThat(redisTemplate.keys(GameStatsRefreshCooldown.REFRESH_KEY_PREFIX + "*")).isEmpty();
+        assertThat(statsRow(gameAccountId(userIdOf(loginId), "VALORANT"))).isNull();
+    }
+
+    @Test
+    @DisplayName("Riot 이 실패하면 503 GAME_STATS_UNAVAILABLE 이고 전적 줄은 그대로다 — 쿨타임은 소모된다")
+    void refreshRiotFailureKeepsOldStats() throws Exception
+    {
+        String loginId = newLoginId();
+        Cookie cookie = signupAndLogin(loginId);
+        stubLol("갱신실패#KR1", "sum-refresh-fail", 4, 6, List.of(play("Ahri", 2, 2, 2, true)));
+        putGameAccount(cookie, "LOL", json("gameNickname", "갱신실패#KR1")).andExpect(status().isOk());
+        Long gameAccountId = gameAccountId(userIdOf(loginId), "LOL");
+        awaitStats(gameAccountId);
+        Instant good = syncedAt(gameAccountId);
+
+        FAKE.failWith(500);
+        refresh(cookie, "LOL")
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("GAME_STATS_UNAVAILABLE"));
+        FAKE.failWith(0);
+
+        assertThat(statsRow(gameAccountId)).as("전적 줄이 남아 있다").isNotNull();
+        assertThat(syncedAt(gameAccountId)).as("옛 값 그대로다").isEqualTo(good);
+        assertThat(profile(cookie, "LOL").get("stats").get("games").asInt()).isEqualTo(1);
+        // 실패해도 쿨타임은 소모된다 — 실패만 무제한으로 다시 할 수 있으면 Riot 한도를 그대로 태운다
+        assertThat(redisTemplate.hasKey(GameStatsRefreshCooldown.REFRESH_KEY_PREFIX + gameAccountId)).isTrue();
+    }
+
+    @Test
+    @DisplayName("누가 이미 같은 계정을 긁고 있으면 갱신도 429 다 — 자물쇠를 그대로 쓴다")
+    void refreshWhileAlreadySyncing() throws Exception
+    {
+        String loginId = newLoginId();
+        Cookie cookie = signupAndLogin(loginId);
+        stubLol("자물쇠#KR1", "sum-refresh-lock", 1, 2, List.of(play("Ahri", 1, 1, 1, true)));
+        putGameAccount(cookie, "LOL", json("gameNickname", "자물쇠#KR1")).andExpect(status().isOk());
+        Long gameAccountId = gameAccountId(userIdOf(loginId), "LOL");
+        awaitStats(gameAccountId);
+        Instant good = syncedAt(gameAccountId);
+
+        // 다른 사이클이 잡고 있는 자물쇠
+        redisTemplate.opsForValue().set(GameStatsSyncLock.SYNC_LOCK_PREFIX + gameAccountId, "someone-else",
+                Duration.ofSeconds(60));
+        int callsBefore = FAKE.calls();
+
+        refresh(cookie, "LOL")
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("TOO_MANY_STATS_REFRESHES"));
+
+        assertThat(FAKE.calls()).isEqualTo(callsBefore);
+        assertThat(syncedAt(gameAccountId)).isEqualTo(good);
+        // 남의 자물쇠를 풀지 않는다
+        assertThat(redisTemplate.opsForValue().get(GameStatsSyncLock.SYNC_LOCK_PREFIX + gameAccountId))
+                .isEqualTo("someone-else");
+    }
+
     // ---- 바탕 ----
+
+    private ResultActions refresh(Cookie cookie, String game) throws Exception
+    {
+        return mockMvc.perform(post("/api/v1/users/me/game-accounts/" + game + "/refresh").cookie(cookie));
+    }
 
     /** 그 닉네임으로 계정 · 소환사 · 솔로랭크 · 경기를 한꺼번에 넣는다. 돌려주는 것은 {@code puuid} 다 */
     private String stubLol(String riotId, String summonerId, int wins, int losses, List<FakeRiotApi.Play> plays)

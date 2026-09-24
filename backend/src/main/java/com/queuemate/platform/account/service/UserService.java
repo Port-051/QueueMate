@@ -11,6 +11,7 @@ import com.queuemate.platform.account.repository.CredentialRepository;
 import com.queuemate.platform.account.repository.GameAccountRepository;
 import com.queuemate.platform.account.repository.SocialIdentityRepository;
 import com.queuemate.platform.account.repository.UserRepository;
+import com.queuemate.platform.account.stats.GameStatsRefresher;
 import com.queuemate.platform.account.stats.GameStatsSync;
 import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.error.ConstraintViolations;
@@ -42,6 +43,7 @@ public class UserService {
     private final CredentialRepository credentialRepository;
     private final SocialIdentityRepository socialIdentityRepository;
     private final GameStatsSync gameStatsSync;
+    private final GameStatsRefresher gameStatsRefresher;
     private final GameConfigReader gameConfig;
 
     @Transactional(readOnly = true)
@@ -73,7 +75,8 @@ public class UserService {
      *
      * <p><b>성공하면 전적을 긁는다</b>(2026-09-23 소유자 결정 — {@code contracts/platform-api.md} "게임 프로필"). 커밋된 뒤에 <b>비동기로</b> 시작하므로
      * 이 응답의 {@code stats} 는 아직 예전 값(보통 {@code null})이고 잠시 뒤에 채워진다 — Riot 을 부르는 수 초 동안 응답을 붙잡지 않는다.
-     * 무조건 긁는다 — 닉네임이 바뀌었을 수 있다(<b>전적이 갱신되는 것은 이 자리 하나다</b> — 2026-09-24 소유자 결정). 긁는 데 실패해도 이 요청은 성공이다.
+     * <b>쿨타임 없이 무조건 긁는다</b> — 닉네임이 바뀌었을 수 있다. 긁는 데 실패해도 이 요청은 성공이다.
+     * (전적이 갱신되는 자리는 <b>둘</b>이다 — 이것과 {@link #refreshGameStats}. 2026-09-24 소유자 결정. 쿨타임은 그쪽만 있다.)
      */
     @Transactional
     public GameProfileResponse putGameAccount(Long userId, String gameName, GameAccountRequest request)
@@ -117,6 +120,19 @@ public class UserService {
                 .map(GameProfileResponse::from)
                 .orElseThrow(() -> new IllegalStateException(
                         "방금 넣은 게임 계정이 없다 userId=" + userId + " game=" + game));
+    }
+
+    /**
+     * <b>전적 갱신</b> — 지금 게임사 API 에서 다시 받아 적고 <b>갱신된 게임 프로필</b>을 준다(2026-09-24 소유자 결정 ·
+     * {@code contracts/platform-api.md} "전적을 긁는 것"). 게임 계정을 저장할 때만 갱신되던 것을 사용자가 원할 때 하는 길이다.
+     *
+     * <p><b>{@code @Transactional} 이 없다 — 붙이면 안 된다.</b> 최대 30초를 기다리므로 그동안 DB 커넥션을 붙잡으면 커넥션 풀이 마른다.
+     * 읽고 쓰는 것은 {@code stats} 쪽이 각자 짧은 트랜잭션으로 한다({@code stats.GameStatsStore}).
+     * 거절과 상한은 {@link GameStatsRefresher} 가 정한다 — 이 메서드는 게임 이름만 보고 넘긴다.
+     */
+    public GameProfileResponse refreshGameStats(Long userId, String gameName)
+    {
+        return GameProfileResponse.from(gameStatsRefresher.refresh(userId, requireGame(gameName)));
     }
 
     /** 게임 계정 연결을 끊는다. 없어도 성공이다 — 두 번 눌러도 결과가 같다 */

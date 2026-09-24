@@ -19,6 +19,10 @@ import java.time.Duration;
  * @param matchCount      최근 몇 경기를 읽어 평균을 낼지. 경기 하나가 요청 하나다 — 개발용 키의 한도(2분당 100회)를 생각해 작게 둔다
  * @param connectTimeout  Riot 을 부를 때의 연결 타임아웃
  * @param readTimeout     Riot 을 부를 때의 읽기 타임아웃. 긁는 것은 비동기라 요청 스레드를 붙잡지는 않지만, 느린 응답에 전용 풀이 묶이면 안 된다
+ * @param refreshCooldown <b>전적 갱신 요청</b>({@code POST …/game-accounts/{game}/refresh})을 같은 게임 계정에 다시 받기까지 기다리는 시간
+ *                        (2026-09-24 소유자 결정 — <b>2분</b>). 사용자가 누르는 것이라 남용을 막는 것이 이것뿐이다 — 한 번이 Riot 호출 21번이다
+ * @param refreshTimeout  그 요청이 <b>다 긁기를 기다리는 상한</b>(2026-09-24 소유자 결정 — <b>30초</b>). 넘으면 요청은 실패로 끝내고
+ *                        <b>뒤에서 돌던 갱신은 그대로 둔다</b> — 끝나면 전적은 갱신된다({@link GameStatsRefresher})
  */
 @ConfigurationProperties(prefix = "platform.riot")
 public record RiotProperties(
@@ -27,7 +31,9 @@ public record RiotProperties(
         @DefaultValue("https://kr.api.riotgames.com") String platformBaseUrl,
         @DefaultValue("20") int matchCount,
         @DefaultValue("PT3S") Duration connectTimeout,
-        @DefaultValue("PT3S") Duration readTimeout
+        @DefaultValue("PT3S") Duration readTimeout,
+        @DefaultValue("PT2M") Duration refreshCooldown,
+        @DefaultValue("PT30S") Duration refreshTimeout
 ) {
     /** 키가 있는가 — 없으면 긁지 않는다 */
     public boolean configured()
@@ -40,6 +46,7 @@ public record RiotProperties(
     public String toString()
     {
         return "RiotProperties[configured=" + configured() + ", regionalBaseUrl=" + regionalBaseUrl
-                + ", platformBaseUrl=" + platformBaseUrl + ", matchCount=" + matchCount + "]";
+                + ", platformBaseUrl=" + platformBaseUrl + ", matchCount=" + matchCount
+                + ", refreshCooldown=" + refreshCooldown + ", refreshTimeout=" + refreshTimeout + "]";
     }
 }

@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -50,6 +51,19 @@ public class UserController {
                                               @Valid @RequestBody GameAccountRequest request)
     {
         return userService.putGameAccount(userId, game, request);
+    }
+
+    /**
+     * <b>전적 갱신</b> — 그 게임 계정의 전적을 게임사 API 에서 <b>지금 다시 받아 온다</b>(2026-09-24 소유자 결정).
+     * <b>다 긁을 때까지 기다린다</b>(최대 30초) — 응답은 {@code PUT} 과 <b>같은 게임 프로필</b>이라 프런트가 그대로 갈아 끼운다.
+     *
+     * <p>같은 게임 계정은 <b>2분에 한 번</b>이다 — 그 안에 또 부르면 429 {@code TOO_MANY_STATS_REFRESHES} + {@code Retry-After} 다.
+     * 거절의 갈래는 {@code stats.GameStatsRefresher} 가 정한다.
+     */
+    @PostMapping("/game-accounts/{game}/refresh")
+    public GameProfileResponse refreshGameStats(@CurrentUserId Long userId, @PathVariable String game)
+    {
+        return userService.refreshGameStats(userId, game);
     }
 
     @DeleteMapping("/game-accounts/{game}")
