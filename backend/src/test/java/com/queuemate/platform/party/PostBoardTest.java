@@ -214,6 +214,71 @@ class PostBoardTest extends PostTestSupport {
                 .andExpect(jsonPath("$.status").value("EXPIRED"));
     }
 
+    // ---- 글 고치기와 방 안 사람 (2026-09-24 소유자 결정) ----
+
+    @Test
+    @DisplayName("방에 방장 말고 누가 있으면 글을 고칠 수 없다(409 ROOM_HAS_OTHER_MEMBERS) — 방이 없거나 방장 혼자면 고쳐지고, 그 사람이 나가면 다시 고쳐진다")
+    void noEditWhileOthersInRoom() throws Exception
+    {
+        String host = newLoginId();
+        String guest = newLoginId();
+        Cookie hostCookie = signupAndLogin(host);
+        signupAndLogin(guest);
+        Long hostId = userIdOf(host);
+        Long guestId = userIdOf(guest);
+        Long postId = createLolPost(hostCookie);
+
+        // 방 만들기를 아직 안 불렀다 — 글만 써 둔 상태다
+        editPost(hostCookie, postId, "{\"title\":\"방이 없다\"}")
+                .andExpect(status().isOk()).andExpect(jsonPath("$.title").value("방이 없다"));
+
+        openRoom(postId, hostId);
+        editPost(hostCookie, postId, "{\"title\":\"혼자 있다\"}")
+                .andExpect(status().isOk()).andExpect(jsonPath("$.title").value("혼자 있다"));
+
+        // 누가 들어왔다 — 이제 어느 칸도 고칠 수 없다(NO_VOICE 를 보고 들어온 사람에게 알려 줄 길이 없다)
+        openRoom(postId, hostId, guestId);
+        editPost(hostCookie, postId, "{\"title\":\"제목만 바꾼다\"}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ROOM_HAS_OTHER_MEMBERS"));
+        editPost(hostCookie, postId, "{\"voice\":\"NO_VOICE\",\"purpose\":\"FUN\"}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ROOM_HAS_OTHER_MEMBERS"));
+        // 아무 칸도 바뀌지 않았다 — DB 를 다시 읽어 본다
+        assertThat(columnOf(postId, "title")).isEqualTo("혼자 있다");
+        assertThat(columnOf(postId, "voice")).isEqualTo("REQUIRED");
+        assertThat(columnOf(postId, "purpose")).isEqualTo("RANK_UP");
+
+        redisTemplate.opsForSet().remove(membersKey(postId), String.valueOf(guestId));
+        editPost(hostCookie, postId, "{\"title\":\"다 나갔다\"}")
+                .andExpect(status().isOk()).andExpect(jsonPath("$.title").value("다 나갔다"));
+    }
+
+    @Test
+    @DisplayName("방장 · 상태 검사가 방 안 사람 검사보다 먼저다 — 방에 사람이 있어도 남의 글은 403, 만료된 글은 409 POST_NOT_RECRUITING 이다")
+    void hostAndStatusCheckedBeforeRoom() throws Exception
+    {
+        String host = newLoginId();
+        String guest = newLoginId();
+        Cookie hostCookie = signupAndLogin(host);
+        Cookie guestCookie = signupAndLogin(guest);
+        Long hostId = userIdOf(host);
+        Long guestId = userIdOf(guest);
+        Long postId = createLolPost(hostCookie);
+        openRoom(postId, hostId, guestId);
+
+        // 남의 글에 대고 "방에 사람이 있다"를 알려 주면 그 자체가 새는 정보다
+        editPost(guestCookie, postId, "{\"title\":\"내 것처럼\"}")
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("NOT_POST_HOST"));
+
+        // 방장이 글을 지운다(만료) — 방에는 그대로 사람이 있다
+        mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(hostCookie)).andExpect(status().isNoContent());
+        editPost(hostCookie, postId, "{\"title\":\"늦었다\"}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("POST_NOT_RECRUITING"));
+    }
+
     // ---- 차단 ----
 
     @Test
@@ -608,6 +673,12 @@ class PostBoardTest extends PostTestSupport {
     }
 
     // ---- 도우미 ----
+
+    /** 글의 어느 칸이 정말 안 바뀌었는지 볼 때 쓴다 — 응답이 아니라 DB 를 읽는다 */
+    private String columnOf(Long postId, String column)
+    {
+        return jdbcTemplate.queryForObject("select " + column + " from party.recruit_posts where id = ?", String.class, postId);
+    }
 
     private Instant roomSeenAt(Long postId)
     {

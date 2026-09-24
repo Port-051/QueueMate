@@ -82,6 +82,9 @@ public class PostStore {
     /**
      * 글을 고친다 — 준 것만 바꾼다. <b>줄을 잠그고 읽는다</b> — "모집 중인가"를 보고 저장하는 사이에 만료 · 확정이 끼어들지 못한다.
      * 글의 게임은 읽어 봐야 알아서 포지션과 {@code conditions} 의 검증이 이 안에 있다.
+     *
+     * <p><b>"방에 방장 말고 누가 있으면 고칠 수 없다"는 검사는 여기 없다</b>(2026-09-24 소유자 결정) — 방 키(Redis)를 읽어야 해서
+     * {@link PostService#edit} 이 트랜잭션 밖에서 한다. 여기 있는 방장 · 상태 검사는 그쪽에서도 한 번 하지만 <b>잠금 안의 이 판정이 최종</b>이다.
      */
     @Transactional
     public RecruitPost edit(Long me, Long postId, PostUpdateRequest request, Instant now)
@@ -259,7 +262,8 @@ public class PostStore {
         return new ApiException(HttpStatus.CONFLICT, "POST_NOT_RECRUITING", "모집 중인 글이 아닙니다");
     }
 
-    private static ApiException notPostHost()
+    /** {@link PostService#edit} 도 쓴다 — 방 안을 보기 전에 방장인지 먼저 갈라야 해서다(그쪽 주석) */
+    static ApiException notPostHost()
     {
         return new ApiException(HttpStatus.FORBIDDEN, "NOT_POST_HOST", "글을 쓴 사람만 할 수 있습니다");
     }

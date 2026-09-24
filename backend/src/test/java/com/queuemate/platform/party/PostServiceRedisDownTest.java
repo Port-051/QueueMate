@@ -4,6 +4,7 @@ import com.queuemate.platform.account.service.GameProfileReader;
 import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.gameconfig.GameConfigReader;
 import com.queuemate.platform.party.dto.PostResponse;
+import com.queuemate.platform.party.dto.PostUpdateRequest;
 import com.queuemate.platform.party.room.RoomStateReader;
 import com.queuemate.platform.party.room.RoomStateUnavailableException;
 import com.queuemate.platform.party.service.BoardProperties;
@@ -113,6 +114,28 @@ class PostServiceRedisDownTest extends PostTestSupport {
         assertThatThrownBy(() -> service.confirm(hostId, postId))
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo("ROOM_STATE_UNAVAILABLE"));
         assertThat(statusOf(postId)).isEqualTo("RECRUITING");
+    }
+
+    @Test
+    @DisplayName("고치기도 503 ROOM_STATE_UNAVAILABLE 이다 — 방에 누가 있는지 모르는데 고치게 하면 '사람이 있으면 못 고친다'가 뚫린다(fail-closed)")
+    void editFailsClosed() throws Exception
+    {
+        String host = newLoginId();
+        Cookie hostCookie = signupAndLogin(host);
+        Long hostId = userIdOf(host);
+        Long postId = createLolPost(hostCookie);
+        openRoom(postId, hostId);
+
+        PostService service = withBrokenRedis();
+
+        assertThatThrownBy(() -> service.edit(hostId, postId,
+                new PostUpdateRequest(null, "고쳐 보자", null, null, null, null, null)))
+                .isInstanceOfSatisfying(ApiException.class, e -> {
+                    assertThat(e.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                    assertThat(e.getCode()).isEqualTo("ROOM_STATE_UNAVAILABLE");
+                });
+        assertThat(jdbcTemplate.queryForObject("select title from party.recruit_posts where id = ?", String.class, postId))
+                .isEqualTo("같이 하실 분");
     }
 
     @Test

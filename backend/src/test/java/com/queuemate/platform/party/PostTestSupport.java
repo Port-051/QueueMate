@@ -15,6 +15,7 @@ import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -108,6 +109,12 @@ abstract class PostTestSupport extends ApiTestSupport {
     protected ResultActions createPost(Cookie cookie, String body) throws Exception
     {
         return mockMvc.perform(post("/api/v1/posts").cookie(cookie).contentType(MediaType.APPLICATION_JSON).content(body));
+    }
+
+    protected ResultActions editPost(Cookie cookie, long postId, String body) throws Exception
+    {
+        return mockMvc.perform(patch("/api/v1/posts/" + postId).cookie(cookie)
+                .contentType(MediaType.APPLICATION_JSON).content(body));
     }
 
     /** LOL 글을 하나 쓰고 그 id 를 돌려준다 */

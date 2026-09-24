@@ -79,18 +79,62 @@ public class PostService {
         return renderAll(me, List.of(post), Map.of(), false).getFirst();
     }
 
+    /**
+     * 글을 고친다. <b>방에 방장 말고 누가 있으면 고칠 수 없다</b>(2026-09-24 <b>소유자 결정</b> — {@code contracts/platform-api.md} "모집 글 · 목록 · 입장권" · P-19).
+     *
+     * <p><b>왜</b> — 고칠 수 있는 칸에 {@code mode} · {@code voice} · {@code purpose} · {@code conditions} 가 있다. {@code NO_VOICE} 를 보고 들어와 앉아 있는
+     * 사람 앞에서 {@code REQUIRED} 로 바꿀 수 있고, <b>그 사람에게 바뀌었다고 알려 줄 길이 없다</b> — 게시판 신호는 목록을 보는 사람에게 가고,
+     * 방 안 알림({@code ROOM_*})은 {@code room} 이 내는데 이 앱은 {@code room} 을 부르지 않는다(CLAUDE.md §3.3). 그래서 칸을 가리지 않고 아예 막는다.
+     *
+     * <p><b>방 키와 gameconfig 는 트랜잭션 밖에서 읽는다</b> — {@link PostStore#edit} 은 글의 줄을 잠근 채 돌아서, 그 안에서 Redis 를 기다리면 DB 커넥션을
+     * 붙잡는다(두 클래스를 나눈 이유가 그것이다 — 이 클래스의 머리 주석). 대가로 <b>읽은 뒤 저장하기 전에 누가 들어오는 창이 남는다</b> — 그 창은 짧고,
+     * 막으려는 것이 "사람이 있는데 조건이 바뀌는 것" 이라 감수한다({@code contracts/platform-api.md}).
+     */
     public PostResponse edit(Long me, Long postId, PostUpdateRequest request)
     {
+        // 잠금 밖에서 글을 한 번만 읽는다 — 모드 검증(글의 게임)과 방 안 사람 검사가 같이 쓴다. 없는 글이면 여기서 이미 404 다(PostStore#edit 과 같다)
+        RecruitPost post = postStore.find(postId).orElseThrow(PostStore::postNotFound);
         if(request.mode() != null)
         {
-            // 모드를 검증하려면 글의 게임을 알아야 한다 — 글의 game 은 바뀌지 않으므로 잠금 밖에서 읽어도 뒤에 달라질 수 없다.
-            // 없는 글이면 여기서 이미 404 다(PostStore#edit 과 같다)
-            RecruitPost post = postStore.find(postId).orElseThrow(PostStore::postNotFound);
+            // 글의 game 은 바뀌지 않으므로 잠금 밖에서 읽어도 뒤에 달라질 수 없다
             PostValidation.mode(gameConfig, post.getGame(), request.mode());
         }
+        // 방 안을 보기 전에 방장 · 상태를 본다 — 남의 글이나 끝난 글에 "방에 사람이 있다"를 알려 주면 그 자체가 새는 정보다.
+        // 최종 판정은 줄을 잠그는 PostStore#edit 이 다시 한다(그 사이에 만료 · 확정이 끼어들 수 있다)
+        if(!post.isHost(me))
+        {
+            throw PostStore.notPostHost();
+        }
+        if(post.getStatus() != PostStatus.RECRUITING)
+        {
+            throw PostStore.postNotRecruiting();
+        }
+        requireHostAlone(post);
         postStore.edit(me, postId, request, now());
         // 고친 글은 방이 떠 있는 글이다 — 방 안 사람까지 채운 한 줄을 돌려준다. 방장의 글이라 차단으로 걸러지지 않는다
         return get(me, postId);
+    }
+
+    /**
+     * 방에 <b>방장 말고</b> 누가 있으면 고치지 못하게 막는다(위 {@link #edit}). 방이 아직 없거나(방 만들기를 안 불렀다) 방장 혼자면 고칠 수 있다 —
+     * 바뀐 조건을 보고 들어온 사람이 없다.
+     *
+     * <p><b>방 키를 못 읽으면 막는다</b> — 입장권 발급과 <b>같은 503 {@code ROOM_STATE_UNAVAILABLE}</b> 이다(fail-closed). 누가 방에 있는지 확인이 안 되는데
+     * 고치게 하면 이 규칙이 없는 것과 같고, 사유("방의 상태를 확인할 수 없다")도 그쪽과 똑같아서 코드를 새로 두지 않았다.
+     */
+    private void requireHostAlone(RecruitPost post)
+    {
+        RoomState state = readRoomStates(List.of(post.getId()), true).get(post.getId());
+        if(state == null)
+        {
+            return;
+        }
+        // 사용자 번호로 팔 수 없는 값은 방 키를 읽는 자리에서 이미 걸러졌다(RedisRoomStateReader) — 그런 값 때문에 막히지는 않는다
+        if(state.members().stream().anyMatch(member -> !post.isHost(member)))
+        {
+            throw new ApiException(HttpStatus.CONFLICT, "ROOM_HAS_OTHER_MEMBERS",
+                    "방에 다른 사람이 있으면 글을 고칠 수 없습니다");
+        }
     }
 
     public void delete(Long me, Long postId)

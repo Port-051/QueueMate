@@ -44,6 +44,10 @@ public class PostController {
         return ResponseEntity.status(HttpStatus.CREATED).body(postService.create(userId, request));
     }
 
+    /**
+     * 준 것만 바꾼다. <b>방에 방장 말고 누가 있으면 409 {@code ROOM_HAS_OTHER_MEMBERS} 다</b>(2026-09-24 소유자 결정 — 조건이 바뀌는 것을
+     * 방 안 사람에게 알릴 길이 없다. {@link PostService#edit}). 방 키를 못 읽으면 503 이다.
+     */
     @PatchMapping("/{postId}")
     public PostResponse edit(@CurrentUserId Long userId, @PathVariable("postId") Long postId,
                              @Valid @RequestBody PostUpdateRequest request)

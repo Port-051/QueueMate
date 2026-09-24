@@ -20,7 +20,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -312,11 +311,5 @@ class PostApiTest extends PostTestSupport {
                         .header(HttpHeaders.ORIGIN, "https://evil.example"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ORIGIN_NOT_ALLOWED"));
-    }
-
-    private ResultActions editPost(Cookie cookie, long postId, String body) throws Exception
-    {
-        return mockMvc.perform(patch("/api/v1/posts/" + postId).cookie(cookie)
-                .contentType(MediaType.APPLICATION_JSON).content(body));
     }
 }
