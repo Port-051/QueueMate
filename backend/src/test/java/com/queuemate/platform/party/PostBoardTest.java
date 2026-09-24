@@ -50,7 +50,7 @@ class PostBoardTest extends PostTestSupport {
     // ---- 목록 · 카드 ----
 
     @Test
-    @DisplayName("목록의 한 줄 — 인원 · 방 안 전원의 카드(게임 프로필 · 전적) · filledPositions · full. 방장 먼저, 나머지는 닉네임순, 가입하지 않은 사람은 맨 뒤에 null 로 남는다")
+    @DisplayName("목록의 한 줄 — 인원 · 방 안 전원의 카드(게임 프로필 · 전적) · full. 방장 먼저, 나머지는 닉네임순, 가입하지 않은 사람은 맨 뒤에 null 로 남는다")
     void listShowsRoomMembers() throws Exception
     {
         String host = newLoginId();
@@ -79,8 +79,6 @@ class PostBoardTest extends PostTestSupport {
         assertThat(line.get("capacity").asInt()).isEqualTo(5);
         assertThat(line.get("full").asBoolean()).isFalse();
         assertThat(texts(line.get("wantedPositions"), null)).containsExactly("TOP", "MID", "SUPPORT");
-        // 찾는 포지션 ∩ 방 안 사람들의 주 포지션. DUELIST 는 다른 게임의 계정이라 세지 않는다
-        assertThat(texts(line.get("filledPositions"), null)).containsExactly("MID", "SUPPORT");
 
         JsonNode members = line.get("members");
         List<String> expectedOrder = new ArrayList<>(List.of(support, noAccount));
@@ -597,7 +595,7 @@ class PostBoardTest extends PostTestSupport {
             for(Long postId : posts)
             {
                 assertThat(find(lines, postId).get("memberCount").asInt()).isEqualTo(3);
-                assertThat(texts(find(lines, postId).get("filledPositions"), null)).containsExactly("TOP", "MID");
+                assertThat(texts(find(lines, postId).get("wantedPositions"), null)).containsExactly("TOP", "MID");
             }
             // 글 1 + 찾는 포지션 1 + LOL 프로필 1 + 차단 1. 이 DB 에는 다른 테스트의 글도 섞여 있지만 문장 수는 같다.
             // 넉넉히 잡아도 글 5개 · 사람 15명에 비례했다면(글마다 1문장만 더해도 9) 넘는 값이다

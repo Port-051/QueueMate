@@ -1,7 +1,6 @@
 package com.queuemate.platform.party.service;
 
 import com.queuemate.platform.account.domain.Game;
-import com.queuemate.platform.account.dto.GameProfileResponse;
 import com.queuemate.platform.account.dto.UserGameProfile;
 import com.queuemate.platform.account.service.GameProfileReader;
 import com.queuemate.platform.common.error.ApiException;
@@ -415,18 +414,12 @@ public class PostService {
                 .map(userId -> card(userId, post, profiles))
                 .sorted(CARD_ORDER)
                 .toList();
-        Set<String> presentPositions = cards.stream()
-                .map(MemberCard::profile)
-                .filter(profile -> profile != null && profile.mainPosition() != null)
-                .map(GameProfileResponse::mainPosition)
-                .collect(Collectors.toSet());
         // DB 의 줄에는 순서가 없다 — 그 게임의 포지션 순서로 세운다
         List<String> wanted = post.getGame().positions().stream().filter(post.getWantedPositions()::contains).toList();
-        List<String> filled = wanted.stream().filter(presentPositions::contains).toList();
 
         return new PostResponse(post.getId(), post.getHostId(), post.getGame().name(), post.getMode(), post.getTitle(),
                 post.getDescription(), post.getVoice().name(), post.getPurpose().name(), post.getConditions(),
-                wanted, filled, post.getStatus().name(), post.getCreatedAt(),
+                wanted, post.getStatus().name(), post.getCreatedAt(),
                 cards.size(), BoardProperties.ROOM_CAPACITY, cards.size() >= BoardProperties.ROOM_CAPACITY,
                 card(post.getHostId(), post, profiles), cards);
     }
