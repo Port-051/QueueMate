@@ -60,6 +60,8 @@
    **구현돼 있다**(2026-09-21) — **`roomId` 는 글의 id** 이고(`party.recruit_posts.id` — **bigint identity.** 2026-09-22 전에는 UUID 였다. `room` 의 방 키에는 숫자가 문자열로 들어간다), 입장권은 access 토큰과 같은 키로 서명한 60초짜리 JWT(`token_use` = `room_ticket`)이며, "아직 안 만들어진 방"과 "사라진 방"은 글의 `room_seen_at` 으로 가른다.
    방장 확정은 길 둘로 기록한다(브라우저가 `room` 의 확정 뒤에 `POST …/confirm` 을 부른다 + 목록이 확정 표시 키를 발견한다 — **`parties` 의 `UNIQUE (post_id)` 가 멱등을 지킨다**). Redis 를 못 읽으면 만료 판정을 하지 않는다(`contracts/platform-api.md` "모집 글 · 목록 · 입장권").
    **글의 `mode` 는 필수이고 그 게임의 gameconfig 에 있는 모드여야 한다**(2026-09-24 소유자 결정 — 옛날에는 30자까지의 자유 문자열이었다. 고치기에서 빈 문자열로 비우는 길이 없어졌다. `CLAUDE.md` §3.6)
+   **방에 방장 말고 누가 있으면 글을 고칠 수 없다**(2026-09-24 소유자 결정 — 409 `ROOM_HAS_OTHER_MEMBERS`. 고칠 수 있는 칸에 `mode` · `voice` · `purpose` · `conditions` 가 있는데 **`NO_VOICE` 를 보고 들어와 앉아 있는 사람에게 바뀌었다고 알려 줄 길이 없다.**
+   방이 아직 없거나 방장 혼자면 고쳐지고, 방 키를 못 읽으면 503 이다. **막는 것은 고치기 하나다** — 지우기 · 입장권 · 확정 기록 · 조회는 그대로다. `CLAUDE.md` §7.1 · `contracts/platform-api.md` P-19)
 4. **소셜** — 친구, 차단, 신고, 최근 함께한 사람. 차단 테이블(`social.blocks`)의 주인이다 — `matching` 이
    "차단 관계는 같은 파티가 될 수 없다"(INV-6)를 지키려고 이 테이블을 직접 읽는다. 차단은 DB 에 저장하면
    끝이고 SQS 로 따로 알리지 않는다(`BlockChanged.fifo` 폐기 — docs/11 D-12). **차단은 구현돼 있다.** 스키마별 DB 롤은 두지 않는다(2026-09-22 소유자 결정) — 앱 하나가 롤 하나로 붙고, `matching` 은 별도 롤 없이 `social.blocks` 를 읽는다(`CLAUDE.md` §3.5).
