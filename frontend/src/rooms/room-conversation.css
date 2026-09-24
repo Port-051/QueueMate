@@ -19,7 +19,7 @@
 .room-conversation-roster { flex: none; display: flex; align-items: flex-start; gap: 9px; padding: 3px 20px 17px; overflow-x: auto; overscroll-behavior: contain; }
 .room-conversation-member { min-width: 0; width: 65px; flex: 0 0 65px; display: flex; align-items: center; flex-direction: column; gap: 7px; }
 .room-conversation-avatar { position: relative; display: block; width: 42px; height: 42px; }
-.room-conversation-member > span:last-child { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; color: var(--text-dim); }
+.room-conversation-member > span:nth-child(2) { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; color: var(--text-dim); }
 .room-conversation-member small { color: var(--muted); font-size: 10px; }
 .room-conversation-host { position: absolute; display: grid; place-items: center; right: -3px; bottom: -3px; width: 18px; height: 18px; color: #d8c6ff; background: var(--accent-3); border: 2px solid var(--panel); border-radius: 50%; }
 .room-conversation-kick { position: absolute; right: -5px; top: -5px; width: 20px; height: 20px; padding: 0; display: grid; place-items: center; color: var(--muted); background: var(--panel-2); border: 2px solid var(--panel); border-radius: 50%; cursor: pointer; }
@@ -78,3 +78,14 @@
   .room-conversation-log { padding-inline: 16px; }
   .room-conversation-compose { margin-inline: 13px; }
 }
+.room-member-voice-state { font-size:10px; line-height:1.5; color:#a9b0c7; text-align:center; }
+.room-conversation-avatar.is-voice-ready { outline:2px solid #76c9a0; outline-offset:3px; border-radius:50%; }
+.room-close-policy { margin:-5px 22px 15px; font-size:11px; line-height:1.6; color:#aaa1bb; }
+.room-auto-close-notice { flex:none; padding:14px; margin:0 18px 15px; border:1px solid #c09b55; background:#332b1e; border-radius:12px; }
+.room-auto-close-notice strong { color:#ffe0a8; font-size:14px; }
+.room-auto-close-notice p { color:#dac9ad; font-size:12px; line-height:1.6; margin:7px 0; }
+.room-close-countdown { display:block; font-size:13px; font-weight:600; color:#ffd991; font-variant-numeric:tabular-nums; margin-bottom:10px; }
+.room-auto-close-notice>div { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:7px; }
+.room-auto-close-error { font-size:12px; line-height:1.6; padding:0 20px; color:#ffb6b6; }
+.room-conversation { overflow-y:auto; min-height:590px; }
+.room-conversation-member { flex-basis:70px; width:70px; }

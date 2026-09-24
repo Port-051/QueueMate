@@ -31,6 +31,7 @@ export interface GameRoom {
   desiredRoles: string[];
   voice: VoicePreference;
   status: 'OPEN' | 'CONFIRMED';
+  autoCloseAt?: number | null;
   createdAt: number;
   availableFrom: string | null;
   messages: RoomMessage[];

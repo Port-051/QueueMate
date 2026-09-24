@@ -4,6 +4,7 @@ import { IconChat, IconCheck, IconLogout, IconMic, IconMicOff, IconSend, IconShi
 import { MockPartyClient } from '../webrtc/MockPartyClient';
 import type { VoiceStatus } from '../webrtc/types';
 import type { GameRoom } from './types';
+import { autoClosePhase } from './autoClose';
 import './room-conversation.css';
 
 export interface RoomConversationProps {
@@ -13,6 +14,8 @@ export interface RoomConversationProps {
   onLeave: () => void;
   onKick: (memberId: string) => void;
   onConfirm: () => void;
+  onAutoConfirm: (deadline: number) => void;
+  onExtend: (deadline: number) => void;
 }
 
 function Headphones({ off = false }: { off?: boolean }) {
@@ -24,9 +27,21 @@ function Headphones({ off = false }: { off?: boolean }) {
 
 const clock = new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConfirm }: RoomConversationProps) {
+export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConfirm, onAutoConfirm, onExtend }: RoomConversationProps) {
   const toast = useToast();
   const [draft, setDraft] = useState('');
+  const [now, setNow] = useState(Date.now);
+  const [autoError, setAutoError] = useState('');
+  const attemptedDeadline = useRef<number | null>(null);
+  const autoPhase = autoClosePhase(room, now);
+  useEffect(() => { setNow(Date.now()); const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, [room.id]);
+  useEffect(() => { setAutoError(''); }, [room.id, room.autoCloseAt]);
+  useEffect(() => {
+    if (room.ownerId !== selfId || autoPhase !== 'due' || !room.autoCloseAt || attemptedDeadline.current === room.autoCloseAt) return;
+    attemptedDeadline.current = room.autoCloseAt;
+    try { onAutoConfirm(room.autoCloseAt); }
+    catch { setAutoError('자동 마감을 저장하지 못했어요. 모집 마감 버튼으로 다시 시도해 주세요.'); }
+  }, [room.id, room.autoCloseAt, room.ownerId, selfId, autoPhase, onAutoConfirm]);
   const [voice, setVoice] = useState<VoiceStatus>('idle');
   const [muted, setMuted] = useState(false);
   const [deafened, setDeafened] = useState(false);
@@ -136,7 +151,7 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
     <header className="room-conversation-header">
       <div className="room-conversation-heading">
         <span className={`room-conversation-status${confirmed ? ' is-confirmed' : ''}`}>
-          {confirmed ? <IconCheck size={12} /> : <i />} {confirmed ? '매칭 확정' : '참여 가능'}
+          {confirmed ? <IconCheck size={12} /> : <i />} {confirmed ? '모집 마감 · 대화 가능' : '팀원 모집 중'}
         </span>
         <h2>{room.title}</h2>
       </div>
@@ -146,11 +161,12 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
 
     <div className="room-conversation-roster" aria-label="참여한 사람">
       {room.members.map(member => <div className="room-conversation-member" key={member.id}>
-        <span className="room-conversation-avatar"><Avatar name={member.nickname} avatarUrl={member.avatarUrl} size={42} />
+        <span className={`room-conversation-avatar${member.id === selfId && voiceOn && !muted ? ' is-voice-ready' : ''}`}><Avatar name={member.nickname} avatarUrl={member.avatarUrl} size={42} />
           {member.id === room.ownerId ? <span className="room-conversation-host" title="방장" aria-label="방장"><IconShield size={11} /></span> : null}
           {isHost && member.id !== selfId ? <button className="room-conversation-kick" type="button" aria-label={`${member.nickname} 내보내기`} title="내보내기" onClick={() => setAction({ kind: 'kick', id: member.id })}><IconX size={12} /></button> : null}
         </span>
         <span title={member.nickname}>{member.nickname}{member.id === selfId ? <small> 나</small> : null}</span>
+        <small className="room-member-voice-state">{member.id === selfId ? voiceOn ? muted ? '마이크 꺼짐' : '마이크 준비' : '음성 참여 전' : '음성 연결 전'}</small>
       </div>)}
       {Array.from({ length: Math.max(0, room.capacity - room.members.length) }, (_, index) => <div className="room-conversation-member is-empty" key={`empty-${index}`} aria-label="빈 자리"><span className="room-conversation-empty-seat">+</span><span>빈 자리</span></div>)}
     </div>
@@ -165,13 +181,22 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
     </div> : null}
 
     {isHost && !confirmed ? <div className="room-conversation-host-actions">
-      <span>{room.members.length < 2 ? '팀원을 기다리는 중' : '팀이 준비됐다면'}</span><Button size="sm" disabled={room.members.length < 2} onClick={onConfirm}><IconCheck size={14} />매칭 확정</Button>
+      <span>{room.members.length < 2 ? '팀원을 기다리는 중' : '지금 멤버로 출발하나요?'}</span><Button size="sm" disabled={room.members.length < 2} onClick={onConfirm}><IconCheck size={14} />모집 마감</Button>
     </div> : null}
+
+    {isHost && !confirmed && autoPhase === 'waiting' ? <p className="room-close-policy">구성원이 그대로면 {Math.max(1, Math.ceil(((room.autoCloseAt ?? now) - 60_000 - now) / 60_000))}분 뒤 모집 마감을 안내해요.</p> : null}
+    {isHost && !confirmed && (autoPhase === 'warning' || autoPhase === 'due') && !autoError ? <div className="room-auto-close-notice" role="alert" aria-label="자동 모집 마감 안내">
+      <strong>지금 멤버로 함께할까요?</strong>
+      <p>잠시 뒤 새 팀원의 입장을 막고 모집을 마감해요. 대화는 계속할 수 있어요.</p>
+      <span className="room-close-countdown" role="timer" aria-live="off">{Math.max(0, Math.ceil(((room.autoCloseAt ?? now) - now) / 1000))}초 후 자동 마감</span>
+      <div><Button size="sm" variant="ghost" onClick={() => room.autoCloseAt && onExtend(room.autoCloseAt)}>계속 모집하기</Button><Button size="sm" onClick={onConfirm}>지금 마감하기</Button></div>
+    </div> : null}
+    {autoError ? <p className="room-auto-close-error" role="alert">{autoError}</p> : null}
 
     <section className={`room-conversation-voice${voiceOn ? ' is-previewing' : ''}`} aria-label="방 음성 채널">
       <div className="room-conversation-voice-top">
         <span className="room-conversation-voice-symbol"><Headphones /></span>
-        <div><h3>{voiceOn ? '음성 미리보기' : '음성 채널'}</h3><p role="status">{voiceOn ? '실제 음성은 전송되지 않아요' : voice === 'error' ? '다시 시도해 주세요' : '방에서 바로 함께 이야기해요'}</p></div>
+        <div><h3>{voiceOn ? '음성 미리보기' : '음성 채널'}</h3><p role="status">{voiceOn ? '실제 음성은 전송되지 않아요' : voice === 'error' ? '다시 시도해 주세요' : '모집 중에도 대화할 수 있어요'}</p></div>
         {!voiceOn ? <Button size="sm" variant="primary" disabled={!self || voice === 'connecting'} onClick={() => void startVoice()}>{voice === 'connecting' ? '준비 중' : '참여'}</Button> : null}
       </div>
       {voiceOn ? <div className="room-conversation-voice-controls">

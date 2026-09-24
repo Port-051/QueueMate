@@ -1,4 +1,5 @@
 import type { GameKey, VoicePreference } from '../api/types';
+import { autoClosePhase } from './autoClose';
 import { canonicalRoomRoles } from './summary';
 import type { GameRoom } from './types';
 
@@ -16,7 +17,7 @@ export function quickConnectCandidates(rooms: GameRoom[], criteria: QuickConnect
   if (!noRoles && !canonicalRoomRoles(criteria.game, [criteria.role]).length) return [];
   return rooms.filter(room => {
     if (room.game !== criteria.game || room.modeKey !== criteria.modeKey || room.type !== 'REALTIME'
-      || room.status !== 'OPEN' || room.members.length >= room.capacity
+      || room.status !== 'OPEN' || room.members.length >= room.capacity || autoClosePhase(room, Date.now()) === 'due'
       || room.members.some(member => member.id === criteria.userId)) return false;
     if (criteria.voice !== 'OPTIONAL' && room.voice !== 'OPTIONAL' && criteria.voice !== room.voice) return false;
     return noRoles || !room.desiredRoles.length || room.desiredRoles.includes('ANY') || room.desiredRoles.includes(criteria.role);

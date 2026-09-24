@@ -121,7 +121,7 @@ test('다섯 명 방을 만들면 한 열 목록과 대화를 함께 쓰고 확�
   await page.getByRole('textbox', { name: '방에 메시지 보내기', exact: true }).fill('확정 전부터 여기서 이야기해요');
   await page.getByRole('button', { name: '메시지 보내기', exact: true }).click();
   await expect(page.getByText('확정 전부터 여기서 이야기해요', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: '매칭 확정', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '모집 마감', exact: true })).toBeDisabled();
   // Simulate an incoming membership update; these local prototype rooms have no remote peer server.
   await page.evaluate(({ key, newcomer }) => {
     const snapshot = JSON.parse(localStorage.getItem(key)!);
@@ -131,7 +131,7 @@ test('다섯 명 방을 만들면 한 열 목록과 대화를 함께 쓰고 확�
     localStorage.setItem(key, newValue);
     window.dispatchEvent(new StorageEvent('storage', { key, newValue }));
   }, { key: STORAGE_KEY, newcomer: member('incoming') });
-  await page.getByRole('button', { name: '매칭 확정', exact: true }).click();
+  await page.getByRole('button', { name: '모집 마감', exact: true }).click();
   const deck = page.getByRole('button', { name: '우리 다섯 명의 방 방 펼치기', exact: true });
   await page.getByRole('checkbox', { name: '모집 중인 방만', exact: true }).uncheck();
   await expect(deck).toHaveAttribute('data-status', 'CONFIRMED');
@@ -158,7 +158,7 @@ test('마지막 자리에 들어가면 자동 확정되며 참가자는 방장 �
   await expect(deck).toHaveAttribute('data-status', 'CONFIRMED');
   await expect(deck).toContainText(/5\s*\/\s*5/);
   await expect(page.getByRole('button', { name: /내보내기/ })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '매칭 확정', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '모집 마감', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: '방 나가기', exact: true }).click();
   await page.getByRole('alert').getByRole('button', { name: '나가기', exact: true }).click();
   await page.getByRole('checkbox', { name: '모집 중인 방만', exact: true }).uncheck();

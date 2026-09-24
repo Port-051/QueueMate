@@ -52,3 +52,9 @@ test('제안 후 마감되거나 조건이 변경되면 재검증에서 제외�
     expect(quickConnectCandidates([{ ...base, ...change }], criteria)).toEqual([]);
   }
 });
+
+test('호스트 화면이 닫혀 있어도 자동 마감 기한이 지난 방은 제안하지 않는다', () => {
+  const room = { ...base, members: [member, { ...member, id: 'guest' }], autoCloseAt: Date.now() - 1 };
+  expect(quickConnectCandidates([room], criteria)).toEqual([]);
+  expect(quickConnectCandidates([{ ...room, autoCloseAt: Date.now() + 60_000 }], criteria)).toHaveLength(1);
+});

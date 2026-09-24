@@ -3,6 +3,8 @@ import type { GameKey, VoicePreference } from '../api/types';
 import { canonicalRoomRoles, ROOM_ROLES, roomCapacityLimit } from './summary';
 import type { CreateRoomInput, GameRoom, RoomMember, RoomMessage } from './types';
 
+import { autoClosePhase, canAutoClose, nextAutoCloseAt } from './autoClose';
+
 export { roomCapacityLimit } from './summary';
 
 export interface RoomSnapshot { version: 1; rooms: GameRoom[]; }
@@ -119,7 +121,7 @@ function parseSnapshot(raw: string | null, userId: string): RoomSnapshot | null 
       rooms.push({ id: value.id, game, modeKey: value.modeKey, type: value.type as GameRoom['type'], title: value.title.slice(0, 50),
         ownerId: value.ownerId, capacity, members, desiredRoles: canonicalRoomRoles(game, strings(value.desiredRoles)),
         voice: VOICES.includes(value.voice as VoicePreference) ? value.voice as VoicePreference : 'OPTIONAL',
-        status: value.status === 'CONFIRMED' || members.length === capacity ? 'CONFIRMED' : 'OPEN', createdAt, availableFrom, messages });
+        status: value.status === 'CONFIRMED' || members.length === capacity ? 'CONFIRMED' : 'OPEN', createdAt, availableFrom, messages, autoCloseAt: nullableNumber(value.autoCloseAt) });
       ids.add(value.id);
     }
     if (rooms.filter(room => room.members.some(member => member.id === userId)).length > 1) return null;
@@ -206,13 +208,14 @@ export function createRoomActions(userId: string) {
       if (active) throw new Error('참여 중인 방에서 먼저 나와 주세요.');
       const room = rooms.find(item => item.id === roomId);
       if (!room) throw new Error('방이 종료되었어요.');
-      if (room.status === 'CONFIRMED' || room.members.length >= room.capacity) throw new Error('이미 매칭이 확정된 방이에요.');
+      if (room.status === 'CONFIRMED' || room.members.length >= room.capacity || autoClosePhase(room, Date.now()) === 'due') throw new Error('이미 매칭이 확정된 방이에요.');
       if (room.type === 'RESERVATION' && room.availableFrom && Date.parse(room.availableFrom) <= Date.now()) throw new Error('예약 시간이 지난 방이에요.');
       const entrant = checkedMember(member, room.game);
       if (room.game === 'LOL' && room.modeKey === 'ARAM') entrant.roles = [];
       const members = [...room.members, entrant];
       let joined = append({ ...room, members, status: members.length === room.capacity ? 'CONFIRMED' : 'OPEN' }, systemMessage(`${entrant.nickname} 님이 들어왔어요.`));
       if (joined.status === 'CONFIRMED') joined = append(joined, systemMessage('정원이 모두 차서 매칭이 확정됐어요.'));
+      joined.autoCloseAt = nextAutoCloseAt(joined, Date.now());
       save(userId, rooms.map(item => item.id === roomId ? joined : item));
     },
     leave(): void {
@@ -224,6 +227,7 @@ export function createRoomActions(userId: string) {
       const ownerId = room.ownerId === userId ? members[0]?.id : room.ownerId;
       let remaining = append({ ...room, members, ownerId: ownerId ?? userId }, systemMessage(`${me.nickname} 님이 나갔어요.`));
       if (members.length && room.ownerId === userId) remaining = append(remaining, systemMessage(`${members[0].nickname} 님이 방장이 되었어요.`));
+      remaining.autoCloseAt = nextAutoCloseAt(remaining, Date.now());
       save(userId, members.length ? rooms.map(item => item.id === room.id ? remaining : item) : rooms.filter(item => item.id !== room.id));
     },
     kick(roomId: string, memberId: string): void {
@@ -233,6 +237,7 @@ export function createRoomActions(userId: string) {
       const member = room.members.find(item => item.id === memberId);
       if (!member) throw new Error('이미 방에서 나간 사람이에요.');
       const changed = append({ ...room, members: room.members.filter(item => item.id !== memberId) }, systemMessage(`${member.nickname} 님을 내보냈어요.`));
+      changed.autoCloseAt = nextAutoCloseAt(changed, Date.now());
       save(userId, rooms.map(item => item.id === roomId ? changed : item));
     },
     confirm(roomId: string): void {
@@ -240,8 +245,23 @@ export function createRoomActions(userId: string) {
       const room = owned(rooms, roomId);
       if (room.status === 'CONFIRMED') return;
       if (room.members.length < 2) throw new Error('함께할 사람이 들어오면 확정할 수 있어요.');
-      const confirmed = append({ ...room, status: 'CONFIRMED' }, systemMessage('방장이 매칭을 확정했어요. 이제 함께 출발해요!'));
+      const confirmed = append({ ...room, status: 'CONFIRMED', autoCloseAt: null }, systemMessage('방장이 매칭을 확정했어요. 이제 함께 출발해요!'));
       save(userId, rooms.map(item => item.id === roomId ? confirmed : item));
+    },
+    autoConfirm(roomId: string, expectedDeadline: number): void {
+      const rooms = current();
+      const room = rooms.find(item => item.id === roomId);
+      if (!room || !canAutoClose(room, userId, expectedDeadline, Date.now())) return;
+      const closed = append({ ...room, status: 'CONFIRMED', autoCloseAt: null }, systemMessage('안내한 시간이 지나 모집을 마감했어요. 참여한 팀원과 대화는 계속할 수 있어요.'));
+      save(userId, rooms.map(item => item.id === roomId ? closed : item));
+    },
+    extendRecruitment(roomId: string, expectedDeadline: number): void {
+      const rooms = current();
+      const room = owned(rooms, roomId);
+      if (room.autoCloseAt !== expectedDeadline || room.status !== 'OPEN') return;
+      if (Date.now() >= expectedDeadline) throw new Error('모집 마감 시간이 지났어요. 방 상태를 확인해 주세요.');
+      const continued = append({ ...room, autoCloseAt: nextAutoCloseAt(room, Date.now()) }, systemMessage('방장이 모집을 계속하기로 했어요. 10분 뒤 다시 안내할게요.'));
+      save(userId, rooms.map(item => item.id === roomId ? continued : item));
     },
     send(text: string): void {
       const rooms = current();
