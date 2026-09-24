@@ -257,3 +257,51 @@
 .room-spread-card,.room-spread-backdrop[data-phase=open] .room-spread-card { transform:none; transition:none; }
 .room-spread-card.is-member { opacity:1; }
 .compact-member-stats { font-size:9px; }
+
+/* Main-branch visual language: quiet list dividers, profile rail, readable type. */
+.room-home { max-width:1440px; }
+.room-home .room-home-layout { grid-template-columns:minmax(0,1fr) 300px; gap:28px; }
+.room-home .room-deck-grid { gap:0; }
+.room-compact { height:258px; padding:16px 0; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; }
+.room-compact:hover { background:#ffffff03; border-color:var(--line); }
+.compact-room-header { margin-bottom:12px; }
+.compact-room-header h3 { font-size:17px; margin-top:4px; }
+.compact-room-mode { font-size:12px; color:var(--muted); }
+.compact-room-header .room-status { font-size:13px; }
+.compact-room-header b { font-size:17px; }
+.compact-members { display:flex; flex:none; height:144px; min-height:144px; overflow-x:auto; gap:8px; padding-bottom:4px; scrollbar-width:thin; scrollbar-color:var(--line) transparent; }
+.compact-member { flex:0 0 140px; width:140px; height:138px; box-sizing:border-box; padding:10px; gap:7px; background:var(--panel); border:1px solid var(--line-soft); border-radius:8px; }
+.compact-member-name { min-height:21px; gap:5px; }
+.compact-member-name strong { font-size:14px; }
+.compact-member-name>.avatar-wrap,.compact-member-name>.avatar { display:none; }
+.compact-member-name small { display:block; font-size:10px; }
+.compact-member .room-rank strong { font-size:13px; }
+.compact-member .room-rank img,.compact-member .room-rank svg { display:inline; width:23px; height:23px; }
+.compact-member-stats { display:flex; justify-content:space-between; gap:4px; font-size:11px; line-height:1.5; white-space:nowrap; }
+.compact-member-stats>span { display:flex; flex-direction:column; gap:1px; }
+.compact-member-stats .performance-value,.compact-member-stats .room-unknown-stat { font-size:14px; }
+.compact-member-picks { margin-top:auto; flex-wrap:nowrap; }
+.compact-member-picks .preferred-champion-portrait { width:21px; height:21px; }
+.compact-member-picks .room-role-icons svg { width:17px; height:17px; }
+.compact-seat { background:transparent; border:1px dashed var(--line); gap:5px; }
+.compact-seat strong { font-size:13px; }
+.compact-seat small { font-size:12px; }
+.compact-room-footer { font-size:12px; margin-top:9px; min-height:20px; }
+.room-quick-rail .room-quick-connect { background:transparent; border:0; border-left:1px solid var(--line); border-radius:0; padding:8px 0 20px 22px; }
+.room-quick-rail .home-profile-account { margin-bottom:30px; }
+.room-quick-rail .home-profile-identity { gap:4px; }
+.room-quick-rail .home-profile-identity strong { font-size:16px; }
+.room-quick-rail .home-profile-identity>span { font-size:12px; }
+.room-quick-rail .quick-connect-heading h2 { font-size:18px; }
+.room-quick-rail .quick-connect-heading select,.room-quick-rail .quick-voice-label,.room-quick-rail .quick-connect-controls legend { font-size:14px; }
+.room-quick-rail .quick-role-options button { font-size:14px; background:transparent; }
+.room-quick-rail .quick-role-options button[aria-pressed=true] { background:var(--accent); }
+.room-quick-rail .quick-connect-start p,.room-quick-rail .quick-connect-hint,.room-quick-rail .quick-result-reasons { font-size:13px; }
+.room-quick-rail .quick-result-actions button { font-size:13px; }
+@media(max-width:900px) {
+  .room-home .room-home-layout { grid-template-columns:minmax(0,1fr); }
+  .room-quick-rail .room-quick-connect { border-left:0; border-bottom:1px solid var(--line); padding:0 0 20px; }
+}
+.compact-member { height:150px; }
+.compact-members { height:156px; min-height:156px; }
+.room-compact { height:270px; }

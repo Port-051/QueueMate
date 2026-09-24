@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Avatar } from '../components/ui';
 import type { GameKey, VoicePreference } from '../api/types';
 import { FilterRoleIcon } from '../components/FilterSymbols';
 import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
@@ -25,6 +27,7 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onOpen, onCreat
   const reset = () => { setStarted(false); setSkipped([]); };
 
   return <section className="room-quick-connect" aria-label="빠른 연결">
+    <div className="home-profile-account"><Avatar name={member.nickname} avatarUrl={member.avatarUrl} size={40}/><div className="home-profile-identity"><strong>{member.nickname}</strong><span>함께할 팀을 찾아보세요</span></div><Link className="home-profile-link" to="/app/me">프로필</Link></div>
     <div className="quick-connect-content">
       <div className="quick-connect-heading"><h2>빠른 연결</h2><select aria-label="빠른 연결 게임 모드" value={modeKey} onChange={event => onModeChange(event.target.value)}>{visibleModes(game).map(mode => <option key={mode.key} value={mode.key}>{mode.label} · 지금 플레이</option>)}</select></div>
       <div className="quick-connect-controls">
