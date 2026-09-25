@@ -46,7 +46,7 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onOpen, onCreat
       {candidate ? <>
         <div className="quick-result-top"><span>조건에 맞는 방</span><strong>{candidate.members.length}/{candidate.capacity}명</strong></div>
         <h3>{candidate.title}</h3>
-        <p className="quick-result-reasons">{visibleModes(game).find(mode => mode.key === candidate.modeKey)?.label} <RoomVoice value={candidate.voice}/></p>
+        <p className="quick-result-reasons"><RoomVoice value={candidate.voice}/></p>
         <div className="quick-result-actions"><Button onClick={() => setSkipped(values => [...values, candidate.id])}>다른 방</Button><Button variant="primary" onClick={event => onOpen(candidate, event.currentTarget, profile, criteria)}>방 확인</Button></div>
       </> : <>
         <h3>{candidates.length ? '제안할 방을 모두 봤어요.' : '조건에 맞는 방이 없어요.'}</h3>

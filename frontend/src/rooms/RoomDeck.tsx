@@ -1,6 +1,6 @@
 import type { GameKey } from '../api/types';
 import { Avatar } from '../components/ui';
-import { FilterModeIcon, FilterRoleIcon, FilterTierIcon } from '../components/FilterSymbols';
+import { FilterRoleIcon, FilterTierIcon } from '../components/FilterSymbols';
 import { PerformanceValue, PreferredChampions } from '../components/IntroductionVisuals';
 import { IconCheck, IconParty } from '../components/icons';
 import { keyConditionOptions, visibleModes, usesKeyCondition } from '../domain/gameConfig';
@@ -23,9 +23,9 @@ export function RoomRoles({ game, roles, labels = false }: { game: GameKey; role
   })}</span>;
 }
 
-export function RoomRank({ game, tier, division }: { game: GameKey; tier: string | null; division: number | null }) {
+export function RoomRank({ game, tier, division, size = 30 }: { game: GameKey; tier: string | null; division: number | null; size?: number }) {
   const suffix = tier && division ? game === 'LOL' ? hasLolRankDivision(tier) ? ['', 'I', 'II', 'III', 'IV'][division] : '' : String(division) : '';
-  return <span className="room-rank"><FilterTierIcon game={game} tier={tier} size={30} /><strong>{tier ? `${TIER_LABELS[tier] ?? tier}${suffix ? ` ${suffix}` : ''}` : '—'}</strong></span>;
+  return <span className="room-rank"><FilterTierIcon game={game} tier={tier} size={size} /><strong>{tier ? `${TIER_LABELS[tier] ?? tier}${suffix ? ` ${suffix}` : ''}` : '—'}</strong></span>;
 }
 
 function Stat({ kind, value }: { kind: 'winRate' | 'kda'; value: number | null }) {
@@ -37,7 +37,7 @@ export function RoomSummaryCard({ room, showMembers = false }: { room: GameRoom;
   const host = room.members.find(member => member.id === room.ownerId);
   const confirmed = room.status === 'CONFIRMED';
   return <div className={`room-summary-card${confirmed ? ' is-confirmed' : ''}`}>
-    <div className="room-card-eyebrow"><span><FilterModeIcon mode={room.modeKey} />{roomModeLabel(room)}</span><span className={`room-status${confirmed ? ' is-confirmed' : ''}`}>{confirmed ? <><IconCheck size={12} />모집 마감</> : <><i />모집 중</>}</span></div>
+    <div className="room-card-eyebrow"><span className={`room-status${confirmed ? ' is-confirmed' : ''}`}>{confirmed ? <><IconCheck size={12} />모집 마감</> : <><i />모집 중</>}</span></div>
     <h3>{room.title}</h3>
     {room.availableFrom ? <div className="room-start-time">{timeLabel(room.availableFrom)} 시작</div> : null}
     {showMembers ? <div className="room-visible-roster" aria-label="방 구성원 정보">
@@ -69,7 +69,7 @@ export function RoomMemberCard({ room, member }: { room: GameRoom; member: RoomM
     <RoomRank game={room.game} tier={member.tier} division={member.division} />
     <div className="room-member-stats"><div><span>승률</span><Stat kind="winRate" value={member.winRate} /></div><div><span>KDA</span><Stat kind="kda" value={member.kda} /></div></div>
     {usesKeyCondition(room.game, room.modeKey) ? <RoomRoles game={room.game} roles={member.roles} /> : null}
-    <div className="room-member-champions"><PreferredChampions game={room.game} names={member.champions.slice(0, 3)} /><span title={roomVoiceLabel({ ...room, voice: member.voice })} role="img" aria-label={roomVoiceLabel({ ...room, voice: member.voice })}><RoomVoice value={member.voice} /></span></div>
+    <div className="room-member-champions"><PreferredChampions game={room.game} names={member.champions.slice(0, 3)} /></div>
     {member.bio ? <p>{member.bio}</p> : null}
   </article>;
 }
@@ -79,20 +79,18 @@ export function RoomDeck({ room, onOpen }: { room: GameRoom; onOpen: (room: Game
   const hasRoles = usesKeyCondition(room.game, room.modeKey);
   return <button type="button" className={`room-deck room-compact${closed ? ' is-confirmed' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`} onClick={event => onOpen(room, event.currentTarget)}>
     <div className="compact-room-header" aria-label="방 요약">
-      <span className="compact-room-mode">{roomModeLabel(room)}</span>
       <h3 title={room.title}>{room.title}</h3>
       {room.availableFrom ? <time>{timeLabel(room.availableFrom)}</time> : null}
       <span className={`room-status${closed ? ' is-confirmed' : ''}`}>{closed ? '마감' : '모집 중'}<b>{room.members.length}/{room.capacity}</b></span>
-      {hasRoles ? <span className="compact-room-wanted" aria-label="찾는 포지션"><small>찾는</small><RoomRoles game={room.game} roles={room.desiredRoles} labels/></span> : null}
+      {hasRoles ? <span className="compact-room-wanted" aria-label="찾는 포지션"><small>찾는 포지션</small><RoomRoles game={room.game} roles={room.desiredRoles} labels/></span> : null}
       <RoomVoice value={room.voice}/>
     </div>
     <div className="compact-members" aria-label="방 구성원 정보">
       {room.members.map(member => <div className="compact-member" key={member.id}>
         <div className="compact-member-name"><Avatar name={member.nickname} avatarUrl={member.avatarUrl} size={28}/><span><strong title={member.nickname}>{member.nickname}</strong>{member.id === room.ownerId ? <small>방장</small> : null}</span></div>
-        <div className="compact-member-rank"><RoomRank game={room.game} tier={member.tier} division={member.division}/><RoomVoice value={member.voice}/></div>
-        <div className="compact-member-position" aria-label={`${member.nickname} 포지션`}>{hasRoles ? <RoomRoles game={room.game} roles={member.roles} labels/> : <span>무작위</span>}</div>
+        <div className="compact-member-rank"><RoomRank game={room.game} tier={member.tier} division={member.division} size={16}/><span className="compact-member-position" aria-label={`${member.nickname} 포지션`}>{hasRoles ? <RoomRoles game={room.game} roles={member.roles} labels/> : <span>무작위</span>}</span></div>
         <span className="compact-member-stats"><span>승률 <Stat kind="winRate" value={member.winRate}/></span><span>KDA <Stat kind="kda" value={member.kda}/></span></span>
-        <div className="compact-member-champions" aria-label={`${member.nickname} ${room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '선호 요원' : '선호 무기'}`}><small>{room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '요원' : '무기'}</small>{member.champions.length ? <PreferredChampions game={room.game} names={member.champions.slice(0,2)}/> : <span>—</span>}</div>
+        <div className="compact-member-champions" aria-label={`${member.nickname} ${room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '선호 요원' : '선호 무기'}`}><small>{room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '요원' : '무기'}</small><PreferredChampions game={room.game} names={member.champions.slice(0,3)}/>{room.game === 'LOL' ? Array.from({ length: Math.max(0, 3 - member.champions.length) }, (_, index) => <span className="compact-champion-empty" key={index} role="img" aria-label="챔피언 미등록" title="챔피언 미등록">—</span>) : null}</div>
       </div>)}
       {Array.from({length:Math.max(0,room.capacity-room.members.length)},(_,i)=><div className="compact-member compact-seat" key={`seat-${i}`}><span>+</span><strong>{closed ? '모집 마감' : '빈 자리'}</strong></div>)}
     </div>

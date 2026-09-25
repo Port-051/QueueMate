@@ -368,3 +368,25 @@
 .room-matching-form .intro-voice-options.is-binary,.room-composer .room-composer-voice-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
 .room-matching-form .intro-voice-options.is-binary .filter-mode svg,.room-composer-voice-options .filter-mode svg { width:23px; height:23px; }
 .quick-result-reasons { display:flex; align-items:center; gap:8px; }
+/* Each party is one card, with compact rank/role rows inside equal member cards. */
+.room-home.board-home { max-width:1320px; }
+.room-home .room-deck-grid { gap:14px; }
+.room-deck.room-compact { height:246px; padding:14px; border:1px solid #303443; border-radius:14px; background:#111520; }
+.room-deck.room-compact:hover { border-color:#8066ae; background:#151826; }
+.room-deck.room-compact.is-confirmed { background:#17191f; border-color:#373b45; }
+.compact-room-header { gap:10px; margin-bottom:10px; }
+.compact-room-header h3 { min-width:100px; }
+.compact-members { height:180px; min-height:180px; }
+.compact-member { flex-basis:152px; width:152px; height:172px; grid-template-rows:32px 24px 34px 30px; gap:7px; }
+.compact-member-rank { gap:4px; justify-content:space-between; }
+.compact-member-rank .room-rank { gap:2px; flex:none; }
+.compact-member-rank .room-rank img,.compact-member-rank .room-rank svg { width:16px; height:16px; }
+.compact-member-position { padding:1px 3px; overflow:hidden; flex:0 1 auto; }
+.compact-member-position .room-role-icons { gap:4px; min-height:20px; }
+.compact-member-position .room-role-icons>span { gap:3px; }
+.compact-member-position .room-role-icons svg { width:16px; height:16px; }
+.compact-member-position .room-role-icons b { font-size:12px; }
+.compact-member-champions { gap:5px; }
+.compact-member-champions .preferred-champions { gap:3px; }
+.compact-member-champions .preferred-champion-portrait { width:23px; height:23px; }
+.compact-champion-empty { display:inline-grid; place-items:center; width:23px; height:23px; flex:none; border:1px dashed #3c4050; border-radius:50%; color:var(--muted); font-size:10px; }

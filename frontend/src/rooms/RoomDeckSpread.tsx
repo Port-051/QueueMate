@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { IconX } from '../components/icons';
-import { RoomMemberCard, RoomSummaryCard, roomModeLabel } from './RoomDeck';
+import { RoomMemberCard, RoomSummaryCard } from './RoomDeck';
 import type { GameRoom } from './types';
 
 export function RoomDeckSpread({ room, origin, trigger, activeRoomId, onJoin, onClose }: {
@@ -73,7 +73,7 @@ export function RoomDeckSpread({ room, origin, trigger, activeRoomId, onJoin, on
   const joinLabel = inThisRoom ? '참여 중인 방' : room.status === 'CONFIRMED' ? '매칭 확정' : activeRoomId ? '다른 방에 참여 중' : '입장하기';
   return createPortal(<div className="room-spread-backdrop" data-phase={phase} onClick={event => { if (event.target === event.currentTarget) close(); }}>
     <div className="room-spread-dialog" ref={dialog} role="dialog" aria-modal="true" aria-label={room.title}>
-      <header className="room-spread-heading"><div><span>{roomModeLabel(room)} · {room.members.length}/{room.capacity}명</span><h2>{room.title}</h2></div><button className="room-icon-button" aria-label="카드 접기" onClick={close}><IconX size={22} /></button></header>
+      <header className="room-spread-heading"><div><span>{room.members.length}/{room.capacity}명</span><h2>{room.title}</h2></div><button className="room-icon-button" aria-label="카드 접기" onClick={close}><IconX size={22} /></button></header>
       <div className="room-spread-scroll"><div className="room-spread-track" ref={track}>
         <div className="room-spread-card is-summary"><RoomSummaryCard room={room} /></div>
         {room.members.map((member, index) => <div className="room-spread-card is-member" key={member.id} style={{ '--fan-index': index } as React.CSSProperties}><RoomMemberCard room={room} member={member} /></div>)}

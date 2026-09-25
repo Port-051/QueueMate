@@ -25,7 +25,7 @@ const TITLES: Record<GameKey, string[]> = {
   PUBG: ['치킨 한 마리 같이 해요', '천천히 파밍부터', '안전하게 자기장 타요', '브리핑하면서 즐겨요', '오늘은 같이 TOP 1', '우리 팀 출발 준비'],
 };
 const NICKNAMES = ['달빛산책', '모카한잔', '구름사이', '오후의게임', '작은용기', '포근한밤', '별빛우산', '한판만더', '초록신호', '오늘도맑음', '조용한합류', '주말의우리'];
-const CHAMPIONS = [['Garen', 'Camille'], ['LeeSin', 'Viego'], ['Ahri', 'Orianna'], ['Jinx', 'Ezreal'], ['Lulu', 'Thresh']];
+const CHAMPIONS = [['Garen', 'Camille', 'Jax'], ['LeeSin', 'Viego', 'JarvanIV'], ['Ahri', 'Orianna', 'Syndra'], ['Jinx', 'Ezreal', 'Kaisa'], ['Lulu', 'Thresh', 'Nautilus']];
 
 export const roomStorageKey = (userId: string): string => `${PREFIX}${userId}`;
 const identifier = (): string => crypto.randomUUID();
@@ -85,11 +85,15 @@ function seedRooms(now = Date.now()): GameRoom[] {
 
 function parseMember(value: unknown, game: GameKey): RoomMember | null {
   if (!record(value) || typeof value.id !== 'string' || !value.id || typeof value.nickname !== 'string') return null;
+  const champions = strings(value.champions).slice(0, 3);
+  // Upgrade only untouched seeded examples; never invent a user's missing champion.
+  const exampleChampions = game === 'LOL' && value.id.startsWith('example-room-lol-') && champions.length === 2
+    ? CHAMPIONS.find(items => items[0] === champions[0] && items[1] === champions[1]) : undefined;
   return {
     id: value.id, nickname: value.nickname.slice(0, 40), avatarUrl: typeof value.avatarUrl === 'string' ? value.avatarUrl : null,
     tier: typeof value.tier === 'string' ? value.tier : null, division: nullableNumber(value.division, 5),
     winRate: nullableNumber(value.winRate, 100), kda: nullableNumber(value.kda), roles: canonicalRoomRoles(game, strings(value.roles)),
-    champions: strings(value.champions).slice(0, 3), bio: typeof value.bio === 'string' ? value.bio.slice(0, 160) : '',
+    champions: exampleChampions ?? champions, bio: typeof value.bio === 'string' ? value.bio.slice(0, 160) : '',
     voice: roomVoice(value.voice),
   };
 }
