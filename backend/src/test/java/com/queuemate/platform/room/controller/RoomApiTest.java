@@ -50,6 +50,10 @@ class RoomApiTest extends RoomTestSupport {
     @Autowired
     private RedisScript<List> confirmRoomScript;
 
+    @SuppressWarnings("rawtypes")
+    @Autowired
+    private RedisScript<List> leaveRoomScript;
+
     @Autowired
     private RoomProperties roomProperties;
 
@@ -208,7 +212,7 @@ class RoomApiTest extends RoomTestSupport {
         try
         {
             RoomService broken = new RoomService(new StringRedisTemplate(dead), createRoomScript, roomProperties,
-                    confirmRoomScript, roomNotifier);
+                    confirmRoomScript, roomNotifier, leaveRoomScript);
             // 방만의 예외 처리기는 없어졌다 — 이 앱의 처리기 하나로 503 이 나와야 한다(500 이면 Redis 오류가 새어 나온 것이다)
             MockMvc standalone = MockMvcBuilders.standaloneSetup(new RoomController(broken, postService))
                     .setControllerAdvice(new GlobalExceptionHandler())

@@ -136,7 +136,7 @@ class PostApiTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("모집 중인 글이 있으면 또 쓸 수 없다(409 ALREADY_RECRUITING). 지워도(만료) 방에 남아 있으면 409 IN_OTHER_ROOM 이고, 방에서 나오면 쓸 수 있다")
+    @DisplayName("모집 중인 글이 있으면 또 쓸 수 없다(409 ALREADY_RECRUITING). 지우면 방도 같이 닫혀 곧바로 새 글을 쓸 수 있다 — IN_OTHER_ROOM 이 나지 않는다")
     void oneRecruitingPostPerHost() throws Exception
     {
         String host = newLoginId();
@@ -149,12 +149,10 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(jsonPath("$.code").value("ALREADY_RECRUITING"));
 
         mockMvc.perform(delete("/api/v1/posts/" + first).cookie(cookie)).andExpect(status().isNoContent());
-        // 글을 지워도 방은 그대로다 — 방장이 아직 첫 글의 방에 들어 있어 새 글의 방을 만들 수 없다. 글도 되돌려진다(2026-09-25 2단계)
-        createPost(cookie, lolPostBody("아직 방에 있다"))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("IN_OTHER_ROOM"));
-        mockMvc.perform(delete("/api/v1/rooms/" + first + "/members/me").cookie(cookie)).andExpect(status().isNoContent());
-        createLolPost(cookie);
+        // 확정 전에는 방과 글이 같이 끝난다(2026-09-25 소유자 결정) — 지우면 방도 닫혀 방장의 입장 표시 키가 없다. 방에서 따로 나올 필요가 없다
+        assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + hostId)).isNull();
+        Long second = createLolPost(cookie);
+        assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + hostId)).isEqualTo(Long.toString(second));
 
         assertThat(jdbcTemplate.queryForObject("select count(*) from party.recruit_posts where host_id = ? and status = 'RECRUITING'",
                 Integer.class, hostId)).isEqualTo(1);

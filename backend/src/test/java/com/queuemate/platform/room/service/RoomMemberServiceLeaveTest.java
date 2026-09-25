@@ -1,5 +1,6 @@
 package com.queuemate.platform.room.service;
 
+import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.room.RoomTestSupport;
 import com.queuemate.platform.room.domain.EnterResult;
 import com.queuemate.platform.room.domain.LeaveResult;
@@ -11,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 나가기({@code lua/leave-room.lua})의 세 갈래와 동시성. 핵심은 하나다 —
@@ -59,7 +61,7 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
     }
 
     @Test
-    @DisplayName("D-11 11번: 방장이 나가면 방이 없어지고, 남아 있던 전원의 입장 표시 키가 함께 지워진다")
+    @DisplayName("D-11 11번: 방장이 나가면 방이 없어지고, 남아 있던 전원의 입장 표시 키가 함께 지워진다. 그 글도 그 자리에서 만료된다(2026-09-25 — 확정 전에는 방과 글이 같이 끝난다)")
     void hostLeavesAndTheRoomIsClosed()
     {
         roomService.create(r("r1"), u("host"));
@@ -70,7 +72,29 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
 
         // 하나라도 남으면 그 사람은 없는 방에 갇혀 입장도 매칭도 못 한다
         assertThat(ownKeys()).isEmpty();
-        assertThat(roomMemberService.enter(r("r1"), u("u3"))).isEqualTo(EnterResult.ROOM_NOT_FOUND);
+        assertThat(postStatus("r1")).isEqualTo("EXPIRED");
+        // 입장은 글부터 본다 — 글이 끝났으니 방의 404 ROOM_NOT_FOUND 가 아니라 글의 409 다
+        assertThatThrownBy(() -> roomMemberService.enter(r("r1"), u("u3")))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo("POST_NOT_RECRUITING"));
+        assertThat(ownKeys()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("멤버가 나가는 것과 확정한 방의 방장이 나가는 것(승계)은 글을 건드리지 않는다")
+    void onlyClosingExpiresThePost()
+    {
+        roomService.create(r("r1"), u("host"));
+        roomMemberService.enter(r("r1"), u("u1"));
+        roomMemberService.enter(r("r1"), u("u2"));
+
+        assertThat(roomMemberService.leave(r("r1"), u("u2"))).isEqualTo(LeaveResult.LEFT);
+        assertThat(postStatus("r1")).isEqualTo("RECRUITING");
+
+        roomService.confirm(r("r1"), u("host"));
+        // 확정은 글의 기록을 거치지 않고 방에만 했다 — 글이 모집 중으로 남아 있어도 승계면 만료시키지 않는다는 것을 본다
+        assertThat(roomMemberService.leave(r("r1"), u("host"))).isEqualTo(LeaveResult.LEFT);
+        assertThat(host("r1")).isEqualTo("u1");
+        assertThat(postStatus("r1")).isEqualTo("RECRUITING");
     }
 
     @Test
@@ -143,6 +167,8 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
         for (int round = 0; round < 20; round++)
         {
             deleteOwnKeys();
+            // 방장이 나가면 글이 만료된다(2026-09-25) — 되살려 두지 않으면 둘째 판부터 입장이 전부 글에서 409 로 막혀 경쟁이 일어나지 않는다
+            jdbcTemplate.update("update party.recruit_posts set status = 'RECRUITING', expired_at = null where id = ?", Long.parseLong(r("r1")));
             roomService.create(r("r1"), u("host"));
 
             runConcurrently(101, i -> {
@@ -177,6 +203,12 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
     }
 
     // ── 도우미 ──────────────────────────────────────────────────────────────
+
+    /** 이름표의 방 번호로 넣어 둔 글({@code RoomTestSupport#r})의 상태 */
+    private String postStatus(String room)
+    {
+        return jdbcTemplate.queryForObject("select status from party.recruit_posts where id = ?", String.class, Long.parseLong(r(room)));
+    }
 
     private static void count(Map<LeaveResult, AtomicInteger> counts, LeaveResult result)
     {

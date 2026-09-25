@@ -40,9 +40,9 @@ import java.util.Set;
  * <p>{@link PostService} 와 나눈 이유 — 글 한 줄을 그리려면 DB 와 Redis(방 키)를 번갈아 읽는다. 그 전체를 트랜잭션 하나로 묶으면
  * Redis 를 기다리는 동안 DB 커넥션을 붙잡는다. 그래서 {@link PostService} 는 트랜잭션 없이 순서만 잡고, DB 에 닿는 토막만 여기서 짧게 끝낸다.
  *
- * <p><b>예외가 둘 있다 — 트랜잭션 안에서 방의 스크립트를 부른다</b>(2026-09-25 2단계): 글 쓰기가 방을 만들고({@link #create} — 소유자 결정 C),
- * 방장 확정이 방을 확정한다({@link #confirmRoom}). 둘 다 <b>스크립트 호출 하나(밀리초)</b>이고, 방과 글이 한쪽만 남지 않게 하려는 것이라
- * 커넥션을 그만큼 더 붙잡는 것을 받아들인다. 목록처럼 되풀이되는 읽기는 여전히 트랜잭션 밖에서 한다.
+ * <p><b>예외가 셋 있다 — 트랜잭션 안에서 방의 스크립트를 부른다</b>(2026-09-25 2단계): 글 쓰기가 방을 만들고({@link #create} — 소유자 결정 C),
+ * 방장 확정이 방을 확정하고({@link #confirmRoom}), 글 지우기가 방을 닫는다({@link #expireByHost} — 2026-09-25 소유자 결정 "확정 전에는 방과 글이 같이 끝난다").
+ * 셋 다 <b>스크립트 호출 하나(밀리초)</b>이고, 방과 글이 한쪽만 남지 않게 하려는 것이라 커넥션을 그만큼 더 붙잡는 것을 받아들인다. 목록처럼 되풀이되는 읽기는 여전히 트랜잭션 밖에서 한다.
  *
  * <p><b>게시판 신호는 여기서 예약한다</b> — 글이 생기거나 · 고쳐지거나 · 만료되거나 · 확정된 트랜잭션이 <b>커밋된 뒤에</b> 한 번 나간다
  * ({@link BoardSignalPublisher#changed()}). 되돌려진 변경은 알리지 않는다.
@@ -159,8 +159,22 @@ public class PostStore {
     }
 
     /**
-     * 방장이 글을 지운다 — <b>지우지 않고 만료로 바꾼다</b>(CLAUDE.md §7.1). 이미 만료면 그대로 성공이고, 확정된 글은 409 다(확정은 되돌릴 수 없다).
+     * 방장이 글을 지운다 — <b>지우지 않고 만료로 바꾸고, 그 글의 방도 닫는다</b>(CLAUDE.md §7.1 · 2026-09-25 소유자 결정 — "확정 전에는 방과 글이 같이 끝난다").
+     * 이미 만료면 그대로 성공이고, 확정된 글은 409 다(확정은 되돌릴 수 없다 — 방도 건드리지 않는다).
      * 방장인지는 읽어서 본다 — {@code hostId} 는 바뀌지 않는 값이라 읽은 뒤에 달라질 수 없다. 상태는 조건부 UPDATE 가 가른다.
+     *
+     * <p><b>방 닫기는 방장 나가기와 같은 길이다</b> — 방장으로서 나가기 스크립트를 부른다({@link RoomService#leave}). 방장 키 · 멤버 SET · 전원의 입장 표시 키가
+     * 한 스크립트 안에서 지워지고 방에 있던 사람들이 {@code ROOM_CLOSED} 를 받는다. 전에는 글만 만료되고 방이 남아, 방장이 새 글을 쓰려면
+     * 먼저 방에서 나와야 했다(409 {@code IN_OTHER_ROOM}).
+     *
+     * <p><b>순서 — 글의 만료가 먼저, 방 닫기가 뒤다. 방 닫기가 실패해도 되돌리지 않는다</b>(WARN 만 남긴다). 글 쓰기가 "방을 못 만들면 글을 되돌린다"({@link #create})와
+     * 반대 방향인 이유 — 쓰기는 없던 것을 여는 일이라 절반만 되면 입장할 수 없는 글이 남지만, <b>지우기는 이미 끝난 것을 정리하는 일이라 절반만 돼도 해가 없다.</b>
+     * 글이 만료되면 새 사람이 못 들어오고(입장이 글부터 본다 — {@link PostEntryGate}), 남은 방은 수명(600초)이 다해 사라지거나 방장이 나가기로 닫는다.
+     * 같은 이유로 스크립트는 성공했는데 커밋이 실패해도 해가 없다 — 방이 없는 모집 중인 글은 목록 · 단건이 만료로 옮겨 적는다.
+     *
+     * <p><b>이미 만료된 글을 또 지우면 방 닫기만 다시 해 본다</b> — 앞선 지우기의 방 닫기가 실패했을 때 방장이 다시 눌러 정리할 수 있다. 방이 이미 없으면
+     * 스크립트가 "이 방에 없다" 로 답하고 아무것도 지우지 않는다. 방 닫기는 트랜잭션 안에서 부른다 — 스크립트 호출 하나(밀리초)이고, 그래야 방의 알림 · 신호가
+     * 글의 만료와 함께 커밋 뒤에 나가고 게시판 신호가 하나로 합쳐진다({@link BoardSignalPublisher#changed()}).
      */
     @Transactional
     public void expireByHost(Long me, Long postId, Instant now)
@@ -174,6 +188,7 @@ public class PostStore {
         {
             boardSignal.changed();
             log.info("모집 글 만료 postId={} reason=방장이 지웠다", postId);
+            closeRoomAsHost(postId, me);
             return;
         }
         // 0줄 — 이미 모집 중이 아니다. 조건부 UPDATE 가 영속성 컨텍스트를 비웠으므로 다시 읽으면 지금의 상태다
@@ -181,6 +196,26 @@ public class PostStore {
         if(status == PostStatus.CONFIRMED)
         {
             throw new ApiException(HttpStatus.CONFLICT, "POST_CONFIRMED", "확정된 글은 지울 수 없습니다");
+        }
+        closeRoomAsHost(postId, me);
+    }
+
+    /**
+     * 글의 방을 방장으로서 닫는다 — 실패해도 던지지 않는다({@link #expireByHost} 의 "순서"). 글은 이미 만료됐으니 방이 닫혔을 때 글에 할 일이 없다 —
+     * 그래서 닫힌 뒤의 일({@code whenClosed})은 "신호를 따로 내지 않았다"({@code false})다. 방의 신호는 이 트랜잭션의 신호와 합쳐진다.
+     *
+     * <p>확정 전의 방은 방장 키의 값이 늘 글의 {@code hostId} 라 이 스크립트가 방을 닫는다. 방장 키가 다른 값이면(누가 손으로 넣었다) 스크립트는
+     * 방장을 일반 멤버로 보고 멤버 SET 에서만 뺀다 — 방을 억지로 닫지 않는다.
+     */
+    private void closeRoomAsHost(Long postId, Long hostId)
+    {
+        try
+        {
+            roomService.leave(String.valueOf(postId), String.valueOf(hostId), () -> false);
+        }
+        catch(RuntimeException e)
+        {
+            log.warn("글은 만료됐는데 방을 닫지 못했다 — 수명이 다하거나 방장이 나가면 닫힌다 postId={}: {}", postId, e.toString());
         }
     }
 
@@ -248,8 +283,8 @@ public class PostStore {
      * 확정 표시 키를 보면 그 자리에서 같은 기록을 한다({@link #applyObservations}). 같은 사람이 다시 누르면 스크립트가 "이미 확정" 으로 답하고,
      * 그때 글이 아직 모집 중이면 여기서 멤버를 읽어 기록한다.
      *
-     * <p><b>만료된 글의 방은 확정하지 않는다</b> — 409 {@code POST_NOT_RECRUITING}(Claude 가 정한 세부). 방장이 글을 지운 뒤에도 방은 살아 있을 수 있는데,
-     * 그 방을 확정하면 파티를 적을 글이 없다(조건부 UPDATE 가 0줄이다).
+     * <p><b>만료된 글의 방은 확정하지 않는다</b> — 409 {@code POST_NOT_RECRUITING}(Claude 가 정한 세부). 글을 지우면 방도 닫히지만 방 닫기가 실패했으면
+     * 방이 살아 있을 수 있다({@link #expireByHost}). 그 방을 확정하면 파티를 적을 글이 없다(조건부 UPDATE 가 0줄이다).
      *
      * @param postId 글의 번호 = {@code roomId}. 그런 글이 없으면 방도 있을 수 없다 — 404 {@code ROOM_NOT_FOUND} 다
      */

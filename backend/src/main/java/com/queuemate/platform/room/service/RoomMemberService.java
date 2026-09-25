@@ -1,6 +1,7 @@
 package com.queuemate.platform.room.service;
 
 import com.queuemate.platform.party.service.PostEntryGate;
+import com.queuemate.platform.party.service.PostLifecycle;
 import com.queuemate.platform.room.RoomProperties;
 import com.queuemate.platform.room.domain.EnterResult;
 import com.queuemate.platform.room.domain.HeartbeatResult;
@@ -11,6 +12,7 @@ import com.queuemate.platform.common.push.PushEventType;
 import com.queuemate.platform.room.redisKeys.RoomKeys;
 import com.queuemate.platform.room.redisKeys.SharedKeys;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
@@ -23,10 +25,12 @@ import java.util.Map;
  * 방 안의 사람 — 입장 · 나가기 · 강퇴 · 방 안 사람 목록 · 접속 확인. 방을 바꾸는 것은 전부 Lua 스크립트 하나 안에서 끝난다(정원 · 입장 표시 키 ·
  * 활성 요청 키의 {@code EXISTS} 가 한 스크립트 안에 있어야 불변식이 선다).
  *
- * <p><b>입장만 게시판을 부른다</b>(2026-09-25 2단계 — 입장권을 없앴다. 소유자 결정 ①). 스크립트를 부르기 <b>전에</b> {@link PostEntryGate} 가
- * 글의 상태와 차단을 본다. 그 창구는 {@code PostService} 를 물지 않는 따로 선 빈이라 이 클래스와 빈 순환이 생기지 않는다
- * ({@code PostService} → {@code RoomService} 이고, 이 클래스 → {@code PostEntryGate} → {@code PostStore} · {@code RoomService} 다).
+ * <p><b>게시판을 부르는 곳이 둘이다.</b> ① 입장(2026-09-25 2단계 — 입장권을 없앴다. 소유자 결정 ①) — 스크립트를 부르기 <b>전에</b> {@link PostEntryGate} 가
+ * 글의 상태와 차단을 본다. ② 나가기(2026-09-25 소유자 결정 — "확정 전에는 방과 글이 같이 끝난다") — 방장이 나가 방이 닫히면 {@link PostLifecycle} 이
+ * 글을 만료시킨다. 두 창구 모두 {@code PostService} 를 물지 않는 따로 선 빈이라 이 클래스와 빈 순환이 생기지 않는다
+ * ({@code PostService} → {@code RoomService} 이고, 이 클래스 → {@code PostEntryGate} → {@code PostStore} · {@code RoomService}, 이 클래스 → {@code PostLifecycle} 이다).
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RoomMemberService {
@@ -38,8 +42,6 @@ public class RoomMemberService {
     @SuppressWarnings("rawtypes")
     private final RedisScript<List> enterRoomScript;
     @SuppressWarnings("rawtypes")
-    private final RedisScript<List> leaveRoomScript;
-    @SuppressWarnings("rawtypes")
     private final RedisScript<List> membersRoomScript;
     @SuppressWarnings("rawtypes")
     private final RedisScript<List> heartbeatRoomScript;
@@ -48,6 +50,8 @@ public class RoomMemberService {
     private final RoomNotifier roomNotifier;
     private final RoomProperties roomProperties;
     private final PostEntryGate postEntryGate;
+    private final PostLifecycle postLifecycle;
+    private final RoomService roomService;
 
     /**
      * 방에 들어온다. 들어왔으면 방에 이미 있던 사람들에게 알린다.
@@ -84,34 +88,39 @@ public class RoomMemberService {
     }
 
     /**
-     * 방에서 나간다. 방장이 나가면 방이 통째로 없어진다 — 그 일은 전부 스크립트 안에서 끝난다.
+     * 방에서 나간다. 방장이 나가면 방이 통째로 없어진다 — 그 일은 전부 스크립트 안에서 끝난다({@link RoomService#leave}).
      * 나갔으면 남은 사람들에게, 방이 없어졌으면 있던 사람들에게 알린다.
+     *
+     * <p><b>확정 전의 방이 닫히면 그 글도 그 자리에서 만료된다</b>(2026-09-25 소유자 결정 — "확정 전에는 방과 글이 같이 끝난다").
+     * 전에는 글을 건드리지 않고 다음 목록 조회가 "방장 키 없음 → 만료" 로 옮겨 적기를 기다렸다 — 그 사이에 방장이 새 글을 쓰면 409 {@code ALREADY_RECRUITING} 이었다.
+     * <b>확정한 방은 걸리지 않는다</b> — 방장이 나가면 승계라 결과가 {@link LeaveResult#LEFT} 이고, 넘길 사람이 없어 닫혀도 글은 {@code CONFIRMED} 라
+     * 조건부 UPDATE 가 0줄이다({@link PostLifecycle#expireByRoomClosed}).
+     *
+     * <p><b>글을 만료시키지 못해도 나가기는 성공이다</b> — 방은 이미 닫혔고 되돌릴 수 없다. 글은 다음 목록 · 단건이 방장 키가 없는 것을 보고 만료로 옮겨 적는다
+     * (그래서 {@code PostService} 의 자가 치유는 그대로 남는다). WARN 만 남긴다.
      */
-    public LeaveResult leave(String roomId, String userId) {
-        List<String> keys = new ArrayList<>();
-        keys.add(RoomKeys.activeRoomKey(userId));
-        keys.add(RoomKeys.roomMemberKey(roomId));
-        keys.add(RoomKeys.roomHostKey(roomId));
-        keys.add(RoomKeys.roomConfirmedKey(roomId));
-        // 접두사를 넘기는 이유 — 방을 없앨 때 남은 사람들의 입장 표시 키를 스크립트가 직접 조립한다
-        List<?> reply = RoomRedis.call("leave", () -> redis.execute(leaveRoomScript, keys, userId, roomId, RoomKeys.ACTIVE_ROOM_PREFIX));
-        LeaveResult result = LeaveResult.fromCode(codeOf(reply));
+    public LeaveResult leave(String roomId, String userId)
+    {
+        return roomService.leave(roomId, userId, () -> expirePostOf(roomId));
+    }
 
-        switch (result) {
-            case LEFT -> {
-                roomNotifier.toEach(othersIn(reply, userId), PushEventType.ROOM_MEMBER_LEFT,
-                        Map.of("roomId", roomId, "userId", userId));
-                roomNotifier.boardChanged();
-            }
-            // 방이 없어진 뒤에는 멤버 SET 도 없다. 누구에게 알릴지는 스크립트가 지우기 전에 읽어 돌려준 것이 전부다
-            case ROOM_CLOSED -> {
-                roomNotifier.toEach(othersIn(reply, userId), PushEventType.ROOM_CLOSED,
-                        Map.of("roomId", roomId));
-                roomNotifier.boardChanged();
-            }
-            case NOT_IN_ROOM -> { }
+    /** 방이 닫힌 글을 만료시킨다. 게시판 신호를 냈으면(글이 이 호출로 만료됐으면) {@code true} */
+    private boolean expirePostOf(String roomId)
+    {
+        try
+        {
+            return postLifecycle.expireByRoomClosed(Long.parseLong(roomId));
         }
-        return result;
+        catch(NumberFormatException e)
+        {
+            // 방 번호는 글 번호라 숫자다. 숫자가 아니면 그 방의 글이 있을 수 없다
+            return false;
+        }
+        catch(RuntimeException e)
+        {
+            log.warn("방은 닫혔는데 글을 만료시키지 못했다 — 목록 · 단건의 옮겨 적기에 맡긴다 roomId={}: {}", roomId, e.toString());
+            return false;
+        }
     }
 
     /**

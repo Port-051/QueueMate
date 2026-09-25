@@ -5,6 +5,7 @@ import com.queuemate.platform.room.RoomProperties;
 import com.queuemate.platform.room.domain.Confirmation;
 import com.queuemate.platform.room.domain.ConfirmResult;
 import com.queuemate.platform.room.domain.CreateResult;
+import com.queuemate.platform.room.domain.LeaveResult;
 import com.queuemate.platform.room.domain.RoomMemberIds;
 import com.queuemate.platform.room.domain.RoomState;
 import com.queuemate.platform.room.domain.RoomStateUnavailableException;
@@ -24,9 +25,11 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
 /**
- * 방 자체의 일 — 만들기 · 내 방 찾기 · 방장 확정 · 방의 상태 읽기. 방 안의 사람(입장 · 나가기 · 강퇴 · 접속 확인)은 {@link RoomMemberService} 가 맡는다.
+ * 방 자체의 일 — 만들기 · 내 방 찾기 · 방장 확정 · 방 닫기(나가기 스크립트) · 방의 상태 읽기. 방 안의 사람(입장 · 강퇴 · 접속 확인)은 {@link RoomMemberService} 가 맡는다.
+ * 나가기만은 여기 있다 — 글 지우기가 방을 닫는 데 같은 스크립트를 쓰고, {@code party} 는 {@link RoomMemberService} 를 물 수 없다(빈 순환 — {@link #leave}).
  *
  * <p><b>게시판({@code party})이 부르는 창구이기도 하다</b>(2026-09-25 2단계). 글 쓰기가 {@link #create} 를, 방장 확정이 {@link #confirm} 을
  * 글의 트랜잭션 안에서 부르고({@code party.service.PostStore}), 목록 · 단건 · 고치기 · 입장 검사가 {@link #states} 로 방 안을 읽는다.
@@ -48,6 +51,8 @@ public class RoomService {
     @SuppressWarnings("rawtypes")
     private final RedisScript<List> confirmRoomScript;
     private final RoomNotifier roomNotifier;
+    @SuppressWarnings("rawtypes")
+    private final RedisScript<List> leaveRoomScript;
 
     /**
      * 방을 만든다. 만든 사람이 방장이고, 만들면서 곧바로 그 방에 들어와 있다.
@@ -115,6 +120,67 @@ public class RoomService {
             roomNotifier.boardChanged();
         }
         return new Confirmation(result, members);
+    }
+
+    /**
+     * 방에서 나간다 — 나가기 스크립트({@code lua/leave-room.lua}) 하나로 끝나고, 나갔으면 남은 사람들에게, 방이 없어졌으면 있던 사람들에게 알린다.
+     * 방장이 나가면 확정 전의 방은 통째로 없어지고, 확정한 방은 남은 사람이 방장을 넘겨받는다(D-23).
+     *
+     * <p><b>부르는 곳이 둘이다</b>(2026-09-25 소유자 결정 — "확정 전에는 방과 글이 같이 끝난다"). ① 나가기 요청({@code RoomMemberService#leave}) —
+     * 방장이 나가 방이 닫히면 {@code whenClosed} 가 그 글을 만료시킨다. ② 글 지우기({@code party.service.PostStore#expireByHost}) — 글을 만료시킨 트랜잭션 안에서
+     * <b>방장으로서</b> 이것을 불러 방을 닫는다. 방을 닫는 길을 이 스크립트 하나로 모은 것은 두 길의 결과(방장 키 · 멤버 SET · 전원의 입장 표시 키 삭제 ·
+     * {@code ROOM_CLOSED} · 게시판 신호)가 글자까지 같아야 해서다 — 방을 없애는 일을 자바의 맨손 {@code DEL} 로 나눠 하면 중간에 죽었을 때 입장 표시 키가 남는다.
+     *
+     * <p><b>이 클래스는 {@code party} 를 부르지 않는다</b>(빈 순환) — 방이 닫힌 뒤 글을 어떻게 할지는 부르는 쪽이 {@code whenClosed} 로 넘긴다.
+     *
+     * @param whenClosed 방장이 나가 <b>방이 없어졌을 때만</b>({@link LeaveResult#ROOM_CLOSED}) 부른다. {@code true} 를 돌려주면 그쪽이 게시판 신호를
+     *                   이미 냈다는 뜻이라 여기서 또 내지 않는다 — 글의 만료가 커밋된 뒤에 나가는 신호 하나가 방의 신호를 겸한다(신호는 "다시 받아라" 한 번이면 된다).
+     *                   예외를 던지지 않아야 한다 — 방은 이미 닫혔고 알림은 나가야 한다
+     */
+    public LeaveResult leave(String roomId, String userId, BooleanSupplier whenClosed)
+    {
+        List<String> keys = new ArrayList<>();
+        keys.add(RoomKeys.activeRoomKey(userId));
+        keys.add(RoomKeys.roomMemberKey(roomId));
+        keys.add(RoomKeys.roomHostKey(roomId));
+        keys.add(RoomKeys.roomConfirmedKey(roomId));
+        // 접두사를 넘기는 이유 — 방을 없앨 때 남은 사람들의 입장 표시 키를 스크립트가 직접 조립한다
+        List<?> reply = RoomRedis.call("leave", () -> redis.execute(leaveRoomScript, keys, userId, roomId, RoomKeys.ACTIVE_ROOM_PREFIX));
+        LeaveResult result = LeaveResult.fromCode(reply == null || reply.isEmpty() ? null : (Long) reply.get(0));
+
+        // 발행은 예외를 밖으로 내보내지 않는다 — 알림이 실패해도 이미 성립한 나가기는 그대로다 (CLAUDE.md §3.2)
+        switch(result)
+        {
+            case LEFT ->
+            {
+                roomNotifier.toEach(othersIn(reply, userId), PushEventType.ROOM_MEMBER_LEFT,
+                        Map.of("roomId", roomId, "userId", userId));
+                roomNotifier.boardChanged();
+            }
+            // 방이 없어진 뒤에는 멤버 SET 도 없다. 누구에게 알릴지는 스크립트가 지우기 전에 읽어 돌려준 것이 전부다
+            case ROOM_CLOSED ->
+            {
+                roomNotifier.toEach(othersIn(reply, userId), PushEventType.ROOM_CLOSED, Map.of("roomId", roomId));
+                if(!whenClosed.getAsBoolean())
+                {
+                    roomNotifier.boardChanged();
+                }
+            }
+            case NOT_IN_ROOM ->
+            {
+            }
+        }
+        return result;
+    }
+
+    /** 첫 칸(코드) 뒤에 붙어 온 사람들에서 본인을 뺀다. 본인은 REST 응답으로 이미 안다 */
+    private static List<String> othersIn(List<?> reply, String userId)
+    {
+        return reply.stream()
+                .skip(1)
+                .map(String::valueOf)
+                .filter(memberId -> !memberId.equals(userId))
+                .toList();
     }
 
     /**

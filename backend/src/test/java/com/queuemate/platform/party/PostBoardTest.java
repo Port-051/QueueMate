@@ -272,7 +272,7 @@ class PostBoardTest extends PostTestSupport {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("NOT_POST_HOST"));
 
-        // 방장이 글을 지운다(만료) — 방에는 그대로 사람이 있다
+        // 방장이 글을 지운다(만료) — 방도 같이 닫힌다(2026-09-25 소유자 결정). 끝난 글은 방에 누가 있었든 고칠 수 없다
         mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(hostCookie)).andExpect(status().isNoContent());
         editPost(hostCookie, postId, "{\"title\":\"늦었다\"}")
                 .andExpect(status().isConflict())
@@ -463,7 +463,7 @@ class PostBoardTest extends PostTestSupport {
     // ---- 읽기만 한다 · N+1 ----
 
     @Test
-    @DisplayName("글의 읽기와 지우기는 방 키에 쓰지 않는다 — 목록 · 단건 · 거절된 고치기 · 지우기를 돈 뒤에도 qm:room:* · qm:user:* · qm:party:* 키가 그대로이고 값 · 수명도 그대로다")
+    @DisplayName("글의 읽기는 방 키에 쓰지 않는다 — 목록 · 단건 · 거절된 고치기를 돈 뒤에도 qm:room:* · qm:user:* · qm:party:* 키가 그대로이고 값 · 수명도 그대로다")
     void readsNeverWriteRoomKeys() throws Exception
     {
         String host = newLoginId();
@@ -485,7 +485,7 @@ class PostBoardTest extends PostTestSupport {
         mockMvc.perform(get("/api/v1/posts/" + postId).cookie(memberCookie)).andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/posts/" + other).cookie(hostCookie)).andExpect(status().isOk());
         editPost(hostCookie, postId, "{\"title\":\"사람이 있다\"}").andExpect(status().isConflict());
-        mockMvc.perform(delete("/api/v1/posts/" + other).cookie(memberCookie)).andExpect(status().isNoContent());
+        // 지우기는 여기 없다 — 2026-09-25 소유자 결정으로 글을 지우면 방도 닫는다(방 키를 지운다). 그쪽은 PostRoomFlowTest 가 본다
 
         assertThat(foreignKeys()).isEqualTo(before);
         // 방 키의 값은 전부 문자열이다 — 사용자 번호 · 글 번호를 십진 문자열로 적은 것이다

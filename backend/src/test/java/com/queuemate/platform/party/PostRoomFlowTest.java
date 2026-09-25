@@ -1,11 +1,17 @@
 package com.queuemate.platform.party;
 
+import com.queuemate.platform.room.notification.BoardSubscriber;
+import com.queuemate.platform.room.notification.PushSubscriber;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -21,9 +27,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li><b>글 쓰기 = 방 만들기</b>(소유자 결정 C) — 방을 못 만들면 글도 안 써진다</li>
  *   <li><b>입장의 검사</b>(소유자 결정 ① — 경로는 그대로 {@code POST /api/v1/rooms/{roomId}/members}) — 글(404 · 409)을 먼저, 그 다음 방의 스크립트</li>
  *   <li><b>방장 확정 한 길</b> — {@code POST /api/v1/rooms/{roomId}/confirm} 한 요청이 방을 확정하고 파티를 적는다. 커밋이 실패했던 글은 자가 치유가 고친다</li>
+ *   <li><b>확정 전에는 방과 글이 같이 끝난다</b>(2026-09-25 소유자 결정) — 글을 지우면 방이 닫히고, 방장이 나가 방이 닫히면 글이 만료된다.
+ *       확정한 뒤에는 둘이 따로 간다(확정된 글은 못 지우고, 방장이 나가면 승계다)</li>
  * </ul>
  */
 class PostRoomFlowTest extends PostTestSupport {
+
+    @Autowired
+    private RedisConnectionFactory connectionFactory;
 
     // ---- 글 쓰기 = 방 만들기 ----
 
@@ -116,7 +127,7 @@ class PostRoomFlowTest extends PostTestSupport {
         mockMvc.perform(post("/api/v1/rooms/not-a-number/members").cookie(guestCookie))
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
 
-        // 방장이 글을 지웠다(만료) — 방은 아직 살아 있지만 새 사람은 못 들어온다
+        // 방장이 글을 지웠다(만료) — 방도 같이 닫혔지만 입장은 글을 먼저 보므로 방의 404 가 아니라 글의 409 다
         mockMvc.perform(delete("/api/v1/posts/" + expired).cookie(expiredHostCookie)).andExpect(status().isNoContent());
         mockMvc.perform(post("/api/v1/rooms/" + expired + "/members").cookie(guestCookie))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("POST_NOT_RECRUITING"));
@@ -276,7 +287,184 @@ class PostRoomFlowTest extends PostTestSupport {
         assertThat(partyMembers(postId)).containsExactlyInAnyOrder(hostId, memberId);
     }
 
+    // ---- 확정 전에는 방과 글이 같이 끝난다 ----
+
+    @Test
+    @DisplayName("글을 지우면 방도 닫힌다 — 방 키 셋과 전원의 입장 표시 키가 사라지고, 방에 있던 사람이 ROOM_CLOSED 를 받고, 게시판 신호는 한 번이다. 방장도 손님도 곧바로 새 글을 쓸 수 있다")
+    void deleteClosesTheRoom() throws Exception
+    {
+        String host = newLoginId();
+        String guest = newLoginId();
+        Cookie hostCookie = signupAndLogin(host);
+        Cookie guestCookie = signupAndLogin(guest);
+        Long hostId = userIdOf(host);
+        Long guestId = userIdOf(guest);
+        Long postId = createLolPost(hostCookie);
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(guestCookie)).andExpect(status().isCreated());
+        track(postId, guestId);
+
+        try(BoardSubscriber board = new BoardSubscriber(connectionFactory, objectMapper);
+            PushSubscriber pushes = new PushSubscriber(connectionFactory, objectMapper, UnaryOperator.identity()))
+        {
+            mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(hostCookie)).andExpect(status().isNoContent());
+
+            // 글의 만료와 방 닫기가 한 트랜잭션이라 신호가 합쳐져 커밋 뒤에 한 번이다
+            assertThat(board.next()).isNotNull();
+            assertThat(board.nothingMore()).isTrue();
+            List<PushSubscriber.Received> received = drainPushes(pushes, hostId, guestId);
+            // 방장 본인은 받지 않는다 — 자기가 부른 요청의 응답(204)으로 안다. 방장 나가기와 같다
+            assertThat(received).extracting(PushSubscriber.Received::userId).containsExactly(Long.toString(guestId));
+            assertThat(received.getFirst().envelope().get("type").asString()).isEqualTo("ROOM_CLOSED");
+            assertThat(received.getFirst().envelope().get("payload").get("roomId").asString()).isEqualTo(Long.toString(postId));
+        }
+
+        assertThat(statusOf(postId)).isEqualTo("EXPIRED");
+        assertThat(redisTemplate.hasKey(hostKey(postId))).isFalse();
+        assertThat(redisTemplate.hasKey(membersKey(postId))).isFalse();
+        assertThat(redisTemplate.hasKey(confirmedKey(postId))).isFalse();
+        assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + hostId)).isNull();
+        assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + guestId)).isNull();
+        // 전에는 방이 남아 409 IN_OTHER_ROOM 이었다
+        createLolPost(hostCookie);
+        createLolPost(guestCookie);
+    }
+
+    @Test
+    @DisplayName("확정 전에 방장이 나가면 글이 그 자리에서 만료된다 — 게시판 신호는 한 번이고, 방장이 곧바로 새 글을 쓸 수 있다(ALREADY_RECRUITING 이 나지 않는다)")
+    void hostLeavingExpiresThePost() throws Exception
+    {
+        String host = newLoginId();
+        String guest = newLoginId();
+        Cookie hostCookie = signupAndLogin(host);
+        Cookie guestCookie = signupAndLogin(guest);
+        Long guestId = userIdOf(guest);
+        Long postId = createLolPost(hostCookie);
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(guestCookie)).andExpect(status().isCreated());
+        track(postId, guestId);
+
+        try(BoardSubscriber board = new BoardSubscriber(connectionFactory, objectMapper))
+        {
+            mockMvc.perform(delete("/api/v1/rooms/" + postId + "/members/me").cookie(hostCookie)).andExpect(status().isNoContent());
+
+            // 방의 신호와 글의 신호가 따로 나가지 않는다 — 글의 만료가 커밋된 뒤의 신호 하나가 겸한다
+            assertThat(board.next()).isNotNull();
+            assertThat(board.nothingMore()).isTrue();
+        }
+
+        // 목록을 아무도 보지 않았다 — 옮겨 적기가 아니라 나가기가 만료시켰다
+        assertThat(statusOf(postId)).isEqualTo("EXPIRED");
+        assertThat(redisTemplate.hasKey(hostKey(postId))).isFalse();
+        assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + guestId)).isNull();
+        createLolPost(hostCookie);
+    }
+
+    @Test
+    @DisplayName("확정한 방에서 방장이 나가면 승계다 — 글은 CONFIRMED 그대로이고, 방장 키가 남은 멤버로 바뀌고 확정 표시 키도 남는다(D-23)")
+    void confirmedHostLeavingKeepsThePost() throws Exception
+    {
+        String host = newLoginId();
+        String member = newLoginId();
+        Cookie hostCookie = signupAndLogin(host);
+        Cookie memberCookie = signupAndLogin(member);
+        Long memberId = userIdOf(member);
+        Long postId = createLolPost(hostCookie);
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(memberCookie)).andExpect(status().isCreated());
+        track(postId, memberId);
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
+
+        mockMvc.perform(delete("/api/v1/rooms/" + postId + "/members/me").cookie(hostCookie)).andExpect(status().isNoContent());
+
+        assertThat(statusOf(postId)).isEqualTo("CONFIRMED");
+        assertThat(redisTemplate.opsForValue().get(hostKey(postId))).isEqualTo(Long.toString(memberId));
+        assertThat(redisTemplate.opsForSet().members(membersKey(postId))).containsExactly(Long.toString(memberId));
+        assertThat(redisTemplate.hasKey(confirmedKey(postId))).isTrue();
+        assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + memberId)).isEqualTo(Long.toString(postId));
+    }
+
+    @Test
+    @DisplayName("확정된 글을 지우면 409 POST_CONFIRMED 그대로이고 방도 건드리지 않는다")
+    void deletingAConfirmedPostLeavesTheRoom() throws Exception
+    {
+        String host = newLoginId();
+        String member = newLoginId();
+        Cookie hostCookie = signupAndLogin(host);
+        Cookie memberCookie = signupAndLogin(member);
+        Long hostId = userIdOf(host);
+        Long memberId = userIdOf(member);
+        Long postId = createLolPost(hostCookie);
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(memberCookie)).andExpect(status().isCreated());
+        track(postId, memberId);
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
+
+        mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(hostCookie))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("POST_CONFIRMED"));
+
+        assertThat(statusOf(postId)).isEqualTo("CONFIRMED");
+        assertThat(redisTemplate.opsForValue().get(hostKey(postId))).isEqualTo(Long.toString(hostId));
+        assertThat(redisTemplate.opsForSet().members(membersKey(postId)))
+                .containsExactlyInAnyOrder(Long.toString(hostId), Long.toString(memberId));
+        assertThat(redisTemplate.hasKey(confirmedKey(postId))).isTrue();
+        assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + hostId)).isEqualTo(Long.toString(postId));
+        assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + memberId)).isEqualTo(Long.toString(postId));
+    }
+
+    @Test
+    @DisplayName("방이 이미 사라진 글도 지울 수 있다 — 204 이고 만료된다. 다시 지워도 204 다")
+    void deletingAPostWhoseRoomIsGone() throws Exception
+    {
+        Cookie hostCookie = signupAndLogin(newLoginId());
+        Long postId = createLolPost(hostCookie);
+        closeRoom(postId);
+
+        mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(hostCookie)).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(hostCookie)).andExpect(status().isNoContent());
+
+        assertThat(statusOf(postId)).isEqualTo("EXPIRED");
+        assertThat(redisTemplate.hasKey(hostKey(postId))).isFalse();
+    }
+
+    @Test
+    @DisplayName("방 닫기가 실패해도 글 지우기는 204 이고 글은 만료된다 — 지우기는 끝난 것을 정리하는 일이라 되돌리지 않는다. 방은 그대로 남는다")
+    void deleteSurvivesAFailedRoomClose() throws Exception
+    {
+        String host = newLoginId();
+        Cookie hostCookie = signupAndLogin(host);
+        Long hostId = userIdOf(host);
+        Long postId = createLolPost(hostCookie);
+        // 멤버 SET 자리에 문자열을 넣어 나가기 스크립트가 SMEMBERS 에서 WRONGTYPE 으로 죽게 한다 — 스크립트는 아무것도 쓰기 전에 멈춘다
+        redisTemplate.delete(membersKey(postId));
+        redisTemplate.opsForValue().set(membersKey(postId), "not-a-set");
+        try
+        {
+            mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(hostCookie)).andExpect(status().isNoContent());
+
+            assertThat(statusOf(postId)).isEqualTo("EXPIRED");
+            assertThat(redisTemplate.opsForValue().get(hostKey(postId))).isEqualTo(Long.toString(hostId));
+        }
+        finally
+        {
+            // 뒷정리(deleteRoomKeys)가 멤버 SET 을 SMEMBERS 로 읽는다 — 문자열이면 거기서 터진다
+            redisTemplate.delete(membersKey(postId));
+        }
+    }
+
     // ---- 도우미 ----
+
+    /** 두 사람에게 온 알림을 더 오지 않을 때까지 모은다. 같은 Redis 를 다른 것이 쓸 수 있어 이 두 사람 것만 남긴다 */
+    private static List<PushSubscriber.Received> drainPushes(PushSubscriber pushes, Long... userIds) throws InterruptedException
+    {
+        List<String> wanted = java.util.Arrays.stream(userIds).map(String::valueOf).toList();
+        List<PushSubscriber.Received> received = new ArrayList<>();
+        PushSubscriber.Received one;
+        while((one = pushes.next()) != null)
+        {
+            if(wanted.contains(one.userId()))
+            {
+                received.add(one);
+            }
+        }
+        return received;
+    }
 
     private int postCountOf(Long hostId)
     {
