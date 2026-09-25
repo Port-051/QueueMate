@@ -174,8 +174,9 @@ abstract class PostTestSupport extends ApiTestSupport {
     /**
      * 목록 응답 <b>전체</b>({@code posts} · {@code nextCursor}) — 페이지 나누기를 보는 테스트가 쓴다.
      * {@code null} 인 파라미터는 보내지 않는다(그때의 기본값을 보려는 것이다).
+     * {@code cursor} 는 <b>글 번호 그대로다</b>(2026-09-25 소유자 결정으로 base64url 한 겹이 없어졌다).
      */
-    protected JsonNode listPage(Cookie cookie, String game, Integer limit, String cursor) throws Exception
+    protected JsonNode listPage(Cookie cookie, String game, Integer limit, Long cursor) throws Exception
     {
         MockHttpServletRequestBuilder request = get("/api/v1/posts").cookie(cookie);
         if(game != null)
@@ -188,7 +189,7 @@ abstract class PostTestSupport extends ApiTestSupport {
         }
         if(cursor != null)
         {
-            request.param("cursor", cursor);
+            request.param("cursor", String.valueOf(cursor));
         }
         return body(mockMvc.perform(request).andExpect(status().isOk()));
     }

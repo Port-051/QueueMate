@@ -149,6 +149,16 @@ public class PostService {
      * {@value BoardProperties#DEFAULT_PAGE_LIMIT}, 많아야 {@value BoardProperties#MAX_PAGE_LIMIT} 이다. {@code cursor} 가 없으면 맨 위부터다.
      * <b>신호({@code BOARD_CHANGED})를 받은 프런트는 커서를 쓰지 않는다</b> — 펼친 만큼을 {@code limit} 으로 맨 위부터 다시 받는다.
      *
+     * <p><b>커서는 글 번호 하나다 — 감싸지 않는다</b>(2026-09-25 소유자 결정. 그 전에는 base64url 한 겹을 씌운 불투명한 문자열이었다).
+     * <b>감싸도 얻는 것이 없었다</b> — 서명하지 않아 보안 값이 0 이고(위조해도 남의 글이 보이지 않는다. 차단 거르기를 페이지마다 다시 한다),
+     * <b>글 번호는 응답의 {@code postId} 로 이미 다 나간다</b>. 커서가 {@code id} 하나라 형식이 바뀔 여지도 작다. 그래서 <b>문자열을 숫자로 바꾸는 일을
+     * 스프링에 맡긴다</b> — 숫자가 아닌 커서는 컨트롤러에 닿기 전에 400 이고({@code GlobalExceptionHandler#handleTypeMismatch}),
+     * 0 이하이거나 맨 끝을 넘은 번호는 {@code p.id < :postId} 가 아무것도 고르지 못해 <b>빈 페이지</b>가 된다(따로 막지 않는다 — 막아도 알려 줄 것이 없다).
+     *
+     * <p><b>커서가 {@code id} 하나인 이유</b> — 커서는 정렬 키가 ① 순서대로 커지고 ② 겹치지 않고 ③ <b>변하지 않는다</b>는 전제 위에 선다.
+     * {@code id} 는 {@code bigint GENERATED ALWAYS AS IDENTITY} 라 셋을 혼자 다 만족한다(2026-09-24 소유자 결정 — {@code BOARD_ORDER}).
+     * <b>글의 상태를 정렬에 넣으면 커서가 중복을 낸다</b> — 상태는 변하고 <b>그것도 이 조회 자신이 바꾼다</b>(아래 "허용된 부수 효과").
+     *
      * <p><b>차단 거르기는 글을 읽어 온 뒤에 한다</b>(방 안에 누가 있는지를 Redis 에서 읽어야 안다) — 그래서 {@code limit} 만큼 읽어도
      * 보이는 것이 그보다 적을 수 있다. 모자라면 <b>그 뒤를 더 읽어 채운다</b>({@code platform.board.max-refills} 번까지. 그래도 모자라면 있는 만큼이다).
      * 채우기 한 번은 목록 조립 한 벌(글 쿼리 · Redis 파이프라인 한 번 · 프로필 · 차단)이고 <b>그 안에서는 글이 몇 개든 왕복이 늘지 않는다.</b>
@@ -163,11 +173,10 @@ public class PostService {
      * 그 전에는 만료 · 확정된 지 10분이 안 된 글만 남겼는데, 그 조건이 세 컬럼에 걸친 {@code OR} 셋이라 {@code (game, id DESC)} 인덱스를
      * 깨끗하게 타지 못했다({@code RecruitPostRepository#findBoard}). 끝난 글은 "모집이 얼마나 활발한가"를 보여 주는 쪽으로도 쓰인다.
      */
-    public PostListResponse list(Long me, String gameName, Integer limitParam, String cursorParam)
+    public PostListResponse list(Long me, String gameName, Integer limitParam, Long cursor)
     {
         Game game = (gameName == null || gameName.isBlank()) ? null : PostValidation.game(gameName);
         int limit = PostValidation.limit(limitParam);
-        BoardCursor cursor = BoardCursor.decode(cursorParam);
         Instant now = now();
 
         List<PostResponse> visible = new ArrayList<>();
@@ -186,8 +195,8 @@ public class PostService {
             more = rows.size() > want;
             // 하나 더 읽은 줄은 "다음이 있는가"를 본 것뿐이다 — 이 페이지에서 다루지 않고 다음 페이지가 처음부터 읽는다
             List<RecruitPost> page = more ? rows.subList(0, want) : rows;
-            // 커서는 옮겨 적기 전의 줄로 만든다 — 이 페이지를 고른 쿼리의 정렬이 그 상태를 기준으로 했다
-            cursor = BoardCursor.of(page.getLast());
+            // 마지막으로 "읽은" 줄이다 — 보여 준 줄이 아니다(차단으로 숨겨진 글을 다음 페이지에서 또 읽지 않게)
+            cursor = page.getLast().getId();
             Observed observed = observe(page, now, false);
             visible.addAll(renderAll(me, observed.posts(), observed.members(), true));
             if(!more)
@@ -195,7 +204,7 @@ public class PostService {
                 break;
             }
         }
-        return new PostListResponse(visible, more ? cursor.encode() : null);
+        return new PostListResponse(visible, more ? cursor : null);
     }
 
     /** 단건. 차단 관계로 숨겨진 글은 없는 글과 똑같이 404 다 — 숨겨졌다는 것을 알려 주지 않는다 */
@@ -420,7 +429,7 @@ public class PostService {
      * {@code id} 가 identity 라 넣은 순서대로 커진다. <b>tiebreaker 가 없어도 된다</b> — PK 라 같은 값이 둘일 수 없다.
      * 목록 쿼리의 {@code order by} 와 같은 값이어야 한다({@code RecruitPostRepository}).
      *
-     * <p>글의 상태를 쓰지 않는 이유는 {@code BoardCursor} 의 주석에 있다 — 정렬 키는 변하지 않아야 하고 상태는 변한다.
+     * <p>글의 상태를 쓰지 않는 이유는 {@link #list} 의 주석에 있다 — 커서가 선 정렬 키는 변하지 않아야 하고 상태는 변한다.
      * 만료 · 확정된 글이 목록 위쪽에 섞여 나오는 것은 받아들인 것이다(응답의 {@code status} 로 가른다).
      */
     private static final Comparator<RecruitPost> BOARD_ORDER =

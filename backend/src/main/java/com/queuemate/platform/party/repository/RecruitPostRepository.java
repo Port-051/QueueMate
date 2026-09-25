@@ -38,7 +38,7 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
      *
      * <p><b>정렬은 {@code id} 내림차순 하나 = 최신순이다</b>(2026-09-24 소유자 결정 — {@code id} 가 identity 라 넣은 순서대로 커진다).
      * <b>글의 상태도 {@code createdAt} 도 쓰지 않는다</b>(옛 정렬은 모집 중인 글을 앞으로 당기고 그 뒤에 {@code createdAt} 을 봤다).
-     * 커서는 정렬 키가 <b>변하지 않는다</b>는 전제 위에 서는데 상태는 변하고 이 목록 조회 자신이 바꾼다({@code BoardCursor} 의 주석).
+     * 커서는 정렬 키가 <b>변하지 않는다</b>는 전제 위에 서는데 상태는 변하고 이 목록 조회 자신이 바꾼다({@code PostService#list} 의 주석).
      *
      * <p><b>{@code limit} 이 있다</b>(2026-09-23 소유자 결정) — 게시판은 신호가 올 때마다 다시 받으므로 전부 내려 주면 그 큰 응답이 되풀이된다.
      * 다음 줄이 있는지는 부르는 쪽이 <b>한 개 더 읽어</b> 안다({@code PostService#list}).
@@ -60,7 +60,7 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
     List<RecruitPost> findBoardByGame(@Param("game") Game game, Limit limit);
 
     /**
-     * {@link #findBoard} 의 <b>다음 페이지</b> — 커서({@code BoardCursor})가 가리키는 줄 <b>다음</b>부터다.
+     * {@link #findBoard} 의 <b>다음 페이지</b> — 커서(<b>마지막으로 읽은 글의 번호</b>)가 가리키는 줄 <b>다음</b>부터다.
      *
      * <p>조건은 <b>{@code p.id < :postId} 한 줄이다</b> — 정렬이 {@code id desc} 이므로 "그 뒤" 는 번호가 <b>작은</b> 글이다
      * (내림차순이라 부등호가 {@code <} 다 — 오름차순으로 착각해 {@code >} 를 쓰면 페이지가 거꾸로 걸린다).

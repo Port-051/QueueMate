@@ -9,10 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.JsonNode;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 
@@ -23,6 +21,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * 게시판 목록의 <b>페이지 나누기(커서 방식)</b> — 2026-09-23 소유자 결정({@code contracts/platform-api.md} "모집 글 · 목록 · 입장권").
+ *
+ * <p><b>커서는 글 번호 그대로다</b>(2026-09-25 소유자 결정 — base64url 한 겹을 없앴다. {@code nextCursor} 도 JSON 숫자로 나가고,
+ * 숫자가 아닌 커서는 컨트롤러에 닿기 전에 형 변환에서 400 이다 — {@code GlobalExceptionHandler#handleTypeMismatch}).
  *
  * <p>보는 것 — {@code limit} 의 기본값 · 상한, {@code cursor} 로 다음 페이지를 받는 것, <b>1페이지를 본 뒤 새 글이 올라와도 2페이지에 중복 · 누락이 없는 것</b>
  * (커서의 핵심이다 — {@code offset} 이면 깨진다), <b>1페이지에 나간 글이 그 사이 만료돼도 2페이지에 다시 나오지 않는 것</b>
@@ -46,8 +47,10 @@ class PostPagingTest extends PostTestSupport {
 
         JsonNode first = listPage(viewer, "LOL", null, null);
         assertThat(longs(first.get("posts"), "postId")).hasSize(20).containsExactlyElementsOf(all.subList(0, 20));
-        String cursor = first.get("nextCursor").asString();
-        assertThat(cursor).isNotBlank();
+        // 커서는 마지막으로 읽은 글의 번호 그대로다 — JSON 에도 숫자로 나간다(2026-09-25 소유자 결정)
+        assertThat(first.get("nextCursor").isNumber()).isTrue();
+        Long cursor = first.get("nextCursor").asLong();
+        assertThat(cursor).isEqualTo(all.get(19));
 
         JsonNode second = listPage(viewer, "LOL", null, cursor);
         assertThat(longs(second.get("posts"), "postId")).containsExactlyElementsOf(all.subList(20, 25));
@@ -74,12 +77,12 @@ class PostPagingTest extends PostTestSupport {
         List<Long> added = insertPosts(5, "LOL", "after", Instant.now());
 
         List<Long> rest = new ArrayList<>();
-        String cursor = first.get("nextCursor").asString();
+        Long cursor = first.get("nextCursor").asLong();
         while(cursor != null)
         {
             JsonNode page = listPage(viewer, "LOL", 5, cursor);
             rest.addAll(longs(page.get("posts"), "postId"));
-            cursor = page.get("nextCursor").isNull() ? null : page.get("nextCursor").asString();
+            cursor = page.get("nextCursor").isNull() ? null : page.get("nextCursor").asLong();
         }
         assertThat(rest).containsExactlyElementsOf(before.subList(5, 15))
                 .doesNotHaveDuplicates()
@@ -110,7 +113,7 @@ class PostPagingTest extends PostTestSupport {
         // 숨겨진 글을 건너뛰고 보이는 글 넷을 채워 준다
         assertThat(longs(page.get("posts"), "postId")).containsExactlyElementsOf(visible.subList(0, 4));
         // nextCursor 가 '마지막으로 읽은 줄'이라 다음 페이지가 숨겨진 글을 다시 읽지 않는다 — 나머지가 한 번씩 온다
-        JsonNode next = listPage(viewer, "LOL", 4, page.get("nextCursor").asString());
+        JsonNode next = listPage(viewer, "LOL", 4, page.get("nextCursor").asLong());
         assertThat(longs(next.get("posts"), "postId")).containsExactlyElementsOf(visible.subList(4, 8));
 
         // 페이지를 잘게 나눠 끝까지 걸어도 보이는 글이 한 번씩만 온다
@@ -137,7 +140,7 @@ class PostPagingTest extends PostTestSupport {
         // 벽에 부딪혀도 "여기까지 읽었다"를 알려 준다 — 같은 곳을 다시 읽지 않는다
         assertThat(first.get("nextCursor").isNull()).isFalse();
 
-        JsonNode second = listPage(viewer, "LOL", 4, first.get("nextCursor").asString());
+        JsonNode second = listPage(viewer, "LOL", 4, first.get("nextCursor").asLong());
         assertThat(longs(second.get("posts"), "postId")).containsExactlyElementsOf(visible);
         assertThat(second.get("nextCursor").isNull()).isTrue();
         assertThat(walk(viewer, "LOL", 4)).containsExactlyElementsOf(visible);
@@ -168,28 +171,52 @@ class PostPagingTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("읽을 수 없는 커서는 400 VALIDATION_FAILED(details 에 cursor)다 — 500 이 아니다. 빈 값은 맨 위부터다")
+    @DisplayName("숫자가 아닌 커서는 400 VALIDATION_FAILED(details 에 cursor)다 — 형 변환에서 떨어진다. 빈 값은 맨 위부터다")
     void brokenCursorIsRejected() throws Exception
     {
         Cookie viewer = signupAndLogin(newLoginId());
         List<Long> all = insertPosts(2, "LOL", "cursor");
 
-        List<String> broken = new ArrayList<>(List.of(
-                "not base64 !!",
-                encode("0"),                       // 있을 수 없는 글 번호
-                encode("-5"),
-                encode("not-a-number"),
-                encode("0|1790000000000000|5"),    // 옛 커서(칸 셋)다 — 호환을 두지 않았으니 그냥 400 이다
-                encode("5|3")));
+        List<String> broken = List.of(
+                "abc",
+                "not a number",
+                "1.5",
+                "MTIz",                          // 2026-09-24 ~ 25 의 커서 — 글 번호를 base64url 로 적은 것이다. 그 겹을 없앴으니 이제 400 이다
+                "MHwxNzkwMDAwMDAwMDAwMDAwfDU",   // 그보다 옛 커서 — 칸이 셋이었다
+                "99999999999999999999");         // long 을 넘는다
         for(String bad : broken)
         {
             mockMvc.perform(get("/api/v1/posts").param("game", "LOL").param("cursor", bad).cookie(viewer))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                    // limit 이 숫자가 아닐 때와 글자까지 같은 본문이다 — 그 자리가 형 변환 한 곳이다
+                    .andExpect(jsonPath("$.message").value("요청 형식이 올바르지 않습니다"))
+                    .andExpect(jsonPath("$.details[0]").value("cursor: 올바른 값이 아닙니다"))
                     .andExpect(detailFor("cursor"));
         }
-        // 값이 없는 cursor 는 안 준 것과 같다
-        assertThat(longs(listPage(viewer, "LOL", null, "").get("posts"), "postId")).containsExactlyElementsOf(all);
+        // 값이 없는 cursor 는 안 준 것과 같다 — 빈 문자열은 숫자로 바꾸는 자리에서 null 이 된다
+        JsonNode empty = body(mockMvc.perform(
+                get("/api/v1/posts").param("game", "LOL").param("cursor", "").cookie(viewer)).andExpect(status().isOk()));
+        assertThat(longs(empty.get("posts"), "postId")).containsExactlyElementsOf(all);
+    }
+
+    @Test
+    @DisplayName("0 · 음수 커서는 400 이 아니라 빈 페이지다 — 따로 막지 않는다(막아도 알려 줄 것이 없다)")
+    void nonPositiveCursorIsAnEmptyPage() throws Exception
+    {
+        Cookie viewer = signupAndLogin(newLoginId());
+        List<Long> all = insertPosts(2, "LOL", "nonpositive");
+
+        // id < 0 이 아무것도 고르지 못하는 것이고, 맨 끝 글의 번호를 커서로 준 것과 구별되지 않는다 — 그래서 에러로 가르지 않는다
+        for(Long cursor : List.of(0L, -5L))
+        {
+            JsonNode page = listPage(viewer, "LOL", null, cursor);
+            assertThat(longs(page.get("posts"), "postId")).isEmpty();
+            assertThat(page.get("nextCursor").isNull()).isTrue();
+        }
+        // 맨 끝 글의 번호도 같은 빈 페이지다
+        JsonNode tail = listPage(viewer, "LOL", null, all.getLast());
+        assertThat(longs(tail.get("posts"), "postId")).isEmpty();
     }
 
     @Test
@@ -227,7 +254,7 @@ class PostPagingTest extends PostTestSupport {
 
         JsonNode first = listPage(viewer, "LOL", 3, null);
         assertThat(longs(first.get("posts"), "postId")).containsExactlyElementsOf(all.subList(0, 3));
-        String cursor = first.get("nextCursor").asString();
+        Long cursor = first.get("nextCursor").asLong();
 
         // 1쪽을 보는 동안 그 방 셋이 사라졌고, 다른 사람이 게시판을 맨 위부터 다시 받았다(BOARD_CHANGED 를 받은 프런트가 하는 일이다)
         // — 그 조회가 셋을 만료로 옮겨 적는다. 목록 조회가 스스로 정렬 키를 바꾸던 자리다
@@ -317,7 +344,7 @@ class PostPagingTest extends PostTestSupport {
     private List<Long> walk(Cookie cookie, String game, Integer limit) throws Exception
     {
         List<Long> ids = new ArrayList<>();
-        String cursor = null;
+        Long cursor = null;
         for(int page = 0; page < 100; page++)
         {
             JsonNode body = listPage(cookie, game, limit, cursor);
@@ -326,13 +353,9 @@ class PostPagingTest extends PostTestSupport {
             {
                 return ids;
             }
-            cursor = body.get("nextCursor").asString();
+            cursor = body.get("nextCursor").asLong();
         }
         throw new AssertionError("페이지가 끝나지 않는다 — nextCursor 가 제자리를 돈다");
     }
 
-    private static String encode(String plain)
-    {
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(plain.getBytes(StandardCharsets.UTF_8));
-    }
 }
