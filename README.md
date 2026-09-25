@@ -3,7 +3,7 @@
 계정·파티·소셜(친구/차단/신고)을 다루는 **REST API 서버**다. 문서에서 `app:platform` 이라고
 부르는 배포 단위가 이것이다. 매칭의 앞(계정)과 뒤(모집 글, 확정된 파티, 친구, 차단, 신고)를 맡는다.
 **오래 남는 것(PostgreSQL)이 이 앱의 몫이다.** 지금 방에 누가 있는지처럼 금방 사라지는 것은 옆 서비스 `room`
-(Redis)이 다룬다 (`matching` docs/11 D-16).
+(Redis)이 다룬다 (`matching` docs/11 D-16). **2026-09-25 에 `room` 을 이 앱에 합쳤다**(소유자 결정 — `contracts/platform-api.md` P-22) — 1단계로 방의 요청(`/api/v1/rooms/**`)을 이 앱(8082)이 쿠키 인증으로 받고, 방의 계약은 `contracts/room-api.md` 다. 입장권 등 두 앱을 잇던 장치를 걷어 내는 2단계가 남았다.
 
 ```
 브라우저 ──REST /api/v1/**──▶ platform ──▶ PostgreSQL (account · party · social)
@@ -119,7 +119,7 @@ ERD 는 <https://claude.ai/artifact/LBngVYThyCjipLUkatC6Bq> 다.
 
 기술 스택은 옆 서비스들과 같은 버전으로 맞춘다 — Java 21, Spring Boot 4.1.1(MVC), Gradle, PostgreSQL + Flyway.
 로컬에서 띄우려면 테스트용 PostgreSQL(5433)과 Redis(6380)를 따로 띄운다 — 5432 · 6379 는 이 컴퓨터의 다른 프로젝트 것이다(`START_HERE.md` §6).
-로컬 기본 포트는 `matching` 8080, `notification` 8081, 이 앱 **8082**(2026-09-21 확정), `room` 8083 이다.
+로컬 기본 포트는 `matching` 8080, `notification` 8081, 이 앱 **8082**(2026-09-21 확정)다(`room` 의 8083 은 2026-09-25 에 합쳐 없어졌다).
 
 ## 만드는 순서
 

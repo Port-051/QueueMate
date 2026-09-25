@@ -34,6 +34,16 @@
 > **설정 `platform.board.closed-retention`이 없어졌다. 정렬 · 커서는 바뀌지 않았고 마이그레이션도 없다** — `expired_at` · `confirmed_at` 컬럼은 CHECK 제약과 "언제 끝났는지"로 그대로 쓴다.
 > **P-5가 정했던 10분 보존을 걷어내는 것이다**(그쪽은 Claude가 정했고 이번 것은 소유자 결정이라 **새 번호를 두었다** — P-5의 `room_seen_at`은 그대로다). **docs/11에 D-항목이 없다** — `matching` 폴더에서 남겨야 한다.
 
+> **2026-09-25 소유자 결정 — `room` 앱을 이 앱에 합친다.** 근거 — 목록을 그릴 때마다 게시판이 `room` 의 Redis 를 읽어야 했고(서로 chatty 하면 같은 서비스),
+> 확정 · 방 키 · 입장권을 두 앱이 같이 바꿔야 했고(design-time coupling), 팀이 한 사람이다. **`notification`(SSE 연결 보유)과 `matching`(매칭 엔진)은 그대로 따로 둔다.**
+> **1단계(옮겨서 돌게 하기)가 됐다** — 코드가 `com.queuemate.platform.room` 패키지로 왔고(`account` · `party` · `social` 과 나란한 도메인. DB 가 없고 상태는 Redis 에만 있다),
+> 방의 요청(`/api/v1/rooms/**` — 경로 그대로)을 이 앱(8082)이 받는다. **포트 8083 은 없어졌다.** **인증만 바뀌었다** — `?userId=` 가 없어지고 `qm_access` 쿠키의 사용자가 "나"다(`TEMP-NO-PLATFORM` 이 없어졌다).
+> 방의 동작 · 상태 코드 · 에러 코드 · 알림 · Redis 키 이름 · 환경변수는 글자까지 그대로다. 방의 계약은 **`contracts/room-api.md`**(옮겨 왔다), 결정은 `contracts/platform-api.md` **P-22** 다.
+> **2단계가 남았다** — 입장권을 없애고 · 글 쓰기와 방 만들기를 합치고 · `room_seen_at` 을 없애고 · 확정 기록을 한 번으로 줄이고 · 게시판이 방 키를 Redis 로 읽는 대신 `room` 의 서비스를 부르게 한다.
+> **그래서 이 파일의 §3.3 을 비롯해 "두 앱"을 전제로 쓴 서술이 아직 많다 — 2단계 뒤에 다시 쓴다.** `matching` 과의 약속(D-19)은 그대로다 — 활성 요청 키는 `matching` 이 쓰고 이 앱은 `EXISTS` 만,
+> 입장 표시 키는 이 앱이 쓰고 `matching` 은 `EXISTS` 만 한다. **docs/11 의 D-16 · D-19 ~ D-23 이 "두 앱"을 전제로 쓰여 있어 개정해야 한다 — `matching` 폴더의 일이고 아직 안 했다.**
+> 되돌리기용 태그는 `pre-room-merge` 다.
+
 ---
 
 ## 1. 제품 경계
@@ -81,8 +91,8 @@ platform 소관 자원(contracts/openapi.yaml 머리말): `auth` `users` `partie
 
 | 안 한다 | 왜 / 누가 |
 |---|---|
-| 매칭·제안·수락·확정, 매칭 Redis 키(`qm:party:*` `qm:user:*` `qm:proposal:*` `qm:lock:*`) 접근. **예외가 없다** — "한 번에 하나만"은 키 둘로 지키고 **이 앱은 둘 다 만지지 않는다**: 활성 요청 키(`qm:user:active-request:{userId}`)는 `matching`만, 입장 표시 키(`qm:user:active-room:{userId}`)는 `room`만 쓰고 지우며 서로 상대 키를 `EXISTS`로만 본다(D-19가 D-11 16번과 D-16의 해당 대목을 개정). **`qm:gameconfig:*`는 2026-09-24 소유자 결정으로 이 목록에서 빠졌다 — 이 앱이 읽는다**(§3.6. 운영자가 배포 때 심는 공유 설정이고 쓰는 앱이 없다 — `matching`도 읽는 쪽이다). **나머지 넷에는 "예외가 없다"가 그대로다.** | `matching`의 일이다. 진행 중 매칭 상태의 원본은 Redis이고 그 주인은 `matching`이다 (docs/11 #27) |
-| **방 안의 일** — 방 만들기·입장·나가기·강퇴, 정원 5명 검사, 접속 확인과 방장 이탈 감지, 입장 표시 키 쓰고 지우기(활성 요청 키는 `EXISTS`로 보기만 한다 — D-19), 방 알림(`ROOM_*`) 발행, 시그널 `POST` 받기와 `WEBRTC_SIGNAL` 발행 | **`room`(`app:room`)** 의 일이다 (docs/11 D-16 · D-19). 금방 사라지는 상태라 Redis에만 둔다. 이 앱과 `room`은 **서로 호출하지 않는다** — 입장권과 방 키로 잇는다(§3.3) |
+| 매칭·제안·수락·확정, 매칭 Redis 키(`qm:party:*` `qm:user:*` `qm:proposal:*` `qm:lock:*`) 접근. **예외가 없다** — "한 번에 하나만"은 키 둘로 지키고 활성 요청 키(`qm:user:active-request:{userId}`)는 `matching`만, 입장 표시 키(`qm:user:active-room:{userId}`)는 **이 앱**만 쓰고 지우며 서로 상대 키를 `EXISTS`로만 본다(D-19가 D-11 16번과 D-16의 해당 대목을 개정. 입장 표시 키의 주인은 2026-09-25 에 `room` 을 합쳐 이 앱이 됐다 — **활성 요청 키는 이 앱이 쓰지 않는다**). **`qm:gameconfig:*`는 2026-09-24 소유자 결정으로 이 목록에서 빠졌다 — 이 앱이 읽는다**(§3.6. 운영자가 배포 때 심는 공유 설정이고 쓰는 앱이 없다 — `matching`도 읽는 쪽이다). **나머지 넷에는 "예외가 없다"가 그대로다.** | `matching`의 일이다. 진행 중 매칭 상태의 원본은 Redis이고 그 주인은 `matching`이다 (docs/11 #27) |
+| ~~**방 안의 일**~~ — **2026-09-25 부터 이 앱의 일이다**(소유자 결정 — 머리의 블록 · `contracts/platform-api.md` P-22). 방 만들기·입장·나가기·강퇴, 정원 5명 검사, 접속 확인과 방장 이탈 감지, 입장 표시 키 쓰고 지우기(활성 요청 키는 `EXISTS`로 보기만 한다 — D-19), 방 알림(`ROOM_*`) 발행, 시그널 `POST` 받기와 `WEBRTC_SIGNAL` 발행 | **이 앱의 `room` 패키지**가 한다(옛 `app:room` 을 합쳤다 — 계약은 `contracts/room-api.md`). 금방 사라지는 상태라 Redis에만 둔다. **방을 바꾸려면 Lua 스크립트를 부르는 서비스(`RoomService` · `RoomMemberService`)를 거친다** — 정원 검사 · 입장 표시 키 · 활성 요청 키의 `EXISTS` 가 한 스크립트 안에 있어서다. 게시판과 방이 입장권 · 방 키 읽기로 이어진 모양(§3.3)은 1단계에서 그대로 두었고 2단계에서 걷어 낸다 |
 | 브라우저 연결 보유 — `SseEmitter` / WebSocket | `notification`의 일이다. 이 앱은 **stateless REST**로 남아야 무중단 교체가 자유롭다 (docs/11 #15 · docs/14 §6). WebSocket은 어느 앱에도 없다 (D-9) |
 | **예약 전부** — 예약 REST(`/api/v1/reservations` 등록·조회·수정·취소, INV-9 검증), 짝 찾기 배치, `RESERVATION_*` 발행 | **`app:reservation`(AWS Lambda)** 의 일이다 (docs/11 D-15 — #24의 "예약 REST는 `app:platform`"과 `app:reservation-batch`를 대체한다). 예약은 이 앱의 다른 모듈과 같은 트랜잭션으로 묶일 일이 없다 |
 | TURN 단기 credential 발급, 음성·텍스트 채팅 중계/저장 | TURN은 Cloudflare 관리형이고 발급 주체는 `app:realtime`이다 (docs/11 #25). 음성·텍스트는 브라우저 직결(WebRTC audio + DataChannel)이라 서버를 거치지 않는다 (#6). (참고: 지금은 공개 STUN만으로 개발을 시작한다) |
@@ -151,6 +161,8 @@ Redis `PUBLISH qm:pubsub:push:{userId}`에 **JSON 문자열 하나**를 보낸�
 - **게시판은 실시간으로 바뀌어야 한다**(인원 · 새 글 — 2026-09-21 소유자 지시) — 이 신호로 한다. (신호 없이 프런트가 몇 초마다 목록을 다시 받는 방식으로 먼저 시작해도 된다고 적어 두었던 것은, 두 앱의 발행과 `notification`의 구독이 다 된 지금은 필요 없다.)
 
 ### 3.3 `room`과 잇는 법 — 입장권과 방 키 (docs/11 D-16 · D-19 · D-20 · D-21). 시그널링은 이 앱의 일이 아니다
+
+> **이 절은 두 앱을 전제로 쓰여 있고 2단계 뒤에 다시 쓴다**(2026-09-25 에 `room` 을 합쳤다 — 머리의 블록 · P-22). 지금 "`room`" 은 이 앱의 `room` 패키지로 읽는다. 방 키의 원본 상수는 이제 `room/redisKeys/RoomKeys` 다.
 
 > **이 절에서 이 앱의 몫은 구현됐다(2026-09-21)** — 방 키 읽기 · 입장권 발급 · 방장 확정의 기록. 입장권의 형식, `roomId`, "아직 안 만들어진 방"을 가르는 법, 확정된 글에서 방장 키가 없을 때, 브라우저가 두 앱을 부르는 순서는
 > **`contracts/platform-api.md`에서 정했다 — Claude가 정했고 소유자가 항목별로 검토하지 않았다**(P-3 ~ P-6). **`room` 쪽의 입장권 검증은 아직 없다**(`TEMP-NO-PLATFORM` 그대로 — `room` 폴더의 일이다).
@@ -323,8 +335,8 @@ Redis `PUBLISH qm:pubsub:push:{userId}`에 **JSON 문자열 하나**를 보낸�
 | 빌드 | Gradle (`io.spring.dependency-management` 1.1.7), **단일 모듈**, 앱은 `backend/` 아래 |
 | 저장소 | **PostgreSQL** (docs/11 #4, 근거 docs/WHY_POSTGRESQL.md) + Flyway. Redis는 알림 발행(§3.2)·refresh 토큰(키 `qm:auth:refresh:{uuid}` → 사용자 번호 — 접두사 `qm:auth:*`, §5.1 (마). **2026-09-23부터 쓴다**)·`room`의 방 키 읽기(§3.3)·**로그인 실패 제한**(`qm:auth:login-fail:{loginId}` · `qm:auth:login-lock:{loginId}` — **여기만 로그인 아이디로 센다**, §3.5 · `contracts/platform-api.md` "계정")·**전적 동기화의 락**(`qm:riot:sync:{gameAccountId}` — 접두사 `qm:riot:*`도 이 앱의 것이다. **2026-09-23부터 쓴다**, §7 "게임 계정 연동")·**전적 갱신의 쿨타임**(`qm:riot:refresh:{gameAccountId}` — 2분. **락과 다른 키다**: 락은 "지금 돌고 있다"(60초), 쿨타임은 "최근에 했다". **2026-09-24부터 쓴다**, §7)·**gameconfig 읽기**(`qm:gameconfig:{GAME}:{MODE}`의 `EXISTS` · `qm:gameconfig:{GAME}:tier`의 `ZSCORE` — `matching`의 seed로 운영자가 심는 공유 설정이고 **쓰지 않는다.** **2026-09-24부터 읽는다**, §3.6) — 그 밖의 용도는 §7 |
 | 인증 | **Spring Security `oauth2-resource-server`(Nimbus)** — RS256. `NimbusJwtEncoder`로 서명한다. jjwt 등을 따로 들이지 않는다(§5.1 (가)). **들어 있다(2026-09-21)** — Boot 4의 스타터 이름은 `spring-boot-starter-security-oauth2-resource-server`다. **소셜 로그인에 Spring의 `oauth2-client`는 쓰지 않는다** — 기본값이 인가 요청을 HTTP 세션에 넣는다(§5 "stateless"). 인가 코드 흐름을 `RestClient`로 직접 짰다(`contracts/platform-api.md` "소셜 로그인") |
-| 기본 포트 | **8082 (확정 — 2026-09-21)** — `matching` 8080, `notification` 8081(`room`은 8083)과 로컬에서 같이 띄우기 위해. `backend/`의 `application.yaml`이 이 값을 기본값으로 쓴다(`SERVER_PORT`). 소셜 로그인의 Redirect URI 기본값(`OAUTH_REDIRECT_BASE_URL` = `http://localhost:8082`)도 이 값에 묶여 있다 |
-| 패키지 | **도메인(= DB 스키마)을 먼저 나눈다** — `common` · `account` · `social` · `party`. 안에서 `controller` · `service` · `domain` · `repository` · `dto`로 나눈다. **`common`은 도메인에 속하지 않는 것이다** — `error` · `web` · `security` · `push` · **`gameconfig`**(운영자가 심는 공유 설정을 **읽는** 곳 — `mode` · `tier`가 있는 값인지 본다. 2026-09-24 소유자 결정. 도메인 둘(`party`의 모드 · `account`의 티어)이 같이 쓰므로 여기 있다. **쓰지 않는다** — §3.6). **도메인 사이는 "읽는 창구"로만 잇는다**(`account`의 `UserReader` · `GameProfileReader`, `social`의 `BlockReader`) — 남의 리포지토리를 직접 쓰거나 남의 스키마를 JOIN하지 않는다(`backend/…/platform/package-info.java`. Claude가 정했다) |
+| 기본 포트 | **8082 (확정 — 2026-09-21)** — `matching` 8080, `notification` 8081과 로컬에서 같이 띄우기 위해(`room`의 8083은 2026-09-25 에 합쳐 없어졌다 — 방의 요청도 8082 다). `backend/`의 `application.yaml`이 이 값을 기본값으로 쓴다(`SERVER_PORT`). 소셜 로그인의 Redirect URI 기본값(`OAUTH_REDIRECT_BASE_URL` = `http://localhost:8082`)도 이 값에 묶여 있다 |
+| 패키지 | **도메인(= DB 스키마)을 먼저 나눈다** — `common` · `account` · `social` · `party` · **`room`**(방 안의 일 — 2026-09-25 에 `room` 앱을 합쳤다. DB 가 없고 Redis 에만 있다. 안은 원본 그대로 `controller` · `service` · `domain` · `dto` · `redisKeys` 이고 Lua 스크립트는 `resources/lua/`. **방을 바꾸려면 Lua 를 부르는 서비스를 거친다**). 안에서 `controller` · `service` · `domain` · `repository` · `dto`로 나눈다. **`common`은 도메인에 속하지 않는 것이다** — `error` · `web` · `security` · `push` · **`gameconfig`**(운영자가 심는 공유 설정을 **읽는** 곳 — `mode` · `tier`가 있는 값인지 본다. 2026-09-24 소유자 결정. 도메인 둘(`party`의 모드 · `account`의 티어)이 같이 쓰므로 여기 있다. **쓰지 않는다** — §3.6). **도메인 사이는 "읽는 창구"로만 잇는다**(`account`의 `UserReader` · `GameProfileReader`, `social`의 `BlockReader`) — 남의 리포지토리를 직접 쓰거나 남의 스키마를 JOIN하지 않는다(`backend/…/platform/package-info.java`. Claude가 정했다) |
 
 ## 5. 설계 규칙
 
@@ -700,8 +712,8 @@ queuemate/
 
 ## 11. 이 저장소에서 하지 말 것 (요약)
 
-- 매칭 로직, 매칭 Redis 키(`qm:party:*` · `qm:user:*` · `qm:proposal:*` · `qm:lock:*`) 접근(**예외 없음** — 활성 요청 키는 `matching`만, 입장 표시 키는 `room`만 쓴다. 이 앱은 둘 다 만지지 않는다, D-19) — `matching`의 일이다. **`qm:gameconfig:*`만은 예외다 — 이 앱이 읽는다**(2026-09-24 소유자 결정 — §3.6. 키 둘을 `EXISTS` · `ZSCORE`로 읽을 뿐이고 **쓰지 않는다.** 그렇다고 위 넷의 금지가 풀린 것이 아니다). `SseEmitter` / WebSocket / 연결 보유 — `notification`의 일이다
-- **방 안의 일**(방 만들기·입장·나가기·강퇴·정원·접속 확인·입장 표시 키·방 알림·시그널 `POST`·`WEBRTC_SIGNAL`) — `room`의 일이다(D-16 · D-19). `room`을 호출하지도 마라 — 입장권과 방 키 읽기로만 잇는다. 방 키에 **쓰지 마라** — 확정 표시도 `room`이 쓴다("닫힘" 표시를 이 앱이 쓰는 방법은 받지 않았다 — D-21). **방장 키가 없다고 방금 쓴 글을 만료시키지 마라** — 아직 안 만들어진 방일 수 있다(`room_seen_at`으로 가른다 — §3.3). **확정된 글을 방장 키가 없다고 만료시키지 마라**(§3.3 · D-23). **방 키를 못 읽은 것을 "방이 없다"로 읽지 마라**
+- 매칭 로직, 매칭 Redis 키(`qm:party:*` · `qm:user:*` · `qm:proposal:*` · `qm:lock:*`) 접근(**예외 없음** — 활성 요청 키는 `matching`만 쓰고 이 앱은 `EXISTS`만 한다. 입장 표시 키는 이 앱이 쓰고 `matching`이 `EXISTS`로 본다 — D-19. 2026-09-25 에 `room` 을 합쳐 입장 표시 키의 주인이 이 앱이 됐다) — `matching`의 일이다. **`qm:gameconfig:*`만은 예외다 — 이 앱이 읽는다**(2026-09-24 소유자 결정 — §3.6. 키 둘을 `EXISTS` · `ZSCORE`로 읽을 뿐이고 **쓰지 않는다.** 그렇다고 위 넷의 금지가 풀린 것이 아니다). `SseEmitter` / WebSocket / 연결 보유 — `notification`의 일이다
+- **방 안의 일**은 2026-09-25 부터 이 앱의 `room` 패키지가 한다(P-22). **방을 바꾸려면 Lua 스크립트를 부르는 서비스(`RoomService` · `RoomMemberService`)를 거쳐라** — 맨손으로 `SADD` · `SET` 하면 정원 · 입장 표시 · 활성 요청 확인이 한 스크립트에 묶인 불변식이 깨진다. 입장권 · 방 키 읽기로 잇는 게시판 쪽 모양은 2단계에서 걷어 낸다 — **그 전에 임의로 바꾸지 마라.** **방장 키가 없다고 방금 쓴 글을 만료시키지 마라** — 아직 안 만들어진 방일 수 있다(`room_seen_at`으로 가른다 — §3.3). **확정된 글을 방장 키가 없다고 만료시키지 마라**(§3.3 · D-23). **방 키를 못 읽은 것을 "방이 없다"로 읽지 마라**
 - 예약(REST·짝 찾기·`RESERVATION_*` — `app:reservation`, D-15), TURN credential 발급, **gameconfig 모듈**(모드 설정을 정하고 · 심고 · 해석하는 것 — `app:matching`의 것이다. **이 앱은 값이 있는지만 읽는다** — 모드별 설정 HASH의 내용도 `:tier-range:`도 읽지 않고 seed를 심지도 않는다, §3.6) — 각각 다른 배포 단위의 일이다
 - 엔드포인트 경로·스키마·payload 필드·테이블 컬럼을 **지어내기** — 묻고, 정한 것은 `contracts/platform-api.md`에 적는다. 2026-09-21에 Claude가 정해 구현한 것은 **소유자가 맡겨서** 한 것이다 — 남은 미정(§7)에 같은 방식을 되풀이하지 마라. **코드만 바꾸고 `contracts/platform-api.md`를 안 고치기**, 이미 적용된 마이그레이션 파일 고치기(§3.5)
 - 공개 사용자 탐색(사람 검색·둘러보기)·길드·피드·팔로우·좋아요·모집과 무관한 공개 채팅방 — 여전히 금지다(§1 · D-11)

@@ -7,6 +7,8 @@
 <!--     git -C ../room log --oneline 0c6d9b9..room -- contracts/room-api.md  (그 뒤의 커밋) -->
 <!-- ★ 본문에 나오는 경로(`CLAUDE.md` §…, `START_HERE.md`, `docs/CONTRACTS.md`, `lua/…`, `domain/…`, `controller/…`, `service/…`, `redisKeys/…`)는 전부 room 폴더 기준이다. `docs/11 D-…` 은 matching 의 결정 로그다. -->
 
+> **2026-09-25 에 `room` 을 이 앱에 합쳤다. 원본은 이제 이 폴더의 `contracts/room-api.md` 다**(P-22) — 이 사본은 두 앱이던 때의 것으로 남겨 두었고 더 떠 오지 않는다.
+
 # `room` 계약 가운데 `platform` 에 걸리는 부분 — `room` 의 `contracts/room-api.md` 발췌
 
 ## `platform` 에서 이것이 뜻하는 것 (이 절만 `platform` 에서 쓴 글이다. 아래 "발췌 시작"부터는 원본 그대로다)
