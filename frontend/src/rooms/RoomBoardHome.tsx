@@ -14,7 +14,6 @@ import { RoomConversation } from './RoomConversation';
 import { RoomComposer } from './RoomComposer';
 import { RoomDeck } from './RoomDeck';
 import { RoomDeckSpread } from './RoomDeckSpread';
-import { HomeProfileRail } from '../components/HomeProfileRail';
 import { RoomQuickConnect } from './RoomQuickConnect';
 import { quickConnectCandidates, type QuickConnectCriteria } from './quickConnect';
 import { summarizeRoom } from './summary';
@@ -90,8 +89,8 @@ export function RoomBoardHome() {
       {!filtered.length ? <div className="room-board-empty"><p>이 조건에 맞는 방이 없어요.</p><button className="room-secondary-button" onClick={() => setFilters(defaults(selectedGame))}>필터 초기화</button></div> : null}
     </section>
     {activeRoom ? <aside className="room-conversation-rail"><RoomConversation room={activeRoom} selfId={member.id} onSend={text => send(text)} onLeave={() => run(leave)} onKick={id => run(() => kick(activeRoom.id, id))} onConfirm={() => run(() => confirm(activeRoom.id))} onAutoConfirm={deadline => autoConfirm(activeRoom.id, deadline)} onExtend={deadline => run(() => extendRecruitment(activeRoom.id, deadline))} /></aside>
-      : composer ? <aside className="room-composer-rail"><RoomComposer key={`${selectedGame}-${type}`} game={selectedGame} modeKey={filters.modeKey} type={type} member={member} onCancel={() => setComposer(false)} onCreate={(input, profile) => run(() => { create(input, profile); setFilters({ ...defaults(input.game), modeKey: input.modeKey }); setComposer(false); })} /></aside> : <div className="room-quick-rail"><HomeProfileRail user={user} game={selectedGame} gameAccount={gameAccounts.find(account => account.game === selectedGame)}><RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.modeKey} rooms={rooms} member={member}
-      onCreate={() => setComposer(true)} onOpen={(room, trigger, profile, criteria) => setSelected({ id: room.id, origin: trigger.getBoundingClientRect(), trigger, profile, criteria })} /></HomeProfileRail></div>}
+      : composer ? <aside className="room-composer-rail"><RoomComposer key={`${selectedGame}-${type}`} game={selectedGame} modeKey={filters.modeKey} type={type} member={member} onCancel={() => setComposer(false)} onCreate={(input, profile) => run(() => { create(input, profile); setFilters({ ...defaults(input.game), modeKey: input.modeKey }); setComposer(false); })} /></aside> : <div className="room-quick-rail"><RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.modeKey} rooms={rooms} member={member}
+      onCreate={() => setComposer(true)} onOpen={(room, trigger, profile, criteria) => setSelected({ id: room.id, origin: trigger.getBoundingClientRect(), trigger, profile, criteria })} /></div>}
     </div>
     {selected && current ? <RoomDeckSpread room={current} origin={selected.origin} trigger={selected.trigger} activeRoomId={activeRoom?.id ?? null} onClose={() => setSelected(null)} onJoin={() => run(() => { const profile = selected.profile ?? member;
       if (selected.criteria && !quickConnectCandidates(rooms, selected.criteria).some(room => room.id === current.id)) {

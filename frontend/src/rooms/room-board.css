@@ -313,7 +313,7 @@
 .room-quick-rail .home-profile-account { margin-bottom:28px; }
 .room-quick-rail .home-profile-identity>span { font-size:13px; }
 .room-quick-rail .home-profile-identity { gap:5px; }
-.room-quick-rail .quick-connect-result { margin-top:4px; padding:14px; background:#131522; border-color:#66508e; }
+.room-quick-rail .quick-connect-result { margin:0; padding:16px 18px; border-radius:16px; background:#131522; border-color:#66508e; }
 .room-quick-rail .quick-result-actions button { font-size:13px; }
 @media(max-width:900px) {
   .room-home .room-home-layout { grid-template-columns:minmax(0,1fr); }
