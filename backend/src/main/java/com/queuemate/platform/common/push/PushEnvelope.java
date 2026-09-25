@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 계약이 정한 봉투 — <b>네 칸이 고정이다</b>(contracts/events.md "Envelope" · CLAUDE.md §3.2). 칸의 순서도 {@code matching} · {@code room} 과 같다.
+ * 계약이 정한 봉투 — <b>네 칸이 고정이다</b>(contracts/events.md "Envelope" · CLAUDE.md §3.2). 칸의 순서도 {@code matching} 과 같다(2026-09-25 에 합친 {@code room} 의 것과도 같았다).
  * 개인 알림({@link PushPublisher})과 게시판 채널 신호({@code party.board.BoardSignalPublisher})가 <b>이 한 벌을 같이 쓴다</b> —
  * {@code notification} 은 열어 보지 않고 SSE {@code data:} 에 그대로 싣고, 프런트는 두 가지를 같은 모양으로 읽는다.
  *

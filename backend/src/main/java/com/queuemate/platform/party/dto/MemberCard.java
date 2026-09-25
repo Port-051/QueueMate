@@ -9,7 +9,7 @@ import com.queuemate.platform.account.dto.GameProfileResponse;
  * {@code mainPosition} · {@code server} · {@code stats})를 싣는다.
  *
  * @param userId   사용자 번호
- * @param nickname 이 앱에 가입하지 않은 번호면 {@code null} 이다({@code room} 이 지금 인증 없이 돈다 — 그런 사람도 카드에서 빼지 않는다.
+ * @param nickname 이 앱에 없는 번호면 {@code null} 이다(방에 들어온 뒤 사라진 계정 등 — 그런 사람도 카드에서 빼지 않는다.
  *                 빼면 {@code memberCount} 와 어긋난다. 숫자가 아닌 값은 사용자 번호일 수 없어 방 키를 읽을 때 이미 걸러졌다 — {@code RedisRoomStateReader})
  * @param host     글을 쓴 사람인가
  * @param profile  <b>그 글의 게임</b>에 연결한 게임 계정. 없으면 {@code null}

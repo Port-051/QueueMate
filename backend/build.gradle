@@ -20,8 +20,8 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	// Redis 의 용도는 넷이다 — 알림 발행 · 로그인 실패 제한(refresh 토큰도 여기 온다) · room 의 방 키 읽기 · 전적 동기화 락
-	// (CLAUDE.md §4 · contracts/platform-api.md "전적을 긁는 것"). 방 키에는 쓰지 않는다 (§3.3)
+	// Redis 의 용도 — 알림 발행 · 로그인 실패 제한(refresh 토큰도 여기 온다) · 방 안의 일(방 키 — Lua 스크립트. 2026-09-25 에 room 을 합쳤다) ·
+	// 전적 동기화 락 · gameconfig 읽기 (CLAUDE.md §4 · contracts/platform-api.md "전적을 긁는 것" · contracts/room-api.md)
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	// 스키마는 Flyway 가 만든다 (docs/11 #17). Hibernate 는 검증만 한다 (application.yaml 의 ddl-auto: validate)
 	implementation 'org.springframework.boot:spring-boot-starter-flyway'

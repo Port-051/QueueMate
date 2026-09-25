@@ -22,7 +22,7 @@ import java.util.Map;
  * <p><b>신호에는 데이터를 싣지 않는다</b> — {@code payload} 는 늘 {@code {}} 다. 방송은 사람별로 거를 수 없어서 {@code roomId} 하나만 실어도
  * 차단 때문에 그 방이 숨겨진 사용자에게 "그 방이 바뀌었다"가 새어 나간다(D-20 · D-22). 그래서 이 클래스에는 payload 를 받는 인자가 없다.
  *
- * <p>봉투는 {@code room} 의 {@code PushPublisher} 와 글자까지 같은 모양이다 — {@code {type, eventId, occurredAt, payload}} 네 칸.
+ * <p>방의 인원이 바뀔 때도 이것으로 보낸다({@code room.service.RoomNotifier} — 2026-09-25 에 {@code room} 앱을 합쳤다). 봉투는 {@code {type, eventId, occurredAt, payload}} 네 칸이다.
  * 개인 알림({@code common.push.PushPublisher})과 같은 {@link PushEnvelope} 한 벌을 쓴다.
  */
 @Slf4j

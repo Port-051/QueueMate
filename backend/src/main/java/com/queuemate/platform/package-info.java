@@ -1,12 +1,12 @@
 /**
- * QueueMate 의 API 서버 {@code app:platform} — 계정 · 파티 · 소셜(친구/차단/신고)과 파티 모집 게시판의 글 쪽.
+ * QueueMate 의 API 서버 {@code app:platform} — 계정 · 파티 · 소셜(친구/차단/신고) · 파티 모집 게시판 · 방 안의 일.
  *
  * <p><b>계정과 인증 · 게임 프로필 · 소셜 로그인 · 차단 · 파티 모집 게시판(글 · 목록 · 입장권 · 방장 확정의 기록) · 친구 · 신고 ·
- * 최근 함께한 사람(읽기) · 개인 알림 발행이 있다.</b> 무엇을 어떤 순서로 만드는지는 폴더 루트의 {@code START_HERE.md} §3,
+ * 최근 함께한 사람(읽기) · 개인 알림 발행 · 방 안의 일(2026-09-25 에 {@code room} 앱을 합쳤다)이 있다.</b> 무엇을 어떤 순서로 만드는지는 폴더 루트의 {@code START_HERE.md} §3,
  * 규칙은 {@code CLAUDE.md}, 이 앱이 정한 계약은 {@code contracts/platform-api.md} 에 있다.
  *
  * <p><b>패키지는 도메인(= DB 스키마)을 먼저 나눈다.</b> 이 앱이 소유하는 스키마는 {@code account} · {@code party} · {@code social}
- * 셋이고(CLAUDE.md §3.5 · docs/11 #17) 크로스 스키마 FK · JOIN 을 만들지 않는다 — 패키지도 같은 금으로 가른다.
+ * 셋이고(CLAUDE.md §3.5 · docs/11 #17) 크로스 스키마 FK · JOIN 을 만들지 않는다 — 패키지도 같은 금으로 가른다. DB 가 없는 도메인이 하나 더 있다 — {@code room}.
  * <ul>
  *   <li>{@code common} — 도메인에 속하지 않는 것. {@code error}(에러 본문 · 예외 처리) · {@code web}({@code Origin} 검사) ·
  *       {@code security}(토큰 서명과 검증 · 보안 설정 · 현재 사용자) · {@code push}(개인 알림 발행과 봉투 — CLAUDE.md §3.2.
@@ -19,8 +19,14 @@
  *       <b>거는 곳은 게임 계정을 저장하는 자리 하나뿐이라 {@code account} 안에서 끝난다</b> — 2026-09-24 소유자 결정으로 글 쓰기가 거는 길이 없어졌다)</li>
  *   <li>{@code social} — 차단 · 친구 요청과 친구 · 신고 · 최근 함께한 사람(읽는 쪽만 — 채우는 것은 SQS 가 정해진 뒤다).
  *       {@code account} 와 같은 모양이다. <b>사람을 검색하는 요청은 없다</b>(CLAUDE.md §1)</li>
- *   <li>{@code party} — 파티 모집 게시판의 글 쪽과 확정된 파티의 기록. 같은 모양에 둘이 더 있다 — {@code room}({@code room} 의 방 키를
- *       <b>읽는</b> 곳. 쓰지 않는다 — CLAUDE.md §3.3) · {@code board}(게시판 채널 신호 발행 — §3.2)</li>
+ *   <li>{@code party} — 파티 모집 게시판의 글 쪽과 확정된 파티의 기록. 같은 모양에 둘이 더 있다 — {@code room}(게시판이 방 키를
+ *       <b>읽는</b> 곳 — CLAUDE.md §3.3. 두 앱이던 때의 모양 그대로이고 2단계에서 {@code room} 의 서비스를 부르는 것으로 바뀐다) ·
+ *       {@code board}(게시판 채널 신호 발행 — §3.2)</li>
+ *   <li>{@code room} — <b>방 안의 일</b>: 방 만들기 · 입장 · 나가기 · 강퇴 · 방장 확정 · 접속 확인 · 방 안 사람 목록 · 내 방 찾기 · WebRTC 시그널 전달.
+ *       2026-09-25 에 {@code room} 앱(8083)을 합쳤다(소유자 결정 — {@code contracts/platform-api.md} P-22). 계약은 {@code contracts/room-api.md} 이고
+ *       상태는 Redis 에만 있다(DB 없음). 안은 원본의 구조 그대로 {@code controller} · {@code service} · {@code domain} · {@code dto} · {@code redisKeys} 다.
+ *       <b>방을 바꾸려면 Lua 스크립트를 부르는 서비스({@code RoomService} · {@code RoomMemberService})를 거친다</b> — 정원 검사 · 입장 표시 키 ·
+ *       활성 요청 키의 {@code EXISTS} 가 한 스크립트 안에 있어서, 맨손으로 {@code SADD} 하면 그 불변식이 깨진다</li>
  * </ul>
  *
  * <p><b>도메인 사이는 "읽는 창구"로만 잇는다</b> — 남의 리포지토리를 직접 쓰거나 남의 스키마의 테이블을 JOIN 하지 않는다.
@@ -29,6 +35,6 @@
  *   <li>{@code social.service.BlockReader}(나와 어느 방향으로든 차단 관계인 사람 — 쿼리 한 번)</li>
  * </ul>
  *
- * <p>여기 만들지 않는 것 — 매칭 로직, 방 안의 일(입장 · 강퇴 · 시그널), SSE 연결 보유, 예약(CLAUDE.md §2 · §11).
+ * <p>여기 만들지 않는 것 — 매칭 로직, SSE 연결 보유, 예약(CLAUDE.md §2 · §11).
  */
 package com.queuemate.platform;

@@ -1,5 +1,6 @@
 package com.queuemate.platform.party.room;
 
+import com.queuemate.platform.room.redisKeys.RoomKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisCallback;
@@ -22,8 +23,8 @@ import java.util.Set;
  * <p><b>이 클래스에는 쓰는 명령이 없다</b> — {@code EXISTS} 와 {@code SMEMBERS} 뿐이다(CLAUDE.md §3.3 · §11).
  * 세 명령이 한 순간의 것은 아니다(파이프라인은 트랜잭션이 아니다) — 그 사이에 방이 바뀔 수 있지만 다음 목록 조회가 바로잡는다.
  *
- * <p><b>멤버 SET 의 원소는 문자열이다</b>({@code room} 은 {@code userId} 를 문자열로 든다) — 사용자 번호의 십진 문자열이어야 한다. {@code room} 이 지금
- * 인증 없이 돌아({@code TEMP-NO-PLATFORM}) 아무 문자열이나 들어올 수 있다 — <b>숫자가 아닌 값은 건너뛰고 WARN 을 남긴다.</b> 사용자 번호일 수 없는 값이라
+ * <p><b>멤버 SET 의 원소는 문자열이다</b>(방 안의 일은 {@code userId} 를 문자열로 든다) — 사용자 번호의 십진 문자열이어야 한다. 2026-09-25 에
+ * {@code room} 을 합친 뒤로 방에는 로그인한 사용자만 들어오지만, 손으로 넣은 값까지 막을 수는 없다 — <b>숫자가 아닌 값은 건너뛰고 WARN 을 남긴다.</b> 사용자 번호일 수 없는 값이라
  * 카드에도 파티원에도 실을 수 없다(그런 값은 {@code memberCount} 에서도 빠진다). 숫자지만 가입하지 않은 번호는 그대로 둔다 — 카드에 {@code null} 로 남는다.
  */
 @Slf4j
@@ -50,9 +51,9 @@ public class RedisRoomStateReader implements RoomStateReader {
             results = redis.executePipelined((RedisCallback<Object>) connection -> {
                 for(Long id : ids)
                 {
-                    connection.keyCommands().exists(bytes(RoomKeys.host(id)));
-                    connection.setCommands().sMembers(bytes(RoomKeys.members(id)));
-                    connection.keyCommands().exists(bytes(RoomKeys.confirmed(id)));
+                    connection.keyCommands().exists(bytes(RoomKeys.roomHostKey(String.valueOf(id))));
+                    connection.setCommands().sMembers(bytes(RoomKeys.roomMemberKey(String.valueOf(id))));
+                    connection.keyCommands().exists(bytes(RoomKeys.roomConfirmedKey(String.valueOf(id))));
                 }
                 // 파이프라인의 콜백은 null 을 돌려줘야 한다 — 결과는 executePipelined 가 모아서 준다
                 return null;

@@ -4,8 +4,9 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- * {@code room} 의 방 키를 읽는 창구. <b>읽기만 한다</b> — 이 앱이 남의 Redis 키를 만지는 유일한 예외이고(CLAUDE.md §3.3),
- * {@code room} 의 HTTP API 는 부르지 않는다(D-20).
+ * 게시판이 방 키를 읽는 창구. <b>읽기만 한다</b>(CLAUDE.md §3.3). 두 앱이던 때 {@code room} 의 Redis 를 읽던 모양 그대로다 —
+ * 2026-09-25 에 {@code room} 을 이 앱의 패키지로 합쳤고, 이 창구를 {@code room} 의 서비스를 직접 부르는 것으로 바꾸는 일은 2단계에 남겨 두었다
+ * ({@code contracts/platform-api.md} P-22).
  *
  * <p>인터페이스로 둔 이유 — "Redis 가 죽었을 때"를 테스트에서 실패하는 구현으로 갈아 끼워 확인한다.
  */
