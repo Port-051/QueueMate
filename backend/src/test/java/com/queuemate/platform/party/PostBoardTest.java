@@ -191,8 +191,8 @@ class PostBoardTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("방이 한 번도 안 생긴 글은 쓴 지 10분이 지나야 만료된다. 만료 · 확정된 글은 10분 뒤 목록에서 빠진다(단건은 남는다)")
-    void graceAndRetention() throws Exception
+    @DisplayName("방이 한 번도 안 생긴 글은 쓴 지 10분이 지나야 만료된다")
+    void graceForRoomNeverCreated() throws Exception
     {
         Cookie hostCookie = signupAndLogin(newLoginId());
         Cookie viewer = signupAndLogin(newLoginId());
@@ -204,12 +204,47 @@ class PostBoardTest extends PostTestSupport {
         jdbcTemplate.update("update party.recruit_posts set created_at = now() - interval '11 minutes' where id = ?", postId);
         assertThat(find(list(viewer, "LOL"), postId).get("status").asString()).isEqualTo("EXPIRED");
         assertThat(statusOf(postId)).isEqualTo("EXPIRED");
+    }
 
-        // 만료된 지 10분이 안 됐다 — 목록에 남아 있다
-        assertThat(find(list(viewer, "LOL"), postId)).isNotNull();
-        jdbcTemplate.update("update party.recruit_posts set expired_at = now() - interval '11 minutes' where id = ?", postId);
-        assertThat(find(list(viewer, "LOL"), postId)).isNull();
-        mockMvc.perform(get("/api/v1/posts/" + postId).cookie(viewer))
+    /**
+     * 2026-09-25 소유자 결정 — <b>보존 기간을 없앴다.</b> 그 전에는 만료 · 확정된 지 10분이 지난 글이 목록에서 빠졌다
+     * ({@code platform.board.closed-retention}). 이 테스트는 <b>그것을 누가 되살리는 것을 막는다.</b>
+     */
+    @Test
+    @DisplayName("오래 전에 만료 · 확정된 글도 목록에 그대로 남는다 — 보존 기간이 없다(2026-09-25 소유자 결정)")
+    void closedPostsStayOnTheBoardForever() throws Exception
+    {
+        String host = newLoginId();
+        String otherHost = newLoginId();
+        Cookie hostCookie = signupAndLogin(host);
+        Cookie otherCookie = signupAndLogin(otherHost);
+        Cookie viewer = signupAndLogin(newLoginId());
+        Long hostId = userIdOf(host);
+        Long expired = createLolPost(hostCookie);
+        Long confirmed = createLolPost(otherCookie);
+
+        // 만료는 방이 생겼다가 사라진 것으로 만든다 — 목록이 그 자리에서 옮겨 적는다
+        openRoom(expired, hostId);
+        list(viewer, "LOL");
+        closeRoom(expired);
+        assertThat(find(list(viewer, "LOL"), expired).get("status").asString()).isEqualTo("EXPIRED");
+
+        // 확정은 방장 확정을 그대로 밟는다 — room 인 척 확정 표시 키를 쓰고 이 앱이 읽어 기록한다
+        openRoom(confirmed, userIdOf(otherHost), hostId);
+        confirmRoom(confirmed);
+        assertThat(find(list(viewer, "LOL"), confirmed).get("status").asString()).isEqualTo("CONFIRMED");
+
+        // 끝난 지 한참 됐다 — 옛 규칙이라면 둘 다 목록에서 빠졌다
+        jdbcTemplate.update("update party.recruit_posts set expired_at = now() - interval '30 days' where id = ?", expired);
+        jdbcTemplate.update("update party.recruit_posts set confirmed_at = now() - interval '30 days' where id = ?", confirmed);
+
+        JsonNode board = list(viewer, "LOL");
+        assertThat(find(board, expired).get("status").asString()).isEqualTo("EXPIRED");
+        assertThat(find(board, confirmed).get("status").asString()).isEqualTo("CONFIRMED");
+        // 끝난 글은 멤버를 비운다 — 그대로다
+        assertThat(find(board, expired).get("members").isEmpty()).isTrue();
+        assertThat(find(board, expired).get("host").get("userId").asLong()).isEqualTo(hostId);
+        mockMvc.perform(get("/api/v1/posts/" + expired).cookie(viewer))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("EXPIRED"));
     }

@@ -158,6 +158,10 @@ public class PostService {
      *
      * <p><b>만료 · 확정 옮겨 적기는 읽은 글에만 걸린다</b> — 목록을 전부 읽지 않으므로 깊은 곳의 글은 누가 그 페이지를 볼 때 옮겨진다.
      * 입장권 발급도 그 글을 보고 같은 일을 하므로 "들어갈 수 있는 죽은 방"은 생기지 않는다({@code contracts/platform-api.md}).
+     *
+     * <p><b>글을 상태로 가리지 않는다</b>(2026-09-25 소유자 결정) — 모집 중 · 확정 · 만료가 전부 {@code id} 내림차순으로 나오고 <b>끝난 글도 계속 남는다.</b>
+     * 그 전에는 만료 · 확정된 지 10분이 안 된 글만 남겼는데, 그 조건이 세 컬럼에 걸친 {@code OR} 셋이라 {@code (game, id DESC)} 인덱스를
+     * 깨끗하게 타지 못했다({@code RecruitPostRepository#findBoard}). 끝난 글은 "모집이 얼마나 활발한가"를 보여 주는 쪽으로도 쓰인다.
      */
     public PostListResponse list(Long me, String gameName, Integer limitParam, String cursorParam)
     {
@@ -165,7 +169,6 @@ public class PostService {
         int limit = PostValidation.limit(limitParam);
         BoardCursor cursor = BoardCursor.decode(cursorParam);
         Instant now = now();
-        Instant closedAfter = now.minus(boardProperties.closedRetention());
 
         List<PostResponse> visible = new ArrayList<>();
         boolean more = false;
@@ -174,7 +177,7 @@ public class PostService {
         for(int read = 0; read < reads && visible.size() < limit; read++)
         {
             int want = limit - visible.size();
-            List<RecruitPost> rows = postStore.findBoard(game, closedAfter, cursor, want + 1);
+            List<RecruitPost> rows = postStore.findBoard(game, cursor, want + 1);
             if(rows.isEmpty())
             {
                 more = false;

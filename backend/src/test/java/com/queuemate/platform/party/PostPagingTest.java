@@ -199,7 +199,7 @@ class PostPagingTest extends PostTestSupport {
         Cookie viewer = signupAndLogin(newLoginId());
         List<Long> lol = insertPosts(7, "LOL", "order");
         List<Long> other = insertPosts(2, "VALORANT", "valorant");
-        // 둘째와 다섯째만 만료다 — 그렇게 된 지 10분이 안 됐으니 목록에 남는다. 맨 아래로 내려가지 않고 제자리다(2026-09-24 소유자 결정)
+        // 둘째와 다섯째만 만료다 — 끝난 글도 목록에 남고(2026-09-25 소유자 결정) 맨 아래로 내려가지 않는다. 제자리다(2026-09-24 소유자 결정)
         for(Long postId : List.of(lol.get(1), lol.get(4)))
         {
             jdbcTemplate.update("update party.recruit_posts set status = 'EXPIRED', expired_at = now() where id = ?", postId);
@@ -243,7 +243,7 @@ class PostPagingTest extends PostTestSupport {
         assertThat(longs(second.get("posts"), "postId")).containsExactlyElementsOf(all.subList(3, 6))
                 .doesNotContainAnyElementsOf(all.subList(0, 3));
         assertThat(second.get("nextCursor").isNull()).isTrue();
-        // 만료된 글은 보존 기간(10분) 안에는 <b>제자리에</b> 남는다 — 맨 위부터 다시 받아도 순서가 그대로다
+        // 만료된 글은 <b>제자리에</b> 남는다 — 맨 위부터 다시 받아도 순서가 그대로다
         assertThat(longs(listPage(viewer, "LOL", 6, null).get("posts"), "postId")).containsExactlyElementsOf(all);
     }
 

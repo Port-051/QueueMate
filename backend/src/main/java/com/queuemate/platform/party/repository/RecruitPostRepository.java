@@ -28,11 +28,16 @@ import java.util.Optional;
 public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> {
 
     /**
-     * 게시판 목록의 <b>첫 페이지</b>(세 게임 전부) — 모집 중인 글 전부와, 만료 · 확정된 지 {@code closedAfter} 가 안 지난 글.
-     * <b>정렬은 {@code id} 내림차순 하나 = 최신순이다</b>(2026-09-24 소유자 결정 — {@code id} 가 identity 라 넣은 순서대로 커진다).
-     * 찾는 포지션은 쿼리 한 번으로 같이 온다({@code RecruitPost#wantedPositions}).
+     * 게시판 목록의 <b>첫 페이지</b>(세 게임 전부) — <b>글을 상태로 가리지 않는다.</b> 모집 중 · 확정 · 만료가 전부 {@code id} 내림차순으로 나온다
+     * (2026-09-25 소유자 결정). 찾는 포지션은 쿼리 한 번으로 같이 온다({@code RecruitPost#wantedPositions}).
      *
-     * <p><b>정렬에 글의 상태도 {@code createdAt} 도 쓰지 않는다</b>(옛 정렬은 모집 중인 글을 앞으로 당기고 그 뒤에 {@code createdAt} 을 봤다).
+     * <p><b>거르는 조건이 없어졌다</b> — 2026-09-25 전에는 "모집 중이거나 만료 · 확정된 지 10분이 안 됐다"는 <b>세 컬럼에 걸친 {@code OR} 셋</b>이었다.
+     * 그러면 {@code (game, id DESC)} 인덱스를 깨끗하게 타지 못한다(등호가 아닌 조건이 셋이라 걸러 내는 일이 인덱스 밖에서 일어난다).
+     * 지금은 <b>게임으로 좁히고 그 인덱스를 순서대로 훑어 내려가면 끝이다.</b> 끝난 글을 계속 보여 주는 것은 "이 서비스에서 모집이 얼마나 활발한가"를
+     * 보여 주는 쪽이기도 하다({@code contracts/platform-api.md} "목록의 정렬").
+     *
+     * <p><b>정렬은 {@code id} 내림차순 하나 = 최신순이다</b>(2026-09-24 소유자 결정 — {@code id} 가 identity 라 넣은 순서대로 커진다).
+     * <b>글의 상태도 {@code createdAt} 도 쓰지 않는다</b>(옛 정렬은 모집 중인 글을 앞으로 당기고 그 뒤에 {@code createdAt} 을 봤다).
      * 커서는 정렬 키가 <b>변하지 않는다</b>는 전제 위에 서는데 상태는 변하고 이 목록 조회 자신이 바꾼다({@code BoardCursor} 의 주석).
      *
      * <p><b>{@code limit} 이 있다</b>(2026-09-23 소유자 결정) — 게시판은 신호가 올 때마다 다시 받으므로 전부 내려 주면 그 큰 응답이 되풀이된다.
@@ -41,24 +46,18 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
     @Query("""
             select p
               from RecruitPost p
-             where (p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING
-                    or p.confirmedAt > :closedAfter
-                    or p.expiredAt > :closedAfter)
              order by p.id desc
             """)
-    List<RecruitPost> findBoard(@Param("closedAfter") Instant closedAfter, Limit limit);
+    List<RecruitPost> findBoard(Limit limit);
 
     /** {@link #findBoard} 와 같고 한 게임만이다. 둘로 나눈 이유 — {@code :game is null or …} 은 PostgreSQL 이 null 파라미터의 자료형을 못 정할 수 있다 */
     @Query("""
             select p
               from RecruitPost p
              where p.game = :game
-               and (p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING
-                    or p.confirmedAt > :closedAfter
-                    or p.expiredAt > :closedAfter)
              order by p.id desc
             """)
-    List<RecruitPost> findBoardByGame(@Param("game") Game game, @Param("closedAfter") Instant closedAfter, Limit limit);
+    List<RecruitPost> findBoardByGame(@Param("game") Game game, Limit limit);
 
     /**
      * {@link #findBoard} 의 <b>다음 페이지</b> — 커서({@code BoardCursor})가 가리키는 줄 <b>다음</b>부터다.
@@ -73,27 +72,20 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
     @Query("""
             select p
               from RecruitPost p
-             where (p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING
-                    or p.confirmedAt > :closedAfter
-                    or p.expiredAt > :closedAfter)
-               and p.id < :postId
+             where p.id < :postId
              order by p.id desc
             """)
-    List<RecruitPost> findBoardAfter(@Param("closedAfter") Instant closedAfter, @Param("postId") long postId, Limit limit);
+    List<RecruitPost> findBoardAfter(@Param("postId") long postId, Limit limit);
 
     /** {@link #findBoardAfter} 와 같고 한 게임만이다 */
     @Query("""
             select p
               from RecruitPost p
              where p.game = :game
-               and (p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING
-                    or p.confirmedAt > :closedAfter
-                    or p.expiredAt > :closedAfter)
                and p.id < :postId
              order by p.id desc
             """)
-    List<RecruitPost> findBoardAfterByGame(@Param("game") Game game, @Param("closedAfter") Instant closedAfter,
-                                           @Param("postId") long postId, Limit limit);
+    List<RecruitPost> findBoardAfterByGame(@Param("game") Game game, @Param("postId") long postId, Limit limit);
 
     /**
      * 글을 고칠 때 — 줄을 잠그고 읽는다({@code SELECT … FOR UPDATE}). 읽고 판단하는 사이에 만료 · 확정이 끼어들지 못한다
