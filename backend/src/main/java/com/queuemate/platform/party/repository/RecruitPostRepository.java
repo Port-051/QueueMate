@@ -11,7 +11,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -81,17 +80,6 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from RecruitPost p where p.id = :id")
     Optional<RecruitPost> findByIdForUpdate(@Param("id") Long id);
-
-    /** 방장 키를 처음 봤다. 이미 적혀 있으면 건드리지 않는다 — "처음 본 순간"이다 */
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query("""
-            update RecruitPost p
-               set p.roomSeenAt = :now
-             where p.id in :ids
-               and p.roomSeenAt is null
-               and p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING
-            """)
-    int markRoomSeen(@Param("ids") Collection<Long> ids, @Param("now") Instant now);
 
     /** 모집 중일 때만 만료로 바꾼다. 돌려주는 값이 1 이면 이 호출이 바꾼 것이다 */
     @Modifying(flushAutomatically = true, clearAutomatically = true)

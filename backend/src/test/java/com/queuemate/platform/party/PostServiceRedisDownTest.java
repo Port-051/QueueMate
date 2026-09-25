@@ -6,12 +6,12 @@ import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.gameconfig.GameConfigReader;
 import com.queuemate.platform.party.dto.PostResponse;
 import com.queuemate.platform.party.dto.PostUpdateRequest;
-import com.queuemate.platform.party.room.RoomStateReader;
-import com.queuemate.platform.party.room.RoomStateUnavailableException;
 import com.queuemate.platform.party.service.BoardProperties;
+import com.queuemate.platform.party.service.PostEntryGate;
 import com.queuemate.platform.party.service.PostService;
 import com.queuemate.platform.party.service.PostStore;
-import com.queuemate.platform.party.service.RoomTicketIssuer;
+import com.queuemate.platform.room.domain.RoomStateUnavailableException;
+import com.queuemate.platform.room.service.RoomService;
 import com.queuemate.platform.social.service.BlockReader;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
@@ -21,17 +21,24 @@ import org.springframework.http.HttpStatus;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
 
 /**
- * <b>Redis 가 죽었을 때</b> — 방 키를 읽는 창구({@link RoomStateReader})를 실패하는 구현으로 갈아 끼운 {@link PostService} 로 본다.
- * 나머지(DB · 프로필 · 차단 · 입장권)는 앱의 진짜 빈이다. {@link PostService} 에는 트랜잭션이 없어 손으로 만들어도 똑같이 돈다.
+ * <b>방 키를 못 읽을 때</b> — 방의 상태를 읽는 창구({@link RoomService#states})만 실패하게 만든 {@link RoomService} 를 끼운 {@link PostService} ·
+ * {@link PostEntryGate} 로 본다. 나머지(DB · 프로필 · 차단 · gameconfig)는 앱의 진짜 빈이다. 두 클래스에는 트랜잭션이 없어 손으로 만들어도 똑같이 돈다.
  *
  * <p>가장 중요한 것 — <b>방장 키를 "못 읽은 것"을 "방이 없다"로 읽지 않는다.</b> 그러면 Redis 가 흔들릴 때 멀쩡한 글이 전부 만료된다.
+ * 그리고 <b>fail-open 인지 fail-closed 인지는 부르는 쪽이 정한다</b> — 목록 · 단건은 open, 고치기 · 입장 검사는 closed 다.
  */
 class PostServiceRedisDownTest extends PostTestSupport {
 
     @Autowired
     PostStore postStore;
+
+    @Autowired
+    RoomService roomService;
 
     @Autowired
     GameProfileReader gameProfileReader;
@@ -40,41 +47,42 @@ class PostServiceRedisDownTest extends PostTestSupport {
     BlockReader blockReader;
 
     @Autowired
-    RoomTicketIssuer roomTicketIssuer;
-
-    @Autowired
     BoardProperties boardProperties;
 
     /** gameconfig 는 진짜 빈이다 — 여기서 죽이는 것은 방 키를 읽는 창구뿐이다 */
     @Autowired
     GameConfigReader gameConfig;
 
+    /** 방의 상태 읽기만 실패한다 — 스크립트(만들기 · 확정)는 진짜다. RoomService 에는 트랜잭션 프록시가 없어 그대로 감쌀 수 있다 */
+    private RoomService brokenStates()
+    {
+        RoomService broken = spy(roomService);
+        doThrow(new RoomStateUnavailableException(new IllegalStateException("테스트 — Redis 가 죽었다")))
+                .when(broken).states(any());
+        return broken;
+    }
+
     private PostService withBrokenRedis()
     {
-        RoomStateReader broken = roomIds -> {
-            throw new RoomStateUnavailableException(new IllegalStateException("테스트 — Redis 가 죽었다"));
-        };
-        return new PostService(postStore, broken, gameProfileReader, blockReader, roomTicketIssuer, boardProperties,
-                gameConfig);
+        return new PostService(postStore, brokenStates(), gameProfileReader, blockReader, boardProperties, gameConfig);
     }
 
     @Test
-    @DisplayName("목록 · 단건은 500 이 아니라 방 정보를 비운 채 글을 내려 주고, 어떤 글도 만료시키지 않는다 — 봤던 방의 글도, 10분이 지난 글도")
+    @DisplayName("목록 · 단건은 500 이 아니라 방 정보를 비운 채 글을 내려 주고, 어떤 글도 만료시키지 않는다 — 방이 사라진 글도")
     void listDegradesWithoutExpiring() throws Exception
     {
         String host = newLoginId();
-        String oldHost = newLoginId();
+        String gone = newLoginId();
         String viewer = newLoginId();
         Cookie hostCookie = signupAndLogin(host);
         signupAndLogin(viewer);
         Long hostId = userIdOf(host);
         Long viewerId = userIdOf(viewer);
         Long seen = createLolPost(hostCookie);
-        Long old = createLolPost(signupAndLogin(oldHost));
-        // 멀쩡한 앱이 방을 한 번 봤다 — room_seen_at 이 있다. 이 상태에서 방장 키를 "못 읽으면" 만료시키기 딱 좋은 글이다
         openRoom(seen, hostId, viewerId);
-        list(hostCookie, "LOL");
-        jdbcTemplate.update("update party.recruit_posts set created_at = now() - interval '11 minutes' where id = ?", old);
+        // 방이 사라진 글 — 방장 키를 "못 읽으면" 만료시키기 딱 좋은 글이다. 멀쩡한 앱이라면 다음 목록에서 만료된다
+        Long vanished = createLolPost(signupAndLogin(gone));
+        closeRoom(vanished);
 
         PostService service = withBrokenRedis();
         PostResponse line = service.list(viewerId, Game.LOL, null, null).posts().stream()
@@ -85,35 +93,34 @@ class PostServiceRedisDownTest extends PostTestSupport {
         assertThat(line.memberCount()).isZero();
         assertThat(line.full()).isFalse();
         assertThat(line.host().userId()).isEqualTo(hostId);
-        assertThat(service.list(viewerId, Game.LOL, null, null).posts()).extracting(PostResponse::postId).contains(seen, old);
-        assertThat(service.get(viewerId, seen).status()).isEqualTo("RECRUITING");
+        assertThat(service.list(viewerId, Game.LOL, null, null).posts()).extracting(PostResponse::postId).contains(seen, vanished);
+        assertThat(service.get(viewerId, vanished).status()).isEqualTo("RECRUITING");
 
         assertThat(statusOf(seen)).isEqualTo("RECRUITING");
-        assertThat(statusOf(old)).isEqualTo("RECRUITING");
+        assertThat(statusOf(vanished)).isEqualTo("RECRUITING");
     }
 
     @Test
-    @DisplayName("입장권 · confirm 은 503 ROOM_STATE_UNAVAILABLE 이다 — 차단 대조를 못 했는데 내줄 수 없다(fail-closed)")
-    void ticketFailsClosed() throws Exception
+    @DisplayName("입장 검사는 503 ROOM_STATE_UNAVAILABLE(+ Retry-After 5) 이다 — 방 안 사람과 차단 대조를 못 했는데 들여보낼 수 없다(fail-closed)")
+    void entryGateFailsClosed() throws Exception
     {
         String host = newLoginId();
         String guest = newLoginId();
         Long postId = createLolPost(signupAndLogin(host));
         signupAndLogin(guest);
-        Long hostId = userIdOf(host);
         Long guestId = userIdOf(guest);
-        openRoom(postId, hostId);
-        confirmRoom(postId);
 
-        PostService service = withBrokenRedis();
+        PostEntryGate gate = new PostEntryGate(postStore, brokenStates(), blockReader);
 
-        assertThatThrownBy(() -> service.ticket(guestId, postId))
+        assertThatThrownBy(() -> gate.check(String.valueOf(postId), guestId))
                 .isInstanceOfSatisfying(ApiException.class, e -> {
                     assertThat(e.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
                     assertThat(e.getCode()).isEqualTo("ROOM_STATE_UNAVAILABLE");
+                    assertThat(e.getRetryAfterSeconds()).isEqualTo(5L);
                 });
-        assertThatThrownBy(() -> service.confirm(hostId, postId))
-                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo("ROOM_STATE_UNAVAILABLE"));
+        // 없는 글은 방 키를 읽기 전에 404 다 — Redis 가 죽어도 그 답은 줄 수 있다
+        assertThatThrownBy(() -> gate.check(String.valueOf(NO_SUCH_POST), guestId))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo("POST_NOT_FOUND"));
         assertThat(statusOf(postId)).isEqualTo("RECRUITING");
     }
 
@@ -125,7 +132,6 @@ class PostServiceRedisDownTest extends PostTestSupport {
         Cookie hostCookie = signupAndLogin(host);
         Long hostId = userIdOf(host);
         Long postId = createLolPost(hostCookie);
-        openRoom(postId, hostId);
 
         PostService service = withBrokenRedis();
 

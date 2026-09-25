@@ -11,8 +11,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 확정된 파티와 파티원의 기록. <b>넣는 것은 전부 {@code INSERT … ON CONFLICT DO NOTHING} 이다</b> — 같은 확정이 두 길(길 ① · 길 ②)로
- * 동시에 와도 파티는 하나, 파티원은 한 벌이다({@code contracts/platform-api.md} "방장 확정의 기록"). PostgreSQL 전용 문법이다(H2 를 쓰지 않는다).
+ * 확정된 파티와 파티원의 기록. <b>넣는 것은 전부 {@code INSERT … ON CONFLICT DO NOTHING} 이다</b> — 같은 확정을 확정 요청과 자가 치유
+ * (목록 · 단건이 확정 표시 키를 발견)가 동시에 적으려 들어도 파티는 하나, 파티원은 한 벌이다({@code contracts/platform-api.md} "방장 확정"). PostgreSQL 전용 문법이다(H2 를 쓰지 않는다).
  *
  * <p>제약 위반을 예외로 받아 "이미 있다"로 읽지 않는 이유 — PostgreSQL 은 위반이 난 트랜잭션을 더 쓸 수 없게 만든다.
  * 같은 트랜잭션에서 글의 상태도 바꾸므로 위반 없이 지나가야 한다.

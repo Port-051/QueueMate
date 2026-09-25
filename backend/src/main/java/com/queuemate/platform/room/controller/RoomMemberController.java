@@ -2,6 +2,7 @@ package com.queuemate.platform.room.controller;
 
 import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.security.CurrentUserId;
+import com.queuemate.platform.room.RoomErrors;
 import com.queuemate.platform.room.domain.EnterResult;
 import com.queuemate.platform.room.domain.HeartbeatResult;
 import com.queuemate.platform.room.domain.KickResult;
@@ -20,7 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 방 안의 사람 — 입장 · 목록 · 나가기 · 강퇴 · 접속 확인. 결과마다의 상태 코드와 에러 코드는 {@code contracts/room-api.md} 가 원본이다.
+ * 방 안의 사람 — 입장 · 목록 · 나가기 · 강퇴 · 접속 확인. 결과마다의 상태 코드와 에러 코드는 {@code contracts/platform-api.md} 가 원본이다.
  * "나"는 access 토큰에서 온다({@link CurrentUserId} — {@link RoomController} 와 같다).
  *
  * <p>{@code switch} 에 {@code default} 를 두지 않는다 — 결과 enum 에 값이 늘면 컴파일러가 알려 준다.
@@ -33,7 +34,9 @@ public class RoomMemberController {
     private final RoomMemberService roomMemberService;
 
     /**
-     * 방에 들어온다. <b>입장권은 아직 보지 않는다</b> — {@code roomId} 만 받는다(합치기 전과 같다).
+     * 방에 들어온다. <b>입장권이 없다</b>(2026-09-25 2단계 — 소유자 결정 ①: 경로는 그대로다). 두 앱이던 때 입장권 발급이 보던 것(글이 모집 중인가 ·
+     * 방 안의 누구와도 차단 관계가 아닌가)을 이 요청 안에서 먼저 본다 — 404 {@code POST_NOT_FOUND} · 409 {@code POST_NOT_RECRUITING}
+     * ({@link RoomMemberService#enter} 의 순서). 그 거절은 서비스가 {@code ApiException} 으로 던지므로 아래 {@code switch} 에 없다.
      */
     @PostMapping("members")
     public ResponseEntity<Void> enter(@CurrentUserId Long userId, @PathVariable String roomId)
@@ -44,8 +47,7 @@ public class RoomMemberController {
             case ENTERED -> ResponseEntity.status(HttpStatus.CREATED).build();
             // 새로고침이나 재시도다. 성공이지만 새로 만든 것은 없다
             case ALREADY_ENTERED -> ResponseEntity.ok().build();
-            case ACTIVE_REQUEST_EXISTS -> throw new ApiException(HttpStatus.CONFLICT, RoomErrors.ALREADY_QUEUED,
-                    "자동 매칭을 돌리는 동안에는 파티방에 들어갈 수 없습니다");
+            case ACTIVE_REQUEST_EXISTS -> throw RoomErrors.alreadyQueued("자동 매칭을 돌리는 동안에는 파티방에 들어갈 수 없습니다");
             case FULL -> throw new ApiException(HttpStatus.CONFLICT, "ROOM_FULL", "파티방이 가득 찼습니다");
             case IN_OTHER_ROOM -> throw RoomErrors.inOtherRoom();
             case ROOM_NOT_FOUND -> throw RoomErrors.roomNotFound();

@@ -8,7 +8,7 @@ package com.queuemate.platform.party.domain;
  */
 public enum PostStatus {
 
-    /** 모집 중. 입장권은 이 상태의 글에만 내준다 */
+    /** 모집 중. 새 사람은 이 상태의 글의 방에만 들어올 수 있다({@code PostEntryGate}) */
     RECRUITING,
 
     /** 방장이 확정했다 — {@code room} 의 확정 표시 키를 이 앱이 읽어 기록한 것이다. 끝까지 이 상태다(D-23 — 방장 키가 없어도 만료시키지 않는다) */

@@ -98,18 +98,15 @@ platform:
       window: PT15M
       first-lock: PT1M
       max-lock: PT15M
-  # 파티 모집 게시판 (contracts/platform-api.md "모집 글 · 목록 · 입장권")
+  # 파티 모집 게시판 (contracts/platform-api.md "모집 글 · 목록")
+  # 2026-09-25 2단계로 둘이 빠졌다 — room-ticket-ttl(ROOM_TICKET_TTL — 입장권이 없어졌다) · room-grace(글 쓰기가 방을 같이 만들어 기다려 줄 방이 없다)
   board:
-    # 입장권의 수명. 받은 즉시 room 에 들고 가는 것이라 짧다
-    room-ticket-ttl: ${ROOM_TICKET_TTL:PT60S}
-    # 방 만들기를 아직 안 부른 글(room_seen_at 이 없다)을 만료시키지 않고 기다려 주는 시간 — 방의 수명(아래 platform.room.ttl-seconds 600초)과 같다
-    room-grace: PT10M
     # 차단으로 숨겨진 글 때문에 한 페이지가 limit 에 모자랄 때 그 뒤를 더 읽어 채우는 횟수의 상한이다 (2026-09-23 소유자 결정).
     # 차단 거르기는 방 안에 누가 있는지를 Redis 에서 읽은 뒤에야 할 수 있어 "읽은 수"와 "보이는 수"가 다르다.
     # 채우기 한 번이 목록 조립 한 벌(글 쿼리 · Redis 파이프라인 · 프로필 · 차단)이라 무한정 할 수 없다 — 다 써도 모자라면 있는 만큼 내려 준다.
     # 페이지 크기의 기본값 20 · 상한 100 은 코드의 상수다 (BoardProperties)
     max-refills: 3
-  # 방 안의 일 (contracts/room-api.md). 2026-09-25 에 room 앱을 합쳤다 — 환경변수 이름은 그쪽의 것 그대로다(계약이다)
+  # 방 안의 일 (contracts/platform-api.md "방"). 2026-09-25 에 room 앱을 합쳤다 — 환경변수 이름은 그쪽의 것 그대로다(계약이다)
   room:
     # 방 키(방장 키 · 멤버 SET · 확정 표시 키)와 입장 표시 키의 수명(초). 접속 확인이 올 때마다 다시 건다. 브라우저는 1분마다 신호를 보낸다
     ttl-seconds: ${ROOM_TTL_SECONDS:600}

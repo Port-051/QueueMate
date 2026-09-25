@@ -26,8 +26,8 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
- * 모집 글. <b>{@code id} 가 곧 {@code roomId} 다</b> — DB 가 매기고(bigint identity), 브라우저가 그 값(숫자를 문자열로)으로 {@code room} 의 방 만들기를 부른다
- * ({@code contracts/platform-api.md} "모집 글 · 목록 · 입장권").
+ * 모집 글. <b>{@code id} 가 곧 {@code roomId} 다</b> — DB 가 매기고(bigint identity), 글을 쓰는 그 트랜잭션에서 그 값(숫자를 문자열로)으로 방이 만들어진다({@code PostStore#create} — 2026-09-25 2단계)
+ * ({@code contracts/platform-api.md} "모집 글 · 목록").
  *
  * <p>{@code hostId} 는 사용자 번호({@code account.users.id})지만 <b>FK 도 엔티티 연관도 없다</b>(크로스 스키마 FK 금지 — CLAUDE.md §3.5). 숫자로만 든다.
  * {@link Game} 은 {@code account} 의 <b>도메인 enum</b> 이다 — 테이블을 JOIN 하는 것이 아니라 이름의 목록을 같이 쓰는 것이다.
@@ -84,10 +84,6 @@ public class RecruitPost {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, updatable = false, length = 12)
     private PostStatus status;
-
-    /** {@code room} 의 방장 키를 처음 본 시각. 없으면 방 만들기를 아직 안 부른 글이다. 조건부 UPDATE 로만 바뀐다 */
-    @Column(name = "room_seen_at", updatable = false)
-    private Instant roomSeenAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

@@ -48,7 +48,7 @@ public class JwtConfig {
 
     /**
      * access 토큰의 검증 — 서명 · {@code exp} · {@code iss} 에 더해 <b>{@code token_use} 가 {@code access} 인지</b> 본다.
-     * 입장권도 같은 키로 서명하므로 이것을 빼면 입장권이 access 토큰으로 통한다 ({@code contracts/platform-api.md}).
+     * 소셜 가입 대기 토큰도 같은 키로 서명하므로 이것을 빼면 그 토큰이 access 토큰으로 통한다 ({@code contracts/platform-api.md}).
      * <b>{@code sub} 가 사용자 번호(숫자 문자열)인지도 본다</b> — 아니면 컨트롤러에 닿기 전에 401 이다. {@code @CurrentUserId} 는 그 값을 {@code Long} 으로 판다.
      *
      * <p>옆 서비스가 붙일 검증도 이 모양이다 — {@code NimbusJwtDecoder.withPublicKey()} + 같은 검증기.

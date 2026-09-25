@@ -53,7 +53,7 @@ public final class RoomKeys {
     /**
      * 확정 표시 키. STRING 이고 값은 {@code roomId} 다. <b>이 키가 있다 = 방장이 확정한 방이다</b> — 새 사람이 못 들어온다.
      * 방장이 확정할 때 쓰고({@code confirm-room.lua}), 방장의 접속 확인이 수명을 늘리고, 방이 없어질 때 같이 지운다.
-     * 게시판이 글의 상태를 "확정"으로 기록할 때도 이 키를 본다({@code party.room.RedisRoomStateReader}).
+     * 게시판이 글의 상태를 "확정"으로 기록할 때도 이 키를 본다({@code RoomService#states}).
      * <pre>{@code qm:room:123:confirmed}</pre>
      */
     public static String roomConfirmedKey(String roomId)

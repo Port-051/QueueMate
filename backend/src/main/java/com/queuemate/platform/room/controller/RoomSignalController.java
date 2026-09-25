@@ -2,6 +2,7 @@ package com.queuemate.platform.room.controller;
 
 import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.security.CurrentUserId;
+import com.queuemate.platform.room.RoomErrors;
 import com.queuemate.platform.room.domain.SignalResult;
 import com.queuemate.platform.room.dto.SignalRequest;
 import com.queuemate.platform.room.service.RoomSignalService;
@@ -27,7 +28,7 @@ public class RoomSignalController {
      * 보낸 사람은 access 토큰의 사용자다 — 남의 이름으로 보낼 길이 없다.
      *
      * <p><b>202 다.</b> "받았고 상대의 채널에 발행했다"까지가 이 응답의 뜻이고 상대에게 도착했다는 뜻이 아니다.
-     * 여러 {@code POST} 의 도착 순서도 보장하지 않는다. 결과마다의 상태 코드는 {@code contracts/room-api.md} 가 원본이다.
+     * 여러 {@code POST} 의 도착 순서도 보장하지 않는다. 결과마다의 상태 코드는 {@code contracts/platform-api.md} 가 원본이다.
      */
     @PostMapping("signals")
     public ResponseEntity<Void> send(@CurrentUserId Long userId, @PathVariable String roomId,

@@ -33,7 +33,7 @@ public class RoomSignalService {
         List<String> keys = List.of(
                 RoomKeys.activeRoomKey(fromUserId),
                 RoomKeys.activeRoomKey(toUserId));
-        SignalResult result = SignalResult.fromCode(redis.execute(signalRoomScript, keys, roomId));
+        SignalResult result = SignalResult.fromCode(RoomRedis.call("signal", () -> redis.execute(signalRoomScript, keys, roomId)));
 
         // 확인 없이 발행하면 아무에게나 시그널을 쏠 수 있는 구멍이 된다 — 같은 방일 때만 발행한다.
         // 발행은 예외를 밖으로 내보내지 않는다. 놓친 시그널은 클라이언트가 재-offer 로 복구한다

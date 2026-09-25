@@ -99,14 +99,16 @@ class BoardSignalTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("고치기 · 방장이 지우기 · 확정 기록에도 신호가 온다. 거절된 요청 · 그냥 읽기에는 오지 않는다")
+    @DisplayName("글 쓰기(방까지 만든다) · 고치기 · 방장 확정 · 방장이 지우기에 신호가 한 번씩 온다. 거절된 요청 · 그냥 읽기에는 오지 않는다")
     void signalsOnChangesOnly() throws Exception
     {
         String host = newLoginId();
+        String otherLogin = newLoginId();
         Cookie cookie = signupAndLogin(host);
-        Cookie other = signupAndLogin(newLoginId());
+        Cookie other = signupAndLogin(otherLogin);
         Long hostId = userIdOf(host);
         Long postId = createLolPost(cookie);
+        // 글과 방이 한 트랜잭션에서 생긴다 — 방 만들기의 신호와 글의 신호가 합쳐져 커밋 뒤에 한 번이다
         assertThat(drain()).isEqualTo(1);
 
         mockMvc.perform(patch("/api/v1/posts/" + postId).cookie(cookie)
@@ -120,14 +122,17 @@ class BoardSignalTest extends PostTestSupport {
         list(other, "LOL");
         assertThat(drain()).isZero();
 
-        openRoom(postId, hostId);
-        confirmRoom(postId);
-        mockMvc.perform(post("/api/v1/posts/" + postId + "/confirm").cookie(cookie)).andExpect(status().isOk());
+        // 방장 확정 — 방의 확정과 글의 기록이 한 트랜잭션이라 신호도 한 번이다
+        openRoom(postId, hostId, userIdOf(otherLogin));
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(cookie)).andExpect(status().isNoContent());
         assertThat(drain()).isEqualTo(1);
-        // 이미 기록된 확정을 또 불러도 바뀐 것이 없다
-        mockMvc.perform(post("/api/v1/posts/" + postId + "/confirm").cookie(cookie)).andExpect(status().isOk());
+        // 이미 확정된 방을 또 확정해도 바뀐 것이 없다
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(cookie)).andExpect(status().isOk());
         assertThat(drain()).isZero();
 
+        // 새 글을 쓰려면 먼저 방에서 나온다(방에 있으면 409 IN_OTHER_ROOM) — 나가기의 신호는 여기서 세지 않는다
+        mockMvc.perform(delete("/api/v1/rooms/" + postId + "/members/me").cookie(cookie)).andExpect(status().isNoContent());
+        drain();
         Long second = createLolPost(cookie);
         assertThat(drain()).isEqualTo(1);
         mockMvc.perform(delete("/api/v1/posts/" + second).cookie(cookie)).andExpect(status().isNoContent());
@@ -138,7 +143,7 @@ class BoardSignalTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("목록 조회 한 번에 여러 글이 만료돼도 신호는 한 번이다. room_seen_at 을 적는 것은 신호를 내지 않는다")
+    @DisplayName("목록 조회 한 번에 여러 글이 만료돼도 신호는 한 번이다. 옮겨 적을 것이 없는 평소의 목록은 신호를 내지 않는다")
     void oneSignalPerListCall() throws Exception
     {
         Cookie viewer = signupAndLogin(newLoginId());
@@ -146,13 +151,11 @@ class BoardSignalTest extends PostTestSupport {
         for(int i = 0; i < 3; i++)
         {
             String host = newLoginId();
-            Long postId = createLolPost(signupAndLogin(host));
-            openRoom(postId, userIdOf(host));
-            posts.add(postId);
+            posts.add(createLolPost(signupAndLogin(host)));
         }
         drain();
 
-        // 방을 처음 봤다 — 목록에 보이는 것이 바뀌지 않아 신호가 없다
+        // 방이 다 떠 있다 — 옮겨 적을 것이 없어 신호가 없다
         list(viewer, "LOL");
         assertThat(drain()).isZero();
 

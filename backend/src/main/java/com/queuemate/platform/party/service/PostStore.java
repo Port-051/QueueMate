@@ -11,6 +11,14 @@ import com.queuemate.platform.party.dto.PostCreateRequest;
 import com.queuemate.platform.party.dto.PostUpdateRequest;
 import com.queuemate.platform.party.repository.PartyRecordRepository;
 import com.queuemate.platform.party.repository.RecruitPostRepository;
+import com.queuemate.platform.room.RoomErrors;
+import com.queuemate.platform.room.domain.Confirmation;
+import com.queuemate.platform.room.domain.ConfirmResult;
+import com.queuemate.platform.room.domain.CreateResult;
+import com.queuemate.platform.room.domain.RoomMemberIds;
+import com.queuemate.platform.room.domain.RoomState;
+import com.queuemate.platform.room.domain.RoomStateUnavailableException;
+import com.queuemate.platform.room.service.RoomService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -29,8 +37,12 @@ import java.util.Set;
 /**
  * 모집 글과 파티 기록의 <b>DB 쪽</b>. 메서드 하나가 트랜잭션 하나다.
  *
- * <p>{@link PostService} 와 나눈 이유 — 글 한 줄을 그리려면 DB 와 Redis({@code room} 의 방 키)를 번갈아 읽는다. 그 전체를 트랜잭션 하나로 묶으면
+ * <p>{@link PostService} 와 나눈 이유 — 글 한 줄을 그리려면 DB 와 Redis(방 키)를 번갈아 읽는다. 그 전체를 트랜잭션 하나로 묶으면
  * Redis 를 기다리는 동안 DB 커넥션을 붙잡는다. 그래서 {@link PostService} 는 트랜잭션 없이 순서만 잡고, DB 에 닿는 토막만 여기서 짧게 끝낸다.
+ *
+ * <p><b>예외가 둘 있다 — 트랜잭션 안에서 방의 스크립트를 부른다</b>(2026-09-25 2단계): 글 쓰기가 방을 만들고({@link #create} — 소유자 결정 C),
+ * 방장 확정이 방을 확정한다({@link #confirmRoom}). 둘 다 <b>스크립트 호출 하나(밀리초)</b>이고, 방과 글이 한쪽만 남지 않게 하려는 것이라
+ * 커넥션을 그만큼 더 붙잡는 것을 받아들인다. 목록처럼 되풀이되는 읽기는 여전히 트랜잭션 밖에서 한다.
  *
  * <p><b>게시판 신호는 여기서 예약한다</b> — 글이 생기거나 · 고쳐지거나 · 만료되거나 · 확정된 트랜잭션이 <b>커밋된 뒤에</b> 한 번 나간다
  * ({@link BoardSignalPublisher#changed()}). 되돌려진 변경은 알리지 않는다.
@@ -46,10 +58,21 @@ public class PostStore {
     private final RecruitPostRepository postRepository;
     private final PartyRecordRepository partyRecordRepository;
     private final BoardSignalPublisher boardSignal;
+    private final RoomService roomService;
 
     /**
-     * 글을 쓴다. <b>"모집 중인 글은 한 사람에 하나"는 DB 가 막는다</b> — 있는지 먼저 조회하지 않고 INSERT 한 뒤 부분 UNIQUE 인덱스의 위반을
+     * 글을 쓰고 <b>그 글의 방을 만든다</b>(2026-09-25 2단계 — 소유자 결정 C: 방을 못 만들면 글도 되돌린다). 쓴 사람이 방장이고 곧바로 방에 들어와 있다.
+     *
+     * <p><b>"모집 중인 글은 한 사람에 하나"는 DB 가 막는다</b> — 있는지 먼저 조회하지 않고 INSERT 한 뒤 부분 UNIQUE 인덱스의 위반을
      * 409 로 옮긴다. 같은 사람의 글 쓰기가 동시에 여러 번 와도 하나만 통과한다(CLAUDE.md §5).
+     *
+     * <p><b>순서</b> — INSERT({@code saveAndFlush} — 여기서 {@code id} = {@code roomId} 를 받는다) → <b>커밋 전에</b> 방 만들기 스크립트 → 커밋.
+     * 스크립트가 거절하면(자동 매칭 중 · 이미 다른 방에 있다 · 그 번호의 방이 이미 있다) 그 코드로 409 를 던져 <b>글이 되돌려진다</b> —
+     * 그래서 <b>이미 방에 들어가 있는 사람은 글을 쓸 수 없다</b>. Redis 에 닿지 못해도 503 으로 던져 되돌린다.
+     *
+     * <p><b>스크립트는 성공했는데 커밋이 실패하면</b>(드물다) 방이 Redis 에 고아로 남는다 — 방장 키 · 멤버 SET · 쓴 사람의 입장 표시 키. <b>감수한다</b>:
+     * 수명(600초)이 다하면 저절로 사라지고, 그동안 그 사람은 나가기({@code DELETE …/members/me})로 풀 수 있다. 글이 없으니 목록에도 입장에도 걸리지 않는다
+     * (입장은 글부터 본다 — {@link PostEntryGate}).
      */
     @Transactional
     public RecruitPost create(Long hostId, PostCreateRequest request, Instant now)
@@ -74,9 +97,28 @@ public class PostStore {
             }
             throw e;
         }
+        openRoom(post.getId(), hostId);
         boardSignal.changed();
         log.info("모집 글 작성 postId={} hostId={} game={}", post.getId(), hostId, game);
         return post;
+    }
+
+    /** 글의 방을 만든다 — 결과가 {@code CREATED} 가 아니면 던져서 글을 되돌린다({@link #create}) */
+    private void openRoom(Long postId, Long hostId)
+    {
+        CreateResult result = roomService.create(String.valueOf(postId), String.valueOf(hostId));
+        switch(result)
+        {
+            case CREATED ->
+            {
+            }
+            case ACTIVE_REQUEST_EXISTS -> throw RoomErrors.alreadyQueued("자동 매칭을 돌리는 동안에는 모집 글을 쓸 수 없습니다");
+            case IN_OTHER_ROOM -> throw RoomErrors.inOtherRoom();
+            // 방금 받은 글 번호의 방이 이미 있다 — 글 번호는 DB 가 새로 매긴 것이라 정상이면 일어나지 않는다(누가 손으로 키를 넣었다).
+            // ALREADY_CREATED(내가 이미 방장인 방)도 같은 까닭으로 있을 수 없는 갈래다 — 둘 다 방을 만들지 못한 것으로 보고 되돌린다
+            case ROOM_EXISTS, ALREADY_CREATED -> throw new ApiException(HttpStatus.CONFLICT, "ROOM_ALREADY_EXISTS",
+                    "이미 만들어진 파티방입니다");
+        }
     }
 
     /**
@@ -175,18 +217,12 @@ public class PostStore {
     }
 
     /**
-     * 방 키를 읽고 알게 된 것을 <b>한 트랜잭션으로</b> 글에 옮긴다 — 방을 처음 봤다 · 방이 사라졌다 · 방장이 확정했다.
+     * 방 키를 읽고 알게 된 것을 <b>한 트랜잭션으로</b> 글에 옮긴다 — 방이 사라졌다 · 방장이 확정했다.
      * 전부 조건부 UPDATE 라 같은 관찰이 동시에 여러 요청에서 와도 한 번만 바뀐다. 신호는 몇 개가 바뀌든 커밋 뒤에 한 번이다.
-     *
-     * <p>{@code room_seen_at} 을 적는 것은 신호를 내지 않는다 — 목록에 보이는 것이 바뀌지 않는다.
      */
     @Transactional
     public void applyObservations(RoomObservations observations, Instant now)
     {
-        if(!observations.firstSeen().isEmpty())
-        {
-            postRepository.markRoomSeen(observations.firstSeen(), now);
-        }
         for(Long postId : observations.vanished())
         {
             if(postRepository.expireIfRecruiting(postId, now) == 1)
@@ -202,8 +238,61 @@ public class PostStore {
     }
 
     /**
-     * <b>방장 확정의 기록</b> — 길 ①({@code POST …/confirm})과 길 ②(목록 · 단건 · 입장권이 방 키를 읽다 발견)가 같이 쓴다
-     * ({@code contracts/platform-api.md} "방장 확정의 기록"). 부르기 전에 <b>확정 표시 키가 있는 것을 확인했어야 한다.</b>
+     * <b>방장 확정</b> — {@code POST /api/v1/rooms/{roomId}/confirm} 한 요청에서 방의 확정(Redis)과 확정의 기록(DB)을 같이 한다
+     * (2026-09-25 2단계. 두 앱이던 때는 브라우저가 {@code room} 의 확정 뒤에 {@code POST /api/v1/posts/{postId}/confirm} 을 따로 불렀다).
+     *
+     * <p><b>순서</b> — 글의 줄을 {@code FOR UPDATE} 로 잠근다 → 확정 스크립트 → {@code CONFIRMED} 면 그 스크립트가 돌려준 <b>확정 순간의 멤버</b>로
+     * 파티와 파티원을 적는다 → 커밋. 스크립트가 거절하면(방이 없다 · 방장이 아니다 · 2명이 안 된다) 기록 없이 그 결과를 돌려준다(컨트롤러가 4xx 로 옮긴다).
+     *
+     * <p><b>스크립트는 성공했는데 커밋이 실패하면</b> "확정된 방인데 글은 모집 중" 이 남는다. <b>자가 치유가 고친다</b> — 목록 · 단건이 방 키를 읽다
+     * 확정 표시 키를 보면 그 자리에서 같은 기록을 한다({@link #applyObservations}). 같은 사람이 다시 누르면 스크립트가 "이미 확정" 으로 답하고,
+     * 그때 글이 아직 모집 중이면 여기서 멤버를 읽어 기록한다.
+     *
+     * <p><b>만료된 글의 방은 확정하지 않는다</b> — 409 {@code POST_NOT_RECRUITING}(Claude 가 정한 세부). 방장이 글을 지운 뒤에도 방은 살아 있을 수 있는데,
+     * 그 방을 확정하면 파티를 적을 글이 없다(조건부 UPDATE 가 0줄이다).
+     *
+     * @param postId 글의 번호 = {@code roomId}. 그런 글이 없으면 방도 있을 수 없다 — 404 {@code ROOM_NOT_FOUND} 다
+     */
+    @Transactional
+    public ConfirmResult confirmRoom(Long me, Long postId, Instant now)
+    {
+        RecruitPost post = postRepository.findByIdForUpdate(postId).orElseThrow(RoomErrors::roomNotFound);
+        if(post.getStatus() == PostStatus.EXPIRED)
+        {
+            throw postNotRecruiting();
+        }
+        Confirmation confirmation = roomService.confirm(String.valueOf(postId), String.valueOf(me));
+        if(confirmation.result() == ConfirmResult.CONFIRMED)
+        {
+            recordConfirmed(post, RoomMemberIds.parse(String.valueOf(postId), confirmation.members()), now);
+        }
+        else if(confirmation.result() == ConfirmResult.ALREADY_CONFIRMED && post.getStatus() == PostStatus.RECRUITING)
+        {
+            healConfirmed(post, now);
+        }
+        return confirmation.result();
+    }
+
+    /**
+     * "이미 확정" 인데 글은 모집 중이다 — 앞선 확정의 커밋이 실패했다. 지금의 멤버 SET 으로 기록한다(확정 순간의 것과 다를 수 있다 — 감수한다).
+     * 방 키를 못 읽으면 넘어간다 — 확정은 이미 성립했고, 다음 목록 · 단건이 같은 일을 한다.
+     */
+    private void healConfirmed(RecruitPost post, Instant now)
+    {
+        try
+        {
+            RoomState state = roomService.states(List.of(post.getId())).get(post.getId());
+            recordConfirmed(post, state.members(), now);
+        }
+        catch(RoomStateUnavailableException e)
+        {
+            log.warn("확정은 됐는데 기록을 못 했다 — 목록 · 단건의 자가 치유에 맡긴다 postId={}", post.getId());
+        }
+    }
+
+    /**
+     * <b>방장 확정의 기록</b> — 확정 요청({@link #confirmRoom})과 자가 치유(목록 · 단건이 방 키를 읽다 발견 — {@link #applyObservations})가 같이 쓴다
+     * ({@code contracts/platform-api.md} "방장 확정"). 부르기 전에 <b>방이 확정된 것을 확인했어야 한다.</b>
      *
      * <p><b>멱등이다.</b> 글을 조건부 UPDATE 로 {@code CONFIRMED} 로 바꾼 호출 하나만 파티와 파티원을 적는다 — 0줄이면 다른 호출이 이미 기록한 것이라
      * 조용히 끝낸다. 동시에 온 호출은 그 UPDATE 의 줄 잠금에서 기다렸다가 0줄을 받는다. 파티 · 파티원의 INSERT 도 {@code ON CONFLICT DO NOTHING} 이다 —

@@ -53,6 +53,18 @@ class PartyMigrationTest extends ApiTestSupport {
     }
 
     @Test
+    @DisplayName("room_seen_at 이 없다 — 글 쓰기가 방을 같이 만들어 '아직 안 만들어진 방' 을 가를 일이 없어졌다(2026-09-25 2단계 · V8)")
+    void noRoomSeenAt()
+    {
+        List<String> columns = jdbcTemplate.queryForList("select column_name from information_schema.columns "
+                + "where table_schema = 'party' and table_name = 'recruit_posts'", String.class);
+
+        assertThat(columns).doesNotContain("room_seen_at").contains("id", "host_id", "status", "created_at", "expired_at");
+        assertThat(jdbcTemplate.queryForObject("select count(*) from flyway_schema_history where version = '8' and success",
+                Integer.class)).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("DB 가 '모집 중인 글은 한 사람에 하나'를 지킨다 — 만료 · 확정된 글은 몇 개든 된다")
     void oneRecruitingPostPerHost()
     {

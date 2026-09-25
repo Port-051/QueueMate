@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 모집 글 쓰기 ({@code contracts/platform-api.md} "모집 글 · 목록 · 입장권").
+ * 모집 글 쓰기 ({@code contracts/platform-api.md} "모집 글 · 목록").
  *
  * <p>애너테이션은 길이만 본다. <b>이름의 목록에 드는지는 서비스가 검증한다</b>({@code PostService}) — {@code game} · {@code voice} · {@code purpose} 를
  * enum 으로 받으면 모르는 값이 "본문을 읽을 수 없다"로 떨어져 어느 필드가 틀렸는지 말해 줄 수 없다. 포지션과 {@code conditions} 는 게임마다 다르다.

@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 입장 · 나가기 · 방 닫힘 · 강퇴가 <b>누구에게 무엇을</b> 알리는지. 알림 채널을 실제로 구독해서 본다
- * (계약은 contracts/room-api.md "알림").
+ * (계약은 contracts/platform-api.md "방" 의 알림).
  * 돌리는 법: {@code ./gradlew test --tests '*RoomNotificationTest'}
  */
 class RoomNotificationTest extends RoomTestSupport {

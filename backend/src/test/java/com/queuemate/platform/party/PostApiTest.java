@@ -25,12 +25,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 모집 글 쓰기 · 고치기 · 지우기 — {@code contracts/platform-api.md} "모집 글 · 목록 · 입장권" 의 앞 세 요청. 방의 상태가 걸리는 것은 {@link PostBoardTest} 다.
+ * 모집 글 쓰기 · 고치기 · 지우기 — {@code contracts/platform-api.md} "모집 글 · 목록" 의 앞 세 요청. 방의 상태가 걸리는 것은 {@link PostBoardTest},
+ * 글과 방이 맞물리는 것(글 쓰기 = 방 만들기 · 입장의 검사 · 확정 한 길)은 {@link PostRoomFlowTest} 다.
  */
 class PostApiTest extends PostTestSupport {
 
     @Test
-    @DisplayName("글을 쓰면 201 과 글 한 줄이 온다 — 방은 아직 없고(members 가 비었다) host 는 채워져 있다")
+    @DisplayName("글을 쓰면 201 과 글 한 줄이 온다 — 방이 같이 생겨 방장이 members 에 있고(memberCount 1) host 도 채워져 있다")
     void create() throws Exception
     {
         String host = newLoginId();
@@ -58,7 +59,7 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(jsonPath("$.filledPositions").doesNotExist())
                 .andExpect(jsonPath("$.status").value("RECRUITING"))
                 .andExpect(jsonPath("$.createdAt").isString())
-                .andExpect(jsonPath("$.memberCount").value(0))
+                .andExpect(jsonPath("$.memberCount").value(1))
                 .andExpect(jsonPath("$.capacity").value(5))
                 .andExpect(jsonPath("$.full").value(false))
                 .andExpect(jsonPath("$.host.userId").value(equalTo(hostId), Long.class))
@@ -66,7 +67,9 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(jsonPath("$.host.host").value(true))
                 .andExpect(jsonPath("$.host.profile.gameNickname").value("달콤한 인생#KR7"))
                 .andExpect(jsonPath("$.host.profile.mainPosition").value("MID"))
-                .andExpect(jsonPath("$.members").isEmpty());
+                .andExpect(jsonPath("$.members.length()").value(1))
+                .andExpect(jsonPath("$.members[0].userId").value(equalTo(hostId), Long.class))
+                .andExpect(jsonPath("$.members[0].host").value(true));
     }
 
     @Test
@@ -133,7 +136,7 @@ class PostApiTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("모집 중인 글이 있으면 또 쓸 수 없다(409 ALREADY_RECRUITING). 지우면(만료) 다시 쓸 수 있다")
+    @DisplayName("모집 중인 글이 있으면 또 쓸 수 없다(409 ALREADY_RECRUITING). 지워도(만료) 방에 남아 있으면 409 IN_OTHER_ROOM 이고, 방에서 나오면 쓸 수 있다")
     void oneRecruitingPostPerHost() throws Exception
     {
         String host = newLoginId();
@@ -146,6 +149,11 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(jsonPath("$.code").value("ALREADY_RECRUITING"));
 
         mockMvc.perform(delete("/api/v1/posts/" + first).cookie(cookie)).andExpect(status().isNoContent());
+        // 글을 지워도 방은 그대로다 — 방장이 아직 첫 글의 방에 들어 있어 새 글의 방을 만들 수 없다. 글도 되돌려진다(2026-09-25 2단계)
+        createPost(cookie, lolPostBody("아직 방에 있다"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IN_OTHER_ROOM"));
+        mockMvc.perform(delete("/api/v1/rooms/" + first + "/members/me").cookie(cookie)).andExpect(status().isNoContent());
         createLolPost(cookie);
 
         assertThat(jdbcTemplate.queryForObject("select count(*) from party.recruit_posts where host_id = ? and status = 'RECRUITING'",
@@ -306,7 +314,7 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
         mockMvc.perform(post("/api/v1/posts").contentType(MediaType.APPLICATION_JSON).content(lolPostBody("x")))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(post("/api/v1/posts/" + NO_SUCH_POST + "/ticket").cookie(cookie)
+        mockMvc.perform(post("/api/v1/posts").cookie(cookie).contentType(MediaType.APPLICATION_JSON).content(lolPostBody("x"))
                         .header(HttpHeaders.ORIGIN, "https://evil.example"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ORIGIN_NOT_ALLOWED"));

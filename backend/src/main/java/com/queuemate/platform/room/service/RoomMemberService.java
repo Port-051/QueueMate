@@ -1,5 +1,6 @@
 package com.queuemate.platform.room.service;
 
+import com.queuemate.platform.party.service.PostEntryGate;
 import com.queuemate.platform.room.RoomProperties;
 import com.queuemate.platform.room.domain.EnterResult;
 import com.queuemate.platform.room.domain.HeartbeatResult;
@@ -18,7 +19,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-
+/**
+ * 방 안의 사람 — 입장 · 나가기 · 강퇴 · 방 안 사람 목록 · 접속 확인. 방을 바꾸는 것은 전부 Lua 스크립트 하나 안에서 끝난다(정원 · 입장 표시 키 ·
+ * 활성 요청 키의 {@code EXISTS} 가 한 스크립트 안에 있어야 불변식이 선다).
+ *
+ * <p><b>입장만 게시판을 부른다</b>(2026-09-25 2단계 — 입장권을 없앴다. 소유자 결정 ①). 스크립트를 부르기 <b>전에</b> {@link PostEntryGate} 가
+ * 글의 상태와 차단을 본다. 그 창구는 {@code PostService} 를 물지 않는 따로 선 빈이라 이 클래스와 빈 순환이 생기지 않는다
+ * ({@code PostService} → {@code RoomService} 이고, 이 클래스 → {@code PostEntryGate} → {@code PostStore} · {@code RoomService} 다).
+ */
 @Service
 @RequiredArgsConstructor
 public class RoomMemberService {
@@ -39,12 +47,21 @@ public class RoomMemberService {
     private final RedisScript<List> kickRoomScript;
     private final RoomNotifier roomNotifier;
     private final RoomProperties roomProperties;
+    private final PostEntryGate postEntryGate;
 
     /**
      * 방에 들어온다. 들어왔으면 방에 이미 있던 사람들에게 알린다.
+     *
+     * <p><b>순서</b>(2026-09-25 2단계) — ① 게시판의 검사({@link PostEntryGate#check}: 없는 글 · 차단으로 숨겨진 글 404 {@code POST_NOT_FOUND},
+     * 모집 중이 아닌 글 409 {@code POST_NOT_RECRUITING}) → ② 스크립트({@code ROOM_NOT_FOUND} · {@code ROOM_FULL} · {@code ROOM_CONFIRMED} ·
+     * {@code ALREADY_QUEUED} · {@code IN_OTHER_ROOM} · 이미 들어와 있음). 두 앱이던 때 입장권 발급이 하던 ① 을 같은 요청 안에서 한다.
+     * ① 과 ② 사이는 원자적이지 않다 — 그 사이에 나와 차단 관계인 사람이 먼저 들어오는 경쟁이 남는다(입장권 60초였던 창이 밀리초로 줄었을 뿐이다).
+     *
+     * @throws com.queuemate.platform.common.error.ApiException ① 의 거절. 스크립트의 거절은 결과 enum 으로 돌려준다
      */
     public EnterResult enter(String roomId, String userId)
     {
+        postEntryGate.check(roomId, Long.parseLong(userId));
         List<String> keys = new ArrayList<String>();
         keys.add(SharedKeys.activeRequestKey(userId));
         keys.add(RoomKeys.activeRoomKey(userId));
@@ -52,8 +69,8 @@ public class RoomMemberService {
         keys.add(RoomKeys.roomHostKey(roomId));
         keys.add(RoomKeys.roomConfirmedKey(roomId));
         // StringRedisTemplate 이라 인자는 전부 문자열로 넘긴다. 순서는 스크립트 머리의 ARGV 와 같다
-        List<?> reply = redis.execute(enterRoomScript, keys, userId, roomId, String.valueOf(CAPACITY),
-                String.valueOf(roomProperties.ttlSeconds()));
+        List<?> reply = RoomRedis.call("enter", () -> redis.execute(enterRoomScript, keys, userId, roomId, String.valueOf(CAPACITY),
+                String.valueOf(roomProperties.ttlSeconds())));
         EnterResult result = EnterResult.fromCode(codeOf(reply));
 
         // 발행은 예외를 밖으로 내보내지 않는다 — 알림이 실패해도 이미 성립한 입장은 그대로다 (CLAUDE.md §3.2)
@@ -77,7 +94,7 @@ public class RoomMemberService {
         keys.add(RoomKeys.roomHostKey(roomId));
         keys.add(RoomKeys.roomConfirmedKey(roomId));
         // 접두사를 넘기는 이유 — 방을 없앨 때 남은 사람들의 입장 표시 키를 스크립트가 직접 조립한다
-        List<?> reply = redis.execute(leaveRoomScript, keys, userId, roomId, RoomKeys.ACTIVE_ROOM_PREFIX);
+        List<?> reply = RoomRedis.call("leave", () -> redis.execute(leaveRoomScript, keys, userId, roomId, RoomKeys.ACTIVE_ROOM_PREFIX));
         LeaveResult result = LeaveResult.fromCode(codeOf(reply));
 
         switch (result) {
@@ -100,7 +117,7 @@ public class RoomMemberService {
     /**
      * 강퇴. 방장이 방에 들어와 있는 사람을 내보낸다. 부른 사람이 방장인지는 스크립트가 방장 키와 비교해서 안다 —
      * 여기서 먼저 읽어 보고 판단하지 않는다(그 사이에 방장이 나가 방이 닫힐 수 있다).
-     * 강퇴했으면 방에 남은 사람들과 강퇴된 본인에게 알린다. 재입장은 막지 않는다 (미정 — {@code contracts/room-api.md} "강퇴").
+     * 강퇴했으면 방에 남은 사람들과 강퇴된 본인에게 알린다. 재입장은 막지 않는다 (미정 — {@code contracts/platform-api.md} "방" 의 강퇴).
      */
     public KickResult kick(String roomId, String hostUserId, String targetUserId)
     {
@@ -109,7 +126,7 @@ public class RoomMemberService {
         keys.add(RoomKeys.roomMemberKey(roomId));
         // 부른 사람이 아니라 대상의 입장 표시 키다
         keys.add(RoomKeys.activeRoomKey(targetUserId));
-        List<?> reply = redis.execute(kickRoomScript, keys, hostUserId, targetUserId, roomId);
+        List<?> reply = RoomRedis.call("kick", () -> redis.execute(kickRoomScript, keys, hostUserId, targetUserId, roomId));
         KickResult result = KickResult.fromCode(codeOf(reply));
 
         if (result == KickResult.KICKED)
@@ -135,7 +152,7 @@ public class RoomMemberService {
         keys.add(RoomKeys.activeRoomKey(userId));
         keys.add(RoomKeys.roomMemberKey(roomId));
         keys.add(RoomKeys.roomHostKey(roomId));
-        List<?> reply = redis.execute(membersRoomScript, keys, roomId);
+        List<?> reply = RoomRedis.call("members", () -> redis.execute(membersRoomScript, keys, roomId));
         // 코드는 언제나 첫 칸에 있다. Redis 의 숫자는 Long 으로 온다 — (int) 로 꺼내면 실행 중에 ClassCastException 이다
         Long code = codeOf(reply);
         if(Long.valueOf(-1).equals(code))
@@ -178,8 +195,8 @@ public class RoomMemberService {
         keys.add(RoomKeys.roomMemberKey(roomId));
         keys.add(RoomKeys.roomHostKey(roomId));
         keys.add(RoomKeys.roomConfirmedKey(roomId));
-        List<?> reply = redis.execute(heartbeatRoomScript, keys, userId, roomId, RoomKeys.ACTIVE_ROOM_PREFIX,
-                                                        String.valueOf(roomProperties.ttlSeconds()));
+        List<?> reply = RoomRedis.call("heartbeat", () -> redis.execute(heartbeatRoomScript, keys, userId, roomId, RoomKeys.ACTIVE_ROOM_PREFIX,
+                                                        String.valueOf(roomProperties.ttlSeconds())));
         HeartbeatResult result = HeartbeatResult.fromCode(codeOf(reply));
 
         // 방장의 신호는 { 1, 뺀 사람 수 N, 뺀 사람 N명…, 남은 사람들… } 로 온다. 일반 멤버의 신호는 { 1 } 뿐이다.

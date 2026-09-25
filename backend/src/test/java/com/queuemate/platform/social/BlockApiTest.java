@@ -28,7 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 차단 — {@code contracts/platform-api.md} "차단" 의 세 요청과, 다음 단계(모집 글 목록 · 입장권)가 쓸 창구 {@link BlockReader}.
+ * 차단 — {@code contracts/platform-api.md} "차단" 의 세 요청과, 모집 글 목록 · 방의 입장 검사가 쓰는 창구 {@link BlockReader}.
  *
  * <p>주고받는 것은 전부 <b>사용자 번호</b>(숫자)다 — 로그인 아이디는 가입 · 로그인에만 쓴다(2026-09-22 소유자 결정).
  * 응답의 {@code userId} 는 JSON 숫자라 {@code jsonPath(…, equalTo(번호), Long.class)} 로 본다 — Jackson 이 {@code int} 로 읽어

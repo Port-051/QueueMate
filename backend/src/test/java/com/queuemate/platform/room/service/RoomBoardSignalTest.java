@@ -175,14 +175,14 @@ class RoomBoardSignalTest extends RoomTestSupport {
         roomMemberService.enter(r("r1"), u("u1"));
         try (BoardSubscriber board = new BoardSubscriber(connectionFactory, objectMapper))
         {
-            assertThat(roomService.confirm(r("alone"), u("solo"))).isEqualTo(ConfirmResult.NOT_ENOUGH_MEMBERS);
+            assertThat(roomService.confirm(r("alone"), u("solo")).result()).isEqualTo(ConfirmResult.NOT_ENOUGH_MEMBERS);
             assertThat(board.nothingMore()).isTrue();
 
-            assertThat(roomService.confirm(r("r1"), u("host"))).isEqualTo(ConfirmResult.CONFIRMED);
+            assertThat(roomService.confirm(r("r1"), u("host")).result()).isEqualTo(ConfirmResult.CONFIRMED);
             assertThat(typeOf(board.next())).isEqualTo("BOARD_CHANGED");
             assertThat(board.nothingMore()).isTrue();
 
-            assertThat(roomService.confirm(r("r1"), u("host"))).isEqualTo(ConfirmResult.ALREADY_CONFIRMED);
+            assertThat(roomService.confirm(r("r1"), u("host")).result()).isEqualTo(ConfirmResult.ALREADY_CONFIRMED);
             assertThat(board.nothingMore()).isTrue();
         }
     }

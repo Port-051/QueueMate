@@ -1,5 +1,6 @@
 package com.queuemate.platform.room.service;
 
+import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.room.RoomTestSupport;
 import com.queuemate.platform.room.domain.EnterResult;
 import org.junit.jupiter.api.DisplayName;
@@ -12,14 +13,44 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 입장({@code lua/enter-room.lua})의 여섯 갈래와 동시성. 방은 방장이 먼저 만들어 둔다({@link RoomService#create}).
+ * 입장({@code lua/enter-room.lua})의 여섯 갈래와 동시성, 그리고 그 앞의 <b>글의 검사</b>({@code party.service.PostEntryGate} — 2026-09-25 2단계).
+ * 방은 방장이 먼저 만들어 둔다({@link RoomService#create}). 그 번호의 글은 {@link RoomTestSupport#r} 가 넣어 둔다.
  *
  * <p>테스트용 PostgreSQL(5433) · Redis(6380)가 떠 있어야 한다 — 돌리는 법과 5432 · 6379 를 피하는 이유는 {@code ApiTestSupport} 와 같다.
  * 사용자 · 방의 이름표와 "이 테스트의 키만 본다"는 {@link RoomTestSupport} 에 있다 — 건너뛴 것을 통과로 읽지 마라.
  */
 class RoomMemberServiceEnterTest extends RoomTestSupport {
+
+    // ── 글의 검사(스크립트 앞) ──────────────────────────────────────────
+
+    @Test
+    @DisplayName("입장은 스크립트보다 글을 먼저 본다 — 끝난 글이면 방이 살아 있어도 409 POST_NOT_RECRUITING 이고 아무 키도 쓰지 않는다")
+    void gateRunsBeforeTheScript()
+    {
+        roomService.create(r("r1"), u("host"));
+        jdbcTemplate.update("update party.recruit_posts set status = 'EXPIRED', expired_at = now() where id = ?", Long.parseLong(r("r1")));
+
+        assertThatThrownBy(() -> roomMemberService.enter(r("r1"), u("u1")))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo("POST_NOT_RECRUITING"));
+
+        assertThat(members("r1")).containsExactly("host");
+        assertThat(marker("u1")).isNull();
+    }
+
+    @Test
+    @DisplayName("글이 없는 roomId(글 번호가 아닌 값 포함)는 404 POST_NOT_FOUND 다 — 스크립트의 ROOM_NOT_FOUND 에 닿기 전이다")
+    void noPostNoEntry()
+    {
+        assertThatThrownBy(() -> roomMemberService.enter("9123456789012345678", u("u1")))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo("POST_NOT_FOUND"));
+        assertThatThrownBy(() -> roomMemberService.enter("not-a-number", u("u1")))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo("POST_NOT_FOUND"));
+
+        assertThat(marker("u1")).isNull();
+    }
 
     // ── 여섯 갈래 ───────────────────────────────────────────────────────────
 

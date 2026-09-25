@@ -20,7 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 게시판 목록의 <b>페이지 나누기(커서 방식)</b> — 2026-09-23 소유자 결정({@code contracts/platform-api.md} "모집 글 · 목록 · 입장권").
+ * 게시판 목록의 <b>페이지 나누기(커서 방식)</b> — 2026-09-23 소유자 결정({@code contracts/platform-api.md} "모집 글 · 목록").
  *
  * <p><b>커서는 글 번호 그대로다</b>(2026-09-25 소유자 결정 — base64url 한 겹을 없앴다. {@code nextCursor} 도 JSON 숫자로 나가고,
  * 숫자가 아닌 커서는 컨트롤러에 닿기 전에 형 변환에서 400 이다 — {@code GlobalExceptionHandler#handleTypeMismatch}).
@@ -287,11 +287,7 @@ class PostPagingTest extends PostTestSupport {
         Cookie viewer = signupAndLogin(newLoginId());
         Cookie other = signupAndLogin(newLoginId());
         List<Long> all = insertPosts(6, "LOL", "expiring");
-        // 1쪽에 나갈 셋만 방을 열어 둔다 — 목록이 방장 키를 보면 room_seen_at 이 적히고, 그 키가 사라지면 그 자리에서 만료된다
-        for(Long postId : all.subList(0, 3))
-        {
-            openRoom(postId, hostOf(postId));
-        }
+        // 글마다 방이 떠 있다(insertRecruitPost 가 연다) — 방장 키가 사라지면 목록이 그 자리에서 만료로 옮겨 적는다
 
         JsonNode first = listPage(viewer, "LOL", 3, null);
         assertThat(longs(first.get("posts"), "postId")).containsExactlyElementsOf(all.subList(0, 3));

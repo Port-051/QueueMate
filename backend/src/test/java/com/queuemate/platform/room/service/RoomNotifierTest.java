@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
- * 방 안의 일의 알림이 계약(contracts/events.md "Envelope" · contracts/room-api.md "알림")대로 나가는지 <b>구독해서</b> 본다.
+ * 방 안의 일의 알림이 계약(contracts/events.md "Envelope" · contracts/platform-api.md "방" 의 알림)대로 나가는지 <b>구독해서</b> 본다.
  *
  * <p>합치기 전의 {@code room} 에는 자기 {@code PushPublisher} 가 있었고 이 테스트가 그것을 봤다({@code PushPublisherTest}). 2026-09-25 에 합치며
  * 이 앱의 {@code common.push.PushPublisher} 를 쓰게 바꿨다 — 방의 알림이 그 길({@link RoomNotifier})로도 같은 봉투 · 같은 채널로 나가는지를 본다.

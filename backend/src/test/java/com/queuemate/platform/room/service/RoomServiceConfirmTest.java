@@ -54,13 +54,27 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     // ── 확정 ────────────────────────────────────────────────────────────────
 
     @Test
+    @DisplayName("확정은 그 순간의 멤버를 돌려준다 — 게시판이 파티원을 따로 읽지 않고 이것으로 적는다(2026-09-25 2단계). 거절이면 비어 있다")
+    void confirmReturnsTheMembers()
+    {
+        roomService.create(r("r1"), u("host"));
+        roomMemberService.enter(r("r1"), u("u1"));
+
+        assertThat(roomService.confirm(r("r1"), u("u1")).members()).isEmpty();
+        assertThat(roomService.confirm(r("r1"), u("host")).members().stream().map(this::labelOf))
+                .containsExactlyInAnyOrder("host", "u1");
+        // 이미 확정된 방 — 스크립트가 멤버를 돌려주지 않는다
+        assertThat(roomService.confirm(r("r1"), u("host")).members()).isEmpty();
+    }
+
+    @Test
     @DisplayName("방장이 확정하면 확정 표시 키가 수명과 함께 쓰인다. 값은 roomId 다 — 방장의 입장 표시를 덮어쓰지 않는다")
     void confirmWritesTheMarker()
     {
         roomService.create(r("r1"), u("host"));
         roomMemberService.enter(r("r1"), u("u1"));
 
-        assertThat(roomService.confirm(r("r1"), u("host"))).isEqualTo(ConfirmResult.CONFIRMED);
+        assertThat(roomService.confirm(r("r1"), u("host")).result()).isEqualTo(ConfirmResult.CONFIRMED);
 
         assertThat(labelOf(redisTemplate.opsForValue().get(key("qm:room:r1:confirmed")))).isEqualTo("r1");
         assertThat(redisTemplate.getExpire(key("qm:room:r1:confirmed"), TimeUnit.MILLISECONDS)).isBetween(1L, 2000L);
@@ -78,10 +92,10 @@ class RoomServiceConfirmTest extends RoomTestSupport {
         roomMemberService.enter(r("r1"), u("u1"));
         roomService.confirm(r("r1"), u("host"));
 
-        assertThat(roomService.confirm(r("r1"), u("host"))).isEqualTo(ConfirmResult.ALREADY_CONFIRMED);
+        assertThat(roomService.confirm(r("r1"), u("host")).result()).isEqualTo(ConfirmResult.ALREADY_CONFIRMED);
 
         roomMemberService.leave(r("r1"), u("u1"));
-        assertThat(roomService.confirm(r("r1"), u("host"))).isEqualTo(ConfirmResult.ALREADY_CONFIRMED);
+        assertThat(roomService.confirm(r("r1"), u("host")).result()).isEqualTo(ConfirmResult.ALREADY_CONFIRMED);
     }
 
     @Test
@@ -90,11 +104,11 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     {
         roomService.create(r("r1"), u("host"));
 
-        assertThat(roomService.confirm(r("r1"), u("host"))).isEqualTo(ConfirmResult.NOT_ENOUGH_MEMBERS);
+        assertThat(roomService.confirm(r("r1"), u("host")).result()).isEqualTo(ConfirmResult.NOT_ENOUGH_MEMBERS);
 
         assertThat(redisTemplate.hasKey(key("qm:room:r1:confirmed"))).isFalse();
         assertThat(roomMemberService.enter(r("r1"), u("u1"))).isEqualTo(EnterResult.ENTERED);
-        assertThat(roomService.confirm(r("r1"), u("host"))).isEqualTo(ConfirmResult.CONFIRMED);
+        assertThat(roomService.confirm(r("r1"), u("host")).result()).isEqualTo(ConfirmResult.CONFIRMED);
     }
 
     @Test
@@ -108,7 +122,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
 
         for (String caller : new String[]{"u1", "stranger", "host2"})
         {
-            assertThat(roomService.confirm(r("r1"), u(caller))).as(caller).isEqualTo(ConfirmResult.NOT_HOST);
+            assertThat(roomService.confirm(r("r1"), u(caller)).result()).as(caller).isEqualTo(ConfirmResult.NOT_HOST);
         }
 
         assertThat(redisTemplate.hasKey(key("qm:room:r1:confirmed"))).isFalse();
@@ -119,7 +133,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     @DisplayName("없는 방은 ROOM_NOT_FOUND 이고 아무것도 생기지 않는다")
     void noSuchRoom()
     {
-        assertThat(roomService.confirm(r("r9"), u("host"))).isEqualTo(ConfirmResult.ROOM_NOT_FOUND);
+        assertThat(roomService.confirm(r("r9"), u("host")).result()).isEqualTo(ConfirmResult.ROOM_NOT_FOUND);
 
         assertThat(ownKeys()).isEmpty();
     }
@@ -311,7 +325,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
                 assertThat(subscriber.next()).isNotNull();
             }
 
-            assertThat(roomService.confirm(r("r1"), u("host"))).isEqualTo(ConfirmResult.CONFIRMED);
+            assertThat(roomService.confirm(r("r1"), u("host")).result()).isEqualTo(ConfirmResult.CONFIRMED);
 
             List<String> recipients = new ArrayList<>();
             for (int i = 0; i < 3; i++)

@@ -21,14 +21,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 모집 글 테스트의 공통 바탕 — 글을 쓰는 법과 <b>{@code room} 인 척하는 법</b>.
+ * 모집 글 테스트의 공통 바탕 — 글을 쓰는 법과 <b>방의 상태를 손으로 만드는 법</b>.
  *
- * <p><b>방의 상태는 테스트가 Redis 에 직접 써서 만든다</b>({@code SET qm:room:{id}:host} · {@code SADD …:members} · {@code SET …:confirmed}) —
- * 진짜 {@code room} 이 쓰는 것과 같은 키 · 같은 자료형이다. {@code roomId} 는 글의 id(숫자)의 십진 문자열이고 멤버 SET 의 원소는 사용자 번호의 십진 문자열이다.
- * <b>방 키에 쓰는 것은 테스트 코드뿐이다</b> — main 코드는 읽기만 한다(CLAUDE.md §3.3).
- * 키 이름을 main 의 상수에서 가져오지 않고 <b>글자로 적었다</b> — 상수에 오타가 나면 이 테스트들이 깨져야 한다({@code room} 의 {@code RoomKeys} 가 원본이다).
+ * <p><b>글을 쓰면 방이 같이 생긴다</b>(2026-09-25 2단계 — {@code POST /api/v1/posts} 가 방 만들기 스크립트를 부른다). 방장이 혼자 들어 있는 방이다.
+ * 그 밖의 상태(남이 들어와 있다 · 방이 사라졌다 · 확정 표시 키만 있다)는 <b>테스트가 Redis 에 직접 써서 만든다</b>
+ * ({@code SET qm:room:{id}:host} · {@code SADD …:members} · {@code SET …:confirmed}) — 방의 스크립트가 쓰는 것과 같은 키 · 같은 자료형이다.
+ * 입장 · 확정을 진짜로 거치는 테스트는 HTTP 로 부른다({@code PostRoomFlowTest}). 손으로 쓰는 쪽은 "스크립트가 만들 수 없는 모양"(가입하지 않은 번호 ·
+ * 숫자가 아닌 값 · 커밋이 실패해 확정 표시 키만 남은 방)을 만들 때 쓴다.
+ * 키 이름을 main 의 상수에서 가져오지 않고 <b>글자로 적었다</b> — 상수에 오타가 나면 이 테스트들이 깨져야 한다({@code room.redisKeys.RoomKeys} 가 원본이다).
  *
- * <p>끝나면 자기가 쓴 키만 지운다. <b>{@code FLUSHDB} 금지</b> — 같은 Redis 를 {@code room} 이 쓸 수 있다.
+ * <p>끝나면 자기가 쓴 키만 지운다 — 방 키 셋과, 그 방에 들어 있던 사람들의 입장 표시 키. <b>{@code FLUSHDB} 금지</b> — 같은 Redis 를 다른 테스트 · 앱이 쓴다.
  */
 abstract class PostTestSupport extends ApiTestSupport {
 
@@ -38,14 +40,31 @@ abstract class PostTestSupport extends ApiTestSupport {
     /** 이 테스트가 방 키를 쓴 방. 끝나면 그 방의 키 셋을 지운다 */
     private final List<Long> touchedRooms = new CopyOnWriteArrayList<>();
 
+    /** 이 테스트에서 방에 들어갔던 사람 — 끝나면 입장 표시 키를 지운다(방이 먼저 사라지면 멤버 SET 으로는 알 수 없다) */
+    private final List<Long> touchedUsers = new CopyOnWriteArrayList<>();
+
     @AfterEach
     void deleteRoomKeys()
     {
         for(Long roomId : touchedRooms)
         {
+            Set<String> members = redisTemplate.opsForSet().members(membersKey(roomId));
+            if(members != null)
+            {
+                members.forEach(member -> redisTemplate.delete("qm:user:active-room:" + member));
+            }
             redisTemplate.delete(List.of(hostKey(roomId), membersKey(roomId), confirmedKey(roomId)));
         }
+        touchedUsers.forEach(userId -> redisTemplate.delete("qm:user:active-room:" + userId));
         touchedRooms.clear();
+        touchedUsers.clear();
+    }
+
+    /** 방의 키 · 그 방 사람들의 입장 표시 키를 끝나면 지우게 적어 둔다 — HTTP 로 방에 들어가거나 방을 만든 테스트가 부른다 */
+    protected void track(Long roomId, Long... users)
+    {
+        touchedRooms.add(roomId);
+        touchedUsers.addAll(List.of(users));
     }
 
     // ---- room 인 척 ----
@@ -66,8 +85,8 @@ abstract class PostTestSupport extends ApiTestSupport {
     }
 
     /**
-     * {@code room} 의 방 만들기 + 입장 — 방장 키를 쓰고 멤버 SET 에 방장과 나머지를 넣는다. 수명은 {@code room} 과 같은 600초다.
-     * {@code others} 는 보통 사용자 번호({@code Long})지만, {@code room} 이 인증 없이 도는 동안 들어올 수 있는 아무 문자열도 그대로 넣을 수 있다
+     * 방장 키를 (다시) 쓰고 멤버 SET 에 방장과 나머지를 넣는다 — 손으로 만드는 입장이다(입장 표시 키 · 차단 검사를 거치지 않는다). 수명은 방과 같은 600초다.
+     * {@code others} 는 보통 사용자 번호({@code Long})지만, 누가 Redis 에 손으로 넣었을 아무 문자열도 그대로 넣을 수 있다
      */
     protected void openRoom(Long roomId, Long hostId, Object... others)
     {
@@ -81,20 +100,31 @@ abstract class PostTestSupport extends ApiTestSupport {
         redisTemplate.expire(membersKey(roomId), java.time.Duration.ofSeconds(600));
     }
 
-    /** {@code room} 의 방장 확정 — 확정 표시 키를 쓴다. 값은 {@code roomId} 다 */
+    /**
+     * 확정 표시 키만 쓴다. 값은 {@code roomId} 다 — <b>확정 스크립트는 성공했는데 글의 기록이 커밋되지 않은 상태</b>를 만든다(자가 치유를 보는 테스트).
+     * 진짜 확정은 {@code POST /api/v1/rooms/{roomId}/confirm} 이다
+     */
     protected void confirmRoom(Long roomId)
     {
         touchedRooms.add(roomId);
         redisTemplate.opsForValue().set(confirmedKey(roomId), String.valueOf(roomId), java.time.Duration.ofSeconds(600));
     }
 
-    /** 확정하지 않은 방의 방장이 나갔다 — 방장 키와 멤버 SET 이 함께 사라진다 */
+    /**
+     * 방이 사라졌다 — 방장 키 · 멤버 SET · 확정 표시 키와 <b>그 방 사람들의 입장 표시 키</b>가 함께 사라진다(방장이 나가면 나가기 스크립트가 그렇게 한다).
+     * 입장 표시 키까지 지우는 것은 그 사람들이 다음 글을 쓸 수 있게 하려는 것이다 — 남아 있으면 409 {@code IN_OTHER_ROOM} 이다
+     */
     protected void closeRoom(Long roomId)
     {
+        Set<String> members = redisTemplate.opsForSet().members(membersKey(roomId));
+        if(members != null)
+        {
+            members.forEach(member -> redisTemplate.delete("qm:user:active-room:" + member));
+        }
         redisTemplate.delete(List.of(hostKey(roomId), membersKey(roomId), confirmedKey(roomId)));
     }
 
-    /** 지금 Redis 에 있는 {@code qm:room:*} · {@code qm:user:*} 키 — main 코드가 남의 키를 만들지 않았는지 볼 때 쓴다 */
+    /** 지금 Redis 에 있는 {@code qm:room:*} · {@code qm:user:*} · {@code qm:party:*} 키 — 읽기만 하는 요청이 키를 만들거나 지우지 않았는지 볼 때 쓴다 */
     protected Set<String> foreignKeys()
     {
         Set<String> keys = new TreeSet<>();
@@ -106,9 +136,16 @@ abstract class PostTestSupport extends ApiTestSupport {
 
     // ---- 글 ----
 
+    /** 글을 쓴다. 201 이면 <b>같이 생긴 방</b>과 방장의 입장 표시 키를 끝나면 지우게 적어 둔다({@link #track}) */
     protected ResultActions createPost(Cookie cookie, String body) throws Exception
     {
-        return mockMvc.perform(post("/api/v1/posts").cookie(cookie).contentType(MediaType.APPLICATION_JSON).content(body));
+        ResultActions created = mockMvc.perform(post("/api/v1/posts").cookie(cookie).contentType(MediaType.APPLICATION_JSON).content(body));
+        if(created.andReturn().getResponse().getStatus() == 201)
+        {
+            JsonNode json = body(created);
+            track(json.get("postId").asLong(), json.get("hostId").asLong());
+        }
+        return created;
     }
 
     protected ResultActions editPost(Cookie cookie, long postId, String body) throws Exception
@@ -197,15 +234,20 @@ abstract class PostTestSupport extends ApiTestSupport {
     /**
      * 모집 글을 <b>SQL 로 직접</b> 넣는다 — 여러 사람의 글이 여러 개 필요할 때다("모집 중인 글은 한 사람에 하나"라 방장이 저마다 달라야 하고,
      * 가입 · 로그인을 그만큼 되풀이하면 느리다). 방장은 보통 가입하지 않은 사용자 번호({@code unknownUserId()})라 카드의 닉네임 · 프로필이 {@code null} 이다.
-     * 글 쓰기 경로(검증 · 신호 · 전적 긁기)를 보는 테스트는 이것을 쓰지 말고 {@link #createPost} 를 쓴다.
+     * 글 쓰기 경로(검증 · 신호 · 전적 긁기 · 방 만들기)를 보는 테스트는 이것을 쓰지 말고 {@link #createPost} 를 쓴다.
+     *
+     * <p><b>방도 손으로 연다</b>(방장 혼자 — {@link #openRoom}). 2026-09-25 2단계부터 글이 있으면 방이 있다 — 방이 없는 모집 중인 글은 "사라진 방"이라
+     * 목록이 그 자리에서 만료로 옮겨 적는다. 그러면 옮겨 적기가 끼어 목록의 SQL 문장 수를 재는 테스트가 흔들린다
      */
     protected Long insertRecruitPost(Long hostId, String game, String title, java.time.Instant createdAt)
     {
         java.sql.Timestamp at = java.sql.Timestamp.from(createdAt);
-        return jdbcTemplate.queryForObject("insert into party.recruit_posts "
+        Long postId = jdbcTemplate.queryForObject("insert into party.recruit_posts "
                 + "(host_id, game, mode, title, voice, purpose, conditions, status, created_at, updated_at) "
                 + "values (?, ?, ?, ?, 'REQUIRED', 'RANK_UP', '{}'::jsonb, 'RECRUITING', ?, ?) returning id",
                 Long.class, hostId, game, modeOf(game), title, at, at);
+        openRoom(postId, hostId);
+        return postId;
     }
 
     /** 목록에서 그 글의 줄. 없으면 {@code null} 이다 — DB 가 테스트 사이에 남아 남의 글이 섞여 있으므로 늘 id 로 찾는다 */

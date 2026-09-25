@@ -86,14 +86,17 @@ class AuthenticationTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("서명이 멀쩡해도 token_use 가 access 가 아니면 401 이다 — 입장권을 access 토큰으로 쓸 수 없다")
+    @DisplayName("서명이 멀쩡해도 token_use 가 access 가 아니면 401 이다 — 소셜 가입 대기 토큰 · 옛 입장권을 access 토큰으로 쓸 수 없다")
     void wrongTokenUse() throws Exception
     {
         String loginId = newLoginId();
         signupAndLogin(loginId);
         Long userId = userIdOf(loginId);
 
-        // 같은 키 · 같은 iss · 같은 sub 인데 쓰임새만 다르다 (3단계의 입장권이 이 모양이다)
+        // 같은 키 · 같은 iss · 같은 sub 인데 쓰임새만 다르다 — 소셜 가입 대기 토큰이 같은 키로 서명된다
+        expectUnauthenticated(me(new Cookie("qm_access", token(jwtEncoder,
+                claims -> claims.subject(String.valueOf(userId)).claim("token_use", "social_signup")))));
+        // 옛 입장권(room_ticket — 2026-09-25 2단계로 없어졌다)의 모양도 그대로 거절된다
         expectUnauthenticated(me(new Cookie("qm_access", token(jwtEncoder,
                 claims -> claims.subject(String.valueOf(userId)).claim("token_use", "room_ticket")))));
         // token_use 가 아예 없다

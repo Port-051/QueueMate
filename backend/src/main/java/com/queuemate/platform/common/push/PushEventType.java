@@ -2,7 +2,7 @@ package com.queuemate.platform.common.push;
 
 /**
  * 이 앱이 발행하는 <b>개인 알림</b>의 종류. 봉투의 {@code type} 칸에 {@link #name()} 그대로 나간다.
- * 이름과 {@code payload} 의 원본은 {@code contracts/platform-api.md} "이 앱이 내는 알림"(친구 둘)과 {@code contracts/room-api.md} "알림"(방 안의 일 여섯 —
+ * 이름과 {@code payload} 의 원본은 {@code contracts/platform-api.md} "이 앱이 내는 알림"(친구 둘)과 {@code contracts/platform-api.md} "방" 의 알림(방 안의 일 여섯 —
  * 2026-09-25 에 {@code room} 앱을 합치며 그쪽의 {@code PushEventType} 에서 옮겨 왔다. 이름 · {@code payload} 는 글자 그대로다)이다 — 거기 없는 것을 여기에 먼저 만들지 마라.
  *
  * <p>문자열이 아니라 enum 인 이유 — 오타를 컴파일에서 막는다. 받는 쪽(브라우저)은 모르는 {@code type} 을 조용히 버리므로
