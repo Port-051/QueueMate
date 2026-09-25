@@ -9,6 +9,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -63,6 +64,20 @@ public class GlobalExceptionHandler {
     {
         return ResponseEntity.badRequest()
                 .body(ErrorResponse.of(ErrorCodes.VALIDATION_FAILED, "요청 본문을 읽을 수 없습니다"));
+    }
+
+    /**
+     * 필수 쿼리 파라미터가 없다 — 지금 그런 것은 게시판 목록의 {@code game} 하나다(2026-09-25 소유자 결정).
+     *
+     * <p><b>빈 값(`?game=`)도 여기로 온다</b> — 스프링이 enum 으로 바꾸다 {@code null} 이 되면 "안 준 것" 으로 다룬다.
+     * 이 핸들러가 없으면 아래 {@link #handleUnexpected} 를 거쳐 {@code details} 가 <b>빈 채로</b> 나가 어느 파라미터가 빠졌는지 알 수 없다.
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingParam(MissingServletRequestParameterException e)
+    {
+        return ResponseEntity.badRequest()
+                .body(new ErrorResponse(ErrorCodes.VALIDATION_FAILED, VALIDATION_MESSAGE,
+                        List.of(ErrorResponse.fieldDetail(e.getParameterName(), "필요합니다"))));
     }
 
     /** 경로 변수 · 쿼리 파라미터를 기대한 형으로 바꾸지 못했다 */

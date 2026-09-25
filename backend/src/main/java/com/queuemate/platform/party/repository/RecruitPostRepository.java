@@ -28,8 +28,12 @@ import java.util.Optional;
 public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> {
 
     /**
-     * 게시판 목록의 <b>첫 페이지</b>(세 게임 전부) — <b>글을 상태로 가리지 않는다.</b> 모집 중 · 확정 · 만료가 전부 {@code id} 내림차순으로 나온다
+     * 게시판 목록의 <b>첫 페이지</b> — <b>글을 상태로 가리지 않는다.</b> 모집 중 · 확정 · 만료가 전부 {@code id} 내림차순으로 나온다
      * (2026-09-25 소유자 결정). 찾는 포지션은 쿼리 한 번으로 같이 온다({@code RecruitPost#wantedPositions}).
+     *
+     * <p><b>게임 하나만 고르는 쿼리다 — "세 게임 전부" 용 쿼리는 없다</b>(2026-09-25 소유자 결정 — <b>게시판은 게임별로 나뉜 페이지이고
+     * "전체" 화면이 없다.</b> {@code contracts/platform-api.md} · P-21). 그 전에는 게임 없이 훑는 쿼리가 따로 있었는데 부르는 길이 없어져 지웠다 —
+     * 그래서 <b>{@code game} 은 등호 조건으로 늘 있고 {@code (game, id DESC)} 인덱스를 언제나 그대로 탄다.</b>
      *
      * <p><b>거르는 조건이 없어졌다</b> — 2026-09-25 전에는 "모집 중이거나 만료 · 확정된 지 10분이 안 됐다"는 <b>세 컬럼에 걸친 {@code OR} 셋</b>이었다.
      * 그러면 {@code (game, id DESC)} 인덱스를 깨끗하게 타지 못한다(등호가 아닌 조건이 셋이라 걸러 내는 일이 인덱스 밖에서 일어난다).
@@ -46,18 +50,10 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
     @Query("""
             select p
               from RecruitPost p
-             order by p.id desc
-            """)
-    List<RecruitPost> findBoard(Limit limit);
-
-    /** {@link #findBoard} 와 같고 한 게임만이다. 둘로 나눈 이유 — {@code :game is null or …} 은 PostgreSQL 이 null 파라미터의 자료형을 못 정할 수 있다 */
-    @Query("""
-            select p
-              from RecruitPost p
              where p.game = :game
              order by p.id desc
             """)
-    List<RecruitPost> findBoardByGame(@Param("game") Game game, Limit limit);
+    List<RecruitPost> findBoard(@Param("game") Game game, Limit limit);
 
     /**
      * {@link #findBoard} 의 <b>다음 페이지</b> — 커서(<b>마지막으로 읽은 글의 번호</b>)가 가리키는 줄 <b>다음</b>부터다.
@@ -72,20 +68,11 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
     @Query("""
             select p
               from RecruitPost p
-             where p.id < :postId
-             order by p.id desc
-            """)
-    List<RecruitPost> findBoardAfter(@Param("postId") long postId, Limit limit);
-
-    /** {@link #findBoardAfter} 와 같고 한 게임만이다 */
-    @Query("""
-            select p
-              from RecruitPost p
              where p.game = :game
                and p.id < :postId
              order by p.id desc
             """)
-    List<RecruitPost> findBoardAfterByGame(@Param("game") Game game, @Param("postId") long postId, Limit limit);
+    List<RecruitPost> findBoardAfter(@Param("game") Game game, @Param("postId") long postId, Limit limit);
 
     /**
      * 글을 고칠 때 — 줄을 잠그고 읽는다({@code SELECT … FOR UPDATE}). 읽고 판단하는 사이에 만료 · 확정이 끼어들지 못한다

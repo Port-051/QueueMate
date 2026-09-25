@@ -30,6 +30,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * (2026-09-24 로 정렬에서 상태가 빠진 이유다 — 정렬 키가 변하면 커서가 중복을 낸다), <b>차단으로 숨겨진 글 때문에 모자라면 그 뒤를 더 읽어 채우는 것</b>과 그 상한,
  * 정렬이 {@code id} 내림차순 하나인 것, SQL 문장 수가 페이지 크기에 비례해 늘지 않는 것.
  *
+ * <p>목록의 <b>쿼리 파라미터 셋을 거르는 것도 여기서 본다</b> — <b>{@code game} 은 필수이고</b>(2026-09-25 소유자 결정 — 게시판은 게임별로 나뉜 페이지다)
+ * 안 보내면 400 {@code VALIDATION_FAILED}({@code details} 에 {@code "game: 필요합니다"}), 모르는 이름 · 소문자면 같은 400 에 {@code "game: 올바른 값이 아닙니다"} 다.
+ *
  * <p><b>글은 SQL 로 직접 넣는다</b>({@link #insertRecruitPost}) — "모집 중인 글은 한 사람에 하나"라 글마다 방장이 달라야 하고 20~25명을 가입시키면 느리다.
  * 그 방장들은 가입하지 않은 사용자 번호라 카드가 {@code null} 로 나가지만 페이지 나누기는 그것과 무관하다.
  */
@@ -171,6 +174,45 @@ class PostPagingTest extends PostTestSupport {
     }
 
     @Test
+    @DisplayName("game 을 안 보내면 400 VALIDATION_FAILED(details 에 game)다 — 게시판은 게임별 페이지라 '전체' 가 없다")
+    void gameIsRequired() throws Exception
+    {
+        Cookie viewer = signupAndLogin(newLoginId());
+        insertPosts(2, "LOL", "required");
+
+        mockMvc.perform(get("/api/v1/posts").cookie(viewer))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.message").value("요청 형식이 올바르지 않습니다"))
+                .andExpect(jsonPath("$.details[0]").value("game: 필요합니다"))
+                .andExpect(detailFor("game"));
+
+        // 빈 값(?game=)도 안 준 것과 같다 — enum 으로 바꾸다 null 이 되면 스프링이 "빠졌다"로 다룬다
+        mockMvc.perform(get("/api/v1/posts").param("game", "").cookie(viewer))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[0]").value("game: 필요합니다"));
+    }
+
+    @Test
+    @DisplayName("모르는 게임 이름은 400 VALIDATION_FAILED(details 에 game)다 — 소문자도 그렇다(계약의 이름은 대문자다)")
+    void unknownGameIsRejected() throws Exception
+    {
+        Cookie viewer = signupAndLogin(newLoginId());
+
+        // 소문자를 받아 주는 변환기를 두지 않았다 — 스프링의 기본 enum 변환이 대소문자를 가린다(Game#fromName 도 같다)
+        for(String bad : List.of("LOLL", "OVERWATCH", "lol", "Lol", "0"))
+        {
+            mockMvc.perform(get("/api/v1/posts").param("game", bad).cookie(viewer))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                    .andExpect(jsonPath("$.message").value("요청 형식이 올바르지 않습니다"))
+                    // limit · cursor 가 숫자가 아닐 때와 글자까지 같은 본문이다 — 그 자리가 형 변환 한 곳이다
+                    .andExpect(jsonPath("$.details[0]").value("game: 올바른 값이 아닙니다"))
+                    .andExpect(detailFor("game"));
+        }
+    }
+
+    @Test
     @DisplayName("숫자가 아닌 커서는 400 VALIDATION_FAILED(details 에 cursor)다 — 형 변환에서 떨어진다. 빈 값은 맨 위부터다")
     void brokenCursorIsRejected() throws Exception
     {
@@ -234,9 +276,8 @@ class PostPagingTest extends PostTestSupport {
 
         assertThat(walk(viewer, "LOL", 2)).containsExactlyElementsOf(lol).doesNotContainAnyElementsOf(other);
         assertThat(walk(viewer, "LOL", 3)).containsExactlyElementsOf(lol);
-        assertThat(walk(viewer, "VALORANT", 1)).containsExactlyElementsOf(other);
-        // game 을 주지 않으면 세 게임 전부다 — 여러 게임이 섞여도 페이지가 이어진다
-        assertThat(walk(viewer, null, 3)).containsAll(lol).containsAll(other);
+        // game 은 필수라 "세 게임 전부" 를 걸어 볼 길이 없다(2026-09-25 소유자 결정) — 게임마다 따로 걸어도 서로 섞이지 않는다
+        assertThat(walk(viewer, "VALORANT", 1)).containsExactlyElementsOf(other).doesNotContainAnyElementsOf(lol);
     }
 
     @Test

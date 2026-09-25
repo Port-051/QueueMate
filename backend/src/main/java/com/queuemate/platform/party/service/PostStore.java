@@ -156,9 +156,10 @@ public class PostStore {
     }
 
     /**
-     * 게시판 목록에 오를 글 <b>한 페이지</b>. {@code game} 이 {@code null} 이면 세 게임 전부다.
+     * 게시판 목록에 오를 글 <b>한 페이지</b>. <b>게임 하나만이다</b>(2026-09-25 소유자 결정 — 게시판은 게임별로 나뉜 페이지다).
      * <b>글의 상태로 가리지 않는다</b> — 모집 중 · 확정 · 만료가 전부 나온다(2026-09-25 소유자 결정).
      *
+     * @param game   {@code null} 일 수 없다 — 컨트롤러가 필수로 받는다
      * @param cursor 마지막으로 읽은 글의 번호. {@code null} 이면 맨 위부터, 아니면 그 글 <b>다음</b>부터다.
      *               0 이하이거나 맨 끝을 넘은 번호는 아무것도 고르지 못해 빈 목록이다 — 따로 막지 않는다({@code PostService#list})
      * @param limit  많아야 이만큼 읽는다. 부르는 쪽이 <b>보여 줄 것보다 하나 더</b> 달라고 해서 "다음이 있는가"를 안다
@@ -168,13 +169,9 @@ public class PostStore {
     public List<RecruitPost> findBoard(Game game, Long cursor, int limit)
     {
         Limit max = Limit.of(limit);
-        if(cursor == null)
-        {
-            return (game == null) ? postRepository.findBoard(max) : postRepository.findBoardByGame(game, max);
-        }
-        return (game == null)
-                ? postRepository.findBoardAfter(cursor, max)
-                : postRepository.findBoardAfterByGame(game, cursor, max);
+        return (cursor == null)
+                ? postRepository.findBoard(game, max)
+                : postRepository.findBoardAfter(game, cursor, max);
     }
 
     /**

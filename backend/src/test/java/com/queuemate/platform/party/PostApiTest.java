@@ -122,9 +122,8 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(status().isBadRequest()).andExpect(detailFor("conditions"));
         createPost(cookie, postBody("LOL", "x", "{\"perspective\":\"TPP\"}"))
                 .andExpect(status().isBadRequest()).andExpect(detailFor("conditions"));
-        mockMvc.perform(get("/api/v1/posts").param("game", "OVERWATCH").cookie(cookie))
-                .andExpect(status().isBadRequest()).andExpect(detailFor("game"));
         mockMvc.perform(get("/api/v1/posts/not-a-number").cookie(cookie)).andExpect(status().isBadRequest());
+        // 목록의 game 검증은 {@link PostPagingTest} 다 — 이제 쿼리 파라미터의 필수 · 형 변환이고 글의 본문 검증이 아니다
 
         // 이 앱은 gameconfig 를 읽기만 한다 — 없는 모드를 물어도 그 키가 생기지 않는다 (CLAUDE.md §11)
         assertThat(Boolean.TRUE.equals(redisTemplate.hasKey("qm:gameconfig:LOL:" + UNKNOWN_MODE))).isFalse();

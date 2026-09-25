@@ -145,6 +145,10 @@ public class PostService {
     /**
      * 게시판 목록 <b>한 페이지</b>. 차단 관계로 숨겨진 글은 빠져 있다 — 빠졌다는 흔적도 없다.
      *
+     * <p><b>{@code game} 은 필수다</b>(2026-09-25 소유자 결정 — {@code contracts/platform-api.md} · P-21). <b>게시판은 게임별로 나뉜 페이지이고
+     * 사용자는 늘 한 게임의 게시판을 본다 — "세 게임 전부" 화면이 없다.</b> 값이 없거나 모르는 이름이면 컨트롤러에 닿기 전에 400 이라
+     * <b>여기서는 게임이 늘 정해져 있다</b>({@link com.queuemate.platform.party.controller.PostController#list}).
+     *
      * <p><b>페이지는 커서로 나눈다</b>(2026-09-23 소유자 결정 — {@code contracts/platform-api.md}). {@code limit} 은 없으면
      * {@value BoardProperties#DEFAULT_PAGE_LIMIT}, 많아야 {@value BoardProperties#MAX_PAGE_LIMIT} 이다. {@code cursor} 가 없으면 맨 위부터다.
      * <b>신호({@code BOARD_CHANGED})를 받은 프런트는 커서를 쓰지 않는다</b> — 펼친 만큼을 {@code limit} 으로 맨 위부터 다시 받는다.
@@ -173,9 +177,8 @@ public class PostService {
      * 그 전에는 만료 · 확정된 지 10분이 안 된 글만 남겼는데, 그 조건이 세 컬럼에 걸친 {@code OR} 셋이라 {@code (game, id DESC)} 인덱스를
      * 깨끗하게 타지 못했다({@code RecruitPostRepository#findBoard}). 끝난 글은 "모집이 얼마나 활발한가"를 보여 주는 쪽으로도 쓰인다.
      */
-    public PostListResponse list(Long me, String gameName, Integer limitParam, Long cursor)
+    public PostListResponse list(Long me, Game game, Integer limitParam, Long cursor)
     {
-        Game game = (gameName == null || gameName.isBlank()) ? null : PostValidation.game(gameName);
         int limit = PostValidation.limit(limitParam);
         Instant now = now();
 

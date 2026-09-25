@@ -147,9 +147,8 @@ class PostBoardTest extends PostTestSupport {
         assertThat(lol.indexOf(newest)).isLessThan(lol.indexOf(expired));
         assertThat(lol.indexOf(expired)).isLessThan(lol.indexOf(oldest));
 
+        // 게임은 필수라 "세 게임 전부" 를 받는 길이 없다(2026-09-25 소유자 결정) — 게임마다 따로 받고, 서로 섞이지 않는다
         assertThat(longs(list(viewer, "VALORANT"), "postId")).contains(other).doesNotContain(newest);
-        List<Long> all = longs(body(mockMvc.perform(get("/api/v1/posts").cookie(viewer)).andExpect(status().isOk())).get("posts"), "postId");
-        assertThat(all).contains(oldest, expired, newest, other);
     }
 
     // ---- 만료 ----

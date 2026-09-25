@@ -1,5 +1,6 @@
 package com.queuemate.platform.party.controller;
 
+import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.common.security.CurrentUserId;
 import com.queuemate.platform.party.dto.PostCreateRequest;
 import com.queuemate.platform.party.dto.PostListResponse;
@@ -64,19 +65,21 @@ public class PostController {
     }
 
     /**
-     * {@code game} 이 없으면 세 게임 전부다.
+     * <b>{@code game} 은 필수다</b>(2026-09-25 <b>소유자 결정</b>) — <b>게시판은 게임별로 나뉜 페이지이고 "세 게임 전부" 화면이 없다.</b>
+     * 그 전에는 없으면 전부 내려 주었는데 아무도 쓰지 않는 갈래였다({@code contracts/platform-api.md} "모집 글 · 목록 · 입장권" · P-21).
      *
      * <p><b>페이지는 커서로 나눈다</b>(2026-09-23 소유자 결정) — {@code limit} 은 없으면 20, 최대 100(벗어나면 400 {@code VALIDATION_FAILED}),
      * {@code cursor} 는 앞선 응답의 {@code nextCursor}(<b>마지막으로 읽은 글의 번호</b>)를 그대로 보내는 것이다.
      * 게시판 신호를 받았을 때는 <b>커서 없이 펼친 만큼의 {@code limit}</b> 으로 맨 위부터 다시 받는다.
      *
-     * <p><b>{@code limit} · {@code cursor} 가 숫자가 아니면 여기 닿기 전에 형 변환에서 400 이다</b>
-     * ({@code GlobalExceptionHandler#handleTypeMismatch} — {@code VALIDATION_FAILED} 에 {@code details} 는 그 파라미터 한 줄).
-     * <b>그래서 커서를 검사하는 코드가 따로 없다</b>(2026-09-25 소유자 결정으로 base64url 한 겹이 없어졌다 — {@link PostService#list}).
+     * <p><b>세 파라미터의 값이 틀리면 여기 닿기 전에 400 이다</b> — 모르는 게임 이름({@code ?game=LOLL})과 숫자가 아닌
+     * {@code limit} · {@code cursor} 는 형 변환에서({@code GlobalExceptionHandler#handleTypeMismatch}), {@code game} 을 아예 안 보냈으면
+     * 파라미터를 채우는 자리에서({@code GlobalExceptionHandler#handleMissingParam}) 떨어진다. <b>그래서 이 셋을 검사하는 코드가 따로 없다.</b>
+     * <b>{@code game} 은 대소문자를 가린다</b> — {@code ?game=lol} 은 스프링의 기본 enum 변환이 받지 않아 400 이다(계약의 이름은 대문자다).
      */
     @GetMapping
     public PostListResponse list(@CurrentUserId Long userId,
-                                 @RequestParam(name = "game", required = false) String game,
+                                 @RequestParam(name = "game") Game game,
                                  @RequestParam(name = "limit", required = false) Integer limit,
                                  @RequestParam(name = "cursor", required = false) Long cursor)
     {
