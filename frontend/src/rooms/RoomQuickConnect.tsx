@@ -7,6 +7,8 @@ import { useAuth } from '../state/AuthContext';
 import { SelfIntroductionFields } from '../components/SelfIntroductionFields';
 import { usesKeyCondition, visibleModes } from '../domain/gameConfig';
 import { emptyIntroduction, introductionInputError, readIntroduction, saveIntroduction, type SelfIntroduction } from '../domain/introduction';
+import { RoomVoice } from './RoomVoice';
+import { roomVoice } from './voice';
 import { quickConnectCandidates, type QuickConnectCriteria } from './quickConnect';
 import type { GameRoom, RoomMember } from './types';
 import './room-quick-connect.css';
@@ -20,7 +22,7 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onOpen, onCreat
   const { user, gameAccounts } = useAuth();
   const [value, setValue] = useState<SelfIntroduction>(() => {
     const saved = readIntroduction(member.id, game) ?? { ...emptyIntroduction(), primaryRoles: member.roles, primaryRole: member.roles[0] ?? 'ANY', voice: member.voice, bio: member.bio };
-    return { ...saved, queueType: visibleModes(game).some(mode => mode.key === saved.queueType) ? saved.queueType : modeKey };
+    return { ...saved, voice: roomVoice(saved.voice), queueType: visibleModes(game).some(mode => mode.key === saved.queueType) ? saved.queueType : modeKey };
   });
   const [started, setStarted] = useState(false);
   const [skipped, setSkipped] = useState<string[]>([]);
@@ -44,7 +46,7 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onOpen, onCreat
       {candidate ? <>
         <div className="quick-result-top"><span>조건에 맞는 방</span><strong>{candidate.members.length}/{candidate.capacity}명</strong></div>
         <h3>{candidate.title}</h3>
-        <p className="quick-result-reasons">{visibleModes(game).find(mode => mode.key === candidate.modeKey)?.label} · {candidate.voice === 'REQUIRED' ? '마이크 사용' : candidate.voice === 'NO_VOICE' ? '마이크 미사용' : '마이크 무관'}</p>
+        <p className="quick-result-reasons">{visibleModes(game).find(mode => mode.key === candidate.modeKey)?.label} <RoomVoice value={candidate.voice}/></p>
         <div className="quick-result-actions"><Button onClick={() => setSkipped(values => [...values, candidate.id])}>다른 방</Button><Button variant="primary" onClick={event => onOpen(candidate, event.currentTarget, profile, criteria)}>방 확인</Button></div>
       </> : <>
         <h3>{candidates.length ? '제안할 방을 모두 봤어요.' : '조건에 맞는 방이 없어요.'}</h3>
@@ -57,7 +59,7 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onOpen, onCreat
     <form onSubmit={event => { event.preventDefault(); if (!error && (!hasRoles || ownRoles.length)) { setStarted(true); setSkipped([]); } }}>
       <fieldset className="recruitment-composer">
         {error ? <div className="banner warn" role="alert">{error}</div> : null}
-        <SelfIntroductionFields game={game} value={value} onChange={update}/>
+        <SelfIntroductionFields binaryVoice game={game} value={value} onChange={update}/>
       </fieldset>
       <div className="matching-rail-footer"><Button block type="submit" variant="primary" disabled={Boolean(error) || (hasRoles && !ownRoles.length)}><IconMatch size={20}/>{started ? '다시 찾기' : '매칭 시작'}</Button></div>
     </form>

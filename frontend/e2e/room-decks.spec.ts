@@ -96,7 +96,7 @@ test('방 요약 평균은 전적이 있는 사람만 계산하고 펼치면 각
     member('three', { tier: null, division: null, winRate: null, kda: null, roles: ['JUNGLE'] }),
   ])]);
   await login(page);
-  const deck = page.getByRole('button', { name: '테스트 방 averages 방 펼치기', exact: true });
+  const deck = page.getByRole('button', { name: '테스트 방 averages 방 정보', exact: true });
   await expect(deck).toContainText('55%');
   await expect(deck).toContainText('3.0');
   await expect(deck).toContainText(/3\s*\/\s*5/);
@@ -132,7 +132,7 @@ test('다섯 명 방을 만들면 한 열 목록과 대화를 함께 쓰고 확�
     window.dispatchEvent(new StorageEvent('storage', { key, newValue }));
   }, { key: STORAGE_KEY, newcomer: member('incoming') });
   await page.getByRole('button', { name: '모집 마감', exact: true }).click();
-  const deck = page.getByRole('button', { name: '우리 다섯 명의 방 방 펼치기', exact: true });
+  const deck = page.getByRole('button', { name: '우리 다섯 명의 방 방 정보', exact: true });
   await page.getByRole('checkbox', { name: '모집 중인 방만', exact: true }).uncheck();
   await expect(deck).toHaveAttribute('data-status', 'CONFIRMED');
   await expect(page.getByRole('textbox', { name: '방에 메시지 보내기', exact: true })).toBeEnabled();
@@ -150,7 +150,7 @@ test('다섯 명 방을 만들면 한 열 목록과 대화를 함께 쓰고 확�
 test('마지막 자리에 들어가면 자동 확정되며 참가자는 방장 조작을 할 수 없다', async ({ page }) => {
   await seedRooms(page, [room('last-seat', ['host', 'two', 'three', 'four'].map(id => member(id)))]);
   await login(page);
-  const deck = page.getByRole('button', { name: '테스트 방 last-seat 방 펼치기', exact: true });
+  const deck = page.getByRole('button', { name: '테스트 방 last-seat 방 정보', exact: true });
   await deck.click();
   await page.getByRole('dialog').getByRole('button', { name: '입장하기', exact: true }).click();
   await expect(page.locator('.room-home')).toHaveClass(/has-active-room/);
@@ -178,7 +178,7 @@ test('방장은 특정 참가자만 내보낼 수 있고 자신의 방과 남은
   await page.getByRole('alert').getByRole('button', { name: '내보내기', exact: true }).click();
   await expect(page.getByRole('button', { name: '테스터 remove 내보내기', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '테스터 keep 내보내기', exact: true })).toBeVisible();
-  const deck = page.getByRole('button', { name: '테스트 방 owned 방 펼치기', exact: true });
+  const deck = page.getByRole('button', { name: '테스트 방 owned 방 정보', exact: true });
   await expect(deck).toContainText(/2\s*\/\s*5/);
   await expect(deck).toHaveAttribute('data-status', 'OPEN');
 });
@@ -200,7 +200,7 @@ test('방을 확정하기 전에도 음성 미리보기에 참여하고 음소�
   await expect(voice.getByRole('button', { name: '참여', exact: true })).toBeEnabled();
   await voice.getByRole('button', { name: '참여', exact: true }).click();
   await expect(voice.getByRole('heading', { name: '음성 미리보기', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: '테스트 방 voice 방 펼치기', exact: true })).toHaveAttribute('data-status', 'OPEN');
+  await expect(page.getByRole('button', { name: '테스트 방 voice 방 정보', exact: true })).toHaveAttribute('data-status', 'OPEN');
 });
 
 test('랭크 방은 두 명까지만 선택되며 선택한 모드는 다시 눌러도 해제되지 않는다', async ({ page }) => {
@@ -215,7 +215,7 @@ test('랭크 방은 두 명까지만 선택되며 선택한 모드는 다시 눌
   await expect(composer.getByRole('group', { name: '모집 인원', exact: true }).getByRole('button')).toHaveText(['2명']);
   await composer.getByLabel('방 제목', { exact: true }).fill('둘이 랭크');
   await composer.getByRole('button', { name: '방 열기', exact: true }).click();
-  await expect(page.getByRole('button', { name: '둘이 랭크 방 펼치기', exact: true })).toContainText(/1\s*\/\s*2/);
+  await expect(page.getByRole('button', { name: '둘이 랭크 방 정보', exact: true })).toContainText(/1\s*\/\s*2/);
 });
 
 test('예약 방은 과거 시간을 거절하고 미래 시간으로 만든 즉시 채팅할 수 있다', async ({ page }) => {
@@ -234,7 +234,7 @@ test('예약 방은 과거 시간을 거절하고 미래 시간으로 만든 즉
   });
   await composer.getByLabel('시작 시간', { exact: true }).fill(next);
   await composer.getByRole('button', { name: '방 열기', exact: true }).click();
-  const deck = page.getByRole('button', { name: '조금 뒤에 다 같이 방 펼치기', exact: true });
+  const deck = page.getByRole('button', { name: '조금 뒤에 다 같이 방 정보', exact: true });
   await expect(deck.locator('.room-start-time')).toBeVisible();
   await expect(page.getByRole('textbox', { name: '방에 메시지 보내기', exact: true })).toBeEnabled();
   await expect(deck).toHaveAttribute('data-status', 'OPEN');

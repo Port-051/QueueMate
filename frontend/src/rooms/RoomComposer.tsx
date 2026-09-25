@@ -4,6 +4,7 @@ import { FilterModeIcon, FilterRoleIcon, VoiceIcon } from '../components/FilterS
 import { IconCalendar, IconPlus, IconX } from '../components/icons';
 import { Button } from '../components/ui';
 import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
+import { roomVoice } from './voice';
 import { canonicalRoomRoles, roomCapacityLimit } from './summary';
 import type { CreateRoomInput, GameRoom, RoomMember } from './types';
 import './room-composer.css';
@@ -36,7 +37,7 @@ export function RoomComposer({ game, modeKey, type, member, onCreate, onCancel }
   const [capacity, setCapacity] = useState(() => Math.max(2, roomCapacityLimit(game, defaultMode)));
   const [ownRoles, setOwnRoles] = useState(() => canonicalRoomRoles(game, member.roles));
   const [desiredRoles, setDesiredRoles] = useState<string[]>([]);
-  const [voice, setVoice] = useState<VoicePreference>(member.voice);
+  const [voice, setVoice] = useState<VoicePreference>(roomVoice(member.voice));
   const [bio, setBio] = useState(member.bio);
   const [start, setStart] = useState(nextSlot);
   const [error, setError] = useState('');
@@ -46,7 +47,7 @@ export function RoomComposer({ game, modeKey, type, member, onCreate, onCancel }
   const limit = roomCapacityLimit(game, mode);
   const isReservation = type === 'RESERVATION';
   const voiceOptions: { value: VoicePreference; label: string }[] = [
-    { value: 'OPTIONAL', label: '무관' }, { value: 'REQUIRED', label: '사용' }, { value: 'NO_VOICE', label: '미사용' },
+    { value: 'REQUIRED', label: '사용' }, { value: 'NO_VOICE', label: '미사용' },
   ];
   const toggleRole = (values: string[], value: string) => canonicalRoomRoles(game, values.includes(value) ? values.filter(role => role !== value) : [...values, value]);
 
@@ -89,7 +90,7 @@ export function RoomComposer({ game, modeKey, type, member, onCreate, onCancel }
           </div></fieldset>
         </> : null}
         <fieldset><legend>마이크</legend><div className="room-composer-voice-options" role="group" aria-label="마이크">
-          {voiceOptions.map(option => <button key={option.value} type="button" className="filter-mode" aria-pressed={voice === option.value} onClick={() => setVoice(option.value)}><VoiceIcon preference={option.value} size={18} /><span>{option.label}</span></button>)}
+          {voiceOptions.map(option => <button key={option.value} type="button" className="filter-mode" aria-label={`마이크 ${option.label}`} title={`마이크 ${option.label}`} aria-pressed={voice === option.value} onClick={() => setVoice(option.value)}><VoiceIcon preference={option.value} size={18} /></button>)}
         </div></fieldset>
         <label className="room-composer-label" htmlFor={`${formId}-bio`}>한마디 <span>선택</span><input id={`${formId}-bio`} aria-label="한마디" maxLength={120} value={bio} placeholder="편하게 즐기실 분, 서로 존중해요" onChange={event => setBio(event.target.value)} /></label>
         {isReservation ? <label className="room-composer-label" htmlFor={`${formId}-start`}><span className="room-composer-time-label"><IconCalendar size={14} />시작 시간</span><input id={`${formId}-start`} aria-label="시작 시간" type="datetime-local" step={1800} min={localDateTime(Date.now())} value={start} onChange={event => { setStart(event.target.value); setError(''); }} /></label> : null}

@@ -319,3 +319,52 @@
   .room-home .room-home-layout { grid-template-columns:minmax(0,1fr); }
   .room-quick-rail .home-profile-stack { max-height:none; }
 }
+/* One-line room summary; separate identity, role, stats and champion rows. */
+.room-compact { height:270px; padding:12px 0; }
+.compact-room-header { height:34px; flex:none; display:flex; flex-wrap:nowrap; gap:12px; margin:0 0 8px; overflow-x:auto; scrollbar-width:thin; }
+.compact-room-header .compact-room-mode { font-size:13px; flex:none; }
+.compact-room-header h3 { flex:1; min-width:120px; margin:0; font-size:16px; line-height:1.5; }
+.compact-room-header time { font-size:12px; white-space:nowrap; flex:none; }
+.compact-room-header .room-status { flex-direction:row; gap:6px; flex:none; }
+.compact-room-wanted { display:flex; align-items:center; gap:7px; flex:none; white-space:nowrap; }
+.compact-room-wanted>small { color:var(--muted); font-size:12px; }
+.room-role-icons.has-labels { justify-content:flex-start; gap:6px; min-height:22px; }
+.room-role-icons.has-labels>span { display:inline-flex; align-items:center; gap:4px; }
+.room-role-icons.has-labels b { font-size:12px; font-weight:600; color:#e1d5fb; }
+.compact-room-wanted .room-role-icons { padding:3px 7px; background:#a881ff14; border-radius:5px; }
+.compact-members { height:204px; min-height:204px; padding-bottom:6px; }
+.compact-member { flex:0 0 140px; width:140px; height:196px; display:grid; grid-template-rows:32px 24px 24px 34px 30px; gap:5px; padding:10px; align-content:start; }
+.compact-member-name { display:flex; gap:6px; min-height:32px; }
+.compact-member-name>.avatar-wrap { display:inline-block; flex:none; }
+.compact-member-name>span:not(.avatar-wrap) { min-width:0; display:flex; flex-direction:column; gap:1px; }
+.compact-member-name strong { display:block; font-size:14px; line-height:1.35; }
+.compact-member-name small { display:block; font-size:10px; line-height:1.2; }
+.compact-member-rank { display:flex; align-items:center; justify-content:space-between; min-width:0; gap:2px; }
+.compact-member-rank .room-rank { min-width:0; }
+.compact-member-rank .room-rank strong { font-size:12px; }
+.compact-member-rank .room-rank img,.compact-member-rank .room-rank svg { width:21px; height:21px; }
+.compact-member-position { display:flex; align-items:center; color:#dfcdfb; border-radius:4px; background:#ab82ff17; padding:1px 5px; min-width:0; }
+.compact-member-position>.room-role-icons { overflow-x:auto; scrollbar-width:none; max-width:100%; white-space:nowrap; }
+.compact-member-position>.room-role-icons>span { flex:none; }
+.compact-member-position .room-role-icons b { font-size:13px; }
+.compact-member-position>span { font-size:12px; }
+.compact-member-stats { display:flex; align-items:center; justify-content:space-between; font-size:10px; }
+.compact-member-stats>span { gap:0; }
+.compact-member-stats .performance-value,.compact-member-stats .room-unknown-stat { font-size:14px; line-height:1.4; }
+.compact-member-champions { display:flex; align-items:center; gap:6px; border-top:1px solid var(--line); padding-top:6px; min-width:0; }
+.compact-member-champions>small { font-size:10px; color:var(--muted); flex:none; }
+.compact-member-champions .preferred-champion-portrait { width:23px; height:23px; }
+.compact-member-champions .preferred-champions { gap:4px; }
+.compact-member-champions .preferred-champion-name { font-size:11px; }
+.compact-seat { display:flex; justify-content:center; align-items:center; gap:8px; }
+.room-mic-icon { display:inline-flex; justify-content:center; align-items:center; flex:none; width:27px; height:27px; border-radius:6px; }
+.room-mic-icon.is-on { color:#64e5a0; background:#35c87717; }
+.room-mic-icon.is-off { color:#ff8e98; background:#f4718112; }
+.room-deck.is-confirmed { filter:none; }
+.room-compact.is-confirmed .compact-member { border-color:#343640; background:#171921; }
+.room-compact.is-confirmed .compact-seat { background:transparent; }
+.room-mic-filters { display:flex; gap:3px; border:1px solid var(--line); border-radius:8px; padding:3px; }
+.room-mic-filters .filter-mode { width:42px; height:40px; padding:0; }
+.room-matching-form .intro-voice-options.is-binary,.room-composer .room-composer-voice-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.room-matching-form .intro-voice-options.is-binary .filter-mode svg,.room-composer-voice-options .filter-mode svg { width:23px; height:23px; }
+.quick-result-reasons { display:flex; align-items:center; gap:8px; }

@@ -15,6 +15,7 @@ import { RoomComposer } from './RoomComposer';
 import { RoomDeck } from './RoomDeck';
 import { RoomDeckSpread } from './RoomDeckSpread';
 import { RoomQuickConnect } from './RoomQuickConnect';
+import { roomVoice, ROOM_VOICES } from './voice';
 import { quickConnectCandidates, type QuickConnectCriteria } from './quickConnect';
 import { summarizeRoom } from './summary';
 import { useRoomStore } from './store';
@@ -23,8 +24,8 @@ import '../styles/duo-home.css';
 import '../styles/matching-rail.css';
 import './room-board.css';
 
-type Filters = { modeKey: string; tier: string; roles: string[]; voice: 'OPTIONAL' | 'REQUIRED' | 'NO_VOICE' };
-const defaults = (game: GameKey): Filters => ({ modeKey: game === 'LOL' ? 'NORMAL_DRAFT' : visibleModes(game)[0].key, tier: '', roles: [], voice: 'OPTIONAL' });
+type Filters = { modeKey: string; tier: string; roles: string[]; voice: '' | 'REQUIRED' | 'NO_VOICE' };
+const defaults = (game: GameKey): Filters => ({ modeKey: game === 'LOL' ? 'NORMAL_DRAFT' : visibleModes(game)[0].key, tier: '', roles: [], voice: '' });
 
 export function RoomBoardHome() {
   const { user, gameAccounts } = useAuth();
@@ -55,7 +56,7 @@ export function RoomBoardHome() {
       tier: rank?.[1] ?? intro.ownTier,
       division: rank ? (rank[2] ? roman[rank[2]] ?? Number(rank[2]) : null) : intro.rankDivision ? roman[intro.rankDivision] : null,
       winRate: intro.winRate, kda: intro.kda, roles: intro.primaryRoles ?? [],
-      champions: intro.champions, bio: intro.bio, voice: intro.voice,
+      champions: intro.champions, bio: intro.bio, voice: roomVoice(intro.voice),
     };
   }, [user, selectedGame, gameAccounts]);
   const filtered = rooms.filter(room => {
@@ -63,12 +64,12 @@ export function RoomBoardHome() {
     if (openOnly && (room.status !== 'OPEN' || room.members.length >= room.capacity)) return false;
     const summary = summarizeRoom(room);
     if (filters.tier && summary.tier !== filters.tier) return false;
-    if (filters.voice !== 'OPTIONAL' && room.voice !== 'OPTIONAL' && room.voice !== filters.voice) return false;
+    if (filters.voice && roomVoice(room.voice) !== filters.voice) return false;
     return !filters.roles.length || !summary.roles.length || filters.roles.some(role => summary.roles.includes(role));
   }).sort((a, b) => b.createdAt - a.createdAt);
   const current = rooms.find(room => room.id === selected?.id);
   const run = (action: () => void) => { try { action(); } catch (error) { toast(error instanceof Error ? error.message : '다시 시도해 주세요.', 'error'); } };
-  const canReset = filters.tier || filters.roles.length || filters.voice !== 'OPTIONAL';
+  const canReset = filters.tier || filters.roles.length || filters.voice !== '';
 
   return <div className={`room-home board-home${activeRoom ? ' has-active-room' : composer ? ' has-composer' : ''}`}>
     <header className="room-home-heading"><div className="room-type-tabs" role="tablist" aria-label="매칭 시간">
@@ -81,7 +82,7 @@ export function RoomBoardHome() {
         <div className="filter-mode-options" role="group" aria-label="찾는 큐 타입">{visibleModes(selectedGame).map(mode => <button type="button" className="filter-mode" aria-label={mode.label} aria-pressed={filters.modeKey === mode.key} key={mode.key} onClick={() => setFilters({ ...filters, modeKey: mode.key, roles: [] })}><FilterModeIcon mode={mode.key} /><span>{mode.label}</span></button>)}</div>
         <FilterSelect label="평균 티어" value={filters.tier} options={[{ value: '', label: '모든 티어' }, ...tiers(selectedGame).map(tier => ({ value: tier, label: TIER_LABELS[tier], icon: <FilterTierIcon game={selectedGame} tier={tier} size={24} /> }))]} onChange={tier => setFilters({ ...filters, tier })} />
         {usesKeyCondition(selectedGame, filters.modeKey) ? <div className="filter-role-options" role="group" aria-label="포지션">{keyConditionOptions(selectedGame).filter(role => role.value !== 'ANY').map(role => <button className="filter-role" type="button" key={role.value} aria-label={role.label} title={role.label} aria-pressed={filters.roles.includes(role.value)} onClick={() => setFilters({ ...filters, roles: filters.roles.includes(role.value) ? filters.roles.filter(value => value !== role.value) : [...filters.roles, role.value] })}><FilterRoleIcon game={selectedGame} value={role.value} /></button>)}</div> : null}
-        <FilterSelect label="마이크" value={filters.voice} options={[{ value: 'OPTIONAL', label: '무관', icon: <VoiceIcon preference="OPTIONAL" /> }, { value: 'REQUIRED', label: '사용', icon: <VoiceIcon preference="REQUIRED" /> }, { value: 'NO_VOICE', label: '미사용', icon: <VoiceIcon preference="NO_VOICE" /> }]} onChange={voice => setFilters({ ...filters, voice: voice as Filters['voice'] })} />
+        <div className="room-mic-filters" role="group" aria-label="마이크 필터">{ROOM_VOICES.map(voice => <button type="button" className="filter-mode" key={voice} aria-label={voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용'} title={voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용'} aria-pressed={filters.voice === voice} onClick={() => setFilters({ ...filters, voice: filters.voice === voice ? '' : voice })}><VoiceIcon preference={voice} size={22}/></button>)}</div>
         {canReset ? <button className="filter-reset" type="button" aria-label="초기화" onClick={() => setFilters({ ...defaults(selectedGame), modeKey: filters.modeKey })}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg></button> : null}
       </div></div>
       <div className="room-board-count"><strong>{filtered.length}</strong>개의 방<label><input type="checkbox" checked={openOnly} onChange={event => setOpenOnly(event.target.checked)} />모집 중인 방만</label></div>

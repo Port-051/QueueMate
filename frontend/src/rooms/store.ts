@@ -3,6 +3,7 @@ import type { GameKey, VoicePreference } from '../api/types';
 import { canonicalRoomRoles, ROOM_ROLES, roomCapacityLimit } from './summary';
 import type { CreateRoomInput, GameRoom, RoomMember, RoomMessage } from './types';
 
+import { roomVoice, ROOM_VOICES } from './voice';
 import { autoClosePhase, canAutoClose, nextAutoCloseAt } from './autoClose';
 
 export { roomCapacityLimit } from './summary';
@@ -12,7 +13,7 @@ const PREFIX = 'qm:room-board:v1:';
 const CHANGE_EVENT = 'qm:room-board-changed';
 const MAX_MESSAGES = 300;
 const cache = new Map<string, RoomSnapshot>();
-const VOICES: VoicePreference[] = ['REQUIRED', 'OPTIONAL', 'NO_VOICE'];
+const VOICES: VoicePreference[] = [...ROOM_VOICES];
 const MODES: Record<GameKey, string[]> = {
   LOL: ['NORMAL_DRAFT', 'SOLO_DUO_RANKED', 'SWIFTPLAY', 'ARAM'],
   VALORANT: ['COMPETITIVE', 'UNRATED'],
@@ -47,7 +48,7 @@ function seedMember(game: GameKey, roomId: string, index: number, roomIndex: num
     roles: [roles[(index + roomIndex) % roles.length]],
     champions: game === 'LOL' ? CHAMPIONS[(index + roomIndex) % CHAMPIONS.length] : [],
     bio: ['실수해도 괜찮아요. 편하게 즐겨요.', '차분하게 소통하며 같이 해요.', '팀 플레이 좋아해요.', '오늘도 재미있는 한 판!'][n % 4],
-    voice: roomIndex % 3 === 2 ? 'NO_VOICE' : 'REQUIRED',
+    voice: roomIndex % 2 === 0 ? 'REQUIRED' : 'NO_VOICE',
   };
 }
 
@@ -89,7 +90,7 @@ function parseMember(value: unknown, game: GameKey): RoomMember | null {
     tier: typeof value.tier === 'string' ? value.tier : null, division: nullableNumber(value.division, 5),
     winRate: nullableNumber(value.winRate, 100), kda: nullableNumber(value.kda), roles: canonicalRoomRoles(game, strings(value.roles)),
     champions: strings(value.champions).slice(0, 3), bio: typeof value.bio === 'string' ? value.bio.slice(0, 160) : '',
-    voice: VOICES.includes(value.voice as VoicePreference) ? value.voice as VoicePreference : 'OPTIONAL',
+    voice: roomVoice(value.voice),
   };
 }
 
@@ -120,7 +121,7 @@ function parseSnapshot(raw: string | null, userId: string): RoomSnapshot | null 
       }
       rooms.push({ id: value.id, game, modeKey: value.modeKey, type: value.type as GameRoom['type'], title: value.title.slice(0, 50),
         ownerId: value.ownerId, capacity, members, desiredRoles: canonicalRoomRoles(game, strings(value.desiredRoles)),
-        voice: VOICES.includes(value.voice as VoicePreference) ? value.voice as VoicePreference : 'OPTIONAL',
+        voice: roomVoice(value.voice),
         status: value.status === 'CONFIRMED' || members.length === capacity ? 'CONFIRMED' : 'OPEN', createdAt, availableFrom, messages, autoCloseAt: nullableNumber(value.autoCloseAt) });
       ids.add(value.id);
     }

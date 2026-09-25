@@ -27,11 +27,12 @@ test('내 역할 미선택·유효하지 않은 역할·방의 모집 역할 불
   expect(quickConnectCandidates([{ ...base, desiredRoles: ['ANY'] }], criteria)).toHaveLength(1);
 });
 
-test('마이크 상충은 양방향으로 제외하고 무관은 허용한다', () => {
+test('마이크 사용과 미사용을 구분하고 기존 무관은 미사용으로 정규화한다', () => {
   expect(quickConnectCandidates([base], { ...criteria, voice: 'NO_VOICE' })).toEqual([]);
   expect(quickConnectCandidates([{ ...base, voice: 'NO_VOICE' }], criteria)).toEqual([]);
-  expect(quickConnectCandidates([base], { ...criteria, voice: 'OPTIONAL' })).toHaveLength(1);
-  expect(quickConnectCandidates([{ ...base, voice: 'OPTIONAL' }], criteria)).toHaveLength(1);
+  expect(quickConnectCandidates([base], criteria)).toHaveLength(1);
+  expect(quickConnectCandidates([{ ...base, voice: 'OPTIONAL' }], { ...criteria, voice: 'NO_VOICE' })).toHaveLength(1);
+  expect(quickConnectCandidates([base], { ...criteria, voice: 'OPTIONAL' })).toEqual([]);
 });
 
 test('칼바람은 역할을 요구하지 않고 발로란트·배그는 해당 게임 역할을 사용한다', () => {
