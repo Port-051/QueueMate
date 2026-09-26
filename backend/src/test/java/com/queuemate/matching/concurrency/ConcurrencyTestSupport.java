@@ -27,7 +27,7 @@ import java.util.function.IntConsumer;
 @TestPropertySource(properties = {
         "spring.data.redis.database=15",
         "logging.level.com.queuemate=WARN",
-        // INV-6 이 미구현이라 blocks 스키마가 없다 (CLAUDE.md §4). 그런데 배정 경로는
+        // 테스트 H2 에는 blocks 테이블을 schema.sql 이 흉내 낸다(public · bigint — D-34). 그런데 배정 경로는
         // 락을 잡기 전에 BlockRepository 를 부르므로(LolCandidateRule#canJoin),
         // 테이블이 없으면 모든 join 이 조용히 실패해 파티가 하나도 안 생긴다.
         // H2 인메모리에 엔티티대로 테이블만 만들어 준다. Flyway 가 생기면 지운다.

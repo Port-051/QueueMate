@@ -16,7 +16,7 @@ spring:
       #
       #   ./gradlew bootRun --args='--spring.profiles.active=sentinel'
 
-  # 이 앱이 DB를 치는 곳은 INV-6 검증(social.blocks 조회) 하나뿐이다 (docs/11 D-1).
+  # 이 앱이 DB를 치는 곳은 INV-6 검증(blocks 조회) 하나뿐이다 (docs/11 D-1 · D-34 — 스키마는 public 하나다).
   # 진행 중인 매칭 상태는 여전히 Redis가 원본이고 DB로 옮기지 않는다 (CLAUDE.md §3).
   #
   # 기본값은 H2 인메모리다. 외부 DB 없이 앱이 뜬다.
@@ -25,10 +25,8 @@ spring:
   #   DATABASE_TO_LOWER   Postgres 처럼 식별자를 소문자로 다룬다
   #
   # Postgres 로 붙일 때는 DB_URL 을 통째로 바꾼다.
-  #   DB_URL=jdbc:postgresql://localhost:5432/queuemate DB_USER=qm_matching DB_PASSWORD=...
-  #
-  # 주의: H2 는 스키마별 롤/GRANT 로 경계를 막는 부분을 재현하지 못한다.
-  # 권한 격리(matching 롤이 social 스키마를 못 읽는 것)는 Postgres 에서만 실제로 검증된다.
+  #   DB_URL=jdbc:postgresql://localhost:5432/queuemate DB_USER=... DB_PASSWORD=...
+  #   (스키마별 롤 · GRANT 는 없다 — D-34. 앱 하나가 계정 하나로 붙는다. 운영 계정은 미정이다)
   datasource:
     url: ${DB_URL:jdbc:h2:mem:queuemate;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE}
     username: ${DB_USER:sa}

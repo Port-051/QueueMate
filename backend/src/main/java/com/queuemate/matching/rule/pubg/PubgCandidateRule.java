@@ -1,6 +1,7 @@
 package com.queuemate.matching.rule.pubg;
 
 import com.queuemate.matching.block.BlockRepository;
+import com.queuemate.matching.block.BlockedUsers;
 import com.queuemate.matching.domain.ActiveRequest;
 import com.queuemate.matching.domain.CancelResult;
 import com.queuemate.matching.domain.GameKey;
@@ -38,7 +39,7 @@ public class PubgCandidateRule implements CandidateRule
     {
         PubgModeConfig config = loadModeConfig(command);
 
-        Set<String> blockedUserIds = Set.copyOf(blockRepository.findBlockedUserIds(command.getUserId()));
+        Set<String> blockedUserIds = BlockedUsers.of(blockRepository, command.getUserId());
 
         if (command.getTier() == null) {
             poolLock.run(keys.poolKey(command),

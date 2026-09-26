@@ -1,6 +1,7 @@
 package com.queuemate.matching.rule.valorant;
 
 import com.queuemate.matching.block.BlockRepository;
+import com.queuemate.matching.block.BlockedUsers;
 import com.queuemate.matching.domain.ActiveRequest;
 import com.queuemate.matching.domain.CancelResult;
 import com.queuemate.matching.domain.GameKey;
@@ -49,7 +50,7 @@ public class ValorantCandidateRule implements CandidateRule {
         // 내 차단 목록은 어느 후보를 보든 같다. 후보마다 다시 물을 이유가 없으므로 락을 잡기 전에
         // 한 번만 가져온다. 락 안에서 DB 를 치면 응답이 늦을 때 유지 시간을 넘겨 락이 저 혼자
         // 풀린다 (PoolLock 클래스 주석).
-        Set<String> blockedUserIds = Set.copyOf(blockRepository.findBlockedUserIds(command.getUserId()));
+        Set<String> blockedUserIds = BlockedUsers.of(blockRepository, command.getUserId());
 
         // 티어 유무는 모드 이름이 아니라 요청에 tier 가 있는지로 가른다. 값 검증은
         // ValorantConditionValidator 가 이미 끝냈다 — tierRule 이 NONE 인 모드에 tier 가

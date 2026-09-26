@@ -24,7 +24,7 @@ public interface BlockRepository extends Repository<Block, Long> {
             where (b.blockerId = :a and b.blockedId = :b)
                or (b.blockerId = :b and b.blockedId = :a)
             """)
-    boolean isBlocked(@Param("a") String a, @Param("b") String b);
+    boolean isBlocked(@Param("a") Long a, @Param("b") Long b);
 
     /**
      * 주어진 사용자들 사이에 존재하는 차단 전부.
@@ -39,7 +39,7 @@ public interface BlockRepository extends Repository<Block, Long> {
             where (b.blockerId = :userId and b.blockedId in :memberIds)
                or (b.blockerId in :memberIds and b.blockedId = :userId)
             """)
-    boolean findBlocksAmong(@Param("userId") String userId, @Param("memberIds") Collection<String> memberIds);
+    boolean findBlocksAmong(@Param("userId") Long userId, @Param("memberIds") Collection<Long> memberIds);
 
     /**
      * 이 사용자와 차단 관계인 상대의 id 전부.
@@ -47,6 +47,9 @@ public interface BlockRepository extends Repository<Block, Long> {
      * <p><b>배정 경로가 쓰는 메서드다.</b> 내 차단 목록은 어느 후보 파티를 보든 같으므로
      * 후보마다 다시 물을 이유가 없다. 배정을 시작하기 전에 한 번만 가져오면 후보 풀 락 안에는
      * Redis 명령만 남는다 (PoolLock 클래스 주석 — 락 안에서 DB 를 치지 마라).
+     *
+     * <p><b>배정 경로는 이것을 직접 부르지 않고 {@link BlockedUsers#of} 를 거친다</b> — 이 앱의
+     * {@code userId} 는 문자열이라 거기서 바꿔 준다.
      *
      * <p>방향과 무관하게 상대방 id 를 돌려준다. 내가 차단한 쪽이면 {@code blockedId},
      * 내가 차단당한 쪽이면 {@code blockerId} 가 상대다.
@@ -56,5 +59,5 @@ public interface BlockRepository extends Repository<Block, Long> {
             from Block b
             where b.blockerId = :userId or b.blockedId = :userId
             """)
-    List<String> findBlockedUserIds(@Param("userId") String userId);
+    List<Long> findBlockedUserIds(@Param("userId") Long userId);
 }
