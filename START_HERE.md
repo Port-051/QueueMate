@@ -314,7 +314,7 @@
 
 **F. 소유자가 직접 해야 하는 것**
 
-1. **카카오 · 디스코드의 앱 등록 · 키 · Redirect URI 등록.** Redirect URI 는 `OAUTH_REDIRECT_BASE_URL` + `/api/v1/auth/oauth/{provider}/callback` 이다(로컬 기본값이면 `http://localhost:8082/api/v1/auth/oauth/kakao/callback`). 키를 환경변수(`KAKAO_CLIENT_ID` · `DISCORD_CLIENT_ID` · `DISCORD_CLIENT_SECRET` …)로 넣고 **실제로 한 번 붙여 본다** — 가짜 제공자로만 테스트했다.
+1. **카카오 · 디스코드의 앱 등록 · 키 · Redirect URI 등록.** Redirect URI 는 `OAUTH_REDIRECT_BASE_URL` + `/api/v1/auth/oauth/{provider}/callback` 이다(로컬 기본값이면 `http://localhost:8082/api/v1/auth/oauth/KAKAO/callback` — **대문자다**, 2026-09-26). 키를 환경변수(`KAKAO_CLIENT_ID` · `DISCORD_CLIENT_ID` · `DISCORD_CLIENT_SECRET` …)로 넣고 **실제로 한 번 붙여 본다** — 가짜 제공자로만 테스트했다.
    **2026-09-26 부터 필수다** — 소셜이 유일한 가입 · 로그인이라(P-24) 이것 없이는 아무도 로그인할 수 없다. 로컬에서 손으로 해 보는 것(§6)도 키가 있어야 한다.
 2. **docs/11 결정 로그** — **2026-09-26 에 따라잡았다** — 소유자가 정한 것(P-2 · P-11 ~ P-24)이 D-24 ~ D-35 로 올라갔다(인증 세부 §5.1 은 D-24 — #16 을 개정한다). **남은 것은 P-25(파티 닫힘)다** — `matching` 폴더에서 한다.
 3. 계약 원본(queueMate 본 저장소 `feature/frontend` 의 `contracts/`)을 받아 올 수 있는가 — 거기에 platform 엔드포인트가 이미 있으면 `contracts/platform-api.md` 와 맞춰야 한다(P-1).
@@ -426,7 +426,7 @@ B=localhost:8082
 J='Content-Type: application/json'
 
 # 1) 브라우저에서 연다 → 제공자 동의 화면 → 콜백
-#    http://localhost:8082/api/v1/auth/oauth/kakao/start     (디스코드는 .../discord/start)
+#    http://localhost:8082/api/v1/auth/oauth/KAKAO/start     (디스코드는 .../DISCORD/start — 대문자 enum 이다)
 #    · 처음 온 사람 → 쿠키 qm_social_signup(10분)을 받고 FRONT_BASE_URL/signup/social 로 간다 → 2) 로
 #    · 이미 가입한 사람 → 쿠키 qm_access · qm_refresh 를 받고 FRONT_BASE_URL/ 로 간다 → 개발자 도구에서 qm_access 를 꺼내 3) 으로
 
