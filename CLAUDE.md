@@ -6,6 +6,12 @@
 부르던 것을 이제 **`notification`**이라 부른다. 매칭 엔진 규칙은 옆 폴더 `matching`의
 `CLAUDE.md`에 있고, 이 파일은 그중 **알림 배달에 걸리는 부분만** 담는다.
 
+> **옆 폴더에서 바뀐 것(2026-09-22 ~ 2026-09-26 — 전부 `platform` 쪽 소유자 결정. 원본은 `../platform/CLAUDE.md` 머리 블록 · `../platform/contracts/platform-api.md` 맨 아래 P-표).**
+> - **`room` 앱이 `platform`에 합쳐졌다**(2026-09-25 · P-22). 방 안의 일(입장 · 강퇴 · 시그널 · `ROOM_*` 알림 · 방 쪽 게시판 신호)은 이제 **`platform`의 `room` 패키지**가 발행한다. 포트 8083은 없어졌다.
+>   옆 폴더 `room`은 **합치기 전의 기록**으로 남는다 — 근거로 쓰지 않는다. **이 서비스가 받는 채널 · 봉투는 바뀌지 않았다** — 발행하는 앱의 이름이 바뀌었을 뿐이다.
+> - **`userId`는 사용자 번호(bigint)다**(2026-09-22 · P-11) — 채널은 `qm:pubsub:push:42`처럼 숫자다. 로그인 아이디는 `loginId`로 따로 있고 채널 · 토큰에 들어가지 않는다.
+> - **인증 세부가 정해졌다**(`../platform/CLAUDE.md` §5.1 · P-2 · P-15) — §7.2 "인증". **이 서비스의 `?userId=` → 쿠키 전환은 아직 안 했다 — 해야 한다.**
+
 ---
 
 ## 1. 제품 경계
@@ -15,8 +21,12 @@ QueueMate는 **조건 기반 팀원 자동 랜덤 매칭** 서비스다. 이 서
 
 ```
 matching  ──PUBLISH──▶  Redis Pub/Sub               ──SUBSCRIBE──▶  notification  ──SSE──▶  브라우저
-                        qm:pubsub:push:{userId}
+platform  ──PUBLISH──▶  qm:pubsub:push:{userId}
+                        qm:pubsub:board (게시판 신호)
 ```
+
+(그림은 처음에 `matching` 한 줄이었다. `platform`이 `FRIEND_*` 둘 · `ROOM_*` · `WEBRTC_SIGNAL` · 게시판 신호를 발행하게 되어 한 줄을 더했다 —
+방 쪽 발행은 2026-09-25 까지 `room` 앱이 했고 그 뒤로 `platform`의 `room` 패키지다. 이 서비스는 누가 발행했는지 모르고 알 필요도 없다.)
 
 - **매칭 로직이 하나도 없다.** 매칭·제안·수락·확정은 전부 `matching`의 일이다.
 - 공개 채팅, 피드, 게시판처럼 사용자끼리 주고받는 기능을 여기 만들지 않는다.
@@ -30,7 +40,7 @@ matching  ──PUBLISH──▶  Redis Pub/Sub               ──SUBSCRIBE─
 |---|---|
 | 사용자의 SSE 연결을 들고 있는다 | **놓친 알림 재전송.** Pub/Sub은 구독자가 없으면 메시지를 버린다. 재접속한 사용자는 `matching`의 `GET /api/v1/match-requests?userId=`로 현재 상태를 복구한다 |
 | `qm:pubsub:push:{userId}`로 들어온 메시지를 **해석하지 않고 그대로** 그 사용자 연결로 흘려보낸다 | **알림 이력 저장.** DB도, Redis List/Stream도 쓰지 않는다 |
-| | **매칭 상태 읽기/쓰기.** 매칭 Redis 키(`qm:party:*`, `qm:user:*`, `qm:proposal:*`, `qm:gameconfig:*`)에 접근하지 않는다. Redis에서 만지는 것은 `qm:pubsub:push:{userId}` 구독과 게시판 채널 `qm:pubsub:board` 하나의 구독뿐이다(§7.1) |
+| | **매칭 상태 읽기/쓰기.** 매칭 Redis 키(`qm:party:*`, `qm:user:*`, `qm:proposal:*`, `qm:gameconfig:*`)에 접근하지 않는다(`qm:gameconfig:*`는 2026-09-24 부터 `platform`이 읽지만 — `../platform/CLAUDE.md` §3.6 — 이 서비스와는 무관하다. 여기서는 여전히 접근하지 않는다). Redis에서 만지는 것은 `qm:pubsub:push:{userId}` 구독과 게시판 채널 `qm:pubsub:board` 하나의 구독뿐이다(§7.1) |
 | | **`type`별 분기·필터링.** 모르는 `type`이 와도 그대로 보낸다. 종류가 늘 때 이 서비스를 재배포하지 않기 위해서다 |
 
 ## 3. 메시지 계약
@@ -41,7 +51,7 @@ matching  ──PUBLISH──▶  Redis Pub/Sub               ──SUBSCRIBE─
 
 | 항목 | 값 | 원본 (`matching` 기준) |
 |---|---|---|
-| 채널 | `qm:pubsub:push:{userId}` | `redisKeys/SharedKeys.java`의 `PUSH_CHANNEL_PREFIX = "qm:pubsub:push:"` + `pushChannel(userId)` |
+| 채널 | `qm:pubsub:push:{userId}` — **`{userId}`는 사용자 번호(숫자의 십진 문자열)다**(`qm:pubsub:push:42`. 2026-09-22 `platform` 소유자 결정 · P-11 — 그 전에는 로그인 아이디 문자열이었다. 인증이 붙으면 access 토큰의 `sub`(`"42"`)로 채널을 열므로 같은 글자가 된다) | `redisKeys/SharedKeys.java`의 `PUSH_CHANNEL_PREFIX = "qm:pubsub:push:"` + `pushChannel(userId)` |
 | 봉투 | `{type, eventId, occurredAt, payload}` 네 칸 고정 | `notification/PushPublisher.java`의 `record Envelope` |
 | `type` | `PushEventType` 이름 문자열 | `notification/PushEventType.java` |
 | `eventId` | 매번 새 UUID 문자열. **SSE `id:` 필드에 그대로 싣는다.** 클라이언트가 중복을 거르는 데 쓴다 — `Last-Event-ID` 로 이어 보내지는 **않는다**(`contracts/events.md` "재연결") | `PushPublisher#publish()` · `contracts/events.md` "재연결" |
@@ -51,8 +61,8 @@ matching  ──PUBLISH──▶  Redis Pub/Sub               ──SUBSCRIBE─
 `matching`이 발행하는 종류는 5종이다 — `MATCH_QUEUE_UPDATED`, `MATCH_PROPOSAL_CREATED`,
 `MATCH_PROPOSAL_EXPIRED`, `MATCH_CONFIRMED`, `MATCH_CANCELLED`. 전체 SSE 계약은 15종이고
 나머지 10종(`RESERVATION_*`, `PARTY_*`, `FRIEND_*`, `WEBRTC_SIGNAL`)은 다른 앱이 발행한다
-(`contracts/events.md`). **`WEBRTC_SIGNAL`도 다른 알림과 똑같이 흘려보낸다** — 시그널을 받는 길이
-SSE 이고 보내는 쪽은 `app:room`의 REST `POST`다(`matching` docs/11 D-16. D-9 는 `app:platform`으로 적었다). WebSocket(`/ws`)은 없어졌으니 여기 만들지 않는다
+(`contracts/events.md`. 그 가운데 `FRIEND_REQUEST_RECEIVED` · `FRIEND_REQUEST_ACCEPTED`의 이름과 `payload`는 `platform`이 정해 발행한다 — `../platform/contracts/platform-api.md` "이 앱이 내는 알림" · P-9). **`WEBRTC_SIGNAL`도 다른 알림과 똑같이 흘려보낸다** — 시그널을 받는 길이
+SSE 이고 보내는 쪽은 `app:room`의 REST `POST`였다(`matching` docs/11 D-16. D-9 는 `app:platform`으로 적었다) — **2026-09-25 에 `room`이 `platform`에 합쳐져 이제 `platform`의 `room` 패키지다**(경로 `POST /api/v1/rooms/{roomId}/signals`는 그대로 — `../platform/contracts/platform-api.md` "방"). WebSocket(`/ws`)은 없어졌으니 여기 만들지 않는다
 (`matching`의 `docs/11_DECISION_LOG.md` D-9).
 
 > **채널 접두사는 이 서비스가 정하지 않는다.** 원본은 `matching`의 `SharedKeys.PUSH_CHANNEL_PREFIX`다.
@@ -127,7 +137,7 @@ SSE 이고 보내는 쪽은 `app:room`의 REST `POST`다(`matching` docs/11 D-16
 | 항목 | 값 |
 |---|---|
 | 채널 | **`qm:pubsub:board`** — 게임을 구분하지 않는 **하나**다(D-22) |
-| 발행하는 앱 | `platform`(글이 생기거나 사라지거나 상태가 바뀔 때) · `room`(방의 인원이 바뀔 때). **`room`의 발행은 구현됐다(2026-09-21, D-23). `platform`은 아직 없다**(코드가 없다). **둘 다 같은 채널 하나에 `{}`를 발행한다 — 발행하는 쪽이 게임을 알 필요가 없다** |
+| 발행하는 앱 | **`platform` 하나다** — 글 쪽(글이 생기거나 · 고쳐지거나 · 만료되거나 · 확정될 때)과 방 쪽(방의 인원이 바뀔 때). 처음에는 `platform`(글) · `room`(방) 두 앱이었다 — `room`의 발행이 2026-09-21(D-23), `platform`의 발행이 같은 날 구현됐고, **2026-09-25 에 `room`이 `platform`에 합쳐져 한 앱이 됐다**(P-22 — 방 쪽은 `platform`의 `room` 패키지). **같은 채널 하나에 `{}`를 발행한다 — 발행하는 쪽이 게임을 알 필요가 없다** |
 | 메시지 | 사용자 채널과 같은 네 칸 봉투다. `type`은 **`BOARD_CHANGED`**, **`payload`는 빈 객체 `{}`** — `roomId`도 `game`도 싣지 않는다 |
 | 받는 연결 | **살아 있는 모든 SSE 연결.** `topics` 파라미터는 없다 — 클라이언트는 구독을 알리지 않는다(D-22) |
 | 받은 클라이언트가 하는 일 | **거른다** — 게시판 페이지(어느 게임이든)를 보고 있으면 `platform`의 목록을 `GET`으로 다시 요청하고, 게시판 페이지가 아니면 무시한다. 다른 게임의 방이 바뀐 신호에도 재요청이 나가므로 **프런트가 재요청을 묶는다**(예: 몇 초에 최대 1번. 간격은 미정). **이 신호는 "다시 받아라"일 뿐이다** — 데이터와 차단 거르기는 그 응답에서 온다 |
@@ -148,12 +158,12 @@ SSE 이고 보내는 쪽은 `app:room`의 REST `POST`다(`matching` docs/11 D-16
 - **정리(§5)에 더해지는 것이 없다.** 주제→연결 목록이 없으므로 `onCompletion` / `onTimeout` / `onError`에서 따로 뺄 것이 없다 — 사용자 쪽 연결 목록에서 빠지면 `sendAll`의 대상에서도 빠진다.
 - **sticky session이 필요 없다는 점도 그대로다.** 어느 인스턴스에 붙든 그 인스턴스가 게시판 채널을 구독하고 Redis가 모든 구독자에게 뿌린다.
 - **놓친 신호를 다시 보내지 않는다(§2)도 그대로다.** 클라이언트는 SSE를 (다시) 연결한 직후 목록을 다시 받는다.
-- **채널 이름은 `qm:pubsub:push:` 접두사와 같은 위험이다**(§3) — 발행하는 앱 둘과 이 서비스가 어긋나도 컴파일·테스트가 통과한 채로 목록이 조용히 갱신되지 않는다. 상수 한 곳에만 둔다.
+- **채널 이름은 `qm:pubsub:push:` 접두사와 같은 위험이다**(§3) — 발행하는 앱(처음에는 `platform` · `room` 둘, 2026-09-25 부터 `platform` 하나)과 이 서비스가 어긋나도 컴파일·테스트가 통과한 채로 목록이 조용히 갱신되지 않는다. 상수 한 곳에만 둔다.
 - 매칭 Redis 키에 접근하지 않는다는 규칙(§2)과 부딪히지 않는다 — `qm:pubsub:board`는 키가 아니라 Pub/Sub 채널이고 이 서비스는 구독만 한다.
 
 **미정 — 지어내지 마라.**
 
-- 게시판 채널 이름의 **원본 상수를 어느 서비스에 둘지.** 지금은 이 서비스의 `redisKeys/BoardChannels.java`에 적혀 있다 — 그것이 원본인지는 정해지지 않았다. 알림 채널 접두사는 `matching`의 `SharedKeys`가 원본이다 — 같은 방식으로 갈지 정해지지 않았다.
+- 게시판 채널 이름의 **원본 상수를 어느 서비스에 둘지.** 지금은 이 서비스의 `redisKeys/BoardChannels.java`와 `platform`의 `party/board/BoardChannels`(`BOARD_CHANNEL`) **두 곳에 같은 값이 적혀 있다 — 두 값이 같아야 한다**(옛 `room` 앱의 사본은 2026-09-25 합치기로 없어졌다). 어느 쪽이 원본인지는 정해지지 않았다. 알림 채널 접두사는 `matching`의 `SharedKeys`가 원본이다 — 같은 방식으로 갈지 정해지지 않았다.
 - 프런트가 재요청을 묶는 간격(이 서비스의 일은 아니다).
 - **없어진 미정(D-22)** — `room`이 어느 게임의 채널에 발행할지를 어떻게 아는가(채널이 하나라 발행하는 쪽이 게임을 알 필요가 없다), 한 연결이 여러 주제를 구독할 때의 `topics` 표기, 주제 구독의 인증 · `?userId=` 없이 주제만 구독하는 연결. `topics`가 없어져 물음 자체가 없어졌다.
 
@@ -163,11 +173,11 @@ SSE 이고 보내는 쪽은 `app:room`의 REST `POST`다(`matching` docs/11 D-16
 
 | 항목 | 상황 |
 |---|---|
-| 알림 종류의 수 | `room`이 새 알림 `type` 다섯(`ROOM_MEMBER_ENTERED` · `ROOM_MEMBER_LEFT` · `ROOM_CLOSED` · `ROOM_MEMBER_KICKED` · `ROOM_CONFIRMED`)을 발행한다(`matching` docs/11 D-21 · `../room/contracts/room-api.md` "알림"). **§3의 "전체 SSE 계약은 15종"이 어떻게 달라지는지는 계약 원본에서 정할 일이라 여기서 고치지 않았다** — 그 다섯이 `PARTY_*`와 같은 뜻인지에 달려 있다. **이 서비스의 코드는 바뀌지 않는다** — `type`을 열어 보지 않고 그대로 흘려보낸다 |
-| 인증 | **방식은 쿠키로 정해졌다 (`matching` docs/11 D-14). 구현은 아직이다.** access 토큰은 쿠키로 오는 JWT이고 브라우저가 SSE 연결에도 자동으로 붙인다. 이 서비스에 남은 미정 — ① access 토큰을 **검증하는 방법**(서명 방식과 키를 나눠 갖는 법) ② 토큰이 **없거나 만료됐을 때의 응답** — 401을 주면 `EventSource`는 재접속을 영구히 멈춘다 ③ 인증이 붙으면 `?userId=` 쿼리 파라미터가 없어지고 **토큰의 사용자로 대체**된다 — 그 전환 ④ 로컬 개발의 CORS(출처가 포트마다 다르고, 자격증명을 실으면 허용 출처에 `*`를 못 쓴다) |
+| 알림 종류의 수 | 방 쪽이 새 알림 `type` 다섯(`ROOM_MEMBER_ENTERED` · `ROOM_MEMBER_LEFT` · `ROOM_CLOSED` · `ROOM_MEMBER_KICKED` · `ROOM_CONFIRMED`)을 발행한다(`matching` docs/11 D-21). 발행하던 `room` 앱이 2026-09-25 에 `platform`에 합쳐져 **지금은 `platform`의 `room` 패키지가 발행하고, 계약은 `../platform/contracts/platform-api.md` "방" 의 "알림"이다**(옛 `../room/contracts/room-api.md` "알림"은 합치기 전의 기록이다). **§3의 "전체 SSE 계약은 15종"이 어떻게 달라지는지는 계약 원본에서 정할 일이라 여기서 고치지 않았다** — 그 다섯이 `PARTY_*`와 같은 뜻인지에 달려 있다. **이 서비스의 코드는 바뀌지 않는다** — `type`을 열어 보지 않고 그대로 흘려보낸다 |
+| 인증 | **방식은 쿠키로 정해졌다 (`matching` docs/11 D-14). 이 서비스의 구현은 아직이다 — 해야 한다.** access 토큰은 쿠키로 오는 JWT이고 브라우저가 SSE 연결에도 자동으로 붙인다. 처음에 적은 미정 넷 — ① 검증하는 방법 ② 토큰이 없거나 만료됐을 때 ③ `?userId=` 전환 ④ 로컬 CORS — 은 **`platform` 쪽 소유자 결정으로 정해졌다**(2026-09-21 ~ 2026-09-23 — 원본은 `../platform/CLAUDE.md` §5.1 · `../platform/contracts/platform-api.md` "공통" · "access 토큰" · P-2 · P-15. 세부는 거기를 본다). **① 검증** — RS256. 서명(개인 키)은 `platform`만 하고 이 서비스는 **공개 키로 검증만** 한다. 공개 키는 환경변수 **`JWT_PUBLIC_KEY`**(X.509 PEM)로 받는다(로컬은 `platform`이 만든 `../platform/backend/.dev-keys/public.pem`). JWKS 엔드포인트는 없다. 쿠키 이름은 **`qm_access`**, `iss`는 `queuemate-platform`이고 **`token_use`가 `access`인지 반드시 본다**(값은 `access` · `social_signup` 둘이다 — 입장권 `room_ticket`은 2026-09-25 에 없어졌다). `sub`는 사용자 번호의 십진 문자열이다(`"42"`). access 15분 · refresh 7일이고 **access denylist는 없다** — 이 서비스는 Redis를 조회하지 않고 스스로 검증한다. **② 만료** — **연결할 때만** 검증하고 열린 연결은 토큰이 만료돼도 끊지 않는다. 재접속이 401로 멈추면 프런트가 재발급한 뒤 `EventSource`를 새로 만든다 — 서버 쪽 장치는 두지 않는다(§5.1 (바)). **③ 전환** — 토큰의 `sub`가 `?userId=`를 대신한다. 순서는 **`notification` → `matching`**이고(맨 앞이던 `room`은 `platform`에 합치며 끝났다) 쿠키가 없으면 `userId`를 받는 개발용 스위치를 잠깐 남겨도 되지만 임시로 표시하고 운영에서는 끈다(§5.1 (아)). **④ CORS** — 서비스에 CORS 설정을 넣지 않는다. 프런트 개발 서버의 프록시가 경로별로 나눠 보낸다(운영이 같은 출처라서다 — §5.1 (사)). `Origin` 검사(§5.1 (다))는 POST/PUT/PATCH/DELETE에 거는 것이다. **남은 것** — 이 서비스에 위를 실제로 붙이는 작업(아직 안 했다) |
 
 정해진 것 (2026-09-18): 엔드포인트 경로는 **`GET /api/v1/events`**다. 인증이 **구현될** 때까지 `userId`를
-쿼리 파라미터로 그대로 받는다 — 인증이 붙으면 이 파라미터는 없어진다. 계약 원본의
+쿼리 파라미터로 그대로 받는다 — 인증이 붙으면 이 파라미터는 없어진다(2026-09-26 현재 아직 받는다 — 위 "인증"의 ③). 계약 원본의
 `contracts/openapi.yaml`에는 이 경로가 아직 없다.
 
 ## 8. 저장소 구성과 커밋 규칙
@@ -179,7 +189,7 @@ SSE 이고 보내는 쪽은 `app:room`의 REST `POST`다(`matching` docs/11 D-16
 queuemate/
 ├── matching/       matching 브랜치
 ├── platform/       platform 브랜치
-├── room/           room 브랜치
+├── room/           room 브랜치 — 옛 app:room. 2026-09-25 에 platform 에 합쳐졌고 합치기 전의 기록으로 남는다(태그 pre-room-merge)
 └── notification/   notification 브랜치 (이 폴더)
     └── backend/    스프링 앱. matching/backend/ 와 같은 모양이다
 ```
@@ -229,6 +239,7 @@ queuemate/
 | 알림 계약 (봉투·재연결·하트비트·순서) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/contracts/events.md` |
 | 봉투를 만드는 코드 | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/backend/src/main/java/com/queuemate/matching/notification/PushPublisher.java` |
 | 알림 종류 5종 | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/backend/src/main/java/com/queuemate/matching/notification/PushEventType.java` |
+| 발행하는 앱의 규칙 — 알림 · 게시판 신호 · 방 · 인증(§5.1) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/platform/CLAUDE.md` · `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/platform/contracts/platform-api.md` |
 | 게시판 채널 구독의 결정 (D-20 · D-22) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/docs/11_DECISION_LOG.md` (`### D-20.` · `### D-22.`로 검색) |
 | 채널 접두사 원본 | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/backend/src/main/java/com/queuemate/matching/redisKeys/SharedKeys.java` (`PUSH_CHANNEL_PREFIX`) |
 
