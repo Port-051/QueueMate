@@ -64,3 +64,8 @@ export function roomCapacities(game: GameKey, mode: string): number[] {
   if (game === "LOL" && mode === "FLEX_RANKED") return [2, 3, 5];
   return Array.from({ length: Math.max(0, roomCapacityLimit(game, mode) - 1) }, (_, index) => index + 2);
 }
+
+export function normalizeRoomCapacity(game: GameKey, mode: string, value?: number): number {
+  const options = roomCapacities(game, mode);
+  return value !== undefined && options.includes(value) ? value : options.at(-1) ?? 2;
+}

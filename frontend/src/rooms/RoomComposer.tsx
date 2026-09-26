@@ -1,5 +1,6 @@
 import { TierRangePicker } from '../components/TierRangePicker';
 import { SingleRolePicker } from '../components/SingleRolePicker';
+import { RoomCapacityPicker } from './RoomCapacityPicker';
 import { ALL_TIERS } from '../domain/tierRange';
 import { readIntroduction } from '../domain/introduction';
 import { useId, useState } from 'react';
@@ -9,7 +10,7 @@ import { IconCalendar, IconPlus, IconX } from '../components/icons';
 import { Button } from '../components/ui';
 import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
 import { roomVoice } from './voice';
-import { canonicalRoomRoles, roomCapacityLimit, roomCapacities } from './summary';
+import { canonicalRoomRoles, roomCapacityLimit, roomCapacities, normalizeRoomCapacity } from './summary';
 import { needsFullLineup, roomPositionError } from './positions';
 import type { CreateRoomInput, GameRoom, RoomMember } from './types';
 import './room-composer.css';
@@ -17,6 +18,7 @@ import './room-composer.css';
 export interface RoomComposerProps {
   game: GameKey;
   modeKey: string;
+  initialCapacity?: number;
   type: GameRoom['type'];
   member: RoomMember;
   onCreate: (input: CreateRoomInput, member: RoomMember) => void;
@@ -32,14 +34,14 @@ function nextSlot(): string {
   return localDateTime(Math.ceil((Date.now() + 60_000) / 1_800_000) * 1_800_000);
 }
 
-export function RoomComposer({ game, modeKey, type, member, onCreate, onCancel }: RoomComposerProps) {
+export function RoomComposer({ game, modeKey, initialCapacity, type, member, onCreate, onCancel }: RoomComposerProps) {
   const modes = visibleModes(game).filter(mode => roomCapacityLimit(game, mode.key) >= 2);
   const defaultMode = modes.some(mode => mode.key === modeKey) ? modeKey : modes[0]?.key ?? '';
   const defaultTitle = (key: string) => `${modes.find(mode => mode.key === key)?.label ?? '게임'} 편하게 함께해요`;
   const [mode, setMode] = useState(defaultMode);
   const [title, setTitle] = useState(() => defaultTitle(defaultMode));
   const [titleEdited, setTitleEdited] = useState(false);
-  const [capacity, setCapacity] = useState(() => Math.max(2, roomCapacityLimit(game, defaultMode)));
+  const [capacity, setCapacity] = useState(() => normalizeRoomCapacity(game, defaultMode, initialCapacity));
   const [ownRoles, setOwnRoles] = useState(() => canonicalRoomRoles(game, (readIntroduction(member.id, game)?.primaryRoles ?? member.roles).slice(0, 1)));
   const [desiredTierRange, setDesiredTierRange] = useState(() => readIntroduction(member.id, game)?.desiredTierRange ?? ALL_TIERS);
   const [desiredRoles, setDesiredRoles] = useState<string[]>([]);
@@ -82,11 +84,12 @@ export function RoomComposer({ game, modeKey, type, member, onCreate, onCancel }
         <fieldset><legend>게임 모드</legend><div className="room-composer-mode-options room-mode-options" role="group" aria-label="게임 모드">
           {modes.map(item => <button key={item.key} type="button" className="filter-mode" aria-pressed={mode === item.key} onClick={() => {
             setMode(item.key);
-            setCapacity(value => roomCapacities(game, item.key).includes(value) ? value : roomCapacityLimit(game, item.key));
+            setCapacity(value => normalizeRoomCapacity(game, item.key, value));
             if (!titleEdited) setTitle(defaultTitle(item.key));
             setError('');
           }}><FilterModeIcon mode={item.key} size={22} /><span>{item.label}</span></button>)}
         </div></fieldset>
+        <RoomCapacityPicker game={game} modeKey={mode} value={capacity} onChange={setCapacity} />
         {hasRoles ? <>
           <fieldset><legend>내 포지션</legend><SingleRolePicker game={game} value={ownRoles[0] ?? null} label="내 포지션" onChange={role => {
               setOwnRoles([role]);
@@ -103,9 +106,6 @@ export function RoomComposer({ game, modeKey, type, member, onCreate, onCancel }
           {voiceOptions.map(option => <button key={option.value} type="button" className="filter-mode" aria-label={`마이크 ${option.label}`} title={`마이크 ${option.label}`} aria-pressed={voice === option.value} onClick={() => setVoice(option.value)}><VoiceIcon preference={option.value} size={22} /><span>{option.label}</span></button>)}
         </div></div>
         </div>
-        <fieldset><legend>모집 인원 <span>나를 포함한 인원</span></legend><div className="room-composer-capacity" role="group" aria-label="모집 인원">
-          {roomCapacities(game, mode).map(count => <button key={count} type="button" aria-pressed={capacity === count} onClick={() => setCapacity(count)}>{count}명</button>)}
-        </div></fieldset>
         <label className="room-composer-label" htmlFor={`${formId}-bio`}>한마디 <span>선택</span><input id={`${formId}-bio`} aria-label="한마디" maxLength={120} value={bio} placeholder="편하게 즐기실 분, 서로 존중해요" onChange={event => setBio(event.target.value)} /></label>
         {isReservation ? <label className="room-composer-label" htmlFor={`${formId}-start`}><span className="room-composer-time-label"><IconCalendar size={14} />시작 시간</span><input id={`${formId}-start`} aria-label="시작 시간" type="datetime-local" step={1800} min={localDateTime(Date.now())} value={start} onChange={event => { setStart(event.target.value); setError(''); }} /></label> : null}
         {error ? <p className="room-composer-error" role="alert">{error}</p> : null}

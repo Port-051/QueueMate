@@ -1,6 +1,6 @@
 import { TierRangePicker } from './TierRangePicker';
 import { SingleRolePicker } from './SingleRolePicker';
-import { Fragment, useState } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import type { GameKey } from '../api/types';
 import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
 import { TIER_LABELS, tiers } from '../domain/recruitment';
@@ -10,8 +10,8 @@ import { FilterModeIcon, FilterRoleIcon } from './FilterSymbols';
 import { VoiceIcon } from './FilterSymbols';
 import '../styles/introduction.css';
 
-export function SelfIntroductionFields({ game, value, onChange, modeLocked = false, binaryVoice = false, showTierRange = false, compact = false, singleRole = false }: {
-  game: GameKey; value: SelfIntroduction; onChange: (value: SelfIntroduction) => void; modeLocked?: boolean; binaryVoice?: boolean; showTierRange?: boolean; compact?: boolean; singleRole?: boolean;
+export function SelfIntroductionFields({ game, value, onChange, modeLocked = false, binaryVoice = false, showTierRange = false, compact = false, singleRole = false, afterMode }: {
+  game: GameKey; value: SelfIntroduction; onChange: (value: SelfIntroduction) => void; modeLocked?: boolean; binaryVoice?: boolean; showTierRange?: boolean; compact?: boolean; singleRole?: boolean; afterMode?: ReactNode;
 }) {
   const roles = keyConditionOptions(game).filter(role => role.value !== 'ANY');
   const ownRoles = value.primaryRoles ?? (value.primaryRole !== 'ANY' ? [value.primaryRole] : []);
@@ -31,6 +31,7 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
       <fieldset className="introduction-choice"><legend>게임 모드</legend><div className={`intro-mode-options${compact ? ' room-mode-options' : ''}`} role="group" aria-label="원하는 큐 타입">
         {visibleModes(game).map(mode => <button type="button" key={mode.key} className="filter-mode" aria-label={mode.label} aria-pressed={value.queueType === mode.key} disabled={modeLocked} onClick={() => patch({ queueType: mode.key })}><FilterModeIcon mode={mode.key} size={compact ? 22 : 16} /><span>{mode.label}</span></button>)}
       </div></fieldset>
+      {afterMode}
       {hasRoles ? <>
         <fieldset className="introduction-choice"><legend>{roleTitle}</legend>{singleRole ? <SingleRolePicker game={game} value={ownRoles[0] ?? null} label={roleTitle} onChange={role => patch({ primaryRoles: [role], primaryRole: role })} /> : <div className="intro-role-options" role="group" aria-label={roleTitle}>
           {roles.map(role => <button type="button" key={role.value} className="filter-role" aria-label={role.label} aria-pressed={ownRoles.includes(role.value)} onClick={() => { const next = ownRoles.includes(role.value) ? ownRoles.filter(item => item !== role.value) : [...ownRoles, role.value]; patch({ primaryRoles: next, primaryRole: next[0] ?? 'ANY' }); }}><FilterRoleIcon game={game} value={role.value} /><span>{role.label}</span></button>)}

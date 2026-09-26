@@ -9,6 +9,7 @@ import type { GameRoom } from './types';
 export interface QuickConnectCriteria {
   game: GameKey;
   modeKey: string;
+  capacity?: number;
   role: string;
   roles?: string[];
   desiredRoles?: string[];
@@ -29,6 +30,7 @@ export function quickConnectCandidates(rooms: GameRoom[], criteria: QuickConnect
       || room.status !== 'OPEN' || room.members.length >= room.capacity || autoClosePhase(room, Date.now()) === 'due'
       || room.members.some(member => member.id === criteria.userId)) return false;
     if (roomVoice(criteria.voice) !== roomVoice(room.voice)) return false;
+    if (criteria.capacity !== undefined && room.capacity !== criteria.capacity) return false;
     if (!tierInRange(room.game, criteria.ownTier, room.desiredTierRange)) return false;
     if (!room.members.every(member => tierInRange(room.game, member.tier, criteria.desiredTierRange))) return false;
     if (noRoles) return true;

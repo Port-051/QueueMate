@@ -47,6 +47,17 @@ test('적은 빈자리 우선이며 동률이면 최신 방을 제안한다', ()
   expect(quickConnectCandidates(rooms, criteria).map(room => room.id)).toEqual(['new', 'old', 'large']);
 });
 
+test('인원을 지정하면 빈자리 수가 아니라 전체 정원이 같은 방만 추천한다', () => {
+  const rooms = [
+    { ...base, id: 'duo', capacity: 2 },
+    { ...base, id: 'three', capacity: 3 },
+    { ...base, id: 'five', capacity: 5, members: [member, { ...member, id: 'guest1' }, { ...member, id: 'guest2' }] },
+  ];
+  expect(quickConnectCandidates(rooms, { ...criteria, capacity: 3 }).map(room => room.id)).toEqual(['three']);
+  expect(quickConnectCandidates(rooms, { ...criteria, capacity: 2 }).map(room => room.id)).toEqual(['duo']);
+  expect(quickConnectCandidates(rooms, { ...criteria, capacity: 4 })).toEqual([]);
+});
+
 test('제안 후 마감되거나 조건이 변경되면 재검증에서 제외한다', () => {
   expect(quickConnectCandidates([base], criteria)).toHaveLength(1);
   for (const change of [{ status: 'CONFIRMED' as const }, { desiredRoles: ['TOP'] }, { voice: 'NO_VOICE' as const }]) {

@@ -18,6 +18,7 @@ export interface SelfIntroduction {
   winRate: number | null;
   kda: number | null;
   queueType: string;
+  roomCapacity?: number;
   recentResults: MatchResult[];
   voice: VoicePreference;
   bio: string;
@@ -50,6 +51,7 @@ function normalize(value: Partial<SelfIntroduction>, game: GameKey): SelfIntrodu
     winRate: typeof value.winRate === 'number' && Number.isFinite(value.winRate) && value.winRate >= 0 && value.winRate <= 100 ? value.winRate : null,
     kda: typeof value.kda === 'number' && Number.isFinite(value.kda) && value.kda >= 0 ? value.kda : null,
     queueType: text(value.queueType, defaults.queueType) || 'ANY',
+    roomCapacity: typeof value.roomCapacity === 'number' && Number.isInteger(value.roomCapacity) && value.roomCapacity >= 2 && value.roomCapacity <= 5 ? value.roomCapacity : undefined,
     recentResults: Array.from({ length: 20 }, (_, i) => value.recentResults?.[i] === 'WIN' ? 'WIN' : value.recentResults?.[i] === 'LOSS' ? 'LOSS' : null),
     voice: ['REQUIRED', 'OPTIONAL', 'NO_VOICE'].includes(value.voice ?? '') ? value.voice! : defaults.voice,
     bio: text(value.bio),

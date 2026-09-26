@@ -8,6 +8,8 @@ import { SelfIntroductionFields } from '../components/SelfIntroductionFields';
 import { usesKeyCondition, visibleModes } from '../domain/gameConfig';
 import { emptyIntroduction, introductionInputError, readIntroduction, saveIntroduction, type SelfIntroduction } from '../domain/introduction';
 import { RoomVoice } from './RoomVoice';
+import { RoomCapacityPicker } from './RoomCapacityPicker';
+import { normalizeRoomCapacity } from './summary';
 import { roomVoice } from './voice';
 import { quickConnectCandidates, type QuickConnectCriteria } from './quickConnect';
 import type { GameRoom, RoomMember } from './types';
@@ -16,7 +18,7 @@ import './room-quick-connect.css';
 export function RoomQuickConnect({ game, modeKey, rooms, member, onOpen, onCreate }: {
   game: GameKey; modeKey: string; rooms: GameRoom[]; member: RoomMember;
   onOpen: (room: GameRoom, trigger: HTMLButtonElement, profile: RoomMember, criteria: QuickConnectCriteria) => void;
-  onCreate: () => void;
+  onCreate: (modeKey: string, capacity: number) => void;
 }) {
   const toast = useToast();
   const { user, gameAccounts } = useAuth();
@@ -28,16 +30,19 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onOpen, onCreat
   const [started, setStarted] = useState(false);
   const [skipped, setSkipped] = useState<string[]>([]);
   const hasRoles = usesKeyCondition(game, value.queueType);
+  const capacity = normalizeRoomCapacity(game, value.queueType, value.roomCapacity);
   const ownRoles = value.primaryRoles ?? (value.primaryRole !== 'ANY' ? [value.primaryRole] : []);
-  const criteria: QuickConnectCriteria = { game, modeKey: value.queueType, role: ownRoles[0] ?? '', roles: ownRoles, desiredRoles: value.desiredRoles, voice: value.voice, userId: member.id, ownTier: game === 'LOL' ? member.tier : value.ownTier, desiredTierRange: value.desiredTierRange };
+  const criteria: QuickConnectCriteria = { game, modeKey: value.queueType, capacity, role: ownRoles[0] ?? '', roles: ownRoles, desiredRoles: value.desiredRoles, voice: value.voice, userId: member.id, ownTier: game === 'LOL' ? member.tier : value.ownTier, desiredTierRange: value.desiredTierRange };
   const candidates = quickConnectCandidates(rooms, criteria);
   const candidate = candidates.find(room => !skipped.includes(room.id));
   const error = introductionInputError(value);
   const reset = () => { setStarted(false); setSkipped([]); };
   const update = (next: SelfIntroduction) => {
-    setValue(next); reset();
-    if (!saveIntroduction(member.id, game, next)) toast('입력한 조건을 이 브라우저에 보관하지 못했어요.', 'info');
+    const normalized = { ...next, roomCapacity: normalizeRoomCapacity(game, next.queueType, next.roomCapacity) };
+    setValue(normalized); reset();
+    if (!saveIntroduction(member.id, game, normalized)) toast('입력한 조건을 이 브라우저에 보관하지 못했어요.', 'info');
   };
+  const startRoom = () => onCreate(value.queueType, capacity);
   const profile: RoomMember = {
     ...member, roles: hasRoles ? ownRoles : [], voice: value.voice, bio: value.bio,
     ...(game !== 'LOL' ? { tier: value.ownTier, champions: value.champions, winRate: value.winRate, kda: value.kda } : {}),
@@ -52,7 +57,7 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onOpen, onCreat
       </> : <>
         <h3>{candidates.length ? '제안할 방을 모두 봤어요.' : '조건에 맞는 방이 없어요.'}</h3>
         <p className="quick-connect-hint">조건을 바꾸거나 방을 만들어 보세요.</p>
-        <div className="quick-result-actions"><Button onClick={reset}>조건 변경</Button><Button variant="primary" onClick={onCreate}>방 만들기</Button></div>
+        <div className="quick-result-actions"><Button onClick={reset}>조건 변경</Button><Button variant="primary" onClick={startRoom}>방 만들기</Button></div>
       </>}
     </article></section> : null;
 
@@ -60,10 +65,11 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onOpen, onCreat
     <form onSubmit={event => { event.preventDefault(); if (!error && (!hasRoles || ownRoles.length)) { setStarted(true); setSkipped([]); } }}>
       <fieldset className="recruitment-composer">
         {error ? <div className="banner warn" role="alert">{error}</div> : null}
-        <SelfIntroductionFields binaryVoice showTierRange compact singleRole game={game} value={value} onChange={update}/>
+        <SelfIntroductionFields binaryVoice showTierRange compact singleRole game={game} value={value} onChange={update}
+          afterMode={<RoomCapacityPicker game={game} modeKey={value.queueType} value={capacity} onChange={roomCapacity => update({ ...value, roomCapacity })} />} />
       </fieldset>
       <div className="matching-rail-footer room-rail-actions">
-        <Button block onClick={onCreate}><IconPlus size={22}/>방 만들기</Button>
+        <Button block onClick={startRoom}><IconPlus size={22}/>방 만들기</Button>
         <Button block type="submit" variant="primary" disabled={Boolean(error) || (hasRoles && !ownRoles.length)}><IconMatch size={22}/>{started ? '다시 찾기' : '매칭 시작'}</Button>
       </div>
     </form>

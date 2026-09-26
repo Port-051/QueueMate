@@ -33,7 +33,7 @@ export function RoomBoardHome() {
   const toast = useToast();
   const [type, setType] = useState<GameRoom['type']>(activeRoom?.type ?? 'REALTIME');
   const [filters, setFilters] = useState(() => ({ ...defaults(selectedGame), ...(activeRoom?.game === selectedGame ? { modeKey: activeRoom.modeKey } : {}) }));
-  const [composer, setComposer] = useState(false);
+  const [composer, setComposer] = useState<{ modeKey: string; capacity: number } | null>(null);
   const [selected, setSelected] = useState<{ id: string; origin: DOMRect; trigger: HTMLButtonElement; profile?: RoomMember; criteria?: QuickConnectCriteria } | null>(null);
   const [openOnly, setOpenOnly] = useState(false);
   const previousGame = useRef(selectedGame);
@@ -42,7 +42,7 @@ export function RoomBoardHome() {
   useEffect(() => {
     if (previousGame.current === selectedGame) return;
     previousGame.current = selectedGame;
-    setFilters(defaults(selectedGame)); setComposer(false); setSelected(null);
+    setFilters(defaults(selectedGame)); setComposer(null); setSelected(null);
   }, [selectedGame]);
   useEffect(() => { const timer = window.setInterval(() => tick(value => value + 1), 30_000); return () => clearInterval(timer); }, []);
   const member = useMemo<RoomMember>(() => {
@@ -88,13 +88,13 @@ export function RoomBoardHome() {
       {!filtered.length ? <div className="room-board-empty"><p>이 조건에 맞는 방이 없어요.</p><button className="room-secondary-button" onClick={() => setFilters(defaults(selectedGame))}>필터 초기화</button></div> : null}
     </section>
     {activeRoom ? <aside className="room-conversation-rail"><RoomConversation room={activeRoom} selfId={member.id} onSend={text => send(text)} onLeave={() => run(leave)} onKick={id => run(() => kick(activeRoom.id, id))} onConfirm={() => run(() => confirm(activeRoom.id))} onAutoConfirm={deadline => autoConfirm(activeRoom.id, deadline)} onExtend={deadline => run(() => extendRecruitment(activeRoom.id, deadline))} /></aside>
-      : composer ? <aside className="room-composer-rail"><RoomComposer key={`${selectedGame}-${type}`} game={selectedGame} modeKey={filters.modeKey} type={type} member={member} onCancel={() => setComposer(false)} onCreate={(input, profile) => run(() => { create(input, profile); setFilters({ ...defaults(input.game), modeKey: input.modeKey }); setComposer(false); })} /></aside> : <div className="room-quick-rail"><RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.modeKey} rooms={rooms} member={member}
-      onCreate={() => setComposer(true)} onOpen={(room, trigger, profile, criteria) => setSelected({ id: room.id, origin: trigger.getBoundingClientRect(), trigger, profile, criteria })} /></div>}
+      : composer ? <aside className="room-composer-rail"><RoomComposer key={`${selectedGame}-${type}`} game={selectedGame} modeKey={composer.modeKey} initialCapacity={composer.capacity} type={type} member={member} onCancel={() => setComposer(null)} onCreate={(input, profile) => run(() => { create(input, profile); setFilters({ ...defaults(input.game), modeKey: input.modeKey }); setComposer(null); })} /></aside> : <div className="room-quick-rail"><RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.modeKey} rooms={rooms} member={member}
+      onCreate={(modeKey, capacity) => setComposer({ modeKey, capacity })} onOpen={(room, trigger, profile, criteria) => setSelected({ id: room.id, origin: trigger.getBoundingClientRect(), trigger, profile, criteria })} /></div>}
     </div>
     {selected && current ? <RoomDeckSpread room={current} origin={selected.origin} trigger={selected.trigger} activeRoomId={activeRoom?.id ?? null} joinError={tierInRange(current.game, (selected.profile ?? member).tier, current.desiredTierRange) ? undefined : '방에서 찾는 티어 범위와 맞지 않아요'} onClose={() => setSelected(null)} onJoin={() => run(() => { const profile = selected.profile ?? member;
       if (selected.criteria && !quickConnectCandidates(rooms, selected.criteria).some(room => room.id === current.id)) {
         throw new Error('방의 모집 조건이 바뀌었어요. 다른 방을 확인해 주세요.');
       }
-      join(current.id, profile); setSelected(null); setComposer(false); })} /> : null}
+      join(current.id, profile); setSelected(null); setComposer(null); })} /> : null}
   </div>;
 }

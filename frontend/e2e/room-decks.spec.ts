@@ -235,7 +235,7 @@ test('랭크 방은 두 명까지만 선택되며 선택한 모드는 다시 눌
   await modes.getByRole('button', { name: '2인 랭크', exact: true }).click();
   await modes.getByRole('button', { name: '2인 랭크', exact: true }).click();
   await expect(modes.getByRole('button', { pressed: true })).toHaveCount(1);
-  await expect(composer.getByRole('group', { name: '모집 인원', exact: true }).getByRole('button')).toHaveText(['2명']);
+  await expect(composer.getByRole('group', { name: '모집 인원', exact: true })).toHaveCount(0);
   await composer.getByLabel('방 제목', { exact: true }).fill('둘이 랭크');
   await composer.getByRole('button', { name: '방 열기', exact: true }).click();
   await expect(page.getByRole('button', { name: '둘이 랭크 방 정보', exact: true }).locator('.compact-seat')).toHaveCount(1);
@@ -419,6 +419,7 @@ test('2인 랭크는 두 방씩 배치하고 자유 랭크는 2·3·5명만 모�
   await expectNoPageOverflow(page);
   await modes.getByRole('button', { name: '자유 랭크', exact: true }).click();
   await expect.poll(() => grid.locator('.room-deck').count()).toBeGreaterThan(0);
+  await page.getByRole('group', { name: '원하는 큐 타입', exact: true }).getByRole('button', { name: '자유 랭크', exact: true }).click();
   await page.getByRole('button', { name: '방 만들기', exact: true }).click();
   const composer = page.getByRole('region', { name: '방 만들기', exact: true });
   await expect(composer.getByRole('group', { name: '모집 인원', exact: true }).getByRole('button')).toHaveText(['2명', '3명', '5명']);
@@ -428,6 +429,37 @@ test('2인 랭크는 두 방씩 배치하고 자유 랭크는 2·3·5명만 모�
   await expect(page.getByRole('button', { name: '자유 랭크 셋이서 방 정보', exact: true }).locator('.compact-member')).toHaveCount(3);
   await login(page); // The in-memory mock session resets on navigation; room/preferences stay in localStorage.
   await expect(page.getByRole('button', { name: '자유 랭크 셋이서 방 정보', exact: true })).toBeVisible();
+});
+
+test('모드별 인원을 선택하고 재접속과 방 만들기에서도 유지한다', async ({ page }) => {
+  await login(page);
+  const rail = page.getByRole('region', { name: '빠른 연결', exact: true });
+  const modes = rail.getByRole('group', { name: '원하는 큐 타입', exact: true });
+  const sizes = rail.getByRole('group', { name: '모집 인원', exact: true });
+  await modes.getByRole('button', { name: '2인 랭크', exact: true }).click();
+  await expect(sizes).toHaveCount(0);
+  for (const mode of ['일반', '신속', '칼바람']) {
+    await modes.getByRole('button', { name: mode, exact: true }).click();
+    await expect(sizes.getByRole('button')).toHaveText(['2명', '3명', '4명', '5명']);
+  }
+  await sizes.getByRole('button', { name: '4명', exact: true }).click();
+  await modes.getByRole('button', { name: '자유 랭크', exact: true }).click();
+  await expect(sizes.getByRole('button')).toHaveText(['2명', '3명', '5명']);
+  await expect(sizes.getByRole('button', { name: '5명', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await sizes.getByRole('button', { name: '3명', exact: true }).click();
+  await sizes.getByRole('button', { name: '3명', exact: true }).click();
+  await expect(sizes.getByRole('button', { pressed: true })).toHaveCount(1);
+  await rail.getByRole('radiogroup', { name: '내 포지션', exact: true }).getByRole('radio', { name: '미드', exact: true }).check();
+  await login(page);
+  await expect(modes.getByRole('button', { name: '자유 랭크', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(sizes.getByRole('button', { name: '3명', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await rail.getByRole('button', { name: '방 만들기', exact: true }).click();
+  const composer = page.getByRole('region', { name: '방 만들기', exact: true });
+  await expect(composer.getByRole('button', { name: '자유 랭크', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(composer.getByRole('group', { name: '모집 인원', exact: true }).getByRole('button', { name: '3명', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await composer.getByRole('textbox', { name: '방 제목', exact: true }).fill('자유 랭크 세 명');
+  await composer.getByRole('button', { name: '방 열기', exact: true }).click();
+  await expect(page.getByRole('button', { name: '자유 랭크 세 명 방 정보', exact: true }).locator('.compact-member')).toHaveCount(3);
 });
 
 test('모집 티어 범위는 방 구성원 평균 대신 모집 조건을 찾고 단일 선택과 취소를 지원한다', async ({ page }) => {
