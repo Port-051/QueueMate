@@ -39,7 +39,7 @@
 | INV-1 | 한 사용자는 활성 매칭 요청을 1개만 가진다 | `claim-request.lua` | `ActiveRequestConcurrencyTest.onlyOneRequestSucceedsPerUser` |
 | INV-1 | (반대 방향) 서로 다른 사용자는 서로를 막지 않는다 | 〃 | `ActiveRequestConcurrencyTest.differentUsersAllSucceed` |
 | INV-1 | 이미 활성 요청이 있으면 두 번째 요청은 `IN_ROOM` 이 아니라 `ALREADY_QUEUED` 다 | 〃 (반환 `0`) | `ActiveRequestConcurrencyTest.secondRequestIsAlreadyQueued` |
-| docs/11 D-11 15번 · D-19 | 게시판 방에 들어가 있는 사용자의 매칭 요청은 거절되고(`IN_ROOM`), 활성 요청 키가 생기지 않으며, `app:room` 의 입장 표시 키(`qm:user:active-room:{userId}`)를 건드리지 않는다 | `claim-request.lua` 의 `EXISTS KEYS[2]` (반환 `-1`) | `ActiveRequestConcurrencyTest.userInRoomIsRejected` |
+| docs/11 D-11 15번 · D-19 | 게시판 방에 들어가 있는 사용자의 매칭 요청은 거절되고(`IN_ROOM`), 활성 요청 키가 생기지 않으며, `app:room`(2026-09-25 부터 `app:platform` — docs/11 D-33)의 입장 표시 키(`qm:user:active-room:{userId}`)를 건드리지 않는다 | `claim-request.lua` 의 `EXISTS KEYS[2]` (반환 `-1`) | `ActiveRequestConcurrencyTest.userInRoomIsRejected` |
 | docs/11 D-11 15번 · D-19 | 입장 표시 키가 사라지면 다시 매칭 요청을 할 수 있다 | 〃 | `ActiveRequestConcurrencyTest.userWhoLeftRoomCanQueue` |
 | INV-1 | 순진한 구현이면 실제로 깨진다 | — (대조군) | `NaiveVsLuaComparisonTest.naiveApproachBreaksUnderConcurrency` |
 | INV-1 | 같은 부하에서 Lua는 중복 0 | `claim-request.lua` | `NaiveVsLuaComparisonTest.luaApproachHoldsUnderSameLoad` |
@@ -244,7 +244,7 @@ cd backend      # 스프링 프로젝트는 저장소 루트의 backend/ 에 있
 | 만료 sweeper | 테스트 없음 | 만료 처리는 **구현됐다** (`qm:proposal:pending` ZSET + `ProposalSweeper` + `ProposalExpiryService` + `proposal/expiry-proposal.lua`). 검증되지 않은 경합은 "시한이 지나는 순간 들어온 수락" 이다 — **막혀는 있다**(2026-09-17: `accept-proposal.lua` 가 `ARGV[3] = now` 로 시한을 보고 `NOT_FOUND` 를 돌려준다, `docs/11` R-2). 그 분기를 밟는 테스트가 없을 뿐이다 |
 | 제안 도중 취소 | 테스트 없음 | 구멍은 막혔다 — `{lol,pubg,valorant}/leave-party.lua` 가 멤버를 빼기 전에 `status`/`expiresAt`/수락자 SET/pending 을 지운다 (CLAUDE.md §4 INV-5 ④). 막은 뒤의 경합(취소와 마지막 수락이 동시에)을 재현하는 테스트는 아직 없다 |
 | PUBG | **해소 (2026-09-17)** | `PubgPartyJoinConcurrencyTest` 9건이 붙었다. 다른 둘과 달리 **핵심 조건이 겹쳐도 되는 것**(같은 플랫폼만으로 파티가 정원까지 찬다)과 **스팀·카카오가 섞이지 않는 것**(INV-8 구조적 분리)을 같이 본다. 이제 세 게임 모두 테스트가 있다 |
-| 차단(INV-6) | 동시성 테스트 없음 | 선필터 코드는 배정 경로에 있다 (`LolCandidateRule#canJoin` → `BlockRepository`). 그런데 `social.blocks` 스키마가 없어 테스트는 H2에 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql` 로 **빈 테이블만** 만들어 두고 돌린다 — 즉 "차단이 없는 경우"만 지나간다. 확정 직전 최종 검증은 미구현 (docs/11 #30). 차단 검증 없이 배포하지 않는다 |
+| 차단(INV-6) | 동시성 테스트 없음 | 선필터 코드는 배정 경로에 있다 (`LolCandidateRule#canJoin` → `BlockRepository`). 그런데 `social.blocks`(2026-09-26 부터 `public.blocks` · bigint — docs/11 D-25 · D-34) 스키마가 없어 테스트는 H2에 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql` 로 **빈 테이블만** 만들어 두고 돌린다 — 즉 "차단이 없는 경우"만 지나간다. 확정 직전 최종 검증은 미구현 (docs/11 #30). 차단 검증 없이 배포하지 않는다 |
 | 티어 배정 | 동시성 테스트 없음 | `LolTieredAssigner` + `-tiered` 스크립트 2개가 (포지션 x 티어) 격자 색인을 다루는데, 동시성 테스트는 전부 티어 없는 모드다. 알림 테스트만 티어 모드를 한 번 밟는다 (`PushNotificationTest.tieredAssignerPublishesTheSameEnvelopes`) |
 | 후보 풀 락 | 테스트 없음 | `PoolLock` 자체(대기 시간 초과 → 503, 유지 시간 초과)를 겨냥한 테스트가 없다. 지금은 배정 테스트가 간접적으로만 지나간다 |
 | ARAM 경로 | 테스트 없음 | 시드는 하지만(`ARAM_5`) `positionUniqueness=false` 경로를 동시성으로 검증하지 않았다. docs/11 #35의 "칼바람 5인이 2/2/1로 쪼개진" 버그가 났던 경로다 |

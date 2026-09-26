@@ -37,6 +37,17 @@
 > **같은 날 결정 D-18 로 Stage 1(단일 EC2 + Docker Compose)을 적용하지 않는다.** 이 그림이 그리는 Stage 2
 > (ECS Fargate) 구성이 목표 상태가 아니라 **배포 기준**이 된다. 위 머리말의 "현재 개발 단계는 Stage 1 … 이
 > 그림은 목표 상태다"는 그렇게 걸러 읽는다.
+>
+> **[2026-09-26 추가] 위 D-16 문단은 결정 D-33 으로 되돌려졌다 — 2026-09-25 에 `app:room` 을 `app:platform` 에 합쳤다.**
+> 방 안의 일(입장 · 나가기 · 강퇴 · 정원 · 접속 확인 · 방장 확정 · 시그널 `POST` · `WEBRTC_SIGNAL` · `ROOM_*` 발행)은 `app:platform` 의
+> `room` 패키지이고 상태는 여전히 Redis 에만 있다. 포트 8083 은 없다. 배포 단위는 `app:matching` / `app:platform` / `app:realtime`(`notification`) /
+> `app:reservation`(Lambda) **넷**이다 — 그림에 `app:room` 상자가 없는 것이 다시 맞다. 다만 `app:platform` 이 **ElastiCache Redis 에도 붙는다**(방 키 ·
+> 입장 표시 키 · refresh 토큰 · 로그인 실패 제한 · 알림 발행 · gameconfig 읽기 — D-26 · D-29 · D-33) — 그림에는 그 간선이 없다.
+>
+> **같은 날 결정 D-34 로 RDS 의 "7스키마 · 스키마별 롤"은 이 시스템의 모양이 아니다.** 롤은 두지 않고(2026-09-22), `app:platform` 의
+> 스키마는 `public` 하나이며 JOIN · FK 가 허용된다(2026-09-26). `app:matching` 이 읽는 것은 `blocks`(옛 `social.blocks` — 지금 `public.blocks`)
+> 하나 그대로다. 결정 D-24 로 **access denylist 는 없다**(그래서 서비스들이 인증 때문에 Redis 를 치지 않는다 — 공개 키로 스스로 검증한다).
+> **그림과 아래 표에는 반영되지 않았다.** 아래에서 "7스키마 · 스키마별 롤" · "`matching` 롤" · "크로스 스키마 예외" · `social.blocks` 를 만나면 이 문단을 함께 봐라.
 
 ---
 
@@ -124,8 +135,10 @@ SQS FIFO 3개.
 | app:reservation-batch | 예약 조회 · 제안 저장 | RDS |
 
 `app:matching`이 RDS를 치는 것은 **INV-6 차단 검증 SELECT 하나뿐**이다.
-`matching` 롤은 `social` 스키마를 못 읽고, 승인된 유일한 크로스 스키마 예외인
-`social.blocks`만 SELECT 할 수 있다 (docs/11 D-1 — 뷰를 두는 원안은 폐기했다).
+~~`matching` 롤은 `social` 스키마를 못 읽고, 승인된 유일한 크로스 스키마 예외인
+`social.blocks`만 SELECT 할 수 있다~~ (docs/11 D-1 — 뷰를 두는 원안은 폐기했다).
+**바뀌었다 (docs/11 D-34, 2026-09-22 · 09-26).** 롤은 없고 스키마는 `public` 하나다 — `app:matching` 이 `blocks` 하나만 읽는다는 것은
+권한이 아니라 약속으로 지킨다.
 
 ### SQS FIFO (서버 간 작업 지시)
 
@@ -170,7 +183,7 @@ SQS FIFO 3개.
 | ElastiCache Redis | 읽기·쓰기 | gameconfig 읽기, 활성 요청 선점, 파티 색인, Lua atomic claim | **구현됨** (`backend/src/main/resources/redis/*.lua`) |
 | ElastiCache Redis | 분산 락 | 후보 풀 락 (`qm:lock:pool:*`, Redisson) | **구현됨** (`redisLock/PoolLock.java`, `config/redis/RedissonConfig.java`) |
 | ElastiCache Redis | publish | `MATCH_*` 5종 알림 | **구현됨 (2026-09-16 갱신)** — `notification/PushPublisher.java` 가 `qm:pubsub:push:{userId}` 로 **5종 전부** 발행한다. `MATCH_PROPOSAL_EXPIRED` 는 `service/ProposalExpiryService`(만료 스위퍼), `MATCH_CONFIRMED` 는 `service/ProposalService#accept()`(확정 뒷정리)가 낸다 |
-| RDS `social.blocks` | 읽기 | INV-6 검증 | **미구현** — 부르는 코드는 있다 (`LolCandidateRule#canJoin` 의 차단 선필터). 그런데 Flyway 미도입이라 스키마가 없어 기본 실행에서는 그 조회가 실패한다 |
+| RDS `social.blocks`(**2026-09-26 부터 `public.blocks`** — D-34) | 읽기 | INV-6 검증 | **미구현** — 부르는 코드는 있다 (`LolCandidateRule#canJoin` 의 차단 선필터). 그런데 Flyway 미도입이라 스키마가 없어 기본 실행에서는 그 조회가 실패한다. **운영 DB 에 붙어도 `Block.java` 가 옛 모양(`schema = "social"` · `String`)이라 깨진다 — 고쳐야 한다(D-25 · D-34)** |
 | SQS `ProposalConfirmed.fifo` | 발행 | 확정된 제안 → 파티 생성 | **미구현** — AWS SDK 의존성이 없다. 확정과 Redis 쪽 뒷정리(`proposal/cleanup-confirmed.lua`)·`MATCH_CONFIRMED` 알림까지는 붙었고, `matching.outbox` 기록과 발행만 남았다 |
 | SQS `BlockChanged.fifo` | 소비 | 차단 목록 갱신 | **미구현** |
 | CloudWatch | 송신 | 로그·지표 | 부분 — `/actuator` 노출은 켜져 있다 (`application.yaml`) |
@@ -191,7 +204,7 @@ SQS FIFO 3개.
 1. 배포 단위 4개. `app:realtime`만 장수명 연결(SSE + WebSocket)을 보유하고 나머지 셋은 stateless다.
 2. 서버 간 작업 지시는 transactional outbox + SQS FIFO(유실 시 데이터가 어긋난다), 사용자 알림은 Redis Pub/Sub → SSE(놓쳐도 새로고침으로 복구). 성격이 달라 도구를 나눴다.
 3. Redis Streams는 컨슈머 그룹으로 읽으면 순서가 깨져 `BlockCreated` / `BlockRemoved` 역전이 가능하다. SQS FIFO는 `MessageGroupId` 단위로 순서를 보장한다.
-4. ~~INV-6은 2단계로 보증한다. 후보 필터링은 Redis O(1), 최종 claim 직전에는 `shared_read.blocked_pairs`를 동기 SELECT 한다.~~ **바뀌었다 (docs/11 D-1·D-2).** 확정 직전 `social.blocks` 동기 SELECT 한 겹으로 한다. Redis 선필터는 보류. 그림 파일(`aws-architecture.drawio`)은 아직 원안 그대로다.
+4. ~~INV-6은 2단계로 보증한다. 후보 필터링은 Redis O(1), 최종 claim 직전에는 `shared_read.blocked_pairs`를 동기 SELECT 한다.~~ **바뀌었다 (docs/11 D-1·D-2).** 확정 직전 `social.blocks`(지금 `public.blocks` — D-34) 동기 SELECT 한 겹으로 한다. Redis 선필터는 보류. 그림 파일(`aws-architecture.drawio`)은 아직 원안 그대로다.
 5. 음성·텍스트는 브라우저 직결이라 서버를 거치지 않는다. Fargate는 host network가 없어 coturn을 올릴 수 없으므로 Cloudflare 관리형 TURN을 쓴다.
 6. 실제로는 2개 가용영역에 분산한다. NAT Gateway는 월 $43이라 쓰지 않고 public subnet + 보안그룹 인바운드 차단으로 대체한다. RDS Multi-AZ와 ElastiCache Replica는 비용 2배라 도입하지 않았다.
 

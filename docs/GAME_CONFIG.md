@@ -20,6 +20,13 @@ QueueMate 실시간 매칭 MVP는 DB 없이 Redis만 쓴다. 설정은 **LoL과 
 그러면 설정을 데이터로 분리한 의미가 없어진다.
 설정이 Redis에만 있으면 모드 추가/삭제는 `redis-cli` 한 번으로 끝나고 앱은 그대로 둔다.
 
+> **읽는 앱이 하나 더 있다 (2026-09-24 소유자 결정 — docs/11 D-29).** `app:platform` 도 이 설정을 **읽는다** —
+> `qm:gameconfig:{GAME}:{MODE}` 를 `EXISTS` 로 봐서 모집 글의 `mode` 가 있는 모드인지, `qm:gameconfig:{GAME}:tier` 를
+> `ZSCORE` 로 봐서 게임 계정의 `tier` 가 사다리에 있는 이름인지 검증한다. 내용(`targetPartySize` · `tierRule`)과
+> `:tier-range:` 는 읽지 않고, **쓰지도 심지도 않는다.** Redis 를 못 읽으면 검증을 건너뛴다(fail-open).
+> **그래서 키 모양(`SharedKeys.GAMECONFIG_PREFIX`)이나 seed 의 키 이름을 바꾸면 `app:platform` 의 검증이 조용히 꺼진다** — 바꿀 때는
+> `app:platform`(`common/gameconfig/GameConfigKeys`)과 같이 바꾼다. seed 에서 모드를 지우면 그 모드로는 모집 글을 쓸 수 없게 된다(400).
+
 | | 코드가 밀어넣는 방식 | 미리 심어두는 방식 (채택) |
 |---|---|---|
 | 모드 추가 | 코드 수정 + 재배포 | `redis-cli` 실행 |

@@ -1,6 +1,6 @@
 # HANDOFF — 다음 세션 인계
 
-**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-17 (목) · 2026-09-19 (§0 의 ①·③·④ 에 docs/11 D-11·D-12·D-13 반영, §0-0 · ① 에 D-19 반영)
+**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-17 (목) · 2026-09-19 (§0 의 ①·③·④ 에 docs/11 D-11·D-12·D-13 반영, §0-0 · ① 에 D-19 반영) · 2026-09-24 (§0-4 신설 — `platform` 쪽에서 넘어온 일. §0-1 ① 에 참조 한 줄) · 2026-09-24 두 번째 (§0-4 (나) 에 같은 날 늦게 결정된 넷을 더했다 — P-13 의 개정 · P-17 · P-14 의 개정 · P-18)
 **읽는 순서:** `CLAUDE.md` → `START_HERE.md` → **이 파일의 §0 부터**
 
 이 파일은 "지금 어디까지 왔고 무엇이 열려 있는가"만 담는다. 규칙은 `CLAUDE.md`,
@@ -29,6 +29,114 @@
 | 취소 스크립트 정리 | `{lol,pubg,valorant}/leave-party.lua` | 중복 정리 2줄 제거. 동작 무변경 |
 | **PUBG 동시성 테스트 9건** | `concurrency/PubgPartyJoinConcurrencyTest` | **이제 세 게임 모두 테스트가 있다.** 총 41건 — 동시성 24(LoL 7 + VALORANT 8 + PUBG 9) + 제안 멱등성 11 + 알림 6 |
 | **방에 있으면 매칭 거절 — 409 `IN_ROOM`** (2026-09-19, docs/11 D-19) | `redis/shared/claim-request.lua`(`KEYS[2]`, 반환 `-1`) · `redisKeys/SharedKeys`(`ACTIVE_ROOM_PREFIX` · `activeRoomKey`) · `dto/JoinResult` · `service/MatchRequestService#join()` · `controller/MatchingController` | "한 번에 하나만"을 **키 둘**로 지킨다 — `app:room` 의 입장 표시 키 `qm:user:active-room:{userId}` 를 `EXISTS` 로 보기만 한다. 활성 요청 키는 다시 이 앱만 쓴다. `join()` 의 반환이 `Optional<AcceptedRequest>` 에서 `JoinResult` 로 바뀌었다. `ActiveRequestConcurrencyTest` 에 3건이 붙어 `@Test` 개수로 동시성 27 · 총 44건이다(윗줄의 41건은 09-17 기록이라 그대로 둔다). 계약 사본은 `contracts/README.md` A-10 |
+
+### 0-4. 2026-09-24 — `platform` 쪽에서 넘어온 일 (아직 하나도 안 했다)
+
+> **번호와 자리가 어긋난다** — `0-2` · `0-3` 이 이미 쓰여 **다음 빈 번호**를 붙였고, 자리는 (가)가 급해서 §0-1 앞이다.
+
+소유자 지시로 적는다. **`platform` 폴더에서 소유자가 직접 정한 것이 결정 로그(`docs/11_DECISION_LOG.md`)에 하나도 안 올라갔고,
+그 가운데 하나는 이 저장소의 코드를 지금 깨뜨리고 있다.** 원본은 **`../platform/contracts/platform-api.md`** 맨 아래
+"원본에 올려야 할 것" 표(**P-11 ~ P-18**) · `../platform/CLAUDE.md` · `../platform/START_HERE.md` §4 다.
+**`docs/11_DECISION_LOG.md` 의 마지막 항목은 D-23 이다 — 새로 남길 것은 D-24 부터다.**
+
+성질이 셋으로 갈린다 — **(가) 코드를 고치는 일** · **(나) 결정 로그에 남기는 일** · **(다) 아직 미정인 것.** 섞지 마라.
+**이 절은 "해야 할 일"만 적는다** — 여기서 결정을 새로 하지도, D-항목의 문안을 완성하지도 않는다.
+
+#### (가) 코드 — `block/Block.java` 의 두 칸을 `Long` 으로 바꾼다 **(가장 급하다)**
+
+**안 하면: 운영 DB 에 붙는 순간 차단 조회가 깨져 INV-6 선필터가 통째로 죽는다.** 배정은 `@Async` 안이라
+**요청은 201 로 나가고 배정만 조용히 실패한다** — §0-1 ② 의 "스키마가 없어 조회가 터진다"와 증상이 같다.
+
+- **2026-09-22 소유자 결정**으로 `platform` 이 **모든 테이블의 PK 를 `bigint GENERATED ALWAYS AS IDENTITY`** 로 하고
+  **사용자의 식별자를 둘로 갈랐다** — `account.users.id`(사용자 번호, bigint)가 `userId` 이고, 가입·로그인에 쓰는
+  **로그인 아이디는 `login_id` · `loginId` 로 따로**다. 그래서 **`social.blocks.blocker_id` · `blocked_id` 가
+  `varchar(20)` 에서 `bigint` 가 됐다** (확인함 — `../platform/backend/src/main/resources/db/migration/social/V4__social_blocks.sql`.
+  그 파일 머리 주석이 "`matching` 의 `Block.java` 는 아직 String 이다 — 그쪽을 `Long` 으로 같이 바꿔야 한다.
+  바꾸기 전까지 `matching` 은 이 테이블을 읽다가 런타임에 깨진다"고 적어 두었다).
+- 이 앱은 그 테이블을 **직접 읽는다**(D-1 · D-2 — 뷰가 아니라 `social.blocks` 동기 조회로 INV-6 을 지킨다).
+- **이것은 D-4 를 개정한다.** D-4 는 `blockerId`/`blockedId` 를 `String` 으로 두면서 근거로 **"사용자 id 타입을 `String` 으로
+  통일한다 — 요청의 `userId` 가 `String` 이라 변환 지점이 생기지 않는다"**를 들었다. 그 근거가 뒤집힌 것이고,
+  **이제는 변환 지점이 생긴다**(아래 표의 `findBlockedUserIds` 줄).
+- **이 앱을 통째로 `Long` 으로 바꾸라는 뜻이 아니다 — `block` 패키지만이다.** Redis 키 · 요청 파라미터 · DTO ·
+  파티 HASH 의 `member:{userId}` 필드는 **문자열 그대로여도 된다.** `platform` 이 JWT 의 `sub` 와 요청·응답 본문에
+  **숫자를 십진 문자열로** 찍기 때문이다(`"42"`) — `../platform/contracts/platform-api.md` "공통" · P-11 이
+  "`matching` · `notification` · `room` 은 그 값을 문자열로 다뤄 **코드 변경이 없다**"고 적었다.
+
+**같이 고쳐야 하는 자리** (`grep` 으로 확인한 것. **이번에는 고치지 않았다 — 목록만이다**).
+
+| 파일 | 자리 | 무엇 |
+|---|---|---|
+| `block/Block.java` | `:43` `:47` | `private String blockerId` · `blockedId` → `Long`. javadoc 의 **"이 테이블만 `matching` 롤에 SELECT 권한을 준다 (D-1)"** 도 같이 낡았다 — 롤은 두지 않는다(아래 (나) ①) |
+| `block/Block.java` | `:32` | **`@Table(schema = "social", name = "blocks")` 의 `schema` 를 뺀다** — 2026-09-26 소유자 결정으로 `platform` 이 스키마 셋을 `public` 하나로 합쳤다(아래 (나) ⑫). 테이블은 `public.blocks` 이고 컬럼은 그대로다. **안 빼면 `Long` 으로 고쳐도 "relation social.blocks does not exist" 로 똑같이 깨진다.** 마이그레이션 원본도 `social/V4__social_blocks.sql` 이 아니라 **`db/migration/V1__schema.sql` 하나**가 됐다(위 문단의 경로는 낡았다) |
+| `block/BlockRepository.java` | `:27` `:42` `:59` | 세 메서드의 파라미터·반환 타입 — `isBlocked(String, String)` · `findBlocksAmong(String, Collection<String>)` · **`List<String> findBlockedUserIds(String)`**. JPQL 본문은 필드 이름만 쓰므로 그대로다 |
+| `rule/lol/LolCandidateRule.java` · `rule/pubg/PubgCandidateRule.java` · `rule/valorant/ValorantCandidateRule.java` | `:54` · `:41` · `:52` | 셋 다 `Set.copyOf(blockRepository.findBlockedUserIds(command.getUserId()))` 다. `command.getUserId()` 는 `String` 이고 결과를 `Set<String>` 으로 받는다 — **여기가 변환 지점이다** |
+| `rule/ScriptSupport.java` | `:80` `blockedWith(List<String> memberIds, Set<String> blockedUserIds)` | `memberIds` 는 파티 HASH 의 `member:` 필드에서 잘라 낸 **문자열**이다(`memberIds()` — `:67`~`:77`). 차단 목록만 `Long` 으로 올리면 `contains` 가 **영원히 false** 다 — **컴파일도 테스트도 통과한 채 차단이 조용히 안 걸린다** |
+| `rule/{lol,pubg,valorant}/{Tiered,Untiered}Assigner` | 각 `:84` ~ `:95` | `blockedWith(memberIds, blockedUserIds)` 호출 **6곳**이 위 타입을 따라간다 |
+| `backend/src/test/resources/schema.sql` | `:12` `:13` | `blocker_id varchar(255)` · `blocked_id varchar(255)` → **`bigint`.** 테스트 H2 가 운영과 다른 타입이면 **이 변경이 깨져도 테스트가 못 잡는다** |
+
+- **어느 쪽으로 맞출지는 정하지 않았다** — ① 엔티티만 `Long` 으로 바꾸고 조회 결과를 부르는 자리에서 문자열로 되돌리는 길
+  ② `userId` 를 다루는 자리까지 `Long` 으로 올리는 길. **고르는 것은 코드를 만질 때다.**
+- 곁딸린 것 — `isBlocked` · `findBlocksAmong` 은 **아직 아무도 부르지 않는다**(`grep` 0건). §0-1 ② 의 "확정 직전 최종 검증이 없다"가 그것이다.
+- **§0-1 ② 의 "선필터가 LoL 에만 있다"는 낡았다** — `PubgCandidateRule` · `ValorantCandidateRule` 도 같은 조회를 부른다(위 표). 그래서 타입을 바꿀 자리도 셋이다.
+
+#### (나) 문서 — docs/11 에 D-항목으로 남겨야 하는 것 열
+
+> **2026-09-26 — 남겼다.** 아래 ① ~ ⑫ 를 `docs/11_DECISION_LOG.md` 의 **D-24 ~ D-34** 로 올렸다 — ③ → D-24 · ② → D-25 · ④ → D-26 ·
+> ⑤ 앞쪽 + ⑦ → D-27 · ⑤ 뒤쪽 + ⑨ → D-28(표에 없던 P-20 보존 기간 · P-21 `game` 필수도 여기 접었다) · ⑥ → D-29 · ⑧ → D-30 · ⑩ → D-31 ·
+> (표에 없던 P-19 "방에 다른 사람이 있으면 글을 못 고친다") → D-32 · ⑪ → D-33 · ① + ⑫ → D-34. 개정된 옛 항목(#15 · #16 · #17 · D-1 · D-3 · D-4 · D-9 · D-11 ·
+> D-14 · D-16 · D-19 ~ D-23)의 머리에 "낡음" 표시를 달고 파일 머리의 "낡은 항목 주의"에 한 덩어리로 더했다. **(가)의 코드는 아직이다.** 아래 표는 그날의 기록으로 둔다.
+
+**안 하면: 결정 로그가 시스템의 원본인데 거기 없는 결정이 네 서비스의 코드에 들어가 있다.** 다음 사람이 #15 · #16 · #17 · D-1 · D-4 · **D-20** 을
+그대로 읽고 지금 코드가 규칙을 어겼다고 판단한다(**D-20 의 ③ 은 이미 낡았다** — 아래 ⑩). **(가)를 고쳐야 하는 근거도 로그에 없다.**
+
+전부 **소유자가 직접 정했고** 결정 로그에 항목이 없다. **무엇을 남겨야 하는지와 무엇을 개정하는지만** 적는다 — 문안은 그 파일에서 쓴다.
+
+| # | 무엇 | 언제 | 개정하는 것 | `platform` 쪽 출처 |
+|---|---|---|---|---|
+| ① | **스키마별 DB 롤을 두지 않는다** — 앱 하나가 롤 하나로 붙는다. `qm_matching` 롤도 `GRANT` 도 없다. **스키마 분리 · 크로스 스키마 FK/JOIN 금지는 그대로다**(**← 이 대목은 2026-09-26 에 낡았다 — 아래 ⑫**) | 2026-09-22 | **#17 의 "스키마별 DB 롤" 대목**과 **D-1 의 GRANT**(`matching` 롤에 `social.blocks` SELECT) | `../platform/CLAUDE.md` §3.5 · `../platform/contracts/platform-api.md` "차단" |
+| ② | **모든 PK 를 `bigint identity` 로 하고 `userId`(사용자 번호)와 `loginId` 를 갈랐다** | 2026-09-22 | **2026-09-19 의 "사용자 id 는 로그인 아이디(문자열)"**와 **D-4** | P-11 · `../platform/CLAUDE.md` §3.5 |
+| ③ | **인증 세부** — RS256(서명은 `platform` 만 하고 옆 셋은 공개 키로 검증만 · 공개 키는 환경변수 · **JWKS 엔드포인트를 두지 않는다**) · CSRF 는 `SameSite=Lax` + `Origin` 검사(**CSRF 토큰을 쓰지 않는다**) · **access denylist 를 두지 않는다** · `token_use` 클레임 | 2026-09-21 | **#16 의 "Redis denylist, 조회 실패 시 fail-closed"** | `../platform/CLAUDE.md` §5.1 · P-2 |
+| ④ | **refresh 토큰** — access `PT15M` · refresh `P7D` · 불투명 UUID 를 Redis `qm:auth:refresh:{uuid}` 에 두고 `GETDEL` 한 번으로 rotation | 2026-09-23 | **#16 의 같은 묶음**(③ 과 함께 본다) | P-15 · `../platform/CLAUDE.md` §5.1 (라) · (마) |
+| ⑤ | **LoL 전적 동기화**(Riot API · 긁는 시점 둘 · 신선도 30분 · 비동기이고 실패해도 본 요청은 성공)와 **게시판 목록의 커서 페이지 나누기** — **둘은 별개의 결정이다.** 앞의 "시점 둘 · 신선도 30분" 과 뒤의 정렬 · 커서는 **하루 뒤에 ⑦ · ⑨ 가 각각 개정했다 — 올릴 때 같이 적는다** | 2026-09-23 | (개정이 아니라 새로 정한 것) | P-13 · P-14 |
+| ⑥ | **`platform` 이 `qm:gameconfig:*` 를 읽어 `mode` · `tier` 를 검증한다** | 2026-09-24 | **#15**("gameconfig 는 `app:matching` 의 모듈이다")와 **`platform` 자기 규칙의 "`qm:gameconfig:*` 접근 — 예외가 없다"** | P-16 · `../platform/CLAUDE.md` §3.6 |
+| ⑦ | **모집 글을 쓸 때는 전적을 긁지 않는다** — 전날 정한 "긁는 시점 둘" 의 절반을 하루 뒤에 되물렸다. 그 시점만 보던 **신선도 30분**(`platform.riot.freshness`)도 같이 없어졌다. 왜 — 긁는 것이 **비동기라 그 글쓰기 응답에 반영되지도 않으면서** 대가가 **Riot 호출 21번**이다(개발용 키의 한도가 2분에 100회다) | 2026-09-24 | **⑤ 의 앞쪽**(**P-13 의 개정이다 — `platform` 이 새 번호를 두지 않았다**) | P-13 · `../platform/START_HERE.md` §1 · `../platform/contracts/platform-api.md` "전적을 긁는 것" |
+| ⑧ | **"전적 갱신" 요청을 두었다** — `POST /api/v1/users/me/game-accounts/{game}/refresh`. 사용자가 원할 때 부르는 **동기** 요청이고 **쿨타임 2분** · **상한 30초**다. ⑦ 로 전적이 낡은 채 남게 된 것을 사용자가 직접 갱신하는 길이라 **긁는 시점이 다시 둘이 됐다**(게임 계정을 연결 · 수정할 때 · 이 요청) | 2026-09-24 | (개정이 아니라 새로 정한 것 — **⑦ 을 뒤집지 않는다**) | P-17 · `../platform/START_HERE.md` §1 · `../platform/contracts/platform-api.md` "전적 갱신" |
+| ⑨ | **게시판 목록의 정렬과 커서를 `id` 하나로 했다** — 정렬은 **`id` 내림차순 하나(= 최신순)**, 커서는 **글 번호 하나**다. 왜 — 옛 정렬 `(모집 중인가, created_at DESC, id)` 의 "모집 중인가" 가 **변하고 그것도 목록 조회 자신이 바꿔서**(방이 사라진 글을 그 자리에서 만료로 옮겨 적는다) **1쪽에 나간 글이 2쪽에 또 나왔다.** `id` 가 identity 라 **순증가 · 유일 · 불변**이어서 혼자 족하다 — `created_at` 도 정렬에서 뺐다(컬럼과 응답의 `createdAt` 은 그대로다) | 2026-09-24 | **⑤ 의 뒤쪽**(**P-14 의 개정이다 — `platform` 이 새 번호를 두지 않았다**) | P-14 · `../platform/START_HERE.md` §1 · `../platform/contracts/platform-api.md` "목록의 정렬" |
+| ⑩ **← 넷 가운데 이것만 이미 있는 D-항목을 고친다** | **글 한 줄에서 `filledPositions` 를 없앴다** — "글의 찾는 포지션 가운데 이미 방 안에 있는 포지션의 강조" 다. 왜 — **주 포지션은 "내가 주로 하는 것" 이지 "이 방에서 할 것" 이 아니다**(주 포지션이 정글인 사람이 미드를 구하는 방에 미드로 들어와도 미드가 비었다고 표시했다 — 틀린 정보다). **글의 `wantedPositions` 와 카드의 주 포지션은 그대로다** | 2026-09-24 | **D-20 의 ③** — **D-20 의 ①(인원) · ②(방 안 사람들의 카드) · ④(F5 없이 갱신)는 그대로 유효하다** | P-18 · `../platform/START_HERE.md` §1 · `../platform/contracts/platform-api.md` "글 한 줄" |
+| ⑪ | **`room` 앱을 `platform` 에 합쳤다** — 방 안의 일(입장 · 나가기 · 강퇴 · 확정 · 접속 확인 · 시그널 · `ROOM_*` 알림)이 `platform` 의 `room` 패키지가 됐다. 포트 8083 · 입장권 · `room_seen_at` · 방 만들기 요청 · `POST …/posts/{id}/confirm` 이 없어졌고, **글 쓰기가 방을 같이 만들고 방장 확정은 `POST /api/v1/rooms/{roomId}/confirm` 한 요청이 Redis 와 DB 를 같이 쓴다.** 왜 — 목록을 그릴 때마다 두 앱이 서로의 상태를 읽어야 했고(chatty) 확정 · 방 키 · 입장권을 같이 바꿔야 했다(design-time coupling). **이 폴더와의 키 약속(D-19)은 그대로다** — 활성 요청 키는 이 앱이 쓰고 `platform` 은 `EXISTS` 만, 입장 표시 키는 `platform` 이 쓰고 이 앱은 `EXISTS` 만. `notification` · `matching` 은 그대로 따로 둔다 | 2026-09-25 | **D-16 · D-19 ~ D-23 이 전부 "두 앱" 을 전제로 쓰였다** — `app:room` 이라는 배포 단위가 없어졌으므로 그 항목들의 "room 이 … platform 이 …" 를 "platform 의 room 패키지가 … party 패키지가 …" 로 개정한다. D-9 의 `app:platform` 서술도 다시 맞는다 | P-22 · `../platform/CLAUDE.md` §3.3 · `../platform/contracts/platform-api.md` "방" |
+| ⑫ **← 이 폴더에 직접 걸린다(위 (가))** | **DB 스키마 셋(`account` · `social` · `party`)을 `public` 하나로 합치고 크로스 스키마 JOIN · FK 금지를 풀었다.** 사용자 번호를 담는 칸 전부에 `users(id)` FK(`ON DELETE CASCADE`)가 걸렸다. 마이그레이션은 `V1__schema.sql` 하나로 다시 썼다(운영 DB 가 없고 로컬 · 테스트 DB 는 `--rm` 컨테이너라 매번 빈 채로 뜬다). 왜 — DB 를 보는 앱이 사실상 `platform` 하나인데(이 앱이 `blocks` 를 읽는 것 하나뿐) 스키마를 나누고 JOIN · FK 를 금지한 탓에 닉네임을 따로 읽어 자바에서 정렬하고 사용자 존재를 앱이 확인하는 등 코드가 쓸데없이 복잡했다. **이 앱이 읽는 테이블이 `blocks` 하나라는 약속은 그대로다** — 이름이 `social.blocks` 에서 `public.blocks` 로 바뀌었을 뿐이다 | 2026-09-26 | **#17 의 schema-per-service 전체**와 **D-1 의 GRANT** · **위 ① 의 "스키마 분리 · 크로스 스키마 FK/JOIN 금지는 그대로다"**(스키마가 하나가 되며 롤 이야기는 물음째 없어졌다) · `docs/WHY_POSTGRESQL.md` §3 의 스키마 배치 | P-23 · `../platform/CLAUDE.md` §3.5 |
+
+- **세는 법이 문서마다 다르다** — `../platform/START_HERE.md` 끝은 같은 묶음을 **여덟**으로 세면서 ③(인증 세부)을 2026-09-21 의 원조로 빼 두고
+  P-13 · P-14 를 둘로 세며, 같은 날 늦게 나온 ⑦ · ⑨ 를 **그 두 항목 안에 접어 넣는다**(`platform` 이 새 번호를 두지 않았기 때문이다).
+  **남길 것은 어느 쪽으로 세든 아홉 덩어리다** — 위 표의 열 줄에서 ⑤ 를 둘로 풀고 ⑦ · ⑨ 를 그 둘에 접으면 아홉이다.
+- **⑦ · ⑧ · ⑨ 는 `platform` 안에서 끝난다 — 이 폴더가 고칠 코드가 없다.** 전적을 긁는 시점도, 사용자가 누르는 갱신 요청도, 목록의 정렬 · 커서와 그 인덱스(`platform` 의 마이그레이션 `party/V7__board_order_index.sql`)도 그 앱 안의 일이다. **여기서 할 일은 docs/11 에 남기는 것 하나다.** ⑩ 도 코드는 그 앱 쪽이다 — 다만 고칠 D-항목이 이 폴더에 있다(바로 아래).
+- **⑩ 은 오늘 더한 넷 가운데 무게가 다르다 — 이미 있는 D-항목을 고치는 일이다.** ⑦ · ⑧ · ⑨ 가 개정하는 것은 `platform` 자기 계약의 P-항목(P-13 · P-14)이라 docs/11 에는 **아직 그 항목이 없다** — 새로 올리기만 하면 된다.
+  ⑩ 은 **`docs/11_DECISION_LOG.md` 의 D-20 ③ 을 걷어내는 것**이고 **①②④ 는 그대로 유효하다** — 새 D-항목을 쓰면서 D-20 쪽에도 낡은 대목임을 그 파일의 방식대로 표시해야 한다. **문안은 그 파일에서 쓴다.**
+- **⑥은 이 폴더에 직접 걸린다 — 나머지 아홉과 다르다(코드 · 키 약속으로 걸리는 것은 ⑥ 하나다).**
+  - gameconfig 값의 **원본은 이 폴더의 `seed/gameconfig.redis`** 이고, 그 머리가 **"이 파일이 MVP의 사실상 원본(source of truth)이다 ·
+    앱은 부팅 시 설정을 밀어넣지 않고 Redis에서 읽기만 한다"**고 적었다(확인함). **쓰는 앱이 없다**는 것이 `platform` 이 읽어도 된다는 근거다.
+  - `platform` 이 읽는 키는 **둘뿐**이다 — `qm:gameconfig:{GAME}:{MODE}`(HASH 의 **`EXISTS` 만**. 내용은 안 읽는다) ·
+    `qm:gameconfig:{GAME}:tier`(ZSET 의 **`ZSCORE`**). **`:tier-range:` 는 읽지 않는다.**
+  - **그래서 이 폴더가 앞으로 조심할 것이 생겼다.** `redisKeys/SharedKeys.GAMECONFIG_PREFIX`(`:138`)나 seed 의 키 모양을 바꾸면
+    **`platform` 의 `mode` · `tier` 검증이 조용히 꺼진다** — 그쪽이 **fail-open** 이라 에러도 안 난다. 바꿀 때는 `platform` 과 같이 바꾼다.
+  - **seed 에 모드를 더하거나 지우는 것도 `platform` 에 영향이 있다** — 없는 모드로는 모집 글 쓰기가 **400** 이고, 지운 모드는 되던 글쓰기가 안 된다.
+  - **`platform` 은 이 앱을 HTTP 로 부르지 않는다** — 읽기만 하고 seed 를 심지도 않는다. 이 폴더가 해 줄 일은 없다.
+
+#### (다) 미정 — 방향만 정해진 것 하나. **D-항목으로 못 쓴다**
+
+**"자동 매칭이 조건 맞는 게시판 방에 먼저 합류하는 길을 둔다"** (2026-09-23 소유자 결정 — **방향만이다**).
+**안 하면(정하지 않으면): 게시판 방과 대기열 매칭이 따로 논다** — 사람이 적을 때 대기열은 영영 안 모이는데(콜드 스타트) 옆에 열린 방이 있어도 넣을 길이 없다.
+
+- "매칭 시작"을 누르면 ① **조건이 맞는 열린 게시판 방이 있으면 거기에 넣고** ② 없으면 기존 대기열 매칭으로 간다.
+  **이 앱의 대기열 · 제안 · 수락 · 확정은 그대로 살린다 — 갈아엎지 않는다.**
+- **①을 `platform` 이 맡는 쪽으로 기운다** — 방 키 · 차단 · 프로필을 이미 다 읽는 앱이 거기뿐이다
+  (이 앱이 하려면 `room` 의 Redis 와 `social.blocks` 를 알아야 해서 경계가 무너진다).
+- **정할 것** — ①의 요청이 어느 앱의 어느 경로인가 / "조건이 맞는다"를 무엇으로 보는가 / 맞는 방이 여럿이면 어느 것을 고르는가 /
+  ①에서 방에 들어간 사람의 **활성 요청 키**를 어떻게 다루는가(**D-19 의 "대기와 방은 한 번에 하나만"에 걸린다** — **§0-1 ① 과 같이 봐야 한다**) /
+  ①이 실패했을 때 ②로 넘기는 것을 누가 하는가(프런트인가 서버인가).
+- **(나) ⑥이 여기에 밑감이 된다** — `platform` 이 글의 `mode` 를 gameconfig 로 검증하게 되면서 **글의 `mode` 와 매칭 요청의 `mode` 를
+  이제 같은 이름으로 맞춰 볼 수 있다**(자유 문자열이면 판정할 수 없었다). **그래도 이 항목 자체는 미정이다.**
+- 원문은 `../platform/CLAUDE.md` §7 의 그 행이다. **정해지면 이 폴더에서 D-항목으로 남긴다.**
 
 ### 0-1. 남은 것 — 우선순위 순
 
@@ -67,6 +175,9 @@
 > 찾아야 한다** — 후보 2·3 은 그대로 열려 있다. **이 문제가 하나 더 물고 들어온다**: 확정된 사용자는 활성 요청
 > 키가 남아 있으므로 매칭(409 `ALREADY_QUEUED`)뿐 아니라 **`app:room` 입장도 그대로는 거절된다.** 자동
 > 매칭으로 확정된 파티의 방 입장(D-16 미정)을 정할 때 같이 풀어야 한다. 여전히 **미정**이다.
+
+> **2026-09-24 참조.** §0-4 (다)의 "자동 매칭이 조건 맞는 게시판 방에 먼저 합류하는 길"(2026-09-23 소유자 결정, 방향만)이
+> 이 문제와 얽힌다 — 그 길로 방에 들어간 사람의 **활성 요청 키**를 어떻게 다루는지가 거기서도 미정이다. **같이 봐라.**
 
 **건드릴 곳**: `redis/proposal/cleanup-confirmed.lua` · `service/ProposalService#confirmed()` ·
 (1번이면) 새 SQS 소비자 패키지 · (2번이면) `MatchingController` + `MatchCancelService`.
@@ -244,7 +355,8 @@ Redis 쪽 뒷정리(`cleanup-confirmed.lua`)와 `MATCH_CONFIRMED` 알림까지�
   항목 포함).
 - **그래서 §3-B 는 대부분 해소됐다.** 그중 상태 조회와 PUBG 동시성 테스트도 2026-09-17 에
   들어왔다. **지금 남은 것은 §0-1 을 봐라** — `matching.outbox` + `ProposalConfirmed.fifo`,
-  확정된 사용자를 푸는 경로, Flyway + `social.blocks`(INV-6) 다.
+  확정된 사용자를 푸는 경로, Flyway + `social.blocks`(INV-6) 다. (그 테이블은 2026-09-26 에 `public.blocks` · bigint 가 됐다 —
+  docs/11 D-25 · D-34, §0-4 (가).)
 
 ### 테스트 — 커밋 `8d7f094` 기준 24건 통과 (2026-09-15)
 

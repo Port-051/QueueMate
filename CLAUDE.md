@@ -24,25 +24,26 @@ QueueMate는 **조건 기반 팀원 자동 랜덤 매칭** 서비스다.
 - 공개 사용자 탐색, 길드, 피드, 팔로우, 좋아요, 공개 채팅방을 만들지 않는다.
   - **예외 하나 — 파티 모집 게시판은 허용된다** (docs/11 D-11, #14 개정). 모집 글을 올리면 그것이 곧
     파티방이고, 글을 누른 사용자는 그 방에 들어와(둘러보러 온 상태이지 파티원이 아니다) 음성으로 바로
-    말을 건다. **글 · 목록 · 방장 확정은 `app:platform`, 방 안의 일(입장 · 나가기 · 강퇴 · 정원 · 시그널)은
-    `app:room` 의 일이다 (docs/11 D-16). 이 저장소(매칭 엔진)에 게시판 코드를 넣지 않는다.**
+    말을 건다. **글 · 목록 · 방장 확정과 방 안의 일(입장 · 나가기 · 강퇴 · 정원 · 시그널)이 전부 `app:platform` 의
+    일이다 — 방 안의 일은 그 앱의 `room` 패키지다** (docs/11 D-33. 2026-09-19 에 D-16 이 방 안의 일을 별도 서비스
+    `app:room` 으로 뗐다가 2026-09-25 에 `app:platform` 에 합쳤다). **이 저장소(매칭 엔진)에 게시판 코드를 넣지 않는다.**
   - **한 사용자는 자동 매칭 대기와 게시판 방 중 한 번에 하나만 할 수 있다** (D-11, INV-2 의 취지와 같다).
     **키 둘로 지킨다** (docs/11 D-19 — D-11 16번의 "활성 요청 키 하나"를 개정했다). `app:matching` 은 활성 요청 키
-    `qm:user:active-request:{userId}`(HASH)를, `app:room` 은 **입장 표시 키 `qm:user:active-room:{userId}`**
+    `qm:user:active-request:{userId}`(HASH)를, `app:platform`(의 `room` 패키지 — 2026-09-25 까지는 `app:room` 이었다, D-33)은 **입장 표시 키 `qm:user:active-room:{userId}`**
     (STRING, 값은 `roomId`)를 쓴다. **각자 자기 키만 쓰고 지우고, 상대 키는 `EXISTS` 로 있는지만 본다**(값을
     읽지 않고, 쓰지도 지우지도 `EXPIRE` 를 걸지도 않는다).
-    - 매칭 대기 중이면 방에 못 들어간다 — `app:room` 의 입장 Lua 가 활성 요청 키를 보고 거절한다.
+    - 매칭 대기 중이면 방에 못 들어간다 — `app:platform` 의 입장 Lua(그리고 방을 같이 만드는 **글 쓰기**의 Lua — D-33)가 활성 요청 키를 보고 거절한다.
     - 방에 있으면 매칭을 못 돌린다 — `redis/shared/claim-request.lua` 가 `KEYS[2]` 로 입장 표시 키를 받아
       있으면 `-1` 을 돌려주고, `MatchRequestService#join()` 이 `JoinResult.Status.IN_ROOM` 으로,
       `MatchingController` 가 **409 `IN_ROOM`** 으로 바꾼다(`ALREADY_QUEUED` 와 구분된다).
-    - **활성 요청 키를 쓰는 앱은 `app:matching` 하나다.** `app:room` 도 `app:platform` 도 쓰지 않는다. 그래서
+    - **활성 요청 키를 쓰는 앱은 `app:matching` 하나다.** `app:platform`(옛 `app:room` 을 합친 것 — D-33)은 쓰지 않는다. 그래서
       방에 있는 사용자는 활성 요청이 없고, 상태 조회는 `IDLE`, 취소는 `NOT_FOUND` 로 고치지 않아도 옳게 답한다.
       **이 저장소가 입장 표시 키에 쓰거나 지우거나 값을 읽는 코드를 넣지 않는다** — 보는 자리는
       `claim-request.lua` 하나다.
-    - 입장 표시 키 접두사의 **원본은 `room` 의 `redisKeys/RoomKeys.java` `ACTIVE_ROOM_PREFIX`** 이고
+    - 입장 표시 키 접두사의 **원본은 `../platform` 의 `room/redisKeys/RoomKeys.java` `ACTIVE_ROOM_PREFIX`**(2026-09-25 까지는 `../room` 의 같은 이름 파일이었다 — D-33)이고
       `redisKeys/SharedKeys.java` `ACTIVE_ROOM_PREFIX` 가 따라 적는다. 혼자 바꾸거나 오타를 내면 컴파일도
       테스트도 통과한 채로 방에 있는 사람의 매칭 요청을 받게 된다. 약속은 이름뿐이다 — 자료형 · 값 · 수명은
-      `app:room` 이 혼자 정한다(수명은 **미정**).
+      `app:platform` 이 혼자 정한다(D-21 로 방 키와 같은 수명 규칙이다 — `../platform/contracts/platform-api.md` "방" 참조).
     - 확정된 사용자는 활성 요청이 `status=PARTY` 로 남으므로 **그대로는 방 입장도 거절된다.** 자동 매칭으로
       확정된 파티의 방 입장과 같이 풀어야 하고 **미정**이다 (D-19 "아직 미정").
   - 게시판이 보여 주는 것은 **사람 목록이 아니라 모집 글(방) 목록**이다. 사람을 검색하고 둘러보는
@@ -123,8 +124,11 @@ PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했�
   `qm:party:` · `qm:party:open:` · `:needs` · `qm:party:needs-roles:` · `qm:proposal:accepts:` ·
   `qm:proposal:pending` · `qm:user:active-request:` · `qm:user:active-room:` · `qm:pubsub:push:` ·
   `qm:gameconfig:` · `:tier` · `:tier-range:` · `qm:lock:pool:`. **이 가운데 `qm:user:active-room:` 만 이 앱이
-  정하는 값이 아니다** — `app:room` 의 입장 표시 키이고 원본은 `room` 의 `RoomKeys.ACTIVE_ROOM_PREFIX` 다
-  (docs/11 D-19. 이 앱은 `EXISTS` 로 보기만 한다). 같은 접두사를 여러 클래스가 각자 적고 있으면
+  정하는 값이 아니다** — `app:platform` 의 입장 표시 키이고 원본은 `../platform` 의 `room/redisKeys/RoomKeys.ACTIVE_ROOM_PREFIX` 다
+  (docs/11 D-19 · D-33 — 2026-09-25 까지는 `app:room` 의 것이었다. 이 앱은 `EXISTS` 로 보기만 한다).
+  **`qm:gameconfig:` 는 이 앱이 정하지만 `app:platform` 도 읽는다**(docs/11 D-29, 2026-09-24 — `qm:gameconfig:{GAME}:{MODE}` 의
+  `EXISTS` 와 `:tier` 의 `ZSCORE` 로 모집 글의 `mode` · 게임 계정의 `tier` 를 검증한다. 쓰지 않고, 못 읽으면 통과시킨다).
+  **그래서 이 접두사나 `seed/gameconfig.redis` 의 키 모양을 바꾸면 `app:platform` 의 검증이 조용히 꺼진다 — 같이 바꾼다.** 같은 접두사를 여러 클래스가 각자 적고 있으면
   **한쪽만 고쳐도 컴파일은 통과하고**, 그때부터 서로 다른 키를 만들어 아무도 못 찾는 데이터가
   조용히 쌓인다. 게임별 `Lol/Pubg/ValorantPartyKeys`는 없어지지 않았다 — 조각만 `SharedKeys`에
   두고 **게임 이름과 조건을 엮어 needs 색인을 조립하는 일은 그쪽 몫**이다.
@@ -136,11 +140,17 @@ PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했�
   - PostgreSQL은 **확정된 것**만 안다. 시도했다 실패한 요청은 DB를 치지 않는다.
   - DB 의존성은 **차단 조회 하나 때문에만** 있다 (JPA + H2/PostgreSQL 드라이버).
     Flyway는 아직 없고 스키마도 없다. 매칭 상태를 DB로 옮기는 용도로 쓰지 마라.
-- `app:matching`이 DB를 치는 유일한 지점은 INV-6 검증의 `social.blocks` 동기 SELECT
-  하나다 (아직 미구현). 스키마는 앱별로 나누고 크로스 스키마 JOIN을 금지하되,
-  **이 테이블 하나만 예외로 `matching` 롤에 SELECT 권한을 준다** (docs/11 D-1).
-  뷰(`shared_read.blocked_pairs`)를 두는 원안은 폐기했다 — 층을 하나 더 만드는 값보다
-  단순함이 크다고 판단했다. 예외는 여기 하나뿐이며 늘리지 않는다.
+- `app:matching`이 DB를 치는 유일한 지점은 INV-6 검증의 **`blocks`** 동기 SELECT
+  하나다 (아직 미구현). **테이블은 `public.blocks` 이고 `blocker_id` · `blocked_id` 는 bigint(사용자 번호)다.**
+  **이 앱이 읽는 테이블은 이것 하나이고 늘리지 않는다** — 권한이 아니라 약속으로 지킨다 (docs/11 D-1 · D-34).
+  - (옛 서술 — 낡았다) "스키마는 앱별로 나누고 크로스 스키마 JOIN을 금지하되, 이 테이블 하나만 예외로 `matching`
+    롤에 SELECT 권한을 준다(`social.blocks`)". **2026-09-22 에 스키마별 DB 롤을 두지 않기로 했고, 2026-09-26 에
+    `app:platform` 이 스키마를 `public` 하나로 합치고 JOIN · FK 를 허용했다** (docs/11 D-34 가 #17 · D-1 을 개정).
+    **두 칸이 `varchar` 에서 bigint 가 된 것은 2026-09-22** (docs/11 D-25 가 D-4 를 개정).
+  - **그래서 `block/Block.java` 를 고쳐야 한다 — 아직 안 고쳤다**(`HANDOFF.md` §0-4 (가)): `@Table(schema = "social", …)` 의
+    `schema` 를 빼고 두 칸을 `Long` 으로. 그 전까지는 운영 DB 에 붙으면 차단 조회가 깨진다.
+  - 뷰(`shared_read.blocked_pairs`)를 두는 원안은 폐기했다 — 층을 하나 더 만드는 값보다
+    단순함이 크다고 판단했다.
 - **Redis 장애 시 fail-closed 한다.** 중복 매칭을 감수하는 fallback을 만들지 마라 (INV-10).
 - Kafka/RabbitMQ 추가 금지. 앱 간 도메인 이벤트는 outbox → **SQS FIFO**다.
   `app:matching`은 `ProposalConfirmed.fifo` 발행을 맡는다. **소비하는 큐는 없다** — `BlockChanged.fifo`는
@@ -173,12 +183,12 @@ PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했�
 
 | INV | 내용 | 어디서 지켜지나 | 상태 |
 |---|---|---|---|
-| **INV-1** | 한 사용자는 활성 실시간 매칭 요청을 1개만 가진다 | `backend/src/main/resources/redis/shared/claim-request.lua` — `EXISTS` + `HSET`을 한 원자 실행으로 묶고 마지막에 `EXPIRE 60`을 건다(선점만 하고 배정 전에 죽으면 그 사용자가 영영 막히는 것을 막는 안전장치). 호출은 `service/MatchRequestService.java#join()`. 실패 시(반환 `0`) `controller/MatchingController.java`가 `409 ALREADY_QUEUED`. 배정에 성공한 스크립트가 `PERSIST`로 그 만료를 뗀다. **같은 스크립트가 INV-1 과 별개로 "방에 있으면 매칭을 못 돌린다"(docs/11 D-11 15번 · D-19)도 지킨다** — `KEYS[2]`로 `app:room` 의 입장 표시 키 `qm:user:active-room:{userId}` 를 받아 `EXISTS` 로 보고, 있으면 아무것도 쓰지 않고 `-1` 을 돌려준다. `join()` 이 그것을 `dto/JoinResult.java` 의 `Status.IN_ROOM` 으로 바꾸고 컨트롤러가 `409 IN_ROOM` 으로 내보낸다 | **구현·테스트됨** |
-| **INV-2** | 한 사용자는 동시에 하나의 활성 proposal에만 속한다 | 수락/거절이 붙은 뒤에도 **여전히 "한 사용자는 한 파티에만"으로 근사된다.** 근사가 성립하는 이유는 **proposal이 곧 party**이기 때문이다 — `proposalId = partyId`이고 제안 상태(`status`/`expiresAt`)를 별도 레코드가 아니라 파티 HASH에 얹는다(`service/ProposalService.java` 클래스 주석). 그 한 파티를 지키는 것은 배정 스크립트 4개(`redis/lol/create-or-check-party-untiered.lua` · `create-or-check-party-tiered.lua` · `join-party.lua` · `join-party-tiered.lua`)가 전부 `qm:user:active-request:{userId}` HASH의 `partyId` 필드 **하나만** 쓰는 것이다. 그 필드를 지우는 것은 `redis/lol/leave-party.lua` 하나이고, 거절 시에는 `ProposalService#decline()`이 스크립트 뒤에 `MatchCancelService#cancel()`을 불러 거절한 본인만 큐에서 뺀다(수락해 놓고 기다리던 나머지는 남긴다). **확정되면 `redis/proposal/cleanup-confirmed.lua`가 파티원의 활성 요청을 지우지 않고 `status='PARTY'`를 찍는다** — 지우면 그 순간 새 매칭을 걸 수 있어 한 사람이 두 파티에 속하기 때문이다. 그래서 확정 뒤에도 INV-1 선점이 그대로 유지되고, 그 사용자는 그 파티 하나에 묶인 채다. 파티 HASH도 남긴다(상태 조회와 수락 재전송이 읽는다). **이 상태를 푸는 것은 파티를 닫는 `app:platform`이고 아직 없다** — 확정된 사용자는 큐에 다시 들어올 방법이 없다. 이 앱이 `PartyClosed`를 소비해 푸는 길은 닫혔고(docs/11 D-13 — 그 큐는 `app:platform`만 읽는다) 누가 어떻게 푸는지는 미정이다(`HANDOFF.md` ①, docs/11 D-19 "아직 미정" — `app:room` 이 이 키를 지우는 길은 D-19 로 없어졌다) | **부분 (파티 단위 근사)** |
+| **INV-1** | 한 사용자는 활성 실시간 매칭 요청을 1개만 가진다 | `backend/src/main/resources/redis/shared/claim-request.lua` — `EXISTS` + `HSET`을 한 원자 실행으로 묶고 마지막에 `EXPIRE 60`을 건다(선점만 하고 배정 전에 죽으면 그 사용자가 영영 막히는 것을 막는 안전장치). 호출은 `service/MatchRequestService.java#join()`. 실패 시(반환 `0`) `controller/MatchingController.java`가 `409 ALREADY_QUEUED`. 배정에 성공한 스크립트가 `PERSIST`로 그 만료를 뗀다. **같은 스크립트가 INV-1 과 별개로 "방에 있으면 매칭을 못 돌린다"(docs/11 D-11 15번 · D-19)도 지킨다** — `KEYS[2]`로 `app:platform`(옛 `app:room` — D-33)의 입장 표시 키 `qm:user:active-room:{userId}` 를 받아 `EXISTS` 로 보고, 있으면 아무것도 쓰지 않고 `-1` 을 돌려준다. `join()` 이 그것을 `dto/JoinResult.java` 의 `Status.IN_ROOM` 으로 바꾸고 컨트롤러가 `409 IN_ROOM` 으로 내보낸다 | **구현·테스트됨** |
+| **INV-2** | 한 사용자는 동시에 하나의 활성 proposal에만 속한다 | 수락/거절이 붙은 뒤에도 **여전히 "한 사용자는 한 파티에만"으로 근사된다.** 근사가 성립하는 이유는 **proposal이 곧 party**이기 때문이다 — `proposalId = partyId`이고 제안 상태(`status`/`expiresAt`)를 별도 레코드가 아니라 파티 HASH에 얹는다(`service/ProposalService.java` 클래스 주석). 그 한 파티를 지키는 것은 배정 스크립트 4개(`redis/lol/create-or-check-party-untiered.lua` · `create-or-check-party-tiered.lua` · `join-party.lua` · `join-party-tiered.lua`)가 전부 `qm:user:active-request:{userId}` HASH의 `partyId` 필드 **하나만** 쓰는 것이다. 그 필드를 지우는 것은 `redis/lol/leave-party.lua` 하나이고, 거절 시에는 `ProposalService#decline()`이 스크립트 뒤에 `MatchCancelService#cancel()`을 불러 거절한 본인만 큐에서 뺀다(수락해 놓고 기다리던 나머지는 남긴다). **확정되면 `redis/proposal/cleanup-confirmed.lua`가 파티원의 활성 요청을 지우지 않고 `status='PARTY'`를 찍는다** — 지우면 그 순간 새 매칭을 걸 수 있어 한 사람이 두 파티에 속하기 때문이다. 그래서 확정 뒤에도 INV-1 선점이 그대로 유지되고, 그 사용자는 그 파티 하나에 묶인 채다. 파티 HASH도 남긴다(상태 조회와 수락 재전송이 읽는다). **이 상태를 푸는 것은 파티를 닫는 `app:platform`이고 아직 없다** — 확정된 사용자는 큐에 다시 들어올 방법이 없다. 이 앱이 `PartyClosed`를 소비해 푸는 길은 닫혔고(docs/11 D-13 — 그 큐는 `app:platform`만 읽는다) 누가 어떻게 푸는지는 미정이다(`HANDOFF.md` ①, docs/11 D-19 "아직 미정" — `app:room`(지금은 `app:platform` 의 `room` 패키지 — D-33)이 이 키를 지우는 길은 D-19 로 없어졌다) | **부분 (파티 단위 근사)** |
 | **INV-3** | 파티 인원은 mode의 target party size를 넘지 않는다 | `redis/lol/join-party.lua` / `join-party-tiered.lua` — 참가자를 `HSET` 한 뒤 `member:` 필드를 **세어** `size >= target`이면 그 파티를 **모든 needs 색인(티어 모드는 파티의 `tierLo`~`tierHi` 칸 전부)에서 제거**한다. 인원 카운터 필드는 두지 않는다 — Lua는 롤백이 없어 페일오버 뒤 재시도가 `HINCRBY`를 두 번 더하면 실제 멤버 수와 어긋나지만, `HSET` + 세기는 몇 번 해도 같기 때문이다. **주의: 세는 자리에는 target 확인 분기가 없다.** 초과를 막는 것은 ① 후보가 needs 색인(=아직 안 찬 파티)에서만 나온다는 것과 ② 후보 선택부터 합류까지가 `redisLock/PoolLock.java`의 후보 풀 락 안에 있다는 것, 두 겹이다. 그 락을 건너뛰는 호출부를 만들면 INV-3이 깨진다 | **구현·테스트됨** |
 | **INV-4** | proposal의 모든 참가자가 accept하기 전에는 party 확정 금지 | `redis/proposal/accept-proposal.lua` — **수락자 SET `qm:proposal:accepts:{partyId}`를 `SCARD`로 세어 파티 HASH의 `target`과 비교하고, `count >= target`일 때만 `HSET status 'CONFIRMED'`** 한 뒤 `CONFIRMED`를 돌려준다. 세기와 확정이 한 스크립트 안이라 마지막 두 명이 동시에 눌러도 둘 다 "내가 마지막"이 될 수 없다. `target`을 못 읽으면 확정하지 않고 수락만 기록한다(fail-closed). 쓰기가 `SADD`/`HSET`뿐이고 `SADD` 반환값으로 early return 하지 않아 **재시도해도 답이 같다**(카운터 대신 집합을 쓰는 이유 — 중간에 죽어도 다음 호출이 다시 세어 확정한다). `decline-proposal.lua`가 `DEL acceptsKey`까지 하는 것도 INV-4를 위해서다 — 옛 수락을 남기면 다시 찬 파티가 한 명만 눌러도 `SCARD`가 `target`에 닿는다. 제안이 열리는 자리는 `rule/lol/LolUntieredAssigner.java#joinParty()` / `rule/lol/LolTieredAssigner.java#joinParty()`의 `JOINED_AND_FULL`(Lua 반환 **`2`**) 분기이고, 거기서 `MATCH_PROPOSAL_CREATED` 알림을 파티 전원에게 발행한다. `status='PENDING'` + `expiresAt`을 쓰는 것은 `join-party.lua` / `join-party-tiered.lua`의 `HSETNX`다. 확정 뒤에는 `ProposalService#accept()`가 `redis/proposal/cleanup-confirmed.lua`를 불러 파티원의 활성 요청에 `status='PARTY'`를 찍고(INV-2 참고) 수락자 SET에 TTL(`queuemate.proposal.confirmed-retention-seconds`, 기본 60초)을 건 뒤, 그 스크립트가 돌려준 파티원 전원에게 `MATCH_CONFIRMED`를 발행한다. 그 스크립트도 `status == 'CONFIRMED'`일 때만 도는 멱등 연산이다. **아직 없는 것**: `matching.outbox` 기록과 `ProposalConfirmed.fifo` 발행 — 그래서 파티가 DB에 만들어지지 않는다. 확정된 파티를 푸는 자리도 없다 — `PartyClosed` 소비는 이 앱의 일이 아니고(docs/11 D-13) 푸는 주체는 미정이다 | **구현·테스트됨 (outbox 발행은 없음)** |
 | **INV-5** | expired/declined/cancelled proposal은 다시 confirm될 수 없다 | 네 갈래가 **전부 막혀 있다.** ① **declined — 막힘.** `redis/proposal/decline-proposal.lua`는 `status`를 `'DECLINED'`로 **바꾸지 않고 `HDEL status, expiresAt` + `DEL acceptsKey`로 지운다.** 남겨 두면 그 파티가 다시 찼을 때 `join-party*.lua`의 `HSETNX status 'PENDING'`이 0을 돌려주어 아무도 확정시킬 수 없는 **좀비 파티**가 되기 때문이다(그 파일 머리말). 그래서 거절된 제안에 들어온 수락은 `accept-proposal.lua` 1번에서 `NOT_FOUND`로 걸린다 — `status == 'DECLINED'` 분기는 현재 **도달하지 않는 방어 코드**다. ② **confirmed — 되돌릴 수 없음.** 두 스크립트 모두 쓰기 전에 `HGET status`를 먼저 보고, `CONFIRMED`면 수락은 **`ALREADY_RESPONDED`**(확정 알림이 두 번 나가지 않게 `CONFIRMED`와 값을 갈라 놓았다. 컨트롤러는 이것도 204다), 거절은 `CONFIRMED`(=깨지 못함, 409)를 돌려준다. 페일오버 재실행 대비도 있다 — `join-party*.lua`가 `HSET`이 아니라 `HSETNX`로 `PENDING`을 써서 확정된 제안이 `PENDING`으로 되돌아가지 않는다. ③ **expired — 막힘.** `expiresAt`(= now + `queuemate.proposal.ttl-seconds`, 기본 20초)을 읽는 주체가 생겼다. 정원이 찰 때 합류 스크립트가 `HSETNX status 'PENDING'` **성공 분기 안에서** `qm:proposal:pending` ZSET에 `ZADD`(member = partyId, score = `expiresAt`)까지 하고, `service/ProposalSweeper.java`가 `queuemate.sweep.interval-ms`(기본 1초)마다 시한이 지난 것을 한 회차 100건씩 꺼내 `service/ProposalExpiryService.java`에 넘긴다. `redis/proposal/expiry-proposal.lua`는 `status == 'PENDING'`일 때만 `HDEL status, expiresAt` + `DEL acceptsKey` + `ZREM`을 하므로 **그사이 확정된 제안을 만료가 뒤집지 못한다**(PENDING이 아니면 pending 목록에서만 빼고 빈 목록을 돌려준다). 정책은 **수락하지 않은 사람만 큐에서 빼는 것**이다 — 수락한 사람은 파티에 남아 다시 기다리고, 옛 수락 기록이 지워지므로 빈자리가 채워져 제안이 새로 열리면 다시 눌러야 한다. **그 창도 닫혔다**: `accept-proposal.lua`가 `ARGV[3] = now`로 현재 시각을 받아 `expiresAt <= now`면 수락을 기록하지 않고 **`NOT_FOUND`**를 돌려준다. 그래서 시한이 지나고 스위퍼가 그 파티를 꺼내기 전(주기만큼)에 도착한 수락도 확정되지 않는다. `NOT_FOUND`인 이유는 클라이언트가 갈 곳이 스위퍼가 이미 걷어간 뒤와 같아서다(대기 화면 복귀) — 상태 값을 하나 더 만들면 같은 상황을 두 갈래로 다뤄야 한다. **흔적을 지우는 것은 여전히 스위퍼 몫이다** — 여기서 지우면 이 스크립트가 수락 집계 말고 다른 일까지 하게 되고 만료 알림도 못 나간다. ④ **cancelled — 막힘.** `redis/{game}/leave-party.lua`가 `member:` 필드를 지우기 **전에** `HDEL status, expiresAt` + `DEL qm:proposal:accepts:{partyId}` + `ZREM qm:proposal:pending`을 한다(커밋 `3d3efaf`). 그래서 `PENDING` 제안 도중 한 명이 취소하면 제안 자체가 깨지고, 취소자의 옛 수락이 남아 새로 합류한 사람의 수락으로 `SCARD`가 `target`에 닿는 일이 없다(거절 경로는 `decline-proposal.lua`가 먼저 지우고 그 뒤에 취소한다). 응답 갈래는 `domain/ProposalResult.java` 한 enum이 맡는다(`AcceptResult`/`DeclineResult`는 없어졌다). 쓰는 코드가 없던 `domain/ProposalStatus.java` / `domain/AcceptanceStatus.java`는 **삭제됐다** — 상태는 Redis의 문자열이다 | **구현·테스트됨** |
-| **INV-6** | block 관계 사용자는 같은 proposal/party에 들어갈 수 없다 | **미구현.** 두 겹으로 설계했는데 아랫단만 있다. ① **선필터(코드 있음)** — `rule/lol/LolCandidateRule.java#canJoin()`이 락을 잡기 전에 `block/BlockRepository.java#findBlockedUserIds()`를 실제로 부르고, Lua가 돌려준 후보 파티 멤버 목록을 `rule/ScriptSupport.java#blockedWith()`로 거른다(상한 `MAX_CANDIDATE_SCAN = 20`, 전부 차단이면 새 파티를 만든다). Redis 선필터(`qm:block:{userId}`)가 아니라 **DB 조회**다 (docs/11 D-2. 그 선필터와 `BlockChanged.fifo`는 D-12로 폐기됐다). ② **확정 직전 최종 검증(없음)** — `social.blocks` 동기 SELECT (docs/11 D-1). 확정 단계가 없으므로 이것도 없다. **그리고 ①은 스키마가 없어 실제로는 실패한다** — Flyway가 없고 `application.yaml`이 `ddl-auto: none`이라 기본 실행(H2)에 `social.blocks`가 없다. 배정은 `@Async` 안이라 요청은 201로 나가고 배정만 조용히 실패한다. 테스트만 `ConcurrencyTestSupport`의 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql`로 테이블을 만들어 통과한다. **차단 검증 없이 배포하지 않는다** (docs/11 #30) | **미구현 (선필터 코드만, 스키마 없음)** |
+| **INV-6** | block 관계 사용자는 같은 proposal/party에 들어갈 수 없다 | **미구현.** 두 겹으로 설계했는데 아랫단만 있다. ① **선필터(코드 있음)** — `rule/lol/LolCandidateRule.java#canJoin()`이 락을 잡기 전에 `block/BlockRepository.java#findBlockedUserIds()`를 실제로 부르고, Lua가 돌려준 후보 파티 멤버 목록을 `rule/ScriptSupport.java#blockedWith()`로 거른다(상한 `MAX_CANDIDATE_SCAN = 20`, 전부 차단이면 새 파티를 만든다). Redis 선필터(`qm:block:{userId}`)가 아니라 **DB 조회**다 (docs/11 D-2. 그 선필터와 `BlockChanged.fifo`는 D-12로 폐기됐다). ② **확정 직전 최종 검증(없음)** — `blocks` 동기 SELECT (docs/11 D-1. 옛 이름 `social.blocks` — 2026-09-26 에 `public.blocks` 가 됐다, D-34). 확정 단계가 없으므로 이것도 없다. **그리고 ①은 스키마가 없어 실제로는 실패한다** — Flyway가 없고 `application.yaml`이 `ddl-auto: none`이라 기본 실행(H2)에 그 테이블이 없다(**그리고 운영 DB 에 붙어도 `Block.java` 가 옛 모양 — `schema = "social"` · `String` — 이라 깨진다**, docs/11 D-25 · D-34). 배정은 `@Async` 안이라 요청은 201로 나가고 배정만 조용히 실패한다. 테스트만 `ConcurrencyTestSupport`의 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql`로 테이블을 만들어 통과한다. **차단 검증 없이 배포하지 않는다** (docs/11 #30) | **미구현 (선필터 코드만, 스키마 없음)** |
 | **INV-7** | 동일 사용자의 PartyMember 중복 금지 | 배정 스크립트 4개가 참가자를 `member:{userId} = keyValue` **HASH 필드**로 쓴다 — 새로 만들 때는 `create-or-check-party-untiered.lua` / `create-or-check-party-tiered.lua`의 `HSET`, 합류할 때는 `join-party.lua` / `join-party-tiered.lua`의 `HSET`. 같은 userId면 필드가 하나뿐이라 구조적으로 중복이 불가능하다. 앞단에서 INV-1이 이미 두 번째 요청을 막는다 | **구현됨** |
 | **INV-8** | 게임별 hard rule 위반 파티 생성 금지 | 두 겹이다. ① 값 검증 — `validation/lol/LolConditionValidator.java`가 modeKey 존재 여부, `positionUniqueness`에 맞는 포지션 값, 그리고 `tierRule`(**`NONE` / `EXIST`**)에 맞는 티어 값까지 확인한다. `EXIST`면 `qm:gameconfig:LOL:tier-range:{modeKey}` 표를 읽어 **줄이 없는 티어와 `SOLO_ONLY` 티어를 거른다**(표가 없는 모드는 그 모드 요청이 전부 400이다 — fail-closed다). `WINDOW`/`TABLE`과 `maxTierGap`은 없앴다. 폭으로 거를지 표로 거를지를 설정에 또 적으면 설정이 데이터와 어긋날 수 있었기 때문이다 — `WINDOW`라고 적어 놓고 `maxTierGap`을 빠뜨리면 폭이 0이 되어 자기 티어하고만 매칭되는데 **에러가 안 났다**. 지금은 "표가 있으면 그 표대로"가 전부다 (`seed/gameconfig.redis`). ② 구조적 분리 — 조건이 **Redis 키 이름**에 들어가므로(`qm:party:open:LOL:{mode}:{voice}:{purpose}:needs:{keyValue}`, 티어 모드는 뒤에 `:{tier}`가 더 붙어 (포지션 x 티어) 격자가 된다. 그 접미사는 **Lua가 스스로 붙인다** — 자바는 티어 없는 needs 키만 넘긴다) 조건이 다르면 애초에 같은 색인에 없다. 포지션 중복 금지는 Lua의 `unique` 분기가 처리. **PUBG 는 중복 금지가 없다** — 핵심 조건이 플랫폼이라 같은 값이 여럿 겹쳐도 되고, 대신 스팀과 카카오가 색인 자체로 갈린다 | **세 게임 모두 구현·테스트됨** (LoL · VALORANT · PUBG 각각 동시성 테스트가 있다) |
 | INV-9 | 시간이 겹치는 활성 예약 중복 등록 금지 | **이 저장소 범위 밖.** `app:reservation`(Lambda)의 예약 REST가 검증한다 (docs/11 #24를 D-15가 개정 — 예전에는 `app:platform`이었다) | 해당 없음 |
@@ -216,7 +226,7 @@ INV-4/5를 지킨다 — 같은 수락을 두 번 보내도 답이 같은가, �
 
 | 파일 | 하는 일 | 반환 코드 |
 |---|---|---|
-| `shared/claim-request.lua` | 활성 요청 선점 (INV-1). `EXISTS` + `HSET` + `EXPIRE 60`. `KEYS[1]` 이 활성 요청 키, **`KEYS[2]` 가 `app:room` 의 입장 표시 키**다 — `KEYS[2]` 는 `EXISTS` 로 보기만 하고 쓰지도 지우지도 값을 읽지도 않는다 (docs/11 D-19) | `1` 선점 / `0` 이미 있음(409 `ALREADY_QUEUED`) / **`-1` 게시판 방에 들어가 있음**(409 `IN_ROOM`) |
+| `shared/claim-request.lua` | 활성 요청 선점 (INV-1). `EXISTS` + `HSET` + `EXPIRE 60`. `KEYS[1]` 이 활성 요청 키, **`KEYS[2]` 가 `app:platform`(옛 `app:room` — D-33)의 입장 표시 키**다 — `KEYS[2]` 는 `EXISTS` 로 보기만 하고 쓰지도 지우지도 값을 읽지도 않는다 (docs/11 D-19) | `1` 선점 / `0` 이미 있음(409 `ALREADY_QUEUED`) / **`-1` 게시판 방에 들어가 있음**(409 `IN_ROOM`) |
 | `lol/create-or-check-party-untiered.lua` | 후보 파티 찾기. 없으면 새로 만들고 들어간다 | `1` 새로 만듦 / `2` 후보 찾음(멤버 목록 반환) / `-1` 설정과 안 맞는 값 / `-2` claim 만료 |
 | `lol/create-or-check-party-tiered.lua` | 위의 (포지션 x 티어) 격자판. tier-range 표와 티어 사다리를 **Lua가 직접 읽어** 이 파티가 받아들일 범위를 정하고 `tierLo`/`tierHi`(사다리 순번, `ZRANK` 값 **그대로**라 0부터다)에 적는다 | 같음. `-1`에 "tier-range 표에 내 티어 줄이 없다 / `SOLO_ONLY`다 / 사다리에 없는 티어다"가 포함된다 |
 | `lol/join-party.lua` | 이미 찾아 둔 파티에 합류. 정원이 차면 `HSETNX status 'PENDING'` + `expiresAt`을 쓰고 **그 성공 분기 안에서** `qm:proposal:pending`에 `ZADD` 한다 | `1` 합류 / **`2` 합류했고 정원이 찼다** / `-1` / `-2` |

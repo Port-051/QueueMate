@@ -23,6 +23,18 @@
 >    (`docs/11_DECISION_LOG.md:433-445` "색인된 결정 중 이 저장소가 아직 구현하지 않은 것").
 > 3. **"왜 관계형인가"를 논증한 결정 항목은 존재하지 않는다.** 아래 §0을 반드시 읽어라.
 >    이 문서의 근거는 전부 **스키마와 문서에서 역으로 도출한 것**이다.
+>
+>    ⚠ **4. 갱신 (2026-09-26) — §3 과 결론 표 3번은 이제 이 시스템의 모양이 아니다.**
+>    `app:platform` 쪽에서 소유자가 정한 것 둘이 이 문서의 스키마 · 롤 서술을 뒤집었다.
+>    - **2026-09-22 — 스키마별 DB 롤을 두지 않는다.** 앱 하나가 DB 계정 하나로 붙고 `qm_matching` 롤도 `GRANT` 도 없다.
+>    - **2026-09-26 — `app:platform` 의 스키마 셋(`account` · `social` · `party`)을 `public` 하나로 합치고 테이블 사이의 JOIN · FK 를 허용했다.**
+>      사용자 번호를 담는 칸에 `users(id)` FK 가 걸렸고 마이그레이션은 `V1__schema.sql` 하나다(`../platform/backend/src/main/resources/db/migration/`).
+>      **이 저장소가 읽는 테이블은 `blocks` 하나 그대로이고 이름이 `social.blocks` 에서 `public.blocks` 가 됐다.**
+>    - 같은 때(2026-09-22) **사용자 id 는 `uuid` 도 로그인 아이디 문자열도 아니고 `bigint identity`(사용자 번호)가 됐다** — `blocks.blocker_id` · `blocked_id` 도 bigint 다.
+>      이 문서가 적은 `uuid` 비교 이야기(§3-1 · §5)는 그 스키마의 것이다.
+>    결정은 `docs/11_DECISION_LOG.md` **D-34**(#17 · D-1 개정)와 **D-25**(D-4 개정)다. 아래 본문은 그날의 기록으로 두고, 겹치면 D-34 · D-25 가 우선한다.
+>    그러므로 **"런타임 permission denied 가 경계를 막는다"는 근거는 지금 쓰이지 않는다** — `app:matching` 이 `blocks` 하나만 읽는다는 것은 권한이 아니라 약속으로 지킨다.
+>    결론 표의 1 · 2(불변식을 DB 가 강제 · outbox 의 단일 트랜잭션)는 그대로다 — `app:platform` 은 FK 위반으로 "있는 사용자인가"까지 DB 에 맡기게 됐다.
 
 ---
 
@@ -34,7 +46,7 @@
 |---|---|---|
 | 1 | **불변식을 앱이 아니라 DB가 강제한다** | INV-9의 exclusion constraint, INV-1의 partial unique index를 앱 코드로 옮기면 "조회 후 삽입" 사이에 race 창이 생긴다 |
 | 2 | **transactional outbox에 단일 트랜잭션이 필요하다** | `match_proposals` + `proposal_members` + `outbox`가 한 트랜잭션이어야 한다. 트랜잭션 없는 저장소로는 이 패턴 자체가 성립하지 않는다 |
-| 3 | **스키마별 롤로 경계를 런타임이 막는다** | 크로스 스키마 접근을 코드리뷰가 아니라 `permission denied`가 막는다는 설계 전체가 사라진다 |
+| 3 | **스키마별 롤로 경계를 런타임이 막는다** (**낡았다 — 2026-09-22 · 09-26 에 롤을 두지 않고 스키마를 `public` 하나로 합쳤다. docs/11 D-34**) | 크로스 스키마 접근을 코드리뷰가 아니라 `permission denied`가 막는다는 설계 전체가 사라진다 |
 
 부수적이지만 실제로 무게가 있는 것 둘:
 
@@ -277,6 +289,9 @@ COMMIT;                                       -- 셋이 함께 남거나, 셋 �
 
 ## 3. 스키마별 롤로 경계를 런타임이 막는다
 
+> **낡음 — docs/11 D-34 가 개정(2026-09-26).** 이 절의 설계(스키마 7개 + 스키마별 DB 롤 + 크로스 스키마 금지)는 이 시스템에 적용되지 않는다.
+> 롤은 두지 않고(2026-09-22), `app:platform` 의 스키마는 `public` 하나이며 JOIN · FK 가 허용된다(2026-09-26). 머리의 4번을 봐라. 아래는 그날의 기록이다.
+
 `docs/14` §3 "DB를 몇 개로 할까" — queueMate `feature/frontend:docs/14_ARCHITECTURE_RATIONALE.md:43-57`:
 
 > **후보** ① 서비스마다 DB 인스턴스(database-per-service) ② 인스턴스 1개에 스키마 분리
@@ -308,6 +323,10 @@ shared_read  blocked_pairs (view)
 > 스키마 6개로 가고, `matching` 롤에 `social.blocks`의 SELECT만 예외로 준다. §3-1 참고.
 
 ### 3-1. `social.blocks` — 유일한 승인 예외
+
+> **낡음 — docs/11 D-34 · D-25 가 개정(2026-09-26).** 테이블은 지금 **`public.blocks`** 이고 두 칸은 **bigint**(사용자 번호)다. `GRANT` · `qm_matching` 롤은 없다.
+> **남는 것** — 뷰 없이 테이블을 양방향으로 직접 읽는다 · 이 앱이 읽는 테이블은 이것 하나이고 늘리지 않는다 · `blocks` 의 모양이 바뀌면 이 저장소도 고쳐야 한다(아래 "대가로 받아들인 것").
+> `block/Block.java` 는 아직 `schema = "social"` · `String` 이라 고쳐야 한다(`HANDOFF.md` §0-4 (가)).
 
 **이 절은 이 저장소에서 원안을 바꾼 지점이다** (docs/11 D-1).
 
