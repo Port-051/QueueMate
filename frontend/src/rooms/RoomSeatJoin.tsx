@@ -40,7 +40,7 @@ export function RoomSeatJoin({ room, roles, profile, entryError, leavingRoom, on
     <div className="room-preview-title"><h3>{room.title}</h3></div>
     <dl className="room-preview-conditions">
       {hasRoles ? <div><dt>참여 포지션</dt><dd><div className="room-seat-role-picker" role="group" aria-label="참여 포지션">{roles.map(value => <button key={value} type="button" aria-pressed={value === role} disabled={!remaining.includes(value)} onClick={() => { setRole(value); setError(''); }}><FilterRoleIcon game={room.game} value={value} size={23} /><span>{keyConditionOptions(room.game).find(option => option.value === value)?.label ?? value}</span></button>)}</div></dd></div> : null}
-      <div><dt>모집 티어</dt><dd><TierRangeLabel game={room.game} value={room.desiredTierRange} /></dd></div>
+      <div><dt>모집 티어</dt><dd><TierRangeLabel game={room.game} value={room.desiredTierRange} explicitBounds /></dd></div>
       <div><dt>음성</dt><dd><RoomVoice value={room.voice} />{room.voice === 'REQUIRED' ? '사용' : '미사용'}</dd></div>
     </dl>
     {leavingRoom ? <p className="room-move-notice">참여하면 ‘{leavingRoom.title}’에서 나가요.{leavingRoom.members.length === 1 ? ' 혼자 있던 방은 닫혀요.' : leavingRoom.ownerId === profile.id ? ' 방장은 남은 멤버에게 넘어가요.' : ''}</p> : null}

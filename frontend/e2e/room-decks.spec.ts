@@ -506,6 +506,15 @@ test('티어 범위는 두 번째 선택에 바로 적용하고 한 번만 선�
   await expect(trigger).toContainText('실버~골드');
   await expect(page.locator('.room-deck')).toHaveCount(3);
   await trigger.click();
+  const silver = dialog.getByRole('button', { name: '실버', exact: true });
+  const gold = dialog.getByRole('button', { name: '골드', exact: true });
+  const silverBounds = (await silver.boundingBox())!;
+  const goldBounds = (await gold.boundingBox())!;
+  expect(goldBounds.x - silverBounds.x - silverBounds.width).toBeGreaterThan(0);
+  await expect(silver).toHaveCSS('border-top-right-radius', '9px');
+  await expect(silver).toHaveCSS('border-bottom-right-radius', '9px');
+  await expect(gold).toHaveCSS('border-top-left-radius', '9px');
+  await expect(gold).toHaveCSS('border-bottom-left-radius', '9px');
   await dialog.getByRole('button', { name: '다이아몬드', exact: true }).click();
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
@@ -532,12 +541,56 @@ test('티어 범위는 두 번째 선택에 바로 적용하고 한 번만 선�
   await expect(dialog).toHaveCount(0);
   await expect(page.locator('.room-deck')).toHaveCount(2);
   await trigger.click();
-  const all = dialog.getByRole('button', { name: '모든 티어', exact: true });
+  const all = dialog.getByRole('button', { name: '티어 범위 초기화', exact: true });
   await expect(all.locator('svg')).toBeVisible();
+  await expect(all).toHaveText('');
   await all.click();
   await expect(dialog).toHaveCount(0);
   await expect(trigger).toHaveText('모든 티어');
   await expect(page.locator('.room-deck')).toHaveCount(6);
+});
+
+test('게시판 필터는 아이콘 위 이름 아래 배치하며 긴 티어 범위에서도 한 줄을 유지한다', async ({ page }) => {
+  await login(page);
+  const filters = page.locator('.room-filters');
+  const trigger = filters.getByRole('button', { name: '모집 티어 범위', exact: true });
+  const originalWidth = (await trigger.boundingBox())!.width;
+  await trigger.click();
+  const picker = page.getByRole('dialog', { name: '모집 티어 범위', exact: true });
+  await picker.getByRole('button', { name: '다이아몬드', exact: true }).click();
+  await picker.getByRole('button', { name: '그랜드마스터', exact: true }).click();
+  await expect(trigger).toHaveText('다이아몬드~그랜드마스터');
+  expect((await trigger.boundingBox())!.width).toBe(originalWidth);
+  const layout = await filters.evaluate(element => {
+    const line = element.querySelector('.board-filter-line')!;
+    const bounds = line.getBoundingClientRect();
+    const controls = Array.from(line.children).map(control => {
+      const rect = control.getBoundingClientRect();
+      return { centerY: rect.y + rect.height / 2, right: rect.right };
+    });
+    const choices = Array.from(line.querySelectorAll('.filter-mode,.filter-role,.room-rank')).map(choice => {
+      const icon = choice.querySelector('.rank-emblem,svg,img')!.getBoundingClientRect();
+      const label = choice.querySelector(':scope > strong,:scope > span:last-child')!;
+      const rect = label.getBoundingClientRect();
+      return { stacked: icon.bottom <= rect.top, clipped: label.scrollWidth > label.clientWidth };
+    });
+    return { right: bounds.right, controls, choices };
+  });
+  expect(layout.controls).toHaveLength(5);
+  for (const control of layout.controls) {
+    expect(Math.abs(control.centerY - layout.controls[0].centerY)).toBeLessThan(1);
+    expect(control.right).toBeLessThanOrEqual(layout.right + 1);
+  }
+  for (const choice of layout.choices) {
+    expect(choice.stacked).toBe(true);
+    expect(choice.clipped).toBe(false);
+  }
+  const mic = filters.getByRole('group', { name: '마이크 필터', exact: true });
+  await mic.getByRole('button', { name: '마이크 사용', exact: true }).click();
+  await expect(mic.getByRole('button', { name: '마이크 사용', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await filters.getByRole('button', { name: '초기화', exact: true }).click();
+  await expect(trigger).toHaveText('모든 티어');
+  await expect(mic.getByRole('button', { name: '마이크 사용', exact: true })).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('우측 티어 범위를 보관하고 방 생성 시 빈자리 조건으로 이어진다', async ({ page }) => {
@@ -562,6 +615,33 @@ test('우측 티어 범위를 보관하고 방 생성 시 빈자리 조건으로
   await expect(seat).toHaveCSS('animation-name', 'none');
   await login(page); // The in-memory mock session resets on navigation; room/preferences stay in localStorage.
   await expect(seat).toContainText('실버~골드');
+});
+
+test('빈자리는 열린 티어 조건도 양끝을 표시하고 물결표와 같은 너비의 티어를 중앙에 배치한다', async ({ page }) => {
+  await seedRooms(page, [
+    room('lower', [member('lower-host')], { desiredTierRange: { minTier: 'GOLD', maxTier: null } }),
+    room('upper', [member('upper-host')], { desiredTierRange: { minTier: null, maxTier: 'GOLD' } }),
+    room('single', [member('single-host')], { desiredTierRange: { minTier: 'GOLD', maxTier: 'GOLD' } }),
+    room('long', [member('long-host')], { desiredTierRange: { minTier: 'SILVER', maxTier: 'GRANDMASTER' } }),
+    room('all', [member('all-host')]),
+  ]);
+  await login(page);
+  for (const [id, text] of [['lower', '골드~챌린저'], ['upper', '아이언~골드'], ['single', '골드'], ['long', '실버~그랜드마스터'], ['all', '아이언~챌린저']]) {
+    const label = page.getByRole('article', { name: `테스트 방 ${id} 방 정보`, exact: true }).locator('.compact-seat .tier-range-label').first();
+    await expect(label).toHaveText(text);
+    const alignment = await label.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      const ranks = Array.from(element.querySelectorAll('.room-rank')).map(rank => rank.getBoundingClientRect());
+      const middle = element.querySelector('.room-tier-separator')?.getBoundingClientRect();
+      const seat = element.closest('.compact-seat')!.getBoundingClientRect();
+      return { widthDifference: ranks.length === 2 ? Math.abs(ranks[0].width - ranks[1].width) : 0,
+        centerOffset: middle ? Math.abs(middle.x + middle.width / 2 - seat.x - seat.width / 2) : 0,
+        outsideCard: rect.left < seat.left || rect.right > seat.right };
+    });
+    expect(alignment.widthDifference).toBeLessThan(1);
+    expect(alignment.centerOffset).toBeLessThan(1);
+    expect(alignment.outsideCard).toBe(false);
+  }
 });
 
 test('티어 범위를 벗어난 방의 빈자리 카드는 입장이 비활성화된다', async ({ page }) => {

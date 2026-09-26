@@ -7,11 +7,13 @@ import { tierColor } from '../domain/rankAssets';
 import { FilterTierIcon } from './FilterSymbols';
 import '../styles/tier-range.css';
 
-export function TierRangeLabel({ game, value = ALL_TIERS, stacked = false, iconSize = stacked ? 26 : 22 }: { game: GameKey; value?: TierRange; stacked?: boolean; iconSize?: number }) {
-  const { minTier, maxTier } = normalizeTierRange(game, value);
+export function TierRangeLabel({ game, value = ALL_TIERS, stacked = false, explicitBounds = false, iconSize = stacked ? 26 : 22 }: { game: GameKey; value?: TierRange; stacked?: boolean; explicitBounds?: boolean; iconSize?: number }) {
+  const range = normalizeTierRange(game, value);
+  const minTier = range.minTier ?? (explicitBounds ? TIER_ORDER[game][0] : null);
+  const maxTier = range.maxTier ?? (explicitBounds ? TIER_ORDER[game].at(-1)! : null);
   if (stacked) {
-    const endpoint = (tier: string | null, suffix = '') => <span className="room-rank"><FilterTierIcon game={game} tier={tier} size={iconSize} /><strong style={{ color: tierColor(tier) }}>{tier ? `${TIER_LABELS[tier]}${suffix}` : '모든 티어'}</strong></span>;
-    return <span className="tier-range-label room-tier-range">
+    const endpoint = (tier: string | null, suffix = '') => <span className="room-rank"><FilterTierIcon game={game} tier={tier} size={iconSize} /><strong title={tier ? `${TIER_LABELS[tier]}${suffix}` : '모든 티어'} style={{ color: tierColor(tier) }}>{tier ? `${TIER_LABELS[tier]}${suffix}` : '모든 티어'}</strong></span>;
+    return <span className={`tier-range-label room-tier-range${minTier && maxTier && minTier !== maxTier ? ' is-range' : ''}`}>
       {minTier && maxTier && minTier !== maxTier ? <>{endpoint(minTier)}<span className="room-tier-separator">~</span>{endpoint(maxTier)}</>
         : endpoint(minTier ?? maxTier, minTier && !maxTier ? ' 이상' : maxTier && !minTier ? ' 이하' : '')}
     </span>;
@@ -78,7 +80,7 @@ export function TierRangePicker({ game, value = ALL_TIERS, onChange, label, stac
     setHover(null);
   };
 
-  return <div className="tier-range-picker">
+  return <div className={`tier-range-picker${stacked ? ' is-stacked' : ''}`}>
     <button ref={trigger} className="tier-range-trigger" type="button" aria-label={label} aria-haspopup="dialog" aria-expanded={open} aria-controls={id}
       onClick={() => { if (open) close(); else { setAnchor(null); setHover(null); setOpen(true); } }}>
       <span className="tier-range-trigger-content"><TierRangeLabel game={game} value={value} stacked={stacked} iconSize={22} /><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></span>
@@ -93,12 +95,14 @@ export function TierRangePicker({ game, value = ALL_TIERS, onChange, label, stac
           else if (!event.shiftKey && index === buttons.length - 1) { event.preventDefault(); buttons[0]?.focus(); }
         }
       }}>
-      <header><strong>{label}</strong><button type="button" onClick={() => { onChange(ALL_TIERS); close(true); }}><FilterTierIcon game={game} tier={null} size={18} /><span>모든 티어</span></button></header>
+      <header><strong>{label}</strong><button className="tier-range-reset" type="button" aria-label="티어 범위 초기화" title="티어 범위 초기화" onClick={() => { onChange(ALL_TIERS); close(true); }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button></header>
       <div className="tier-range-track" role="group" aria-label="티어 범위 선택" onMouseLeave={() => setHover(null)}>
         {order.map((tier, index) => {
           const endpoint = tier === preview.minTier || tier === preview.maxTier;
           const selected = Boolean(preview.minTier || preview.maxTier) && tierInRange(game, tier, preview);
-          return <button type="button" className={`tier-range-option${selected ? ' is-in-range' : ''}${endpoint ? ' is-endpoint' : ''}`} key={tier}
+          const start = selected && (index === 0 || !tierInRange(game, order[index - 1], preview));
+          const end = selected && (index === order.length - 1 || !tierInRange(game, order[index + 1], preview));
+          return <button type="button" className={`tier-range-option${selected ? ' is-in-range' : ''}${endpoint ? ' is-endpoint' : ''}${start ? ' is-range-start' : ''}${end ? ' is-range-end' : ''}`} key={tier}
             data-endpoint={endpoint} aria-label={TIER_LABELS[tier]} aria-pressed={selected} onClick={() => choose(tier)} onMouseEnter={() => setHover(tier)}
             onKeyDown={event => {
               if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;

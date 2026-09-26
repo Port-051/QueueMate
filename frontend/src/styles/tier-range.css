@@ -9,11 +9,15 @@
 .tier-range-popover header{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .tier-range-popover header strong{font-size:14px}
 .tier-range-popover button{font-family:inherit;cursor:pointer}
-.tier-range-popover header button{display:inline-flex;align-items:center;gap:5px;border:0;border-radius:8px;background:#35303f;color:#ddd6e8;padding:6px 9px;font-size:12px;white-space:nowrap}
-.tier-range-track{display:flex;overflow-x:auto;padding:8px 3px;margin:0 -3px;scrollbar-width:thin}
-.tier-range-option{position:relative;flex:1 0 64px;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0;border:1px solid transparent;border-radius:9px;background:none;font-size:11px;font-weight:600;letter-spacing:-.025em;white-space:nowrap}
-.tier-range-option.is-in-range{background:#a885f51a;border-radius:0;border-top-color:#8062ad55;border-bottom-color:#8062ad55}
-.tier-range-option.is-endpoint{background:#a885f533;border:1px solid #b090e8;border-radius:9px}
+.tier-range-reset{display:inline-flex;align-items:center;justify-content:center;flex:none;width:30px;height:30px;border:0;border-radius:50%;background:#35303f;color:#ddd6e8;padding:0}
+.tier-range-reset:hover{background:#494054;color:#fff}
+.tier-range-track{--tier-option-gap:3px;display:flex;gap:var(--tier-option-gap);overflow-x:auto;padding:8px 3px;margin:0 -3px;scrollbar-width:thin}
+.tier-range-option{position:relative;isolation:isolate;flex:1 0 64px;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0;border:1px solid transparent;border-radius:9px;background:none;font-size:11px;font-weight:600;letter-spacing:-.025em;white-space:nowrap}
+/* A continuous band sits behind the rounded endpoint boxes, including their inner corners. */
+.tier-range-option.is-in-range::before{content:'';position:absolute;z-index:-2;inset:-1px calc(-1px - var(--tier-option-gap)) -1px -1px;background:#a885f51a;border-block:1px solid #8062ad55;pointer-events:none}
+.tier-range-option.is-range-start::before{border-top-left-radius:9px;border-bottom-left-radius:9px}
+.tier-range-option.is-range-end::before{right:-1px;border-top-right-radius:9px;border-bottom-right-radius:9px}
+.tier-range-option.is-endpoint::after{content:'';position:absolute;z-index:-1;inset:-1px;border:1px solid #b090e8;border-radius:inherit;background:#a885f51a;pointer-events:none}
 .tier-range-option:hover{background:#a885f533}
 .tier-range-popover button:focus-visible,.tier-range-trigger:focus-visible{outline:2px solid #c9a7ff;outline-offset:2px}
 .tier-range-hint{margin:2px 0 0;font-size:12px;line-height:1.5;color:#aba1bb}

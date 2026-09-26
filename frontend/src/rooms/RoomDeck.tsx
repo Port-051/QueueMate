@@ -89,7 +89,7 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, entryError
         <span className="compact-seat-status">{closed ? '모집 마감' : '모집 중'}</span>
         <dl className="room-member-facts room-seat-facts">
           <div><dt className="sr-only">포지션</dt><dd>{hasRoles ? <RoomRoles game={room.game} roles={roles} labels /> : <span className="room-random-role">무작위</span>}</dd></div>
-          <div><dt className="sr-only">티어</dt><dd><TierRangeLabel game={room.game} value={room.desiredTierRange} stacked iconSize={22} /></dd></div>
+          <div><dt className="sr-only">티어</dt><dd><TierRangeLabel game={room.game} value={room.desiredTierRange} stacked explicitBounds iconSize={22} /></dd></div>
         </dl>
         <span className="room-seat-voice"><RoomVoice value={room.voice} /><span>{room.voice === 'REQUIRED' ? '사용' : '미사용'}</span></span>
       </button>)}
