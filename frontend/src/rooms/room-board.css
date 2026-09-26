@@ -146,7 +146,7 @@
 .room-home .room-rail-actions>.btn { border-radius:999px; }
 .room-create-icon { display:inline-flex; flex:none; transform:scaleX(-1); }
 .room-home .room-matching-form input[aria-label="한마디"] { min-height:48px; padding:12px; border-radius:12px; font-size:15px; line-height:1.5; }
-.room-home .room-matching-form input[aria-label="한마디"]::placeholder { font-size:15px; }
+.room-home .room-matching-form input[aria-label="한마디"]::placeholder { font-size:15px; color:#626270; opacity:1; }
 .room-home .intro-role-options .filter-role:disabled { opacity:.3; cursor:not-allowed; }
 .room-start-field { display:flex; flex-direction:column; gap:8px; margin-top:18px; color:#bcc1d2; font-size:var(--room-label-font-size); }
 .room-start-field input { min-width:0; width:100%; min-height:48px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--panel-2); color:var(--text); font:inherit; color-scheme:dark; }
@@ -316,7 +316,6 @@
 .room-home .room-setting-row .room-tier-range>.room-rank { gap:4px; }
 .room-home.board-home .home-profile .self-introduction .introduction-fields input[aria-label="한마디"],
 .room-home .room-start-field input { border-radius:var(--room-selector-radius); }
-.room-home .room-matching-form input[aria-label="한마디"] { background:#0c0d17; }
 .room-home .room-rail-switch { border-color:#343044; }
 
 /* Multiple choices are independent circles, not one segmented control. */
