@@ -120,7 +120,7 @@
 .room-setting-row .tier-range-label,.room-setting-row .tier-range-endpoint { min-width:0; }
 .room-setting-row .tier-range-endpoint>span:not(.rank-emblem) { overflow:hidden; text-overflow:ellipsis; }
 .room-home .room-mode-options { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); grid-template-columns:none; }
-.room-home .room-capacity-options>.filter-mode { border:0; }
+.room-home .room-capacity-options { width:fit-content; max-width:100%; }
 .room-home .room-mode-options>.filter-mode { flex-direction:column; gap:4px; height:var(--room-option-height); min-height:var(--room-option-height); padding:3px 6px; font-size:var(--room-choice-font-size); line-height:1.3; }
 .room-home .room-mode-options>.filter-mode span { font-size:inherit; white-space:nowrap; }
 .room-home .single-role-picker { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); }
