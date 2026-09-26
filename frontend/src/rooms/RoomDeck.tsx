@@ -88,7 +88,7 @@ export function RoomMemberCard({ room, member }: { room: GameRoom; member: RoomM
     <RoomMemberAvatar room={room} member={member} size={58} />
     <h3>{member.nickname}</h3>
     <RoomMemberFacts room={room} member={member} />
-    <div className="room-member-champions"><PreferredChampions game={room.game} names={member.champions.slice(0, 3)} /><RoomVoice value={member.voice} /></div>
+    <div className="room-member-champions"><PreferredChampions game={room.game} names={member.champions.slice(0, 3)} /></div>
     {member.bio ? <p>{member.bio}</p> : null}
   </article>;
 }
@@ -107,7 +107,7 @@ export function RoomDeck({ room, onOpen }: { room: GameRoom; onOpen: (room: Game
       {room.members.map(member => <div className="compact-member" key={member.id}>
         <div className="compact-member-name"><RoomMemberAvatar room={room} member={member} size={34}/><strong title={member.nickname}>{member.nickname}</strong></div>
         <RoomMemberFacts room={room} member={member} />
-        <div className="compact-member-footer"><div className="compact-member-champions" aria-label={`${member.nickname} ${room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '선호 요원' : '선호 무기'}`}><PreferredChampions game={room.game} names={member.champions.slice(0,3)}/>{room.game === 'LOL' ? Array.from({ length: Math.max(0, 3 - member.champions.length) }, (_, index) => <span className="compact-champion-empty" key={index} role="img" aria-label="챔피언 미등록" title="챔피언 미등록">—</span>) : null}</div><RoomVoice value={member.voice} /></div>
+        <div className="compact-member-champions" aria-label={`${member.nickname} ${room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '선호 요원' : '선호 무기'}`}><PreferredChampions game={room.game} names={member.champions.slice(0,3)}/>{room.game === 'LOL' ? Array.from({ length: Math.max(0, 3 - member.champions.length) }, (_, index) => <span className="compact-champion-empty" key={index} role="img" aria-label="챔피언 미등록" title="챔피언 미등록">—</span>) : null}</div>
       </div>)}
       {vacancies.map((roles, index) => <div className="compact-member compact-seat" key={`seat-${index}`}>
         {hasRoles ? <RoomRoles game={room.game} roles={roles} labels /> : <IconParty size={30} />}

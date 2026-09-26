@@ -254,7 +254,6 @@
 .room-member-card { padding-top:26px; }
 .room-member-card .room-member-facts { margin-top:4px; }
 .compact-member-champions { display:flex; flex:none; min-height:34px; align-items:center; justify-content:center; gap:7px; min-width:0; }
-.compact-member-footer { display:flex; flex:none; align-items:center; justify-content:center; gap:12px; min-height:34px; }
 .compact-member-champions .preferred-champions { flex-wrap:nowrap; gap:5px; }
 .compact-member-champions .preferred-champion-portrait { width:27px; height:27px; }
 .compact-member-champions .preferred-champion-name { font-size:12px; }

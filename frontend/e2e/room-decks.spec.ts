@@ -239,7 +239,7 @@ test('랭크 방은 두 명까지만 선택되며 선택한 모드는 다시 눌
   await expect(page.getByRole('button', { name: '둘이 랭크 방 정보', exact: true })).toContainText(/1\s*\/\s*2/);
 });
 
-test('빈자리 하나에 두 포지션을 표시하고 마이크는 상단 대신 각 카드에 표시한다', async ({ page }) => {
+test('빈자리 하나에 두 포지션을 표시하고 마이크는 빈자리 카드에만 표시한다', async ({ page }) => {
   await seedRooms(page, [room('options', [member('host', { voice: 'REQUIRED' })], {
     capacity: 2, desiredRoles: ['SUPPORT', 'TOP'], voice: 'NO_VOICE',
   })]);
@@ -252,9 +252,9 @@ test('빈자리 하나에 두 포지션을 표시하고 마이크는 상단 대�
   await expect(vacancy).toHaveCount(1);
   await expect(vacancy.locator('.room-role-icons b')).toHaveText(['탑', '서포터']);
   await expect(vacancy.getByRole('img', { name: '마이크 미사용', exact: true })).toBeVisible();
-  await expect(deck.locator('.compact-member-footer').getByRole('img', { name: '마이크 사용', exact: true })).toBeVisible();
+  await expect(deck.locator('.compact-member:not(.compact-seat) .room-mic-icon')).toHaveCount(0);
   await deck.click();
-  await expect(page.getByRole('dialog').locator('.room-member-card').getByRole('img', { name: '마이크 사용', exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog').locator('.room-member-card .room-mic-icon')).toHaveCount(0);
 });
 
 test('5인 방은 내 포지션과 나머지 네 포지션을 모두 골라야 만들 수 있다', async ({ page }) => {
