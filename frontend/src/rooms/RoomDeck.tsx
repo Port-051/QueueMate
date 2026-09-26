@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react';
 import { TierRangeLabel } from '../components/TierRangePicker';
 import { tierColor } from '../domain/rankAssets';
 import type { GameKey } from '../api/types';
@@ -104,11 +105,19 @@ export function RoomMemberCard({ room, member }: { room: GameRoom; member: RoomM
   </article>;
 }
 
-export function RoomDeck({ room, selfId, onOpen }: { room: GameRoom; selfId: string; onOpen: (room: GameRoom, button: HTMLButtonElement) => void }) {
+export function RoomDeck({ room, selfId, entering = false, onEntered, onOpen }: { room: GameRoom; selfId: string; entering?: boolean; onEntered?: () => void; onOpen: (room: GameRoom, button: HTMLButtonElement) => void }) {
+  const button = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    if (!entering) return;
+    button.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    button.current?.focus({ preventScroll: true });
+    const timer = window.setTimeout(() => onEntered?.(), 650);
+    return () => window.clearTimeout(timer);
+  }, [entering, onEntered]);
   const closed = room.status === 'CONFIRMED';
   const hasRoles = usesKeyCondition(room.game, room.modeKey);
   const vacancies = vacantRoleOptions(room);
-  return <button type="button" className={`room-deck room-compact${room.ownerId === selfId ? ' is-own' : ''}${closed ? ' is-confirmed' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`} onClick={event => onOpen(room, event.currentTarget)}>
+  return <button ref={button} type="button" className={`room-deck room-compact${room.ownerId === selfId ? ' is-own' : ''}${closed ? ' is-confirmed' : ''}${entering ? ' is-entering' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`} onClick={event => onOpen(room, event.currentTarget)}>
     <RoomBubbleTail />
     <div className="compact-room-header" aria-label="방 요약">
       <h3 title={room.title}>{room.title}</h3>

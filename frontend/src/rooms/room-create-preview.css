@@ -1,0 +1,16 @@
+.modal.room-create-preview { width:min(480px,100%); border-radius:26px; background:var(--panel); }
+.room-create-preview .modal-heading h2 { font-size:20px; font-weight:650; }
+.room-preview-title { padding:18px; border:1px solid #514363; border-radius:20px; background:#201b30; }
+.room-preview-title>span { color:var(--muted); font-size:12px; }
+.room-preview-title h3 { margin:8px 0 0; color:var(--text); font-size:18px; line-height:1.5; font-weight:600; overflow-wrap:anywhere; }
+.room-preview-conditions { display:flex; flex-direction:column; gap:18px; margin:24px 0 0; }
+.room-preview-conditions>div { display:grid; grid-template-columns:88px minmax(0,1fr); align-items:center; gap:14px; }
+.room-preview-conditions dt { color:var(--muted); font-size:13px; }
+.room-preview-conditions dd { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:8px; min-width:0; margin:0; color:var(--text); font-size:14px; }
+.room-preview-conditions .room-role-icons { justify-content:flex-end; flex-wrap:wrap; gap:10px; }
+.room-preview-conditions .room-role-icons b { font-size:13px; font-weight:500; }
+.room-preview-capacity { margin-left:4px; padding:3px 8px; border-radius:8px; background:var(--panel-3); color:var(--text-dim); font-size:12px; }
+.room-preview-error { margin:18px 0 0; color:var(--danger); font-size:13px; line-height:1.5; }
+.room-create-preview .modal-foot>.btn { min-height:44px; border-radius:12px; }
+.room-create-preview .modal-foot>.btn-primary { min-width:132px; }
+@media(max-width:480px) { .room-preview-conditions>div { grid-template-columns:76px minmax(0,1fr); gap:8px; } }

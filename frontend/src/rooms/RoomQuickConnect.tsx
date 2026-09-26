@@ -10,6 +10,7 @@ import { usesKeyCondition, visibleModes } from '../domain/gameConfig';
 import { emptyIntroduction, introductionInputError, readIntroduction, saveIntroduction, type SelfIntroduction } from '../domain/introduction';
 import { RoomVoice } from './RoomVoice';
 import { RoomCapacityPicker } from './RoomCapacityPicker';
+import { RoomCreatePreview, type RoomDraft } from './RoomCreatePreview';
 import { normalizeRoomCapacity } from './summary';
 import { needsFullLineup, roomPositionError } from './positions';
 import { roomVoice } from './voice';
@@ -42,6 +43,7 @@ export function RoomQuickConnect({ game, modeKey, type, rooms, member, onOpen, o
   const [skipped, setSkipped] = useState<string[]>([]);
   const [start, setStart] = useState(() => localDateTime(Math.ceil((Date.now() + 60_000) / 1_800_000) * 1_800_000));
   const [createError, setCreateError] = useState('');
+  const [draft, setDraft] = useState<RoomDraft | null>(null);
   const hasRoles = usesKeyCondition(game, value.queueType);
   const capacity = normalizeRoomCapacity(game, value.queueType, value.roomCapacity);
   const ownRoles = value.primaryRoles ?? (value.primaryRole !== 'ANY' ? [value.primaryRole] : []);
@@ -73,10 +75,11 @@ export function RoomQuickConnect({ game, modeKey, type, rooms, member, onOpen, o
       if (!Number.isFinite(timestamp) || timestamp <= Date.now()) { setCreateError('시작 시간을 현재보다 뒤로 선택해 주세요.'); return; }
       if (new Date(timestamp).getMinutes() % 30 !== 0) { setCreateError('시작 시간은 30분 단위로 선택해 주세요.'); return; }
     }
-    onCreate({ game, modeKey: value.queueType, type, title: value.bio.trim(), capacity,
+    setCreateError('');
+    setDraft({ input: { game, modeKey: value.queueType, type, title: value.bio.trim(), capacity,
       desiredRoles: hasRoles ? value.desiredRoles : [], desiredTierRange: value.desiredTierRange,
       voice: value.voice, availableFrom: type === 'RESERVATION' ? new Date(timestamp).toISOString() : null,
-    }, { ...profile, bio: value.bio.trim() });
+    }, profile: { ...profile, bio: value.bio.trim() } });
   };
 
   const recommendation = started ? <section className="duo-offers" aria-label="매칭 추천"><article className="duo-offer quick-connect-result" aria-live="polite" aria-atomic="true">
@@ -92,7 +95,7 @@ export function RoomQuickConnect({ game, modeKey, type, rooms, member, onOpen, o
       </>}
     </article></section> : null;
 
-  return <HomeProfileRail user={user} game={game} gameAccount={gameAccounts.find(account => account.game === game)} below={recommendation}><section className="matching-rail-panel room-matching-form" aria-label="빠른 연결">
+  return <><HomeProfileRail user={user} game={game} gameAccount={gameAccounts.find(account => account.game === game)} below={recommendation}><section className="matching-rail-panel room-matching-form" aria-label="빠른 연결">
     <form noValidate onSubmit={event => { event.preventDefault(); if (!error && (!hasRoles || ownRoles.length)) { setStarted(true); setSkipped([]); } }}>
       <fieldset className="recruitment-composer">
         {error ? <div className="banner warn" role="alert">{error}</div> : null}
@@ -107,5 +110,7 @@ export function RoomQuickConnect({ game, modeKey, type, rooms, member, onOpen, o
       </div>
     </form>
 
-  </section></HomeProfileRail>;
+  </section></HomeProfileRail>
+    {draft ? <RoomCreatePreview draft={draft} onClose={() => setDraft(null)} onConfirm={onCreate} /> : null}
+  </>;
 }

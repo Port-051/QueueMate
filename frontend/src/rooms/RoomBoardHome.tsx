@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import type { GameKey } from '../api/types';
 import type { AppShellOutletContext } from '../components/AppShell';
@@ -34,6 +34,8 @@ export function RoomBoardHome() {
   const [filters, setFilters] = useState(() => ({ ...defaults(selectedGame), ...(activeRoom?.game === selectedGame ? { modeKey: activeRoom.modeKey } : {}) }));
   const [selected, setSelected] = useState<{ id: string; origin: DOMRect; trigger: HTMLButtonElement; profile?: RoomMember; criteria?: QuickConnectCriteria } | null>(null);
   const [openOnly, setOpenOnly] = useState(false);
+  const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
+  const finishEntrance = useCallback(() => setJustCreatedId(null), []);
   const previousGame = useRef(selectedGame);
   useEffect(() => { setSelected(null); }, [filters.modeKey, type]);
   const [, tick] = useState(0);
@@ -82,12 +84,12 @@ export function RoomBoardHome() {
         {canReset ? <button className="filter-reset" type="button" aria-label="초기화" onClick={() => setFilters({ ...defaults(selectedGame), modeKey: filters.modeKey })}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg></button> : null}
       </div></div>
       <div className="room-board-count"><strong>{filtered.length}</strong>개의 방<label><input type="checkbox" checked={openOnly} onChange={event => setOpenOnly(event.target.checked)} />모집 중인 방만</label></div>
-      <div className={`room-deck-grid${selectedGame === 'LOL' && filters.modeKey === 'SOLO_DUO_RANKED' ? ' is-duo-grid' : ''}`}>{filtered.map(room => <RoomDeck room={room} selfId={member.id} key={room.id} onOpen={(room, trigger) => setSelected({ id: room.id, origin: trigger.getBoundingClientRect(), trigger })} />)}</div>
+      <div className={`room-deck-grid${selectedGame === 'LOL' && filters.modeKey === 'SOLO_DUO_RANKED' ? ' is-duo-grid' : ''}`}>{filtered.map(room => <RoomDeck room={room} selfId={member.id} key={room.id} entering={justCreatedId === room.id} onEntered={finishEntrance} onOpen={(room, trigger) => setSelected({ id: room.id, origin: trigger.getBoundingClientRect(), trigger })} />)}</div>
       {!filtered.length ? <div className="room-board-empty"><p>이 조건에 맞는 방이 없어요.</p><button className="room-secondary-button" onClick={() => setFilters(defaults(selectedGame))}>필터 초기화</button></div> : null}
     </section>
     {activeRoom ? <aside className="room-conversation-rail"><RoomConversation room={activeRoom} selfId={member.id} onSend={text => send(text)} onLeave={() => run(leave)} onKick={id => run(() => kick(activeRoom.id, id))} onConfirm={() => run(() => confirm(activeRoom.id))} onAutoConfirm={deadline => autoConfirm(activeRoom.id, deadline)} onExtend={deadline => run(() => extendRecruitment(activeRoom.id, deadline))} /></aside>
       : <div className="room-quick-rail"><RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.modeKey} type={type} rooms={rooms} member={member}
-      onCreate={(input, profile) => run(() => { create(input, profile); setFilters({ ...defaults(input.game), modeKey: input.modeKey }); })} onOpen={(room, trigger, profile, criteria) => setSelected({ id: room.id, origin: trigger.getBoundingClientRect(), trigger, profile, criteria })} /></div>}
+      onCreate={(input, profile) => { const room = create(input, profile); setFilters({ ...defaults(input.game), modeKey: input.modeKey }); setJustCreatedId(room.id); }} onOpen={(room, trigger, profile, criteria) => setSelected({ id: room.id, origin: trigger.getBoundingClientRect(), trigger, profile, criteria })} /></div>}
     </div>
     {selected && current ? <RoomDeckSpread room={current} origin={selected.origin} trigger={selected.trigger} activeRoomId={activeRoom?.id ?? null} joinError={tierInRange(current.game, (selected.profile ?? member).tier, current.desiredTierRange) ? undefined : '방에서 찾는 티어 범위와 맞지 않아요'} onClose={() => setSelected(null)} onJoin={() => run(() => { const profile = selected.profile ?? member;
       if (selected.criteria && !quickConnectCandidates(rooms, selected.criteria).some(room => room.id === current.id)) {
