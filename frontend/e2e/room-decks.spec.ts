@@ -487,17 +487,22 @@ test('모드별 인원을 선택하고 재접속과 방 만들기에서도 유�
   await expect(page.getByRole('article', { name: '자유 랭크 세 명 방 정보', exact: true }).locator('.compact-member')).toHaveCount(3);
 });
 
-test('모집 티어 범위는 방 구성원 평균 대신 모집 조건을 찾고 단일 선택과 취소를 지원한다', async ({ page }) => {
+test('티어 범위는 두 번째 선택에 바로 적용하고 한 번만 선택하고 닫으면 기존 조건을 유지한다', async ({ page }) => {
   await seedRooms(page, [...['BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND'].map((tier, i) => room(tier, [member(`host-${i}`, { tier: 'GOLD' })], { desiredTierRange: { minTier: tier, maxTier: tier } })), room('unrestricted', [member('any-host', { tier: 'DIAMOND' })])]);
   await login(page);
   const trigger = page.getByRole('button', { name: '모집 티어 범위', exact: true });
   const dialog = page.getByRole('dialog', { name: '모집 티어 범위', exact: true });
   await trigger.click();
   await expect(dialog.locator('.tier-range-option')).toHaveCount(10);
+  await expect(dialog.getByRole('button', { name: /^(취소|적용)$/ })).toHaveCount(0);
+  expect((await dialog.boundingBox())!.width).toBeLessThan((await page.locator('.room-deck').first().boundingBox())!.width);
   await dialog.getByRole('button', { name: '골드', exact: true }).click();
-  await dialog.getByRole('button', { name: '실버', exact: true }).click();
+  await expect(dialog).toBeVisible();
+  await expect(trigger).toContainText('모든 티어');
   await expect(page.locator('.room-deck')).toHaveCount(6);
-  await dialog.getByRole('button', { name: '적용', exact: true }).click();
+  await dialog.getByRole('button', { name: '실버', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
   await expect(trigger).toContainText('실버~골드');
   await expect(page.locator('.room-deck')).toHaveCount(3);
   await trigger.click();
@@ -508,18 +513,30 @@ test('모집 티어 범위는 방 구성원 평균 대신 모집 조건을 찾�
   await expect(trigger).toContainText('실버~골드');
   await trigger.click();
   await dialog.getByRole('button', { name: '골드', exact: true }).click();
-  await dialog.getByRole('button', { name: '적용', exact: true }).click();
+  await page.getByRole('tab', { name: '실시간 매칭' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toContainText('실버~골드');
+  await trigger.click();
+  await dialog.getByRole('button', { name: '골드', exact: true }).click();
+  await expect(dialog).toBeVisible();
+  await expect(trigger).toContainText('실버~골드');
+  await dialog.getByRole('button', { name: '골드', exact: true }).press('Enter');
+  await expect(dialog).toHaveCount(0);
   await expect(trigger).toHaveText('골드');
   await expect(page.locator('.room-deck')).toHaveCount(2);
   await expect(page.getByRole('article', { name: '테스트 방 GOLD 방 정보', exact: true })).toBeVisible();
   await expect(page.getByRole('article', { name: '테스트 방 unrestricted 방 정보', exact: true })).toBeVisible();
   await expect(page.getByRole('article', { name: '테스트 방 PLATINUM 방 정보', exact: true })).toHaveCount(0);
   await trigger.click();
-  await dialog.getByRole('button', { name: '골드', exact: true }).click();
-  await dialog.getByRole('button', { name: '골드', exact: true }).click();
-  await dialog.getByRole('button', { name: '적용', exact: true }).click();
+  await dialog.getByRole('button', { name: '골드', exact: true }).dblclick();
+  await expect(dialog).toHaveCount(0);
   await expect(page.locator('.room-deck')).toHaveCount(2);
-  await page.getByRole('button', { name: '초기화', exact: true }).click();
+  await trigger.click();
+  const all = dialog.getByRole('button', { name: '모든 티어', exact: true });
+  await expect(all.locator('svg')).toBeVisible();
+  await all.click();
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toHaveText('모든 티어');
   await expect(page.locator('.room-deck')).toHaveCount(6);
 });
 
@@ -529,7 +546,7 @@ test('우측 티어 범위를 보관하고 방 생성 시 빈자리 조건으로
   const picker = page.getByRole('dialog', { name: '찾는 티어 범위', exact: true });
   await picker.getByRole('button', { name: '실버', exact: true }).click();
   await picker.getByRole('button', { name: '골드', exact: true }).click();
-  await picker.getByRole('button', { name: '적용', exact: true }).click();
+  await expect(picker).toHaveCount(0);
   await login(page); // The in-memory mock session resets on navigation; room/preferences stay in localStorage.
   await expect(page.getByRole('button', { name: '찾는 티어 범위', exact: true })).toContainText('실버~골드');
   const composer = page.getByRole('region', { name: '빠른 연결', exact: true });
@@ -569,8 +586,10 @@ test('좁은 화면에서는 듀오가 한 열이며 범위 선택창이 화면 
   const bounds = await picker.boundingBox();
   expect(bounds!.x).toBeGreaterThanOrEqual(0);
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(540);
+  expect(bounds!.width).toBeLessThan((await page.locator('.room-deck').first().boundingBox())!.width);
   await picker.getByRole('button', { name: '챌린저', exact: true }).click();
-  await picker.getByRole('button', { name: '적용', exact: true }).click();
+  await picker.getByRole('button', { name: '챌린저', exact: true }).click();
+  await expect(picker).toHaveCount(0);
   await expectNoPageOverflow(page);
 });
 
@@ -588,7 +607,7 @@ test('게시판 포지션은 빈자리 모집 조건을 찾고 우측 선호 조
   await page.getByRole('button', { name: '찾는 티어 범위', exact: true }).click();
   const picker = page.getByRole('dialog', { name: '찾는 티어 범위', exact: true });
   await picker.getByRole('button', { name: '골드', exact: true }).click();
-  await picker.getByRole('button', { name: '적용', exact: true }).click();
+  await picker.getByRole('button', { name: '골드', exact: true }).click();
   await expect(page.getByRole('button', { name: '찾는 티어 범위', exact: true })).toHaveText('골드');
   await expect(page.getByRole('button', { name: '모집 티어 범위', exact: true })).toHaveText('모든 티어');
   await expect(page.locator('.room-deck')).toHaveCount(1);
@@ -659,7 +678,7 @@ test('방 요약에서 조건을 확인하고 취소하면 게시하지 않으�
   await rail.getByRole('button', { name: '찾는 티어 범위', exact: true }).click();
   const tiers = page.getByRole('dialog', { name: '찾는 티어 범위', exact: true });
   await tiers.getByRole('button', { name: '골드', exact: true }).click();
-  await tiers.getByRole('button', { name: '적용', exact: true }).click();
+  await tiers.getByRole('button', { name: '골드', exact: true }).click();
   await rail.getByLabel('한마디', { exact: true }).fill('함께 바텀 듀오해요');
   const create = rail.getByRole('button', { name: '방 만들기', exact: true });
   const preview = page.getByRole('dialog', { name: '이대로 방을 만들까요?', exact: true });

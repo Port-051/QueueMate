@@ -5,22 +5,17 @@
 .tier-range-trigger-content>svg{flex:none}
 .tier-range-label,.tier-range-endpoint{display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
 .tier-range-label{font-size:13px;line-height:1.5;color:#c1b9d1;font-weight:500}
-.tier-range-popover{z-index:1600;box-sizing:border-box;padding:18px;border:1px solid #615373;border-radius:16px;background:#24212d;color:#f1ecf7;box-shadow:0 16px 64px #0009;overflow:auto;animation:tier-range-enter .14s ease-out}
-.tier-range-popover header,.tier-range-popover footer{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.tier-range-popover header strong{font-size:16px}
+.tier-range-popover{z-index:1600;box-sizing:border-box;padding:12px;border:1px solid #615373;border-radius:12px;background:#24212d;color:#f1ecf7;box-shadow:0 16px 64px #0009;overflow:auto;animation:tier-range-enter .14s ease-out}
+.tier-range-popover header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.tier-range-popover header strong{font-size:14px}
 .tier-range-popover button{font-family:inherit;cursor:pointer}
-.tier-range-popover header button,.tier-range-popover footer button{border:0;border-radius:999px;background:#35303f;color:#ddd6e8;padding:8px 13px;font-size:14px}
-.tier-range-track{display:flex;overflow-x:auto;padding:16px 5px 10px;margin:0 -5px}
-.tier-range-option{position:relative;flex:1 0 75px;min-width:0;display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px 3px;border:1px solid transparent;border-radius:9px;background:none;font-size:12px;font-weight:600}
+.tier-range-popover header button{display:inline-flex;align-items:center;gap:5px;border:0;border-radius:8px;background:#35303f;color:#ddd6e8;padding:6px 9px;font-size:12px;white-space:nowrap}
+.tier-range-track{display:flex;overflow-x:auto;padding:8px 3px;margin:0 -3px;scrollbar-width:thin}
+.tier-range-option{position:relative;flex:1 0 64px;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0;border:1px solid transparent;border-radius:9px;background:none;font-size:11px;font-weight:600;letter-spacing:-.025em;white-space:nowrap}
 .tier-range-option.is-in-range{background:#a885f51a;border-radius:0;border-top-color:#8062ad55;border-bottom-color:#8062ad55}
 .tier-range-option.is-endpoint{background:#a885f533;border:1px solid #b090e8;border-radius:9px}
 .tier-range-option:hover{background:#a885f533}
 .tier-range-popover button:focus-visible,.tier-range-trigger:focus-visible{outline:2px solid #c9a7ff;outline-offset:2px}
-.tier-range-hint{margin:3px 0 18px;font-size:12px;line-height:1.5;color:#aba1bb}
-.tier-range-popover footer>div{display:flex;gap:8px}
-.tier-range-popover footer .tier-range-apply{background:#8962d2;color:#fff}
+.tier-range-hint{margin:2px 0 0;font-size:12px;line-height:1.5;color:#aba1bb}
 @keyframes tier-range-enter{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){.tier-range-popover{animation:none}}
-@media(max-width:560px){.tier-range-popover{padding:14px}.tier-range-popover footer{flex-wrap:wrap}.tier-range-option{flex-basis:76px}}
-
-.tier-range-popover button { border-radius:999px; }
