@@ -210,6 +210,18 @@ export function createRoomActions(userId: string) {
     if (room.ownerId !== userId) throw new Error('방장만 할 수 있어요.');
     return room;
   };
+  // Stage a departure without writing, so a room transfer can commit once.
+  const depart = (rooms: GameRoom[], room: GameRoom): GameRoom[] => {
+    const me = room.members.find(member => member.id === userId)!;
+    const members = room.members.filter(member => member.id !== userId);
+    const ownerId = room.ownerId === userId ? members[0]?.id : room.ownerId;
+    const desiredRoles = room.ownerId === userId && needsFullLineup(room.game, room.modeKey, room.capacity)
+      ? canonicalRoomRoles(room.game, [...room.desiredRoles, ...me.roles]) : room.desiredRoles;
+    let remaining = append({ ...room, members, ownerId: ownerId ?? userId, desiredRoles }, systemMessage(`${me.nickname} 님이 나갔어요.`));
+    if (members.length && room.ownerId === userId) remaining = append(remaining, systemMessage(`${members[0].nickname} 님이 방장이 되었어요.`));
+    remaining.autoCloseAt = nextAutoCloseAt(remaining, Date.now());
+    return members.length ? rooms.map(item => item.id === room.id ? remaining : item) : rooms.filter(item => item.id !== room.id);
+  };
   return {
     create(input: CreateRoomInput, member: RoomMember): GameRoom {
       const rooms = current();
@@ -232,11 +244,11 @@ export function createRoomActions(userId: string) {
       save(userId, [room, ...rooms]);
       return room;
     },
-    join(roomId: string, member: RoomMember, selectedRole?: string): void {
+    join(roomId: string, member: RoomMember, selectedRole?: string, fromRoomId?: string): void {
       const rooms = current();
       const active = activeRoomIn(rooms, userId);
       if (active?.id === roomId) return;
-      if (active) throw new Error('참여 중인 방에서 먼저 나와 주세요.');
+      if (active?.id !== fromRoomId) throw new Error('참여 중인 방이 바뀌었어요. 닫고 다시 선택해 주세요.');
       const room = rooms.find(item => item.id === roomId);
       if (!room) throw new Error('방이 종료되었어요.');
       if (room.status === 'CONFIRMED' || room.members.length >= room.capacity || autoClosePhase(room, Date.now()) === 'due') throw new Error('이미 매칭이 확정된 방이에요.');
@@ -252,21 +264,13 @@ export function createRoomActions(userId: string) {
       let joined = append({ ...room, members, status: members.length === room.capacity ? 'CONFIRMED' : 'OPEN' }, systemMessage(`${entrant.nickname} 님이 들어왔어요.`));
       if (joined.status === 'CONFIRMED') joined = append(joined, systemMessage('정원이 모두 차서 매칭이 확정됐어요.'));
       joined.autoCloseAt = nextAutoCloseAt(joined, Date.now());
-      save(userId, rooms.map(item => item.id === roomId ? joined : item));
+      save(userId, (active ? depart(rooms, active) : rooms).map(item => item.id === roomId ? joined : item));
     },
     leave(): void {
       const rooms = current();
       const room = activeRoomIn(rooms, userId);
       if (!room) return;
-      const me = room.members.find(member => member.id === userId)!;
-      const members = room.members.filter(member => member.id !== userId);
-      const ownerId = room.ownerId === userId ? members[0]?.id : room.ownerId;
-      const desiredRoles = room.ownerId === userId && needsFullLineup(room.game, room.modeKey, room.capacity)
-        ? canonicalRoomRoles(room.game, [...room.desiredRoles, ...me.roles]) : room.desiredRoles;
-      let remaining = append({ ...room, members, ownerId: ownerId ?? userId, desiredRoles }, systemMessage(`${me.nickname} 님이 나갔어요.`));
-      if (members.length && room.ownerId === userId) remaining = append(remaining, systemMessage(`${members[0].nickname} 님이 방장이 되었어요.`));
-      remaining.autoCloseAt = nextAutoCloseAt(remaining, Date.now());
-      save(userId, members.length ? rooms.map(item => item.id === room.id ? remaining : item) : rooms.filter(item => item.id !== room.id));
+      save(userId, depart(rooms, room));
     },
     kick(roomId: string, memberId: string): void {
       const rooms = current();

@@ -89,3 +89,10 @@
 .room-auto-close-error { font-size:12px; line-height:1.6; padding:0 20px; color:#ffb6b6; }
 .room-conversation { overflow-y:auto; min-height:590px; }
 .room-conversation-member { flex-basis:70px; width:70px; }
+
+.room-profile-avatar-button,.room-profile-name-button { border:0; padding:0; background:none; color:inherit; font:inherit; cursor:pointer; }
+.room-profile-avatar-button { display:inline-flex; border-radius:50%; }
+.room-profile-name-button:hover { color:#cfafff; }
+.room-conversation-member>.room-profile-name-button { max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:11px; color:var(--text-dim); }
+.room-conversation-message-meta .room-profile-name-button { font-size:13px; font-weight:600; overflow-wrap:anywhere; text-align:left; }
+.room-conversation-message.is-grouped>.room-profile-avatar-button { visibility:hidden; height:0; }

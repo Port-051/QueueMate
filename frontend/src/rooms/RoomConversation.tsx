@@ -3,13 +3,15 @@ import { Avatar, Button, useToast } from '../components/ui';
 import { IconChat, IconCheck, IconLogout, IconMic, IconMicOff, IconSend, IconShield, IconX } from '../components/icons';
 import { MockPartyClient } from '../webrtc/MockPartyClient';
 import type { VoiceStatus } from '../webrtc/types';
-import type { GameRoom } from './types';
+import type { GameRoom, RoomMember } from './types';
 import { autoClosePhase } from './autoClose';
 import './room-conversation.css';
 
 export interface RoomConversationProps {
   room: GameRoom;
   selfId: string;
+  visible?: boolean;
+  onMember: (member: RoomMember) => void;
   onSend: (text: string) => void;
   onLeave: () => void;
   onKick: (memberId: string) => void;
@@ -27,7 +29,7 @@ function Headphones({ off = false }: { off?: boolean }) {
 
 const clock = new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConfirm, onAutoConfirm, onExtend }: RoomConversationProps) {
+export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConfirm, onAutoConfirm, onExtend, visible = true, onMember }: RoomConversationProps) {
   const toast = useToast();
   const [draft, setDraft] = useState('');
   const [now, setNow] = useState(Date.now);
@@ -89,7 +91,7 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
 
   useLayoutEffect(() => {
     const element = log.current;
-    if (!element) return;
+    if (!element || !visible) return;
     const changedRoom = previousRoom.current !== room.id;
     previousRoom.current = room.id;
     if (changedRoom || stickToBottom.current) {
@@ -98,13 +100,13 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
     } else {
       setUnread(true);
     }
-  }, [room.id, room.messages.at(-1)?.id]);
+  }, [room.id, room.messages.at(-1)?.id, visible]);
 
   useLayoutEffect(() => {
-    if (!input.current) return;
+    if (!input.current || !visible) return;
     input.current.style.height = 'auto';
     input.current.style.height = `${Math.min(input.current.scrollHeight, 128)}px`;
-  }, [draft]);
+  }, [draft, visible]);
 
   const send = () => {
     const text = draft.trim();
@@ -161,11 +163,11 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
 
     <div className="room-conversation-roster" aria-label="참여한 사람">
       {room.members.map(member => <div className="room-conversation-member" key={member.id}>
-        <span className={`room-conversation-avatar${member.id === selfId && voiceOn && !muted ? ' is-voice-ready' : ''}`}><Avatar name={member.nickname} avatarUrl={member.avatarUrl} size={42} />
+        <span className={`room-conversation-avatar${member.id === selfId && voiceOn && !muted ? ' is-voice-ready' : ''}`}><button type="button" className="room-profile-avatar-button" aria-label={`${member.nickname} 프로필 보기`} onClick={() => onMember(member)}><Avatar name={member.nickname} avatarUrl={member.avatarUrl} size={42} /></button>
           {member.id === room.ownerId ? <span className="room-conversation-host" title="방장" aria-label="방장"><IconShield size={11} /></span> : null}
           {isHost && member.id !== selfId ? <button className="room-conversation-kick" type="button" aria-label={`${member.nickname} 내보내기`} title="내보내기" onClick={() => setAction({ kind: 'kick', id: member.id })}><IconX size={12} /></button> : null}
         </span>
-        <span title={member.nickname}>{member.nickname}{member.id === selfId ? <small> 나</small> : null}</span>
+        <button type="button" className="room-profile-name-button" title={member.nickname} aria-label={`${member.nickname} 프로필 보기`} onClick={() => onMember(member)}>{member.nickname}{member.id === selfId ? <small> 나</small> : null}</button>
         <small className="room-member-voice-state">{member.id === selfId ? voiceOn ? muted ? '마이크 꺼짐' : '마이크 준비' : '음성 참여 전' : '음성 연결 전'}</small>
       </div>)}
       {Array.from({ length: Math.max(0, room.capacity - room.members.length) }, (_, index) => <div className="room-conversation-member is-empty" key={`empty-${index}`} aria-label="빈 자리"><span className="room-conversation-empty-seat">+</span><span>빈 자리</span></div>)}
@@ -220,8 +222,8 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
           const previous = room.messages[index - 1];
           const grouped = previous?.authorId === message.authorId && message.createdAt - previous.createdAt < 120_000;
           return <div className={`room-conversation-message${grouped ? ' is-grouped' : ''}`} key={message.id}>
-            <Avatar name={author?.nickname ?? '이전 참여자'} avatarUrl={author?.avatarUrl} size={30} />
-            <div><div className="room-conversation-message-meta"><b>{author?.nickname ?? '이전 참여자'}</b>{message.authorId === room.ownerId ? <IconShield size={11} /> : null}<time dateTime={new Date(message.createdAt).toISOString()}>{clock.format(message.createdAt)}</time></div><p>{message.text}</p></div>
+            {author ? <button type="button" className="room-profile-avatar-button" aria-label={`${author.nickname} 프로필 보기`} onClick={() => onMember(author)}><Avatar name={author.nickname} avatarUrl={author.avatarUrl} size={30} /></button> : <Avatar name="이전 참여자" size={30} />}
+            <div><div className="room-conversation-message-meta">{author ? <button type="button" className="room-profile-name-button" onClick={() => onMember(author)} aria-label={`${author.nickname} 프로필 보기`}>{author.nickname}</button> : <b>이전 참여자</b>}{message.authorId === room.ownerId ? <IconShield size={11} /> : null}<time dateTime={new Date(message.createdAt).toISOString()}>{clock.format(message.createdAt)}</time></div><p>{message.text}</p></div>
           </div>;
         })}
       </div>

@@ -27,9 +27,10 @@ function CreateRoomIcon() {
   return <span className="room-create-icon"><IconDirectMessage size={22} /></span>;
 }
 
-export function RoomQuickConnect({ game, modeKey, type, rooms, member, onSelectSeat, onCreate }: {
+export function RoomQuickConnect({ game, modeKey, type, rooms, member, onSelectSeat, onCreate, activeRoom, onShowRoom }: {
   game: GameKey; modeKey: string; type: GameRoom['type']; rooms: GameRoom[]; member: RoomMember;
   onSelectSeat: (room: GameRoom, profile: RoomMember, criteria: QuickConnectCriteria) => void;
+  activeRoom: GameRoom | null; onShowRoom: () => void;
   onCreate: (input: CreateRoomInput, profile: RoomMember) => void;
 }) {
   const toast = useToast();
@@ -75,6 +76,7 @@ export function RoomQuickConnect({ game, modeKey, type, rooms, member, onSelectS
       if (!Number.isFinite(timestamp) || timestamp <= Date.now()) { setCreateError('시작 시간을 현재보다 뒤로 선택해 주세요.'); return; }
       if (new Date(timestamp).getMinutes() % 30 !== 0) { setCreateError('시작 시간은 30분 단위로 선택해 주세요.'); return; }
     }
+    if (activeRoom) { onShowRoom(); return; }
     setCreateError('');
     setDraft({ input: { game, modeKey: value.queueType, type, title: value.bio.trim(), capacity,
       desiredRoles: hasRoles ? value.desiredRoles : [], desiredTierRange: value.desiredTierRange,
@@ -90,8 +92,8 @@ export function RoomQuickConnect({ game, modeKey, type, rooms, member, onSelectS
         <div className="quick-result-actions"><Button onClick={() => setSkipped(values => [...values, candidate.id])}>다른 방</Button><Button variant="primary" onClick={() => onSelectSeat(candidate, profile, criteria)}>자리 확인</Button></div>
       </> : <>
         <h3>{candidates.length ? '제안할 방을 모두 봤어요.' : '조건에 맞는 방이 없어요.'}</h3>
-        <p className="quick-connect-hint">조건을 바꾸거나 방을 만들어 보세요.</p>
-        <div className="quick-result-actions"><Button onClick={reset}>조건 변경</Button><Button variant="primary" disabled={Boolean(error || positionError)} onClick={startRoom}><CreateRoomIcon />방 만들기</Button></div>
+        <p className="quick-connect-hint">{activeRoom ? '조건을 바꿔 다시 찾아보세요.' : '조건을 바꾸거나 방을 만들어 보세요.'}</p>
+        <div className="quick-result-actions"><Button onClick={reset}>조건 변경</Button><Button variant="primary" disabled={!activeRoom && Boolean(error || positionError)} onClick={activeRoom ? onShowRoom : startRoom}><CreateRoomIcon />{activeRoom ? '내 방' : '방 만들기'}</Button></div>
       </>}
     </article></section> : null;
 
@@ -104,13 +106,13 @@ export function RoomQuickConnect({ game, modeKey, type, rooms, member, onSelectS
         {type === 'RESERVATION' ? <label className="room-start-field">시작 시간<input aria-label="시작 시간" type="datetime-local" step={1800} min={localDateTime(Date.now())} value={start} onChange={event => { setStart(event.target.value); setCreateError(''); }} /></label> : null}
         {createError ? <p className="room-create-error" role="alert">{createError}</p> : positionError ? <p className="room-create-hint">{positionError}</p> : null}
       </fieldset>
-      <div className="matching-rail-footer room-rail-actions">
-        <Button block disabled={Boolean(error || positionError)} onClick={startRoom}><CreateRoomIcon />방 만들기</Button>
+      <div className={`matching-rail-footer room-rail-actions${activeRoom ? ' is-search-only' : ''}`}>
+        {!activeRoom ? <Button block disabled={Boolean(error || positionError)} onClick={startRoom}><CreateRoomIcon />방 만들기</Button> : null}
         <Button block type="submit" variant="primary" disabled={Boolean(error) || (hasRoles && !ownRoles.length)}><IconMatch size={22}/>{started ? '다시 찾기' : '매칭 시작'}</Button>
       </div>
     </form>
 
   </section></HomeProfileRail>
-    {draft ? <RoomCreatePreview draft={draft} onClose={() => setDraft(null)} onConfirm={onCreate} /> : null}
+    {draft ? <RoomCreatePreview draft={draft} onClose={() => setDraft(null)} onConfirm={(input, profile) => { onCreate(input, profile); setDraft(null); }} /> : null}
   </>;
 }

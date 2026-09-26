@@ -21,3 +21,5 @@
 .room-seat-role-picker button[aria-pressed=true] { background:#493267; border-color:#aa86df; color:#fff; }
 .room-seat-role-picker button:disabled { opacity:.4; cursor:default; }
 .room-seat-role-picker button:focus-visible { outline:2px solid #c7a6ff; outline-offset:2px; }
+
+.room-move-notice { margin:22px 0 0; padding:13px 15px; border-radius:12px; background:#272235; color:#cdc2df; font-size:13px; line-height:1.65; overflow-wrap:anywhere; }

@@ -37,7 +37,7 @@ function Stat({ kind, value }: { kind: 'winRate' | 'kda'; value: number | null }
   return value === null ? <strong className="room-unknown-stat">—</strong> : <PerformanceValue kind={kind} value={value} />;
 }
 
-function RoomMemberAvatar({ room, member, size }: { room: GameRoom; member: RoomMember; size: number }) {
+export function RoomMemberAvatar({ room, member, size }: { room: GameRoom; member: RoomMember; size: number }) {
   return <span className="room-member-avatar">
     <Avatar name={member.nickname} avatarUrl={member.avatarUrl} size={size} />
     {member.id === room.ownerId ? <span className="room-host-crown" role="img" aria-label="방장" title="방장">
@@ -46,9 +46,9 @@ function RoomMemberAvatar({ room, member, size }: { room: GameRoom; member: Room
   </span>;
 }
 
-function RoomMemberFacts({ room, member }: { room: GameRoom; member: RoomMember }) {
+export function RoomMemberFacts({ room, member, iconSize = 22 }: { room: GameRoom; member: RoomMember; iconSize?: number }) {
   return <dl className="room-member-facts">
-    <div><dt className="sr-only">티어</dt><dd><RoomRank game={room.game} tier={member.tier} division={member.division} size={26} /></dd></div>
+    <div><dt className="sr-only">티어</dt><dd><RoomRank game={room.game} tier={member.tier} division={member.division} size={iconSize} /></dd></div>
     <div><dt className="sr-only">포지션</dt><dd>{usesKeyCondition(room.game, room.modeKey)
       ? <RoomRoles game={room.game} roles={member.roles} labels={member.roles.length <= 1} />
       : <span className="room-random-role">무작위</span>}</dd></div>
@@ -57,7 +57,7 @@ function RoomMemberFacts({ room, member }: { room: GameRoom; member: RoomMember 
   </dl>;
 }
 
-export function RoomDeck({ room, selfId, entering = false, onEntered, entryError, onSeat }: { room: GameRoom; selfId: string; entering?: boolean; onEntered?: () => void; entryError: string | null; onSeat: (room: GameRoom, roles: string[]) => void }) {
+export function RoomDeck({ room, selfId, entering = false, onEntered, entryError, onSeat, onMember }: { room: GameRoom; selfId: string; entering?: boolean; onEntered?: () => void; entryError: string | null; onSeat: (room: GameRoom, roles: string[]) => void; onMember: (room: GameRoom, member: RoomMember) => void }) {
   const heading = useRef<HTMLHeadingElement>(null);
   useLayoutEffect(() => {
     if (!entering) return;
@@ -78,7 +78,7 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, entryError
     </div>
     <div className="compact-members" aria-label="방 구성원 정보">
       {room.members.map(member => <div className="compact-member" key={member.id}>
-        <div className="compact-member-name"><RoomMemberAvatar room={room} member={member} size={34}/><strong title={member.nickname}>{member.nickname}</strong></div>
+        <button type="button" className="compact-member-name" aria-label={`${member.nickname} 프로필 보기`} onClick={() => onMember(room, member)}><RoomMemberAvatar room={room} member={member} size={34}/><strong title={member.nickname}>{member.nickname}</strong></button>
         <RoomMemberFacts room={room} member={member} />
         <div className="compact-member-champions" aria-label={`${member.nickname} ${room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '선호 요원' : '선호 무기'}`}><PreferredChampions game={room.game} names={member.champions.slice(0,3)}/>{room.game === 'LOL' ? Array.from({ length: Math.max(0, 3 - member.champions.length) }, (_, index) => <span className="compact-champion-empty" key={index} role="img" aria-label="챔피언 미등록" title="챔피언 미등록">—</span>) : null}</div>
       </div>)}
@@ -89,9 +89,9 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, entryError
         <span className="compact-seat-status">{closed ? '모집 마감' : '모집 중'}</span>
         <dl className="room-member-facts room-seat-facts">
           <div><dt className="sr-only">포지션</dt><dd>{hasRoles ? <RoomRoles game={room.game} roles={roles} labels /> : <span className="room-random-role">무작위</span>}</dd></div>
-          <div><dt className="sr-only">티어</dt><dd><TierRangeLabel game={room.game} value={room.desiredTierRange} stacked /></dd></div>
+          <div><dt className="sr-only">티어</dt><dd><TierRangeLabel game={room.game} value={room.desiredTierRange} stacked iconSize={22} /></dd></div>
         </dl>
-        <RoomVoice value={room.voice} />
+        <span className="room-seat-voice"><RoomVoice value={room.voice} /><span>{room.voice === 'REQUIRED' ? '사용' : '미사용'}</span></span>
       </button>)}
     </div>
   </article>;

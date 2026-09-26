@@ -49,7 +49,7 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
 .chat-meta { flex-wrap: wrap; }
 
 /* One task per content area. Secondary information opens in place. */
-.app-shell { background: #0b0d18; }
+.app-shell { --app-background:#0b0d18; background:var(--app-background); }
 .focus-page .page-head { margin-bottom: 32px; }
 .focus-page .page-head h1 { font-size: 26px; font-weight: 700; }
 .focus-page .card.content-section, .focus-page .condition-form > .card,
