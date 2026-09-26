@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import type { GameKey } from '../api/types';
 import type { AppShellOutletContext } from '../components/AppShell';
 import { TierRangePicker } from '../components/TierRangePicker';
-import { ALL_TIERS, tierInRange, tierRangesOverlap, type TierRange } from '../domain/tierRange';
+import { ALL_TIERS, tierRangesOverlap, type TierRange } from '../domain/tierRange';
 import { FilterModeIcon, FilterRoleIcon, VoiceIcon } from '../components/FilterSymbols';
 import { useToast } from '../components/ui';
 import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
@@ -11,11 +11,11 @@ import { emptyIntroduction, readIntroduction } from '../domain/introduction';
 import { useAuth } from '../state/AuthContext';
 import { RoomConversation } from './RoomConversation';
 import { RoomDeck } from './RoomDeck';
-import { RoomDeckSpread } from './RoomDeckSpread';
+import { RoomSeatJoin, roomEntryError } from './RoomSeatJoin';
 import { RoomQuickConnect } from './RoomQuickConnect';
 import { roomVoice, ROOM_VOICES } from './voice';
 import { quickConnectCandidates, type QuickConnectCriteria } from './quickConnect';
-import { remainingRoomRoles } from './positions';
+import { remainingRoomRoles, vacantRoleOptions } from './positions';
 import { useRoomStore } from './store';
 import type { GameRoom, RoomMember } from './types';
 import '../styles/duo-home.css';
@@ -32,7 +32,7 @@ export function RoomBoardHome() {
   const toast = useToast();
   const [type, setType] = useState<GameRoom['type']>(activeRoom?.type ?? 'REALTIME');
   const [filters, setFilters] = useState(() => ({ ...defaults(selectedGame), ...(activeRoom?.game === selectedGame ? { modeKey: activeRoom.modeKey } : {}) }));
-  const [selected, setSelected] = useState<{ id: string; origin: DOMRect; trigger: HTMLButtonElement; profile?: RoomMember; criteria?: QuickConnectCriteria } | null>(null);
+  const [selected, setSelected] = useState<{ id: string; roles: string[]; profile: RoomMember; criteria?: QuickConnectCriteria } | null>(null);
   const [openOnly, setOpenOnly] = useState(false);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const finishEntrance = useCallback(() => setJustCreatedId(null), []);
@@ -84,17 +84,26 @@ export function RoomBoardHome() {
         {canReset ? <button className="filter-reset" type="button" aria-label="초기화" onClick={() => setFilters({ ...defaults(selectedGame), modeKey: filters.modeKey })}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg></button> : null}
       </div></div>
       <div className="room-board-count"><strong>{filtered.length}</strong>개의 방<label><input type="checkbox" checked={openOnly} onChange={event => setOpenOnly(event.target.checked)} />모집 중인 방만</label></div>
-      <div className={`room-deck-grid${selectedGame === 'LOL' && filters.modeKey === 'SOLO_DUO_RANKED' ? ' is-duo-grid' : ''}`}>{filtered.map(room => <RoomDeck room={room} selfId={member.id} key={room.id} entering={justCreatedId === room.id} onEntered={finishEntrance} onOpen={(room, trigger) => setSelected({ id: room.id, origin: trigger.getBoundingClientRect(), trigger })} />)}</div>
+      <div className={`room-deck-grid${selectedGame === 'LOL' && filters.modeKey === 'SOLO_DUO_RANKED' ? ' is-duo-grid' : ''}`}>{filtered.map(room => <RoomDeck room={room} selfId={member.id} key={room.id} entering={justCreatedId === room.id} onEntered={finishEntrance} entryError={roomEntryError(room, member.tier, activeRoom?.id)} onSeat={(room, roles) => {
+        const intro = readIntroduction(member.id, room.game) ?? emptyIntroduction();
+        setSelected({ id: room.id, roles, profile: { ...member, roles: intro.primaryRoles ?? [], bio: intro.bio, voice: roomVoice(room.voice) } });
+      }} />)}</div>
       {!filtered.length ? <div className="room-board-empty"><p>이 조건에 맞는 방이 없어요.</p><button className="room-secondary-button" onClick={() => setFilters(defaults(selectedGame))}>필터 초기화</button></div> : null}
     </section>
     {activeRoom ? <aside className="room-conversation-rail"><RoomConversation room={activeRoom} selfId={member.id} onSend={text => send(text)} onLeave={() => run(leave)} onKick={id => run(() => kick(activeRoom.id, id))} onConfirm={() => run(() => confirm(activeRoom.id))} onAutoConfirm={deadline => autoConfirm(activeRoom.id, deadline)} onExtend={deadline => run(() => extendRecruitment(activeRoom.id, deadline))} /></aside>
       : <div className="room-quick-rail"><RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.modeKey} type={type} rooms={rooms} member={member}
-      onCreate={(input, profile) => { const room = create(input, profile); setFilters({ ...defaults(input.game), modeKey: input.modeKey }); setJustCreatedId(room.id); }} onOpen={(room, trigger, profile, criteria) => setSelected({ id: room.id, origin: trigger.getBoundingClientRect(), trigger, profile, criteria })} /></div>}
+      onCreate={(input, profile) => { const room = create(input, profile); setFilters({ ...defaults(input.game), modeKey: input.modeKey }); setJustCreatedId(room.id); }} onSelectSeat={(room, profile, criteria) => {
+        const vacancies = vacantRoleOptions(room);
+        const roles = vacancies.find(options => options.some(role => profile.roles.includes(role))) ?? vacancies[0] ?? [];
+        setSelected({ id: room.id, roles, profile, criteria });
+      }} /></div>}
     </div>
-    {selected && current ? <RoomDeckSpread room={current} origin={selected.origin} trigger={selected.trigger} activeRoomId={activeRoom?.id ?? null} joinError={tierInRange(current.game, (selected.profile ?? member).tier, current.desiredTierRange) ? undefined : '방에서 찾는 티어 범위와 맞지 않아요'} onClose={() => setSelected(null)} onJoin={() => run(() => { const profile = selected.profile ?? member;
-      if (selected.criteria && !quickConnectCandidates(rooms, selected.criteria).some(room => room.id === current.id)) {
-        throw new Error('방의 모집 조건이 바뀌었어요. 다른 방을 확인해 주세요.');
-      }
-      join(current.id, profile); setSelected(null); })} /> : null}
+    {selected && current ? <RoomSeatJoin key={current.id} room={current} roles={selected.roles} profile={selected.profile}
+      entryError={roomEntryError(current, selected.profile.tier, activeRoom?.id)} onClose={() => setSelected(null)} onJoin={role => {
+        if (selected.criteria && !quickConnectCandidates(rooms, selected.criteria).some(room => room.id === current.id)) {
+          throw new Error('방의 모집 조건이 바뀌었어요. 다른 방을 확인해 주세요.');
+        }
+        join(current.id, { ...selected.profile, voice: roomVoice(current.voice) }, role); setSelected(null);
+      }} /> : null}
   </div>;
 }

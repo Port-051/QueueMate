@@ -27,9 +27,9 @@ function CreateRoomIcon() {
   return <span className="room-create-icon"><IconDirectMessage size={22} /></span>;
 }
 
-export function RoomQuickConnect({ game, modeKey, type, rooms, member, onOpen, onCreate }: {
+export function RoomQuickConnect({ game, modeKey, type, rooms, member, onSelectSeat, onCreate }: {
   game: GameKey; modeKey: string; type: GameRoom['type']; rooms: GameRoom[]; member: RoomMember;
-  onOpen: (room: GameRoom, trigger: HTMLButtonElement, profile: RoomMember, criteria: QuickConnectCriteria) => void;
+  onSelectSeat: (room: GameRoom, profile: RoomMember, criteria: QuickConnectCriteria) => void;
   onCreate: (input: CreateRoomInput, profile: RoomMember) => void;
 }) {
   const toast = useToast();
@@ -87,7 +87,7 @@ export function RoomQuickConnect({ game, modeKey, type, rooms, member, onOpen, o
         <div className="quick-result-top"><span>조건에 맞는 방</span><strong>{candidate.members.length}/{candidate.capacity}명</strong></div>
         <h3>{candidate.title}</h3>
         <p className="quick-result-reasons"><RoomVoice value={candidate.voice}/></p>
-        <div className="quick-result-actions"><Button onClick={() => setSkipped(values => [...values, candidate.id])}>다른 방</Button><Button variant="primary" onClick={event => onOpen(candidate, event.currentTarget, profile, criteria)}>방 확인</Button></div>
+        <div className="quick-result-actions"><Button onClick={() => setSkipped(values => [...values, candidate.id])}>다른 방</Button><Button variant="primary" onClick={() => onSelectSeat(candidate, profile, criteria)}>자리 확인</Button></div>
       </> : <>
         <h3>{candidates.length ? '제안할 방을 모두 봤어요.' : '조건에 맞는 방이 없어요.'}</h3>
         <p className="quick-connect-hint">조건을 바꾸거나 방을 만들어 보세요.</p>

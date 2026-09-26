@@ -19,7 +19,7 @@ export interface QuickConnectCriteria {
   userId: string;
 }
 
-/** The room prototype shares one pool. Free-text preferences are reviewed in the detail view. */
+/** The room prototype shares one pool. Free-text preferences stay visible on the board and seat confirmation. */
 export function quickConnectCandidates(rooms: GameRoom[], criteria: QuickConnectCriteria): GameRoom[] {
   const noRoles = criteria.game === 'LOL' && criteria.modeKey === 'ARAM';
   const ownRoles = canonicalRoomRoles(criteria.game, criteria.roles ?? [criteria.role]);

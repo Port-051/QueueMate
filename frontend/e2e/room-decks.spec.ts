@@ -67,16 +67,16 @@ async function expectNoPageOverflow(page: Page) {
   expect(widths.document, JSON.stringify(widths)).toBeLessThanOrEqual(widths.viewport + 1);
 }
 
-test('다섯 카드가 방 너비에 맞고 상세는 페이지 이동 없이 중앙에 열린다', async ({ page }) => {
+test('다섯 카드가 방 너비에 맞고 빈자리만 선택할 수 있다', async ({ page }) => {
   await login(page);
   const grid = page.locator('.room-deck-grid');
   await expect(grid).toBeVisible();
   await expect.poll(() => grid.evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(1);
   expect(await grid.locator('.room-deck').count()).toBeGreaterThanOrEqual(6);
   const deck = grid.locator('.room-deck[data-status="OPEN"]').first();
-  await expect(deck).toHaveCSS('border-bottom-left-radius', '30px');
-  await expect(deck).toHaveCSS('border-bottom-right-radius', '30px');
-  await expect(deck.locator('.room-bubble-tail')).toHaveCSS('left', '-9px');
+  await expect(deck).toHaveCSS('border-bottom-left-radius', '32px');
+  await expect(deck).toHaveCSS('border-bottom-right-radius', '32px');
+  await expect(deck.locator('.room-bubble-tail')).toHaveCSS('left', '-1px');
   const roster = deck.locator('.compact-members');
   await expect(roster.locator('.compact-member')).toHaveCount(5);
   await expect(roster.locator('.compact-seat .room-role-icons b')).toHaveText(['바텀', '서포터']);
@@ -90,45 +90,43 @@ test('다섯 카드가 방 너비에 맞고 상세는 페이지 이동 없이 �
   await expect(deck.getByRole('img', { name: '방장', exact: true })).toHaveCount(1);
   await expect(page.locator('.room-quick-rail').getByRole('button', { name: '방 만들기', exact: true })).toBeVisible();
   const originalUrl = page.url();
-  await deck.click();
-  const dialog = page.getByRole('dialog');
+  await deck.getByRole('heading').click();
+  await deck.locator('.compact-member-name').first().click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(deck).not.toHaveAttribute('tabindex');
+  await expect(deck).toHaveCSS('cursor', 'default');
+  const memberFill = await deck.locator('.compact-member:not(.compact-seat)').first().evaluate(element => getComputedStyle(element).backgroundColor);
+  const seat = deck.getByRole('button', { name: '바텀 자리 참여', exact: true });
+  expect(await seat.evaluate(element => getComputedStyle(element).backgroundColor)).not.toBe(memberFill);
+  await seat.click();
+  const dialog = page.getByRole('dialog', { name: '이 자리에 참여할까요?' });
   await expect(dialog).toBeVisible();
   expect(page.url()).toBe(originalUrl);
-  await expect.poll(() => dialog.locator('.room-member-card').count()).toBeGreaterThan(1);
-  await expect.poll(async () => {
-    const bounds = await dialog.boundingBox();
-    return bounds ? Math.abs(bounds.x + bounds.width / 2 - 800) : Infinity;
-  }).toBeLessThanOrEqual(3);
-  await expect(dialog.getByRole('button', { name: '카드 접기', exact: true })).toBeFocused();
-  await page.keyboard.press('Shift+Tab');
-  await expect(dialog.getByRole('button', { name: '입장하기', exact: true })).toBeFocused();
-  await page.keyboard.press('Tab');
-  await expect(dialog.getByRole('button', { name: '카드 접기', exact: true })).toBeFocused();
+  await expect(page.locator('.room-member-card, .room-spread-backdrop')).toHaveCount(0);
+  await expect(page.locator('.room-home')).not.toHaveClass(/has-active-room/);
+  await expect(dialog.getByRole('button', { name: '바텀', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
-  await expect(deck).toBeFocused();
+  await expect(seat).toBeFocused();
   await expectNoPageOverflow(page);
 });
 
-test('목록에서 개인 전적을 보여주고 상세 요약 평균은 전적이 있는 사람만 계산한다', async ({ page }) => {
+test('멤버 전적은 목록에서 확인하며 멤버 카드를 눌러도 별도 화면이 뜨지 않는다', async ({ page }) => {
   await seedRooms(page, [room('averages', [
     member('one', { winRate: 50, kda: 2 }),
     member('two', { winRate: 60, kda: 4, roles: ['SUPPORT'] }),
     member('three', { tier: null, division: null, winRate: null, kda: null, roles: ['JUNGLE'] }),
   ])]);
   await login(page);
-  const deck = page.getByRole('button', { name: '테스트 방 averages 방 정보', exact: true });
+  const deck = page.getByRole('article', { name: '테스트 방 averages 방 정보', exact: true });
   await expect(deck).toContainText('50%');
   await expect(deck).toContainText('60%');
   await expect(deck.locator('.compact-member:not(.compact-seat)')).toHaveCount(3);
-  await deck.click();
-  await expect(page.getByRole('dialog').locator('.room-summary-stats')).toContainText('55%');
-  await expect(page.getByRole('dialog').locator('.room-summary-stats')).toContainText('3.00');
-  const cards = page.getByRole('dialog').locator('.room-member-card');
-  await expect(cards).toHaveCount(3);
-  await expect(cards.filter({ hasText: '테스터 one' })).toContainText('50%');
-  await expect(cards.filter({ hasText: '테스터 two' })).toContainText('60%');
+  const cards = deck.locator('.compact-member:not(.compact-seat)');
+  await cards.first().click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(cards.filter({ hasText: '테스터 three' })).not.toContainText('0%');
+  await expect(cards.filter({ hasText: '테스터 three' }).locator('.room-unknown-stat')).toHaveCount(2);
 });
 
 test('다섯 명 방을 만들면 한 열 목록과 대화를 함께 쓰고 확정해도 방과 채팅이 유지된다', async ({ page }) => {
@@ -145,11 +143,11 @@ test('다섯 명 방을 만들면 한 열 목록과 대화를 함께 쓰고 확�
   await composer.getByRole('button', { name: '방 만들기', exact: true }).click();
   await page.getByRole('dialog', { name: '이대로 방을 만들까요?', exact: true }).getByRole('button', { name: '방 올리기', exact: true }).click();
   await expect(page.locator('.room-home')).toHaveClass(/has-active-room/);
-  const ownBubble = page.getByRole('button', { name: '우리 다섯 명의 방 방 정보', exact: true });
+  const ownBubble = page.getByRole('article', { name: '우리 다섯 명의 방 방 정보', exact: true });
   await expect(page.locator('html')).toHaveAttribute('data-room-send-animated', 'true');
   await expect(ownBubble).not.toHaveClass(/is-entering/);
-  await expect(ownBubble).toHaveCSS('border-bottom-right-radius', '30px');
-  await expect(ownBubble).toHaveCSS('border-bottom-left-radius', '30px');
+  await expect(ownBubble).toHaveCSS('border-bottom-right-radius', '32px');
+  await expect(ownBubble).toHaveCSS('border-bottom-left-radius', '32px');
   await expect(ownBubble.locator('.room-bubble-tail')).toHaveCSS('transform', 'matrix(-1, 0, 0, 1, 0, 0)');
   await expect(ownBubble).toHaveCSS('background-color', 'rgb(32, 27, 48)');
   await expect(page.getByRole('region', { name: '방 만들기', exact: true })).toHaveCount(0);
@@ -169,11 +167,11 @@ test('다섯 명 방을 만들면 한 열 목록과 대화를 함께 쓰고 확�
     window.dispatchEvent(new StorageEvent('storage', { key, newValue }));
   }, { key: STORAGE_KEY, newcomer: member('incoming') });
   await page.getByRole('button', { name: '모집 마감', exact: true }).click();
-  const deck = page.getByRole('button', { name: '우리 다섯 명의 방 방 정보', exact: true });
+  const deck = page.getByRole('article', { name: '우리 다섯 명의 방 방 정보', exact: true });
   await page.getByRole('checkbox', { name: '모집 중인 방만', exact: true }).uncheck();
   await expect(deck).toHaveAttribute('data-status', 'CONFIRMED');
   await expect(deck).toHaveCSS('filter', 'grayscale(1)');
-  await expect(deck).toHaveCSS('border-bottom-right-radius', '30px');
+  await expect(deck).toHaveCSS('border-bottom-right-radius', '32px');
   await expect(page.getByRole('textbox', { name: '방에 메시지 보내기', exact: true })).toBeEnabled();
   await page.locator('.side-nav').getByRole('link', { name: '프로필', exact: true }).press('Enter');
   await page.locator('.side-nav').getByRole('link', { name: '홈', exact: true }).press('Enter');
@@ -189,9 +187,9 @@ test('다섯 명 방을 만들면 한 열 목록과 대화를 함께 쓰고 확�
 test('마지막 자리에 들어가면 자동 확정되며 참가자는 방장 조작을 할 수 없다', async ({ page }) => {
   await seedRooms(page, [room('last-seat', ['host', 'two', 'three', 'four'].map(id => member(id)))]);
   await login(page);
-  const deck = page.getByRole('button', { name: '테스트 방 last-seat 방 정보', exact: true });
-  await deck.click();
-  await page.getByRole('dialog').getByRole('button', { name: '입장하기', exact: true }).click();
+  const deck = page.getByRole('article', { name: '테스트 방 last-seat 방 정보', exact: true });
+  await deck.locator('.compact-seat').click();
+  await page.getByRole('dialog').getByRole('button', { name: '참여하기', exact: true }).click();
   await expect(page.locator('.room-home')).toHaveClass(/has-active-room/);
   await page.getByRole('checkbox', { name: '모집 중인 방만', exact: true }).uncheck();
   await expect(deck).toHaveAttribute('data-status', 'CONFIRMED');
@@ -205,9 +203,9 @@ test('마지막 자리에 들어가면 자동 확정되며 참가자는 방장 �
   await expect(deck.locator('.compact-member:not(.compact-seat)')).toHaveCount(4);
   await expect(deck.locator('.compact-seat-status')).toHaveText('모집 마감');
   await expect(deck).not.toContainText('모집 중');
-  await deck.click();
-  await expect(page.getByRole('dialog').getByRole('button', { name: '입장하기', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('dialog').getByRole('button', { name: '매칭 확정', exact: true })).toBeDisabled();
+  await expect(deck.locator('.compact-seat')).toBeDisabled();
+  await deck.getByRole('heading').click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
 test('방장은 특정 참가자만 내보낼 수 있고 자신의 방과 남은 참가자는 유지된다', async ({ page }) => {
@@ -219,7 +217,7 @@ test('방장은 특정 참가자만 내보낼 수 있고 자신의 방과 남은
   await page.getByRole('alert').getByRole('button', { name: '내보내기', exact: true }).click();
   await expect(page.getByRole('button', { name: '테스터 remove 내보내기', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '테스터 keep 내보내기', exact: true })).toBeVisible();
-  const deck = page.getByRole('button', { name: '테스트 방 owned 방 정보', exact: true });
+  const deck = page.getByRole('article', { name: '테스트 방 owned 방 정보', exact: true });
   await expect(deck.locator('.compact-member:not(.compact-seat)')).toHaveCount(2);
   await expect(deck).toHaveAttribute('data-status', 'OPEN');
 });
@@ -241,7 +239,7 @@ test('방을 확정하기 전에도 음성 미리보기에 참여하고 음소�
   await expect(voice.getByRole('button', { name: '참여', exact: true })).toBeEnabled();
   await voice.getByRole('button', { name: '참여', exact: true }).click();
   await expect(voice.getByRole('heading', { name: '음성 미리보기', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: '테스트 방 voice 방 정보', exact: true })).toHaveAttribute('data-status', 'OPEN');
+  await expect(page.getByRole('article', { name: '테스트 방 voice 방 정보', exact: true })).toHaveAttribute('data-status', 'OPEN');
 });
 
 test('랭크 방은 두 명까지만 선택되며 선택한 모드는 다시 눌러도 해제되지 않는다', async ({ page }) => {
@@ -256,7 +254,7 @@ test('랭크 방은 두 명까지만 선택되며 선택한 모드는 다시 눌
   await composer.getByLabel('한마디', { exact: true }).fill('둘이 랭크');
   await composer.getByRole('button', { name: '방 만들기', exact: true }).click();
   await page.getByRole('dialog', { name: '이대로 방을 만들까요?', exact: true }).getByRole('button', { name: '방 올리기', exact: true }).click();
-  await expect(page.getByRole('button', { name: '둘이 랭크 방 정보', exact: true }).locator('.compact-seat')).toHaveCount(1);
+  await expect(page.getByRole('article', { name: '둘이 랭크 방 정보', exact: true }).locator('.compact-seat')).toHaveCount(1);
 });
 
 test('빈자리 하나에 두 포지션을 표시하고 마이크는 빈자리 카드에만 표시한다', async ({ page }) => {
@@ -264,7 +262,7 @@ test('빈자리 하나에 두 포지션을 표시하고 마이크는 빈자리 �
     capacity: 2, desiredRoles: ['SUPPORT', 'TOP'], voice: 'NO_VOICE',
   })]);
   await login(page);
-  const deck = page.getByRole('button', { name: '테스트 방 options 방 정보', exact: true });
+  const deck = page.getByRole('article', { name: '테스트 방 options 방 정보', exact: true });
   const header = deck.locator('.compact-room-header');
   await expect(header).not.toContainText('찾는 포지션');
   await expect(header).not.toContainText('모집 중');
@@ -275,8 +273,14 @@ test('빈자리 하나에 두 포지션을 표시하고 마이크는 빈자리 �
   await expect(vacancy.locator('.room-role-icons b')).toHaveText(['탑', '서포터']);
   await expect(vacancy.getByRole('img', { name: '마이크 미사용', exact: true })).toBeVisible();
   await expect(deck.locator('.compact-member:not(.compact-seat) .room-mic-icon')).toHaveCount(0);
-  await deck.click();
-  await expect(page.getByRole('dialog').locator('.room-member-card .room-mic-icon')).toHaveCount(0);
+  await vacancy.click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: '서포터', exact: true }).click();
+  await dialog.getByRole('button', { name: '참여하기', exact: true }).click();
+  const joined = await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).rooms[0].members.find((value: RoomMember) => value.id === 'u-me'), STORAGE_KEY);
+  expect(joined.roles).toEqual(['SUPPORT']);
+  expect(joined.voice).toBe('NO_VOICE');
+  await expect(page.getByRole('region', { name: '방 채팅과 음성' })).toBeVisible();
 });
 
 test('내 포지션은 하나만 선택하고 찾는 포지션은 여러 개 선택하며 재접속해도 유지한다', async ({ page }) => {
@@ -328,7 +332,7 @@ test('5인 방은 내 포지션과 나머지 네 포지션을 모두 골라야 �
   await expect(create).toBeEnabled();
   await create.click();
   await page.getByRole('dialog', { name: '이대로 방을 만들까요?', exact: true }).getByRole('button', { name: '방 올리기', exact: true }).click();
-  const deck = page.getByRole('button', { name: '다섯 포지션 완성 방 정보', exact: true });
+  const deck = page.getByRole('article', { name: '다섯 포지션 완성 방 정보', exact: true });
   await expect(deck.locator('.compact-seat .room-role-icons b')).toHaveText(['정글', '미드', '바텀', '서포터']);
 });
 
@@ -340,7 +344,7 @@ test('칼바람 5인 방은 포지션을 고르지 않고도 만들 수 있다',
   await composer.getByLabel('한마디', { exact: true }).fill('포로 다섯');
   await composer.getByRole('button', { name: '방 만들기', exact: true }).click();
   await page.getByRole('dialog', { name: '이대로 방을 만들까요?', exact: true }).getByRole('button', { name: '방 올리기', exact: true }).click();
-  await expect(page.getByRole('button', { name: '포로 다섯 방 정보', exact: true }).locator('.compact-seat')).toHaveCount(4);
+  await expect(page.getByRole('article', { name: '포로 다섯 방 정보', exact: true }).locator('.compact-seat')).toHaveCount(4);
 });
 
 test('5인 방의 방장이 나가도 그 포지션을 다시 빈자리로 표시한다', async ({ page }) => {
@@ -350,7 +354,7 @@ test('5인 방의 방장이 나가도 그 포지션을 다시 빈자리로 표�
   await login(page);
   await page.getByRole('button', { name: '방 나가기', exact: true }).click();
   await page.getByRole('alert').getByRole('button', { name: '나가기', exact: true }).click();
-  const deck = page.getByRole('button', { name: '테스트 방 host-leaves 방 정보', exact: true });
+  const deck = page.getByRole('article', { name: '테스트 방 host-leaves 방 정보', exact: true });
   await expect(deck.locator('.compact-seat .room-role-icons b')).toHaveText(['정글', '미드', '바텀', '서포터']);
   await expect(deck).toHaveAttribute('data-status', 'OPEN');
 });
@@ -372,7 +376,7 @@ test('예약 방은 과거 시간을 거절하고 미래 시간으로 만든 즉
   await composer.getByLabel('시작 시간', { exact: true }).fill(next);
   await composer.getByRole('button', { name: '방 만들기', exact: true }).click();
   await page.getByRole('dialog', { name: '이대로 방을 만들까요?', exact: true }).getByRole('button', { name: '방 올리기', exact: true }).click();
-  const deck = page.getByRole('button', { name: '조금 뒤에 다 같이 방 정보', exact: true });
+  const deck = page.getByRole('article', { name: '조금 뒤에 다 같이 방 정보', exact: true });
   await expect(deck.locator('.compact-room-header time')).toBeVisible();
   await expect(page.getByRole('textbox', { name: '방에 메시지 보내기', exact: true })).toBeEnabled();
   await expect(deck).toHaveAttribute('data-status', 'OPEN');
@@ -405,12 +409,13 @@ test('채팅 저장이 실패하면 메시지와 초안을 잃지 않고 다시 
   await expect(input).toHaveValue('');
 });
 
-test('모션 감소 설정과 좁은 화면에서도 덱을 열고 닫을 수 있고 본문은 넘치지 않는다', async ({ page }) => {
+test('모션 감소 설정과 좁은 화면에서도 빈자리 참여 창을 열고 닫을 수 있다', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await login(page);
   const deck = page.locator('.room-deck[data-status="OPEN"]').first();
-  await deck.click();
+  const seat = deck.locator('.compact-seat').first();
+  await seat.click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   const bounds = await dialog.boundingBox();
@@ -418,9 +423,9 @@ test('모션 감소 설정과 좁은 화면에서도 덱을 열고 닫을 수 �
   expect(bounds!.x).toBeGreaterThanOrEqual(0);
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(391);
   await expectNoPageOverflow(page);
-  await dialog.getByRole('button', { name: '카드 접기', exact: true }).click();
+  await dialog.getByRole('button', { name: '참여 창 닫기', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(deck).toBeFocused();
+  await expect(seat).toBeFocused();
 });
 
 test('2인 랭크는 두 방씩 배치하고 자유 랭크는 2·3·5명만 모집한다', async ({ page }) => {
@@ -443,9 +448,9 @@ test('2인 랭크는 두 방씩 배치하고 자유 랭크는 2·3·5명만 모�
   await composer.getByLabel('한마디', { exact: true }).fill('자유 랭크 셋이서');
   await composer.getByRole('button', { name: '방 만들기', exact: true }).click();
   await page.getByRole('dialog', { name: '이대로 방을 만들까요?', exact: true }).getByRole('button', { name: '방 올리기', exact: true }).click();
-  await expect(page.getByRole('button', { name: '자유 랭크 셋이서 방 정보', exact: true }).locator('.compact-member')).toHaveCount(3);
+  await expect(page.getByRole('article', { name: '자유 랭크 셋이서 방 정보', exact: true }).locator('.compact-member')).toHaveCount(3);
   await login(page); // The in-memory mock session resets on navigation; room/preferences stay in localStorage.
-  await expect(page.getByRole('button', { name: '자유 랭크 셋이서 방 정보', exact: true })).toBeVisible();
+  await expect(page.getByRole('article', { name: '자유 랭크 셋이서 방 정보', exact: true })).toBeVisible();
 });
 
 test('모드별 인원을 선택하고 재접속과 방 만들기에서도 유지한다', async ({ page }) => {
@@ -476,7 +481,7 @@ test('모드별 인원을 선택하고 재접속과 방 만들기에서도 유�
   await composer.getByRole('textbox', { name: '한마디', exact: true }).fill('자유 랭크 세 명');
   await composer.getByRole('button', { name: '방 만들기', exact: true }).click();
   await page.getByRole('dialog', { name: '이대로 방을 만들까요?', exact: true }).getByRole('button', { name: '방 올리기', exact: true }).click();
-  await expect(page.getByRole('button', { name: '자유 랭크 세 명 방 정보', exact: true }).locator('.compact-member')).toHaveCount(3);
+  await expect(page.getByRole('article', { name: '자유 랭크 세 명 방 정보', exact: true }).locator('.compact-member')).toHaveCount(3);
 });
 
 test('모집 티어 범위는 방 구성원 평균 대신 모집 조건을 찾고 단일 선택과 취소를 지원한다', async ({ page }) => {
@@ -503,9 +508,9 @@ test('모집 티어 범위는 방 구성원 평균 대신 모집 조건을 찾�
   await dialog.getByRole('button', { name: '적용', exact: true }).click();
   await expect(trigger).toHaveText('골드');
   await expect(page.locator('.room-deck')).toHaveCount(2);
-  await expect(page.getByRole('button', { name: '테스트 방 GOLD 방 정보', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: '테스트 방 unrestricted 방 정보', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: '테스트 방 PLATINUM 방 정보', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('article', { name: '테스트 방 GOLD 방 정보', exact: true })).toBeVisible();
+  await expect(page.getByRole('article', { name: '테스트 방 unrestricted 방 정보', exact: true })).toBeVisible();
+  await expect(page.getByRole('article', { name: '테스트 방 PLATINUM 방 정보', exact: true })).toHaveCount(0);
   await trigger.click();
   await dialog.getByRole('button', { name: '골드', exact: true }).click();
   await dialog.getByRole('button', { name: '골드', exact: true }).click();
@@ -530,7 +535,7 @@ test('우측 티어 범위를 보관하고 방 생성 시 빈자리 조건으로
   await composer.getByLabel('한마디', { exact: true }).fill('티어 범위 확인');
   await composer.getByRole('button', { name: '방 만들기', exact: true }).click();
   await page.getByRole('dialog', { name: '이대로 방을 만들까요?', exact: true }).getByRole('button', { name: '방 올리기', exact: true }).click();
-  const seat = page.getByRole('button', { name: '티어 범위 확인 방 정보', exact: true }).locator('.compact-seat');
+  const seat = page.getByRole('article', { name: '티어 범위 확인 방 정보', exact: true }).locator('.compact-seat');
   await expect(seat).toContainText('실버~골드');
   await expect(seat).toHaveCSS('animation-name', 'vacant-seat-breathe');
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -539,12 +544,16 @@ test('우측 티어 범위를 보관하고 방 생성 시 빈자리 조건으로
   await expect(seat).toContainText('실버~골드');
 });
 
-test('티어 범위를 벗어난 방은 상세에서 입장을 막는다', async ({ page }) => {
+test('티어 범위를 벗어난 방의 빈자리 카드는 입장이 비활성화된다', async ({ page }) => {
   await seedRooms(page, [room('restricted', [member('host')], { desiredTierRange: { minTier: 'CHALLENGER', maxTier: 'CHALLENGER' } })]);
   await login(page);
-  await page.getByRole('button', { name: '테스트 방 restricted 방 정보', exact: true }).click();
-  await expect(page.getByRole('dialog').getByRole('button', { name: '입장하기', exact: true })).toBeDisabled();
-  await expect(page.getByRole('dialog')).toContainText('방에서 찾는 티어 범위와 맞지 않아요');
+  const deck = page.getByRole('article', { name: '테스트 방 restricted 방 정보', exact: true });
+  for (const seat of await deck.locator('.compact-seat').all()) {
+    await expect(seat).toBeDisabled();
+    await expect(seat).toHaveAttribute('title', '방에서 찾는 티어 범위와 맞지 않아요');
+  }
+  await deck.getByRole('heading').click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
 test('좁은 화면에서는 듀오가 한 열이며 범위 선택창이 화면 안에 들어온다', async ({ page }) => {
@@ -572,7 +581,7 @@ test('게시판 포지션은 빈자리 모집 조건을 찾고 우측 선호 조
   const board = page.getByRole('region', { name: '방 목록', exact: true });
   await board.getByRole('group', { name: '포지션', exact: true }).getByRole('button', { name: '탑', exact: true }).click();
   await expect(page.locator('.room-deck')).toHaveCount(1);
-  await expect(page.getByRole('button', { name: '테스트 방 seeking-top 방 정보', exact: true })).toBeVisible();
+  await expect(page.getByRole('article', { name: '테스트 방 seeking-top 방 정보', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '찾는 티어 범위', exact: true }).click();
   const picker = page.getByRole('dialog', { name: '찾는 티어 범위', exact: true });
   await picker.getByRole('button', { name: '골드', exact: true }).click();
@@ -586,7 +595,7 @@ test('게시판 포지션은 빈자리 모집 조건을 찾고 우측 선호 조
   await composer.getByLabel('한마디', { exact: true }).fill('골드만 함께해요');
   await composer.getByRole('button', { name: '방 만들기', exact: true }).click();
   await page.getByRole('dialog', { name: '이대로 방을 만들까요?', exact: true }).getByRole('button', { name: '방 올리기', exact: true }).click();
-  await expect(page.getByRole('button', { name: '골드만 함께해요 방 정보', exact: true }).locator('.compact-seat .tier-range-label')).toHaveText('골드');
+  await expect(page.getByRole('article', { name: '골드만 함께해요 방 정보', exact: true }).locator('.compact-seat .tier-range-label')).toHaveText('골드');
 });
 
 test('요약 확인 뒤에만 방을 만들며 저장 실패 후에도 초안과 요약을 유지한다', async ({ page }) => {
@@ -625,7 +634,7 @@ test('요약 확인 뒤에만 방을 만들며 저장 실패 후에도 초안과
     delete prototype.originalRoomSetItem;
   });
   await preview.getByRole('button', { name: '방 올리기', exact: true }).click();
-  const deck = page.getByRole('button', { name: `${title} 방 정보`, exact: true });
+  const deck = page.getByRole('article', { name: `${title} 방 정보`, exact: true });
   await expect(deck).toBeVisible();
   await expect(deck.locator('.compact-member:not(.compact-seat) .room-role-icons b')).toHaveText(['바텀']);
   await expect(deck.locator('.compact-seat .room-role-icons b')).toHaveText(['서포터']);
@@ -679,9 +688,75 @@ test('방 요약에서 조건을 확인하고 취소하면 게시하지 않으�
   expect(bounds!.x).toBeGreaterThanOrEqual(0);
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
   await preview.getByRole('button', { name: '방 올리기', exact: true }).click();
-  const own = page.getByRole('button', { name: '함께 바텀 듀오해요 방 정보', exact: true });
+  const own = page.getByRole('article', { name: '함께 바텀 듀오해요 방 정보', exact: true });
   await expect(own).toBeVisible();
   await expect(own).toHaveCSS('animation-name', 'none');
   await expect(page.locator('.room-deck.is-own')).toHaveCount(1);
   await expectNoPageOverflow(page);
+});
+
+test('참여 확인 중 포지션이 차면 입장을 막고 다른 빈자리를 선택할 수 있다', async ({ page }) => {
+  await seedRooms(page, [room('race', [member('host', { roles: ['MID'] })], { capacity: 3, desiredRoles: ['TOP', 'SUPPORT'] })]);
+  await login(page);
+  const deck = page.getByRole('article', { name: '테스트 방 race 방 정보', exact: true });
+  await deck.getByRole('button', { name: '탑 자리 참여', exact: true }).click();
+  await page.evaluate(({ key, entrant }) => {
+    const snapshot = JSON.parse(localStorage.getItem(key)!);
+    snapshot.rooms[0].members.push(entrant);
+    localStorage.setItem(key, JSON.stringify(snapshot));
+    window.dispatchEvent(new StorageEvent('storage', { key }));
+  }, { key: STORAGE_KEY, entrant: member('new-top', { roles: ['TOP'] }) });
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('button', { name: '참여하기', exact: true })).toBeDisabled();
+  await expect(dialog.getByRole('alert')).toContainText('더 이상 모집하지 않아요');
+  await dialog.getByRole('button', { name: '취소', exact: true }).click();
+  await deck.getByRole('button', { name: '서포터 자리 참여', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: '참여하기', exact: true }).click();
+  await expect(deck).toHaveAttribute('data-status', 'CONFIRMED');
+  const roles = await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).rooms[0].members.map((value: RoomMember) => value.roles), STORAGE_KEY);
+  expect(roles).toEqual([['MID'], ['TOP'], ['SUPPORT']]);
+});
+
+test('빈자리 참여 저장이 실패해도 선택을 유지하고 재시도하면 한 번만 입장한다', async ({ page }) => {
+  await seedRooms(page, [room('join-retry', [member('host')], { capacity: 2, desiredRoles: ['TOP', 'SUPPORT'] })]);
+  await login(page);
+  const deck = page.getByRole('article', { name: '테스트 방 join-retry 방 정보', exact: true });
+  await deck.locator('.compact-seat').click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: '서포터', exact: true }).click();
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key.startsWith('qm:room-board:v1:')) {
+        Storage.prototype.setItem = original;
+        throw new DOMException('Storage is full', 'QuotaExceededError');
+      }
+      return original.call(this, key, value);
+    };
+  });
+  await dialog.getByRole('button', { name: '참여하기', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('방 정보를 저장할 수 없어요');
+  await expect(dialog.getByRole('button', { name: '서포터', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.room-home')).not.toHaveClass(/has-active-room/);
+  await dialog.getByRole('button', { name: '참여하기', exact: true }).dblclick();
+  await expect(dialog).toHaveCount(0);
+  await expect(deck.locator('.compact-member:not(.compact-seat)')).toHaveCount(2);
+});
+
+test('빠른 연결 추천도 카드 펼침 없이 해당 빈자리로 참여한다', async ({ page }) => {
+  await seedRooms(page, [room('recommended', [member('host', { roles: ['MID'] })], {
+    modeKey: 'SOLO_DUO_RANKED', capacity: 2, desiredRoles: ['SUPPORT'], voice: 'REQUIRED',
+  })]);
+  await login(page);
+  const form = page.getByRole('region', { name: '빠른 연결', exact: true });
+  await form.getByRole('group', { name: '원하는 큐 타입', exact: true }).getByRole('button', { name: '2인 랭크', exact: true }).click();
+  await form.getByRole('radiogroup', { name: '내 포지션', exact: true }).getByRole('radio', { name: '서포터', exact: true }).check();
+  await form.getByRole('group', { name: '음성', exact: true }).getByRole('button', { name: '마이크 사용', exact: true }).click();
+  await form.getByRole('button', { name: '매칭 시작', exact: true }).click();
+  await page.getByRole('region', { name: '매칭 추천', exact: true }).getByRole('button', { name: '자리 확인', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('button', { name: '서포터', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.room-spread-backdrop')).toHaveCount(0);
+  await dialog.getByRole('button', { name: '참여하기', exact: true }).click();
+  await expect(page.getByRole('region', { name: '방 채팅과 음성' })).toBeVisible();
 });

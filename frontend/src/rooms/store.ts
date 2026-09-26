@@ -6,7 +6,7 @@ import type { CreateRoomInput, GameRoom, RoomMember, RoomMessage } from './types
 
 import { roomVoice, ROOM_VOICES } from './voice';
 import { autoClosePhase, canAutoClose, nextAutoCloseAt } from './autoClose';
-import { needsFullLineup, roomPositionError } from './positions';
+import { needsFullLineup, remainingRoomRoles, roomPositionError } from './positions';
 
 export { roomCapacityLimit } from './summary';
 
@@ -232,7 +232,7 @@ export function createRoomActions(userId: string) {
       save(userId, [room, ...rooms]);
       return room;
     },
-    join(roomId: string, member: RoomMember): void {
+    join(roomId: string, member: RoomMember, selectedRole?: string): void {
       const rooms = current();
       const active = activeRoomIn(rooms, userId);
       if (active?.id === roomId) return;
@@ -243,6 +243,10 @@ export function createRoomActions(userId: string) {
       if (room.type === 'RESERVATION' && room.availableFrom && Date.parse(room.availableFrom) <= Date.now()) throw new Error('예약 시간이 지난 방이에요.');
       const entrant = checkedMember(member, room.game);
       if (!tierInRange(room.game, entrant.tier, room.desiredTierRange)) throw new Error(entrant.tier ? '방에서 찾는 티어 범위와 맞지 않아요. 다른 방을 확인해 주세요.' : '티어 조건이 있는 방이에요. 프로필에서 게임 계정을 연결해 주세요.');
+      if (selectedRole !== undefined) {
+        if (!remainingRoomRoles(room).includes(selectedRole)) throw new Error('선택한 포지션은 더 이상 모집하지 않아요. 다른 자리를 선택해 주세요.');
+        entrant.roles = [selectedRole];
+      }
       if (room.game === 'LOL' && room.modeKey === 'ARAM') entrant.roles = [];
       const members = [...room.members, entrant];
       let joined = append({ ...room, members, status: members.length === room.capacity ? 'CONFIRMED' : 'OPEN' }, systemMessage(`${entrant.nickname} 님이 들어왔어요.`));
