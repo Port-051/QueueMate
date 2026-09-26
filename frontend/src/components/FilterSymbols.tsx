@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { IconMic, IconMicOff, IconMicOptional } from './icons';
 import type { GameKey } from '../api/types';
-import { rankEmblem, rankEmblemBounds, RANK_EMBLEM_SOURCE_SIZE } from '../domain/rankAssets';
+import { rankEmblem, rankEmblemBounds, RANK_EMBLEM_SOURCE_SIZE, TIER_COLORS } from '../domain/rankAssets';
 
 type SymbolProps = { size?: number };
 
@@ -75,12 +75,7 @@ export function FilterRoleIcon({ game, value, size = 20 }: SymbolProps & { game:
   </svg>;
 }
 
-const TIER_COLORS: Record<string, string> = {
-  IRON: '#8b8584', BRONZE: '#b2866c', SILVER: '#aab6c6', GOLD: '#d0ad68',
-  PLATINUM: '#7bb7b3', EMERALD: '#6eb68e', DIAMOND: '#93abe0', MASTER: '#b889ca',
-  GRANDMASTER: '#cf7e85', CHALLENGER: '#d7bf7e', ASCENDANT: '#83b89a',
-  IMMORTAL: '#cb8496', RADIANT: '#d4ca96',
-};
+
 
 export function FilterTierIcon({ game, tier, size = 20 }: SymbolProps & { game?: GameKey; tier: string | null }) {
   const emblem = game === 'LOL' ? rankEmblem(tier) : null;
@@ -108,7 +103,7 @@ export function FilterModeIcon({ mode, size = 16 }: SymbolProps & { mode: string
     glyph = <path d="M12 2v20M3.3 7l17.4 10M3.3 17 20.7 7M9 4l3 3 3-3M9 20l3-3 3 3M4 10l4-1-1-4m10 14-1-4 4-1M4 14l4 1-1 4M17 5l-1 4 4 1" />;
   } else if (mode === 'SWIFTPLAY') {
     glyph = <path d="m14 2-9 12h6l-1 8 9-12h-6l1-8Z" />;
-  } else if (mode === 'DUO' || mode === 'SQUAD') {
+  } else if (mode === 'DUO' || mode === 'SQUAD' || mode === 'FLEX_RANKED') {
     glyph = <>
       <circle cx="9" cy="8" r="3" /><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6m2 4a5 5 0 0 1 3 4v2" />
       {mode === 'SQUAD' ? <path d="M2 5a3 3 0 0 1 2-2m16 0a3 3 0 0 1 2 2" /> : null}

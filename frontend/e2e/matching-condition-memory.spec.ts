@@ -5,7 +5,7 @@ test('조건은 메시지와 프로필을 다녀와도 유지되고 모드는 �
   await login(page);
   const form = page.locator('.recruitment-composer-shell');
   const modes = form.getByRole('group', { name: '원하는 큐 타입' });
-  const rank = modes.getByRole('button', { name: '랭크', exact: true });
+  const rank = modes.getByRole('button', { name: '2인 랭크', exact: true });
   await expect(rank).toHaveAttribute('aria-pressed', 'true');
   await rank.click();
   await expect(rank).toHaveAttribute('aria-pressed', 'true');

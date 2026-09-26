@@ -105,7 +105,8 @@ export const GAMES: GameConfig[] = [
  * 라벨이 없다고 선택지를 감추지는 않는다. 감추면 서버가 지원하는 모드를 못 고르게 된다.
  */
 const MODE_LABELS: Record<string, string> = {
-  SOLO_DUO_RANKED: '랭크',
+  SOLO_DUO_RANKED: '2인 랭크',
+  FLEX_RANKED: '자유 랭크',
   NORMAL_DRAFT: '일반',
   SWIFTPLAY: '신속',
   ARAM: '칼바람',

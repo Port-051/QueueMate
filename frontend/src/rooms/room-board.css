@@ -228,7 +228,6 @@
 .compact-room-header h3 { flex:1; min-width:120px; margin:0; font-size:17px; line-height:1.5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .compact-room-header time { font-size:14px; white-space:nowrap; }
 .compact-room-header .room-status { flex:none; font-size:13px; gap:9px; }
-.compact-room-header .room-status b { color:#ece6f8; font-size:18px; font-variant-numeric:tabular-nums; }
 .room-role-icons.has-labels { gap:8px; }
 .room-role-icons.has-labels>span { align-items:center; gap:5px; }
 .room-role-icons.has-labels b { font-size:13px; font-weight:500; color:#d9d2e8; }
@@ -258,8 +257,14 @@
 .compact-member-champions .preferred-champion-portrait { width:27px; height:27px; }
 .compact-member-champions .preferred-champion-name { font-size:12px; }
 .compact-champion-empty { display:inline-grid; place-items:center; width:27px; height:27px; flex:none; border:1px dashed #3c4050; border-radius:50%; color:var(--muted); font-size:12px; }
-.compact-seat { align-items:center; justify-content:center; gap:18px; background:transparent; border:1px dashed #343c52; color:#8991a9; }
-.compact-seat-status { color:#a5abc0; font-size:13px; line-height:1.4; }
+.compact-seat { align-items:center; justify-content:center; gap:16px; background:#aa83ff07; border:1.5px dashed #a58bc8; color:#b5a0d4; }
+.room-compact:not(.is-confirmed) .compact-seat { animation:vacant-seat-breathe 3.2s ease-in-out infinite; }
+.room-compact:hover .compact-seat { border-color:#c9aaff; background:#aa83ff12; }
+.compact-seat .tier-range-label { flex-wrap:wrap; max-width:100%; gap:3px; font-size:12px; }
+.compact-seat .tier-range-endpoint { gap:3px; }
+@keyframes vacant-seat-breathe { 0%,100% { border-color:#81669f; box-shadow:inset 0 0 18px #a783f006; } 50% { border-color:#c6a3f2; box-shadow:inset 0 0 22px #a783f021; } }
+@media(prefers-reduced-motion:reduce) { .room-compact:not(.is-confirmed) .compact-seat { animation:none; border-color:#a58bc8; } }
+.compact-seat-status { color:#c4a0f9; font-size:14px; font-weight:600; line-height:1.4; }
 .compact-seat .room-role-icons { flex-wrap:wrap; gap:16px; }
 .compact-seat .room-role-icons>span { flex-direction:column; gap:8px; }
 .compact-seat .room-role-icons svg { width:30px; height:30px; }
@@ -292,3 +297,19 @@
   .room-home.board-home { padding:16px 12px 32px; --room-padding:12px; }
   .compact-room-header h3 { flex-basis:calc(100% - 100px); }
 }
+
+/* Two duo rooms use the same board width as a five-person room. */
+.room-home:not(.has-active-room) .room-deck-grid.is-duo-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.room-deck-grid.is-duo-grid .compact-members { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); overflow:visible; }
+.room-deck-grid.is-duo-grid .compact-member { width:auto; }
+.room-home .home-profile .intro-mode-options { display:flex; flex-wrap:wrap; }
+.room-home .home-profile .intro-mode-options>.filter-mode { flex:1 1 28%; }
+.room-home .tier-range-trigger { width:100%; }
+.room-home .room-filters .tier-range-trigger { width:auto; }
+.room-compact.is-confirmed .compact-seat-status { color:#a5abc0; }
+@media(max-width:700px) {
+  .room-home:not(.has-active-room) .room-deck-grid.is-duo-grid { grid-template-columns:minmax(0,1fr); }
+}
+
+.room-home .room-filters .filter-mode-options { max-width:100%; overflow-x:auto; flex-shrink:1; }
+.room-home .room-filters .filter-mode-options>.filter-mode { flex-shrink:0; }

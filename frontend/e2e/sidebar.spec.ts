@@ -211,7 +211,7 @@ test('로고 아래 게임 아이콘은 선택 링을 표시하고 게임을 바
   await expect(roleFilter.getByRole('button', { name: '탑', exact: true })).toBeVisible();
   await expect(roleFilter.getByRole('button')).toHaveCount(5);
   await expect(modeFilter.getByRole('button')).toHaveCount(4);
-  for (const [index, name] of ['랭크', '일반', '신속', '칼바람'].entries()) {
+  for (const [index, name] of ['2인 랭크', '일반', '신속', '칼바람'].entries()) {
     await expect(modeFilter.getByRole('button').nth(index)).toHaveAccessibleName(name);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

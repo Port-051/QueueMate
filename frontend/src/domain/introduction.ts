@@ -1,3 +1,4 @@
+import { normalizeTierRange, type TierRange } from './tierRange';
 import type { BoardRow, BoardWrite } from '../api/recruitment';
 import type { GameKey, VoicePreference } from '../api/types';
 import { USE_MOCK } from '../config';
@@ -10,6 +11,7 @@ export interface SelfIntroduction {
   primaryRole: string;
   primaryRoles?: string[];
   desiredRoles: string[];
+  desiredTierRange?: TierRange;
   ownTier: string | null;
   rankDivision?: LolRankDivision | null;
   champions: string[];
@@ -41,6 +43,7 @@ function normalize(value: Partial<SelfIntroduction>, game: GameKey): SelfIntrodu
     primaryRole: text(value.primaryRole, defaults.primaryRole) || 'ANY',
     primaryRoles: normalizeDesiredRoles(game, value.primaryRoles ?? (value.primaryRole && value.primaryRole !== 'ANY' ? [value.primaryRole] : [])),
     desiredRoles: normalizeDesiredRoles(game, strings(value.desiredRoles)),
+    desiredTierRange: normalizeTierRange(game, value.desiredTierRange),
     ownTier: typeof value.ownTier === 'string' && value.ownTier ? value.ownTier : null,
     ...normalizeLolRankDetails(game === 'LOL' ? value.ownTier : null, value.rankDivision),
     champions: strings(value.champions).map(name => name.trim()).filter(Boolean),

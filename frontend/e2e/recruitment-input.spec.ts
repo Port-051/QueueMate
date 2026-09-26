@@ -40,7 +40,7 @@ test('포지션 다중 선택과 음성 드롭다운을 조합하고 초기화�
   await filters.getByRole('button', { name: '초기화', exact: true }).click();
   await expect(rows).toHaveCount(10);
   await expect(roles.locator('[aria-pressed=true]')).toHaveCount(0);
-  await expect(filters.getByRole('button', { name: '랭크', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(filters.getByRole('button', { name: '2인 랭크', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('티어 팝업은 키보드로 선택하고 Escape와 바깥 클릭으로 닫을 수 있다', async ({ page }) => {

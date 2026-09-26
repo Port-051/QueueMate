@@ -4,7 +4,7 @@ import { login } from './helpers';
 test('기본 랭크는 해제되지 않고 목록에는 모드 없이 별도 음성 컬럼이 보인다', async ({ page }) => {
   await login(page);
   const modes = page.locator('.board-filter-bar').getByRole('group', { name: '찾는 큐 타입' });
-  const ranked = modes.getByRole('button', { name: '랭크', exact: true });
+  const ranked = modes.getByRole('button', { name: '2인 랭크', exact: true });
   await expect(ranked).toHaveAttribute('aria-pressed', 'true');
   await ranked.click();
   await expect(modes.locator('[aria-pressed=true]')).toHaveCount(1);

@@ -1,3 +1,6 @@
+import { TierRangePicker } from '../components/TierRangePicker';
+import { ALL_TIERS } from '../domain/tierRange';
+import { readIntroduction } from '../domain/introduction';
 import { useId, useState } from 'react';
 import type { GameKey, VoicePreference } from '../api/types';
 import { FilterModeIcon, FilterRoleIcon, VoiceIcon } from '../components/FilterSymbols';
@@ -5,7 +8,7 @@ import { IconCalendar, IconPlus, IconX } from '../components/icons';
 import { Button } from '../components/ui';
 import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
 import { roomVoice } from './voice';
-import { canonicalRoomRoles, roomCapacityLimit } from './summary';
+import { canonicalRoomRoles, roomCapacityLimit, roomCapacities } from './summary';
 import { needsFullLineup, roomPositionError } from './positions';
 import type { CreateRoomInput, GameRoom, RoomMember } from './types';
 import './room-composer.css';
@@ -37,6 +40,7 @@ export function RoomComposer({ game, modeKey, type, member, onCreate, onCancel }
   const [titleEdited, setTitleEdited] = useState(false);
   const [capacity, setCapacity] = useState(() => Math.max(2, roomCapacityLimit(game, defaultMode)));
   const [ownRoles, setOwnRoles] = useState(() => canonicalRoomRoles(game, member.roles));
+  const [desiredTierRange, setDesiredTierRange] = useState(() => readIntroduction(member.id, game)?.desiredTierRange ?? ALL_TIERS);
   const [desiredRoles, setDesiredRoles] = useState<string[]>([]);
   const [voice, setVoice] = useState<VoicePreference>(roomVoice(member.voice));
   const [bio, setBio] = useState(member.bio);
@@ -56,7 +60,7 @@ export function RoomComposer({ game, modeKey, type, member, onCreate, onCancel }
 
   const submit = () => {
     if (!title.trim()) { setError('방 제목을 입력해 주세요.'); return; }
-    if (!modes.some(item => item.key === mode) || capacity < 2 || capacity > limit) { setError('게임 모드와 모집 인원을 확인해 주세요.'); return; }
+    if (!modes.some(item => item.key === mode) || !roomCapacities(game, mode).includes(capacity)) { setError('게임 모드와 모집 인원을 확인해 주세요.'); return; }
     if (positionError) { setError(positionError); return; }
     const startDate = new Date(start);
     if (isReservation && (!start || !Number.isFinite(startDate.getTime()) || startDate.getTime() <= Date.now())) {
@@ -64,7 +68,7 @@ export function RoomComposer({ game, modeKey, type, member, onCreate, onCancel }
     }
     if (isReservation && startDate.getMinutes() % 30 !== 0) { setError('시작 시간은 30분 단위로 선택해 주세요.'); return; }
     setError('');
-    onCreate({ game, modeKey: mode, type, title: title.trim(), capacity, desiredRoles: hasRoles ? desiredRoles : [], voice,
+    onCreate({ game, modeKey: mode, type, title: title.trim(), capacity, desiredTierRange, desiredRoles: hasRoles ? desiredRoles : [], voice,
       availableFrom: isReservation ? startDate.toISOString() : null },
     { ...member, roles: hasRoles ? ownRoles : [], bio: bio.trim(), voice });
   };
@@ -77,14 +81,15 @@ export function RoomComposer({ game, modeKey, type, member, onCreate, onCancel }
         <fieldset><legend>게임 모드</legend><div className="room-composer-mode-options" role="group" aria-label="게임 모드">
           {modes.map(item => <button key={item.key} type="button" className="filter-mode" aria-pressed={mode === item.key} onClick={() => {
             setMode(item.key);
-            setCapacity(value => Math.min(value, roomCapacityLimit(game, item.key)));
+            setCapacity(value => roomCapacities(game, item.key).includes(value) ? value : roomCapacityLimit(game, item.key));
             if (!titleEdited) setTitle(defaultTitle(item.key));
             setError('');
           }}><FilterModeIcon mode={item.key} size={17} /><span>{item.label}</span></button>)}
         </div></fieldset>
         <fieldset><legend>모집 인원 <span>나를 포함한 인원</span></legend><div className="room-composer-capacity" role="group" aria-label="모집 인원">
-          {Array.from({ length: Math.max(0, limit - 1) }, (_, index) => index + 2).map(count => <button key={count} type="button" aria-pressed={capacity === count} onClick={() => setCapacity(count)}>{count}명</button>)}
+          {roomCapacities(game, mode).map(count => <button key={count} type="button" aria-pressed={capacity === count} onClick={() => setCapacity(count)}>{count}명</button>)}
         </div></fieldset>
+        <fieldset><legend>찾는 티어</legend><TierRangePicker game={game} value={desiredTierRange} label="찾는 티어 범위" onChange={setDesiredTierRange} /></fieldset>
         {hasRoles ? <>
           <fieldset><legend>포지션</legend><div className="room-composer-role-options" role="group" aria-label="포지션">
             {roles.map(role => <button key={role.value} type="button" className="filter-role" aria-label={role.label} aria-pressed={ownRoles.includes(role.value)} title={role.label} onClick={() => {

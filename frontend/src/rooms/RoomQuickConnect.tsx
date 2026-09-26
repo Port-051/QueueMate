@@ -28,7 +28,7 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onOpen, onCreat
   const [skipped, setSkipped] = useState<string[]>([]);
   const hasRoles = usesKeyCondition(game, value.queueType);
   const ownRoles = value.primaryRoles ?? (value.primaryRole !== 'ANY' ? [value.primaryRole] : []);
-  const criteria: QuickConnectCriteria = { game, modeKey: value.queueType, role: ownRoles[0] ?? '', roles: ownRoles, desiredRoles: value.desiredRoles, voice: value.voice, userId: member.id };
+  const criteria: QuickConnectCriteria = { game, modeKey: value.queueType, role: ownRoles[0] ?? '', roles: ownRoles, desiredRoles: value.desiredRoles, voice: value.voice, userId: member.id, ownTier: game === 'LOL' ? member.tier : value.ownTier, desiredTierRange: value.desiredTierRange };
   const candidates = quickConnectCandidates(rooms, criteria);
   const candidate = candidates.find(room => !skipped.includes(room.id));
   const error = introductionInputError(value);
@@ -59,7 +59,7 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onOpen, onCreat
     <form onSubmit={event => { event.preventDefault(); if (!error && (!hasRoles || ownRoles.length)) { setStarted(true); setSkipped([]); } }}>
       <fieldset className="recruitment-composer">
         {error ? <div className="banner warn" role="alert">{error}</div> : null}
-        <SelfIntroductionFields binaryVoice game={game} value={value} onChange={update}/>
+        <SelfIntroductionFields binaryVoice showTierRange game={game} value={value} onChange={update}/>
       </fieldset>
       <div className="matching-rail-footer room-rail-actions">
         <Button block type="submit" variant="primary" disabled={Boolean(error) || (hasRoles && !ownRoles.length)}><IconMatch size={20}/>{started ? '다시 찾기' : '매칭 시작'}</Button>

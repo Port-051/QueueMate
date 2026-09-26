@@ -47,3 +47,12 @@ const LOL_RANK_BOUNDS: Readonly<Record<string, RankEmblemBounds>> = {
 export function rankEmblemBounds(tier: string | null | undefined): RankEmblemBounds | null {
   return tier ? LOL_RANK_BOUNDS[tier.trim().toUpperCase()] ?? null : null;
 }
+
+export const TIER_COLORS: Record<string, string> = {
+  IRON: '#8b8584', BRONZE: '#b2866c', SILVER: '#aab6c6', GOLD: '#d0ad68',
+  PLATINUM: '#7bb7b3', EMERALD: '#6eb68e', DIAMOND: '#93abe0', MASTER: '#b889ca',
+  GRANDMASTER: '#cf7e85', CHALLENGER: '#d7bf7e', ASCENDANT: '#83b89a',
+  IMMORTAL: '#cb8496', RADIANT: '#d4ca96',
+};
+
+export const tierColor = (tier: string | null | undefined): string => tier ? TIER_COLORS[tier] ?? "#aaa3ba" : "#aaa3ba";

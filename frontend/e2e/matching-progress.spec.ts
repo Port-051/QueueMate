@@ -95,7 +95,7 @@ test('예약은 시작까지 남은 시간을 표시하고 시간이 되어도 �
 test('목록 탐색 중에도 오른쪽 매칭 타이머와 관리 버튼이 유지된다', async ({ page }) => {
   await page.clock.install(); await login(page); await startRealtimeMatch(page);
   await page.clock.fastForward(12_000);
-  await page.locator('.board-filter-bar').getByRole('button', { name: '랭크', exact: true }).click();
+  await page.locator('.board-filter-bar').getByRole('button', { name: '2인 랭크', exact: true }).click();
   await expect(page.locator('.recruitment-summary')).toHaveCount(0);
   await expect(page.locator('.home-profile .my-recruitment')).toBeVisible();
   await page.locator('.recruitment-row').last().scrollIntoViewIfNeeded();
@@ -171,7 +171,7 @@ test('자기소개 작성 중에도 목록 필터를 쓸 수 있고 매칭 선�
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const composer = page.locator('.home-profile .recruitment-composer-shell');
   await composer.getByLabel('한마디').fill('저장 전 자기소개');
-  await page.locator('.board-filter-bar').getByRole('button', { name: '랭크', exact: true }).click();
+  await page.locator('.board-filter-bar').getByRole('button', { name: '2인 랭크', exact: true }).click();
   await page.getByRole('button', { name: 'PlayMaker 매칭 글 상세' }).click();
   await expect(composer.getByLabel('한마디')).toHaveValue('저장 전 자기소개');
   await expect(page.getByRole('dialog')).toHaveCount(0);

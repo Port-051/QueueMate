@@ -71,3 +71,13 @@ test('찾는 포지션은 현재 방 멤버에 반영하고 칼바람에서는 �
   expect(quickConnectCandidates([{ ...base, members: [{ ...member, roles: ['ANY'] }] }], { ...criteria, desiredRoles: ['TOP'] })).toHaveLength(1);
   expect(quickConnectCandidates([{ ...base, modeKey: 'ARAM' }], { ...criteria, modeKey: 'ARAM', roles: [], desiredRoles: ['TOP'] })).toHaveLength(1);
 });
+
+test('퀵 연결은 내 티어와 방의 허용 범위, 기존 멤버와 내가 찾는 범위를 양방향 확인한다', () => {
+  const ranked = { ...base, members: [{ ...member, tier: 'GOLD' }], desiredTierRange: { minTier: 'SILVER', maxTier: 'GOLD' } };
+  const seeking = { ...criteria, ownTier: 'SILVER', desiredTierRange: { minTier: 'GOLD', maxTier: null } };
+  expect(quickConnectCandidates([ranked], seeking)).toHaveLength(1);
+  expect(quickConnectCandidates([ranked], { ...seeking, ownTier: 'PLATINUM' })).toHaveLength(0);
+  expect(quickConnectCandidates([ranked], { ...seeking, ownTier: null })).toHaveLength(0);
+  expect(quickConnectCandidates([{ ...ranked, members: [...ranked.members, { ...member, id: 'other', tier: 'BRONZE' }] }], seeking)).toHaveLength(0);
+  expect(quickConnectCandidates([{ ...ranked, modeKey: 'ARAM' }], { ...seeking, modeKey: 'ARAM', ownTier: 'BRONZE', roles: [] })).toHaveLength(0);
+});

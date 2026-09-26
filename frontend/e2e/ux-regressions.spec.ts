@@ -43,7 +43,7 @@ test('초기 조건 폼은 중간 단계 없이 보이며 키보드로 조작할
   const form = page.locator('.recruitment-composer-shell');
   await expect(form).toBeVisible();
   await expect(page.locator('.intro-launch, .home-profile-introduction')).toHaveCount(0);
-  const mode = form.getByRole('group', { name: '원하는 큐 타입', exact: true }).getByRole('button', { name: '랭크', exact: true });
+  const mode = form.getByRole('group', { name: '원하는 큐 타입', exact: true }).getByRole('button', { name: '2인 랭크', exact: true });
   await mode.focus();
   await page.keyboard.press('Space');
   await expect(mode).toHaveAttribute('aria-pressed', 'true');

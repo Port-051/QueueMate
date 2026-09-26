@@ -1,3 +1,4 @@
+import type { TierRange } from '../domain/tierRange';
 import type { GameKey, VoicePreference } from '../api/types';
 
 export interface RoomMember {
@@ -29,6 +30,7 @@ export interface GameRoom {
   capacity: number;
   members: RoomMember[];
   desiredRoles: string[];
+  desiredTierRange?: TierRange;
   voice: VoicePreference;
   status: 'OPEN' | 'CONFIRMED';
   autoCloseAt?: number | null;
@@ -43,6 +45,7 @@ export interface CreateRoomInput {
   title: string;
   capacity: number;
   desiredRoles: string[];
+  desiredTierRange?: TierRange;
   voice: VoicePreference;
   availableFrom: string | null;
 }

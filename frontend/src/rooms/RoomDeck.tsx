@@ -1,3 +1,5 @@
+import { TierRangeLabel } from '../components/TierRangePicker';
+import { tierColor } from '../domain/rankAssets';
 import type { GameKey } from '../api/types';
 import { Avatar } from '../components/ui';
 import { FilterRoleIcon, FilterTierIcon } from '../components/FilterSymbols';
@@ -26,7 +28,7 @@ export function RoomRoles({ game, roles, labels = false }: { game: GameKey; role
 
 export function RoomRank({ game, tier, division, size = 30 }: { game: GameKey; tier: string | null; division: number | null; size?: number }) {
   const suffix = tier && division ? game === 'LOL' ? hasLolRankDivision(tier) ? ['', 'I', 'II', 'III', 'IV'][division] : '' : String(division) : '';
-  return <span className="room-rank"><FilterTierIcon game={game} tier={tier} size={size} /><strong>{tier ? `${TIER_LABELS[tier] ?? tier}${suffix ? ` ${suffix}` : ''}` : '—'}</strong></span>;
+  return <span className="room-rank"><FilterTierIcon game={game} tier={tier} size={size} /><strong style={{ color: tierColor(tier) }}>{tier ? `${TIER_LABELS[tier] ?? tier}${suffix ? ` ${suffix}` : ''}` : '—'}</strong></span>;
 }
 
 function Stat({ kind, value }: { kind: 'winRate' | 'kda'; value: number | null }) {
@@ -74,6 +76,7 @@ export function RoomSummaryCard({ room, showMembers = false }: { room: GameRoom;
       <div><span>평균 KDA</span><Stat kind="kda" value={summary.kda} /></div>
     </div>}
     <div className="room-summary-conditions">
+      {!confirmed ? <div><span>찾는 티어</span><TierRangeLabel game={room.game} value={room.desiredTierRange} /></div> : null}
       {usesKeyCondition(room.game, room.modeKey) ? <><div><span>채워진 포지션</span><RoomRoles game={room.game} roles={summary.roles} /></div>{!confirmed && wantedRoles.length ? <div><span>찾는 포지션</span><RoomRoles game={room.game} roles={wantedRoles} /></div> : null}</> : <div className="room-no-roles"><span>포지션</span><strong>무작위 배정</strong></div>}
       <div className="room-voice" title={roomVoiceLabel(room)}><span>마이크</span><span role="img" aria-label={roomVoiceLabel(room)}><RoomVoice value={room.voice} /></span></div>
     </div>
@@ -101,7 +104,7 @@ export function RoomDeck({ room, onOpen }: { room: GameRoom; onOpen: (room: Game
     <div className="compact-room-header" aria-label="방 요약">
       <h3 title={room.title}>{room.title}</h3>
       {room.availableFrom ? <time>{timeLabel(room.availableFrom)}</time> : null}
-      <span className={`room-status${closed ? ' is-confirmed' : ''}`}>{closed ? '마감' : null}<b>{room.members.length}/{room.capacity}</b></span>
+      {closed ? <span className="room-status is-confirmed">마감</span> : null}
     </div>
     <div className="compact-members" aria-label="방 구성원 정보">
       {room.members.map(member => <div className="compact-member" key={member.id}>
@@ -112,6 +115,7 @@ export function RoomDeck({ room, onOpen }: { room: GameRoom; onOpen: (room: Game
       {vacancies.map((roles, index) => <div className="compact-member compact-seat" key={`seat-${index}`}>
         <span className="compact-seat-status">{closed ? '모집 마감' : '모집 중'}</span>
         {hasRoles ? <RoomRoles game={room.game} roles={roles} labels /> : <IconParty size={30} />}
+        <TierRangeLabel game={room.game} value={room.desiredTierRange} />
         <RoomVoice value={room.voice} />
       </div>)}
     </div>

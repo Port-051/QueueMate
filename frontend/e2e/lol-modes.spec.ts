@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { login, manageRecruitment } from './helpers';
 
 const modes = [
-  { key: 'SOLO_DUO_RANKED', label: '랭크', host: 'PlayMaker', type: '실시간' },
+  { key: 'SOLO_DUO_RANKED', label: '2인 랭크', host: 'PlayMaker', type: '실시간' },
   { key: 'NORMAL_DRAFT', label: '일반', host: '한판더할래', type: '실시간' },
   { key: 'SWIFTPLAY', label: '신속', host: '퇴근후십분', type: '예약' },
   { key: 'ARAM', label: '칼바람', host: '포로간식', type: '실시간' },
@@ -17,13 +17,13 @@ async function myRecruitments(page: Page) {
   });
 }
 
-test('실시간·예약 모두 네 모드를 같은 이름과 2인 정원으로 보여주고 칼바람에는 포지션 필터가 없다', async ({ page }) => {
+test('실시간·예약의 기존 네 모드를 같은 이름과 2인 정원으로 보여주고 칼바람에는 포지션 필터가 없다', async ({ page }) => {
   await page.clock.install(); await login(page);
   const filters = page.locator('.board-filter-bar');
   const modeGroup = filters.getByRole('group', { name: '찾는 큐 타입', exact: true });
   const roleGroup = filters.getByRole('group', { name: '포지션', exact: true });
   const rows = page.locator('.recruitment-row');
-  await expect(modeGroup.getByRole('button')).toHaveText(modes.map(mode => mode.label));
+  await expect(modeGroup.getByRole('button')).toHaveText(['2인 랭크', '자유 랭크', '일반', '신속', '칼바람']);
   await expect(page.locator('.board-results-head')).toContainText('10명이 매칭 중이에요');
 
   for (const type of ['실시간', '예약']) {
@@ -42,13 +42,13 @@ test('실시간·예약 모두 네 모드를 같은 이름과 2인 정원으로 
       }
     }
   }
-  await modeGroup.getByRole('button', { name: '랭크', exact: true }).click();
+  await modeGroup.getByRole('button', { name: '2인 랭크', exact: true }).click();
   await roleGroup.getByRole('button', { name: '탑', exact: true }).click();
   await expect(rows).toHaveCount(7);
   await modeGroup.getByRole('button', { name: '칼바람', exact: true }).click();
   await expect(roleGroup).toHaveCount(0);
   await expect(page.locator('.board-results-head')).toContainText('10명이 매칭 중이에요');
-  await modeGroup.getByRole('button', { name: '랭크', exact: true }).click();
+  await modeGroup.getByRole('button', { name: '2인 랭크', exact: true }).click();
   await expect(roleGroup.getByRole('button', { pressed: true })).toHaveCount(0);
   await expect(page.locator('.board-results-head')).toContainText('10명이 매칭 중이에요');
 });
@@ -60,8 +60,8 @@ test('칼바람 소개는 포지션 입력을 숨기고 전송 조건만 무관�
   const queue = dialog.getByRole('group', { name: '원하는 큐 타입', exact: true });
   const primary = dialog.getByRole('group', { name: '포지션', exact: true });
   const desired = dialog.getByRole('group', { name: '찾는 포지션', exact: true });
-  await expect(queue.getByRole('button')).toHaveText(modes.map(mode => mode.label));
-  await selectButton(queue, '랭크');
+  await expect(queue.getByRole('button')).toHaveText(['2인 랭크', '자유 랭크', '일반', '신속', '칼바람']);
+  await selectButton(queue, '2인 랭크');
   await selectButton(primary, '바텀');
   await desired.getByRole('button', { name: '서포터', exact: true }).click();
   await selectButton(queue, '칼바람');
@@ -84,7 +84,7 @@ test('칼바람 소개는 포지션 입력을 숨기고 전송 조건만 무관�
   await page.keyboard.press('Escape');
   await manageRecruitment(page, '매칭 종료');
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
-  await selectButton(queue, '랭크');
+  await selectButton(queue, '2인 랭크');
   await expect(primary.getByRole('button', { name: '바텀', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(desired.getByRole('button', { name: '서포터', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
@@ -121,7 +121,7 @@ test('저장된 랭크 소개가 있어도 칼바람 글에서 바로 참여하�
   await page.clock.install(); await login(page);
   await expect(page.locator('.recruitment-composer-shell')).toBeVisible();
   const dialog = page.locator('.recruitment-composer-shell');
-  await selectButton(dialog.getByRole('group', { name: '원하는 큐 타입', exact: true }), '랭크');
+  await selectButton(dialog.getByRole('group', { name: '원하는 큐 타입', exact: true }), '2인 랭크');
   await selectButton(dialog.getByRole('group', { name: '포지션', exact: true }), '미드');
   await dialog.getByLabel('한마디', { exact: true }).fill('서로 존중하면서 즐겨요');
   await dialog.getByRole('button', { name: '매칭 시작', exact: true }).click();

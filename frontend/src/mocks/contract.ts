@@ -2,7 +2,7 @@ import type { GameKey, GameModeView, KeyConditionType, PlayPurpose, VoicePrefere
 
 /**
  * 프론트엔드 체험용 게임 카탈로그. LoL은 승인된 화면 시안에 맞춰
- * 네 가지 모드에서 2인 파티를 매칭한다. 신속 대전과 일반·칼바람 2인 정원은
+ * 개인/2인 랭크와 자유 랭크를 별도 모드로 제공한다. 신속 대전과 일반·칼바람 2인 정원은
  * 기존 서버 계약과 다른 미리보기 설정이며 실제 API 지원을 의미하지 않는다.
  * 실제 API 모드의 화면은 서버가 반환하는 카탈로그만 사용한다.
  */
@@ -18,6 +18,7 @@ export const GAME_SEED: Record<GameKey, GameSeed> = {
     values: ['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT', 'ANY'],
     modes: [
       { modeKey: 'SOLO_DUO_RANKED', targetPartySize: 2, roleUniqueness: true },
+      { modeKey: 'FLEX_RANKED', targetPartySize: 5, roleUniqueness: true },
       { modeKey: 'NORMAL_DRAFT', targetPartySize: 2, roleUniqueness: true },
       { modeKey: 'SWIFTPLAY', targetPartySize: 2, roleUniqueness: true },
       { modeKey: 'ARAM', targetPartySize: 2, roleUniqueness: false },

@@ -4,9 +4,9 @@ import { IconX } from '../components/icons';
 import { RoomMemberCard, RoomSummaryCard } from './RoomDeck';
 import type { GameRoom } from './types';
 
-export function RoomDeckSpread({ room, origin, trigger, activeRoomId, onJoin, onClose }: {
+export function RoomDeckSpread({ room, origin, trigger, activeRoomId, joinError, onJoin, onClose }: {
   room: GameRoom; origin: DOMRect; trigger: HTMLButtonElement;
-  activeRoomId: string | null; onJoin: () => void; onClose: () => void;
+  activeRoomId: string | null; joinError?: string; onJoin: () => void; onClose: () => void;
 }) {
   const [phase, setPhase] = useState<'lifting' | 'open' | 'closing'>('lifting');
   const dialog = useRef<HTMLDivElement>(null);
@@ -69,7 +69,7 @@ export function RoomDeckSpread({ room, origin, trigger, activeRoomId, onJoin, on
   }, []);
 
   const inThisRoom = activeRoomId === room.id;
-  const cannotJoin = Boolean(activeRoomId) || room.status === 'CONFIRMED';
+  const cannotJoin = Boolean(activeRoomId) || room.status === 'CONFIRMED' || Boolean(joinError);
   const joinLabel = inThisRoom ? '참여 중인 방' : room.status === 'CONFIRMED' ? '매칭 확정' : activeRoomId ? '다른 방에 참여 중' : '입장하기';
   return createPortal(<div className="room-spread-backdrop" data-phase={phase} onClick={event => { if (event.target === event.currentTarget) close(); }}>
     <div className="room-spread-dialog" ref={dialog} role="dialog" aria-modal="true" aria-label={room.title}>
@@ -78,7 +78,7 @@ export function RoomDeckSpread({ room, origin, trigger, activeRoomId, onJoin, on
         <div className="room-spread-card is-summary"><RoomSummaryCard room={room} /></div>
         {room.members.map((member, index) => <div className="room-spread-card is-member" key={member.id} style={{ '--fan-index': index } as React.CSSProperties}><RoomMemberCard room={room} member={member} /></div>)}
       </div></div>
-      <footer className="room-spread-footer"><span>{room.status === 'CONFIRMED' ? '모집이 완료된 방이에요' : `${room.capacity - room.members.length}자리 남았어요`}</span><button className="room-primary-button" disabled={cannotJoin} onClick={onJoin}>{joinLabel}</button></footer>
+      <footer className="room-spread-footer"><span>{room.status === 'CONFIRMED' ? '모집이 완료된 방이에요' : joinError || `${room.capacity - room.members.length}자리 남았어요`}</span><button className="room-primary-button" disabled={cannotJoin} onClick={onJoin}>{joinLabel}</button></footer>
     </div>
   </div>, document.body);
 }

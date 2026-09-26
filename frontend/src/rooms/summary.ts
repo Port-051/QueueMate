@@ -1,3 +1,4 @@
+import { TIER_ORDER } from '../domain/tierRange';
 import type { GameKey } from '../api/types';
 import type { GameRoom, RoomMember, RoomSummary } from './types';
 
@@ -7,15 +8,9 @@ export const ROOM_ROLES: Record<GameKey, readonly string[]> = {
   PUBG: ['AGGRESSIVE', 'BALANCED', 'SURVIVAL'],
 };
 
-const ROOM_TIERS: Record<GameKey, readonly string[]> = {
-  LOL: ['IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'EMERALD', 'DIAMOND', 'MASTER', 'GRANDMASTER', 'CHALLENGER'],
-  VALORANT: ['IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND', 'ASCENDANT', 'IMMORTAL', 'RADIANT'],
-  PUBG: ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND', 'MASTER'],
-};
-
 /** Frontend room demo capacities. The existing duo API is not used by this room prototype. */
 export function roomCapacityLimit(game: GameKey, modeKey: string): number {
-  if (game === 'LOL') return modeKey === 'SOLO_DUO_RANKED' ? 2 : ['NORMAL_DRAFT', 'SWIFTPLAY', 'ARAM'].includes(modeKey) ? 5 : 0;
+  if (game === 'LOL') return modeKey === 'SOLO_DUO_RANKED' ? 2 : ['FLEX_RANKED', 'NORMAL_DRAFT', 'SWIFTPLAY', 'ARAM'].includes(modeKey) ? 5 : 0;
   if (game === 'VALORANT') return ['COMPETITIVE', 'UNRATED'].includes(modeKey) ? 5 : 0;
   return modeKey === 'DUO' ? 2 : modeKey === 'SQUAD' ? 4 : 0;
 }
@@ -26,7 +21,7 @@ export function canonicalRoomRoles(game: GameKey, roles: readonly string[]): str
 }
 
 function rankLadder(game: GameKey): { tier: string; division: number | null }[] {
-  return ROOM_TIERS[game].flatMap(tier => {
+  return TIER_ORDER[game].flatMap(tier => {
     const divisions = game === 'LOL' ? (['MASTER', 'GRANDMASTER', 'CHALLENGER'].includes(tier) ? [null] : [4, 3, 2, 1])
       : game === 'VALORANT' ? (tier === 'RADIANT' ? [null] : [1, 2, 3])
         : tier === 'MASTER' ? [null] : [5, 4, 3, 2, 1];
@@ -62,4 +57,10 @@ export function summarizeRoom(room: GameRoom): RoomSummary {
     roles: noFixedRoles ? [] : canonicalRoomRoles(room.game, anyMemberRole ? ['ANY'] : room.members.flatMap(member => member.roles)),
     ratedCount: scores.length,
   };
+}
+
+/** Recruitment excludes solo; Flex cannot queue with four players. */
+export function roomCapacities(game: GameKey, mode: string): number[] {
+  if (game === "LOL" && mode === "FLEX_RANKED") return [2, 3, 5];
+  return Array.from({ length: Math.max(0, roomCapacityLimit(game, mode) - 1) }, (_, index) => index + 2);
 }

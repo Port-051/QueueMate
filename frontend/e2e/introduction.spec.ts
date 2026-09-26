@@ -34,7 +34,7 @@ test('검색과 별개로 아이콘 버튼을 선택하고 수정·다시 시작
   const form = page.locator('.recruitment-composer-shell');
   await expect(form.getByRole('group', { name: '원하는 큐 타입' }).locator('[aria-pressed="true"]')).toHaveCount(1);
   await form.getByRole('group', { name: '포지션', exact: true }).getByRole('button', { name: '미드', exact: true }).click();
-  await form.getByRole('group', { name: '원하는 큐 타입' }).getByRole('button', { name: '랭크', exact: true }).click();
+  await form.getByRole('group', { name: '원하는 큐 타입' }).getByRole('button', { name: '2인 랭크', exact: true }).click();
   const desired = form.getByRole('group', { name: '찾는 포지션', exact: true });
   await desired.getByRole('button', { name: '정글', exact: true }).click();
   await desired.getByRole('button', { name: '서포터', exact: true }).click();

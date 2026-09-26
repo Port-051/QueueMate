@@ -50,7 +50,7 @@ test('네 모드의 매칭은 필터와 같은 아이콘을 쓰며 2인 정원 �
   await page.keyboard.press('Escape');
   await expect(tiers).toHaveCount(0);
 
-  for (const mode of ['랭크', '일반', '신속', '칼바람']) {
+  for (const mode of ['2인 랭크', '일반', '신속', '칼바람']) {
     const filter = modes.getByRole('button', { name: mode, exact: true });
     await filter.click();
     await expect(page.locator('.board-results-head')).toContainText('10명이 매칭 중이에요');
@@ -68,7 +68,7 @@ test('네 모드의 매칭은 필터와 같은 아이콘을 쓰며 2인 정원 �
     await page.keyboard.press('Escape');
   }
 
-  await modes.getByRole('button', { name: '랭크', exact: true }).click();
+  await modes.getByRole('button', { name: '2인 랭크', exact: true }).click();
   for (const name of ['리 신', '비에고', '아리', '오리아나', '쓰레쉬', '룰루', '징크스', '카이사', '신드라', '아지르']) {
     const champion = rows.locator('.preferred-champion').filter({ has: page.getByRole('img', { name: `${name} 초상화`, exact: true }) }).first();
     await expect(champion.locator('.preferred-champion-name')).toBeHidden();
@@ -137,7 +137,7 @@ test('승률과 KDA는 수치 구간에 따라 다섯 색상으로 구분하며 
   ];
   await saveExamples(page, [...examples.map(example => ({ ...example, champions: ['아리'] })), { userId: 'u-aimking', champions: [], winRate: null, kda: null }]);
   await login(page);
-  await page.getByRole('group', { name: '찾는 큐 타입', exact: true }).getByRole('button', { name: '랭크', exact: true }).click();
+  await page.getByRole('group', { name: '찾는 큐 타입', exact: true }).getByRole('button', { name: '2인 랭크', exact: true }).click();
   const colors: string[] = [];
   const dialog = page.getByRole('region', { name: '매칭 글 상세', exact: true });
   for (const example of examples) {

@@ -1,6 +1,7 @@
+import { normalizeTierRange, tierInRange, type TierRange } from '../domain/tierRange';
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import type { GameKey, VoicePreference } from '../api/types';
-import { canonicalRoomRoles, ROOM_ROLES, roomCapacityLimit } from './summary';
+import { canonicalRoomRoles, ROOM_ROLES, roomCapacityLimit, roomCapacities } from './summary';
 import type { CreateRoomInput, GameRoom, RoomMember, RoomMessage } from './types';
 
 import { roomVoice, ROOM_VOICES } from './voice';
@@ -16,7 +17,7 @@ const MAX_MESSAGES = 300;
 const cache = new Map<string, RoomSnapshot>();
 const VOICES: VoicePreference[] = [...ROOM_VOICES];
 const MODES: Record<GameKey, string[]> = {
-  LOL: ['NORMAL_DRAFT', 'SOLO_DUO_RANKED', 'SWIFTPLAY', 'ARAM'],
+  LOL: ['NORMAL_DRAFT', 'SOLO_DUO_RANKED', 'FLEX_RANKED', 'SWIFTPLAY', 'ARAM'],
   VALORANT: ['COMPETITIVE', 'UNRATED'],
   PUBG: ['SQUAD', 'DUO'],
 };
@@ -53,6 +54,14 @@ function seedMember(game: GameKey, roomId: string, index: number, roomIndex: num
   };
 }
 
+function exampleTierRange(index: number): TierRange {
+  return [
+    { minTier: 'SILVER', maxTier: 'GOLD' }, { minTier: 'GOLD', maxTier: null },
+    { minTier: 'PLATINUM', maxTier: 'DIAMOND' }, { minTier: null, maxTier: null },
+    { minTier: 'EMERALD', maxTier: 'DIAMOND' }, { minTier: 'SILVER', maxTier: 'PLATINUM' },
+  ][index % 6];
+}
+
 function seedRooms(now = Date.now()): GameRoom[] {
   const rooms: GameRoom[] = [];
   for (const game of Object.keys(MODES) as GameKey[]) for (const modeKey of MODES[game]) for (const type of ['REALTIME', 'RESERVATION'] as const) {
@@ -69,6 +78,7 @@ function seedRooms(now = Date.now()): GameRoom[] {
       if (aram) members.forEach(member => { member.roles = []; });
       let title = TITLES[game][i];
       if (game === 'LOL' && modeKey === 'SOLO_DUO_RANKED') title = ['차분하게 랭크 같이 해요', '서로 맞춰갈 듀오', '한 판씩 같이 올라가요', '실수해도 괜찮아요', '오늘의 듀오 준비 완료', '마지막 랭크 한 판'][i];
+      if (modeKey === 'FLEX_RANKED') title = ['함께 자유 랭크 올라가요', '다섯 명 팀워크 맞춰요', '자유 랭크 세 명 모여요', '자유 랭크 편하게 해요', '우리 팀 출발 준비', '자유 랭크 한 판 더'][i];
       if (aram) title = ['포로랑 같이 놀아요', '눈덩이 들고 모여요', '랜덤 챔피언도 즐겁게', '한타 한 번 더!', '칼바람 출발 준비 완료', '주사위는 넉넉하게'][i];
       if (modeKey === 'SWIFTPLAY') title = ['빠르게 한 판 같이 해요', '잠깐 쉬면서 신속 대전', '가볍게 협곡 산책', '점심시간 한 판', '신속 대전 준비 완료', '짧고 즐겁게 함께해요'][i];
       const createdAt = now - (i + 1) * 90_000;
@@ -77,6 +87,7 @@ function seedRooms(now = Date.now()): GameRoom[] {
         desiredRoles: aram ? [] : needsFullLineup(game, modeKey, capacity)
           ? roles.filter(role => !members[0].roles.includes(role))
           : [roles[(i + amount) % roles.length], roles[(i + amount + 1) % roles.length]],
+        desiredTierRange: game === 'LOL' ? exampleTierRange(i) : undefined,
         voice: VOICES[i % VOICES.length], status: confirmed ? 'CONFIRMED' : 'OPEN', createdAt,
         availableFrom: type === 'RESERVATION' ? new Date(Math.ceil((now + (i + 1) * 3_600_000) / 1_800_000) * 1_800_000).toISOString() : null,
         messages: [{ id: `${id}-welcome`, authorId: members[0].id, text: '안녕하세요! 편하게 이야기하면서 같이 해요.', createdAt }],
@@ -114,7 +125,7 @@ function parseSnapshot(raw: string | null, userId: string): RoomSnapshot | null 
         || typeof value.title !== 'string' || !['REALTIME', 'RESERVATION'].includes(String(value.type))) continue;
       const game = value.game as GameKey;
       const capacity = nullableNumber(value.capacity, roomCapacityLimit(game, value.modeKey));
-      if (capacity === null || !Number.isInteger(capacity) || capacity < 2) continue;
+      if (capacity === null || !roomCapacities(game, value.modeKey).includes(capacity)) continue;
       const members = value.members.map(member => parseMember(member, game)).filter((member): member is RoomMember => member !== null);
       if (!members.length || members.length > capacity || new Set(members.map(member => member.id)).size !== members.length || !members.some(member => member.id === value.ownerId)) continue;
       const messages: RoomMessage[] = Array.isArray(value.messages) ? value.messages.filter((message): message is RoomMessage => record(message)
@@ -133,11 +144,16 @@ function parseSnapshot(raw: string | null, userId: string): RoomSnapshot | null 
         : canonicalRoomRoles(game, strings(value.desiredRoles));
       rooms.push({ id: value.id, game, modeKey: value.modeKey, type: value.type as GameRoom['type'], title: value.title.slice(0, 50),
         ownerId: value.ownerId, capacity, members, desiredRoles,
+        desiredTierRange: normalizeTierRange(game, value.desiredTierRange as TierRange | undefined ?? (untouchedExample && game === 'LOL' ? exampleTierRange(Number(value.id.split('-').at(-1)) || 0) : undefined)),
         voice: roomVoice(value.voice),
         status: value.status === 'CONFIRMED' || members.length === capacity ? 'CONFIRMED' : 'OPEN', createdAt, availableFrom, messages, autoCloseAt: nullableNumber(value.autoCloseAt) });
       ids.add(value.id);
     }
     if (rooms.filter(room => room.members.some(member => member.id === userId)).length > 1) return null;
+    // Introduce the new demo mode without replacing saved user rooms or custom fixtures.
+    if (rooms.some(room => room.id.startsWith('example-room-lol-')) && !rooms.some(room => room.modeKey === 'FLEX_RANKED')) {
+      rooms.push(...seedRooms().filter(room => room.modeKey === 'FLEX_RANKED'));
+    }
     return { version: 1, rooms };
   } catch { return null; }
 }
@@ -198,8 +214,7 @@ export function createRoomActions(userId: string) {
     create(input: CreateRoomInput, member: RoomMember): GameRoom {
       const rooms = current();
       if (activeRoomIn(rooms, userId)) throw new Error('참여 중인 방에서 먼저 나와 주세요.');
-      const limit = roomCapacityLimit(input.game, input.modeKey);
-      if (!Number.isInteger(input.capacity) || input.capacity < 2 || input.capacity > limit) throw new Error('게임 모드에 맞는 인원을 선택해 주세요.');
+      if (!roomCapacities(input.game, input.modeKey).includes(input.capacity)) throw new Error('게임 모드에 맞는 인원을 선택해 주세요.');
       const title = input.title.trim();
       if (!title || title.length > 50) throw new Error('방 이름은 1~50자로 입력해 주세요.');
       if (!['REALTIME', 'RESERVATION'].includes(input.type) || !VOICES.includes(input.voice)) throw new Error('방 설정을 확인해 주세요.');
@@ -211,6 +226,7 @@ export function createRoomActions(userId: string) {
       const aram = input.game === 'LOL' && input.modeKey === 'ARAM';
       const room: GameRoom = { id: identifier(), ...input, title, ownerId: userId, availableFrom,
         desiredRoles: aram ? [] : canonicalRoomRoles(input.game, input.desiredRoles),
+        desiredTierRange: normalizeTierRange(input.game, input.desiredTierRange),
         members: [{ ...creator, roles: aram ? [] : creator.roles }], status: 'OPEN', createdAt: Date.now(),
         messages: [systemMessage('방이 열렸어요. 채팅과 음성으로 먼저 인사해 보세요.')] };
       save(userId, [room, ...rooms]);
@@ -226,6 +242,7 @@ export function createRoomActions(userId: string) {
       if (room.status === 'CONFIRMED' || room.members.length >= room.capacity || autoClosePhase(room, Date.now()) === 'due') throw new Error('이미 매칭이 확정된 방이에요.');
       if (room.type === 'RESERVATION' && room.availableFrom && Date.parse(room.availableFrom) <= Date.now()) throw new Error('예약 시간이 지난 방이에요.');
       const entrant = checkedMember(member, room.game);
+      if (!tierInRange(room.game, entrant.tier, room.desiredTierRange)) throw new Error(entrant.tier ? '방에서 찾는 티어 범위와 맞지 않아요. 다른 방을 확인해 주세요.' : '티어 조건이 있는 방이에요. 프로필에서 게임 계정을 연결해 주세요.');
       if (room.game === 'LOL' && room.modeKey === 'ARAM') entrant.roles = [];
       const members = [...room.members, entrant];
       let joined = append({ ...room, members, status: members.length === room.capacity ? 'CONFIRMED' : 'OPEN' }, systemMessage(`${entrant.nickname} 님이 들어왔어요.`));
@@ -262,6 +279,7 @@ export function createRoomActions(userId: string) {
       const room = owned(rooms, roomId);
       if (room.status === 'CONFIRMED') return;
       if (room.members.length < 2) throw new Error('함께할 사람이 들어오면 확정할 수 있어요.');
+      if (room.game === 'LOL' && room.modeKey === 'FLEX_RANKED' && room.members.length === 4) throw new Error('자유 랭크는 4명으로 참가할 수 없어요. 한 명을 더 기다려 주세요.');
       const confirmed = append({ ...room, status: 'CONFIRMED', autoCloseAt: null }, systemMessage('방장이 매칭을 확정했어요. 이제 함께 출발해요!'));
       save(userId, rooms.map(item => item.id === roomId ? confirmed : item));
     },
