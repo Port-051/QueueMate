@@ -114,8 +114,10 @@ export function RoomDeck({ room, onOpen }: { room: GameRoom; onOpen: (room: Game
       </div>)}
       {vacancies.map((roles, index) => <div className="compact-member compact-seat" key={`seat-${index}`}>
         <span className="compact-seat-status">{closed ? '모집 마감' : '모집 중'}</span>
-        {hasRoles ? <RoomRoles game={room.game} roles={roles} labels /> : <IconParty size={30} />}
-        <TierRangeLabel game={room.game} value={room.desiredTierRange} />
+        <dl className="room-member-facts room-seat-facts">
+          <div><dt className="sr-only">포지션</dt><dd>{hasRoles ? <RoomRoles game={room.game} roles={roles} labels /> : <span className="room-random-role">무작위</span>}</dd></div>
+          <div><dt className="sr-only">티어</dt><dd><TierRangeLabel game={room.game} value={room.desiredTierRange} stacked /></dd></div>
+        </dl>
         <RoomVoice value={room.voice} />
       </div>)}
     </div>

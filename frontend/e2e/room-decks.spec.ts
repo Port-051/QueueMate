@@ -48,7 +48,7 @@ async function seedRooms(page: Page, rooms: GameRoom[]) {
 }
 
 async function selectFullLineup(composer: Locator) {
-  await composer.getByRole('group', { name: '포지션', exact: true }).getByRole('button', { name: '미드', exact: true }).click();
+  await composer.getByRole('group', { name: '내 포지션', exact: true }).getByRole('button', { name: '미드', exact: true }).click();
   const wanted = composer.getByRole('group', { name: '찾는 포지션', exact: true });
   for (const name of ['탑', '정글', '바텀', '서포터']) await wanted.getByRole('button', { name, exact: true }).click();
 }
@@ -266,7 +266,7 @@ test('5인 방은 내 포지션과 나머지 네 포지션을 모두 골라야 �
   await page.getByRole('button', { name: '방 만들기', exact: true }).click();
   const composer = page.getByRole('region', { name: '방 만들기', exact: true });
   const create = composer.getByRole('button', { name: '방 열기', exact: true });
-  const own = composer.getByRole('group', { name: '포지션', exact: true });
+  const own = composer.getByRole('group', { name: '내 포지션', exact: true });
   const wanted = composer.getByRole('group', { name: '찾는 포지션', exact: true });
   await expect(create).toBeDisabled();
   await own.getByRole('button', { name: '미드', exact: true }).click();
@@ -293,7 +293,7 @@ test('칼바람 5인 방은 포지션을 고르지 않고도 만들 수 있다',
   await page.getByRole('button', { name: '방 만들기', exact: true }).click();
   const composer = page.getByRole('region', { name: '방 만들기', exact: true });
   await composer.getByRole('group', { name: '게임 모드', exact: true }).getByRole('button', { name: '칼바람', exact: true }).click();
-  await expect(composer.getByRole('group', { name: '포지션', exact: true })).toHaveCount(0);
+  await expect(composer.getByRole('group', { name: '내 포지션', exact: true })).toHaveCount(0);
   await composer.getByLabel('방 제목', { exact: true }).fill('포로 다섯');
   await composer.getByRole('button', { name: '방 열기', exact: true }).click();
   await expect(page.getByRole('button', { name: '포로 다섯 방 정보', exact: true }).locator('.compact-seat')).toHaveCount(4);

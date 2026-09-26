@@ -7,8 +7,15 @@ import { tierColor } from '../domain/rankAssets';
 import { FilterTierIcon } from './FilterSymbols';
 import '../styles/tier-range.css';
 
-export function TierRangeLabel({ game, value = ALL_TIERS }: { game: GameKey; value?: TierRange }) {
+export function TierRangeLabel({ game, value = ALL_TIERS, stacked = false }: { game: GameKey; value?: TierRange; stacked?: boolean }) {
   const { minTier, maxTier } = normalizeTierRange(game, value);
+  if (stacked) {
+    const endpoint = (tier: string | null, suffix = '') => <span className="room-rank"><FilterTierIcon game={game} tier={tier} size={26} /><strong style={{ color: tierColor(tier) }}>{tier ? `${TIER_LABELS[tier]}${suffix}` : '모든 티어'}</strong></span>;
+    return <span className="tier-range-label room-tier-range">
+      {minTier && maxTier && minTier !== maxTier ? <>{endpoint(minTier)}<span className="room-tier-separator">~</span>{endpoint(maxTier)}</>
+        : endpoint(minTier ?? maxTier, minTier && !maxTier ? ' 이상' : maxTier && !minTier ? ' 이하' : '')}
+    </span>;
+  }
   const tier = (key: string) => <span className="tier-range-endpoint" style={{ color: tierColor(key) }}><FilterTierIcon game={game} tier={key} size={22} /><span>{TIER_LABELS[key]}</span></span>;
   return <span className="tier-range-label">
     {!minTier && !maxTier ? <><FilterTierIcon game={game} tier={null} size={22} /><span>모든 티어</span></>

@@ -215,10 +215,20 @@
 .room-home .home-profile .introduction-choice legend { font-size:14px; color:#bcc1d2; }
 .room-home .home-profile .intro-role-options .filter-role span { font-size:12px; }
 .room-home .home-profile .intro-role-options .filter-role svg { width:23px; height:23px; }
-.room-home .home-profile .intro-mode-options>.filter-mode { padding-inline:7px; font-size:14px; }
 .room-home .home-profile .introduction-fields label { font-size:14px; }
-.room-home .room-rail-actions { display:grid; gap:10px; padding-bottom:0; }
+.room-home .room-rail-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding-bottom:0; }
 .room-home .room-rail-actions>.btn { font-size:15px; min-height:44px; }
+.room-home .room-setting-row { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:12px; min-width:0; }
+.room-home .room-setting-row>span { color:#bcc1d2; font-size:14px; white-space:nowrap; }
+.room-setting-row .tier-range-trigger { gap:6px; padding-inline:9px; }
+.room-setting-row .tier-range-trigger>svg { flex:none; }
+.room-setting-row .tier-range-label,.room-setting-row .tier-range-endpoint { min-width:0; gap:3px; }
+.room-setting-row .tier-range-endpoint>span:not(.rank-emblem) { overflow:hidden; text-overflow:ellipsis; }
+.room-setting-row .tier-range-label { font-size:12px; }
+.room-home .room-mode-options { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); grid-template-columns:none; gap:3px; }
+.room-home .room-mode-options>.filter-mode { flex-direction:column; gap:5px; height:61px; min-height:61px; padding:7px 1px; font-size:11px; line-height:1.3; }
+.room-home .room-mode-options>.filter-mode svg { flex:none; width:22px; height:22px; }
+.room-home .room-mode-options>.filter-mode span { font-size:inherit; white-space:nowrap; }
 .room-quick-rail .quick-connect-result { margin:0; padding:16px 18px; border-radius:16px; background:#131522; border-color:#66508e; }
 .room-quick-rail .quick-result-actions button { font-size:14px; }
 
@@ -244,6 +254,9 @@
 .room-member-facts .room-rank { flex-direction:column; gap:3px; min-width:0; min-height:0; max-width:100%; }
 .room-member-facts .room-rank img,.room-member-facts .room-rank svg { width:26px; height:26px; flex:none; }
 .room-member-facts .room-rank strong { font-size:14px; font-weight:600; line-height:1.4; max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+.room-tier-range { max-width:100%; gap:12px; }
+.room-tier-range>.room-rank { flex:0 1 auto; }
+.room-tier-separator { align-self:center; flex:none; color:#a5abc0; font-size:14px; }
 .room-member-facts .room-role-icons { flex-wrap:wrap; justify-content:center; gap:4px; max-width:100%; }
 .room-member-facts .room-role-icons.has-labels>span { flex-direction:column; gap:3px; }
 .room-member-facts .room-role-icons svg { width:23px; height:23px; }
@@ -260,15 +273,12 @@
 .compact-seat { align-items:center; justify-content:center; gap:16px; background:#aa83ff07; border:1.5px dashed #a58bc8; color:#b5a0d4; }
 .room-compact:not(.is-confirmed) .compact-seat { animation:vacant-seat-breathe 3.2s ease-in-out infinite; }
 .room-compact:hover .compact-seat { border-color:#c9aaff; background:#aa83ff12; }
-.compact-seat .tier-range-label { flex-wrap:wrap; max-width:100%; gap:3px; font-size:12px; }
-.compact-seat .tier-range-endpoint { gap:3px; }
+.room-seat-facts { flex:none; grid-template-columns:minmax(0,1fr); align-items:start; }
+.room-seat-facts>div { justify-content:flex-start; }
+.room-seat-facts .room-role-icons { gap:16px; }
 @keyframes vacant-seat-breathe { 0%,100% { border-color:#81669f; box-shadow:inset 0 0 18px #a783f006; } 50% { border-color:#c6a3f2; box-shadow:inset 0 0 22px #a783f021; } }
 @media(prefers-reduced-motion:reduce) { .room-compact:not(.is-confirmed) .compact-seat { animation:none; border-color:#a58bc8; } }
 .compact-seat-status { color:#c4a0f9; font-size:14px; font-weight:600; line-height:1.4; }
-.compact-seat .room-role-icons { flex-wrap:wrap; gap:16px; }
-.compact-seat .room-role-icons>span { flex-direction:column; gap:8px; }
-.compact-seat .room-role-icons svg { width:30px; height:30px; }
-.compact-seat .room-role-icons b { color:#aeb8d2; font-size:14px; }
 .room-mic-icon { display:inline-flex; justify-content:center; align-items:center; flex:none; width:32px; height:32px; border-radius:7px; }
 .room-mic-icon svg { width:23px; height:23px; }
 .room-mic-icon.is-on { color:#64e5a0; background:#35c87717; }
@@ -302,8 +312,6 @@
 .room-home:not(.has-active-room) .room-deck-grid.is-duo-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
 .room-deck-grid.is-duo-grid .compact-members { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); overflow:visible; }
 .room-deck-grid.is-duo-grid .compact-member { width:auto; }
-.room-home .home-profile .intro-mode-options { display:flex; flex-wrap:wrap; }
-.room-home .home-profile .intro-mode-options>.filter-mode { flex:1 1 28%; }
 .room-home .tier-range-trigger { width:100%; }
 .room-home .room-filters .tier-range-trigger { width:auto; }
 .room-compact.is-confirmed .compact-seat-status { color:#a5abc0; }

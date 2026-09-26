@@ -59,7 +59,7 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onOpen, onCreat
     <form onSubmit={event => { event.preventDefault(); if (!error && (!hasRoles || ownRoles.length)) { setStarted(true); setSkipped([]); } }}>
       <fieldset className="recruitment-composer">
         {error ? <div className="banner warn" role="alert">{error}</div> : null}
-        <SelfIntroductionFields binaryVoice showTierRange game={game} value={value} onChange={update}/>
+        <SelfIntroductionFields binaryVoice showTierRange compact game={game} value={value} onChange={update}/>
       </fieldset>
       <div className="matching-rail-footer room-rail-actions">
         <Button block type="submit" variant="primary" disabled={Boolean(error) || (hasRoles && !ownRoles.length)}><IconMatch size={20}/>{started ? '다시 찾기' : '매칭 시작'}</Button>
