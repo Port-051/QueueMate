@@ -63,8 +63,8 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onOpen, onCreat
         <SelfIntroductionFields binaryVoice showTierRange compact singleRole game={game} value={value} onChange={update}/>
       </fieldset>
       <div className="matching-rail-footer room-rail-actions">
-        <Button block type="submit" variant="primary" disabled={Boolean(error) || (hasRoles && !ownRoles.length)}><IconMatch size={20}/>{started ? '다시 찾기' : '매칭 시작'}</Button>
-        <Button block onClick={onCreate}><IconPlus size={20}/>방 만들기</Button>
+        <Button block onClick={onCreate}><IconPlus size={22}/>방 만들기</Button>
+        <Button block type="submit" variant="primary" disabled={Boolean(error) || (hasRoles && !ownRoles.length)}><IconMatch size={22}/>{started ? '다시 찾기' : '매칭 시작'}</Button>
       </div>
     </form>
 

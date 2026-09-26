@@ -1,6 +1,6 @@
 import { TierRangePicker } from './TierRangePicker';
 import { SingleRolePicker } from './SingleRolePicker';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import type { GameKey } from '../api/types';
 import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
 import { TIER_LABELS, tiers } from '../domain/recruitment';
@@ -21,6 +21,7 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
   const roleTitle = game === 'LOL' ? compact ? '내 포지션' : '포지션' : game === 'VALORANT' ? '주 역할' : '플레이 스타일';
   const VoiceField = compact ? 'div' : 'fieldset';
   const VoiceLabel = compact ? 'span' : 'legend';
+  const SettingsPair = compact ? 'div' : Fragment;
   const championTitle = game === 'LOL' ? '선호 챔피언' : game === 'VALORANT' ? '선호 요원' : '선호 무기';
   const wins = value.recentResults.filter(result => result === 'WIN').length;
   const losses = value.recentResults.filter(result => result === 'LOSS').length;
@@ -38,10 +39,12 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
           {roles.map(role => <button type="button" key={role.value} className="filter-role" aria-label={role.label} aria-pressed={value.desiredRoles.includes(role.value)} onClick={() => patch({ desiredRoles: normalizeDesiredRoles(game, value.desiredRoles.includes(role.value) ? value.desiredRoles.filter(item => item !== role.value) : [...value.desiredRoles, role.value]) })}><FilterRoleIcon game={game} value={role.value} /><span>{role.label}</span></button>)}
         </div></fieldset>
       </> : null}
-      {showTierRange ? <div className="room-setting-row introduction-wide"><span>찾는 티어</span><TierRangePicker game={game} value={value.desiredTierRange} label="찾는 티어 범위" onChange={desiredTierRange => patch({ desiredTierRange })} /></div> : null}
+      <SettingsPair {...(compact ? { className: 'room-settings-pair' } : {})}>
+      {showTierRange ? <div className="room-setting-row"><span>찾는 티어</span><TierRangePicker game={game} value={value.desiredTierRange} label="찾는 티어 범위" onChange={desiredTierRange => patch({ desiredTierRange })} /></div> : null}
       <VoiceField className={compact ? 'room-setting-row' : 'introduction-choice'}><VoiceLabel>음성</VoiceLabel><div className={`intro-voice-options${binaryVoice ? ' is-binary' : ''}`} role="group" aria-label="음성">
         {([{ value: 'OPTIONAL', label: '무관' }, { value: 'REQUIRED', label: '사용' }, { value: 'NO_VOICE', label: '안 씀' }] as const).filter(option => !binaryVoice || option.value !== 'OPTIONAL').map(({ value: voice, label }) => <button type="button" key={voice} className="filter-mode" aria-label={binaryVoice ? voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용' : label} title={binaryVoice ? voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용' : label} aria-pressed={value.voice === voice} onClick={() => patch({ voice })}><VoiceIcon preference={voice} />{!binaryVoice ? <span>{label}</span> : null}</button>)}
       </div></VoiceField>
+      </SettingsPair>
       {game !== 'LOL' ? <label>내 티어<select aria-label="내 티어" value={value.ownTier ?? ''} onChange={event => patch({ ownTier: event.target.value || null, rankDivision: null })}><option value="">미입력</option>{tiers(game).map(tier => <option key={tier} value={tier}>{TIER_LABELS[tier]}</option>)}</select></label> : null}
       {game !== 'LOL' ? <label className="introduction-wide">{championTitle}<input aria-label={championTitle} maxLength={100} placeholder={game === 'VALORANT' ? '예: 제트, 레이나' : '예: M416, 미니14'} value={championText} onChange={event => { setChampionText(event.target.value); patch({ champions: event.target.value.split(',').map(name => name.trim()).filter(Boolean) }); }} /></label> : null}
       <label className="introduction-wide">한마디<input aria-label="한마디" maxLength={120} placeholder="편하게 두 판 하실 분, 서로 존중해요" value={value.bio} onChange={event => patch({ bio: event.target.value })} /></label>
