@@ -243,6 +243,10 @@ public class PostService {
     /**
      * 모집 중인 글들의 방 키를 <b>한 번에</b> 읽고, 알게 된 것을 글에 옮겨 적은 뒤, 지금의 글과 방 안 사람을 돌려준다.
      *
+     * <p><b>확정된 글 가운데 파티가 아직 열려 있는 것도 읽는다</b>(2026-09-26 소유자 결정 — 확정된 방이 없어질 때 파티가 닫힌다). 전원이 말없이 사라져
+     * 키가 수명으로 없어진 방은 그 순간 돌아가는 코드가 없어, 글의 만료와 같은 방식으로 여기서 발견한다. 파티가 이미 닫힌 글은 읽지 않는다(쿼리 한 번으로 거른다).
+     * 확정된 글의 방 안 사람은 여전히 내려 주지 않는다(멤버를 비운다 — 응답은 바뀌지 않았다).
+     *
      * <p><b>방 키를 읽지 못하면</b>({@code failClosed} 가 아닐 때) 방 정보를 비운 채 글만 돌려주고 <b>아무것도 옮겨 적지 않는다</b> —
      * 못 읽은 것을 "방이 없다"로 읽으면 멀쩡한 글이 전부 만료된다.
      */
@@ -252,11 +256,18 @@ public class PostService {
                 .filter(post -> post.getStatus() == PostStatus.RECRUITING)
                 .map(RecruitPost::getId)
                 .toList();
-        if(recruitingIds.isEmpty())
+        List<Long> confirmedIds = posts.stream()
+                .filter(post -> post.getStatus() == PostStatus.CONFIRMED)
+                .map(RecruitPost::getId)
+                .toList();
+        Set<Long> openParties = postStore.findActivePartyPostIds(confirmedIds);
+        List<Long> toRead = new ArrayList<>(recruitingIds);
+        toRead.addAll(openParties);
+        if(toRead.isEmpty())
         {
             return new Observed(posts, Map.of());
         }
-        Map<Long, RoomState> states = readRoomStates(recruitingIds, failClosed);
+        Map<Long, RoomState> states = readRoomStates(toRead, failClosed);
         if(states == null)
         {
             return new Observed(posts, Map.of());
@@ -269,6 +280,11 @@ public class PostService {
             if(post.getStatus() == PostStatus.RECRUITING && state != null)
             {
                 note(observations, post, state);
+            }
+            else if(post.getStatus() == PostStatus.CONFIRMED && openParties.contains(post.getId()) && state != null
+                    && isGone(state))
+            {
+                observations.partyGone(post.getId());
             }
         }
         List<RecruitPost> current = posts;
@@ -309,6 +325,16 @@ public class PostService {
         {
             observations.vanished(post.getId());
         }
+    }
+
+    /**
+     * 확정한 방이 <b>없어졌는가</b> — 방장 키 · 멤버 SET · 확정 표시 키가 <b>셋 다</b> 없을 때만이다. 확정한 방은 <b>방장 키만 잠깐 없을 수 있다</b>
+     * (방장이 말없이 사라져 승계를 기다리는 중 — D-23. 멤버의 접속 확인이 곧 넘겨받는다). 멤버 SET 이나 확정 표시 키가 남아 있으면 아직 방이다.
+     * 방 번호는 글 번호라 다시 쓰이지 않는다 — 셋 다 없어진 방이 되살아나는 일은 없다.
+     */
+    private static boolean isGone(RoomState state)
+    {
+        return !state.hostKeyExists() && state.members().isEmpty() && !state.confirmed();
     }
 
     /** @return 읽지 못했고 {@code failClosed} 가 아니면 {@code null} */

@@ -8,8 +8,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 최근 함께한 사람 — <b>읽는 쪽만 있다</b>({@code contracts/platform-api.md} "친구 · 신고 · 최근 함께한 사람").
- * 채우는 것은 파티가 닫힐 때({@code PartyClosed.fifo} — CLAUDE.md §3.4)인데 SQS 배선이 미정이라 <b>아직 아무도 채우지 않는다</b> — 지금은 늘 빈 목록이다.
+ * 최근 함께한 사람 — 읽는 쪽({@code contracts/platform-api.md} "친구 · 신고 · 최근 함께한 사람").
+ * 채우는 것은 게시판 파티가 닫힐 때다({@link RecentPlayerRecorder} — 2026-09-26 소유자 결정). 자동 매칭 파티({@code PartyClosed.fifo})는 SQS 배선이 미정이다.
  *
  * <p>같이 한 사람만 나온다 — 사람을 둘러보는 기능이 아니다(CLAUDE.md §1).
  */

@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -49,6 +50,26 @@ public interface PartyRecordRepository extends JpaRepository<PartyMember, PartyM
             """)
     int insertMemberIfAbsent(@Param("partyId") Long partyId, @Param("userId") Long userId,
                              @Param("host") boolean host, @Param("now") Instant now);
+
+    /**
+     * <b>파티를 닫는다</b>(2026-09-26 소유자 결정 — 확정된 방이 없어질 때 파티가 닫힌다). <b>아직 열려 있을 때만</b>(조건부 UPDATE) —
+     * 두 길(마지막 사람의 나가기 · 목록 · 단건이 사라진 방을 발견)이 동시에 와도 1줄을 받는 것은 한 호출뿐이다. 그 호출만 최근 함께한 사람을 적는다.
+     *
+     * @return 이 호출이 닫았으면 1, 이미 닫혔거나 그 글의 파티가 없으면(확정 전) 0
+     */
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            UPDATE parties SET status = 'CLOSED', closed_at = :now
+             WHERE post_id = :postId AND status = 'ACTIVE'
+            """)
+    int closeIfActive(@Param("postId") Long postId, @Param("now") Instant now);
+
+    /**
+     * 주어진 글 가운데 <b>파티가 아직 열려 있는</b> 글의 번호 — 목록 · 단건이 확정된 글의 방 키를 읽을지 가른다({@code PostService#observe}).
+     * 이미 닫힌 파티의 글은 방 키를 다시 읽지 않는다(Redis 부담을 늘리지 않게). 쿼리 한 번이다.
+     */
+    @Query(nativeQuery = true, value = "SELECT p.post_id FROM parties p WHERE p.post_id IN (:postIds) AND p.status = 'ACTIVE'")
+    List<Long> findActivePartyPostIds(@Param("postIds") Collection<Long> postIds);
 
     @Query("select m from PartyMember m where m.key.partyId = :partyId")
     List<PartyMember> findByPartyId(@Param("partyId") Long partyId);

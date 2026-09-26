@@ -15,9 +15,10 @@ import java.io.Serializable;
 import java.time.Instant;
 
 /**
- * 최근 함께한 사람 한 줄 — {@code userId} 의 목록에 {@code otherUserId} 가 있다. <b>읽기만 한다</b>({@code @Immutable}).
+ * 최근 함께한 사람 한 줄 — {@code userId} 의 목록에 {@code otherUserId} 가 있다. 엔티티로는 <b>읽기만 한다</b>({@code @Immutable}).
  *
- * <p><b>채우는 코드가 아직 없다</b> — 파티가 닫힐 때({@code PartyClosed.fifo} 의 소비 — CLAUDE.md §3.4) 채우는데 SQS 배선이 미정이다.
+ * <p><b>채우는 것은 게시판 파티가 닫힐 때다</b>(2026-09-26 소유자 결정 — {@code RecentPlayerRepository#recordParty} 의 UPSERT 한 번).
+ * 자동 매칭 파티({@code PartyClosed.fifo} — CLAUDE.md §3.4)는 SQS 배선이 미정이다.
  * 한 사람에 한 줄이다(PK 가 {@code (user_id, other_user_id)}) — 같은 사람과 또 하면 줄이 늘지 않고 마지막 것으로 덮인다.
  */
 @Entity

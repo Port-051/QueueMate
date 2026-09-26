@@ -26,8 +26,8 @@ import java.util.Map;
  * 활성 요청 키의 {@code EXISTS} 가 한 스크립트 안에 있어야 불변식이 선다).
  *
  * <p><b>게시판을 부르는 곳이 둘이다.</b> ① 입장(2026-09-25 2단계 — 입장권을 없앴다. 소유자 결정 ①) — 스크립트를 부르기 <b>전에</b> {@link PostEntryGate} 가
- * 글의 상태와 차단을 본다. ② 나가기(2026-09-25 소유자 결정 — "확정 전에는 방과 글이 같이 끝난다") — 방장이 나가 방이 닫히면 {@link PostLifecycle} 이
- * 글을 만료시킨다. 두 창구 모두 {@code PostService} 를 물지 않는 따로 선 빈이라 이 클래스와 빈 순환이 생기지 않는다
+ * 글의 상태와 차단을 본다. ② 나가기(2026-09-25 소유자 결정 — "확정 전에는 방과 글이 같이 끝난다") — 방이 닫히면(나가기 · 접속 확인의 {@code ROOM_CLOSED}) {@link PostLifecycle} 이
+ * 글을 만료시킨다. 확정한 방이었으면 대신 파티를 닫는다(2026-09-26 소유자 결정). 두 창구 모두 {@code PostService} 를 물지 않는 따로 선 빈이라 이 클래스와 빈 순환이 생기지 않는다
  * ({@code PostService} → {@code RoomService} 이고, 이 클래스 → {@code PostEntryGate} → {@code PostStore} · {@code RoomService}, 이 클래스 → {@code PostLifecycle} 이다).
  */
 @Slf4j
@@ -93,23 +93,26 @@ public class RoomMemberService {
      *
      * <p><b>확정 전의 방이 닫히면 그 글도 그 자리에서 만료된다</b>(2026-09-25 소유자 결정 — "확정 전에는 방과 글이 같이 끝난다").
      * 전에는 글을 건드리지 않고 다음 목록 조회가 "방장 키 없음 → 만료" 로 옮겨 적기를 기다렸다 — 그 사이에 방장이 새 글을 쓰면 409 {@code ALREADY_RECRUITING} 이었다.
-     * <b>확정한 방은 걸리지 않는다</b> — 방장이 나가면 승계라 결과가 {@link LeaveResult#LEFT} 이고, 넘길 사람이 없어 닫혀도 글은 {@code CONFIRMED} 라
-     * 조건부 UPDATE 가 0줄이다({@link PostLifecycle#expireByRoomClosed}).
+     * <b>확정한 방은 글이 만료되지 않는다</b> — 방장이 나가면 승계라 결과가 {@link LeaveResult#LEFT} 이다. 넘길 사람이 없어(마지막 사람이 나가) 닫히면
+     * 글은 {@code CONFIRMED} 그대로이고 <b>대신 파티가 닫힌다</b>(2026-09-26 소유자 결정 — {@link PostLifecycle#endByRoomClosed}).
      *
      * <p><b>글을 만료시키지 못해도 나가기는 성공이다</b> — 방은 이미 닫혔고 되돌릴 수 없다. 글은 다음 목록 · 단건이 방장 키가 없는 것을 보고 만료로 옮겨 적는다
      * (그래서 {@code PostService} 의 자가 치유는 그대로 남는다). WARN 만 남긴다.
      */
     public LeaveResult leave(String roomId, String userId)
     {
-        return roomService.leave(roomId, userId, () -> expirePostOf(roomId));
+        return roomService.leave(roomId, userId, () -> endPostOf(roomId));
     }
 
-    /** 방이 닫힌 글을 만료시킨다. 게시판 신호를 냈으면(글이 이 호출로 만료됐으면) {@code true} */
-    private boolean expirePostOf(String roomId)
+    /**
+     * 방이 없어진 글을 정리한다 — 확정 전이면 글을 만료시키고, 확정한 방이면 파티를 닫는다({@link PostLifecycle#endByRoomClosed}).
+     * 게시판 신호를 냈으면(글이 이 호출로 만료됐으면) {@code true}
+     */
+    private boolean endPostOf(String roomId)
     {
         try
         {
-            return postLifecycle.expireByRoomClosed(Long.parseLong(roomId));
+            return postLifecycle.endByRoomClosed(Long.parseLong(roomId));
         }
         catch(NumberFormatException e)
         {
@@ -118,7 +121,7 @@ public class RoomMemberService {
         }
         catch(RuntimeException e)
         {
-            log.warn("방은 닫혔는데 글을 만료시키지 못했다 — 목록 · 단건의 옮겨 적기에 맡긴다 roomId={}: {}", roomId, e.toString());
+            log.warn("방은 닫혔는데 글을 정리하지 못했다(만료 · 파티 닫기) — 목록 · 단건의 옮겨 적기에 맡긴다 roomId={}: {}", roomId, e.toString());
             return false;
         }
     }
@@ -233,7 +236,9 @@ public class RoomMemberService {
         // 게시판에는 알린다. 방장이 말없이 사라져 수명이 다한 방은 없어지는 순간에 이 앱의 코드가 돌지 않아 신호를 못 낸다 —
         // 남아 있던 사람의 신호가 -2 를 받는 지금이 이 앱이 그것을 아는 첫 순간이다(늦어도 1분 뒤). 남은 사람이 여럿이면
         // 각자 한 번씩 보내게 되지만 해가 없다. 방장 혼자 있던 방은 신호를 보낼 사람이 없어 여전히 못 낸다
-        if (result == HeartbeatResult.ROOM_CLOSED)
+        // 나가기와 같은 정리를 한다(2026-09-26) — 확정 전의 방이면 글을 만료시키고(목록 · 단건이 할 옮겨 적기를 앞당긴다), 확정한 방이면 파티를 닫는다.
+        // 이 스크립트가 -2 를 주는 것은 방장 키도 확정 표시 키도 없을 때뿐이다 — 확정한 방이었다면 키 셋이 다 없어진 것이다
+        if (result == HeartbeatResult.ROOM_CLOSED && !endPostOf(roomId))
         {
             roomNotifier.boardChanged();
         }

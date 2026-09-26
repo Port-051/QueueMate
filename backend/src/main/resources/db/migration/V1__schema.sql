@@ -297,7 +297,8 @@ CREATE INDEX party_members_user_id_idx ON party_members (user_id);
 -- 방향이 있는 한 줄이다 — user_id 의 목록에 other_user_id 가 있다. 읽는 쪽은 자기 user_id 의 줄만 본다.
 -- 한 사람에 한 줄이다 — PK 가 (user_id, other_user_id) 라서 같은 사람과 또 해도 줄이 늘지 않는다(채우는 쪽이 마지막 것으로 덮는다).
 -- last_party_id 는 그 파티가 지워지면 NULL 이 된다(그래서 nullable 이다). 사람은 남는다.
--- 채우는 것은 PartyClosed.fifo 의 소비인데 SQS 배선이 미정이라 아직 아무도 채우지 않는다.
+-- 채우는 것은 게시판 파티가 닫힐 때다(2026-09-26 — 확정된 방이 없어지면 parties 를 CLOSED 로 바꾸며 party_members 의 순서쌍을 여기 넣는다).
+-- 자동 매칭 파티(PartyClosed.fifo · SQS)는 6단계에서 정한다.
 CREATE TABLE recent_players (
     user_id        bigint      NOT NULL,
     other_user_id  bigint      NOT NULL,

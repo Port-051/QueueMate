@@ -21,7 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 최근 함께한 사람 — <b>읽는 쪽만 있다.</b> 채우는 코드가 아직 없어서({@code PartyClosed.fifo} — SQS 배선이 미정이다) 줄은 SQL 로 직접 넣는다.
+ * 최근 함께한 사람의 <b>읽기</b>. 줄은 SQL 로 직접 넣는다 — 채우는 쪽(게시판 파티가 닫힐 때 — 2026-09-26)은 {@code party.PartyCloseTest} 가 본다.
  *
  * <p>줄의 사람도 파티도 <b>번호</b>(bigint)다 — 응답의 {@code userId} · {@code lastPartyId} 는 JSON 숫자라
  * {@code jsonPath(…, equalTo(번호), Long.class)} 로 본다. 두 칸 다 FK 가 있어(사람은 {@code users}, 파티는 {@code parties} — 2026-09-26)
@@ -33,7 +33,7 @@ class RecentPlayerApiTest extends ApiTestSupport {
     ObjectMapper objectMapper;
 
     @Test
-    @DisplayName("아무도 채우지 않으므로 지금은 빈 목록이다. 로그인해야 한다")
+    @DisplayName("같이 한 파티가 없으면 빈 목록이다. 로그인해야 한다")
     void emptyForNow() throws Exception
     {
         Cookie myCookie = login(newNickname());

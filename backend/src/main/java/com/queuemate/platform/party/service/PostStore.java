@@ -61,6 +61,7 @@ public class PostStore {
     private final PartyRecordRepository partyRecordRepository;
     private final BoardSignalPublisher boardSignal;
     private final RoomService roomService;
+    private final PostLifecycle postLifecycle;
 
     /**
      * 글을 쓰고 <b>그 글의 방을 만든다</b>(2026-09-25 2단계 — 소유자 결정 C: 방을 못 만들면 글도 되돌린다). 쓴 사람이 방장이고 곧바로 방에 들어와 있다.
@@ -260,7 +261,17 @@ public class PostStore {
     }
 
     /**
-     * 방 키를 읽고 알게 된 것을 <b>한 트랜잭션으로</b> 글에 옮긴다 — 방이 사라졌다 · 방장이 확정했다.
+     * 확정된 글 가운데 <b>파티가 아직 열려 있는</b> 글 — 목록 · 단건이 그 글들의 방 키만 읽어 "방이 없어졌나" 를 본다({@code PostService#observe}).
+     * 파티가 이미 닫힌 글의 방 키는 다시 읽지 않는다.
+     */
+    @Transactional(readOnly = true)
+    public Set<Long> findActivePartyPostIds(Collection<Long> postIds)
+    {
+        return postIds.isEmpty() ? Set.of() : new LinkedHashSet<>(partyRecordRepository.findActivePartyPostIds(postIds));
+    }
+
+    /**
+     * 방 키를 읽고 알게 된 것을 <b>한 트랜잭션으로</b> 글에 옮긴다 — 방이 사라졌다 · 방장이 확정했다 · 확정한 방이 사라졌다(파티 닫힘 — 2026-09-26).
      * 전부 조건부 UPDATE 라 같은 관찰이 동시에 여러 요청에서 와도 한 번만 바뀐다. 신호는 몇 개가 바뀌든 커밋 뒤에 한 번이다.
      */
     @Transactional
@@ -277,6 +288,11 @@ public class PostStore {
         for(RoomObservations.Confirmed confirmed : observations.confirmed())
         {
             recordConfirmed(confirmed.post(), confirmed.members(), now);
+        }
+        // 파티 닫기는 나가기 · 접속 확인과 같은 메서드다 — 두 길이 겹쳐도 조건부 UPDATE 가 한 번만 통과시킨다. 이 트랜잭션에 합류한다
+        for(Long postId : observations.partyGone())
+        {
+            postLifecycle.closeParty(postId, now);
         }
     }
 
