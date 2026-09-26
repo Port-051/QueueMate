@@ -1,8 +1,8 @@
 package com.queuemate.platform.social.controller;
 
-import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.security.CurrentUserId;
 import com.queuemate.platform.social.dto.FriendRequestCreateRequest;
+import com.queuemate.platform.social.dto.FriendRequestDirection;
 import com.queuemate.platform.social.dto.FriendRequestListResponse;
 import com.queuemate.platform.social.dto.FriendRequestResponse;
 import com.queuemate.platform.social.dto.FriendResponse;
@@ -31,9 +31,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class FriendRequestController {
 
-    private static final String RECEIVED = "received";
-    private static final String SENT = "sent";
-
     private final FriendService friendService;
 
     @PostMapping
@@ -43,16 +40,15 @@ public class FriendRequestController {
         return ResponseEntity.status(HttpStatus.CREATED).body(friendService.send(userId, request.userId()));
     }
 
-    /** 대기 중인 것만. {@code direction} 은 {@code received}(기본) · {@code sent} — 그 밖의 값은 400 이다 */
+    /**
+     * 대기 중인 것만. {@code direction} 은 {@code RECEIVED}(기본) · {@code SENT} — 대문자 그대로다. 그 밖의 값(소문자 포함)은 스프링의 enum 변환이
+     * 거절해 400 이다({@code GlobalExceptionHandler#handleTypeMismatch} — 게시판 목록의 {@code game} 과 같은 본문).
+     */
     @GetMapping
     public FriendRequestListResponse list(@CurrentUserId Long userId,
-                                          @RequestParam(name = "direction", defaultValue = RECEIVED) String direction)
+                                          @RequestParam(name = "direction", defaultValue = "RECEIVED") FriendRequestDirection direction)
     {
-        if(!RECEIVED.equals(direction) && !SENT.equals(direction))
-        {
-            throw ApiException.validationFailed("direction", "received · sent 가운데 하나여야 합니다");
-        }
-        return friendService.listPending(userId, RECEIVED.equals(direction));
+        return friendService.listPending(userId, direction == FriendRequestDirection.RECEIVED);
     }
 
     /** 받은 사람이 수락한다. 응답은 새 친구다. {@code requestId} 가 숫자가 아니면 400 이다 */

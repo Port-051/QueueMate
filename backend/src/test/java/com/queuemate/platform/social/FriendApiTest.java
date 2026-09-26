@@ -54,7 +54,7 @@ class FriendApiTest extends FriendTestSupport {
                 .andReturn().getResponse().getContentAsString();
         long requestId = objectMapper.readTree(body).get("requestId").asLong();
 
-        // 받은 사람 — direction 을 안 주면 received 다. 보낸 목록에는 없다
+        // 받은 사람 — direction 을 안 주면 RECEIVED 다. 보낸 목록에는 없다
         mockMvc.perform(get("/api/v1/friend-requests").cookie(bobCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.requests.length()").value(1))
@@ -63,13 +63,13 @@ class FriendApiTest extends FriendTestSupport {
                 .andExpect(jsonPath("$.requests[0].requester.nickname").value(nicknameOf(alice)))
                 .andExpect(jsonPath("$.requests[0].receiver.userId", equalTo(bobId), Long.class))
                 .andExpect(jsonPath("$.requests[0].createdAt").isString());
-        mockMvc.perform(get("/api/v1/friend-requests").param("direction", "sent").cookie(bobCookie))
+        mockMvc.perform(get("/api/v1/friend-requests").param("direction", "SENT").cookie(bobCookie))
                 .andExpect(jsonPath("$.requests").isEmpty());
         // 보낸 사람
-        mockMvc.perform(get("/api/v1/friend-requests").param("direction", "sent").cookie(aliceCookie))
+        mockMvc.perform(get("/api/v1/friend-requests").param("direction", "SENT").cookie(aliceCookie))
                 .andExpect(jsonPath("$.requests.length()").value(1))
                 .andExpect(jsonPath("$.requests[0].requestId", equalTo(requestId), Long.class));
-        mockMvc.perform(get("/api/v1/friend-requests").param("direction", "received").cookie(aliceCookie))
+        mockMvc.perform(get("/api/v1/friend-requests").param("direction", "RECEIVED").cookie(aliceCookie))
                 .andExpect(jsonPath("$.requests").isArray())
                 .andExpect(jsonPath("$.requests").isEmpty());
         // 아직 친구가 아니다
@@ -86,7 +86,7 @@ class FriendApiTest extends FriendTestSupport {
 
         // 대기 중인 것만 보인다 — 수락된 요청은 어느 목록에도 없다
         mockMvc.perform(get("/api/v1/friend-requests").cookie(bobCookie)).andExpect(jsonPath("$.requests").isEmpty());
-        mockMvc.perform(get("/api/v1/friend-requests").param("direction", "sent").cookie(aliceCookie))
+        mockMvc.perform(get("/api/v1/friend-requests").param("direction", "SENT").cookie(aliceCookie))
                 .andExpect(jsonPath("$.requests").isEmpty());
         mockMvc.perform(get("/api/v1/friends").cookie(aliceCookie))
                 .andExpect(jsonPath("$.friends.length()").value(1))
@@ -301,7 +301,7 @@ class FriendApiTest extends FriendTestSupport {
     }
 
     @Test
-    @DisplayName("자기 자신은 400 CANNOT_FRIEND_SELF, 빈 본문은 400, 모르는 direction 은 400, 숫자가 아닌 requestId 는 400 이다")
+    @DisplayName("자기 자신은 400 CANNOT_FRIEND_SELF, 빈 본문은 400, 모르는 direction · 소문자 direction 은 400, 숫자가 아닌 requestId 는 400 이다")
     void invalidRequests() throws Exception
     {
         String me = newLoginId();
@@ -317,11 +317,16 @@ class FriendApiTest extends FriendTestSupport {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(detailFor("direction"));
+        // 소문자도 400 이다 — 대문자 그대로만 받는다(게시판 목록의 game 과 같다)
+        mockMvc.perform(get("/api/v1/friend-requests").param("direction", "sent").cookie(myCookie))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(detailFor("direction"));
         mockMvc.perform(post("/api/v1/friend-requests/abc/accept").cookie(myCookie))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from social.friend_requests where requester_id = ?", Integer.class, myId)).isZero();
+                "select count(*) from friend_requests where requester_id = ?", Integer.class, myId)).isZero();
     }
 
     @Test
