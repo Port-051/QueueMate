@@ -149,7 +149,7 @@ test('다섯 명 방을 만들면 한 열 목록과 대화를 함께 쓰고 확�
   await expect(ownBubble).toHaveCSS('border-bottom-right-radius', '32px');
   await expect(ownBubble).toHaveCSS('border-bottom-left-radius', '32px');
   await expect(ownBubble.locator('.room-bubble-tail')).toHaveCSS('transform', 'matrix(-1, 0, 0, 1, 0, 0)');
-  await expect(ownBubble).toHaveCSS('background-color', 'rgb(32, 27, 48)');
+  await expect(ownBubble).toHaveCSS('background-color', 'rgb(45, 34, 66)');
   await expect(page.getByRole('region', { name: '방 만들기', exact: true })).toHaveCount(0);
   await expect.poll(() => page.locator('.room-deck-grid').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(1);
   await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -756,7 +756,11 @@ test('빠른 연결 추천도 카드 펼침 없이 해당 빈자리로 참여한
   await form.getByRole('group', { name: '원하는 큐 타입', exact: true }).getByRole('button', { name: '2인 랭크', exact: true }).click();
   await form.getByRole('radiogroup', { name: '내 포지션', exact: true }).getByRole('radio', { name: '서포터', exact: true }).check();
   await form.getByRole('group', { name: '음성', exact: true }).getByRole('button', { name: '마이크 사용', exact: true }).click();
-  await form.getByRole('button', { name: '매칭 시작', exact: true }).click();
+  const start = form.getByRole('button', { name: '매칭 시작', exact: true });
+  await start.hover();
+  await expect(start).toHaveCSS('border-color', 'rgb(195, 160, 255)');
+  expect(await start.evaluate(element => getComputedStyle(element, '::before').animationName)).toBe('room-match-sheen');
+  await start.click();
   await page.getByRole('region', { name: '매칭 추천', exact: true }).getByRole('button', { name: '자리 확인', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('button', { name: '서포터', exact: true })).toHaveAttribute('aria-pressed', 'true');

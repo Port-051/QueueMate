@@ -135,7 +135,7 @@
 .room-quick-rail .quick-result-actions button { font-size:14px; }
 
 .room-deck.room-compact { --room-bubble-bg:color-mix(in srgb, var(--app-background) 92%, white); padding:var(--room-padding); border:1px solid transparent; border-radius:var(--room-radius); background:var(--room-bubble-bg); overflow:visible; }
-.room-deck.room-compact.is-own { --room-bubble-bg:#201b30; }
+.room-deck.room-compact.is-own { --room-bubble-bg:#2d2242; }
 .room-bubble-tail { position:absolute; left:-1px; bottom:-13px; pointer-events:none; }
 .room-deck.is-own .room-bubble-tail { left:auto; right:-1px; transform:scaleX(-1); }
 .room-compact .compact-room-header,.room-compact .compact-members { position:relative; }
@@ -316,6 +316,7 @@
 .room-home .room-setting-row .room-tier-range>.room-rank { gap:4px; }
 .room-home.board-home .home-profile .self-introduction .introduction-fields input[aria-label="한마디"],
 .room-home .room-start-field input { border-radius:var(--room-selector-radius); }
+.room-home .room-matching-form input[aria-label="한마디"] { background:#0c0d17; }
 .room-home .room-rail-switch { border-color:#343044; }
 
 /* Multiple choices are independent circles, not one segmented control. */
@@ -335,7 +336,7 @@
 }
 .room-home .intro-role-options>.filter-role {
   justify-self:center;
-  width:min(100%,var(--room-option-height));
+  width:min(100%,64px);
   height:auto;
   min-height:0;
   padding:3px;
