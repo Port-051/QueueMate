@@ -142,7 +142,7 @@ function parseSnapshot(raw: string | null, userId: string): RoomSnapshot | null 
       const desiredRoles = untouchedExample && needsFullLineup(game, value.modeKey, capacity)
         ? ROOM_ROLES.LOL.filter(role => !members.find(member => member.id === value.ownerId)!.roles.includes(role))
         : canonicalRoomRoles(game, strings(value.desiredRoles));
-      rooms.push({ id: value.id, game, modeKey: value.modeKey, type: value.type as GameRoom['type'], title: value.title.slice(0, 50),
+      rooms.push({ id: value.id, game, modeKey: value.modeKey, type: value.type as GameRoom['type'], title: value.title.slice(0, 120),
         ownerId: value.ownerId, capacity, members, desiredRoles,
         desiredTierRange: normalizeTierRange(game, value.desiredTierRange as TierRange | undefined ?? (untouchedExample && game === 'LOL' ? exampleTierRange(Number(value.id.split('-').at(-1)) || 0) : undefined)),
         voice: roomVoice(value.voice),
@@ -216,7 +216,7 @@ export function createRoomActions(userId: string) {
       if (activeRoomIn(rooms, userId)) throw new Error('참여 중인 방에서 먼저 나와 주세요.');
       if (!roomCapacities(input.game, input.modeKey).includes(input.capacity)) throw new Error('게임 모드에 맞는 인원을 선택해 주세요.');
       const title = input.title.trim();
-      if (!title || title.length > 50) throw new Error('방 이름은 1~50자로 입력해 주세요.');
+      if (!title || title.length > 120) throw new Error('한마디는 1~120자로 입력해 주세요.');
       if (!['REALTIME', 'RESERVATION'].includes(input.type) || !VOICES.includes(input.voice)) throw new Error('방 설정을 확인해 주세요.');
       const availableFrom = input.type === 'RESERVATION' ? input.availableFrom : null;
       if (input.type === 'RESERVATION' && (!availableFrom || !Number.isFinite(Date.parse(availableFrom)) || Date.parse(availableFrom) <= Date.now())) throw new Error('예약 시간을 현재보다 뒤로 설정해 주세요.');

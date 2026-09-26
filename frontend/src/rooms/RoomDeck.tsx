@@ -96,11 +96,11 @@ export function RoomMemberCard({ room, member }: { room: GameRoom; member: RoomM
   </article>;
 }
 
-export function RoomDeck({ room, onOpen }: { room: GameRoom; onOpen: (room: GameRoom, button: HTMLButtonElement) => void }) {
+export function RoomDeck({ room, selfId, onOpen }: { room: GameRoom; selfId: string; onOpen: (room: GameRoom, button: HTMLButtonElement) => void }) {
   const closed = room.status === 'CONFIRMED';
   const hasRoles = usesKeyCondition(room.game, room.modeKey);
   const vacancies = vacantRoleOptions(room);
-  return <button type="button" className={`room-deck room-compact${closed ? ' is-confirmed' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`} onClick={event => onOpen(room, event.currentTarget)}>
+  return <button type="button" className={`room-deck room-compact${room.ownerId === selfId ? ' is-own' : ''}${closed ? ' is-confirmed' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`} onClick={event => onOpen(room, event.currentTarget)}>
     <div className="compact-room-header" aria-label="방 요약">
       <h3 title={room.title}>{room.title}</h3>
       {room.availableFrom ? <time>{timeLabel(room.availableFrom)}</time> : null}
