@@ -1,7 +1,7 @@
 <!-- 출처: queueMate 저장소 / 브랜치 feature/frontend / 경로 contracts/events.md (110줄) -->
 <!-- 커밋: 825d673 -->
 <!-- ★ 발췌본이다. app:matching 이 발행하는 이벤트와 그 전달 규약만 옮겼다. -->
-<!-- ★ 이 사본이 원본보다 앞서 개정된 부분이 있다 — "재연결"(2026-09-18), 전송 표와 WEBRTC_SIGNAL(2026-09-19), heartbeat 와 retry(2026-09-19), SQS 큐 표의 BlockChanged 폐기(2026-09-19), RESERVATION_* 발행 주체(2026-09-19), WEBRTC_SIGNAL 발행 주체 app:room(2026-09-19). 각 자리의 "개정 이력"과 contracts/README.md 를 봐라. -->
+<!-- ★ 이 사본이 원본보다 앞서 개정된 부분이 있다 — "재연결"(2026-09-18), 전송 표와 WEBRTC_SIGNAL(2026-09-19), heartbeat 와 retry(2026-09-19), SQS 큐 표의 BlockChanged 폐기(2026-09-19), RESERVATION_* 발행 주체(2026-09-19), WEBRTC_SIGNAL 발행 주체 app:room(2026-09-19) → app:platform(2026-09-25 합침, docs/11 D-33). 각 자리의 "개정 이력"과 contracts/README.md 를 봐라. -->
 
 # Server Event Contract — app:matching 발췌
 
@@ -16,7 +16,8 @@
 > WebSocket 을 남긴 유일한 이유인 클라→서버 방향은 REST `POST` 로 충분하고, 1종 때문에
 > WebSocket 스택 전체를 따로 만들어 운영하는 것이 과하다. 시그널을 **보내는** 쪽은
 > `app:room` 의 REST `POST` 다 — 아래 "`WEBRTC_SIGNAL` 의 전달" 절. (D-9 는 `app:platform` 으로 적었고
-> 같은 날 D-16 이 `app:room` 으로 개정했다.)
+> 같은 날 D-16 이 `app:room` 으로 개정했다. **2026-09-25 에 `app:room` 을 `app:platform` 에 합쳐(docs/11 D-33)
+> 다시 `app:platform`(의 `room` 패키지)이다.**)
 
 > **연결을 받는 것은 `app:realtime` 하나다.**
 > 이 저장소(`app:matching`)는 SSE 를 열지 않는다. WebSocket 은 어느 앱에도 없다.
@@ -28,12 +29,19 @@
 
 전체 15종 중 이 앱이 발행 주체인 것만 옮긴다.
 나머지 10종(`RESERVATION_*` 2종 = `app:reservation-batch`,
-`PARTY_*`·`FRIEND_*` 7종 = `app:platform`, `WEBRTC_SIGNAL` 1종 = `app:room`)은 이 저장소 소관이 아니다.
+`PARTY_*`·`FRIEND_*` 7종 = `app:platform`, `WEBRTC_SIGNAL` 1종 = `app:room` → **2026-09-25 부터 `app:platform`**(docs/11 D-33))은 이 저장소 소관이 아니다.
 
 > 개정 이력: 예전 판은 "`PARTY_*`·`FRIEND_*` 7종과 `WEBRTC_SIGNAL` 1종 = `app:platform`"이라고 적었다.
 > 2026-09-19 에 방이 `app:room` 으로 분리되면서(docs/11 D-16) **`WEBRTC_SIGNAL` 의 발행 주체는 `app:room`**
 > 이 됐다. **`PARTY_*` 가운데 방 입장 · 퇴장 · 강퇴 알림을 어느 앱이 어떤 `type` 으로 내는지는 미정이다
 > (D-16)** — 그래서 `PARTY_*` 는 옮기지 않고 그대로 두었다. 7종의 이름이 이 컴퓨터에 없어 가를 수도 없다.
+>
+> 개정 이력(2026-09-26 적음): 방 입장 · 퇴장 · 방 닫힘 · 강퇴 · 방장 확정 알림은 `PARTY_*` 를 다시 쓰지 않고 새 이름
+> `ROOM_MEMBER_ENTERED` · `ROOM_MEMBER_LEFT` · `ROOM_CLOSED` · `ROOM_MEMBER_KICKED` · `ROOM_CONFIRMED` 로 정해졌다(docs/11 D-21).
+> **2026-09-25 에 `app:room` 을 `app:platform` 에 합쳐(docs/11 D-33) 이것들과 `WEBRTC_SIGNAL` 의 발행 주체는 `app:platform` 이다.**
+> `FRIEND_REQUEST_RECEIVED` · `FRIEND_REQUEST_ACCEPTED` 의 이름과 `payload` 도 `app:platform` 이 정했다(`../platform/contracts/platform-api.md`
+> "이 앱이 내는 알림" — 원본 `events.md` 와 맞춰야 한다). 알림 채널 `qm:pubsub:push:{userId}` 의 `{userId}` 는 **사용자 번호의 십진 문자열**이다(docs/11 D-25).
+> 이 발췌본이 세는 15종과 그 새 이름들을 어떻게 맞출지는 원본과 합칠 때 정한다.
 
 > 개정 이력: `RESERVATION_*` 2종의 발행 주체 `app:reservation-batch` 는 2026-09-19 에
 > **`app:reservation`(AWS Lambda)이 대체한다** (docs/11 D-15). 예약 등록 REST 와 짝 찾기 배치가 한
@@ -132,7 +140,11 @@ payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약
 - 알림은 휘발성이라 재전송 보장이 없다. 놓친 상태는 REST 로 복구한다.
   (`WEBRTC_SIGNAL` 은 예외다 — 서버에 상태가 없어 REST 로 복구할 수 없다. 아래 절.)
 
-### `WEBRTC_SIGNAL` 의 전달 — 받기는 SSE, 보내기는 `app:room` 의 REST `POST`
+### `WEBRTC_SIGNAL` 의 전달 — 받기는 SSE, 보내기는 `app:room` 의 REST `POST`(→ 2026-09-25 부터 `app:platform` — D-33)
+
+> 개정 이력(2026-09-26 적음): **아래의 `app:room` 은 `app:platform`(의 `room` 패키지)으로 읽는다** — 2026-09-25 에 합쳤다(docs/11 D-33).
+> 경로는 `POST /api/v1/rooms/{roomId}/signals`(본문 `{toUserId, signal}` · 202)로 정해졌다(docs/11 D-21 — 아래 "미정"의 경로 · `payload` 는 그것으로 걸러 읽는다).
+> 계약은 `../platform/contracts/platform-api.md` "방" 이다(옛 `../room/contracts/room-api.md` 는 합치기 전의 기록).
 
 > 개정 이력: 2026-09-19 에 새로 넣은 절이다 (docs/11 D-9). 예전 판은 `WEBRTC_SIGNAL` 을
 > `app:realtime` 의 WebSocket(`/ws`) 소관으로 두었다. **이 저장소(`app:matching`)는
@@ -204,7 +216,7 @@ payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약
 ## 이 저장소가 전송하지 않는 것
 
 - 파티 텍스트 채팅 본문 / 음성 미디어 — WebRTC DataChannel·audio track 을 탄다
-- `WEBRTC_SIGNAL` — `app:room` 이 발행한다 (docs/11 D-16. D-9 는 `app:platform` 으로 적었다). 받는 길은 다른 알림과 같은 SSE 다
+- `WEBRTC_SIGNAL` — `app:room` 이 발행한다 (docs/11 D-16. D-9 는 `app:platform` 으로 적었다. **2026-09-25 부터 다시 `app:platform` — D-33**). 받는 길은 다른 알림과 같은 SSE 다
   (위 "`WEBRTC_SIGNAL` 의 전달")
 
   > 개정 이력: 예전 판은 "`app:realtime` 의 `/ws` 소관"이라고 적었다. 2026-09-19 에 `/ws` 가
