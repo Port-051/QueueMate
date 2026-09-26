@@ -494,10 +494,12 @@ test('티어 범위는 두 번째 선택에 바로 적용하고 한 번만 선�
   const dialog = page.getByRole('dialog', { name: '모집 티어 범위', exact: true });
   await trigger.click();
   await expect(dialog.locator('.tier-range-option')).toHaveCount(10);
+  await expect(dialog.getByRole('button', { name: '선택 취소', exact: true })).toHaveCount(0);
   await expect(dialog.getByRole('button', { name: /^(취소|적용)$/ })).toHaveCount(0);
   expect((await dialog.boundingBox())!.width).toBeLessThan((await page.locator('.room-deck').first().boundingBox())!.width);
   await dialog.getByRole('button', { name: '골드', exact: true }).click();
   await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: '선택 취소', exact: true })).toBeVisible();
   await expect(trigger).toContainText('모든 티어');
   await expect(page.locator('.room-deck')).toHaveCount(6);
   await dialog.getByRole('button', { name: '실버', exact: true }).click();
@@ -548,11 +550,35 @@ test('티어 범위는 두 번째 선택에 바로 적용하고 한 번만 선�
   await expect(dialog).toHaveCount(0);
   await expect(trigger).toHaveText('모든 티어');
   await expect(page.locator('.room-deck')).toHaveCount(6);
+  await trigger.click();
+  await expect(all).toHaveCount(0);
+  await dialog.getByRole('button', { name: '골드', exact: true }).click();
+  await all.click();
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toHaveText('모든 티어');
 });
 
-test('게시판 필터는 아이콘 위 이름 아래 배치하며 긴 티어 범위에서도 한 줄을 유지한다', async ({ page }) => {
+test('게시판은 우측과 같은 선택기를 쓰고 모드는 시간 탭 옆에 배치하며 필터는 한 줄을 유지한다', async ({ page }) => {
   await login(page);
   const filters = page.locator('.room-filters');
+  const modes = page.getByRole('group', { name: '찾는 큐 타입', exact: true });
+  const tabs = page.getByRole('tablist', { name: '매칭 시간', exact: true });
+  const modeBounds = (await modes.boundingBox())!;
+  const tabBounds = (await tabs.boundingBox())!;
+  expect(modeBounds.x).toBeGreaterThan(tabBounds.x + tabBounds.width);
+  expect(Math.abs(modeBounds.y + modeBounds.height / 2 - tabBounds.y - tabBounds.height / 2)).toBeLessThan(1);
+  const rail = page.getByRole('region', { name: '빠른 연결', exact: true });
+  for (const [board, sidebar] of [
+    [modes, rail.getByRole('group', { name: '원하는 큐 타입', exact: true })],
+    [filters.getByRole('group', { name: '포지션', exact: true }), rail.locator('.intro-role-options[aria-label="찾는 포지션"]')],
+    [filters.getByRole('group', { name: '마이크 필터', exact: true }), rail.getByRole('group', { name: '음성', exact: true })],
+    [filters.getByRole('button', { name: '모집 티어 범위', exact: true }), rail.getByRole('button', { name: '찾는 티어 범위', exact: true })],
+  ]) {
+    const a = (await board.boundingBox())!;
+    const b = (await sidebar.boundingBox())!;
+    expect(Math.abs(a.width - b.width)).toBeLessThan(1);
+    expect(Math.abs(a.height - b.height)).toBeLessThan(1);
+  }
   const trigger = filters.getByRole('button', { name: '모집 티어 범위', exact: true });
   const originalWidth = (await trigger.boundingBox())!.width;
   await trigger.click();
@@ -576,7 +602,7 @@ test('게시판 필터는 아이콘 위 이름 아래 배치하며 긴 티어 �
     });
     return { right: bounds.right, controls, choices };
   });
-  expect(layout.controls).toHaveLength(5);
+  expect(layout.controls).toHaveLength(4);
   for (const control of layout.controls) {
     expect(Math.abs(control.centerY - layout.controls[0].centerY)).toBeLessThan(1);
     expect(control.right).toBeLessThanOrEqual(layout.right + 1);

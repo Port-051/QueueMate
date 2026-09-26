@@ -95,7 +95,7 @@ export function TierRangePicker({ game, value = ALL_TIERS, onChange, label, stac
           else if (!event.shiftKey && index === buttons.length - 1) { event.preventDefault(); buttons[0]?.focus(); }
         }
       }}>
-      <header><strong>{label}</strong><button className="tier-range-reset" type="button" onClick={() => { onChange(ALL_TIERS); close(true); }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg><span>선택 취소</span></button></header>
+      <header><strong>{label}</strong>{preview.minTier || preview.maxTier ? <button className="tier-range-reset" type="button" onClick={() => { onChange(ALL_TIERS); close(true); }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg><span>선택 취소</span></button> : null}</header>
       <div className="tier-range-track" role="group" aria-label="티어 범위 선택" onMouseLeave={() => setHover(null)}>
         {order.map((tier, index) => {
           const endpoint = tier === preview.minTier || tier === preview.maxTier;

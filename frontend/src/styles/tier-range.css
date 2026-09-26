@@ -6,7 +6,7 @@
 .tier-range-label,.tier-range-endpoint{display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
 .tier-range-label{font-size:13px;line-height:1.5;color:#c1b9d1;font-weight:500}
 .tier-range-popover{z-index:1600;box-sizing:border-box;padding:12px;border:1px solid #615373;border-radius:12px;background:#24212d;color:#f1ecf7;box-shadow:0 16px 64px #0009;overflow:auto;animation:tier-range-enter .14s ease-out}
-.tier-range-popover header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.tier-range-popover header{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:30px}
 .tier-range-popover header strong{font-size:14px}
 .tier-range-popover button{font-family:inherit;cursor:pointer}
 .tier-range-reset{display:inline-flex;align-items:center;justify-content:center;gap:4px;flex:none;height:30px;border:0;border-radius:999px;background:#35303f;color:#ddd6e8;padding:0 10px;font-size:12px;white-space:nowrap}
