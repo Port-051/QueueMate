@@ -74,8 +74,9 @@ test('다섯 카드가 방 너비에 맞고 상세는 페이지 이동 없이 �
   await expect.poll(() => grid.evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(1);
   expect(await grid.locator('.room-deck').count()).toBeGreaterThanOrEqual(6);
   const deck = grid.locator('.room-deck[data-status="OPEN"]').first();
-  await expect(deck).toHaveCSS('border-bottom-left-radius', '6px');
+  await expect(deck).toHaveCSS('border-bottom-left-radius', '30px');
   await expect(deck).toHaveCSS('border-bottom-right-radius', '30px');
+  await expect(deck.locator('.room-bubble-tail')).toHaveCSS('left', '-9px');
   const roster = deck.locator('.compact-members');
   await expect(roster.locator('.compact-member')).toHaveCount(5);
   await expect(roster.locator('.compact-seat .room-role-icons b')).toHaveText(['바텀', '서포터']);
@@ -139,8 +140,9 @@ test('다섯 명 방을 만들면 한 열 목록과 대화를 함께 쓰고 확�
   await composer.getByRole('button', { name: '방 만들기', exact: true }).click();
   await expect(page.locator('.room-home')).toHaveClass(/has-active-room/);
   const ownBubble = page.getByRole('button', { name: '우리 다섯 명의 방 방 정보', exact: true });
-  await expect(ownBubble).toHaveCSS('border-bottom-right-radius', '6px');
+  await expect(ownBubble).toHaveCSS('border-bottom-right-radius', '30px');
   await expect(ownBubble).toHaveCSS('border-bottom-left-radius', '30px');
+  await expect(ownBubble.locator('.room-bubble-tail')).toHaveCSS('transform', 'matrix(-1, 0, 0, 1, 0, 0)');
   await expect(ownBubble).toHaveCSS('background-color', 'rgb(32, 27, 48)');
   await expect(page.getByRole('region', { name: '방 만들기', exact: true })).toHaveCount(0);
   await expect.poll(() => page.locator('.room-deck-grid').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(1);
@@ -163,7 +165,7 @@ test('다섯 명 방을 만들면 한 열 목록과 대화를 함께 쓰고 확�
   await page.getByRole('checkbox', { name: '모집 중인 방만', exact: true }).uncheck();
   await expect(deck).toHaveAttribute('data-status', 'CONFIRMED');
   await expect(deck).toHaveCSS('filter', 'grayscale(1)');
-  await expect(deck).toHaveCSS('border-bottom-right-radius', '6px');
+  await expect(deck).toHaveCSS('border-bottom-right-radius', '30px');
   await expect(page.getByRole('textbox', { name: '방에 메시지 보내기', exact: true })).toBeEnabled();
   await page.locator('.side-nav').getByRole('link', { name: '프로필', exact: true }).press('Enter');
   await page.locator('.side-nav').getByRole('link', { name: '홈', exact: true }).press('Enter');

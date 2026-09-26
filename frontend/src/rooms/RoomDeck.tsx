@@ -17,6 +17,14 @@ import type { GameRoom, RoomMember } from './types';
 export const roomModeLabel = (room: GameRoom) => visibleModes(room.game).find(mode => mode.key === room.modeKey)?.label ?? room.modeKey;
 export const roomVoiceLabel = (room: GameRoom) => roomVoice(room.voice) === 'REQUIRED' ? '마이크 사용' : '마이크 미사용';
 
+function RoomBubbleTail() {
+  const outline = 'M8 0C8 13 12 25 4 36Q0 42 5 40C16 38 20 36 30 36H44';
+  return <svg className="room-bubble-tail" width="44" height="44" viewBox="0 0 44 44" aria-hidden="true" focusable="false">
+    <path d={`${outline}V0Z`} fill="var(--room-bubble-bg)" />
+    <path d={outline} fill="none" stroke="var(--room-bubble-border)" strokeWidth="1" />
+  </svg>;
+}
+
 export function RoomRoles({ game, roles, labels = false }: { game: GameKey; roles: string[]; labels?: boolean }) {
   const ordered = canonicalRoomRoles(game, roles);
   const shown = !ordered.length || ordered.length === ROOM_ROLES[game].length ? ['ANY'] : ordered;
@@ -101,6 +109,7 @@ export function RoomDeck({ room, selfId, onOpen }: { room: GameRoom; selfId: str
   const hasRoles = usesKeyCondition(room.game, room.modeKey);
   const vacancies = vacantRoleOptions(room);
   return <button type="button" className={`room-deck room-compact${room.ownerId === selfId ? ' is-own' : ''}${closed ? ' is-confirmed' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`} onClick={event => onOpen(room, event.currentTarget)}>
+    <RoomBubbleTail />
     <div className="compact-room-header" aria-label="방 요약">
       <h3 title={room.title}>{room.title}</h3>
       {room.availableFrom ? <time>{timeLabel(room.availableFrom)}</time> : null}
