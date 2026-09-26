@@ -4,7 +4,6 @@ import type { GameKey } from '../api/types';
 import type { AppShellOutletContext } from '../components/AppShell';
 import { FilterSelect } from '../components/FilterSelect';
 import { FilterModeIcon, FilterRoleIcon, FilterTierIcon, VoiceIcon } from '../components/FilterSymbols';
-import { IconPlus } from '../components/icons';
 import { useToast } from '../components/ui';
 import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
 import { emptyIntroduction, readIntroduction } from '../domain/introduction';
@@ -75,9 +74,8 @@ export function RoomBoardHome() {
     <header className="room-home-heading"><div className="room-type-tabs" role="tablist" aria-label="매칭 시간">
       <button role="tab" aria-selected={type === 'REALTIME'} onClick={() => setType('REALTIME')}>실시간 매칭</button>
       <button role="tab" aria-selected={type === 'RESERVATION'} onClick={() => setType('RESERVATION')}>예약 매칭</button>
-    </div>{!activeRoom && !composer ? <button className="room-primary-button" onClick={() => setComposer(true)}><IconPlus size={17} />방 만들기</button> : null}</header>
+    </div></header>
     <div className="room-home-layout"><section className="room-board" aria-label="방 목록">
-      <div className="room-board-section-heading"><h2>함께할 방 둘러보기</h2><p>{type === 'REALTIME' ? '멤버와 빈 포지션을 확인해 보세요' : '함께할 시간을 확인하고 합류하세요'}</p></div>
       <div className="board-filter-bar room-filters"><div className="board-filter-line">
         <div className="filter-mode-options" role="group" aria-label="찾는 큐 타입">{visibleModes(selectedGame).map(mode => <button type="button" className="filter-mode" aria-label={mode.label} aria-pressed={filters.modeKey === mode.key} key={mode.key} onClick={() => setFilters({ ...filters, modeKey: mode.key, roles: [] })}><FilterModeIcon mode={mode.key} /><span>{mode.label}</span></button>)}</div>
         <FilterSelect label="평균 티어" value={filters.tier} options={[{ value: '', label: '모든 티어' }, ...tiers(selectedGame).map(tier => ({ value: tier, label: TIER_LABELS[tier], icon: <FilterTierIcon game={selectedGame} tier={tier} size={24} /> }))]} onChange={tier => setFilters({ ...filters, tier })} />

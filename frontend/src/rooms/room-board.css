@@ -183,184 +183,97 @@
   .room-deck-back, .room-deck:hover .room-deck-back { transform:translateY(calc((var(--card-index) + 1) * -4px)); }
 }
 
-/* Persistent matching rail and uniform room rows. */
-.room-home { max-width:1680px; padding:24px; }
-.room-home .room-home-layout { grid-template-columns:minmax(0,1fr) 340px; gap:24px; }
-.room-home .room-deck-grid { grid-template-columns:minmax(0,1fr); gap:12px; }
+/* Room rows share one five-card width; narrower screens scroll inside each room. */
+.room-home.board-home {
+  --member-card-width:184px;
+  --member-card-gap:10px;
+  --room-padding:16px;
+  --room-width:calc(var(--member-card-width) * 5 + var(--member-card-gap) * 4 + var(--room-padding) * 2 + 2px);
+  --room-rail-width:324px;
+  max-width:calc(var(--room-width) + var(--room-rail-width) + 32px + 48px);
+  padding:24px 24px 48px;
+}
+.room-home.has-active-room { --room-rail-width:430px; }
+.room-home .room-home-layout,
+.room-home.has-active-room .room-home-layout,
+.room-home.has-composer .room-home-layout { grid-template-columns:minmax(0,1fr) var(--room-rail-width); gap:32px; }
+.room-home .room-deck-grid,
+.room-home.has-active-room .room-deck-grid,
+.room-home.has-composer .room-deck-grid { grid-template-columns:minmax(0,1fr); gap:16px; }
+.room-home-heading { margin-bottom:24px; }
+.room-board-count { padding:18px 0; color:#a5abc0; font-size:14px; }
+.room-board-count strong { font-size:15px; }
+.room-board-count label { font-size:13px; }
 .room-quick-rail,.room-conversation-rail,.room-composer-rail { position:sticky; top:24px; min-width:0; max-height:calc(100dvh - 48px); overflow-y:auto; }
-.room-board-count { padding:14px 0; }
-.room-home .room-board-section-heading { margin-bottom:14px; }
-.room-home .room-board-section-heading p { display:none; }
-.room-compact { border:1px solid #343440; border-radius:12px; padding:14px; background:#15151f; height:222px; display:flex; flex-direction:column; }
-.room-compact:hover { border-color:#8970bc; background:#1b1827; }
-.compact-room-header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
-.compact-room-header>div { min-width:0; }
-.compact-room-mode { font-size:10px; color:#a6a1b6; }
-.compact-room-header h3 { margin:5px 0 0; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.compact-room-header .room-status { font-size:11px; }
-.compact-room-header b { margin-left:5px; color:#e7dff7; font-size:15px; }
-.compact-members { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:6px; flex:1; min-height:0; }
-.compact-member { min-width:0; padding:8px 6px; border-radius:7px; background:#20202b; display:flex; flex-direction:column; gap:5px; }
-.compact-member-name { display:flex; align-items:center; gap:4px; min-width:0; }
-.compact-member-name strong { font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.compact-member-name small { font-size:8px; color:#c6afff; flex:none; }
-.compact-member .room-rank { justify-content:flex-start; min-height:19px; gap:2px; }
-.compact-member .room-rank img,.compact-member .room-rank svg { width:20px; height:20px; }
-.compact-member .room-rank strong { font-size:10px; }
-.compact-member-stats { color:#a7a1b8; font-size:8px; white-space:nowrap; }
-.compact-member-stats .performance-value,.compact-member-stats .room-unknown-stat { display:inline; font-size:10px; min-height:0; }
-.compact-member-picks { display:flex; gap:5px; align-items:center; }
-.compact-member-picks .preferred-champion-portrait { width:18px; height:18px; }
-.compact-member-picks .room-role-icons svg { width:14px; height:14px; }
-.compact-seat { align-items:center; justify-content:center; background:transparent; border:1px dashed #393343; color:#8e839e; }
-.compact-seat>span { font-size:21px; }
-.compact-seat strong,.compact-seat small { font-size:10px; font-weight:400; }
-.compact-room-footer { display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:10px; color:#aaa0ba; }
-.compact-room-footer>span { display:flex; align-items:center; gap:8px; }
-.room-quick-rail .room-quick-connect { display:block; padding:20px; margin:0; min-height:440px; border-radius:14px; }
-.room-quick-rail .quick-connect-heading { flex-direction:column; align-items:stretch; gap:16px; }
-.room-quick-rail .quick-role-options { display:grid; grid-template-columns:repeat(3,1fr); }
-.room-quick-rail .quick-role-options button { flex-direction:column; padding:10px 5px; }
 .room-conversation-rail .room-conversation { height:calc(100dvh - 48px); min-height:590px; }
-@media(max-width:1150px) and (min-width:901px) {
-  .room-home { padding:20px 16px; }
-  .room-home .room-home-layout { grid-template-columns:minmax(0,1fr) 300px; gap:16px; }
-  .compact-member-name>.avatar-wrap,.compact-member-name>.avatar { display:none; }
-  .compact-member-name small { display:none; }
-  .compact-member-stats { white-space:normal; }
-}
-@media(max-width:900px) {
-  .room-home .room-home-layout { grid-template-columns:minmax(0,1fr); }
-  .room-quick-rail,.room-conversation-rail,.room-composer-rail { position:static; grid-row:1; max-height:none; }
-  .room-quick-rail .room-quick-connect { min-height:0; }
-  .room-quick-rail .quick-role-options { grid-template-columns:repeat(5,1fr); }
-}
-@media(max-width:580px) {
-  .room-home { padding:16px 12px; }
-  .room-compact { height:232px; padding:10px; }
-  .compact-members { gap:3px; }
-  .compact-member { padding:7px 3px; }
-  .compact-member-name>.avatar-wrap,.compact-member-name>.avatar,.compact-member-name small { display:none; }
-  .compact-member .room-rank img { display:none; }
-  .compact-member-stats { white-space:normal; line-height:1.6; }
-  .compact-member-picks { flex-wrap:wrap; gap:2px; }
-  .compact-room-header .room-status { flex-direction:column; gap:3px; }
-}
-
-.room-compact { height:246px; }
-.compact-room-header,.compact-room-footer { flex-shrink:0; }
-.compact-members { min-height:120px; }
-.compact-member { gap:4px; overflow:hidden; }
-.compact-member-picks { margin-top:auto; }
-.compact-room-footer { margin-top:10px; min-height:21px; }
-/* Details open directly; no stacked-card fan animation. */
-.room-spread-card,.room-spread-backdrop[data-phase=open] .room-spread-card { transform:none; transition:none; }
-.room-spread-card.is-member { opacity:1; }
-.compact-member-stats { font-size:9px; }
-
-/* Main-branch visual language: quiet list dividers, profile rail, readable type. */
-.room-home { max-width:1440px; }
-.room-home .room-home-layout { grid-template-columns:minmax(0,1fr) 300px; gap:28px; }
-.room-home .room-deck-grid { gap:0; }
-.room-compact { height:258px; padding:16px 0; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; }
-.room-compact:hover { background:#ffffff03; border-color:var(--line); }
-.compact-room-header { margin-bottom:12px; }
-.compact-room-header h3 { font-size:17px; margin-top:4px; }
-.compact-room-mode { font-size:12px; color:var(--muted); }
-.compact-room-header .room-status { font-size:13px; }
-.compact-room-header b { font-size:17px; }
-.compact-members { display:flex; flex:none; height:144px; min-height:144px; overflow-x:auto; gap:8px; padding-bottom:4px; scrollbar-width:thin; scrollbar-color:var(--line) transparent; }
-.compact-member { flex:0 0 140px; width:140px; height:138px; box-sizing:border-box; padding:10px; gap:7px; background:var(--panel); border:1px solid var(--line-soft); border-radius:8px; }
-.compact-member-name { min-height:21px; gap:5px; }
-.compact-member-name strong { font-size:14px; }
-.compact-member-name>.avatar-wrap,.compact-member-name>.avatar { display:none; }
-.compact-member-name small { display:block; font-size:10px; }
-.compact-member .room-rank strong { font-size:13px; }
-.compact-member .room-rank img,.compact-member .room-rank svg { display:inline; width:23px; height:23px; }
-.compact-member-stats { display:flex; justify-content:space-between; gap:4px; font-size:11px; line-height:1.5; white-space:nowrap; }
-.compact-member-stats>span { display:flex; flex-direction:column; gap:1px; }
-.compact-member-stats .performance-value,.compact-member-stats .room-unknown-stat { font-size:14px; }
-.compact-member-picks { margin-top:auto; flex-wrap:nowrap; }
-.compact-member-picks .preferred-champion-portrait { width:21px; height:21px; }
-.compact-member-picks .room-role-icons svg { width:17px; height:17px; }
-.compact-seat { background:transparent; border:1px dashed var(--line); gap:5px; }
-.compact-seat strong { font-size:13px; }
-.compact-seat small { font-size:12px; }
-.compact-room-footer { font-size:12px; margin-top:9px; min-height:20px; }
-.room-quick-rail .room-quick-connect { background:transparent; border:0; border-left:1px solid var(--line); border-radius:0; padding:8px 0 20px 22px; }
-.room-quick-rail .home-profile-account { margin-bottom:30px; }
-.room-quick-rail .home-profile-identity { gap:4px; }
-.room-quick-rail .home-profile-identity strong { font-size:16px; }
-.room-quick-rail .home-profile-identity>span { font-size:12px; }
-.room-quick-rail .quick-connect-heading h2 { font-size:18px; }
-.room-quick-rail .quick-connect-heading select,.room-quick-rail .quick-voice-label,.room-quick-rail .quick-connect-controls legend { font-size:14px; }
-.room-quick-rail .quick-role-options button { font-size:14px; background:transparent; }
-.room-quick-rail .quick-role-options button[aria-pressed=true] { background:var(--accent); }
-.room-quick-rail .quick-connect-start p,.room-quick-rail .quick-connect-hint,.room-quick-rail .quick-result-reasons { font-size:13px; }
-.room-quick-rail .quick-result-actions button { font-size:13px; }
-@media(max-width:900px) {
-  .room-home .room-home-layout { grid-template-columns:minmax(0,1fr); }
-  .room-quick-rail .room-quick-connect { border-left:0; border-bottom:1px solid var(--line); padding:0 0 20px; }
-}
-.compact-member { height:150px; }
-.compact-members { height:156px; min-height:156px; }
-.room-compact { height:270px; }
-
-/* Reuse the actual main-branch profile rail and introduction form. */
-.room-home .room-home-layout { grid-template-columns:minmax(0,1fr) 324px; gap:36px; }
 .room-quick-rail { overflow:visible; max-height:none; }
 .room-quick-rail .home-profile-stack { position:static; max-height:calc(100dvh - 48px); overflow-y:auto; padding:2px 4px 16px; margin:-2px -4px 0; scrollbar-width:thin; }
-.room-quick-rail .home-profile-account { margin-bottom:28px; }
-.room-quick-rail .home-profile-identity>span { font-size:13px; }
+.room-quick-rail .home-profile-account { margin-bottom:24px; }
 .room-quick-rail .home-profile-identity { gap:5px; }
+.room-quick-rail .home-profile-identity strong { font-size:17px; }
+.room-quick-rail .home-profile-identity>span { font-size:13px; }
+.room-home .home-profile .introduction-choice legend { font-size:14px; color:#bcc1d2; }
+.room-home .home-profile .intro-role-options .filter-role span { font-size:12px; }
+.room-home .home-profile .intro-role-options .filter-role svg { width:23px; height:23px; }
+.room-home .home-profile .intro-mode-options>.filter-mode { padding-inline:7px; font-size:14px; }
+.room-home .home-profile .introduction-fields label { font-size:14px; }
+.room-home .room-rail-actions { display:grid; gap:10px; padding-bottom:0; }
+.room-home .room-rail-actions>.btn { font-size:15px; min-height:44px; }
 .room-quick-rail .quick-connect-result { margin:0; padding:16px 18px; border-radius:16px; background:#131522; border-color:#66508e; }
-.room-quick-rail .quick-result-actions button { font-size:13px; }
-@media(max-width:900px) {
-  .room-home .room-home-layout { grid-template-columns:minmax(0,1fr); }
-  .room-quick-rail .home-profile-stack { max-height:none; }
-}
-/* One-line room summary; separate identity, role, stats and champion rows. */
-.room-compact { height:270px; padding:12px 0; }
-.compact-room-header { height:34px; flex:none; display:flex; flex-wrap:nowrap; gap:12px; margin:0 0 8px; overflow-x:auto; scrollbar-width:thin; }
-.compact-room-header .compact-room-mode { font-size:13px; flex:none; }
-.compact-room-header h3 { flex:1; min-width:120px; margin:0; font-size:16px; line-height:1.5; }
-.compact-room-header time { font-size:12px; white-space:nowrap; flex:none; }
-.compact-room-header .room-status { flex-direction:row; gap:6px; flex:none; }
-.compact-room-wanted { display:flex; align-items:center; gap:7px; flex:none; white-space:nowrap; }
-.compact-room-wanted>small { color:var(--muted); font-size:12px; }
-.room-role-icons.has-labels { justify-content:flex-start; gap:6px; min-height:22px; }
-.room-role-icons.has-labels>span { display:inline-flex; align-items:center; gap:4px; }
-.room-role-icons.has-labels b { font-size:12px; font-weight:600; color:#e1d5fb; }
-.compact-room-wanted .room-role-icons { padding:3px 7px; background:#a881ff14; border-radius:5px; }
-.compact-members { height:204px; min-height:204px; padding-bottom:6px; }
-.compact-member { flex:0 0 140px; width:140px; height:196px; display:grid; grid-template-rows:32px 24px 24px 34px 30px; gap:5px; padding:10px; align-content:start; }
-.compact-member-name { display:flex; gap:6px; min-height:32px; }
-.compact-member-name>.avatar-wrap { display:inline-block; flex:none; }
-.compact-member-name>span:not(.avatar-wrap) { min-width:0; display:flex; flex-direction:column; gap:1px; }
-.compact-member-name strong { display:block; font-size:14px; line-height:1.35; }
-.compact-member-name small { display:block; font-size:10px; line-height:1.2; }
-.compact-member-rank { display:flex; align-items:center; justify-content:space-between; min-width:0; gap:2px; }
-.compact-member-rank .room-rank { min-width:0; }
-.compact-member-rank .room-rank strong { font-size:12px; }
-.compact-member-rank .room-rank img,.compact-member-rank .room-rank svg { width:21px; height:21px; }
-.compact-member-position { display:flex; align-items:center; color:#dfcdfb; border-radius:4px; background:#ab82ff17; padding:1px 5px; min-width:0; }
-.compact-member-position>.room-role-icons { overflow-x:auto; scrollbar-width:none; max-width:100%; white-space:nowrap; }
-.compact-member-position>.room-role-icons>span { flex:none; }
-.compact-member-position .room-role-icons b { font-size:13px; }
-.compact-member-position>span { font-size:12px; }
-.compact-member-stats { display:flex; align-items:center; justify-content:space-between; font-size:10px; }
-.compact-member-stats>span { gap:0; }
-.compact-member-stats .performance-value,.compact-member-stats .room-unknown-stat { font-size:14px; line-height:1.4; }
-.compact-member-champions { display:flex; align-items:center; gap:6px; border-top:1px solid var(--line); padding-top:6px; min-width:0; }
-.compact-member-champions>small { font-size:10px; color:var(--muted); flex:none; }
-.compact-member-champions .preferred-champion-portrait { width:23px; height:23px; }
-.compact-member-champions .preferred-champions { gap:4px; }
-.compact-member-champions .preferred-champion-name { font-size:11px; }
-.compact-seat { display:flex; justify-content:center; align-items:center; gap:8px; }
-.room-mic-icon { display:inline-flex; justify-content:center; align-items:center; flex:none; width:27px; height:27px; border-radius:6px; }
+.room-quick-rail .quick-result-actions button { font-size:14px; }
+
+.room-deck.room-compact { padding:var(--room-padding); border:1px solid #303443; border-radius:14px; background:#111520; }
+.room-deck.room-compact:hover { border-color:#8066ae; background:#151826; }
+.compact-room-header { display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; min-height:32px; margin-bottom:14px; }
+.compact-room-header h3 { flex:1; min-width:120px; margin:0; font-size:17px; line-height:1.5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.compact-room-header time { font-size:14px; white-space:nowrap; }
+.compact-room-header .room-status { flex:none; font-size:13px; gap:9px; }
+.compact-room-header .room-status b { color:#ece6f8; font-size:18px; font-variant-numeric:tabular-nums; }
+.compact-room-wanted { display:flex; align-items:center; gap:8px; flex:none; }
+.compact-room-wanted>small { color:#a5abc0; font-size:13px; }
+.room-role-icons.has-labels { gap:8px; }
+.room-role-icons.has-labels>span { align-items:center; gap:5px; }
+.room-role-icons.has-labels b { font-size:13px; font-weight:500; color:#d9d2e8; }
+.compact-room-wanted .room-role-icons { padding:4px 8px; background:#a881ff14; border-radius:6px; }
+.compact-room-wanted .room-role-icons svg { width:21px; height:21px; }
+.compact-members { display:flex; align-items:stretch; gap:var(--member-card-gap); overflow-x:auto; scrollbar-width:thin; scrollbar-color:#44485d transparent; }
+.compact-member { flex:0 0 var(--member-card-width); width:var(--member-card-width); height:250px; box-sizing:border-box; min-width:0; padding:12px; display:flex; flex-direction:column; gap:10px; background:#0c1020; border:1px solid #ffffff0d; border-radius:9px; }
+.compact-member-name { display:flex; align-items:center; gap:9px; min-width:0; min-height:36px; flex:none; }
+.compact-member-name>strong { min-width:0; font-size:15px; font-weight:650; line-height:1.5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.room-member-avatar { display:inline-flex; position:relative; flex:none; }
+.room-host-crown { position:absolute; left:50%; top:-9px; transform:translateX(-50%); display:grid; place-items:center; width:19px; height:17px; color:#edc66c; filter:drop-shadow(0 1px 2px #050813); }
+.room-member-facts { position:relative; display:grid; flex:1; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 10px; width:100%; margin:0; }
+.room-member-facts>div { display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:0; gap:4px; text-align:center; }
+.room-member-facts dt { color:#a5abc0; font-size:12px; line-height:1.35; }
+.room-member-facts dd { width:100%; min-width:0; margin:0; display:flex; align-items:center; justify-content:center; }
+.room-member-facts .room-rank { flex-direction:column; gap:3px; min-width:0; min-height:0; max-width:100%; }
+.room-member-facts .room-rank img,.room-member-facts .room-rank svg { width:26px; height:26px; flex:none; }
+.room-member-facts .room-rank strong { font-size:14px; font-weight:600; line-height:1.4; max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+.room-member-facts .room-role-icons { flex-wrap:wrap; justify-content:center; gap:4px; max-width:100%; }
+.room-member-facts .room-role-icons.has-labels>span { flex-direction:column; gap:3px; }
+.room-member-facts .room-role-icons svg { width:23px; height:23px; }
+.room-member-facts .room-role-icons b { font-size:14px; }
+.room-member-facts .performance-value,.room-member-facts .room-unknown-stat { font-size:18px; line-height:1.4; min-height:0; }
+.room-random-role { color:#b8aec9; font-size:13px; }
+.room-member-card { padding-top:26px; }
+.room-member-card .room-member-facts { margin-top:4px; }
+.compact-member-champions { display:flex; flex:none; min-height:34px; align-items:center; justify-content:center; gap:7px; min-width:0; }
+.compact-member-champions .preferred-champions { flex-wrap:nowrap; gap:5px; }
+.compact-member-champions .preferred-champion-portrait { width:27px; height:27px; }
+.compact-member-champions .preferred-champion-name { font-size:12px; }
+.compact-champion-empty { display:inline-grid; place-items:center; width:27px; height:27px; flex:none; border:1px dashed #3c4050; border-radius:50%; color:var(--muted); font-size:12px; }
+.compact-seat { align-items:center; justify-content:center; gap:18px; background:transparent; border:1px dashed #343c52; color:#8991a9; }
+.compact-seat>small { font-size:13px; }
+.compact-seat .room-role-icons { flex-wrap:wrap; gap:16px; }
+.compact-seat .room-role-icons>span { flex-direction:column; gap:8px; }
+.compact-seat .room-role-icons svg { width:30px; height:30px; }
+.compact-seat .room-role-icons b { color:#aeb8d2; font-size:14px; }
+.room-mic-icon { display:inline-flex; justify-content:center; align-items:center; flex:none; width:32px; height:32px; border-radius:7px; }
+.room-mic-icon svg { width:23px; height:23px; }
 .room-mic-icon.is-on { color:#64e5a0; background:#35c87717; }
 .room-mic-icon.is-off { color:#ff8e98; background:#f4718112; }
-.room-deck.is-confirmed { filter:none; }
+.room-deck.is-confirmed { filter:grayscale(1); }
+.room-deck.room-compact.is-confirmed { background:#17191f; border-color:#373b45; }
 .room-compact.is-confirmed .compact-member { border-color:#343640; background:#171921; }
 .room-compact.is-confirmed .compact-seat { background:transparent; }
 .room-mic-filters { display:flex; gap:3px; border:1px solid var(--line); border-radius:8px; padding:3px; }
@@ -368,25 +281,20 @@
 .room-matching-form .intro-voice-options.is-binary,.room-composer .room-composer-voice-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
 .room-matching-form .intro-voice-options.is-binary .filter-mode svg,.room-composer-voice-options .filter-mode svg { width:23px; height:23px; }
 .quick-result-reasons { display:flex; align-items:center; gap:8px; }
-/* Each party is one card, with compact rank/role rows inside equal member cards. */
-.room-home.board-home { max-width:1320px; }
-.room-home .room-deck-grid { gap:14px; }
-.room-deck.room-compact { height:246px; padding:14px; border:1px solid #303443; border-radius:14px; background:#111520; }
-.room-deck.room-compact:hover { border-color:#8066ae; background:#151826; }
-.room-deck.room-compact.is-confirmed { background:#17191f; border-color:#373b45; }
-.compact-room-header { gap:10px; margin-bottom:10px; }
-.compact-room-header h3 { min-width:100px; }
-.compact-members { height:180px; min-height:180px; }
-.compact-member { flex-basis:152px; width:152px; height:172px; grid-template-rows:32px 24px 34px 30px; gap:7px; }
-.compact-member-rank { gap:4px; justify-content:space-between; }
-.compact-member-rank .room-rank { gap:2px; flex:none; }
-.compact-member-rank .room-rank img,.compact-member-rank .room-rank svg { width:16px; height:16px; }
-.compact-member-position { padding:1px 3px; overflow:hidden; flex:0 1 auto; }
-.compact-member-position .room-role-icons { gap:4px; min-height:20px; }
-.compact-member-position .room-role-icons>span { gap:3px; }
-.compact-member-position .room-role-icons svg { width:16px; height:16px; }
-.compact-member-position .room-role-icons b { font-size:12px; }
-.compact-member-champions { gap:5px; }
-.compact-member-champions .preferred-champions { gap:3px; }
-.compact-member-champions .preferred-champion-portrait { width:23px; height:23px; }
-.compact-champion-empty { display:inline-grid; place-items:center; width:23px; height:23px; flex:none; border:1px dashed #3c4050; border-radius:50%; color:var(--muted); font-size:10px; }
+/* Preserve the current direct detail view. */
+.room-spread-card,.room-spread-backdrop[data-phase=open] .room-spread-card { transform:none; transition:none; }
+.room-spread-card.is-member { opacity:1; }
+@media(max-width:1100px) {
+  .room-home.board-home { max-width:calc(var(--room-width) + 32px); padding-inline:16px; }
+  .room-home .room-home-layout,
+  .room-home.has-active-room .room-home-layout,
+  .room-home.has-composer .room-home-layout { grid-template-columns:minmax(0,1fr); gap:24px; }
+  .room-quick-rail,.room-conversation-rail,.room-composer-rail { position:static; grid-row:1; max-height:none; }
+  .room-quick-rail .home-profile-stack { max-height:none; }
+}
+@media(max-width:580px) {
+  .room-home.board-home { padding:16px 12px 32px; --room-padding:12px; }
+  .compact-room-header h3 { flex-basis:calc(100% - 100px); }
+  .compact-room-wanted { flex:1; }
+  .compact-room-wanted .room-role-icons { flex-wrap:wrap; }
+}

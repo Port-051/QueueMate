@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { GameKey } from '../api/types';
 import { Button, useToast } from '../components/ui';
-import { IconMatch } from '../components/icons';
+import { IconMatch, IconPlus } from '../components/icons';
 import { HomeProfileRail } from '../components/HomeProfileRail';
 import { useAuth } from '../state/AuthContext';
 import { SelfIntroductionFields } from '../components/SelfIntroductionFields';
@@ -61,7 +61,10 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onOpen, onCreat
         {error ? <div className="banner warn" role="alert">{error}</div> : null}
         <SelfIntroductionFields binaryVoice game={game} value={value} onChange={update}/>
       </fieldset>
-      <div className="matching-rail-footer"><Button block type="submit" variant="primary" disabled={Boolean(error) || (hasRoles && !ownRoles.length)}><IconMatch size={20}/>{started ? '다시 찾기' : '매칭 시작'}</Button></div>
+      <div className="matching-rail-footer room-rail-actions">
+        <Button block type="submit" variant="primary" disabled={Boolean(error) || (hasRoles && !ownRoles.length)}><IconMatch size={20}/>{started ? '다시 찾기' : '매칭 시작'}</Button>
+        <Button block onClick={onCreate}><IconPlus size={20}/>방 만들기</Button>
+      </div>
     </form>
 
   </section></HomeProfileRail>;

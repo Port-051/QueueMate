@@ -5,9 +5,6 @@
 .quick-result-reasons { color:#cbbce0; font-size:12px; line-height:1.7; margin:8px 0; }
 .quick-result-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
 .quick-result-actions button { flex:1; white-space:nowrap; padding:10px; font-size:12px; }
-.room-board-section-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin:0 0 18px; }
-.room-board-section-heading h2 { margin:0; font-size:19px; }
-.room-board-section-heading p { margin:0; color:#a89ab9; font-size:12px; }
 .room-board-count label { margin-left:auto; display:flex; align-items:center; gap:7px; color:#b6a9c5; cursor:pointer; }
 .room-board-count input { accent-color:#9b78e9; }
 .quick-connect-hint { font-size:13px; line-height:1.6; color:var(--muted); margin:8px 0 14px; }

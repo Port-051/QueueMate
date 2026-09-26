@@ -61,13 +61,24 @@ async function expectNoPageOverflow(page: Page) {
   expect(widths.document, JSON.stringify(widths)).toBeLessThanOrEqual(widths.viewport + 1);
 }
 
-test('방은 세 열 덱으로 보이고 클릭하면 페이지 이동 없이 전체 카드를 중앙에 펼친다', async ({ page }) => {
+test('다섯 카드가 방 너비에 맞고 상세는 페이지 이동 없이 중앙에 열린다', async ({ page }) => {
   await login(page);
   const grid = page.locator('.room-deck-grid');
   await expect(grid).toBeVisible();
-  await expect.poll(() => grid.evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(3);
+  await expect.poll(() => grid.evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(1);
   expect(await grid.locator('.room-deck').count()).toBeGreaterThanOrEqual(6);
   const deck = grid.locator('.room-deck[data-status="OPEN"]').first();
+  const roster = deck.locator('.compact-members');
+  await expect(roster.locator('.compact-member')).toHaveCount(5);
+  const fit = await roster.evaluate(element => {
+    const first = element.firstElementChild!.getBoundingClientRect();
+    const last = element.lastElementChild!.getBoundingClientRect();
+    return { overflow: element.scrollWidth - element.clientWidth, unused: element.clientWidth - (last.right - first.left) };
+  });
+  expect(Math.abs(fit.unused)).toBeLessThanOrEqual(1);
+  expect(fit.overflow).toBeLessThanOrEqual(1);
+  await expect(deck.getByRole('img', { name: '방장', exact: true })).toHaveCount(1);
+  await expect(page.locator('.room-quick-rail').getByRole('button', { name: '방 만들기', exact: true })).toBeVisible();
   const originalUrl = page.url();
   await deck.click();
   const dialog = page.getByRole('dialog');
@@ -89,7 +100,7 @@ test('방은 세 열 덱으로 보이고 클릭하면 페이지 이동 없이 �
   await expectNoPageOverflow(page);
 });
 
-test('방 요약 평균은 전적이 있는 사람만 계산하고 펼치면 각 사람의 전적을 보여준다', async ({ page }) => {
+test('목록에서 개인 전적을 보여주고 상세 요약 평균은 전적이 있는 사람만 계산한다', async ({ page }) => {
   await seedRooms(page, [room('averages', [
     member('one', { winRate: 50, kda: 2 }),
     member('two', { winRate: 60, kda: 4, roles: ['SUPPORT'] }),
@@ -97,10 +108,12 @@ test('방 요약 평균은 전적이 있는 사람만 계산하고 펼치면 각
   ])]);
   await login(page);
   const deck = page.getByRole('button', { name: '테스트 방 averages 방 정보', exact: true });
-  await expect(deck).toContainText('55%');
-  await expect(deck).toContainText('3.0');
+  await expect(deck).toContainText('50%');
+  await expect(deck).toContainText('60%');
   await expect(deck).toContainText(/3\s*\/\s*5/);
   await deck.click();
+  await expect(page.getByRole('dialog').locator('.room-summary-stats')).toContainText('55%');
+  await expect(page.getByRole('dialog').locator('.room-summary-stats')).toContainText('3.00');
   const cards = page.getByRole('dialog').locator('.room-member-card');
   await expect(cards).toHaveCount(3);
   await expect(cards.filter({ hasText: '테스터 one' })).toContainText('50%');
@@ -235,7 +248,7 @@ test('예약 방은 과거 시간을 거절하고 미래 시간으로 만든 즉
   await composer.getByLabel('시작 시간', { exact: true }).fill(next);
   await composer.getByRole('button', { name: '방 열기', exact: true }).click();
   const deck = page.getByRole('button', { name: '조금 뒤에 다 같이 방 정보', exact: true });
-  await expect(deck.locator('.room-start-time')).toBeVisible();
+  await expect(deck.locator('.compact-room-header time')).toBeVisible();
   await expect(page.getByRole('textbox', { name: '방에 메시지 보내기', exact: true })).toBeEnabled();
   await expect(deck).toHaveAttribute('data-status', 'OPEN');
 });
