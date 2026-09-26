@@ -33,7 +33,6 @@ export function RoomBoardHome() {
   const { selectedGame } = useOutletContext<AppShellOutletContext>();
   const { rooms, activeRoom, create, join, leave, kick, confirm, send, autoConfirm, extendRecruitment } = useRoomStore(user?.id ?? '');
   const toast = useToast();
-  const [type, setType] = useState<GameRoom['type']>(activeRoom?.type ?? 'REALTIME');
   const [filters, setFilters] = useState(() => ({ ...defaults(selectedGame), ...(activeRoom?.game === selectedGame ? { modeKey: activeRoom.modeKey } : {}) }));
   const [selected, setSelected] = useState<{ id: string; roles: string[]; profile: RoomMember; fromRoomId?: string; criteria?: QuickConnectCriteria } | null>(null);
   const [railView, setRailView] = useState<'explore' | 'chat'>(activeRoom ? 'chat' : 'explore');
@@ -47,7 +46,7 @@ export function RoomBoardHome() {
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const finishEntrance = useCallback(() => setJustCreatedId(null), []);
   const previousGame = useRef(selectedGame);
-  useEffect(() => { setSelected(null); }, [filters.modeKey, type]);
+  useEffect(() => { setSelected(null); }, [filters.modeKey]);
   const [, tick] = useState(0);
   useEffect(() => {
     if (previousGame.current === selectedGame) return;
@@ -69,7 +68,7 @@ export function RoomBoardHome() {
     };
   }, [user, selectedGame, gameAccounts]);
   const filtered = rooms.filter(room => {
-    if (room.game !== selectedGame || room.type !== type || room.modeKey !== filters.modeKey) return false;
+    if (room.game !== selectedGame || room.modeKey !== filters.modeKey) return false;
     if (openOnly && (room.status !== 'OPEN' || room.members.length >= room.capacity)) return false;
     if (!tierRangesOverlap(selectedGame, filters.tierRange, room.desiredTierRange)) return false;
     if (filters.voice && roomVoice(room.voice) !== filters.voice) return false;
@@ -81,10 +80,7 @@ export function RoomBoardHome() {
   const canReset = filters.tierRange.minTier || filters.tierRange.maxTier || filters.roles.length || filters.voice !== '';
 
   return <div className={`room-home board-home${activeRoom ? ' has-active-room' : ''}${exploring ? ' is-exploring' : ''}`}>
-    <header className="room-home-heading"><SlidingSelector className="room-type-tabs" role="tablist" aria-label="매칭 시간">
-      <button role="tab" aria-selected={type === 'REALTIME'} onClick={() => setType('REALTIME')}>실시간 매칭</button>
-      <button role="tab" aria-selected={type === 'RESERVATION'} onClick={() => setType('RESERVATION')}>예약 매칭</button>
-    </SlidingSelector>
+    <header className="room-home-heading">
       <SlidingSelector className="intro-mode-options room-mode-options board-mode-options" role="group" aria-label="찾는 큐 타입">{visibleModes(selectedGame).map(mode => <button type="button" className="filter-mode" aria-label={mode.label} aria-pressed={filters.modeKey === mode.key} key={mode.key} onClick={() => setFilters({ ...filters, modeKey: mode.key, roles: [] })}><FilterModeIcon mode={mode.key} /><span>{mode.label}</span></button>)}</SlidingSelector>
     </header>
     <div className="room-home-layout"><section className="room-board" aria-label="방 목록">
@@ -106,7 +102,7 @@ export function RoomBoardHome() {
         <button type="button" aria-pressed={exploring} onClick={() => setRailView('explore')}>탐색 · 매칭</button>
         <button type="button" aria-pressed={!exploring} onClick={() => setRailView('chat')}>방 채팅 <small>{activeRoom.members.length}/{activeRoom.capacity}</small>{exploring && lastSeen !== activity ? <i className="room-update-dot" role="img" aria-label="내 방 새 소식" /> : null}</button>
       </SlidingSelector> : null}
-      <div className="room-quick-rail" hidden={!exploring}><RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.modeKey} type={type} rooms={rooms} member={member} activeRoom={activeRoom} onShowRoom={() => setRailView('chat')}
+      <div className="room-quick-rail" hidden={!exploring}><RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.modeKey} rooms={rooms} member={member} activeRoom={activeRoom} onShowRoom={() => setRailView('chat')}
         onCreate={(input, profile) => { const room = create(input, profile); setFilters({ ...defaults(input.game), modeKey: input.modeKey }); setLastSeen(roomActivity(room)); setRailView('explore'); setJustCreatedId(room.id); }} onSelectSeat={(room, profile, criteria) => {
           const vacancies = vacantRoleOptions(room);
           const roles = vacancies.find(options => options.some(role => profile.roles.includes(role))) ?? vacancies[0] ?? [];

@@ -7,6 +7,7 @@ import { tierInRange } from '../domain/tierRange';
 import { autoClosePhase } from './autoClose';
 import { remainingRoomRoles } from './positions';
 import { RoomVoice } from './RoomVoice';
+import { roomStartLabel } from './schedule';
 import type { GameRoom, RoomMember } from './types';
 import './room-create-preview.css';
 
@@ -39,6 +40,7 @@ export function RoomSeatJoin({ room, roles, profile, entryError, leavingRoom, on
     foot={<><Button onClick={onClose}>취소</Button><Button variant="primary" disabled={Boolean(unavailable)} onClick={confirm}>{leavingRoom ? '이 방으로 이동' : '참여하기'}</Button></>}>
     <div className="room-preview-title"><h3>{room.title}</h3></div>
     <dl className="room-preview-conditions">
+      <div><dt>시작 시간</dt><dd><time dateTime={room.availableFrom ?? undefined}>{roomStartLabel(room.availableFrom)}</time></dd></div>
       {hasRoles ? <div><dt>참여 포지션</dt><dd><div className="room-seat-role-picker" role="group" aria-label="참여 포지션">{roles.map(value => <button key={value} type="button" aria-pressed={value === role} disabled={!remaining.includes(value)} onClick={() => { setRole(value); setError(''); }}><FilterRoleIcon game={room.game} value={value} size={23} /><span>{keyConditionOptions(room.game).find(option => option.value === value)?.label ?? value}</span></button>)}</div></dd></div> : null}
       <div><dt>모집 티어</dt><dd><TierRangeLabel game={room.game} value={room.desiredTierRange} explicitBounds /></dd></div>
       <div><dt>음성</dt><dd><RoomVoice value={room.voice} />{room.voice === 'REQUIRED' ? '사용' : '미사용'}</dd></div>

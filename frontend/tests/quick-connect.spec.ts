@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { quickConnectCandidates, type QuickConnectCriteria } from '../src/rooms/quickConnect';
 import type { GameRoom, RoomMember } from '../src/rooms/types';
+import { ceilRoomHour } from '../src/rooms/schedule';
 
 const member: RoomMember = { id: 'host', nickname: '호스트', avatarUrl: null, tier: null, division: null, winRate: null, kda: null, roles: ['MID'], champions: [], bio: '서로 존중해요', voice: 'OPTIONAL' };
 const base: GameRoom = { id: 'room', game: 'LOL', modeKey: 'NORMAL_DRAFT', type: 'REALTIME', title: '함께해요', ownerId: 'host', capacity: 5, members: [member], desiredRoles: ['SUPPORT'], voice: 'REQUIRED', status: 'OPEN', createdAt: 10, availableFrom: null, messages: [] };
@@ -11,6 +12,16 @@ test('같은 원본 방을 제안하며 탐색이 방이나 멤버를 변경하�
   const before = structuredClone(rooms);
   expect(quickConnectCandidates(rooms, criteria)[0]).toBe(rooms[0]);
   expect(rooms).toEqual(before);
+});
+
+test('하나의 방 풀에서 지정한 시작 시각과 같은 방만 추천한다', () => {
+  const slot = new Date(ceilRoomHour(Date.now() + 3_600_000)).toISOString();
+  const scheduled: GameRoom = { ...base, id: 'scheduled', type: 'RESERVATION', availableFrom: slot };
+  const later = { ...scheduled, id: 'later', availableFrom: new Date(Date.parse(slot) + 3_600_000).toISOString() };
+  expect(quickConnectCandidates([base, scheduled, later], criteria)).toEqual([base]);
+  expect(quickConnectCandidates([base, scheduled, later], { ...criteria, availableFrom: slot })).toEqual([scheduled]);
+  expect(quickConnectCandidates([scheduled], { ...criteria, availableFrom: 'invalid' })).toEqual([]);
+  expect(quickConnectCandidates([scheduled], { ...criteria, availableFrom: new Date(Date.now() - 3_600_000).toISOString() })).toEqual([]);
 });
 
 test('다른 게임·모드·예약·확정·정원초과·이미 참여한 방은 제외한다', () => {

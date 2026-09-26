@@ -363,11 +363,11 @@ test('5인 방의 방장이 나가도 그 포지션을 다시 빈자리로 표�
 
 test('예약 방은 과거 시간을 거절하고 미래 시간으로 만든 즉시 채팅할 수 있다', async ({ page }) => {
   await login(page);
-  await page.getByRole('tab', { name: '예약 매칭', exact: true }).click();
   const composer = page.getByRole('region', { name: '빠른 연결', exact: true });
+  await composer.getByRole('button', { name: '시간 선택', exact: true }).click();
   await composer.getByLabel('한마디', { exact: true }).fill('조금 뒤에 다 같이');
   await selectFullLineup(composer);
-  await composer.getByLabel('시작 시간', { exact: true }).fill('2000-01-01T12:00');
+  await composer.getByLabel('시작 날짜', { exact: true }).fill('2000-01-01');
   await composer.getByRole('button', { name: '방 만들기', exact: true }).click();
   await expect(composer.getByRole('alert')).toContainText('현재보다 뒤');
   const next = await page.evaluate(() => {
@@ -375,7 +375,9 @@ test('예약 방은 과거 시간을 거절하고 미래 시간으로 만든 즉
     date.setMinutes(0, 0, 0);
     return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
   });
-  await composer.getByLabel('시작 시간', { exact: true }).fill(next);
+  await composer.getByLabel('시작 날짜', { exact: true }).fill(next.slice(0, 10));
+  await composer.getByLabel('시작 시각', { exact: true }).selectOption(next.slice(11, 13));
+  await expect(composer.getByLabel('시작 시각', { exact: true }).locator('option')).toHaveCount(24);
   await composer.getByRole('button', { name: '방 만들기', exact: true }).click();
   await page.getByRole('dialog', { name: '이대로 방을 만들까요?', exact: true }).getByRole('button', { name: '방 올리기', exact: true }).click();
   const deck = page.getByRole('article', { name: '조금 뒤에 다 같이 방 정보', exact: true });
@@ -383,6 +385,28 @@ test('예약 방은 과거 시간을 거절하고 미래 시간으로 만든 즉
   await page.getByRole('group', { name: '우측 영역 선택' }).getByRole('button', { name: /방 채팅/ }).click();
   await expect(page.getByRole('textbox', { name: '방에 메시지 보내기', exact: true })).toBeEnabled();
   await expect(deck).toHaveAttribute('data-status', 'OPEN');
+});
+
+test.describe('통합 방 시간', () => {
+  test.use({ timezoneId: 'Asia/Seoul' });
+  test('지금과 예약 방이 한 목록에 보이고 오늘·내일·이후 날짜를 정각으로 표시한다', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-09-27T10:00:00+09:00'));
+    await seedRooms(page, [room('now', [member('now-host')]),
+      ...[
+        ['today', '2026-09-27T15:00:00+09:00'],
+        ['tomorrow', '2026-09-28T23:00:00+09:00'],
+        ['later', '2026-09-29T21:00:00+09:00'],
+      ].map(([id, availableFrom]) => room(id, [member(`${id}-host`)], { type: 'RESERVATION', availableFrom })),
+    ]);
+    await login(page);
+    await expect(page.getByRole('tablist', { name: '매칭 시간', exact: true })).toHaveCount(0);
+    await expect(page.locator('.room-deck')).toHaveCount(4);
+    for (const [id, label] of [['now', '지금'], ['today', '오늘 오후 3시'], ['tomorrow', '내일 오후 11시'], ['later', '29일 오후 9시']]) {
+      await expect(page.getByRole('article', { name: `테스트 방 ${id} 방 정보`, exact: true }).locator('.compact-room-header time')).toHaveText(label);
+    }
+    await page.getByRole('article', { name: '테스트 방 today 방 정보', exact: true }).locator('.compact-seat').first().click();
+    await expect(page.getByRole('dialog').locator('time')).toHaveText('오늘 오후 3시');
+  });
 });
 
 test('채팅 저장이 실패하면 메시지와 초안을 잃지 않고 다시 전송할 수 있다', async ({ page }) => {
@@ -524,7 +548,7 @@ test('티어 범위는 두 번째 선택에 바로 적용하고 한 번만 선�
   await expect(trigger).toContainText('실버~골드');
   await trigger.click();
   await dialog.getByRole('button', { name: '골드', exact: true }).click();
-  await page.getByRole('tab', { name: '실시간 매칭' }).click();
+  await page.getByRole('group', { name: '찾는 큐 타입', exact: true }).getByRole('button', { name: '일반', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(trigger).toContainText('실버~골드');
   await trigger.click();
@@ -558,15 +582,14 @@ test('티어 범위는 두 번째 선택에 바로 적용하고 한 번만 선�
   await expect(trigger).toHaveText('모든 티어');
 });
 
-test('게시판은 우측과 같은 선택기를 쓰고 모드는 시간 탭 옆에 배치하며 필터는 한 줄을 유지한다', async ({ page }) => {
+test('게시판은 우측과 같은 선택기를 쓰고 상단 모드와 필터가 각각 한 줄을 유지한다', async ({ page }) => {
   await login(page);
   const filters = page.locator('.room-filters');
   const modes = page.getByRole('group', { name: '찾는 큐 타입', exact: true });
-  const tabs = page.getByRole('tablist', { name: '매칭 시간', exact: true });
   const modeBounds = (await modes.boundingBox())!;
-  const tabBounds = (await tabs.boundingBox())!;
-  expect(modeBounds.x).toBeGreaterThan(tabBounds.x + tabBounds.width);
-  expect(Math.abs(modeBounds.y + modeBounds.height / 2 - tabBounds.y - tabBounds.height / 2)).toBeLessThan(1);
+  const filterBounds = (await filters.boundingBox())!;
+  expect(Math.abs(modeBounds.x - filterBounds.x)).toBeLessThan(1);
+  expect(modeBounds.y + modeBounds.height).toBeLessThan(filterBounds.y);
   const rail = page.getByRole('region', { name: '빠른 연결', exact: true });
   for (const [board, sidebar] of [
     [modes, rail.getByRole('group', { name: '원하는 큐 타입', exact: true })],

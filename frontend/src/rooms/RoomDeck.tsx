@@ -6,7 +6,8 @@ import { Avatar } from '../components/ui';
 import { FilterRoleIcon, FilterTierIcon } from '../components/FilterSymbols';
 import { PerformanceValue, PreferredChampions } from '../components/IntroductionVisuals';
 import { keyConditionOptions, usesKeyCondition } from '../domain/gameConfig';
-import { TIER_LABELS, timeLabel } from '../domain/recruitment';
+import { TIER_LABELS } from '../domain/recruitment';
+import { roomStartLabel } from './schedule';
 import { hasLolRankDivision } from '../domain/lolRank';
 import { canonicalRoomRoles, ROOM_ROLES } from './summary';
 import { RoomVoice } from './RoomVoice';
@@ -73,8 +74,8 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, entryError
     <RoomBubbleTail />
     <div className="compact-room-header" aria-label="방 요약">
       <h3 ref={heading} tabIndex={-1} title={room.title}>{room.title}</h3>
-      {room.availableFrom ? <time>{timeLabel(room.availableFrom)}</time> : null}
       {closed ? <span className="room-status is-confirmed">마감</span> : null}
+      <time dateTime={room.availableFrom ?? undefined}>{roomStartLabel(room.availableFrom)}</time>
     </div>
     <div className="compact-members" aria-label="방 구성원 정보">
       {room.members.map(member => <div className="compact-member" key={member.id}>

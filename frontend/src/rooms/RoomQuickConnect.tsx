@@ -10,6 +10,8 @@ import { usesKeyCondition, visibleModes } from '../domain/gameConfig';
 import { emptyIntroduction, introductionInputError, readIntroduction, saveIntroduction, type SelfIntroduction } from '../domain/introduction';
 import { RoomVoice } from './RoomVoice';
 import { RoomCapacityPicker } from './RoomCapacityPicker';
+import { RoomStartTimePicker } from './RoomStartTimePicker';
+import { localRoomDateTime, reservationTimeError, roomStartLabel } from './schedule';
 import { RoomCreatePreview, type RoomDraft } from './RoomCreatePreview';
 import { normalizeRoomCapacity } from './summary';
 import { needsFullLineup, roomPositionError } from './positions';
@@ -18,17 +20,12 @@ import { quickConnectCandidates, type QuickConnectCriteria } from './quickConnec
 import type { CreateRoomInput, GameRoom, RoomMember } from './types';
 import './room-quick-connect.css';
 
-function localDateTime(value: number): string {
-  const date = new Date(value);
-  return new Date(value - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-}
-
 function CreateRoomIcon() {
   return <span className="room-create-icon"><IconDirectMessage size={22} /></span>;
 }
 
-export function RoomQuickConnect({ game, modeKey, type, rooms, member, onSelectSeat, onCreate, activeRoom, onShowRoom }: {
-  game: GameKey; modeKey: string; type: GameRoom['type']; rooms: GameRoom[]; member: RoomMember;
+export function RoomQuickConnect({ game, modeKey, rooms, member, onSelectSeat, onCreate, activeRoom, onShowRoom }: {
+  game: GameKey; modeKey: string; rooms: GameRoom[]; member: RoomMember;
   onSelectSeat: (room: GameRoom, profile: RoomMember, criteria: QuickConnectCriteria) => void;
   activeRoom: GameRoom | null; onShowRoom: () => void;
   onCreate: (input: CreateRoomInput, profile: RoomMember) => void;
@@ -42,7 +39,7 @@ export function RoomQuickConnect({ game, modeKey, type, rooms, member, onSelectS
   });
   const [started, setStarted] = useState(false);
   const [skipped, setSkipped] = useState<string[]>([]);
-  const [start, setStart] = useState(() => localDateTime(Math.ceil((Date.now() + 60_000) / 1_800_000) * 1_800_000));
+  const [start, setStart] = useState<string | null>(() => activeRoom?.availableFrom ? localRoomDateTime(Date.parse(activeRoom.availableFrom)) : null);
   const [createError, setCreateError] = useState('');
   const [draft, setDraft] = useState<RoomDraft | null>(null);
   const hasRoles = usesKeyCondition(game, value.queueType);
@@ -50,7 +47,7 @@ export function RoomQuickConnect({ game, modeKey, type, rooms, member, onSelectS
   const ownRoles = value.primaryRoles ?? (value.primaryRole !== 'ANY' ? [value.primaryRole] : []);
   const fullLineup = needsFullLineup(game, value.queueType, capacity);
   const positionError = roomPositionError({ game, modeKey: value.queueType, capacity, desiredRoles: value.desiredRoles }, ownRoles);
-  const criteria: QuickConnectCriteria = { game, modeKey: value.queueType, capacity, role: ownRoles[0] ?? '', roles: ownRoles, desiredRoles: value.desiredRoles, voice: value.voice, userId: member.id, ownTier: game === 'LOL' ? member.tier : value.ownTier, desiredTierRange: value.desiredTierRange };
+  const criteria: QuickConnectCriteria = { game, modeKey: value.queueType, capacity, availableFrom: start, role: ownRoles[0] ?? '', roles: ownRoles, desiredRoles: value.desiredRoles, voice: value.voice, userId: member.id, ownTier: game === 'LOL' ? member.tier : value.ownTier, desiredTierRange: value.desiredTierRange };
   const candidates = quickConnectCandidates(rooms, criteria);
   const candidate = candidates.find(room => !skipped.includes(room.id));
   const error = introductionInputError(value);
@@ -71,16 +68,13 @@ export function RoomQuickConnect({ game, modeKey, type, rooms, member, onSelectS
   const startRoom = () => {
     if (error || positionError) { setCreateError(error || positionError || ''); return; }
     if (!value.bio.trim()) { setCreateError('한마디를 입력해 주세요. 방 제목으로 표시돼요.'); return; }
-    const timestamp = Date.parse(start);
-    if (type === 'RESERVATION') {
-      if (!Number.isFinite(timestamp) || timestamp <= Date.now()) { setCreateError('시작 시간을 현재보다 뒤로 선택해 주세요.'); return; }
-      if (new Date(timestamp).getMinutes() % 30 !== 0) { setCreateError('시작 시간은 30분 단위로 선택해 주세요.'); return; }
-    }
+    const timeError = start === null ? null : reservationTimeError(start);
+    if (timeError) { setCreateError(timeError); return; }
     if (activeRoom) { onShowRoom(); return; }
     setCreateError('');
-    setDraft({ input: { game, modeKey: value.queueType, type, title: value.bio.trim(), capacity,
+    setDraft({ input: { game, modeKey: value.queueType, type: start === null ? 'REALTIME' : 'RESERVATION', title: value.bio.trim(), capacity,
       desiredRoles: hasRoles ? value.desiredRoles : [], desiredTierRange: value.desiredTierRange,
-      voice: value.voice, availableFrom: type === 'RESERVATION' ? new Date(timestamp).toISOString() : null,
+      voice: value.voice, availableFrom: start === null ? null : new Date(start).toISOString(),
     }, profile: { ...profile, bio: value.bio.trim() } });
   };
 
@@ -88,7 +82,7 @@ export function RoomQuickConnect({ game, modeKey, type, rooms, member, onSelectS
       {candidate ? <>
         <div className="quick-result-top"><span>조건에 맞는 방</span><strong>{candidate.members.length}/{candidate.capacity}명</strong></div>
         <h3>{candidate.title}</h3>
-        <p className="quick-result-reasons"><RoomVoice value={candidate.voice}/></p>
+        <p className="quick-result-reasons"><RoomVoice value={candidate.voice}/><time dateTime={candidate.availableFrom ?? undefined}>{roomStartLabel(candidate.availableFrom)}</time></p>
         <div className="quick-result-actions"><Button onClick={() => setSkipped(values => [...values, candidate.id])}>다른 방</Button><Button variant="primary" onClick={() => onSelectSeat(candidate, profile, criteria)}>자리 확인</Button></div>
       </> : <>
         <h3>{candidates.length ? '제안할 방을 모두 봤어요.' : '조건에 맞는 방이 없어요.'}</h3>
@@ -98,12 +92,12 @@ export function RoomQuickConnect({ game, modeKey, type, rooms, member, onSelectS
     </article></section> : null;
 
   return <><HomeProfileRail user={user} game={game} gameAccount={gameAccounts.find(account => account.game === game)} below={recommendation}><section className="matching-rail-panel room-matching-form" aria-label="빠른 연결">
-    <form noValidate onSubmit={event => { event.preventDefault(); if (!error && (!hasRoles || ownRoles.length)) { setStarted(true); setSkipped([]); } }}>
+    <form noValidate onSubmit={event => { event.preventDefault(); const timeError = start === null ? null : reservationTimeError(start); if (timeError) { setCreateError(timeError); return; } if (!error && (!hasRoles || ownRoles.length)) { setCreateError(''); setStarted(true); setSkipped([]); } }}>
       <fieldset className="recruitment-composer">
         {error ? <div className="banner warn" role="alert">{error}</div> : null}
         <SelfIntroductionFields binaryVoice showTierRange compact singleRole game={game} value={value} onChange={update} disabledDesiredRoles={fullLineup ? ownRoles : []}
           afterMode={<RoomCapacityPicker game={game} modeKey={value.queueType} value={capacity} onChange={roomCapacity => update({ ...value, roomCapacity })} />} />
-        {type === 'RESERVATION' ? <label className="room-start-field">시작 시간<input aria-label="시작 시간" type="datetime-local" step={1800} min={localDateTime(Date.now())} value={start} onChange={event => { setStart(event.target.value); setCreateError(''); }} /></label> : null}
+        <RoomStartTimePicker value={start} onChange={next => { setStart(next); setCreateError(''); reset(); }} />
         {createError ? <p className="room-create-error" role="alert">{createError}</p> : positionError ? <p className="room-create-hint">{positionError}</p> : null}
       </fieldset>
       <div className={`matching-rail-footer room-rail-actions${activeRoom ? ' is-search-only' : ''}`}>

@@ -7,6 +7,7 @@ import type { CreateRoomInput, GameRoom, RoomMember, RoomMessage } from './types
 import { roomVoice, ROOM_VOICES } from './voice';
 import { autoClosePhase, canAutoClose, nextAutoCloseAt } from './autoClose';
 import { needsFullLineup, remainingRoomRoles, roomPositionError } from './positions';
+import { ceilRoomHour, reservationTimeError } from './schedule';
 
 export { roomCapacityLimit } from './summary';
 
@@ -89,7 +90,7 @@ function seedRooms(now = Date.now()): GameRoom[] {
           : [roles[(i + amount) % roles.length], roles[(i + amount + 1) % roles.length]],
         desiredTierRange: game === 'LOL' ? exampleTierRange(i) : undefined,
         voice: VOICES[i % VOICES.length], status: confirmed ? 'CONFIRMED' : 'OPEN', createdAt,
-        availableFrom: type === 'RESERVATION' ? new Date(Math.ceil((now + (i + 1) * 3_600_000) / 1_800_000) * 1_800_000).toISOString() : null,
+        availableFrom: type === 'RESERVATION' ? new Date(ceilRoomHour(now + [1, 3, 24, 36, 48, 60][i % 6] * 3_600_000)).toISOString() : null,
         messages: [{ id: `${id}-welcome`, authorId: members[0].id, text: '안녕하세요! 편하게 이야기하면서 같이 해요.', createdAt }],
       });
     }
@@ -133,12 +134,14 @@ function parseSnapshot(raw: string | null, userId: string): RoomSnapshot | null 
         && typeof message.text === 'string' && typeof message.createdAt === 'number' && Number.isFinite(message.createdAt)).slice(-MAX_MESSAGES) : [];
       const createdAt = nullableNumber(value.createdAt) ?? Date.now();
       let availableFrom = typeof value.availableFrom === 'string' && Number.isFinite(Date.parse(value.availableFrom)) ? value.availableFrom : null;
-      // Refresh only untouched example reservations; a user's actual reservation time never silently moves.
-      if (value.id.startsWith('example-room-') && availableFrom && Date.parse(availableFrom) <= Date.now() && !members.some(member => member.id === userId)) {
-        availableFrom = new Date(Math.ceil((Date.now() + 3_600_000) / 1_800_000) * 1_800_000).toISOString();
-      }
       const untouchedExample = value.id.startsWith('example-room-') && value.ownerId === `${value.id}-member-0`
         && members.every(member => member.id.startsWith(`${value.id}-member-`));
+      // Refresh/round only untouched examples; never move a user's existing reservation.
+      if (untouchedExample && availableFrom) {
+        const timestamp = Date.parse(availableFrom);
+        const offset = [1, 3, 24, 36, 48, 60][(Number(value.id.split('-').at(-1)) || 0) % 6];
+        availableFrom = new Date(ceilRoomHour(timestamp <= Date.now() ? Date.now() + offset * 3_600_000 : timestamp)).toISOString();
+      }
       const desiredRoles = untouchedExample && needsFullLineup(game, value.modeKey, capacity)
         ? ROOM_ROLES.LOL.filter(role => !members.find(member => member.id === value.ownerId)!.roles.includes(role))
         : canonicalRoomRoles(game, strings(value.desiredRoles));
@@ -231,7 +234,10 @@ export function createRoomActions(userId: string) {
       if (!title || title.length > 120) throw new Error('한마디는 1~120자로 입력해 주세요.');
       if (!['REALTIME', 'RESERVATION'].includes(input.type) || !VOICES.includes(input.voice)) throw new Error('방 설정을 확인해 주세요.');
       const availableFrom = input.type === 'RESERVATION' ? input.availableFrom : null;
-      if (input.type === 'RESERVATION' && (!availableFrom || !Number.isFinite(Date.parse(availableFrom)) || Date.parse(availableFrom) <= Date.now())) throw new Error('예약 시간을 현재보다 뒤로 설정해 주세요.');
+      if (input.type === 'RESERVATION') {
+        const timeError = reservationTimeError(availableFrom);
+        if (timeError) throw new Error(timeError);
+      }
       const creator = checkedMember(member, input.game);
       const positionError = roomPositionError(input, creator.roles);
       if (positionError) throw new Error(positionError);

@@ -90,7 +90,6 @@
 .room-home .room-deck-grid,
 .room-home.has-active-room .room-deck-grid { grid-template-columns:minmax(0,1fr); gap:16px; }
 .room-home-heading { max-width:var(--room-width); justify-content:flex-start; gap:16px; overflow-x:auto; scrollbar-width:thin; margin-bottom:24px; }
-.room-home-heading .room-type-tabs { flex:none; }
 .room-home-heading .board-mode-options { flex:0 0 var(--room-rail-content-width); }
 .room-board-count { padding:18px 0; color:#a5abc0; font-size:14px; }
 .room-board-count strong { font-size:15px; }
@@ -150,16 +149,19 @@
 .room-home .room-matching-form input[aria-label="한마디"] { min-height:48px; padding:12px 20px; border-radius:12px; font-size:15px; line-height:1.5; }
 .room-home .room-matching-form input[aria-label="한마디"]::placeholder { font-size:15px; color:#626270; opacity:1; }
 .room-home .intro-role-options .filter-role:disabled { opacity:.3; cursor:not-allowed; }
-.room-start-field { display:flex; flex-direction:column; gap:8px; margin-top:18px; color:#bcc1d2; font-size:var(--room-label-font-size); }
-.room-start-field input { min-width:0; width:100%; min-height:48px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--panel-2); color:var(--text); font:inherit; color-scheme:dark; }
-.room-start-field input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.room-start-picker { margin-top:18px; }
+.room-start-picker legend { color:#bcc1d2; font-size:var(--room-label-font-size); }
+.room-start-options { width:fit-content; max-width:100%; }
+.room-start-controls { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(0,1fr); gap:8px; margin-top:10px; }
+.room-home .room-matching-form .room-start-controls :is(input,select) { min-width:0; width:100%; min-height:44px; padding:10px 14px; border:1px solid var(--line); border-radius:999px; background:var(--panel-2); color:var(--text); font:inherit; font-size:14px; color-scheme:dark; }
+.room-start-controls :is(input,select):focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .room-create-hint,.room-create-error { margin:12px 0 0; font-size:12px; line-height:1.5; }
 .room-create-hint { color:var(--muted); }
 .room-create-error { color:var(--danger); }
 
-.compact-room-header { display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; min-height:32px; margin-bottom:14px; }
-.compact-room-header h3 { flex:1; min-width:120px; margin:0; font-size:17px; line-height:1.5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.compact-room-header time { font-size:14px; white-space:nowrap; }
+.compact-room-header { display:flex; align-items:center; gap:10px 14px; min-height:32px; margin-bottom:14px; }
+.compact-room-header h3 { flex:1; min-width:0; margin:0; font-size:17px; line-height:1.5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.compact-room-header time { flex:none; margin-left:auto; color:#bcb7ca; font-size:14px; white-space:nowrap; }
 .compact-room-header .room-status { flex:none; font-size:13px; gap:9px; }
 .room-role-icons.has-labels { gap:8px; }
 .room-role-icons.has-labels>span { align-items:center; gap:5px; }
@@ -308,8 +310,7 @@
 .room-home .tier-range-trigger:hover .tier-range-trigger-content,
 .room-home .tier-range-trigger[aria-expanded=true] .tier-range-trigger-content { background:#2b2639; }
 .room-setting-row .tier-range-trigger-content { justify-content:center; padding-inline:4px 14px; }
-.room-home.board-home .home-profile .self-introduction .introduction-fields input[aria-label="한마디"],
-.room-home .room-start-field input { border-radius:var(--room-selector-radius); }
+.room-home.board-home .home-profile .self-introduction .introduction-fields input[aria-label="한마디"] { border-radius:var(--room-selector-radius); }
 .room-home .room-rail-switch { border-color:#343044; }
 
 /* Multiple choices are independent circles, not one segmented control. */
