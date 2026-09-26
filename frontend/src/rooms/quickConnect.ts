@@ -2,6 +2,7 @@ import type { GameKey, VoicePreference } from '../api/types';
 import { roomVoice } from './voice';
 import { autoClosePhase } from './autoClose';
 import { canonicalRoomRoles } from './summary';
+import { remainingRoomRoles } from './positions';
 import type { GameRoom } from './types';
 
 export interface QuickConnectCriteria {
@@ -27,6 +28,7 @@ export function quickConnectCandidates(rooms: GameRoom[], criteria: QuickConnect
     if (roomVoice(criteria.voice) !== roomVoice(room.voice)) return false;
     if (noRoles) return true;
     if (desiredRoles.length && !desiredRoles.includes('ANY') && !room.members.some(member => member.roles.some(role => role === 'ANY' || desiredRoles.includes(role)))) return false;
-    return !room.desiredRoles.length || room.desiredRoles.includes('ANY') || ownRoles.some(role => room.desiredRoles.includes(role));
+    const remaining = remainingRoomRoles(room);
+    return ownRoles.some(role => remaining.includes(role));
   }).sort((a, b) => (a.capacity - a.members.length) - (b.capacity - b.members.length) || b.createdAt - a.createdAt || a.id.localeCompare(b.id));
 }

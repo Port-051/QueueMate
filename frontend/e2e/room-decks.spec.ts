@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Locator } from '@playwright/test';
 import type { GameRoom, RoomMember } from '../src/rooms/types';
 import { login } from './helpers';
 
@@ -45,6 +45,12 @@ async function seedRooms(page: Page, rooms: GameRoom[]) {
   await page.addInitScript(({ key, rooms }) => {
     if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify({ version: 1, rooms }));
   }, { key: STORAGE_KEY, rooms });
+}
+
+async function selectFullLineup(composer: Locator) {
+  await composer.getByRole('group', { name: '포지션', exact: true }).getByRole('button', { name: '미드', exact: true }).click();
+  const wanted = composer.getByRole('group', { name: '찾는 포지션', exact: true });
+  for (const name of ['탑', '정글', '바텀', '서포터']) await wanted.getByRole('button', { name, exact: true }).click();
 }
 
 async function expectNoPageOverflow(page: Page) {
@@ -128,6 +134,7 @@ test('다섯 명 방을 만들면 한 열 목록과 대화를 함께 쓰고 확�
   const composer = page.getByRole('region', { name: '방 만들기', exact: true });
   await composer.getByLabel('방 제목', { exact: true }).fill('우리 다섯 명의 방');
   await composer.getByRole('group', { name: '모집 인원', exact: true }).getByRole('button', { name: '5명', exact: true }).click();
+  await selectFullLineup(composer);
   await composer.getByRole('button', { name: '방 열기', exact: true }).click();
   await expect(page.locator('.room-home')).toHaveClass(/has-active-room/);
   await expect.poll(() => page.locator('.room-deck-grid').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(1);
@@ -232,12 +239,81 @@ test('랭크 방은 두 명까지만 선택되며 선택한 모드는 다시 눌
   await expect(page.getByRole('button', { name: '둘이 랭크 방 정보', exact: true })).toContainText(/1\s*\/\s*2/);
 });
 
+test('빈자리 하나에 두 포지션을 표시하고 마이크는 상단 대신 각 카드에 표시한다', async ({ page }) => {
+  await seedRooms(page, [room('options', [member('host', { voice: 'REQUIRED' })], {
+    capacity: 2, desiredRoles: ['SUPPORT', 'TOP'], voice: 'NO_VOICE',
+  })]);
+  await login(page);
+  const deck = page.getByRole('button', { name: '테스트 방 options 방 정보', exact: true });
+  const header = deck.locator('.compact-room-header');
+  await expect(header).not.toContainText('찾는 포지션');
+  await expect(header.locator('.room-role-icons, .room-mic-icon')).toHaveCount(0);
+  const vacancy = deck.locator('.compact-seat');
+  await expect(vacancy).toHaveCount(1);
+  await expect(vacancy.locator('.room-role-icons b')).toHaveText(['탑', '서포터']);
+  await expect(vacancy.getByRole('img', { name: '마이크 미사용', exact: true })).toBeVisible();
+  await expect(deck.locator('.compact-member-footer').getByRole('img', { name: '마이크 사용', exact: true })).toBeVisible();
+  await deck.click();
+  await expect(page.getByRole('dialog').locator('.room-member-card').getByRole('img', { name: '마이크 사용', exact: true })).toBeVisible();
+});
+
+test('5인 방은 내 포지션과 나머지 네 포지션을 모두 골라야 만들 수 있다', async ({ page }) => {
+  await login(page);
+  await page.getByRole('button', { name: '방 만들기', exact: true }).click();
+  const composer = page.getByRole('region', { name: '방 만들기', exact: true });
+  const create = composer.getByRole('button', { name: '방 열기', exact: true });
+  const own = composer.getByRole('group', { name: '포지션', exact: true });
+  const wanted = composer.getByRole('group', { name: '찾는 포지션', exact: true });
+  await expect(create).toBeDisabled();
+  await own.getByRole('button', { name: '미드', exact: true }).click();
+  await expect(wanted.getByRole('button', { name: '미드', exact: true })).toBeDisabled();
+  for (const name of ['탑', '정글', '바텀']) await wanted.getByRole('button', { name, exact: true }).click();
+  await expect(create).toBeDisabled();
+  await composer.getByLabel('방 제목', { exact: true }).fill('다섯 포지션 완성');
+  await composer.getByLabel('방 제목', { exact: true }).press('Enter');
+  await expect(page.locator('.room-home')).not.toHaveClass(/has-active-room/);
+  await wanted.getByRole('button', { name: '서포터', exact: true }).click();
+  await expect(create).toBeEnabled();
+  await own.getByRole('button', { name: '탑', exact: true }).click();
+  await expect(own.getByRole('button', { pressed: true })).toHaveCount(1);
+  await expect(create).toBeDisabled();
+  await wanted.getByRole('button', { name: '미드', exact: true }).click();
+  await expect(create).toBeEnabled();
+  await create.click();
+  const deck = page.getByRole('button', { name: '다섯 포지션 완성 방 정보', exact: true });
+  await expect(deck.locator('.compact-seat .room-role-icons b')).toHaveText(['정글', '미드', '바텀', '서포터']);
+});
+
+test('칼바람 5인 방은 포지션을 고르지 않고도 만들 수 있다', async ({ page }) => {
+  await login(page);
+  await page.getByRole('button', { name: '방 만들기', exact: true }).click();
+  const composer = page.getByRole('region', { name: '방 만들기', exact: true });
+  await composer.getByRole('group', { name: '게임 모드', exact: true }).getByRole('button', { name: '칼바람', exact: true }).click();
+  await expect(composer.getByRole('group', { name: '포지션', exact: true })).toHaveCount(0);
+  await composer.getByLabel('방 제목', { exact: true }).fill('포로 다섯');
+  await composer.getByRole('button', { name: '방 열기', exact: true }).click();
+  await expect(page.getByRole('button', { name: '포로 다섯 방 정보', exact: true })).toContainText('1/5');
+});
+
+test('5인 방의 방장이 나가도 그 포지션을 다시 빈자리로 표시한다', async ({ page }) => {
+  await seedRooms(page, [room('host-leaves', [member('u-me'), member('next-host', { roles: ['TOP'] })], {
+    desiredRoles: ['TOP', 'JUNGLE', 'ADC', 'SUPPORT'],
+  })]);
+  await login(page);
+  await page.getByRole('button', { name: '방 나가기', exact: true }).click();
+  await page.getByRole('alert').getByRole('button', { name: '나가기', exact: true }).click();
+  const deck = page.getByRole('button', { name: '테스트 방 host-leaves 방 정보', exact: true });
+  await expect(deck.locator('.compact-seat .room-role-icons b')).toHaveText(['정글', '미드', '바텀', '서포터']);
+  await expect(deck).toHaveAttribute('data-status', 'OPEN');
+});
+
 test('예약 방은 과거 시간을 거절하고 미래 시간으로 만든 즉시 채팅할 수 있다', async ({ page }) => {
   await login(page);
   await page.getByRole('tab', { name: '예약 매칭', exact: true }).click();
   await page.getByRole('button', { name: '방 만들기', exact: true }).click();
   const composer = page.getByRole('region', { name: '방 만들기', exact: true });
   await composer.getByLabel('방 제목', { exact: true }).fill('조금 뒤에 다 같이');
+  await selectFullLineup(composer);
   await composer.getByLabel('시작 시간', { exact: true }).fill('2000-01-01T12:00');
   await composer.getByRole('button', { name: '방 열기', exact: true }).click();
   await expect(composer.getByRole('alert')).toContainText('현재보다 뒤');

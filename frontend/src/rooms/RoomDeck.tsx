@@ -9,6 +9,7 @@ import { hasLolRankDivision } from '../domain/lolRank';
 import { canonicalRoomRoles, ROOM_ROLES, summarizeRoom } from './summary';
 import { RoomVoice } from './RoomVoice';
 import { roomVoice } from './voice';
+import { remainingRoomRoles, vacantRoleOptions } from './positions';
 import type { GameRoom, RoomMember } from './types';
 
 export const roomModeLabel = (room: GameRoom) => visibleModes(room.game).find(mode => mode.key === room.modeKey)?.label ?? room.modeKey;
@@ -56,6 +57,7 @@ export function RoomSummaryCard({ room, showMembers = false }: { room: GameRoom;
   const summary = summarizeRoom(room);
   const host = room.members.find(member => member.id === room.ownerId);
   const confirmed = room.status === 'CONFIRMED';
+  const wantedRoles = remainingRoomRoles(room);
   return <div className={`room-summary-card${confirmed ? ' is-confirmed' : ''}`}>
     <div className="room-card-eyebrow"><span className={`room-status${confirmed ? ' is-confirmed' : ''}`}>{confirmed ? <><IconCheck size={12} />모집 마감</> : <><i />모집 중</>}</span></div>
     <h3>{room.title}</h3>
@@ -72,7 +74,7 @@ export function RoomSummaryCard({ room, showMembers = false }: { room: GameRoom;
       <div><span>평균 KDA</span><Stat kind="kda" value={summary.kda} /></div>
     </div>}
     <div className="room-summary-conditions">
-      {usesKeyCondition(room.game, room.modeKey) ? <><div><span>채워진 포지션</span><RoomRoles game={room.game} roles={summary.roles} /></div><div><span>찾는 포지션</span><RoomRoles game={room.game} roles={room.desiredRoles} /></div></> : <div className="room-no-roles"><span>포지션</span><strong>무작위 배정</strong></div>}
+      {usesKeyCondition(room.game, room.modeKey) ? <><div><span>채워진 포지션</span><RoomRoles game={room.game} roles={summary.roles} /></div>{!confirmed && wantedRoles.length ? <div><span>찾는 포지션</span><RoomRoles game={room.game} roles={wantedRoles} /></div> : null}</> : <div className="room-no-roles"><span>포지션</span><strong>무작위 배정</strong></div>}
       <div className="room-voice" title={roomVoiceLabel(room)}><span>마이크</span><span role="img" aria-label={roomVoiceLabel(room)}><RoomVoice value={room.voice} /></span></div>
     </div>
     {showMembers ? <div className={`room-open-seats${confirmed ? ' is-closed' : ''}`}><span>{confirmed ? '추가 입장 마감' : `${room.capacity - room.members.length}명 더 기다려요`}</span><span aria-label={`${room.members.length}명 참여, 정원 ${room.capacity}명`}>{Array.from({ length: room.capacity }, (_, index) => <i key={index} className={index < room.members.length ? 'is-filled' : ''} />)}</span></div> : null}
@@ -86,7 +88,7 @@ export function RoomMemberCard({ room, member }: { room: GameRoom; member: RoomM
     <RoomMemberAvatar room={room} member={member} size={58} />
     <h3>{member.nickname}</h3>
     <RoomMemberFacts room={room} member={member} />
-    <div className="room-member-champions"><PreferredChampions game={room.game} names={member.champions.slice(0, 3)} /></div>
+    <div className="room-member-champions"><PreferredChampions game={room.game} names={member.champions.slice(0, 3)} /><RoomVoice value={member.voice} /></div>
     {member.bio ? <p>{member.bio}</p> : null}
   </article>;
 }
@@ -94,27 +96,22 @@ export function RoomMemberCard({ room, member }: { room: GameRoom; member: RoomM
 export function RoomDeck({ room, onOpen }: { room: GameRoom; onOpen: (room: GameRoom, button: HTMLButtonElement) => void }) {
   const closed = room.status === 'CONFIRMED';
   const hasRoles = usesKeyCondition(room.game, room.modeKey);
-  const desiredRoles = canonicalRoomRoles(room.game, room.desiredRoles);
-  const anyRole = !desiredRoles.length || desiredRoles.length === ROOM_ROLES[room.game].length;
+  const vacancies = vacantRoleOptions(room);
   return <button type="button" className={`room-deck room-compact${closed ? ' is-confirmed' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`} onClick={event => onOpen(room, event.currentTarget)}>
     <div className="compact-room-header" aria-label="방 요약">
       <h3 title={room.title}>{room.title}</h3>
       {room.availableFrom ? <time>{timeLabel(room.availableFrom)}</time> : null}
       <span className={`room-status${closed ? ' is-confirmed' : ''}`}>{closed ? '마감' : '모집 중'}<b>{room.members.length}/{room.capacity}</b></span>
-      {hasRoles ? <span className="compact-room-wanted" aria-label="찾는 포지션"><small>찾는 포지션</small><RoomRoles game={room.game} roles={room.desiredRoles} labels/></span> : null}
-      <RoomVoice value={room.voice}/>
     </div>
     <div className="compact-members" aria-label="방 구성원 정보">
       {room.members.map(member => <div className="compact-member" key={member.id}>
         <div className="compact-member-name"><RoomMemberAvatar room={room} member={member} size={34}/><strong title={member.nickname}>{member.nickname}</strong></div>
         <RoomMemberFacts room={room} member={member} />
-        <div className="compact-member-champions" aria-label={`${member.nickname} ${room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '선호 요원' : '선호 무기'}`}><PreferredChampions game={room.game} names={member.champions.slice(0,3)}/>{room.game === 'LOL' ? Array.from({ length: Math.max(0, 3 - member.champions.length) }, (_, index) => <span className="compact-champion-empty" key={index} role="img" aria-label="챔피언 미등록" title="챔피언 미등록">—</span>) : null}</div>
+        <div className="compact-member-footer"><div className="compact-member-champions" aria-label={`${member.nickname} ${room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '선호 요원' : '선호 무기'}`}><PreferredChampions game={room.game} names={member.champions.slice(0,3)}/>{room.game === 'LOL' ? Array.from({ length: Math.max(0, 3 - member.champions.length) }, (_, index) => <span className="compact-champion-empty" key={index} role="img" aria-label="챔피언 미등록" title="챔피언 미등록">—</span>) : null}</div><RoomVoice value={member.voice} /></div>
       </div>)}
-      {Array.from({ length: Math.max(0, room.capacity - room.members.length) }, (_, index) => <div className="compact-member compact-seat" key={`seat-${index}`}>
-        {hasRoles ? anyRole || desiredRoles[index]
-          ? <RoomRoles game={room.game} roles={anyRole ? [] : [desiredRoles[index]]} labels />
-          : <span className="compact-seat-unspecified">포지션 미지정</span>
-          : <IconParty size={30} />}
+      {vacancies.map((roles, index) => <div className="compact-member compact-seat" key={`seat-${index}`}>
+        {hasRoles ? <RoomRoles game={room.game} roles={roles} labels /> : <IconParty size={30} />}
+        <RoomVoice value={room.voice} />
       </div>)}
     </div>
   </button>;

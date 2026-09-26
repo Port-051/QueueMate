@@ -229,13 +229,9 @@
 .compact-room-header time { font-size:14px; white-space:nowrap; }
 .compact-room-header .room-status { flex:none; font-size:13px; gap:9px; }
 .compact-room-header .room-status b { color:#ece6f8; font-size:18px; font-variant-numeric:tabular-nums; }
-.compact-room-wanted { display:flex; align-items:center; gap:8px; flex:none; }
-.compact-room-wanted>small { color:#a5abc0; font-size:13px; }
 .room-role-icons.has-labels { gap:8px; }
 .room-role-icons.has-labels>span { align-items:center; gap:5px; }
 .room-role-icons.has-labels b { font-size:13px; font-weight:500; color:#d9d2e8; }
-.compact-room-wanted .room-role-icons { padding:4px 8px; background:#a881ff14; border-radius:6px; }
-.compact-room-wanted .room-role-icons svg { width:21px; height:21px; }
 .compact-members { display:flex; align-items:stretch; gap:var(--member-card-gap); overflow-x:auto; scrollbar-width:thin; scrollbar-color:#44485d transparent; }
 .compact-member { flex:0 0 var(--member-card-width); width:var(--member-card-width); height:250px; box-sizing:border-box; min-width:0; padding:12px; display:flex; flex-direction:column; gap:10px; background:#0c1020; border:1px solid #ffffff0d; border-radius:9px; }
 .compact-member-name { display:flex; align-items:center; gap:9px; min-width:0; min-height:36px; flex:none; }
@@ -258,6 +254,7 @@
 .room-member-card { padding-top:26px; }
 .room-member-card .room-member-facts { margin-top:4px; }
 .compact-member-champions { display:flex; flex:none; min-height:34px; align-items:center; justify-content:center; gap:7px; min-width:0; }
+.compact-member-footer { display:flex; flex:none; align-items:center; justify-content:center; gap:12px; min-height:34px; }
 .compact-member-champions .preferred-champions { flex-wrap:nowrap; gap:5px; }
 .compact-member-champions .preferred-champion-portrait { width:27px; height:27px; }
 .compact-member-champions .preferred-champion-name { font-size:12px; }
@@ -267,7 +264,6 @@
 .compact-seat .room-role-icons>span { flex-direction:column; gap:8px; }
 .compact-seat .room-role-icons svg { width:30px; height:30px; }
 .compact-seat .room-role-icons b { color:#aeb8d2; font-size:14px; }
-.compact-seat-unspecified { color:#8991a9; font-size:13px; }
 .room-mic-icon { display:inline-flex; justify-content:center; align-items:center; flex:none; width:32px; height:32px; border-radius:7px; }
 .room-mic-icon svg { width:23px; height:23px; }
 .room-mic-icon.is-on { color:#64e5a0; background:#35c87717; }
@@ -295,6 +291,4 @@
 @media(max-width:580px) {
   .room-home.board-home { padding:16px 12px 32px; --room-padding:12px; }
   .compact-room-header h3 { flex-basis:calc(100% - 100px); }
-  .compact-room-wanted { flex:1; }
-  .compact-room-wanted .room-role-icons { flex-wrap:wrap; }
 }

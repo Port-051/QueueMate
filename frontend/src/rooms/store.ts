@@ -5,6 +5,7 @@ import type { CreateRoomInput, GameRoom, RoomMember, RoomMessage } from './types
 
 import { roomVoice, ROOM_VOICES } from './voice';
 import { autoClosePhase, canAutoClose, nextAutoCloseAt } from './autoClose';
+import { needsFullLineup, roomPositionError } from './positions';
 
 export { roomCapacityLimit } from './summary';
 
@@ -73,7 +74,9 @@ function seedRooms(now = Date.now()): GameRoom[] {
       const createdAt = now - (i + 1) * 90_000;
       rooms.push({
         id, game, modeKey, type, title, capacity, members, ownerId: members[0].id,
-        desiredRoles: aram ? [] : [roles[(i + amount) % roles.length], roles[(i + amount + 1) % roles.length]],
+        desiredRoles: aram ? [] : needsFullLineup(game, modeKey, capacity)
+          ? roles.filter(role => !members[0].roles.includes(role))
+          : [roles[(i + amount) % roles.length], roles[(i + amount + 1) % roles.length]],
         voice: VOICES[i % VOICES.length], status: confirmed ? 'CONFIRMED' : 'OPEN', createdAt,
         availableFrom: type === 'RESERVATION' ? new Date(Math.ceil((now + (i + 1) * 3_600_000) / 1_800_000) * 1_800_000).toISOString() : null,
         messages: [{ id: `${id}-welcome`, authorId: members[0].id, text: '안녕하세요! 편하게 이야기하면서 같이 해요.', createdAt }],
@@ -123,8 +126,13 @@ function parseSnapshot(raw: string | null, userId: string): RoomSnapshot | null 
       if (value.id.startsWith('example-room-') && availableFrom && Date.parse(availableFrom) <= Date.now() && !members.some(member => member.id === userId)) {
         availableFrom = new Date(Math.ceil((Date.now() + 3_600_000) / 1_800_000) * 1_800_000).toISOString();
       }
+      const untouchedExample = value.id.startsWith('example-room-') && value.ownerId === `${value.id}-member-0`
+        && members.every(member => member.id.startsWith(`${value.id}-member-`));
+      const desiredRoles = untouchedExample && needsFullLineup(game, value.modeKey, capacity)
+        ? ROOM_ROLES.LOL.filter(role => !members.find(member => member.id === value.ownerId)!.roles.includes(role))
+        : canonicalRoomRoles(game, strings(value.desiredRoles));
       rooms.push({ id: value.id, game, modeKey: value.modeKey, type: value.type as GameRoom['type'], title: value.title.slice(0, 50),
-        ownerId: value.ownerId, capacity, members, desiredRoles: canonicalRoomRoles(game, strings(value.desiredRoles)),
+        ownerId: value.ownerId, capacity, members, desiredRoles,
         voice: roomVoice(value.voice),
         status: value.status === 'CONFIRMED' || members.length === capacity ? 'CONFIRMED' : 'OPEN', createdAt, availableFrom, messages, autoCloseAt: nullableNumber(value.autoCloseAt) });
       ids.add(value.id);
@@ -198,6 +206,8 @@ export function createRoomActions(userId: string) {
       const availableFrom = input.type === 'RESERVATION' ? input.availableFrom : null;
       if (input.type === 'RESERVATION' && (!availableFrom || !Number.isFinite(Date.parse(availableFrom)) || Date.parse(availableFrom) <= Date.now())) throw new Error('예약 시간을 현재보다 뒤로 설정해 주세요.');
       const creator = checkedMember(member, input.game);
+      const positionError = roomPositionError(input, creator.roles);
+      if (positionError) throw new Error(positionError);
       const aram = input.game === 'LOL' && input.modeKey === 'ARAM';
       const room: GameRoom = { id: identifier(), ...input, title, ownerId: userId, availableFrom,
         desiredRoles: aram ? [] : canonicalRoomRoles(input.game, input.desiredRoles),
@@ -230,7 +240,9 @@ export function createRoomActions(userId: string) {
       const me = room.members.find(member => member.id === userId)!;
       const members = room.members.filter(member => member.id !== userId);
       const ownerId = room.ownerId === userId ? members[0]?.id : room.ownerId;
-      let remaining = append({ ...room, members, ownerId: ownerId ?? userId }, systemMessage(`${me.nickname} 님이 나갔어요.`));
+      const desiredRoles = room.ownerId === userId && needsFullLineup(room.game, room.modeKey, room.capacity)
+        ? canonicalRoomRoles(room.game, [...room.desiredRoles, ...me.roles]) : room.desiredRoles;
+      let remaining = append({ ...room, members, ownerId: ownerId ?? userId, desiredRoles }, systemMessage(`${me.nickname} 님이 나갔어요.`));
       if (members.length && room.ownerId === userId) remaining = append(remaining, systemMessage(`${members[0].nickname} 님이 방장이 되었어요.`));
       remaining.autoCloseAt = nextAutoCloseAt(remaining, Date.now());
       save(userId, members.length ? rooms.map(item => item.id === room.id ? remaining : item) : rooms.filter(item => item.id !== room.id));

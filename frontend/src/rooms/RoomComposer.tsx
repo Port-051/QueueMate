@@ -6,6 +6,7 @@ import { Button } from '../components/ui';
 import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
 import { roomVoice } from './voice';
 import { canonicalRoomRoles, roomCapacityLimit } from './summary';
+import { needsFullLineup, roomPositionError } from './positions';
 import type { CreateRoomInput, GameRoom, RoomMember } from './types';
 import './room-composer.css';
 
@@ -45,6 +46,8 @@ export function RoomComposer({ game, modeKey, type, member, onCreate, onCancel }
   const roles = keyConditionOptions(game).filter(role => role.value !== 'ANY');
   const hasRoles = usesKeyCondition(game, mode);
   const limit = roomCapacityLimit(game, mode);
+  const fullLineup = needsFullLineup(game, mode, capacity);
+  const positionError = roomPositionError({ game, modeKey: mode, capacity, desiredRoles }, ownRoles);
   const isReservation = type === 'RESERVATION';
   const voiceOptions: { value: VoicePreference; label: string }[] = [
     { value: 'REQUIRED', label: '사용' }, { value: 'NO_VOICE', label: '미사용' },
@@ -54,6 +57,7 @@ export function RoomComposer({ game, modeKey, type, member, onCreate, onCancel }
   const submit = () => {
     if (!title.trim()) { setError('방 제목을 입력해 주세요.'); return; }
     if (!modes.some(item => item.key === mode) || capacity < 2 || capacity > limit) { setError('게임 모드와 모집 인원을 확인해 주세요.'); return; }
+    if (positionError) { setError(positionError); return; }
     const startDate = new Date(start);
     if (isReservation && (!start || !Number.isFinite(startDate.getTime()) || startDate.getTime() <= Date.now())) {
       setError('시작 시간을 현재보다 뒤로 선택해 주세요.'); return;
@@ -83,11 +87,15 @@ export function RoomComposer({ game, modeKey, type, member, onCreate, onCancel }
         </div></fieldset>
         {hasRoles ? <>
           <fieldset><legend>포지션</legend><div className="room-composer-role-options" role="group" aria-label="포지션">
-            {roles.map(role => <button key={role.value} type="button" className="filter-role" aria-label={role.label} aria-pressed={ownRoles.includes(role.value)} title={role.label} onClick={() => setOwnRoles(values => toggleRole(values, role.value))}><FilterRoleIcon game={game} value={role.value} size={21} /><span>{role.label}</span></button>)}
+            {roles.map(role => <button key={role.value} type="button" className="filter-role" aria-label={role.label} aria-pressed={ownRoles.includes(role.value)} title={role.label} onClick={() => {
+              setOwnRoles(values => fullLineup ? [role.value] : toggleRole(values, role.value));
+              if (fullLineup) setDesiredRoles(values => values.filter(value => value !== role.value));
+              setError('');
+            }}><FilterRoleIcon game={game} value={role.value} size={21} /><span>{role.label}</span></button>)}
           </div></fieldset>
           <fieldset><legend>찾는 포지션</legend><div className="room-composer-role-options" role="group" aria-label="찾는 포지션">
-            {roles.map(role => <button key={role.value} type="button" className="filter-role" aria-label={role.label} aria-pressed={desiredRoles.includes(role.value)} title={role.label} onClick={() => setDesiredRoles(values => toggleRole(values, role.value))}><FilterRoleIcon game={game} value={role.value} size={21} /><span>{role.label}</span></button>)}
-          </div></fieldset>
+            {roles.map(role => <button key={role.value} type="button" className="filter-role" aria-label={role.label} aria-pressed={desiredRoles.includes(role.value)} title={role.label} disabled={fullLineup && ownRoles.length === 1 && ownRoles.includes(role.value) && !desiredRoles.includes(role.value)} onClick={() => { setDesiredRoles(values => toggleRole(values, role.value)); setError(''); }}><FilterRoleIcon game={game} value={role.value} size={21} /><span>{role.label}</span></button>)}
+          </div>{positionError ? <p id={`${formId}-positions`} className="room-composer-hint">{positionError}</p> : null}</fieldset>
         </> : null}
         <fieldset><legend>마이크</legend><div className="room-composer-voice-options" role="group" aria-label="마이크">
           {voiceOptions.map(option => <button key={option.value} type="button" className="filter-mode" aria-label={`마이크 ${option.label}`} title={`마이크 ${option.label}`} aria-pressed={voice === option.value} onClick={() => setVoice(option.value)}><VoiceIcon preference={option.value} size={18} /></button>)}
@@ -96,7 +104,7 @@ export function RoomComposer({ game, modeKey, type, member, onCreate, onCancel }
         {isReservation ? <label className="room-composer-label" htmlFor={`${formId}-start`}><span className="room-composer-time-label"><IconCalendar size={14} />시작 시간</span><input id={`${formId}-start`} aria-label="시작 시간" type="datetime-local" step={1800} min={localDateTime(Date.now())} value={start} onChange={event => { setStart(event.target.value); setError(''); }} /></label> : null}
         {error ? <p className="room-composer-error" role="alert">{error}</p> : null}
       </div>
-      <footer><Button variant="ghost" onClick={onCancel}>취소</Button><Button type="submit" variant="primary" disabled={!title.trim() || limit < 2}><IconPlus size={17} />방 열기</Button></footer>
+      <footer><Button variant="ghost" onClick={onCancel}>취소</Button><Button type="submit" variant="primary" aria-describedby={positionError ? `${formId}-positions` : undefined} disabled={!title.trim() || limit < 2 || !!positionError}><IconPlus size={17} />방 열기</Button></footer>
     </form>
   </aside>;
 }
