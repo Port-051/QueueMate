@@ -7,10 +7,10 @@ import { tierColor } from '../domain/rankAssets';
 import { FilterTierIcon } from './FilterSymbols';
 import '../styles/tier-range.css';
 
-export function TierRangeLabel({ game, value = ALL_TIERS, stacked = false }: { game: GameKey; value?: TierRange; stacked?: boolean }) {
+export function TierRangeLabel({ game, value = ALL_TIERS, stacked = false, iconSize = stacked ? 26 : 22 }: { game: GameKey; value?: TierRange; stacked?: boolean; iconSize?: number }) {
   const { minTier, maxTier } = normalizeTierRange(game, value);
   if (stacked) {
-    const endpoint = (tier: string | null, suffix = '') => <span className="room-rank"><FilterTierIcon game={game} tier={tier} size={26} /><strong style={{ color: tierColor(tier) }}>{tier ? `${TIER_LABELS[tier]}${suffix}` : '모든 티어'}</strong></span>;
+    const endpoint = (tier: string | null, suffix = '') => <span className="room-rank"><FilterTierIcon game={game} tier={tier} size={iconSize} /><strong style={{ color: tierColor(tier) }}>{tier ? `${TIER_LABELS[tier]}${suffix}` : '모든 티어'}</strong></span>;
     return <span className="tier-range-label room-tier-range">
       {minTier && maxTier && minTier !== maxTier ? <>{endpoint(minTier)}<span className="room-tier-separator">~</span>{endpoint(maxTier)}</>
         : endpoint(minTier ?? maxTier, minTier && !maxTier ? ' 이상' : maxTier && !minTier ? ' 이하' : '')}
@@ -25,8 +25,8 @@ export function TierRangeLabel({ game, value = ALL_TIERS, stacked = false }: { g
 }
 
 /** A two-click range, with explicit Apply so dismissing never changes a filter. */
-export function TierRangePicker({ game, value = ALL_TIERS, onChange, label }: {
-  game: GameKey; value?: TierRange; onChange: (range: TierRange) => void; label: string;
+export function TierRangePicker({ game, value = ALL_TIERS, onChange, label, stacked = false }: {
+  game: GameKey; value?: TierRange; onChange: (range: TierRange) => void; label: string; stacked?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<TierRange>(ALL_TIERS);
@@ -80,7 +80,7 @@ export function TierRangePicker({ game, value = ALL_TIERS, onChange, label }: {
   return <div className="tier-range-picker">
     <button ref={trigger} className="tier-range-trigger" type="button" aria-label={label} aria-haspopup="dialog" aria-expanded={open} aria-controls={id}
       onClick={() => { if (open) close(); else { setDraft(normalizeTierRange(game, value)); setAnchor(null); setHover(null); setOpen(true); } }}>
-      <TierRangeLabel game={game} value={value} /><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+      <TierRangeLabel game={game} value={value} stacked={stacked} iconSize={22} /><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
     </button>
     {open ? createPortal(<div ref={panel} id={id} className="tier-range-popover" role="dialog" aria-label={label} style={position}
       onKeyDown={event => {

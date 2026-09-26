@@ -98,9 +98,9 @@ export function RoomComposer({ game, modeKey, type, member, onCreate, onCancel }
           </div>{positionError ? <p id={`${formId}-positions`} className="room-composer-hint">{positionError}</p> : null}</fieldset>
         </> : null}
         <div className="room-settings-pair">
-        <div className="room-setting-row"><span>찾는 티어</span><TierRangePicker game={game} value={desiredTierRange} label="찾는 티어 범위" onChange={setDesiredTierRange} /></div>
+        <div className="room-setting-row"><span>찾는 티어</span><TierRangePicker game={game} value={desiredTierRange} label="찾는 티어 범위" stacked onChange={setDesiredTierRange} /></div>
         <div className="room-setting-row"><span>음성</span><div className="room-composer-voice-options" role="group" aria-label="마이크">
-          {voiceOptions.map(option => <button key={option.value} type="button" className="filter-mode" aria-label={`마이크 ${option.label}`} title={`마이크 ${option.label}`} aria-pressed={voice === option.value} onClick={() => setVoice(option.value)}><VoiceIcon preference={option.value} size={18} /></button>)}
+          {voiceOptions.map(option => <button key={option.value} type="button" className="filter-mode" aria-label={`마이크 ${option.label}`} title={`마이크 ${option.label}`} aria-pressed={voice === option.value} onClick={() => setVoice(option.value)}><VoiceIcon preference={option.value} size={22} /><span>{option.label}</span></button>)}
         </div></div>
         </div>
         <fieldset><legend>모집 인원 <span>나를 포함한 인원</span></legend><div className="room-composer-capacity" role="group" aria-label="모집 인원">
