@@ -36,10 +36,10 @@ class FriendApiTest extends FriendTestSupport {
     @DisplayName("요청 → 받은 목록 · 보낸 목록 → 수락 → 양쪽의 친구 목록 → 끊기(두 번 다 204)")
     void requestAcceptListUnfriend() throws Exception
     {
-        String alice = newLoginId();
-        String bob = newLoginId();
-        Cookie aliceCookie = signupAndLogin(alice);
-        Cookie bobCookie = signupAndLogin(bob);
+        String alice = newNickname();
+        String bob = newNickname();
+        Cookie aliceCookie = login(alice);
+        Cookie bobCookie = login(bob);
         Long aliceId = userIdOf(alice);
         Long bobId = userIdOf(bob);
 
@@ -47,9 +47,9 @@ class FriendApiTest extends FriendTestSupport {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.requestId").isNumber())
                 .andExpect(jsonPath("$.requester.userId", equalTo(aliceId), Long.class))
-                .andExpect(jsonPath("$.requester.nickname").value(nicknameOf(alice)))
+                .andExpect(jsonPath("$.requester.nickname").value(alice))
                 .andExpect(jsonPath("$.receiver.userId", equalTo(bobId), Long.class))
-                .andExpect(jsonPath("$.receiver.nickname").value(nicknameOf(bob)))
+                .andExpect(jsonPath("$.receiver.nickname").value(bob))
                 .andExpect(jsonPath("$.createdAt").isString())
                 .andReturn().getResponse().getContentAsString();
         long requestId = objectMapper.readTree(body).get("requestId").asLong();
@@ -60,7 +60,7 @@ class FriendApiTest extends FriendTestSupport {
                 .andExpect(jsonPath("$.requests.length()").value(1))
                 .andExpect(jsonPath("$.requests[0].requestId", equalTo(requestId), Long.class))
                 .andExpect(jsonPath("$.requests[0].requester.userId", equalTo(aliceId), Long.class))
-                .andExpect(jsonPath("$.requests[0].requester.nickname").value(nicknameOf(alice)))
+                .andExpect(jsonPath("$.requests[0].requester.nickname").value(alice))
                 .andExpect(jsonPath("$.requests[0].receiver.userId", equalTo(bobId), Long.class))
                 .andExpect(jsonPath("$.requests[0].createdAt").isString());
         mockMvc.perform(get("/api/v1/friend-requests").param("direction", "SENT").cookie(bobCookie))
@@ -81,7 +81,7 @@ class FriendApiTest extends FriendTestSupport {
         accept(bobCookie, requestId)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId", equalTo(aliceId), Long.class))
-                .andExpect(jsonPath("$.nickname").value(nicknameOf(alice)))
+                .andExpect(jsonPath("$.nickname").value(alice))
                 .andExpect(jsonPath("$.since").isString());
 
         // 대기 중인 것만 보인다 — 수락된 요청은 어느 목록에도 없다
@@ -91,7 +91,7 @@ class FriendApiTest extends FriendTestSupport {
         mockMvc.perform(get("/api/v1/friends").cookie(aliceCookie))
                 .andExpect(jsonPath("$.friends.length()").value(1))
                 .andExpect(jsonPath("$.friends[0].userId", equalTo(bobId), Long.class))
-                .andExpect(jsonPath("$.friends[0].nickname").value(nicknameOf(bob)))
+                .andExpect(jsonPath("$.friends[0].nickname").value(bob))
                 .andExpect(jsonPath("$.friends[0].since").isString());
         mockMvc.perform(get("/api/v1/friends").cookie(bobCookie))
                 .andExpect(jsonPath("$.friends.length()").value(1))
@@ -116,22 +116,22 @@ class FriendApiTest extends FriendTestSupport {
     @DisplayName("친구 목록은 닉네임순이고 내 친구만 있다. 받은 목록은 새것이 먼저다")
     void listOrders() throws Exception
     {
-        String me = newLoginId();
-        Cookie myCookie = signupAndLogin(me);
+        String me = newNickname();
+        Cookie myCookie = login(me);
         Long myId = userIdOf(me);
         // 닉네임은 로그인 아이디에서 짓는다 — 아이디순으로 가입시키지 않고 요청 순서도 섞는다
-        List<String> others = List.of(newLoginId(), newLoginId(), newLoginId());
+        List<String> others = List.of(newNickname(), newNickname(), newNickname());
         List<Long> requestIds = new ArrayList<>();
         List<Cookie> cookies = new ArrayList<>();
         for(String other : others)
         {
-            cookies.add(signupAndLogin(other));
+            cookies.add(login(other));
             requestIds.add(sendRequestOk(cookies.get(cookies.size() - 1), myId));
             Thread.sleep(5);
         }
         // 남들끼리의 친구는 내 목록에 나오지 않는다
-        String stranger = newLoginId();
-        Cookie strangerCookie = signupAndLogin(stranger);
+        String stranger = newNickname();
+        Cookie strangerCookie = login(stranger);
         accept(strangerCookie, sendRequestOk(cookies.get(0), userIdOf(stranger))).andExpect(status().isOk());
 
         mockMvc.perform(get("/api/v1/friend-requests").cookie(myCookie))
@@ -144,7 +144,7 @@ class FriendApiTest extends FriendTestSupport {
         {
             accept(myCookie, requestId).andExpect(status().isOk());
         }
-        List<String> byNickname = others.stream().sorted((a, b) -> nicknameOf(a).compareToIgnoreCase(nicknameOf(b))).toList();
+        List<String> byNickname = others.stream().sorted((a, b) -> a.compareToIgnoreCase(b)).toList();
         mockMvc.perform(get("/api/v1/friends").cookie(myCookie))
                 .andExpect(jsonPath("$.friends.length()").value(3))
                 .andExpect(jsonPath("$.friends[0].userId", equalTo(userIdOf(byNickname.get(0))), Long.class))
@@ -156,10 +156,10 @@ class FriendApiTest extends FriendTestSupport {
     @DisplayName("거절 · 거두기는 204 이고 그 뒤에 다시 요청할 수 있다. 처리된 요청에 또 응답하면 404 다")
     void declineAndCancel() throws Exception
     {
-        String alice = newLoginId();
-        String bob = newLoginId();
-        Cookie aliceCookie = signupAndLogin(alice);
-        Cookie bobCookie = signupAndLogin(bob);
+        String alice = newNickname();
+        String bob = newNickname();
+        Cookie aliceCookie = login(alice);
+        Cookie bobCookie = login(bob);
         Long aliceId = userIdOf(alice);
         Long bobId = userIdOf(bob);
 
@@ -191,10 +191,10 @@ class FriendApiTest extends FriendTestSupport {
     @DisplayName("같은 요청을 또 보내면 409 FRIEND_REQUEST_ALREADY_SENT, 상대가 이미 보냈으면 409 FRIEND_REQUEST_ALREADY_RECEIVED, 이미 친구면 409 ALREADY_FRIENDS")
     void conflicts() throws Exception
     {
-        String alice = newLoginId();
-        String bob = newLoginId();
-        Cookie aliceCookie = signupAndLogin(alice);
-        Cookie bobCookie = signupAndLogin(bob);
+        String alice = newNickname();
+        String bob = newNickname();
+        Cookie aliceCookie = login(alice);
+        Cookie bobCookie = login(bob);
         Long aliceId = userIdOf(alice);
         Long bobId = userIdOf(bob);
 
@@ -218,10 +218,10 @@ class FriendApiTest extends FriendTestSupport {
     @DisplayName("같은 요청을 여러 스레드가 동시에 보내면 하나만 201 이고 나머지는 409 다 — partial unique index 가 지킨다")
     void concurrentRequests() throws Exception
     {
-        String alice = newLoginId();
-        String bob = newLoginId();
-        Cookie aliceCookie = signupAndLogin(alice);
-        signup(bob, PASSWORD, nicknameOf(bob)).andExpect(status().isCreated());
+        String alice = newNickname();
+        String bob = newNickname();
+        Cookie aliceCookie = login(alice);
+        insertUser(bob);
         Long aliceId = userIdOf(alice);
         Long bobId = userIdOf(bob);
 
@@ -237,10 +237,10 @@ class FriendApiTest extends FriendTestSupport {
     @DisplayName("같은 요청을 여러 스레드가 동시에 수락하면 200 은 하나이고 나머지는 404 다 — 친구는 한 줄이다")
     void concurrentAccepts() throws Exception
     {
-        String alice = newLoginId();
-        String bob = newLoginId();
-        Cookie aliceCookie = signupAndLogin(alice);
-        Cookie bobCookie = signupAndLogin(bob);
+        String alice = newNickname();
+        String bob = newNickname();
+        Cookie aliceCookie = login(alice);
+        Cookie bobCookie = login(bob);
         Long aliceId = userIdOf(alice);
         Long bobId = userIdOf(bob);
         long requestId = sendRequestOk(aliceCookie, bobId);
@@ -257,10 +257,10 @@ class FriendApiTest extends FriendTestSupport {
     @DisplayName("양방향 PENDING 이 둘 있어도(서로 동시에 보냈다) 한쪽을 수락하면 둘 다 닫히고 친구는 한 줄이다")
     void acceptClosesOppositePending() throws Exception
     {
-        String alice = newLoginId();
-        String bob = newLoginId();
-        Cookie aliceCookie = signupAndLogin(alice);
-        Cookie bobCookie = signupAndLogin(bob);
+        String alice = newNickname();
+        String bob = newNickname();
+        Cookie aliceCookie = login(alice);
+        Cookie bobCookie = login(bob);
         Long aliceId = userIdOf(alice);
         Long bobId = userIdOf(bob);
         // 앱의 조회(FRIEND_REQUEST_ALREADY_RECEIVED)를 비껴간 경쟁의 결과를 직접 만든다 — DB 는 이것을 막지 않는다(방향이 다른 줄이다)
@@ -284,10 +284,10 @@ class FriendApiTest extends FriendTestSupport {
     @DisplayName("이미 친구인 사람의 대기 중 요청이 남아 있어도(조회를 비껴갔다) 수락은 200 이고 친구는 한 줄 그대로다 — since 는 처음 친구가 된 시각이다")
     void acceptWhenAlreadyFriends() throws Exception
     {
-        String alice = newLoginId();
-        String bob = newLoginId();
-        Cookie aliceCookie = signupAndLogin(alice);
-        Cookie bobCookie = signupAndLogin(bob);
+        String alice = newNickname();
+        String bob = newNickname();
+        Cookie aliceCookie = login(alice);
+        Cookie bobCookie = login(bob);
         Long aliceId = userIdOf(alice);
         Long bobId = userIdOf(bob);
         accept(bobCookie, sendRequestOk(aliceCookie, bobId)).andExpect(status().isOk());
@@ -304,8 +304,8 @@ class FriendApiTest extends FriendTestSupport {
     @DisplayName("자기 자신은 400 CANNOT_FRIEND_SELF, 빈 본문은 400, 모르는 direction · 소문자 direction 은 400, 숫자가 아닌 requestId 는 400 이다")
     void invalidRequests() throws Exception
     {
-        String me = newLoginId();
-        Cookie myCookie = signupAndLogin(me);
+        String me = newNickname();
+        Cookie myCookie = login(me);
         Long myId = userIdOf(me);
 
         sendRequest(myCookie, myId).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("CANNOT_FRIEND_SELF"));
@@ -333,12 +333,12 @@ class FriendApiTest extends FriendTestSupport {
     @DisplayName("없는 사용자와 차단 관계(어느 방향이든)는 글자까지 같은 404 USER_NOT_FOUND 다 — 차단당한 사실이 새지 않는다")
     void notFoundAndBlockedLookTheSame() throws Exception
     {
-        String me = newLoginId();
-        String blockedByMe = newLoginId();
-        String blocksMe = newLoginId();
-        Cookie myCookie = signupAndLogin(me);
-        signup(blockedByMe, PASSWORD, nicknameOf(blockedByMe)).andExpect(status().isCreated());
-        Cookie theirCookie = signupAndLogin(blocksMe);
+        String me = newNickname();
+        String blockedByMe = newNickname();
+        String blocksMe = newNickname();
+        Cookie myCookie = login(me);
+        insertUser(blockedByMe);
+        Cookie theirCookie = login(blocksMe);
         Long myId = userIdOf(me);
         Long blockedByMeId = userIdOf(blockedByMe);
         Long blocksMeId = userIdOf(blocksMe);
@@ -371,11 +371,11 @@ class FriendApiTest extends FriendTestSupport {
     @DisplayName("남의 요청은 수락 · 거절 · 거두기가 전부 404 다 — 보낸 사람은 수락 · 거절을, 받은 사람은 거두기를 할 수 없다. 없는 요청도 같은 404 다")
     void othersRequests() throws Exception
     {
-        String alice = newLoginId();
-        String bob = newLoginId();
-        Cookie aliceCookie = signupAndLogin(alice);
-        Cookie bobCookie = signupAndLogin(bob);
-        Cookie strangerCookie = signupAndLogin(newLoginId());
+        String alice = newNickname();
+        String bob = newNickname();
+        Cookie aliceCookie = login(alice);
+        Cookie bobCookie = login(bob);
+        Cookie strangerCookie = login(newNickname());
         Long aliceId = userIdOf(alice);
         Long bobId = userIdOf(bob);
         long requestId = sendRequestOk(aliceCookie, bobId);
@@ -402,7 +402,7 @@ class FriendApiTest extends FriendTestSupport {
     @DisplayName("사람을 찾는 길이 없다 — 검색처럼 보이는 경로는 전부 없는 경로다")
     void noUserSearch() throws Exception
     {
-        Cookie myCookie = signupAndLogin(newLoginId());
+        Cookie myCookie = login(newNickname());
 
         for(String path : List.of("/api/v1/users", "/api/v1/users/search", "/api/v1/friends/search/n", "/api/v1/friend-requests/search"))
         {
@@ -421,7 +421,7 @@ class FriendApiTest extends FriendTestSupport {
     @DisplayName("친구 요청 · 친구는 로그인해야 하고, POST · DELETE 는 Origin 검사를 거친다")
     void requiresLoginAndOrigin() throws Exception
     {
-        Cookie myCookie = signupAndLogin(newLoginId());
+        Cookie myCookie = login(newNickname());
 
         mockMvc.perform(get("/api/v1/friends")).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
         mockMvc.perform(get("/api/v1/friend-requests")).andExpect(status().isUnauthorized());

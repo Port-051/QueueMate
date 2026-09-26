@@ -43,14 +43,14 @@ class BlockApiTest extends ApiTestSupport {
     @DisplayName("차단 → 목록 → 해제 → 목록. 목록에는 내가 차단한 사람만 있다 — 나를 차단한 사람은 보이지 않는다")
     void blockListUnblock() throws Exception
     {
-        String me = newLoginId();
-        String target = newLoginId();
-        String another = newLoginId();
-        String blocksMe = newLoginId();
-        Cookie myCookie = signupAndLogin(me);
-        signup(target, PASSWORD, nicknameOf(target)).andExpect(status().isCreated());
-        signup(another, PASSWORD, nicknameOf(another)).andExpect(status().isCreated());
-        Cookie theirCookie = signupAndLogin(blocksMe);
+        String me = newNickname();
+        String target = newNickname();
+        String another = newNickname();
+        String blocksMe = newNickname();
+        Cookie myCookie = login(me);
+        insertUser(target);
+        insertUser(another);
+        Cookie theirCookie = login(blocksMe);
         Long myId = userIdOf(me);
         Long targetId = userIdOf(target);
         Long anotherId = userIdOf(another);
@@ -64,7 +64,7 @@ class BlockApiTest extends ApiTestSupport {
         block(myCookie, targetId)
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.userId", equalTo(targetId), Long.class))
-                .andExpect(jsonPath("$.nickname").value(nicknameOf(target)))
+                .andExpect(jsonPath("$.nickname").value(target))
                 .andExpect(jsonPath("$.createdAt").isString());
         block(myCookie, anotherId).andExpect(status().isCreated());
         block(theirCookie, myId).andExpect(status().isCreated());
@@ -75,7 +75,7 @@ class BlockApiTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.blocks.length()").value(2))
                 .andExpect(jsonPath("$.blocks[0].userId", equalTo(anotherId), Long.class))
                 .andExpect(jsonPath("$.blocks[1].userId", equalTo(targetId), Long.class))
-                .andExpect(jsonPath("$.blocks[1].nickname").value(nicknameOf(target)))
+                .andExpect(jsonPath("$.blocks[1].nickname").value(target))
                 .andExpect(jsonPath("$.blocks[1].createdAt").isString());
 
         mockMvc.perform(delete("/api/v1/blocks/{id}", targetId).cookie(myCookie)).andExpect(status().isNoContent());
@@ -95,10 +95,10 @@ class BlockApiTest extends ApiTestSupport {
     @DisplayName("같은 사람을 두 번 차단하면 409 ALREADY_BLOCKED 이고 줄은 하나다. 서로 차단하는 것은 된다")
     void blockTwice() throws Exception
     {
-        String me = newLoginId();
-        String target = newLoginId();
-        Cookie myCookie = signupAndLogin(me);
-        Cookie theirCookie = signupAndLogin(target);
+        String me = newNickname();
+        String target = newNickname();
+        Cookie myCookie = login(me);
+        Cookie theirCookie = login(target);
         Long myId = userIdOf(me);
         Long targetId = userIdOf(target);
 
@@ -119,10 +119,10 @@ class BlockApiTest extends ApiTestSupport {
     @DisplayName("같은 차단을 여러 스레드가 동시에 보내면 하나만 201 이고 나머지는 409 다 — DB 의 UNIQUE 가 지킨다")
     void concurrentBlocks() throws Exception
     {
-        String me = newLoginId();
-        String target = newLoginId();
-        Cookie myCookie = signupAndLogin(me);
-        signup(target, PASSWORD, nicknameOf(target)).andExpect(status().isCreated());
+        String me = newNickname();
+        String target = newNickname();
+        Cookie myCookie = login(me);
+        insertUser(target);
         Long myId = userIdOf(me);
         Long targetId = userIdOf(target);
 
@@ -166,8 +166,8 @@ class BlockApiTest extends ApiTestSupport {
     @DisplayName("자기 자신은 400 CANNOT_BLOCK_SELF, 없는 사용자 · 숫자가 아닌 번호는 404 USER_NOT_FOUND, 빈 본문은 400 이다")
     void invalidTargets() throws Exception
     {
-        String me = newLoginId();
-        Cookie myCookie = signupAndLogin(me);
+        String me = newNickname();
+        Cookie myCookie = login(me);
         Long myId = userIdOf(me);
 
         block(myCookie, myId)
@@ -193,10 +193,10 @@ class BlockApiTest extends ApiTestSupport {
     @DisplayName("해제는 두 번 다 204 다 — 차단한 적이 없어도, 없는 사용자여도 성공이다. 경로의 번호가 숫자가 아니면 400 이다")
     void unblockIsIdempotent() throws Exception
     {
-        String me = newLoginId();
-        String target = newLoginId();
-        Cookie myCookie = signupAndLogin(me);
-        signup(target, PASSWORD, nicknameOf(target)).andExpect(status().isCreated());
+        String me = newNickname();
+        String target = newNickname();
+        Cookie myCookie = login(me);
+        insertUser(target);
         Long targetId = userIdOf(target);
         block(myCookie, targetId).andExpect(status().isCreated());
 
@@ -214,7 +214,7 @@ class BlockApiTest extends ApiTestSupport {
     @DisplayName("차단은 로그인해야 하고, POST · DELETE 는 Origin 검사를 거친다")
     void requiresLoginAndOrigin() throws Exception
     {
-        Cookie myCookie = signupAndLogin(newLoginId());
+        Cookie myCookie = login(newNickname());
 
         mockMvc.perform(get("/api/v1/blocks"))
                 .andExpect(status().isUnauthorized())
@@ -230,18 +230,18 @@ class BlockApiTest extends ApiTestSupport {
     @DisplayName("창구 findBlockedEitherWay — 내가 차단했든 나를 차단했든 같이 나온다. 상관없는 사람은 안 나온다")
     void findBlockedEitherWay() throws Exception
     {
-        String me = newLoginId();
-        String iBlocked = newLoginId();
-        String blockedMe = newLoginId();
-        String mutual = newLoginId();
-        String stranger = newLoginId();
-        String thirdParty = newLoginId();
-        Cookie myCookie = signupAndLogin(me);
-        signup(iBlocked, PASSWORD, nicknameOf(iBlocked)).andExpect(status().isCreated());
-        Cookie blockedMeCookie = signupAndLogin(blockedMe);
-        Cookie mutualCookie = signupAndLogin(mutual);
-        Cookie strangerCookie = signupAndLogin(stranger);
-        signup(thirdParty, PASSWORD, nicknameOf(thirdParty)).andExpect(status().isCreated());
+        String me = newNickname();
+        String iBlocked = newNickname();
+        String blockedMe = newNickname();
+        String mutual = newNickname();
+        String stranger = newNickname();
+        String thirdParty = newNickname();
+        Cookie myCookie = login(me);
+        insertUser(iBlocked);
+        Cookie blockedMeCookie = login(blockedMe);
+        Cookie mutualCookie = login(mutual);
+        Cookie strangerCookie = login(stranger);
+        insertUser(thirdParty);
         Long myId = userIdOf(me);
         Long iBlockedId = userIdOf(iBlocked);
         Long blockedMeId = userIdOf(blockedMe);

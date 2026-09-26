@@ -9,16 +9,12 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 
 /**
- * <b>{@code existsByLoginId} 로 중복을 먼저 확인하지 마라</b> — 확인과 INSERT 사이에 다른 요청이 끼어든다.
- * 중복은 {@code saveAndFlush} 의 제약 위반으로 안다 ({@code AuthService#signup}).
+ * <b>{@code existsByNickname} 으로 중복을 먼저 확인하지 마라</b> — 확인과 INSERT 사이에 다른 요청이 끼어든다.
+ * 중복은 {@code saveAndFlush} 의 제약 위반으로 안다 ({@code SocialLoginService#signup}).
  */
 public interface UserRepository extends JpaRepository<User, Long> {
-
-    /** 로그인할 때 — 로그인 아이디로 찾는 유일한 자리다. 그 밖의 모든 곳은 사용자 번호({@code id})로 찾는다 */
-    Optional<User> findByLoginId(String loginId);
 
     /**
      * 여러 사용자의 닉네임과, <b>어느 한 게임</b>에 연결한 게임 계정 · 전적을 <b>쿼리 한 번으로</b> 읽는다 — 목록의 카드가 쓴다

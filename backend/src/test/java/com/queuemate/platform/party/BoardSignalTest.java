@@ -79,7 +79,7 @@ class BoardSignalTest extends PostTestSupport {
     @DisplayName("글을 쓰면 BOARD_CHANGED 가 온다 — 봉투는 네 칸이고 payload 는 {} 다. room 의 봉투와 같은 모양이다")
     void envelope() throws Exception
     {
-        Cookie cookie = signupAndLogin(newLoginId());
+        Cookie cookie = login(newNickname());
         createLolPost(cookie);
 
         String message = received.poll(10, TimeUnit.SECONDS);
@@ -102,10 +102,10 @@ class BoardSignalTest extends PostTestSupport {
     @DisplayName("글 쓰기(방까지 만든다) · 고치기 · 방장 확정 · 방장이 지우기에 신호가 한 번씩 온다. 거절된 요청 · 그냥 읽기에는 오지 않는다")
     void signalsOnChangesOnly() throws Exception
     {
-        String host = newLoginId();
-        String otherLogin = newLoginId();
-        Cookie cookie = signupAndLogin(host);
-        Cookie other = signupAndLogin(otherLogin);
+        String host = newNickname();
+        String otherLogin = newNickname();
+        Cookie cookie = login(host);
+        Cookie other = login(otherLogin);
         Long hostId = userIdOf(host);
         Long postId = createLolPost(cookie);
         // 글과 방이 한 트랜잭션에서 생긴다 — 방 만들기의 신호와 글의 신호가 합쳐져 커밋 뒤에 한 번이다
@@ -146,12 +146,12 @@ class BoardSignalTest extends PostTestSupport {
     @DisplayName("목록 조회 한 번에 여러 글이 만료돼도 신호는 한 번이다. 옮겨 적을 것이 없는 평소의 목록은 신호를 내지 않는다")
     void oneSignalPerListCall() throws Exception
     {
-        Cookie viewer = signupAndLogin(newLoginId());
+        Cookie viewer = login(newNickname());
         List<Long> posts = new ArrayList<>();
         for(int i = 0; i < 3; i++)
         {
-            String host = newLoginId();
-            posts.add(createLolPost(signupAndLogin(host)));
+            String host = newNickname();
+            posts.add(createLolPost(login(host)));
         }
         drain();
 

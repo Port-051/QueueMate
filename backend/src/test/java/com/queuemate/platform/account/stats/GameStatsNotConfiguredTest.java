@@ -38,8 +38,8 @@ class GameStatsNotConfiguredTest extends ApiTestSupport {
     @DisplayName("키가 없으면 전적을 긁지 않는다 — stats 와 external_id 가 그대로 비어 있다")
     void doesNothingWithoutApiKey() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
 
         mockMvc.perform(put("/api/v1/users/me/game-accounts/LOL").cookie(cookie)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -51,7 +51,7 @@ class GameStatsNotConfiguredTest extends ApiTestSupport {
         assertThat(pool.getThreadPoolExecutor().getTaskCount()).as("전용 풀에 일이 들어가지 않았다").isZero();
 
         Long gameAccountId = jdbcTemplate.queryForObject(
-                "select id from game_accounts where user_id = ? and game = 'LOL'", Long.class, userIdOf(loginId));
+                "select id from game_accounts where user_id = ? and game = 'LOL'", Long.class, userIdOf(nickname));
         List<?> stats = jdbcTemplate.queryForList(
                 "select 1 from game_account_stats where game_account_id = ?", gameAccountId);
         assertThat(stats).isEmpty();
@@ -64,8 +64,8 @@ class GameStatsNotConfiguredTest extends ApiTestSupport {
     @DisplayName("키가 없으면 전적 갱신 요청은 503 이다 — 200 을 주면 거짓말이고, 쿨타임도 소모하지 않는다")
     void refreshFailsWithoutApiKey() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
         mockMvc.perform(put("/api/v1/users/me/game-accounts/LOL").cookie(cookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json("gameNickname", "달콤한 인생#KR7")))
@@ -76,7 +76,7 @@ class GameStatsNotConfiguredTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.code").value("GAME_STATS_UNAVAILABLE"));
 
         Long gameAccountId = jdbcTemplate.queryForObject(
-                "select id from game_accounts where user_id = ? and game = 'LOL'", Long.class, userIdOf(loginId));
+                "select id from game_accounts where user_id = ? and game = 'LOL'", Long.class, userIdOf(nickname));
         assertThat(redisTemplate.hasKey(GameStatsRefreshCooldown.REFRESH_KEY_PREFIX + gameAccountId)).isFalse();
         ThreadPoolTaskExecutor pool = (ThreadPoolTaskExecutor) gameStatsExecutor;
         assertThat(pool.getThreadPoolExecutor().getTaskCount()).as("전용 풀에 일이 들어가지 않았다").isZero();

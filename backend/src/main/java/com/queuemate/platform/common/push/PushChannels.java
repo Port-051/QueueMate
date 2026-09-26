@@ -19,7 +19,7 @@ public final class PushChannels {
 
     /**
      * 한 사용자의 알림 채널 — {@code qm:pubsub:push:42}. 사용자 id 는 <b>사용자 번호</b>({@code users.id})를 십진 문자열로 적은 것이다
-     * (2026-09-22 소유자 결정 — 로그인 아이디가 아니다). {@code notification} 이 access 토큰의 {@code sub} 로 여는 채널과 같은 글자여야 한다
+     * (2026-09-22 소유자 결정). {@code notification} 이 access 토큰의 {@code sub} 로 여는 채널과 같은 글자여야 한다
      */
     public static String pushChannel(Long userId)
     {

@@ -40,7 +40,7 @@ class GameProfileTest extends ApiTestSupport {
     @DisplayName("PUT 의 응답은 게임 프로필이다 — verified 는 false, stats 는 null. users/me 도 같은 모양을 준다")
     void putReturnsGameProfile() throws Exception
     {
-        Cookie cookie = signupAndLogin(newLoginId());
+        Cookie cookie = login(newNickname());
 
         putGameAccount(cookie, "LOL", json("gameNickname", "달콤한 인생#KR7", "tier", "EMERALD_4", "mainPosition", "MID"))
                 .andExpect(status().isOk())
@@ -65,7 +65,7 @@ class GameProfileTest extends ApiTestSupport {
     @DisplayName("server 는 PUBG 만 받는다(STEAM · KAKAO) — 다른 게임의 server 와 PUBG 의 모르는 server 는 400 이다")
     void server() throws Exception
     {
-        Cookie cookie = signupAndLogin(newLoginId());
+        Cookie cookie = login(newNickname());
 
         putGameAccount(cookie, "PUBG", json("gameNickname", "chicken", "tier", null, "mainPosition", null, "server", "STEAM"))
                 .andExpect(status().isOk())
@@ -98,9 +98,9 @@ class GameProfileTest extends ApiTestSupport {
     @DisplayName("verified · externalId · stats 는 요청으로 바꿀 수 없고, 다시 PUT 해도 덮어쓰이지 않는다")
     void readOnlyFieldsSurviveUpsert() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
-        Long userId = userIdOf(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
+        Long userId = userIdOf(nickname);
         putGameAccount(cookie, "LOL", json("gameNickname", "before", "tier", "GOLD_1", "mainPosition", "TOP"))
                 .andExpect(status().isOk());
         // 게임사 인증이 붙었다고 치고 DB 에서 직접 켠다 — 앱에는 켜는 길이 없다
@@ -125,11 +125,11 @@ class GameProfileTest extends ApiTestSupport {
     @DisplayName("전적 줄이 있으면 stats 가 계약의 모양으로 온다 — winRate 는 정수 퍼센트, kda 는 계산값, detail 은 jsonb 그대로")
     void statsShape() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
         putGameAccount(cookie, "LOL", json("gameNickname", "stats", "tier", "EMERALD_4", "mainPosition", "MID"))
                 .andExpect(status().isOk());
-        insertStats(gameAccountId(userIdOf(loginId), "LOL"), 364, 180, 184, "10.6", "5.7", "5.8", 3,
+        insertStats(gameAccountId(userIdOf(nickname), "LOL"), 364, 180, 184, "10.6", "5.7", "5.8", 3,
                 "{\"mostChampions\":[{\"championId\":103,\"games\":40,\"winRate\":55}]}");
 
         mockMvc.perform(get("/api/v1/users/me").cookie(cookie))
@@ -155,9 +155,9 @@ class GameProfileTest extends ApiTestSupport {
     @DisplayName("데스가 0 이거나 평균값이 없으면 kda 는 null, 판 수가 0 이면 winRate 도 null 이다")
     void statsWithoutDenominator() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
-        Long userId = userIdOf(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
+        Long userId = userIdOf(nickname);
         putGameAccount(cookie, "LOL", json("gameNickname", "a")).andExpect(status().isOk());
         putGameAccount(cookie, "VALORANT", json("gameNickname", "b")).andExpect(status().isOk());
         insertStats(gameAccountId(userId, "LOL"), 0, 0, 0, "3.0", "0.0", "1.0", 0, "{}");
@@ -178,11 +178,11 @@ class GameProfileTest extends ApiTestSupport {
     @DisplayName("PUBG 처럼 승/패 · 연승이 없는 전적도 stats 가 온다 — 그 칸들은 빠지지 않고 null 이다")
     void statsWithoutWinsAndLosses() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
         putGameAccount(cookie, "PUBG", json("gameNickname", "chicken", "server", "STEAM")).andExpect(status().isOk());
         // 승/패도 연승도 어시스트도 없다 — 치킨률 · 평균 데미지는 detail 에 담긴다
-        insertStats(gameAccountId(userIdOf(loginId), "PUBG"), 120, null, null, "4.2", "3.1", null, null,
+        insertStats(gameAccountId(userIdOf(nickname), "PUBG"), 120, null, null, "4.2", "3.1", null, null,
                 "{\"chickenRate\":7,\"avgDamage\":312.5}");
 
         mockMvc.perform(get("/api/v1/users/me").cookie(cookie))
@@ -208,18 +208,18 @@ class GameProfileTest extends ApiTestSupport {
     @DisplayName("창구 findProfiles — 여러 사용자의 닉네임과 그 게임의 프로필을 한 번에 준다. 계정이 없으면 profile 이 null, 없는 사용자는 결과에 없다")
     void findProfiles() throws Exception
     {
-        String withStatsLoginId = newLoginId();
-        String withoutStatsLoginId = newLoginId();
-        String otherGameOnlyLoginId = newLoginId();
-        putGameAccount(signupAndLogin(withStatsLoginId), "LOL",
+        String withStatsNickname = newNickname();
+        String withoutStatsNickname = newNickname();
+        String otherGameOnlyNickname = newNickname();
+        putGameAccount(login(withStatsNickname), "LOL",
                 json("gameNickname", "one", "tier", "GOLD_1", "mainPosition", "MID")).andExpect(status().isOk());
-        putGameAccount(signupAndLogin(withoutStatsLoginId), "LOL",
+        putGameAccount(login(withoutStatsNickname), "LOL",
                 json("gameNickname", "two", "tier", null, "mainPosition", "SUPPORT")).andExpect(status().isOk());
-        putGameAccount(signupAndLogin(otherGameOnlyLoginId), "PUBG",
+        putGameAccount(login(otherGameOnlyNickname), "PUBG",
                 json("gameNickname", "three", "server", "STEAM")).andExpect(status().isOk());
-        Long withStats = userIdOf(withStatsLoginId);
-        Long withoutStats = userIdOf(withoutStatsLoginId);
-        Long otherGameOnly = userIdOf(otherGameOnlyLoginId);
+        Long withStats = userIdOf(withStatsNickname);
+        Long withoutStats = userIdOf(withoutStatsNickname);
+        Long otherGameOnly = userIdOf(otherGameOnlyNickname);
         // 아무도 아닌 번호 — 멤버 SET 에 남은 유령처럼 있을 수 없는 사용자가 섞여 들어올 수 있다
         Long nobody = unknownUserId();
         insertStats(gameAccountId(withStats, "LOL"), 10, 6, 4, "5.0", "2.5", "5.0", 1, "{}");
@@ -229,7 +229,7 @@ class GameProfileTest extends ApiTestSupport {
                 List.of(withStats, withoutStats, otherGameOnly, nobody, withStats), Game.LOL);
 
         assertThat(profiles).containsOnlyKeys(withStats, withoutStats, otherGameOnly);
-        assertThat(profiles.get(withStats).nickname()).isEqualTo(nicknameOf(withStatsLoginId));
+        assertThat(profiles.get(withStats).nickname()).isEqualTo(withStatsNickname);
         assertThat(profiles.get(withStats).profile().mainPosition()).isEqualTo("MID");
         assertThat(profiles.get(withStats).profile().stats().games()).isEqualTo(10);
         assertThat(profiles.get(withStats).profile().stats().winRate()).isEqualTo(60);
@@ -237,7 +237,7 @@ class GameProfileTest extends ApiTestSupport {
         assertThat(profiles.get(withoutStats).profile().gameNickname()).isEqualTo("two");
         assertThat(profiles.get(withoutStats).profile().stats()).isNull();
         // PUBG 계정만 있는 사람 — LOL 의 프로필은 없지만 닉네임은 온다
-        assertThat(profiles.get(otherGameOnly).nickname()).isEqualTo(nicknameOf(otherGameOnlyLoginId));
+        assertThat(profiles.get(otherGameOnly).nickname()).isEqualTo(otherGameOnlyNickname);
         assertThat(profiles.get(otherGameOnly).profile()).isNull();
 
         assertThat(gameProfileReader.findProfiles(List.of(otherGameOnly), Game.PUBG)
@@ -246,14 +246,13 @@ class GameProfileTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("users/me — 비밀번호로 가입한 사람은 hasPassword 가 true 이고 socialProviders 가 빈 배열이다")
-    void passwordUserHasNoSocialProviders() throws Exception
+    @DisplayName("users/me — 소셜 연결이 없는 사용자는 socialProviders 가 빈 배열이다")
+    void userWithoutSocialLinkHasNoSocialProviders() throws Exception
     {
-        Cookie cookie = signupAndLogin(newLoginId());
+        Cookie cookie = login(newNickname());
 
         mockMvc.perform(get("/api/v1/users/me").cookie(cookie))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.hasPassword").value(true))
                 .andExpect(jsonPath("$.socialProviders").isArray())
                 .andExpect(jsonPath("$.socialProviders").isEmpty());
     }

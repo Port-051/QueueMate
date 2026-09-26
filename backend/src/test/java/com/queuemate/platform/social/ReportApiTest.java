@@ -25,10 +25,10 @@ class ReportApiTest extends ApiTestSupport {
     @DisplayName("신고하면 201 {reportId, createdAt} 이고 RECEIVED 로 저장된다. detail · contextId 는 없어도 되고, 같은 사람을 여러 번 신고할 수 있다")
     void report() throws Exception
     {
-        String me = newLoginId();
-        String target = newLoginId();
-        Cookie myCookie = signupAndLogin(me);
-        signup(target, PASSWORD, nicknameOf(target)).andExpect(status().isCreated());
+        String me = newNickname();
+        String target = newNickname();
+        Cookie myCookie = login(me);
+        insertUser(target);
         Long myId = userIdOf(me);
         Long targetId = userIdOf(target);
         Long contextId = 920_001L;
@@ -54,10 +54,10 @@ class ReportApiTest extends ApiTestSupport {
     @DisplayName("나를 차단한 사람도 신고할 수 있다 — 신고는 차단 관계를 보지 않는다")
     void reportSomeoneWhoBlockedMe() throws Exception
     {
-        String me = newLoginId();
-        String target = newLoginId();
-        Cookie myCookie = signupAndLogin(me);
-        signup(target, PASSWORD, nicknameOf(target)).andExpect(status().isCreated());
+        String me = newNickname();
+        String target = newNickname();
+        Cookie myCookie = login(me);
+        insertUser(target);
         Long myId = userIdOf(me);
         Long targetId = userIdOf(target);
         jdbcTemplate.update("insert into blocks (blocker_id, blocked_id, created_at) values (?, ?, now())", targetId, myId);
@@ -69,8 +69,8 @@ class ReportApiTest extends ApiTestSupport {
     @DisplayName("자기 자신은 400 CANNOT_REPORT_SELF, 없는 사용자 · 숫자가 아닌 번호는 404 USER_NOT_FOUND 다")
     void invalidTargets() throws Exception
     {
-        String me = newLoginId();
-        Cookie myCookie = signupAndLogin(me);
+        String me = newNickname();
+        Cookie myCookie = login(me);
         Long myId = userIdOf(me);
 
         report(myCookie, json("targetUserId", myId, "reason", "ABUSE"))
@@ -91,10 +91,10 @@ class ReportApiTest extends ApiTestSupport {
     @DisplayName("OTHER 에 detail 이 없으면(비어 있어도) 400, 모르는 reason · 1000자를 넘는 detail · 숫자가 아닌 contextId · 빈 본문도 400 이다")
     void validation() throws Exception
     {
-        String me = newLoginId();
-        String target = newLoginId();
-        Cookie myCookie = signupAndLogin(me);
-        signup(target, PASSWORD, nicknameOf(target)).andExpect(status().isCreated());
+        String me = newNickname();
+        String target = newNickname();
+        Cookie myCookie = login(me);
+        insertUser(target);
         Long myId = userIdOf(me);
         Long targetId = userIdOf(target);
 
@@ -125,7 +125,7 @@ class ReportApiTest extends ApiTestSupport {
     @DisplayName("신고는 로그인해야 하고, 읽는 요청이 없다 — 처리 화면이 없다")
     void requiresLoginAndNoRead() throws Exception
     {
-        Cookie myCookie = signupAndLogin(newLoginId());
+        Cookie myCookie = login(newNickname());
 
         mockMvc.perform(post("/api/v1/reports").contentType(MediaType.APPLICATION_JSON)
                         .content(json("targetUserId", 1, "reason", "ABUSE")))

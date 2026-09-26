@@ -44,10 +44,10 @@ class FriendPushRedisDownTest extends FriendTestSupport {
     @DisplayName("발행이 실패해도 친구 요청과 수락은 성공이고 DB 에 남는다 — 예외가 밖으로 나오지 않는다")
     void publishFailureDoesNotUndoTheWork() throws Exception
     {
-        String alice = newLoginId();
-        String bob = newLoginId();
-        signup(alice, PASSWORD, nicknameOf(alice)).andExpect(status().isCreated());
-        signup(bob, PASSWORD, nicknameOf(bob)).andExpect(status().isCreated());
+        String alice = newNickname();
+        String bob = newNickname();
+        insertUser(alice);
+        insertUser(bob);
         Long aliceId = userIdOf(alice);
         Long bobId = userIdOf(bob);
         AtomicInteger attempts = new AtomicInteger();

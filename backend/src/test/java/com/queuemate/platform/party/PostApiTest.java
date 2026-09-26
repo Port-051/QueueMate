@@ -34,8 +34,8 @@ class PostApiTest extends PostTestSupport {
     @DisplayName("글을 쓰면 201 과 글 한 줄이 온다 — 방이 같이 생겨 방장이 members 에 있고(memberCount 1) host 도 채워져 있다")
     void create() throws Exception
     {
-        String host = newLoginId();
-        Cookie cookie = signupAndLogin(host);
+        String host = newNickname();
+        Cookie cookie = login(host);
         Long hostId = userIdOf(host);
         putGameAccount(cookie, "LOL", json("gameNickname", "달콤한 인생#KR7", "tier", "EMERALD_4", "mainPosition", "MID"));
 
@@ -63,7 +63,7 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(jsonPath("$.capacity").value(5))
                 .andExpect(jsonPath("$.full").value(false))
                 .andExpect(jsonPath("$.host.userId").value(equalTo(hostId), Long.class))
-                .andExpect(jsonPath("$.host.nickname").value(nicknameOf(host)))
+                .andExpect(jsonPath("$.host.nickname").value(host))
                 .andExpect(jsonPath("$.host.host").value(true))
                 .andExpect(jsonPath("$.host.profile.gameNickname").value("달콤한 인생#KR7"))
                 .andExpect(jsonPath("$.host.profile.mainPosition").value("MID"))
@@ -76,7 +76,7 @@ class PostApiTest extends PostTestSupport {
     @DisplayName("PUBG 글은 conditions.perspective 가 필수이고 포지션이 없다. 게임 계정이 없는 방장의 profile 은 null 이다")
     void createPubg() throws Exception
     {
-        Cookie cookie = signupAndLogin(newLoginId());
+        Cookie cookie = login(newNickname());
 
         createPost(cookie, postBody("PUBG", "치킨 먹자", "{\"perspective\":\"FPP\"}"))
                 .andExpect(status().isCreated())
@@ -90,7 +90,7 @@ class PostApiTest extends PostTestSupport {
     @DisplayName("검증 실패는 400 VALIDATION_FAILED 이고 어느 필드인지 details 에 온다")
     void validation() throws Exception
     {
-        Cookie cookie = signupAndLogin(newLoginId());
+        Cookie cookie = login(newNickname());
 
         createPost(cookie, "{}").andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
@@ -139,8 +139,8 @@ class PostApiTest extends PostTestSupport {
     @DisplayName("모집 중인 글이 있으면 또 쓸 수 없다(409 ALREADY_RECRUITING). 지우면 방도 같이 닫혀 곧바로 새 글을 쓸 수 있다 — IN_OTHER_ROOM 이 나지 않는다")
     void oneRecruitingPostPerHost() throws Exception
     {
-        String host = newLoginId();
-        Cookie cookie = signupAndLogin(host);
+        String host = newNickname();
+        Cookie cookie = login(host);
         Long hostId = userIdOf(host);
         Long first = createLolPost(cookie);
 
@@ -164,8 +164,8 @@ class PostApiTest extends PostTestSupport {
     @DisplayName("같은 사람의 글 쓰기를 여러 스레드가 동시에 보내면 하나만 201 이고 나머지는 409 다 — DB 의 부분 UNIQUE 인덱스가 지킨다")
     void concurrentCreates() throws Exception
     {
-        String host = newLoginId();
-        Cookie cookie = signupAndLogin(host);
+        String host = newNickname();
+        Cookie cookie = login(host);
         Long hostId = userIdOf(host);
 
         int threads = 8;
@@ -208,7 +208,7 @@ class PostApiTest extends PostTestSupport {
     @DisplayName("고치기는 준 것만 바꾼다. 빈 문자열은 description 을 비우고, 빈 배열은 찾는 포지션을 비운다. mode 는 gameconfig 에 있는 다른 모드로만 바꾼다")
     void edit() throws Exception
     {
-        Cookie cookie = signupAndLogin(newLoginId());
+        Cookie cookie = login(newNickname());
         Long postId = createLolPost(cookie, "MID", "SUPPORT");
 
         editPost(cookie, postId, "{\"title\":\"제목만 바꾼다\"}")
@@ -259,8 +259,8 @@ class PostApiTest extends PostTestSupport {
     @DisplayName("남의 글은 고치지도 지우지도 못한다(403 NOT_POST_HOST). 없는 글은 404 POST_NOT_FOUND 다")
     void onlyHostCanEditOrDelete() throws Exception
     {
-        Cookie hostCookie = signupAndLogin(newLoginId());
-        Cookie otherCookie = signupAndLogin(newLoginId());
+        Cookie hostCookie = login(newNickname());
+        Cookie otherCookie = login(newNickname());
         Long postId = createLolPost(hostCookie);
 
         editPost(otherCookie, postId, "{\"title\":\"내 것처럼\"}")
@@ -284,7 +284,7 @@ class PostApiTest extends PostTestSupport {
     @DisplayName("지우면 줄은 남고 만료가 된다. 두 번 지워도 204 다. 만료된 글은 고칠 수 없다(409 POST_NOT_RECRUITING)")
     void deleteExpires() throws Exception
     {
-        Cookie cookie = signupAndLogin(newLoginId());
+        Cookie cookie = login(newNickname());
         Long postId = createLolPost(cookie);
 
         mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(cookie)).andExpect(status().isNoContent());
@@ -306,7 +306,7 @@ class PostApiTest extends PostTestSupport {
     @DisplayName("글은 로그인해야 하고, 상태를 바꾸는 요청은 Origin 검사를 거친다")
     void requiresLoginAndOrigin() throws Exception
     {
-        Cookie cookie = signupAndLogin(newLoginId());
+        Cookie cookie = login(newNickname());
 
         mockMvc.perform(get("/api/v1/posts")).andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));

@@ -197,8 +197,8 @@ class SocialMigrationTest extends ApiTestSupport {
     /** 번호를 테스트가 정한 사용자 — {@code OVERRIDING SYSTEM VALUE} 로 넣는다(identity 의 순번은 건드리지 않는다). 끝나면 지워진다 */
     private void insertUserWithId(Long userId)
     {
-        String loginId = newLoginId();
-        jdbcTemplate.update("insert into users (id, login_id, nickname, created_at, updated_at) overriding system value "
-                + "values (?, ?, ?, now(), now())", userId, loginId, nicknameOf(loginId));
+        String nickname = newNickname();
+        jdbcTemplate.update("insert into users (id, nickname, created_at, updated_at) overriding system value "
+                + "values (?, ?, now(), now())", userId, nickname);
     }
 }

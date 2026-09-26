@@ -27,7 +27,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * 소셜로 <b>처음</b> 온 사람이 아이디 · 닉네임을 정할 때까지 들고 있는 토큰 — 쿠키 {@code qm_social_signup}
+ * 소셜로 <b>처음</b> 온 사람이 닉네임을 정할 때까지 들고 있는 토큰 — 쿠키 {@code qm_social_signup}
  * ({@code contracts/platform-api.md} "소셜 로그인"). "제공자가 이 회원 번호를 확인해 줬다"를 서버가 기억하는 대신 서명해서 브라우저에 맡긴다 —
  * stateless 그대로다.
  *

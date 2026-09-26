@@ -33,8 +33,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>{@code @DynamicPropertySource} 가 설정을 바꾸므로 <b>이 클래스만 스프링 컨텍스트를 따로 띄운다</b>(다른 API 테스트는 하나를 같이 쓴다).
  * 제공자가 설정되지 않았을 때의 404 는 그 기본 컨텍스트에서 본다({@link OAuthNotConfiguredTest}).
  *
- * <p>소셜로 처음 온 사람도 <b>로그인 아이디</b>를 정한다 — 가입 본문은 {@code {loginId, nickname}} 이고 응답은 다른 가입과 같은
- * {@code {userId, loginId, nickname}} 이다. 제공자의 회원 번호는 {@code social_identities} 에만 있고 사용자 번호가 되지 않는다.
+ * <p>가입 · 로그인은 소셜로만 한다(2026-09-26 소유자 결정). 소셜로 처음 온 사람은 <b>닉네임만</b> 정한다 — 가입 본문은 {@code {nickname}} 이고
+ * 응답은 {@code {userId, nickname}} 이다. 제공자의 회원 번호는 {@code social_identities} 에만 있고 사용자 번호가 되지 않는다.
  */
 class SocialLoginApiTest extends ApiTestSupport {
 
@@ -156,20 +156,21 @@ class SocialLoginApiTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.provider").value("KAKAO"))
                 .andExpect(jsonPath("$.suggestedNickname").value("카카오 닉네임"));
 
-        String loginId = newLoginId();
-        MvcResult signup = socialSignup(signupCookie, loginId, nicknameOf(loginId))
+        String nickname = newNickname();
+        MvcResult signup = socialSignup(signupCookie, nickname)
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.userId").isNumber())
-                .andExpect(jsonPath("$.loginId").value(loginId))
-                .andExpect(jsonPath("$.nickname").value(nicknameOf(loginId)))
+                .andExpect(jsonPath("$.nickname").value(nickname))
+                // 본문은 둘뿐이다 — 로그인 아이디가 없다
+                .andExpect(jsonPath("$.length()").value(2))
                 .andReturn();
         // 가입 응답이 준 사용자 번호다 — users/me 와 DB 가 같은 번호를 줘야 한다
-        Long userId = userIdOf(loginId);
+        Long userId = userIdOf(nickname);
         assertThat(userId).isNotNull();
         Cookie access = signup.getResponse().getCookie("qm_access");
         assertThat(access).isNotNull();
         assertThat(access.getValue()).isNotBlank();
-        // 비밀번호 로그인과 같은 쿠키 둘이다 — refresh 도 같이 온다 (2026-09-23)
+        // 쿠키 둘이다 — refresh 도 같이 온다 (2026-09-23)
         Cookie refresh = refreshCookieOf(signup);
         assertThat(refresh).isNotNull();
         assertThat(refresh.getPath()).isEqualTo("/api/v1/auth/refresh");
@@ -179,23 +180,13 @@ class SocialLoginApiTest extends ApiTestSupport {
         mockMvc.perform(get("/api/v1/users/me").cookie(access))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(equalTo(userId), Long.class))
-                .andExpect(jsonPath("$.loginId").value(loginId))
+                .andExpect(jsonPath("$.nickname").value(nickname))
                 .andExpect(jsonPath("$.socialProviders.length()").value(1))
-                .andExpect(jsonPath("$.socialProviders[0]").value("KAKAO"))
-                .andExpect(jsonPath("$.hasPassword").value(false));
-        // credentials 줄을 만들지 않았다. 제공자 쪽 회원 번호는 문자열로 남는다
-        assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from credentials where user_id = ?", Integer.class, userId)).isZero();
+                .andExpect(jsonPath("$.socialProviders[0]").value("KAKAO"));
+        // 제공자 쪽 회원 번호는 문자열로 남는다
         assertThat(jdbcTemplate.queryForObject(
                 "select provider_user_id from social_identities where user_id = ? and provider = 'KAKAO'",
                 String.class, userId)).isEqualTo(Long.toString(kakaoId));
-
-        // 비밀번호가 없는 사람의 비밀번호 로그인은 없는 아이디와 같은 401 이다
-        String unknownIdBody = login(newLoginId(), PASSWORD).andExpect(status().isUnauthorized())
-                .andReturn().getResponse().getContentAsString();
-        MvcResult socialOnly = login(loginId, PASSWORD).andExpect(status().isUnauthorized()).andReturn();
-        assertThat(socialOnly.getResponse().getContentAsString()).isEqualTo(unknownIdBody)
-                .contains("\"code\":\"INVALID_CREDENTIALS\"");
 
         // 같은 사람이 다시 오면 바로 로그인된다
         String secondCode = newCode();
@@ -239,11 +230,15 @@ class SocialLoginApiTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.provider").value("DISCORD"))
                 .andExpect(jsonPath("$.suggestedNickname").value("nelly"));
 
-        String loginId = newLoginId();
-        socialSignup(signupCookie, loginId, nicknameOf(loginId)).andExpect(status().isCreated());
+        // 한글 닉네임도 된다. 끝 8자로 겹치지 않게 한다 — 한글 4자 + 8자 = 12자
+        String generated = newNickname();
+        String nickname = "큐메이트" + generated.substring(generated.length() - 8);
+        socialSignup(signupCookie, nickname)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.nickname").value(nickname));
         assertThat(jdbcTemplate.queryForObject(
                 "select provider_user_id from social_identities where user_id = ? and provider = 'DISCORD'",
-                String.class, userIdOf(loginId))).isEqualTo(discordId);
+                String.class, userIdOf(nickname))).isEqualTo(discordId);
     }
 
     @Test
@@ -304,12 +299,12 @@ class SocialLoginApiTest extends ApiTestSupport {
     @DisplayName("social/signup — 쿠키가 없거나 깨졌으면 401 NO_PENDING_SOCIAL_SIGNUP, 같은 소셜 계정으로 두 번이면 409 SOCIAL_ALREADY_LINKED")
     void signupFailures() throws Exception
     {
-        String loginId = newLoginId();
-        socialSignup(null, loginId, nicknameOf(loginId))
+        String nickname = newNickname();
+        socialSignup(null, nickname)
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("NO_PENDING_SOCIAL_SIGNUP"))
                 .andExpect(jsonPath("$.details").isArray());
-        socialSignup(new Cookie("qm_social_signup", "not-a-jwt"), loginId, nicknameOf(loginId))
+        socialSignup(new Cookie("qm_social_signup", "not-a-jwt"), nickname)
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("NO_PENDING_SOCIAL_SIGNUP"));
         mockMvc.perform(get("/api/v1/auth/social/pending"))
@@ -322,46 +317,49 @@ class SocialLoginApiTest extends ApiTestSupport {
         Cookie signupCookie = callback("kakao", code, state.getValue(), state).andReturn()
                 .getResponse().getCookie("qm_social_signup");
 
-        // 검증은 가입과 같다
-        socialSignup(signupCookie, "UPPER", "x")
+        // 닉네임의 검증은 닉네임 바꾸기와 같다 — 2~16자 · 앞뒤 공백 없음 · 없으면 안 된다
+        for(String invalid : new String[]{"x", "a".repeat(17), " padded "})
+        {
+            socialSignup(signupCookie, invalid)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                    .andExpect(detailFor("nickname"));
+        }
+        mockMvc.perform(post("/api/v1/auth/social/signup").cookie(signupCookie)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(detailFor("loginId"))
                 .andExpect(detailFor("nickname"));
-        // 이미 있는 로그인 아이디 · 닉네임 — 사용자도 연결도 남지 않는다
-        String taken = newLoginId();
-        signup(taken, PASSWORD, nicknameOf(taken)).andExpect(status().isCreated());
-        socialSignup(signupCookie, taken, nicknameOf(loginId))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("LOGIN_ID_TAKEN"));
-        socialSignup(signupCookie, loginId, nicknameOf(taken))
+        // 이미 있는 닉네임 — 사용자도 연결도 남지 않는다
+        String taken = newNickname();
+        Long takenUserId = insertUser(taken);
+        socialSignup(signupCookie, taken)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("NICKNAME_TAKEN"));
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from users where login_id = ?", Integer.class, loginId)).isZero();
+                "select count(*) from users where nickname = ?", Integer.class, taken)).isEqualTo(1);
         // 먼저 가입한 사람은 그대로다 — 소셜 연결이 붙지 않았다
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from social_identities where user_id = ?", Integer.class, userIdOf(taken))).isZero();
+                "select count(*) from social_identities where user_id = ?", Integer.class, takenUserId)).isZero();
 
-        socialSignup(signupCookie, loginId, nicknameOf(loginId)).andExpect(status().isCreated());
+        socialSignup(signupCookie, nickname).andExpect(status().isCreated());
 
         // 같은 qm_social_signup 을 다시 쓴다 — 한 트랜잭션이라 두 번째 사용자도 남지 않는다
-        String second = newLoginId();
-        socialSignup(signupCookie, second, nicknameOf(second))
+        String second = newNickname();
+        socialSignup(signupCookie, second)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("SOCIAL_ALREADY_LINKED"));
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from users where login_id = ?", Integer.class, second)).isZero();
+                "select count(*) from users where nickname = ?", Integer.class, second)).isZero();
     }
 
     @Test
     @DisplayName("social/signup 은 POST 라서 Origin 검사를 거친다")
     void signupChecksOrigin() throws Exception
     {
-        String loginId = newLoginId();
         mockMvc.perform(post("/api/v1/auth/social/signup")
                         .header(HttpHeaders.ORIGIN, "https://evil.example")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json("loginId", loginId, "nickname", nicknameOf(loginId))))
+                        .content(json("nickname", newNickname())))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ORIGIN_NOT_ALLOWED"));
     }
@@ -383,18 +381,18 @@ class SocialLoginApiTest extends ApiTestSupport {
         return mockMvc.perform(request);
     }
 
-    /** 201 이면 사용자 번호를 받아 둔다 — {@code signup()} 을 거치지 않는 가입이라 뒷정리가 그것으로 사용자를 찾는다 */
-    private ResultActions socialSignup(Cookie signupCookie, String loginId, String nickname) throws Exception
+    /** 201 이면 사용자 번호를 받아 둔다 — 뒷정리가 그것으로 사용자를 찾는다 */
+    private ResultActions socialSignup(Cookie signupCookie, String nickname) throws Exception
     {
         var request = post("/api/v1/auth/social/signup")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(json("loginId", loginId, "nickname", nickname));
+                .content(json("nickname", nickname));
         if(signupCookie != null)
         {
             request.cookie(signupCookie);
         }
         ResultActions actions = mockMvc.perform(request);
-        rememberUserId(loginId, actions.andReturn());
+        rememberUserId(nickname, actions.andReturn());
         return actions;
     }
 

@@ -1,6 +1,6 @@
 package com.queuemate.platform.account.dto;
 
-/** 닉네임의 검증 규칙. 가입과 닉네임 바꾸기가 같이 쓴다 */
+/** 닉네임의 검증 규칙. 소셜 가입과 닉네임 바꾸기가 같이 쓴다 */
 final class NicknameRules {
 
     /**

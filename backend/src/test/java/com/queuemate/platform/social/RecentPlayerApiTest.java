@@ -36,7 +36,7 @@ class RecentPlayerApiTest extends ApiTestSupport {
     @DisplayName("아무도 채우지 않으므로 지금은 빈 목록이다. 로그인해야 한다")
     void emptyForNow() throws Exception
     {
-        Cookie myCookie = signupAndLogin(newLoginId());
+        Cookie myCookie = login(newNickname());
 
         mockMvc.perform(get("/api/v1/recent-players").cookie(myCookie))
                 .andExpect(status().isOk())
@@ -51,13 +51,13 @@ class RecentPlayerApiTest extends ApiTestSupport {
     @DisplayName("최근순이고 내 줄만 나온다 — 닉네임 · 마지막 파티 · 마지막 시각이 붙는다. 없어진 사용자의 줄은 딸려 지워진다")
     void recentFirstAndMineOnly() throws Exception
     {
-        String me = newLoginId();
-        Cookie myCookie = signupAndLogin(me);
+        String me = newNickname();
+        Cookie myCookie = login(me);
         Long myId = userIdOf(me);
-        String olderLogin = newLoginId();
-        String newerLogin = newLoginId();
-        Long older = insertUser(olderLogin);
-        Long newer = insertUser(newerLogin);
+        String olderNickname = newNickname();
+        String newerNickname = newNickname();
+        Long older = insertUser(olderNickname);
+        Long newer = insertUser(newerNickname);
         Long someoneElse = insertUser();
         Instant base = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         Long olderParty = insertParty();
@@ -76,7 +76,7 @@ class RecentPlayerApiTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.players.length()").value(2))
                 .andExpect(jsonPath("$.players[0].userId", equalTo(newer), Long.class))
-                .andExpect(jsonPath("$.players[0].nickname").value(nicknameOf(newerLogin)))
+                .andExpect(jsonPath("$.players[0].nickname").value(newerNickname))
                 .andExpect(jsonPath("$.players[0].lastPartyId", equalTo(newerParty), Long.class))
                 .andExpect(jsonPath("$.players[0].lastPlayedAt").value(base.minusSeconds(60).toString()))
                 .andExpect(jsonPath("$.players[1].userId", equalTo(older), Long.class));
@@ -86,8 +86,8 @@ class RecentPlayerApiTest extends ApiTestSupport {
     @DisplayName("50명까지다. 차단 관계(어느 방향이든)인 사람은 빠지고, 빠진 자리는 그다음 사람이 채운다")
     void limitAndBlocks() throws Exception
     {
-        String me = newLoginId();
-        Cookie myCookie = signupAndLogin(me);
+        String me = newNickname();
+        Cookie myCookie = login(me);
         Long myId = userIdOf(me);
         Instant base = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         // others.get(0) 이 가장 최근이다. 마지막 파티는 모두 같은 파티다 — 순서와 무관하다
@@ -119,13 +119,6 @@ class RecentPlayerApiTest extends ApiTestSupport {
         List<Long> userIds = new ArrayList<>();
         players.forEach(player -> userIds.add(player.get("userId").asLong()));
         return userIds;
-    }
-
-    /** 사용자 번호는 identity 라 DB 가 매긴다 — 넣고 그 번호를 받아 온다 */
-    private Long insertUser(String loginId)
-    {
-        return jdbcTemplate.queryForObject("insert into users (login_id, nickname, created_at, updated_at) "
-                + "values (?, ?, now(), now()) returning id", Long.class, loginId, nicknameOf(loginId));
     }
 
     /**

@@ -44,21 +44,21 @@ class PostBoardTest extends PostTestSupport {
     @DisplayName("목록의 한 줄 — 인원 · 방 안 전원의 카드(게임 프로필 · 전적) · full. 방장 먼저, 나머지는 닉네임순, 가입하지 않은 사람은 맨 뒤에 null 로 남는다")
     void listShowsRoomMembers() throws Exception
     {
-        String host = newLoginId();
-        String support = newLoginId();
-        String noAccount = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
+        String host = newNickname();
+        String support = newNickname();
+        String noAccount = newNickname();
+        Cookie hostCookie = login(host);
         Long hostId = userIdOf(host);
         putGameAccount(hostCookie, "LOL", json("gameNickname", "host#KR1", "tier", "EMERALD_4", "mainPosition", "MID"));
         insertStats(hostId, "LOL", 180, 184, "{\"mostChampions\":[{\"championId\":103,\"games\":40,\"winRate\":55}]}");
-        putGameAccount(signupAndLogin(support), "LOL", json("gameNickname", "sup#KR1", "tier", "GOLD_1", "mainPosition", "SUPPORT"));
+        putGameAccount(login(support), "LOL", json("gameNickname", "sup#KR1", "tier", "GOLD_1", "mainPosition", "SUPPORT"));
         Long supportId = userIdOf(support);
         // LOL 계정은 없고 VALORANT 계정만 있다 — 이 글(LOL)의 카드에서는 profile 이 null 이다
-        putGameAccount(signupAndLogin(noAccount), "VALORANT", json("gameNickname", "val#1", "mainPosition", "DUELIST"));
+        putGameAccount(login(noAccount), "VALORANT", json("gameNickname", "val#1", "mainPosition", "DUELIST"));
         Long noAccountId = userIdOf(noAccount);
         // stranger 는 이 앱에 가입하지 않은 사용자 번호다 — 방에 들어온 뒤 사라진 계정이 이렇게 남는다
         Long stranger = unknownUserId();
-        Cookie viewer = signupAndLogin(newLoginId());
+        Cookie viewer = login(newNickname());
 
         Long postId = createLolPost(hostCookie, "TOP", "MID", "SUPPORT");
         openRoom(postId, hostId, supportId, noAccountId, stranger);
@@ -73,7 +73,7 @@ class PostBoardTest extends PostTestSupport {
 
         JsonNode members = line.get("members");
         List<String> expectedOrder = new ArrayList<>(List.of(support, noAccount));
-        expectedOrder.sort((a, b) -> nicknameOf(a).compareTo(nicknameOf(b)));
+        expectedOrder.sort((a, b) -> a.compareTo(b));
         assertThat(longs(members, "userId"))
                 .containsExactly(hostId, userIdOf(expectedOrder.get(0)), userIdOf(expectedOrder.get(1)), stranger);
         assertThat(members.get(0).get("host").asBoolean()).isTrue();
@@ -93,10 +93,10 @@ class PostBoardTest extends PostTestSupport {
         assertThat(line.get("host").get("profile").get("gameNickname").asString()).isEqualTo("host#KR1");
 
         JsonNode supportCard = find(members, "userId", supportId);
-        assertThat(supportCard.get("nickname").asString()).isEqualTo(nicknameOf(support));
+        assertThat(supportCard.get("nickname").asString()).isEqualTo(support);
         assertThat(supportCard.get("profile").get("stats").isNull()).isTrue();
         JsonNode noAccountCard = find(members, "userId", noAccountId);
-        assertThat(noAccountCard.get("nickname").asString()).isEqualTo(nicknameOf(noAccount));
+        assertThat(noAccountCard.get("nickname").asString()).isEqualTo(noAccount);
         assertThat(noAccountCard.get("profile").isNull()).isTrue();
         // 가입하지 않은 사람 — 빼지 않는다(memberCount 와 어긋난다). 닉네임도 프로필도 null 이다
         JsonNode strangerCard = members.get(3);
@@ -120,11 +120,11 @@ class PostBoardTest extends PostTestSupport {
     @DisplayName("정렬과 game 필터 — 최신순 하나다(만료된 글도 제자리에 남는다). game 이 없으면 세 게임 전부다")
     void orderAndGameFilter() throws Exception
     {
-        Cookie first = signupAndLogin(newLoginId());
-        Cookie second = signupAndLogin(newLoginId());
-        Cookie third = signupAndLogin(newLoginId());
-        Cookie valorant = signupAndLogin(newLoginId());
-        Cookie viewer = signupAndLogin(newLoginId());
+        Cookie first = login(newNickname());
+        Cookie second = login(newNickname());
+        Cookie third = login(newNickname());
+        Cookie valorant = login(newNickname());
+        Cookie viewer = login(newNickname());
         Long oldest = createLolPost(first);
         Long expired = createLolPost(second);
         Long newest = createLolPost(third);
@@ -148,10 +148,10 @@ class PostBoardTest extends PostTestSupport {
     @DisplayName("글과 방은 같이 태어난다 — 방금 쓴 글도 방장이 들어 있다. 방장 키가 사라지면 그 자리에서 만료된다 — 기다려 주는 시간이 없다(2026-09-25 2단계)")
     void expiresAsSoonAsTheRoomIsGone() throws Exception
     {
-        String host = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
+        String host = newNickname();
+        Cookie hostCookie = login(host);
         Long hostId = userIdOf(host);
-        Cookie viewer = signupAndLogin(newLoginId());
+        Cookie viewer = login(newNickname());
         Long postId = createLolPost(hostCookie);
 
         JsonNode fresh = find(list(viewer, "LOL"), postId);
@@ -181,11 +181,11 @@ class PostBoardTest extends PostTestSupport {
     @DisplayName("오래 전에 만료 · 확정된 글도 목록에 그대로 남는다 — 보존 기간이 없다(2026-09-25 소유자 결정)")
     void closedPostsStayOnTheBoardForever() throws Exception
     {
-        String host = newLoginId();
-        String otherHost = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        Cookie otherCookie = signupAndLogin(otherHost);
-        Cookie viewer = signupAndLogin(newLoginId());
+        String host = newNickname();
+        String otherHost = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie otherCookie = login(otherHost);
+        Cookie viewer = login(newNickname());
         Long hostId = userIdOf(host);
         Long expired = createLolPost(hostCookie);
         Long confirmed = createLolPost(otherCookie);
@@ -220,10 +220,10 @@ class PostBoardTest extends PostTestSupport {
     @DisplayName("방에 방장 말고 누가 있으면 글을 고칠 수 없다(409 ROOM_HAS_OTHER_MEMBERS) — 방장 혼자거나 방이 사라졌으면 고쳐지고, 그 사람이 나가면 다시 고쳐진다")
     void noEditWhileOthersInRoom() throws Exception
     {
-        String host = newLoginId();
-        String guest = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        signupAndLogin(guest);
+        String host = newNickname();
+        String guest = newNickname();
+        Cookie hostCookie = login(host);
+        login(guest);
         Long hostId = userIdOf(host);
         Long guestId = userIdOf(guest);
         Long postId = createLolPost(hostCookie);
@@ -258,10 +258,10 @@ class PostBoardTest extends PostTestSupport {
     @DisplayName("방장 · 상태 검사가 방 안 사람 검사보다 먼저다 — 방에 사람이 있어도 남의 글은 403, 만료된 글은 409 POST_NOT_RECRUITING 이다")
     void hostAndStatusCheckedBeforeRoom() throws Exception
     {
-        String host = newLoginId();
-        String guest = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        Cookie guestCookie = signupAndLogin(guest);
+        String host = newNickname();
+        String guest = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie guestCookie = login(guest);
         Long hostId = userIdOf(host);
         Long guestId = userIdOf(guest);
         Long postId = createLolPost(hostCookie);
@@ -285,16 +285,16 @@ class PostBoardTest extends PostTestSupport {
     @DisplayName("차단 — 방 안의 누구든 · 어느 방향이든 걸리면 목록에서 빠지고 단건 · 입장이 404 다. 풀면 다시 보이고 들어갈 수 있다. 내가 쓴 글은 빠지지 않는다")
     void blockHidesPost() throws Exception
     {
-        String host = newLoginId();
-        String member = newLoginId();
-        String iBlockMember = newLoginId();
-        String memberBlocksMe = newLoginId();
-        String bystander = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        Cookie memberCookie = signupAndLogin(member);
-        Cookie iBlockMemberCookie = signupAndLogin(iBlockMember);
-        Cookie memberBlocksMeCookie = signupAndLogin(memberBlocksMe);
-        Cookie bystanderCookie = signupAndLogin(bystander);
+        String host = newNickname();
+        String member = newNickname();
+        String iBlockMember = newNickname();
+        String memberBlocksMe = newNickname();
+        String bystander = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie memberCookie = login(member);
+        Cookie iBlockMemberCookie = login(iBlockMember);
+        Cookie memberBlocksMeCookie = login(memberBlocksMe);
+        Cookie bystanderCookie = login(bystander);
         Long hostId = userIdOf(host);
         Long memberId = userIdOf(member);
         Long postId = createLolPost(hostCookie);
@@ -331,11 +331,11 @@ class PostBoardTest extends PostTestSupport {
     @DisplayName("방장 혼자인 글과 만료된 글(멤버를 비운다)은 방장과의 사이를 본다")
     void blockAgainstHostOnly() throws Exception
     {
-        String host = newLoginId();
-        String blocked = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        Cookie blockedByHost = signupAndLogin(blocked);
-        Cookie viewer = signupAndLogin(newLoginId());
+        String host = newNickname();
+        String blocked = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie blockedByHost = login(blocked);
+        Cookie viewer = login(newNickname());
         Long postId = createLolPost(hostCookie);
         block(hostCookie, userIdOf(blocked));
 
@@ -354,11 +354,11 @@ class PostBoardTest extends PostTestSupport {
     @DisplayName("자가 치유 — 목록이 '모집 중인데 확정 표시 키가 있는 글'(확정의 커밋이 실패했다)을 보면 그 자리에서 기록한다. 확정된 글은 방장 키가 없어져도 만료되지 않는다")
     void listDiscoversConfirmation() throws Exception
     {
-        String host = newLoginId();
-        String member = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        signup(member, PASSWORD, nicknameOf(member)).andExpect(status().isCreated());
-        Cookie viewer = signupAndLogin(newLoginId());
+        String host = newNickname();
+        String member = newNickname();
+        Cookie hostCookie = login(host);
+        insertUser(member);
+        Cookie viewer = login(newNickname());
         Long hostId = userIdOf(host);
         Long memberId = userIdOf(member);
         Long postId = createLolPost(hostCookie);
@@ -392,8 +392,8 @@ class PostBoardTest extends PostTestSupport {
     @DisplayName("자가 치유 — 확정 표시 키는 있는데 멤버 SET 이 비어 있으면(이미 다 나갔다) 방장만 파티원으로 기록한다")
     void healWithEmptyMembers() throws Exception
     {
-        String host = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
+        String host = newNickname();
+        Cookie hostCookie = login(host);
         Long hostId = userIdOf(host);
         Long postId = createLolPost(hostCookie);
         redisTemplate.delete(membersKey(postId));
@@ -409,10 +409,10 @@ class PostBoardTest extends PostTestSupport {
     @DisplayName("방장 확정 요청과 목록(자가 치유)을 여러 스레드가 동시에 불러도 파티는 하나이고 파티원은 한 벌이다")
     void concurrentConfirms() throws Exception
     {
-        String host = newLoginId();
-        String member = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        Cookie memberCookie = signupAndLogin(member);
+        String host = newNickname();
+        String member = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie memberCookie = login(member);
         Long hostId = userIdOf(host);
         Long memberId = userIdOf(member);
         Long postId = createLolPost(hostCookie);
@@ -466,10 +466,10 @@ class PostBoardTest extends PostTestSupport {
     @DisplayName("글의 읽기는 방 키에 쓰지 않는다 — 목록 · 단건 · 거절된 고치기를 돈 뒤에도 qm:room:* · qm:user:* · qm:party:* 키가 그대로이고 값 · 수명도 그대로다")
     void readsNeverWriteRoomKeys() throws Exception
     {
-        String host = newLoginId();
-        String member = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        Cookie memberCookie = signupAndLogin(member);
+        String host = newNickname();
+        String member = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie memberCookie = login(member);
         Long hostId = userIdOf(host);
         Long memberId = userIdOf(member);
         Long postId = createLolPost(hostCookie);
@@ -499,15 +499,15 @@ class PostBoardTest extends PostTestSupport {
     @DisplayName("목록의 SQL 문장 수는 글 수 · 사람 수에 비례해 늘지 않는다 — 글 · 찾는 포지션 · 프로필(게임마다) · 차단")
     void listDoesNotIssueQueriesPerPost() throws Exception
     {
-        Cookie viewer = signupAndLogin(newLoginId());
+        Cookie viewer = login(newNickname());
         List<Long> posts = new ArrayList<>();
         for(int i = 0; i < 5; i++)
         {
-            String host = newLoginId();
-            String member = newLoginId();
-            Cookie hostCookie = signupAndLogin(host);
+            String host = newNickname();
+            String member = newNickname();
+            Cookie hostCookie = login(host);
             putGameAccount(hostCookie, "LOL", json("gameNickname", "h" + i, "mainPosition", "MID"));
-            putGameAccount(signupAndLogin(member), "LOL", json("gameNickname", "m" + i, "mainPosition", "TOP"));
+            putGameAccount(login(member), "LOL", json("gameNickname", "m" + i, "mainPosition", "TOP"));
             Long postId = createLolPost(hostCookie, "TOP", "MID");
             openRoom(postId, userIdOf(host), userIdOf(member), unknownUserId());
             posts.add(postId);

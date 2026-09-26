@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit;
  * <p><b>찍는 때는 긁기를 시작할 때다 — 실패해도 소모된다</b>(소유자 결정). 실패한 갱신만 무제한으로 다시 할 수 있으면
  * Riot 이 거절하는 동안 그 계정으로 한도를 계속 태울 수 있다.
  *
- * <p><b>Redis 가 죽으면 제한 없이 통과시킨다</b> — 로그인 실패 제한({@code account.service.LoginThrottle})과 같은 원칙이고,
+ * <p><b>Redis 가 죽으면 제한 없이 통과시킨다</b> — refresh 토큰의 발급 · 폐기({@code common.security.RefreshTokens})와 같은 원칙이고,
  * 전적 동기화의 자물쇠도 Redis 에 묻지 못하면 락 없이 진행한다. 그래서 이 클래스는 예외를 밖으로 내보내지 않는다.
  */
 @Slf4j

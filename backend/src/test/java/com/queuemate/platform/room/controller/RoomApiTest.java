@@ -82,9 +82,9 @@ class RoomApiTest extends RoomTestSupport {
     @DisplayName("방 만들기 요청(POST /api/v1/rooms/{roomId})은 없다 — 404 NOT_FOUND 이고 방이 생기지 않는다(2026-09-25 2단계 · 게시판의 방은 글 쓰기가 만든다)")
     void noCreateRequest() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
-        adopt("host", userIdOf(loginId));
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
+        adopt("host", userIdOf(nickname));
 
         mockMvc.perform(post("/api/v1/rooms/{roomId}", r("r1")).cookie(cookie))
                 .andExpect(status().isNotFound())
@@ -97,8 +97,8 @@ class RoomApiTest extends RoomTestSupport {
     @DisplayName("멤버 SET · 입장 표시 키에 쿠키의 사용자 번호가 들어간다. ?userId= 는 없다 — 붙여 보내도 무시된다")
     void userComesFromTheCookie() throws Exception
     {
-        String member = newLoginId();
-        Cookie memberCookie = signupAndLogin(member);
+        String member = newNickname();
+        Cookie memberCookie = login(member);
         String hostId = u("host");
         String memberId = adopt("member", userIdOf(member));
         roomService.create(r("r1"), hostId);
@@ -129,12 +129,12 @@ class RoomApiTest extends RoomTestSupport {
     @DisplayName("거절은 계약의 상태 코드 · 에러 코드로 나간다 — 403 NOT_HOST · 403 NOT_IN_ROOM · 404 ROOM_NOT_FOUND · 404 TARGET_NOT_IN_ROOM")
     void rejectionsFollowTheContract() throws Exception
     {
-        String host = newLoginId();
-        String member = newLoginId();
-        String stranger = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        Cookie memberCookie = signupAndLogin(member);
-        Cookie strangerCookie = signupAndLogin(stranger);
+        String host = newNickname();
+        String member = newNickname();
+        String stranger = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie memberCookie = login(member);
+        Cookie strangerCookie = login(stranger);
         String hostId = adopt("host", userIdOf(host));
         String memberId = adopt("member", userIdOf(member));
         adopt("stranger", userIdOf(stranger));
@@ -172,7 +172,7 @@ class RoomApiTest extends RoomTestSupport {
     @DisplayName("시그널 본문이 틀리면 400 VALIDATION_FAILED 다 — 2026-09-25 2단계로 방의 INVALID_REQUEST 를 이 앱의 공통 코드로 합쳤다")
     void invalidSignalIsValidationFailed() throws Exception
     {
-        Cookie cookie = signupAndLogin(newLoginId());
+        Cookie cookie = login(newNickname());
 
         mockMvc.perform(post("/api/v1/rooms/{roomId}/signals", r("r1")).cookie(cookie)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"signal\":{}}"))
@@ -189,9 +189,9 @@ class RoomApiTest extends RoomTestSupport {
     @DisplayName("허용하지 않는 Origin 의 방 요청은 403 ORIGIN_NOT_ALLOWED 이고 들어가지지 않는다")
     void foreignOriginIsRejected() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
-        adopt("member", userIdOf(loginId));
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
+        adopt("member", userIdOf(nickname));
         roomService.create(r("r1"), u("host"));
 
         mockMvc.perform(post("/api/v1/rooms/{roomId}/members", r("r1")).cookie(cookie).header(HttpHeaders.ORIGIN, "https://evil.example"))

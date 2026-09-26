@@ -2,10 +2,8 @@ package com.queuemate.platform.account;
 
 import com.queuemate.platform.ApiTestSupport;
 import com.queuemate.platform.account.dto.AuthResponse;
-import com.queuemate.platform.account.repository.CredentialRepository;
 import com.queuemate.platform.account.repository.UserRepository;
 import com.queuemate.platform.account.service.AuthService;
-import com.queuemate.platform.account.service.LoginThrottle;
 import com.queuemate.platform.common.security.AccessTokenIssuer;
 import com.queuemate.platform.common.security.JwtProperties;
 import com.queuemate.platform.common.security.RefreshTokens;
@@ -19,7 +17,6 @@ import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.http.HttpHeaders;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -61,15 +58,6 @@ class RefreshTokenApiTest extends ApiTestSupport {
     @Autowired
     UserRepository userRepository;
 
-    @Autowired
-    CredentialRepository credentialRepository;
-
-    @Autowired
-    PasswordEncoder passwordEncoder;
-
-    @Autowired
-    LoginThrottle loginThrottle;
-
     @Test
     @DisplayName("수명은 설정대로다 — access 15분 · refresh 7일(P7D 가 Duration 으로 바인딩된다)")
     void ttlsAreBound()
@@ -84,17 +72,13 @@ class RefreshTokenApiTest extends ApiTestSupport {
     @DisplayName("로그인이 준 refresh 로 재발급하면 200 + 새 access · 새 refresh 이고, 그 access 로 users/me 를 읽는다")
     void refreshRotatesBothCookies() throws Exception
     {
-        String loginId = newLoginId();
-        signup(loginId, PASSWORD, nicknameOf(loginId)).andExpect(status().isCreated());
-        Long userId = userIdOf(loginId);
-
-        MvcResult loggedIn = login(loginId, PASSWORD).andExpect(status().isOk()).andReturn();
-        Cookie oldRefresh = refreshCookieOf(loggedIn);
-        Cookie oldAccess = loggedIn.getResponse().getCookie("qm_access");
-        assertThat(oldRefresh).isNotNull();
+        String nickname = newNickname();
+        Cookie oldAccess = login(nickname);
+        Cookie oldRefresh = refreshCookieFor(nickname);
+        Long userId = userIdOf(nickname);
         // 값은 불투명한 UUID 다 — 사용자 정보가 들어 있지 않다(사용자 번호는 Redis 의 값에만 있다 — 아래)
         assertThat(UUID.fromString(oldRefresh.getValue())).isNotNull();
-        assertThat(oldRefresh.getValue()).doesNotContain(loginId);
+        assertThat(oldRefresh.getValue()).doesNotContain(nickname);
         // Redis 의 줄은 사용자 번호이고 수명이 7일이다
         assertThat(redisTemplate.opsForValue().get("qm:auth:refresh:" + oldRefresh.getValue()))
                 .isEqualTo(String.valueOf(userId));
@@ -105,9 +89,8 @@ class RefreshTokenApiTest extends ApiTestSupport {
         MvcResult refreshed = refresh(oldRefresh)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(org.hamcrest.Matchers.equalTo(userId), Long.class))
-                .andExpect(jsonPath("$.loginId").value(loginId))
-                .andExpect(jsonPath("$.nickname").value(nicknameOf(loginId)))
-                // 토큰은 본문에 싣지 않는다 — 로그인과 같은 본문이다
+                .andExpect(jsonPath("$.nickname").value(nickname))
+                // 토큰은 본문에 싣지 않는다 — 소셜 가입과 같은 본문이다
                 .andExpect(jsonPath("$.token").doesNotExist())
                 .andReturn();
 
@@ -136,7 +119,7 @@ class RefreshTokenApiTest extends ApiTestSupport {
     @DisplayName("같은 refresh 를 두 번 쓰면 두 번째는 401 이다 — rotation")
     void reuseIsRejected() throws Exception
     {
-        Cookie refreshCookie = loginAndGetRefresh(newLoginId());
+        Cookie refreshCookie = refreshCookieFor(newNickname());
 
         MvcResult first = refresh(refreshCookie).andExpect(status().isOk()).andReturn();
         refreshCookieOf(first);
@@ -148,14 +131,14 @@ class RefreshTokenApiTest extends ApiTestSupport {
     @DisplayName("쿠키가 없든 · 아무 문자열이든 · 이미 쓴 값이든 · 사용자가 사라졌든 글자까지 같은 401 INVALID_REFRESH_TOKEN 이고, 그때도 refresh 쿠키를 지운다")
     void everyFailureLooksTheSame() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie used = loginAndGetRefresh(loginId);
+        String nickname = newNickname();
+        Cookie used = refreshCookieFor(nickname);
         refreshCookieOf(refresh(used).andExpect(status().isOk()).andReturn());
 
         // 계정이 사라진 사람의 refresh — 값은 Redis 에 멀쩡히 있다
-        String deletedLoginId = newLoginId();
-        Cookie orphaned = loginAndGetRefresh(deletedLoginId);
-        jdbcTemplate.update("delete from users where id = ?", userIdOf(deletedLoginId));
+        String deletedNickname = newNickname();
+        Cookie orphaned = refreshCookieFor(deletedNickname);
+        jdbcTemplate.update("delete from users where id = ?", userIdOf(deletedNickname));
         assertThat(refreshTokenStored(orphaned.getValue())).isTrue();
 
         List<MvcResult> failures = List.of(
@@ -197,8 +180,8 @@ class RefreshTokenApiTest extends ApiTestSupport {
     @DisplayName("로그아웃하면 Redis 의 그 키가 없어지고 그 refresh 로는 재발급이 401 이다")
     void logoutRevokesRefresh() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie refreshCookie = loginAndGetRefresh(loginId);
+        String nickname = newNickname();
+        Cookie refreshCookie = refreshCookieFor(nickname);
         assertThat(refreshTokenStored(refreshCookie.getValue())).isTrue();
 
         mockMvc.perform(post("/api/v1/auth/logout").cookie(refreshCookie)).andExpect(status().isNoContent());
@@ -206,15 +189,15 @@ class RefreshTokenApiTest extends ApiTestSupport {
         assertThat(refreshTokenStored(refreshCookie.getValue())).isFalse();
         expectInvalidRefresh(refresh(refreshCookie));
         // 다시 로그인하면 새 값이 나온다 — 계정이 잠긴 것이 아니다
-        assertThat(loginAndGetRefresh(loginId).getValue()).isNotEqualTo(refreshCookie.getValue());
+        assertThat(refreshCookieFor(nickname).getValue()).isNotEqualTo(refreshCookie.getValue());
     }
 
     @Test
     @DisplayName("로그아웃은 남의 refresh 를 지우지 않는다 — 자기 쿠키에 담긴 값만 버린다")
     void logoutOnlyRevokesItsOwn() throws Exception
     {
-        Cookie mine = loginAndGetRefresh(newLoginId());
-        Cookie other = loginAndGetRefresh(newLoginId());
+        Cookie mine = refreshCookieFor(newNickname());
+        Cookie other = refreshCookieFor(newNickname());
 
         mockMvc.perform(post("/api/v1/auth/logout").cookie(mine)).andExpect(status().isNoContent());
 
@@ -227,9 +210,9 @@ class RefreshTokenApiTest extends ApiTestSupport {
     @DisplayName("Redis 를 못 쓰면 로그인은 성공하고(access 하나만) 재발급은 401 이다 — fail-closed")
     void redisDown() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie realRefresh = loginAndGetRefresh(loginId);
-        Long userId = userIdOf(loginId);
+        String nickname = newNickname();
+        Cookie realRefresh = refreshCookieFor(nickname);
+        Long userId = userIdOf(nickname);
 
         RefreshTokens broken = new RefreshTokens(brokenRedis(), jwtProperties, webSecurityProperties);
 
@@ -240,14 +223,12 @@ class RefreshTokenApiTest extends ApiTestSupport {
         assertThat(broken.issue(userId)).isEmpty();
 
         // 확인할 방법이 없는 값을 통과시키지 않는다. 멀쩡한 값이어도 거절한다
-        AuthService service = new AuthService(userRepository, credentialRepository, passwordEncoder, loginThrottle,
-                broken);
+        AuthService service = new AuthService(userRepository, broken);
         assertThat(service.refresh(realRefresh.getValue())).isEmpty();
         assertThat(broken.consume(realRefresh.getValue())).isEmpty();
         // 못 읽었을 뿐이므로 값은 그대로 살아 있다 — Redis 가 돌아오면 그 refresh 로 다시 재발급할 수 있다
         assertThat(refreshTokenStored(realRefresh.getValue())).isTrue();
-        Optional<AuthResponse> healthy = new AuthService(userRepository, credentialRepository, passwordEncoder,
-                loginThrottle, refreshTokens).refresh(realRefresh.getValue());
+        Optional<AuthResponse> healthy = new AuthService(userRepository, refreshTokens).refresh(realRefresh.getValue());
         assertThat(healthy).isPresent();
 
         // 로그아웃은 Redis 가 죽어도 조용히 지나간다
@@ -270,19 +251,6 @@ class RefreshTokenApiTest extends ApiTestSupport {
                 throw new RedisConnectionFailureException("테스트 — Redis 가 죽었다");
             }
         };
-    }
-
-    /** 가입 · 로그인하고 <b>refresh 쿠키</b>를 돌려준다 */
-    private Cookie loginAndGetRefresh(String loginId) throws Exception
-    {
-        if(userIdOf(loginId) == null)
-        {
-            signup(loginId, PASSWORD, nicknameOf(loginId)).andExpect(status().isCreated());
-        }
-        MvcResult result = login(loginId, PASSWORD).andExpect(status().isOk()).andReturn();
-        Cookie cookie = refreshCookieOf(result);
-        assertThat(cookie).isNotNull();
-        return cookie;
     }
 
     private ResultActions refresh(Cookie refreshCookie) throws Exception

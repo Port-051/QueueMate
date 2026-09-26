@@ -45,7 +45,7 @@ class PostPagingTest extends PostTestSupport {
     @DisplayName("limit 이 없으면 20개다. nextCursor 로 나머지가 오고 그 다음은 null 이다 — 두 페이지에 같은 글이 없고 빠진 글도 없다")
     void defaultLimitThenCursor() throws Exception
     {
-        Cookie viewer = signupAndLogin(newLoginId());
+        Cookie viewer = login(newNickname());
         List<Long> all = insertPosts(25, "LOL", "paging");
 
         JsonNode first = listPage(viewer, "LOL", null, null);
@@ -68,7 +68,7 @@ class PostPagingTest extends PostTestSupport {
     @DisplayName("1페이지를 받은 뒤 새 글이 올라와도 2페이지에 중복 · 누락이 없다 — offset 이면 깨지는 자리다")
     void cursorIsNotOffset() throws Exception
     {
-        Cookie viewer = signupAndLogin(newLoginId());
+        Cookie viewer = login(newNickname());
         // 먼저 넣은 글이 곧 오래된 글이다 — 정렬이 id 내림차순이다. 시각도 같은 방향으로 벌려 둔다
         List<Long> before = insertPosts(15, "LOL", "before", Instant.now().minusSeconds(60));
 
@@ -99,8 +99,8 @@ class PostPagingTest extends PostTestSupport {
     @DisplayName("차단으로 숨겨진 글이 섞여 있어도 limit 만큼 채워 준다 — nextCursor 는 '마지막으로 읽은 줄'이라 숨겨진 글을 다시 읽지 않는다")
     void refillsToTheLimit() throws Exception
     {
-        String viewerId = newLoginId();
-        Cookie viewer = signupAndLogin(viewerId);
+        String viewerId = newNickname();
+        Cookie viewer = login(viewerId);
         List<Long> posts = insertPosts(12, "LOL", "refill");
         // 맨 위 둘과 가운데 둘이 숨겨진 글이다 — 한 페이지(limit 4)를 채우려면 그 뒤를 더 읽어야 한다
         List<Long> hidden = List.of(posts.get(0), posts.get(1), posts.get(5), posts.get(6));
@@ -128,8 +128,8 @@ class PostPagingTest extends PostTestSupport {
     @DisplayName("채우기의 상한(max-refills=3)을 다 써도 모자라면 있는 만큼(빈 목록도) 준다 — nextCursor 로 이어 받으면 나머지가 온다")
     void refillStopsAtTheLimitButTheCursorGoesOn() throws Exception
     {
-        String viewerId = newLoginId();
-        Cookie viewer = signupAndLogin(viewerId);
+        String viewerId = newNickname();
+        Cookie viewer = login(viewerId);
         List<Long> posts = insertPosts(22, "LOL", "wall");
         // 앞의 스물이 전부 숨겨진 글이다 — limit 4 라면 한 번의 조회로는(첫 읽기 + 채우기 3번) 벽을 넘지 못한다
         for(int i = 0; i < 20; i++)
@@ -153,7 +153,7 @@ class PostPagingTest extends PostTestSupport {
     @DisplayName("limit 의 경계 — 1 · 100 은 되고 0 · 101 · 숫자가 아닌 값은 400 VALIDATION_FAILED(details 에 limit)")
     void limitBounds() throws Exception
     {
-        Cookie viewer = signupAndLogin(newLoginId());
+        Cookie viewer = login(newNickname());
         List<Long> all = insertPosts(3, "LOL", "bounds");
 
         JsonNode one = listPage(viewer, "LOL", 1, null);
@@ -177,7 +177,7 @@ class PostPagingTest extends PostTestSupport {
     @DisplayName("game 을 안 보내면 400 VALIDATION_FAILED(details 에 game)다 — 게시판은 게임별 페이지라 '전체' 가 없다")
     void gameIsRequired() throws Exception
     {
-        Cookie viewer = signupAndLogin(newLoginId());
+        Cookie viewer = login(newNickname());
         insertPosts(2, "LOL", "required");
 
         mockMvc.perform(get("/api/v1/posts").cookie(viewer))
@@ -197,7 +197,7 @@ class PostPagingTest extends PostTestSupport {
     @DisplayName("모르는 게임 이름은 400 VALIDATION_FAILED(details 에 game)다 — 소문자도 그렇다(계약의 이름은 대문자다)")
     void unknownGameIsRejected() throws Exception
     {
-        Cookie viewer = signupAndLogin(newLoginId());
+        Cookie viewer = login(newNickname());
 
         // 소문자를 받아 주는 변환기를 두지 않았다 — 스프링의 기본 enum 변환이 대소문자를 가린다(Game#fromName 도 같다)
         for(String bad : List.of("LOLL", "OVERWATCH", "lol", "Lol", "0"))
@@ -216,7 +216,7 @@ class PostPagingTest extends PostTestSupport {
     @DisplayName("숫자가 아닌 커서는 400 VALIDATION_FAILED(details 에 cursor)다 — 형 변환에서 떨어진다. 빈 값은 맨 위부터다")
     void brokenCursorIsRejected() throws Exception
     {
-        Cookie viewer = signupAndLogin(newLoginId());
+        Cookie viewer = login(newNickname());
         List<Long> all = insertPosts(2, "LOL", "cursor");
 
         List<String> broken = List.of(
@@ -246,7 +246,7 @@ class PostPagingTest extends PostTestSupport {
     @DisplayName("0 · 음수 커서는 400 이 아니라 빈 페이지다 — 따로 막지 않는다(막아도 알려 줄 것이 없다)")
     void nonPositiveCursorIsAnEmptyPage() throws Exception
     {
-        Cookie viewer = signupAndLogin(newLoginId());
+        Cookie viewer = login(newNickname());
         List<Long> all = insertPosts(2, "LOL", "nonpositive");
 
         // id < 0 이 아무것도 고르지 못하는 것이고, 맨 끝 글의 번호를 커서로 준 것과 구별되지 않는다 — 그래서 에러로 가르지 않는다
@@ -265,7 +265,7 @@ class PostPagingTest extends PostTestSupport {
     @DisplayName("정렬은 최신순 하나다 — 만료된 글이 사이에 끼어 있어도 제자리이고, 페이지 경계를 넘어도 같다. game 필터와 같이 쓴다")
     void orderAcrossPagesWithGameFilter() throws Exception
     {
-        Cookie viewer = signupAndLogin(newLoginId());
+        Cookie viewer = login(newNickname());
         List<Long> lol = insertPosts(7, "LOL", "order");
         List<Long> other = insertPosts(2, "VALORANT", "valorant");
         // 둘째와 다섯째만 만료다 — 끝난 글도 목록에 남고(2026-09-25 소유자 결정) 맨 아래로 내려가지 않는다. 제자리다(2026-09-24 소유자 결정)
@@ -284,8 +284,8 @@ class PostPagingTest extends PostTestSupport {
     @DisplayName("1쪽에 나간 글이 그 사이 만료돼도 2쪽에 다시 나오지 않는다 — 정렬에 상태를 쓰면 깨지는 자리다(2026-09-24)")
     void expiredBetweenPagesIsNotShownTwice() throws Exception
     {
-        Cookie viewer = signupAndLogin(newLoginId());
-        Cookie other = signupAndLogin(newLoginId());
+        Cookie viewer = login(newNickname());
+        Cookie other = login(newNickname());
         List<Long> all = insertPosts(6, "LOL", "expiring");
         // 글마다 방이 떠 있다(insertRecruitPost 가 연다) — 방장 키가 사라지면 목록이 그 자리에서 만료로 옮겨 적는다
 
@@ -315,7 +315,7 @@ class PostPagingTest extends PostTestSupport {
     @DisplayName("목록의 SQL 문장 수는 페이지 크기에 비례해 늘지 않는다 — 글 · 찾는 포지션 · 프로필 · 차단으로 같다")
     void statementCountDoesNotGrowWithPageSize() throws Exception
     {
-        Cookie viewer = signupAndLogin(newLoginId());
+        Cookie viewer = login(newNickname());
         insertPosts(25, "LOL", "statements");
 
         Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();

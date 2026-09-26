@@ -117,7 +117,7 @@ public class SocialAuthController {
             if(linkedUserId.isPresent())
             {
                 log.info("소셜 로그인 userId={} provider={}", linkedUserId.get(), provider.get());
-                // 비밀번호 로그인과 같은 쿠키 둘이다 — access 와 refresh
+                // 쿠키 둘이다 — access 와 refresh
                 return redirect(FRONT_HOME, sessionCookies.login(linkedUserId.get()));
             }
             String signupToken = socialSignupTokens.issue(provider.get(), user);
@@ -141,7 +141,7 @@ public class SocialAuthController {
     }
 
     /**
-     * 로그인 아이디 · 닉네임을 정해 가입한다. <b>곧바로 로그인시킨다</b>({@code qm_access} · {@code qm_refresh}) — 비밀번호가 없어 따로 로그인할 길이 없다.
+     * 닉네임을 정해 가입한다. <b>곧바로 로그인시킨다</b>({@code qm_access} · {@code qm_refresh}) — 다시 소셜 로그인을 타게 하지 않는다.
      * {@code qm_social_signup} 은 지운다. POST 라서 {@code Origin} 검사를 거친다.
      */
     @PostMapping("/social/signup")

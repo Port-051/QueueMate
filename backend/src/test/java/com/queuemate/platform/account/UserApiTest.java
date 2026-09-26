@@ -28,21 +28,20 @@ class UserApiTest extends ApiTestSupport {
     @DisplayName("닉네임을 바꾸면 GET 과 같은 모양이 온다. 남이 쓰는 닉네임이면 409 NICKNAME_TAKEN 이고 바뀌지 않는다")
     void changeNickname() throws Exception
     {
-        String me = newLoginId();
-        String other = newLoginId();
-        Cookie cookie = signupAndLogin(me);
-        signup(other, PASSWORD, nicknameOf(other)).andExpect(status().isCreated());
+        String me = newNickname();
+        String other = newNickname();
+        Cookie cookie = login(me);
+        insertUser(other);
         String renamed = "r" + me.substring(1);
 
         patchNickname(cookie, renamed)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(equalTo(userIdOf(me)), Long.class))
-                .andExpect(jsonPath("$.loginId").value(me))
                 .andExpect(jsonPath("$.nickname").value(renamed))
                 .andExpect(jsonPath("$.createdAt").isString())
                 .andExpect(jsonPath("$.gameAccounts").isArray());
 
-        patchNickname(cookie, nicknameOf(other))
+        patchNickname(cookie, other)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("NICKNAME_TAKEN"));
         // 지금 내 닉네임으로 다시 바꾸는 것은 충돌이 아니다
@@ -58,8 +57,8 @@ class UserApiTest extends ApiTestSupport {
     @DisplayName("게임 계정 PUT 은 없으면 만들고 있으면 바꾼다 — 두 번 불러도 한 줄이다")
     void putGameAccountTwice() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
 
         putGameAccount(cookie, "LOL", json("gameNickname", "Hide on bush", "tier", "GOLD_1", "mainPosition", "MID"))
                 .andExpect(status().isOk())
@@ -82,7 +81,7 @@ class UserApiTest extends ApiTestSupport {
 
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from game_accounts where user_id = ? and game = 'LOL'",
-                Integer.class, userIdOf(loginId))).isEqualTo(1);
+                Integer.class, userIdOf(nickname))).isEqualTo(1);
         // 게임 이름순으로 온다
         mockMvc.perform(get("/api/v1/users/me").cookie(cookie))
                 .andExpect(status().isOk())
@@ -99,7 +98,7 @@ class UserApiTest extends ApiTestSupport {
     @DisplayName("그 게임의 포지션이 아니면 400 이다. PUBG 는 포지션을 받지 않는다")
     void invalidGameAccount() throws Exception
     {
-        Cookie cookie = signupAndLogin(newLoginId());
+        Cookie cookie = login(newNickname());
 
         // VALORANT 의 역할을 LOL 에
         putGameAccount(cookie, "LOL", json("gameNickname", "x", "tier", "GOLD_1", "mainPosition", "DUELIST"))
@@ -135,7 +134,7 @@ class UserApiTest extends ApiTestSupport {
     @DisplayName("게임 계정 DELETE 는 두 번 다 204 다 — 없어도 성공이다")
     void deleteGameAccountTwice() throws Exception
     {
-        Cookie cookie = signupAndLogin(newLoginId());
+        Cookie cookie = login(newNickname());
         putGameAccount(cookie, "LOL", json("gameNickname", "x", "tier", "GOLD_1", "mainPosition", "TOP"))
                 .andExpect(status().isOk());
 
@@ -150,10 +149,10 @@ class UserApiTest extends ApiTestSupport {
     @DisplayName("남의 게임 계정은 건드려지지 않는다 — '나'는 토큰에서 온다")
     void gameAccountsAreScopedToTheCaller() throws Exception
     {
-        String mine = newLoginId();
-        String theirs = newLoginId();
-        Cookie myCookie = signupAndLogin(mine);
-        Cookie theirCookie = signupAndLogin(theirs);
+        String mine = newNickname();
+        String theirs = newNickname();
+        Cookie myCookie = login(mine);
+        Cookie theirCookie = login(theirs);
         putGameAccount(theirCookie, "LOL", json("gameNickname", "theirs", "tier", null, "mainPosition", null))
                 .andExpect(status().isOk());
 

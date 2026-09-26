@@ -14,7 +14,7 @@ import java.util.UUID;
 /**
  * <b>같은 게임 계정을 동시에 여러 번 긁지 않게 하는 자물쇠.</b> 키는 {@code qm:riot:sync:{gameAccountId}} 이고
  * {@code SET … NX EX 60} 으로 잡는다 ({@code contracts/platform-api.md} "게임 프로필"). 접두사 {@code qm:riot:*} 는 이 앱의 것이다 —
- * {@code qm:auth:*}(로그인 실패 제한 · refresh)와 같은 자리이고, {@code matching} 의 {@code qm:user:*} · {@code room} 의 {@code qm:room:*} 와 겹치지 않는다.
+ * {@code qm:auth:*}(refresh)와 같은 자리이고, {@code matching} 의 {@code qm:user:*} · {@code room} 의 {@code qm:room:*} 와 겹치지 않는다.
  *
  * <p><b>못 잡으면 줄 서지 않고 건너뛴다</b> — 지금 누군가 같은 계정을 긁고 있으니 한 번 더 긁을 이유가 없다.
  *

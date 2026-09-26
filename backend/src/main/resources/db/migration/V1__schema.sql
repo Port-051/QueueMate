@@ -9,14 +9,16 @@
 -- 이 파일부터는 다시 "이미 적용된 파일은 고치지 않는다"(체크섬이 달라져 기동이 막힌다) — 바꿀 것은 새 버전(V2 …)으로 쓴다.
 --
 -- 제약 · 인덱스에 전부 이름을 붙였다 — 앱이 위반을 그 이름으로 가려 에러 코드로 옮긴다
--- (users_login_id_key → LOGIN_ID_TAKEN · users_nickname_key → NICKNAME_TAKEN · blocks_blocker_blocked_key → ALREADY_BLOCKED ·
+-- (users_nickname_key → NICKNAME_TAKEN · blocks_blocker_blocked_key → ALREADY_BLOCKED ·
 --  friend_requests_one_pending → FRIEND_REQUEST_ALREADY_SENT · recruit_posts_one_recruiting_per_host → ALREADY_RECRUITING ·
 --  사용자 번호로 가는 FK → USER_NOT_FOUND 등). 이름을 바꾸면 앱의 상수도 같이 바꾼다.
 --
--- 모든 테이블의 PK 는 bigint GENERATED ALWAYS AS IDENTITY 다(2026-09-22 소유자 결정). 사용자의 식별자는 둘로 갈린다 —
+-- 모든 테이블의 PK 는 bigint GENERATED ALWAYS AS IDENTITY 다(2026-09-22 소유자 결정).
+-- 식별자는 사용자 번호 하나 · 로그인은 소셜뿐이다(2026-09-26 소유자 결정 — 직접 가입 · 비밀번호 로그인 · 로그인 아이디를 없앴다).
 --   · users.id       : 사용자 번호. 시스템 안팎에서 쓰는 userId 가 이것이다 — JWT 의 sub(숫자를 문자열로), 알림 채널 qm:pubsub:push:{userId},
 --                      방 키 · 멤버 SET, URL 의 {userId}, 요청 · 응답 본문의 userId, 다른 테이블의 *_id 컬럼 전부
---   · users.login_id : 가입할 때 정한 로그인 아이디. 로그인할 때만 쓴다. 바꾸는 API 는 없다
+--   · users.nickname : 보여 주는 이름 하나. 사람을 찾는 열쇠가 아니다
+--   로그인은 소셜 계정(social_identities)으로만 한다 — 비밀번호가 없어 그 해시를 두는 테이블도 없다.
 --
 -- 롤 · GRANT 는 없다 — 스키마별 DB 롤은 두지 않는다(2026-09-22 소유자 결정). matching 은 별도 롤 없이 blocks 를 읽는다.
 -- reservation 의 테이블은 여기 넣지 않는다(app:reservation 의 것이다).
@@ -26,27 +28,13 @@
 -- 계정 (account 패키지)
 -- ============================================================================================
 
--- login_id 의 형식은 앱의 검증과 같은 CHECK 를 DB 에도 건다 — 앱을 거치지 않은 INSERT 도 막는다.
 CREATE TABLE users (
     id         bigint      GENERATED ALWAYS AS IDENTITY,
-    login_id   varchar(20) NOT NULL,
     nickname   varchar(16) NOT NULL,
     created_at timestamptz NOT NULL,
     updated_at timestamptz NOT NULL,
     CONSTRAINT users_pkey PRIMARY KEY (id),
-    CONSTRAINT users_login_id_key UNIQUE (login_id),
-    CONSTRAINT users_nickname_key UNIQUE (nickname),
-    CONSTRAINT users_login_id_format CHECK (login_id ~ '^[a-z0-9_]{4,20}$')
-);
-
--- 비밀번호 해시는 users 와 떼어 둔다 — 프로필을 읽는 조회가 해시를 같이 끌고 다니지 않게 한다.
--- {bcrypt} 접두사까지 68자다. 해시 방식을 바꿀 여유로 100 을 잡았다.
-CREATE TABLE credentials (
-    user_id       bigint       NOT NULL,
-    password_hash varchar(100) NOT NULL,
-    updated_at    timestamptz  NOT NULL,
-    CONSTRAINT credentials_pkey PRIMARY KEY (user_id),
-    CONSTRAINT credentials_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    CONSTRAINT users_nickname_key UNIQUE (nickname)
 );
 
 -- 게임마다 계정 하나다. tier 는 자기신고 문자열이고(값은 gameconfig 의 티어 사다리로 앱이 검증한다) main_position 은 방 안 사람 카드의 출처다.

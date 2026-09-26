@@ -61,10 +61,10 @@ class FriendPushTest extends FriendTestSupport {
     @DisplayName("요청을 보내면 받는 사람의 채널에 FRIEND_REQUEST_RECEIVED 가 온다 — 봉투는 네 칸이고 payload 는 {requestId, fromUserId} 뿐이다")
     void requestReceived() throws Exception
     {
-        String alice = newLoginId();
-        String bob = newLoginId();
-        Cookie aliceCookie = signupAndLogin(alice);
-        signupAndLogin(bob);
+        String alice = newNickname();
+        String bob = newNickname();
+        Cookie aliceCookie = login(alice);
+        login(bob);
         Long aliceId = userIdOf(alice);
         Long bobId = userIdOf(bob);
         subscribe(aliceId, bobId);
@@ -82,7 +82,7 @@ class FriendPushTest extends FriendTestSupport {
         assertThat(payload.get("fromUserId").isNumber()).isTrue();
         assertThat(payload.get("fromUserId").asLong()).isEqualTo(aliceId);
         // 데이터를 싣지 않는다 — "다시 조회하라"는 신호다
-        assertThat(message).doesNotContain("nickname").doesNotContain(nicknameOf(alice));
+        assertThat(message).doesNotContain("nickname").doesNotContain(alice);
         // 보낸 사람에게는 아무것도 가지 않는다. 받는 사람에게도 한 번뿐이다
         assertThat(drain(aliceId)).isEmpty();
         assertThat(drain(bobId)).isEmpty();
@@ -92,10 +92,10 @@ class FriendPushTest extends FriendTestSupport {
     @DisplayName("수락하면 보냈던 사람의 채널에 FRIEND_REQUEST_ACCEPTED 가 온다 — payload 는 {requestId, userId(수락한 사람)} 다")
     void requestAccepted() throws Exception
     {
-        String alice = newLoginId();
-        String bob = newLoginId();
-        Cookie aliceCookie = signupAndLogin(alice);
-        Cookie bobCookie = signupAndLogin(bob);
+        String alice = newNickname();
+        String bob = newNickname();
+        Cookie aliceCookie = login(alice);
+        Cookie bobCookie = login(bob);
         Long aliceId = userIdOf(alice);
         Long bobId = userIdOf(bob);
         long requestId = sendRequestOk(aliceCookie, bobId);
@@ -121,10 +121,10 @@ class FriendPushTest extends FriendTestSupport {
     @DisplayName("거절 · 거두기 · 친구 끊기 · 차단에는 아무것도 나가지 않는다. 롤백된 요청(409 · 404 · 400)에도 나가지 않는다")
     void silentOnes() throws Exception
     {
-        String alice = newLoginId();
-        String bob = newLoginId();
-        Cookie aliceCookie = signupAndLogin(alice);
-        Cookie bobCookie = signupAndLogin(bob);
+        String alice = newNickname();
+        String bob = newNickname();
+        Cookie aliceCookie = login(alice);
+        Cookie bobCookie = login(bob);
         Long aliceId = userIdOf(alice);
         Long bobId = userIdOf(bob);
         subscribe(aliceId, bobId);

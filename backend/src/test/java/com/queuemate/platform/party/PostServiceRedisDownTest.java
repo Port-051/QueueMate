@@ -71,17 +71,17 @@ class PostServiceRedisDownTest extends PostTestSupport {
     @DisplayName("목록 · 단건은 500 이 아니라 방 정보를 비운 채 글을 내려 주고, 어떤 글도 만료시키지 않는다 — 방이 사라진 글도")
     void listDegradesWithoutExpiring() throws Exception
     {
-        String host = newLoginId();
-        String gone = newLoginId();
-        String viewer = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        signupAndLogin(viewer);
+        String host = newNickname();
+        String gone = newNickname();
+        String viewer = newNickname();
+        Cookie hostCookie = login(host);
+        login(viewer);
         Long hostId = userIdOf(host);
         Long viewerId = userIdOf(viewer);
         Long seen = createLolPost(hostCookie);
         openRoom(seen, hostId, viewerId);
         // 방이 사라진 글 — 방장 키를 "못 읽으면" 만료시키기 딱 좋은 글이다. 멀쩡한 앱이라면 다음 목록에서 만료된다
-        Long vanished = createLolPost(signupAndLogin(gone));
+        Long vanished = createLolPost(login(gone));
         closeRoom(vanished);
 
         PostService service = withBrokenRedis();
@@ -104,10 +104,10 @@ class PostServiceRedisDownTest extends PostTestSupport {
     @DisplayName("입장 검사는 503 ROOM_STATE_UNAVAILABLE(+ Retry-After 5) 이다 — 방 안 사람과 차단 대조를 못 했는데 들여보낼 수 없다(fail-closed)")
     void entryGateFailsClosed() throws Exception
     {
-        String host = newLoginId();
-        String guest = newLoginId();
-        Long postId = createLolPost(signupAndLogin(host));
-        signupAndLogin(guest);
+        String host = newNickname();
+        String guest = newNickname();
+        Long postId = createLolPost(login(host));
+        login(guest);
         Long guestId = userIdOf(guest);
 
         PostEntryGate gate = new PostEntryGate(postStore, brokenStates(), blockReader);
@@ -128,8 +128,8 @@ class PostServiceRedisDownTest extends PostTestSupport {
     @DisplayName("고치기도 503 ROOM_STATE_UNAVAILABLE 이다 — 방에 누가 있는지 모르는데 고치게 하면 '사람이 있으면 못 고친다'가 뚫린다(fail-closed)")
     void editFailsClosed() throws Exception
     {
-        String host = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
+        String host = newNickname();
+        Cookie hostCookie = login(host);
         Long hostId = userIdOf(host);
         Long postId = createLolPost(hostCookie);
 
@@ -149,10 +149,10 @@ class PostServiceRedisDownTest extends PostTestSupport {
     @DisplayName("방 정보가 없어도 방장과의 차단은 거른다 — Redis 가 죽었다고 숨겨진 글이 드러나지 않는다")
     void stillFiltersHostBlocks() throws Exception
     {
-        String host = newLoginId();
-        String blocked = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        signupAndLogin(blocked);
+        String host = newNickname();
+        String blocked = newNickname();
+        Cookie hostCookie = login(host);
+        login(blocked);
         Long hostId = userIdOf(host);
         Long blockedId = userIdOf(blocked);
         Long postId = createLolPost(hostCookie);

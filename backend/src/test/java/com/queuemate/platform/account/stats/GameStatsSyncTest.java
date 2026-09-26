@@ -110,8 +110,8 @@ class GameStatsSyncTest extends ApiTestSupport {
     @DisplayName("게임 계정을 연결하면 LoL 전적이 채워진다 — 평균 · 연승 · 모스트 챔피언 · 솔로랭크의 승/패, external_id 에 puuid")
     void syncOnLink() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
         String puuid = stubLol("달콤한 인생#KR7", "sum-1", 18, 28, List.of(
                 // 새 경기가 먼저다 — 연승은 2(이김 · 이김 · 짐)
                 play("Samira", 10, 2, 5, true),
@@ -124,7 +124,7 @@ class GameStatsSyncTest extends ApiTestSupport {
 
         putGameAccount(cookie, "LOL", json("gameNickname", "달콤한 인생#KR7", "tier", "EMERALD_4", "mainPosition", "MID"))
                 .andExpect(status().isOk());
-        Long gameAccountId = gameAccountId(userIdOf(loginId), "LOL");
+        Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
         awaitStats(gameAccountId);
 
         JsonNode stats = profile(cookie, "LOL").get("stats");
@@ -163,8 +163,8 @@ class GameStatsSyncTest extends ApiTestSupport {
     @DisplayName("솔로랭크 줄이 없으면 wins · losses · winRate 가 전부 null 이다 — 경기의 평균은 그대로 채운다")
     void noSoloRank() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
         String puuid = "puuid-" + newTag();
         FAKE.stubAccount("언랭#KR1", puuid);
         FAKE.stubSummoner(puuid, "sum-unranked");
@@ -172,7 +172,7 @@ class GameStatsSyncTest extends ApiTestSupport {
         FAKE.stubMatches(puuid, List.of(play("Ahri", 3, 3, 3, true)));
 
         putGameAccount(cookie, "LOL", json("gameNickname", "언랭#KR1")).andExpect(status().isOk());
-        awaitStats(gameAccountId(userIdOf(loginId), "LOL"));
+        awaitStats(gameAccountId(userIdOf(nickname), "LOL"));
 
         JsonNode stats = profile(cookie, "LOL").get("stats");
         assertThat(stats.get("games").asInt()).isEqualTo(1);
@@ -186,14 +186,14 @@ class GameStatsSyncTest extends ApiTestSupport {
     @DisplayName("연승은 가장 최근 경기부터 센다 — 최근 경기가 패면 0 이다. 경기를 하나도 못 읽으면 games 0 · 평균과 연승이 null 이다")
     void winStreakAndNoMatches() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
         String puuid = stubLol("연승#KR1", "sum-streak", 1, 1, List.of(
                 play("Ahri", 1, 1, 1, false),
                 play("Ahri", 1, 1, 1, true),
                 play("Ahri", 1, 1, 1, true)));
         putGameAccount(cookie, "LOL", json("gameNickname", "연승#KR1")).andExpect(status().isOk());
-        Long gameAccountId = gameAccountId(userIdOf(loginId), "LOL");
+        Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
         awaitStats(gameAccountId);
         assertThat(profile(cookie, "LOL").get("stats").get("winStreak").asInt()).isZero();
 
@@ -217,11 +217,11 @@ class GameStatsSyncTest extends ApiTestSupport {
     @DisplayName("글을 써도 전적을 긁지 않는다 — 전적이 아무리 오래됐어도 Riot 을 한 번도 부르지 않는다 (2026-09-24 소유자 결정)")
     void noSyncOnPostCreate() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
         stubLol("글쓴이#KR1", "sum-post", 5, 5, List.of(play("Ahri", 1, 1, 1, true)));
         putGameAccount(cookie, "LOL", json("gameNickname", "글쓴이#KR1", "mainPosition", "MID")).andExpect(status().isOk());
-        Long gameAccountId = gameAccountId(userIdOf(loginId), "LOL");
+        Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
         awaitStats(gameAccountId);
 
         // 전적을 한 시간 전으로 돌린다 — "신선해서 건너뛴 것"이 아니라 그 길 자체가 없다는 것을 보려는 것이다
@@ -240,11 +240,11 @@ class GameStatsSyncTest extends ApiTestSupport {
     @DisplayName("Riot 이 500 · 429 를 주거나 응답이 없어도 본 요청은 성공하고 기존 전적이 지워지지 않는다")
     void riotFailuresKeepOldStats() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
         stubLol("실패#KR1", "sum-fail", 3, 1, List.of(play("Ahri", 9, 1, 1, true)));
         putGameAccount(cookie, "LOL", json("gameNickname", "실패#KR1")).andExpect(status().isOk());
-        Long gameAccountId = gameAccountId(userIdOf(loginId), "LOL");
+        Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
         awaitStats(gameAccountId);
         Instant good = syncedAt(gameAccountId);
 
@@ -275,15 +275,15 @@ class GameStatsSyncTest extends ApiTestSupport {
     @DisplayName("game_nickname 에 태그가 없으면 Riot 을 부르지 않는다 — 전적은 null 로 남는다")
     void nicknameWithoutTag() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
         int before = FAKE.calls();
 
         putGameAccount(cookie, "LOL", json("gameNickname", "태그없음")).andExpect(status().isOk());
         awaitSyncIdle();
 
         assertThat(FAKE.calls()).isEqualTo(before);
-        assertThat(statsRow(gameAccountId(userIdOf(loginId), "LOL"))).isNull();
+        assertThat(statsRow(gameAccountId(userIdOf(nickname), "LOL"))).isNull();
         assertThat(profile(cookie, "LOL").get("stats").isNull()).isTrue();
     }
 
@@ -291,8 +291,8 @@ class GameStatsSyncTest extends ApiTestSupport {
     @DisplayName("VALORANT · PUBG 는 긁지 않는다 — 구현이 없는 게임이라 조용히 끝낸다")
     void onlyLolIsFetched() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
         int before = FAKE.calls();
 
         putGameAccount(cookie, "VALORANT", json("gameNickname", "제트#EU1", "mainPosition", "DUELIST"))
@@ -302,19 +302,19 @@ class GameStatsSyncTest extends ApiTestSupport {
         awaitSyncIdle();
 
         assertThat(FAKE.calls()).isEqualTo(before);
-        assertThat(statsRow(gameAccountId(userIdOf(loginId), "VALORANT"))).isNull();
-        assertThat(statsRow(gameAccountId(userIdOf(loginId), "PUBG"))).isNull();
+        assertThat(statsRow(gameAccountId(userIdOf(nickname), "VALORANT"))).isNull();
+        assertThat(statsRow(gameAccountId(userIdOf(nickname), "PUBG"))).isNull();
     }
 
     @Test
     @DisplayName("락 — 같은 게임 계정을 누가 이미 긁고 있으면 줄 서지 않고 건너뛴다")
     void lockSkipsConcurrentSync() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
         stubLol("락#KR1", "sum-lock", 2, 2, List.of(play("Ahri", 1, 1, 1, true)));
         putGameAccount(cookie, "LOL", json("gameNickname", "락#KR1")).andExpect(status().isOk());
-        Long gameAccountId = gameAccountId(userIdOf(loginId), "LOL");
+        Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
         awaitStats(gameAccountId);
         Instant good = syncedAt(gameAccountId);
 
@@ -339,11 +339,11 @@ class GameStatsSyncTest extends ApiTestSupport {
     @DisplayName("전적 갱신을 누르면 200 이고 그 자리에서 최신 전적을 준다 — 응답이 PUT 과 같은 게임 프로필이다")
     void refreshReturnsFreshStats() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
         String puuid = stubLol("갱신#KR1", "sum-refresh", 10, 10, List.of(play("Ahri", 1, 1, 1, true)));
         putGameAccount(cookie, "LOL", json("gameNickname", "갱신#KR1", "mainPosition", "MID")).andExpect(status().isOk());
-        Long gameAccountId = gameAccountId(userIdOf(loginId), "LOL");
+        Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
         awaitStats(gameAccountId);
         Instant before = syncedAt(gameAccountId);
         int callsBefore = FAKE.calls();
@@ -374,11 +374,11 @@ class GameStatsSyncTest extends ApiTestSupport {
     @DisplayName("곧바로 또 갱신하면 429 TOO_MANY_STATS_REFRESHES + Retry-After 이고 Riot 을 부르지 않는다")
     void refreshTwiceHitsCooldown() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
         stubLol("쿨타임#KR1", "sum-cool", 3, 3, List.of(play("Ahri", 1, 1, 1, true)));
         putGameAccount(cookie, "LOL", json("gameNickname", "쿨타임#KR1")).andExpect(status().isOk());
-        Long gameAccountId = gameAccountId(userIdOf(loginId), "LOL");
+        Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
         awaitStats(gameAccountId);
 
         refresh(cookie, "LOL").andExpect(status().isOk());
@@ -413,7 +413,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     @DisplayName("연결한 게임 계정이 없으면 404 GAME_ACCOUNT_NOT_FOUND 다 — 쿨타임을 소모하지 않는다")
     void refreshWithoutGameAccount() throws Exception
     {
-        Cookie cookie = signupAndLogin(newLoginId());
+        Cookie cookie = login(newNickname());
         int callsBefore = FAKE.calls();
 
         refresh(cookie, "LOL")
@@ -428,8 +428,8 @@ class GameStatsSyncTest extends ApiTestSupport {
     @DisplayName("긁는 구현이 없는 게임(VALORANT · PUBG)은 409 GAME_STATS_NOT_SUPPORTED 다 — 200 을 주면 거짓말이고, 쿨타임도 소모하지 않는다")
     void refreshUnsupportedGame() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
         putGameAccount(cookie, "VALORANT", json("gameNickname", "제트#EU1", "mainPosition", "DUELIST"))
                 .andExpect(status().isOk());
         putGameAccount(cookie, "PUBG", json("gameNickname", "chicken#KR", "server", "STEAM")).andExpect(status().isOk());
@@ -445,18 +445,18 @@ class GameStatsSyncTest extends ApiTestSupport {
 
         assertThat(FAKE.calls()).isEqualTo(callsBefore);
         assertThat(redisTemplate.keys(GameStatsRefreshCooldown.REFRESH_KEY_PREFIX + "*")).isEmpty();
-        assertThat(statsRow(gameAccountId(userIdOf(loginId), "VALORANT"))).isNull();
+        assertThat(statsRow(gameAccountId(userIdOf(nickname), "VALORANT"))).isNull();
     }
 
     @Test
     @DisplayName("Riot 이 실패하면 503 GAME_STATS_UNAVAILABLE 이고 전적 줄은 그대로다 — 쿨타임은 소모된다")
     void refreshRiotFailureKeepsOldStats() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
         stubLol("갱신실패#KR1", "sum-refresh-fail", 4, 6, List.of(play("Ahri", 2, 2, 2, true)));
         putGameAccount(cookie, "LOL", json("gameNickname", "갱신실패#KR1")).andExpect(status().isOk());
-        Long gameAccountId = gameAccountId(userIdOf(loginId), "LOL");
+        Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
         awaitStats(gameAccountId);
         Instant good = syncedAt(gameAccountId);
 
@@ -477,11 +477,11 @@ class GameStatsSyncTest extends ApiTestSupport {
     @DisplayName("누가 이미 같은 계정을 긁고 있으면 갱신도 429 다 — 자물쇠를 그대로 쓴다")
     void refreshWhileAlreadySyncing() throws Exception
     {
-        String loginId = newLoginId();
-        Cookie cookie = signupAndLogin(loginId);
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
         stubLol("자물쇠#KR1", "sum-refresh-lock", 1, 2, List.of(play("Ahri", 1, 1, 1, true)));
         putGameAccount(cookie, "LOL", json("gameNickname", "자물쇠#KR1")).andExpect(status().isOk());
-        Long gameAccountId = gameAccountId(userIdOf(loginId), "LOL");
+        Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
         awaitStats(gameAccountId);
         Instant good = syncedAt(gameAccountId);
 

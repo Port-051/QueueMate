@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -15,13 +16,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 테이블은 전부 {@code public} 하나에 있다(2026-09-26 소유자 결정 — 옛 {@code account} · {@code social} · {@code party} 스키마를 합쳤다).
  * PostgreSQL 에서만 의미가 있다 — H2 는 {@code ~} 정규식 CHECK 를 재현하지 못한다.
  *
- * <p>사용자의 식별자가 둘이다 — <b>사용자 번호</b>({@code id}, bigint identity)와 <b>로그인 아이디</b>({@code login_id})다
- * (2026-09-22 소유자 결정). 번호는 DB 가 매기므로 INSERT 에 주지 않고 {@code RETURNING} 으로 받는다.
+ * <p>사용자의 식별자는 <b>사용자 번호</b>({@code id}, bigint identity) 하나다(2026-09-26 소유자 결정 — 로그인은 소셜뿐이라 로그인 아이디 ·
+ * 비밀번호의 칸이 없다). 번호는 DB 가 매기므로 INSERT 에 주지 않고 {@code RETURNING} 으로 받는다.
  */
 class AccountMigrationTest extends ApiTestSupport {
 
     @Test
-    @DisplayName("public 스키마에 테이블 열넷이 있고(Flyway 의 기록 테이블 말고), 옛 스키마 셋은 없다")
+    @DisplayName("public 스키마에 테이블 열셋이 있고(Flyway 의 기록 테이블 말고), 옛 스키마 셋은 없다")
     void schemaAndTablesExist()
     {
         List<String> tables = jdbcTemplate.queryForList(
@@ -31,7 +32,7 @@ class AccountMigrationTest extends ApiTestSupport {
         List<String> oldSchemas = jdbcTemplate.queryForList(
                 "select nspname from pg_namespace where nspname in ('account', 'social', 'party')", String.class);
 
-        assertThat(tables).containsExactly("blocks", "credentials", "friend_requests", "friendships", "game_account_stats",
+        assertThat(tables).containsExactly("blocks", "friend_requests", "friendships", "game_account_stats",
                 "game_accounts", "parties", "party_members", "recent_players", "recruit_post_positions", "recruit_posts",
                 "reports", "social_identities", "users");
         assertThat(oldSchemas).isEmpty();
@@ -80,7 +81,7 @@ class AccountMigrationTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("사용자의 번호는 bigint 이고 로그인 아이디는 varchar(20) 이다 — 번호는 DB 가 매긴다")
+    @DisplayName("사용자의 칸은 번호 · 닉네임 · 시각 둘뿐이다 — 번호는 bigint identity 이고 DB 가 매긴다")
     void userIdentifierColumns()
     {
         assertThat(dataTypeOf("users", "id")).isEqualTo("bigint");
@@ -89,13 +90,12 @@ class AccountMigrationTest extends ApiTestSupport {
                 "select is_identity::text from information_schema.columns "
                         + "where table_schema = 'public' and table_name = 'users' and column_name = 'id'",
                 String.class)).isEqualTo("YES");
-        assertThat(dataTypeOf("users", "login_id")).isEqualTo("character varying");
-        assertThat(jdbcTemplate.queryForObject(
-                "select character_maximum_length from information_schema.columns "
-                        + "where table_schema = 'public' and table_name = 'users' and column_name = 'login_id'",
-                Integer.class)).isEqualTo(20);
+        // 로그인 아이디의 칸이 없다 — 식별자는 번호 하나, 보여 주는 이름은 닉네임 하나다(2026-09-26)
+        assertThat(jdbcTemplate.queryForList(
+                "select column_name from information_schema.columns "
+                        + "where table_schema = 'public' and table_name = 'users' order by column_name",
+                String.class)).containsExactly("created_at", "id", "nickname", "updated_at");
         // 다른 테이블이 사용자 · 게임 계정을 가리키는 칸도 전부 bigint 다
-        assertThat(dataTypeOf("credentials", "user_id")).isEqualTo("bigint");
         assertThat(dataTypeOf("social_identities", "user_id")).isEqualTo("bigint");
         assertThat(dataTypeOf("game_accounts", "user_id")).isEqualTo("bigint");
         assertThat(dataTypeOf("game_account_stats", "game_account_id")).isEqualTo("bigint");
@@ -109,8 +109,7 @@ class AccountMigrationTest extends ApiTestSupport {
                 "select conname from pg_constraint c join pg_namespace n on n.oid = c.connamespace "
                         + "where n.nspname = 'public' and c.contype in ('p', 'u', 'c', 'f')", String.class);
 
-        assertThat(constraints).contains("users_pkey", "users_login_id_key", "users_nickname_key", "users_login_id_format",
-                "credentials_pkey", "credentials_user_id_fkey",
+        assertThat(constraints).contains("users_pkey", "users_nickname_key",
                 "game_accounts_pkey", "game_accounts_user_id_fkey", "game_accounts_user_id_game_key",
                 "game_accounts_game_check",
                 "game_accounts_server_check",
@@ -125,8 +124,7 @@ class AccountMigrationTest extends ApiTestSupport {
     @DisplayName("서버는 PUBG 의 STEAM · KAKAO 뿐이다 — 다른 게임의 서버도 PUBG 의 모르는 서버도 DB 가 거절한다")
     void serverCheck()
     {
-        String loginId = newLoginId();
-        Long userId = insertUser(loginId, nicknameOf(loginId));
+        Long userId = insertUser();
         insertGameAccount(userId, "LOL");
         insertGameAccount(userId, "PUBG");
 
@@ -150,8 +148,7 @@ class AccountMigrationTest extends ApiTestSupport {
     @DisplayName("전적은 게임 계정에 딸려 지워지고, 음수 · 모르는 출처는 DB 가 거절한다")
     void statsConstraintsAndCascade()
     {
-        String loginId = newLoginId();
-        Long userId = insertUser(loginId, nicknameOf(loginId));
+        Long userId = insertUser();
         insertGameAccount(userId, "LOL");
         Long accountId = jdbcTemplate.queryForObject(
                 "select id from game_accounts where user_id = ? and game = 'LOL'", Long.class, userId);
@@ -188,8 +185,7 @@ class AccountMigrationTest extends ApiTestSupport {
     @DisplayName("판 수만 NOT NULL 이다 — PUBG 처럼 승/패 · 연승이 없는 줄이 들어가고, 승만 있고 패가 없으면 DB 가 거절한다")
     void statsNullableColumns()
     {
-        String loginId = newLoginId();
-        Long userId = insertUser(loginId, nicknameOf(loginId));
+        Long userId = insertUser();
         insertGameAccount(userId, "PUBG");
         Long accountId = jdbcTemplate.queryForObject(
                 "select id from game_accounts where user_id = ? and game = 'PUBG'", Long.class, userId);
@@ -238,11 +234,9 @@ class AccountMigrationTest extends ApiTestSupport {
     @DisplayName("소셜 계정 하나는 사용자 하나에만, 한 사용자는 제공자마다 하나만 이어진다. 사용자를 지우면 연결도 지워진다")
     void socialIdentityConstraintsAndCascade()
     {
-        String firstLoginId = newLoginId();
-        String secondLoginId = newLoginId();
-        Long first = insertUser(firstLoginId, nicknameOf(firstLoginId));
-        Long second = insertUser(secondLoginId, nicknameOf(secondLoginId));
-        String providerUserId = "mig-" + firstLoginId;
+        Long first = insertUser();
+        Long second = insertUser();
+        String providerUserId = "mig-" + UUID.randomUUID();
         insertSocialIdentity("KAKAO", providerUserId, first);
 
         assertThatThrownBy(() -> insertSocialIdentity("KAKAO", providerUserId, second))
@@ -264,24 +258,10 @@ class AccountMigrationTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("DB 의 CHECK 가 형식이 아닌 로그인 아이디의 INSERT 를 거절한다 — 앱의 검증을 거치지 않아도 막힌다")
-    void idFormatCheck()
-    {
-        for(String badId : new String[]{"UPPER_CASE", "abc", "has:colon", "has/slash", "a".repeat(21)})
-        {
-            assertThatThrownBy(() -> insertUser(badId, "n_" + Math.abs(badId.hashCode())))
-                    .as(badId)
-                    .isInstanceOf(DataIntegrityViolationException.class);
-        }
-    }
-
-    @Test
     @DisplayName("게임은 셋뿐이고, 한 사용자에 게임마다 한 줄이다. 사용자를 지우면 딸린 줄도 지워진다")
     void gameAccountConstraintsAndCascade()
     {
-        String loginId = newLoginId();
-        Long userId = insertUser(loginId, nicknameOf(loginId));
-        jdbcTemplate.update("insert into credentials (user_id, password_hash, updated_at) values (?, 'x', now())", userId);
+        Long userId = insertUser();
         insertGameAccount(userId, "LOL");
 
         assertThatThrownBy(() -> insertGameAccount(userId, "LOL"))
@@ -293,8 +273,6 @@ class AccountMigrationTest extends ApiTestSupport {
 
         jdbcTemplate.update("delete from users where id = ?", userId);
 
-        assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from credentials where user_id = ?", Integer.class, userId)).isZero();
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from game_accounts where user_id = ?", Integer.class, userId)).isZero();
     }
@@ -310,15 +288,6 @@ class AccountMigrationTest extends ApiTestSupport {
                 "select data_type from information_schema.columns "
                         + "where table_schema = 'public' and table_name = ? and column_name = ?",
                 String.class, table, column);
-    }
-
-    /** 사용자를 직접 넣고 <b>DB 가 매긴 번호</b>를 받는다 — {@code id} 는 identity 라 INSERT 에 주지 않는다 */
-    private Long insertUser(String loginId, String nickname)
-    {
-        return jdbcTemplate.queryForObject(
-                "insert into users (login_id, nickname, created_at, updated_at) "
-                        + "values (?, ?, now(), now()) returning id",
-                Long.class, loginId, nickname);
     }
 
     private void insertStats(Long gameAccountId, int games, int wins, int losses, String source)

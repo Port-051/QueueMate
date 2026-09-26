@@ -25,8 +25,7 @@ import java.util.regex.Pattern;
  * {@code 조회 → 판단 → 삭제} 로 하면 그 틈에 들어온 두 요청이 <b>둘 다</b> 통과해 한 값으로 세션이 둘 생긴다.
  * 옛 값을 다시 쓰면 그냥 빈 값이다 — 탈취 감지(토큰 계보 추적)는 넣지 않는다.
  *
- * <p><b>Redis 가 죽었을 때</b> — 발급 · 폐기는 예외를 밖으로 내보내지 않는다(로그인과 로그아웃이 Redis 에 묶이지 않게 한다.
- * {@code LoginThrottle} 과 같은 원칙이다). 다만 <b>재발급은 빈 값이다</b>(fail-closed) — 확인할 방법이 없는 값을 통과시키면
+ * <p><b>Redis 가 죽었을 때</b> — 발급 · 폐기는 예외를 밖으로 내보내지 않는다(로그인과 로그아웃이 Redis 에 묶이지 않게 한다). 다만 <b>재발급은 빈 값이다</b>(fail-closed) — 확인할 방법이 없는 값을 통과시키면
  * 폐기된 토큰도 통과한다. <b>토큰 값은 어느 로그에도 찍지 않는다</b> — 그것 하나로 남의 세션을 잇는 값이다.
  */
 @Slf4j
@@ -46,8 +45,8 @@ public class RefreshTokens {
     static final String COOKIE_PATH = "/api/v1/auth/refresh";
 
     /**
-     * 받은 값이 UUID 의 꼴인지 본다 — 아무 문자열로나 Redis 키를 만들지 않는다({@code LoginThrottle} 이 형식이 아닌 로그인 아이디를
-     * 세지 않는 것과 같은 이유다). {@code UUID#fromString} 은 이보다 느슨해서 쓰지 않는다.
+     * 받은 값이 UUID 의 꼴인지 본다 — 아무 문자열로나 Redis 키를 만들지 않는다.
+     * {@code UUID#fromString} 은 이보다 느슨해서 쓰지 않는다.
      */
     private static final Pattern UUID_FORM =
             Pattern.compile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");

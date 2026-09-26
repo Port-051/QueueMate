@@ -45,10 +45,10 @@ public class SocialLoginService {
     }
 
     /**
-     * 사용자와 소셜 연결을 <b>한 트랜잭션으로</b> 만든다 — 연결이 실패하면 사용자도 남지 않는다(비밀번호가 없어 로그인할 길이 없는 계정이 된다).
-     * {@code credentials} 줄은 만들지 않는다 — 그래서 이 사람의 비밀번호 로그인은 없는 아이디와 같은 401 이다.
+     * 사용자와 소셜 연결을 <b>한 트랜잭션으로</b> 만든다 — 연결이 실패하면 사용자도 남지 않는다(로그인할 길이 없는 계정이 된다).
+     * 정하는 것은 닉네임 하나다(2026-09-26 소유자 결정 — 로그인 아이디 · 비밀번호가 없다).
      *
-     * <p><b>중복은 DB 가 막는다</b> — 로그인 아이디 · 닉네임은 가입과 같고, 같은 소셜 계정의 두 번째 가입은 {@code social_identities} 의 PK 가 막는다.
+     * <p><b>중복은 DB 가 막는다</b> — 닉네임은 {@code users} 의 UNIQUE 가, 같은 소셜 계정의 두 번째 가입은 {@code social_identities} 의 PK 가 막는다.
      * 같은 {@code qm_social_signup} 을 든 두 요청이 동시에 와도 하나만 통과한다.
      */
     @Transactional
@@ -59,7 +59,7 @@ public class SocialLoginService {
         try
         {
             // id 는 DB 가 매긴다(IDENTITY) — INSERT 가 나가야 번호를 안다. flush 로 위반을 지금 드러낸다
-            user = userRepository.saveAndFlush(new User(request.loginId(), request.nickname(), now));
+            user = userRepository.saveAndFlush(new User(request.nickname(), now));
             socialIdentityRepository.saveAndFlush(new SocialIdentity(provider, providerUserId, user.getId(), now));
         }
         catch(DataIntegrityViolationException e)
@@ -72,6 +72,6 @@ public class SocialLoginService {
         }
         // 제공자 쪽 회원 번호는 남기지 않는다 — 어느 제공자인지만 남긴다
         log.info("소셜 가입 userId={} provider={}", user.getId(), provider);
-        return new AuthResponse(user.getId(), user.getLoginId(), user.getNickname());
+        return new AuthResponse(user.getId(), user.getNickname());
     }
 }

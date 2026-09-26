@@ -36,8 +36,7 @@ import java.util.concurrent.TimeoutException;
  *   <li>404 {@code GAME_ACCOUNT_NOT_FOUND} — 그 게임 계정을 연결하지 않았다</li>
  *   <li>409 {@code GAME_STATS_NOT_SUPPORTED} — 그 게임은 긁는 구현이 없다(VALORANT · PUBG). <b>200 을 주면 거짓말이다</b> — 아무것도 갱신되지 않는다.
  *       요청이 잘못된 것이 아니라 서버가 못 하는 것이라 400 이 아니다. <b>쿨타임을 소모하지 않는다</b></li>
- *   <li>429 {@code TOO_MANY_STATS_REFRESHES} + {@code Retry-After} — 쿨타임(2분) 안에 또 불렀거나 <b>누가 이미 같은 계정을 긁고 있다</b>
- *       (이름은 로그인 실패 제한의 {@code TOO_MANY_LOGIN_ATTEMPTS} 와 결을 맞췄다)</li>
+ *   <li>429 {@code TOO_MANY_STATS_REFRESHES} + {@code Retry-After} — 쿨타임(2분) 안에 또 불렀거나 <b>누가 이미 같은 계정을 긁고 있다</b></li>
  *   <li>503 {@code GAME_STATS_UNAVAILABLE} — 지금 전적을 가져올 수 없다. <b>전적 줄은 건드리지 않는다</b>(옛 값이 남는다).
  *       Riot 이 거절 · 응답이 없다 · 30초를 넘겼다 · {@code RIOT_API_KEY} 가 없다 · 닉네임이 {@code 이름#태그} 가 아니어서 물어볼 수도 없다 —
  *       <b>이유를 가르지 않는다.</b> 사용자가 할 수 있는 것은 "잠시 뒤 다시" 또는 "게임 닉네임을 고친다" 둘뿐이고, 갈라 주면 프런트가 갈래마다 다르게 그려야 한다</li>

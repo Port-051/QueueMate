@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
  * {@code redis.keys("qm:*")} 로 "아무것도 없다"를 보던 자리는 전부 {@link #ownKeys()} 로 바뀌었다.
  *
  * <p>사용자는 가입 API 가 아니라 SQL 로 바로 넣는다 — 방의 테스트는 사용자 번호만 있으면 되고, 동시성 테스트가 100명을 쓴다(가입은 bcrypt 라 느리다).
- * 로그인 아이디는 {@link #newLoginId()} 로 지어 {@link ApiTestSupport} 가 끝에 지운다.
+ * 로그인 아이디는 {@link #newNickname()} 로 지어 {@link ApiTestSupport} 가 끝에 지운다.
  */
 public abstract class RoomTestSupport extends ApiTestSupport {
 
@@ -59,9 +59,7 @@ public abstract class RoomTestSupport extends ApiTestSupport {
     protected String u(String label)
     {
         return userIds.computeIfAbsent(label, l -> {
-            String loginId = newLoginId();
-            Long id = jdbcTemplate.queryForObject("insert into users (login_id, nickname, created_at, updated_at) "
-                    + "values (?, ?, now(), now()) returning id", Long.class, loginId, nicknameOf(loginId));
+            Long id = insertUser();
             String userId = String.valueOf(id);
             labels.put(userId, l);
             return userId;

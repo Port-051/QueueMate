@@ -42,8 +42,8 @@ class PostRoomFlowTest extends PostTestSupport {
     @DisplayName("글을 쓰면 방이 같이 생긴다 — 방장 키 · 멤버 SET · 입장 표시 키에 쓴 사람이 들어가고, 내 방 찾기가 그 글의 번호를 준다")
     void createMakesTheRoom() throws Exception
     {
-        String host = newLoginId();
-        Cookie cookie = signupAndLogin(host);
+        String host = newNickname();
+        Cookie cookie = login(host);
         Long hostId = userIdOf(host);
 
         Long postId = createLolPost(cookie);
@@ -61,10 +61,10 @@ class PostRoomFlowTest extends PostTestSupport {
     @DisplayName("이미 다른 방에 들어가 있으면 글을 쓸 수 없다 — 409 IN_OTHER_ROOM 이고 글도 방도 남지 않는다(방을 못 만들면 글이 되돌려진다)")
     void createRolledBackWhenInAnotherRoom() throws Exception
     {
-        String host = newLoginId();
-        String guest = newLoginId();
-        Long postId = createLolPost(signupAndLogin(host));
-        Cookie guestCookie = signupAndLogin(guest);
+        String host = newNickname();
+        String guest = newNickname();
+        Long postId = createLolPost(login(host));
+        Cookie guestCookie = login(guest);
         Long guestId = userIdOf(guest);
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(guestCookie)).andExpect(status().isCreated());
 
@@ -83,8 +83,8 @@ class PostRoomFlowTest extends PostTestSupport {
     @DisplayName("자동 매칭을 돌리는 중(활성 요청 키가 있다)이면 글을 쓸 수 없다 — 409 ALREADY_QUEUED 이고 글이 남지 않는다. 활성 요청 키는 건드리지 않는다")
     void createRolledBackWhileQueued() throws Exception
     {
-        String host = newLoginId();
-        Cookie cookie = signupAndLogin(host);
+        String host = newNickname();
+        Cookie cookie = login(host);
         Long hostId = userIdOf(host);
         String activeRequest = "qm:user:active-request:" + hostId;
         redisTemplate.opsForValue().set(activeRequest, "{\"status\":\"WAITING\"}", java.time.Duration.ofSeconds(60));
@@ -113,13 +113,13 @@ class PostRoomFlowTest extends PostTestSupport {
     @DisplayName("입장은 글을 먼저 본다 — 없는 글 404 POST_NOT_FOUND · 끝난 글 409 POST_NOT_RECRUITING(방이 살아 있어도) · 글이 모집 중이면 방의 스크립트가 답한다(방이 사라졌으면 404 ROOM_NOT_FOUND)")
     void enterChecksThePostFirst() throws Exception
     {
-        String expiredHost = newLoginId();
-        String vanishedHost = newLoginId();
-        String guest = newLoginId();
-        Cookie expiredHostCookie = signupAndLogin(expiredHost);
+        String expiredHost = newNickname();
+        String vanishedHost = newNickname();
+        String guest = newNickname();
+        Cookie expiredHostCookie = login(expiredHost);
         Long expired = createLolPost(expiredHostCookie);
-        Long vanished = createLolPost(signupAndLogin(vanishedHost));
-        Cookie guestCookie = signupAndLogin(guest);
+        Long vanished = createLolPost(login(vanishedHost));
+        Cookie guestCookie = login(guest);
         Long guestId = userIdOf(guest);
 
         mockMvc.perform(post("/api/v1/rooms/" + NO_SUCH_POST + "/members").cookie(guestCookie))
@@ -145,10 +145,10 @@ class PostRoomFlowTest extends PostTestSupport {
     @DisplayName("차단으로 숨겨진 글은 끝난 글이어도 404 POST_NOT_FOUND 다 — 숨김을 상태보다 먼저 본다(차단 관계인 사람에게 '모집이 끝났다'도 알려 주지 않는다)")
     void hiddenBeforeStatus() throws Exception
     {
-        String host = newLoginId();
-        String blocked = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        Cookie blockedCookie = signupAndLogin(blocked);
+        String host = newNickname();
+        String blocked = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie blockedCookie = login(blocked);
         Long postId = createLolPost(hostCookie);
         block(hostCookie, userIdOf(blocked));
         mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(hostCookie)).andExpect(status().isNoContent());
@@ -161,12 +161,12 @@ class PostRoomFlowTest extends PostTestSupport {
     @DisplayName("방 안의 누구와든 차단 관계면 못 들어간다(404) — 나중에 들어온 사람도 방 안의 나와 대조된다(D-20)")
     void blockedAgainstAnyoneInside() throws Exception
     {
-        String host = newLoginId();
-        String first = newLoginId();
-        String second = newLoginId();
-        Long postId = createLolPost(signupAndLogin(host));
-        Cookie firstCookie = signupAndLogin(first);
-        Cookie secondCookie = signupAndLogin(second);
+        String host = newNickname();
+        String first = newNickname();
+        String second = newNickname();
+        Long postId = createLolPost(login(host));
+        Cookie firstCookie = login(first);
+        Cookie secondCookie = login(second);
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(firstCookie)).andExpect(status().isCreated());
         // second 가 방 안의 first 를 차단했다 — 방장과는 아무 사이도 아니다
         block(secondCookie, userIdOf(first));
@@ -180,11 +180,11 @@ class PostRoomFlowTest extends PostTestSupport {
     @DisplayName("이미 방에 들어와 있는 사람은 글이 끝나도 다시 불러 200(이미 들어와 있다)이다 — 새 사람만 409 POST_NOT_RECRUITING 이다")
     void memberRetryPassesTheGate() throws Exception
     {
-        String host = newLoginId();
-        String member = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        Cookie memberCookie = signupAndLogin(member);
-        Cookie latecomer = signupAndLogin(newLoginId());
+        String host = newNickname();
+        String member = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie memberCookie = login(member);
+        Cookie latecomer = login(newNickname());
         Long postId = createLolPost(hostCookie);
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(memberCookie)).andExpect(status().isCreated());
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
@@ -203,10 +203,10 @@ class PostRoomFlowTest extends PostTestSupport {
     @DisplayName("방장 확정 한 요청이 방을 확정하고 파티를 적는다 — 204, 글은 CONFIRMED, 파티원은 확정 순간의 멤버. 다시 부르면 200 이고 파티는 하나다")
     void confirmRecordsTheParty() throws Exception
     {
-        String host = newLoginId();
-        String member = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        Cookie memberCookie = signupAndLogin(member);
+        String host = newNickname();
+        String member = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie memberCookie = login(member);
         Long hostId = userIdOf(host);
         Long memberId = userIdOf(member);
         Long postId = createLolPost(hostCookie);
@@ -247,10 +247,10 @@ class PostRoomFlowTest extends PostTestSupport {
     @DisplayName("확정의 거절 — 혼자면 409 NOT_ENOUGH_MEMBERS · 없는 글 404 ROOM_NOT_FOUND · 지운(만료된) 글의 방은 409 POST_NOT_RECRUITING 이고 방도 확정되지 않는다")
     void confirmRejections() throws Exception
     {
-        String host = newLoginId();
-        String member = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        Cookie memberCookie = signupAndLogin(member);
+        String host = newNickname();
+        String member = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie memberCookie = login(member);
         Long postId = createLolPost(hostCookie);
 
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie))
@@ -271,10 +271,10 @@ class PostRoomFlowTest extends PostTestSupport {
     @DisplayName("자가 치유 — 확정 표시 키는 있는데 글은 모집 중이면(앞선 확정의 커밋이 실패했다) 방장이 다시 눌렀을 때 200 이고 그때 기록된다")
     void confirmAgainHealsAnUnrecordedConfirmation() throws Exception
     {
-        String host = newLoginId();
-        String member = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        signupAndLogin(member);
+        String host = newNickname();
+        String member = newNickname();
+        Cookie hostCookie = login(host);
+        login(member);
         Long hostId = userIdOf(host);
         Long memberId = userIdOf(member);
         Long postId = createLolPost(hostCookie);
@@ -293,10 +293,10 @@ class PostRoomFlowTest extends PostTestSupport {
     @DisplayName("글을 지우면 방도 닫힌다 — 방 키 셋과 전원의 입장 표시 키가 사라지고, 방에 있던 사람이 ROOM_CLOSED 를 받고, 게시판 신호는 한 번이다. 방장도 손님도 곧바로 새 글을 쓸 수 있다")
     void deleteClosesTheRoom() throws Exception
     {
-        String host = newLoginId();
-        String guest = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        Cookie guestCookie = signupAndLogin(guest);
+        String host = newNickname();
+        String guest = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie guestCookie = login(guest);
         Long hostId = userIdOf(host);
         Long guestId = userIdOf(guest);
         Long postId = createLolPost(hostCookie);
@@ -333,10 +333,10 @@ class PostRoomFlowTest extends PostTestSupport {
     @DisplayName("확정 전에 방장이 나가면 글이 그 자리에서 만료된다 — 게시판 신호는 한 번이고, 방장이 곧바로 새 글을 쓸 수 있다(ALREADY_RECRUITING 이 나지 않는다)")
     void hostLeavingExpiresThePost() throws Exception
     {
-        String host = newLoginId();
-        String guest = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        Cookie guestCookie = signupAndLogin(guest);
+        String host = newNickname();
+        String guest = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie guestCookie = login(guest);
         Long guestId = userIdOf(guest);
         Long postId = createLolPost(hostCookie);
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(guestCookie)).andExpect(status().isCreated());
@@ -362,10 +362,10 @@ class PostRoomFlowTest extends PostTestSupport {
     @DisplayName("확정한 방에서 방장이 나가면 승계다 — 글은 CONFIRMED 그대로이고, 방장 키가 남은 멤버로 바뀌고 확정 표시 키도 남는다(D-23)")
     void confirmedHostLeavingKeepsThePost() throws Exception
     {
-        String host = newLoginId();
-        String member = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        Cookie memberCookie = signupAndLogin(member);
+        String host = newNickname();
+        String member = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie memberCookie = login(member);
         Long memberId = userIdOf(member);
         Long postId = createLolPost(hostCookie);
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(memberCookie)).andExpect(status().isCreated());
@@ -385,10 +385,10 @@ class PostRoomFlowTest extends PostTestSupport {
     @DisplayName("확정된 글을 지우면 409 POST_CONFIRMED 그대로이고 방도 건드리지 않는다")
     void deletingAConfirmedPostLeavesTheRoom() throws Exception
     {
-        String host = newLoginId();
-        String member = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
-        Cookie memberCookie = signupAndLogin(member);
+        String host = newNickname();
+        String member = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie memberCookie = login(member);
         Long hostId = userIdOf(host);
         Long memberId = userIdOf(member);
         Long postId = createLolPost(hostCookie);
@@ -412,7 +412,7 @@ class PostRoomFlowTest extends PostTestSupport {
     @DisplayName("방이 이미 사라진 글도 지울 수 있다 — 204 이고 만료된다. 다시 지워도 204 다")
     void deletingAPostWhoseRoomIsGone() throws Exception
     {
-        Cookie hostCookie = signupAndLogin(newLoginId());
+        Cookie hostCookie = login(newNickname());
         Long postId = createLolPost(hostCookie);
         closeRoom(postId);
 
@@ -427,8 +427,8 @@ class PostRoomFlowTest extends PostTestSupport {
     @DisplayName("방 닫기가 실패해도 글 지우기는 204 이고 글은 만료된다 — 지우기는 끝난 것을 정리하는 일이라 되돌리지 않는다. 방은 그대로 남는다")
     void deleteSurvivesAFailedRoomClose() throws Exception
     {
-        String host = newLoginId();
-        Cookie hostCookie = signupAndLogin(host);
+        String host = newNickname();
+        Cookie hostCookie = login(host);
         Long hostId = userIdOf(host);
         Long postId = createLolPost(hostCookie);
         // 멤버 SET 자리에 문자열을 넣어 나가기 스크립트가 SMEMBERS 에서 WRONGTYPE 으로 죽게 한다 — 스크립트는 아무것도 쓰기 전에 멈춘다

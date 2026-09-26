@@ -7,7 +7,6 @@ import com.queuemate.platform.account.domain.User;
 import com.queuemate.platform.account.dto.GameAccountRequest;
 import com.queuemate.platform.account.dto.GameProfileResponse;
 import com.queuemate.platform.account.dto.UserResponse;
-import com.queuemate.platform.account.repository.CredentialRepository;
 import com.queuemate.platform.account.repository.GameAccountRepository;
 import com.queuemate.platform.account.repository.SocialIdentityRepository;
 import com.queuemate.platform.account.repository.UserRepository;
@@ -27,7 +26,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
- * 내 프로필과 게임 계정. 전부 "로그인한 나"의 것만 다룬다 — 남의 프로필을 번호 · 아이디로 조회하는 요청은 없다
+ * 내 프로필과 게임 계정. 전부 "로그인한 나"의 것만 다룬다 — 남의 프로필을 번호로 조회하는 요청은 없다
  * (공개 사용자 탐색은 만들지 않는다 — CLAUDE.md §1).
  */
 @Slf4j
@@ -40,7 +39,6 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final GameAccountRepository gameAccountRepository;
-    private final CredentialRepository credentialRepository;
     private final SocialIdentityRepository socialIdentityRepository;
     private final GameStatsSync gameStatsSync;
     private final GameStatsRefresher gameStatsRefresher;
@@ -52,7 +50,7 @@ public class UserService {
         return response(requireUser(userId));
     }
 
-    /** 닉네임을 바꾼다. 중복은 가입과 같은 방식으로 안다 — 먼저 조회하지 않고 UPDATE 의 제약 위반을 409 로 옮긴다 */
+    /** 닉네임을 바꾼다. 중복은 소셜 가입과 같은 방식으로 안다 — 먼저 조회하지 않고 UPDATE 의 제약 위반을 409 로 옮긴다 */
     @Transactional
     public UserResponse changeNickname(Long userId, String nickname)
     {
@@ -142,13 +140,13 @@ public class UserService {
         gameAccountRepository.deleteByUserIdAndGame(userId, requireGame(gameName));
     }
 
-    /** {@code GET · PATCH /users/me} 가 같은 모양을 내려 준다 — 소셜 연결 · 비밀번호 유무 · 게임 프로필을 붙인다 */
+    /** {@code GET · PATCH /users/me} 가 같은 모양을 내려 준다 — 소셜 연결 · 게임 프로필을 붙인다 */
     private UserResponse response(User user)
     {
         List<SocialProvider> socialProviders = socialIdentityRepository.findByUserId(user.getId()).stream()
                 .map(identity -> identity.getId().getProvider())
                 .toList();
-        return UserResponse.of(user, socialProviders, credentialRepository.existsById(user.getId()),
+        return UserResponse.of(user, socialProviders,
                 gameAccountRepository.findWithStatsByUserId(user.getId()));
     }
 

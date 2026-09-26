@@ -20,45 +20,44 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class OriginCheckTest extends ApiTestSupport {
 
     @Test
-    @DisplayName("다른 출처의 Origin 을 단 POST 는 403 ORIGIN_NOT_ALLOWED 이고 가입되지 않는다")
+    @DisplayName("다른 출처의 Origin 을 단 POST 는 403 ORIGIN_NOT_ALLOWED 이고 refresh 가 버려지지 않는다")
     void foreignOriginIsRejected() throws Exception
     {
-        String loginId = newLoginId();
+        Cookie refresh = refreshCookieFor(newNickname());
 
         for(String origin : new String[]{"https://evil.example", "http://localhost:9999", "null"})
         {
-            mockMvc.perform(post("/api/v1/auth/signup").header(HttpHeaders.ORIGIN, origin)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(json("loginId", loginId, "password", PASSWORD, "nickname", nicknameOf(loginId))))
+            // 로그아웃은 인증 없이 부르는 POST 다 — 통과했다면 그 refresh 를 Redis 에서 지웠을 것이다
+            mockMvc.perform(post("/api/v1/auth/logout").header(HttpHeaders.ORIGIN, origin).cookie(refresh))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.code").value("ORIGIN_NOT_ALLOWED"))
                     .andExpect(jsonPath("$.details").isArray());
         }
 
-        assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from users where login_id = ?", Integer.class, loginId)).isZero();
+        assertThat(refreshTokenStored(refresh.getValue())).isTrue();
     }
 
     @Test
     @DisplayName("허용된 Origin 과 Origin 이 없는 요청은 통과한다")
     void allowedOriginAndNoOriginPass() throws Exception
     {
-        String withOrigin = newLoginId();
-        String withoutOrigin = newLoginId();
+        Cookie withOrigin = refreshCookieFor(newNickname());
+        Cookie withoutOrigin = refreshCookieFor(newNickname());
 
-        mockMvc.perform(post("/api/v1/auth/signup").header(HttpHeaders.ORIGIN, "http://localhost:5173")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json("loginId", withOrigin, "password", PASSWORD, "nickname", nicknameOf(withOrigin))))
-                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/auth/logout").header(HttpHeaders.ORIGIN, "http://localhost:5173").cookie(withOrigin))
+                .andExpect(status().isNoContent());
+        assertThat(refreshTokenStored(withOrigin.getValue())).isFalse();
         // curl · 서버 사이의 요청에는 Origin 이 없다
-        signup(withoutOrigin, PASSWORD, nicknameOf(withoutOrigin)).andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/auth/logout").cookie(withoutOrigin))
+                .andExpect(status().isNoContent());
+        assertThat(refreshTokenStored(withoutOrigin.getValue())).isFalse();
     }
 
     @Test
     @DisplayName("로그인한 사용자의 요청이어도 다른 출처면 403 이다. GET 은 보지 않는다")
     void checkedBeforeAuthenticationAndOnlyForStateChangingMethods() throws Exception
     {
-        Cookie cookie = signupAndLogin(newLoginId());
+        Cookie cookie = login(newNickname());
 
         mockMvc.perform(delete("/api/v1/users/me/game-accounts/LOL").cookie(cookie)
                         .header(HttpHeaders.ORIGIN, "https://evil.example"))

@@ -10,7 +10,7 @@ public final class TokenClaims {
     public static final String ISSUER = "queuemate-platform";
 
     /**
-     * {@code sub} 는 <b>사용자 번호</b>({@code users.id}, bigint)를 문자열로 찍은 것이다 — {@code "42"}. 로그인 아이디가 아니다
+     * {@code sub} 는 <b>사용자 번호</b>({@code users.id}, bigint)를 문자열로 찍은 것이다 — {@code "42"}
      * (2026-09-22 소유자 결정 — {@code contracts/platform-api.md} "access 토큰"). 검증하는 쪽은 숫자 문자열인지도 본다({@code JwtConfig#jwtDecoder}).
      */
     public static final String SUBJECT_PATTERN = "^[0-9]{1,19}$";
@@ -25,7 +25,7 @@ public final class TokenClaims {
     public static final String TOKEN_USE_ACCESS = "access";
 
     /**
-     * 소셜로 처음 온 사람이 아이디를 정할 때까지 들고 있는 토큰의 {@code token_use} ({@code contracts/platform-api.md} "소셜 로그인").
+     * 소셜로 처음 온 사람이 닉네임을 정할 때까지 들고 있는 토큰의 {@code token_use} ({@code contracts/platform-api.md} "소셜 로그인").
      * access 토큰의 검증기는 이것을 거절하고, 이 토큰의 검증기는 access 토큰을 거절한다
      */
     public static final String TOKEN_USE_SOCIAL_SIGNUP = "social_signup";
