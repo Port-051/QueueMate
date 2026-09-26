@@ -66,7 +66,7 @@ export function TierRangePicker({ game, value = ALL_TIERS, onChange, label }: {
   }, [open]);
   const choose = (tier: string) => {
     if (anchor) { setDraft(normalizeTierRange(game, { minTier: anchor, maxTier: tier })); setAnchor(null); }
-    else { setDraft({ minTier: tier, maxTier: null }); setAnchor(tier); }
+    else { setDraft({ minTier: tier, maxTier: tier }); setAnchor(tier); }
     setHover(null);
   };
 
@@ -104,7 +104,7 @@ export function TierRangePicker({ game, value = ALL_TIERS, onChange, label }: {
           </button>;
         })}
       </div>
-      <p className="tier-range-hint">시작·끝 티어를 선택하세요. 하나만 고르면 해당 티어 이상이에요.</p>
+      <p className="tier-range-hint">하나를 고르면 해당 티어만, 두 개를 고르면 그 사이 범위를 선택해요.</p>
       <footer><TierRangeLabel game={game} value={draft} /><div><button type="button" onClick={() => close(true)}>취소</button><button className="tier-range-apply" type="button" onClick={() => { onChange(draft); close(true); }}>적용</button></div></footer>
     </div>, document.body) : null}
   </div>;

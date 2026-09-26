@@ -81,3 +81,10 @@ test('퀵 연결은 내 티어와 방의 허용 범위, 기존 멤버와 내가 
   expect(quickConnectCandidates([{ ...ranked, members: [...ranked.members, { ...member, id: 'other', tier: 'BRONZE' }] }], seeking)).toHaveLength(0);
   expect(quickConnectCandidates([{ ...ranked, modeKey: 'ARAM' }], { ...seeking, modeKey: 'ARAM', ownTier: 'BRONZE', roles: [] })).toHaveLength(0);
 });
+
+test('우측에서 골드만 지정하면 골드 팀원이 있는 방을 추천하고 모집 범위로 대체하지 않는다', () => {
+  const wantsGold = { ...criteria, ownTier: 'GOLD', desiredTierRange: { minTier: 'GOLD', maxTier: 'GOLD' } };
+  const goldTeam = { ...base, members: [{ ...member, tier: 'GOLD' }], desiredTierRange: { minTier: 'GOLD', maxTier: 'PLATINUM' } };
+  const platinumTeam = { ...goldTeam, id: 'platinum', members: [{ ...member, tier: 'PLATINUM' }] };
+  expect(quickConnectCandidates([goldTeam, platinumTeam], wantsGold)).toEqual([goldTeam]);
+});

@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import type { GameKey } from '../api/types';
 import type { AppShellOutletContext } from '../components/AppShell';
 import { TierRangePicker } from '../components/TierRangePicker';
-import { ALL_TIERS, tierInRange, type TierRange } from '../domain/tierRange';
+import { ALL_TIERS, tierInRange, tierRangesOverlap, type TierRange } from '../domain/tierRange';
 import { FilterModeIcon, FilterRoleIcon, VoiceIcon } from '../components/FilterSymbols';
 import { useToast } from '../components/ui';
 import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
@@ -16,7 +16,7 @@ import { RoomDeckSpread } from './RoomDeckSpread';
 import { RoomQuickConnect } from './RoomQuickConnect';
 import { roomVoice, ROOM_VOICES } from './voice';
 import { quickConnectCandidates, type QuickConnectCriteria } from './quickConnect';
-import { summarizeRoom } from './summary';
+import { remainingRoomRoles } from './positions';
 import { useRoomStore } from './store';
 import type { GameRoom, RoomMember } from './types';
 import '../styles/duo-home.css';
@@ -61,10 +61,10 @@ export function RoomBoardHome() {
   const filtered = rooms.filter(room => {
     if (room.game !== selectedGame || room.type !== type || room.modeKey !== filters.modeKey) return false;
     if (openOnly && (room.status !== 'OPEN' || room.members.length >= room.capacity)) return false;
-    const summary = summarizeRoom(room);
-    if (!tierInRange(selectedGame, summary.tier, filters.tierRange)) return false;
+    if (!tierRangesOverlap(selectedGame, filters.tierRange, room.desiredTierRange)) return false;
     if (filters.voice && roomVoice(room.voice) !== filters.voice) return false;
-    return !filters.roles.length || !summary.roles.length || filters.roles.some(role => summary.roles.includes(role));
+    return !filters.roles.length || !usesKeyCondition(selectedGame, room.modeKey)
+      || filters.roles.some(role => remainingRoomRoles(room).includes(role));
   }).sort((a, b) => b.createdAt - a.createdAt);
   const current = rooms.find(room => room.id === selected?.id);
   const run = (action: () => void) => { try { action(); } catch (error) { toast(error instanceof Error ? error.message : '다시 시도해 주세요.', 'error'); } };
@@ -78,7 +78,7 @@ export function RoomBoardHome() {
     <div className="room-home-layout"><section className="room-board" aria-label="방 목록">
       <div className="board-filter-bar room-filters"><div className="board-filter-line">
         <div className="filter-mode-options" role="group" aria-label="찾는 큐 타입">{visibleModes(selectedGame).map(mode => <button type="button" className="filter-mode" aria-label={mode.label} aria-pressed={filters.modeKey === mode.key} key={mode.key} onClick={() => setFilters({ ...filters, modeKey: mode.key, roles: [] })}><FilterModeIcon mode={mode.key} /><span>{mode.label}</span></button>)}</div>
-        <TierRangePicker label="평균 티어 범위" game={selectedGame} value={filters.tierRange} onChange={tierRange => setFilters({ ...filters, tierRange })} />
+        <TierRangePicker label="모집 티어 범위" game={selectedGame} value={filters.tierRange} onChange={tierRange => setFilters({ ...filters, tierRange })} />
         {usesKeyCondition(selectedGame, filters.modeKey) ? <div className="filter-role-options" role="group" aria-label="포지션">{keyConditionOptions(selectedGame).filter(role => role.value !== 'ANY').map(role => <button className="filter-role" type="button" key={role.value} aria-label={role.label} title={role.label} aria-pressed={filters.roles.includes(role.value)} onClick={() => setFilters({ ...filters, roles: filters.roles.includes(role.value) ? filters.roles.filter(value => value !== role.value) : [...filters.roles, role.value] })}><FilterRoleIcon game={selectedGame} value={role.value} /></button>)}</div> : null}
         <div className="room-mic-filters" role="group" aria-label="마이크 필터">{ROOM_VOICES.map(voice => <button type="button" className="filter-mode" key={voice} aria-label={voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용'} title={voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용'} aria-pressed={filters.voice === voice} onClick={() => setFilters({ ...filters, voice: filters.voice === voice ? '' : voice })}><VoiceIcon preference={voice} size={22}/></button>)}</div>
         {canReset ? <button className="filter-reset" type="button" aria-label="초기화" onClick={() => setFilters({ ...defaults(selectedGame), modeKey: filters.modeKey })}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg></button> : null}

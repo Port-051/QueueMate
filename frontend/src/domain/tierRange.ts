@@ -25,3 +25,8 @@ export function tierInRange(game: GameKey, tier: string | null | undefined, valu
   const index = tier ? order.indexOf(tier) : -1;
   return index >= 0 && (!minTier || index >= order.indexOf(minTier)) && (!maxTier || index <= order.indexOf(maxTier));
 }
+
+/** Board filters describe what the visitor can offer; match the room's requested tiers. */
+export function tierRangesOverlap(game: GameKey, offered: TierRange, requested?: TierRange): boolean {
+  return TIER_ORDER[game].some(tier => tierInRange(game, tier, offered) && tierInRange(game, tier, requested));
+}
