@@ -42,7 +42,8 @@ export function TierRangePicker({ game, value = ALL_TIERS, onChange, label }: {
     const below = window.innerHeight - rect.bottom - 16;
     const above = rect.top - 16;
     const placeBelow = below >= panel.current.scrollHeight || below >= above;
-    setPosition({ position: 'fixed', width, left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)),
+    const centeredLeft = rect.left + (rect.width - width) / 2;
+    setPosition({ position: 'fixed', width, left: Math.max(12, Math.min(centeredLeft, window.innerWidth - width - 12)),
       maxHeight: Math.max(120, placeBelow ? below : above),
       ...(placeBelow ? { top: rect.bottom + 8 } : { bottom: window.innerHeight - rect.top + 8 }) });
     (panel.current.querySelector<HTMLButtonElement>('[data-endpoint="true"]') ?? panel.current.querySelector<HTMLButtonElement>('.tier-range-option'))?.focus({ preventScroll: true });
