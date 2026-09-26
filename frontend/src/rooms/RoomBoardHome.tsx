@@ -1,3 +1,4 @@
+import { SlidingSelector } from '../components/SlidingSelector';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import type { GameKey } from '../api/types';
@@ -80,16 +81,16 @@ export function RoomBoardHome() {
   const canReset = filters.tierRange.minTier || filters.tierRange.maxTier || filters.roles.length || filters.voice !== '';
 
   return <div className={`room-home board-home${activeRoom ? ' has-active-room' : ''}${exploring ? ' is-exploring' : ''}`}>
-    <header className="room-home-heading"><div className="room-type-tabs" role="tablist" aria-label="매칭 시간">
+    <header className="room-home-heading"><SlidingSelector className="room-type-tabs" role="tablist" aria-label="매칭 시간">
       <button role="tab" aria-selected={type === 'REALTIME'} onClick={() => setType('REALTIME')}>실시간 매칭</button>
       <button role="tab" aria-selected={type === 'RESERVATION'} onClick={() => setType('RESERVATION')}>예약 매칭</button>
-    </div></header>
+    </SlidingSelector></header>
     <div className="room-home-layout"><section className="room-board" aria-label="방 목록">
       <div className="board-filter-bar room-filters"><div className="board-filter-line">
-        <div className="filter-mode-options" role="group" aria-label="찾는 큐 타입">{visibleModes(selectedGame).map(mode => <button type="button" className="filter-mode" aria-label={mode.label} aria-pressed={filters.modeKey === mode.key} key={mode.key} onClick={() => setFilters({ ...filters, modeKey: mode.key, roles: [] })}><FilterModeIcon mode={mode.key} /><span>{mode.label}</span></button>)}</div>
+        <SlidingSelector className="filter-mode-options" role="group" aria-label="찾는 큐 타입">{visibleModes(selectedGame).map(mode => <button type="button" className="filter-mode" aria-label={mode.label} aria-pressed={filters.modeKey === mode.key} key={mode.key} onClick={() => setFilters({ ...filters, modeKey: mode.key, roles: [] })}><FilterModeIcon mode={mode.key} /><span>{mode.label}</span></button>)}</SlidingSelector>
         <TierRangePicker label="모집 티어 범위" game={selectedGame} value={filters.tierRange} onChange={tierRange => setFilters({ ...filters, tierRange })} />
         {usesKeyCondition(selectedGame, filters.modeKey) ? <div className="filter-role-options" role="group" aria-label="포지션">{keyConditionOptions(selectedGame).filter(role => role.value !== 'ANY').map(role => <button className="filter-role" type="button" key={role.value} aria-label={role.label} title={role.label} aria-pressed={filters.roles.includes(role.value)} onClick={() => setFilters({ ...filters, roles: filters.roles.includes(role.value) ? filters.roles.filter(value => value !== role.value) : [...filters.roles, role.value] })}><FilterRoleIcon game={selectedGame} value={role.value} /></button>)}</div> : null}
-        <div className="room-mic-filters" role="group" aria-label="마이크 필터">{ROOM_VOICES.map(voice => <button type="button" className="filter-mode" key={voice} aria-label={voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용'} title={voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용'} aria-pressed={filters.voice === voice} onClick={() => setFilters({ ...filters, voice: filters.voice === voice ? '' : voice })}><VoiceIcon preference={voice} size={22}/></button>)}</div>
+        <SlidingSelector className="room-mic-filters" role="group" aria-label="마이크 필터">{ROOM_VOICES.map(voice => <button type="button" className="filter-mode" key={voice} aria-label={voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용'} title={voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용'} aria-pressed={filters.voice === voice} onClick={() => setFilters({ ...filters, voice: filters.voice === voice ? '' : voice })}><VoiceIcon preference={voice} size={22}/></button>)}</SlidingSelector>
         {canReset ? <button className="filter-reset" type="button" aria-label="초기화" onClick={() => setFilters({ ...defaults(selectedGame), modeKey: filters.modeKey })}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg></button> : null}
       </div></div>
       <div className="room-board-count"><strong>{filtered.length}</strong>개의 방<label><input type="checkbox" checked={openOnly} onChange={event => setOpenOnly(event.target.checked)} />모집 중인 방만</label></div>
@@ -100,10 +101,10 @@ export function RoomBoardHome() {
       {!filtered.length ? <div className="room-board-empty"><p>이 조건에 맞는 방이 없어요.</p><button className="room-secondary-button" onClick={() => setFilters(defaults(selectedGame))}>필터 초기화</button></div> : null}
     </section>
     <aside className="room-workspace-rail" aria-label="탐색과 내 방">
-      {activeRoom ? <div className="room-rail-switch" role="group" aria-label="우측 영역 선택">
+      {activeRoom ? <SlidingSelector className="room-rail-switch" role="group" aria-label="우측 영역 선택">
         <button type="button" aria-pressed={exploring} onClick={() => setRailView('explore')}>탐색 · 매칭</button>
         <button type="button" aria-pressed={!exploring} onClick={() => setRailView('chat')}>방 채팅 <small>{activeRoom.members.length}/{activeRoom.capacity}</small>{exploring && lastSeen !== activity ? <i className="room-update-dot" role="img" aria-label="내 방 새 소식" /> : null}</button>
-      </div> : null}
+      </SlidingSelector> : null}
       <div className="room-quick-rail" hidden={!exploring}><RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.modeKey} type={type} rooms={rooms} member={member} activeRoom={activeRoom} onShowRoom={() => setRailView('chat')}
         onCreate={(input, profile) => { const room = create(input, profile); setFilters({ ...defaults(input.game), modeKey: input.modeKey }); setLastSeen(roomActivity(room)); setRailView('explore'); setJustCreatedId(room.id); }} onSelectSeat={(room, profile, criteria) => {
           const vacancies = vacantRoleOptions(room);

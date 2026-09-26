@@ -1,3 +1,4 @@
+import { SlidingSelector } from './SlidingSelector';
 import { TierRangePicker } from './TierRangePicker';
 import { SingleRolePicker } from './SingleRolePicker';
 import { Fragment, useState, type ReactNode } from 'react';
@@ -28,9 +29,9 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
   const nextResult = (current: MatchResult): MatchResult => current === null ? 'WIN' : current === 'WIN' ? 'LOSS' : null;
   return <section className="self-introduction" aria-label="자기소개">
     <div className="introduction-fields button-fields">
-      <fieldset className="introduction-choice"><legend>게임 모드</legend><div className={`intro-mode-options${compact ? ' room-mode-options' : ''}`} role="group" aria-label="원하는 큐 타입">
+      <fieldset className="introduction-choice"><legend>게임 모드</legend><SlidingSelector enabled={compact} className={`intro-mode-options${compact ? ' room-mode-options' : ''}`} role="group" aria-label="원하는 큐 타입">
         {visibleModes(game).map(mode => <button type="button" key={mode.key} className="filter-mode" aria-label={mode.label} aria-pressed={value.queueType === mode.key} disabled={modeLocked} onClick={() => patch({ queueType: mode.key })}><FilterModeIcon mode={mode.key} size={compact ? 22 : 16} /><span>{mode.label}</span></button>)}
-      </div></fieldset>
+      </SlidingSelector></fieldset>
       {afterMode}
       {hasRoles ? <>
         <fieldset className="introduction-choice"><legend>{roleTitle}</legend>{singleRole ? <SingleRolePicker game={game} value={ownRoles[0] ?? null} label={roleTitle} onChange={role => patch({ primaryRoles: [role], primaryRole: role })} /> : <div className="intro-role-options" role="group" aria-label={roleTitle}>
@@ -42,9 +43,9 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
       </> : null}
       <SettingsPair {...(compact ? { className: 'room-settings-pair' } : {})}>
       {showTierRange ? <div className="room-setting-row"><span>찾는 티어</span><TierRangePicker game={game} value={value.desiredTierRange} label="찾는 티어 범위" stacked={compact} onChange={desiredTierRange => patch({ desiredTierRange })} /></div> : null}
-      <VoiceField className={compact ? 'room-setting-row' : 'introduction-choice'}><VoiceLabel>음성</VoiceLabel><div className={`intro-voice-options${binaryVoice ? ' is-binary' : ''}`} role="group" aria-label="음성">
+      <VoiceField className={compact ? 'room-setting-row' : 'introduction-choice'}><VoiceLabel>음성</VoiceLabel><SlidingSelector enabled={compact} className={`intro-voice-options${binaryVoice ? ' is-binary' : ''}`} role="group" aria-label="음성">
         {([{ value: 'OPTIONAL', label: '무관' }, { value: 'REQUIRED', label: '사용' }, { value: 'NO_VOICE', label: '안 씀' }] as const).filter(option => !binaryVoice || option.value !== 'OPTIONAL').map(({ value: voice, label }) => <button type="button" key={voice} className="filter-mode" aria-label={binaryVoice ? voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용' : label} title={binaryVoice ? voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용' : label} aria-pressed={value.voice === voice} onClick={() => patch({ voice })}><VoiceIcon preference={voice} />{!binaryVoice || compact ? <span>{compact && voice === 'NO_VOICE' ? '미사용' : label}</span> : null}</button>)}
-      </div></VoiceField>
+      </SlidingSelector></VoiceField>
       </SettingsPair>
       {game !== 'LOL' ? <label>내 티어<select aria-label="내 티어" value={value.ownTier ?? ''} onChange={event => patch({ ownTier: event.target.value || null, rankDivision: null })}><option value="">미입력</option>{tiers(game).map(tier => <option key={tier} value={tier}>{TIER_LABELS[tier]}</option>)}</select></label> : null}
       {game !== 'LOL' ? <label className="introduction-wide">{championTitle}<input aria-label={championTitle} maxLength={100} placeholder={game === 'VALORANT' ? '예: 제트, 레이나' : '예: M416, 미니14'} value={championText} onChange={event => { setChampionText(event.target.value); patch({ champions: event.target.value.split(',').map(name => name.trim()).filter(Boolean) }); }} /></label> : null}

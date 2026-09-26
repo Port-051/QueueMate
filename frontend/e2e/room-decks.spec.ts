@@ -770,6 +770,10 @@ test('사진과 이름에서 상세 프로필을 열고 닫으면 원래 위치�
   await login(page);
   const deck = page.getByRole('article', { name: '테스트 방 profile 방 정보' });
   const trigger = deck.getByRole('button', { name: '밤하늘 서포터 프로필 보기' });
+  const nameColor = await trigger.evaluate(element => getComputedStyle(element).color);
+  await trigger.hover();
+  await expect(trigger).toHaveCSS('color', nameColor);
+  await expect.poll(() => trigger.evaluate(element => getComputedStyle(element, '::before').backgroundColor)).toBe('rgba(255, 255, 255, 0.043)');
   await trigger.locator('.room-member-avatar').click();
   const dialog = page.getByRole('dialog', { name: '밤하늘 서포터 프로필' });
   await expect(dialog).toBeVisible();
@@ -806,10 +810,14 @@ test('내 방을 유지한 채 추천을 찾고 채팅 초안과 음성을 유�
   await chat.getByRole('region', { name: '방 음성 채널' }).getByRole('button', { name: '참여', exact: true }).click();
   await expect(chat.getByRole('heading', { name: '음성 미리보기' })).toBeVisible();
   const views = page.getByRole('group', { name: '우측 영역 선택' });
+  const railWidth = (await views.boundingBox())!.width;
+  const tabWidths = await views.getByRole('button').evaluateAll(buttons => buttons.map(button => button.getBoundingClientRect().width));
+  expect(Math.abs(tabWidths[0] - tabWidths[1])).toBeLessThan(1);
   await views.getByRole('button', { name: '탐색 · 매칭' }).click();
   const form = page.getByRole('region', { name: '빠른 연결' });
   await expect(form).toBeVisible();
   await expect(chat).toBeHidden();
+  expect((await views.boundingBox())!.width).toBe(railWidth);
   await form.getByRole('group', { name: '모집 인원' }).getByRole('button', { name: '2명', exact: true }).click();
   await form.getByRole('radiogroup', { name: '내 포지션' }).getByRole('radio', { name: '서포터', exact: true }).check();
   await form.getByRole('group', { name: '음성', exact: true }).getByRole('button', { name: '마이크 사용' }).click();
@@ -885,4 +893,45 @@ test('확인 중 대상 방이 마감되어도 기존 방 참여는 유지된다
   await expect(preview.getByRole('button', { name: '이 방으로 이동' })).toBeDisabled();
   await preview.getByRole('button', { name: '취소', exact: true }).click();
   await expect(page.getByRole('region', { name: '방 채팅과 음성' }).getByRole('heading', { name: '테스트 방 stay' })).toBeVisible();
+});
+
+
+test('단일 선택 배경이 끊기지 않고 이동하며 키보드와 화면 크기 변경을 따라간다', async ({ page }) => {
+  await login(page);
+  const modes = page.getByRole('group', { name: '찾는 큐 타입', exact: true });
+  const before = await modes.evaluate(element => new DOMMatrixReadOnly(getComputedStyle(element, '::before').transform).m41);
+  await modes.getByRole('button', { name: '칼바람', exact: true }).click();
+  const motion = await modes.evaluate(element => {
+    const animation = element.getAnimations({ subtree: true }).find(item => item instanceof CSSTransition && item.transitionProperty === 'transform');
+    if (!animation) return null;
+    animation.pause();
+    animation.currentTime = 100;
+    const middle = new DOMMatrixReadOnly(getComputedStyle(element, '::before').transform).m41;
+    const opacity = getComputedStyle(element, '::before').opacity;
+    animation.finish();
+    const end = new DOMMatrixReadOnly(getComputedStyle(element, '::before').transform).m41;
+    return { middle, end, opacity };
+  });
+  expect(motion).not.toBeNull();
+  expect(motion!.middle).toBeGreaterThan(before);
+  expect(motion!.middle).toBeLessThan(motion!.end);
+  expect(motion!.opacity).toBe('1');
+
+  const own = page.getByRole('radiogroup', { name: '내 포지션', exact: true });
+  await own.getByRole('radio', { name: '탑', exact: true }).check();
+  await own.getByRole('radio', { name: '탑', exact: true }).press('ArrowRight');
+  await expect(own.getByRole('radio', { name: '정글', exact: true })).toBeChecked();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => own.evaluate(element => {
+    const selected = element.querySelector<HTMLInputElement>('input:checked')!.parentElement!;
+    const thumb = getComputedStyle(element, '::before');
+    return Math.abs(new DOMMatrixReadOnly(thumb.transform).m41 - selected.offsetLeft);
+  })).toBeLessThanOrEqual(1);
+  await expectNoPageOverflow(page);
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await own.getByRole('radio', { name: '미드', exact: true }).check();
+  const reduced = await own.evaluate(element => ({ duration: getComputedStyle(element, '::before').transitionDuration, opacity: getComputedStyle(element, '::before').opacity }));
+  expect(parseFloat(reduced.duration)).toBeLessThanOrEqual(0.001);
+  expect(reduced.opacity).toBe('1');
 });
