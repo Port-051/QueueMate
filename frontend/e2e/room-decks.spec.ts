@@ -70,6 +70,7 @@ test('다섯 카드가 방 너비에 맞고 상세는 페이지 이동 없이 �
   const deck = grid.locator('.room-deck[data-status="OPEN"]').first();
   const roster = deck.locator('.compact-members');
   await expect(roster.locator('.compact-member')).toHaveCount(5);
+  await expect(roster.locator('.compact-seat')).toHaveText(['바텀', '서포터']);
   const fit = await roster.evaluate(element => {
     const first = element.firstElementChild!.getBoundingClientRect();
     const last = element.lastElementChild!.getBoundingClientRect();

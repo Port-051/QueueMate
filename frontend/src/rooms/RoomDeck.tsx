@@ -94,6 +94,8 @@ export function RoomMemberCard({ room, member }: { room: GameRoom; member: RoomM
 export function RoomDeck({ room, onOpen }: { room: GameRoom; onOpen: (room: GameRoom, button: HTMLButtonElement) => void }) {
   const closed = room.status === 'CONFIRMED';
   const hasRoles = usesKeyCondition(room.game, room.modeKey);
+  const desiredRoles = canonicalRoomRoles(room.game, room.desiredRoles);
+  const anyRole = !desiredRoles.length || desiredRoles.length === ROOM_ROLES[room.game].length;
   return <button type="button" className={`room-deck room-compact${closed ? ' is-confirmed' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`} onClick={event => onOpen(room, event.currentTarget)}>
     <div className="compact-room-header" aria-label="방 요약">
       <h3 title={room.title}>{room.title}</h3>
@@ -109,8 +111,10 @@ export function RoomDeck({ room, onOpen }: { room: GameRoom; onOpen: (room: Game
         <div className="compact-member-champions" aria-label={`${member.nickname} ${room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '선호 요원' : '선호 무기'}`}><PreferredChampions game={room.game} names={member.champions.slice(0,3)}/>{room.game === 'LOL' ? Array.from({ length: Math.max(0, 3 - member.champions.length) }, (_, index) => <span className="compact-champion-empty" key={index} role="img" aria-label="챔피언 미등록" title="챔피언 미등록">—</span>) : null}</div>
       </div>)}
       {Array.from({ length: Math.max(0, room.capacity - room.members.length) }, (_, index) => <div className="compact-member compact-seat" key={`seat-${index}`}>
-        <small>{closed ? '모집 마감' : hasRoles ? '찾는 포지션' : '함께할 팀원'}</small>
-        {hasRoles ? <RoomRoles game={room.game} roles={room.desiredRoles} labels /> : <IconParty size={30} />}
+        {hasRoles ? anyRole || desiredRoles[index]
+          ? <RoomRoles game={room.game} roles={anyRole ? [] : [desiredRoles[index]]} labels />
+          : <span className="compact-seat-unspecified">포지션 미지정</span>
+          : <IconParty size={30} />}
       </div>)}
     </div>
   </button>;
