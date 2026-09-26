@@ -76,7 +76,7 @@ test('다섯 카드가 방 너비에 맞고 상세는 페이지 이동 없이 �
   const deck = grid.locator('.room-deck[data-status="OPEN"]').first();
   const roster = deck.locator('.compact-members');
   await expect(roster.locator('.compact-member')).toHaveCount(5);
-  await expect(roster.locator('.compact-seat')).toHaveText(['바텀', '서포터']);
+  await expect(roster.locator('.compact-seat .room-role-icons b')).toHaveText(['바텀', '서포터']);
   const fit = await roster.evaluate(element => {
     const first = element.firstElementChild!.getBoundingClientRect();
     const last = element.lastElementChild!.getBoundingClientRect();
@@ -185,6 +185,8 @@ test('마지막 자리에 들어가면 자동 확정되며 참가자는 방장 �
   await page.getByRole('checkbox', { name: '모집 중인 방만', exact: true }).uncheck();
   await expect(deck).toHaveAttribute('data-status', 'CONFIRMED');
   await expect(deck).toContainText(/4\s*\/\s*5/);
+  await expect(deck.locator('.compact-seat-status')).toHaveText('모집 마감');
+  await expect(deck).not.toContainText('모집 중');
   await deck.click();
   await expect(page.getByRole('dialog').getByRole('button', { name: '입장하기', exact: true })).toHaveCount(0);
   await expect(page.getByRole('dialog').getByRole('button', { name: '매칭 확정', exact: true })).toBeDisabled();
@@ -247,9 +249,11 @@ test('빈자리 하나에 두 포지션을 표시하고 마이크는 빈자리 �
   const deck = page.getByRole('button', { name: '테스트 방 options 방 정보', exact: true });
   const header = deck.locator('.compact-room-header');
   await expect(header).not.toContainText('찾는 포지션');
+  await expect(header).not.toContainText('모집 중');
   await expect(header.locator('.room-role-icons, .room-mic-icon')).toHaveCount(0);
   const vacancy = deck.locator('.compact-seat');
   await expect(vacancy).toHaveCount(1);
+  await expect(vacancy.locator('.compact-seat-status')).toHaveText('모집 중');
   await expect(vacancy.locator('.room-role-icons b')).toHaveText(['탑', '서포터']);
   await expect(vacancy.getByRole('img', { name: '마이크 미사용', exact: true })).toBeVisible();
   await expect(deck.locator('.compact-member:not(.compact-seat) .room-mic-icon')).toHaveCount(0);

@@ -259,6 +259,7 @@
 .compact-member-champions .preferred-champion-name { font-size:12px; }
 .compact-champion-empty { display:inline-grid; place-items:center; width:27px; height:27px; flex:none; border:1px dashed #3c4050; border-radius:50%; color:var(--muted); font-size:12px; }
 .compact-seat { align-items:center; justify-content:center; gap:18px; background:transparent; border:1px dashed #343c52; color:#8991a9; }
+.compact-seat-status { color:#a5abc0; font-size:13px; line-height:1.4; }
 .compact-seat .room-role-icons { flex-wrap:wrap; gap:16px; }
 .compact-seat .room-role-icons>span { flex-direction:column; gap:8px; }
 .compact-seat .room-role-icons svg { width:30px; height:30px; }

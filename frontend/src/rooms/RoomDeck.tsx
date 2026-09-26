@@ -101,7 +101,7 @@ export function RoomDeck({ room, onOpen }: { room: GameRoom; onOpen: (room: Game
     <div className="compact-room-header" aria-label="방 요약">
       <h3 title={room.title}>{room.title}</h3>
       {room.availableFrom ? <time>{timeLabel(room.availableFrom)}</time> : null}
-      <span className={`room-status${closed ? ' is-confirmed' : ''}`}>{closed ? '마감' : '모집 중'}<b>{room.members.length}/{room.capacity}</b></span>
+      <span className={`room-status${closed ? ' is-confirmed' : ''}`}>{closed ? '마감' : null}<b>{room.members.length}/{room.capacity}</b></span>
     </div>
     <div className="compact-members" aria-label="방 구성원 정보">
       {room.members.map(member => <div className="compact-member" key={member.id}>
@@ -110,6 +110,7 @@ export function RoomDeck({ room, onOpen }: { room: GameRoom; onOpen: (room: Game
         <div className="compact-member-champions" aria-label={`${member.nickname} ${room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '선호 요원' : '선호 무기'}`}><PreferredChampions game={room.game} names={member.champions.slice(0,3)}/>{room.game === 'LOL' ? Array.from({ length: Math.max(0, 3 - member.champions.length) }, (_, index) => <span className="compact-champion-empty" key={index} role="img" aria-label="챔피언 미등록" title="챔피언 미등록">—</span>) : null}</div>
       </div>)}
       {vacancies.map((roles, index) => <div className="compact-member compact-seat" key={`seat-${index}`}>
+        <span className="compact-seat-status">{closed ? '모집 마감' : '모집 중'}</span>
         {hasRoles ? <RoomRoles game={room.game} roles={roles} labels /> : <IconParty size={30} />}
         <RoomVoice value={room.voice} />
       </div>)}
