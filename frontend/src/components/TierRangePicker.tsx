@@ -80,7 +80,7 @@ export function TierRangePicker({ game, value = ALL_TIERS, onChange, label, stac
   return <div className="tier-range-picker">
     <button ref={trigger} className="tier-range-trigger" type="button" aria-label={label} aria-haspopup="dialog" aria-expanded={open} aria-controls={id}
       onClick={() => { if (open) close(); else { setDraft(normalizeTierRange(game, value)); setAnchor(null); setHover(null); setOpen(true); } }}>
-      <TierRangeLabel game={game} value={value} stacked={stacked} iconSize={22} /><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+      <span className="tier-range-trigger-content"><TierRangeLabel game={game} value={value} stacked={stacked} iconSize={22} /><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></span>
     </button>
     {open ? createPortal(<div ref={panel} id={id} className="tier-range-popover" role="dialog" aria-label={label} style={position}
       onKeyDown={event => {

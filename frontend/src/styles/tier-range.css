@@ -1,6 +1,8 @@
 .tier-range-picker{min-width:0}
 .tier-range-trigger{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:42px;max-width:100%;padding:8px 12px;border:1px solid #494454;border-radius:10px;background:#201e28;color:#ded8e9;font:inherit;font-size:14px;cursor:pointer}
 .tier-range-trigger:hover,.tier-range-trigger[aria-expanded=true]{border-color:#a18bc7;background:#2b2639}
+.tier-range-trigger-content{display:flex;align-items:center;justify-content:space-between;gap:inherit;width:100%;min-width:0}
+.tier-range-trigger-content>svg{flex:none}
 .tier-range-label,.tier-range-endpoint{display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
 .tier-range-label{font-size:13px;line-height:1.5;color:#c1b9d1;font-weight:500}
 .tier-range-popover{z-index:1600;box-sizing:border-box;padding:18px;border:1px solid #615373;border-radius:16px;background:#24212d;color:#f1ecf7;box-shadow:0 16px 64px #0009;overflow:auto;animation:tier-range-enter .14s ease-out}
