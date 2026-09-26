@@ -25,13 +25,13 @@ import java.time.Instant;
  *
  * <p><b>세 게임이 보여 주는 것이 다르다</b>(2026-09-22 소유자 결정) — 세 게임 모두에 있는 {@link #games}(판 수)만 {@code NOT NULL} 이고
  * {@link #wins} · {@link #losses} · {@link #winStreak} 은 {@code null} 일 수 있다(PUBG). 게임마다 다른 나머지는 {@link #detail}(jsonb)이다.
- * 왜 이 모양인지는 마이그레이션({@code account/V3__game_profile_and_social_login.sql})의 머리 주석에 있다.
+ * 왜 이 모양인지는 마이그레이션({@code V1__schema.sql})의 {@code game_account_stats} 주석에 있다.
  *
  * <p>{@code winRate} · {@code kda} 는 컬럼이 아니다 — 응답을 만들 때 계산한다({@code GameStatsResponse}).
  */
 @Entity
 @Immutable
-@Table(schema = "account", name = "game_account_stats")
+@Table(name = "game_account_stats")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class GameAccountStats {

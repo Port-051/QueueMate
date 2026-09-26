@@ -24,7 +24,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 최근 함께한 사람 — <b>읽는 쪽만 있다.</b> 채우는 코드가 아직 없어서({@code PartyClosed.fifo} — SQS 배선이 미정이다) 줄은 SQL 로 직접 넣는다.
  *
  * <p>줄의 사람도 파티도 <b>번호</b>(bigint)다 — 응답의 {@code userId} · {@code lastPartyId} 는 JSON 숫자라
- * {@code jsonPath(…, equalTo(번호), Long.class)} 로 본다.
+ * {@code jsonPath(…, equalTo(번호), Long.class)} 로 본다. 두 칸 다 FK 가 있어(사람은 {@code users}, 파티는 {@code parties} — 2026-09-26)
+ * 진짜 사용자와 진짜 파티를 먼저 넣는다({@link #insertParty()}).
  */
 class RecentPlayerApiTest extends ApiTestSupport {
 
@@ -47,7 +48,7 @@ class RecentPlayerApiTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("최근순이고 내 줄만 나온다 — 닉네임 · 마지막 파티 · 마지막 시각이 붙는다. 없어진 사용자의 줄은 빠진다")
+    @DisplayName("최근순이고 내 줄만 나온다 — 닉네임 · 마지막 파티 · 마지막 시각이 붙는다. 없어진 사용자의 줄은 딸려 지워진다")
     void recentFirstAndMineOnly() throws Exception
     {
         String me = newLoginId();
@@ -59,14 +60,17 @@ class RecentPlayerApiTest extends ApiTestSupport {
         Long newer = insertUser(newerLogin);
         Long someoneElse = insertUser();
         Instant base = Instant.now().truncatedTo(ChronoUnit.MILLIS);
-        long newerParty = 900_001L;
-        insertRecent(myId, older, 900_000L, base.minusSeconds(3600));
+        Long olderParty = insertParty();
+        Long newerParty = insertParty();
+        insertRecent(myId, older, olderParty, base.minusSeconds(3600));
         insertRecent(myId, newer, newerParty, base.minusSeconds(60));
         // 남의 목록의 줄 — 나를 만난 사람의 줄이지 내 줄이 아니다
-        insertRecent(someoneElse, myId, 900_002L, base);
-        insertRecent(someoneElse, older, 900_003L, base);
-        // 가입한 적 없는(없어진) 사용자 — 닉네임을 붙일 수 없어 뺀다
-        insertRecent(myId, unknownUserId(), 900_004L, base);
+        insertRecent(someoneElse, myId, newerParty, base);
+        insertRecent(someoneElse, older, olderParty, base);
+        // 없어진 사용자 — 그 사람을 지우면 내 목록의 줄도 FK 의 ON DELETE CASCADE 로 딸려 지워진다
+        Long gone = insertUser();
+        insertRecent(myId, gone, newerParty, base);
+        jdbcTemplate.update("delete from users where id = ?", gone);
 
         mockMvc.perform(get("/api/v1/recent-players").cookie(myCookie))
                 .andExpect(status().isOk())
@@ -86,21 +90,22 @@ class RecentPlayerApiTest extends ApiTestSupport {
         Cookie myCookie = signupAndLogin(me);
         Long myId = userIdOf(me);
         Instant base = Instant.now().truncatedTo(ChronoUnit.MILLIS);
-        // others.get(0) 이 가장 최근이다
+        // others.get(0) 이 가장 최근이다. 마지막 파티는 모두 같은 파티다 — 순서와 무관하다
+        Long party = insertParty();
         List<Long> others = new ArrayList<>();
         for(int i = 0; i < 55; i++)
         {
             Long other = insertUser();
             others.add(other);
-            insertRecent(myId, other, 910_000L + i, base.minusSeconds(i));
+            insertRecent(myId, other, party, base.minusSeconds(i));
         }
 
         List<Long> all = playerIds(myCookie);
         assertThat(all).containsExactlyElementsOf(others.subList(0, 50));
 
         // 가장 최근의 한 명은 내가 차단했고, 그다음 한 명은 나를 차단했다
-        jdbcTemplate.update("insert into social.blocks (blocker_id, blocked_id, created_at) values (?, ?, now())", myId, others.get(0));
-        jdbcTemplate.update("insert into social.blocks (blocker_id, blocked_id, created_at) values (?, ?, now())", others.get(1), myId);
+        jdbcTemplate.update("insert into blocks (blocker_id, blocked_id, created_at) values (?, ?, now())", myId, others.get(0));
+        jdbcTemplate.update("insert into blocks (blocker_id, blocked_id, created_at) values (?, ?, now())", others.get(1), myId);
 
         List<Long> filtered = playerIds(myCookie);
         assertThat(filtered).hasSize(50).doesNotContain(others.get(0), others.get(1));
@@ -116,22 +121,30 @@ class RecentPlayerApiTest extends ApiTestSupport {
         return userIds;
     }
 
-    /** 가입 API 를 거치지 않고 사용자를 넣는다 — 55명을 가입시키면 비밀번호 해시 때문에 느리다. 끝나면 {@link ApiTestSupport} 가 지운다 */
-    private Long insertUser()
-    {
-        return insertUser(newLoginId());
-    }
-
     /** 사용자 번호는 identity 라 DB 가 매긴다 — 넣고 그 번호를 받아 온다 */
     private Long insertUser(String loginId)
     {
-        return jdbcTemplate.queryForObject("insert into account.users (login_id, nickname, created_at, updated_at) "
+        return jdbcTemplate.queryForObject("insert into users (login_id, nickname, created_at, updated_at) "
                 + "values (?, ?, now(), now()) returning id", Long.class, loginId, nicknameOf(loginId));
     }
 
-    private void insertRecent(Long userId, Long otherUserId, long partyId, Instant playedAt)
+    /**
+     * 확정된 게시판 파티 하나 — 방장은 새로 넣은 사용자이고 그 사람의 글에 딸린다. 끝나면 그 방장을 지울 때 글 · 파티가 딸려 지워지고,
+     * 이 파티를 가리키던 줄의 {@code last_party_id} 는 {@code NULL} 이 된다
+     */
+    private Long insertParty()
     {
-        jdbcTemplate.update("insert into social.recent_players (user_id, other_user_id, last_party_id, last_played_at) values (?, ?, ?, ?)",
+        Long postId = jdbcTemplate.queryForObject("insert into recruit_posts "
+                + "(host_id, game, mode, title, voice, purpose, status, created_at, updated_at, confirmed_at) "
+                + "values (?, 'LOL', 'RANKED_SOLO', 't', 'REQUIRED', 'FUN', 'CONFIRMED', now(), now(), now()) returning id",
+                Long.class, insertUser());
+        return jdbcTemplate.queryForObject("insert into parties (source, post_id, game, status, created_at) "
+                + "values ('BOARD', ?, 'LOL', 'ACTIVE', now()) returning id", Long.class, postId);
+    }
+
+    private void insertRecent(Long userId, Long otherUserId, Long partyId, Instant playedAt)
+    {
+        jdbcTemplate.update("insert into recent_players (user_id, other_user_id, last_party_id, last_played_at) values (?, ?, ?, ?)",
                 userId, otherUserId, partyId, Timestamp.from(playedAt));
     }
 }

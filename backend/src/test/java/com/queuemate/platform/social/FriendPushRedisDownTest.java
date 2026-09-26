@@ -1,6 +1,5 @@
 package com.queuemate.platform.social;
 
-import com.queuemate.platform.account.service.UserReader;
 import com.queuemate.platform.common.push.PushPublisher;
 import com.queuemate.platform.social.dto.FriendRequestResponse;
 import com.queuemate.platform.social.dto.FriendResponse;
@@ -36,9 +35,6 @@ class FriendPushRedisDownTest extends FriendTestSupport {
     FriendshipRepository friendshipRepository;
 
     @Autowired
-    UserReader userReader;
-
-    @Autowired
     BlockReader blockReader;
 
     @Autowired
@@ -63,7 +59,7 @@ class FriendPushRedisDownTest extends FriendTestSupport {
                 throw new RedisConnectionFailureException("테스트 — Redis 가 죽었다");
             }
         };
-        FriendService service = new FriendService(friendRequestRepository, friendshipRepository, userReader, blockReader,
+        FriendService service = new FriendService(friendRequestRepository, friendshipRepository, blockReader,
                 new PushPublisher(broken, objectMapper));
 
         // 서비스는 본문의 userId 를 글자로 받아 스스로 Long 으로 판다 — 컨트롤러를 거치지 않으니 여기서도 글자로 넘긴다

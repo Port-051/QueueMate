@@ -28,7 +28,7 @@ public class AccessTokenIssuer {
     private final JwtProperties jwtProperties;
     private final WebSecurityProperties webSecurityProperties;
 
-    /** @param userId 사용자 번호({@code account.users.id}). {@code sub} 에는 숫자를 문자열로 찍는다 — JWT 의 {@code sub} 는 문자열이다 */
+    /** @param userId 사용자 번호({@code users.id}). {@code sub} 에는 숫자를 문자열로 찍는다 — JWT 의 {@code sub} 는 문자열이다 */
     public String issue(Long userId)
     {
         Instant now = Instant.now();

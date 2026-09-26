@@ -56,13 +56,13 @@ abstract class FriendTestSupport extends ApiTestSupport {
 
     protected String statusOf(long requestId)
     {
-        return jdbcTemplate.queryForObject("select status from social.friend_requests where id = ?", String.class, requestId);
+        return jdbcTemplate.queryForObject("select status from friend_requests where id = ?", String.class, requestId);
     }
 
     /** 두 사람 사이의 친구 줄 수 — 순서를 가리지 않는다. 늘 0 아니면 1 이어야 한다 */
     protected int friendshipsBetween(Long a, Long b)
     {
-        return jdbcTemplate.queryForObject("select count(*) from social.friendships "
+        return jdbcTemplate.queryForObject("select count(*) from friendships "
                 + "where (user_low_id = ? and user_high_id = ?) or (user_low_id = ? and user_high_id = ?)",
                 Integer.class, a, b, b, a);
     }
@@ -70,7 +70,7 @@ abstract class FriendTestSupport extends ApiTestSupport {
     /** 앱을 거치지 않고 대기 중 요청을 넣는다 — 조회(친절한 에러)를 비껴간 경쟁의 결과를 만들 때 쓴다 */
     protected long insertPending(Long requesterId, Long receiverId)
     {
-        return jdbcTemplate.queryForObject("insert into social.friend_requests (requester_id, receiver_id, status, created_at) "
+        return jdbcTemplate.queryForObject("insert into friend_requests (requester_id, receiver_id, status, created_at) "
                 + "values (?, ?, 'PENDING', now()) returning id", Long.class, requesterId, receiverId);
     }
 }

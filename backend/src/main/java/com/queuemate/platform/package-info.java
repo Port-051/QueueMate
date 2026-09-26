@@ -5,8 +5,10 @@
  * 최근 함께한 사람(읽기) · 개인 알림 발행 · 방 안의 일(2026-09-25 에 {@code room} 앱을 합쳤다)이 있다.</b> 무엇을 어떤 순서로 만드는지는 폴더 루트의 {@code START_HERE.md} §3,
  * 규칙은 {@code CLAUDE.md}, 이 앱이 정한 계약은 {@code contracts/platform-api.md} 에 있다.
  *
- * <p><b>패키지는 도메인(= DB 스키마)을 먼저 나눈다.</b> 이 앱이 소유하는 스키마는 {@code account} · {@code party} · {@code social}
- * 셋이고(CLAUDE.md §3.5 · docs/11 #17) 크로스 스키마 FK · JOIN 을 만들지 않는다 — 패키지도 같은 금으로 가른다. DB 가 없는 도메인이 하나 더 있다 — {@code room}.
+ * <p><b>패키지는 도메인을 먼저 나눈다</b> — {@code account} · {@code social} · {@code party} 와 DB 가 없는 {@code room}.
+ * <b>DB 스키마는 {@code public} 하나다</b>(2026-09-26 소유자 결정 — 옛 {@code account} · {@code social} · {@code party} 스키마를 합쳤다.
+ * 테이블의 원본은 {@code db/migration/V1__schema.sql}). 테이블 사이의 FK 와 JOIN 을 쓴다 — 사용자 번호를 담는 칸은 전부 {@code users(id)} 로
+ * FK({@code ON DELETE CASCADE})가 걸려 있고, 없는 사용자는 조회로 먼저 보지 않고 그 FK 위반으로 안다({@code common.error.ConstraintViolations#isMissingUser}).
  * <ul>
  *   <li>{@code common} — 도메인에 속하지 않는 것. {@code error}(에러 본문 · 예외 처리) · {@code web}({@code Origin} 검사) ·
  *       {@code security}(토큰 서명과 검증 · 보안 설정 · 현재 사용자) · {@code push}(개인 알림 발행과 봉투 — CLAUDE.md §3.2.
@@ -29,10 +31,11 @@
  *       활성 요청 키의 {@code EXISTS} 가 한 스크립트 안에 있어서, 맨손으로 {@code SADD} 하면 그 불변식이 깨진다</li>
  * </ul>
  *
- * <p><b>도메인 사이는 "창구"로만 잇는다</b> — 남의 리포지토리를 직접 쓰거나 남의 스키마의 테이블을 JOIN 하지 않는다.
+ * <p><b>도메인 사이</b> — 쿼리 안에서는 엔티티를 패키지 너머로 JOIN 해도 된다(예: 친구 · 차단 · 최근 함께한 사람의 목록이 {@code users} 를 JOIN 해
+ * 닉네임을 붙이고 DB 가 정렬한다). 다만 <b>남의 리포지토리 · 서비스를 직접 부르는 것은 아래 창구로만</b> 한다.
  * <ul>
- *   <li>{@code account.service.UserReader}(있는 사용자인가 · 닉네임) · {@code account.service.GameProfileReader}(여러 사용자의 게임 프로필 — 쿼리 한 번)</li>
- *   <li>{@code social.service.BlockReader}(나와 어느 방향으로든 차단 관계인 사람 — 쿼리 한 번)</li>
+ *   <li>{@code account.service.GameProfileReader}(여러 사용자의 게임 프로필 — 쿼리 한 번) · {@code social.service.BlockReader}(나와 어느 방향으로든
+ *       차단 관계인 사람 — 쿼리 한 번). 둘 다 묻는 사용자 번호가 DB 가 아니라 Redis 의 멤버 SET 에서 오므로 JOIN 할 짝이 없어 창구로 남았다</li>
  *   <li><b>{@code room} ↔ {@code party}</b>(2026-09-25 2단계 — 두 앱이던 때는 입장권과 방 키 읽기로 이었다. 지금은 서로의 서비스를 부른다)
  *     <ul>
  *       <li>{@code party} → {@code room}: {@code room.service.RoomService} 의 {@code create}(글 쓰기가 방을 만든다 — 글의 트랜잭션 안) ·

@@ -168,7 +168,7 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
         {
             deleteOwnKeys();
             // 방장이 나가면 글이 만료된다(2026-09-25) — 되살려 두지 않으면 둘째 판부터 입장이 전부 글에서 409 로 막혀 경쟁이 일어나지 않는다
-            jdbcTemplate.update("update party.recruit_posts set status = 'RECRUITING', expired_at = null where id = ?", Long.parseLong(r("r1")));
+            jdbcTemplate.update("update recruit_posts set status = 'RECRUITING', expired_at = null where id = ?", Long.parseLong(r("r1")));
             roomService.create(r("r1"), u("host"));
 
             runConcurrently(101, i -> {
@@ -207,7 +207,7 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
     /** 이름표의 방 번호로 넣어 둔 글({@code RoomTestSupport#r})의 상태 */
     private String postStatus(String room)
     {
-        return jdbcTemplate.queryForObject("select status from party.recruit_posts where id = ?", String.class, Long.parseLong(r(room)));
+        return jdbcTemplate.queryForObject("select status from recruit_posts where id = ?", String.class, Long.parseLong(r(room)));
     }
 
     private static void count(Map<LeaveResult, AtomicInteger> counts, LeaveResult result)

@@ -21,11 +21,11 @@ import java.time.Instant;
  * ({@code … WHERE id = ? AND receiver_id = ? AND status = 'PENDING'})로 한다({@code FriendRequestRepository}). 읽고 → 판단하고 → 저장하면
  * 그 사이에 같은 요청이 끼어든다(CLAUDE.md §5).
  *
- * <p>사용자 번호는 {@code account.users.id} 의 것이지만 FK 가 없다(크로스 스키마 FK 금지) — 숫자로만 든다.
+ * <p>사용자 번호 둘은 {@code users.id} 로 FK 가 걸려 있다 — 엔티티 연관은 두지 않고 숫자로만 든다.
  * id 가 {@code null} 인 새 엔티티라 {@code save()} 가 {@code persist} 로 간다 — 반드시 INSERT 가 나가고 중복은 partial unique index 가 막는다.
  */
 @Entity
-@Table(schema = "social", name = "friend_requests")
+@Table(name = "friend_requests")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class FriendRequest {

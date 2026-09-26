@@ -259,7 +259,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
         assertThat(ownKeys()).isEmpty();
         // 이 테스트는 확정을 방에만 했다(글의 기록 없이) — 그래서 방이 닫힐 때 글이 모집 중이었고 나가기가 그 글을 만료시켰다(2026-09-25 — 확정 전에는 방과 글이 같이 끝난다).
         // 여기서 보려는 것은 "다시 만든 방이 확정돼 있지 않다" 하나라 글을 되살려 입장이 글에서 막히지 않게 한다
-        jdbcTemplate.update("update party.recruit_posts set status = 'RECRUITING', expired_at = null where id = ?", Long.parseLong(r("r1")));
+        jdbcTemplate.update("update recruit_posts set status = 'RECRUITING', expired_at = null where id = ?", Long.parseLong(r("r1")));
         assertThat(roomService.create(r("r1"), u("u1"))).isEqualTo(CreateResult.CREATED);
         assertThat(roomMemberService.enter(r("r1"), u("host"))).isEqualTo(EnterResult.ENTERED);
     }

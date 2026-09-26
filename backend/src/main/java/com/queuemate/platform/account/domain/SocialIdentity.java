@@ -22,7 +22,7 @@ import java.time.Instant;
  * 빠지지 않게 한다. 반드시 INSERT 가 나가고, 같은 소셜 계정의 두 번째 연결은 PK({@code social_identities_pkey})가 막는다.
  */
 @Entity
-@Table(schema = "account", name = "social_identities")
+@Table(name = "social_identities")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SocialIdentity implements Persistable<SocialIdentityId> {
@@ -30,7 +30,7 @@ public class SocialIdentity implements Persistable<SocialIdentityId> {
     @EmbeddedId
     private SocialIdentityId id;
 
-    /** 사용자 번호({@code account.users.id}). 제공자의 회원 번호({@code id.providerUserId})와 다른 것이다 */
+    /** 사용자 번호({@code users.id}). 제공자의 회원 번호({@code id.providerUserId})와 다른 것이다 */
     @Column(name = "user_id", nullable = false, updatable = false)
     private Long userId;
 

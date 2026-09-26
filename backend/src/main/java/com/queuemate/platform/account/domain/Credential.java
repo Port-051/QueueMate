@@ -23,7 +23,7 @@ import java.time.Instant;
  * {@link #isNew()} 가 {@code true} 면 {@code persist} 로 가서 <b>반드시 INSERT 가 나간다.</b>
  */
 @Entity
-@Table(schema = "account", name = "credentials")
+@Table(name = "credentials")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Credential implements Persistable<Long> {

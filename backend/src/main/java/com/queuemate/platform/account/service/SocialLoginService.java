@@ -30,7 +30,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class SocialLoginService {
 
-    /** 마이그레이션(V3)이 붙인 제약의 이름이다. 거기서 바꾸면 여기도 바꾼다 */
+    /** 마이그레이션(V1__schema.sql)이 붙인 제약의 이름이다. 거기서 바꾸면 여기도 바꾼다 */
     static final String SOCIAL_IDENTITIES_PK = "social_identities_pkey";
 
     private final UserRepository userRepository;

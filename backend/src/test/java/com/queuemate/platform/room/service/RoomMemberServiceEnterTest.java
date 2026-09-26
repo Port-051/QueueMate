@@ -31,7 +31,7 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
     void gateRunsBeforeTheScript()
     {
         roomService.create(r("r1"), u("host"));
-        jdbcTemplate.update("update party.recruit_posts set status = 'EXPIRED', expired_at = now() where id = ?", Long.parseLong(r("r1")));
+        jdbcTemplate.update("update recruit_posts set status = 'EXPIRED', expired_at = now() where id = ?", Long.parseLong(r("r1")));
 
         assertThatThrownBy(() -> roomMemberService.enter(r("r1"), u("u1")))
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo("POST_NOT_RECRUITING"));

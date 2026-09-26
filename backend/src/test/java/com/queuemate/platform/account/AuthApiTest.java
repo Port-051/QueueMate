@@ -209,10 +209,10 @@ class AuthApiTest extends ApiTestSupport {
         }
 
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from account.users where login_id = ?", Integer.class, loginId)).isEqualTo(1);
+                "select count(*) from users where login_id = ?", Integer.class, loginId)).isEqualTo(1);
         // 진 쪽의 비밀번호 해시가 남지 않았다(트랜잭션이 통째로 되돌려졌다)
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from account.credentials where user_id = ?", Integer.class, userIdOf(loginId))).isEqualTo(1);
+                "select count(*) from credentials where user_id = ?", Integer.class, userIdOf(loginId))).isEqualTo(1);
     }
 
     @Test
@@ -228,7 +228,7 @@ class AuthApiTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.code").value("NICKNAME_TAKEN"));
 
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from account.users where login_id = ?", Integer.class, second)).isZero();
+                "select count(*) from users where login_id = ?", Integer.class, second)).isZero();
     }
 
     @Test
@@ -276,7 +276,7 @@ class AuthApiTest extends ApiTestSupport {
         login("", "").andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
 
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from account.users where login_id = ?", Integer.class, loginId)).isZero();
+                "select count(*) from users where login_id = ?", Integer.class, loginId)).isZero();
     }
 
     @Test

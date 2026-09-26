@@ -154,9 +154,9 @@ class PostApiTest extends PostTestSupport {
         Long second = createLolPost(cookie);
         assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + hostId)).isEqualTo(Long.toString(second));
 
-        assertThat(jdbcTemplate.queryForObject("select count(*) from party.recruit_posts where host_id = ? and status = 'RECRUITING'",
+        assertThat(jdbcTemplate.queryForObject("select count(*) from recruit_posts where host_id = ? and status = 'RECRUITING'",
                 Integer.class, hostId)).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject("select count(*) from party.recruit_posts where host_id = ?",
+        assertThat(jdbcTemplate.queryForObject("select count(*) from recruit_posts where host_id = ?",
                 Integer.class, hostId)).isEqualTo(2);
     }
 
@@ -200,7 +200,7 @@ class PostApiTest extends PostTestSupport {
         {
             pool.shutdownNow();
         }
-        assertThat(jdbcTemplate.queryForObject("select count(*) from party.recruit_posts where host_id = ?",
+        assertThat(jdbcTemplate.queryForObject("select count(*) from recruit_posts where host_id = ?",
                 Integer.class, hostId)).isEqualTo(1);
     }
 
@@ -291,7 +291,7 @@ class PostApiTest extends PostTestSupport {
         mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(cookie)).andExpect(status().isNoContent());
 
         assertThat(statusOf(postId)).isEqualTo("EXPIRED");
-        assertThat(jdbcTemplate.queryForObject("select expired_at is not null from party.recruit_posts where id = ?",
+        assertThat(jdbcTemplate.queryForObject("select expired_at is not null from recruit_posts where id = ?",
                 Boolean.class, postId)).isTrue();
         mockMvc.perform(get("/api/v1/posts/" + postId).cookie(cookie))
                 .andExpect(status().isOk())

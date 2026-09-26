@@ -13,7 +13,7 @@ import java.util.List;
  * @param userId          사용자 번호
  * @param loginId         로그인 아이디 — 소셜로만 가입한 사람도 가입할 때 정했다
  * @param socialProviders 이 계정에 이어진 소셜 제공자의 이름(대문자 — {@code KAKAO} · {@code DISCORD}). 없으면 {@code []}
- * @param hasPassword     비밀번호가 있는가. 소셜로만 가입한 사람은 {@code false} 다({@code account.credentials} 줄이 없다)
+ * @param hasPassword     비밀번호가 있는가. 소셜로만 가입한 사람은 {@code false} 다({@code credentials} 줄이 없다)
  * @param gameAccounts    게임 프로필의 목록. 게임 이름순이다
  */
 public record UserResponse(

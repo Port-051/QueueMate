@@ -7,7 +7,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 컨트롤러 인자에 붙이면 <b>로그인한 사용자의 번호</b>({@code Long} — {@code account.users.id})가 들어온다 — access 토큰의 {@code sub} 를
+ * 컨트롤러 인자에 붙이면 <b>로그인한 사용자의 번호</b>({@code Long} — {@code users.id})가 들어온다 — access 토큰의 {@code sub} 를
  * {@link CurrentUserIdArgumentResolver} 가 {@code Long} 으로 판 것이다.
  *
  * <pre>{@code

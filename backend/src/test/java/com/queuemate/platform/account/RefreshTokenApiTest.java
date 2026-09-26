@@ -155,7 +155,7 @@ class RefreshTokenApiTest extends ApiTestSupport {
         // 계정이 사라진 사람의 refresh — 값은 Redis 에 멀쩡히 있다
         String deletedLoginId = newLoginId();
         Cookie orphaned = loginAndGetRefresh(deletedLoginId);
-        jdbcTemplate.update("delete from account.users where id = ?", userIdOf(deletedLoginId));
+        jdbcTemplate.update("delete from users where id = ?", userIdOf(deletedLoginId));
         assertThat(refreshTokenStored(orphaned.getValue())).isTrue();
 
         List<MvcResult> failures = List.of(

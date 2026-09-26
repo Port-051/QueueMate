@@ -18,15 +18,15 @@ import java.time.Instant;
  * 신고 한 건. <b>접수만 받는다</b> — 처리 화면 · 제재가 없어서 {@code status} 는 늘 {@code RECEIVED} 다({@code REVIEWED} 는 DB 의 CHECK 에만 있다).
  * 같은 사람을 여러 번 신고할 수 있다 — UNIQUE 가 없다.
  *
- * <p>사용자 번호에도 {@code contextId}(글의 id)에도 FK 가 없다(크로스 스키마 FK 금지). {@code contextId} 는 있는지 확인하지도 않는다.
+ * <p>사용자 번호 둘은 {@code users.id} 로 FK 가 걸려 있다 — 없는 사용자를 신고하면 그 위반이 404 {@code USER_NOT_FOUND} 가 된다. {@code contextId}(글의 id)에는 FK 가 없고 있는지 확인하지도 않는다(계약).
  */
 @Entity
-@Table(schema = "social", name = "reports")
+@Table(name = "reports")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Report {
 
-    /** 접수된 신고의 상태. 마이그레이션(V6)의 기본값과 같다 */
+    /** 접수된 신고의 상태. 마이그레이션(V1__schema.sql)의 기본값과 같다 */
     private static final String RECEIVED = "RECEIVED";
 
     @Id

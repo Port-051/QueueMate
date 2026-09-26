@@ -18,12 +18,12 @@ import java.time.Instant;
  * 파티원 한 줄. <b>읽기만 한다</b> — 넣는 것은 {@code PartyMemberRepository#insertIfAbsent} 의 {@code INSERT … ON CONFLICT DO NOTHING} 이다
  * (같은 확정이 두 길로 와도 한 벌만 남게). 그래서 생성자도 세터도 없고 {@code @Immutable} 이다.
  *
- * <p>{@code userId} 는 사용자 번호({@code account.users.id})지만 FK 가 없다(크로스 스키마 FK 금지 — CLAUDE.md §3.5).
- * {@code partyId} 는 {@code party.parties.id}(bigint identity)다 — 글의 id 가 아니다. 글에서 파티를 찾으려면 {@code parties.post_id} 로 간다.
+ * <p>{@code userId} 는 사용자 번호({@code users.id})이고 FK 가 걸려 있다(사용자를 지우면 딸려 지워진다). 엔티티 연관은 두지 않고 숫자로만 든다.
+ * {@code partyId} 는 {@code parties.id}(bigint identity)다 — 글의 id 가 아니다. 글에서 파티를 찾으려면 {@code parties.post_id} 로 간다.
  */
 @Entity
 @Immutable
-@Table(schema = "party", name = "party_members")
+@Table(name = "party_members")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PartyMember {

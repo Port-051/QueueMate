@@ -23,7 +23,7 @@ public interface GameAccountStatsRepository extends JpaRepository<GameAccountSta
      */
     @Modifying
     @Query(nativeQuery = true, value = """
-            INSERT INTO account.game_account_stats
+            INSERT INTO game_account_stats
                    (game_account_id, games, avg_kills, avg_deaths, avg_assists, wins, losses, win_streak,
                     detail, source, synced_at)
             VALUES (:gameAccountId, :games,

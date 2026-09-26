@@ -16,7 +16,7 @@ import java.time.Instant;
  * 사용자. 식별자가 둘이다 (2026-09-22 소유자 결정 — CLAUDE.md §3.5 · {@code contracts/platform-api.md} "계정").
  * <ul>
  *   <li>{@code id} — <b>사용자 번호</b>(bigint identity). 시스템 안팎에서 쓰는 {@code userId} 가 이것이다 — JWT 의 {@code sub}, 알림 채널,
- *       URL, 요청 · 응답 본문, 다른 스키마의 {@code *_id} 컬럼 전부</li>
+ *       URL, 요청 · 응답 본문, 다른 테이블의 {@code *_id} 컬럼 전부</li>
  *   <li>{@code loginId} — 가입할 때 정한 <b>로그인 아이디</b>. 로그인할 때만 쓴다. 바꿀 수 없다</li>
  * </ul>
  *
@@ -24,7 +24,7 @@ import java.time.Instant;
  * 중복(로그인 아이디 · 닉네임)은 DB 의 UNIQUE 가 막는다 (CLAUDE.md §5 "불변식은 DB가 강제한다"). {@code Persistable} 이 필요 없어졌다.
  */
 @Entity
-@Table(schema = "account", name = "users")
+@Table(name = "users")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User {

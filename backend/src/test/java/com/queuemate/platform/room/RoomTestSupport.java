@@ -60,7 +60,7 @@ public abstract class RoomTestSupport extends ApiTestSupport {
     {
         return userIds.computeIfAbsent(label, l -> {
             String loginId = newLoginId();
-            Long id = jdbcTemplate.queryForObject("insert into account.users (login_id, nickname, created_at, updated_at) "
+            Long id = jdbcTemplate.queryForObject("insert into users (login_id, nickname, created_at, updated_at) "
                     + "values (?, ?, now(), now()) returning id", Long.class, loginId, nicknameOf(loginId));
             String userId = String.valueOf(id);
             labels.put(userId, l);
@@ -97,17 +97,18 @@ public abstract class RoomTestSupport extends ApiTestSupport {
      *
      * <p><b>그 번호의 모집 글도 같이 넣는다</b>(2026-09-25 2단계) — 입장이 스크립트를 부르기 전에 글을 본다({@code PostEntryGate}: 없는 글은 404
      * {@code POST_NOT_FOUND}). 방의 테스트는 방을 {@code roomService.create} 로 직접 만들므로(글 쓰기를 거치지 않는다) 글은 여기서 SQL 로 넣는다 —
-     * <b>모집 중 · 방장은 아무도 아닌 번호</b>(방의 번호 그대로)다. 그래서 차단에 걸리지 않고, 입장의 갈래는 전부 스크립트가 가른다.
+     * <b>모집 중 · 방장은 이 방만을 위해 새로 넣은 사용자</b>({@link #insertUser()} — {@code host_id} 에 {@code users(id)} 로 FK 가 있다)다.
+     * 방의 멤버 누구와도 다른 사람이라 차단에 걸리지 않고, 입장의 갈래는 전부 스크립트가 가른다.
      * 번호를 앱이 아니라 테스트가 정하므로 {@code OVERRIDING SYSTEM VALUE} 로 넣는다(identity 의 순번은 건드리지 않는다). 끝나면 지운다
      */
     protected String r(String label)
     {
         return roomIds.computeIfAbsent(label, l -> {
             long id = ThreadLocalRandom.current().nextLong(3_000_000_000_000_000L, 4_000_000_000_000_000L);
-            jdbcTemplate.update("insert into party.recruit_posts "
+            jdbcTemplate.update("insert into recruit_posts "
                     + "(id, host_id, game, mode, title, voice, purpose, conditions, status, created_at, updated_at) "
                     + "overriding system value values (?, ?, 'LOL', ?, '방의 테스트', 'REQUIRED', 'RANK_UP', '{}'::jsonb, 'RECRUITING', now(), now())",
-                    id, id, LOL_MODE);
+                    id, insertUser(), LOL_MODE);
             String roomId = String.valueOf(id);
             labels.put(roomId, l);
             return roomId;
@@ -205,14 +206,8 @@ public abstract class RoomTestSupport extends ApiTestSupport {
     void deleteRoomKeys()
     {
         deleteOwnKeys();
-        // r() 가 넣은 글 — 방장 확정을 HTTP 로 부른 테스트는 파티까지 적었다(FK 가 있어 파티원 → 파티 → 글 순서로 지운다)
-        for(String roomId : roomIds.values())
-        {
-            long postId = Long.parseLong(roomId);
-            jdbcTemplate.update("delete from party.party_members where party_id in (select id from party.parties where post_id = ?)", postId);
-            jdbcTemplate.update("delete from party.parties where post_id = ?", postId);
-            jdbcTemplate.update("delete from party.recruit_posts where id = ?", postId);
-        }
+        // r() 가 넣은 글은 그 방장(insertUser)을 지울 때 FK 의 ON DELETE CASCADE 로 딸려 지워진다 — 방장 확정을 HTTP 로 부른 테스트가
+        // 적은 파티 · 파티원까지 같이다(ApiTestSupport#deleteCreatedUsers)
         userIds.clear();
         roomIds.clear();
         labels.clear();

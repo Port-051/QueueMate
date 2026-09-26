@@ -35,7 +35,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UserService {
 
-    /** 마이그레이션(V2)이 붙인 제약의 이름이다 */
+    /** 마이그레이션(V1__schema.sql)이 붙인 제약의 이름이다 */
     static final String GAME_ACCOUNTS_USER_FK = "game_accounts_user_id_fkey";
 
     private final UserRepository userRepository;

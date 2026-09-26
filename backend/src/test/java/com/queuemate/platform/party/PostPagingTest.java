@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 안 보내면 400 {@code VALIDATION_FAILED}({@code details} 에 {@code "game: 필요합니다"}), 모르는 이름 · 소문자면 같은 400 에 {@code "game: 올바른 값이 아닙니다"} 다.
  *
  * <p><b>글은 SQL 로 직접 넣는다</b>({@link #insertRecruitPost}) — "모집 중인 글은 한 사람에 하나"라 글마다 방장이 달라야 하고 20~25명을 가입시키면 느리다.
- * 그 방장들은 가입하지 않은 사용자 번호라 카드가 {@code null} 로 나가지만 페이지 나누기는 그것과 무관하다.
+ * 그 방장들은 SQL 로 바로 넣은 사용자({@code insertUser()})라 게임 계정이 없어 카드의 프로필이 {@code null} 로 나가지만 페이지 나누기는 그것과 무관하다.
  */
 class PostPagingTest extends PostTestSupport {
 
@@ -271,7 +271,7 @@ class PostPagingTest extends PostTestSupport {
         // 둘째와 다섯째만 만료다 — 끝난 글도 목록에 남고(2026-09-25 소유자 결정) 맨 아래로 내려가지 않는다. 제자리다(2026-09-24 소유자 결정)
         for(Long postId : List.of(lol.get(1), lol.get(4)))
         {
-            jdbcTemplate.update("update party.recruit_posts set status = 'EXPIRED', expired_at = now() where id = ?", postId);
+            jdbcTemplate.update("update recruit_posts set status = 'EXPIRED', expired_at = now() where id = ?", postId);
         }
 
         assertThat(walk(viewer, "LOL", 2)).containsExactlyElementsOf(lol).doesNotContainAnyElementsOf(other);
@@ -346,7 +346,7 @@ class PostPagingTest extends PostTestSupport {
      * 글 {@code count} 개를 <b>오래된 것부터</b> 넣고 <b>새 글이 먼저인 순서로</b> 돌려준다 — 그것이 곧 목록에 보일 순서다
      * (정렬이 {@code id} 내림차순이므로 먼저 넣은 글이 뒤에 온다. 2026-09-24). {@code created_at} 도 같은 방향으로 1초씩 벌려 둔다 —
      * 정렬에 쓰이지 않지만 "쓴 지 10분" 을 보는 만료 판정이 있어 어긋나 있으면 읽는 사람이 헷갈린다.
-     * 방장은 글마다 다른, 가입하지 않은 사용자 번호다.
+     * 방장은 글마다 다른, SQL 로 바로 넣은 사용자다({@code insertUser()} — 가입 · 로그인을 되풀이하면 느리다).
      */
     private List<Long> insertPosts(int count, String game, String title)
     {
@@ -358,22 +358,22 @@ class PostPagingTest extends PostTestSupport {
         List<Long> ids = new ArrayList<>();
         for(int i = count - 1; i >= 0; i--)
         {
-            ids.add(insertRecruitPost(unknownUserId(), game, title + "-" + i, newest.minusSeconds(i)));
+            ids.add(insertRecruitPost(insertUser(), game, title + "-" + i, newest.minusSeconds(i)));
         }
         Collections.reverse(ids);
         return ids;
     }
 
-    /** 그 글의 방장(가입하지 않은 사용자 번호다) — 방 키를 열거나 차단할 때 쓴다 */
+    /** 그 글의 방장 — 방 키를 열거나 차단할 때 쓴다 */
     private Long hostOf(Long postId)
     {
-        return jdbcTemplate.queryForObject("select host_id from party.recruit_posts where id = ?", Long.class, postId);
+        return jdbcTemplate.queryForObject("select host_id from recruit_posts where id = ?", Long.class, postId);
     }
 
     /** 그 글의 방장을 차단한다 — 방이 없는 글이라 목록에서 숨겨지는 기준은 방장과의 사이다 */
     private void blockHostOf(Long blockerId, Long postId)
     {
-        jdbcTemplate.update("insert into social.blocks (blocker_id, blocked_id, created_at) values (?, ?, now())",
+        jdbcTemplate.update("insert into blocks (blocker_id, blocked_id, created_at) values (?, ?, now())",
                 blockerId, hostOf(postId));
     }
 

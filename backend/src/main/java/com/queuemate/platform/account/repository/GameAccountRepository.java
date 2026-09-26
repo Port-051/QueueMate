@@ -16,7 +16,6 @@ public interface GameAccountRepository extends JpaRepository<GameAccount, Long> 
 
     /**
      * 한 사용자의 게임 계정 전부를 전적과 함께 — <b>쿼리 한 번이다</b>(전적은 LEFT JOIN. 없으면 {@code null}). 게임 이름순으로 온다.
-     * 두 테이블 다 {@code account} 스키마 안이다.
      */
     @Query("""
             select new com.queuemate.platform.account.domain.GameAccountWithStats(a, s)
@@ -47,7 +46,7 @@ public interface GameAccountRepository extends JpaRepository<GameAccount, Long> 
      */
     @Modifying
     @Query(nativeQuery = true, value = """
-            INSERT INTO account.game_accounts (user_id, game, game_nickname, tier, main_position, server, created_at, updated_at)
+            INSERT INTO game_accounts (user_id, game, game_nickname, tier, main_position, server, created_at, updated_at)
             VALUES (:userId, :game, :gameNickname, CAST(:tier AS varchar), CAST(:mainPosition AS varchar),
                     CAST(:server AS varchar), :now, :now)
             ON CONFLICT ON CONSTRAINT game_accounts_user_id_game_key DO UPDATE

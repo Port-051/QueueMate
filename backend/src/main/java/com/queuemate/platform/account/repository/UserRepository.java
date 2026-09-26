@@ -23,7 +23,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     /**
      * 여러 사용자의 닉네임과, <b>어느 한 게임</b>에 연결한 게임 계정 · 전적을 <b>쿼리 한 번으로</b> 읽는다 — 목록의 카드가 쓴다
      * ({@code GameProfileReader}). 사람 수만큼 쿼리를 되풀이하지 않는다. 그 게임에 연결한 계정이 없는 사용자도 한 줄로 온다(LEFT JOIN).
-     * 세 테이블 다 {@code account} 스키마 안이다. {@code userIds} 가 비어 있으면 부르지 마라.
+     * {@code userIds} 가 비어 있으면 부르지 마라.
      */
     @Query("""
             select new com.queuemate.platform.account.domain.UserGameProfileRow(u.id, u.nickname, a, s)

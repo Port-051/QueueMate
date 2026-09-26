@@ -185,9 +185,9 @@ class SocialLoginApiTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.hasPassword").value(false));
         // credentials 줄을 만들지 않았다. 제공자 쪽 회원 번호는 문자열로 남는다
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from account.credentials where user_id = ?", Integer.class, userId)).isZero();
+                "select count(*) from credentials where user_id = ?", Integer.class, userId)).isZero();
         assertThat(jdbcTemplate.queryForObject(
-                "select provider_user_id from account.social_identities where user_id = ? and provider = 'KAKAO'",
+                "select provider_user_id from social_identities where user_id = ? and provider = 'KAKAO'",
                 String.class, userId)).isEqualTo(Long.toString(kakaoId));
 
         // 비밀번호가 없는 사람의 비밀번호 로그인은 없는 아이디와 같은 401 이다
@@ -242,7 +242,7 @@ class SocialLoginApiTest extends ApiTestSupport {
         String loginId = newLoginId();
         socialSignup(signupCookie, loginId, nicknameOf(loginId)).andExpect(status().isCreated());
         assertThat(jdbcTemplate.queryForObject(
-                "select provider_user_id from account.social_identities where user_id = ? and provider = 'DISCORD'",
+                "select provider_user_id from social_identities where user_id = ? and provider = 'DISCORD'",
                 String.class, userIdOf(loginId))).isEqualTo(discordId);
     }
 
@@ -337,10 +337,10 @@ class SocialLoginApiTest extends ApiTestSupport {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("NICKNAME_TAKEN"));
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from account.users where login_id = ?", Integer.class, loginId)).isZero();
+                "select count(*) from users where login_id = ?", Integer.class, loginId)).isZero();
         // 먼저 가입한 사람은 그대로다 — 소셜 연결이 붙지 않았다
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from account.social_identities where user_id = ?", Integer.class, userIdOf(taken))).isZero();
+                "select count(*) from social_identities where user_id = ?", Integer.class, userIdOf(taken))).isZero();
 
         socialSignup(signupCookie, loginId, nicknameOf(loginId)).andExpect(status().isCreated());
 
@@ -350,7 +350,7 @@ class SocialLoginApiTest extends ApiTestSupport {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("SOCIAL_ALREADY_LINKED"));
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from account.users where login_id = ?", Integer.class, second)).isZero();
+                "select count(*) from users where login_id = ?", Integer.class, second)).isZero();
     }
 
     @Test

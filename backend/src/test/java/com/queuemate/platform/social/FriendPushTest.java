@@ -154,7 +154,7 @@ class FriendPushTest extends FriendTestSupport {
         assertThat(drain(bobId)).isEmpty();
 
         // 친구가 된 뒤 끊기 · 차단
-        long third = jdbcTemplate.queryForObject("select id from social.friend_requests "
+        long third = jdbcTemplate.queryForObject("select id from friend_requests "
                 + "where requester_id = ? and receiver_id = ? and status = 'PENDING'", Long.class, aliceId, bobId);
         accept(bobCookie, third).andExpect(status().isOk());
         assertThat(drain(aliceId)).hasSize(1);

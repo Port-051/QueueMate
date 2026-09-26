@@ -141,7 +141,7 @@ class PostServiceRedisDownTest extends PostTestSupport {
                     assertThat(e.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
                     assertThat(e.getCode()).isEqualTo("ROOM_STATE_UNAVAILABLE");
                 });
-        assertThat(jdbcTemplate.queryForObject("select title from party.recruit_posts where id = ?", String.class, postId))
+        assertThat(jdbcTemplate.queryForObject("select title from recruit_posts where id = ?", String.class, postId))
                 .isEqualTo("같이 하실 분");
     }
 

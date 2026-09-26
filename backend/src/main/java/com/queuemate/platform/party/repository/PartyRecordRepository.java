@@ -25,20 +25,26 @@ public interface PartyRecordRepository extends JpaRepository<PartyMember, PartyM
      */
     @Modifying
     @Query(nativeQuery = true, value = """
-            INSERT INTO party.parties (source, post_id, game, status, created_at)
+            INSERT INTO parties (source, post_id, game, status, created_at)
             VALUES ('BOARD', :postId, :game, 'ACTIVE', :now)
             ON CONFLICT (post_id) DO NOTHING
             """)
     int insertBoardPartyIfAbsent(@Param("postId") Long postId, @Param("game") String game, @Param("now") Instant now);
 
     /** 그 글의 파티 id. 확정 기록이 없으면 비어 있다 */
-    @Query(nativeQuery = true, value = "SELECT p.id FROM party.parties p WHERE p.post_id = :postId")
+    @Query(nativeQuery = true, value = "SELECT p.id FROM parties p WHERE p.post_id = :postId")
     Optional<Long> findPartyIdByPostId(@Param("postId") Long postId);
 
+    /**
+     * 파티원 한 명. <b>가입한 사용자만 적는다</b> — {@code party_members.user_id} 에 {@code users(id)} 로 가는 FK 가 있어(2026-09-26) 멤버 SET 에 손으로 넣은
+     * 가입하지 않은 번호를 그대로 넣으면 위반이 나고 PostgreSQL 이 그 트랜잭션(글의 확정까지)을 통째로 못 쓰게 만든다. 그래서 {@code WHERE EXISTS} 로 걸러
+     * 위반 없이 지나간다 — 돌려주는 값이 0 이면 이미 있었거나 가입하지 않은 번호다.
+     */
     @Modifying
     @Query(nativeQuery = true, value = """
-            INSERT INTO party.party_members (party_id, user_id, is_host, joined_at)
-            VALUES (:partyId, :userId, :host, :now)
+            INSERT INTO party_members (party_id, user_id, is_host, joined_at)
+            SELECT :partyId, :userId, :host, :now
+             WHERE EXISTS (SELECT 1 FROM users u WHERE u.id = :userId)
             ON CONFLICT DO NOTHING
             """)
     int insertMemberIfAbsent(@Param("partyId") Long partyId, @Param("userId") Long userId,

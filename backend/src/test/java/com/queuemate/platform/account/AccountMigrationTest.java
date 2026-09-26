@@ -11,7 +11,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * V2 · V3 마이그레이션 — 스키마와 테이블이 생겼는지, <b>DB 가 스스로</b> 불변식을 지키는지. 앱을 거치지 않고 SQL 로 직접 본다.
+ * 마이그레이션({@code V1__schema.sql}) — 테이블이 생겼는지, <b>DB 가 스스로</b> 불변식을 지키는지. 앱을 거치지 않고 SQL 로 직접 본다.
+ * 테이블은 전부 {@code public} 하나에 있다(2026-09-26 소유자 결정 — 옛 {@code account} · {@code social} · {@code party} 스키마를 합쳤다).
  * PostgreSQL 에서만 의미가 있다 — H2 는 {@code ~} 정규식 CHECK 를 재현하지 못한다.
  *
  * <p>사용자의 식별자가 둘이다 — <b>사용자 번호</b>({@code id}, bigint identity)와 <b>로그인 아이디</b>({@code login_id})다
@@ -20,14 +21,62 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AccountMigrationTest extends ApiTestSupport {
 
     @Test
-    @DisplayName("account 스키마에 테이블 다섯이 있다")
+    @DisplayName("public 스키마에 테이블 열넷이 있고(Flyway 의 기록 테이블 말고), 옛 스키마 셋은 없다")
     void schemaAndTablesExist()
     {
         List<String> tables = jdbcTemplate.queryForList(
-                "select table_name from information_schema.tables where table_schema = 'account' order by table_name",
+                "select table_name from information_schema.tables where table_schema = 'public' "
+                        + "and table_name <> 'flyway_schema_history' order by table_name",
                 String.class);
+        List<String> oldSchemas = jdbcTemplate.queryForList(
+                "select nspname from pg_namespace where nspname in ('account', 'social', 'party')", String.class);
 
-        assertThat(tables).containsExactly("credentials", "game_account_stats", "game_accounts", "social_identities", "users");
+        assertThat(tables).containsExactly("blocks", "credentials", "friend_requests", "friendships", "game_account_stats",
+                "game_accounts", "parties", "party_members", "recent_players", "recruit_post_positions", "recruit_posts",
+                "reports", "social_identities", "users");
+        assertThat(oldSchemas).isEmpty();
+    }
+
+    @Test
+    @DisplayName("사용자를 지우면 딸린 줄이 전부 같이 지워진다 — 차단 · 친구 요청 · 친구 · 신고 · 최근 함께한 사람 · 글 · 파티 · 파티원(ON DELETE CASCADE)")
+    void deletingUserCascades()
+    {
+        Long gone = insertUser();
+        Long other = insertUser();
+        Long low = Math.min(gone, other);
+        Long high = Math.max(gone, other);
+        jdbcTemplate.update("insert into blocks (blocker_id, blocked_id, created_at) values (?, ?, now()), (?, ?, now())",
+                gone, other, other, gone);
+        jdbcTemplate.update("insert into friend_requests (requester_id, receiver_id, status, created_at) values (?, ?, 'PENDING', now())",
+                other, gone);
+        jdbcTemplate.update("insert into friendships (user_low_id, user_high_id, created_at) values (?, ?, now())", low, high);
+        jdbcTemplate.update("insert into reports (reporter_id, target_user_id, reason, created_at) values (?, ?, 'ABUSE', now())",
+                other, gone);
+        // 지워지는 사람이 방장인 글과 그 글의 파티 — 다른 사람도 파티원이다
+        Long postId = jdbcTemplate.queryForObject("insert into recruit_posts "
+                + "(host_id, game, mode, title, voice, purpose, status, created_at, updated_at, confirmed_at) "
+                + "values (?, 'LOL', 'RANKED_SOLO', 't', 'REQUIRED', 'FUN', 'CONFIRMED', now(), now(), now()) returning id", Long.class, gone);
+        Long partyId = jdbcTemplate.queryForObject("insert into parties (source, post_id, game, status, created_at) "
+                + "values ('BOARD', ?, 'LOL', 'ACTIVE', now()) returning id", Long.class, postId);
+        jdbcTemplate.update("insert into party_members (party_id, user_id, is_host, joined_at) values (?, ?, true, now()), (?, ?, false, now())",
+                partyId, gone, partyId, other);
+        // 남는 사람의 "최근 함께한 사람" 에 지워지는 사람이 있다 — 줄이 딸려 지워진다
+        jdbcTemplate.update("insert into recent_players (user_id, other_user_id, last_party_id, last_played_at) "
+                + "values (?, ?, ?, now()), (?, ?, ?, now())", other, gone, partyId, gone, other, partyId);
+
+        jdbcTemplate.update("delete from users where id = ?", gone);
+
+        assertThat(count("select count(*) from blocks where blocker_id = ? or blocked_id = ?", gone, gone)).isZero();
+        assertThat(count("select count(*) from friend_requests where requester_id = ? or receiver_id = ?", gone, gone)).isZero();
+        assertThat(count("select count(*) from friendships where user_low_id = ? and user_high_id = ?", low, high)).isZero();
+        assertThat(count("select count(*) from reports where reporter_id = ? or target_user_id = ?", gone, gone)).isZero();
+        assertThat(count("select count(*) from recent_players where user_id = ? or other_user_id = ?", gone, gone)).isZero();
+        assertThat(count("select count(*) from recruit_posts where id = ?", postId)).isZero();
+        // 글이 지워지면 그 글의 파티와 파티원(남는 사람 것까지)도 딸려 지워진다
+        assertThat(count("select count(*) from parties where id = ?", partyId)).isZero();
+        assertThat(count("select count(*) from party_members where party_id = ?", partyId)).isZero();
+        // 남는 사람은 그대로다
+        assertThat(count("select count(*) from users where id = ?", other)).isEqualTo(1);
     }
 
     @Test
@@ -38,12 +87,12 @@ class AccountMigrationTest extends ApiTestSupport {
         // identity 라 INSERT 에 주지 않는다 — DB 가 매긴다
         assertThat(jdbcTemplate.queryForObject(
                 "select is_identity::text from information_schema.columns "
-                        + "where table_schema = 'account' and table_name = 'users' and column_name = 'id'",
+                        + "where table_schema = 'public' and table_name = 'users' and column_name = 'id'",
                 String.class)).isEqualTo("YES");
         assertThat(dataTypeOf("users", "login_id")).isEqualTo("character varying");
         assertThat(jdbcTemplate.queryForObject(
                 "select character_maximum_length from information_schema.columns "
-                        + "where table_schema = 'account' and table_name = 'users' and column_name = 'login_id'",
+                        + "where table_schema = 'public' and table_name = 'users' and column_name = 'login_id'",
                 Integer.class)).isEqualTo(20);
         // 다른 테이블이 사용자 · 게임 계정을 가리키는 칸도 전부 bigint 다
         assertThat(dataTypeOf("credentials", "user_id")).isEqualTo("bigint");
@@ -58,13 +107,12 @@ class AccountMigrationTest extends ApiTestSupport {
     {
         List<String> constraints = jdbcTemplate.queryForList(
                 "select conname from pg_constraint c join pg_namespace n on n.oid = c.connamespace "
-                        + "where n.nspname = 'account' and c.contype in ('p', 'u', 'c', 'f')", String.class);
+                        + "where n.nspname = 'public' and c.contype in ('p', 'u', 'c', 'f')", String.class);
 
         assertThat(constraints).contains("users_pkey", "users_login_id_key", "users_nickname_key", "users_login_id_format",
                 "credentials_pkey", "credentials_user_id_fkey",
                 "game_accounts_pkey", "game_accounts_user_id_fkey", "game_accounts_user_id_game_key",
                 "game_accounts_game_check",
-                // V3
                 "game_accounts_server_check",
                 "game_account_stats_pkey", "game_account_stats_game_account_id_fkey",
                 "game_account_stats_source_check", "game_account_stats_counts_check",
@@ -83,18 +131,18 @@ class AccountMigrationTest extends ApiTestSupport {
         insertGameAccount(userId, "PUBG");
 
         assertThatThrownBy(() -> jdbcTemplate.update(
-                "update account.game_accounts set server = 'STEAM' where user_id = ? and game = 'LOL'", userId))
+                "update game_accounts set server = 'STEAM' where user_id = ? and game = 'LOL'", userId))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("game_accounts_server_check");
         assertThatThrownBy(() -> jdbcTemplate.update(
-                "update account.game_accounts set server = 'XBOX' where user_id = ? and game = 'PUBG'", userId))
+                "update game_accounts set server = 'XBOX' where user_id = ? and game = 'PUBG'", userId))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("game_accounts_server_check");
         assertThat(jdbcTemplate.update(
-                "update account.game_accounts set server = 'KAKAO' where user_id = ? and game = 'PUBG'", userId)).isEqualTo(1);
+                "update game_accounts set server = 'KAKAO' where user_id = ? and game = 'PUBG'", userId)).isEqualTo(1);
         // 새 칸의 기본값 — 인증되지 않았고 게임사 쪽 식별자가 없다
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from account.game_accounts where user_id = ? and verified = false and external_id is null",
+                "select count(*) from game_accounts where user_id = ? and verified = false and external_id is null",
                 Integer.class, userId)).isEqualTo(2);
     }
 
@@ -106,7 +154,7 @@ class AccountMigrationTest extends ApiTestSupport {
         Long userId = insertUser(loginId, nicknameOf(loginId));
         insertGameAccount(userId, "LOL");
         Long accountId = jdbcTemplate.queryForObject(
-                "select id from account.game_accounts where user_id = ? and game = 'LOL'", Long.class, userId);
+                "select id from game_accounts where user_id = ? and game = 'LOL'", Long.class, userId);
 
         assertThatThrownBy(() -> insertStats(accountId, 10, -1, 0, "API"))
                 .isInstanceOf(DataIntegrityViolationException.class)
@@ -116,7 +164,7 @@ class AccountMigrationTest extends ApiTestSupport {
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("game_account_stats_counts_check");
         assertThatThrownBy(() -> jdbcTemplate.update(
-                "insert into account.game_account_stats (game_account_id, games, wins, losses, win_streak, source, synced_at) "
+                "insert into game_account_stats (game_account_id, games, wins, losses, win_streak, source, synced_at) "
                         + "values (?, 10, 5, 5, -1, 'API', now())", accountId))
                 .as("연승도 음수일 수 없다")
                 .isInstanceOf(DataIntegrityViolationException.class)
@@ -130,10 +178,10 @@ class AccountMigrationTest extends ApiTestSupport {
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("game_account_stats_pkey");
 
-        jdbcTemplate.update("delete from account.game_accounts where id = ?", accountId);
+        jdbcTemplate.update("delete from game_accounts where id = ?", accountId);
 
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from account.game_account_stats where game_account_id = ?", Integer.class, accountId)).isZero();
+                "select count(*) from game_account_stats where game_account_id = ?", Integer.class, accountId)).isZero();
     }
 
     @Test
@@ -144,7 +192,7 @@ class AccountMigrationTest extends ApiTestSupport {
         Long userId = insertUser(loginId, nicknameOf(loginId));
         insertGameAccount(userId, "PUBG");
         Long accountId = jdbcTemplate.queryForObject(
-                "select id from account.game_accounts where user_id = ? and game = 'PUBG'", Long.class, userId);
+                "select id from game_accounts where user_id = ? and game = 'PUBG'", Long.class, userId);
 
         // 세 게임이 보여 주는 것이 다르다 — PUBG 는 "승"이 치킨(1위)이라 승/패가 없고 연승의 개념도 약하다
         assertThat(isNullable("game_account_stats", "games")).isEqualTo("NO");
@@ -154,34 +202,34 @@ class AccountMigrationTest extends ApiTestSupport {
         assertThat(dataTypeOf("game_account_stats", "games")).isEqualTo("integer");
         // 옛 기본값(win_streak DEFAULT 0)은 없어졌다 — 비어 있는 것과 0 은 다른 뜻이다
         assertThat(jdbcTemplate.queryForObject(
-                "select column_default from information_schema.columns where table_schema = 'account' "
+                "select column_default from information_schema.columns where table_schema = 'public' "
                         + "and table_name = 'game_account_stats' and column_name = 'win_streak'", String.class)).isNull();
 
-        jdbcTemplate.update("insert into account.game_account_stats "
+        jdbcTemplate.update("insert into game_account_stats "
                 + "(game_account_id, games, avg_kills, avg_deaths, detail, source, synced_at) "
                 + "values (?, 120, 4.2, 3.1, '{\"chickenRate\": 7}'::jsonb, 'API', now())", accountId);
 
-        assertThat(jdbcTemplate.queryForObject("select games from account.game_account_stats where game_account_id = ?",
+        assertThat(jdbcTemplate.queryForObject("select games from game_account_stats where game_account_id = ?",
                 Integer.class, accountId)).isEqualTo(120);
-        assertThat(jdbcTemplate.queryForObject("select count(*) from account.game_account_stats where game_account_id = ? "
+        assertThat(jdbcTemplate.queryForObject("select count(*) from game_account_stats where game_account_id = ? "
                         + "and wins is null and losses is null and win_streak is null",
                 Integer.class, accountId)).isEqualTo(1);
 
         // 승만 있고 패가 없으면 승률을 계산할 수 없다 — 둘은 같이 있거나 같이 없다
-        jdbcTemplate.update("delete from account.game_account_stats where game_account_id = ?", accountId);
+        jdbcTemplate.update("delete from game_account_stats where game_account_id = ?", accountId);
         assertThatThrownBy(() -> jdbcTemplate.update(
-                "insert into account.game_account_stats (game_account_id, games, wins, source, synced_at) "
+                "insert into game_account_stats (game_account_id, games, wins, source, synced_at) "
                         + "values (?, 10, 5, 'API', now())", accountId))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("game_account_stats_wins_losses_together_check");
         assertThatThrownBy(() -> jdbcTemplate.update(
-                "insert into account.game_account_stats (game_account_id, games, losses, source, synced_at) "
+                "insert into game_account_stats (game_account_id, games, losses, source, synced_at) "
                         + "values (?, 10, 5, 'API', now())", accountId))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("game_account_stats_wins_losses_together_check");
         // games 는 비울 수 없다
         assertThatThrownBy(() -> jdbcTemplate.update(
-                "insert into account.game_account_stats (game_account_id, source, synced_at) values (?, 'API', now())",
+                "insert into game_account_stats (game_account_id, source, synced_at) values (?, 'API', now())",
                 accountId))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
@@ -209,10 +257,10 @@ class AccountMigrationTest extends ApiTestSupport {
         // 같은 회원 번호라도 제공자가 다르면 다른 계정이다
         insertSocialIdentity("DISCORD", providerUserId, first);
 
-        jdbcTemplate.update("delete from account.users where id = ?", first);
+        jdbcTemplate.update("delete from users where id = ?", first);
 
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from account.social_identities where user_id = ?", Integer.class, first)).isZero();
+                "select count(*) from social_identities where user_id = ?", Integer.class, first)).isZero();
     }
 
     @Test
@@ -233,7 +281,7 @@ class AccountMigrationTest extends ApiTestSupport {
     {
         String loginId = newLoginId();
         Long userId = insertUser(loginId, nicknameOf(loginId));
-        jdbcTemplate.update("insert into account.credentials (user_id, password_hash, updated_at) values (?, 'x', now())", userId);
+        jdbcTemplate.update("insert into credentials (user_id, password_hash, updated_at) values (?, 'x', now())", userId);
         insertGameAccount(userId, "LOL");
 
         assertThatThrownBy(() -> insertGameAccount(userId, "LOL"))
@@ -243,19 +291,24 @@ class AccountMigrationTest extends ApiTestSupport {
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("game_accounts_game_check");
 
-        jdbcTemplate.update("delete from account.users where id = ?", userId);
+        jdbcTemplate.update("delete from users where id = ?", userId);
 
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from account.credentials where user_id = ?", Integer.class, userId)).isZero();
+                "select count(*) from credentials where user_id = ?", Integer.class, userId)).isZero();
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from account.game_accounts where user_id = ?", Integer.class, userId)).isZero();
+                "select count(*) from game_accounts where user_id = ?", Integer.class, userId)).isZero();
+    }
+
+    private int count(String sql, Object... args)
+    {
+        return jdbcTemplate.queryForObject(sql, Integer.class, args);
     }
 
     private String dataTypeOf(String table, String column)
     {
         return jdbcTemplate.queryForObject(
                 "select data_type from information_schema.columns "
-                        + "where table_schema = 'account' and table_name = ? and column_name = ?",
+                        + "where table_schema = 'public' and table_name = ? and column_name = ?",
                 String.class, table, column);
     }
 
@@ -263,14 +316,14 @@ class AccountMigrationTest extends ApiTestSupport {
     private Long insertUser(String loginId, String nickname)
     {
         return jdbcTemplate.queryForObject(
-                "insert into account.users (login_id, nickname, created_at, updated_at) "
+                "insert into users (login_id, nickname, created_at, updated_at) "
                         + "values (?, ?, now(), now()) returning id",
                 Long.class, loginId, nickname);
     }
 
     private void insertStats(Long gameAccountId, int games, int wins, int losses, String source)
     {
-        jdbcTemplate.update("insert into account.game_account_stats "
+        jdbcTemplate.update("insert into game_account_stats "
                         + "(game_account_id, games, wins, losses, win_streak, source, synced_at) "
                         + "values (?, ?, ?, ?, 0, ?, now())", gameAccountId, games, wins, losses, source);
     }
@@ -279,19 +332,19 @@ class AccountMigrationTest extends ApiTestSupport {
     {
         return jdbcTemplate.queryForObject(
                 "select is_nullable from information_schema.columns "
-                        + "where table_schema = 'account' and table_name = ? and column_name = ?",
+                        + "where table_schema = 'public' and table_name = ? and column_name = ?",
                 String.class, table, column);
     }
 
     private void insertSocialIdentity(String provider, String providerUserId, Long userId)
     {
-        jdbcTemplate.update("insert into account.social_identities (provider, provider_user_id, user_id, created_at) "
+        jdbcTemplate.update("insert into social_identities (provider, provider_user_id, user_id, created_at) "
                 + "values (?, ?, ?, now())", provider, providerUserId, userId);
     }
 
     private void insertGameAccount(Long userId, String game)
     {
-        jdbcTemplate.update("insert into account.game_accounts (user_id, game, game_nickname, created_at, updated_at) "
+        jdbcTemplate.update("insert into game_accounts (user_id, game, game_nickname, created_at, updated_at) "
                 + "values (?, ?, 'x', now(), now())", userId, game);
     }
 }

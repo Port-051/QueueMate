@@ -21,9 +21,8 @@ spring:
     open-in-view: false
 
   flyway:
-    # 마이그레이션은 db/migration/<schema>/ 로 나눈다 (docs/11 #17 · CLAUDE.md §3.5). 하위 폴더까지 훑는다.
-    # 버전 번호는 폴더 사이에서 하나의 순서다 — V1 baseline(주석뿐), V2 account/ (1단계), V3 account/ (게임 프로필 · 소셜 로그인), V4 social/ (차단),
-    # V5 party/ (모집 글 · 파티 기록), V6 social/ (친구 · 신고 · 최근 함께한 사람) …
+    # 테이블은 전부 public 스키마 하나에 있다 (2026-09-26 소유자 결정 — 스키마 하나 · JOIN · FK 허용). 옛 V1~V8 을 V1__schema.sql 하나로 합쳤다.
+    # 이미 적용된 파일은 고치지 않는다(체크섬) — 바꿀 것은 새 버전(V2 …)으로 쓴다.
     locations: classpath:db/migration
 
   data:

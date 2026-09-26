@@ -29,7 +29,7 @@ import java.util.Set;
  * 모집 글. <b>{@code id} 가 곧 {@code roomId} 다</b> — DB 가 매기고(bigint identity), 글을 쓰는 그 트랜잭션에서 그 값(숫자를 문자열로)으로 방이 만들어진다({@code PostStore#create} — 2026-09-25 2단계)
  * ({@code contracts/platform-api.md} "모집 글 · 목록").
  *
- * <p>{@code hostId} 는 사용자 번호({@code account.users.id})지만 <b>FK 도 엔티티 연관도 없다</b>(크로스 스키마 FK 금지 — CLAUDE.md §3.5). 숫자로만 든다.
+ * <p>{@code hostId} 는 사용자 번호({@code users.id})이고 FK 가 걸려 있다(방장을 지우면 글이 딸려 지워진다). 엔티티 연관은 두지 않고 숫자로만 든다.
  * {@link Game} 은 {@code account} 의 <b>도메인 enum</b> 이다 — 테이블을 JOIN 하는 것이 아니라 이름의 목록을 같이 쓰는 것이다.
  *
  * <p><b>상태는 엔티티로 바꾸지 않는다</b> — {@code RecruitPostRepository} 의 조건부 UPDATE({@code … WHERE status = 'RECRUITING'})로만 바꾼다.
@@ -39,7 +39,7 @@ import java.util.Set;
  * "모집 중인 글은 한 사람에 하나"는 DB 의 부분 UNIQUE 인덱스가 막는다.
  */
 @Entity
-@Table(schema = "party", name = "recruit_posts")
+@Table(name = "recruit_posts")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RecruitPost {
@@ -105,7 +105,7 @@ public class RecruitPost {
      */
     @ElementCollection(fetch = FetchType.EAGER)
     @Fetch(FetchMode.SUBSELECT)
-    @CollectionTable(schema = "party", name = "recruit_post_positions", joinColumns = @JoinColumn(name = "post_id"))
+    @CollectionTable(name = "recruit_post_positions", joinColumns = @JoinColumn(name = "post_id"))
     @Column(name = "position", nullable = false, length = 20)
     private Set<String> wantedPositions = new LinkedHashSet<>();
 

@@ -233,7 +233,8 @@ abstract class PostTestSupport extends ApiTestSupport {
 
     /**
      * 모집 글을 <b>SQL 로 직접</b> 넣는다 — 여러 사람의 글이 여러 개 필요할 때다("모집 중인 글은 한 사람에 하나"라 방장이 저마다 달라야 하고,
-     * 가입 · 로그인을 그만큼 되풀이하면 느리다). 방장은 보통 가입하지 않은 사용자 번호({@code unknownUserId()})라 카드의 닉네임 · 프로필이 {@code null} 이다.
+     * 가입 · 로그인을 그만큼 되풀이하면 느리다). 방장은 보통 SQL 로 바로 넣은 사용자({@code insertUser()} — {@code host_id} 에 FK 가 있어 가입하지 않은 번호는 못 쓴다)라
+     * 카드의 닉네임은 있고 프로필(게임 계정)은 {@code null} 이다.
      * 글 쓰기 경로(검증 · 신호 · 전적 긁기 · 방 만들기)를 보는 테스트는 이것을 쓰지 말고 {@link #createPost} 를 쓴다.
      *
      * <p><b>방도 손으로 연다</b>(방장 혼자 — {@link #openRoom}). 2026-09-25 2단계부터 글이 있으면 방이 있다 — 방이 없는 모집 중인 글은 "사라진 방"이라
@@ -242,7 +243,7 @@ abstract class PostTestSupport extends ApiTestSupport {
     protected Long insertRecruitPost(Long hostId, String game, String title, java.time.Instant createdAt)
     {
         java.sql.Timestamp at = java.sql.Timestamp.from(createdAt);
-        Long postId = jdbcTemplate.queryForObject("insert into party.recruit_posts "
+        Long postId = jdbcTemplate.queryForObject("insert into recruit_posts "
                 + "(host_id, game, mode, title, voice, purpose, conditions, status, created_at, updated_at) "
                 + "values (?, ?, ?, ?, 'REQUIRED', 'RANK_UP', '{}'::jsonb, 'RECRUITING', ?, ?) returning id",
                 Long.class, hostId, game, modeOf(game), title, at, at);
@@ -300,6 +301,6 @@ abstract class PostTestSupport extends ApiTestSupport {
 
     protected String statusOf(Long postId)
     {
-        return jdbcTemplate.queryForObject("select status from party.recruit_posts where id = ?", String.class, postId);
+        return jdbcTemplate.queryForObject("select status from recruit_posts where id = ?", String.class, postId);
     }
 }

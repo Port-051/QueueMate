@@ -21,11 +21,11 @@ import java.time.Instant;
  * (같은 수락이 겹치거나 양방향 요청이 따로 수락돼도 위반 없이 한 줄만 남게). 그래서 {@code @Immutable} 이다.
  *
  * <p><b>"작은 쪽"은 {@link Key#of} 한 곳에서만 정한다</b> — 숫자 비교다. DB 의 {@code friendships_ordered} CHECK 도 같은 숫자 비교라 어긋날 수 없다
- * (문자열이던 때의 {@code COLLATE "C"} 는 필요 없어졌다 — V6).
+ * (문자열이던 때의 {@code COLLATE "C"} 는 필요 없어졌다).
  */
 @Entity
 @Immutable
-@Table(schema = "social", name = "friendships")
+@Table(name = "friendships")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Friendship {

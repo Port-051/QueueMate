@@ -104,7 +104,7 @@ class GameProfileTest extends ApiTestSupport {
         putGameAccount(cookie, "LOL", json("gameNickname", "before", "tier", "GOLD_1", "mainPosition", "TOP"))
                 .andExpect(status().isOk());
         // 게임사 인증이 붙었다고 치고 DB 에서 직접 켠다 — 앱에는 켜는 길이 없다
-        jdbcTemplate.update("update account.game_accounts set verified = true, external_id = 'puuid-123' "
+        jdbcTemplate.update("update game_accounts set verified = true, external_id = 'puuid-123' "
                 + "where user_id = ? and game = 'LOL'", userId);
         insertStats(gameAccountId(userId, "LOL"), 15, 10, 5, "3.0", "2.0", "4.0", 2, "{}");
 
@@ -117,7 +117,7 @@ class GameProfileTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.stats.wins").value(10));
 
         assertThat(jdbcTemplate.queryForObject(
-                "select external_id from account.game_accounts where user_id = ? and game = 'LOL'",
+                "select external_id from game_accounts where user_id = ? and game = 'LOL'",
                 String.class, userId)).isEqualTo("puuid-123");
     }
 
@@ -261,7 +261,7 @@ class GameProfileTest extends ApiTestSupport {
     private Long gameAccountId(Long userId, String game)
     {
         return jdbcTemplate.queryForObject(
-                "select id from account.game_accounts where user_id = ? and game = ?", Long.class, userId, game);
+                "select id from game_accounts where user_id = ? and game = ?", Long.class, userId, game);
     }
 
     /**
@@ -271,7 +271,7 @@ class GameProfileTest extends ApiTestSupport {
     private void insertStats(Long gameAccountId, int games, Integer wins, Integer losses, String kills, String deaths,
                              String assists, Integer winStreak, String detailJson)
     {
-        jdbcTemplate.update("insert into account.game_account_stats "
+        jdbcTemplate.update("insert into game_account_stats "
                         + "(game_account_id, games, wins, losses, avg_kills, avg_deaths, avg_assists, win_streak, detail, source, synced_at) "
                         + "values (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, 'API', now())",
                 gameAccountId, games, wins, losses, decimal(kills), decimal(deaths), decimal(assists), winStreak, detailJson);

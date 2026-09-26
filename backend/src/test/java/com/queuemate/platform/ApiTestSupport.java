@@ -40,11 +40,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p><b>사용자의 식별자가 둘이다</b>(2026-09-22 소유자 결정) — 가입할 때 정하는 <b>로그인 아이디</b>({@link #newLoginId()})와 DB 가 매기는 <b>사용자 번호</b>
  * ({@link #userIdOf(String)} — 가입 응답의 {@code userId}). 로그인 아이디는 가입 · 로그인 본문에만 쓰고, 그 밖의 모든 곳(URL · 본문의 {@code userId} · 방 키 ·
- * 다른 스키마의 컬럼)은 사용자 번호를 쓴다. 아무도 아닌 번호가 필요하면 {@link #unknownUserId()} 다.
+ * 다른 테이블의 컬럼)은 사용자 번호를 쓴다. 아무도 아닌 번호가 필요하면 {@link #unknownUserId()} 다 — <b>그 번호로는 DB 에 줄을 넣을 수 없다</b>
+ * (사용자 번호의 칸에 전부 {@code users(id)} 로 FK 가 있다). SQL 로 줄을 넣을 사용자가 필요하면 {@link #insertUser()} 다.
  *
  * <p><b>DB 는 테스트 사이에 남는다.</b> 그래서 아이디 · 닉네임은 매번 새로 짓고, 만든 계정은 테스트가 끝나면 지운다
- * (게임 계정 · 전적 · 비밀번호 · 소셜 연결은 {@code ON DELETE CASCADE} 로 같이 지워진다. <b>차단 · 친구 요청 · 친구 · 신고 · 최근 함께한 사람 · 글 · 파티는 따로 지운다</b> —
- * {@code social.*} · {@code party.*} 는 {@code account.users} 로 FK 가 없다). 그 사람의 로그인 실패 횟수(Redis)도 지운다 —
+ * (사용자 번호를 담는 칸이 전부 {@code users(id)} 로 FK({@code ON DELETE CASCADE})라 <b>{@code users} 의 줄만 지우면</b> 게임 계정 · 전적 · 비밀번호 ·
+ * 소셜 연결 · 차단 · 친구 요청 · 친구 · 신고 · 최근 함께한 사람 · 글 · 파티 · 파티원이 딸려 지워진다 — 2026-09-26). 그 사람의 로그인 실패 횟수(Redis)도 지운다 —
  * <b>Redis 는 자기 키만 지운다</b>({@code FLUSHDB} 금지 — 같은 Redis 를 {@code room} 이 쓸 수 있다). 트랜잭션 롤백에 기대지 않는다 — MockMvc 의 요청은
  * 서비스의 트랜잭션에서 실제로 커밋되고, 동시성 테스트는 여러 스레드(여러 커넥션)를 쓴다.
  *
@@ -89,9 +90,6 @@ public abstract class ApiTestSupport {
 
     /** 로그인 아이디 → 사용자 번호. 가입 응답에서 받아 둔다 */
     private final Map<String, Long> userIdsByLoginId = new ConcurrentHashMap<>();
-
-    /** 아무도 아닌 번호({@link #unknownUserId()}) — 그 번호로 적힌 social · party 의 줄을 끝나면 지운다 */
-    private final List<Long> unknownUserIds = new CopyOnWriteArrayList<>();
 
     /** 이 테스트가 <b>없어서 심은</b> gameconfig 키. 있던 키는 여기 들어오지 않아 지워지지 않는다 */
     private final List<String> seededGameConfigKeys = new CopyOnWriteArrayList<>();
@@ -173,15 +171,11 @@ public abstract class ApiTestSupport {
             Long userId = lookupUserId(loginId);
             if(userId != null)
             {
-                deleteRowsOf(userId);
-                jdbcTemplate.update("delete from account.users where id = ?", userId);
+                // 딸린 줄(차단 · 친구 · 신고 · 글 · 파티 …)은 FK 의 ON DELETE CASCADE 가 같이 지운다
+                jdbcTemplate.update("delete from users where id = ?", userId);
             }
             // 로그인을 틀려 본 테스트가 남긴 횟수 · 잠금. 이름은 계약(contracts/platform-api.md "로그인 실패 제한")의 것이다 — 로그인 아이디 기준이다
             redisTemplate.delete(List.of("qm:auth:login-fail:" + loginId, "qm:auth:login-lock:" + loginId));
-        }
-        for(Long userId : unknownUserIds)
-        {
-            deleteRowsOf(userId);
         }
         for(String refreshToken : receivedRefreshTokens)
         {
@@ -190,22 +184,7 @@ public abstract class ApiTestSupport {
         }
         createdLoginIds.clear();
         userIdsByLoginId.clear();
-        unknownUserIds.clear();
         receivedRefreshTokens.clear();
-    }
-
-    /** {@code account.users} 밖에 그 사용자 번호로 적힌 줄 전부 — FK 가 없어 CASCADE 로 지워지지 않는다 */
-    private void deleteRowsOf(Long userId)
-    {
-        jdbcTemplate.update("delete from social.blocks where blocker_id = ? or blocked_id = ?", userId, userId);
-        jdbcTemplate.update("delete from social.friend_requests where requester_id = ? or receiver_id = ?", userId, userId);
-        jdbcTemplate.update("delete from social.friendships where user_low_id = ? or user_high_id = ?", userId, userId);
-        jdbcTemplate.update("delete from social.reports where reporter_id = ? or target_user_id = ?", userId, userId);
-        jdbcTemplate.update("delete from social.recent_players where user_id = ? or other_user_id = ?", userId, userId);
-        // 파티가 글을 FK 로 잡고 있어(ON DELETE CASCADE 가 아니다) 파티를 먼저 지운다. 파티원 · 찾는 포지션은 같이 지워진다
-        jdbcTemplate.update("delete from party.parties where post_id in "
-                + "(select id from party.recruit_posts where host_id = ?)", userId);
-        jdbcTemplate.update("delete from party.recruit_posts where host_id = ?", userId);
     }
 
     /** 겹치지 않는 로그인 아이디(14자). 형식({@code ^[a-z0-9_]{4,20}$})에 맞는다. 끝나면 지워지게 적어 둔다 */
@@ -228,7 +207,7 @@ public abstract class ApiTestSupport {
 
     private Long lookupUserId(String loginId)
     {
-        List<Long> ids = jdbcTemplate.queryForList("select id from account.users where login_id = ?", Long.class, loginId);
+        List<Long> ids = jdbcTemplate.queryForList("select id from users where login_id = ?", Long.class, loginId);
         if(ids.isEmpty())
         {
             return null;
@@ -237,11 +216,26 @@ public abstract class ApiTestSupport {
         return ids.get(0);
     }
 
-    /** 아무도 아닌 사용자 번호 — identity 가 닿지 않을 만큼 큰 무작위 값이다. 그 번호로 적힌 social · party 의 줄은 끝나면 지운다 */
+    /**
+     * 아무도 아닌 사용자 번호 — identity 가 닿지 않을 만큼 큰 무작위 값이다. <b>DB 에 그 번호로 줄을 넣을 수 없다</b>(FK) —
+     * "없는 사용자"(404) · Redis 에만 있는 방 멤버를 볼 때 쓴다. 줄을 넣을 사용자가 필요하면 {@link #insertUser()} 다.
+     */
     protected Long unknownUserId()
     {
-        long userId = ThreadLocalRandom.current().nextLong(1_000_000_000_000_000L, 2_000_000_000_000_000L);
-        unknownUserIds.add(userId);
+        return ThreadLocalRandom.current().nextLong(1_000_000_000_000_000L, 2_000_000_000_000_000L);
+    }
+
+    /**
+     * API 를 거치지 않고 {@code users} 에 한 줄을 바로 넣고 그 사용자 번호를 돌려준다 — 가입 · 로그인을 되풀이하면 느린 테스트
+     * (SQL 로 글 · 차단 줄을 여럿 넣는 것)가 FK 를 채우려고 쓴다. 비밀번호가 없어 로그인할 수 없다. 닉네임은 {@link #nicknameOf} 이고 끝나면 지워진다.
+     */
+    protected Long insertUser()
+    {
+        String loginId = newLoginId();
+        Long userId = jdbcTemplate.queryForObject(
+                "insert into users (login_id, nickname, created_at, updated_at) values (?, ?, now(), now()) returning id",
+                Long.class, loginId, nicknameOf(loginId));
+        userIdsByLoginId.put(loginId, userId);
         return userId;
     }
 

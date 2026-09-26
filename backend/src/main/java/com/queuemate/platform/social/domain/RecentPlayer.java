@@ -22,7 +22,7 @@ import java.time.Instant;
  */
 @Entity
 @Immutable
-@Table(schema = "social", name = "recent_players")
+@Table(name = "recent_players")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RecentPlayer {
@@ -30,8 +30,8 @@ public class RecentPlayer {
     @EmbeddedId
     private Key key;
 
-    /** 마지막으로 같이 한 파티. {@code party.parties} 의 id(bigint)지만 FK 가 없다 */
-    @Column(name = "last_party_id", nullable = false)
+    /** 마지막으로 같이 한 파티({@code parties.id}). 그 파티가 지워지면 {@code null} 이 된다(FK 가 {@code ON DELETE SET NULL}) */
+    @Column(name = "last_party_id")
     private Long lastPartyId;
 
     @Column(name = "last_played_at", nullable = false)

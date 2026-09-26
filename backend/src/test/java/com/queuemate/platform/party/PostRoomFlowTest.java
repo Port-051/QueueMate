@@ -223,16 +223,16 @@ class PostRoomFlowTest extends PostTestSupport {
 
         assertThat(statusOf(postId)).isEqualTo("CONFIRMED");
         assertThat(redisTemplate.opsForValue().get(confirmedKey(postId))).isEqualTo(Long.toString(postId));
-        Map<String, Object> party = jdbcTemplate.queryForMap("select * from party.parties where post_id = ?", postId);
+        Map<String, Object> party = jdbcTemplate.queryForMap("select * from parties where post_id = ?", postId);
         assertThat(party).containsEntry("source", "BOARD").containsEntry("post_id", postId)
                 .containsEntry("game", "LOL").containsEntry("status", "ACTIVE");
         assertThat(partyMembers(postId)).containsExactlyInAnyOrder(hostId, memberId);
-        assertThat(jdbcTemplate.queryForList("select user_id from party.party_members "
-                + "where party_id = (select id from party.parties where post_id = ?) and is_host", Long.class, postId))
+        assertThat(jdbcTemplate.queryForList("select user_id from party_members "
+                + "where party_id = (select id from parties where post_id = ?) and is_host", Long.class, postId))
                 .containsExactly(hostId);
 
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isOk());
-        assertThat(jdbcTemplate.queryForObject("select count(*) from party.parties where post_id = ?", Integer.class, postId)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from parties where post_id = ?", Integer.class, postId)).isEqualTo(1);
         // 확정된 글은 지울 수 없다 — 되돌릴 수 없다
         mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(hostCookie))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("POST_CONFIRMED"));
@@ -468,12 +468,12 @@ class PostRoomFlowTest extends PostTestSupport {
 
     private int postCountOf(Long hostId)
     {
-        return jdbcTemplate.queryForObject("select count(*) from party.recruit_posts where host_id = ?", Integer.class, hostId);
+        return jdbcTemplate.queryForObject("select count(*) from recruit_posts where host_id = ?", Integer.class, hostId);
     }
 
     private List<Long> partyMembers(Long postId)
     {
-        return jdbcTemplate.queryForList("select user_id from party.party_members "
-                + "where party_id = (select id from party.parties where post_id = ?)", Long.class, postId);
+        return jdbcTemplate.queryForList("select user_id from party_members "
+                + "where party_id = (select id from parties where post_id = ?)", Long.class, postId);
     }
 }

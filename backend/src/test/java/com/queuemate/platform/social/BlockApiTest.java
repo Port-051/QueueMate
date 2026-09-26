@@ -85,7 +85,7 @@ class BlockApiTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.blocks[0].userId", equalTo(anotherId), Long.class));
         // 내가 푼 것은 내 차단뿐이다 — 남이 나를 차단한 줄은 그대로다
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from social.blocks where blocker_id = ? and blocked_id = ?",
+                "select count(*) from blocks where blocker_id = ? and blocked_id = ?",
                 Integer.class, blocksMeId, myId)).isEqualTo(1);
         // 풀었으면 다시 차단할 수 있다
         block(myCookie, targetId).andExpect(status().isCreated());
@@ -111,7 +111,7 @@ class BlockApiTest extends ApiTestSupport {
         block(theirCookie, myId).andExpect(status().isCreated());
 
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from social.blocks where blocker_id = ? and blocked_id = ?",
+                "select count(*) from blocks where blocker_id = ? and blocked_id = ?",
                 Integer.class, myId, targetId)).isEqualTo(1);
     }
 
@@ -158,7 +158,7 @@ class BlockApiTest extends ApiTestSupport {
             pool.shutdownNow();
         }
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from social.blocks where blocker_id = ? and blocked_id = ?",
+                "select count(*) from blocks where blocker_id = ? and blocked_id = ?",
                 Integer.class, myId, targetId)).isEqualTo(1);
     }
 
@@ -186,7 +186,7 @@ class BlockApiTest extends ApiTestSupport {
                 .andExpect(detailFor("userId"));
 
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from social.blocks where blocker_id = ?", Integer.class, myId)).isZero();
+                "select count(*) from blocks where blocker_id = ?", Integer.class, myId)).isZero();
     }
 
     @Test

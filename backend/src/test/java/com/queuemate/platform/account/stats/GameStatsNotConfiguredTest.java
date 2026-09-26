@@ -51,11 +51,11 @@ class GameStatsNotConfiguredTest extends ApiTestSupport {
         assertThat(pool.getThreadPoolExecutor().getTaskCount()).as("전용 풀에 일이 들어가지 않았다").isZero();
 
         Long gameAccountId = jdbcTemplate.queryForObject(
-                "select id from account.game_accounts where user_id = ? and game = 'LOL'", Long.class, userIdOf(loginId));
+                "select id from game_accounts where user_id = ? and game = 'LOL'", Long.class, userIdOf(loginId));
         List<?> stats = jdbcTemplate.queryForList(
-                "select 1 from account.game_account_stats where game_account_id = ?", gameAccountId);
+                "select 1 from game_account_stats where game_account_id = ?", gameAccountId);
         assertThat(stats).isEmpty();
-        assertThat(jdbcTemplate.queryForMap("select * from account.game_accounts where id = ?", gameAccountId))
+        assertThat(jdbcTemplate.queryForMap("select * from game_accounts where id = ?", gameAccountId))
                 .containsEntry("external_id", null)
                 .containsEntry("verified", false);
     }
@@ -76,7 +76,7 @@ class GameStatsNotConfiguredTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.code").value("GAME_STATS_UNAVAILABLE"));
 
         Long gameAccountId = jdbcTemplate.queryForObject(
-                "select id from account.game_accounts where user_id = ? and game = 'LOL'", Long.class, userIdOf(loginId));
+                "select id from game_accounts where user_id = ? and game = 'LOL'", Long.class, userIdOf(loginId));
         assertThat(redisTemplate.hasKey(GameStatsRefreshCooldown.REFRESH_KEY_PREFIX + gameAccountId)).isFalse();
         ThreadPoolTaskExecutor pool = (ThreadPoolTaskExecutor) gameStatsExecutor;
         assertThat(pool.getThreadPoolExecutor().getTaskCount()).as("전용 풀에 일이 들어가지 않았다").isZero();

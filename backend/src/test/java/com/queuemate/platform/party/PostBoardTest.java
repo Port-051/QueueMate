@@ -200,8 +200,8 @@ class PostBoardTest extends PostTestSupport {
         assertThat(find(list(viewer, "LOL"), confirmed).get("status").asString()).isEqualTo("CONFIRMED");
 
         // 끝난 지 한참 됐다 — 옛 규칙이라면 둘 다 목록에서 빠졌다
-        jdbcTemplate.update("update party.recruit_posts set expired_at = now() - interval '30 days' where id = ?", expired);
-        jdbcTemplate.update("update party.recruit_posts set confirmed_at = now() - interval '30 days' where id = ?", confirmed);
+        jdbcTemplate.update("update recruit_posts set expired_at = now() - interval '30 days' where id = ?", expired);
+        jdbcTemplate.update("update recruit_posts set confirmed_at = now() - interval '30 days' where id = ?", confirmed);
 
         JsonNode board = list(viewer, "LOL");
         assertThat(find(board, expired).get("status").asString()).isEqualTo("EXPIRED");
@@ -456,7 +456,7 @@ class PostBoardTest extends PostTestSupport {
         }
         assertThat(statusOf(postId)).isEqualTo("CONFIRMED");
         // "한 글에 파티 하나"를 지키는 것은 파티의 PK 가 아니라 UNIQUE (post_id) 다 — 파티의 id 는 DB 가 따로 매긴다
-        assertThat(jdbcTemplate.queryForObject("select count(*) from party.parties where post_id = ?", Integer.class, postId)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from parties where post_id = ?", Integer.class, postId)).isEqualTo(1);
         assertThat(partyMembers(postId)).containsExactlyInAnyOrder(hostId, memberId);
     }
 
@@ -543,14 +543,14 @@ class PostBoardTest extends PostTestSupport {
     /** 글의 어느 칸이 정말 안 바뀌었는지 볼 때 쓴다 — 응답이 아니라 DB 를 읽는다 */
     private String columnOf(Long postId, String column)
     {
-        return jdbcTemplate.queryForObject("select " + column + " from party.recruit_posts where id = ?", String.class, postId);
+        return jdbcTemplate.queryForObject("select " + column + " from recruit_posts where id = ?", String.class, postId);
     }
 
     /** 그 글로 기록된 파티의 파티원. 파티의 id 는 DB 가 매긴 번호라 글의 번호로 찾는다({@code parties.post_id}) */
     private List<Long> partyMembers(Long postId)
     {
-        return jdbcTemplate.queryForList("select user_id from party.party_members "
-                + "where party_id = (select id from party.parties where post_id = ?)", Long.class, postId);
+        return jdbcTemplate.queryForList("select user_id from party_members "
+                + "where party_id = (select id from parties where post_id = ?)", Long.class, postId);
     }
 
     private static JsonNode find(JsonNode array, String field, Long value)
@@ -569,8 +569,8 @@ class PostBoardTest extends PostTestSupport {
     private void insertStats(Long userId, String game, int wins, int losses, String detailJson)
     {
         Long gameAccountId = jdbcTemplate.queryForObject(
-                "select id from account.game_accounts where user_id = ? and game = ?", Long.class, userId, game);
-        jdbcTemplate.update("insert into account.game_account_stats "
+                "select id from game_accounts where user_id = ? and game = ?", Long.class, userId, game);
+        jdbcTemplate.update("insert into game_account_stats "
                 + "(game_account_id, games, wins, losses, avg_kills, avg_deaths, avg_assists, win_streak, detail, source, synced_at) "
                 + "values (?, ?, ?, ?, 10.6, 5.7, 5.8, 3, ?::jsonb, 'API', now())",
                 gameAccountId, wins + losses, wins, losses, detailJson);

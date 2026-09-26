@@ -52,8 +52,10 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class PostStore {
 
-    /** 마이그레이션(V5)이 붙인 부분 UNIQUE 인덱스의 이름이다. 거기서 바꾸면 여기도 바꾼다 */
+    /** 마이그레이션(V1__schema.sql)이 붙인 부분 UNIQUE 인덱스의 이름이다. 거기서 바꾸면 여기도 바꾼다 */
     static final String ONE_RECRUITING_PER_HOST = "recruit_posts_one_recruiting_per_host";
+    /** 방장의 칸에서 {@code users(id)} 로 가는 FK 의 이름이다(V1__schema.sql) */
+    static final String HOST_FKEY = "recruit_posts_host_id_fkey";
 
     private final RecruitPostRepository postRepository;
     private final PartyRecordRepository partyRecordRepository;
@@ -91,9 +93,15 @@ public class PostStore {
         }
         catch(DataIntegrityViolationException e)
         {
-            if(ONE_RECRUITING_PER_HOST.equals(ConstraintViolations.nameOf(e)))
+            String constraint = ConstraintViolations.nameOf(e);
+            if(ONE_RECRUITING_PER_HOST.equals(constraint))
             {
                 throw new ApiException(HttpStatus.CONFLICT, "ALREADY_RECRUITING", "이미 모집 중인 글이 있습니다");
+            }
+            if(HOST_FKEY.equals(constraint))
+            {
+                // 토큰은 멀쩡한데 그 사용자가 DB 에 없다 — 먼저 조회해서 확인하지 않고 FK 위반으로 안다
+                throw ApiException.unauthenticated();
             }
             throw e;
         }
@@ -334,6 +342,7 @@ public class PostStore {
      * 파티는 {@code UNIQUE (post_id)} 가 "한 글에 하나"를 지킨다(파티의 id 는 DB 가 매긴다).
      *
      * @param members 그 순간 멤버 SET 의 전원(사용자 번호 — 숫자가 아닌 값은 방 키를 읽을 때 이미 걸러졌다). 비어 있으면(이미 다 나갔다) 방장만 기록한다.
+     *                <b>가입하지 않은 번호는 적지 않는다</b> — {@code party_members.user_id} 의 FK 때문이다({@link PartyRecordRepository#insertMemberIfAbsent}).
      *                {@code is_host} 는 {@code room} 의 방장 키의 값이 아니라 <b>글의 {@code hostId}</b> 로 정한다 — 확정한 방은 방장이 바뀔 수 있다(D-23)
      * @return 이 호출이 기록했으면 {@code true}
      */

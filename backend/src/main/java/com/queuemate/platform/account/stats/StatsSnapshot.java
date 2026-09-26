@@ -3,7 +3,7 @@ package com.queuemate.platform.account.stats;
 import java.math.BigDecimal;
 
 /**
- * 게임사 API 에서 긁어 온 전적 — <b>{@code account.game_account_stats} 한 줄에 그대로 들어가는 모양</b>이다
+ * 게임사 API 에서 긁어 온 전적 — <b>{@code game_account_stats} 한 줄에 그대로 들어가는 모양</b>이다
  * ({@code contracts/platform-api.md} "게임 프로필"). 게임별 구현({@link GameStatsProvider})이 이것을 만들고
  * {@link GameStatsStore} 가 upsert 한다.
  *

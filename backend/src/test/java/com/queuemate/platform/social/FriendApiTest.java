@@ -167,7 +167,7 @@ class FriendApiTest extends FriendTestSupport {
         decline(bobCookie, first).andExpect(status().isNoContent());
         assertThat(statusOf(first)).isEqualTo("DECLINED");
         assertThat(jdbcTemplate.queryForObject(
-                "select responded_at is not null from social.friend_requests where id = ?", Boolean.class, first)).isTrue();
+                "select responded_at is not null from friend_requests where id = ?", Boolean.class, first)).isTrue();
         mockMvc.perform(get("/api/v1/friend-requests").cookie(bobCookie)).andExpect(jsonPath("$.requests").isEmpty());
         // 이미 처리됐다 — 거절한 것을 수락으로 뒤집을 수 없다
         decline(bobCookie, first).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("FRIEND_REQUEST_NOT_FOUND"));
@@ -206,7 +206,7 @@ class FriendApiTest extends FriendTestSupport {
         sendRequest(bobCookie, aliceId)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("FRIEND_REQUEST_ALREADY_RECEIVED"));
-        assertThat(jdbcTemplate.queryForObject("select count(*) from social.friend_requests "
+        assertThat(jdbcTemplate.queryForObject("select count(*) from friend_requests "
                 + "where requester_id in (?, ?)", Integer.class, aliceId, bobId)).isEqualTo(1);
 
         accept(bobCookie, requestId).andExpect(status().isOk());
@@ -229,7 +229,7 @@ class FriendApiTest extends FriendTestSupport {
 
         assertThat(statuses).filteredOn(status -> status == 201).hasSize(1);
         assertThat(statuses).filteredOn(status -> status == 409).hasSize(7);
-        assertThat(jdbcTemplate.queryForObject("select count(*) from social.friend_requests "
+        assertThat(jdbcTemplate.queryForObject("select count(*) from friend_requests "
                 + "where requester_id = ? and receiver_id = ?", Integer.class, aliceId, bobId)).isEqualTo(1);
     }
 
@@ -273,7 +273,7 @@ class FriendApiTest extends FriendTestSupport {
         assertThat(statusOf(aliceToBob)).isEqualTo("ACCEPTED");
         assertThat(statusOf(bobToAlice)).isEqualTo("ACCEPTED");
         assertThat(jdbcTemplate.queryForObject(
-                "select responded_at is not null from social.friend_requests where id = ?", Boolean.class, bobToAlice)).isTrue();
+                "select responded_at is not null from friend_requests where id = ?", Boolean.class, bobToAlice)).isTrue();
         assertThat(friendshipsBetween(aliceId, bobId)).isEqualTo(1);
         mockMvc.perform(get("/api/v1/friend-requests").cookie(aliceCookie)).andExpect(jsonPath("$.requests").isEmpty());
         // 같이 닫힌 요청은 더 수락할 수 없다
@@ -337,9 +337,9 @@ class FriendApiTest extends FriendTestSupport {
         Long myId = userIdOf(me);
         Long blockedByMeId = userIdOf(blockedByMe);
         Long blocksMeId = userIdOf(blocksMe);
-        jdbcTemplate.update("insert into social.blocks (blocker_id, blocked_id, created_at) values (?, ?, now())",
+        jdbcTemplate.update("insert into blocks (blocker_id, blocked_id, created_at) values (?, ?, now())",
                 myId, blockedByMeId);
-        jdbcTemplate.update("insert into social.blocks (blocker_id, blocked_id, created_at) values (?, ?, now())",
+        jdbcTemplate.update("insert into blocks (blocker_id, blocked_id, created_at) values (?, ?, now())",
                 blocksMeId, myId);
 
         String missing = sendRequest(myCookie, unknownUserId())
@@ -358,7 +358,7 @@ class FriendApiTest extends FriendTestSupport {
                 .andReturn().getResponse().getContentAsString();
 
         assertThat(List.of(malformed, iBlocked, theyBlocked, fromBlocker)).containsOnly(missing);
-        assertThat(jdbcTemplate.queryForObject("select count(*) from social.friend_requests "
+        assertThat(jdbcTemplate.queryForObject("select count(*) from friend_requests "
                 + "where requester_id in (?, ?)", Integer.class, myId, blocksMeId)).isZero();
     }
 

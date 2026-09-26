@@ -36,7 +36,7 @@ class OriginCheckTest extends ApiTestSupport {
         }
 
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from account.users where login_id = ?", Integer.class, loginId)).isZero();
+                "select count(*) from users where login_id = ?", Integer.class, loginId)).isZero();
     }
 
     @Test

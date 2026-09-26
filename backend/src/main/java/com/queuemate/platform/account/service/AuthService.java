@@ -35,7 +35,7 @@ import java.util.regex.Pattern;
 @Service
 public class AuthService {
 
-    /** 마이그레이션(V2)이 붙인 제약의 이름이다. 거기서 바꾸면 여기도 바꾼다 */
+    /** 마이그레이션(V1__schema.sql)이 붙인 제약의 이름이다. 거기서 바꾸면 여기도 바꾼다 */
     static final String USERS_LOGIN_ID_UNIQUE = "users_login_id_key";
     static final String USERS_NICKNAME_UNIQUE = "users_nickname_key";
 

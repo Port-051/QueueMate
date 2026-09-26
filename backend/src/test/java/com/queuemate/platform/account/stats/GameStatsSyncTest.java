@@ -574,19 +574,19 @@ class GameStatsSyncTest extends ApiTestSupport {
     private Long gameAccountId(Long userId, String game)
     {
         return jdbcTemplate.queryForObject(
-                "select id from account.game_accounts where user_id = ? and game = ?", Long.class, userId, game);
+                "select id from game_accounts where user_id = ? and game = ?", Long.class, userId, game);
     }
 
     private Object gameAccountColumn(Long gameAccountId, String column)
     {
-        return jdbcTemplate.queryForMap("select * from account.game_accounts where id = ?", gameAccountId).get(column);
+        return jdbcTemplate.queryForMap("select * from game_accounts where id = ?", gameAccountId).get(column);
     }
 
     /** 전적 줄. 없으면 {@code null} */
     private Map<String, Object> statsRow(Long gameAccountId)
     {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "select * from account.game_account_stats where game_account_id = ?", gameAccountId);
+                "select * from game_account_stats where game_account_id = ?", gameAccountId);
         return rows.isEmpty() ? null : rows.get(0);
     }
 
@@ -597,7 +597,7 @@ class GameStatsSyncTest extends ApiTestSupport {
 
     private void touchSyncedAt(Long gameAccountId, Instant syncedAt)
     {
-        jdbcTemplate.update("update account.game_account_stats set synced_at = ? where game_account_id = ?",
+        jdbcTemplate.update("update game_account_stats set synced_at = ? where game_account_id = ?",
                 Timestamp.from(syncedAt), gameAccountId);
     }
 

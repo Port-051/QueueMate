@@ -43,9 +43,9 @@ class ReportApiTest extends ApiTestSupport {
         report(myCookie, json("targetUserId", targetId, "reason", "OTHER", "detail", "그 밖의 사유")).andExpect(status().isCreated());
 
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from social.reports where reporter_id = ? and target_user_id = ?", Integer.class, myId, targetId)).isEqualTo(4);
+                "select count(*) from reports where reporter_id = ? and target_user_id = ?", Integer.class, myId, targetId)).isEqualTo(4);
         Map<String, Object> first = jdbcTemplate.queryForMap(
-                "select reason, detail, context_id, status from social.reports where reporter_id = ? and reason = 'ABUSE'", myId);
+                "select reason, detail, context_id, status from reports where reporter_id = ? and reason = 'ABUSE'", myId);
         assertThat(first).containsEntry("reason", "ABUSE").containsEntry("detail", "욕설을 했다")
                 .containsEntry("context_id", contextId).containsEntry("status", "RECEIVED");
     }
@@ -60,7 +60,7 @@ class ReportApiTest extends ApiTestSupport {
         signup(target, PASSWORD, nicknameOf(target)).andExpect(status().isCreated());
         Long myId = userIdOf(me);
         Long targetId = userIdOf(target);
-        jdbcTemplate.update("insert into social.blocks (blocker_id, blocked_id, created_at) values (?, ?, now())", targetId, myId);
+        jdbcTemplate.update("insert into blocks (blocker_id, blocked_id, created_at) values (?, ?, now())", targetId, myId);
 
         report(myCookie, json("targetUserId", targetId, "reason", "CHEATING")).andExpect(status().isCreated());
     }
@@ -84,7 +84,7 @@ class ReportApiTest extends ApiTestSupport {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("USER_NOT_FOUND"));
 
-        assertThat(jdbcTemplate.queryForObject("select count(*) from social.reports where reporter_id = ?", Integer.class, myId)).isZero();
+        assertThat(jdbcTemplate.queryForObject("select count(*) from reports where reporter_id = ?", Integer.class, myId)).isZero();
     }
 
     @Test
@@ -118,7 +118,7 @@ class ReportApiTest extends ApiTestSupport {
         // 1000자는 된다
         report(myCookie, json("targetUserId", targetId, "reason", "ABUSE", "detail", "가".repeat(1000))).andExpect(status().isCreated());
 
-        assertThat(jdbcTemplate.queryForObject("select count(*) from social.reports where reporter_id = ?", Integer.class, myId)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from reports where reporter_id = ?", Integer.class, myId)).isEqualTo(1);
     }
 
     @Test

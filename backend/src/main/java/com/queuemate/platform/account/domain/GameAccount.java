@@ -27,7 +27,7 @@ import java.time.Instant;
  * {@code verified} 는 <b>아직 켜는 길이 없다</b> — 식별자를 알아낸 것은 본인 확인이 아니다(RSO 인증은 미정 — CLAUDE.md §7 "게임 계정 연동").
  */
 @Entity
-@Table(schema = "account", name = "game_accounts")
+@Table(name = "game_accounts")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class GameAccount {
@@ -37,7 +37,7 @@ public class GameAccount {
     @Column(name = "id")
     private Long id;
 
-    /** 사용자 번호({@code account.users.id}) */
+    /** 사용자 번호({@code users.id}) */
     @Column(name = "user_id", nullable = false, updatable = false)
     private Long userId;
 

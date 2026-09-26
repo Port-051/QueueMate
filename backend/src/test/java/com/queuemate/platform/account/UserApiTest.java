@@ -81,7 +81,7 @@ class UserApiTest extends ApiTestSupport {
                 .andExpect(status().isOk());
 
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from account.game_accounts where user_id = ? and game = 'LOL'",
+                "select count(*) from game_accounts where user_id = ? and game = 'LOL'",
                 Integer.class, userIdOf(loginId))).isEqualTo(1);
         // 게임 이름순으로 온다
         mockMvc.perform(get("/api/v1/users/me").cookie(cookie))

@@ -1,6 +1,7 @@
 package com.queuemate.platform.social.repository;
 
 import com.queuemate.platform.social.domain.FriendRequest;
+import com.queuemate.platform.social.domain.FriendRequestRow;
 import com.queuemate.platform.social.domain.FriendRequestStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -9,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 친구 요청. <b>"이미 보냈는지" 먼저 조회하고 넣지 마라</b> — 중복은 {@code saveAndFlush} 의 partial unique index 위반
@@ -19,11 +21,34 @@ import java.util.List;
  */
 public interface FriendRequestRepository extends JpaRepository<FriendRequest, Long> {
 
-    /** 내가 받은 대기 중 요청 — 새것이 먼저 */
-    List<FriendRequest> findByReceiverIdAndStatusOrderByCreatedAtDescIdDesc(Long receiverId, FriendRequestStatus status);
+    /** 요청 한 줄 + 보낸 사람 · 받은 사람의 닉네임. 사용자 번호에 FK 가 있어 INNER JOIN 으로 빠지는 줄이 없다 */
+    String ROW_SELECT = """
+            select new com.queuemate.platform.social.domain.FriendRequestRow(
+                       r.id, r.requesterId, requester.nickname, r.receiverId, receiver.nickname, r.createdAt)
+              from FriendRequest r
+              join User requester on requester.id = r.requesterId
+              join User receiver on receiver.id = r.receiverId
+            """;
 
-    /** 내가 보낸 대기 중 요청 — 새것이 먼저 */
-    List<FriendRequest> findByRequesterIdAndStatusOrderByCreatedAtDescIdDesc(Long requesterId, FriendRequestStatus status);
+    /** 내가 받은 대기 중 요청 — 새것이 먼저. 양쪽 닉네임까지 <b>쿼리 한 번이다</b>({@code users} 를 두 번 JOIN) */
+    @Query(ROW_SELECT + """
+             where r.receiverId = :me
+               and r.status = com.queuemate.platform.social.domain.FriendRequestStatus.PENDING
+             order by r.createdAt desc, r.id desc
+            """)
+    List<FriendRequestRow> findPendingReceivedRows(@Param("me") Long me);
+
+    /** 내가 보낸 대기 중 요청 — 새것이 먼저. 양쪽 닉네임까지 쿼리 한 번이다 */
+    @Query(ROW_SELECT + """
+             where r.requesterId = :me
+               and r.status = com.queuemate.platform.social.domain.FriendRequestStatus.PENDING
+             order by r.createdAt desc, r.id desc
+            """)
+    List<FriendRequestRow> findPendingSentRows(@Param("me") Long me);
+
+    /** 요청 한 건을 양쪽 닉네임과 같이 — 방금 넣은 요청의 응답을 만든다 */
+    @Query(ROW_SELECT + " where r.id = :id")
+    Optional<FriendRequestRow> findRowById(@Param("id") Long id);
 
     /** 친절한 에러({@code FRIEND_REQUEST_ALREADY_RECEIVED})를 위한 조회다 — 이것이 빠지거나 경쟁에 져도 데이터는 깨지지 않는다 */
     boolean existsByRequesterIdAndReceiverIdAndStatus(Long requesterId, Long receiverId, FriendRequestStatus status);
