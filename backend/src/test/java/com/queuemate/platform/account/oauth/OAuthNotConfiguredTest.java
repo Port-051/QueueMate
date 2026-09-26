@@ -20,7 +20,7 @@ class OAuthNotConfiguredTest extends ApiTestSupport {
     @DisplayName("클라이언트 id 가 비어 있는 제공자의 start 는 404 OAUTH_PROVIDER_NOT_CONFIGURED 다 — 인증 없이 그 답을 받는다")
     void startIsNotFound() throws Exception
     {
-        for(String provider : new String[]{"kakao", "discord"})
+        for(String provider : new String[]{"KAKAO", "DISCORD"})
         {
             mockMvc.perform(get("/api/v1/auth/oauth/" + provider + "/start"))
                     .andExpect(status().isNotFound())
@@ -34,7 +34,7 @@ class OAuthNotConfiguredTest extends ApiTestSupport {
     @DisplayName("설정되지 않은 제공자의 callback 은 /login?error=OAUTH_FAILED 로 302 다 — 콜백은 JSON 에러를 내지 않는다")
     void callbackRedirects() throws Exception
     {
-        mockMvc.perform(get("/api/v1/auth/oauth/kakao/callback").param("code", "x").param("state", "y"))
+        mockMvc.perform(get("/api/v1/auth/oauth/KAKAO/callback").param("code", "x").param("state", "y"))
                 .andExpect(status().isFound())
                 .andExpect(result -> assertThat(result.getResponse().getHeader(HttpHeaders.LOCATION))
                         .isEqualTo("http://localhost:5173/login?error=OAUTH_FAILED"));

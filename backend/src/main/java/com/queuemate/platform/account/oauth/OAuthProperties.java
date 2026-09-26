@@ -59,7 +59,7 @@ public record OAuthProperties(
     /** 이 앱의 콜백 주소 — 인가 요청과 토큰 요청에 <b>같은 값</b>을 실어야 한다(제공자가 대조한다) */
     public String redirectUri(SocialProvider provider)
     {
-        return stripTrailingSlash(redirectBaseUrl) + "/api/v1/auth/oauth/" + provider.pathName() + "/callback";
+        return stripTrailingSlash(redirectBaseUrl) + "/api/v1/auth/oauth/" + provider.name() + "/callback";
     }
 
     /** 프런트의 주소 + 경로. 설정에 끝 슬래시를 붙여 적어도 슬래시가 겹치지 않게 한다 */

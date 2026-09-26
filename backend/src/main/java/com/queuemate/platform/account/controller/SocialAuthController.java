@@ -11,7 +11,6 @@ import com.queuemate.platform.account.oauth.OAuthUser;
 import com.queuemate.platform.account.oauth.SocialSignupTokens;
 import com.queuemate.platform.account.service.SocialLoginService;
 import com.queuemate.platform.common.error.ApiException;
-import com.queuemate.platform.common.error.ErrorCodes;
 import com.queuemate.platform.common.security.SessionCookies;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -61,10 +60,9 @@ public class SocialAuthController {
      * DB 도 어디도 바꾸지 않는다 — "상태를 바꾸는 GET 을 만들지 않는다"에 걸리지 않는다.
      */
     @GetMapping("/oauth/{provider}/start")
-    public ResponseEntity<Void> start(@PathVariable("provider") String providerName)
+    public ResponseEntity<Void> start(@PathVariable("provider") SocialProvider provider)
     {
-        SocialProvider provider = SocialProvider.fromPathName(providerName).orElseThrow(
-                () -> new ApiException(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, "없는 경로입니다"));
+        // 모르는 이름 · 소문자는 스프링의 enum 변환이 400 으로 거절한다 — 게시판 목록의 game 과 같다
         if(!oAuthClient.configured(provider))
         {
             throw new ApiException(HttpStatus.NOT_FOUND, "OAUTH_PROVIDER_NOT_CONFIGURED", "설정되지 않은 로그인 방식입니다");
@@ -77,14 +75,15 @@ public class SocialAuthController {
     }
 
     /**
-     * 제공자에서 돌아오는 자리. <b>무슨 일이 있어도 302 다</b> — 브라우저의 최상위 이동이라 JSON 에러를 내보내면 사용자가 그것을 화면으로 본다.
+     * 제공자에서 돌아오는 자리. <b>무슨 일이 있어도 302 다</b>(모르는 제공자 이름만 예외다 — 경로 변수의 enum 변환이 컨트롤러에 닿기 전에 400 을 낸다.
+     * 제공자가 그런 주소로 돌려보낼 일은 없다) — 브라우저의 최상위 이동이라 JSON 에러를 내보내면 사용자가 그것을 화면으로 본다.
      * 그래서 파라미터를 전부 선택으로 받고, 예외를 전부 잡아 {@code /login?error=OAUTH_FAILED} 로 돌린다. 왜 실패했는지는 로그에만 남긴다.
      *
      * <p>"상태를 바꾸는 GET 을 만들지 않는다"의 <b>유일한 예외</b>다(OAuth 가 GET 을 강제한다) — {@code state} 의 대조가 {@code Origin} 검사의 자리를 지킨다.
      * {@code state} 쿠키는 어느 갈래로 끝나든 지운다.
      */
     @GetMapping("/oauth/{provider}/callback")
-    public ResponseEntity<Void> callback(@PathVariable("provider") String providerName,
+    public ResponseEntity<Void> callback(@PathVariable("provider") SocialProvider provider,
                                          @RequestParam(name = "code", required = false) String code,
                                          @RequestParam(name = "state", required = false) String state,
                                          @RequestParam(name = "error", required = false) String error,
@@ -92,11 +91,9 @@ public class SocialAuthController {
     {
         try
         {
-            Optional<SocialProvider> provider = SocialProvider.fromPathName(providerName)
-                    .filter(oAuthClient::configured);
-            if(provider.isEmpty())
+            if(!oAuthClient.configured(provider))
             {
-                return failed("모르거나 설정되지 않은 제공자다");
+                return failed("설정되지 않은 제공자다");
             }
             // state 를 먼저 본다 — 내가 시작한 흐름이 아니면 나머지 파라미터를 믿을 이유가 없다
             if(!stateCookie.matches(stateInCookie, state))
@@ -112,15 +109,15 @@ public class SocialAuthController {
                 return failed("code 가 없다");
             }
 
-            OAuthUser user = oAuthClient.fetchUser(provider.get(), code);
-            Optional<Long> linkedUserId = socialLoginService.findLinkedUserId(provider.get(), user.providerUserId());
+            OAuthUser user = oAuthClient.fetchUser(provider, code);
+            Optional<Long> linkedUserId = socialLoginService.findLinkedUserId(provider, user.providerUserId());
             if(linkedUserId.isPresent())
             {
-                log.info("소셜 로그인 userId={} provider={}", linkedUserId.get(), provider.get());
+                log.info("소셜 로그인 userId={} provider={}", linkedUserId.get(), provider);
                 // 쿠키 둘이다 — access 와 refresh
                 return redirect(FRONT_HOME, sessionCookies.login(linkedUserId.get()));
             }
-            String signupToken = socialSignupTokens.issue(provider.get(), user);
+            String signupToken = socialSignupTokens.issue(provider, user);
             return redirect(FRONT_SOCIAL_SIGNUP, List.of(socialSignupTokens.cookie(signupToken).toString()));
         }
         catch(RuntimeException e)

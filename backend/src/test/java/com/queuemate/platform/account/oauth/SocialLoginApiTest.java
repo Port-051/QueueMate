@@ -69,7 +69,7 @@ class SocialLoginApiTest extends ApiTestSupport {
     @DisplayName("start 는 state 를 쿠키에 넣고 제공자의 동의 화면으로 302 한다")
     void start() throws Exception
     {
-        MvcResult result = mockMvc.perform(get("/api/v1/auth/oauth/kakao/start"))
+        MvcResult result = mockMvc.perform(get("/api/v1/auth/oauth/KAKAO/start"))
                 .andExpect(status().isFound())
                 .andReturn();
 
@@ -81,7 +81,7 @@ class SocialLoginApiTest extends ApiTestSupport {
         assertThat(query.get("client_id")).isEqualTo("kakao-client");
         assertThat(query.get("scope")).isEqualTo("profile_nickname");
         // 값 하나로 읽히게 퍼센트로 바뀌어 있다
-        assertThat(query.get("redirect_uri")).isEqualTo("http%3A%2F%2Fapi.test%2Fapi%2Fv1%2Fauth%2Foauth%2Fkakao%2Fcallback");
+        assertThat(query.get("redirect_uri")).isEqualTo("http%3A%2F%2Fapi.test%2Fapi%2Fv1%2Fauth%2Foauth%2FKAKAO%2Fcallback");
 
         Cookie stateCookie = result.getResponse().getCookie("qm_oauth_state");
         assertThat(stateCookie).isNotNull();
@@ -95,7 +95,7 @@ class SocialLoginApiTest extends ApiTestSupport {
         // 부를 때마다 새 값이다
         assertThat(startAndGetState("kakao").getValue()).isNotEqualTo(stateCookie.getValue());
 
-        MvcResult discord = mockMvc.perform(get("/api/v1/auth/oauth/discord/start")).andExpect(status().isFound()).andReturn();
+        MvcResult discord = mockMvc.perform(get("/api/v1/auth/oauth/DISCORD/start")).andExpect(status().isFound()).andReturn();
         Map<String, String> discordQuery = UriComponentsBuilder
                 .fromUriString(discord.getResponse().getHeader(HttpHeaders.LOCATION)).build()
                 .getQueryParams().toSingleValueMap();
@@ -104,19 +104,17 @@ class SocialLoginApiTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("모르는 제공자는 404 NOT_FOUND 다")
+    @DisplayName("모르는 제공자 · 소문자 이름은 400 VALIDATION_FAILED 다 — 경로의 이름은 대문자 enum 이다(game 과 같다)")
     void unknownProvider() throws Exception
     {
-        mockMvc.perform(get("/api/v1/auth/oauth/google/start"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
-        // 경로의 이름은 소문자다 — 제공자에 등록한 Redirect URI 와 글자 그대로 같아야 한다
-        mockMvc.perform(get("/api/v1/auth/oauth/KAKAO/start")).andExpect(status().isNotFound());
-        // 콜백은 JSON 에러를 내지 않는다
+        mockMvc.perform(get("/api/v1/auth/oauth/GOOGLE/start"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        // 소문자는 받지 않는다 — 제공자에 등록한 Redirect URI 도 대문자다
+        mockMvc.perform(get("/api/v1/auth/oauth/kakao/start")).andExpect(status().isBadRequest());
+        // 콜백도 같다 — 제공자가 그런 주소로 돌려보낼 일은 없다
         mockMvc.perform(get("/api/v1/auth/oauth/google/callback").param("code", "x").param("state", "y"))
-                .andExpect(status().isFound())
-                .andExpect(result -> assertThat(result.getResponse().getHeader(HttpHeaders.LOCATION))
-                        .isEqualTo(FRONT + "/login?error=OAUTH_FAILED"));
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -147,7 +145,7 @@ class SocialLoginApiTest extends ApiTestSupport {
         assertThat(form.get("(content-type)")).startsWith("application/x-www-form-urlencoded");
         assertThat(form.get("grant_type")).isEqualTo("authorization_code");
         assertThat(form.get("client_id")).isEqualTo("kakao-client");
-        assertThat(form.get("redirect_uri")).isEqualTo(REDIRECT_BASE + "/api/v1/auth/oauth/kakao/callback");
+        assertThat(form.get("redirect_uri")).isEqualTo(REDIRECT_BASE + "/api/v1/auth/oauth/KAKAO/callback");
         assertThat(form.get("code")).isEqualTo(code);
         assertThat(form).doesNotContainKey("client_secret");
 
@@ -254,11 +252,11 @@ class SocialLoginApiTest extends ApiTestSupport {
         // state 쿠키가 없다
         expectOAuthFailed(callback("kakao", code, state.getValue(), null));
         // state 파라미터가 없다 · code 가 없다
-        expectOAuthFailed(mockMvc.perform(get("/api/v1/auth/oauth/kakao/callback").param("code", code).cookie(state)));
-        expectOAuthFailed(mockMvc.perform(get("/api/v1/auth/oauth/kakao/callback")
+        expectOAuthFailed(mockMvc.perform(get("/api/v1/auth/oauth/KAKAO/callback").param("code", code).cookie(state)));
+        expectOAuthFailed(mockMvc.perform(get("/api/v1/auth/oauth/KAKAO/callback")
                 .param("state", state.getValue()).cookie(state)));
         // 사용자가 동의 화면에서 거절했다
-        expectOAuthFailed(mockMvc.perform(get("/api/v1/auth/oauth/kakao/callback")
+        expectOAuthFailed(mockMvc.perform(get("/api/v1/auth/oauth/KAKAO/callback")
                 .param("error", "access_denied").param("state", state.getValue()).cookie(state)));
         // 제공자의 토큰 주소가 500
         expectOAuthFailed(callback("kakao", FakeOAuthProvider.CODE_TOKEN_ERROR, state.getValue(), state));
@@ -364,16 +362,17 @@ class SocialLoginApiTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.code").value("ORIGIN_NOT_ALLOWED"));
     }
 
+    /** 경로의 제공자 이름은 대문자 enum 이다 — 가짜 제공자의 stub 키("kakao:code")는 소문자라 여기서 올린다 */
     private Cookie startAndGetState(String provider) throws Exception
     {
-        return mockMvc.perform(get("/api/v1/auth/oauth/" + provider + "/start"))
+        return mockMvc.perform(get("/api/v1/auth/oauth/" + provider.toUpperCase() + "/start"))
                 .andExpect(status().isFound())
                 .andReturn().getResponse().getCookie("qm_oauth_state");
     }
 
     private ResultActions callback(String provider, String code, String state, Cookie stateCookie) throws Exception
     {
-        var request = get("/api/v1/auth/oauth/" + provider + "/callback").param("code", code).param("state", state);
+        var request = get("/api/v1/auth/oauth/" + provider.toUpperCase() + "/callback").param("code", code).param("state", state);
         if(stateCookie != null)
         {
             request.cookie(stateCookie);
