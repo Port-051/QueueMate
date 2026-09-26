@@ -248,7 +248,7 @@ access 가 짧아진 만큼(15분) 그것을 이어 주는 것이 refresh 다. *
 
 | 요청 | 하는 일 | 결과 |
 |---|---|---|
-| `GET /api/v1/auth/oauth/{provider}/start` (`kakao` · `discord`) | `state`(무작위)를 쿠키 `qm_oauth_state`(`HttpOnly` · `SameSite=Lax` · `Path=/api/v1/auth/oauth` · 10분)에 넣고 제공자의 동의 화면으로 보낸다 | 302. 그 제공자가 설정돼 있지 않으면(클라이언트 id 가 비었다) 404 `OAUTH_PROVIDER_NOT_CONFIGURED` |
+| `GET /api/v1/auth/oauth/{provider}/start` (**`KAKAO` · `DISCORD` — 대문자 enum.** 2026-09-26 소유자 지시로 소문자 이름을 없앴다. 제공자에 등록하는 Redirect URI 도 `…/oauth/KAKAO/callback` 이다) | `state`(무작위)를 쿠키 `qm_oauth_state`(`HttpOnly` · `SameSite=Lax` · `Path=/api/v1/auth/oauth` · 10분)에 넣고 제공자의 동의 화면으로 보낸다 | 302. 그 제공자가 설정돼 있지 않으면(클라이언트 id 가 비었다) 404 `OAUTH_PROVIDER_NOT_CONFIGURED` |
 | `GET /api/v1/auth/oauth/{provider}/callback?code=…&state=…` | `state` 가 쿠키와 같은지 본다 → `code` 를 토큰으로 바꾼다 → 제공자 쪽 회원 번호를 얻는다 | **이미 연결된 사람** → `qm_access` 를 주고 `FRONT_BASE_URL` + `/` 로 302. **처음 온 사람** → 쿠키 `qm_social_signup`(아래)을 주고 `FRONT_BASE_URL` + `/signup/social` 로 302. **실패**(`state` 불일치 · 사용자가 거절 · 제공자 오류) → `FRONT_BASE_URL` + `/login?error=OAUTH_FAILED` 로 302 |
 | `GET /api/v1/auth/social/pending` | 가입 화면이 미리 채울 값을 준다 | 200 `{provider, suggestedNickname}` · 401 `NO_PENDING_SOCIAL_SIGNUP` |
 | `POST /api/v1/auth/social/signup` `{nickname}`(2026-09-26 에 `loginId` 가 빠졌다) | 사용자와 소셜 연결을 **한 트랜잭션으로** 만든다. **곧바로 로그인시킨다**(`qm_access`) — 다음부터는 같은 제공자로 로그인한다. `qm_social_signup` 은 지운다 | 201 `{userId, nickname}` · 409 `NICKNAME_TAKEN` · 409 `SOCIAL_ALREADY_LINKED` · 401 `NO_PENDING_SOCIAL_SIGNUP` · 400 |
@@ -260,7 +260,7 @@ access 가 짧아진 만큼(15분) 그것을 이어 주는 것이 refresh 다. *
   제공자 쪽 회원 번호는 `social_identities`(PK `(provider, provider_user_id)` · `user_id` 는 **사용자 번호**)에만 있고 **사용자 번호가 되지 않는다.**
 - 설정(환경변수) — `KAKAO_CLIENT_ID` · `KAKAO_CLIENT_SECRET`(카카오는 없어도 된다) · `DISCORD_CLIENT_ID` · `DISCORD_CLIENT_SECRET` · `OAUTH_REDIRECT_BASE_URL`(기본값 `http://localhost:8082` — 제공자에 등록하는 Redirect URI 는 이 값 + `/api/v1/auth/oauth/{provider}/callback`) · `FRONT_BASE_URL`(기본값 `http://localhost:5173`).
   제공자의 주소 셋(인가 · 토큰 · 사용자 정보)도 설정으로 받는다(기본값은 실제 주소. 테스트는 가짜 제공자 서버를 가리킨다).
-- 모르는 제공자 이름의 `start` 는 404 `NOT_FOUND`(경로의 이름은 소문자 `kakao` · `discord` 만). `callback` 은 **무슨 일이 있어도 302** 다. `pending` 의 `provider` 는 대문자(`KAKAO`)이고 `suggestedNickname` 은 `null` 일 수 있다(16자로 자른 값).
+- 모르는 제공자 이름 · 소문자(`kakao`)는 `start` · `callback` 둘 다 **400 `VALIDATION_FAILED`** 다(경로 변수를 enum 으로 받아 스프링의 형 변환이 거절한다 — 게시판 목록의 `game` 과 같다. 2026-09-26 전에는 소문자만 받고 모르는 이름은 404 였고 `callback` 은 302 였다). `callback` 은 **무슨 일이 있어도 302** 다. `pending` 의 `provider` 는 대문자(`KAKAO`)이고 `suggestedNickname` 은 `null` 일 수 있다(16자로 자른 값).
 - **`state` 는 서버에서 일회용이 아니다**(stateless 라 쿠키를 지우는 것까지만 한다) — 제공자의 `code` 가 일회용이라 감수한다.
 - **하지 않은 것** — 이미 가입한 계정에 소셜 계정을 나중에 잇기 · 끊기(미정 그대로다 — 그래서 한 사람이 카카오와 디스코드로 따로 오면 사용자가 둘 생긴다). ~~소셜 가입자가 비밀번호를 만드는 것~~은 2026-09-26 에 물음째 없어졌다(비밀번호가 없다 — P-24).
 
