@@ -541,9 +541,9 @@ test('티어 범위는 두 번째 선택에 바로 적용하고 한 번만 선�
   await expect(dialog).toHaveCount(0);
   await expect(page.locator('.room-deck')).toHaveCount(2);
   await trigger.click();
-  const all = dialog.getByRole('button', { name: '티어 범위 초기화', exact: true });
+  const all = dialog.getByRole('button', { name: '선택 취소', exact: true });
   await expect(all.locator('svg')).toBeVisible();
-  await expect(all).toHaveText('');
+  await expect(all).toHaveText('선택 취소');
   await all.click();
   await expect(dialog).toHaveCount(0);
   await expect(trigger).toHaveText('모든 티어');
