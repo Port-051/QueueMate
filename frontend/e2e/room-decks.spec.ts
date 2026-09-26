@@ -48,7 +48,7 @@ async function seedRooms(page: Page, rooms: GameRoom[]) {
 }
 
 async function selectFullLineup(composer: Locator) {
-  await composer.getByRole('group', { name: '내 포지션', exact: true }).getByRole('button', { name: '미드', exact: true }).click();
+  await composer.getByRole('radiogroup', { name: '내 포지션', exact: true }).getByRole('radio', { name: '미드', exact: true }).click();
   const wanted = composer.getByRole('group', { name: '찾는 포지션', exact: true });
   for (const name of ['탑', '정글', '바텀', '서포터']) await wanted.getByRole('button', { name, exact: true }).click();
 }
@@ -261,15 +261,42 @@ test('빈자리 하나에 두 포지션을 표시하고 마이크는 빈자리 �
   await expect(page.getByRole('dialog').locator('.room-member-card .room-mic-icon')).toHaveCount(0);
 });
 
+test('내 포지션은 하나만 선택하고 찾는 포지션은 여러 개 선택하며 재접속해도 유지한다', async ({ page }) => {
+  await login(page);
+  const rail = page.getByRole('region', { name: '빠른 연결', exact: true });
+  const own = rail.getByRole('radiogroup', { name: '내 포지션', exact: true });
+  const wanted = rail.locator('.intro-role-options[aria-label="찾는 포지션"]');
+  await own.getByRole('radio', { name: '탑', exact: true }).check();
+  await own.getByRole('radio', { name: '미드', exact: true }).check();
+  await own.getByRole('radio', { name: '미드', exact: true }).press('ArrowRight');
+  await expect(own.getByRole('radio', { name: '바텀', exact: true })).toBeChecked();
+  await own.getByRole('radio', { name: '바텀', exact: true }).click();
+  await expect(own.getByRole('radio', { checked: true })).toHaveCount(1);
+  for (const name of ['탑', '서포터']) await wanted.getByRole('button', { name, exact: true }).click();
+  await expect(wanted.getByRole('button', { pressed: true })).toHaveCount(2);
+  await login(page);
+  await expect(own.getByRole('radio', { name: '바텀', exact: true })).toBeChecked();
+  await expect(wanted.getByRole('button', { pressed: true })).toHaveCount(2);
+  await own.getByRole('radio', { name: '정글', exact: true }).check();
+  await rail.getByRole('button', { name: '방 만들기', exact: true }).click();
+  const composer = page.getByRole('region', { name: '방 만들기', exact: true });
+  await composer.getByRole('button', { name: '2인 랭크', exact: true }).click();
+  const roomOwn = composer.getByRole('radiogroup', { name: '내 포지션', exact: true });
+  await expect(roomOwn.getByRole('radio', { name: '정글', exact: true })).toBeChecked();
+  await roomOwn.getByRole('radio', { name: '미드', exact: true }).check();
+  await expect(roomOwn.getByRole('radio', { checked: true })).toHaveCount(1);
+  await expect(roomOwn.getByRole('radio', { name: '정글', exact: true })).not.toBeChecked();
+});
+
 test('5인 방은 내 포지션과 나머지 네 포지션을 모두 골라야 만들 수 있다', async ({ page }) => {
   await login(page);
   await page.getByRole('button', { name: '방 만들기', exact: true }).click();
   const composer = page.getByRole('region', { name: '방 만들기', exact: true });
   const create = composer.getByRole('button', { name: '방 열기', exact: true });
-  const own = composer.getByRole('group', { name: '내 포지션', exact: true });
+  const own = composer.getByRole('radiogroup', { name: '내 포지션', exact: true });
   const wanted = composer.getByRole('group', { name: '찾는 포지션', exact: true });
   await expect(create).toBeDisabled();
-  await own.getByRole('button', { name: '미드', exact: true }).click();
+  await own.getByRole('radio', { name: '미드', exact: true }).click();
   await expect(wanted.getByRole('button', { name: '미드', exact: true })).toBeDisabled();
   for (const name of ['탑', '정글', '바텀']) await wanted.getByRole('button', { name, exact: true }).click();
   await expect(create).toBeDisabled();
@@ -278,8 +305,8 @@ test('5인 방은 내 포지션과 나머지 네 포지션을 모두 골라야 �
   await expect(page.locator('.room-home')).not.toHaveClass(/has-active-room/);
   await wanted.getByRole('button', { name: '서포터', exact: true }).click();
   await expect(create).toBeEnabled();
-  await own.getByRole('button', { name: '탑', exact: true }).click();
-  await expect(own.getByRole('button', { pressed: true })).toHaveCount(1);
+  await own.getByRole('radio', { name: '탑', exact: true }).click();
+  await expect(own.getByRole('radio', { checked: true })).toHaveCount(1);
   await expect(create).toBeDisabled();
   await wanted.getByRole('button', { name: '미드', exact: true }).click();
   await expect(create).toBeEnabled();
@@ -293,7 +320,7 @@ test('칼바람 5인 방은 포지션을 고르지 않고도 만들 수 있다',
   await page.getByRole('button', { name: '방 만들기', exact: true }).click();
   const composer = page.getByRole('region', { name: '방 만들기', exact: true });
   await composer.getByRole('group', { name: '게임 모드', exact: true }).getByRole('button', { name: '칼바람', exact: true }).click();
-  await expect(composer.getByRole('group', { name: '내 포지션', exact: true })).toHaveCount(0);
+  await expect(composer.getByRole('radiogroup', { name: '내 포지션', exact: true })).toHaveCount(0);
   await composer.getByLabel('방 제목', { exact: true }).fill('포로 다섯');
   await composer.getByRole('button', { name: '방 열기', exact: true }).click();
   await expect(page.getByRole('button', { name: '포로 다섯 방 정보', exact: true }).locator('.compact-seat')).toHaveCount(4);

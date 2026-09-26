@@ -189,7 +189,7 @@
   --member-card-gap:10px;
   --room-padding:16px;
   --room-width:calc(var(--member-card-width) * 5 + var(--member-card-gap) * 4 + var(--room-padding) * 2 + 2px);
-  --room-rail-width:324px;
+  --room-rail-width:348px;
   max-width:calc(var(--room-width) + var(--room-rail-width) + 32px + 48px);
   padding:24px 24px 48px;
 }
@@ -218,17 +218,23 @@
 .room-home .home-profile .introduction-fields label { font-size:14px; }
 .room-home .room-rail-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding-bottom:0; }
 .room-home .room-rail-actions>.btn { font-size:15px; min-height:44px; }
-.room-home .room-setting-row { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:12px; min-width:0; }
+.room-home .room-setting-row { display:grid; grid-template-columns:58px minmax(0,max-content); align-items:center; gap:12px; min-width:0; }
 .room-home .room-setting-row>span { color:#bcc1d2; font-size:14px; white-space:nowrap; }
-.room-setting-row .tier-range-trigger { gap:6px; padding-inline:9px; }
 .room-setting-row .tier-range-trigger>svg { flex:none; }
-.room-setting-row .tier-range-label,.room-setting-row .tier-range-endpoint { min-width:0; gap:3px; }
+.room-setting-row .tier-range-label,.room-setting-row .tier-range-endpoint { min-width:0; }
 .room-setting-row .tier-range-endpoint>span:not(.rank-emblem) { overflow:hidden; text-overflow:ellipsis; }
-.room-setting-row .tier-range-label { font-size:12px; }
 .room-home .room-mode-options { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); grid-template-columns:none; gap:3px; }
-.room-home .room-mode-options>.filter-mode { flex-direction:column; gap:5px; height:61px; min-height:61px; padding:7px 1px; font-size:11px; line-height:1.3; }
+.room-home .room-mode-options>.filter-mode { flex-direction:column; gap:5px; height:61px; min-height:61px; padding:7px 8px; font-size:11px; line-height:1.3; }
 .room-home .room-mode-options>.filter-mode svg { flex:none; width:22px; height:22px; }
 .room-home .room-mode-options>.filter-mode span { font-size:inherit; white-space:nowrap; }
+.room-home .single-role-picker { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); gap:3px; padding:3px; border:1px solid var(--line); border-radius:8px; }
+.room-home .single-role-option { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; min-width:0; min-height:60px; margin:0; padding:8px; border-radius:6px; color:var(--muted); font-size:12px; line-height:1.3; cursor:pointer; }
+.room-home .single-role-option>input { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
+.room-home .single-role-option>span { white-space:nowrap; }
+.room-home .single-role-option:has(input:checked) { background:var(--accent); color:#fff; }
+.room-home .single-role-option:hover:not(:has(input:checked)) { background:#ffffff09; color:var(--text); }
+.room-home .single-role-option:has(input:focus-visible) { outline:2px solid #bda4ff; outline-offset:2px; }
+.room-home .intro-role-options .filter-role,.room-home .room-composer-role-options .filter-role { padding-inline:8px; }
 .room-quick-rail .quick-connect-result { margin:0; padding:16px 18px; border-radius:16px; background:#131522; border-color:#66508e; }
 .room-quick-rail .quick-result-actions button { font-size:14px; }
 
@@ -287,9 +293,8 @@
 .room-deck.room-compact.is-confirmed { background:#17191f; border-color:#373b45; }
 .room-compact.is-confirmed .compact-member { border-color:#343640; background:#171921; }
 .room-compact.is-confirmed .compact-seat { background:transparent; }
-.room-mic-filters { display:flex; gap:3px; border:1px solid var(--line); border-radius:8px; padding:3px; }
-.room-mic-filters .filter-mode { width:42px; height:40px; padding:0; }
-.room-matching-form .intro-voice-options.is-binary,.room-composer .room-composer-voice-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.room-mic-filters,.room-setting-row .intro-voice-options.is-binary,.room-setting-row .room-composer-voice-options { display:flex; gap:3px; border:1px solid var(--line); border-radius:8px; padding:3px; }
+.room-mic-filters .filter-mode,.room-setting-row .intro-voice-options.is-binary>.filter-mode,.room-setting-row .room-composer-voice-options>.filter-mode { flex:none; width:42px; height:40px; min-height:40px; padding:0; }
 .room-matching-form .intro-voice-options.is-binary .filter-mode svg,.room-composer-voice-options .filter-mode svg { width:23px; height:23px; }
 .quick-result-reasons { display:flex; align-items:center; gap:8px; }
 /* Preserve the current direct detail view. */
@@ -312,8 +317,7 @@
 .room-home:not(.has-active-room) .room-deck-grid.is-duo-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
 .room-deck-grid.is-duo-grid .compact-members { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); overflow:visible; }
 .room-deck-grid.is-duo-grid .compact-member { width:auto; }
-.room-home .tier-range-trigger { width:100%; }
-.room-home .room-filters .tier-range-trigger { width:auto; }
+.room-home .tier-range-trigger { width:auto; }
 .room-compact.is-confirmed .compact-seat-status { color:#a5abc0; }
 @media(max-width:700px) {
   .room-home:not(.has-active-room) .room-deck-grid.is-duo-grid { grid-template-columns:minmax(0,1fr); }
