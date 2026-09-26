@@ -134,7 +134,7 @@
 >   `Origin` 검사) · 서명(RS256 — `app:platform` 만 서명, 공개 키는 환경변수, JWKS 없음) · 클레임(`token_use` 포함) · SSE 와 토큰 만료 · 로컬 CORS 는 D-24 로, 수명(access 15분 · refresh 7일)과
 >   refresh 의 Redis 키(`qm:auth:refresh:{uuid}` · `GETDEL` rotation)는 D-26 으로 정해졌다.
 > - **사용자 식별자(D-4 · D-14 결정 3)** — **"사용자 id 는 로그인 아이디 문자열"은 D-25 로 개정됐다 — `userId` 는 사용자 번호(bigint identity)이고 JWT 의 `sub` 는 그 십진 문자열이다.**
->   로그인 아이디는 `loginId` 로 따로 있다. **D-4 의 "`String` 으로 통일하면 변환 지점이 생기지 않는다"는 뒤집혔다** — `blocks` 의 두 칸이 bigint 가 됐다(`Block.java` 를 고쳐야 한다 — `HANDOFF.md` §0-4 (가)).
+>   로그인 아이디는 `loginId` 로 따로 있다(**← 2026-09-26 에 없어졌다 — D-35**). **D-4 의 "`String` 으로 통일하면 변환 지점이 생기지 않는다"는 뒤집혔다** — `blocks` 의 두 칸이 bigint 가 됐다(`Block.java` 를 고쳐야 한다 — `HANDOFF.md` §0-4 (가)).
 > - **DB(#17 · D-1 · D-3)** — **#17 의 schema-per-service · 크로스 스키마 FK/JOIN 금지 · 스키마별 DB 롤, D-1 의 "`matching` 롤에 `social.blocks` SELECT 권한 · 스키마 분리 유지", D-3 의 "H2 로는
 >   롤 · GRANT 격리를 재현할 수 없다"는 D-34 로 낡았다.** 롤은 없고(2026-09-22) `app:platform` 의 스키마는 **`public` 하나**이며 JOIN · FK 가 허용된다(2026-09-26). **이 저장소가 읽는 테이블은
 >   `blocks` 하나 그대로이고 이름이 `social.blocks` 에서 `public.blocks` 가 됐다.** 이 파일 곳곳의 "`social.blocks`" 는 `blocks` 로 읽는다. D-1 의 "뷰 대신 테이블을 양방향으로 직접 조회"는 그대로다.
@@ -2914,7 +2914,7 @@ Stage 1 보다 비싸다. #20 이 Stage 1 을 둔 근거는 "배포 단위를 4�
 
 ---
 
-### D-24. 인증 세부를 정한다 — RS256(서명은 `app:platform` 만) · 공개 키는 환경변수(JWKS 없음) · CSRF 는 `SameSite=Lax` + `Origin` 검사 · **access denylist 를 두지 않는다** · `token_use` 클레임 (#16 개정 · D-14 "아직 미정"의 대부분 확정, 2026-09-21)
+### D-24. **(일부 낡음 — 로그인 실패 제한은 D-35 로 물음째 없어졌다)** 인증 세부를 정한다 — RS256(서명은 `app:platform` 만) · 공개 키는 환경변수(JWKS 없음) · CSRF 는 `SameSite=Lax` + `Origin` 검사 · **access denylist 를 두지 않는다** · `token_use` 클레임 (#16 개정 · D-14 "아직 미정"의 대부분 확정, 2026-09-21)
 
 > **이 결정은 매칭 엔진의 결정이 아니다.** 시스템 전체에 걸리는 인증의 세부이고 **프로젝트 소유자가 정했다**(2026-09-21).
 > **사실의 원본은 `../platform/CLAUDE.md` §5.1 과 `../platform/contracts/platform-api.md` "공통" · "access 토큰" · P-2 다.** 원본 결정 로그가 있는
@@ -2979,7 +2979,7 @@ SSE 와 토큰 만료 · 개발 환경의 CORS** 를 미정으로 남겼다.
 
 ---
 
-### D-25. 모든 테이블의 PK 를 `bigint GENERATED ALWAYS AS IDENTITY` 로 하고, 사용자의 식별자를 **사용자 번호(`userId`)** 와 **로그인 아이디(`loginId`)** 로 가른다 (D-4 개정 · D-14 결정 3 개정, 2026-09-22)
+### D-25. **(절반 낡음 — `loginId` 는 D-35 로 없어졌다. 사용자 번호는 그대로)** 모든 테이블의 PK 를 `bigint GENERATED ALWAYS AS IDENTITY` 로 하고, 사용자의 식별자를 **사용자 번호(`userId`)** 와 **로그인 아이디(`loginId`)** 로 가른다 (D-4 개정 · D-14 결정 3 개정, 2026-09-22)
 
 > **이 결정은 매칭 엔진의 결정이 아니다.** 그러나 **이 저장소의 코드를 지금 깨뜨리고 있다**(아래 "영향"). 프로젝트 소유자가 정했다(2026-09-22).
 > **사실의 원본은 `../platform/contracts/platform-api.md` "공통" · P-11 과 `../platform/CLAUDE.md` §3.5, 테이블은 `../platform/backend/src/main/resources/db/migration/V1__schema.sql` 이다.**
@@ -3387,6 +3387,29 @@ access 가 살아 있는 창이 24시간에서 15분으로 준다. (경로 이�
   안 빼면 D-25 의 `Long` 으로 고쳐도 "relation social.blocks does not exist" 로 똑같이 깨진다. javadoc 의 "이 테이블만 `matching` 롤에 SELECT 권한을 준다(D-1)"도 낡았다.
   테스트의 `backend/src/test/resources/schema.sql` 도 스키마 이름을 따라 맞춘다.
 - 이 저장소의 `CLAUDE.md` · `docs/WHY_POSTGRESQL.md` · `START_HERE.md` · `docs/AWS_ARCHITECTURE.md` 등의 `social.blocks` · 스키마별 롤 서술에 이 항목을 가리키는 말을 달았다. `HANDOFF.md` §0 의 옛 서술은 그날의 기록으로 두었다.
+
+### D-35. 가입 · 로그인은 소셜(카카오 · 디스코드)뿐이다 — 직접 가입 · 비밀번호 로그인 · 로그인 아이디(`loginId`)를 없앤다 (D-25 의 절반 개정 · D-24 의 로그인 실패 제한 물음째 없어짐, 2026-09-26)
+
+> **프로젝트 소유자가 정했다.** 사실의 원본은 `../platform/CLAUDE.md` §2 "계정" · §5.1 과 `../platform/contracts/platform-api.md` "계정" · "소셜 로그인" · P-24 다.
+> **이 저장소에는 코드로 걸리지 않는다** — JWT 의 `sub` 는 여전히 사용자 번호(숫자 문자열)이고 서명 · 검증은 D-24 그대로다.
+
+**원안.** `docs/00_PRODUCT_SPEC.md` 의 계정은 "회원가입 / 로그인" 이었고, `app:platform` 은 로그인 아이디 + 비밀번호(bcrypt · `credentials` 테이블)로 가입 · 로그인하는 길과 소셜 로그인의 길을 둘 다 두었다.
+D-25 는 사용자의 식별자를 **사용자 번호(`userId`)와 로그인 아이디(`loginId`)** 둘로 갈랐고, D-24 는 로그인 실패 제한(15분 5회 · 두 배 잠금 · Redis `qm:auth:login-fail:*`)을 정했다.
+
+**결정.**
+
+1. **가입 · 로그인은 소셜로만 한다.** `POST /api/v1/auth/signup` · `POST /api/v1/auth/login` · `credentials` 테이블 · 비밀번호가 없어졌다.
+   **왜** — 비밀번호 보관 · 이메일 인증 · 로그인 실패 제한 같은 부담을 우리가 지지 않는다. 그 몫은 카카오 · 디스코드가 진다.
+2. **`loginId` 를 없앤다.** 비밀번호 로그인이 없으면 쓰는 데가 없다 — 친구 요청도 사용자 번호로 한다. `users.login_id` 컬럼 · 응답의 `loginId` · 409 `LOGIN_ID_TAKEN` 이 없어졌다.
+   **식별자는 사용자 번호 하나, 보여 주는 이름은 닉네임 하나다.** D-25 의 "사용자 번호는 bigint identity" 는 그대로이고 "로그인 아이디를 따로 둔다" 절반만 낡았다.
+3. **소셜로 처음 온 사람은 닉네임만 정한다.** 가입 대기 한 단계(`social_signup` 토큰 · `/social/pending` → `POST /social/signup`)는 그대로이고 본문이 `{nickname}` 하나다(닉네임이 UNIQUE 라 제공자 이름을 그대로 못 쓴다).
+4. **로그인 실패 제한은 물음째 없어졌다** — 비밀번호 로그인에만 걸리던 것이다. D-24 의 그 대목과 Redis 키 둘이 낡았다. 나머지(RS256 · `Origin` 검사 · denylist 없음 · `token_use` · refresh 토큰 D-26)는 그대로다.
+
+**감수하는 것.** 카카오 · 디스코드의 앱 등록 · 키 · Redirect URI 등록이 **필수**가 됐다 — 그것 없이는 아무도 로그인할 수 없다(소유자가 해야 한다). 제공자가 죽으면 로그인이 같이 죽는다.
+
+**아직 미정.** 이미 가입한 계정에 소셜 계정을 나중에 잇기 · 끊기(한 사용자에 제공자 둘). 회원 탈퇴(유예).
+
+**영향.** `docs/00_PRODUCT_SPEC.md` 의 "회원가입" 계정 정의가 "소셜 로그인" 으로 읽힌다. 이 저장소의 코드 · 키 약속은 바뀌지 않는다.
 
 ---
 
