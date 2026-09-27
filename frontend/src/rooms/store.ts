@@ -213,6 +213,12 @@ export function createRoomActions(userId: string) {
     if (room.ownerId !== userId) throw new Error('방장만 할 수 있어요.');
     return room;
   };
+  const reopenAfterDeparture = (room: GameRoom): GameRoom => {
+    const expired = room.type === 'RESERVATION' && room.availableFrom && Date.parse(room.availableFrom) <= Date.now();
+    const next = room.status === 'CONFIRMED' && !expired
+      ? append({ ...room, status: 'OPEN' }, systemMessage('빈자리가 생겨 모집을 다시 시작했어요.')) : room;
+    return { ...next, autoCloseAt: nextAutoCloseAt(next, Date.now()) };
+  };
   // Stage a departure without writing, so a room transfer can commit once.
   const depart = (rooms: GameRoom[], room: GameRoom): GameRoom[] => {
     const me = room.members.find(member => member.id === userId)!;
@@ -222,7 +228,7 @@ export function createRoomActions(userId: string) {
       ? canonicalRoomRoles(room.game, [...room.desiredRoles, ...me.roles]) : room.desiredRoles;
     let remaining = append({ ...room, members, ownerId: ownerId ?? userId, desiredRoles }, systemMessage(`${me.nickname} 님이 나갔어요.`));
     if (members.length && room.ownerId === userId) remaining = append(remaining, systemMessage(`${members[0].nickname} 님이 방장이 되었어요.`));
-    remaining.autoCloseAt = nextAutoCloseAt(remaining, Date.now());
+    remaining = reopenAfterDeparture(remaining);
     return members.length ? rooms.map(item => item.id === room.id ? remaining : item) : rooms.filter(item => item.id !== room.id);
   };
   return {
@@ -284,8 +290,7 @@ export function createRoomActions(userId: string) {
       if (memberId === userId) throw new Error('방장은 나가기 버튼을 이용해 주세요.');
       const member = room.members.find(item => item.id === memberId);
       if (!member) throw new Error('이미 방에서 나간 사람이에요.');
-      const changed = append({ ...room, members: room.members.filter(item => item.id !== memberId) }, systemMessage(`${member.nickname} 님을 내보냈어요.`));
-      changed.autoCloseAt = nextAutoCloseAt(changed, Date.now());
+      const changed = reopenAfterDeparture(append({ ...room, members: room.members.filter(item => item.id !== memberId) }, systemMessage(`${member.nickname} 님을 내보냈어요.`)));
       save(userId, rooms.map(item => item.id === roomId ? changed : item));
     },
     confirm(roomId: string): void {

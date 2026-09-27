@@ -84,7 +84,7 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onSelectSeat, o
 
   const recommendation = started ? <section className="duo-offers" aria-label="매칭 추천"><article className="duo-offer quick-connect-result" aria-live="polite" aria-atomic="true">
       {candidate ? <>
-        <div className="quick-result-top"><span>조건에 맞는 방</span><strong>{candidate.members.length}/{candidate.capacity}명</strong></div>
+        <div className="quick-result-top"><span>조건에 맞는 방</span></div>
         <h3>{candidate.title}</h3>
         <p className="quick-result-reasons"><RoomVoice value={candidate.voice}/><time dateTime={candidate.availableFrom ?? undefined}>{roomStartLabel(candidate.availableFrom)}</time></p>
         <div className="quick-result-actions"><Button onClick={() => setSkipped(values => [...values, candidate.id])}>다른 방</Button><Button variant="primary" onClick={() => onSelectSeat(candidate, profile, criteria)}>자리 확인</Button></div>

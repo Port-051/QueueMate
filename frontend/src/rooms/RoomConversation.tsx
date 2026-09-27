@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Avatar, Button, useToast } from '../components/ui';
-import { IconChat, IconCheck, IconPlay, IconLogout, IconMic, IconMicOff, IconX } from '../components/icons';
+import { Avatar, Button, Modal, useToast } from '../components/ui';
+import { IconChat, IconCheck, IconLogout, IconMic, IconMicOff, IconX } from '../components/icons';
 import { IconDirectMessage } from '../components/NotificationPanel';
 import { RoomMemberAvatar } from './RoomDeck';
 import { USE_MOCK } from '../config';
@@ -17,9 +17,8 @@ export interface RoomConversationProps {
   onMember: (member: RoomMember) => void;
   onSend: (text: string) => void | Promise<void>;
   onLeave: () => void;
-  onKick: (memberId: string) => void;
+  onKick: (memberId: string) => void | Promise<void>;
   onConfirm: () => void | Promise<void>;
-  onReopen: () => void | Promise<void>;
   onAutoConfirm: (deadline: number) => void;
   onExtend: (deadline: number) => void;
 }
@@ -36,7 +35,7 @@ const messageDate = new Intl.DateTimeFormat('ko-KR', { year: '2-digit', month: '
 const dayLabel = new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
 const sameDay = (a: number, b: number) => new Date(a).toDateString() === new Date(b).toDateString();
 
-export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConfirm, onReopen, onAutoConfirm, onExtend, visible = true, onMember }: RoomConversationProps) {
+export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConfirm, onAutoConfirm, onExtend, visible = true, onMember }: RoomConversationProps) {
   const toast = useToast();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -68,18 +67,26 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
   const confirmed = room.status === 'CONFIRMED';
   const [recruitmentBusy, setRecruitmentBusy] = useState(false);
   const changingRecruitment = useRef(false);
-  const reopenError = room.members.length >= room.capacity ? '빈자리가 생기면 다시 열 수 있어요'
-    : room.type === 'RESERVATION' && room.availableFrom && Date.parse(room.availableFrom) <= now ? '예약 시간이 지났어요' : '';
-  const changeRecruitment = async (open: boolean) => {
+  const changeRecruitment = async () => {
     if (changingRecruitment.current) return;
     changingRecruitment.current = true;
     setRecruitmentBusy(true);
-    try { await (open ? onReopen() : onConfirm()); }
+    try { await onConfirm(); }
     catch (error) { toast(error instanceof Error ? error.message : '모집 상태를 변경하지 못했어요.', 'error'); }
     finally { changingRecruitment.current = false; setRecruitmentBusy(false); }
   };
   const voiceOn = voice === 'connected';
-  const kickTarget = action?.kind === 'kick' ? room.members.find(member => member.id === action.id) : null;
+  const kickTarget = isHost && action?.kind === 'kick' ? room.members.find(member => member.id === action.id) : null;
+  const [kicking, setKicking] = useState(false);
+  const kickingRef = useRef(false);
+  const closeKick = () => { if (!kickingRef.current) setAction(null); };
+  const confirmKick = async () => {
+    if (!kickTarget || kickingRef.current) return;
+    kickingRef.current = true; setKicking(true);
+    try { await onKick(kickTarget.id); setAction(null); }
+    catch (error) { toast(error instanceof Error ? error.message : '내보내지 못했어요. 다시 시도해 주세요.', 'error'); }
+    finally { kickingRef.current = false; setKicking(false); }
+  };
 
   useEffect(() => {
     let active = true;
@@ -177,7 +184,7 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
       <div className="room-conversation-heading">
         <h2>{room.title}</h2>
       </div>
-      <span className="room-conversation-count"><b>{room.members.length}</b><span>/{room.capacity}</span></span>
+      {isHost ? <Button className="room-conversation-close" size="sm" disabled={recruitmentBusy || confirmed} aria-busy={recruitmentBusy} onClick={() => void changeRecruitment()}><IconCheck size={14} />모집 마감</Button> : null}
       <button className="room-conversation-icon" type="button" aria-label="방 나가기" title="방 나가기" onClick={() => setAction({ kind: 'leave' })}><IconLogout size={19} /></button>
     </header>
 
@@ -192,25 +199,25 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
       {Array.from({ length: Math.max(0, room.capacity - room.members.length) }, (_, index) => <div className="room-conversation-member is-empty" key={`empty-${index}`} aria-label="빈 자리"><span className="room-conversation-empty-seat">+</span><span>빈 자리</span></div>)}
     </div>
 
-    {action?.kind === 'leave' || kickTarget ? <div className="room-conversation-confirm" role="alert">
-      <span>{action?.kind === 'leave' ? '이 방에서 나갈까요?' : `${kickTarget?.nickname}님을 내보낼까요?`}</span>
-      <div><Button size="sm" variant="ghost" onClick={() => setAction(null)}>취소</Button><Button size="sm" variant="danger" onClick={() => {
-        if (action?.kind === 'leave') onLeave();
-        else if (kickTarget) onKick(kickTarget.id);
-        setAction(null);
-      }}>{action?.kind === 'leave' ? '나가기' : '내보내기'}</Button></div>
+    {action?.kind === 'leave' ? <div className="room-conversation-confirm" role="alert">
+      <span>이 방에서 나갈까요?</span>
+      <div><Button size="sm" variant="ghost" onClick={() => setAction(null)}>취소</Button><Button size="sm" variant="danger" onClick={() => { onLeave(); setAction(null); }}>나가기</Button></div>
     </div> : null}
 
-    {isHost ? <div className="room-conversation-host-actions">
-      <span>{confirmed && reopenError ? reopenError : '모집 관리'}</span><Button size="sm" disabled={recruitmentBusy || (confirmed && Boolean(reopenError))} aria-busy={recruitmentBusy} onClick={() => void changeRecruitment(confirmed)}>{confirmed ? <IconPlay size={14} /> : <IconCheck size={14} />}{confirmed ? '모집 다시 열기' : '모집 마감'}</Button>
-    </div> : null}
+    {kickTarget ? <Modal title="멤버를 내보낼까요?" className="room-kick-dialog" onClose={closeKick} foot={<>
+      <Button disabled={kicking} onClick={closeKick}>취소</Button>
+      <Button variant="danger" disabled={kicking} aria-busy={kicking} onClick={() => void confirmKick()}>내보내기</Button>
+    </>}>
+      <div className="room-kick-target"><Avatar name={kickTarget.nickname} avatarUrl={kickTarget.avatarUrl} size={42} /><strong>{kickTarget.nickname}</strong></div>
+      <p>이 멤버를 방에서 내보냅니다.</p>
+    </Modal> : null}
 
     {isHost && !confirmed && autoPhase === 'waiting' ? <p className="room-close-policy">구성원이 그대로면 {Math.max(1, Math.ceil(((room.autoCloseAt ?? now) - 60_000 - now) / 60_000))}분 뒤 모집 마감을 안내해요.</p> : null}
     {isHost && !confirmed && (autoPhase === 'warning' || autoPhase === 'due') && !autoError ? <div className="room-auto-close-notice" role="alert" aria-label="자동 모집 마감 안내">
       <strong>지금 멤버로 함께할까요?</strong>
       <p>잠시 뒤 새 팀원의 입장을 막고 모집을 마감해요. 대화는 계속할 수 있어요.</p>
       <span className="room-close-countdown" role="timer" aria-live="off">{Math.max(0, Math.ceil(((room.autoCloseAt ?? now) - now) / 1000))}초 후 자동 마감</span>
-      <div><Button size="sm" variant="ghost" onClick={() => room.autoCloseAt && onExtend(room.autoCloseAt)}>계속 모집하기</Button><Button size="sm" disabled={recruitmentBusy} onClick={() => void changeRecruitment(false)}>지금 마감하기</Button></div>
+      <div><Button size="sm" variant="ghost" onClick={() => room.autoCloseAt && onExtend(room.autoCloseAt)}>계속 모집하기</Button><Button size="sm" disabled={recruitmentBusy} onClick={() => void changeRecruitment()}>지금 마감하기</Button></div>
     </div> : null}
     {autoError ? <p className="room-auto-close-error" role="alert">{autoError}</p> : null}
 

@@ -3,10 +3,10 @@ import { expect, test, type Page } from '@playwright/test';
 const api = 'http://127.0.0.1:8080/api/v1';
 const password = 'QueueMate123!';
 
-test('실제 두 계정의 방 입장, 이벤트 동기화, 채팅 재시도와 복원', async ({ browser, request }) => {
+test('실제 5인 방의 자동 마감·재모집, 강퇴 확인과 채팅 복원', async ({ browser, request }) => {
   const id = Date.now().toString(36);
   const seed = process.env.ROOM_E2E_SEED ?? 'shared-room';
-  const accounts = ['a', 'b'].map(letter => ({ email: `room-e2e-${seed}-${letter}@queuemate.local`, nickname: `검증${seed}${letter}`, password }));
+  const accounts = ['a', 'b', 'c', 'd', 'e'].map(letter => ({ email: `room-e2e-${seed}-${letter}@queuemate.local`, nickname: `검증${seed}${letter}`, password }));
   const tokens: string[] = [];
   for (const account of accounts) {
     let login = await request.post(`${api}/auth/login`, { data: { email: account.email, password } });
@@ -42,32 +42,28 @@ test('실제 두 계정의 방 입장, 이벤트 동기화, 채팅 재시도와 
     await login(a, accounts[0].email);
     await login(b, accounts[1].email);
     const composer = a.getByRole('region', { name: '빠른 연결', exact: true });
-    await composer.getByRole('group', { name: '모집 인원', exact: true }).getByRole('button', { name: '2명', exact: true }).click();
+    await composer.getByRole('group', { name: '모집 인원', exact: true }).getByRole('button', { name: '5명', exact: true }).click();
     await composer.getByRole('radio', { name: '탑', exact: true }).check();
-    await composer.getByRole('button', { name: '서포터', exact: true }).click();
+    for (const role of ['정글', '미드', '바텀', '서포터']) await composer.getByRole('button', { name: role, exact: true }).click();
     await composer.getByRole('textbox', { name: '한마디' }).fill(`서버 검증 ${id}`);
     await composer.getByRole('button', { name: '방 만들기', exact: true }).click();
     await a.getByRole('button', { name: '방 올리기', exact: true }).click();
     const room = b.getByRole('article', { name: `서버 검증 ${id} 방 정보`, exact: true });
     await expect(room).toBeVisible();
     await expect.poll(() => events.includes('ROOMS_UPDATED')).toBe(true);
+    const headers = { Authorization: `Bearer ${tokens[0]}` };
+    const created = (await (await request.get(`${api}/rooms`, { headers })).json()).find((item: { title: string }) => item.title === `서버 검증 ${id}`);
+    for (let i = 2; i < accounts.length; i++) {
+      const role = ['JUNGLE', 'MID', 'ADC'][i - 2];
+      expect((await request.post(`${api}/rooms/${created.id}/join`, { headers: { Authorization: `Bearer ${tokens[i]}` }, data: { profile: { roles: [role], bio: '' }, role } })).status()).toBe(200);
+    }
+    await expect(room.locator('.compact-member:not(.compact-seat)')).toHaveCount(4);
     await a.getByRole('button', { name: /방 채팅/ }).click();
-    await a.getByRole('button', { name: '모집 마감', exact: true }).click();
-    await expect(room.getByText('모집 마감', { exact: true })).toBeVisible();
-    await expect(room.getByRole('button', { name: /자리 참여/ })).toBeDisabled();
-    // Reject once, retain the closed state, then retry the same explicit action.
-    await a.route('**/rooms/*/actions', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'TEST_UNAVAILABLE', message: '모집 재개를 다시 시도해 주세요' }) }));
-    await a.getByRole('button', { name: '모집 다시 열기', exact: true }).click();
-    await expect(a.getByText('모집 재개를 다시 시도해 주세요')).toBeVisible();
-    await expect(room.getByRole('button', { name: /자리 참여/ })).toBeDisabled();
-    await a.unroute('**/rooms/*/actions');
-    await a.getByRole('button', { name: '모집 다시 열기', exact: true }).click();
-    await expect(room.getByRole('button', { name: '서포터 자리 참여', exact: true })).toBeEnabled();
     await room.getByRole('button', { name: '서포터 자리 참여', exact: true }).click();
     await b.getByRole('button', { name: '참여하기', exact: true }).click();
     await expect(b.getByRole('region', { name: '방 채팅과 음성' })).toBeVisible();
     await expect(a.getByRole('article', { name: `서버 검증 ${id} 방 정보`, exact: true })).toHaveAttribute('data-status', 'CONFIRMED');
-    await expect(a.getByRole('button', { name: '모집 다시 열기', exact: true })).toBeDisabled();
+    await expect(a.getByRole('button', { name: '모집 마감', exact: true })).toBeDisabled();
     await expect(b.getByRole('button', { name: /모집 다시 열기|모집 마감/ })).toHaveCount(0);
     const input = a.getByRole('textbox', { name: '방에 메시지 보내기' });
     // Failure must retain the user's text and must not produce a phantom sent message.
@@ -87,7 +83,42 @@ test('실제 두 계정의 방 입장, 이벤트 동기화, 채팅 재시도와 
     await b.getByRole('button', { name: /방 채팅/ }).click();
     await expect(b.getByRole('log', { name: '방 메시지' })).toContainText('상대가 보낸 답장');
     await expect(b.getByRole('button', { name: '연결 준비 중' })).toBeDisabled();
-    await b.getByRole('button', { name: '탐색 · 매칭', exact: true }).click();
+    const kick = a.getByRole('button', { name: `${accounts[1].nickname} 내보내기`, exact: true });
+    await kick.click();
+    const confirmKick = a.getByRole('dialog', { name: '멤버를 내보낼까요?' });
+    await confirmKick.getByRole('button', { name: '취소', exact: true }).click();
+    await expect(room.locator('.compact-member:not(.compact-seat)')).toHaveCount(5);
+    await a.route('**/rooms/*/actions', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'TEST_UNAVAILABLE', message: '내보내기를 다시 시도해 주세요' }) }));
+    await kick.click();
+    await confirmKick.getByRole('button', { name: '내보내기', exact: true }).click();
+    await expect(a.getByText('내보내기를 다시 시도해 주세요')).toBeVisible();
+    await expect(confirmKick).toBeVisible();
+    await expect(room.locator('.compact-member:not(.compact-seat)')).toHaveCount(5);
+    await a.unroute('**/rooms/*/actions');
+    await confirmKick.getByRole('button', { name: '내보내기', exact: true }).click();
+    await expect(confirmKick).toHaveCount(0);
+    await expect(room).toHaveAttribute('data-status', 'OPEN');
+    await expect(room.locator('.compact-member:not(.compact-seat)')).toHaveCount(4);
+    await expect(b.getByRole('region', { name: '방 채팅과 음성' })).toHaveCount(0);
+    await room.getByRole('button', { name: '서포터 자리 참여', exact: true }).click();
+    await b.getByRole('button', { name: '참여하기', exact: true }).click();
+    await expect(room).toHaveAttribute('data-status', 'CONFIRMED');
+    await expect(room.locator('.compact-member:not(.compact-seat)')).toHaveCount(5);
+    await expect(b.getByRole('log', { name: '방 메시지' })).toContainText('상대가 보낸 답장');
+    await b.getByRole('button', { name: '방 나가기', exact: true }).click();
+    await b.getByRole('alert').getByRole('button', { name: '나가기', exact: true }).click();
+    await expect(room).toHaveAttribute('data-status', 'OPEN');
+    await expect(room.getByRole('button', { name: '서포터 자리 참여', exact: true })).toBeEnabled();
+    await expect(a.getByRole('button', { name: '모집 마감', exact: true })).toBeEnabled();
+    await a.route('**/rooms/*/actions', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'TEST_UNAVAILABLE', message: '모집 마감을 다시 시도해 주세요' }) }));
+    await a.getByRole('button', { name: '모집 마감', exact: true }).click();
+    await expect(a.getByText('모집 마감을 다시 시도해 주세요')).toBeVisible();
+    await expect(room).toHaveAttribute('data-status', 'OPEN');
+    await a.unroute('**/rooms/*/actions');
+    await a.getByRole('button', { name: '모집 마감', exact: true }).click();
+    await expect(room).toHaveAttribute('data-status', 'CONFIRMED');
+    await expect(room.getByRole('button', { name: /자리 참여/ })).toBeDisabled();
+
     for (const game of ['발로란트 매칭', '배틀그라운드 매칭']) {
       await b.getByRole('button', { name: game, exact: true }).click();
       const fields = b.getByRole('region', { name: '자기소개', exact: true });
