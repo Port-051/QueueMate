@@ -213,6 +213,8 @@ export interface CreateReportRequest {
  */
 export type ServerEventType =
   | 'SESSION_SNAPSHOT'
+  | 'ROOMS_UPDATED'
+  | 'ROOM_MESSAGES_UPDATED'
   | 'RECRUITMENT_UPDATED'
   | 'MATCH_PROPOSAL_CREATED'
   | 'MATCH_PROPOSAL_EXPIRED'

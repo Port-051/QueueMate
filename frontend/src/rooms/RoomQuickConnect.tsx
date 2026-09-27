@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { USE_MOCK } from '../config';
+import { accountRank } from './accountRank';
 import type { GameKey } from '../api/types';
 import { Button, useToast } from '../components/ui';
 import { IconMatch } from '../components/icons';
@@ -28,7 +30,7 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onSelectSeat, o
   game: GameKey; modeKey: string; rooms: GameRoom[]; member: RoomMember;
   onSelectSeat: (room: GameRoom, profile: RoomMember, criteria: QuickConnectCriteria) => void;
   activeRoom: GameRoom | null; onShowRoom: () => void;
-  onCreate: (input: CreateRoomInput, profile: RoomMember) => void;
+  onCreate: (input: CreateRoomInput, profile: RoomMember) => void | Promise<void>;
 }) {
   const toast = useToast();
   const { user, gameAccounts } = useAuth();
@@ -49,7 +51,8 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onSelectSeat, o
   const ownRoles = value.primaryRoles ?? (value.primaryRole !== 'ANY' ? [value.primaryRole] : []);
   const fullLineup = needsFullLineup(game, value.queueType, capacity);
   const positionError = roomPositionError({ game, modeKey: value.queueType, capacity, desiredRoles: value.desiredRoles }, ownRoles);
-  const criteria: QuickConnectCriteria = { game, modeKey: value.queueType, capacity, availableFrom: start, role: ownRoles[0] ?? '', roles: ownRoles, desiredRoles: value.desiredRoles, voice: value.voice, userId: member.id, ownTier: game === 'LOL' ? member.tier : value.ownTier, desiredTierRange: value.desiredTierRange };
+  const rank = USE_MOCK ? member : accountRank(gameAccounts.find(account => account.game === game), value.queueType);
+  const criteria: QuickConnectCriteria = { game, modeKey: value.queueType, capacity, availableFrom: start, role: ownRoles[0] ?? '', roles: ownRoles, desiredRoles: value.desiredRoles, voice: value.voice, userId: member.id, ownTier: rank.tier, desiredTierRange: value.desiredTierRange };
   const candidates = quickConnectCandidates(rooms, criteria);
   const candidate = candidates.find(room => !skipped.includes(room.id));
   const error = introductionInputError(value);
@@ -64,8 +67,7 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onSelectSeat, o
     if (!saveIntroduction(member.id, game, normalized)) toast('입력한 조건을 이 브라우저에 보관하지 못했어요.', 'info');
   };
   const profile: RoomMember = {
-    ...member, roles: hasRoles ? ownRoles : [], voice: value.voice, bio: value.bio,
-    ...(game !== 'LOL' ? { tier: value.ownTier, champions: value.champions, winRate: value.winRate, kda: value.kda } : {}),
+    ...member, tier: rank.tier, division: rank.division, roles: hasRoles ? ownRoles : [], voice: value.voice, bio: value.bio,
   };
   const startRoom = () => {
     if (error || positionError) { setCreateError(error || positionError || ''); return; }
@@ -109,6 +111,6 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onSelectSeat, o
     </form>
 
   </section></HomeProfileRail>
-    {draft ? <RoomCreatePreview draft={draft} onClose={() => setDraft(null)} onConfirm={(input, profile) => { onCreate(input, profile); setDraft(null); }} /> : null}
+    {draft ? <RoomCreatePreview draft={draft} onClose={() => setDraft(null)} onConfirm={async (input, profile) => { await onCreate(input, profile); setDraft(null); }} /> : null}
   </>;
 }

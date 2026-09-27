@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Avatar, Button, useToast } from '../components/ui';
 import { IconChat, IconCheck, IconLogout, IconMic, IconMicOff, IconSend, IconShield, IconX } from '../components/icons';
+import { USE_MOCK } from '../config';
 import { MockPartyClient } from '../webrtc/MockPartyClient';
 import type { VoiceStatus } from '../webrtc/types';
 import type { GameRoom, RoomMember } from './types';
@@ -12,7 +13,7 @@ export interface RoomConversationProps {
   selfId: string;
   visible?: boolean;
   onMember: (member: RoomMember) => void;
-  onSend: (text: string) => void;
+  onSend: (text: string) => void | Promise<void>;
   onLeave: () => void;
   onKick: (memberId: string) => void;
   onConfirm: () => void;
@@ -32,6 +33,8 @@ const clock = new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-dig
 export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConfirm, onAutoConfirm, onExtend, visible = true, onMember }: RoomConversationProps) {
   const toast = useToast();
   const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   const [now, setNow] = useState(Date.now);
   const [autoError, setAutoError] = useState('');
   const attemptedDeadline = useRef<number | null>(null);
@@ -71,6 +74,7 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
     stickToBottom.current = true;
     // These rooms are frontend previews. Do not connect real signaling, invent remote
     // participants, or inject MockPartyClient's timed greeting messages into the room.
+    if (!USE_MOCK) return;
     const client = new MockPartyClient({
       selfUserId: selfId,
       selfNickname: self?.nickname ?? '',
@@ -108,19 +112,20 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
     input.current.style.height = `${Math.min(input.current.scrollHeight, 128)}px`;
   }, [draft, visible]);
 
-  const send = () => {
+  const send = async () => {
     const text = draft.trim();
-    if (!text || !self) return;
+    if (!text || !self || sendingRef.current) return;
+    sendingRef.current = true; setSending(true);
     const wasAtBottom = stickToBottom.current;
     stickToBottom.current = true;
     try {
-      onSend(text);
-      setDraft('');
+      await onSend(text);
+      setDraft(current => current.trim() === text ? '' : current);
       input.current?.focus();
     } catch (error) {
       stickToBottom.current = wasAtBottom;
       toast(error instanceof Error ? error.message : '메시지를 보내지 못했어요. 다시 시도해 주세요.', 'error');
-    }
+    } finally { sendingRef.current = false; setSending(false); }
   };
 
   const startVoice = async () => {
@@ -198,8 +203,8 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
     <section className={`room-conversation-voice${voiceOn ? ' is-previewing' : ''}`} aria-label="방 음성 채널">
       <div className="room-conversation-voice-top">
         <span className="room-conversation-voice-symbol"><Headphones /></span>
-        <div><h3>{voiceOn ? '음성 미리보기' : '음성 채널'}</h3><p role="status">{voiceOn ? '실제 음성은 전송되지 않아요' : voice === 'error' ? '다시 시도해 주세요' : '모집 중에도 대화할 수 있어요'}</p></div>
-        {!voiceOn ? <Button size="sm" variant="primary" disabled={!self || voice === 'connecting'} onClick={() => void startVoice()}>{voice === 'connecting' ? '준비 중' : '참여'}</Button> : null}
+        <div><h3>{voiceOn ? '음성 미리보기' : '음성 채널'}</h3><p role="status">{voiceOn ? '실제 음성은 전송되지 않아요' : voice === 'error' ? '다시 시도해 주세요' : USE_MOCK ? '모집 중에도 대화할 수 있어요' : '음성은 다음 단계에서 연결돼요'}</p></div>
+        {!voiceOn ? <Button size="sm" variant="primary" disabled={!USE_MOCK || !self || voice === 'connecting'} onClick={() => void startVoice()}>{!USE_MOCK ? '연결 준비 중' : voice === 'connecting' ? '준비 중' : '참여'}</Button> : null}
       </div>
       {voiceOn ? <div className="room-conversation-voice-controls">
         <span className="room-conversation-voice-self"><Avatar name={self?.nickname} avatarUrl={self?.avatarUrl} size={27} /><b>{self?.nickname}</b></span>
@@ -237,7 +242,7 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
       <textarea ref={input} value={draft} rows={1} maxLength={2000} disabled={!self} aria-label="방에 메시지 보내기" placeholder="메시지 보내기" onChange={event => setDraft(event.target.value)} onKeyDown={event => {
         if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); send(); }
       }} />
-      <button type="submit" disabled={!draft.trim() || !self} aria-label="메시지 보내기"><IconSend size={19} /></button>
+      <button type="submit" disabled={sending || !draft.trim() || !self} aria-label="메시지 보내기"><IconSend size={19} /></button>
     </form>
   </section>;
 }

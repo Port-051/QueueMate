@@ -22,22 +22,23 @@ export function roomEntryError(room: GameRoom, tier: string | null, activeRoomId
 export function RoomSeatJoin({ room, roles, profile, entryError, leavingRoom, onClose, onJoin }: {
   room: GameRoom; roles: string[]; profile: RoomMember; entryError: string | null;
   leavingRoom?: GameRoom | null;
-  onClose: () => void; onJoin: (role?: string) => void;
+  onClose: () => void; onJoin: (role?: string) => void | Promise<void>;
 }) {
   const [role, setRole] = useState(() => roles.find(value => profile.roles.includes(value)) ?? roles[0]);
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
   const hasRoles = usesKeyCondition(room.game, room.modeKey);
   const remaining = remainingRoomRoles(room);
   const unavailable = entryError ?? (hasRoles && (!role || !remaining.includes(role)) ? '선택한 포지션은 더 이상 모집하지 않아요. 다른 자리를 선택해 주세요.' : null);
-  const confirm = () => {
+  const confirm = async () => {
     if (unavailable || submitting.current) return;
-    submitting.current = true;
-    try { onJoin(hasRoles ? role : undefined); }
-    catch (cause) { submitting.current = false; setError(cause instanceof Error ? cause.message : '참여하지 못했어요. 다시 시도해 주세요.'); }
+    submitting.current = true; setBusy(true);
+    try { await onJoin(hasRoles ? role : undefined); }
+    catch (cause) { submitting.current = false; setBusy(false); setError(cause instanceof Error ? cause.message : '참여하지 못했어요. 다시 시도해 주세요.'); }
   };
   return <Modal title="이 자리에 참여할까요?" closeLabel="참여 창 닫기" className="room-create-preview room-join-preview" onClose={onClose}
-    foot={<><Button onClick={onClose}>취소</Button><Button variant="primary" disabled={Boolean(unavailable)} onClick={confirm}>{leavingRoom ? '이 방으로 이동' : '참여하기'}</Button></>}>
+    foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || Boolean(unavailable)} onClick={confirm}>{leavingRoom ? '이 방으로 이동' : '참여하기'}</Button></>}>
     <div className="room-preview-title"><h3>{room.title}</h3></div>
     <dl className="room-preview-conditions">
       <div><dt>시작 시간</dt><dd><time dateTime={room.availableFrom ?? undefined}>{roomStartLabel(room.availableFrom)}</time></dd></div>
