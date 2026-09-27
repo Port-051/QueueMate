@@ -1,7 +1,8 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { IconCalendar } from '../components/icons';
 import { localRoomDateTime } from './schedule';
+import { useRoomPickerPopover } from './useRoomPickerPopover';
 import './room-date-picker.css';
 
 const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
@@ -15,48 +16,13 @@ function monthDay(date: Date, offset: number): Date {
 }
 
 export function RoomDatePicker({ value, min, onChange }: { value: string; min: string; onChange: (value: string) => void }) {
-  const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState(value);
-  const [position, setPosition] = useState<CSSProperties>({});
-  const trigger = useRef<HTMLButtonElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
-  const id = useId();
+  const { open, setOpen, close, position, trigger, panel, id, onKeyDown } = useRoomPickerPopover(`[data-date="${focused}"]`);
   const selected = parseDay(value);
   const current = parseDay(focused);
   const today = dayKey(new Date());
   const first = new Date(current.getFullYear(), current.getMonth(), 1, 12);
-  const close = (restore = false) => { setOpen(false); if (restore) trigger.current?.focus({ preventScroll: true }); };
   const moveMonth = (offset: number) => setFocused(dayKey(monthDay(current, offset)) < min ? min : dayKey(monthDay(current, offset)));
-
-  useLayoutEffect(() => {
-    if (!open || !panel.current || !trigger.current) return;
-    const rect = trigger.current.getBoundingClientRect();
-    const width = Math.min(320, window.innerWidth - 24);
-    const below = window.innerHeight - rect.bottom - 20;
-    const above = rect.top - 20;
-    const placeBelow = below >= panel.current.scrollHeight || below >= above;
-    setPosition({ width, left: Math.max(12, Math.min(rect.left + (rect.width - width) / 2, window.innerWidth - width - 12)),
-      maxHeight: Math.max(120, placeBelow ? below : above),
-      ...(placeBelow ? { top: rect.bottom + 8 } : { bottom: window.innerHeight - rect.top + 8 }) });
-    panel.current.querySelector<HTMLButtonElement>(`[data-date="${focused}"]`)?.focus({ preventScroll: true });
-  }, [open, focused]);
-
-  useEffect(() => {
-    if (!open) return;
-    const initial = trigger.current?.getBoundingClientRect();
-    const outside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !panel.current?.contains(event.target) && !trigger.current?.contains(event.target)) close();
-    };
-    const moved = (event: Event) => {
-      if (event.target instanceof Node && panel.current?.contains(event.target)) return;
-      const rect = trigger.current?.getBoundingClientRect();
-      if (event.type === 'resize' || !rect || !initial || Math.abs(rect.top - initial.top) > 1 || Math.abs(rect.left - initial.left) > 1) close();
-    };
-    document.addEventListener('pointerdown', outside);
-    window.addEventListener('resize', moved);
-    window.addEventListener('scroll', moved, true);
-    return () => { document.removeEventListener('pointerdown', outside); window.removeEventListener('resize', moved); window.removeEventListener('scroll', moved, true); };
-  }, [open]);
 
   return <>
     <button ref={trigger} type="button" className="room-date-trigger" aria-label="시작 날짜" aria-haspopup="dialog" aria-expanded={open} aria-controls={id}
@@ -65,16 +31,7 @@ export function RoomDatePicker({ value, min, onChange }: { value: string; min: s
       <span>{selected.getMonth() + 1}월 {selected.getDate()}일 ({weekdays[selected.getDay()]})</span>
       <svg className="room-date-chevron" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
     </button>
-    {open ? createPortal(<div ref={panel} id={id} className="room-calendar" role="dialog" aria-modal="true" aria-label="시작 날짜 선택" style={position}
-      onKeyDown={event => {
-        if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(true); }
-        if (event.key === 'Tab') {
-          const buttons = Array.from(panel.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled):not([tabindex="-1"])') ?? []);
-          const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-          if (event.shiftKey && index === 0) { event.preventDefault(); buttons.at(-1)?.focus(); }
-          else if (!event.shiftKey && index === buttons.length - 1) { event.preventDefault(); buttons[0]?.focus(); }
-        }
-      }}>
+    {open ? createPortal(<div ref={panel} id={id} className="room-calendar" role="dialog" aria-modal="true" aria-label="시작 날짜 선택" tabIndex={-1} style={position} onKeyDown={onKeyDown}>
       <header className="room-calendar-header">
         <strong aria-live="polite">{current.getFullYear()}년 {current.getMonth() + 1}월</strong>
         <div>

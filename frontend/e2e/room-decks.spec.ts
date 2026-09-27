@@ -410,8 +410,10 @@ test('예약 방은 과거 시간을 거절하고 미래 시간으로 만든 즉
   await composer.getByRole('button', { name: '시작 날짜', exact: true }).click();
   await calendar.getByRole('button', { name: '2026년 9월 28일 월요일', exact: true }).click();
   await expect(calendar).toHaveCount(0);
-  await composer.getByLabel('시작 시각', { exact: true }).selectOption('21');
-  await expect(composer.getByLabel('시작 시각', { exact: true }).locator('option')).toHaveCount(24);
+  await composer.getByRole('button', { name: '시작 시각', exact: true }).click();
+  const hours = page.getByRole('dialog', { name: '시작 시각 선택', exact: true });
+  await expect(hours.locator('[data-hour]')).toHaveCount(24);
+  await hours.getByRole('button', { name: '오후 9시', exact: true }).click();
   await composer.getByRole('button', { name: '방 만들기', exact: true }).click();
   await page.getByRole('dialog', { name: '이대로 방을 만들까요?', exact: true }).getByRole('button', { name: '방 올리기', exact: true }).click();
   const deck = page.getByRole('article', { name: '조금 뒤에 다 같이 방 정보', exact: true });
@@ -450,6 +452,48 @@ test('시작 날짜 달력은 월 이동과 키보드 선택을 지원하고 좁
   await expect(trigger).toBeFocused();
   await rail.getByRole('button', { name: '지금', exact: true }).click();
   await expect(trigger).toHaveCount(0);
+  await expectNoPageOverflow(page);
+});
+
+test('시각 선택은 과거 시간을 막고 날짜 변경·키보드 선택·취소를 지원한다', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-09-27T03:30:00Z'));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  const rail = page.getByRole('region', { name: '빠른 연결', exact: true });
+  const capacity = rail.getByRole('group', { name: '모집 인원', exact: true });
+  const start = rail.getByRole('group', { name: '시작 시간 선택', exact: true });
+  expect(await capacity.evaluate(el => getComputedStyle(el, '::before').backgroundColor))
+    .toBe(await start.evaluate(el => getComputedStyle(el, '::before').backgroundColor));
+  await expect(capacity.getByRole('button', { pressed: true })).toHaveCSS('color', 'rgb(255, 255, 255)');
+  await start.getByRole('button', { name: '시간 선택', exact: true }).click();
+  const trigger = rail.getByRole('button', { name: '시작 시각', exact: true });
+  await trigger.click();
+  const picker = page.getByRole('dialog', { name: '시작 시각 선택', exact: true });
+  await expect(picker.locator('[data-hour]')).toHaveCount(24);
+  await expect(picker.getByRole('button', { name: '오전 12시', exact: true })).toBeDisabled();
+  const bounds = (await picker.boundingBox())!;
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+  expect(bounds.y).toBeGreaterThanOrEqual(0);
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(844);
+  await picker.locator('[data-hour]:not(:disabled)').first().press('End');
+  await expect(picker.getByRole('button', { name: '오후 11시', exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(picker).toHaveCount(0);
+  await expect(trigger).toHaveText('오후 11시');
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await picker.getByRole('button', { name: '오후 11시', exact: true }).press('ArrowLeft');
+  await page.keyboard.press('Escape');
+  await expect(trigger).toHaveText('오후 11시');
+  await expect(trigger).toBeFocused();
+  await rail.getByRole('button', { name: '시작 날짜', exact: true }).click();
+  await page.getByRole('dialog', { name: '시작 날짜 선택', exact: true }).getByRole('button', { name: '2026년 9월 28일 월요일', exact: true }).click();
+  await trigger.click();
+  await expect(picker.locator('[data-hour]:not(:disabled)')).toHaveCount(24);
+  await picker.getByRole('button', { name: '오전 12시', exact: true }).click();
+  await expect(trigger).toHaveText('오전 12시');
+  await expect(picker).toHaveCount(0);
   await expectNoPageOverflow(page);
 });
 
