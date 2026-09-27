@@ -86,9 +86,16 @@ queuemate:
     allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
   proposal:
     ttl-seconds: ${PROPOSAL_TTL_SECONDS:20}
-    # 확정된 제안의 수락자 집합을 남겨 두는 시간. 확정 판정에 다 쓰인 값이라 바로 지워도
-    # 되지만, 재전송된 수락이 도착하는 창만큼은 남긴다
+    # 확정된 제안의 수락자 집합 **과 파티원의 활성 요청(status=PARTY)** 을 남겨 두는 시간 (docs/11 D-42).
+    # 수락자 집합은 확정 판정에 다 쓰인 값이라 바로 지워도 되지만, 재전송된 수락이 도착하는 창만큼은 남긴다.
+    # 활성 요청은 이 동안 INV-1 선점이 그대로라 새 매칭을 못 걸고 조회는 MATCHED 다. 지나면 그 사용자는
+    # 다시 큐에 들어올 수 있다 — "한 번에 하나"는 platform 의 입장 표시 키(qm:user:active-room:)가 잇는다.
+    # platform 이 이 시간 안에 방을 세우지 못하면 그 사람은 큐에 다시 들어올 수 있다(받아들인 절충)
     confirmed-retention-seconds: ${PROPOSAL_CONFIRMED_RETENTION_SECONDS:60}
+    # 확정된 파티 HASH(qm:party:{partyId})를 남겨 두는 시간 (docs/11 D-42). app:platform 이 이 안에 Redis 에서
+    # 직접 읽어 파티 · 방을 만든다 — outbox → SQS 대신이다. 지나면 파티가 증발한다(받아들인 절충).
+    # 상태 조회 · 수락 재전송도 이 안에서만 답한다
+    confirmed-party-ttl-seconds: ${PROPOSAL_CONFIRMED_PARTY_TTL_SECONDS:600}
   scan:
     interval-ms: ${SCAN_INTERVAL_MS:1000}
   sweep:

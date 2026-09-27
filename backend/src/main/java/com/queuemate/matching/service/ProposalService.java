@@ -38,14 +38,25 @@ import java.util.Map;
  *       왜 그래도 되는지는 {@code decline-proposal.lua} 의 "멱등성" 절에 있다.
  * </ul>
  *
- * <h2>아직 없는 것</h2>
+ * <h2>확정 뒤 — 파티는 platform 이 Redis 에서 직접 읽어 간다 (docs/11 D-42)</h2>
+ * <p>확정된 파티를 DB 에 만드는 것은 {@code app:platform} 이고, 그쪽은 outbox → SQS 가 아니라
+ * <b>이 앱의 파티 HASH {@code qm:party:{partyId}} 를 Redis 에서 직접 읽는다</b>(gameconfig 를 읽는 D-29 ·
+ * 활성 요청 키를 {@code EXISTS} 로 보는 D-19 와 같은 방식). 프런트가 {@code MATCH_CONFIRMED {partyId}} 를
+ * 받아 platform 을 부른다. 그래서 <b>이 앱이 발행할 것은 없다</b> — {@code matching.outbox} 도
+ * {@code ProposalConfirmed.fifo} 도 없다.
+ *
+ * <p>이 앱의 몫은 {@link #confirmed} 가 부르는 {@code cleanup-confirmed.lua} 두 가지다.
  * <ul>
- *   <li>{@code matching.outbox} 기록 → {@code ProposalConfirmed.fifo} 발행. 그것이 붙어야
- *       {@code app:platform} 이 파티를 DB 에 만든다 (CLAUDE.md §9).
- *   <li>{@code PartyClosed} 소비 — 확정된 사용자는 활성 요청이 {@code status = PARTY} 로
- *       남아 새 매칭을 걸 수 없다. 그 파티가 닫혔다는 것을 이 앱은 알 수 없으므로,
- *       platform 이 알려 줄 때까지 풀리지 않는다.
+ *   <li>파티 HASH 를 <b>키 하나로 읽히게</b> 만든다 — 활성 요청에만 있던 조건 넷
+ *       ({@code game} / {@code modeKey} / {@code voicePreference} / {@code playPurpose})을 베껴 적고
+ *       {@code confirmedAt} 을 찍는다. 필드 이름은 platform 과의 계약이다(그 스크립트 머리말).
+ *   <li><b>확정 상태를 영원히 두지 않는다</b> — 파티 HASH 에 {@code confirmed-party-ttl-seconds}(기본 600),
+ *       파티원의 활성 요청({@code status = PARTY})과 수락자 집합에 {@code confirmed-retention-seconds}(기본 60)
+ *       TTL 을 건다. 활성 요청이 사라지면 그 사용자는 다시 큐에 들어올 수 있다. "한 번에 하나"는 platform 의
+ *       입장 표시 키 {@code qm:user:active-room:{userId}} 가 잇는다({@code claim-request.lua} 가 본다, D-19) —
+ *       platform 이 이 파티로 방을 만들 때 그 키를 세우는 것이 D-42 의 전제다.
  * </ul>
+ * <p>{@code PartyClosed} 소비는 없다 — 그 큐는 platform 만 읽고(D-13), 풀리는 것은 TTL 로 대신한다.
  *
  * <h2>제안 상태를 어디에 두는가</h2>
  * <p>{@code docs/07 §5-1} 은 {@code qm:proposal:{id}} / {@code qm:proposal:members:{id}} 를
@@ -79,13 +90,21 @@ public class ProposalService {
     private final MatchCancelService matchCancelService;
 
     /**
-     * 확정된 제안의 수락자 집합을 남겨 두는 시간(초).
+     * 확정된 제안의 수락자 집합 <b>과 파티원의 활성 요청({@code status = PARTY})</b>을 남겨 두는 시간(초).
+     * 이 시간이 지나면 그 사용자는 다시 큐에 들어올 수 있다(클래스 주석 D-42).
      *
      * <p>생성자 주입이 아니라 필드 주입인 것은 Lombok 의 {@code @RequiredArgsConstructor} 가
      * {@code @Value} 를 생성자 파라미터로 옮겨 주지 않기 때문이다.
      */
     @Value("${queuemate.proposal.confirmed-retention-seconds}")
     private long confirmedRetentionSeconds;
+
+    /**
+     * 확정된 파티 HASH 를 남겨 두는 시간(초). app:platform 이 이 안에 {@code qm:party:{partyId}} 를 읽어
+     * 파티를 만든다(D-42). 지나면 파티가 증발한다 — 받아들인 절충이다.
+     */
+    @Value("${queuemate.proposal.confirmed-party-ttl-seconds}")
+    private long confirmedPartyTtlSeconds;
 
     /**
      * 한 참가자의 수락을 기록한다. 그 수락으로 전원이 차면 확정까지 한다.
@@ -97,8 +116,8 @@ public class ProposalService {
      * <p>스크립트가 {@code SADD} 결과로 끊지 않고 매번 다시 세기 때문에 재시도해도 답이
      * 같다. 자세한 근거는 {@code accept-proposal.lua} 머리 주석에 있다.
      *
-     * <p>확정되면 {@link #confirmed} 가 뒷정리와 알림을 맡는다. 아직 없는 것은
-     * {@code matching.outbox} 기록 → {@code ProposalConfirmed.fifo} 발행 하나다.
+     * <p>확정되면 {@link #confirmed} 가 뒷정리와 알림을 맡는다. 그 뒤 파티를 만드는 것은
+     * 파티 HASH 를 직접 읽는 app:platform 이다(클래스 주석 D-42) — 이 앱이 더 발행할 것은 없다.
      *
      * @param proposalId 제안 id (= partyId)
      * @param userId     수락한 사용자
@@ -116,18 +135,25 @@ public class ProposalService {
      * 이미 확정된 제안에 수락이 또 오면 스크립트가 {@link ProposalResult#ALREADY_RESPONDED} 를
      * 돌려주므로, 알림이 파티 전원에게 두 번 나가지 않는다.
      *
-     * <p>정리 스크립트는 파티원의 활성 요청을 <b>지우지 않고</b> {@code status = PARTY} 로 바꾼다.
-     * 확정된 사람은 이미 파티에 속해 있어서, 지우면 그 순간 새 매칭을 걸 수 있게 되어 한 사람이
-     * 두 파티에 속한다(INV-2). 이 상태를 푸는 것은 파티를 닫는 app:platform 쪽이다(미구현).
+     * <p>정리 스크립트({@code cleanup-confirmed.lua})는 platform 이 읽을 조건 넷과 {@code confirmedAt} 을
+     * 파티 HASH 에 적고, 파티원의 활성 요청을 <b>지우지 않고</b> {@code status = PARTY} 로 바꾼다 —
+     * 지우면 그 순간 새 매칭을 걸 수 있어 한 사람이 두 파티에 속한다(INV-2). 대신 <b>TTL 을 건다</b>:
+     * 활성 요청 · 수락자 집합은 {@link #confirmedRetentionSeconds}, 파티 HASH 는
+     * {@link #confirmedPartyTtlSeconds}. 지나면 활성 요청이 사라져 그 사용자는 다시 큐에 들어올 수 있고,
+     * 그때부터 "한 번에 하나"는 platform 의 입장 표시 키가 지킨다(클래스 주석 D-42).
      *
-     * <p><b>아직 없는 것</b>: {@code matching.outbox} 기록 → {@code ProposalConfirmed.fifo} 발행.
-     * 그것이 붙어야 app:platform 이 파티를 DB 에 만든다.
+     * <p>{@code now} 를 자바가 넘기는 것은 다른 스크립트와 같은 이유다 — Lua 의 {@code TIME} 은
+     * 복제 · 재실행에서 값이 달라진다. 스크립트가 {@code HSETNX} 로 적으므로 재실행이 시각을 옮기지 않는다.
      */
     @SuppressWarnings("unchecked")
     private void confirmed(String proposalId) {
+        // ARGV: [1] 활성 요청 접두사 [2] 활성 요청·수락자 집합 TTL(초) [3] now(millis) [4] 파티 HASH TTL(초)
         List<String> members = redis.execute(cleanupConfirmedScript,
                 keys(proposalId),
-                SharedKeys.ACTIVE_REQUEST_PREFIX, String.valueOf(confirmedRetentionSeconds));
+                SharedKeys.ACTIVE_REQUEST_PREFIX,
+                String.valueOf(confirmedRetentionSeconds),
+                String.valueOf(System.currentTimeMillis()),
+                String.valueOf(confirmedPartyTtlSeconds));
 
         if (members == null || members.isEmpty()) {
             return;

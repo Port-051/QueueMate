@@ -48,6 +48,24 @@ import com.queuemate.matching.domain.GameKey;
  * </ul>
  * <p>{@link #PARTY_PREFIX} 는 예외다 — 배정 스크립트가 ARGV 로 받아 가므로 자바 쪽만 고치면 된다.
  *
+ * <h2>다른 앱이 읽는 키</h2>
+ * <p>이 앱이 정하지만 <b>app:platform 이 읽는</b> 키가 셋 있다. 접두사나 필드 이름을 바꾸면 컴파일도
+ * 테스트도 통과한 채로 그쪽이 조용히 못 읽게 되므로 같이 바꾼다.
+ * <ul>
+ *   <li>{@link #GAMECONFIG_PREFIX} ({@code qm:gameconfig:{GAME}:{MODE}} 의 {@code EXISTS}, {@code :tier} 의
+ *       {@code ZSCORE}) — 모집 글의 {@code mode} · 게임 계정의 {@code tier} 검증 (docs/11 D-29).
+ *   <li><b>{@link #PARTY_PREFIX} — 확정된 파티 HASH {@code qm:party:{partyId}} 를 확정 뒤에 읽어 파티 · 방을
+ *       만든다 (docs/11 D-42, 2026-09-27).</b> outbox → SQS 를 대신한다. 읽는 필드가 앱 사이의 계약이다 —
+ *       {@code status}({@code CONFIRMED}) · {@code confirmedAt} · {@code game} · {@code modeKey} ·
+ *       {@code voicePreference} · {@code playPurpose} · {@code target} · {@code member:{userId}}(값은 keyValue) ·
+ *       티어 모드의 {@code tierLo} / {@code tierHi}. 조건 넷과 {@code confirmedAt} 은
+ *       {@code proposal/cleanup-confirmed.lua} 가 확정 직후 적고, 나머지는 배정 스크립트가 적는다.
+ *       {@code confirmed-party-ttl-seconds}(기본 600 초) 안에만 있다.
+ *   <li>{@link #ACTIVE_REQUEST_PREFIX} — {@code EXISTS} 로만 본다. 매칭 대기 중이면 방 입장 · 글 쓰기를 거절한다
+ *       (docs/11 D-19 · D-33).
+ * </ul>
+ * <p>반대로 {@link #ACTIVE_ROOM_PREFIX} 는 platform 이 정하고 이 앱이 {@code EXISTS} 로만 보는 키다(아래 참고).
+ *
  * <p>인스턴스가 필요 없어 {@code @Component} 가 아니라 정적 유틸리티다. 게임별
  * {@code *PartyKeys} 는 요청 DTO/활성 요청에서 조건을 읽어 조립하므로 빈이지만,
  * 이쪽이 받는 것은 id 나 이미 만들어진 키 조각뿐이다.

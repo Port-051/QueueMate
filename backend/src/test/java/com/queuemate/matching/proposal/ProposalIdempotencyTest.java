@@ -47,6 +47,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <b>거절한 본인을 큐에서도 뺀다.</b> 그래서 거절 뒤에는 그 사람의 활성 요청과
  * {@code member:} 필드가 사라진다 — 아래 테스트들이 인원을 셀 때 이것을 전제한다.
  *
+ * <p><b>확정 뒷정리(D-42)도 여기서 본다.</b> 확정 뒤 파티는 app:platform 이 Redis 에서 파티 HASH 를
+ * 직접 읽어 만들고, 이 앱은 그 HASH 를 혼자 읽어도 되게(조건 넷 · {@code confirmedAt}) 채운 뒤
+ * 파티 HASH · 활성 요청 · 수락자 집합에 TTL 을 건다 — 예전처럼 "활성 요청이 TTL 없이 영원히 남는다"
+ * 가 <b>아니다</b>. {@code cleanup-confirmed.lua} 머리말 참고.
+ *
  * <p>{@link ConcurrencyTestSupport} 를 상속하는 이유는 동시성 때문이 아니라 Spring 컨텍스트 /
  * Redis DB 15 / 테스트마다 flush / LoL gameconfig 시드 / {@code command()} 헬퍼 때문이다
  * ({@code PushNotificationTest} 와 같은 이유다). 전부 단일 스레드 순차 실행이다.
@@ -57,6 +62,10 @@ class ProposalIdempotencyTest extends ConcurrencyTestSupport {
     private static final String MODE = "RANKED_SOLO";
     /** {@code application.yaml} 의 {@code queuemate.proposal.ttl-seconds} 기본값 */
     private static final long TTL_MILLIS = 20_000;
+    /** {@code queuemate.proposal.confirmed-party-ttl-seconds} 기본값. 파티 HASH 가 남는 상한(초) */
+    private static final long PARTY_TTL_SECONDS = 600;
+    /** {@code queuemate.proposal.confirmed-retention-seconds} 기본값. 활성 요청 · 수락자 집합이 남는 상한(초) */
+    private static final long RETENTION_SECONDS = 60;
 
     @Autowired
     private MatchRequestService matchRequestService;
@@ -69,6 +78,10 @@ class ProposalIdempotencyTest extends ConcurrencyTestSupport {
     @SuppressWarnings("rawtypes")
     @Autowired
     private RedisScript<List> lolJoinPartyUntieredScript;
+    /** 확정 뒷정리도 같은 이유로 직접 부른다. ARGV 배치는 {@code cleanup-confirmed.lua} 머리말과 같아야 한다 */
+    @SuppressWarnings("rawtypes")
+    @Autowired
+    private RedisScript<List> cleanupConfirmedScript;
 
     // ── 제안이 열리는 순간 ───────────────────────────────────────────────────
 
@@ -263,6 +276,143 @@ class ProposalIdempotencyTest extends ConcurrencyTestSupport {
         assertThat(memberValues(partyKey(partyId))).hasSize(2);
     }
 
+    // ── 확정 뒷정리 — platform 이 읽을 파티 HASH 와 TTL (docs/11 D-42) ─────────
+
+    @Test
+    @DisplayName("확정되면 파티 HASH 에 조건 넷과 confirmedAt 이 적히고 파티 TTL 이 걸린다")
+    void confirmationMakesThePartyHashSelfContainedAndBounded() {
+        String partyId = fullParty();
+
+        // 확정 전에는 조건이 활성 요청에만 있다 — 색인 키 이름에 조건이 들어가서(INV-8) 파티 안에는
+        // 적을 필요가 없었다. 파티 HASH 에는 TTL 도 없다
+        assertThat(field(partyId, "game")).isNull();
+        assertThat(field(partyId, "confirmedAt")).isNull();
+        assertThat(redis.getExpire(partyKey(partyId))).isEqualTo(-1);
+
+        proposalService.accept(partyId, "u1");
+        long before = System.currentTimeMillis();
+        assertThat(proposalService.accept(partyId, "u2")).isEqualTo(ProposalResult.CONFIRMED);
+        long after = System.currentTimeMillis();
+
+        // platform 은 이 키 하나만 읽고 파티를 만든다. 필드 이름이 앱 사이의 계약이다
+        assertThat(field(partyId, "status")).isEqualTo("CONFIRMED");
+        assertThat(field(partyId, "game")).isEqualTo("LOL");
+        assertThat(field(partyId, "modeKey")).isEqualTo(MODE);
+        assertThat(field(partyId, "voicePreference")).isEqualTo("REQUIRED");
+        assertThat(field(partyId, "playPurpose")).isEqualTo("RANK_UP");
+        assertThat(field(partyId, "target")).isEqualTo("2");
+        assertThat(memberValues(partyKey(partyId))).containsExactlyInAnyOrder("TOP", "JUNGLE");
+
+        // 확정 시각은 자바가 넘긴 now 다. 확정을 만든 호출 사이에 들어와야 한다
+        assertThat(Long.parseLong(field(partyId, "confirmedAt"))).isBetween(before, after);
+
+        // 파티는 영원히 남지 않는다. platform 이 이 안에 읽어 가야 한다
+        assertThat(redis.getExpire(partyKey(partyId)))
+                .as("확정된 파티 HASH 에는 TTL 이 있어야 한다")
+                .isGreaterThan(0).isLessThanOrEqualTo(PARTY_TTL_SECONDS);
+    }
+
+    @Test
+    @DisplayName("확정되면 파티원의 활성 요청은 status=PARTY 로 남되 TTL 이 걸린다 — 수락자 집합도")
+    void confirmationBoundsTheActiveRequestsInsteadOfKeepingThemForever() {
+        String partyId = fullParty();
+
+        // 확정 전의 활성 요청은 배정 때 PERSIST 됐다 — claim 의 60초 만료가 떼어져 TTL 이 없다
+        assertThat(redis.getExpire(activeRequestKey("u1"))).isEqualTo(-1);
+
+        proposalService.accept(partyId, "u1");
+        assertThat(proposalService.accept(partyId, "u2")).isEqualTo(ProposalResult.CONFIRMED);
+
+        for (String userId : List.of("u1", "u2")) {
+            // 지우지 않는다 — 지우면 그 순간 새 매칭을 걸 수 있어 한 사람이 두 파티에 속한다(INV-2).
+            // 그 동안 조회는 MATCHED 다
+            assertThat(redis.<String, String>opsForHash().get(activeRequestKey(userId), "status"))
+                    .isEqualTo("PARTY");
+            assertThat(partyIdOf(userId)).isEqualTo(partyId);
+            // 하지만 영원히 남기지도 않는다. 이 TTL 이 지나면 그 사용자는 다시 큐에 들어올 수 있고,
+            // "한 번에 하나" 는 platform 의 입장 표시 키(qm:user:active-room:)가 잇는다 (D-19 · D-42)
+            assertThat(redis.getExpire(activeRequestKey(userId)))
+                    .as("확정된 사용자의 활성 요청에는 TTL 이 있어야 한다: " + userId)
+                    .isGreaterThan(0).isLessThanOrEqualTo(RETENTION_SECONDS);
+        }
+
+        // 수락자 집합은 확정 판정에 다 쓰였다. 재전송된 수락이 도착하는 창만큼만 남긴다
+        assertThat(redis.getExpire("qm:proposal:accepts:" + partyId))
+                .isGreaterThan(0).isLessThanOrEqualTo(RETENTION_SECONDS);
+    }
+
+    @Test
+    @DisplayName("확정 뒤에 온 수락 재전송은 confirmedAt 을 옮기지 않고 파티 TTL 을 늘리지도 않는다")
+    void retriedAcceptAfterConfirmationDoesNotRerunTheCleanup() throws InterruptedException {
+        String partyId = fullParty();
+
+        proposalService.accept(partyId, "u1");
+        assertThat(proposalService.accept(partyId, "u2")).isEqualTo(ProposalResult.CONFIRMED);
+        String confirmedAt = field(partyId, "confirmedAt");
+        Long partyTtl = redis.getExpire(partyKey(partyId));
+
+        // TTL 이 한 칸이라도 줄어들 수 있게 잠깐 기다린다 — 다시 걸렸다면 상한으로 되돌아간다
+        Thread.sleep(1_100);
+
+        // 뒷정리는 확정을 만든 그 한 번(CONFIRMED)에서만 돈다. 재전송은 ALREADY_RESPONDED 라
+        // 뒷정리도 알림도 다시 나가지 않는다
+        assertThat(proposalService.accept(partyId, "u2")).isEqualTo(ProposalResult.ALREADY_RESPONDED);
+        assertThat(proposalService.accept(partyId, "u1")).isEqualTo(ProposalResult.ALREADY_RESPONDED);
+
+        assertThat(field(partyId, "confirmedAt")).isEqualTo(confirmedAt);
+        assertThat(redis.getExpire(partyKey(partyId)))
+                .as("재전송이 파티 TTL 을 처음부터 다시 세게 하면 안 된다")
+                .isLessThan(partyTtl).isLessThanOrEqualTo(PARTY_TTL_SECONDS);
+        assertThat(field(partyId, "status")).isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    @DisplayName("뒷정리 스크립트가 다시 실행돼도 confirmedAt 은 첫 값이다 (HSETNX)")
+    void replayingTheCleanupKeepsTheFirstConfirmedAt() {
+        String partyId = fullParty();
+
+        proposalService.accept(partyId, "u1");
+        assertThat(proposalService.accept(partyId, "u2")).isEqualTo(ProposalResult.CONFIRMED);
+        String confirmedAt = field(partyId, "confirmedAt");
+
+        // 페일오버 재실행을 흉내 낸다 — 같은 스크립트를 뒤 시각으로 한 번 더. HSET 이었다면 시각이 밀린다
+        @SuppressWarnings("unchecked")
+        List<String> members = redis.execute(cleanupConfirmedScript,
+                List.of(partyKey(partyId), "qm:proposal:accepts:" + partyId),
+                "qm:user:active-request:", String.valueOf(RETENTION_SECONDS),
+                String.valueOf(Long.parseLong(confirmedAt) + 600_000), String.valueOf(PARTY_TTL_SECONDS));
+
+        assertThat(members).containsExactlyInAnyOrder("u1", "u2");
+        assertThat(field(partyId, "confirmedAt")).isEqualTo(confirmedAt);
+        assertThat(field(partyId, "game")).isEqualTo("LOL");
+    }
+
+    @Test
+    @DisplayName("활성 요청이 이미 사라진 뒤의 재실행은 반쪽짜리 활성 요청을 되살리지 않는다")
+    void replayingTheCleanupAfterRetentionDoesNotResurrectActiveRequests() {
+        String partyId = fullParty();
+
+        proposalService.accept(partyId, "u1");
+        assertThat(proposalService.accept(partyId, "u2")).isEqualTo(ProposalResult.CONFIRMED);
+
+        // 60초가 지나 활성 요청이 사라진 상태를 만든다. 이제 u1 · u2 는 다시 큐에 들어올 수 있어야 한다
+        redis.delete(List.of(activeRequestKey("u1"), activeRequestKey("u2")));
+
+        @SuppressWarnings("unchecked")
+        List<String> members = redis.execute(cleanupConfirmedScript,
+                List.of(partyKey(partyId), "qm:proposal:accepts:" + partyId),
+                "qm:user:active-request:", String.valueOf(RETENTION_SECONDS),
+                String.valueOf(System.currentTimeMillis()), String.valueOf(PARTY_TTL_SECONDS));
+
+        // 파티원 목록은 파티 HASH 가 원본이라 그대로다. 그러나 HSET 으로 status 하나만 든 활성 요청을
+        // 만들어 놓으면 그 사람은 60초 더 막히고 조회는 partyId 없는 MATCHED 를 답한다
+        assertThat(members).containsExactlyInAnyOrder("u1", "u2");
+        assertThat(redis.hasKey(activeRequestKey("u1"))).isFalse();
+        assertThat(redis.hasKey(activeRequestKey("u2"))).isFalse();
+        // 활성 요청이 없어도 먼저 베껴 둔 조건은 남아 있다 — platform 은 여전히 읽을 수 있다
+        assertThat(field(partyId, "modeKey")).isEqualTo(MODE);
+    }
+
     // ── 준비 / 조회 ─────────────────────────────────────────────────────────
 
     /** u1(TOP) + u2(JUNGLE) 로 정원 2를 채운다. 제안이 열린 partyId 를 돌려준다 */
@@ -340,6 +490,10 @@ class ProposalIdempotencyTest extends ConcurrencyTestSupport {
         String requestId = redis.<String, String>opsForHash()
                 .get("qm:user:active-request:" + userId, "requestId");
         return requestId == null ? "" : requestId;
+    }
+
+    private String activeRequestKey(String userId) {
+        return "qm:user:active-request:" + userId;
     }
 
     private String partyIdOf(String userId) {

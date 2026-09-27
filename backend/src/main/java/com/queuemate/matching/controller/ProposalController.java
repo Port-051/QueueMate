@@ -30,8 +30,9 @@ import org.springframework.web.bind.annotation.RestController;
  * 알림의 payload 에 실려 나간 그 값을 클라이언트가 그대로 되돌려 보낸다.
  *
  * <p><b>구현 상태.</b> 수락 집계(INV-4 / INV-5), 만료 스위퍼, 확정 뒷정리와 알림까지 붙었다.
- * 아직 없는 것은 {@code matching.outbox} 기록 → {@code ProposalConfirmed.fifo} 발행(파티를
- * DB 에 만드는 것은 app:platform 이다)과 {@code PartyClosed} 소비다 — {@link ProposalService} 참고.
+ * 확정된 파티를 DB 에 만드는 것은 app:platform 이고, 그쪽은 이 앱의 파티 HASH {@code qm:party:{partyId}} 를
+ * Redis 에서 직접 읽어 간다(docs/11 D-42) — outbox · SQS 발행은 없고, 확정 상태는 TTL 로 풀린다.
+ * {@link ProposalService} 참고.
  */
 @RestController
 @RequestMapping("/api/v1/proposals")
