@@ -870,10 +870,10 @@ test('티어 범위를 벗어난 방의 빈자리 카드는 입장이 비활성�
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
-test('2인 랭크에서도 양쪽 티어 선택창에 모든 티어가 잘림 없이 보인다', async ({ page }) => {
+test('양쪽 티어 선택창은 한 줄을 유지하고 사이드바 밖에서 가로 스크롤된다', async ({ page }) => {
   await login(page);
   await page.getByRole('group', { name: '찾는 큐 타입', exact: true }).getByRole('button', { name: '2인 랭크', exact: true }).click();
-  for (const width of [1600, 390]) {
+  for (const width of [1600, 1200, 768, 390]) {
     await page.setViewportSize({ width, height: 900 });
     for (const name of ['모집 티어 범위', '찾는 티어 범위']) {
       await page.getByRole('button', { name, exact: true }).click();
@@ -883,20 +883,36 @@ test('2인 랭크에서도 양쪽 티어 선택창에 모든 티어가 잘림 �
         const panel = element.getBoundingClientRect();
         const track = element.querySelector('.tier-range-track')!;
         const choices = Array.from(track.children).map(choice => choice.getBoundingClientRect());
+        const sidebar = document.querySelector<HTMLElement>('.app-shell>.sidebar')!;
+        const sidebarRight = getComputedStyle(sidebar).visibility !== 'hidden' ? sidebar.getBoundingClientRect().right : 0;
         return {
           overflow: track.scrollWidth - track.clientWidth,
           allInside: choices.every(rect => rect.left >= panel.left && rect.right <= panel.right && rect.top >= panel.top && rect.bottom <= panel.bottom),
           rows: new Set(choices.map(rect => Math.round(rect.top))).size,
+          outsideSidebar: panel.left >= sidebarRight + 11,
           onScreen: panel.left >= 0 && panel.right <= window.innerWidth && panel.top >= 0 && panel.bottom <= window.innerHeight,
         };
       });
-      expect(layout.overflow).toBeLessThanOrEqual(1);
-      expect(layout.allInside).toBe(true);
+      if (width === 1600) {
+        expect(layout.overflow).toBeLessThanOrEqual(1);
+        expect(layout.allInside).toBe(true);
+      } else expect(layout.overflow).toBeGreaterThan(0);
       expect(layout.onScreen).toBe(true);
-      if (width === 1600) expect(layout.rows).toBe(1);
-      else expect(layout.rows).toBeGreaterThan(1);
+      expect(layout.outsideSidebar).toBe(true);
+      expect(layout.rows).toBe(1);
+      if (width === 1200) {
+        await page.locator('.sidebar').hover();
+        await expect(page.locator('.sidebar')).toHaveCSS('width', '232px');
+        await expect.poll(() => picker.evaluate(element => element.getBoundingClientRect().left - document.querySelector('.sidebar')!.getBoundingClientRect().right)).toBeGreaterThanOrEqual(11);
+        await picker.locator('header').hover();
+      }
       await picker.getByRole('button', { name: '아이언', exact: true }).press('End');
       await expect(picker.getByRole('button', { name: '챌린저', exact: true })).toBeFocused();
+      expect(await picker.locator('.tier-range-track').evaluate(element => {
+        const bounds = element.getBoundingClientRect();
+        const last = element.lastElementChild!.getBoundingClientRect();
+        return last.left >= bounds.left && last.right <= bounds.right;
+      })).toBe(true);
       await page.keyboard.press('Escape');
     }
     await expectNoPageOverflow(page);

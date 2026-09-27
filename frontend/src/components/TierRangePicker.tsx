@@ -45,21 +45,39 @@ export function TierRangePicker({ game, value = ALL_TIERS, onChange, label, stac
   useEffect(() => { setOpen(false); }, [context]);
   useLayoutEffect(() => {
     if (!open || !trigger.current || !panel.current) return;
-    const rect = trigger.current.getBoundingClientRect();
     const home = trigger.current.closest('.room-home');
-    // Duo rooms occupy half a row; their individual width must not shrink this shared picker.
-    const boardWidth = home?.querySelector('.room-board')?.getBoundingClientRect().width;
-    const width = Math.min(700, boardWidth ? boardWidth - 24 : 700, window.innerWidth - 24);
-    // Measure after constraining the width because tier choices wrap on narrow screens.
-    panel.current.style.width = `${width}px`;
-    const below = window.innerHeight - rect.bottom - 16;
-    const above = rect.top - 16;
-    const placeBelow = below >= panel.current.scrollHeight || below >= above;
-    const centeredLeft = rect.left + (rect.width - width) / 2;
-    setPosition({ position: 'fixed', width, left: Math.max(12, Math.min(centeredLeft, window.innerWidth - width - 12)),
-      maxHeight: Math.max(120, placeBelow ? below : above),
-      ...(placeBelow ? { top: rect.bottom + 8 } : { bottom: window.innerHeight - rect.top + 8 }) });
-    (panel.current.querySelector<HTMLButtonElement>('[data-endpoint="true"]') ?? panel.current.querySelector<HTMLButtonElement>('.tier-range-option'))?.focus({ preventScroll: true });
+    const main = trigger.current.closest('main');
+    const sidebar = trigger.current.closest('.app-shell')?.querySelector<HTMLElement>(':scope > .sidebar');
+    const place = () => {
+      if (!trigger.current || !panel.current) return;
+      const rect = trigger.current.getBoundingClientRect();
+      const content = main?.getBoundingClientRect();
+      const sidebarRight = sidebar && getComputedStyle(sidebar).visibility !== 'hidden' ? sidebar.getBoundingClientRect().right : 0;
+      const leftEdge = Math.max(0, content?.left ?? 0, sidebarRight) + 12;
+      const rightEdge = Math.min(window.innerWidth, content?.right ?? window.innerWidth) - 12;
+      if (rightEdge - leftEdge < 180) { setOpen(false); return; }
+      // Use the board width, not the width of an individual duo room.
+      const boardWidth = home?.querySelector('.room-board')?.getBoundingClientRect().width;
+      const width = Math.min(700, boardWidth ? boardWidth - 24 : 700, rightEdge - leftEdge);
+      panel.current.style.width = `${width}px`;
+      const below = window.innerHeight - rect.bottom - 16;
+      const above = rect.top - 16;
+      const placeBelow = below >= panel.current.scrollHeight || below >= above;
+      const centeredLeft = rect.left + (rect.width - width) / 2;
+      setPosition({ position: 'fixed', width, left: Math.max(leftEdge, Math.min(centeredLeft, rightEdge - width)),
+        maxHeight: Math.max(120, placeBelow ? below : above),
+        ...(placeBelow ? { top: rect.bottom + 8 } : { bottom: window.innerHeight - rect.top + 8 }) });
+    };
+    place();
+    const selected = panel.current.querySelector<HTMLButtonElement>('[data-endpoint="true"]') ?? panel.current.querySelector<HTMLButtonElement>('.tier-range-option');
+    selected?.focus({ preventScroll: true });
+    const track = selected?.parentElement;
+    if (selected && track) track.scrollLeft += Math.max(0, selected.getBoundingClientRect().right - track.getBoundingClientRect().right + 3);
+    // Keep the popup outside the navigation rail while its hover animation expands it.
+    const observer = new ResizeObserver(place);
+    if (sidebar) observer.observe(sidebar);
+    if (main) observer.observe(main);
+    return () => observer.disconnect();
   }, [open]);
   useEffect(() => {
     if (!open) return;
