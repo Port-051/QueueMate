@@ -171,6 +171,7 @@
 .room-role-icons.has-labels>span { align-items:center; gap:5px; }
 .room-role-icons.has-labels b { font-size:13px; font-weight:500; color:#d9d2e8; }
 .compact-members { display:flex; align-items:stretch; gap:var(--member-card-gap); overflow-x:auto; scrollbar-width:thin; scrollbar-color:#44485d transparent; }
+.compact-members:has(> .compact-member:nth-child(2):last-child) { justify-content:safe center; gap:20px; }
 .compact-member { flex:0 0 var(--member-card-width); width:var(--member-card-width); height:250px; box-sizing:border-box; min-width:0; padding:12px; display:flex; flex-direction:column; gap:10px; background:color-mix(in srgb, var(--app-background) 98%, white); border:1px solid #ffffff08; border-radius:18px; }
 .compact-member-name { display:flex; align-items:center; gap:7px; min-width:0; min-height:32px; flex:none; }
 .compact-member-name>strong { min-width:0; font-size:14px; font-weight:650; line-height:1.5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
