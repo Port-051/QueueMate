@@ -176,10 +176,8 @@ class ProposalIdempotencyTest extends ConcurrencyTestSupport {
     @DisplayName("거절은 멱등이 아니다 — 첫 거절은 DECLINED, 재시도는 NOT_FOUND")
     void repeatedDeclineIsNotIdempotent() {
         String partyId = fullParty();
-        // 첫 거절이 활성 요청까지 지우므로 재시도에 쓸 값을 미리 꺼내 둔다
-        String requestId = requestIdOf("u1");
 
-        assertThat(proposalService.decline(partyId, "u1", requestId))
+        assertThat(proposalService.decline(partyId, "u1"))
                 .isEqualTo(ProposalResult.DECLINED);
 
         // 거절은 status 를 'DECLINED' 로 바꾸는 것이 아니라 제안 흔적을 지운다.
@@ -190,7 +188,7 @@ class ProposalIdempotencyTest extends ConcurrencyTestSupport {
 
         // 그 대가로 재시도는 볼 status 가 없어 답이 달라진다. 그래도 거절한 사람이 갈
         // 화면은 두 경우 같다 — decline-proposal.lua 의 "멱등성" 참고
-        assertThat(proposalService.decline(partyId, "u1", requestId))
+        assertThat(proposalService.decline(partyId, "u1"))
                 .isEqualTo(ProposalResult.NOT_FOUND);
 
         // 파티와 남은 참가자는 살아 있다. 자리가 다시 차면 새 제안이 열린다
@@ -335,7 +333,7 @@ class ProposalIdempotencyTest extends ConcurrencyTestSupport {
      * 첫 호출 전에 {@link #requestIdOf} 로 값을 잡아 두어야 한다.</b>
      */
     private ProposalResult decline(String partyId, String userId) {
-        return proposalService.decline(partyId, userId, requestIdOf(userId));
+        return proposalService.decline(partyId, userId);
     }
 
     private String requestIdOf(String userId) {

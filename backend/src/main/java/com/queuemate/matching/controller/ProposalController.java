@@ -96,9 +96,9 @@ public class ProposalController {
      */
     @PostMapping("/{proposalId}/decline")
     public ResponseEntity<?> decline(@PathVariable String proposalId,
-                                     @CurrentUserId String userId, @RequestParam String requestId) {
+                                     @CurrentUserId String userId) {
 
-        ProposalResult result = proposalService.decline(proposalId, userId, requestId);
+        ProposalResult result = proposalService.decline(proposalId, userId);
 
         return switch (result) {
             case DECLINED -> ResponseEntity.noContent().build();

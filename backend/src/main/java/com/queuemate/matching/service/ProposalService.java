@@ -235,13 +235,18 @@ public class ProposalService {
      *
      * @param proposalId 제안 id (= partyId)
      * @param userId     거절한 사용자
-     * @param requestId  거절한 사용자의 활성 요청 id. 큐에서 빼는 compare-and-delete 에 쓴다
      */
-    public ProposalResult decline(String proposalId, String userId, String requestId) {
-
+    public ProposalResult decline(String proposalId, String userId) {
         ProposalResult answer = run(declineProposalScript, proposalId, userId);
         if (answer == ProposalResult.DECLINED) {
-            matchCancelService.cancel(userId, requestId);
+            // 활성 요청은 HASH 다 — requestId 는 그 필드에서 읽는다. 클라이언트가 주던 값을 서버가 직접 읽으므로
+            // 값이 틀려 본인이 파티에 남는 일이 없다. 스크립트가 멤버 여부를 먼저 봤으니 옛 요청이 끼어들 틈도 없다
+            String requestId = redis.<String, String>opsForHash()
+                    .get(SharedKeys.activeRequestKey(userId), "requestId");
+            CancelResult cancelled = matchCancelService.cancel(userId, requestId);
+            if (cancelled != CancelResult.CANCELLED && cancelled != CancelResult.CANCELLED_AND_PARTY_CLOSED) {
+                log.warn("거절 뒤 큐에서 빼지 못했다 partyId={} userId={} result={}", proposalId, userId, cancelled);
+            }
         }
         return answer;
     }
