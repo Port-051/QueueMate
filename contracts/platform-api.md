@@ -120,7 +120,7 @@ access 가 짧아진 만큼(15분) 그것을 이어 주는 것이 refresh 다. *
 | `POST /api/v1/auth/logout` | — | 204 + **쿠키 둘 제거**(`Max-Age=0`) + Redis 의 refresh 폐기. 쿠키가 없어도 · Redis 가 죽어 있어도 204 | — |
 | `GET /api/v1/users/me` | — | 200 `{userId, nickname, createdAt, socialProviders: ["KAKAO"], gameAccounts: [게임 프로필…]}`(2026-09-26 에 `loginId` · `hasPassword` 가 빠졌다) | 401 |
 | `PATCH /api/v1/users/me` | `{nickname}` | 200 (`GET` 과 같은 모양) | 409 `NICKNAME_TAKEN` |
-| `PUT /api/v1/users/me/game-accounts/{game}` | `{gameNickname, tier, mainPosition, server}` | 200 **게임 프로필**(아래 "게임 프로필") (없으면 만들고 있으면 바꾼다) | 400 |
+| `PUT /api/v1/users/me/game-accounts/{game}` (`{game}` 은 **`LOL` · `VALORANT` · `PUBG` — 대문자 enum.** 모르는 이름 · 소문자는 형 변환에서 400 `VALIDATION_FAILED`, `"game: 올바른 값이 아닙니다"` — 2026-09-27. 그 전에는 서비스가 문자열을 팠고 글귀가 달랐다. `refresh` · `DELETE` 도 같다) | `{gameNickname, tier, mainPosition, server}` | 200 **게임 프로필**(아래 "게임 프로필") (없으면 만들고 있으면 바꾼다) | 400 |
 | `POST /api/v1/users/me/game-accounts/{game}/refresh` | — | 200 **게임 프로필** — `PUT` 과 **같은 모양이고 방금 긁은 `stats` 가 들어 있다**(2026-09-24 소유자 결정. 아래 "전적을 긁는 것") | 429 `TOO_MANY_STATS_REFRESHES` + `Retry-After` · 404 `GAME_ACCOUNT_NOT_FOUND` · 409 `GAME_STATS_NOT_SUPPORTED` · 503 `GAME_STATS_UNAVAILABLE` |
 | `DELETE /api/v1/users/me/game-accounts/{game}` | — | 204 (없어도 204) | — |
 
