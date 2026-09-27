@@ -9,12 +9,20 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * <b>{@code existsByNickname} 으로 중복을 먼저 확인하지 마라</b> — 확인과 INSERT 사이에 다른 요청이 끼어든다.
  * 중복은 {@code saveAndFlush} 의 제약 위반으로 안다 ({@code SocialLoginService#signup}).
  */
 public interface UserRepository extends JpaRepository<User, Long> {
+
+    /**
+     * 사용자 줄을 {@code SELECT … FOR UPDATE} 로 잠근다 — 같은 사용자의 소셜 끊기를 줄 세운다({@code SocialLoginService#unlink}).
+     * 트랜잭션 안에서만 부른다. 없으면 빈 값이다.
+     */
+    @Query(value = "select id from users where id = :userId for update", nativeQuery = true)
+    Optional<Long> lockById(@Param("userId") Long userId);
 
     /**
      * 여러 사용자의 닉네임과, <b>어느 한 게임</b>에 연결한 게임 계정 · 전적을 <b>쿼리 한 번으로</b> 읽는다 — 목록의 카드가 쓴다

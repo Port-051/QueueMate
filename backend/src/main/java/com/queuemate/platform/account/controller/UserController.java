@@ -5,6 +5,8 @@ import com.queuemate.platform.account.dto.GameAccountRequest;
 import com.queuemate.platform.account.dto.GameProfileResponse;
 import com.queuemate.platform.account.dto.NicknameChangeRequest;
 import com.queuemate.platform.account.dto.UserResponse;
+import com.queuemate.platform.account.domain.SocialProvider;
+import com.queuemate.platform.account.service.SocialLoginService;
 import com.queuemate.platform.account.service.UserService;
 import com.queuemate.platform.common.security.CurrentUserId;
 import jakarta.validation.Valid;
@@ -30,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
     private final UserService userService;
+    private final SocialLoginService socialLoginService;
 
     @GetMapping
     public UserResponse me(@CurrentUserId Long userId)
@@ -75,6 +78,17 @@ public class UserController {
     public ResponseEntity<Void> deleteGameAccount(@CurrentUserId Long userId, @PathVariable Game game)
     {
         userService.deleteGameAccount(userId, game);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 소셜 연결 하나를 끊는다(2026-09-27 소유자 결정 · P-27). {@code provider} 는 대문자 enum 이다 — 모르는 이름 · 소문자는 400.
+     * 그 제공자가 나한테 없으면 204(멱등), <b>하나뿐이면 409 {@code LAST_SOCIAL_IDENTITY}</b>. 잇기는 소셜 로그인 콜백이 한다.
+     */
+    @DeleteMapping("/social/{provider}")
+    public ResponseEntity<Void> unlinkSocial(@CurrentUserId Long userId, @PathVariable SocialProvider provider)
+    {
+        socialLoginService.unlink(userId, provider);
         return ResponseEntity.noContent().build();
     }
 }

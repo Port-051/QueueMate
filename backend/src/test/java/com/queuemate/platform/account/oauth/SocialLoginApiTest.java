@@ -1,11 +1,18 @@
 package com.queuemate.platform.account.oauth;
 
 import com.queuemate.platform.ApiTestSupport;
+import com.queuemate.platform.common.security.TokenClaims;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -14,13 +21,22 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.web.util.UriComponents;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -35,6 +51,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p>가입 · 로그인은 소셜로만 한다(2026-09-26 소유자 결정). 소셜로 처음 온 사람은 <b>닉네임만</b> 정한다 — 가입 본문은 {@code {nickname}} 이고
  * 응답은 {@code {userId, nickname}} 이다. 제공자의 회원 번호는 {@code social_identities} 에만 있고 사용자 번호가 되지 않는다.
+ *
+ * <p>소셜 계정 잇기(로그인된 채 온 콜백) · 끊기({@code DELETE /api/v1/users/me/social/{provider}})도 여기서 본다(2026-09-27 소유자 결정 — P-27).
  */
 class SocialLoginApiTest extends ApiTestSupport {
 
@@ -58,6 +76,9 @@ class SocialLoginApiTest extends ApiTestSupport {
         // 카카오는 client secret 없이, 디스코드는 있게
         registry.add("platform.oauth.discord.client-secret", () -> "discord-secret");
     }
+
+    @Autowired
+    JwtEncoder jwtEncoder;
 
     @AfterAll
     static void stopFakeProvider()
@@ -360,6 +381,238 @@ class SocialLoginApiTest extends ApiTestSupport {
                         .content(json("nickname", newNickname())))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ORIGIN_NOT_ALLOWED"));
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // 잇기 · 끊기 (2026-09-27 소유자 결정 — P-27)
+    // ------------------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("잇기 — 로그인된 채 디스코드 콜백이면 나에게 잇고 /settings?linked=DISCORD 다. 로그인 쿠키는 안 바뀐다. 그 뒤 디스코드로 로그인하면 같은 사용자다")
+    void linkWhileLoggedIn() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie access = login(nickname);
+        Long userId = userIdOf(nickname);
+        insertIdentity("KAKAO", Long.toString(randomKakaoId()), userId);
+        String discordId = randomDiscordId();
+
+        MvcResult linked = discordCallback(discordId, access);
+
+        assertThat(linked.getResponse().getHeader(HttpHeaders.LOCATION)).isEqualTo(FRONT + "/settings?linked=DISCORD");
+        // 잇기는 로그인 쿠키를 새로 주지 않는다 — state 쿠키를 지우는 것 하나뿐이다
+        List<String> setCookies = linked.getResponse().getHeaders(HttpHeaders.SET_COOKIE);
+        assertThat(setCookies).hasSize(1);
+        assertThat(setCookies.get(0)).startsWith("qm_oauth_state=;");
+        assertThat(jdbcTemplate.queryForList(
+                "select provider from social_identities where user_id = ? order by provider", String.class, userId))
+                .containsExactly("DISCORD", "KAKAO");
+        mockMvc.perform(get("/api/v1/users/me").cookie(access))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.socialProviders.length()").value(2));
+
+        // 같은 것을 또 이으면 멱등 — 여전히 linked 이고 줄이 늘지 않는다
+        assertThat(discordCallback(discordId, access).getResponse().getHeader(HttpHeaders.LOCATION))
+                .isEqualTo(FRONT + "/settings?linked=DISCORD");
+        assertThat(countIdentities(userId)).isEqualTo(2);
+
+        // 로그인 안 한 채(쿠키 없이) 디스코드로 오면 로그인이고 같은 사용자다
+        MvcResult login = discordCallback(discordId, null);
+        assertThat(login.getResponse().getHeader(HttpHeaders.LOCATION)).isEqualTo(FRONT + "/");
+        refreshCookieOf(login);
+        mockMvc.perform(get("/api/v1/users/me").cookie(login.getResponse().getCookie("qm_access")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(equalTo(userId), Long.class));
+    }
+
+    @Test
+    @DisplayName("잇기 — 남의 디스코드는 error=SOCIAL_ALREADY_LINKED, 나한테 이미 다른 디스코드가 있으면 error=PROVIDER_ALREADY_LINKED 이고 안 이어진다")
+    void linkRejections() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie access = login(nickname);
+        Long userId = userIdOf(nickname);
+        insertIdentity("KAKAO", Long.toString(randomKakaoId()), userId);
+
+        Long other = insertUser();
+        String othersDiscord = randomDiscordId();
+        insertIdentity("DISCORD", othersDiscord, other);
+        MvcResult taken = discordCallback(othersDiscord, access);
+        assertThat(taken.getResponse().getHeader(HttpHeaders.LOCATION)).isEqualTo(FRONT + "/settings?error=SOCIAL_ALREADY_LINKED");
+        assertThat(taken.getResponse().getHeaders(HttpHeaders.SET_COOKIE)).hasSize(1);
+        assertThat(countIdentities(userId)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("select user_id from social_identities where provider = 'DISCORD' and provider_user_id = ?",
+                Long.class, othersDiscord)).isEqualTo(other);
+
+        String mine = randomDiscordId();
+        discordCallback(mine, access);
+        MvcResult second = discordCallback(randomDiscordId(), access);
+        assertThat(second.getResponse().getHeader(HttpHeaders.LOCATION)).isEqualTo(FRONT + "/settings?error=PROVIDER_ALREADY_LINKED");
+        assertThat(jdbcTemplate.queryForObject("select provider_user_id from social_identities where user_id = ? and provider = 'DISCORD'",
+                String.class, userId)).isEqualTo(mine);
+    }
+
+    @Test
+    @DisplayName("잇기 — 만료된 · 깨진 qm_access 로 오면 잇기가 아니라 지금의 로그인 · 가입 흐름이다")
+    void expiredAccessIsNotLoggedIn() throws Exception
+    {
+        String nickname = newNickname();
+        login(nickname);
+        Long userId = userIdOf(nickname);
+        insertIdentity("KAKAO", Long.toString(randomKakaoId()), userId);
+
+        MvcResult expired = discordCallback(randomDiscordId(), new Cookie("qm_access", expiredAccessToken(userId)));
+        assertThat(expired.getResponse().getHeader(HttpHeaders.LOCATION)).isEqualTo(FRONT + "/signup/social");
+        assertThat(expired.getResponse().getCookie("qm_social_signup")).isNotNull();
+
+        MvcResult broken = discordCallback(randomDiscordId(), new Cookie("qm_access", "not-a-jwt"));
+        assertThat(broken.getResponse().getHeader(HttpHeaders.LOCATION)).isEqualTo(FRONT + "/signup/social");
+        assertThat(countIdentities(userId)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("잇기 — state 가 맞지 않으면 로그인된 채여도 /login?error=OAUTH_FAILED 이고 잇지 않는다")
+    void linkStateMismatch() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie access = login(nickname);
+        Long userId = userIdOf(nickname);
+        insertIdentity("KAKAO", Long.toString(randomKakaoId()), userId);
+        String code = newCode();
+        FAKE.stubUser("discord", code, "{\"id\":\"" + randomDiscordId() + "\",\"username\":\"x\"}");
+        Cookie state = startAndGetState("discord");
+
+        expectOAuthFailed(mockMvc.perform(get("/api/v1/auth/oauth/DISCORD/callback")
+                .param("code", code).param("state", "someone-elses-state").cookie(state, access)));
+        assertThat(countIdentities(userId)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("끊기 — 둘 중 하나를 끊으면 204 이고 users/me 에서 빠진다. 없는 제공자는 204, 하나뿐이면 409 LAST_SOCIAL_IDENTITY")
+    void unlink() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie access = login(nickname);
+        Long userId = userIdOf(nickname);
+        insertIdentity("KAKAO", Long.toString(randomKakaoId()), userId);
+        insertIdentity("DISCORD", randomDiscordId(), userId);
+
+        mockMvc.perform(delete("/api/v1/users/me/social/DISCORD").cookie(access)).andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/v1/users/me").cookie(access))
+                .andExpect(jsonPath("$.socialProviders.length()").value(1))
+                .andExpect(jsonPath("$.socialProviders[0]").value("KAKAO"));
+
+        // 없는 제공자 — 멱등. 하나뿐이어도 204 다(지울 것이 없다)
+        mockMvc.perform(delete("/api/v1/users/me/social/DISCORD").cookie(access)).andExpect(status().isNoContent());
+
+        mockMvc.perform(delete("/api/v1/users/me/social/KAKAO").cookie(access))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("LAST_SOCIAL_IDENTITY"));
+        assertThat(countIdentities(userId)).isEqualTo(1);
+
+        // 소문자 · 모르는 이름은 400
+        mockMvc.perform(delete("/api/v1/users/me/social/kakao").cookie(access)).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("끊기 — 동시에 둘을 끊어도(4 스레드) 하나는 남는다")
+    void unlinkConcurrently() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie access = login(nickname);
+        Long userId = userIdOf(nickname);
+        insertIdentity("KAKAO", Long.toString(randomKakaoId()), userId);
+        insertIdentity("DISCORD", randomDiscordId(), userId);
+
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        CountDownLatch go = new CountDownLatch(1);
+        List<Future<Integer>> results = new ArrayList<>();
+        try
+        {
+            for(int i = 0; i < 4; i++)
+            {
+                String provider = (i % 2 == 0) ? "KAKAO" : "DISCORD";
+                results.add(pool.submit(() -> {
+                    go.await();
+                    return mockMvc.perform(delete("/api/v1/users/me/social/" + provider).cookie(access))
+                            .andReturn().getResponse().getStatus();
+                }));
+            }
+            go.countDown();
+            List<Integer> statuses = new ArrayList<>();
+            for(Future<Integer> result : results)
+            {
+                statuses.add(result.get(30, TimeUnit.SECONDS));
+            }
+            assertThat(statuses).allMatch(code -> code == 204 || code == 409).contains(409);
+        }
+        finally
+        {
+            pool.shutdownNow();
+        }
+        assertThat(countIdentities(userId)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("끊기 — 인증이 없으면 401, 다른 Origin 이면 403 ORIGIN_NOT_ALLOWED 다")
+    void unlinkRequiresAuthAndOrigin() throws Exception
+    {
+        mockMvc.perform(delete("/api/v1/users/me/social/KAKAO"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+        String nickname = newNickname();
+        Cookie access = login(nickname);
+        Long userId = userIdOf(nickname);
+        insertIdentity("KAKAO", Long.toString(randomKakaoId()), userId);
+        insertIdentity("DISCORD", randomDiscordId(), userId);
+        mockMvc.perform(delete("/api/v1/users/me/social/KAKAO").cookie(access).header(HttpHeaders.ORIGIN, "https://evil.example"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ORIGIN_NOT_ALLOWED"));
+        assertThat(countIdentities(userId)).isEqualTo(2);
+    }
+
+    /** 디스코드 흐름을 한 번 탄다 — start 로 state 를 받고, 그 사용자를 넣어 둔 code 로 콜백을 부른다. {@code access} 가 있으면 싣는다 */
+    private MvcResult discordCallback(String discordId, Cookie access) throws Exception
+    {
+        String code = newCode();
+        FAKE.stubUser("discord", code, "{\"id\":\"" + discordId + "\",\"username\":\"nelly\"}");
+        Cookie state = startAndGetState("discord");
+        var request = get("/api/v1/auth/oauth/DISCORD/callback").param("code", code).param("state", state.getValue()).cookie(state);
+        if(access != null)
+        {
+            request.cookie(access);
+        }
+        return mockMvc.perform(request).andExpect(status().isFound()).andReturn();
+    }
+
+    private void insertIdentity(String provider, String providerUserId, Long userId)
+    {
+        jdbcTemplate.update("insert into social_identities (provider, provider_user_id, user_id, created_at) values (?, ?, ?, now())",
+                provider, providerUserId, userId);
+    }
+
+    private int countIdentities(Long userId)
+    {
+        return jdbcTemplate.queryForObject("select count(*) from social_identities where user_id = ?", Integer.class, userId);
+    }
+
+    /** 앱의 키로 서명했지만 한 시간 전에 만료된 access 토큰 — 검증기의 허용 오차(60초)를 넘긴다 */
+    private String expiredAccessToken(Long userId)
+    {
+        Instant past = Instant.now().minus(2, ChronoUnit.HOURS);
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer(TokenClaims.ISSUER)
+                .subject(Long.toString(userId))
+                .issuedAt(past)
+                .expiresAt(past.plus(1, ChronoUnit.HOURS))
+                .claim(TokenClaims.TOKEN_USE, TokenClaims.TOKEN_USE_ACCESS)
+                .build();
+        return jwtEncoder.encode(JwtEncoderParameters.from(JwsHeader.with(SignatureAlgorithm.RS256).build(), claims)).getTokenValue();
+    }
+
+    private static String randomDiscordId()
+    {
+        return "80351110224678" + ThreadLocalRandom.current().nextInt(1000, 9999);
     }
 
     /** 경로의 제공자 이름은 대문자 enum 이다 — 가짜 제공자의 stub 키("kakao:code")는 소문자라 여기서 올린다 */

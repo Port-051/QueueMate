@@ -12,12 +12,15 @@ import com.queuemate.platform.account.oauth.SocialSignupTokens;
 import com.queuemate.platform.account.service.SocialLoginService;
 import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.security.SessionCookies;
+import com.queuemate.platform.common.security.TokenClaims;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,6 +39,7 @@ import java.util.Optional;
  * 소셜 로그인(카카오 · 디스코드). 넷 다 인증 없이 부른다. 원본은 {@code contracts/platform-api.md} "소셜 로그인" 이다.
  *
  * <p>흐름 — {@code start}(동의 화면으로 302) → 제공자 → {@code callback}(302 세 갈래) → 처음 온 사람만 {@code pending} · {@code signup}.
+ * <b>로그인된 채(유효한 {@code qm_access}) 콜백에 오면 잇기다</b> — 그 소셜 계정을 나에게 잇고 {@code /settings} 로 보낸다(2026-09-27 소유자 결정 · P-27).
  * <b>서버가 기억하는 것이 없다</b> — {@code state} 도 "가입을 기다리는 소셜 계정"도 쿠키에 있다(CLAUDE.md §5 "stateless").
  */
 @Slf4j
@@ -47,6 +51,8 @@ public class SocialAuthController {
     static final String FRONT_HOME = "/";
     static final String FRONT_SOCIAL_SIGNUP = "/signup/social";
     static final String FRONT_LOGIN_FAILED = "/login?error=OAUTH_FAILED";
+    /** 잇기(로그인된 채 온 콜백)가 돌아가는 화면. 뒤에 {@code ?linked={PROVIDER}} 나 {@code ?error=…} 가 붙는다 */
+    static final String FRONT_SETTINGS = "/settings";
 
     private final OAuthClient oAuthClient;
     private final OAuthProperties oAuthProperties;
@@ -54,6 +60,7 @@ public class SocialAuthController {
     private final SocialSignupTokens socialSignupTokens;
     private final SocialLoginService socialLoginService;
     private final SessionCookies sessionCookies;
+    private final JwtDecoder jwtDecoder;
 
     /**
      * {@code state} 를 쿠키에 넣고 제공자의 동의 화면으로 보낸다. 브라우저가 링크로 직접 오는 요청이다(fetch 가 아니다).
@@ -87,7 +94,8 @@ public class SocialAuthController {
                                          @RequestParam(name = "code", required = false) String code,
                                          @RequestParam(name = "state", required = false) String state,
                                          @RequestParam(name = "error", required = false) String error,
-                                         @CookieValue(name = OAuthStateCookie.NAME, required = false) String stateInCookie)
+                                         @CookieValue(name = OAuthStateCookie.NAME, required = false) String stateInCookie,
+                                         @CookieValue(name = TokenClaims.ACCESS_COOKIE, required = false) String accessToken)
     {
         try
         {
@@ -110,6 +118,12 @@ public class SocialAuthController {
             }
 
             OAuthUser user = oAuthClient.fetchUser(provider, code);
+            // 로그인된 사람이 부른 콜백이면 로그인 · 가입이 아니라 잇기다(P-27)
+            Optional<Long> me = currentUserId(accessToken);
+            if(me.isPresent())
+            {
+                return link(provider, user, me.get());
+            }
             Optional<Long> linkedUserId = socialLoginService.findLinkedUserId(provider, user.providerUserId());
             if(linkedUserId.isPresent())
             {
@@ -159,6 +173,48 @@ public class SocialAuthController {
     {
         return socialSignupTokens.verify(signupToken).orElseThrow(() -> new ApiException(
                 HttpStatus.UNAUTHORIZED, "NO_PENDING_SOCIAL_SIGNUP", "소셜 로그인을 다시 시작해 주세요"));
+    }
+
+    /**
+     * 잇기의 갈래를 302 로 옮긴다. <b>로그인 쿠키는 새로 주지 않는다</b> — 이미 로그인돼 있다.
+     * 토큰의 사용자가 DB 에 없으면(지워진 계정) 로그인 실패와 같은 {@code OAUTH_FAILED} 로 보낸다.
+     */
+    private ResponseEntity<Void> link(SocialProvider provider, OAuthUser user, Long userId)
+    {
+        SocialLoginService.LinkResult result = socialLoginService.link(provider, user.providerUserId(), userId);
+        return switch(result)
+        {
+            case LINKED -> redirect(FRONT_SETTINGS + "?linked=" + provider.name(), List.of());
+            case SOCIAL_ALREADY_LINKED, PROVIDER_ALREADY_LINKED ->
+            {
+                log.info("소셜 잇기 거절 userId={} provider={} reason={}", userId, provider, result);
+                yield redirect(FRONT_SETTINGS + "?error=" + result.name(), List.of());
+            }
+            case USER_NOT_FOUND -> failed("잇기 — 토큰의 사용자가 DB 에 없다");
+        };
+    }
+
+    /**
+     * 요청의 {@code qm_access} 가 유효하면 그 사용자 번호. <b>이 경로는 {@code permitAll} 이라 보안 필터가 토큰을 보지 않는다</b>
+     * ({@code CookieBearerTokenResolver} 가 {@code /api/v1/auth/**} 에서 집지 않는다) — 그래서 여기서 같은 디코더로 직접 본다
+     * (서명 · {@code iss} · {@code exp} · {@code token_use == access} · {@code sub} 숫자). <b>깨진 · 만료된 쿠키는 "로그인 안 됨"이다</b> — 401 을 내지 않고
+     * 지금의 로그인 · 가입 흐름으로 간다(토큰이 만료된 사람이 소셜로 다시 로그인하는 길이 막히면 안 된다).
+     */
+    private Optional<Long> currentUserId(String accessToken)
+    {
+        if(accessToken == null || accessToken.isBlank())
+        {
+            return Optional.empty();
+        }
+        try
+        {
+            return Optional.of(Long.valueOf(jwtDecoder.decode(accessToken).getSubject()));
+        }
+        catch(JwtException | NumberFormatException e)
+        {
+            log.debug("콜백의 qm_access 가 유효하지 않다 — 로그인 안 된 것으로 본다: {}", e.getClass().getSimpleName());
+            return Optional.empty();
+        }
     }
 
     private ResponseEntity<Void> failed(String reason)
