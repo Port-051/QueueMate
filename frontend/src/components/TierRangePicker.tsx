@@ -47,8 +47,11 @@ export function TierRangePicker({ game, value = ALL_TIERS, onChange, label, stac
     if (!open || !trigger.current || !panel.current) return;
     const rect = trigger.current.getBoundingClientRect();
     const home = trigger.current.closest('.room-home');
-    const roomWidth = (home?.querySelector('.room-deck') ?? home?.querySelector('.room-board'))?.getBoundingClientRect().width;
-    const width = Math.min(700, roomWidth ? roomWidth - 24 : 700, window.innerWidth - 24);
+    // Duo rooms occupy half a row; their individual width must not shrink this shared picker.
+    const boardWidth = home?.querySelector('.room-board')?.getBoundingClientRect().width;
+    const width = Math.min(700, boardWidth ? boardWidth - 24 : 700, window.innerWidth - 24);
+    // Measure after constraining the width because tier choices wrap on narrow screens.
+    panel.current.style.width = `${width}px`;
     const below = window.innerHeight - rect.bottom - 16;
     const above = rect.top - 16;
     const placeBelow = below >= panel.current.scrollHeight || below >= above;
