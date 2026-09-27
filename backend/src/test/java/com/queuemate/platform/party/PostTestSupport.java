@@ -287,6 +287,7 @@ abstract class PostTestSupport extends ApiTestSupport {
         return values;
     }
 
+    /** VALORANT · PUBG 용이다 — LoL 은 연결이 Riot 을 긁으므로(2026-09-27) {@link #insertGameAccount} 로 넣는다 */
     protected void putGameAccount(Cookie cookie, String game, String body) throws Exception
     {
         mockMvc.perform(put("/api/v1/users/me/game-accounts/" + game).cookie(cookie)

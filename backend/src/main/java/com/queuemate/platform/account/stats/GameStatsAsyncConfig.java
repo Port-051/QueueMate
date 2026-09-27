@@ -2,30 +2,27 @@ package com.queuemate.platform.account.stats;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
- * 전적을 긁는 <b>전용 풀</b>. 게임사 API 를 부르는 데 수 초가 걸려서 응답을 그만큼 붙잡을 수 없다 — 요청은 바로 끝내고 여기서 긁는다.
+ * 전적을 긁는 <b>전용 풀</b>. 요청 스레드에서 Riot 을 20여 번 기다리면 <b>자를 방법이 없어서</b> 여기에 던지고 상한(30초)만큼 기다린다.
+ * 던지는 쪽은 둘이다 — 전적 갱신(2026-09-24)과 <b>LoL 게임 계정 연결</b>(2026-09-27 소유자 결정 — 동기로 긁는다). 둘 다 {@link GameStatsRefresher} 다.
+ * (2026-09-27 까지는 게임 계정 저장 뒤의 비동기 갱신이 {@code @Async} 로 여기서 돌았다 — 그 길을 없애며 {@code @EnableAsync} 도 뺐다.)
  *
- * <p><b>작게 두고 넘치면 버린다</b>({@link ThreadPoolExecutor.DiscardPolicy}) — 전적은 곁가지다. 버려진 갱신은 다음 기회에 다시 긁힌다
- * (게임 계정을 다시 연결할 때 · 사용자가 전적 갱신을 누를 때). 큐가 무한이면 늦게 오는 요청이 계속 쌓이고,
+ * <p><b>작게 두고 넘치면 버린다</b>({@link ThreadPoolExecutor.DiscardPolicy}). 큐가 무한이면 늦게 오는 요청이 계속 쌓이고,
  * 호출자를 돌려 쓰면({@code CallerRunsPolicy}) 요청 스레드가 Riot 을 기다리게 된다 — 둘 다 피한다.
- *
- * <p><b>전적 갱신 요청은 이 풀에 던져 놓고 기다린다</b>({@link GameStatsRefresher} — 2026-09-24). 그 요청만은 결과가 필요해서
- * {@code Future} 로 받고 30초를 기다리는데, 버려지면 그 {@code Future} 가 영원히 완료되지 않는다 — 그래서 던지는 쪽이 큐를 먼저 본다.
+ * 버려지면 그 {@code Future} 가 영원히 완료되지 않는다 — 그래서 던지는 쪽이 큐를 먼저 본다.
  *
  * <p><b>이 큐에 판정이 기대지 않는다</b> — stateless 규칙(CLAUDE.md §5)을 어기지 않는 이유다. 프로세스가 죽으면 대기 중인 갱신은
  * 사라지고, 그때 잃는 것은 "전적이 잠시 낡아 있다"뿐이다. 그래서 종료 때 기다리지도 않는다.
  */
 @Configuration
-@EnableAsync
 public class GameStatsAsyncConfig {
 
-    /** {@code @Async} 가 가리키는 이름. 스프링의 공용 실행기를 쓰지 않는다 — 전적이 다른 일을 밀어내지 않게 */
+    /** 빈 이름. 스프링의 공용 실행기를 쓰지 않는다 — 전적이 다른 일을 밀어내지 않게 */
     public static final String EXECUTOR = "gameStatsExecutor";
 
     /**

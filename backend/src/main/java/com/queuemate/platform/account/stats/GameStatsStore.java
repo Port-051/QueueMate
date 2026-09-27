@@ -38,20 +38,41 @@ public class GameStatsStore {
     }
 
     /**
-     * 긁어 온 것을 적는다 — 전적 스냅숏 upsert 와 {@code external_id} 를 <b>한 트랜잭션</b>으로.
-     * 스냅숏이 바뀌었는데 식별자만 남는(또는 그 반대) 일이 없게 한다.
+     * 긁어 온 것을 적는다 — 전적 스냅숏 upsert 와 게임 계정 줄의 {@code external_id} · 티어 · 주 포지션을 <b>한 트랜잭션</b>으로.
+     * 스냅숏이 바뀌었는데 식별자만 남는(또는 그 반대) 일이 없게 한다. 전적 갱신({@link GameStatsRefresher#refresh})의 길이다 —
+     * {@code game_nickname} 은 건드리지 않는다.
      */
     @Transactional
     public void save(Long gameAccountId, StatsSnapshot snapshot, Instant now)
     {
+        write(gameAccountId, snapshot, now);
+    }
+
+    /**
+     * <b>LoL 게임 계정 연결</b>(2026-09-27 소유자 결정) — 게임 계정 줄 upsert(이름 · 티어 · 주 포지션)와 긁어 온 것을 <b>한 트랜잭션</b>으로 적는다.
+     * Riot 을 다 긁은 <b>뒤에</b> 부른다 — 긁는 동안 커넥션을 붙잡지 않는다({@link GameStatsRefresher#link}).
+     * {@code server} 는 {@code null} 이다(LoL 에 서버가 없다 — DB 의 CHECK 도 PUBG 만 받는다).
+     *
+     * @throws org.springframework.dao.DataIntegrityViolationException 그 사용자가 DB 에 없다(FK) — 부르는 쪽이 401 로 옮긴다
+     */
+    @Transactional
+    public void link(Long userId, Game game, String gameNickname, StatsSnapshot snapshot, Instant now)
+    {
+        gameAccountRepository.upsert(userId, game.name(), gameNickname, snapshot.tier(), snapshot.mainPosition(), null, now);
+        Long gameAccountId = gameAccountRepository.findIdByUserIdAndGame(userId, game)
+                .orElseThrow(() -> new IllegalStateException("방금 넣은 게임 계정이 없다 userId=" + userId + " game=" + game));
+        write(gameAccountId, snapshot, now);
+    }
+
+    private void write(Long gameAccountId, StatsSnapshot snapshot, Instant now)
+    {
         statsRepository.upsert(gameAccountId, snapshot.games(), snapshot.avgKills(), snapshot.avgDeaths(),
                 snapshot.avgAssists(), snapshot.wins(), snapshot.losses(), snapshot.winStreak(),
                 snapshot.detail(), SOURCE_API, now);
-        if(snapshot.externalId() != null)
-        {
-            gameAccountRepository.updateExternalId(gameAccountId, snapshot.externalId(), now);
-        }
-        log.info("전적 스냅숏 저장 gameAccountId={} games={} wins={} losses={} winStreak={}",
-                gameAccountId, snapshot.games(), snapshot.wins(), snapshot.losses(), snapshot.winStreak());
+        gameAccountRepository.applyRiotProfile(gameAccountId, snapshot.externalId(), snapshot.tier(),
+                snapshot.mainPosition(), now);
+        log.info("전적 스냅숏 저장 gameAccountId={} games={} wins={} losses={} winStreak={} tier={} mainPosition={}",
+                gameAccountId, snapshot.games(), snapshot.wins(), snapshot.losses(), snapshot.winStreak(),
+                snapshot.tier(), snapshot.mainPosition());
     }
 }

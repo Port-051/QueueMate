@@ -101,12 +101,18 @@ final class FakeRiotApi {
                 : "{\"id\":\"" + summonerId + "\",\"puuid\":\"" + puuid + "\",\"profileIconId\":1234,\"summonerLevel\":300}");
     }
 
-    /** 솔로랭크 줄이 있는 리그 목록. 자유랭크 줄을 같이 넣는다 — 그쪽 승/패를 읽지 않는지 본다 */
+    /** 솔로랭크 줄(에메랄드 IV)이 있는 리그 목록. 자유랭크 줄을 같이 넣는다 — 그쪽 승/패 · 티어를 읽지 않는지 본다 */
     void stubSoloRank(String summonerId, int wins, int losses)
+    {
+        stubSoloRank(summonerId, "EMERALD", "IV", wins, losses);
+    }
+
+    /** 티어를 골라 넣는다 — Riot 의 {@code tier} · {@code rank} 그대로({@code "MASTER"} · {@code "I"}). 자유랭크 줄(골드 II)을 같이 넣는다 */
+    void stubSoloRank(String summonerId, String tier, String rank, int wins, int losses)
     {
         leagues.put(summonerId, "["
                 + entry("RANKED_FLEX_SR", "GOLD", "II", 99, 99) + ","
-                + entry("RANKED_SOLO_5x5", "EMERALD", "IV", wins, losses)
+                + entry("RANKED_SOLO_5x5", tier, rank, wins, losses)
                 + "]");
     }
 

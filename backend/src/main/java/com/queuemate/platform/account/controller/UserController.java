@@ -47,6 +47,9 @@ public class UserController {
      * {@code game} 은 경로에서 enum 으로 받는다 — 모르는 이름 · 소문자는 스프링의 형 변환이 400 {@code VALIDATION_FAILED} 로 거절한다
      * (게시판 목록의 {@code game} 과 같은 본문. 2026-09-27 소유자 지시 — 문자열로 받아 서비스가 파던 것을 없앴다).
      * 응답은 <b>게임 프로필</b>이다({@code verified} · {@code stats} 포함 — 둘은 요청으로 바꿀 수 없다).
+     *
+     * <p><b>LoL 은 본문이 {@code gameNickname}(이름#태그) 하나이고 저장하기 전에 Riot 을 긁는다</b>(최대 30초 — 2026-09-27 소유자 결정).
+     * 티어 · 주 포지션 · 전적이 Riot 에서 채워져 응답에 바로 들어 있다. VALORANT · PUBG 는 자기신고 그대로다. 갈래는 {@code UserService#putGameAccount}.
      */
     @PutMapping("/game-accounts/{game}")
     public GameProfileResponse putGameAccount(@CurrentUserId Long userId, @PathVariable Game game,

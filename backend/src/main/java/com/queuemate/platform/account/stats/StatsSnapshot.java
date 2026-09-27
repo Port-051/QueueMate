@@ -20,6 +20,10 @@ import java.math.BigDecimal;
  * @param losses     시즌 누적 패. {@code wins} 와 같이 있거나 같이 없다
  * @param winStreak  가장 최근 경기부터 이어지는 연승. 최근 경기가 패면 0 이고, 경기를 하나도 못 읽었으면 {@code null}
  * @param detail     게임마다 다른 나머지를 담은 <b>JSON 객체의 글자</b>(jsonb 로 들어간다). LoL 은 {@code {"mostChampions": […]}} 다
+ * @param tier         <b>{@code game_accounts.tier} 에 적는다</b>(2026-09-27 소유자 결정 — LoL 은 티어를 요청으로 받지 않고 Riot 에서 채운다).
+ *                     gameconfig 티어 사다리의 이름({@code GOLD_2} · {@code MASTER})이다. 언랭이거나 사다리에 없는 이름이면 {@code null}
+ * @param mainPosition <b>{@code game_accounts.main_position} 에 적는다</b>(같은 결정) — 최근 경기에서 가장 많이 간 포지션을
+ *                     {@code Game.LOL} 의 이름({@code TOP} · {@code MID} …)으로 옮긴 것. 경기가 없거나 전부 빈 값이면 {@code null}
  */
 public record StatsSnapshot(
         String externalId,
@@ -30,6 +34,8 @@ public record StatsSnapshot(
         Integer wins,
         Integer losses,
         Integer winStreak,
-        String detail
+        String detail,
+        String tier,
+        String mainPosition
 ) {
 }

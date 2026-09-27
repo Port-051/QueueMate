@@ -7,6 +7,9 @@ import jakarta.validation.constraints.Size;
 /**
  * 게임 계정 연결 요청. 어느 게임인지는 경로에 있다.
  *
+ * <p><b>LoL 은 {@code gameNickname}(이름#태그) 하나만 받는다</b>(2026-09-27 소유자 결정) — {@code tier} · {@code mainPosition} · {@code server} 는
+ * Riot 에서 채우므로 보내면 400 이다. 아래 칸 설명의 "자기신고"는 <b>VALORANT · PUBG</b> 의 것이다. 게임별로 가르는 것은 서비스다({@code UserService#putGameAccount}).
+ *
  * @param gameNickname 그 게임 안에서의 이름. 40자까지
  * @param tier         자기신고 티어. 없어도 된다(안 적을 수 있다 — 값이 있을 때만 본다). <b>그 게임의 티어 사다리에 있는 이름이어야 한다</b>
  *                     (2026-09-24 소유자 결정) — 목록의 원본은 {@code matching} 의 gameconfig(Redis)라 서비스가 읽어서 본다({@code GameConfigReader}).

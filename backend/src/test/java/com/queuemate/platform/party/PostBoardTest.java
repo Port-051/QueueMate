@@ -49,10 +49,11 @@ class PostBoardTest extends PostTestSupport {
         String noAccount = newNickname();
         Cookie hostCookie = login(host);
         Long hostId = userIdOf(host);
-        putGameAccount(hostCookie, "LOL", json("gameNickname", "host#KR1", "tier", "EMERALD_4", "mainPosition", "MID"));
+        insertGameAccount(hostId, "LOL", "host#KR1", "EMERALD_4", "MID");
         insertStats(hostId, "LOL", 180, 184, "{\"mostChampions\":[{\"championId\":103,\"games\":40,\"winRate\":55}]}");
-        putGameAccount(login(support), "LOL", json("gameNickname", "sup#KR1", "tier", "GOLD_1", "mainPosition", "SUPPORT"));
+        login(support);
         Long supportId = userIdOf(support);
+        insertGameAccount(supportId, "LOL", "sup#KR1", "GOLD_1", "SUPPORT");
         // LOL 계정은 없고 VALORANT 계정만 있다 — 이 글(LOL)의 카드에서는 profile 이 null 이다
         putGameAccount(login(noAccount), "VALORANT", json("gameNickname", "val#1", "mainPosition", "DUELIST"));
         Long noAccountId = userIdOf(noAccount);
@@ -506,8 +507,9 @@ class PostBoardTest extends PostTestSupport {
             String host = newNickname();
             String member = newNickname();
             Cookie hostCookie = login(host);
-            putGameAccount(hostCookie, "LOL", json("gameNickname", "h" + i, "mainPosition", "MID"));
-            putGameAccount(login(member), "LOL", json("gameNickname", "m" + i, "mainPosition", "TOP"));
+            insertGameAccount(userIdOf(host), "LOL", "h" + i, null, "MID");
+            login(member);
+            insertGameAccount(userIdOf(member), "LOL", "m" + i, null, "TOP");
             Long postId = createLolPost(hostCookie, "TOP", "MID");
             openRoom(postId, userIdOf(host), userIdOf(member), unknownUserId());
             posts.add(postId);

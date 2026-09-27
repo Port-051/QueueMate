@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
  * JOIN 할 짝이 없고, 어차피 {@code IN} 한 번이다.
  *
  * <p><b>게임사 API 를 부르지 않는다</b> — DB 의 스냅숏({@code game_account_stats})만 읽는다. 그 스냅숏을 채우는 것은
- * {@code account.stats} 이고 목록을 그리는 길과 따로 돈다(비동기 — {@code contracts/platform-api.md} "전적을 긁는 것").
+ * {@code account.stats} 이고 목록을 그리는 길과 따로 돈다(게임 계정 연결 · 전적 갱신 — {@code contracts/platform-api.md} "전적을 긁는 것").
  */
 @Component
 @RequiredArgsConstructor

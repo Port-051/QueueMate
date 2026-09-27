@@ -1,6 +1,7 @@
 package com.queuemate.platform.account.stats;
 
 import com.queuemate.platform.account.domain.Game;
+import com.queuemate.platform.common.gameconfig.GameConfigReader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -16,6 +17,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.ToIntFunction;
 
 /**
@@ -26,10 +28,20 @@ import java.util.function.ToIntFunction;
  * <ol>
  *   <li>게임 닉네임을 {@code 이름#태그} 로 가른다 — <b>태그가 없으면 긁지 않는다</b>({@code null} 을 돌려준다)</li>
  *   <li>{@code account-v1} → {@code puuid}</li>
- *   <li>{@code summoner-v4} → 소환사 {@code id} → {@code league-v4} 에서 <b>솔로랭크 줄</b>의 승/패(= 시즌 누적)</li>
+ *   <li>{@code summoner-v4} → 소환사 {@code id} → {@code league-v4} 에서 <b>솔로랭크 줄</b>의 승/패(= 시즌 누적)와 <b>티어</b></li>
  *   <li>{@code match-v5} → 최근 경기 id 목록(새 경기가 먼저)</li>
- *   <li>경기마다 참가자 가운데 <b>그 {@code puuid} 인 사람</b>의 챔피언 · K/D/A · 승패</li>
+ *   <li>경기마다 참가자 가운데 <b>그 {@code puuid} 인 사람</b>의 챔피언 · K/D/A · 승패 · 포지션</li>
  * </ol>
+ *
+ * <p><b>티어와 주 포지션도 여기서 만든다</b>(2026-09-27 소유자 결정 — LoL 은 요청에서 {@code tier} · {@code mainPosition} 을 빼고 Riot 에서 채운다).
+ * 부르는 횟수는 늘지 않았다 — 원래 받아 오던 칸({@code tier} · {@code rank} · {@code teamPosition})을 이제 저장할 뿐이다.
+ * <ul>
+ *   <li><b>티어</b> — 솔로랭크 줄의 {@code tier} + {@code rank} 를 gameconfig 사다리의 이름으로({@link #ladderName}). 줄이 없으면(언랭) {@code null},
+ *       만든 이름이 사다리에 없으면(Riot 이 티어를 새로 만들었다 등) WARN 하고 {@code null}. Redis 를 못 읽으면 {@link GameConfigReader} 의 fail-open 대로 그 이름을 그대로 둔다</li>
+ *   <li><b>주 포지션</b> — 읽은 경기의 {@code teamPosition} 가운데 가장 많은 것({@link #mainPosition}). 동률이면 먼저(= 더 최근에) 나온 것이다</li>
+ * </ul>
+ *
+ * <p><b>Riot ID 가 없으면({@code account-v1} 404) {@link RiotIdNotFoundException}</b> 이다 — 게임 계정 연결이 404 {@code RIOT_ID_NOT_FOUND} 로 옮긴다.
  *
  * <p><b>없는 칸에 터지지 않는다</b> — 못 읽은 칸은 {@code null} 이거나 그 경기를 건너뛴다({@code JsonText} 의 방식).
  * 지식이 낡아 실제 응답이 다를 수 있으므로, 칸 하나가 사라져도 나머지로 스냅숏이 만들어진다. 다만 {@code puuid} 를 못 읽으면 아무것도 할 수 없어 끝낸다.
@@ -47,6 +59,8 @@ public class LolStatsProvider implements GameStatsProvider {
     /** 소환사의 encrypted summoner id — {@code league-v4} 를 부르는 열쇠다 */
     private static final String FIELD_SUMMONER_ID = "id";
     private static final String FIELD_QUEUE_TYPE = "queueType";
+    private static final String FIELD_TIER = "tier";
+    private static final String FIELD_RANK = "rank";
     private static final String FIELD_WINS = "wins";
     private static final String FIELD_LOSSES = "losses";
     private static final String FIELD_INFO = "info";
@@ -64,9 +78,29 @@ public class LolStatsProvider implements GameStatsProvider {
     /** {@code detail} 의 모스트 챔피언은 셋까지다 ({@code contracts/platform-api.md} "게임 프로필") */
     private static final int MOST_CHAMPIONS = 3;
 
+    /**
+     * 단이 없는 티어 — 사다리 이름에 {@code _단} 을 붙이지 않는다({@code MASTER}). Riot 은 이 셋에도 {@code rank: "I"} 를 준다.
+     * 사다리의 원본은 {@code matching/seed/gameconfig.redis} 의 {@code qm:gameconfig:LOL:tier} 다
+     */
+    private static final List<String> APEX_TIERS = List.of("MASTER", "GRANDMASTER", "CHALLENGER");
+
+    /** Riot 의 단(로마 숫자) → 사다리 이름의 숫자. 사다리는 {@code GOLD_4} … {@code GOLD_1} 이다 */
+    private static final Map<String, String> DIVISIONS = Map.of("I", "1", "II", "2", "III", "3", "IV", "4");
+
+    /**
+     * Riot 의 {@code teamPosition} → {@link Game#LOL} 의 포지션 이름. 여기 없는 값({@code ""} · {@code "Invalid"} — 칼바람 · 이른 항복 등)은 세지 않는다
+     */
+    private static final Map<String, String> POSITIONS = Map.of(
+            "TOP", "TOP",
+            "JUNGLE", "JUNGLE",
+            "MIDDLE", "MID",
+            "BOTTOM", "ADC",
+            "UTILITY", "SUPPORT");
+
     private final RiotApiClient riot;
     private final RiotProperties properties;
     private final ObjectMapper objectMapper;
+    private final GameConfigReader gameConfig;
 
     @Override
     public Game game()
@@ -80,12 +114,12 @@ public class LolStatsProvider implements GameStatsProvider {
         String[] riotId = splitRiotId(gameNickname);
         if(riotId == null)
         {
-            // 닉네임은 사용자가 적는 자유 문자열이다 — 형식이 아니면 긁을 수 없다. 본 작업(계정 연결 · 글 쓰기)은 이미 성공했다
+            // 연결은 이 형식을 먼저 400 으로 거른다({@link #isRiotId}). 여기 오는 것은 그 검사 전에 저장된 옛 줄뿐이다
             log.warn("LoL 게임 닉네임이 '이름#태그' 가 아니라 전적을 긁지 않는다");
             return null;
         }
 
-        String puuid = text(riot.account(riotId[0], riotId[1]).path(FIELD_PUUID));
+        String puuid = text(account(riotId[0], riotId[1]).path(FIELD_PUUID));
         if(puuid == null)
         {
             log.warn("Riot 의 계정 응답에 {} 가 없다 — 전적을 긁지 않는다", FIELD_PUUID);
@@ -103,12 +137,43 @@ public class LolStatsProvider implements GameStatsProvider {
                 rank == null ? null : rank.wins(),
                 rank == null ? null : rank.losses(),
                 games == 0 ? null : winStreak(played),
-                detail(played));
+                detail(played),
+                rank == null ? null : onLadder(rank.tier()),
+                mainPosition(played));
     }
 
-    // ---- 3걸음: 솔로랭크의 시즌 누적 승/패 ----
+    /**
+     * {@code 이름#태그} 꼴인가 — 게임 계정 연결이 <b>Riot 을 부르기 전에</b> 400 으로 거르는 데 쓴다({@code account.service.UserService}).
+     * 가르는 규칙은 {@link #fetch} 와 같다(한 곳에 둔다).
+     */
+    public static boolean isRiotId(String gameNickname)
+    {
+        return splitRiotId(gameNickname) != null;
+    }
 
-    /** 솔로랭크 줄. 언랭이거나 응답의 모양이 달라 못 읽으면 {@code null} 이다 — 그러면 {@code wins} · {@code losses} 가 둘 다 비어 나간다 */
+    /** {@code account-v1}. <b>404 만 따로 가른다</b> — 이름#태그가 Riot 에 없다는 뜻이고 사용자가 고칠 수 있다 */
+    private JsonNode account(String gameName, String tagLine)
+    {
+        try
+        {
+            return riot.account(gameName, tagLine);
+        }
+        catch(RiotApiException e)
+        {
+            if(e.status() == 404)
+            {
+                throw new RiotIdNotFoundException(e);
+            }
+            throw e;
+        }
+    }
+
+    // ---- 3걸음: 솔로랭크의 시즌 누적 승/패와 티어 ----
+
+    /**
+     * 솔로랭크 줄. 언랭이거나 응답의 모양이 달라 못 읽으면 {@code null} 이다 — 그러면 {@code wins} · {@code losses} · 티어가 전부 비어 나간다.
+     * 줄은 있는데 승/패 한쪽을 못 읽으면 승/패만 비우고 티어는 살린다
+     */
     private SoloRank soloRank(String puuid)
     {
         String summonerId = text(riot.summoner(puuid).path(FIELD_SUMMONER_ID));
@@ -130,8 +195,10 @@ public class LolStatsProvider implements GameStatsProvider {
             }
             Integer wins = integer(entry.path(FIELD_WINS));
             Integer losses = integer(entry.path(FIELD_LOSSES));
+            String tier = ladderName(text(entry.path(FIELD_TIER)), text(entry.path(FIELD_RANK)));
             // 한쪽만 읽히면 둘 다 버린다 — DB 의 CHECK 가 "같이 있거나 같이 없다"를 건다
-            return (wins == null || losses == null) ? null : new SoloRank(wins, losses);
+            boolean both = wins != null && losses != null;
+            return new SoloRank(both ? wins : null, both ? losses : null, tier);
         }
         return null;
     }
@@ -192,6 +259,72 @@ public class LolStatsProvider implements GameStatsProvider {
                     text(participant.path(FIELD_TEAM_POSITION)));
         }
         return null;
+    }
+
+    // ---- 티어 · 포지션 ----
+
+    /**
+     * Riot 의 {@code tier} + {@code rank} → gameconfig 사다리의 이름. {@code GOLD} + {@code II} → {@code GOLD_2},
+     * {@code MASTER} + {@code I} → {@code MASTER}(단이 없는 셋). 못 만들면 {@code null} — 사다리 검사는 {@link #onLadder} 가 한다
+     */
+    static String ladderName(String tier, String rank)
+    {
+        if(tier == null)
+        {
+            return null;
+        }
+        if(APEX_TIERS.contains(tier))
+        {
+            return tier;
+        }
+        String division = (rank == null) ? null : DIVISIONS.get(rank);
+        if(division == null)
+        {
+            log.warn("Riot 의 단을 읽지 못했다 tier={} rank={} — 티어를 비운다", tier, rank);
+            return null;
+        }
+        return tier + "_" + division;
+    }
+
+    /** 사다리에 없는 이름이면 WARN 하고 {@code null}. Redis 를 못 읽으면 {@link GameConfigReader} 가 통과시킨다(fail-open) — 그 이름을 그대로 둔다 */
+    private String onLadder(String ladderName)
+    {
+        if(ladderName == null)
+        {
+            return null;
+        }
+        if(gameConfig.hasTier(Game.LOL, ladderName))
+        {
+            return ladderName;
+        }
+        log.warn("Riot 이 준 티어가 gameconfig 사다리에 없다 tier={} — 티어를 비운다(seed 를 확인하라)", ladderName);
+        return null;
+    }
+
+    /**
+     * 읽은 경기의 포지션 가운데 가장 많은 것. <b>동률이면 먼저 나온 것</b>이다 — 경기는 새 것이 먼저라 더 최근에 간 포지션이다.
+     * 경기가 없거나 전부 모르는 값이면 {@code null}
+     */
+    static String mainPosition(List<Played> played)
+    {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        for(Played one : played)
+        {
+            Optional.ofNullable(one.teamPosition()).map(POSITIONS::get)
+                    .ifPresent(position -> counts.merge(position, 1, Integer::sum));
+        }
+        String best = null;
+        int bestCount = 0;
+        for(Map.Entry<String, Integer> entry : counts.entrySet())
+        {
+            // 엄격히 클 때만 바꾼다 — 같으면 먼저 들어간(더 최근의) 것이 남는다
+            if(entry.getValue() > bestCount)
+            {
+                best = entry.getKey();
+                bestCount = entry.getValue();
+            }
+        }
+        return best;
     }
 
     // ---- 모아서 계산하는 것 ----
@@ -319,15 +452,16 @@ public class LolStatsProvider implements GameStatsProvider {
         return value == null ? 0 : value;
     }
 
-    private record SoloRank(int wins, int losses) {
+    /** 솔로랭크 줄. {@code wins} · {@code losses} 는 같이 있거나 같이 없다. {@code tier} 는 사다리 이름(검사 전)이다 */
+    private record SoloRank(Integer wins, Integer losses, String tier) {
     }
 
     /**
      * 경기 하나에서 이 사람의 기록.
      *
-     * @param teamPosition Riot 이 주는 포지션. <b>읽기만 하고 저장하지 않는다</b> — 이 앱에서 포지션의 출처는
-     *                     프로필의 <b>주 포지션</b>(자기신고)이다(CLAUDE.md §7.1). Riot 이 주는 칸을 한곳에 모아 두려고 남겨 둔다
+     * @param teamPosition Riot 이 주는 포지션({@code TOP} · {@code MIDDLE} · {@code UTILITY} …). 가장 많은 것이 <b>주 포지션</b>이 된다
+     *                     ({@link #mainPosition} — 2026-09-27 소유자 결정. 그 전에는 읽기만 하고 저장하지 않았다)
      */
-    private record Played(String championName, int kills, int deaths, int assists, boolean win, String teamPosition) {
+    record Played(String championName, int kills, int deaths, int assists, boolean win, String teamPosition) {
     }
 }

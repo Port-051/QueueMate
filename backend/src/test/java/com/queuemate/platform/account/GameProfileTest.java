@@ -27,7 +27,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 게임 프로필 — {@code contracts/platform-api.md} "게임 프로필". 게임 계정 {@code PUT} 의 {@code server}, 읽기 전용 칸({@code verified} · {@code stats}),
  * 전적 스냅숏을 읽는 쪽, 그리고 {@code account} 밖에 내주는 창구({@link GameProfileReader}).
  *
- * <p><b>전적을 채우는 기능은 없다</b> — 그래서 테스트가 SQL 로 줄을 직접 넣어 읽는 쪽을 본다.
+ * <p><b>전적을 채우는 것은 이 컨텍스트에서 돌지 않는다</b>({@code RIOT_API_KEY} 가 없다 — 채우는 쪽은 {@code stats.GameStatsSyncTest}) — 그래서 테스트가 SQL 로 줄을 직접 넣어 읽는 쪽을 본다.
+ * <b>LoL 게임 계정도 SQL 로 넣는다</b>({@link #insertGameAccount}) — LoL 연결은 Riot 을 긁어야 저장된다(2026-09-27 소유자 결정).
  *
  * <p>SQL 과 창구가 쓰는 것은 <b>사용자 번호</b>({@link #userIdOf})다 — 로그인 아이디는 가입 · 로그인에만 쓴다.
  */
@@ -42,13 +43,13 @@ class GameProfileTest extends ApiTestSupport {
     {
         Cookie cookie = login(newNickname());
 
-        putGameAccount(cookie, "LOL", json("gameNickname", "달콤한 인생#KR7", "tier", "EMERALD_4", "mainPosition", "MID"))
+        putGameAccount(cookie, "VALORANT", json("gameNickname", "제트#KR7", "tier", "DIAMOND_2", "mainPosition", "DUELIST"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.game").value("LOL"))
-                .andExpect(jsonPath("$.gameNickname").value("달콤한 인생#KR7"))
+                .andExpect(jsonPath("$.game").value("VALORANT"))
+                .andExpect(jsonPath("$.gameNickname").value("제트#KR7"))
                 .andExpect(jsonPath("$.verified").value(false))
-                .andExpect(jsonPath("$.tier").value("EMERALD_4"))
-                .andExpect(jsonPath("$.mainPosition").value("MID"))
+                .andExpect(jsonPath("$.tier").value("DIAMOND_2"))
+                .andExpect(jsonPath("$.mainPosition").value("DUELIST"))
                 .andExpect(jsonPath("$.server").isEmpty())
                 .andExpect(jsonPath("$.stats").isEmpty())
                 // 게임사 쪽 식별자는 밖에 내보내지 않는다
@@ -101,15 +102,15 @@ class GameProfileTest extends ApiTestSupport {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
         Long userId = userIdOf(nickname);
-        putGameAccount(cookie, "LOL", json("gameNickname", "before", "tier", "GOLD_1", "mainPosition", "TOP"))
+        putGameAccount(cookie, "VALORANT", json("gameNickname", "before", "tier", "DIAMOND_2", "mainPosition", "SENTINEL"))
                 .andExpect(status().isOk());
         // 게임사 인증이 붙었다고 치고 DB 에서 직접 켠다 — 앱에는 켜는 길이 없다
         jdbcTemplate.update("update game_accounts set verified = true, external_id = 'puuid-123' "
-                + "where user_id = ? and game = 'LOL'", userId);
-        insertStats(gameAccountId(userId, "LOL"), 15, 10, 5, "3.0", "2.0", "4.0", 2, "{}");
+                + "where user_id = ? and game = 'VALORANT'", userId);
+        insertStats(gameAccountId(userId, "VALORANT"), 15, 10, 5, "3.0", "2.0", "4.0", 2, "{}");
 
         // 본문에 읽기 전용 칸을 실어 보내도 무시된다
-        putGameAccount(cookie, "LOL", "{\"gameNickname\":\"after\",\"tier\":\"GOLD_2\",\"mainPosition\":\"MID\","
+        putGameAccount(cookie, "VALORANT", "{\"gameNickname\":\"after\",\"tier\":\"ASCENDANT_1\",\"mainPosition\":\"DUELIST\","
                 + "\"verified\":false,\"externalId\":\"hacked\",\"stats\":{\"wins\":999}}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.gameNickname").value("after"))
@@ -117,7 +118,7 @@ class GameProfileTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.stats.wins").value(10));
 
         assertThat(jdbcTemplate.queryForObject(
-                "select external_id from game_accounts where user_id = ? and game = 'LOL'",
+                "select external_id from game_accounts where user_id = ? and game = 'VALORANT'",
                 String.class, userId)).isEqualTo("puuid-123");
     }
 
@@ -127,8 +128,7 @@ class GameProfileTest extends ApiTestSupport {
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
-        putGameAccount(cookie, "LOL", json("gameNickname", "stats", "tier", "EMERALD_4", "mainPosition", "MID"))
-                .andExpect(status().isOk());
+        insertGameAccount(userIdOf(nickname), "LOL", "stats#KR1", "EMERALD_4", "MID");
         insertStats(gameAccountId(userIdOf(nickname), "LOL"), 364, 180, 184, "10.6", "5.7", "5.8", 3,
                 "{\"mostChampions\":[{\"championId\":103,\"games\":40,\"winRate\":55}]}");
 
@@ -158,7 +158,7 @@ class GameProfileTest extends ApiTestSupport {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
         Long userId = userIdOf(nickname);
-        putGameAccount(cookie, "LOL", json("gameNickname", "a")).andExpect(status().isOk());
+        insertGameAccount(userId, "LOL", "a#KR1", null, null);
         putGameAccount(cookie, "VALORANT", json("gameNickname", "b")).andExpect(status().isOk());
         insertStats(gameAccountId(userId, "LOL"), 0, 0, 0, "3.0", "0.0", "1.0", 0, "{}");
         insertStats(gameAccountId(userId, "VALORANT"), 4, 3, 1, null, null, null, 0, "{}");
@@ -211,10 +211,10 @@ class GameProfileTest extends ApiTestSupport {
         String withStatsNickname = newNickname();
         String withoutStatsNickname = newNickname();
         String otherGameOnlyNickname = newNickname();
-        putGameAccount(login(withStatsNickname), "LOL",
-                json("gameNickname", "one", "tier", "GOLD_1", "mainPosition", "MID")).andExpect(status().isOk());
-        putGameAccount(login(withoutStatsNickname), "LOL",
-                json("gameNickname", "two", "tier", null, "mainPosition", "SUPPORT")).andExpect(status().isOk());
+        login(withStatsNickname);
+        login(withoutStatsNickname);
+        insertGameAccount(userIdOf(withStatsNickname), "LOL", "one", "GOLD_1", "MID");
+        insertGameAccount(userIdOf(withoutStatsNickname), "LOL", "two", null, "SUPPORT");
         putGameAccount(login(otherGameOnlyNickname), "PUBG",
                 json("gameNickname", "three", "server", "STEAM")).andExpect(status().isOk());
         Long withStats = userIdOf(withStatsNickname);

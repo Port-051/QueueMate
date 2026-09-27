@@ -37,7 +37,7 @@ class PostApiTest extends PostTestSupport {
         String host = newNickname();
         Cookie cookie = login(host);
         Long hostId = userIdOf(host);
-        putGameAccount(cookie, "LOL", json("gameNickname", "달콤한 인생#KR7", "tier", "EMERALD_4", "mainPosition", "MID"));
+        insertGameAccount(hostId, "LOL", "달콤한 인생#KR7", "EMERALD_4", "MID");
 
         createPost(cookie, lolPostBody("에메 듀오 구해요", "SUPPORT", "MID", "SUPPORT"))
                 .andExpect(status().isCreated())

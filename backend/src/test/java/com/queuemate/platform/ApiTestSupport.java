@@ -246,6 +246,22 @@ public abstract class ApiTestSupport {
     }
 
     /**
+     * API 를 거치지 않고 게임 계정 한 줄을 바로 넣고 그 번호를 돌려준다(있으면 바꾼다). <b>LoL 은 연결이 Riot 을 긁어야 저장되므로</b>
+     * (2026-09-27 소유자 결정 — {@code PUT …/game-accounts/LOL}) 게시판 · 프로필 테스트가 Riot 흐름을 매번 타지 않고 계정을 갖추려고 쓴다.
+     * 사용자를 지우면 FK 의 {@code ON DELETE CASCADE} 가 같이 지운다.
+     */
+    protected Long insertGameAccount(Long userId, String game, String gameNickname, String tier, String mainPosition)
+    {
+        return jdbcTemplate.queryForObject("insert into game_accounts "
+                        + "(user_id, game, game_nickname, tier, main_position, created_at, updated_at) "
+                        + "values (?, ?, ?, ?, ?, now(), now()) "
+                        + "on conflict on constraint game_accounts_user_id_game_key do update "
+                        + "set game_nickname = excluded.game_nickname, tier = excluded.tier, "
+                        + "main_position = excluded.main_position, updated_at = excluded.updated_at returning id",
+                Long.class, userId, game, gameNickname, tier, mainPosition);
+    }
+
+    /**
      * 그 닉네임의 사용자로 로그인해서 <b>access 쿠키</b>를 돌려준다 — 없으면 {@code users} 에 먼저 만든다. 사용자 번호는 {@link #userIdOf} 로 꺼낸다.
      * 소셜 흐름을 HTTP 로 타지 않고 앱의 {@link AccessTokenIssuer} 로 직접 찍는다(소셜 가입이 곧바로 주는 쿠키와 같은 것이다).
      */

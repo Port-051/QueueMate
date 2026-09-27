@@ -10,7 +10,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
@@ -21,8 +25,10 @@ import java.util.concurrent.TimeoutException;
  * <b>사용자가 눌러서 하는 전적 갱신</b>({@code POST /api/v1/users/me/game-accounts/{game}/refresh} — 2026-09-24 소유자 결정 ·
  * {@code contracts/platform-api.md} "전적을 긁는 것"). 게임 계정을 저장할 때만 갱신되던 것을 <b>원할 때</b> 하는 길이다.
  *
- * <p><b>동기다 — 다 긁을 때까지 기다렸다가 최신을 준다</b>(소유자 결정). 그래서 {@link GameStatsSyncWorker#sync} 의 {@code @Async} 길을
- * 쓸 수 없다 — 그쪽은 결과를 돌려주지 않고 예외를 삼킨다. 알맹이({@link GameStatsSyncWorker#syncNow})는 같은 것을 쓴다.
+ * <p><b>동기다 — 다 긁을 때까지 기다렸다가 최신을 준다</b>(소유자 결정). 알맹이는 {@link GameStatsSyncWorker#syncNow} 다.
+ *
+ * <p><b>LoL 게임 계정 연결도 이 클래스가 한다</b>({@link #link} — 2026-09-27 소유자 결정). 같은 풀 · 같은 상한 · 같은 자물쇠를 쓰고
+ * <b>쿨타임은 적용하지 않는다</b>(쿨타임은 전적 갱신 요청의 것이다). 거절의 갈래는 {@link #link} 의 주석에 있다.
  *
  * <p><b>상한(30초)을 어떻게 거나 — 전용 풀에 던지고 {@link Future#get(long, TimeUnit)} 으로 기다린다.</b>
  * 요청 스레드에서 그냥 긁으면 <b>자를 방법이 없다</b>(Riot 호출 21번 × 읽기 타임아웃 3초). 상한을 넘기면 요청은 실패로 끝내지만
@@ -50,22 +56,88 @@ public class GameStatsRefresher {
     static final String NOT_SUPPORTED = "GAME_STATS_NOT_SUPPORTED";
     static final String TOO_MANY_REFRESHES = "TOO_MANY_STATS_REFRESHES";
     static final String UNAVAILABLE = "GAME_STATS_UNAVAILABLE";
+    /** LoL 게임 계정 연결에서 그 Riot ID({@code 이름#태그})가 Riot 에 없다 — 2026-09-27. 이름과 글귀는 Claude 가 정했다 */
+    static final String RIOT_ID_NOT_FOUND = "RIOT_ID_NOT_FOUND";
 
     private final RiotProperties properties;
     private final GameStatsSyncWorker worker;
     private final GameStatsStore store;
     private final GameStatsRefreshCooldown cooldown;
+    private final GameStatsSyncLock lock;
     private final ThreadPoolTaskExecutor executor;
 
     public GameStatsRefresher(RiotProperties properties, GameStatsSyncWorker worker, GameStatsStore store,
-                              GameStatsRefreshCooldown cooldown,
+                              GameStatsRefreshCooldown cooldown, GameStatsSyncLock lock,
                               @Qualifier(GameStatsAsyncConfig.EXECUTOR) ThreadPoolTaskExecutor executor)
     {
         this.properties = properties;
         this.worker = worker;
         this.store = store;
         this.cooldown = cooldown;
+        this.lock = lock;
         this.executor = executor;
+        if(properties.configured())
+        {
+            log.info("게임 전적 동기화가 켜져 있다 — {}", properties);
+        }
+        else
+        {
+            // 키를 찍지 않는다. 환경변수의 이름만 남긴다
+            log.info("RIOT_API_KEY 가 없어 게임 전적을 긁지 않는다 — LoL 게임 계정 연결 · 전적 갱신이 503 이다");
+        }
+    }
+
+    /**
+     * <b>LoL 게임 계정 연결</b>({@code PUT …/game-accounts/LOL} — 2026-09-27 소유자 결정). 저장하기 <b>전에</b> Riot 을 긁고,
+     * 성공하면 게임 계정 줄(이름 · 티어 · 주 포지션 · {@code external_id})과 전적을 <b>한 트랜잭션</b>으로 적은 뒤 다시 읽어 돌려준다.
+     * <b>실패하면 아무것도 적지 않는다</b> — 연동이 안 된 것이다.
+     *
+     * <p>거절 — 404 {@code RIOT_ID_NOT_FOUND}(그 이름#태그가 Riot 에 없다) · 429 {@code TOO_MANY_STATS_REFRESHES}(누가 이미 같은 계정을 긁고 있다) ·
+     * 503 {@code GAME_STATS_UNAVAILABLE}(Riot 거절 · 429 · 응답 없음 · 30초 초과 · {@code RIOT_API_KEY} 없음 · 응답에 {@code puuid} 가 없다).
+     * <b>쿨타임은 보지도 찍지도 않는다.</b>
+     *
+     * <p><b>긁기는 전용 풀 · 저장은 이 스레드다</b> — 전적 갱신과 다르다. 30초를 넘겨 이 요청이 503 으로 끝났는데 뒤에서 긁기가 끝나 저장해 버리면
+     * "503 을 받았는데 연결돼 있다"가 된다. 그래서 풀에서는 긁기만 하고, 상한 안에 돌아온 것만 이 스레드가 적는다(늦게 끝난 긁기는 버려진다).
+     * 자물쇠도 이 스레드가 잡고 푼다 — 게임 계정이 <b>이미 있을 때만</b> 잡는다(키가 계정 번호라 처음 연결에는 잡을 것이 없다.
+     * 처음 연결이 동시에 둘 와도 upsert 가 한 줄만 남긴다).
+     *
+     * @throws org.springframework.dao.DataIntegrityViolationException 그 사용자가 DB 에 없다(FK) — 부르는 쪽이 401 로 옮긴다
+     */
+    public GameAccountWithStats link(Long userId, Game game, String gameNickname)
+    {
+        if(!worker.supports(game))
+        {
+            throw new IllegalStateException(game + " 은 게임사 API 로 연결하지 않는다");
+        }
+        if(!properties.configured())
+        {
+            log.warn("게임 계정 연결 요청을 받았지만 RIOT_API_KEY 가 없다 userId={} game={}", userId, game);
+            throw unavailable();
+        }
+        Optional<Long> existingId = store.find(userId, game).map(found -> found.account().getId());
+        GameStatsSyncLock.Token token = existingId.map(lock::acquire).orElse(null);
+        try
+        {
+            if(token != null && !token.proceed())
+            {
+                log.info("게임 계정 연결 거절(이미 긁는 중) userId={} gameAccountId={}", userId, existingId.get());
+                throw tooManyRefreshes(GameStatsSyncLock.LOCK_TTL.toSeconds());
+            }
+            StatsSnapshot snapshot = await(() -> worker.fetch(game, gameNickname), "게임 계정 연결 userId=" + userId, true);
+            if(snapshot == null)
+            {
+                // 물어볼 수 없었다 — 형식은 부르는 쪽이 400 으로 먼저 거르므로 Riot 응답에 puuid 가 없던 경우다
+                throw unavailable();
+            }
+            store.link(userId, game, gameNickname, snapshot, Instant.now().truncatedTo(ChronoUnit.MILLIS));
+            log.info("게임 계정 연결 userId={} game={} tier={} mainPosition={}", userId, game, snapshot.tier(), snapshot.mainPosition());
+        }
+        finally
+        {
+            lock.release(token);
+        }
+        return store.find(userId, game).orElseThrow(() -> new IllegalStateException(
+                "방금 넣은 게임 계정이 없다 userId=" + userId + " game=" + game));
     }
 
     /**
@@ -98,7 +170,7 @@ public class GameStatsRefresher {
             throw tooManyRefreshes(remaining.getAsLong());
         }
 
-        SyncOutcome outcome = await(userId, game, gameAccountId);
+        SyncOutcome outcome = await(() -> worker.syncNow(userId, game), "전적 갱신 gameAccountId=" + gameAccountId, false);
         log.info("전적 갱신 userId={} gameAccountId={} outcome={}", userId, gameAccountId, outcome);
         return switch(outcome)
         {
@@ -117,25 +189,26 @@ public class GameStatsRefresher {
 
     /**
      * 전용 풀에 던지고 상한만큼 기다린다. <b>기다림을 넘기거나 · 던질 자리가 없거나 · 긁다가 터지면 전부 503 이다</b> —
-     * 실패의 갈래를 응답으로 가르지 않고 로그로만 남긴다.
+     * 실패의 갈래를 응답으로 가르지 않고 로그로만 남긴다. 예외는 하나 — {@code riotIdNotFound} 가 켜져 있으면(게임 계정 연결)
+     * Riot ID 가 없다는 것만 404 {@code RIOT_ID_NOT_FOUND} 로 가른다(전적 갱신은 지금처럼 503 이다 — 그 요청의 거절 갈래를 바꾸지 않았다).
      */
-    private SyncOutcome await(Long userId, Game game, Long gameAccountId)
+    private <T> T await(Callable<T> task, String what, boolean riotIdNotFound)
     {
         if(executor.getThreadPoolExecutor().getQueue().remainingCapacity() == 0)
         {
             // DiscardPolicy 라 던져도 조용히 버려진다 — 30초를 기다린 뒤 503 이 될 것을 지금 끊는다
-            log.warn("전적 갱신을 시작하지 못했다 — 전용 풀의 큐가 꽉 찼다 gameAccountId={}", gameAccountId);
+            log.warn("긁기를 시작하지 못했다 — 전용 풀의 큐가 꽉 찼다 {}", what);
             throw unavailable();
         }
-        Future<SyncOutcome> scraping;
+        Future<T> scraping;
         try
         {
-            scraping = executor.submit(() -> worker.syncNow(userId, game));
+            scraping = executor.submit(task);
         }
         catch(RejectedExecutionException e)
         {
             // 지금 정책(DiscardPolicy)에서는 오지 않는다. 정책이 바뀌어도 500 이 되지 않게 받아 둔다
-            log.warn("전적 갱신을 시작하지 못했다 gameAccountId={}: {}", gameAccountId, e.toString());
+            log.warn("긁기를 시작하지 못했다 {}: {}", what, e.toString());
             throw unavailable();
         }
         try
@@ -144,14 +217,19 @@ public class GameStatsRefresher {
         }
         catch(TimeoutException e)
         {
-            // 자르지 않는다 — 뒤에서 끝나면 전적은 갱신된다(자물쇠가 그동안 중복을 막는다). 버려진 작업도 여기로 온다
-            log.warn("전적 갱신이 {} 안에 끝나지 않았다 — 요청만 끊는다 gameAccountId={}", properties.refreshTimeout(), gameAccountId);
+            // 자르지 않는다 — 전적 갱신은 뒤에서 끝나면 적힌다(자물쇠가 그동안 중복을 막는다). 연결은 그 결과를 버린다. 버려진 작업도 여기로 온다
+            log.warn("{} 안에 끝나지 않았다 — 요청만 끊는다 {}", properties.refreshTimeout(), what);
             throw unavailable();
         }
         catch(ExecutionException e)
         {
             Throwable cause = (e.getCause() == null) ? e : e.getCause();
-            log.warn("전적 갱신에 실패했다 gameAccountId={}: {}", gameAccountId, cause.toString());
+            if(riotIdNotFound && cause instanceof RiotIdNotFoundException)
+            {
+                log.info("Riot 에 그 Riot ID 가 없다 {}", what);
+                throw new ApiException(HttpStatus.NOT_FOUND, RIOT_ID_NOT_FOUND, "Riot 에 그 이름#태그가 없습니다");
+            }
+            log.warn("긁기에 실패했다 {}: {}", what, cause.toString());
             throw unavailable();
         }
         catch(InterruptedException e)

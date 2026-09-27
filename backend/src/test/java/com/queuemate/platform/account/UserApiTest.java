@@ -54,54 +54,78 @@ class UserApiTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("게임 계정 PUT 은 없으면 만들고 있으면 바꾼다 — 두 번 불러도 한 줄이다")
+    @DisplayName("게임 계정 PUT 은 없으면 만들고 있으면 바꾼다 — 두 번 불러도 한 줄이다 (자기신고 — VALORANT · PUBG)")
     void putGameAccountTwice() throws Exception
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
 
-        putGameAccount(cookie, "LOL", json("gameNickname", "Hide on bush", "tier", "GOLD_1", "mainPosition", "MID"))
+        putGameAccount(cookie, "VALORANT", json("gameNickname", "val#KR1", "tier", "DIAMOND_2", "mainPosition", "SENTINEL"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.game").value("LOL"))
-                .andExpect(jsonPath("$.gameNickname").value("Hide on bush"))
-                .andExpect(jsonPath("$.tier").value("GOLD_1"))
-                .andExpect(jsonPath("$.mainPosition").value("MID"));
+                .andExpect(jsonPath("$.game").value("VALORANT"))
+                .andExpect(jsonPath("$.gameNickname").value("val#KR1"))
+                .andExpect(jsonPath("$.tier").value("DIAMOND_2"))
+                .andExpect(jsonPath("$.mainPosition").value("SENTINEL"));
 
         // 바꾸기 — 티어와 포지션을 비운다(null 이 그대로 들어가는지도 같이 본다)
-        putGameAccount(cookie, "LOL", json("gameNickname", "Faker", "tier", null, "mainPosition", null))
+        putGameAccount(cookie, "VALORANT", json("gameNickname", "jett#KR2", "tier", null, "mainPosition", null))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.gameNickname").value("Faker"))
+                .andExpect(jsonPath("$.gameNickname").value("jett#KR2"))
                 .andExpect(jsonPath("$.tier").isEmpty())
                 .andExpect(jsonPath("$.mainPosition").isEmpty());
 
-        putGameAccount(cookie, "VALORANT", json("gameNickname", "val#KR1", "tier", "DIAMOND_2", "mainPosition", "SENTINEL"))
-                .andExpect(status().isOk());
         putGameAccount(cookie, "PUBG", json("gameNickname", "chicken", "tier", null, "mainPosition", null))
                 .andExpect(status().isOk());
 
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from game_accounts where user_id = ? and game = 'LOL'",
+                "select count(*) from game_accounts where user_id = ? and game = 'VALORANT'",
                 Integer.class, userIdOf(nickname))).isEqualTo(1);
         // 게임 이름순으로 온다
         mockMvc.perform(get("/api/v1/users/me").cookie(cookie))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.gameAccounts.length()").value(3))
-                .andExpect(jsonPath("$.gameAccounts[0].game").value("LOL"))
-                .andExpect(jsonPath("$.gameAccounts[0].gameNickname").value("Faker"))
-                .andExpect(jsonPath("$.gameAccounts[0].tier").isEmpty())
-                .andExpect(jsonPath("$.gameAccounts[1].game").value("PUBG"))
-                .andExpect(jsonPath("$.gameAccounts[2].game").value("VALORANT"))
-                .andExpect(jsonPath("$.gameAccounts[2].mainPosition").value("SENTINEL"));
+                .andExpect(jsonPath("$.gameAccounts.length()").value(2))
+                .andExpect(jsonPath("$.gameAccounts[0].game").value("PUBG"))
+                .andExpect(jsonPath("$.gameAccounts[1].game").value("VALORANT"))
+                .andExpect(jsonPath("$.gameAccounts[1].gameNickname").value("jett#KR2"))
+                .andExpect(jsonPath("$.gameAccounts[1].tier").isEmpty());
     }
 
     @Test
-    @DisplayName("그 게임의 포지션이 아니면 400 이다. PUBG 는 포지션을 받지 않는다")
+    @DisplayName("LOL 은 Riot 에서 채운다 — tier · mainPosition · server 를 보내면 400 이고, 이름#태그가 아니면 400 이다. Riot 을 부르기 전에 거른다")
+    void lolRejectsSelfReportedFields() throws Exception
+    {
+        Cookie cookie = login(newNickname());
+
+        putGameAccount(cookie, "LOL", json("gameNickname", "Faker#KR1", "tier", "GOLD_1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(detailFor("tier"));
+        putGameAccount(cookie, "LOL", json("gameNickname", "Faker#KR1", "mainPosition", "MID"))
+                .andExpect(status().isBadRequest())
+                .andExpect(detailFor("mainPosition"));
+        putGameAccount(cookie, "LOL", json("gameNickname", "Faker#KR1", "server", "STEAM"))
+                .andExpect(status().isBadRequest())
+                .andExpect(detailFor("server"));
+        // 형식 — 태그가 없다 · 한쪽이 비었다
+        for(String bad : new String[]{"Hide on bush", "Faker#", "#KR1"})
+        {
+            putGameAccount(cookie, "LOL", json("gameNickname", bad))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(detailFor("gameNickname"));
+        }
+
+        mockMvc.perform(get("/api/v1/users/me").cookie(cookie))
+                .andExpect(jsonPath("$.gameAccounts").isEmpty());
+    }
+
+    @Test
+    @DisplayName("그 게임의 포지션 · 티어가 아니면 400 이다. PUBG 는 포지션을 받지 않는다 (자기신고 — VALORANT · PUBG)")
     void invalidGameAccount() throws Exception
     {
         Cookie cookie = login(newNickname());
 
-        // VALORANT 의 역할을 LOL 에
-        putGameAccount(cookie, "LOL", json("gameNickname", "x", "tier", "GOLD_1", "mainPosition", "DUELIST"))
+        // LOL 의 포지션을 VALORANT 에
+        putGameAccount(cookie, "VALORANT", json("gameNickname", "x", "tier", "DIAMOND_2", "mainPosition", "TOP"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(detailFor("mainPosition"));
@@ -109,17 +133,17 @@ class UserApiTest extends ApiTestSupport {
                 .andExpect(status().isBadRequest())
                 .andExpect(detailFor("mainPosition"));
         // 소문자 티어 · 빈 게임 닉네임 · 모르는 게임
-        putGameAccount(cookie, "LOL", json("gameNickname", "x", "tier", "gold", "mainPosition", null))
+        putGameAccount(cookie, "VALORANT", json("gameNickname", "x", "tier", "gold", "mainPosition", null))
                 .andExpect(status().isBadRequest())
                 .andExpect(detailFor("tier"));
         // 사다리에 없는 이름 · 다른 게임의 티어(2026-09-24 — 값의 목록은 gameconfig 가 원본이다)
-        putGameAccount(cookie, "LOL", json("gameNickname", "x", "tier", UNKNOWN_TIER, "mainPosition", null))
+        putGameAccount(cookie, "VALORANT", json("gameNickname", "x", "tier", UNKNOWN_TIER, "mainPosition", null))
                 .andExpect(status().isBadRequest())
                 .andExpect(detailFor("tier"));
-        putGameAccount(cookie, "LOL", json("gameNickname", "x", "tier", "ASCENDANT_1", "mainPosition", null))
+        putGameAccount(cookie, "PUBG", json("gameNickname", "x", "tier", "ASCENDANT_1", "mainPosition", null))
                 .andExpect(status().isBadRequest())
                 .andExpect(detailFor("tier"));
-        putGameAccount(cookie, "LOL", json("gameNickname", " ", "tier", null, "mainPosition", null))
+        putGameAccount(cookie, "VALORANT", json("gameNickname", " ", "tier", null, "mainPosition", null))
                 .andExpect(status().isBadRequest())
                 .andExpect(detailFor("gameNickname"));
         putGameAccount(cookie, "OVERWATCH", json("gameNickname", "x", "tier", null, "mainPosition", null))
@@ -138,9 +162,9 @@ class UserApiTest extends ApiTestSupport {
     @DisplayName("게임 계정 DELETE 는 두 번 다 204 다 — 없어도 성공이다")
     void deleteGameAccountTwice() throws Exception
     {
-        Cookie cookie = login(newNickname());
-        putGameAccount(cookie, "LOL", json("gameNickname", "x", "tier", "GOLD_1", "mainPosition", "TOP"))
-                .andExpect(status().isOk());
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
+        insertGameAccount(userIdOf(nickname), "LOL", "x#KR1", "GOLD_1", "TOP");
 
         mockMvc.perform(delete("/api/v1/users/me/game-accounts/LOL").cookie(cookie)).andExpect(status().isNoContent());
         mockMvc.perform(delete("/api/v1/users/me/game-accounts/LOL").cookie(cookie)).andExpect(status().isNoContent());
@@ -157,8 +181,7 @@ class UserApiTest extends ApiTestSupport {
         String theirs = newNickname();
         Cookie myCookie = login(mine);
         Cookie theirCookie = login(theirs);
-        putGameAccount(theirCookie, "LOL", json("gameNickname", "theirs", "tier", null, "mainPosition", null))
-                .andExpect(status().isOk());
+        insertGameAccount(userIdOf(theirs), "LOL", "theirs", null, null);
 
         mockMvc.perform(delete("/api/v1/users/me/game-accounts/LOL").cookie(myCookie)).andExpect(status().isNoContent());
 
