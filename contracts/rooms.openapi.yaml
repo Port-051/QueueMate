@@ -77,7 +77,7 @@ paths:
         automatically reopens the remaining room, including manually closed rooms, unless the
         reservation start time has passed. An empty room is deleted; owner departure transfers
         ownership to a remaining member. Changes emit ROOMS_UPDATED after commit.
-        The UI exposes only CONFIRM; REOPEN remains available for existing API clients.
+        The UI uses a single recruitment-close toggle: CONFIRM when open, REOPEN when closed.
         Reopening checks Redis availability and emits ROOMS_UPDATED after commit.
       requestBody:
         required: true
