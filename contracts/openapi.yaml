@@ -15,6 +15,14 @@ info:
 servers:
   - url: /api/v1
 
+# > 개정 이력: 2026-09-27 — 이 사본이 원본보다 앞서간 변경이다 (contracts/README.md A-12).
+#   인증은 쿠키 qm_access 의 access 토큰(RS256 JWT)이다. app:platform 이 발급하고 이 앱은 공개 키로 검증만 한다
+#   (서명 · exp · iss=queuemate-platform · token_use=access · sub 가 숫자 문자열). "나"는 sub 다 —
+#   요청 바디의 userId 와 쿼리 파라미터 ?userId= 는 없어졌다 (docs/11 D-14 · D-24 · D-25).
+#   실패는 401 UNAUTHENTICATED 하나. 상태를 바꾸는 요청은 Origin 이 허용 목록 밖이면 403 ORIGIN_NOT_ALLOWED.
+security:
+  - cookieAuth: []
+
 paths:
   # ── gameconfig ────────────────────────────────────────────────
   /games:
@@ -35,6 +43,7 @@ paths:
         [구현됨] MatchingController#createMatchRequest
         INV-1 위반 시 409.
         Redis 장애 시 503 (INV-10 fail-closed) — 원본 계약에는 없는 응답이다.
+        요청한 사람은 쿠키의 sub 다 (2026-09-27 — 그 전에는 바디의 userId).
       requestBody:
         required: true
         content:
@@ -47,6 +56,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/MatchRequestView' }
         '400': { description: Invalid match condition }
+        '401': { description: Missing or invalid qm_access cookie (UNAUTHENTICATED) }
+        '403': { description: Origin not allowed (ORIGIN_NOT_ALLOWED) }
         '409': { description: User already has active request (ALREADY_QUEUED) or is in a board room (IN_ROOM) }
         '503': { description: Matching unavailable (Redis down, fail-closed) }
 
@@ -62,6 +73,8 @@ paths:
         [미구현] 이 저장소에 @GetMapping 이 없다.
         SSE 경로도 없으므로 현재 클라이언트가 매칭 진행 상황을 알 수단이 전혀 없다.
         contracts/README.md "가장 큰 구멍" 참고.
+        (2026-09-17 이후: 구현은 경로 변수 없는 GET /match-requests 로 조회한다 — contracts/README.md #5.
+         2026-09-27 부터 "나"는 쿠키의 sub 이고 ?userId= 는 없다)
       responses:
         '200':
           description: OK
@@ -73,9 +86,12 @@ paths:
       description: |
         [구현됨] MatchingController#cancelMatchRequest
         compare-and-delete — 저장된 requestId 와 경로 id 가 같을 때만 지운다.
-        구현은 계약에 없는 userId 쿼리 파라미터를 요구한다 (JWT 도입 전 임시).
+        누구의 요청인지는 쿠키의 sub 다. (2026-09-27 까지 구현은 계약에 없는 userId 쿼리
+        파라미터를 요구했다 — JWT 도입 전 임시. 지금은 없다)
       responses:
         '204': { description: Cancelled }
+        '401': { description: Missing or invalid qm_access cookie (UNAUTHENTICATED) }
+        '403': { description: Origin not allowed (ORIGIN_NOT_ALLOWED) }
         '404': { description: No active request, or requestId mismatch }
         '503': { description: Matching unavailable (Redis down, fail-closed) }
 
@@ -83,7 +99,9 @@ paths:
   /proposals/{id}/accept:
     post:
       summary: Accept proposal
-      description: '[미구현] INV-4 / INV-5 를 지킬 수락 집계 Lua 가 아직 없다 (docs/11 #28).'
+      description: |
+        [미구현] INV-4 / INV-5 를 지킬 수락 집계 Lua 가 아직 없다 (docs/11 #28).
+        (이후 구현됨 — contracts/README.md #6. 수락하는 사람은 쿠키의 sub 다 — 2026-09-27 까지는 ?userId=)
       parameters:
         - name: id
           in: path
@@ -99,7 +117,9 @@ paths:
   /proposals/{id}/decline:
     post:
       summary: Decline proposal
-      description: '[미구현]'
+      description: |
+        [미구현] (이후 구현됨 — contracts/README.md #6. 거절하는 사람은 쿠키의 sub 이고 ?requestId= 를 받는다.
+        2026-09-27 까지는 ?userId= 도 받았다)
       parameters:
         - name: id
           in: path
@@ -109,6 +129,13 @@ paths:
         '200': { description: Declined }
 
 components:
+  securitySchemes:
+    # 2026-09-27 — contracts/README.md A-12. 발급은 app:platform (Set-Cookie: qm_access; HttpOnly; SameSite=Lax; Path=/)
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: qm_access
+
   schemas:
     GameKey:
       type: string
@@ -147,12 +174,13 @@ components:
     CreateMatchRequest:
       allOf:
         - $ref: '#/components/schemas/MatchCondition'
-      # ⚠ 구현은 여기에 두 필드를 더 받는다 (2026-09-11 확인).
-      #   userId (필수, String)      — JWT 도입 전 임시 필드다.
+      # ⚠ 구현은 여기에 한 필드를 더 받는다 (2026-09-11 확인 · 2026-09-27 갱신).
+      #   (userId (필수, String)     — JWT 도입 전 임시 필드였다. 2026-09-27 에 없어졌다 — 쿠키의 sub 가 대신한다.
+      #                                 보내도 무시된다)
       #   tier   (선택, String)      — 랭크 티어. gameconfig 의 tierRule 이 NONE 이 아닌
       #                                모드에서는 사실상 필수이고, 빠지면 400 이다.
       #                                조건이 아니라 derived/자격 조건이다 (docs/02 §6).
-      #                                라이엇 계정 연동이 붙으면 userId 와 함께 사라진다.
+      #                                라이엇 계정 연동이 붙으면 사라진다.
 
     MatchRequestView:
       type: object
@@ -202,6 +230,8 @@ components:
             - MATCH_REQUEST_NOT_FOUND
             - MATCH_REQUEST_MISMATCH
             - MATCHING_UNAVAILABLE     # INV-10 fail-closed
+            - UNAUTHENTICATED          # 401 — 쿠키 qm_access 가 없거나 검증 실패 (2026-09-27, A-12)
+            - ORIGIN_NOT_ALLOWED       # 403 — 상태 변경 요청의 Origin 이 허용 목록 밖 (2026-09-27, A-12)
         message: { type: string }
         details:
           type: array
