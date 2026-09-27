@@ -1,5 +1,6 @@
 #!/bin/bash
-cd "/mnt/c/Users/kimye/OneDrive/바탕 화면/matching/load-test"
+# 2026-09-27: 바디의 tier · 쿠키 qm_access · 숫자 사용자 번호는 match_latency.py / prefill.py 가 처리한다 (TIER 환경변수, 기본 GOLD_2).
+cd "$(dirname "$0")" || exit 1
 OUT=results_match.txt
 : > $OUT
 run() { # label conc procs rounds sleep prefillN

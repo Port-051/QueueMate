@@ -17,9 +17,16 @@ HTTP 201 은 접수만 알려준다. 파티 배정은 @Async 로 뒤에서 돌�
 
 측정 하한: 폴링 sleep 간격 + Redis RTT(호스트에서 약 0.11ms).
 관측 불확실 구간(직전 폴링~성공 폴링)을 gap 으로 함께 기록한다.
+
+2026-09-27 이후의 API 에 맞춘 것 (ltconfig.py · devjwt.py 참고)
+  · 바디에 tier 가 있다(RANKED_SOLO 는 tierRule=EXIST). 값은 TIER 환경변수, 기본 GOLD_2.
+    모든 부하 사용자가 한 티어라 색인은 격자의 칸 하나(needs:{포지션}:{TIER})만 쓴다.
+  · userId 는 바디가 아니라 쿠키 qm_access(RS256 JWT)의 sub 다. 사용자 번호는 숫자여야 하므로
+    "A{run}_{slot}_{i}" 같은 문자열 대신 ltconfig.run_base(RUN) 에서 시작하는 번호를 쓴다.
+    토큰은 요청 직전(t0 이전)에 찍으므로 서명 시간(~1ms)은 측정에 안 들어간다.
+  · Origin 헤더는 안 보낸다 — 없는 요청은 OriginCheckFilter 를 통과한다.
 """
 import http.client
-import json
 import os
 import statistics
 import sys
@@ -31,10 +38,12 @@ from multiprocessing import Process
 
 sys.setswitchinterval(0.0005)   # 폴러 스레드가 GIL 을 오래 못 잡게 한다
 
+import devjwt
+import ltconfig
 from resp import Resp
 
-HOST, PORT = "127.0.0.1", 8080
-REDIS_HOST, REDIS_PORT = "127.0.0.1", 6379
+HOST, PORT = ltconfig.HOST, ltconfig.PORT
+REDIS_HOST, REDIS_PORT = ltconfig.REDIS_HOST, ltconfig.REDIS_PORT
 
 POLL_SLEEP = float(os.environ.get("POLL_SLEEP", "0.0"))
 DISCARD    = int(os.environ.get("DISCARD", "0"))   # 슬롯당 앞 N회는 통계에서 뺀다
@@ -46,17 +55,24 @@ TIMEOUT    = float(os.environ.get("MATCH_TIMEOUT", "30"))
 LABEL      = os.environ.get("LABEL", "run")
 RUN        = os.environ.get("RUN_ID", uuid.uuid4().hex[:8])
 
+# 사용자 번호: RUN_BASE + (slot * SLOT_STRIDE + i) * 2 → A, 그 다음 번호 → B.
+# 슬롯 하나가 SLOT_STRIDE 회를 넘으면 번호가 다음 슬롯과 겹치므로 거기서 멈춘다.
+RUN_BASE    = ltconfig.run_base(RUN)
+SLOT_STRIDE = 100_000
 
-def body(uid, pos):
-    return json.dumps({
-        "userId": uid, "game": "LOL", "modeKey": "RANKED_SOLO",
-        "keyCondition": {"type": "POSITION", "value": pos},
-        "voicePreference": "REQUIRED", "playPurpose": "RANK_UP"})
+
+def user_ids(slot, i):
+    a = RUN_BASE + (slot * SLOT_STRIDE + i) * 2
+    return str(a), str(a + 1)
+
+
+def body(pos):
+    return ltconfig.body(pos)
 
 
 def post(conn, uid, pos):
-    conn.request("POST", "/api/v1/match-requests", body(uid, pos),
-                 {"Content-Type": "application/json"})
+    """uid 의 토큰은 여기 들어오기 전에 찍어 둔다(devjwt 캐시) — 호출부가 t0 를 재기 전에 mint 한다."""
+    conn.request("POST", "/api/v1/match-requests", body(pos), ltconfig.headers(uid))
     r = conn.getresponse()
     r.read()
     return r.status
@@ -121,9 +137,11 @@ class Runner(threading.Thread):
                     break
             elif i >= self.rounds:
                 break
-            a = f"A{RUN}_{self.slot}_{i}"
-            b = f"B{RUN}_{self.slot}_{i}"
+            if i >= SLOT_STRIDE:
+                self.out.append(("id_space_exhausted", 0, 0, 0, 0, 0, time.time())); break
+            a, b = user_ids(self.slot, i)
             try:
+                devjwt.mint(a); devjwt.mint(b)   # 서명은 측정 밖에서
                 if not self.prefill:
                     if post(conn, a, "TOP") != 201:
                         self.out.append(("http_a", 0, 0, 0, 0, 0, time.time())); continue

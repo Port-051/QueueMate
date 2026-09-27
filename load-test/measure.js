@@ -10,9 +10,13 @@
 // 만드는 경로라 후보 탐색 비용이 들어 있지 않다.
 //
 // warmup 시나리오의 요청은 커스텀 지표에 넣지 않는다 (JIT 예열용).
+//
+// 사용자 · 토큰 · tier 는 lt.js 가 정한다. 반복마다 풀에서 (TOP 용, JUNGLE 용) 토큰 한 쌍을 꺼내며,
+// stock.js 가 쓴 앞부분을 피하도록 run.sh 가 TOKEN_OFFSET=N 을 넘긴다. 풀이 모자라면 token_exhausted 가 오른다.
 import http from 'k6/http';
 import exec from 'k6/execution';
 import { Trend, Counter } from 'k6/metrics';
+import { body, params, pairFor } from './lt.js';
 
 const BASE = __ENV.BASE_URL;
 const VUS = parseInt(__ENV.VUS || '20');
@@ -39,19 +43,8 @@ export const options = {
     },
 };
 
-function post(userId, position, op, measured) {
-    const body = JSON.stringify({
-        userId: userId,
-        game: 'LOL',
-        modeKey: 'RANKED_SOLO',
-        keyCondition: { type: 'POSITION', value: position },
-        voicePreference: 'OPTIONAL',
-        playPurpose: 'RANK_UP',
-    });
-    const r = http.post(`${BASE}/api/v1/match-requests`, body, {
-        headers: { 'Content-Type': 'application/json' },
-        tags: { op: op },
-    });
+function post(tok, position, op, measured) {
+    const r = http.post(`${BASE}/api/v1/match-requests`, body(position), params(tok, { op: op }));
     if (measured) {
         joinLat.add(r.timings.duration);
         if (r.status === 201) joinOk.add(1); else joinBad.add(1);
@@ -63,12 +56,13 @@ function post(userId, position, op, measured) {
 
 export default function () {
     const isMain = exec.scenario.name === 'main';
-    const tag = `${__ENV.RUN_ID}_${exec.scenario.name}_${__VU}_${__ITER}`;
+    const pair = pairFor(WARMUP, DURATION);
+    if (!pair) return;
 
     // 1) 재보충: TOP 1건 -> 대기 파티 +1
-    post(`t${tag}`, 'TOP', 'stock', false);
+    post(pair[0], 'TOP', 'stock', false);
     // 2) 측정: JUNGLE 1건 -> 색인 맨 앞 파티에 합류, 대기 파티 -1
-    post(`j${tag}`, 'JUNGLE', 'join', isMain);
+    post(pair[1], 'JUNGLE', 'join', isMain);
 }
 
 export function handleSummary(data) {

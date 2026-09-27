@@ -1,5 +1,7 @@
 #!/bin/bash
-cd "/mnt/c/Users/kimye/OneDrive/바탕 화면/matching/load-test"
+# 2026-09-27: 바디의 tier · 쿠키 qm_access · 숫자 사용자 번호는 match_latency.py / prefill.py 가 처리한다 (TIER 환경변수, 기본 GOLD_2).
+# 배경부하 sweep_load.py($SP)는 스크래치패드에 있던 파일이라 없다 — runbg 계열은 재현 불가 (docs/PERFORMANCE_EVIDENCE.md §4).
+cd "$(dirname "$0")" || exit 1
 SP="/tmp/claude-1000/-mnt-c-Users-kimye-OneDrive-------queueMate/0ce3c982-127a-4b84-9354-51289fc1cee5/scratchpad"
 OUT=results_final.txt
 : > $OUT
