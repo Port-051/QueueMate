@@ -1,12 +1,11 @@
 import { SlidingSelector } from './SlidingSelector';
 import { TierRangePicker } from './TierRangePicker';
 import { SingleRolePicker } from './SingleRolePicker';
-import { Fragment, useState, type ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import type { GameKey } from '../api/types';
 import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
-import { TIER_LABELS, tiers } from '../domain/recruitment';
 import { normalizeDesiredRoles } from '../domain/introduction';
-import type { MatchResult, SelfIntroduction } from '../domain/introduction';
+import type { SelfIntroduction } from '../domain/introduction';
 import { FilterModeIcon, FilterRoleIcon } from './FilterSymbols';
 import { VoiceIcon } from './FilterSymbols';
 import '../styles/introduction.css';
@@ -18,16 +17,11 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
   const ownRoles = value.primaryRoles ?? (value.primaryRole !== 'ANY' ? [value.primaryRole] : []);
   const allOwnRoles = keyConditionOptions(game).some(role => role.value === 'ANY') && roles.every(role => ownRoles.includes(role.value));
   const hasRoles = usesKeyCondition(game, value.queueType);
-  const [championText, setChampionText] = useState(value.champions.join(', '));
   const patch = (next: Partial<SelfIntroduction>) => onChange({ ...value, ...next });
   const roleTitle = game === 'LOL' ? compact ? '내 포지션' : '포지션' : game === 'VALORANT' ? '주 역할' : '플레이 스타일';
   const VoiceField = compact ? 'div' : 'fieldset';
   const VoiceLabel = compact ? 'span' : 'legend';
   const SettingsPair = compact ? 'div' : Fragment;
-  const championTitle = game === 'LOL' ? '선호 챔피언' : game === 'VALORANT' ? '선호 요원' : '선호 무기';
-  const wins = value.recentResults.filter(result => result === 'WIN').length;
-  const losses = value.recentResults.filter(result => result === 'LOSS').length;
-  const nextResult = (current: MatchResult): MatchResult => current === null ? 'WIN' : current === 'WIN' ? 'LOSS' : null;
   return <section className="self-introduction" aria-label="자기소개">
     <div className="introduction-fields button-fields">
       <fieldset className="introduction-choice"><legend>게임 모드</legend><SlidingSelector enabled={compact} className={`intro-mode-options${compact ? ' room-mode-options' : ''}`} role="group" aria-label="원하는 큐 타입">
@@ -48,16 +42,7 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
         {([{ value: 'OPTIONAL', label: '무관' }, { value: 'REQUIRED', label: '사용' }, { value: 'NO_VOICE', label: '안 씀' }] as const).filter(option => !binaryVoice || option.value !== 'OPTIONAL').map(({ value: voice, label }) => <button type="button" key={voice} className="filter-mode" aria-label={binaryVoice ? voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용' : label} title={binaryVoice ? voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용' : label} aria-pressed={value.voice === voice} onClick={() => patch({ voice })}><VoiceIcon preference={voice} />{!binaryVoice || compact ? <span>{compact && voice === 'NO_VOICE' ? '미사용' : label}</span> : null}</button>)}
       </SlidingSelector></VoiceField>
       </SettingsPair>
-      {game !== 'LOL' ? <label>내 티어<select aria-label="내 티어" value={value.ownTier ?? ''} onChange={event => patch({ ownTier: event.target.value || null, rankDivision: null })}><option value="">미입력</option>{tiers(game).map(tier => <option key={tier} value={tier}>{TIER_LABELS[tier]}</option>)}</select></label> : null}
-      {game !== 'LOL' ? <label className="introduction-wide">{championTitle}<input aria-label={championTitle} maxLength={100} placeholder={game === 'VALORANT' ? '예: 제트, 레이나' : '예: M416, 미니14'} value={championText} onChange={event => { setChampionText(event.target.value); patch({ champions: event.target.value.split(',').map(name => name.trim()).filter(Boolean) }); }} /></label> : null}
       <label className="introduction-wide">한마디<input aria-label="한마디" maxLength={120} placeholder="편하게 두 판 하실 분, 서로 존중해요" value={value.bio} onChange={event => patch({ bio: event.target.value })} /></label>
     </div>
-    {game !== 'LOL' ? <details className="introduction-records"><summary>승률 · KDA · 최근 20경기 <span>직접 입력</span></summary>
-      <div className="introduction-fields">
-        <label>승률 (%)<input aria-label="승률 (%)" type="number" min={0} max={100} step="0.1" placeholder="미입력" value={value.winRate ?? ''} onChange={event => patch({ winRate: event.target.value === '' ? null : Number(event.target.value) })} /></label>
-        <label>KDA<input aria-label="KDA" type="number" min={0} step="0.01" placeholder="미입력" value={value.kda ?? ''} onChange={event => patch({ kda: event.target.value === '' ? null : Number(event.target.value) })} /></label>
-      </div>
-      <fieldset className="introduction-recent"><legend>최근 20경기 <span>{wins}승 {losses}패</span></legend><div className="recent-results editable">{value.recentResults.map((result, index) => <button type="button" key={index} className={result === 'WIN' ? 'win' : result === 'LOSS' ? 'loss' : 'unknown'} aria-label={`최근 ${index + 1}경기: ${result === 'WIN' ? '승리' : result === 'LOSS' ? '패배' : '미입력'}`} title={`${index + 1}번째 경기 · 누르면 승/패/미입력 전환`} onClick={() => patch({ recentResults: value.recentResults.map((item, at) => at === index ? nextResult(item) : item) })}>{result === 'WIN' ? '승' : result === 'LOSS' ? '패' : '–'}</button>)}</div><p className="hint">최근 경기부터 입력 · 누르면 승 → 패 → 미입력</p></fieldset>
-    </details> : null}
   </section>;
 }
