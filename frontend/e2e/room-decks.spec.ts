@@ -626,7 +626,7 @@ test('방 필터는 아이콘과 이름을 한 줄에 배치하고 높이 44px�
       const rect = control.getBoundingClientRect();
       return { centerY: rect.y + rect.height / 2, right: rect.right };
     });
-    const choices = Array.from(element.querySelectorAll('.filter-mode,.filter-role,.tier-range-endpoint')).map(choice => {
+    const choices = Array.from(element.querySelectorAll('.board-mode-options .filter-mode,.tier-range-endpoint')).map(choice => {
       const icon = choice.querySelector('.rank-emblem,svg,img')!.getBoundingClientRect();
       const label = choice.querySelector(':scope > strong,:scope > span:last-child')!;
       const rect = label.getBoundingClientRect();

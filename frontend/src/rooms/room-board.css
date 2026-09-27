@@ -339,14 +339,14 @@
 }
 .room-home .intro-role-options>.filter-role[aria-pressed=true] { border-color:var(--accent); }
 
-/* Board filters place each icon beside its label in compact capsules. */
-.room-home .board-setting-filter { width:160px; }
+/* Compact board controls keep roles and voice as labeled, accessible icons. */
+.room-home .board-setting-filter { width:calc(var(--room-option-height) * 2 + var(--room-selector-inset) * 2 + 2px); }
 .room-home .board-setting-filter:has(.tier-range-picker) { width:248px; }
 .room-home .room-filters .room-mode-options { display:flex; }
 .room-home .room-filters .filter-mode { flex:none; flex-direction:row; gap:5px; padding:3px 8px; white-space:nowrap; }
-.room-home .room-filters .room-setting-row .intro-voice-options.is-binary>.filter-mode { min-width:0; flex-direction:row; gap:5px; padding:3px 8px; }
+.room-home .room-filters .room-setting-row .intro-voice-options.is-binary>.filter-mode { min-width:0; flex-direction:row; padding:0; }
 .room-home .room-filters .board-role-filter { display:flex; width:auto; padding:0; }
-.room-home .room-filters .board-role-filter>.filter-role { flex-direction:row; aspect-ratio:auto; width:auto; height:var(--room-control-height); padding:0 8px; gap:5px; border-radius:999px; }
+.room-home .room-filters .board-role-filter>.filter-role { width:var(--room-control-height); height:var(--room-control-height); padding:0; border-radius:50%; }
 .room-home .room-filters .tier-range-trigger-content { padding-inline:8px; gap:6px; }
 
 /* Keep a single highlight mounted and translate it between the selected items. */
