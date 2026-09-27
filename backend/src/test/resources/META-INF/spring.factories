@@ -1,0 +1,2 @@
+# 테스트 전용 — 모든 @SpringBootTest 컨텍스트에 테스트 키 쌍의 공개 키를 넣는다 (TestJwtKeyInitializer)
+org.springframework.context.ApplicationContextInitializer=com.queuemate.common.security.TestJwtKeyInitializer

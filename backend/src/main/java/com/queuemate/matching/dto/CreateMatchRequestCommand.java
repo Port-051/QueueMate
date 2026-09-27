@@ -1,5 +1,6 @@
 package com.queuemate.matching.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.queuemate.matching.domain.GameKey;
 import com.queuemate.matching.domain.condition.KeyConditionType;
 import com.queuemate.matching.domain.condition.PlayPurpose;
@@ -13,7 +14,12 @@ import lombok.Setter;
 @Getter
 @Setter
 public class CreateMatchRequestCommand {
-    @NotBlank
+    /**
+     * 요청한 사용자의 번호(문자열 — {@code "42"}). <b>요청 본문에서 받지 않는다</b> — 컨트롤러가 access 토큰의 {@code sub} 로 채운다
+     * (2026-09-27. 그 전에는 본문의 필수 필드였다 — JWT 도입 전 임시). 본문에 {@code userId} 가 와도 무시된다({@link JsonIgnore}).
+     * 엔진 안에서는 전처럼 이 필드를 읽는다.
+     */
+    @JsonIgnore
     private String userId;
     @NotNull
     private GameKey game;

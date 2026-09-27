@@ -1,6 +1,7 @@
 package com.queuemate.matching.controller;
 
 import com.queuemate.common.error.ErrorResponse;
+import com.queuemate.common.security.CurrentUserId;
 import com.queuemate.matching.domain.ProposalResult;
 import com.queuemate.matching.service.ProposalService;
 import lombok.RequiredArgsConstructor;
@@ -42,12 +43,12 @@ public class ProposalController {
     /**
      * 제안을 수락한다.
      *
-     * <p>userId 는 JWT 를 붙이기 전까지만 쓰는 임시 파라미터다
-     * ({@code MatchingController#cancelMatchRequest} 와 같은 조치다).
+     * <p>수락하는 사람은 access 토큰의 {@code sub} 다 (2026-09-27 — 그 전에는 임시 {@code ?userId=} 여서
+     * 남의 번호로 수락할 수 있었다).
      */
     @PostMapping("/{proposalId}/accept")
     public ResponseEntity<?> accept(@PathVariable String proposalId,
-                                    @RequestParam String userId) {
+                                    @CurrentUserId String userId) {
 
         ProposalResult result = proposalService.accept(proposalId, userId);
 
@@ -86,10 +87,13 @@ public class ProposalController {
      * <p>수락과 같이 204 다. 계약({@code contracts/openapi.yaml})은 200 으로 적혀 있으나
      * 본문 스키마가 없어, 취소 엔드포인트와 같은 형태로 맞췄다.
      * 불일치는 {@code contracts/README.md} 에 기록한다.
+     *
+     * <p>거절하는 사람은 access 토큰의 {@code sub} 다(2026-09-27). {@code ?requestId=} 는 그대로 받는다 — 임시 식별이 아니라
+     * "내가 아는 그 요청이 맞는지"를 보는 값이다.
      */
     @PostMapping("/{proposalId}/decline")
     public ResponseEntity<?> decline(@PathVariable String proposalId,
-                                     @RequestParam String userId, @RequestParam String requestId) {
+                                     @CurrentUserId String userId, @RequestParam String requestId) {
 
         ProposalResult result = proposalService.decline(proposalId, userId, requestId);
 
@@ -128,7 +132,7 @@ public class ProposalController {
      * 남의 제안에 응답하려 한 경우.
      *
      * <p>404 가 아니라 403 인 것은, 제안이 존재한다는 사실 자체는 숨길 값이 없기 때문이다.
-     * JWT 가 붙으면 userId 가 토큰에서 나오므로 이 갈래는 거의 사라진다.
+     * 2026-09-27 부터 userId 가 토큰에서 나오므로, 이 갈래는 남의 제안 id 를 넣은 경우에만 온다.
      */
     private ResponseEntity<?> forbidden(String proposalId) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ErrorResponse.of(

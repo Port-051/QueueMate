@@ -1,6 +1,7 @@
 package com.queuemate.matching.controller;
 
 import com.queuemate.common.error.ErrorResponse;
+import com.queuemate.common.security.CurrentUserId;
 import com.queuemate.matching.domain.CancelResult;
 import com.queuemate.matching.domain.MatchRequestStatus;
 import com.queuemate.matching.dto.AcceptedRequest;
@@ -22,7 +23,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 
@@ -38,8 +38,15 @@ public class MatchingController {
     private final MatchQueryService matchQueryService;
 
 
+    /**
+     * 매칭을 시작한다. <b>요청한 사람은 access 토큰의 {@code sub} 다</b> — 본문의 {@code userId} 는 받지 않는다
+     * (2026-09-27. 그 전에는 본문의 필수 필드였고 남의 번호로 요청할 수 있었다).
+     */
     @PostMapping
-    public ResponseEntity<?> createMatchRequest(@RequestBody @Valid CreateMatchRequestCommand request) {
+    public ResponseEntity<?> createMatchRequest(@CurrentUserId String userId,
+                                                @RequestBody @Valid CreateMatchRequestCommand request) {
+
+        request.setUserId(userId);
 
         if (!matchConditionValidator.validate(request)) {
             return ResponseEntity.badRequest().body(ErrorResponse.of(
@@ -108,10 +115,12 @@ public class MatchingController {
      * <p>파티 상세(누가 같이 있는지)는 여기서 답하지 않는다. 진행 중인 매칭 상태만 이 앱의
      * 소유이고, 확정된 파티는 {@code app:platform} 의 것이다 (CLAUDE.md §9).
      *
-     * <p>userId 는 JWT 를 붙이기 전까지만 쓰는 임시 파라미터다. 그때는 경로가 {@code /me} 가 된다.
+     * <p><b>"나"는 access 토큰의 {@code sub} 다</b> (2026-09-27 — 그 전에는 임시 쿼리 파라미터 {@code ?userId=} 였다).
+     * 경로는 그대로 {@code GET /api/v1/match-requests} 다 — {@code /me} 로 옮기는 것은 계약(원본)과 같이 정할 일이라
+     * 이번에 하지 않았다 ({@code contracts/README.md} #5).
      */
     @GetMapping
-    public ResponseEntity<MatchRequestResponse> getMatchRequest(@RequestParam String userId) {
+    public ResponseEntity<MatchRequestResponse> getMatchRequest(@CurrentUserId String userId) {
 
         return ResponseEntity.ok(matchQueryService.find(userId));
     }
@@ -123,11 +132,11 @@ public class MatchingController {
      * 늦게 도착한 취소가 그 사이 새로 만든 요청을 지우면 안 되므로,
      * 저장된 값과 같을 때만 지운다(compare-and-delete).
      *
-     * userId는 JWT를 붙이기 전까지만 쓰는 임시 파라미터다.
+     * 누구의 요청인지는 access 토큰의 {@code sub} 다 (2026-09-27 — 그 전에는 임시 {@code ?userId=}).
      */
     @DeleteMapping("/{requestId}")
     public ResponseEntity<?> cancelMatchRequest(@PathVariable String requestId,
-                                                @RequestParam String userId) {
+                                                @CurrentUserId String userId) {
 
         CancelResult result = matchCancelService.cancel(userId, requestId);
 

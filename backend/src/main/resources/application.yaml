@@ -64,6 +64,17 @@ management:
       show-details: always
 
 queuemate:
+  # access 토큰 검증 (2026-09-27 — 임시 식별 ?userId= 를 대신했다. docs/11 D-24 의 적용).
+  # 쿠키 qm_access 의 RS256 JWT 를 platform 의 공개 키로 검증만 한다 — 개인 키 · 서명 · refresh 는 platform 의 것이다.
+  # JWT_PUBLIC_KEY(X.509 PEM)가 있으면 그것을, 없으면 JWT_PUBLIC_KEY_FILE 의 파일을 읽는다. 둘 다 없으면 기동하지 않는다.
+  # 파일 기본값은 backend/ 에서 띄운다는 전제의 로컬 개발용이다 — platform 이 처음 뜰 때 만든다. 운영은 JWT_PUBLIC_KEY(Secrets Manager)
+  jwt:
+    public-key: ${JWT_PUBLIC_KEY:}
+    public-key-file: ${JWT_PUBLIC_KEY_FILE:../../platform/backend/.dev-keys/public.pem}
+  web:
+    # 상태를 바꾸는 요청(POST/PUT/PATCH/DELETE)에 허용하는 Origin. 쉼표로 구분한다. platform 과 같은 값이어야 한다.
+    # CORS 설정이 아니다 — CORS 는 넣지 않는다(프런트 개발 서버의 프록시가 같은 출처로 만든다)
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
   proposal:
     ttl-seconds: ${PROPOSAL_TTL_SECONDS:20}
     # 확정된 제안의 수락자 집합을 남겨 두는 시간. 확정 판정에 다 쓰인 값이라 바로 지워도
