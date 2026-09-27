@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: QueueMate shared room pilot
-  version: 0.1.0
+  version: 0.2.0
   description: |
     Authenticated room pilot enabled with queuemate.rooms.enabled=true.
     Existing proposal/party endpoints keep their contracts. Rooms are created before recruitment completes.
@@ -68,7 +68,13 @@ paths:
   /rooms/{id}/actions:
     parameters: [{$ref: '#/components/parameters/Id'}]
     post:
-      summary: Leave, owner kick, or close recruitment while retaining conversation
+      summary: Leave, owner kick, close or reopen recruitment while retaining conversation
+      description: |
+        Only the current owner can CONFIRM (close) or REOPEN recruitment. Closing has no
+        minimum member count and does not start a game. REOPEN requires a vacant seat
+        and, for reservations, a future start time. Repeated same-state requests are no-ops.
+        A full room stays closed until a member leaves and the owner explicitly reopens it.
+        Reopening checks Redis availability and emits ROOMS_UPDATED after commit.
       requestBody:
         required: true
         content:
@@ -77,12 +83,13 @@ paths:
               type: object
               required: [action]
               properties:
-                action: {type: string, enum: [LEAVE, KICK, CONFIRM]}
+                action: {type: string, enum: [LEAVE, KICK, CONFIRM, REOPEN]}
                 memberId: {type: string, format: uuid, nullable: true}
       responses:
         '204': {description: Applied}
         '404': {$ref: '#/components/responses/Error'}
         '409': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
   /rooms/{id}/messages:
     parameters: [{$ref: '#/components/parameters/Id'}]
     post:
