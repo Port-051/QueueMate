@@ -19,8 +19,8 @@
 
 **닫힘.**
 - **§0-1 ① 확정된 사용자 갇힘 → docs/11 D-42.** 활성 요청(`status=PARTY`)과 수락자 SET 은 `confirmed-retention-seconds`(60초) 뒤 만료되고,
-  파티 HASH 는 `confirmed-party-ttl-seconds`(600초). 그 뒤 "한 번에 하나만" 은 platform 의 입장 표시 키가 맡는다. **platform 쪽 진입점("이 매칭으로
-  파티 만들기")은 미정**이다 — D-42 "아직 미정".
+  파티 HASH 는 `confirmed-party-ttl-seconds`(600초). 그 뒤 "한 번에 하나만" 은 platform 의 입장 표시 키가 맡는다. **platform 쪽 진입점은 같은 날 구현됐다** —
+  `POST /api/v1/match-parties/{partyId}/room`(`../platform` P-30).
 - **§0-1 ② INV-6 → 선필터 한 겹으로 확정(D-41).** 확정 직전 동기 SELECT 는 두지 않는다. 로컬 H2 에서 `blocks` 가 없어 배정이 조용히 실패하던 것은
   `backend/src/main/resources/schema.sql`(`spring.sql.init.mode: embedded`)로 해소됐다. 운영은 platform 의 `public.blocks` 그대로.
 - **§0-1 ③ outbox → 두지 않는다(D-42).** Flyway + `matching_outbox` 를 넣었다가(`7ac6209` · `55236da` · `cef2c7b`) 같은 날 revert 했다. 파티는
@@ -35,8 +35,8 @@
 **남음.**
 - **§0-1 ⑤ 메트릭** — 여전히 0건.
 - **3-2 확정 뒤 취소 가드** — D-42 로 **별도 가드를 두지 않는다.** TTL 60초 안에서만 취소가 뜻이 있고, 그 뒤엔 방 나가기가 곧 파티 나가기다.
-- **platform 쪽** — "이 매칭으로 파티 만들기" 진입점(경로 · 본문 · 에러 코드) + 파티원 전원에게 입장 표시 키 찍기 + 자동 매칭 파티의 방을 게시판 방과 같은
-  `room` 으로 만들지 + 입장 키를 지우는 때(D-36 과 맞춘다). 전부 D-42 "아직 미정".
+- **platform 쪽** — 진입점은 됐다(`POST /api/v1/match-parties/{partyId}/room`, P-30). 남은 미정 셋: 전원이 말없이 사라져 방 키만 만료된 자동 매칭
+  파티의 닫힘 · `playPurpose` 칸 · `PARTY_*` 알림 이름(D-42 "아직 미정").
 - **계약 이름 결정** — `MatchRequestView` 의 `requestId` vs `id` · `partyId` vs `proposalId` · epoch millis vs `date-time`(README #4), 조회 경로를
   `/match-requests/me` 로 옮길지(#5). 원본(queueMate 본 저장소)과 같이 정한다.
 - **untiered `join-party.lua` 의 파티 존재 가드 없음** — 찾기와 합류 사이에 마지막 멤버가 취소하면 `HSET` 이 파티를 되살린다. 확률이 극히 낮아 그대로 둔다(§3-D).
