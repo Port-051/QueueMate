@@ -67,6 +67,29 @@ async function expectNoPageOverflow(page: Page) {
   expect(widths.document, JSON.stringify(widths)).toBeLessThanOrEqual(widths.viewport + 1);
 }
 
+test('방장은 혼자 있어도 마감하고 다시 열며 대화와 초안을 유지한다', async ({ page }) => {
+  await seedRooms(page, [room('reopen', [member('u-me')], { capacity: 3 })]);
+  await login(page);
+  const chat = page.getByRole('region', { name: '방 채팅과 음성' });
+  const input = chat.getByRole('textbox', { name: '방에 메시지 보내기' });
+  await input.fill('모집 중단 전 메시지');
+  await input.press('Enter');
+  await input.fill('작성 중인 초안');
+  await chat.getByRole('button', { name: '모집 마감', exact: true }).click();
+  const deck = page.getByRole('article', { name: '테스트 방 reopen 방 정보', exact: true });
+  await expect(deck).toHaveAttribute('data-status', 'CONFIRMED');
+  await chat.getByRole('button', { name: '모집 다시 열기', exact: true }).click();
+  await expect(deck).toHaveAttribute('data-status', 'OPEN');
+  await expect(input).toHaveValue('작성 중인 초안');
+  await expect(chat.getByRole('log')).toContainText('모집 중단 전 메시지');
+  await page.reload();
+  // Mock authentication is in memory; saved rooms survive signing in again.
+  await login(page);
+  await expect(deck).toHaveAttribute('data-status', 'OPEN');
+  await expect(chat.getByRole('log')).toContainText('모집 중단 전 메시지');
+  await expect(page.getByRole('button', { name: '모집 마감', exact: true })).toBeEnabled();
+});
+
 test('다섯 카드가 방 너비에 맞고 빈자리만 선택할 수 있다', async ({ page }) => {
   await login(page);
   const grid = page.locator('.room-deck-grid');
@@ -158,7 +181,7 @@ test('다섯 명 방을 만들면 한 열 목록과 대화를 함께 쓰고 확�
   await page.getByRole('textbox', { name: '방에 메시지 보내기', exact: true }).fill('확정 전부터 여기서 이야기해요');
   await page.getByRole('button', { name: '메시지 보내기', exact: true }).click();
   await expect(page.getByText('확정 전부터 여기서 이야기해요', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: '모집 마감', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '모집 마감', exact: true })).toBeEnabled();
   // Simulate an incoming membership update; these local prototype rooms have no remote peer server.
   await page.evaluate(({ key, newcomer }) => {
     const snapshot = JSON.parse(localStorage.getItem(key)!);

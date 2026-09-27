@@ -292,10 +292,17 @@ export function createRoomActions(userId: string) {
       const rooms = current();
       const room = owned(rooms, roomId);
       if (room.status === 'CONFIRMED') return;
-      if (room.members.length < 2) throw new Error('함께할 사람이 들어오면 확정할 수 있어요.');
-      if (room.game === 'LOL' && room.modeKey === 'FLEX_RANKED' && room.members.length === 4) throw new Error('자유 랭크는 4명으로 참가할 수 없어요. 한 명을 더 기다려 주세요.');
-      const confirmed = append({ ...room, status: 'CONFIRMED', autoCloseAt: null }, systemMessage('방장이 매칭을 확정했어요. 이제 함께 출발해요!'));
+      const confirmed = append({ ...room, status: 'CONFIRMED', autoCloseAt: null }, systemMessage('방장이 모집을 마감했어요. 대화는 계속할 수 있어요.'));
       save(userId, rooms.map(item => item.id === roomId ? confirmed : item));
+    },
+    reopen(roomId: string): void {
+      const rooms = current();
+      const room = owned(rooms, roomId);
+      if (room.status === 'OPEN') return;
+      if (room.members.length >= room.capacity) throw new Error('빈자리가 생기면 모집을 다시 열 수 있어요.');
+      if (room.type === 'RESERVATION' && room.availableFrom && Date.parse(room.availableFrom) <= Date.now()) throw new Error('예약 시간이 지난 방은 다시 열 수 없어요.');
+      const reopened = append({ ...room, status: 'OPEN', autoCloseAt: null }, systemMessage('방장이 모집을 다시 열었어요.'));
+      save(userId, rooms.map(item => item.id === roomId ? reopened : item));
     },
     autoConfirm(roomId: string, expectedDeadline: number): void {
       const rooms = current();

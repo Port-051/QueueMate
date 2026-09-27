@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Avatar, Button, useToast } from '../components/ui';
-import { IconChat, IconCheck, IconLogout, IconMic, IconMicOff, IconSend, IconShield, IconX } from '../components/icons';
+import { IconChat, IconCheck, IconPlay, IconLogout, IconMic, IconMicOff, IconSend, IconShield, IconX } from '../components/icons';
 import { USE_MOCK } from '../config';
 import { MockPartyClient } from '../webrtc/MockPartyClient';
 import type { VoiceStatus } from '../webrtc/types';
@@ -16,7 +16,8 @@ export interface RoomConversationProps {
   onSend: (text: string) => void | Promise<void>;
   onLeave: () => void;
   onKick: (memberId: string) => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
+  onReopen: () => void | Promise<void>;
   onAutoConfirm: (deadline: number) => void;
   onExtend: (deadline: number) => void;
 }
@@ -30,7 +31,7 @@ function Headphones({ off = false }: { off?: boolean }) {
 
 const clock = new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConfirm, onAutoConfirm, onExtend, visible = true, onMember }: RoomConversationProps) {
+export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConfirm, onReopen, onAutoConfirm, onExtend, visible = true, onMember }: RoomConversationProps) {
   const toast = useToast();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -60,6 +61,18 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
   const self = room.members.find(member => member.id === selfId);
   const isHost = room.ownerId === selfId;
   const confirmed = room.status === 'CONFIRMED';
+  const [recruitmentBusy, setRecruitmentBusy] = useState(false);
+  const changingRecruitment = useRef(false);
+  const reopenError = room.members.length >= room.capacity ? '빈자리가 생기면 다시 열 수 있어요'
+    : room.type === 'RESERVATION' && room.availableFrom && Date.parse(room.availableFrom) <= now ? '예약 시간이 지났어요' : '';
+  const changeRecruitment = async (open: boolean) => {
+    if (changingRecruitment.current) return;
+    changingRecruitment.current = true;
+    setRecruitmentBusy(true);
+    try { await (open ? onReopen() : onConfirm()); }
+    catch (error) { toast(error instanceof Error ? error.message : '모집 상태를 변경하지 못했어요.', 'error'); }
+    finally { changingRecruitment.current = false; setRecruitmentBusy(false); }
+  };
   const voiceOn = voice === 'connected';
   const kickTarget = action?.kind === 'kick' ? room.members.find(member => member.id === action.id) : null;
 
@@ -187,8 +200,8 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
       }}>{action?.kind === 'leave' ? '나가기' : '내보내기'}</Button></div>
     </div> : null}
 
-    {isHost && !confirmed ? <div className="room-conversation-host-actions">
-      <span>{room.members.length < 2 ? '팀원을 기다리는 중' : '지금 멤버로 출발하나요?'}</span><Button size="sm" disabled={room.members.length < 2} onClick={onConfirm}><IconCheck size={14} />모집 마감</Button>
+    {isHost ? <div className="room-conversation-host-actions">
+      <span>{confirmed && reopenError ? reopenError : '모집 관리'}</span><Button size="sm" disabled={recruitmentBusy || (confirmed && Boolean(reopenError))} aria-busy={recruitmentBusy} onClick={() => void changeRecruitment(confirmed)}>{confirmed ? <IconPlay size={14} /> : <IconCheck size={14} />}{confirmed ? '모집 다시 열기' : '모집 마감'}</Button>
     </div> : null}
 
     {isHost && !confirmed && autoPhase === 'waiting' ? <p className="room-close-policy">구성원이 그대로면 {Math.max(1, Math.ceil(((room.autoCloseAt ?? now) - 60_000 - now) / 60_000))}분 뒤 모집 마감을 안내해요.</p> : null}
@@ -196,7 +209,7 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
       <strong>지금 멤버로 함께할까요?</strong>
       <p>잠시 뒤 새 팀원의 입장을 막고 모집을 마감해요. 대화는 계속할 수 있어요.</p>
       <span className="room-close-countdown" role="timer" aria-live="off">{Math.max(0, Math.ceil(((room.autoCloseAt ?? now) - now) / 1000))}초 후 자동 마감</span>
-      <div><Button size="sm" variant="ghost" onClick={() => room.autoCloseAt && onExtend(room.autoCloseAt)}>계속 모집하기</Button><Button size="sm" onClick={onConfirm}>지금 마감하기</Button></div>
+      <div><Button size="sm" variant="ghost" onClick={() => room.autoCloseAt && onExtend(room.autoCloseAt)}>계속 모집하기</Button><Button size="sm" disabled={recruitmentBusy} onClick={() => void changeRecruitment(false)}>지금 마감하기</Button></div>
     </div> : null}
     {autoError ? <p className="room-auto-close-error" role="alert">{autoError}</p> : null}
 

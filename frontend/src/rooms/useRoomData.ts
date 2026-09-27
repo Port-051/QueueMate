@@ -71,6 +71,7 @@ function useLiveRooms(userId: string) {
     leave: async () => { if (activeRoom) await action(activeRoom.id, 'LEAVE'); },
     kick: (id: string, memberId: string) => action(id, 'KICK', memberId),
     confirm: (id: string) => action(id, 'CONFIRM'),
+    reopen: (id: string) => action(id, 'REOPEN'),
     send: async (text: string) => {
       if (!activeRoom) throw new Error('방에 참여한 후 메시지를 보내 주세요.');
       if (pendingMessage.current?.room !== activeRoom.id || pendingMessage.current.text !== text) pendingMessage.current = { room: activeRoom.id, text, id: crypto.randomUUID() };

@@ -51,11 +51,24 @@ test('실제 두 계정의 방 입장, 이벤트 동기화, 채팅 재시도와 
     const room = b.getByRole('article', { name: `서버 검증 ${id} 방 정보`, exact: true });
     await expect(room).toBeVisible();
     await expect.poll(() => events.includes('ROOMS_UPDATED')).toBe(true);
+    await a.getByRole('button', { name: /방 채팅/ }).click();
+    await a.getByRole('button', { name: '모집 마감', exact: true }).click();
+    await expect(room.getByText('모집 마감', { exact: true })).toBeVisible();
+    await expect(room.getByRole('button', { name: /자리 참여/ })).toBeDisabled();
+    // Reject once, retain the closed state, then retry the same explicit action.
+    await a.route('**/rooms/*/actions', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'TEST_UNAVAILABLE', message: '모집 재개를 다시 시도해 주세요' }) }));
+    await a.getByRole('button', { name: '모집 다시 열기', exact: true }).click();
+    await expect(a.getByText('모집 재개를 다시 시도해 주세요')).toBeVisible();
+    await expect(room.getByRole('button', { name: /자리 참여/ })).toBeDisabled();
+    await a.unroute('**/rooms/*/actions');
+    await a.getByRole('button', { name: '모집 다시 열기', exact: true }).click();
+    await expect(room.getByRole('button', { name: '서포터 자리 참여', exact: true })).toBeEnabled();
     await room.getByRole('button', { name: '서포터 자리 참여', exact: true }).click();
     await b.getByRole('button', { name: '참여하기', exact: true }).click();
     await expect(b.getByRole('region', { name: '방 채팅과 음성' })).toBeVisible();
-    await a.getByRole('button', { name: /방 채팅/ }).click();
     await expect(a.getByText('모집 마감 · 대화 가능', { exact: true })).toBeVisible();
+    await expect(a.getByRole('button', { name: '모집 다시 열기', exact: true })).toBeDisabled();
+    await expect(b.getByRole('button', { name: /모집 다시 열기|모집 마감/ })).toHaveCount(0);
     const input = a.getByRole('textbox', { name: '방에 메시지 보내기' });
     // Failure must retain the user's text and must not produce a phantom sent message.
     await a.route('**/rooms/*/messages', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'TEST_UNAVAILABLE', message: '잠시 후 다시 시도해 주세요' }) }));
