@@ -1,6 +1,6 @@
 # HANDOFF — 다음 세션 인계
 
-**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-17 (목) · 2026-09-19 (§0 의 ①·③·④ 에 docs/11 D-11·D-12·D-13 반영, §0-0 · ① 에 D-19 반영) · 2026-09-24 (§0-4 신설 — `platform` 쪽에서 넘어온 일. §0-1 ① 에 참조 한 줄) · 2026-09-24 두 번째 (§0-4 (나) 에 같은 날 늦게 결정된 넷을 더했다 — P-13 의 개정 · P-17 · P-14 의 개정 · P-18) · 2026-09-27 (§0-5 신설 — 임시 식별 `?userId=` 를 쿠키 `qm_access` 검증으로 바꿨다) · 2026-09-27 두 번째 (§0-4 (나) 에 ⑯ ~ ⑱ — D-38 ~ D-40. (다) 가 D-40 으로 세부가 정해졌다)
+**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-17 (목) · 2026-09-19 (§0 의 ①·③·④ 에 docs/11 D-11·D-12·D-13 반영, §0-0 · ① 에 D-19 반영) · 2026-09-24 (§0-4 신설 — `platform` 쪽에서 넘어온 일. §0-1 ① 에 참조 한 줄) · 2026-09-24 두 번째 (§0-4 (나) 에 같은 날 늦게 결정된 넷을 더했다 — P-13 의 개정 · P-17 · P-14 의 개정 · P-18) · 2026-09-27 (§0-5 신설 — 임시 식별 `?userId=` 를 쿠키 `qm_access` 검증으로 바꿨다) · 2026-09-27 두 번째 (§0-4 (나) 에 ⑯ ~ ⑱ — D-38 ~ D-40. (다) 가 D-40 으로 세부가 정해졌다) · **2026-09-27 세 번째 (§0-6 신설 — D-41 · D-42 로 오늘 닫힌 것과 남은 것. §0-1 ① · ② · ③ · ⑥ · ⑦ 이 닫혔다)**
 **읽는 순서:** `CLAUDE.md` → `START_HERE.md` → **이 파일의 §0 부터**
 
 이 파일은 "지금 어디까지 왔고 무엇이 열려 있는가"만 담는다. 규칙은 `CLAUDE.md`,
@@ -14,6 +14,35 @@
 ## 0. 2026-09-17 — 남은 것 전부 (이 절만 읽고 이어갈 수 있다)
 
 아래 §1~§5 는 그날그날의 기록이라 겹치는 곳이 있다. **겹치면 이 절이 우선한다.**
+
+### 0-6. 2026-09-27 — 오늘 닫힌 것과 남은 것 (§0-1 · §0-2 · §3 보다 이 절이 우선한다)
+
+**닫힘.**
+- **§0-1 ① 확정된 사용자 갇힘 → docs/11 D-42.** 활성 요청(`status=PARTY`)과 수락자 SET 은 `confirmed-retention-seconds`(60초) 뒤 만료되고,
+  파티 HASH 는 `confirmed-party-ttl-seconds`(600초). 그 뒤 "한 번에 하나만" 은 platform 의 입장 표시 키가 맡는다. **platform 쪽 진입점("이 매칭으로
+  파티 만들기")은 미정**이다 — D-42 "아직 미정".
+- **§0-1 ② INV-6 → 선필터 한 겹으로 확정(D-41).** 확정 직전 동기 SELECT 는 두지 않는다. 로컬 H2 에서 `blocks` 가 없어 배정이 조용히 실패하던 것은
+  `backend/src/main/resources/schema.sql`(`spring.sql.init.mode: embedded`)로 해소됐다. 운영은 platform 의 `public.blocks` 그대로.
+- **§0-1 ③ outbox → 두지 않는다(D-42).** Flyway + `matching_outbox` 를 넣었다가(`7ac6209` · `55236da` · `cef2c7b`) 같은 날 revert 했다. 파티는
+  `cleanup-confirmed.lua` 가 파티 HASH 에 `game` / `modeKey` / `voicePreference` / `playPurpose` / `confirmedAt` 을 채워 두면 **platform 이 그것을 읽어**
+  만든다. **HASH 필드 이름이 계약이다** — `contracts/events.md` SQS 절.
+- **§0-1 ⑥ 부하 테스트 → 복구됨.** `load-test/README.md`(2026-09-27 API 기준 — 쿠키 토큰 · `tier` · 티어 접미사 붙은 색인 키).
+- **§0-1 ⑦ 계약 → 사본을 구현에 맞췄다** — `contracts/README.md` A-13(openapi 전반) · A-14(수락 · 거절) · A-15(SQS 큐 0개, 파티 HASH 필드 계약).
+- **3-1 색인 복원 버그 → 고쳤다** — 정원이 찼다 풀린 파티를 남은 사람이 맡지 않은 줄 **전부**에 되돌린다(LoL · VALORANT, `78f5c3f`, 회귀 테스트 포함).
+- **3-3 거절의 `requestId` → 서버가 읽는다.** `POST /proposals/{id}/decline` 은 쿼리 파라미터를 받지 않고 활성 요청 HASH 에서 읽는다(A-14).
+- **§0-2 "접수 응답이 DTO 를 안 쓴다" → 고쳤다.** `POST /match-requests` 201 이 `MatchRequestResponse.queued(requestId, queuedAt)` 를 돌려준다(README ~~#5-1~~).
+
+**남음.**
+- **§0-1 ⑤ 메트릭** — 여전히 0건.
+- **3-2 확정 뒤 취소 가드** — D-42 로 **별도 가드를 두지 않는다.** TTL 60초 안에서만 취소가 뜻이 있고, 그 뒤엔 방 나가기가 곧 파티 나가기다.
+- **platform 쪽** — "이 매칭으로 파티 만들기" 진입점(경로 · 본문 · 에러 코드) + 파티원 전원에게 입장 표시 키 찍기 + 자동 매칭 파티의 방을 게시판 방과 같은
+  `room` 으로 만들지 + 입장 키를 지우는 때(D-36 과 맞춘다). 전부 D-42 "아직 미정".
+- **계약 이름 결정** — `MatchRequestView` 의 `requestId` vs `id` · `partyId` vs `proposalId` · epoch millis vs `date-time`(README #4), 조회 경로를
+  `/match-requests/me` 로 옮길지(#5). 원본(queueMate 본 저장소)과 같이 정한다.
+- **untiered `join-party.lua` 의 파티 존재 가드 없음** — 찾기와 합류 사이에 마지막 멤버가 취소하면 `HSET` 이 파티를 되살린다. 확률이 극히 낮아 그대로 둔다(§3-D).
+
+**환경 함정 한 줄.** 이 zsh 에서 `/dev/tcp` 로 포트를 확인하면 **항상 "닫힘"으로 나온다** — python `socket` 으로 확인해라. 테스트 Redis 는
+`docker.exe run -d --rm --name qm-matching-test-redis -p 6390:6379 redis:7-alpine`, 테스트는 `REDIS_PORT=6390`.
 
 ### 0-0. 방금 들어온 것 (문서가 "미구현"이라 적고 있던 것들)
 
@@ -173,6 +202,8 @@
 
 #### ① 확정된 사용자를 파티에서 풀어 주는 경로가 없다 — **가장 급하다**
 
+> **→ 2026-09-27 닫힘 (§0-6, docs/11 D-42).** 활성 요청은 60초 TTL 로 풀리고 그 뒤는 platform 의 입장 표시 키가 맡는다. 아래는 그 전의 기록이다.
+
 **안 하면: 사용자가 매칭을 평생 한 번만 할 수 있다.** 확정되면
 `redis/proposal/cleanup-confirmed.lua` 가 활성 요청을 **지우지 않고** `status='PARTY'` 를 찍는다
 (지우면 그 순간 새 매칭을 걸 수 있어 한 사람이 두 파티에 속한다 — INV-2). 그 표시를 푸는 주체가
@@ -214,6 +245,8 @@
 
 #### ② INV-6 차단 검증 — **배포 차단 조건**
 
+> **→ 2026-09-27 닫힘 (§0-6, docs/11 D-41).** 선필터 한 겹으로 확정 · 세 게임 모두 부른다 · 로컬 H2 는 `schema.sql`. 아래는 그 전의 기록이다.
+
 **안 하면: 배포할 수 없다.** CLAUDE.md §4 INV-6 과 docs/11 #30 이 "차단 검증 없이 배포하지
 않는다"고 못 박았다. 게다가 **지금은 기본 실행에서 배정이 조용히 실패한다.**
 
@@ -235,6 +268,8 @@
 `rule/{pubg,valorant}/*CandidateRule`.
 
 #### ③ 확정 후속 처리의 나머지 — outbox → `ProposalConfirmed.fifo`
+
+> **→ 2026-09-27 닫힘 (§0-6, docs/11 D-42).** outbox · SQS 를 두지 않는다 — platform 이 파티 HASH 를 읽는다. 아래는 그 전의 기록이다.
 
 **안 하면: 확정돼도 파티가 DB 에 안 생긴다.** `app:platform` 이 파티를 만들 신호를 못 받는다.
 Redis 쪽 뒷정리(`cleanup-confirmed.lua`)와 `MATCH_CONFIRMED` 알림까지는 붙었는데 거기서 끝난다.
@@ -267,6 +302,8 @@ Redis 쪽 뒷정리(`cleanup-confirmed.lua`)와 `MATCH_CONFIRMED` 알림까지�
 
 #### ⑥ 부하 테스트가 안 돈다
 
+> **→ 2026-09-27 닫힘 (§0-6).** 복구됐다 — `load-test/README.md`. 아래는 그 전의 기록이다.
+
 티어가 필수가 된 뒤로 `load-test/` 가 그대로는 못 돈다. 두 군데가 어긋난다 (재확인함).
 1. **요청 바디** — `load-test/match_latency.py` 의 `body()` 가 `modeKey: RANKED_SOLO` 를
    `tier` 없이 보낸다. 시드의 `RANKED_SOLO` 는 `tierRule EXIST` 라 validator 가 400 을 낸다.
@@ -281,6 +318,8 @@ Redis 쪽 뒷정리(`cleanup-confirmed.lua`)와 `MATCH_CONFIRMED` 알림까지�
 붙여 맞춰라. **성사 감지 자체는 이미 고쳐져 있다**(`32031a4`, `member:` 필드를 센다).
 
 #### ⑦ 계약 정리 — 본 저장소 contract 변경이 선행
+
+> **→ 2026-09-27 닫힘 (§0-6).** 사본은 A-13 · A-14 · A-15 로 구현에 맞췄다. 남은 것은 이름 결정(#4 · #5)과 원본 반영이다. 아래는 그 전의 기록이다.
 
 `contracts/openapi.yaml` 은 **원본의 발췌**라 여기서 고치지 않는다 (CLAUDE.md §5).
 지금 어긋난 것은 `contracts/README.md` 의 불일치 표에 전부 적어 두었다. 큰 것만:
@@ -389,7 +428,8 @@ Redis 쪽 뒷정리(`cleanup-confirmed.lua`)와 `MATCH_CONFIRMED` 알림까지�
 - **그래서 §3-B 는 대부분 해소됐다.** 그중 상태 조회와 PUBG 동시성 테스트도 2026-09-17 에
   들어왔다. **지금 남은 것은 §0-1 을 봐라** — `matching.outbox` + `ProposalConfirmed.fifo`,
   확정된 사용자를 푸는 경로, Flyway + `social.blocks`(INV-6) 다. (그 테이블은 2026-09-26 에 `public.blocks` · bigint 가 됐다 —
-  docs/11 D-25 · D-34, §0-4 (가).)
+  docs/11 D-25 · D-34, §0-4 (가).) **→ 2026-09-27: 그 셋이 전부 닫혔다 — outbox · Flyway 는 두지 않고(D-42), 확정된 사용자는 60초 TTL 로
+  풀리고(D-42), INV-6 은 선필터 한 겹(D-41). §0-6 을 봐라.**
 
 ### 테스트 — 커밋 `8d7f094` 기준 24건 통과 (2026-09-15)
 
@@ -490,7 +530,7 @@ claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
 미확인: PUBG 에 배치 전(UNRANKED) 상태가 있는지 / 단이 없는 MASTER·SURVIVOR 를 몇 단계로 세는지 /
 한국 서버 FPP 큐 유무(리전별로 패치마다 바뀜).
 
-### B. 만료 처리 + 확정 후속 (INV-4/5 의 남은 구멍)
+### B. 만료 처리 + 확정 후속 (INV-4/5 의 남은 구멍) <sub>(2026-09-27: 전부 닫혔다 — outbox · `PartyClosed` 는 D-42 로 두지 않는다. §0-6)</sub>
 
 > **2026-09-16: 아래 세 줄 중 앞의 둘은 끝났다.** 만료는 `qm:proposal:pending` + 스위퍼로,
 > 확정 후속은 `cleanup-confirmed.lua` + `MATCH_CONFIRMED` 로 처리한다. 취소 구멍도 `3d3efaf`
@@ -506,7 +546,7 @@ claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
   제안 도중에 부를 때만** 해당한다. **거절 버튼 경로는 문제없다** — `decline-proposal.lua` 가
   수락자 SET 과 `status` 를 먼저 지운 뒤 취소를 부른다.
 
-### C. INV-6 스키마 (Flyway) — 배포 전 필수 <sub>(2026-09-17: 그대로 남아 있다 — §0-1 ②)</sub>
+### C. INV-6 스키마 (Flyway) — 배포 전 필수 <sub>(2026-09-17: 그대로 남아 있다 — §0-1 ②) → <b>2026-09-27 닫힘 — Flyway 는 두지 않고(D-42) 로컬 H2 는 `schema.sql`, 운영은 platform 의 `public.blocks`(D-41). §0-6</b></sub>
 
 ### D. 낮은 우선순위 (기록만, 급하지 않음)
 

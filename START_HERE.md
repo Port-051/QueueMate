@@ -39,11 +39,12 @@
   · 제안 수락/거절/확정/만료가 전부 구현돼 있다 (POST /api/v1/proposals/{id}/accept|decline →
     service/ProposalService.java → redis/proposal/*.lua, 만료는 ProposalSweeper +
     ProposalExpiryService 가 qm:proposal:pending ZSET 을 훑는다). 확정되면
-    cleanup-confirmed.lua 가 파티원 활성 요청에 status=PARTY 를 찍고(지우지 않는다 — INV-2)
-    MATCH_CONFIRMED 가 파티 전원에게 나간다. 없는 것은 matching.outbox →
-    ProposalConfirmed.fifo 발행(그래서 파티가 DB 에 안 생긴다)과, 확정된 사용자의
-    status=PARTY 를 푸는 길이다(PartyClosed 는 app:platform 만 소비한다 — docs/11 D-13.
-    누가 푸는지는 미정이다).
+    cleanup-confirmed.lua 가 파티 HASH qm:party:{partyId} 에 game/modeKey/voicePreference/
+    playPurpose/confirmedAt 을 채우고(이 필드 이름이 app:platform 과의 계약이다) 파티원 활성 요청에
+    status=PARTY 를 찍은 뒤 TTL 을 건다 — 파티 HASH 600초, 활성 요청 · 수락자 SET 60초(docs/11 D-42).
+    MATCH_CONFIRMED 가 파티 전원에게 나가고, 파티를 DB 에 만드는 것은 app:platform 이다 —
+    프런트가 platform 의 "이 매칭으로 파티 만들기"(경로 미정)를 부르면 그 HASH 를 읽어 만든다.
+    outbox · SQS ProposalConfirmed.fifo 는 두지 않는다(D-42 — 넣었다 같은 날 뺐다).
   · 이 저장소는 git 저장소다. private 원격 github.com/rlaehddus302/queuemate-matching
     (matching)에 push 한다. 커밋 규칙은 CLAUDE.md §8. IntelliJ 가 새 파일을 자동으로
     스테이징하므로 커밋은 `git commit -- <파일>` 로 파일을 지정해서 해라.
@@ -182,10 +183,10 @@ curl -sS -X POST localhost:8080/api/v1/match-requests --cookie "qm_access=$TOKEN
     "keyCondition":{"type":"POSITION","value":"TOP"},
     "voicePreference":"REQUIRED", "playPurpose":"RANK_UP"
   }'
-# → 201  본문은 JSON 이 아니라 문자열 "CREATED" 다. 같은 userId로 또 하면 409 ALREADY_QUEUED
+# → 201  {"status":"QUEUED","requestId":"...","queuedAt":1758...}  — 취소(DELETE /{requestId})에 쓸 값이 여기 온다
+#    같은 사용자(같은 sub)로 또 하면 409 ALREADY_QUEUED, 게시판 방에 있으면 409 IN_ROOM
 #    (TOKEN2 는 위 TOKEN 을 sub=2 로 찍은 것이다. 바디의 userId 는 2026-09-27 에 없어졌다 — 넣어도 무시된다)
-#    (계약은 여기서 MatchRequestView 를 돌려주게 돼 있다 — contracts/README.md #5-1.
-#     지금은 requestId 를 못 받으므로 취소할 값은 아래 조회로 얻는다)
+#    (한때 문자열 "CREATED" 를 돌려줬다 — 2026-09-27 에 고쳤다, contracts/README.md ~~#5-1~~)
 
 # 티어를 안 보는 모드 (tierRule=NONE). tier 를 빼도 된다
 curl -sS -X POST localhost:8080/api/v1/match-requests --cookie "qm_access=$TOKEN2" \
@@ -218,10 +219,11 @@ docker exec -it qm-redis redis-cli PSUBSCRIBE 'qm:pubsub:push:*'
   `SOLO_ONLY` 여도 400이다 (`RANKED_SOLO` 의 `UNRANKED`/`MASTER` 이상이 그렇다).
   반대로 `positionUniqueness` 가 `false` 인 모드(칼바람)는 포지션이 **반드시 `NONE`** 이어야 한다.
 - **차단 테이블(`blocks` — 옛 이름 `social.blocks`, 2026-09-26 부터 `public.blocks` · docs/11 D-34)이 없으면 배정이 조용히 실패한다.** `LolCandidateRule#canJoin`
-  (`Pubg` · `ValorantCandidateRule` 도 같다) 이 차단 목록을 DB에서 읽는데 기본 실행은 H2 + `ddl-auto: none` 이라 그 테이블이 없다.
-  요청은 201로 나가지만 파티가 생기지 않고 `matchingExecutor` 스레드에 예외 로그만 남는다
-  (§4.2 INV-6 줄 참고). **운영 DB(`app:platform` 의 것)에 붙어도 지금 코드로는 깨진다** — `Block.java` 가 `schema = "social"` ·
-  `String` 인데 테이블은 `public.blocks` · bigint 다(docs/11 D-25 · D-34, `HANDOFF.md` §0-4 (가)).
+  (`Pubg` · `ValorantCandidateRule` 도 같다) 이 차단 목록을 DB에서 읽는다.
+  없으면 요청은 201로 나가지만 파티가 생기지 않고 `matchingExecutor` 스레드에 예외 로그만 남는다.
+  **기본 실행(H2)은 `backend/src/main/resources/schema.sql` 이 그 테이블을 만든다**(`spring.sql.init.mode: embedded` — Postgres 에는
+  만들지 않는다, 그건 platform 의 Flyway 것이다). 운영은 `DB_URL` 이 `app:platform` 의 Postgres 를 가리켜야 하고, `Block.java` 는
+  2026-09-26 에 `public.blocks` · `Long` 으로 맞췄다(docs/11 D-25 · D-34 · D-41).
 
 ---
 
@@ -292,7 +294,7 @@ backend/src/main/java/com/queuemate/
     │   │                                   거절한 본인만 MatchCancelService 로 큐에서 뺀다.
     │   │                                   확정되면 cleanup-confirmed.lua 로 뒷정리하고
     │   │                                   MATCH_CONFIRMED 를 파티 전원에게 발행한다
-    │   │                                   (outbox / ProposalConfirmed.fifo 는 아직 없다)
+    │   │                                   (파티를 DB 에 만드는 것은 platform — 파티 HASH 를 읽는다, D-42)
     │   ├── ProposalSweeper.java          @Scheduled(fixedDelay = queuemate.sweep.interval-ms).
     │   │                                   qm:proposal:pending 에서 시한 지난 것을 회차당 100건 꺼낸다
     │   └── ProposalExpiryService.java    꺼낸 제안 하나를 만료시킨다 (expiry-proposal.lua).
@@ -342,8 +344,9 @@ backend/src/main/resources/redis/         ★ 불변식이 실제로 지켜지�
 ├── proposal/decline-proposal.lua       INV-5     거절. 제안 흔적과 수락자 집합을 지운다
 ├── proposal/expiry-proposal.lua        INV-5     만료. status 가 PENDING 일 때만 깨고,
 │                                                 무응답자 / 수락자 목록을 돌려준다
-└── proposal/cleanup-confirmed.lua                확정 뒷정리. 활성 요청에 status=PARTY 를 찍고
-                                                  수락자 SET 에만 TTL 을 건다 (INV-2)
+└── proposal/cleanup-confirmed.lua                확정 뒷정리. 파티 HASH 에 game/modeKey/voice/purpose/
+                                                  confirmedAt 을 채우고(platform 이 읽는 계약 — D-42), 활성 요청에
+                                                  status=PARTY 를 찍은 뒤 TTL — 파티 600초 · 활성 요청 · 수락자 SET 60초
 
 backend/src/test/java/com/queuemate/matching/
 ├── concurrency/
@@ -404,11 +407,13 @@ POST /api/v1/proposals/{partyId}/accept          ("나" = 쿠키의 sub — 2026
     │                       target 에 닿으면 status=CONFIRMED + pending 에서 ZREM (INV-4)
     │                       이미 확정된 제안에 또 오면 ALREADY_RESPONDED (둘 다 204)
     └ CONFIRMED 면 cleanup-confirmed.lua
-                            파티원 활성 요청에 status=PARTY, 수락자 SET 에 TTL,
+                            파티 HASH 에 game/modeKey/voicePreference/playPurpose/confirmedAt 채움
+                            (platform 이 읽는 계약 — docs/11 D-42), 파티원 활성 요청에 status=PARTY,
+                            TTL — 파티 HASH 600초 · 활성 요청 · 수락자 SET 60초,
                             돌려받은 파티원 전원에게 MATCH_CONFIRMED (payload {partyId}) → 204
-                            ★ 아직 없는 것: matching.outbox + ProposalConfirmed.fifo 발행
-                              (그래서 파티가 DB 에 안 생긴다), status=PARTY 를 푸는 길
-                              (PartyClosed 소비는 이 앱의 일이 아니다 — docs/11 D-13)
+                            ★ 그 뒤는 platform 몫: 프런트가 "이 매칭으로 파티 만들기"(경로 미정)를 부르면
+                              platform 이 qm:party:{partyId} 를 읽어 파티 · 방을 만들고 파티원에게 입장 표시 키를
+                              찍는다. 60초 뒤 활성 요청이 만료돼 새 매칭이 가능하다. outbox · SQS 는 없다
 
 POST /api/v1/proposals/{partyId}/decline?requestId=   ("나" = 쿠키의 sub)
  └ ProposalController → ProposalService.decline()
@@ -438,9 +443,9 @@ POST /api/v1/proposals/{partyId}/decline?requestId=   ("나" = 쿠키의 sub)
 | `qm:gameconfig:LOL:{modeKey}` | HASH | `targetPartySize`, `positionUniqueness`, `tierRule`(`NONE` / `EXIST`). 시드가 원본. `maxTierGap` 은 **없앴다** — 시드가 `HDEL` 로 걷어낸다. **`app:platform` 도 이 키를 `EXISTS` 로 읽어 모집 글의 `mode` 를 검증한다**(docs/11 D-29 — 키 모양을 바꾸면 그쪽 검증이 조용히 꺼진다) |
 | `qm:gameconfig:LOL:tier` | ZSET | **티어 사다리. 티어 값의 원본이다** (자바 enum 은 없다). score = 단계 번호 `0 UNRANKED`, `1 IRON_4` … `31 CHALLENGER` (32개). Lua 가 `ZRANK` 로 순번을 뽑고 `ZRANGE` 로 칸 목록을 만든다. **중간에 값을 끼워 넣으면 이미 만들어진 파티의 `tierLo`/`tierHi` 가 엉뚱한 칸을 가리킨다** — 큐가 비어 있을 때 바꿔라. **`app:platform` 도 `ZSCORE` 로 읽어 게임 계정의 `tier` 를 검증한다**(docs/11 D-29) |
 | `qm:gameconfig:LOL:tier-range:{modeKey}` | HASH | `tierRule` 이 `NONE` 이 **아닌** 모드가 갖는다(지금은 `RANKED_SOLO` + `RANKED_FLEX_2/3/5` 넷). `GOLD_4 → SILVER_4:PLATINUM_1` 처럼 **단 단위** 허용 범위. `SOLO_ONLY` 면 그 티어는 파티를 못 만든다. 줄이 없으면 그 티어는 400이다(fail-closed) |
-| `qm:user:active-request:{userId}` | HASH | 활성 요청. `requestId/game/modeKey/voicePreference/playPurpose/keyValue/tier/queuedAt/partyId`. **`queuedAt` 은 줄 선 시각(epoch millis)이고 Lua 가 아니라 `MatchRequestService` 가 필드로 넘긴다** — 조회가 "얼마나 기다렸나"를 답하려면 요청이 살아 있는 동안 남는 자리가 필요한데 이 HASH 말고는 없다(`match_requests` 테이블은 만들지 않는다). 이 키의 존재 자체가 INV-1 선점이다 (`claim-request.lua`). 배정 전까지는 TTL 60초. **제안이 확정되면 `status = PARTY` 필드가 붙는다** (`cleanup-confirmed.lua`) — 키를 지우면 그 순간 새 매칭을 걸 수 있어 INV-2 가 깨지므로 지우지 않고 표시만 한다. 이 상태를 푸는 것은 `app:platform`(`PartyClosed`)이고 아직 없다 |
+| `qm:user:active-request:{userId}` | HASH | 활성 요청. `requestId/game/modeKey/voicePreference/playPurpose/keyValue/tier/queuedAt/partyId`. **`queuedAt` 은 줄 선 시각(epoch millis)이고 Lua 가 아니라 `MatchRequestService` 가 필드로 넘긴다** — 조회가 "얼마나 기다렸나"를 답하려면 요청이 살아 있는 동안 남는 자리가 필요한데 이 HASH 말고는 없다(`match_requests` 테이블은 만들지 않는다). 이 키의 존재 자체가 INV-1 선점이다 (`claim-request.lua`). 배정 전까지는 TTL 60초. **제안이 확정되면 `status = PARTY` 필드가 붙고 TTL 60초(`queuemate.proposal.confirmed-retention-seconds`)가 걸린다** (`cleanup-confirmed.lua`, docs/11 D-42) — 키를 바로 지우면 그 순간 새 매칭을 걸 수 있어 INV-2 가 깨지므로 표시하고 만료시킨다. 60초 뒤부터 "한 번에 하나만" 은 platform 의 입장 표시 키가 맡는다 |
 | `qm:user:active-room:{userId}` | STRING | **이 앱의 키가 아니다 — `app:platform`(의 `room` 패키지. 2026-09-25 까지는 `app:room`)의 입장 표시 키다** (docs/11 D-19 · D-33). 사용자가 게시판 방에 들어가 있는 동안 있고 값은 `roomId` 다. 이 앱은 `claim-request.lua` 의 `KEYS[2]` 로 받아 **`EXISTS` 로 있는지만 본다** — 쓰지도 지우지도 값을 읽지도 `EXPIRE` 를 걸지도 않는다. 있으면 매칭 요청이 409 `IN_ROOM` 이다. 접두사의 원본은 `../platform` 의 `room/redisKeys/RoomKeys.java` `ACTIVE_ROOM_PREFIX`(옛 `../room` 의 같은 파일)이고 `SharedKeys.ACTIVE_ROOM_PREFIX` 가 따라 적는다. 자료형 · 값 · 수명은 `app:platform` 이 정한다(`../platform/contracts/platform-api.md` "방" 참조) |
-| `qm:party:{partyId}` | HASH | `partyId/target/createdAt/tierLo/tierHi` + `member:{userId} = keyValue` (+ 정원이 차면 `status`/`expiresAt`). 인원 수 필드는 없다 — `member:` 를 센다. `tierLo/tierHi` 는 사다리 **순번**이고 `ZRANK` 값 **그대로**라 0부터다 — 읽는 쪽이 `ZRANGE lo hi` 에 그대로 넘긴다. 티어를 안 보는 모드도 `0/0` 으로 같은 모양을 갖는다. VALORANT 파티는 여기에 `minTier`/`maxTier`(지금까지 들어온 사람의 최저·최고 순번)가 더 붙는다 |
+| `qm:party:{partyId}` | HASH | `partyId/target/createdAt/tierLo/tierHi` + `member:{userId} = keyValue` (+ 정원이 차면 `status`/`expiresAt`). **확정되면 `cleanup-confirmed.lua` 가 `status=CONFIRMED` 위에 `confirmedAt`(epoch ms) · `game` · `modeKey` · `voicePreference` · `playPurpose` 를 더 채우고 TTL 600초(`queuemate.proposal.confirmed-party-ttl-seconds`)를 건다 — `app:platform` 이 이 HASH 만 읽고 파티를 만들 수 있게 한 것이고, 그 필드 이름이 platform 과의 계약이다(docs/11 D-42, `contracts/events.md` SQS 절).** 인원 수 필드는 없다 — `member:` 를 센다. `tierLo/tierHi` 는 사다리 **순번**이고 `ZRANK` 값 **그대로**라 0부터다 — 읽는 쪽이 `ZRANGE lo hi` 에 그대로 넘긴다. 티어를 안 보는 모드도 `0/0` 으로 같은 모양을 갖는다. VALORANT 파티는 여기에 `minTier`/`maxTier`(지금까지 들어온 사람의 최저·최고 순번)가 더 붙는다 |
 | `qm:proposal:accepts:{partyId}` | SET | 제안 수락자 userId. `accept-proposal.lua` 가 `SADD` 후 `SCARD` 로 세어 `target` 과 비교한다. 거절(`decline-proposal.lua`) · 만료(`expiry-proposal.lua`) · 취소(`leave-party.lua`)가 `DEL` 하고, 확정되면 `cleanup-confirmed.lua` 가 `EXPIRE`(`queuemate.proposal.confirmed-retention-seconds`, 기본 60초)만 건다 — 재전송된 수락이 도착하는 창만큼만 남긴다. 제안 상태(`status`/`expiresAt`)는 별도 `qm:proposal:{id}` 레코드가 아니라 파티 HASH 에 있다 — **제안 id = partyId** |
 | `qm:proposal:pending` | ZSET | **진행 중인 제안 목록.** member = partyId, score = `expiresAt`. 정원이 찰 때 합류 스크립트가 `HSETNX status 'PENDING'` 성공 분기 안에서 `ZADD` 하고, 제안이 끝나는 **모든** 자리(확정 · 거절 · 취소 · 만료)가 `ZREM` 한다. 읽는 쪽은 `ProposalSweeper#sweep()` 하나다 — `ZRANGEBYSCORE 0 now LIMIT 0 100` 으로 시한이 지난 것만 꺼낸다. 게임을 구분하지 않는 키가 하나뿐인 것은 제안이 파티 HASH 위에서만 돌기 때문이다 |
 | `qm:party:open:LOL:{mode}:{voice}:{purpose}:needs:{keyValue}` | ZSET | **그 값을 아직 못 채운** 파티들. score = createdAt |
@@ -469,8 +474,8 @@ POST /api/v1/proposals/{partyId}/decline?requestId=   ("나" = 쿠키의 sub)
 때마다 파티 범위를 **지금 범위 ∩ 들어온 사람의 tier-range 줄** 로 좁힌다 — 옛 범위 칸 전부에서
 파티를 빼고, **아직 빈 역할군만**(`qm:party:needs-roles:{partyId}` SET) 새 범위 칸에 다시
 올린다. 정렬값은 지금 시각이 아니라 파티의 `createdAt` 이다. 파티 HASH 의 `minTier`/`maxTier`
-는 지금까지 들어온 사람의 최저·최고 순번이고, 읽는 곳은 아직 없다 — 취소가 범위를 되돌릴 때
-쓸 값이다. 취소 스크립트는 아직 없다.
+는 지금까지 들어온 사람의 최저·최고 순번이다 — `join-party-tiered.lua` 가 읽어 범위를 좁히고,
+`valorant/leave-party.lua` 가 남은 사람 기준으로 다시 적는다(취소는 `needs-roles` 도 되돌린다).
 
 **격자를 KEYS 로 통째로 넘기지 않는다.** 단(division)이 들어가 칸이 (포지션 6 x 티어 32)
 = 192 개가 되면서, 자바가 격자를 평평하게 펴서 넘기던 방식(`KEYS[2 + (p-1)*T + t]`)을 버렸다.
@@ -502,8 +507,8 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 - `DELETE /api/v1/match-requests/{id}` — compare-and-delete + 색인 되돌리기 (2026-09-27 까지는 `?userId=` 를 받았다)
 - `GET /api/v1/match-requests` — **상태 조회**(2026-09-27 까지는 `?userId=`). `MatchQueryService` 가 활성 요청 HASH
   → 파티 HASH → 수락자 SET 을 읽어 `IDLE` / `QUEUED` / `PROPOSED` / `MATCHED` 로 답한다.
-  응답은 `MatchRequestResponse`(record 8필드, `@JsonInclude(NON_NULL)`)이고 **접수(201)와는
-  모양이 다르다** — 접수는 아직 문자열 `"CREATED"` 를 돌려준다.
+  응답은 `MatchRequestResponse`(record 8필드, `@JsonInclude(NON_NULL)`)이고 접수(201)도 같은 DTO 의
+  `queued(requestId, queuedAt)` 갈래를 돌려준다(2026-09-27 — 그 전에는 문자열 `"CREATED"` 였다).
   **경로가 계약과 다르다**(계약은 `/{requestId}`) — `contracts/README.md` #5
 - LoL 파티 배정 전체 (찾기/만들기/합류/정원 참 판정/색인 갱신) — **티어 유/무 두 갈래**
 - 티어 매칭 — `tierRule` 은 `NONE` / `EXIST` 둘뿐이고, `EXIST` 면 허용 범위를 정하는 것은
@@ -521,9 +526,16 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
   `status=CONFIRMED` (INV-4), 확정은 거절로 뒤집히지 않는다 (INV-5 의 confirmed 갈래).
   거절은 제안 흔적(`status`/`expiresAt`/수락자 SET)을 지우고 거절한 본인만 큐에서 뺀다.
   `ProposalIdempotencyTest` 11건이 멱등성으로 지킨다
-- 확정 뒷정리 — `cleanup-confirmed.lua` 가 파티원 활성 요청에 `status=PARTY` 를 찍고
-  (지우지 않는다 — INV-2) 수락자 SET 에만 TTL 을 건 뒤, 파티 전원에게 `MATCH_CONFIRMED` 를
-  발행한다. **`ProposalConfirmed.fifo` 발행은 아직 없다** (§4.2)
+- 확정 뒷정리 — `cleanup-confirmed.lua` 가 파티 HASH 에 `game` / `modeKey` / `voicePreference` /
+  `playPurpose` / `confirmedAt` 을 채우고(`app:platform` 이 읽는 계약 — docs/11 D-42), 파티원 활성 요청에
+  `status=PARTY` 를 찍은 뒤 TTL 을 건다 — 파티 HASH 600초, 활성 요청 · 수락자 SET 60초(지우지 않고
+  만료시킨다 — INV-2). 그다음 파티 전원에게 `MATCH_CONFIRMED` 를 발행한다. **60초 뒤 사용자는 새 매칭을
+  걸 수 있다** — 확정된 사용자가 평생 갇히던 문제(옛 `HANDOFF.md` §0-1 ①)는 D-42 로 닫혔다
+- INV-6 차단 선필터 — `rule/{lol,pubg,valorant}/*CandidateRule#canJoin` 이 락을 잡기 전에
+  `BlockRepository#findBlockedUserIds` 로 내 차단 목록을 한 번 읽어 후보 파티를 거른다(D-41 — 한 겹이 전부다).
+  기본 실행(H2)은 `backend/src/main/resources/schema.sql` 이 `blocks` 를 만든다
+- 색인 복원 — 정원이 찼다 한 명 취소로 풀린 파티가 남은 사람이 맡지 않은 줄 **전부**에 되돌아온다
+  (LoL · VALORANT, `78f5c3f`, 회귀 테스트 포함)
 - 제안 만료 — `qm:proposal:pending` ZSET + `ProposalSweeper`(`@Scheduled`, 기본 1초) +
   `ProposalExpiryService` + `expiry-proposal.lua`. **수락하지 않은 사람만** 큐에서 빼고
   (수락자는 파티에 남아 다시 기다린다) `MATCH_PROPOSAL_EXPIRED` 를 그 제안에 있던 전원에게 보낸다
@@ -538,11 +550,10 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 
 | 없는 것 | 근거 (직접 확인한 것) |
 |---|---|
-| **확정된 파티를 DB 에 만드는 것** | 확정과 그 뒷정리·알림은 된다(§4.1). 없는 것은 `matching.outbox` 기록과 `ProposalConfirmed.fifo` 발행이다 — 그래서 `app:platform` 이 파티를 만들 신호를 못 받는다. 확정된 사용자의 활성 요청에 찍힌 `status=PARTY` 를 푸는 코드도 없다 — `PartyClosed.fifo` 는 `app:platform` 만 소비하므로(docs/11 D-13) 이 앱이 그 큐로 푸는 길은 닫혔고, 누가 푸는지는 미정이다(§8 의 1번) |
+| **확정된 파티를 DB 에 만드는 것 — platform 쪽 진입점** | **이 앱 몫은 끝났다**(§4.1 — 파티 HASH 를 자기완결로 채우고 `MATCH_CONFIRMED` 를 보낸다, docs/11 D-42). 만드는 것은 `app:platform` 이다 — 프런트가 "이 매칭으로 파티 만들기" 를 부르면 `qm:party:{partyId}` 를 읽어 파티와 방을 만들고 파티원에게 입장 표시 키를 찍는다. **그 진입점의 경로 · 본문 · 에러 코드가 미정**이라 지금은 확정돼도 파티가 DB 에 생기지 않는다(파티 HASH 는 600초 뒤 증발한다). outbox · SQS 로 푸는 길은 D-42 로 닫았다 |
 | **취소·만료의 구분** | 상태 조회는 생겼지만(§4.1) **왜 큐에서 빠졌는지는 답하지 못한다.** 취소도 만료도 활성 요청 키를 지우므로 `IDLE` 과 구분되지 않는다 — `MatchRequestStatus` 에 `CANCELLED`/`EXPIRED` 가 있지만 조회가 그 값을 돌려주는 경로는 없다(그 enum 주석에 "자리만 남겨 둔다"고 적혀 있다). 이유를 알려면 알림을 받았어야 하는데 Pub/Sub 은 at-most-once 다 |
-| **접수 응답의 본문** | `POST /match-requests` 가 `MatchRequestView` 가 아니라 문자열 `"CREATED"` 를 돌려준다. `MatchRequestResponse.queued(requestId, queuedAt)` 정적 팩토리가 이미 있는데 쓰이지 않는다 — 클라이언트가 `requestId` 를 못 받아 취소를 부르려면 조회를 한 번 더 해야 한다 (`contracts/README.md` #5-1) |
-| **INV-6 차단 검증** | 선필터 코드는 **있다** (`LolCandidateRule#canJoin` → `BlockRepository.findBlockedUserIds` → `ScriptSupport.blockedWith`). 그런데 이 앱 쪽에 차단 테이블이 없다 — Flyway 미도입, `ddl-auto: none`(운영 테이블은 `app:platform` 의 `public.blocks` · bigint 이고 `Block.java` 가 2026-09-26 에 `public.blocks` · `Long` 으로 맞췄다 — docs/11 D-25 · D-34). 기본 실행(H2)에서는 그 조회가 실패하고, 배정이 `@Async` 안이라 **요청은 201로 나가고 배정만 조용히 실패한다.** 테스트만 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql` 로 통과한다. 확정 직전 최종 검증(docs/11 D-1, `BlockRepository#findBlocksAmong`)은 확정 경로(`accept-proposal.lua`)에 붙어 있지 않아 미구현 |
-| **SQS outbox** | AWS SDK 의존성이 `backend/build.gradle` 에 없다 |
+| ~~**INV-6 차단 검증**~~ | **구현됐다(선필터 한 겹, docs/11 D-41 — §4.1).** 확정 직전 최종 검증은 두지 않기로 했고, 로컬 H2 는 `backend/src/main/resources/schema.sql` 이 `blocks` 를 만든다. 남은 것은 운영에서 `DB_URL` 이 platform 의 Postgres 를 가리키는 것뿐이다 |
+| ~~**SQS outbox**~~ | **두지 않는다(docs/11 D-42).** 2026-09-27 에 Flyway + `matching_outbox` 를 넣었다 같은 날 뺐다. AWS SDK · Flyway 가 `backend/build.gradle` 에 없는 것이 맞다 |
 | **메트릭** | `CLAUDE.md` §6 Definition of done 4번이 요구하는데 `MeterRegistry` / `@Timed` / `Metrics.` 가 `backend/src/main` 에 **0건**이다. `spring-boot-starter-actuator` 는 들어 있고 `/actuator/metrics` 도 열려 있어(`application.yaml`) JVM·HTTP 기본 지표는 나오지만, 매칭 고유 지표(큐 대기 시간, 배정까지 걸린 시간, 제안 수락률, 만료·취소 건수)는 하나도 없다 |
 | ~~**인증**~~ | **2026-09-27 에 붙었다**(§4.1) — 그 전에는 JWT 가 없고 `userId`를 요청 바디와 쿼리 파라미터로 받는 임시 상태였다. 남은 것 — 조회 경로를 `/match-requests/me` 로 옮길지(계약 #5 와 같이 정한다), `load-test/` 의 스크립트가 아직 바디에 `userId` 를 싣고 쿠키가 없다(6번과 같이 고친다) |
 | **`GET /games`** | 계약에 있으나 컨트롤러가 없다 |
@@ -610,9 +621,8 @@ LoL 만으로 시작한 범위 축소는 사고가 아니라 결정이다 — do
 1. 조회는 **왜 큐에서 빠졌는지**를 답하지 못한다. 취소도 만료도 활성 요청 키를 지우므로
    `IDLE` 과 구분되지 않는다 (§4.2).
 2. 확정 알림(`MATCH_CONFIRMED`)과 만료 알림(`MATCH_PROPOSAL_EXPIRED`)은 **이제 나간다.**
-   남은 것은 그 뒤 — `ProposalConfirmed.fifo` 가 없어 파티가 DB 에 만들어지지 않고,
-   확정된 사용자의 `status=PARTY` 를 푸는 코드가 없다(`PartyClosed` 소비는 이 앱의 일이 아니다 —
-   docs/11 D-13. 누가 푸는지는 미정이다).
+   남은 것은 그 뒤 — 파티를 DB 에 만드는 `app:platform` 쪽 진입점("이 매칭으로 파티 만들기")이 미정이다
+   (docs/11 D-42 — 이 앱은 파티 HASH 를 채워 두고 알림을 보내는 데까지 했다. `status=PARTY` 는 60초 뒤 만료된다).
 
 `load-test/match_latency.py` 가 성사를 감지하려고 HTTP 가 아니라 **Redis 를 직접 폴링**하는
 것은 그 스크립트가 알림 도입 전에 쓰였기 때문이다
@@ -662,7 +672,7 @@ grep -rn "LolTier" backend/src/                       # 0건이어야 맞다 —
 docker exec qm-redis redis-cli ZRANGE qm:gameconfig:LOL:tier 0 -1 WITHSCORES  # 티어 값의 원본 (32개)
 grep -rn "TODO" backend/src/                          # 남은 TODO 지점
 grep -rn "UnsupportedOperationException" backend/src/ # 0건이어야 맞다 — proposal 수락/거절은 구현됐다
-grep -rn "outbox\|ProposalConfirmed\|PartyClosed" backend/src/         # 0건이어야 맞다 — 아직 없는 확정 후속
+grep -rn "outbox\|ProposalConfirmed\|PartyClosed\|flyway" backend/src/ backend/build.gradle  # 0건이어야 맞다 — D-42 로 두지 않는다
 grep -rn "NOT_IMPLEMENTED" backend/src/               # 0건이어야 맞다 — 501 스텁은 없어졌다
 grep -rn "MeterRegistry\|@Timed" backend/src/main/     # 0건 — 메트릭이 아직 없다는 근거
 grep -rn "PushEventType\." backend/src/main/          # 실제로 발행되는 알림 종류
@@ -693,7 +703,8 @@ find backend/src -type d -empty                       # 빈 게임 패키지
 > + `ProposalExpiryService` + `proposal/expiry-proposal.lua`. 만료되면 **수락하지 않은 사람만**
 > 큐에서 빠지고 `MATCH_PROPOSAL_EXPIRED` 가 그 제안에 있던 전원에게 나간다. ② **확정 후속 처리의
 > 절반** — `proposal/cleanup-confirmed.lua` 가 활성 요청에 `status=PARTY` 를 찍고 수락자 SET 에
-> TTL 을 걸며, `MATCH_CONFIRMED` 가 파티 전원에게 나간다. **남은 절반은 아래 표의 outbox 항목이다.**
+> TTL 을 걸며, `MATCH_CONFIRMED` 가 파티 전원에게 나간다. **남은 절반(outbox → SQS)은 2026-09-27 에 두지 않기로 했다 — docs/11 D-42.
+> 파티 HASH 에 `game`/`modeKey`/`voicePreference`/`playPurpose`/`confirmedAt` 을 채우고 TTL 을 거는 것으로 이 앱 몫은 끝났다.**
 > ③ **VALORANT 배정·취소** — Lua 5개 · `rule/valorant` 6개 · `ValorantRedisConfig` · 시드 ·
 > `ValorantPartyJoinConcurrencyTest` 까지 들어왔다.
 >
@@ -706,12 +717,12 @@ find backend/src -type d -empty                       # 빈 게임 패키지
 
 | # | 할 일 | 시작 지점 | 왜 이 순서인가 |
 |---|---|---|---|
-| 1 | **확정된 사용자를 파티에서 풀어 주는 경로** | `proposal/cleanup-confirmed.lua` 가 활성 요청에 `status='PARTY'` 를 찍는데(INV-2 때문에 지우지 않는다) 그것을 푸는 주체가 없다. 후보 셋 — `PartyClosed` 소비 / "파티 나가기" API / 긴 TTL 안전망. **`PartyClosed` 소비는 닫혔다**(docs/11 D-13 — 그 큐는 `app:platform` 만 읽는다). 한때 가능성으로 적었던 "방을 맡는 `app:room` 이 방이 닫힐 때 활성 요청 키를 지운다"(D-11 16번 · D-16)는 **docs/11 D-19 로 없어졌다** — 방을 맡는 쪽(2026-09-25 부터 `app:platform` 의 `room` 패키지 — D-33)은 활성 요청 키에 쓰지 않는다(자기 입장 표시 키만 쓰고 이 키는 `EXISTS` 로만 본다). 푸는 주체는 `app:matching` 이나 `app:platform` 쪽에서 찾아야 한다. 확정된 사용자는 이 키가 남아 있어 **그대로는 방 입장도 거절된다**(`app:platform` 의 입장 Lua — 409 `ALREADY_QUEUED`). **어느 것으로 갈지는 여전히 결론이 안 났다** | **지금 사용자는 매칭을 평생 한 번만 할 수 있다.** 확정되면 활성 요청이 영원히 남아 새 매칭이 전부 409 `ALREADY_QUEUED` 다 |
-| 2 | **INV-6 차단 검증 완성** | 선필터는 이미 돈다 (`LolCandidateRule#canJoin`). 남은 것은 ① **`Block.java` 를 `public.blocks` · `Long` 으로 맞추기(docs/11 D-25 · D-34 — `HANDOFF.md` §0-4 (가)) + 이 앱 쪽의 테이블 준비** — 지금은 테이블이 없어 기본 실행에서 배정이 통째로 실패한다 ② 확정 직전 동기 SELECT (`BlockRepository#findBlocksAmong`, docs/11 D-1) — 확정 경로(`accept-proposal.lua`)가 생겼으니 그 앞에 붙인다 | docs/11 #30: "차단 검증 없이 배포하지 않는다." **배포 전 필수.** ①은 사실상 버그 수정이다 |
-| 3 | **확정 후속 처리의 남은 절반 — outbox → SQS** | Redis 쪽 뒷정리와 `MATCH_CONFIRMED` 알림은 이미 붙었다(`ProposalService#accept()` → `cleanup-confirmed.lua`). 남은 것은 Flyway 3테이블(`match_proposals`/`proposal_members`/`outbox`) + `ProposalConfirmed.fifo` 발행이고, AWS SDK 의존성부터 없다. (1번을 `PartyClosed` 소비로 푸는 길은 docs/11 D-13 으로 닫혔다 — 여기 딸리는 소비는 없다) | 파티를 DB에 만드는 것은 `app:platform` 이다 (docs/11 #30) |
+| ~~1~~ | ~~**확정된 사용자를 파티에서 풀어 주는 경로**~~ | **2026-09-27 닫혔다 — docs/11 D-42.** `cleanup-confirmed.lua` 가 활성 요청(`status=PARTY`)에 TTL 60초(`confirmed-retention-seconds`)를 걸어 만료시킨다. 그 뒤 "한 번에 하나만" 은 `app:platform` 이 파티를 만들며 찍는 입장 표시 키가 맡는다(`claim-request.lua` 가 이미 본다). 후보 셋 가운데 3번(TTL 안전망)에 가깝지만 임시방편이 아니라 설계다 — 파티의 수명은 platform 것이고 이 앱은 확정 순간만 안다 | 사용자가 매칭을 평생 한 번만 할 수 있던 문제가 없어졌다. 남은 것은 platform 쪽 진입점(아래 3번) |
+| ~~2~~ | ~~**INV-6 차단 검증 완성**~~ | **2026-09-27 닫혔다 — docs/11 D-41.** 선필터 한 겹(세 게임 모두)이 전부다. 확정 직전 동기 SELECT 는 두지 않는다. `Block.java` 는 `public.blocks` · `Long`(09-26), 로컬 H2 는 `backend/src/main/resources/schema.sql` 이 표를 만든다 | docs/11 #30 "차단 검증 없이 배포하지 않는다" 는 선필터가 실제로 도는 것으로 충족된다. 운영은 `DB_URL` 이 platform 의 Postgres 여야 한다 |
+| 3 | **확정된 파티를 실제로 만드는 platform 쪽 진입점** (옛 "outbox → SQS" 는 docs/11 D-42 로 두지 않는다) | 이 앱 몫은 끝났다 — `cleanup-confirmed.lua` 가 파티 HASH 를 자기완결로 채우고(`game`/`modeKey`/`voicePreference`/`playPurpose`/`confirmedAt`, TTL 600초) `MATCH_CONFIRMED` 를 보낸다. **남은 것은 `app:platform` 의 "이 매칭으로 파티 만들기"** — 경로 · 본문 · 에러 코드 · 입장 표시 키를 찍고 지우는 때(D-36) 전부 미정(D-42 "아직 미정"). 이 저장소에서 할 일은 그 HASH 필드 이름을 바꾸지 않는 것이다 | 파티를 DB에 만드는 것은 `app:platform` 이다 (docs/11 #30 · D-42). 진입점이 생기기 전까지는 확정돼도 파티가 DB 에 없다 |
 | 4 | ~~**`BlockChanged.fifo` 소비**~~ | **할 일이 아니게 됐다** — `BlockChanged.fifo` 와 Redis 선필터(`qm:block:{userId}`)는 폐기됐다 (docs/11 D-12). 계약 사본도 그렇게 고쳤다(`contracts/README.md` A-5) | 차단은 2번의 DB 직접 조회 한 겹으로 지킨다 |
 | 5 | **메트릭** | `MeterRegistry` 가 `backend/src/main` 에 0건이다. actuator 는 이미 있다 | `CLAUDE.md` §6 Definition of done 4번 |
-| 6 | **부하 테스트 복구** | `load-test/` 가 티어 필수화 뒤로 안 돈다 (요청 바디에 `tier` 없음 + 색인 키에 티어 접미사 없음) | 성능 근거를 다시 재려면 필요하다 |
+| ~~6~~ | ~~**부하 테스트 복구**~~ | **2026-09-27 에 했다** — `load-test/README.md`(쿠키 토큰 · `tier` · 티어 접미사 색인 키) | 성능 근거를 다시 잴 수 있다 |
 | 7 | **계약 정리** | `openapi.yaml` 이 `OPTIONAL` · `PLAY_STYLE` · 조회 경로 · 새 모드 키를 반영하지 않는다. **본 저장소 contract 변경이 선행** (CLAUDE.md §5) | 불일치 표(`contracts/README.md`)가 길어질수록 어느 쪽이 맞는지 판단하는 비용이 는다 |
 | 8 | ~~**인증(JWT)**~~ | **2026-09-27 에 했다** — `userId` 요청 필드와 `?userId=` 쿼리 파라미터를 없앴다(`MatchingController` · `ProposalController` 둘 다). "나"는 쿠키 `qm_access` 의 `sub` 다. **조회 경로를 `/match-requests/me` 로 옮기는 것은 하지 않았다** — 경로는 계약(#5)과 같이 정한다 | 계약 불일치 #2, #3 이 해소됐다(`contracts/README.md`) |
 

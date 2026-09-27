@@ -3545,6 +3545,46 @@ D-25 는 사용자의 식별자를 **사용자 번호(`userId`)와 로그인 아
 **영향.** `CLAUDE.md` §3 · §4 INV-6 행의 "확정 직전 최종 검증(없음)" 은 "두지 않는다(D-41)" 로 읽는다. #30 의 "차단 검증 없이
 배포하지 않는다" 는 ①이 실제로 도는 것(로컬은 `schema.sql`, 운영은 platform 의 `public.blocks`)으로 충족된다.
 
+### D-42. 확정된 파티는 `app:platform` 이 Redis 파티 HASH 를 직접 읽어 만든다 — outbox → SQS `ProposalConfirmed.fifo` 는 두지 않는다 (#18 · #21 · #27 의 DB 절반 · D-13 개정, 2026-09-27)
+
+> **프로젝트 소유자가 정했다.** 같은 날 Flyway + `matching_outbox` 표 · 엔티티 · 리포지토리를 넣었다가(커밋 `7ac6209` · `55236da` ·
+> `cef2c7b`) 같은 날 되돌렸다(revert — `d7b4aa3` · `f731d5f` · `8f5c181`). **이 앱은 DB 에 쓰는 표가 없다** — `blocks` 읽기만이다(D-34 그대로).
+
+**원안(#18 · #21).** 앱 간 도메인 이벤트는 transactional outbox + SQS FIFO. 이 앱이 `ProposalConfirmed.fifo` 를 생산하고 `app:platform` 이
+소비해 파티를 DB 에 만든다. 확정된 사용자의 활성 요청은 `status=PARTY` 로 **영구 보존**하고 `PartyClosed` 로 푼다 — D-13 으로 그 길이 닫혀
+`HANDOFF.md` §0-1 ① "확정된 사용자가 매칭을 평생 한 번만 할 수 있다" 가 남아 있었다.
+
+**결정.**
+
+1. **SQS · outbox 를 만들지 않는다.** 이 앱이 생산 · 소비하는 큐는 0 개다. Flyway 도 없다.
+2. **확정 직후 `redis/proposal/cleanup-confirmed.lua` 가 파티 HASH `qm:party:{partyId}` 를 자기완결로 만든다** — `status=CONFIRMED`,
+   `confirmedAt`(epoch ms), `game`, `modeKey`, `voicePreference`, `playPurpose` 를 채운다(기존 `target`, `member:{userId}=keyValue`, 티어 모드의
+   `tierLo`/`tierHi` 는 그대로). **이 필드 목록이 `app:platform` 과의 계약이다** — 이름을 바꾸면 platform 이 조용히 깨진다(`SharedKeys` 의 경고와 같다).
+3. **영구 보존 대신 TTL.** 파티 HASH 는 `queuemate.proposal.confirmed-party-ttl-seconds`(기본 600초), 활성 요청(`status=PARTY`)과 수락자 SET 은
+   `queuemate.proposal.confirmed-retention-seconds`(기본 60초). **60초 뒤 사용자는 새 매칭을 걸 수 있다.**
+4. **흐름** — 이 앱이 `MATCH_CONFIRMED {partyId}` 를 보낸다 → 프런트가 platform 의 "이 매칭으로 파티 만들기"(경로 · 이름은 platform 이 정한다)를
+   부른다 → platform 이 `qm:party:{partyId}` 를 읽어(`status == CONFIRMED` 확인) 파티와 방을 만들고 파티원 전원에게 입장 표시 키
+   `qm:user:active-room:{userId}` 를 찍는다(D-19). 다섯 명이 다 눌러도 `partyId` 유일 키로 **한 번만** 만든다. 알림을 놓친 클라이언트는 60초 안이면
+   `GET /match-requests` 가 `MATCHED + partyId` 를 답한다.
+5. **"한 번에 하나만"(D-11 · D-19)의 보호는 확정 60초 뒤부터 platform 의 입장 표시 키가 맡는다** — `claim-request.lua` 가 이미 `KEYS[2]` 로 본다.
+
+**근거.** SQS 를 고른 이유(#18 · #21)는 앱마다 스키마를 나눠 DB 로 대화할 수 없었던 것과 `BlockChanged` 의 순서 보장인데, D-34 로 스키마가 하나가
+되고 D-12 로 그 큐가 폐기돼 둘 다 사라졌다. platform 은 이미 이 앱의 Redis 키를 읽는다(D-19 · D-29). `ProposalConfirmed` 는 파티당 한 번 나가
+지킬 순서가 없다. 이 프로젝트는 DB · Redis 하나를 공유하는 "배포 단위를 나눈 모놀리스"(#15 의 이유는 재시작 비용 비대칭)라, 같은 DB 를 쓰는 두 앱이
+AWS 를 한 바퀴 도는 것은 장치만 늘린다. 서비스별 DB 로 진짜 갈라지는 날 `ProposalService#confirmed()` 자리에 큐를 넣으면 된다.
+
+**감수하는 것.** 확정 뒤 10분 안에 아무도 platform 을 부르지 않으면 파티가 증발한다(확정하고 아무도 안 들어온 파티라 잃어도 된다). 확정 60초 안에
+platform 이 입장 키를 못 찍으면 그 사이 사용자가 새 매칭을 걸 수 있다(창이 작다). platform 이 파티 HASH 를 읽지 못하면(Redis 장애) 파티가 안
+만들어진다 — #29 가 이미 감수한 것이다.
+
+**영향.** `CLAUDE.md` §3 "outbox → SQS FIFO" · §9 "파티를 DB 에 만드는 코드 — platform 이 `ProposalConfirmed.fifo` 를 소비" · INV-2 행 "이 상태를
+푸는 것은 platform 이고 아직 없다" · INV-4 행 "outbox 발행은 없음" 이 낡는다(이 결정과 같이 고쳤다). `contracts/events.md` 의 SQS 절은 큐가 0 개가
+된다(`contracts/README.md` A-15). `HANDOFF.md` §0-1 ① · ③ 이 닫힌다. 3-2(확정 뒤 취소 가드)는 TTL 60초 안에서만 가능하고 그 뒤엔 방 나가기가
+곧 파티 나가기라 **별도 가드를 두지 않는다.**
+
+**아직 미정 — platform 몫.** "이 매칭으로 파티 만들기" 의 경로 · 요청 본문 · 에러 코드, 자동 매칭 파티의 방을 게시판 방과 같은 `room` 으로 만들지,
+입장 키를 언제 지우는지(D-36 과 맞춘다).
+
 ---
 
 ## 문서 정합성 점검 기록 (2026-09-11)
