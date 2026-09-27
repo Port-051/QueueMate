@@ -1,7 +1,7 @@
 <!-- 출처: queueMate 저장소 / 브랜치 feature/frontend / 경로 contracts/events.md (110줄) -->
 <!-- 커밋: 825d673 -->
 <!-- ★ 발췌본이다. app:matching 이 발행하는 이벤트와 그 전달 규약만 옮겼다. -->
-<!-- ★ 이 사본이 원본보다 앞서 개정된 부분이 있다 — "재연결"(2026-09-18), 전송 표와 WEBRTC_SIGNAL(2026-09-19), heartbeat 와 retry(2026-09-19), SQS 큐 표의 BlockChanged 폐기(2026-09-19), RESERVATION_* 발행 주체(2026-09-19), WEBRTC_SIGNAL 발행 주체 app:room(2026-09-19) → app:platform(2026-09-25 합침, docs/11 D-33), "재연결"의 상태 조회 경로에서 ?userId= 제거(2026-09-27). 각 자리의 "개정 이력"과 contracts/README.md 를 봐라. -->
+<!-- ★ 이 사본이 원본보다 앞서 개정된 부분이 있다 — "재연결"(2026-09-18), 전송 표와 WEBRTC_SIGNAL(2026-09-19), heartbeat 와 retry(2026-09-19), SQS 큐 표의 BlockChanged 폐기(2026-09-19), RESERVATION_* 발행 주체(2026-09-19), WEBRTC_SIGNAL 발행 주체 app:room(2026-09-19) → app:platform(2026-09-25 합침, docs/11 D-33), "재연결"의 상태 조회 경로에서 ?userId= 제거(2026-09-27), SQS 절 — 이 앱이 걸린 큐 0개 · ProposalConfirmed.fifo 는 만들지 않고 app:platform 이 파티 HASH 를 읽는다(2026-09-27, docs/11 D-42, A-15). 각 자리의 "개정 이력"과 contracts/README.md 를 봐라. -->
 
 # Server Event Contract — app:matching 발췌
 
@@ -65,7 +65,7 @@
 | `MATCH_PROPOSAL_CREATED` | 같은 클래스들의 `JOINED_AND_FULL` 분기 | **발행됨.** payload `{memberNumber, target, partyId}` |
 | `MATCH_CANCELLED` | `rule/{lol,pubg,valorant}/*PartyLeaver.java` (남은 파티원에게만, 취소한 본인 제외) | **발행됨.** payload `{memberNumber}` |
 | `MATCH_PROPOSAL_EXPIRED` | `service/ProposalExpiryService.java#expire()` | **발행됨.** payload `{partyId}`. 시한이 지난 제안을 `service/ProposalSweeper.java`(`@Scheduled`, `queuemate.sweep.interval-ms`, 기본 1초)가 `qm:proposal:pending` ZSET 에서 꺼내 `redis/proposal/expiry-proposal.lua` 로 깬다. **받는 사람은 그 제안에 있던 전원**이다 — 수락하지 않은 사람(큐에서도 빠진다)과 수락한 사람(파티에 남아 다시 기다린다)을 가리지 않는다. 수락자도 받아야 제안 화면에 갇히지 않기 때문이다. **거절**로 제안이 깨졌을 때 남은 사람에게 알리는 것은 여전히 없다(계약에 그 type 이 없다 — 아래 "미해결 계약 구멍") |
-| `MATCH_CONFIRMED` | `service/ProposalService.java#accept()` | **발행됨.** payload `{partyId}`. `redis/proposal/accept-proposal.lua` 가 수락자 SET 을 `SCARD` 로 세어 `target` 에 닿으면 `status = CONFIRMED` 를 찍고(INV-4), 이어서 `redis/proposal/cleanup-confirmed.lua` 가 돌려준 파티원 전원에게 나간다. **확정을 만든 그 한 번의 호출에서만 나간다** — 이미 확정된 제안에 수락이 또 오면 스크립트가 `CONFIRMED` 가 아니라 `ALREADY_RESPONDED` 를 돌려주므로 같은 알림이 두 번 나가지 않는다. 아직 없는 것은 `ProposalConfirmed.fifo` 발행이다 — 그래서 `app:platform` 이 파티를 DB 에 만들지 못한다 |
+| `MATCH_CONFIRMED` | `service/ProposalService.java#accept()` | **발행됨.** payload `{partyId}`. `redis/proposal/accept-proposal.lua` 가 수락자 SET 을 `SCARD` 로 세어 `target` 에 닿으면 `status = CONFIRMED` 를 찍고(INV-4), 이어서 `redis/proposal/cleanup-confirmed.lua` 가 돌려준 파티원 전원에게 나간다. **확정을 만든 그 한 번의 호출에서만 나간다** — 이미 확정된 제안에 수락이 또 오면 스크립트가 `CONFIRMED` 가 아니라 `ALREADY_RESPONDED` 를 돌려주므로 같은 알림이 두 번 나가지 않는다. **이 알림이 파티 생성의 신호다**(docs/11 D-42) — `cleanup-confirmed.lua` 가 파티 HASH `qm:party:{partyId}` 에 `game` / `modeKey` / `voicePreference` / `playPurpose` / `confirmedAt` 을 채워 두고 TTL 600초를 걸며, 받은 클라이언트가 `app:platform` 의 "이 매칭으로 파티 만들기"(경로 미정)를 부르면 platform 이 그 HASH 를 읽어 파티와 방을 만든다(파티원 다섯이 다 눌러도 `partyId` 로 한 번만). 알림을 놓쳤으면 60초 안(`confirmed-retention-seconds`)에는 `GET /match-requests` 가 `MATCHED` + `partyId` 를 답해 복구된다. `ProposalConfirmed.fifo` 는 두지 않는다 — 아래 "서버 간 이벤트" 절 |
 
 payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약 구멍"이 지적한 그대로
 15종 전부 payload 스키마가 비어 있어서, 구현이 먼저 정하고 여기에 적어 둔 것이다.
@@ -140,6 +140,8 @@ payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약
 - **스트림 간 인과 순서는 보장하지 않는다.** 알림은 Redis Pub/Sub fanout 이고,
   이를 유발한 도메인 이벤트는 SQS FIFO 의 서로 다른 `MessageGroupId` 를 탄다.
   예를 들어 `MATCH_CONFIRMED` 와 `PARTY_MEMBER_JOINED` 의 도착 순서는 고정이 아니다.
+  (2026-09-27 — 이 앱이 SQS 를 타는 이벤트는 없어졌다(docs/11 D-42). 원칙은 그대로다 — `MATCH_CONFIRMED` 와
+  그 뒤 `app:platform` 이 내는 방 알림의 순서도 고정이 아니다.)
 - 따라서 **클라이언트 핸들러는 멱등하고 순서에 무관해야 한다.**
   이벤트를 상태 전이 트리거가 아니라 "다시 조회하라"는 신호로 다루는 편이 안전하다.
 - 알림은 휘발성이라 재전송 보장이 없다. 놓친 상태는 REST 로 복구한다.
@@ -195,26 +197,57 @@ payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약
 알림(Redis Pub/Sub)과 **성격이 다르다.** 놓치면 데이터가 어긋나므로 내구성·재시도·DLQ·
 순서 보장이 필요하다 (docs/14 §7).
 
-`app:matching` 이 걸린 큐는 **1개**다 — 생산만 하고, 소비하는 큐는 없다.
+**`app:matching` 이 걸린 큐는 0 개다** — 생산도 소비도 하지 않는다 (docs/11 D-42, 2026-09-27).
 
 | 큐 | 이 앱의 역할 | MessageGroupId | 비고 |
 |---|---|---|---|
-| `ProposalConfirmed.fifo` | **생산자** — 확정된 제안을 내보내면 `app:platform` 이 소비해 파티를 만든다 | `proposalId` | DLQ + `maxReceiveCount` |
-| ~~`BlockChanged.fifo`~~ | ~~**소비자** — 차단 목록 갱신을 받아 `qm:block:{userId}` read model 을 고친다~~ | — | **폐기됐다 — 만들지 않는다** (docs/11 D-12). 차단은 `app:platform` 이 `social.blocks` 에 저장하면 끝이고, 이 앱은 확정 직전에 그 테이블을 직접 조회해 INV-6 을 지킨다 (D-1) |
+| ~~`ProposalConfirmed.fifo`~~ | ~~**생산자** — 확정된 제안을 내보내면 `app:platform` 이 소비해 파티를 만든다~~ | — | **만들지 않는다** (docs/11 D-42). 확정된 파티는 `app:platform` 이 이 앱의 파티 HASH `qm:party:{partyId}` 를 **직접 읽어** 만든다 — 아래 개정 이력 |
+| ~~`BlockChanged.fifo`~~ | ~~**소비자** — 차단 목록 갱신을 받아 `qm:block:{userId}` read model 을 고친다~~ | — | **폐기됐다 — 만들지 않는다** (docs/11 D-12). 차단은 `app:platform` 이 `social.blocks`(2026-09-26 부터 `public.blocks` — D-34)에 저장하면 끝이고, 이 앱은 배정 때 그 테이블을 직접 조회해 INV-6 을 지킨다 (D-1 · D-41) |
 
 > 개정 이력: 예전 판은 "`app:matching` 이 걸린 큐는 2개다"라고 적고 `BlockChanged.fifo` 를 이 앱이
-> **소비**하는 큐로 두었다(차단 쌍 단위 순서 보장 필수). 2026-09-19 에 위와 같이 바꿨다 (docs/11 D-12) —
+> **소비**하는 큐로 두었다(차단 쌍 단위 순서 보장 필수). 2026-09-19 에 1개로 바꿨다 (docs/11 D-12) —
 > 선필터는 정확성을 책임지지 않고(D-2), 큐 하나와 그에 딸린 발행·소비·DLQ·멱등 처리가 통째로 없어진다.
 >
 > **`PartyClosed.fifo` 는 이 앱이 걸린 큐가 아니다.** 보내는 쪽도 받는 쪽도 `app:platform` 이고
 > 이 앱은 읽지 않는다 (docs/11 D-13).
+
+> **개정 이력: 2026-09-27 (contracts/README.md A-15, docs/11 D-42).** 남아 있던 1개 `ProposalConfirmed.fifo` 도 **만들지 않는다.**
+> 이유 — SQS 를 고른 근거(앱마다 스키마를 나눠 DB 로 대화할 수 없었던 것, `BlockChanged` 의 순서 보장)가 D-34(스키마 하나) ·
+> D-12(그 큐 폐기)로 둘 다 사라졌고, `app:platform` 은 이미 이 앱의 Redis 키를 읽는다(D-19 · D-29). 같은 DB · Redis 를 쓰는 두 앱이
+> AWS 를 한 바퀴 도는 것은 장치만 늘린다. 2026-09-27 에 Flyway + `matching_outbox` 를 넣었다가 같은 날 되돌렸다.
+>
+> **대신 이렇게 간다.**
+> 1. 전원 수락으로 확정되면 이 앱의 `cleanup-confirmed.lua` 가 파티 HASH **`qm:party:{partyId}`** 를 자기완결로 채우고 `MATCH_CONFIRMED {partyId}` 를 파티 전원에게 보낸다.
+> 2. 클라이언트가 `app:platform` 의 **"이 매칭으로 파티 만들기"** 를 부른다 — **경로 · 요청 본문 · 에러 코드는 platform 이 정한다(미정).**
+> 3. platform 이 그 HASH 를 읽어(`status == CONFIRMED` 확인) 파티와 방을 만들고 파티원 전원에게 입장 표시 키 `qm:user:active-room:{userId}` 를 찍는다(D-19). 파티원 다섯이 다 눌러도 `partyId` 유일 키로 **한 번만** 만든다.
+>
+> **파티 HASH 의 필드가 계약이다** — 이름을 바꾸면 platform 이 조용히 깨진다(`redisKeys/SharedKeys` 의 경고와 같다).
+>
+> | 필드 | 뜻 |
+> |---|---|
+> | `status` | `CONFIRMED` 일 때만 읽어도 된다(`PENDING` 은 아직 제안 중, 없으면 아직 안 찬 파티) |
+> | `confirmedAt` | 확정 시각, epoch millis. `HSETNX` 라 재실행이 옮기지 않는다 |
+> | `game` | `LOL` / `VALORANT` / `PUBG` |
+> | `modeKey` | 예 `RANKED_SOLO` — gameconfig `qm:gameconfig:{GAME}:{MODE}` 의 `{MODE}` |
+> | `voicePreference` | `REQUIRED` / `NO_VOICE` |
+> | `playPurpose` | `RANK_UP` / `NORMAL` / `FUN` |
+> | `target` | 정원 |
+> | `member:{userId}` | 값은 그 사람의 keyValue(LoL 포지션 · VALORANT 역할군 · PUBG 플랫폼). `{userId}` 는 사용자 번호의 십진 문자열. 인원 수 필드는 없다 — 이 필드를 센다 |
+> | `tierLo` / `tierHi` | 티어를 보는 모드의 파티 허용 범위 — 티어 사다리 `qm:gameconfig:{GAME}:tier` 의 `ZRANK` 순번(0부터). 티어를 안 보는 모드는 `0/0` |
+>
+> **수명** — 파티 HASH 는 확정 뒤 **TTL 600초**(`queuemate.proposal.confirmed-party-ttl-seconds`). 그 안에 아무도 platform 을 부르지 않으면
+> 파티가 증발한다(확정하고 아무도 안 들어온 파티라 잃어도 된다). 파티원의 활성 요청(`status=PARTY`)과 수락자 SET 은 **60초**
+> (`confirmed-retention-seconds`) — 그 뒤 사용자는 새 매칭을 걸 수 있고, "한 번에 하나만" 은 platform 의 입장 표시 키가 맡는다.
+>
+> 아래 at-least-once · Redis Streams · transactional outbox 의 서술은 **큐를 두는 앱에 걸리는 원본 규칙**이고, 이 앱에는 지금 해당하는
+> 큐가 없다. 서비스별 DB 로 진짜 갈라지는 날 `ProposalService#confirmed()` 자리에 큐를 넣으면 그때 다시 걸린다.
 
 - 전달은 **at-least-once** 이므로 **소비자는 반드시 멱등해야 한다.**
 - Redis Streams 로 대체하지 마라. 컨슈머 그룹으로 읽는 순간 순서가 깨진다 (docs/11 #26).
 - outbox 는 **transactional outbox** 다. 확정 트랜잭션과 같은 트랜잭션에서 outbox 행을
   쓰고, relay 가 그것을 SQS 로 밀어낸다.
 
-**구현 상태: `ProposalConfirmed.fifo` 발행은 미구현이다.** AWS SDK 의존성이 `build.gradle` 에 없다.
+**구현 상태: 이 앱에는 SQS 도 outbox 도 없고, 두지 않는다** (docs/11 D-42). AWS SDK · Flyway 의존성이 `build.gradle` 에 없는 것이 맞다.
 
 ---
 
@@ -242,6 +275,9 @@ payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약
 - **accept 진행상황 이벤트가 없다.** "N명 중 M명 수락" 을 화면에 표시할 수단이 없다.
 - **`PARTY_CREATED` 이벤트가 없다.** party 생성은 `ProposalConfirmed` 소비로 비동기
   진행되므로 `MATCH_CONFIRMED` 직후 클라이언트가 `GET /parties` 를 치면 404 가 날 수 있다.
+  (2026-09-27 — docs/11 D-42 로 모양이 바뀌었다. 파티는 `MATCH_CONFIRMED` 를 받은 클라이언트가 `app:platform` 의
+  "이 매칭으로 파티 만들기" 를 **직접 불러** 만들어지므로 비동기 소비의 404 경합은 없어졌다. 대신 **그 진입점의 경로 ·
+  응답이 미정**이고, 같은 파티의 다른 파티원이 먼저 만들었을 때 뒤에 누른 사람이 받는 답을 platform 이 정해야 한다.)
 - `contracts/openapi.yaml` 에 **`GET /api/v1/events` 가 없다.**
 - `openapi.yaml` 에 **`ErrorResponse` 스키마가 없다** (이 저장소 발췌본에는 구현에서
   역으로 적어 두었다).
