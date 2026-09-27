@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Avatar, Button, Modal, useToast } from '../components/ui';
-import { IconChat, IconCheck, IconLogout, IconMic, IconMicOff, IconX } from '../components/icons';
+import { IconChat, IconLogout, IconMic, IconMicOff, IconX } from '../components/icons';
 import { IconDirectMessage } from '../components/NotificationPanel';
 import { RoomMemberAvatar } from './RoomDeck';
 import { USE_MOCK } from '../config';
@@ -187,7 +187,7 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
       <div className="room-conversation-heading">
         <h2>{room.title}</h2>
       </div>
-      {isHost ? <Button className="room-conversation-close" size="sm" disabled={recruitmentBusy || (confirmed && Boolean(reopenError))} aria-pressed={confirmed} aria-busy={recruitmentBusy} title={confirmed ? reopenError || '모집 마감 취소' : '모집 마감'} onClick={() => void changeRecruitment(confirmed)}><IconCheck size={14} />모집 마감</Button> : null}
+      {isHost ? <Button className={`room-conversation-close${confirmed ? ' is-closed' : ''}`} size="sm" disabled={recruitmentBusy || (confirmed && Boolean(reopenError))} aria-busy={recruitmentBusy} title={confirmed && reopenError ? reopenError : undefined} onClick={() => void changeRecruitment(confirmed)}>{confirmed ? '마감 취소' : '모집 마감'}</Button> : null}
       <button className="room-conversation-icon" type="button" aria-label="방 나가기" title="방 나가기" onClick={() => setAction({ kind: 'leave' })}><IconLogout size={19} /></button>
     </header>
 

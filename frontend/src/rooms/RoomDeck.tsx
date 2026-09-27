@@ -75,7 +75,7 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, entryError
     <div className="compact-room-header" aria-label="방 요약">
       <h3 ref={heading} tabIndex={-1} title={room.title}>{room.title}</h3>
       {closed ? <span className="room-status is-confirmed">마감</span> : null}
-      <time dateTime={room.availableFrom ?? undefined}>{roomStartLabel(room.availableFrom)}</time>
+      {!closed ? <time dateTime={room.availableFrom ?? undefined}>{roomStartLabel(room.availableFrom)}</time> : null}
     </div>
     <div className="compact-members" aria-label="방 구성원 정보">
       {room.members.map(member => <div className="compact-member" key={member.id}>

@@ -91,7 +91,7 @@
 .room-conversation-day time { flex:none; }
 
 .room-conversation-close.btn { flex:none; min-height:32px; padding:6px 12px; gap:5px; border-radius:999px; font-size:12px; white-space:nowrap; color:#ece7f6; border-color:#595366; background:#35313f; }
-.room-conversation-close.btn[aria-pressed=true] { color:#fff; border-color:#a87bd9; background:#684099; }
+.room-conversation-close.btn.is-closed { color:#fff; border-color:#a87bd9; background:#684099; }
 .room-conversation-close.btn:hover:not(:disabled) { border-color:#b290da; background:#7a4eb0; }
 .room-conversation-close.btn:disabled { opacity:1; color:#c2becd; border-color:#595366; background:#35313f; }
 .room-kick-dialog { width:min(380px, calc(100vw - 32px)); border-radius:24px; }

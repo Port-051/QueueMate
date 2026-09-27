@@ -63,8 +63,8 @@ test('실제 5인 방의 자동 마감·재모집, 강퇴 확인과 채팅 복�
     await b.getByRole('button', { name: '참여하기', exact: true }).click();
     await expect(b.getByRole('region', { name: '방 채팅과 음성' })).toBeVisible();
     await expect(a.getByRole('article', { name: `서버 검증 ${id} 방 정보`, exact: true })).toHaveAttribute('data-status', 'CONFIRMED');
-    await expect(a.getByRole('button', { name: '모집 마감', exact: true })).toBeDisabled();
-    await expect(b.getByRole('button', { name: /모집 다시 열기|모집 마감/ })).toHaveCount(0);
+    await expect(a.getByRole('button', { name: '마감 취소', exact: true })).toBeDisabled();
+    await expect(b.getByRole('button', { name: /모집 마감|마감 취소/ })).toHaveCount(0);
     const input = a.getByRole('textbox', { name: '방에 메시지 보내기' });
     // Failure must retain the user's text and must not produce a phantom sent message.
     await a.route('**/rooms/*/messages', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'TEST_UNAVAILABLE', message: '잠시 후 다시 시도해 주세요' }) }));
@@ -118,16 +118,16 @@ test('실제 5인 방의 자동 마감·재모집, 강퇴 확인과 채팅 복�
     await a.getByRole('button', { name: '모집 마감', exact: true }).click();
     await expect(room).toHaveAttribute('data-status', 'CONFIRMED');
     await expect(room.getByRole('button', { name: /자리 참여/ })).toBeDisabled();
-    const close = a.getByRole('button', { name: '모집 마감', exact: true });
-    await expect(close).toHaveAttribute('aria-pressed', 'true');
+    const close = a.getByRole('button', { name: /^(모집 마감|마감 취소)$/ });
+    await expect(close).toHaveText('마감 취소');
     await a.route('**/rooms/*/actions', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'TEST_UNAVAILABLE', message: '마감 취소를 다시 시도해 주세요' }) }));
     await close.click();
     await expect(a.getByText('마감 취소를 다시 시도해 주세요')).toBeVisible();
-    await expect(close).toHaveAttribute('aria-pressed', 'true');
+    await expect(close).toHaveText('마감 취소');
     await expect(room).toHaveAttribute('data-status', 'CONFIRMED');
     await a.unroute('**/rooms/*/actions');
     await close.click();
-    await expect(close).toHaveAttribute('aria-pressed', 'false');
+    await expect(close).toHaveText('모집 마감');
     await expect(room).toHaveAttribute('data-status', 'OPEN');
     await expect(room.getByRole('button', { name: '서포터 자리 참여', exact: true })).toBeEnabled();
 

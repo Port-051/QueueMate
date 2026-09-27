@@ -108,26 +108,31 @@ test('빈자리가 있으면 방장이 마감을 켜고 끄며 대화와 초안�
   await chat.getByRole('button', { name: '모집 마감', exact: true }).click();
   const deck = page.getByRole('article', { name: '테스트 방 reopen 방 정보', exact: true });
   await expect(deck).toHaveAttribute('data-status', 'CONFIRMED');
-  const close = chat.getByRole('button', { name: '모집 마감', exact: true });
+  await expect(deck.locator('.compact-room-header time')).toHaveCount(0);
+  const close = chat.getByRole('button', { name: /^(모집 마감|마감 취소)$/ });
   await expect(close).toBeEnabled();
-  await expect(close).toHaveAttribute('aria-pressed', 'true');
+  await expect(close).toHaveText('마감 취소');
   await expect(chat.getByRole('button', { name: '모집 다시 열기', exact: true })).toHaveCount(0);
   await close.click();
   await expect(deck).toHaveAttribute('data-status', 'OPEN');
-  await expect(close).toHaveAttribute('aria-pressed', 'false');
+  await expect(deck.locator('.compact-room-header time')).toHaveText('지금');
+  await expect(close).toHaveText('모집 마감');
   await close.click();
   await expect(deck).toHaveAttribute('data-status', 'CONFIRMED');
+  await expect(deck.locator('.compact-room-header time')).toHaveCount(0);
   await close.click();
   await expect(deck).toHaveAttribute('data-status', 'OPEN');
+  await expect(deck.locator('.compact-room-header time')).toHaveText('지금');
   await expect(input).toHaveValue('작성 중인 초안');
   await expect(chat.getByRole('log')).toContainText('모집 중단 전 메시지');
   await page.reload();
   // Mock authentication is in memory; saved rooms survive signing in again.
   await login(page);
   await expect(deck).toHaveAttribute('data-status', 'OPEN');
+  await expect(deck.locator('.compact-room-header time')).toHaveText('지금');
   await expect(chat.getByRole('log')).toContainText('모집 중단 전 메시지');
   await expect(close).toBeEnabled();
-  await expect(close).toHaveAttribute('aria-pressed', 'false');
+  await expect(close).toHaveText('모집 마감');
 });
 
 test('다섯 카드가 방 너비에 맞고 빈자리만 선택할 수 있다', async ({ page }) => {
@@ -297,9 +302,9 @@ test('5인 방에서 강퇴를 확인하고 빈자리를 다시 모집하며 모
   await login(page);
   const chat = page.getByRole('region', { name: '방 채팅과 음성' });
   const deck = page.getByRole('article', { name: '테스트 방 five 방 정보', exact: true });
-  const close = chat.getByRole('button', { name: '모집 마감', exact: true });
+  const close = chat.getByRole('button', { name: /^(모집 마감|마감 취소)$/ });
   await expect(close).toBeDisabled();
-  await expect(close).toHaveAttribute('aria-pressed', 'true');
+  await expect(close).toHaveText('마감 취소');
   await expect(chat).not.toContainText(/5\s*\/\s*5|모집 다시 열기/);
   await expect(page.getByRole('group', { name: '우측 영역 선택' })).not.toContainText(/5\s*\/\s*5/);
   await expect(chat.locator('.room-conversation-roster .room-conversation-member')).toHaveCount(5);
@@ -326,7 +331,7 @@ test('5인 방에서 강퇴를 확인하고 빈자리를 다시 모집하며 모
   await expect(deck.locator('.compact-member:not(.compact-seat)')).toHaveCount(4);
   await expect(deck.locator('.compact-seat-status')).toHaveText('모집 중');
   await expect(close).toBeEnabled();
-  await expect(close).toHaveAttribute('aria-pressed', 'false');
+  await expect(close).toHaveText('모집 마감');
   await close.click();
   await expect(deck).toHaveAttribute('data-status', 'CONFIRMED');
   await close.click();
