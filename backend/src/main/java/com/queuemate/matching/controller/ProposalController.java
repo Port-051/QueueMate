@@ -61,8 +61,7 @@ public class ProposalController {
             // 알려 주는 이벤트가 계약에 없다 (contracts/README.md "미해결 계약 구멍").
             // 한 번 받고 영영 안 바뀌는 숫자는 안 보여주는 것보다 나쁘다.
             //
-            // 알림을 놓쳤을 때의 복구는 조회로 한다
-            // (MatchingController#getMatchRequest — 아직 미구현).
+            // 알림을 놓쳤을 때의 복구는 조회로 한다 (MatchingController#getMatchRequest).
             //
             // ALREADY_RESPONDED 를 여기 묶는 이유: 수락에서 이 값은 "이미 확정된 제안에
             // 또 수락이 왔다"는 뜻이다(accept-proposal.lua). 확정이 유효한데 재전송한
@@ -77,6 +76,10 @@ public class ProposalController {
             case DECLINED -> conflict(proposalId, "다른 참가자가 거절한 제안입니다: ");
 
             case NOT_A_MEMBER -> forbidden(proposalId);
+
+            // 제안이 없다 — 정원 미달 · 만료 · 다른 참가자의 거절, 그리고 **파티원 사이에 차단이 있어
+            // 서버가 제안을 깬 경우**(INV-6, ProposalService#accept)도 여기다. 클라이언트가 할 일은
+            // 전부 같다 (대기 화면 복귀 후 상태 조회)
             case NOT_FOUND -> notFound(proposalId);
         };
     }

@@ -24,8 +24,11 @@ spring:
   #   DB_CLOSE_DELAY=-1   커넥션이 전부 닫혀도 DB 를 유지한다. 없으면 유휴 시 통째로 사라진다
   #   DATABASE_TO_LOWER   Postgres 처럼 식별자를 소문자로 다룬다
   #
-  # Postgres 로 붙일 때는 DB_URL 을 통째로 바꾼다.
-  #   DB_URL=jdbc:postgresql://localhost:5432/queuemate DB_USER=... DB_PASSWORD=...
+  # 기본 실행(H2)에는 blocks 테이블을 src/main/resources/schema.sql 이 흉내 낸다 — 아래 sql.init 참고.
+  #
+  # 진짜 테이블(platform 의 Flyway 가 만든 public.blocks)로 붙을 때는 DB_URL 을 통째로 바꾼다.
+  # platform 의 로컬 Postgres 는 5433 이다 (../platform 의 docker compose).
+  #   DB_URL=jdbc:postgresql://localhost:5433/queuemate DB_USER=postgres DB_PASSWORD=postgres
   #   (스키마별 롤 · GRANT 는 없다 — D-34. 앱 하나가 계정 하나로 붙는다. 운영 계정은 미정이다)
   datasource:
     url: ${DB_URL:jdbc:h2:mem:queuemate;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE}
@@ -36,8 +39,14 @@ spring:
       # 사용자는 대기 화면을 보고 있고, 풀이 마르면 30초 동안 요청 스레드가 통째로 묶인다.
       # 확인을 못 한 요청은 붙잡고 있는 것보다 빨리 거절하는 편이 낫다 (INV-10 fail-closed).
       connection-timeout: 300
+  # schema.sql 을 임베디드(H2 인메모리) 데이터소스에서만 실행한다. embedded 가 Spring Boot 기본값이지만
+  # 여기 못 박아 두는 이유가 있다 — always 로 바꾸면 Postgres 에 붙었을 때 이 앱이 blocks 를 만들어 버린다.
+  # 그 테이블은 app:platform 의 것이고 그쪽 Flyway 가 만든다. 이 앱은 Flyway 도 스키마도 두지 않는다 (CLAUDE.md §3).
+  sql:
+    init:
+      mode: embedded
   jpa:
-    # 스키마는 Flyway가 만든다. Hibernate가 테이블을 건드리지 않게 한다.
+    # 스키마는 platform 의 Flyway 가 만든다(H2 는 위 schema.sql). Hibernate가 테이블을 건드리지 않게 한다.
     hibernate:
       ddl-auto: none
     # 컨트롤러까지 커넥션을 붙잡고 있지 않게 한다. 매칭은 커넥션을 오래 쥐면 안 된다.

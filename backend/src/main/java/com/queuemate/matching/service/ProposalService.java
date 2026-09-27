@@ -1,10 +1,13 @@
 package com.queuemate.matching.service;
 
+import com.queuemate.matching.block.PartyBlockCheck;
+import com.queuemate.matching.domain.CancelResult;
 import com.queuemate.matching.domain.ProposalResult;
 import com.queuemate.matching.notification.PushEventType;
 import com.queuemate.matching.notification.PushPublisher;
 import com.queuemate.matching.redisKeys.SharedKeys;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -16,11 +19,19 @@ import java.util.Map;
 /**
  * 제안 수락 / 거절.
  *
- * <p>판정은 전부 Lua 안에서 한다. 이 클래스가 하는 일은 <b>키를 조립해 스크립트에
- * 넘기고 돌아온 문자열을 enum 으로 바꾸는 것</b>뿐이다.
+ * <p>수락 집계 · 거절의 판정은 전부 Lua 안에서 한다. 이 클래스가 하는 일은 <b>키를 조립해 스크립트에
+ * 넘기고 돌아온 문자열을 enum 으로 바꾸는 것</b>, 그리고 스크립트 앞뒤에 붙는 자바 몫 셋 —
+ * 수락 전의 차단 검증({@link #accept} → {@link PartyBlockCheck}), 확정 뒤의 뒷정리({@link #confirmed}),
+ * 거절 뒤의 취소({@link #decline}) — 이다.
  *
  * <h2>지켜지는 것</h2>
  * <ul>
+ *   <li><b>INV-6</b> — 차단 관계인 사용자는 같은 파티가 될 수 없다. 배정 경로의 선필터가 못 보는 것
+ *       (파티가 찬 뒤에 생긴 차단 · 정원 2 인 파티)을 <b>수락이 들어올 때마다</b> {@link PartyBlockCheck} 가
+ *       {@code blocks} 를 동기 SELECT 로 다시 묻는다 (docs/11 D-1). 차단이 있으면 그 쌍의 양쪽을 큐에서 빼고
+ *       전원에게 {@code MATCH_PROPOSAL_EXPIRED} 를 보낸 뒤 {@link ProposalResult#NOT_FOUND} 다
+ *       ({@link #breakForBlocks}). DB 를 못 읽으면 {@code DataAccessException} 이 그대로 올라가 503 이다 —
+ *       차단을 확인하지 못한 채 확정하지 않는다 (INV-10 fail-closed).
  *   <li><b>INV-4</b> — 참가자 전원이 수락하기 전에는 확정하지 않는다.
  *       {@code accept-proposal.lua} 가 {@code SCARD} 로 세어 {@code target} 과 비교한다.
  *   <li><b>INV-5</b> — 확정된 제안은 다시 뒤집히지 않는다. 두 스크립트 모두 쓰기 전에
@@ -38,7 +49,8 @@ import java.util.Map;
  * <h2>아직 없는 것</h2>
  * <ul>
  *   <li>{@code matching.outbox} 기록 → {@code ProposalConfirmed.fifo} 발행. 그것이 붙어야
- *       {@code app:platform} 이 파티를 DB 에 만든다 (CLAUDE.md §9).
+ *       {@code app:platform} 이 파티를 DB 에 만든다 (CLAUDE.md §9). INV-6 최종 검증은 그 앞에 서 있으므로
+ *       (수락마다 돈다 — 확정을 만든 마지막 수락도 포함) 발행이 붙어도 그 자리가 바뀌지 않는다.
  *   <li>{@code PartyClosed} 소비 — 확정된 사용자는 활성 요청이 {@code status = PARTY} 로
  *       남아 새 매칭을 걸 수 없다. 그 파티가 닫혔다는 것을 이 앱은 알 수 없으므로,
  *       platform 이 알려 줄 때까지 풀리지 않는다.
@@ -55,6 +67,7 @@ import java.util.Map;
  * (CLAUDE.md §1) 별도 식별자를 두지 않는다. {@code MATCH_PROPOSAL_CREATED} 알림이
  * payload 에 싣는 {@code partyId} 가 클라이언트가 여기로 되돌려 보내는 값이다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProposalService {
@@ -73,6 +86,9 @@ public class ProposalService {
     private final PushPublisher pushPublisher;
 
     private final MatchCancelService matchCancelService;
+
+    /** INV-6 확정 직전 최종 검증. 수락 스크립트보다 먼저 돈다 ({@link #accept}) */
+    private final PartyBlockCheck partyBlockCheck;
 
     /**
      * 확정된 제안의 수락자 집합을 남겨 두는 시간(초).
@@ -93,18 +109,72 @@ public class ProposalService {
      * <p>스크립트가 {@code SADD} 결과로 끊지 않고 매번 다시 세기 때문에 재시도해도 답이
      * 같다. 자세한 근거는 {@code accept-proposal.lua} 머리 주석에 있다.
      *
+     * <p><b>스크립트 앞에 INV-6 최종 검증이 선다.</b> {@link PartyBlockCheck#check} 가 파티원 사이의 차단을
+     * DB 에 묻고, 있으면 {@link #breakForBlocks} 가 제안을 깬 뒤 {@link ProposalResult#NOT_FOUND} 를 돌려준다.
+     * 수락자 자신이 차단 쌍에 없어도 그렇다 — 그 파티는 어차피 성립할 수 없다. PENDING 이 아닌 제안(정원 미달 ·
+     * 이미 확정)은 검증을 건너뛰고 스크립트가 전처럼 답한다. {@code DataAccessException} 은 잡지 않는다 —
+     * {@code GlobalExceptionHandler} 가 503 으로 바꾼다 (INV-10).
+     *
      * <p>확정되면 {@link #confirmed} 가 뒷정리와 알림을 맡는다. 아직 없는 것은
      * {@code matching.outbox} 기록 → {@code ProposalConfirmed.fifo} 발행 하나다.
      *
      * @param proposalId 제안 id (= partyId)
      * @param userId     수락한 사용자
+     * @throws org.springframework.dao.DataAccessException 차단 조회나 Redis 가 실패했다. 503 으로 나간다
      */
     public ProposalResult accept(String proposalId, String userId) {
+        // INV-6 최종 검증. 스크립트보다 먼저다 — 차단이 있는 파티에 수락을 쌓아 두면 안 된다.
+        // DataAccessException 은 여기서 잡지 않는다. 차단을 확인하지 못하면 확정도 하지 않는다 (INV-10)
+        PartyBlockCheck.Verdict verdict = partyBlockCheck.check(proposalId);
+        if (verdict.blocked()) {
+            breakForBlocks(proposalId, verdict);
+            return ProposalResult.NOT_FOUND;
+        }
+
         ProposalResult value = run(acceptProposalScript, proposalId, userId);
         if (value == ProposalResult.CONFIRMED) {
             confirmed(proposalId);
         }
         return value;
+    }
+
+    /**
+     * 파티원 사이에 차단이 있어 제안을 깬다 (INV-6).
+     *
+     * <p><b>차단 쌍의 양쪽을 큐에서 뺀다.</b> 각자의 활성 요청에서 {@code requestId} 를 읽어
+     * {@link MatchCancelService#cancel} 을 부른다 — 그것이 게임별 {@code leave-party.lua} 를 태워 제안 흔적
+     * ({@code status}/{@code expiresAt} · 수락자 SET · {@code qm:proposal:pending})을 지우고, 멤버를 빼고, 비운
+     * 자리를 색인에 되돌리고, 남은 사람에게 {@code MATCH_CANCELLED} 를 보낸다. 같은 일을 여기서 다시 쓰지 않는다.
+     * 첫 취소가 제안 흔적을 이미 지우지만 두 번째 취소도 같은 것을 지운다 — 없는 값에 거는 HDEL/DEL 이라 무해하다.
+     * 잘못이 없는 나머지는 파티에 남아 다시 기다린다 (거절 · 만료와 같은 정책).
+     *
+     * <p><b>그 제안에 있던 전원에게 {@code MATCH_PROPOSAL_EXPIRED} 를 보낸다.</b> 뜻은 만료와 같다 — "이 제안은
+     * 없어졌다. 상태를 다시 조회해라". 빠진 사람은 대기 화면을 떠나야 하고 남은 사람은 제안 화면에서 나와야 하는데,
+     * 그 둘을 가르는 새 알림 종류를 만들면 계약이 바뀐다. 수신자는 검증이 읽어 둔 목록이다 — 취소가 돈 뒤
+     * 파티 HASH 를 다시 읽으면 빠진 사람이 목록에 없다.
+     *
+     * <p>돌려주는 값이 {@link ProposalResult#NOT_FOUND} 인 이유도 같다 — 제안은 더 이상 없고, 클라이언트가
+     * 갈 곳은 스위퍼가 걷어간 뒤와 같다(대기 화면 복귀). 결과 값을 하나 더 만들지 않는다.
+     *
+     * <p>로그는 WARN 이다. 선필터를 지나 여기까지 온 차단은 드물어야 하고, 잦으면 선필터가 새는 것이다.
+     */
+    private void breakForBlocks(String proposalId, PartyBlockCheck.Verdict verdict) {
+        for (String userId : verdict.blockedUserIds()) {
+            String requestId = redis.<String, String>opsForHash()
+                    .get(SharedKeys.activeRequestKey(userId), "requestId");
+            if (requestId == null) {
+                // 그사이 스스로 취소했다. 뺄 것이 없다
+                continue;
+            }
+            CancelResult cancelled = matchCancelService.cancel(userId, requestId);
+            log.debug("차단으로 큐에서 뺀다 partyId={} userId={} result={}", proposalId, userId, cancelled);
+        }
+
+        log.warn("파티원 사이에 차단이 있어 제안을 깼다 partyId={} pairs={} removed={} members={}",
+                proposalId, verdict.pairCount(), verdict.blockedUserIds().size(), verdict.members().size());
+
+        pushPublisher.publishAll(verdict.members(), PushEventType.MATCH_PROPOSAL_EXPIRED,
+                Map.of("partyId", proposalId));
     }
 
     /**
