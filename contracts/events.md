@@ -1,7 +1,7 @@
 <!-- 출처: queueMate 저장소 / 브랜치 feature/frontend / 경로 contracts/events.md (110줄) -->
 <!-- 커밋: 825d673 -->
 <!-- ★ 발췌본이다. app:matching 이 발행하는 이벤트와 그 전달 규약만 옮겼다. -->
-<!-- ★ 이 사본이 원본보다 앞서 개정된 부분이 있다 — "재연결"(2026-09-18), 전송 표와 WEBRTC_SIGNAL(2026-09-19), heartbeat 와 retry(2026-09-19), SQS 큐 표의 BlockChanged 폐기(2026-09-19), RESERVATION_* 발행 주체(2026-09-19), WEBRTC_SIGNAL 발행 주체 app:room(2026-09-19) → app:platform(2026-09-25 합침, docs/11 D-33). 각 자리의 "개정 이력"과 contracts/README.md 를 봐라. -->
+<!-- ★ 이 사본이 원본보다 앞서 개정된 부분이 있다 — "재연결"(2026-09-18), 전송 표와 WEBRTC_SIGNAL(2026-09-19), heartbeat 와 retry(2026-09-19), SQS 큐 표의 BlockChanged 폐기(2026-09-19), RESERVATION_* 발행 주체(2026-09-19), WEBRTC_SIGNAL 발행 주체 app:room(2026-09-19) → app:platform(2026-09-25 합침, docs/11 D-33), "재연결"의 상태 조회 경로에서 ?userId= 제거(2026-09-27). 각 자리의 "개정 이력"과 contracts/README.md 를 봐라. -->
 
 # Server Event Contract — app:matching 발췌
 
@@ -89,7 +89,12 @@ payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약
 - **서버는 `Last-Event-ID` 로 이어 보내지 않는다.** 연결이 끊긴 동안 발행된 알림은 사라진다
   — 발행이 Redis Pub/Sub 이라 구독자가 없는 순간의 메시지는 어디에도 남지 않는다.
 - 대신 **클라이언트가 재연결 직후(그리고 페이지 진입 시) 상태를 한 번 조회**해 현재 상태를 맞춘다
-  (`GET /api/v1/match-requests?userId=` — 대기/제안/확정 여부와 제안의 남은 시간을 돌려준다).
+  (`GET /api/v1/match-requests` — 쿠키 `qm_access` 의 `sub` 가 "나"다. 대기/제안/확정 여부와 제안의 남은 시간을
+  돌려준다. 항상 200 이고 활성 요청이 없으면 `{"status":"IDLE"}` 이다 — `openapi.yaml` `MatchRequestView`).
+
+  > 개정 이력: 2026-09-27 — 이 항목은 2026-09-17 ~ 09-27 사이 `GET /api/v1/match-requests?userId=` 로 적혀 있었다.
+  > `?userId=` 는 JWT 도입 전 임시 식별이었고 쿠키 인증으로 없어졌다 (contracts/README.md A-12 · A-13).
+  > 원본 계약의 경로는 `GET /api/v1/match-requests/{requestId}` 다 — `/me` 로 옮길지는 미정이다(README #5).
 - 순서: **SSE 를 먼저 연결하고 그다음 조회한다.** 반대로 하면 조회와 연결 사이에 온 알림을 놓친다.
 - 이렇게 정한 이유: 이 알림들은 대부분 "상태가 바뀌었다"는 신호라 중간 과정보다 **지금 상태**가
   중요하다. 버퍼를 두고 이어 보내도 오래 나가 있던 사용자는 결국 조회로 복구해야 해서, 재개를
@@ -242,4 +247,5 @@ payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약
   역으로 적어 두었다).
 - `openapi.yaml` 에 **`securitySchemes` 가 없다.** JWT bearer 정의가 빠져 있다.
   (2026-09-19: docs/11 D-14 로 access 토큰은 `Authorization` 헤더가 아니라 **쿠키**로 주고받는다. 채울
-  정의는 bearer 가 아니라 cookie 방식이다. 쿠키 이름은 미정이다.)
+  정의는 bearer 가 아니라 cookie 방식이다. **2026-09-27: 쿠키 이름은 `qm_access` 로 정해졌고 이 발췌본의
+  `openapi.yaml` 에는 `cookieAuth` 를 먼저 적었다 — contracts/README.md A-12. 원본에는 아직 없다.**)
