@@ -37,6 +37,57 @@ class SharedRoomIntegrationTest extends ApiContractTestSupport {
         assertStatus(post("/api/v1/rooms/"+key+"/messages",b,message),404);
         assertEquals(0,room(b,key.toString()).path("messages").size());
     }
+    @Test void ownerCanCloseAloneAndReopenWithoutLosingMembersOrChat() {
+        UUID a=alpha(),b=bravo();String id=create(a,"모집 관리",3);
+        String actions="/api/v1/rooms/"+id+"/actions";
+        assertStatus(post(actions,a,"{\"action\":\"CONFIRM\"}"),204);
+        assertEquals("CONFIRMED",room(a,id).path("status").asText());
+        assertStatus(post("/api/v1/rooms/"+id+"/join",b,joinBody("SUPPORT",null)),409);
+        assertStatus(post(actions,b,"{\"action\":\"REOPEN\"}"),404);
+        assertStatus(post(actions,a,"{\"action\":\"REOPEN\"}"),204);
+        int messages=room(a,id).path("messages").size();
+        assertStatus(post(actions,a,"{\"action\":\"REOPEN\"}"),204);
+        assertEquals(messages,room(a,id).path("messages").size());
+        assertStatus(post("/api/v1/rooms/"+id+"/join",b,joinBody("SUPPORT",null)),200);
+        assertStatus(post(actions,b,"{\"action\":\"CONFIRM\"}"),404);
+        assertStatus(post(actions,a,"{\"action\":\"CONFIRM\"}"),204);
+        assertStatus(post(actions,b,"{\"action\":\"REOPEN\"}"),404);
+        String message="{\"clientMessageId\":\""+UUID.randomUUID()+"\",\"text\":\"마감 중에도 대화\"}";
+        assertStatus(post("/api/v1/rooms/"+id+"/messages",b,message),200);
+        assertStatus(post(actions,a,"{\"action\":\"REOPEN\"}"),204);
+        assertEquals(2,room(a,id).path("members").size());
+        assertTrue(room(a,id).path("messages").toString().contains("마감 중에도 대화"));
+        assertStatus(post(actions,a,"{\"action\":\"CONFIRM\"}"),204);
+        messages=room(a,id).path("messages").size();
+        assertStatus(post(actions,a,"{\"action\":\"CONFIRM\"}"),204);
+        assertEquals(messages,room(a,id).path("messages").size());
+    }
+    @Test void fullRoomRequiresVacancyAndExplicitOwnerReopen() {
+        UUID a=alpha(),b=bravo(),c=charlie();String id=create(a,"정원 확인",2);
+        String actions="/api/v1/rooms/"+id+"/actions";
+        assertStatus(post("/api/v1/rooms/"+id+"/join",b,joinBody("SUPPORT",null)),200);
+        assertStatus(post(actions,a,"{\"action\":\"REOPEN\"}"),409);
+        assertStatus(post(actions,b,"{\"action\":\"LEAVE\"}"),204);
+        assertEquals("CONFIRMED",room(a,id).path("status").asText());
+        assertStatus(post("/api/v1/rooms/"+id+"/join",c,joinBody("MID",null)),409);
+        assertStatus(post(actions,a,"{\"action\":\"REOPEN\"}"),204);
+        assertStatus(post("/api/v1/rooms/"+id+"/join",c,joinBody("MID",null)),200);
+        assertEquals("CONFIRMED",room(a,id).path("status").asText());
+    }
+    @Test void recruitmentCloseIsIndependentOfGameStartAndExpiredReservationCannotReopen() {
+        UUID a=alpha(),b=bravo(),c=charlie();String id=create(a,"자유 랭크",5);
+        assertStatus(post("/api/v1/rooms/"+id+"/join",b,joinBody("SUPPORT",null)),200);
+        assertStatus(post("/api/v1/rooms/"+id+"/join",c,joinBody("MID",null)),200);
+        // A fourth member and FLEX_RANKED mode exercise the former queue-start guard.
+        UUID fourth=user("delta");
+        assertStatus(post("/api/v1/rooms/"+id+"/join",fourth,joinBody("JUNGLE",null)),200);
+        jdbc.sql("update rooms set settings=jsonb_set(settings,'{modeKey}','\"FLEX_RANKED\"') where id=?").param(UUID.fromString(id)).update();
+        String actions="/api/v1/rooms/"+id+"/actions";
+        assertStatus(post(actions,a,"{\"action\":\"CONFIRM\"}"),204);
+        jdbc.sql("update rooms set settings=settings || '{\"type\":\"RESERVATION\",\"availableFrom\":\"2020-01-01T12:00:00+09:00\"}'::jsonb where id=?").param(UUID.fromString(id)).update();
+        assertStatus(post(actions,a,"{\"action\":\"REOPEN\"}"),409);
+        assertEquals("CONFIRMED",room(a,id).path("status").asText());
+    }
     @Test void concurrentLastSeatOnlyAllowsOneAndNoDuplicateMembership() throws Exception {
         UUID a=alpha(),b=bravo(),c=charlie();String id=create(a,"마지막 자리",2);var start=new CountDownLatch(1);
         try(var pool=Executors.newFixedThreadPool(2)) {

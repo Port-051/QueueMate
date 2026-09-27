@@ -126,8 +126,15 @@ public class RoomService {
             if(body.action().equals("KICK")) {
                 if(user.equals(body.memberId()) || body.memberId()==null) throw conflict("방장은 나가기 버튼을 이용해 주세요");
                 requireMember(id,body.memberId());depart(r,body.memberId(),true);
+            } else if(body.action().equals("REOPEN")) {
+                if(r.status().equals("CONFIRMED")) {
+                    requireRedis();
+                    if(memberIds(id).size()>=r.settings().capacity()) throw conflict("빈자리가 생기면 모집을 다시 열 수 있어요");
+                    if(r.settings().availableFrom()!=null && !OffsetDateTime.parse(r.settings().availableFrom()).isAfter(OffsetDateTime.now())) throw conflict("예약 시간이 지난 방은 다시 열 수 없어요");
+                    db.sql("update rooms set status='OPEN' where id=?").param(id).update();
+                    system(id,"방장이 모집을 다시 열었어요.");
+                }
             } else {
-                int count=memberIds(id).size();if(count<2 || r.settings().modeKey().equals("FLEX_RANKED") && count==4) throw conflict("지금 인원으로는 모집을 마감할 수 없어요");
                 if(r.status().equals("OPEN")) { db.sql("update rooms set status='CONFIRMED' where id=?").param(id).update();system(id,"방장이 모집을 마감했어요. 대화는 계속할 수 있어요."); }
             }
         }

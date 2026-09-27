@@ -24,7 +24,7 @@ public class RoomApi {
                            @NotNull @Pattern(regexp="REQUIRED|NO_VOICE") String voice, String availableFrom) {}
     public record Create(@NotNull UUID requestId, @NotNull @Valid Settings input, @NotNull @Valid Profile profile) {}
     public record Join(@NotNull @Valid Profile profile, String role, UUID fromRoomId) {}
-    public record Action(@NotNull @Pattern(regexp="LEAVE|KICK|CONFIRM") String action, UUID memberId) {}
+    public record Action(@NotNull @Pattern(regexp="LEAVE|KICK|CONFIRM|REOPEN") String action, UUID memberId) {}
     public record Message(@NotNull UUID clientMessageId, @NotBlank @Size(max=2000) String text) {}
     private final RoomService service;
     public RoomApi(RoomService service) { this.service = service; }
