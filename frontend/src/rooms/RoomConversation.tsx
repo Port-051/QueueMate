@@ -19,6 +19,7 @@ export interface RoomConversationProps {
   onLeave: () => void;
   onKick: (memberId: string) => void | Promise<void>;
   onConfirm: () => void | Promise<void>;
+  onReopen: () => void | Promise<void>;
   onAutoConfirm: (deadline: number) => void;
   onExtend: (deadline: number) => void;
 }
@@ -35,7 +36,7 @@ const messageDate = new Intl.DateTimeFormat('ko-KR', { year: '2-digit', month: '
 const dayLabel = new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
 const sameDay = (a: number, b: number) => new Date(a).toDateString() === new Date(b).toDateString();
 
-export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConfirm, onAutoConfirm, onExtend, visible = true, onMember }: RoomConversationProps) {
+export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConfirm, onReopen, onAutoConfirm, onExtend, visible = true, onMember }: RoomConversationProps) {
   const toast = useToast();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -67,11 +68,13 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
   const confirmed = room.status === 'CONFIRMED';
   const [recruitmentBusy, setRecruitmentBusy] = useState(false);
   const changingRecruitment = useRef(false);
-  const changeRecruitment = async () => {
+  const reopenError = room.members.length >= room.capacity ? '정원이 가득 찼어요'
+    : room.type === 'RESERVATION' && room.availableFrom && Date.parse(room.availableFrom) <= now ? '예약 시간이 지났어요' : '';
+  const changeRecruitment = async (reopen = false) => {
     if (changingRecruitment.current) return;
     changingRecruitment.current = true;
     setRecruitmentBusy(true);
-    try { await onConfirm(); }
+    try { await (reopen ? onReopen() : onConfirm()); }
     catch (error) { toast(error instanceof Error ? error.message : '모집 상태를 변경하지 못했어요.', 'error'); }
     finally { changingRecruitment.current = false; setRecruitmentBusy(false); }
   };
@@ -184,7 +187,7 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
       <div className="room-conversation-heading">
         <h2>{room.title}</h2>
       </div>
-      {isHost ? <Button className="room-conversation-close" size="sm" disabled={recruitmentBusy || confirmed} aria-busy={recruitmentBusy} onClick={() => void changeRecruitment()}><IconCheck size={14} />모집 마감</Button> : null}
+      {isHost ? <Button className="room-conversation-close" size="sm" disabled={recruitmentBusy || (confirmed && Boolean(reopenError))} aria-pressed={confirmed} aria-busy={recruitmentBusy} title={confirmed ? reopenError || '모집 마감 취소' : '모집 마감'} onClick={() => void changeRecruitment(confirmed)}><IconCheck size={14} />모집 마감</Button> : null}
       <button className="room-conversation-icon" type="button" aria-label="방 나가기" title="방 나가기" onClick={() => setAction({ kind: 'leave' })}><IconLogout size={19} /></button>
     </header>
 

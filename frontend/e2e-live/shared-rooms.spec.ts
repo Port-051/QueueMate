@@ -118,6 +118,18 @@ test('실제 5인 방의 자동 마감·재모집, 강퇴 확인과 채팅 복�
     await a.getByRole('button', { name: '모집 마감', exact: true }).click();
     await expect(room).toHaveAttribute('data-status', 'CONFIRMED');
     await expect(room.getByRole('button', { name: /자리 참여/ })).toBeDisabled();
+    const close = a.getByRole('button', { name: '모집 마감', exact: true });
+    await expect(close).toHaveAttribute('aria-pressed', 'true');
+    await a.route('**/rooms/*/actions', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'TEST_UNAVAILABLE', message: '마감 취소를 다시 시도해 주세요' }) }));
+    await close.click();
+    await expect(a.getByText('마감 취소를 다시 시도해 주세요')).toBeVisible();
+    await expect(close).toHaveAttribute('aria-pressed', 'true');
+    await expect(room).toHaveAttribute('data-status', 'CONFIRMED');
+    await a.unroute('**/rooms/*/actions');
+    await close.click();
+    await expect(close).toHaveAttribute('aria-pressed', 'false');
+    await expect(room).toHaveAttribute('data-status', 'OPEN');
+    await expect(room.getByRole('button', { name: '서포터 자리 참여', exact: true })).toBeEnabled();
 
     for (const game of ['발로란트 매칭', '배틀그라운드 매칭']) {
       await b.getByRole('button', { name: game, exact: true }).click();

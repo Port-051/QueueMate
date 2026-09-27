@@ -34,7 +34,7 @@ const defaults = (game: GameKey): Filters => ({ modeKey: game === 'LOL' ? 'NORMA
 export function RoomBoardHome() {
   const { user, gameAccounts } = useAuth();
   const { selectedGame } = useOutletContext<AppShellOutletContext>();
-  const { rooms, activeRoom, create, join, leave, kick, confirm, send, autoConfirm, extendRecruitment, loading, error: connectionError, refresh } = useRoomData(user?.id ?? '');
+  const { rooms, activeRoom, create, join, leave, kick, confirm, reopen, send, autoConfirm, extendRecruitment, loading, error: connectionError, refresh } = useRoomData(user?.id ?? '');
   const toast = useToast();
   const [filters, setFilters] = useState(() => ({ ...defaults(selectedGame), ...(activeRoom?.game === selectedGame ? { modeKey: activeRoom.modeKey } : {}) }));
   const [selected, setSelected] = useState<{ id: string; roles: string[]; profile: RoomMember; fromRoomId?: string; criteria?: QuickConnectCriteria } | null>(null);
@@ -117,7 +117,7 @@ export function RoomBoardHome() {
           const roles = vacancies.find(options => options.some(role => profile.roles.includes(role))) ?? vacancies[0] ?? [];
           setSelected({ id: room.id, roles, profile, fromRoomId: activeRoom?.id, criteria });
         }} /></div>
-      {activeRoom ? <div className="room-conversation-rail" hidden={exploring}><RoomConversation key={activeRoom.id} room={activeRoom} selfId={member.id} visible={!exploring} onMember={profile => showMember(activeRoom, profile)} onSend={text => send(text)} onLeave={() => run(leave)} onKick={id => kick(activeRoom.id, id)} onConfirm={() => confirm(activeRoom.id)} onAutoConfirm={deadline => autoConfirm(activeRoom.id, deadline)} onExtend={deadline => run(() => extendRecruitment(activeRoom.id, deadline))} /></div> : null}
+      {activeRoom ? <div className="room-conversation-rail" hidden={exploring}><RoomConversation key={activeRoom.id} room={activeRoom} selfId={member.id} visible={!exploring} onMember={profile => showMember(activeRoom, profile)} onSend={text => send(text)} onLeave={() => run(leave)} onKick={id => kick(activeRoom.id, id)} onConfirm={() => confirm(activeRoom.id)} onReopen={() => reopen(activeRoom.id)} onAutoConfirm={deadline => autoConfirm(activeRoom.id, deadline)} onExtend={deadline => run(() => extendRecruitment(activeRoom.id, deadline))} /></div> : null}
     </aside>
     </div>
     {selected && current ? <RoomSeatJoin key={current.id} room={current} roles={selected.roles} profile={selected.profile}
