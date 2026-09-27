@@ -66,26 +66,25 @@ public interface GameAccountRepository extends JpaRepository<GameAccount, Long> 
     Optional<Long> findIdByUserIdAndGame(@Param("userId") Long userId, @Param("game") Game game);
 
     /**
-     * Riot 에서 긁어 온 것을 게임 계정 줄에 적는다 — 게임사 쪽 식별자(LoL 은 {@code puuid}) · <b>티어 · 주 포지션</b>
-     * (2026-09-27 소유자 결정 — LoL 은 이 둘을 요청으로 받지 않고 Riot 에서 채운다. {@code account.stats}).
+     * Riot 에서 긁어 온 것을 게임 계정 줄에 적는다 — 게임사 쪽 식별자(LoL 은 {@code puuid}) · <b>티어</b>
+     * (2026-09-27 소유자 결정 — LoL 은 티어를 요청으로 받지 않고 Riot 에서 채운다. {@code account.stats}).
+     * <b>{@code main_position} 은 건드리지 않는다</b> — 사용자가 정하는 값이다(같은 날 소유자 결정).
      * <b>{@code verified} 는 건드리지 않는다</b> — 식별자를 알아낸 것은 본인 확인이 아니다(켜는 길은 아직 없다 — CLAUDE.md §7).
      * <b>{@code game_nickname} 도 건드리지 않는다</b> — 사용자가 적은 값이다.
-     * 셋이 다 그대로면 UPDATE 를 내지 않는다({@code where} 절이 가른다) — 전적만 갱신되는 흔한 경우에 {@code updated_at} 이 흔들리지 않게.
+     * 둘이 다 그대로면 UPDATE 를 내지 않는다({@code where} 절이 가른다) — 전적만 갱신되는 흔한 경우에 {@code updated_at} 이 흔들리지 않게.
      */
     @Modifying
     @Query(nativeQuery = true, value = """
             UPDATE game_accounts
                SET external_id   = CAST(:externalId AS varchar),
                    tier          = CAST(:tier AS varchar),
-                   main_position = CAST(:mainPosition AS varchar),
                    updated_at    = :now
              WHERE id = :id
                AND (external_id   IS DISTINCT FROM CAST(:externalId AS varchar)
-                 OR tier          IS DISTINCT FROM CAST(:tier AS varchar)
-                 OR main_position IS DISTINCT FROM CAST(:mainPosition AS varchar))
+                 OR tier          IS DISTINCT FROM CAST(:tier AS varchar))
             """)
     int applyRiotProfile(@Param("id") Long id, @Param("externalId") String externalId, @Param("tier") String tier,
-                         @Param("mainPosition") String mainPosition, @Param("now") Instant now);
+                         @Param("now") Instant now);
 
     /** 없어도 에러가 아니다 — 지운 줄 수를 돌려준다. 엔티티를 읽어 와서 지우지 않는다(SELECT 없이 DELETE 한 번) */
     @Modifying

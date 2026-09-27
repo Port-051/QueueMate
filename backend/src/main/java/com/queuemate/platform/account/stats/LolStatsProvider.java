@@ -17,7 +17,6 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.ToIntFunction;
 
 /**
@@ -30,16 +29,15 @@ import java.util.function.ToIntFunction;
  *   <li>{@code account-v1} → {@code puuid}</li>
  *   <li>{@code summoner-v4} → 소환사 {@code id} → {@code league-v4} 에서 <b>솔로랭크 줄</b>의 승/패(= 시즌 누적)와 <b>티어</b></li>
  *   <li>{@code match-v5} → 최근 경기 id 목록(새 경기가 먼저)</li>
- *   <li>경기마다 참가자 가운데 <b>그 {@code puuid} 인 사람</b>의 챔피언 · K/D/A · 승패 · 포지션</li>
+ *   <li>경기마다 참가자 가운데 <b>그 {@code puuid} 인 사람</b>의 챔피언 · K/D/A · 승패</li>
  * </ol>
  *
- * <p><b>티어와 주 포지션도 여기서 만든다</b>(2026-09-27 소유자 결정 — LoL 은 요청에서 {@code tier} · {@code mainPosition} 을 빼고 Riot 에서 채운다).
- * 부르는 횟수는 늘지 않았다 — 원래 받아 오던 칸({@code tier} · {@code rank} · {@code teamPosition})을 이제 저장할 뿐이다.
- * <ul>
- *   <li><b>티어</b> — 솔로랭크 줄의 {@code tier} + {@code rank} 를 gameconfig 사다리의 이름으로({@link #ladderName}). 줄이 없으면(언랭) {@code null},
- *       만든 이름이 사다리에 없으면(Riot 이 티어를 새로 만들었다 등) WARN 하고 {@code null}. Redis 를 못 읽으면 {@link GameConfigReader} 의 fail-open 대로 그 이름을 그대로 둔다</li>
- *   <li><b>주 포지션</b> — 읽은 경기의 {@code teamPosition} 가운데 가장 많은 것({@link #mainPosition}). 동률이면 먼저(= 더 최근에) 나온 것이다</li>
- * </ul>
+ * <p><b>티어도 여기서 만든다</b>(2026-09-27 소유자 결정 — LoL 은 요청에서 {@code tier} 를 빼고 Riot 에서 채운다).
+ * 솔로랭크 줄의 {@code tier} + {@code rank} 를 gameconfig 사다리의 이름으로({@link #ladderName}). 줄이 없으면(언랭) {@code null},
+ * 만든 이름이 사다리에 없으면(Riot 이 티어를 새로 만들었다 등) WARN 하고 {@code null}. Redis 를 못 읽으면 {@link GameConfigReader} 의 fail-open 대로 그 이름을 그대로 둔다.
+ *
+ * <p><b>주 포지션은 만들지 않는다</b>(같은 날 소유자 결정) — 주 포지션은 "지금 하고 싶은 포지션"이라 사용자가 정한다.
+ * 최근 경기의 {@code teamPosition} 은 "지금까지 한 것"이라 뜻이 다르다. 그래서 그 칸을 읽지도 않는다.
  *
  * <p><b>Riot ID 가 없으면({@code account-v1} 404) {@link RiotIdNotFoundException}</b> 이다 — 게임 계정 연결이 404 {@code RIOT_ID_NOT_FOUND} 로 옮긴다.
  *
@@ -70,7 +68,6 @@ public class LolStatsProvider implements GameStatsProvider {
     private static final String FIELD_DEATHS = "deaths";
     private static final String FIELD_ASSISTS = "assists";
     private static final String FIELD_WIN = "win";
-    private static final String FIELD_TEAM_POSITION = "teamPosition";
 
     /** 솔로랭크 줄을 가르는 값. 자유랭크({@code RANKED_FLEX_SR})의 승/패를 섞지 않는다 */
     private static final String SOLO_QUEUE = "RANKED_SOLO_5x5";
@@ -86,16 +83,6 @@ public class LolStatsProvider implements GameStatsProvider {
 
     /** Riot 의 단(로마 숫자) → 사다리 이름의 숫자. 사다리는 {@code GOLD_4} … {@code GOLD_1} 이다 */
     private static final Map<String, String> DIVISIONS = Map.of("I", "1", "II", "2", "III", "3", "IV", "4");
-
-    /**
-     * Riot 의 {@code teamPosition} → {@link Game#LOL} 의 포지션 이름. 여기 없는 값({@code ""} · {@code "Invalid"} — 칼바람 · 이른 항복 등)은 세지 않는다
-     */
-    private static final Map<String, String> POSITIONS = Map.of(
-            "TOP", "TOP",
-            "JUNGLE", "JUNGLE",
-            "MIDDLE", "MID",
-            "BOTTOM", "ADC",
-            "UTILITY", "SUPPORT");
 
     private final RiotApiClient riot;
     private final RiotProperties properties;
@@ -138,8 +125,7 @@ public class LolStatsProvider implements GameStatsProvider {
                 rank == null ? null : rank.losses(),
                 games == 0 ? null : winStreak(played),
                 detail(played),
-                rank == null ? null : onLadder(rank.tier()),
-                mainPosition(played));
+                rank == null ? null : onLadder(rank.tier()));
     }
 
     /**
@@ -255,13 +241,12 @@ public class LolStatsProvider implements GameStatsProvider {
                     intOrZero(participant.path(FIELD_KILLS)),
                     intOrZero(participant.path(FIELD_DEATHS)),
                     intOrZero(participant.path(FIELD_ASSISTS)),
-                    participant.path(FIELD_WIN).isBoolean() && participant.path(FIELD_WIN).booleanValue(),
-                    text(participant.path(FIELD_TEAM_POSITION)));
+                    participant.path(FIELD_WIN).isBoolean() && participant.path(FIELD_WIN).booleanValue());
         }
         return null;
     }
 
-    // ---- 티어 · 포지션 ----
+    // ---- 티어 ----
 
     /**
      * Riot 의 {@code tier} + {@code rank} → gameconfig 사다리의 이름. {@code GOLD} + {@code II} → {@code GOLD_2},
@@ -299,32 +284,6 @@ public class LolStatsProvider implements GameStatsProvider {
         }
         log.warn("Riot 이 준 티어가 gameconfig 사다리에 없다 tier={} — 티어를 비운다(seed 를 확인하라)", ladderName);
         return null;
-    }
-
-    /**
-     * 읽은 경기의 포지션 가운데 가장 많은 것. <b>동률이면 먼저 나온 것</b>이다 — 경기는 새 것이 먼저라 더 최근에 간 포지션이다.
-     * 경기가 없거나 전부 모르는 값이면 {@code null}
-     */
-    static String mainPosition(List<Played> played)
-    {
-        Map<String, Integer> counts = new LinkedHashMap<>();
-        for(Played one : played)
-        {
-            Optional.ofNullable(one.teamPosition()).map(POSITIONS::get)
-                    .ifPresent(position -> counts.merge(position, 1, Integer::sum));
-        }
-        String best = null;
-        int bestCount = 0;
-        for(Map.Entry<String, Integer> entry : counts.entrySet())
-        {
-            // 엄격히 클 때만 바꾼다 — 같으면 먼저 들어간(더 최근의) 것이 남는다
-            if(entry.getValue() > bestCount)
-            {
-                best = entry.getKey();
-                bestCount = entry.getValue();
-            }
-        }
-        return best;
     }
 
     // ---- 모아서 계산하는 것 ----
@@ -456,12 +415,7 @@ public class LolStatsProvider implements GameStatsProvider {
     private record SoloRank(Integer wins, Integer losses, String tier) {
     }
 
-    /**
-     * 경기 하나에서 이 사람의 기록.
-     *
-     * @param teamPosition Riot 이 주는 포지션({@code TOP} · {@code MIDDLE} · {@code UTILITY} …). 가장 많은 것이 <b>주 포지션</b>이 된다
-     *                     ({@link #mainPosition} — 2026-09-27 소유자 결정. 그 전에는 읽기만 하고 저장하지 않았다)
-     */
-    record Played(String championName, int kills, int deaths, int assists, boolean win, String teamPosition) {
+    /** 경기 하나에서 이 사람의 기록 */
+    record Played(String championName, int kills, int deaths, int assists, boolean win) {
     }
 }

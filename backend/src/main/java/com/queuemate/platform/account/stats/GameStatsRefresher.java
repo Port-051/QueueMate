@@ -89,7 +89,7 @@ public class GameStatsRefresher {
 
     /**
      * <b>LoL 게임 계정 연결</b>({@code PUT …/game-accounts/LOL} — 2026-09-27 소유자 결정). 저장하기 <b>전에</b> Riot 을 긁고,
-     * 성공하면 게임 계정 줄(이름 · 티어 · 주 포지션 · {@code external_id})과 전적을 <b>한 트랜잭션</b>으로 적은 뒤 다시 읽어 돌려준다.
+     * 성공하면 게임 계정 줄(이름 · 요청의 주 포지션 · Riot 의 티어 · {@code external_id})과 전적을 <b>한 트랜잭션</b>으로 적은 뒤 다시 읽어 돌려준다.
      * <b>실패하면 아무것도 적지 않는다</b> — 연동이 안 된 것이다.
      *
      * <p>거절 — 404 {@code RIOT_ID_NOT_FOUND}(그 이름#태그가 Riot 에 없다) · 429 {@code TOO_MANY_STATS_REFRESHES}(누가 이미 같은 계정을 긁고 있다) ·
@@ -103,7 +103,7 @@ public class GameStatsRefresher {
      *
      * @throws org.springframework.dao.DataIntegrityViolationException 그 사용자가 DB 에 없다(FK) — 부르는 쪽이 401 로 옮긴다
      */
-    public GameAccountWithStats link(Long userId, Game game, String gameNickname)
+    public GameAccountWithStats link(Long userId, Game game, String gameNickname, String mainPosition)
     {
         if(!worker.supports(game))
         {
@@ -129,8 +129,8 @@ public class GameStatsRefresher {
                 // 물어볼 수 없었다 — 형식은 부르는 쪽이 400 으로 먼저 거르므로 Riot 응답에 puuid 가 없던 경우다
                 throw unavailable();
             }
-            store.link(userId, game, gameNickname, snapshot, Instant.now().truncatedTo(ChronoUnit.MILLIS));
-            log.info("게임 계정 연결 userId={} game={} tier={} mainPosition={}", userId, game, snapshot.tier(), snapshot.mainPosition());
+            store.link(userId, game, gameNickname, mainPosition, snapshot, Instant.now().truncatedTo(ChronoUnit.MILLIS));
+            log.info("게임 계정 연결 userId={} game={} tier={} mainPosition={}", userId, game, snapshot.tier(), mainPosition);
         }
         finally
         {

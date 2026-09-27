@@ -91,7 +91,7 @@ class UserApiTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("LOL 은 Riot 에서 채운다 — tier · mainPosition · server 를 보내면 400 이고, 이름#태그가 아니면 400 이다. Riot 을 부르기 전에 거른다")
+    @DisplayName("LOL 의 티어는 Riot 에서 채운다 — tier · server 를 보내면 400 이고, 이름#태그가 아니면 400 이다. Riot 을 부르기 전에 거른다(mainPosition 은 받는다)")
     void lolRejectsSelfReportedFields() throws Exception
     {
         Cookie cookie = login(newNickname());
@@ -100,9 +100,6 @@ class UserApiTest extends ApiTestSupport {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(detailFor("tier"));
-        putGameAccount(cookie, "LOL", json("gameNickname", "Faker#KR1", "mainPosition", "MID"))
-                .andExpect(status().isBadRequest())
-                .andExpect(detailFor("mainPosition"));
         putGameAccount(cookie, "LOL", json("gameNickname", "Faker#KR1", "server", "STEAM"))
                 .andExpect(status().isBadRequest())
                 .andExpect(detailFor("server"));
