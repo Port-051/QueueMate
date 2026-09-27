@@ -20,6 +20,15 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   const [busy, setBusy] = useState(false);
 
   const isSignup = mode === 'signup';
+  const roomDemo = import.meta.env.DEV && import.meta.env.VITE_ROOM_DEMO === 'true';
+  const loginDemo = async (account: 'a' | 'b') => {
+    setBusy(true); setError(null);
+    try {
+      await login(`demo-${account}@queuemate.local`, 'QueueMate123!');
+      navigate('/app/home', { replace: true });
+    } catch (cause) { setError(cause instanceof Error ? cause.message : '데모 서버에 연결하지 못했어요.'); }
+    finally { setBusy(false); }
+  };
 
   const validate = (): string | null => {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return '이메일 형식을 확인해주세요';
@@ -58,6 +67,14 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
       <main className="auth-main">
         <div className="auth-card">
           <h1>{isSignup ? '회원가입' : '로그인'}</h1>
+
+          {roomDemo && !isSignup ? <div className="room-demo-login">
+            <p>공유 방 · 두 계정 테스트</p>
+            <div style={{ display: 'flex', gap: 12, margin: '12px 0 20px' }}>
+              <Button disabled={busy} onClick={() => void loginDemo('a')}>데모 A로 시작</Button>
+              <Button disabled={busy} onClick={() => void loginDemo('b')}>데모 B로 시작</Button>
+            </div>
+          </div> : null}
 
           <SocialLoginButtons redirectTo={from} onError={setError} />
 
