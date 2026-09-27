@@ -1,5 +1,6 @@
 package com.queuemate.platform.account.controller;
 
+import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.account.dto.GameAccountRequest;
 import com.queuemate.platform.account.dto.GameProfileResponse;
 import com.queuemate.platform.account.dto.NicknameChangeRequest;
@@ -43,11 +44,12 @@ public class UserController {
     }
 
     /**
-     * {@code game} 을 enum 이 아니라 문자열로 받는다 — 모르는 게임을 서비스가 {@code details} 에 {@code "game: 사유"} 를 담아 400 으로 답한다.
+     * {@code game} 은 경로에서 enum 으로 받는다 — 모르는 이름 · 소문자는 스프링의 형 변환이 400 {@code VALIDATION_FAILED} 로 거절한다
+     * (게시판 목록의 {@code game} 과 같은 본문. 2026-09-27 소유자 지시 — 문자열로 받아 서비스가 파던 것을 없앴다).
      * 응답은 <b>게임 프로필</b>이다({@code verified} · {@code stats} 포함 — 둘은 요청으로 바꿀 수 없다).
      */
     @PutMapping("/game-accounts/{game}")
-    public GameProfileResponse putGameAccount(@CurrentUserId Long userId, @PathVariable String game,
+    public GameProfileResponse putGameAccount(@CurrentUserId Long userId, @PathVariable Game game,
                                               @Valid @RequestBody GameAccountRequest request)
     {
         return userService.putGameAccount(userId, game, request);
@@ -61,13 +63,13 @@ public class UserController {
      * 거절의 갈래는 {@code stats.GameStatsRefresher} 가 정한다.
      */
     @PostMapping("/game-accounts/{game}/refresh")
-    public GameProfileResponse refreshGameStats(@CurrentUserId Long userId, @PathVariable String game)
+    public GameProfileResponse refreshGameStats(@CurrentUserId Long userId, @PathVariable Game game)
     {
         return userService.refreshGameStats(userId, game);
     }
 
     @DeleteMapping("/game-accounts/{game}")
-    public ResponseEntity<Void> deleteGameAccount(@CurrentUserId Long userId, @PathVariable String game)
+    public ResponseEntity<Void> deleteGameAccount(@CurrentUserId Long userId, @PathVariable Game game)
     {
         userService.deleteGameAccount(userId, game);
         return ResponseEntity.noContent().build();

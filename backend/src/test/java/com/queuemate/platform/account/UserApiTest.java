@@ -125,6 +125,10 @@ class UserApiTest extends ApiTestSupport {
         putGameAccount(cookie, "OVERWATCH", json("gameNickname", "x", "tier", null, "mainPosition", null))
                 .andExpect(status().isBadRequest())
                 .andExpect(detailFor("game"));
+        // 경로의 게임은 대문자 enum 이다 — 소문자도 같은 400 (게시판 목록의 game 과 같다)
+        putGameAccount(cookie, "lol", json("gameNickname", "x", "tier", null, "mainPosition", null))
+                .andExpect(status().isBadRequest())
+                .andExpect(detailFor("game"));
 
         mockMvc.perform(get("/api/v1/users/me").cookie(cookie))
                 .andExpect(jsonPath("$.gameAccounts").isEmpty());

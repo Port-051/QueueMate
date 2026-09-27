@@ -77,9 +77,8 @@ public class UserService {
      * (전적이 갱신되는 자리는 <b>둘</b>이다 — 이것과 {@link #refreshGameStats}. 2026-09-24 소유자 결정. 쿨타임은 그쪽만 있다.)
      */
     @Transactional
-    public GameProfileResponse putGameAccount(Long userId, String gameName, GameAccountRequest request)
+    public GameProfileResponse putGameAccount(Long userId, Game game, GameAccountRequest request)
     {
-        Game game = requireGame(gameName);
         // 티어는 gameconfig 의 사다리에 있는 이름이어야 한다 (2026-09-24 소유자 결정 — contracts/platform-api.md "gameconfig 를 읽는 것").
         // 자기신고라 안 적을 수 있다 — 값이 있을 때만 본다. 명령 하나이고 DB 에 쓰기 전이다
         if(request.tier() != null && !gameConfig.hasTier(game, request.tier()))
@@ -128,16 +127,16 @@ public class UserService {
      * 읽고 쓰는 것은 {@code stats} 쪽이 각자 짧은 트랜잭션으로 한다({@code stats.GameStatsStore}).
      * 거절과 상한은 {@link GameStatsRefresher} 가 정한다 — 이 메서드는 게임 이름만 보고 넘긴다.
      */
-    public GameProfileResponse refreshGameStats(Long userId, String gameName)
+    public GameProfileResponse refreshGameStats(Long userId, Game game)
     {
-        return GameProfileResponse.from(gameStatsRefresher.refresh(userId, requireGame(gameName)));
+        return GameProfileResponse.from(gameStatsRefresher.refresh(userId, game));
     }
 
     /** 게임 계정 연결을 끊는다. 없어도 성공이다 — 두 번 눌러도 결과가 같다 */
     @Transactional
-    public void deleteGameAccount(Long userId, String gameName)
+    public void deleteGameAccount(Long userId, Game game)
     {
-        gameAccountRepository.deleteByUserIdAndGame(userId, requireGame(gameName));
+        gameAccountRepository.deleteByUserIdAndGame(userId, game);
     }
 
     /** {@code GET · PATCH /users/me} 가 같은 모양을 내려 준다 — 소셜 연결 · 게임 프로필을 붙인다 */
@@ -159,9 +158,4 @@ public class UserService {
         return userRepository.findById(userId).orElseThrow(ApiException::unauthenticated);
     }
 
-    private Game requireGame(String gameName)
-    {
-        return Game.fromName(gameName).orElseThrow(
-                () -> ApiException.validationFailed("game", "LOL · VALORANT · PUBG 가운데 하나여야 합니다"));
-    }
 }
