@@ -235,8 +235,6 @@
 
 /* Two duo rooms use the same board width as a five-person room. */
 .room-home.is-exploring .room-deck-grid.is-duo-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-.room-deck-grid.is-duo-grid .compact-members { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); overflow:visible; }
-.room-deck-grid.is-duo-grid .compact-member { width:auto; }
 .room-home .tier-range-trigger { width:auto; }
 .room-compact.is-confirmed .compact-seat-status { color:#a5abc0; }
 @media(max-width:700px) {
