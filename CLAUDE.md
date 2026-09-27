@@ -142,7 +142,10 @@ PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했�
   - **`match_requests` 테이블을 만들지 않는다** (docs/11 #27).
   - PostgreSQL은 **확정된 것**만 안다. 시도했다 실패한 요청은 DB를 치지 않는다.
   - DB 의존성은 **차단 조회 하나 때문에만** 있다 (JPA + H2/PostgreSQL 드라이버).
-    Flyway는 아직 없고 스키마도 없다. 매칭 상태를 DB로 옮기는 용도로 쓰지 마라.
+    Flyway 는 있지만 **이 앱이 소유하는 표 하나(`matching_outbox`)만** 만든다 — outbox 패턴의 "먼저 DB 에 적는" 자리다
+    (`backend/src/main/resources/db/migration/V1__matching_outbox.sql`, 엔티티 `outbox/OutboxEvent`, 이력 표는 `matching_flyway_history` 로
+    platform 의 Flyway 와 따로 둔다). `blocks` 는 여전히 platform 의 Flyway 것이고 여기서 만들지 않는다.
+    매칭 상태를 DB로 옮기는 용도로 쓰지 마라 — 이 표는 확정된 것만 안다 (docs/11 #27).
 - `app:matching`이 DB를 치는 유일한 지점은 INV-6 **선필터**의 **`blocks`** 조회
   하나다 (배정 때 락을 잡기 전에 한 번 — `BlockRepository#findBlockedUserIds`. 확정 직전 검증은 D-41 로 두지 않는다). **테이블은 `public.blocks` 이고 `blocker_id` · `blocked_id` 는 bigint(사용자 번호)다.**
   **이 앱이 읽는 테이블은 이것 하나이고 늘리지 않는다** — 권한이 아니라 약속으로 지킨다 (docs/11 D-1 · D-34).
