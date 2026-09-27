@@ -383,6 +383,12 @@ main 시나리오만 집계한다 (`throughput.js:33-38`, `throughput.js:42`).
 
 각 명령은 스크립트에서 그대로 읽은 것이다. 새로 지어낸 명령은 없다.
 
+> **2026-09-27 에 스크립트를 현재 API 에 맞춰 고쳤다** — 바디에 `tier`(기본 `GOLD_2`), 쿠키 `qm_access`
+> (platform 개발용 개인 키로 로컬 서명), 숫자 사용자 번호, 그리고 색인 키의 `:{tier}` 접미사. k6 계열은
+> `mint_tokens.py` 로 토큰 풀을 먼저 만든다(`run.sh` · `tp.sh` · `netpath/runpost*.sh` 가 알아서 부른다).
+> 전제 · 환경변수 · 순서는 **`load-test/README.md`** 에 있다. 이 절과 §3 의 `파일:줄` 참조는 그 전 판
+> (`32031a4`)의 줄 번호라 지금 파일과 어긋날 수 있다 — 아래 명령의 모양은 그대로다.
+
 ### E1 색인 깊이별 join (`run.sh`)
 
 ```bash
@@ -401,8 +407,9 @@ docker run --rm -i -v "$DIR:/scripts" \
   grafana/k6 run --quiet /scripts/measure.js                 # run.sh:29-32  (측정)
 ```
 
-색인 무결성 확인은 `docker exec qm-redis redis-cli ZCARD "$K:$1"` (`run.sh:13`), 키는
-`qm:party:open:LOL:RANKED_SOLO:REQUIRED:RANK_UP:needs` (`run.sh:10`).
+색인 무결성 확인은 `docker exec qm-redis redis-cli ZCARD "$K:$1:$TIER"`, 키는
+`qm:party:open:LOL:RANKED_SOLO:REQUIRED:RANK_UP:needs:{포지션}:{TIER}` — 티어 모드는 Lua 가 `:{tier}` 를 붙이므로
+접미사 없는 `...:needs:JUNGLE` 은 항상 비어 있다(2026-09-27 수정. 그 전 판은 접미사가 없어 이 확인이 늘 0 이었다).
 측정 후 `TOP>0`이면 측정 오염이라고 스크립트가 명시한다 (`run.sh:36`).
 
 ### E2~E6 매칭 성사 지연
