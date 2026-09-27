@@ -25,6 +25,14 @@ servers:
 security:
   - bearerAuth: []
 paths:
+  /rooms:
+    $ref: './rooms.openapi.yaml#/paths/~1rooms'
+  /rooms/{id}/join:
+    $ref: './rooms.openapi.yaml#/paths/~1rooms~1{id}~1join'
+  /rooms/{id}/actions:
+    $ref: './rooms.openapi.yaml#/paths/~1rooms~1{id}~1actions'
+  /rooms/{id}/messages:
+    $ref: './rooms.openapi.yaml#/paths/~1rooms~1{id}~1messages'
   /recruitments/search:
     $ref: './recruitment.openapi.yaml#/paths/~1recruitments~1search'
   /recruitments/mine:

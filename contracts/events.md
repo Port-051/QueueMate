@@ -177,3 +177,10 @@ Those use WebRTC DataChannel/audio track.
 - 개인정보/조건/신청자/차단 관계를 방송하지 않는다. 클라이언트는 권한이 적용된 search/mine을 다시 읽는다.
 - 누락은 재연결·포커스 복귀·저빈도 안전망 조회로 복구한다. 새 목록의 순서는 사용자가 적용한다.
 - 회원별 요청/수락 상태는 기존 proposal 이벤트와 mine 조회로 복구한다.
+
+## Shared room pilot (2026-09-27)
+
+- `ROOMS_UPDATED`: `{}`. Authenticated subscribers refetch `/rooms` after a committed membership/recruitment change. No chat bodies are broadcast.
+- `ROOM_MESSAGES_UPDATED`: `{roomId}`. Current members only, after message commit. Refetch the private message snapshot in `/rooms`.
+- Reconnect and focus refetch the snapshot; periodic reconciliation covers missed notifications.
+- New room text is sent over REST, stored in PostgreSQL, and notified through WebSocket. This supersedes the no-server-chat policy **only for the opted-in room pilot**. Legacy party DataChannel and voice contracts are unchanged.

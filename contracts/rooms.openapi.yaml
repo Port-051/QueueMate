@@ -1,0 +1,192 @@
+openapi: 3.0.3
+info:
+  title: QueueMate shared room pilot
+  version: 0.1.0
+  description: |
+    Authenticated room pilot enabled with queuemate.rooms.enabled=true.
+    Existing proposal/party endpoints keep their contracts. Rooms are created before recruitment completes.
+    Public room snapshots never include chat bodies unless the viewer is a current member.
+    Room timestamps are epoch milliseconds except availableFrom (ISO-8601).
+    Messages persist while the room exists; the last departure deletes the room and messages.
+    This pilot validates recruitment preferences and capacity, not external game queue eligibility.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+paths:
+  /rooms:
+    get:
+      summary: All pilot rooms, with latest 200 messages only in the viewer's own room
+      responses:
+        '200':
+          description: Current room snapshot
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Room'}}
+        '401': {$ref: '#/components/responses/Error'}
+    post:
+      summary: Create a room and join as owner; requestId is an idempotency key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Create'}
+      responses:
+        '201':
+          description: Created room (same requestId returns the same room)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Room'}
+        '400': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /rooms/{id}/join:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    post:
+      summary: Join a vacant seat; transfer from the expected current room atomically
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [profile]
+              properties:
+                profile: {$ref: '#/components/schemas/ProfileInput'}
+                role: {type: string, nullable: true}
+                fromRoomId: {type: string, format: uuid, nullable: true}
+      responses:
+        '200':
+          description: Joined room; repeated join by an existing member is a no-op
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Room'}
+        '400': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /rooms/{id}/actions:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    post:
+      summary: Leave, owner kick, or close recruitment while retaining conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: {type: string, enum: [LEAVE, KICK, CONFIRM]}
+                memberId: {type: string, format: uuid, nullable: true}
+      responses:
+        '204': {description: Applied}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /rooms/{id}/messages:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    post:
+      summary: Store a message; only current room members can send
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientMessageId, text]
+              properties:
+                clientMessageId: {type: string, format: uuid}
+                text: {type: string, minLength: 1, maxLength: 2000}
+      responses:
+        '200':
+          description: Stored message; repeated clientMessageId by same sender returns original
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Message'}
+        '400': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '429': {$ref: '#/components/responses/Error'}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  parameters:
+    Id: {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+  responses:
+    Error:
+      description: Standard API error (including 401 on every authenticated operation)
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, message]
+            properties:
+              code: {type: string}
+              message: {type: string}
+  schemas:
+    TierRange:
+      type: object
+      properties:
+        minTier: {type: string, nullable: true}
+        maxTier: {type: string, nullable: true}
+    ProfileInput:
+      type: object
+      description: Only roles and bio are user supplied; identity and rank come from server records
+      required: [roles, bio]
+      properties:
+        roles: {type: array, maxItems: 5, items: {type: string}}
+        bio: {type: string, maxLength: 120}
+    Settings:
+      type: object
+      required: [game, modeKey, type, title, capacity, desiredRoles, voice]
+      properties:
+        game: {type: string, enum: [LOL, VALORANT, PUBG]}
+        modeKey: {type: string}
+        type: {type: string, enum: [REALTIME, RESERVATION]}
+        title: {type: string, minLength: 1, maxLength: 120}
+        capacity: {type: integer, minimum: 2, maximum: 5}
+        desiredRoles: {type: array, maxItems: 5, items: {type: string}}
+        desiredTierRange: {$ref: '#/components/schemas/TierRange'}
+        voice: {type: string, enum: [REQUIRED, NO_VOICE]}
+        availableFrom: {type: string, format: date-time, nullable: true}
+    Create:
+      type: object
+      required: [requestId, input, profile]
+      properties:
+        requestId: {type: string, format: uuid}
+        input: {$ref: '#/components/schemas/Settings'}
+        profile: {$ref: '#/components/schemas/ProfileInput'}
+    Member:
+      allOf:
+        - {$ref: '#/components/schemas/ProfileInput'}
+        - type: object
+          properties:
+            id: {type: string, format: uuid}
+            nickname: {type: string}
+            avatarUrl: {type: string, nullable: true}
+            tier: {type: string, nullable: true}
+            division: {type: integer, nullable: true}
+            winRate: {type: number, nullable: true}
+            kda: {type: number, nullable: true}
+            champions: {type: array, items: {type: string}}
+            voice: {type: string}
+    Message:
+      type: object
+      required: [id, authorId, text, createdAt]
+      properties:
+        id: {type: string, format: uuid}
+        authorId: {type: string, format: uuid, nullable: true}
+        text: {type: string}
+        createdAt: {type: integer, format: int64}
+    Room:
+      allOf:
+        - {$ref: '#/components/schemas/Settings'}
+        - type: object
+          required: [id, ownerId, members, status, createdAt, messages]
+          properties:
+            id: {type: string, format: uuid}
+            ownerId: {type: string, format: uuid}
+            status: {type: string, enum: [OPEN, CONFIRMED]}
+            createdAt: {type: integer, format: int64}
+            autoCloseAt: {type: integer, nullable: true}
+            members: {type: array, items: {$ref: '#/components/schemas/Member'}}
+            messages: {type: array, items: {$ref: '#/components/schemas/Message'}}

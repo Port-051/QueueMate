@@ -46,7 +46,8 @@ QueueMate는 **실시간·예약 모집 게시판과 조건 기반 팀원 매칭
 - PostgreSQL = 영속 source of truth.
 - Redis = 활성 매칭/예약 인덱스/lock/presence/rate-limit.
 - Kafka/RabbitMQ 추가 금지. 현재 규모에서 불필요하다.
-- WebRTC = 파티 음성 + 텍스트 DataChannel.
+- WebRTC = 기존 파티 음성 + 텍스트 DataChannel.
+- 2026-09-27 사용자 승인 방 파일럿은 `contracts/rooms.openapi.yaml`에 따라 텍스트를 REST로 저장하고 WebSocket 갱신 이벤트로 전달한다. 기존 파티 계약과 구분한다.
 - Spring WebSocket = WebRTC signaling + 서버 이벤트만.
 
 ## 4. Correctness invariants
