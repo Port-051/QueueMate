@@ -579,7 +579,7 @@ Redis `PUBLISH qm:pubsub:push:{userId}`에 **JSON 문자열 하나**를 보낸�
 
 > **(가)는 2026-09-21에 받아 구현했고, 2026-09-25 `room` 합치기로 물음 자체가 없어졌다**(P-22) — 방장 확정을 한 요청이 하므로 "두 앱에 무엇을 어떤 순서로 부르는가"가 없다.
 > **(나) · (다) · (라)는 결정이 아니다.** 소유자와 논의만 하고 묻어 둔 것이다. 결정 로그(docs/11)에 D-항목이 없다. **그 셋을 근거로 구현하지 마라** — 해당 지점에 닿으면 이것을 들고 **다시 묻는다.**
-> 원문은 `../room/CLAUDE.md` §7 "`status=PARTY` 해제" 행이다(옛 `room` 앱의 눈으로 적혀 있다 — 그 폴더는 합치기 전의 기록이다). 여기는 그것을 이 앱의 눈으로 옮긴 것이다. 이미 정해진 것은 "(정해진 것)"이라고 따로 표시했다.
+> 원문은 옛 `room` 앱의 `CLAUDE.md` §7 "`status=PARTY` 해제" 행이다(`git show origin/room:CLAUDE.md` — **폴더는 2026-09-27 에 지웠다**, 브랜치만 남아 있다). 여기는 그것을 이 앱의 눈으로 옮긴 것이다. 이미 정해진 것은 "(정해진 것)"이라고 따로 표시했다.
 
 **(가) 게시판 방의 방장 확정을 이 앱이 아는 법 — 합쳐서 물음 자체가 없어졌다(2026-09-25 · §3.3 "방장 확정은 한 길이다").**
 
@@ -617,7 +617,7 @@ Redis `PUBLISH qm:pubsub:push:{userId}`에 **JSON 문자열 하나**를 보낸�
 queuemate/
 ├── matching/       matching 브랜치
 ├── notification/   notification 브랜치
-├── room/           room 브랜치. 옛 app:room — 2026-09-25 에 이 앱에 합쳤다. 합치기 전의 기록이라 참고만 한다
+(room/ 폴더는 2026-09-27 에 지웠다 — 옛 app:room 은 2026-09-25 에 이 앱에 합쳤고 기록은 브랜치 origin/room 에만 있다)
 └── platform/       platform 브랜치 (이 폴더)
     ├── START_HERE.md            시작 안내 — 지금 어디까지 됐나 · 만드는 순서 · 다음에 닿기 전에 물어야 하는 것
     ├── CLAUDE.md · README.md    규칙 / 짧은 소개
@@ -688,7 +688,7 @@ queuemate/
   저장소로 인식하지 못해 **IntelliJ에 Commit 탭이 뜨지 않는다. 커밋은 WSL에서 한다.**
 - `notification`을 띄운 직후 첫 SSE는 Redis 구독이 걸리기까지 **7초쯤** 걸렸고 그 사이의 알림은 오지 않았다(2026-09-20 측정. 원인은 확인하지 않았다).
   SSE로 도착을 확인할 때는 `PUBSUB NUMSUB`으로 **구독자가 1이 된 것을 본 뒤에** 움직인다.
-- 위 함정은 전부 `room`을 만들며 실제로 겪은 것이다. 명령과 그 밖의 환경 함정(`pkill -f` 금지, 느린 빌드)은 `../room/docs/NOTIFICATION_LESSONS.md`에 있다.
+- 위 함정은 전부 `room`을 만들며 실제로 겪은 것이다. 명령과 그 밖의 환경 함정(`pkill -f` 금지, 느린 빌드)은 이 폴더의 `docs/LOCAL_ENV_LESSONS.md`에 있다(옛 `room/docs/NOTIFICATION_LESSONS.md` 를 2026-09-27 에 옮겨 왔다 — `room` 폴더를 지우면서).
 
 ## 10. 함께 봐야 할 곳
 
@@ -698,9 +698,9 @@ queuemate/
 | **이 폴더에서 정한 계약** — 공통(에러 · 인증 · `Origin`) · access 토큰 · 계정 · 게임 프로필 · 소셜 로그인 · 차단 · 모집 글/목록(글 쓰기가 방을 만든다 · 만료) · **방**(입장 · 나가기 · 강퇴 · 방장 확정 · 접속 확인 · 시그널 · 방 알림 · Redis 키 — 옛 `room`의 계약을 합쳤다) · 친구/신고/최근 함께한 사람 · 알림 · refresh 토큰 · **gameconfig를 읽는 것**(§3.6) · **"원본에 올려야 할 것" P-1~P-26.** Claude가 정했고 소유자가 항목별로 검토하지 않았다(P-11 ~ P-26은 소유자가 직접 정한 것이다) | `contracts/platform-api.md` (이 폴더) |
 | **ERD**(테이블의 원본은 `backend/src/main/resources/db/migration/V1__schema.sql`이다 — 그림이 어긋나면 마이그레이션이 맞다. **2026-09-26 에 스키마가 `public` 하나가 되고 FK가 생겼다** — 그림이 스키마 셋이면 낡은 것이다) | <https://claude.ai/artifact/LBngVYThyCjipLUkatC6Bq> |
 | 매칭 엔진 규칙 (제품 경계·INV·Contract first의 원형) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/CLAUDE.md` |
-| 알림 배달 규칙 (받는 쪽이 메시지를 어떻게 다루나) / 옛 `room` 앱의 규칙(**2026-09-25 에 합치기 전의 기록 — 참고만. 방의 규칙은 이 파일 §3.3 과 `contracts/platform-api.md` "방"이다**) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/notification/CLAUDE.md` · `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/room/CLAUDE.md` |
-| 옛 `room` 앱의 계약 · 결정 기록(합치기 전의 모습 그대로 남아 있다 — **참고만**. 이 폴더의 계약 "방" 절이 그것을 옮겨 와 고친 것이다) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/room/contracts/room-api.md` · `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/room/docs/DECISIONS.md` |
-| 로컬 환경 함정 (띄우고 죽이기 · IntelliJ · worktree · 테스트) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/room/docs/NOTIFICATION_LESSONS.md` |
+| 알림 배달 규칙 (받는 쪽이 메시지를 어떻게 다루나) / 옛 `room` 앱의 규칙(**2026-09-25 에 합치기 전의 기록 — 참고만. 방의 규칙은 이 파일 §3.3 과 `contracts/platform-api.md` "방"이다**) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/notification/CLAUDE.md` · `git show origin/room:CLAUDE.md`(옛 `room` 앱 — **폴더는 2026-09-27 에 지웠다.** 기록은 브랜치 `origin/room` 에 남아 있다 — `git show origin/room:<경로>` 로 본다) |
+| 옛 `room` 앱의 계약 · 결정 기록(합치기 전의 모습 그대로 남아 있다 — **참고만**. 이 폴더의 계약 "방" 절이 그것을 옮겨 와 고친 것이다) | `git show origin/room:contracts/room-api.md` · `git show origin/room:docs/DECISIONS.md`(옛 `room` 앱 — **폴더는 2026-09-27 에 지웠다.** 기록은 브랜치 `origin/room` 에 남아 있다 — `git show origin/room:<경로>` 로 본다) |
+| 로컬 환경 함정 (띄우고 죽이기 · IntelliJ · worktree · 테스트) | `docs/LOCAL_ENV_LESSONS.md` (이 폴더 — 옛 `room/docs/NOTIFICATION_LESSONS.md` 를 옮겨 왔다) |
 | 결정 로그 — #13~#17 · #20~#26 · D-1~D-4 · **D-9** · **D-11**~**D-16** · **D-18** · **D-19**(D-11 16번과 D-16의 활성 요청 키 대목을 개정 — 파일 머리의 "낡은 항목 주의"로 걸러 읽는다) · **D-20**(게시판 목록 — 방 안 사람 카드·이 앱이 조립·게시판 채널 신호·차단은 방 안의 누구와든. D-11 14번의 범위를 정하고 D-16의 방 키 읽기 범위를 늘렸다) · **D-21**(`room`의 방 안의 규칙과 계약 — 방 키 · 수명 · 방장 확정. **확정 표시는 `room`이 쓰고 이 앱은 읽는다.** D-16의 "닫힘 표시" 가능성은 받지 않았다) · **D-22**(게시판 채널은 게임을 구분하지 않는 `qm:pubsub:board` 하나 · `topics`를 없애고 거르기는 클라이언트가 한다 — D-20 (다)를 개정) · **D-23**(확정한 방은 방장이 나가도 없어지지 않고 방장 자리를 넘긴다 — **확정한 방에서는 방장 키의 값이 바뀔 수 있다.** `room`의 게시판 채널 신호 발행이 구현됐다 — D-21 · D-20을 개정). **D-16 · D-19 ~ D-23은 두 앱을 전제로 쓰였다 — 2026-09-25 에 `room`을 합쳐(P-22 · §3.3) D-33이 개정했다** · **D-24 ~ D-35**(2026-09-26 — 이 앱에서 소유자가 정한 것. P-2 · P-11 ~ P-25와의 대응은 `contracts/platform-api.md` 맨 아래 표 — P-25는 D-36) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/docs/11_DECISION_LOG.md` |
 | 알림 계약 (봉투·발행 주체·`WEBRTC_SIGNAL`·SQS FIFO·계약 구멍) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/contracts/events.md` |
 | 계약 사본의 지위와 앞서간 변경을 적는 법 / platform 소관 자원 목록(머리말) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/contracts/README.md` · `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/contracts/openapi.yaml` |

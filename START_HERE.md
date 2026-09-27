@@ -26,7 +26,7 @@
 
 > **2026-09-25 소유자 결정 — `room` 앱을 이 앱에 합친다**(**P-22**). **1단계(옮겨서 돌게 하기)와 2단계(두 앱을 전제로 만든 경계 장치 걷어내기)가 됐다.**
 > **1단계** — `room` 의 코드가 `com.queuemate.platform.room` 패키지로 왔고 방의 요청(`/api/v1/rooms/**` — 경로 그대로)을 이 앱(8082)이 받는다. **포트 8083 은 없어졌다.** `?userId=` 가 없어지고 `qm_access` 쿠키의 사용자가 "나"다.
-> 겹치던 것(에러 처리 · 알림 발행 · 게시판 신호 · 채널 상수 · 방 키 상수)은 이 앱의 것을 쓴다. **`room` 폴더의 파일은 고치지 않았다 — 그 브랜치는 옛 모습 그대로 남는다.**
+> 겹치던 것(에러 처리 · 알림 발행 · 게시판 신호 · 채널 상수 · 방 키 상수)은 이 앱의 것을 쓴다. **`room` 폴더의 파일은 고치지 않았고 2026-09-27 에 폴더째 지웠다(브랜치 `origin/room` 만 남는다) — 그 브랜치는 옛 모습 그대로 남는다.**
 > **2단계 — 소유자 결정 둘**(① 입장 경로는 그대로 `POST /api/v1/rooms/{roomId}/members` 로 두고 그 안에서 검사한다 · C 방을 못 만들면 글도 되돌린다)과 그에 딸린 것:
 > - **입장권이 없어졌다** — `POST /api/v1/posts/{postId}/ticket` · `token_use = room_ticket` · `ROOM_TICKET_TTL` 이 사라졌다(`token_use` 클레임과 `access` · `social_signup` 은 남는다). **입장 요청 안에서** 글을 먼저 본다 — 차단으로 숨겨진 글 404 `POST_NOT_FOUND` → 모집 중이 아니면 409 `POST_NOT_RECRUITING` → 그다음 방의 Lua(`party/service/PostEntryGate#check`).
 > - **글 쓰기가 방까지 만든다** — `POST /api/v1/posts` 가 트랜잭션 안에서 방 만들기 Lua 를 부르고 **실패하면 글도 되돌린다**(이미 방에 있으면 409 `IN_OTHER_ROOM` · 자동 매칭 중이면 409 `ALREADY_QUEUED`). 응답의 `members` 에 방장이 들어 있다. **`POST /api/v1/rooms/{roomId}`(방 만들기) 요청이 없어졌다.**
@@ -376,14 +376,14 @@
 
 | 무엇 | 경로 |
 |---|---|
-| **전체 그림** — 서비스 다섯 개, 잇는 것, 한 번이 흘러가는 순서, 결정 한눈에(2026-09-20 기준이라 그 뒤의 것은 없다) | `../room/docs/PROJECT_OVERVIEW.md` |
+| **전체 그림** — 서비스 다섯 개, 잇는 것, 한 번이 흘러가는 순서, 결정 한눈에(2026-09-20 기준이라 그 뒤의 것은 없다) | `git show origin/room:docs/PROJECT_OVERVIEW.md`(`room` 폴더는 2026-09-27 에 지웠다 — 브랜치만 남아 있다) |
 | 결정 로그 원본 — 이 앱에 걸리는 항목은 `CLAUDE.md` §10 의 그 행에 있다. **파일 머리의 "낡은 항목 주의"로 걸러 읽는다** | `../matching/docs/11_DECISION_LOG.md` |
 | 알림 계약(봉투 · 발행 주체 · SQS FIFO · 계약 구멍) / 봉투를 만드는 코드의 본보기 · 채널 접두사 원본 | `../matching/contracts/events.md` / `../matching/backend/src/main/java/com/queuemate/matching/notification/PushPublisher.java` · `…/redisKeys/SharedKeys.java` |
 | `matching` 이 읽는 `blocks` 의 모양 | `../matching/backend/src/main/java/com/queuemate/matching/block/Block.java` · `../matching/backend/src/test/resources/schema.sql` |
 | `matching` 이 platform 을 기다리는 일(① 파티 풀기 ② 차단 스키마 ③ outbox) | `../matching/HANDOFF.md` §0-1 |
-| 합치기 전 `room` 의 모습(**참고만** — 2026-09-25 에 합쳐 원본은 이제 이 폴더다: 계약은 `contracts/platform-api.md` "방 — `rooms`", 방 키 상수는 `backend/…/room/redisKeys/RoomKeys.java`) | `../room/` |
-| **2026-09-21 에 검토한 방향의 원문**(`room` 의 눈) | `../room/CLAUDE.md` §7 "`status=PARTY` 해제" 행 |
-| 로컬 환경 함정(띄우고 죽이기 · IntelliJ · worktree · 테스트) | `../room/docs/NOTIFICATION_LESSONS.md` |
+| 합치기 전 `room` 의 모습(**참고만** — 2026-09-25 에 합쳐 원본은 이제 이 폴더다: 계약은 `contracts/platform-api.md` "방 — `rooms`", 방 키 상수는 `backend/…/room/redisKeys/RoomKeys.java`) | 브랜치 `origin/room`(`git show origin/room:<경로>` — **폴더는 2026-09-27 에 지웠다**) | (`room` 폴더는 2026-09-27 에 지웠다)
+| **2026-09-21 에 검토한 방향의 원문**(`room` 의 눈) | `git show origin/room:CLAUDE.md` §7 "`status=PARTY` 해제" 행(폴더는 지웠다) |
+| 로컬 환경 함정(띄우고 죽이기 · IntelliJ · worktree · 테스트) | `docs/LOCAL_ENV_LESSONS.md`(이 폴더 — 2026-09-27 에 옛 `room/docs/NOTIFICATION_LESSONS.md` 를 옮겨 왔다) |
 | 왜 PostgreSQL 인가 · 스키마 배치 · outbox | `../matching/docs/WHY_POSTGRESQL.md` |
 
 ## 6. 로컬에서 띄우는 법
@@ -415,7 +415,7 @@ ss -ltnp | grep :8082      # → kill <PID> → ./gradlew --stop → docker.exe 
   **어떻게 심는지는 `matching` 폴더의 일이다** — 이 앱은 심지 않고 읽기만 한다. (**이 문서를 고친 세션은 이 명령을 실행해 보지 않았다.**)
   **테스트는 심지 않아도 된다** — `ApiTestSupport` 가 **없는 키만** 스스로 심고 끝나면 그것만 지운다(있던 키는 건드리지 않는다).
 - **테스트와 `bootRun` 은 같은 DB · 같은 Redis 를 쓴다.** 테스트는 자기가 만든 사용자와 그에 딸린 줄 · 키만 지운다(`ApiTestSupport` — 2026-09-26 전에는 로그인 아이디 `t_…` 로 가렸다. 로그인 아이디가 없어진 뒤 무엇으로 가리는지는 코드 참조) — 손으로 넣은 데이터는 건드리지 않는다. 컨테이너가 `--rm` 이라 멈추면 전부 사라진다.
-- Claude 가 파일을 고친 뒤에는 IntelliJ 에서 `Ctrl+Alt+Y`. 그 밖의 함정은 `CLAUDE.md` §9 "운영 규칙"과 `../room/docs/NOTIFICATION_LESSONS.md`.
+- Claude 가 파일을 고친 뒤에는 IntelliJ 에서 `Ctrl+Alt+Y`. 그 밖의 함정은 `CLAUDE.md` §9 "운영 규칙"과 `docs/LOCAL_ENV_LESSONS.md`.
 
 ### 손으로 해 보기 — 소셜 로그인 → 글 쓰기 → 목록
 

@@ -451,7 +451,7 @@ access 가 짧아진 만큼(15분) 그것을 이어 주는 것이 refresh 다. *
 ## 방 — `rooms` (2026-09-25 에 `room` 앱을 합쳤다 · P-22)
 
 **방 안의 일이다** — 입장 · 나가기 · 강퇴 · 방장 확정 · 접속 확인 · 방 안 사람 목록 · 내 방 찾기 · 시그널 보내기, 여덟 가지다(**방 만들기는 요청이 따로 없다 — 글 쓰기가 한다**, 위 "글 쓰기가 방을 만든다").
-구현은 `room` 패키지이고 **상태는 Redis 에만 있다**(DB 가 없다). 이 절은 옛 `room` 앱의 계약(`room/contracts/room-api.md` — 옆 폴더에 옛 모습 그대로 남아 있다)을 옮겨 와 합친 것이다.
+구현은 `room` 패키지이고 **상태는 Redis 에만 있다**(DB 가 없다). 이 절은 옛 `room` 앱의 계약(`git show origin/room:contracts/room-api.md` — 폴더는 2026-09-27 에 지웠고 브랜치에 옛 모습 그대로 남아 있다)을 옮겨 와 합친 것이다.
 **구현돼서 굳은 것만** 적는다. 계약 원본(queueMate 본 저장소)에 아직 없다 — 합칠 때 올려야 한다(P-22).
 
 ### 공통
@@ -661,7 +661,7 @@ SSE 의 `heartbeat` 이벤트(서버 → 브라우저, `notification` 이 보낸
 ### 시그널 보내기 — `POST /api/v1/rooms/{roomId}/signals`
 
 **WebRTC 시그널(offer · answer · ICE 후보)을 같은 방의 상대에게 보낸다.** WebSocket 은 없다 — 보내는 길은 이 `POST`, 받는 길은 SSE 의 `WEBRTC_SIGNAL` 이다
-(docs/11 D-9 · `room/docs/CONTRACTS.md` "`WEBRTC_SIGNAL` 의 전달"). **서버는 우체부다** — 보낸 사람과 받는 사람이 같은 방에 있는지만 확인하고,
+(docs/11 D-9 · 옛 `room/docs/CONTRACTS.md` "`WEBRTC_SIGNAL` 의 전달" — `git show origin/room:docs/CONTRACTS.md`). **서버는 우체부다** — 보낸 사람과 받는 사람이 같은 방에 있는지만 확인하고,
 내용은 해석하지도 저장하지도 않는다. (2026-09-20 정함)
 
 요청 본문:

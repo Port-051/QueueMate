@@ -107,7 +107,7 @@
 queuemate/
 ├── matching/       matching 브랜치. 매칭 엔진. 결정 로그와 계약 사본이 여기 있다
 ├── notification/   notification 브랜치. 알림(SSE) 서비스
-├── room/           room 브랜치. 2026-09-25 에 이 앱에 합쳐 옛 모습 그대로 남아 있다(참고만)
+(room/ 폴더는 2026-09-27 에 지웠다 — 2026-09-25 에 이 앱에 합쳤고 옛 모습은 브랜치 origin/room 에만 있다)
 └── platform/       platform 브랜치 (이 폴더)
     ├── START_HERE.md   시작 안내 — 지금 어디까지 됐나 · 만드는 순서 · 다음에 닿기 전에 물어야 하는 것
     ├── CLAUDE.md       규칙
