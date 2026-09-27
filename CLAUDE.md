@@ -9,6 +9,8 @@
 전체 시스템 규칙은 queueMate 본 저장소의 `CLAUDE.md`에 있고, 이 파일은 그중
 **매칭 엔진에 걸리는 부분만** 옮긴 것이다. 프런트엔드 / 소셜 / 파티 REST /
 예약 REST / 인증 규칙은 여기 없다 — 그건 이 저장소의 책임이 아니다.
+**단, 인증의 "검증"은 이 앱도 한다** — 2026-09-27 에 임시 식별 `?userId=` 를 `app:platform` 이 발급하는 쿠키 `qm_access`
+(RS256 JWT)의 검증으로 바꿨다(docs/11 D-24 의 적용 — §3 "인증"). 발급 · 서명 · refresh 는 여전히 `app:platform` 의 일이다.
 
 ---
 
@@ -93,7 +95,8 @@ PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했�
 > 만들어진다. 그래서 조건 4개 규칙을 어기는 것이 아니고 docs/12 절차 대상도 아니다.
 > 무엇을 볼지는 gameconfig의 `tierRule`(**`NONE` / `EXIST` 둘뿐이다**)이 정한다
 > (`docs/GAME_CONFIG.md`, `seed/gameconfig.redis`). 지금은 사용자 자기신고이고,
-> 라이엇 계정 연동이 붙으면 `userId`와 함께 요청 바디에서 사라진다.
+> 라이엇 계정 연동이 붙으면 요청 바디에서 사라진다. (`userId` 는 2026-09-27 에 먼저 바디에서 빠졌다 —
+> access 토큰의 `sub` 가 대신한다. §3 "인증")
 
 > **티어 값의 원본은 자바가 아니라 Redis다.** `domain/lol/LolTier.java` enum은 **삭제됐고**
 > `grep -rn LolTier backend/src`는 0건이다 — 자바에 티어 이름을 아는 코드가 한 줄도 없다.
@@ -147,7 +150,7 @@ PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했�
     롤에 SELECT 권한을 준다(`social.blocks`)". **2026-09-22 에 스키마별 DB 롤을 두지 않기로 했고, 2026-09-26 에
     `app:platform` 이 스키마를 `public` 하나로 합치고 JOIN · FK 를 허용했다** (docs/11 D-34 가 #17 · D-1 을 개정).
     **두 칸이 `varchar` 에서 bigint 가 된 것은 2026-09-22** (docs/11 D-25 가 D-4 를 개정).
-  - **그래서 `block/Block.java` 를 고쳐야 한다 — 아직 안 고쳤다**(`HANDOFF.md` §0-4 (가)): `@Table(schema = "social", …)` 의
+  - **그래서 `block/Block.java` 를 고쳐야 했다 — 2026-09-26 에 고쳤다(`Long` · `@Table(name = "blocks")`)**(`HANDOFF.md` §0-4 (가)): `@Table(schema = "social", …)` 의
     `schema` 를 빼고 두 칸을 `Long` 으로. 그 전까지는 운영 DB 에 붙으면 차단 조회가 깨진다.
   - 뷰(`shared_read.blocked_pairs`)를 두는 원안은 폐기했다 — 층을 하나 더 만드는 값보다
     단순함이 크다고 판단했다.
@@ -174,6 +177,22 @@ PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했�
 - 게임 모드 설정(`gameconfig`)은 **Redis에서 읽기만 한다.** 앱이 부팅 시 밀어넣지 않는다.
   밀어넣으면 모드 추가마다 재배포가 필요해져 설정을 데이터로 뺀 의미가 사라진다
   (`seed/gameconfig.redis`, `docs/GAME_CONFIG.md`).
+- **인증 — 쿠키 `qm_access` 의 access 토큰(RS256 JWT)을 `app:platform` 의 공개 키로 검증만 한다** (2026-09-27 소유자 지시 · docs/11 D-24 의 적용).
+  그 전에는 JWT 가 없어 `userId` 를 요청 바디(`POST /match-requests`)와 쿼리 파라미터(`?userId=` — 조회 · 취소 · 수락 · 거절)로 받는
+  **임시 식별**이었고, 남의 번호로 요청 · 취소 · 수락을 할 수 있었다. **지금 "나"는 토큰의 `sub`(사용자 번호의 십진 문자열 `"42"`)다** —
+  `@CurrentUserId String userId`(`common/security/`). 엔진 안(Redis 키 · Lua · 알림 채널)은 `userId` 를 전처럼 문자열로 다루므로 바뀐 것이 없다.
+  - 검증 — 서명(RS256) · `exp` · `iss == queuemate-platform` · **`token_use == access`** · **`sub` 가 `^[0-9]{1,19}$`**. 하나라도 어긋나면
+    401 `{"code":"UNAUTHENTICATED", …}` 이고 이유는 가르지 않는다. 값의 원본은 `../platform` 의 `common/security/TokenClaims` 다 —
+    `common/security/TokenClaims` 에 **똑같이 베꼈다. 따로 바꾸지 마라.** `Authorization` 헤더는 받지 않는다.
+  - 공개 키 — 환경변수 **`JWT_PUBLIC_KEY`**(X.509 PEM, 운영은 Secrets Manager) 또는 **`JWT_PUBLIC_KEY_FILE`**(기본값
+    `../../platform/backend/.dev-keys/public.pem` — `backend/` 에서 띄운다는 전제의 로컬 개발용. `platform` 이 처음 뜰 때 만든다).
+    **둘 다 없으면 기동하지 않는다.** 개인 키 · 서명 · refresh · JWKS 는 이 앱에 없다.
+  - 인증 없이 열린 것은 `/actuator/**` 뿐이다(노출 목록은 `management.endpoints` 가 정한다). 나머지는 전부 인증이다.
+  - **CSRF — 상태를 바꾸는 요청(POST/PUT/PATCH/DELETE)의 `Origin` 을 허용 목록(`ALLOWED_ORIGINS`, 기본값 `http://localhost:5173,http://localhost:3000`
+    — `platform` 과 같다)과 대조한다**(`common/web/OriginCheckFilter` — 403 `ORIGIN_NOT_ALLOWED`). `Origin` 이 없는 요청(curl · 서버 사이)은 통과한다.
+    CSRF 토큰 · CORS 설정은 두지 않는다. **전제 — 상태를 바꾸는 GET 을 만들지 않는다.**
+  - 테스트는 JVM 마다 임시 키 쌍을 만들어 공개 키를 모든 컨텍스트에 넣는다(`src/test/…/common/security/TestJwt` ·
+    `TestJwtKeyInitializer` — `META-INF/spring.factories`). 토큰은 `TestJwt.cookie("42")` 로 찍는다.
 - 배포 기준은 **Stage 2(ECS Fargate)** 다. Stage 1(단일 EC2 + Docker Compose)은 적용하지 않는다 (docs/11 D-18).
   **k8s/HPA/sticky session을 전제한 구현 금지**는 그대로다.
 
@@ -419,3 +438,7 @@ AngularJS commit convention. 형식: `type(scope): subject`
 - Redis 장애 시 우회 매칭 경로 — INV-10이 금지한다
 - 매칭 조건 5번째 추가 — docs/12 절차 없이는 금지한다
 - 앱 부팅 시 gameconfig를 Redis에 밀어넣기 — 설정은 `seed/gameconfig.redis`가 원본이다
+- `?userId=` · 요청 바디의 `userId` 로 사용자를 받기 — 2026-09-27 에 없앴다. "나"는 access 토큰의 `sub` 다(§3 "인증").
+  쿠키가 없으면 `userId` 파라미터를 받는 개발용 스위치도 두지 않는다
+- 개인 키 · 토큰 서명 · refresh · JWKS 엔드포인트 · jjwt 등 다른 JWT 라이브러리 · Spring `oauth2-client` 들이기,
+  `common/security/TokenClaims` 의 값을 `app:platform` 과 따로 바꾸기, `token_use` 를 안 보고 토큰 받기, 상태를 바꾸는 GET

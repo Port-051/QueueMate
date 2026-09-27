@@ -29,7 +29,11 @@
     두 스크립트로 나뉘어 있고, 그 사이 틈은 redisLock/PoolLock.java 의 후보 풀 락이 막는다.
   · 서버→클라 알림은 Redis Pub/Sub 으로 나간다 (qm:pubsub:push:{userId}).
     "지금 상태가 뭐냐"를 묻는 조회도 생겼다 — 다만 경로가 계약과 다르다.
-    GET /match-requests?userId=... 이고 경로 변수가 없다 (contracts/README.md #5).
+    GET /match-requests 이고 경로 변수가 없다 (contracts/README.md #5). "나"는
+    쿠키 qm_access 의 access 토큰(sub)이다 — 2026-09-27 까지는 ?userId= 였다.
+  · 인증 — 2026-09-27 부터 모든 /api/v1/** 가 쿠키 qm_access(RS256 JWT)를 요구한다.
+    app:platform 이 발급하고 이 앱은 공개 키(JWT_PUBLIC_KEY 또는 JWT_PUBLIC_KEY_FILE)로
+    검증만 한다. ?userId= 와 바디의 userId 는 없어졌다 (CLAUDE.md §3 "인증" · docs/11 D-24).
   · Redis 키 문자열의 자바 쪽 단일 출처는 redisKeys/SharedKeys.java 다.
     게임별 *PartyKeys 는 그 조각을 조합해 needs 색인을 만든다.
   · 제안 수락/거절/확정/만료가 전부 구현돼 있다 (POST /api/v1/proposals/{id}/accept|decline →
@@ -151,35 +155,54 @@ cd backend                 # 스프링 프로젝트는 여기 있다
 curl localhost:8080/actuator/health
 ```
 
+**공개 키가 있어야 뜬다(2026-09-27~).** access 토큰(쿠키 `qm_access`)을 `app:platform` 의 공개 키로 검증하기 때문이다.
+`JWT_PUBLIC_KEY`(X.509 PEM)를 주거나, 없으면 `JWT_PUBLIC_KEY_FILE` 의 파일을 읽는다 — 기본값
+`../../platform/backend/.dev-keys/public.pem` 은 `backend/` 에서 띄울 때의 `platform` 개발용 키다(`platform` 을 한 번 띄우면 생긴다).
+**둘 다 없으면 기동이 실패한다.** 상태를 바꾸는 요청의 `Origin` 허용 목록은 `ALLOWED_ORIGINS`(기본값 `http://localhost:5173,http://localhost:3000`).
+
+토큰은 `platform` 에 소셜 로그인해 받은 쿠키를 쓰거나, 로컬에서는 `platform` 의 개발용 **개인 키**로 직접 찍는다
+(개인 키는 `platform` 폴더에만 있다 — 이 앱에 들이지 마라):
+
+```bash
+K=../../platform/backend/.dev-keys/private.pem
+b64(){ openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+H=$(printf '{"alg":"RS256","kid":"dev-1"}' | b64); now=$(date +%s)
+P=$(printf '{"iss":"queuemate-platform","sub":"%s","iat":%d,"exp":%d,"jti":"x","token_use":"access"}' 1 $now $((now+900)) | b64)
+TOKEN="$H.$P.$(printf '%s.%s' "$H" "$P" | openssl dgst -sha256 -sign "$K" | b64)"   # sub=1 인 사용자
+```
+
 ### 스모크 호출
 
 ```bash
 # 매칭 요청 — 티어를 보는 모드 (RANKED_SOLO 는 tierRule=EXIST 라 tier 가 필수다)
 # tier 는 단(division)까지 적는다. "GOLD" 는 이제 400이다 — 사다리에 없는 이름이다
-curl -sS -X POST localhost:8080/api/v1/match-requests \
+curl -sS -X POST localhost:8080/api/v1/match-requests --cookie "qm_access=$TOKEN" \
   -H 'Content-Type: application/json' -d '{
-    "userId":"u1", "game":"LOL", "modeKey":"RANKED_SOLO", "tier":"GOLD_2",
+    "game":"LOL", "modeKey":"RANKED_SOLO", "tier":"GOLD_2",
     "keyCondition":{"type":"POSITION","value":"TOP"},
     "voicePreference":"REQUIRED", "playPurpose":"RANK_UP"
   }'
 # → 201  본문은 JSON 이 아니라 문자열 "CREATED" 다. 같은 userId로 또 하면 409 ALREADY_QUEUED
+#    (TOKEN2 는 위 TOKEN 을 sub=2 로 찍은 것이다. 바디의 userId 는 2026-09-27 에 없어졌다 — 넣어도 무시된다)
 #    (계약은 여기서 MatchRequestView 를 돌려주게 돼 있다 — contracts/README.md #5-1.
 #     지금은 requestId 를 못 받으므로 취소할 값은 아래 조회로 얻는다)
 
 # 티어를 안 보는 모드 (tierRule=NONE). tier 를 빼도 된다
-curl -sS -X POST localhost:8080/api/v1/match-requests \
+curl -sS -X POST localhost:8080/api/v1/match-requests --cookie "qm_access=$TOKEN2" \
   -H 'Content-Type: application/json' -d '{
-    "userId":"u2", "game":"LOL", "modeKey":"ARAM_5",
+    "game":"LOL", "modeKey":"ARAM_5",
     "keyCondition":{"type":"POSITION","value":"NONE"},
     "voicePreference":"REQUIRED", "playPurpose":"FUN"
   }'
 
-# 취소 (userId는 JWT 도입 전 임시 파라미터다)
-curl -sS -X DELETE "localhost:8080/api/v1/match-requests/<requestId>?userId=u1" -i
+# 취소 — 누구의 요청인지는 쿠키의 sub 다 (2026-09-27 까지는 ?userId= 였다)
+curl -sS -X DELETE "localhost:8080/api/v1/match-requests/<requestId>" --cookie "qm_access=$TOKEN" -i
 # → 204
 
-# 상태 조회 — requestId 가 아니라 userId 로 찾는다 (경로 변수 없음)
-curl -sS "localhost:8080/api/v1/match-requests?userId=u1" -i
+# 상태 조회 — requestId 가 아니라 "나"(쿠키의 sub)로 찾는다 (경로 변수 없음)
+curl -sS "localhost:8080/api/v1/match-requests" --cookie "qm_access=$TOKEN" -i
+# 쿠키가 없거나 틀리면 → 401 {"code":"UNAUTHENTICATED",...}
+# 허용 목록 밖의 Origin 을 단 POST/DELETE → 403 {"code":"ORIGIN_NOT_ALLOWED",...} (Origin 이 없는 curl 은 통과한다)
 # → 200 {"status":"QUEUED","requestId":"...","queuedAt":1758...,"partyId":"...","target":5,"memberCount":2}
 #    갈래는 IDLE / QUEUED / PROPOSED / MATCHED 넷. 그 갈래에서 뜻이 없는 칸은 응답에서 빠진다
 #    (@JsonInclude(NON_NULL)). 큐에 없으면 404 가 아니라 200 {"status":"IDLE"} 이다
@@ -213,6 +236,10 @@ backend/src/main/java/com/queuemate/
 ├── common/error/
 │   ├── ErrorResponse.java                {code, message, details}
 │   └── GlobalExceptionHandler.java       ★ INV-10 fail-closed (503)이 여기
+├── common/security/                      ★ 인증(2026-09-27) — 쿠키 qm_access 의 RS256 JWT 를 platform 공개 키로 검증만.
+│                                           SecurityConfig · JwtConfig(iss · exp · token_use=access · sub 숫자) · JwtPublicKeys ·
+│                                           CookieBearerTokenResolver · @CurrentUserId(= sub, String) · TokenClaims(platform 사본)
+├── common/web/                           OriginCheckFilter(POST/PUT/PATCH/DELETE 의 Origin → 403) · ErrorResponseWriter
 └── matching/
     ├── config/
     │   ├── AsyncConfig.java              matchingExecutor (core4/max8/queue200, CallerRunsPolicy)
@@ -225,7 +252,7 @@ backend/src/main/java/com/queuemate/
     │       └── valorant/ValorantRedisConfig.java  VALORANT Lua 5개 빈. 빈 이름에 valorant 접두사
     ├── controller/
     │   ├── MatchingController.java       ★ 진입점. POST/GET/DELETE /api/v1/match-requests
-    │   │                                   GET 은 ?userId= 로 찾는다 (경로 변수 없음).
+    │   │                                   "나"는 @CurrentUserId(토큰의 sub) — ?userId= 는 2026-09-27 에 없어졌다.
     │   │                                   계약과 경로가 다르다 — contracts/README.md #5
     │   └── ProposalController.java       POST /api/v1/proposals/{id}/accept|decline → 204
     │                                       (거부 갈래는 404 / 403 / 409). {id} = partyId
@@ -371,7 +398,7 @@ POST /api/v1/match-requests
                      그 성공 분기 안에서 qm:proposal:pending 에 ZADD 한다
     └ 201 {requestId, status:QUEUED}          (배정 결과를 기다리지 않는다)
 
-POST /api/v1/proposals/{partyId}/accept?userId=
+POST /api/v1/proposals/{partyId}/accept          ("나" = 쿠키의 sub — 2026-09-27 까지는 ?userId=)
  └ ProposalController → ProposalService.accept()
     ├ accept-proposal.lua   수락자 SET(qm:proposal:accepts:{partyId})에 SADD → SCARD 가
     │                       target 에 닿으면 status=CONFIRMED + pending 에서 ZREM (INV-4)
@@ -383,7 +410,7 @@ POST /api/v1/proposals/{partyId}/accept?userId=
                               (그래서 파티가 DB 에 안 생긴다), status=PARTY 를 푸는 길
                               (PartyClosed 소비는 이 앱의 일이 아니다 — docs/11 D-13)
 
-POST /api/v1/proposals/{partyId}/decline?userId=&requestId=
+POST /api/v1/proposals/{partyId}/decline?requestId=   ("나" = 쿠키의 sub)
  └ ProposalController → ProposalService.decline()
     ├ decline-proposal.lua  status/expiresAt HDEL + 수락자 SET DEL + pending ZREM
     │                       (파티와 참가자는 남긴다)
@@ -469,8 +496,11 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 - `POST /api/v1/match-requests` — 조건 검증(포지션 + 티어) → INV-1 선점 → 비동기 파티 배정.
   거절은 둘 다 409 다 — 이미 활성 요청이 있으면 `ALREADY_QUEUED`, **게시판 방에 들어가 있으면 `IN_ROOM`**
   (`claim-request.lua` 가 `app:platform`(옛 `app:room` — D-33)의 입장 표시 키를 `EXISTS` 로 본다 — docs/11 D-19)
-- `DELETE /api/v1/match-requests/{id}?userId=` — compare-and-delete + 색인 되돌리기
-- `GET /api/v1/match-requests?userId=` — **상태 조회.** `MatchQueryService` 가 활성 요청 HASH
+- **인증(2026-09-27)** — 모든 `/api/v1/**` 가 쿠키 `qm_access`(RS256 JWT)를 요구한다. `app:platform` 의 공개 키로 검증만 하고
+  (`iss` · `exp` · `token_use == access` · `sub` 숫자), "나"는 `sub` 다. 상태를 바꾸는 요청은 `Origin` 을 허용 목록과 대조한다(403 `ORIGIN_NOT_ALLOWED`).
+  테스트 `web/AuthenticationApiTest`(21건) · `common/security/JwtPublicKeysTest`(5건)
+- `DELETE /api/v1/match-requests/{id}` — compare-and-delete + 색인 되돌리기 (2026-09-27 까지는 `?userId=` 를 받았다)
+- `GET /api/v1/match-requests` — **상태 조회**(2026-09-27 까지는 `?userId=`). `MatchQueryService` 가 활성 요청 HASH
   → 파티 HASH → 수락자 SET 을 읽어 `IDLE` / `QUEUED` / `PROPOSED` / `MATCHED` 로 답한다.
   응답은 `MatchRequestResponse`(record 8필드, `@JsonInclude(NON_NULL)`)이고 **접수(201)와는
   모양이 다르다** — 접수는 아직 문자열 `"CREATED"` 를 돌려준다.
@@ -514,7 +544,7 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 | **INV-6 차단 검증** | 선필터 코드는 **있다** (`LolCandidateRule#canJoin` → `BlockRepository.findBlockedUserIds` → `ScriptSupport.blockedWith`). 그런데 이 앱 쪽에 차단 테이블이 없다 — Flyway 미도입, `ddl-auto: none`(운영 테이블은 `app:platform` 의 `public.blocks` · bigint 이고 `Block.java` 가 아직 옛 `social` · `String` 모양이다 — docs/11 D-25 · D-34). 기본 실행(H2)에서는 그 조회가 실패하고, 배정이 `@Async` 안이라 **요청은 201로 나가고 배정만 조용히 실패한다.** 테스트만 `ddl-auto=create-drop` + `backend/src/test/resources/schema.sql` 로 통과한다. 확정 직전 최종 검증(docs/11 D-1, `BlockRepository#findBlocksAmong`)은 확정 경로(`accept-proposal.lua`)에 붙어 있지 않아 미구현 |
 | **SQS outbox** | AWS SDK 의존성이 `backend/build.gradle` 에 없다 |
 | **메트릭** | `CLAUDE.md` §6 Definition of done 4번이 요구하는데 `MeterRegistry` / `@Timed` / `Metrics.` 가 `backend/src/main` 에 **0건**이다. `spring-boot-starter-actuator` 는 들어 있고 `/actuator/metrics` 도 열려 있어(`application.yaml`) JVM·HTTP 기본 지표는 나오지만, 매칭 고유 지표(큐 대기 시간, 배정까지 걸린 시간, 제안 수락률, 만료·취소 건수)는 하나도 없다 |
-| **인증** | JWT 없음. `userId`를 요청 바디와 쿼리 파라미터로 받는 임시 상태 |
+| ~~**인증**~~ | **2026-09-27 에 붙었다**(§4.1) — 그 전에는 JWT 가 없고 `userId`를 요청 바디와 쿼리 파라미터로 받는 임시 상태였다. 남은 것 — 조회 경로를 `/match-requests/me` 로 옮길지(계약 #5 와 같이 정한다), `load-test/` 의 스크립트가 아직 바디에 `userId` 를 싣고 쿠키가 없다(6번과 같이 고친다) |
 | **`GET /games`** | 계약에 있으나 컨트롤러가 없다 |
 | **Dockerfile** | 없다 |
 
@@ -571,7 +601,7 @@ LoL 만으로 시작한 범위 축소는 사고가 아니라 결정이다 — do
 나간다 (`LolUntieredAssigner` / `LolTieredAssigner` 의 `JOINED_AND_FULL` 분기). SSE 배달은
 `app:realtime` 몫이므로 이 저장소에는 없는 게 맞다.
 
-**"지금 상태" 조회는 생겼다.** `GET /match-requests?userId=` 가 `IDLE`/`QUEUED`/`PROPOSED`/
+**"지금 상태" 조회는 생겼다.** `GET /match-requests`(2026-09-27 까지는 `?userId=`) 가 `IDLE`/`QUEUED`/`PROPOSED`/
 `MATCHED` 로 답한다(§4.1). 경로가 계약(`/{requestId}`)과 다른 이유는 활성 요청이 **사용자
 단위**로 저장되고(INV-1), 이 조회가 가장 필요한 순간인 "페이지를 새로 열었을 때" 클라이언트가
 `requestId` 를 잃은 상태이기 때문이다 — `contracts/README.md` #5.
@@ -683,7 +713,7 @@ find backend/src -type d -empty                       # 빈 게임 패키지
 | 5 | **메트릭** | `MeterRegistry` 가 `backend/src/main` 에 0건이다. actuator 는 이미 있다 | `CLAUDE.md` §6 Definition of done 4번 |
 | 6 | **부하 테스트 복구** | `load-test/` 가 티어 필수화 뒤로 안 돈다 (요청 바디에 `tier` 없음 + 색인 키에 티어 접미사 없음) | 성능 근거를 다시 재려면 필요하다 |
 | 7 | **계약 정리** | `openapi.yaml` 이 `OPTIONAL` · `PLAY_STYLE` · 조회 경로 · 새 모드 키를 반영하지 않는다. **본 저장소 contract 변경이 선행** (CLAUDE.md §5) | 불일치 표(`contracts/README.md`)가 길어질수록 어느 쪽이 맞는지 판단하는 비용이 는다 |
-| 8 | **인증(JWT)** | 붙는 순간 `userId` 요청 필드와 `?userId=` 쿼리 파라미터를 제거한다 (`MatchingController` · `ProposalController` 둘 다). 조회 경로는 `/match-requests/me` 가 된다 | 계약 불일치 #2, #3이 이때 해소된다 |
+| 8 | ~~**인증(JWT)**~~ | **2026-09-27 에 했다** — `userId` 요청 필드와 `?userId=` 쿼리 파라미터를 없앴다(`MatchingController` · `ProposalController` 둘 다). "나"는 쿠키 `qm_access` 의 `sub` 다. **조회 경로를 `/match-requests/me` 로 옮기는 것은 하지 않았다** — 경로는 계약(#5)과 같이 정한다 | 계약 불일치 #2, #3 이 해소됐다(`contracts/README.md`) |
 
 ### 손대기 전 체크리스트
 

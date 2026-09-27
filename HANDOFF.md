@@ -1,6 +1,6 @@
 # HANDOFF — 다음 세션 인계
 
-**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-17 (목) · 2026-09-19 (§0 의 ①·③·④ 에 docs/11 D-11·D-12·D-13 반영, §0-0 · ① 에 D-19 반영) · 2026-09-24 (§0-4 신설 — `platform` 쪽에서 넘어온 일. §0-1 ① 에 참조 한 줄) · 2026-09-24 두 번째 (§0-4 (나) 에 같은 날 늦게 결정된 넷을 더했다 — P-13 의 개정 · P-17 · P-14 의 개정 · P-18)
+**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-17 (목) · 2026-09-19 (§0 의 ①·③·④ 에 docs/11 D-11·D-12·D-13 반영, §0-0 · ① 에 D-19 반영) · 2026-09-24 (§0-4 신설 — `platform` 쪽에서 넘어온 일. §0-1 ① 에 참조 한 줄) · 2026-09-24 두 번째 (§0-4 (나) 에 같은 날 늦게 결정된 넷을 더했다 — P-13 의 개정 · P-17 · P-14 의 개정 · P-18) · 2026-09-27 (§0-5 신설 — 임시 식별 `?userId=` 를 쿠키 `qm_access` 검증으로 바꿨다)
 **읽는 순서:** `CLAUDE.md` → `START_HERE.md` → **이 파일의 §0 부터**
 
 이 파일은 "지금 어디까지 왔고 무엇이 열려 있는가"만 담는다. 규칙은 `CLAUDE.md`,
@@ -19,7 +19,7 @@
 
 | 무엇 | 어디 | 비고 |
 |---|---|---|
-| **매칭 요청 상태 조회** | `controller/MatchingController#getMatchRequest` · `service/MatchQueryService` | **경로가 계약과 다르다** — 계약 `GET /match-requests/{requestId}` vs 구현 `GET /match-requests?userId=`. 경로 변수가 없다. 활성 요청이 `qm:user:active-request:{userId}` 로 **사용자 단위** 저장이라(INV-1) requestId 는 찾는 열쇠가 아니고, 이 조회가 가장 필요한 순간(페이지 새로 열기)에 클라이언트는 requestId 를 잃은 상태다. **contract 변경이 필요한 사안이다**(CLAUDE.md §5, 아래 0-1 ⑦). JWT 가 붙으면 `/match-requests/me` 가 된다 |
+| **매칭 요청 상태 조회** | `controller/MatchingController#getMatchRequest` · `service/MatchQueryService` | **경로가 계약과 다르다** — 계약 `GET /match-requests/{requestId}` vs 구현 `GET /match-requests?userId=`. 경로 변수가 없다. 활성 요청이 `qm:user:active-request:{userId}` 로 **사용자 단위** 저장이라(INV-1) requestId 는 찾는 열쇠가 아니고, 이 조회가 가장 필요한 순간(페이지 새로 열기)에 클라이언트는 requestId 를 잃은 상태다. **contract 변경이 필요한 사안이다**(CLAUDE.md §5, 아래 0-1 ⑦). JWT 가 붙으면 `/match-requests/me` 가 된다(← **2026-09-27 에 JWT 는 붙었고 `?userId=` 는 없어졌지만 경로는 `GET /match-requests` 그대로다** — §0-5) |
 | 응답 DTO 확장 | `dto/MatchRequestResponse` | **record 로 바뀌고 8필드**가 됐다 — `{status, requestId, queuedAt, partyId, target, memberCount, expiresAt, isAccepted}`. `@JsonInclude(NON_NULL)` 이라 그 갈래에서 뜻이 없는 칸은 응답에서 빠진다. 정적 팩토리 `idle`/`queued`/`proposed`/`matched` 로 만든다 |
 | `MatchRequestStatus.IDLE` | `domain/MatchRequestStatus` | 갈래는 `IDLE`(활성 요청 없음) / `QUEUED` / `PROPOSED` / `MATCHED`. **`CANCELLED`·`EXPIRED` 는 enum 에만 있고 조회가 절대 돌려주지 않는다** — 취소·만료는 활성 요청 키를 지우므로 `IDLE` 과 구분되지 않는다 |
 | `accept-proposal.lua` 가 시한을 본다 | `redis/proposal/accept-proposal.lua` | `ARGV[3] = now` 를 받아 `expiresAt <= now` 면 `NOT_FOUND`. **INV-5 expired 의 "스위퍼 주기만큼 남던 창"이 닫혔다.** 흔적 지우기는 여전히 스위퍼 몫이다(만료 알림이 거기서 나간다) |
@@ -29,6 +29,25 @@
 | 취소 스크립트 정리 | `{lol,pubg,valorant}/leave-party.lua` | 중복 정리 2줄 제거. 동작 무변경 |
 | **PUBG 동시성 테스트 9건** | `concurrency/PubgPartyJoinConcurrencyTest` | **이제 세 게임 모두 테스트가 있다.** 총 41건 — 동시성 24(LoL 7 + VALORANT 8 + PUBG 9) + 제안 멱등성 11 + 알림 6 |
 | **방에 있으면 매칭 거절 — 409 `IN_ROOM`** (2026-09-19, docs/11 D-19) | `redis/shared/claim-request.lua`(`KEYS[2]`, 반환 `-1`) · `redisKeys/SharedKeys`(`ACTIVE_ROOM_PREFIX` · `activeRoomKey`) · `dto/JoinResult` · `service/MatchRequestService#join()` · `controller/MatchingController` | "한 번에 하나만"을 **키 둘**로 지킨다 — `app:room` 의 입장 표시 키 `qm:user:active-room:{userId}` 를 `EXISTS` 로 보기만 한다. 활성 요청 키는 다시 이 앱만 쓴다. `join()` 의 반환이 `Optional<AcceptedRequest>` 에서 `JoinResult` 로 바뀌었다. `ActiveRequestConcurrencyTest` 에 3건이 붙어 `@Test` 개수로 동시성 27 · 총 44건이다(윗줄의 41건은 09-17 기록이라 그대로 둔다). 계약 사본은 `contracts/README.md` A-10 |
+
+### 0-5. 2026-09-27 — 임시 식별 `?userId=` 를 쿠키 `qm_access` 검증으로 바꿨다 (했다)
+
+소유자 지시. **`platform` 의 인증 세부(docs/11 D-24 — 옛 §0-4 (나) ③)를 이 앱에 적용한 것이다.** `platform` 이 말하는 "옆 서비스의 전환"
+(`../platform/CLAUDE.md` §5.1 (아))의 `matching` 몫이다 — **했다.** (`notification` 은 그 폴더의 일이다.)
+
+- **"나"는 access 토큰의 `sub` 다** — 쿠키 `qm_access` 의 RS256 JWT 를 `platform` 의 **공개 키로 검증만** 한다. 서명 · `exp` · `iss`(`queuemate-platform`) ·
+  **`token_use == access`** · **`sub` 가 숫자 문자열**. 어긋나면 401 `UNAUTHENTICATED`. 코드는 `backend/src/main/java/com/queuemate/common/security/`.
+- **없어진 것** — `GET /match-requests?userId=` · `DELETE /match-requests/{id}?userId=` · `POST /proposals/{id}/accept?userId=` ·
+  `POST /proposals/{id}/decline?userId=`(`?requestId=` 는 남았다) · `POST /match-requests` 바디의 `userId`(보내도 무시된다 — `@JsonIgnore`).
+  **개발용 `?userId=` 스위치는 두지 않았다.** 엔진 안(Redis 키 · Lua · 알림 채널)의 `userId` 는 문자열 그대로라 바뀐 것이 없다.
+- **CSRF** — 상태를 바꾸는 요청의 `Origin` 을 허용 목록(`ALLOWED_ORIGINS`)과 대조한다(403 `ORIGIN_NOT_ALLOWED`. `Origin` 이 없으면 통과).
+- **새 환경변수** — `JWT_PUBLIC_KEY`(X.509 PEM) · `JWT_PUBLIC_KEY_FILE`(기본값 `../../platform/backend/.dev-keys/public.pem` — `backend/` 기준) ·
+  `ALLOWED_ORIGINS`. **공개 키가 없으면 기동하지 않는다.** 인증 없이 열린 것은 `/actuator/**` 뿐이다.
+- **테스트** — `web/AuthenticationApiTest`(21건) · `common/security/JwtPublicKeysTest`(5건). 테스트 키 쌍은 JVM 마다 새로 만들고
+  (`TestJwt`), 공개 키는 `META-INF/spring.factories` 의 `TestJwtKeyInitializer` 가 모든 테스트 컨텍스트에 넣는다 — 그래서 테스트에는 `platform` 의 키가 필요 없다.
+  전체 71건 통과(2026-09-27, `REDIS_PORT=6390`).
+- **남은 것** — ① 조회 경로를 `/match-requests/me` 로 옮길지(계약 #5 와 같이 정한다 — 이번에는 안 옮겼다) ② `load-test/` 가 아직 바디에 `userId` 를 싣고
+  쿠키가 없다 — 그대로는 전부 401 이다(아래 0-1 ⑥ 과 같이 고친다) ③ docs/11 에 "D-24 를 matching 에 적용했다" 를 남길지는 결정 로그 쪽 일이다.
 
 ### 0-4. 2026-09-24 — `platform` 쪽에서 넘어온 일 (아직 하나도 안 했다)
 
@@ -249,6 +268,9 @@ Redis 쪽 뒷정리(`cleanup-confirmed.lua`)와 `MATCH_CONFIRMED` 알림까지�
 2. **색인 키** — `prefill.py` · `run.sh` · `netpath/runpost.sh` · `runpost2.sh` 가 티어 접미사
    없는 needs 키를 `ZCARD` 하는데, 티어 모드는 Lua 가 `:{tier}` 를 붙이므로 그 키는 비어 있다.
 
+**2026-09-27 부터 하나 더 어긋난다** — 모든 `/api/v1/**` 가 쿠키 `qm_access` 를 요구하므로 스크립트가 사용자마다 토큰을 찍어
+쿠키로 실어야 한다(바디의 `userId` 는 무시된다 — §0-5). 서명에는 `platform` 의 개발용 개인 키를 쓴다(`START_HERE.md` "앱 실행" 의 openssl 예).
+
 `tierRule NONE` 인 모드(`NORMAL_2` 등)로 바꾸거나, 바디에 `tier` 를 싣고 키에 같은 접미사를
 붙여 맞춰라. **성사 감지 자체는 이미 고쳐져 있다**(`32031a4`, `member:` 필드를 센다).
 
@@ -258,7 +280,7 @@ Redis 쪽 뒷정리(`cleanup-confirmed.lua`)와 `MATCH_CONFIRMED` 알림까지�
 지금 어긋난 것은 `contracts/README.md` 의 불일치 표에 전부 적어 두었다. 큰 것만:
 - `VoicePreference` 에 `OPTIONAL` 이 남아 있다 (#1, **코드가 맞다**)
 - `KeyCondition.type` 이 `PLAY_STYLE` 이다 — 코드는 `PLATFORM` (#14, **코드가 맞다**)
-- **상태 조회 경로** `/{requestId}` vs `?userId=` (#5, **코드가 맞다고 보고 그렇게 뒀다**)
+- **상태 조회 경로** `/{requestId}` vs `?userId=` (#5, **코드가 맞다고 보고 그렇게 뒀다**. 2026-09-27 에 `?userId=` 가 없어져 지금은 파라미터 없는 `GET /match-requests` 다 — "나"는 쿠키)
 - `MatchRequestView` 4필드 vs `MatchRequestResponse` 8필드 (#4 — 이름은 계약이, 필드 수는
   구현이 앞서 있다. `queuedAt` 은 타입도 다르다: 계약 `date-time` vs 구현 epoch millis)
 - **`POST /match-requests` 의 201 본문이 JSON 이 아니라 문자열 `"CREATED"` 다** (#5-1,
@@ -524,6 +546,7 @@ claim 의 `EXPIRE 60` 동안 다른 매칭을 못 잡는다.
   **스크래치패드는 세션마다 새로 생기므로 그 바이너리는 없다.** 다시 빌드하거나, 사용자에게
   Docker Desktop 을 켜 달라고 하거나, `! sudo apt install redis-server` 를 직접 쳐 달라고 해라.
 - 붙이기: `REDIS_HOST=127.0.0.1 REDIS_PORT=6390 ./gradlew test --tests '...'`
+  (2026-09-27 에는 `docker.exe run -d --rm --name qm-matching-test-redis -p 6390:6379 redis:7-alpine` 로 띄웠다. 테스트는 `platform` 의 키가 필요 없다 — §0-5)
 - 작업 트리가 컴파일되지 않으면(사용자 작성 중 파일) `git archive HEAD backend` 를 스크래치패드에 풀어 거기서 돌려라
 - **6379 와 `queuemate-v2-*` 컨테이너는 다른 프로젝트 것이다. 절대 건드리지 마라.**
 - 끝나면 Redis 종료 + `./gradlew --stop`. `bootRun` 금지.
