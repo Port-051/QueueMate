@@ -115,8 +115,19 @@ public class RoomService {
     private void depart(Row r,UUID user,boolean kicked) {
         db.sql("delete from room_members where room_id=? and user_id=?").params(r.id(),user).update();var remaining=memberIds(r.id());
         if(remaining.isEmpty()) { db.sql("delete from rooms where id=?").param(r.id()).update();return; }
-        if(r.owner().equals(user)) db.sql("update rooms set owner_id=? where id=?").params(remaining.getFirst(),r.id()).update();
+        if(r.owner().equals(user)) {
+            db.sql("update rooms set owner_id=? where id=?").params(remaining.getFirst(),r.id()).update();
+            // A five-player lineup must also recruit the former owner's now-vacant position.
+            if(r.settings().game()==com.queuemate.common.domain.GameKey.LOL && r.settings().capacity()==5 && !RoomRules.noRoles(r.settings()))
+                db.sql("update rooms set settings=jsonb_set(settings,'{desiredRoles}',?::jsonb) where id=?")
+                    .params(encode(RoomRules.roles(r.settings().game())),r.id()).update();
+        }
         system(r.id(),users.findById(user).map(u->u.getNickname()).orElse("참여자")+(kicked?" 님을 내보냈어요.":" 님이 나갔어요."));
+        if(r.status().equals("CONFIRMED") && (r.settings().availableFrom()==null || OffsetDateTime.parse(r.settings().availableFrom()).isAfter(OffsetDateTime.now()))) {
+            db.sql("update rooms set status='OPEN' where id=?").param(r.id()).update();
+            system(r.id(),"빈자리가 생겨 모집을 다시 시작했어요.");
+            metrics.counter("queuemate.room.actions","action","auto_reopen").increment();
+        }
     }
     public void action(UUID user,UUID id,Action body) {
         lock();var r=room(id);requireMember(id,user);

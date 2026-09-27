@@ -62,17 +62,46 @@ class SharedRoomIntegrationTest extends ApiContractTestSupport {
         assertStatus(post(actions,a,"{\"action\":\"CONFIRM\"}"),204);
         assertEquals(messages,room(a,id).path("messages").size());
     }
-    @Test void fullRoomRequiresVacancyAndExplicitOwnerReopen() {
+    @Test void fullRoomAutomaticallyReopensAfterDeparture() {
         UUID a=alpha(),b=bravo(),c=charlie();String id=create(a,"정원 확인",2);
         String actions="/api/v1/rooms/"+id+"/actions";
         assertStatus(post("/api/v1/rooms/"+id+"/join",b,joinBody("SUPPORT",null)),200);
         assertStatus(post(actions,a,"{\"action\":\"REOPEN\"}"),409);
         assertStatus(post(actions,b,"{\"action\":\"LEAVE\"}"),204);
-        assertEquals("CONFIRMED",room(a,id).path("status").asText());
-        assertStatus(post("/api/v1/rooms/"+id+"/join",c,joinBody("MID",null)),409);
-        assertStatus(post(actions,a,"{\"action\":\"REOPEN\"}"),204);
+        assertEquals("OPEN",room(a,id).path("status").asText());
         assertStatus(post("/api/v1/rooms/"+id+"/join",c,joinBody("MID",null)),200);
         assertEquals("CONFIRMED",room(a,id).path("status").asText());
+    }
+    @Test void fiveMemberRoomReopensAfterKickOwnerLeaveAndTransferWithoutLosingChat() {
+        UUID a=alpha(),b=bravo(),c=charlie(),d=user("delta"),e=user("echo"),f=user("foxtrot");
+        String id=create(a,"다섯 명 모집",5),actions="/api/v1/rooms/"+id+"/actions";
+        List<UUID> peers=List.of(b,c,d,e);List<String> roles=List.of("JUNGLE","MID","ADC","SUPPORT");
+        for(int i=0;i<peers.size();i++) assertStatus(post("/api/v1/rooms/"+id+"/join",peers.get(i),joinBody(roles.get(i),null)),200);
+        assertEquals(5,room(a,id).path("members").size());
+        assertEquals("CONFIRMED",room(a,id).path("status").asText());
+        assertStatus(post("/api/v1/rooms/"+id+"/join",f,joinBody("SUPPORT",null)),409);
+        assertStatus(post("/api/v1/rooms/"+id+"/messages",e,"{\"clientMessageId\":\""+UUID.randomUUID()+"\",\"text\":\"다섯 명 대화\"}"),200);
+        assertStatus(post(actions,b,"{\"action\":\"KICK\",\"memberId\":\""+e+"\"}"),404);
+        assertStatus(post(actions,a,"{\"action\":\"KICK\",\"memberId\":\""+e+"\"}"),204);
+        assertEquals(4,room(a,id).path("members").size());
+        assertEquals("OPEN",room(a,id).path("status").asText());
+        assertTrue(room(a,id).path("messages").toString().contains("다섯 명 대화"));
+        assertStatus(post("/api/v1/rooms/"+id+"/join",e,joinBody("SUPPORT",null)),200);
+        assertEquals("CONFIRMED",room(a,id).path("status").asText());
+        assertStatus(post(actions,a,"{\"action\":\"LEAVE\"}"),204);
+        UUID nextOwner=UUID.fromString(room(b,id).path("ownerId").asText());
+        assertNotEquals(a,nextOwner);
+        assertEquals("OPEN",room(b,id).path("status").asText());
+        assertStatus(post("/api/v1/rooms/"+id+"/join",a,joinBody("TOP",null)),200);
+        assertEquals("CONFIRMED",room(b,id).path("status").asText());
+        String target=create(f,"이동할 방",2);
+        assertStatus(post("/api/v1/rooms/"+target+"/join",e,joinBody("SUPPORT",id)),200);
+        assertEquals("OPEN",room(b,id).path("status").asText());
+        assertEquals(4,room(b,id).path("members").size());
+        assertStatus(post(actions,nextOwner,"{\"action\":\"CONFIRM\"}"),204);
+        UUID departing=List.of(a,b,c,d).stream().filter(u->!u.equals(nextOwner)).findFirst().orElseThrow();
+        assertStatus(post(actions,departing,"{\"action\":\"LEAVE\"}"),204);
+        assertEquals("OPEN",room(nextOwner,id).path("status").asText());
     }
     @Test void recruitmentCloseIsIndependentOfGameStartAndExpiredReservationCannotReopen() {
         UUID a=alpha(),b=bravo(),c=charlie();String id=create(a,"자유 랭크",5);
@@ -86,6 +115,7 @@ class SharedRoomIntegrationTest extends ApiContractTestSupport {
         assertStatus(post(actions,a,"{\"action\":\"CONFIRM\"}"),204);
         jdbc.sql("update rooms set settings=settings || '{\"type\":\"RESERVATION\",\"availableFrom\":\"2020-01-01T12:00:00+09:00\"}'::jsonb where id=?").param(UUID.fromString(id)).update();
         assertStatus(post(actions,a,"{\"action\":\"REOPEN\"}"),409);
+        assertStatus(post(actions,b,"{\"action\":\"LEAVE\"}"),204);
         assertEquals("CONFIRMED",room(a,id).path("status").asText());
     }
     @Test void concurrentLastSeatOnlyAllowsOneAndNoDuplicateMembership() throws Exception {
