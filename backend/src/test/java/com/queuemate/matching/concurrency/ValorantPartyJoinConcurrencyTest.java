@@ -329,6 +329,60 @@ class ValorantPartyJoinConcurrencyTest extends ConcurrencyTestSupport {
         assertThat(partyIdOf("u1")).isEqualTo(partyId);
     }
 
+    // ── 취소 뒤 needs-roles · 색인 되돌리기 — 남은 사람이 맡지 않은 역할군 전부 ──────
+    //
+    // 단일 스레드다. 정원이 차면 join-party.lua 가 모든 역할군 줄에서 파티를 내리고
+    // needs-roles SET 도 DEL 한다. 그 뒤 한 명이 빠지면 leave-party.lua 가 "내가 비운 역할군 하나"
+    // 가 아니라 "남은 사람이 맡지 않은 역할군 전부"로 SET 을 다시 세우고 색인을 올려야 한다 —
+    // 아니면 아무도 맡은 적 없던 역할군의 사람은 이 파티를 영영 못 본다.
+
+    @Test
+    @DisplayName("정원이 찼다 한 명이 빠진 파티는 needs-roles 가 남은 사람이 맡지 않은 역할군 전부가 되고 그 줄에 올라온다")
+    void fullPartyRebuildsNeedsRolesFromRemainingMembersAfterOneLeaves() {
+        join("u1", UNTIERED_MODE, "DUELIST", null);
+        join("u2", UNTIERED_MODE, "INITIATOR", null);
+        String r3 = join("u3", UNTIERED_MODE, "CONTROLLER", null);
+
+        String partyId = partyIdOf("u1");
+        assertThat(partyId).as("3인 파티가 만들어지지 않았다").isNotBlank();
+        assertThat(partyIdOf("u3")).isEqualTo(partyId);
+        assertThat(field(partyId, "status")).isEqualTo("PENDING");
+
+        String needsRolesKey = "qm:party:needs-roles:" + partyId;
+        assertThat(redis.hasKey(needsRolesKey))
+                .as("정원이 찼는데 needs-roles 가 남아 있다 — 이 테스트의 전제(DEL 된 상태)가 아니다")
+                .isFalse();
+
+        // CONTROLLER 가 빠진다. 남은 사람은 DUELIST · INITIATOR —
+        // 비어야 하는 역할군은 CONTROLLER 와, 아무도 맡은 적 없는 SENTINEL 둘이다
+        matchCancelService.cancel("u3", r3);
+
+        assertThat(redis.opsForSet().members(needsRolesKey))
+                .as("needs-roles 는 (전체 역할군 - 남은 사람이 맡은 역할군) 이어야 한다")
+                .containsExactlyInAnyOrder("CONTROLLER", "SENTINEL");
+        for (String role : ROLES) {
+            boolean expected = !Set.of("DUELIST", "INITIATOR").contains(role);
+            assertThat(redis.opsForZSet().score(untieredNeedsKey(role), partyId) != null)
+                    .as("needs:%s 에 파티가 %s", role, expected ? "있어야 한다" : "없어야 한다")
+                    .isEqualTo(expected);
+        }
+
+        // 아무도 맡은 적 없던 SENTINEL 이 이 파티를 볼 수 있어야 한다
+        join("u4", UNTIERED_MODE, "SENTINEL", null);
+        assertThat(partyIdOf("u4"))
+                .as("옛 규칙(내가 비운 CONTROLLER 만 SADD)이면 SENTINEL 은 새 파티를 만든다")
+                .isEqualTo(partyId);
+        assertThat(memberValues("qm:party:" + partyId))
+                .containsExactlyInAnyOrder("DUELIST", "INITIATOR", "SENTINEL");
+        // 다시 찼으니 SET 은 또 DEL 된다
+        assertThat(redis.hasKey(needsRolesKey)).isFalse();
+    }
+
+    /** 일반전 needs 한 줄. 티어를 보지 않아 접미사가 없다. 조건 조합은 부모 {@code command()} 가 고정한다 */
+    private static String untieredNeedsKey(String role) {
+        return "qm:party:open:VALORANT:" + UNTIERED_MODE + ":REQUIRED:RANK_UP:needs:" + role;
+    }
+
     // ── 공통 단언 ────────────────────────────────────────────────────────────
 
     /**

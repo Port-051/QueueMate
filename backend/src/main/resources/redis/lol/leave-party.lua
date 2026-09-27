@@ -78,6 +78,21 @@ local function memberCount(key)
     return count
 end
 
+-- 남은 사람들이 맡고 있는 값(포지션)의 집합. HGETALL 한 번으로 읽어 Lua 테이블에 담는다.
+-- Redis 에 임시 키를 쓰지 않는다 — 읽기만 하면 되는 자리에 쓰기를 두면 중간에 죽었을 때 흔적이 남고,
+-- qm:party:* 를 파티로 세는 테스트·정리 스크립트가 그 흔적을 파티로 오인한다.
+-- 없는 키는 Lua 테이블에서 nil 이라 `not held[v]` 로 "아무도 안 맡았다"를 판별한다.
+local function heldValues(key)
+    local all = redis.call('HGETALL', key)
+    local held = {}
+    for i = 1, #all, 2 do
+        if string.sub(all[i], 1, 7) == 'member:' then
+            held[all[i + 1]] = true
+        end
+    end
+    return held
+end
+
 -- 1. 활성 요청이 있나 / 내가 아는 그 요청이 맞나
 if redis.call('EXISTS', userKey) == 0 then
     return { 0 }
@@ -167,12 +182,19 @@ if size <= 0 then
     return { 2 }
 end
 
--- 6. 아직 남은 사람이 있다. 내가 비운 자리를 색인에 되돌린다.
+-- 6. 아직 남은 사람이 있다. 남은 사람이 맡고 있지 않은 값을 전부 색인에 되돌린다.
 --    판단식이 create-or-check-party-*.lua 의 등록 규칙과 짝을 이룬다.
---      중복 금지 모드 — 내가 비운 값 하나만 다시 필요해졌다
---      중복 허용 모드 — 정원이 찼다가 풀렸으므로 전부 다시 받을 수 있다
+--
+--    "내가 비운 값 하나만" 되돌리던 때는 정원이 찼다 풀린 파티가 반쪽만 돌아왔다 — 정원이 차면
+--    join-party*.lua 가 모든 줄에서 파티를 내리므로, 한 명이 빠진 뒤 그 사람 값 한 줄만 올리면
+--    아무도 안 맡았던 포지션 줄은 영영 돌아오지 않는다(정원 2 인 솔랭에서 TOP+MID 가 찼다가 MID 가
+--    빠지면 needs:MID 에만 남아 JUNGLE/ADC/SUPPORT 는 이 파티를 못 본다). 정원이 안 찼던 경우에는
+--    그 줄들에 파티가 이미 있어 같은 점수로 다시 넣어도 바뀌지 않으므로, 찼었는지 알 필요가 없다.
+--      중복 금지 모드 — 남은 사람이 맡지 않은 값 전부
+--      중복 허용 모드 — 전부 (값이 NONE 하나라 가릴 것이 없다)
+local held = unique and heldValues(partyKey) or {}
 for i = 1, n do
-    if (not unique) or (ARGV[5 + i] == myValue) then
+    if (not unique) or (not held[ARGV[5 + i]]) then
         for _, suffix in ipairs(suffixes) do
             redis.call('ZADD', KEYS[3 + i] .. suffix, score, partyId)
         end

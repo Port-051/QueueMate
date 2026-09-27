@@ -1,10 +1,21 @@
 -- VALORANT 매칭 요청을 취소하고 파티에서 빠진다.
 --
--- 빼기 / 인원 감소 / 색인 되돌리기 / 빈 역할군 되돌리기 / 파티 범위 되돌리기 / 빈 파티 삭제 /
+-- 빼기 / 인원 감소 / 색인 되돌리기 / 빈 역할군 다시 세우기 / 파티 범위 되돌리기 / 빈 파티 삭제 /
 -- 활성 요청 삭제가 한 덩어리여야 한다. 자바에서 나눠 하다 중간에 죽으면 이런 게 남는다.
 --   · 파티에선 빠졌는데 색인에 안 돌아감 → 그 자리에 아무도 못 들어온다
 --   · 활성 요청은 지웠는데 파티에 member: 필드가 남음 → 유령 인원이 자리를 먹는다
 --   · needs-roles 에만 돌아가고 색인 칸에는 안 올라감 → 다음 사람이 그 파티를 못 찾는다
+--
+-- ── 되돌릴 역할군은 "남은 사람이 맡지 않은 것 전부"다 ─────────────────────
+-- "내가 비운 역할군 하나만" 되돌리던 때는 정원이 찼다 풀린 파티가 반쪽만 돌아왔다 — 정원이 차면
+-- join-party*.lua 가 **모든** 역할군 줄에서 파티를 내리고 needs-roles SET 도 DEL 하므로, 한 명이
+-- 빠진 뒤 그 사람 역할군 한 줄만 올리면 아무도 안 맡았던 역할군 줄은 영영 돌아오지 않는다
+-- (3인 파티에서 DUELIST+INITIATOR+CONTROLLER 가 찼다가 CONTROLLER 가 빠지면 needs:CONTROLLER 에만
+-- 남고 SENTINEL 은 이 파티를 못 본다). needs-roles 가 어긋나면 색인만 문제가 아니다 —
+-- join-party-tiered.lua 가 범위를 좁힐 때 이 SET 을 읽어 새 범위 칸을 다시 세우므로, 낡은 SET 은
+-- 그 뒤의 합류까지 잘못 색인한다. 그래서 needs-roles 를 남은 사람의 member: 필드로 **다시 세우고**
+-- (전체 역할군 - 남은 사람이 맡은 역할군) 색인도 그 목록으로 올린다. 정원이 안 찼던 경우에는
+-- 그 줄들에 파티가 이미 있어 같은 점수로 다시 넣어도 바뀌지 않으므로, 찼었는지 알 필요가 없다.
 --
 -- 인원 수는 따로 저장하지 않고 member: 필드를 세어서 구하므로, 필드를 지우는 것과
 -- 인원이 줄어드는 것이 같은 일이다 — 둘이 어긋나는 상태가 구조적으로 없다.
@@ -134,12 +145,18 @@ local needsRolesKey = 'qm:party:needs-roles:' .. partyId
 --    쓰기를 시작한 뒤에 읽기가 실패하면 멤버만 빠지고 색인은 그대로인 반쪽 상태가 남는다.
 --    아래 4번에서 파티를 통째로 지울 수도 있어서 그 뒤에는 읽을 수도 없다.
 --
---    HGETALL 한 번으로 메타데이터(tierLo/tierHi/createdAt)와 멤버별 티어를 같이 가져온다.
+--    HGETALL 한 번으로 메타데이터(tierLo/tierHi/createdAt)와 멤버별 티어 · 역할군을 같이 가져온다.
 --    필드마다 HGET 을 부르면 왕복은 같지만(스크립트 안이라) 파티 구조를 아는 자리가 늘어난다.
+--
+--    남은 사람이 맡은 역할군(held)은 Lua 테이블에만 담는다. Redis 에 임시 키를 쓰지 않는다 —
+--    읽기만 하면 되는 자리에 쓰기를 두면 중간에 죽었을 때 흔적이 남고, qm:party:* 를 파티로 세는
+--    테스트·정리 스크립트가 그 흔적을 파티로 오인한다. 없는 키는 nil 이라 `not held[r]` 로
+--    "아무도 안 맡았다"를 판별한다. 나는 아직 HASH 에 있으므로(HDEL 은 4번) 내 필드는 건너뛴다
 local raw = redis.call('HGETALL', partyKey)
 local lo, hi
 local createdAt = '0'
 local otherTiers = {}           -- 나를 뺀 남은 멤버들의 티어 이름
+local held = {}                 -- 나를 뺀 남은 멤버들이 맡은 역할군 -> true
 for i = 1, #raw, 2 do
     local field = raw[i]
     local value = raw[i + 1]
@@ -149,6 +166,11 @@ for i = 1, #raw, 2 do
         lo = tonumber(value)
     elseif field == 'tierHi' then
         hi = tonumber(value)
+    elseif string.sub(field, 1, 7) == 'member:' then
+        -- 접두사 'member:' 는 자바의 ScriptSupport#memberIds() 와 같은 값이어야 한다
+        if string.sub(field, 8) ~= userId then
+            held[value] = true
+        end
     elseif string.sub(field, 1, 5) == 'tier:' then
         -- 'tierLo' / 'tierHi' 는 여섯 번째 글자가 ':' 가 아니라 여기 걸리지 않는다
         if string.sub(field, 6) ~= userId then
@@ -268,22 +290,34 @@ if size <= 0 then
     return { 2 }
 end
 
--- 6. 아직 남은 사람이 있다. 내 역할군 자리가 다시 비었다.
---    **색인보다 needs-roles 를 먼저 채운다** — 아래에서 다시 올릴 칸의 목록이 이 SET 이다
-redis.call('SADD', needsRolesKey, myValue)
-
--- 되살릴 역할군 줄. 중복 금지 모드(발로란트는 늘 이쪽)에서는 needs-roles SET 이
--- "아직 빈 역할군"을 정확히 알고 있으므로 그대로 쓴다. 이미 찬 역할군을 올리면
--- 같은 역할군 두 명이 되는데, 그 판단을 여기서 다시 하지 않아도 된다는 뜻이다.
--- 중복 허용 모드는 빈 역할군이라는 개념이 없어 모든 줄이 다시 열린다 (LoL 판과 같다)
-local restoreRoles
+-- 6. 아직 남은 사람이 있다. 되살릴 역할군 줄을 정한다 (머리말 "되돌릴 역할군은 …" 참고).
+--
+--    중복 금지 모드(발로란트는 늘 이쪽) — 역할군 목록(ARGV[6..]) 가운데 **남은 사람이 맡지 않은 것 전부**.
+--    needs-roles SET 을 읽어서 정하지 않는다 — 정원이 찼을 때 join-party*.lua 가 그 SET 을 DEL 했으므로
+--    믿을 수 없고, 거꾸로 이 목록으로 SET 을 **다시 세운다**. 이미 찬 역할군은 held 에 있어 걸러지므로
+--    같은 역할군 두 명이 되는 줄은 열리지 않는다(판단식이 create-or-check-party-*.lua 의 등록 규칙과 짝이다).
+--    **색인보다 needs-roles 를 먼저 세운다** — join-party-tiered.lua 가 범위를 좁힐 때 이 SET 으로
+--    새 범위 칸을 다시 만들므로, 색인은 맞는데 SET 이 낡으면 그 뒤의 합류가 잘못 색인한다.
+--    DEL + SADD 는 몇 번 해도 같은 결과라 재시도에 안전하다.
+--
+--    중복 허용 모드 — 빈 역할군이라는 개념이 없어 넘어온 줄이 전부 다시 열린다 (LoL 판과 같다).
+--    자바가 내 값 하나만 넘기므로 SET 에도 그것을 되돌린다
+local restoreRoles = {}
 if unique then
-    restoreRoles = redis.call('SMEMBERS', needsRolesKey)
+    for i = 1, n do
+        if not held[ARGV[5 + i]] then
+            table.insert(restoreRoles, ARGV[5 + i])
+        end
+    end
+    redis.call('DEL', needsRolesKey)
+    if #restoreRoles > 0 then
+        redis.call('SADD', needsRolesKey, unpack(restoreRoles))
+    end
 else
-    restoreRoles = {}
     for i = 1, n do
         restoreRoles[i] = ARGV[5 + i]
     end
+    redis.call('SADD', needsRolesKey, myValue)
 end
 
 if rangeChanged then
@@ -304,8 +338,9 @@ if rangeChanged then
     end
     redis.call('HSET', partyKey, 'tierLo', newLo, 'tierHi', newHi)
 else
-    -- 6-2. 범위는 그대로고 내가 비운 줄만 다시 필요해졌다.
-    --      이미 올라가 있는 칸에 ZADD 를 한 번 더 해도 같은 score 로 덮어쓸 뿐이라 무해하다
+    -- 6-2. 범위는 그대로다. 남은 사람이 맡지 않은 역할군 줄을 지금 범위 칸 전부에 올린다.
+    --      정원이 안 찼었다면 이미 올라가 있는 칸이라 ZADD 를 한 번 더 해도 같은 score 로
+    --      덮어쓸 뿐이고, 찼었다면 이 자리가 그 줄들을 되살리는 유일한 자리다
     for _, role in ipairs(restoreRoles) do
         for _, suffix in ipairs(oldSuffixes) do
             redis.call('ZADD', baseKey .. ':' .. role .. suffix, createdAt, partyId)
