@@ -36,6 +36,11 @@ dependencies {
 	// 서명 · refresh 는 platform 의 일이다. jjwt 등 다른 JWT 라이브러리 · oauth2-client 를 들이지 않는다
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
+	// 이 앱이 소유하는 테이블(matching_outbox)만 만든다 — outbox 패턴의 "먼저 DB 에 적는" 자리다 (docs/11 #21 · D-42).
+	// blocks 는 여전히 platform 의 Flyway 것이고 여기서 만들지 않는다. 같은 DB 를 두 Flyway 가 쓰므로
+	// 이력 테이블 이름을 따로 둔다 (application.yaml spring.flyway.table). Flyway 10+ 는 Postgres 모듈이 별도다
+	implementation 'org.springframework.boot:spring-boot-starter-flyway'
+	implementation 'org.flywaydb:flyway-database-postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-redis-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
