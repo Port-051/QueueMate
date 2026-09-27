@@ -21,6 +21,8 @@ public final class RoomErrors {
     public static final String IN_OTHER_ROOM = "IN_OTHER_ROOM";
     public static final String NOT_HOST = "NOT_HOST";
     public static final String TARGET_NOT_IN_ROOM = "TARGET_NOT_IN_ROOM";
+    /** 게시판 방의 입장과 자동 매칭 파티 방의 입장(2026-09-27 — docs/11 D-42)이 같이 낸다. 정원은 게시판이 5, 자동 매칭은 파티 HASH 의 {@code target} 이다 */
+    public static final String ROOM_FULL = "ROOM_FULL";
 
     /**
      * 방의 상태(Redis)를 확인할 수 없다. <b>게시판의 fail-closed 거절(글 고치기)과 방 안의 일의 Redis 장애가 같은 코드다</b> —
@@ -43,6 +45,11 @@ public final class RoomErrors {
     public static ApiException notInRoom()
     {
         return new ApiException(HttpStatus.FORBIDDEN, NOT_IN_ROOM, "이 파티방에 들어와 있지 않습니다");
+    }
+
+    public static ApiException roomFull()
+    {
+        return new ApiException(HttpStatus.CONFLICT, ROOM_FULL, "파티방이 가득 찼습니다");
     }
 
     public static ApiException inOtherRoom()

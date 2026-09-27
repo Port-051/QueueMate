@@ -128,4 +128,14 @@ public class RoomScriptConfig {
     public RedisScript<List> confirmRoomScript() {
         return RedisScript.of(readScript("lua/confirm-room.lua"), List.class);
     }
+
+    /**
+     * 자동 매칭 파티의 방 — 없으면 만들고 있으면 들어간다(2026-09-27 소유자 결정 — docs/11 D-42). {@code matching} 의 파티 HASH 를 <b>읽기만 하고</b>
+     * (확정인가 · 파티원인가 · 정원) 방 키를 쓴다. 활성 요청 키는 보지 않는다 — 이유는 스크립트 머리에 있다. 반환값의 뜻도 그 주석이 원본이다.
+     */
+    @Bean
+    @SuppressWarnings("rawtypes")
+    public RedisScript<List> enterMatchRoomScript() {
+        return RedisScript.of(readScript("lua/enter-match-room.lua"), List.class);
+    }
 }

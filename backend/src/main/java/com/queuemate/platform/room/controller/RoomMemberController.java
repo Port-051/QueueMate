@@ -48,7 +48,7 @@ public class RoomMemberController {
             // 새로고침이나 재시도다. 성공이지만 새로 만든 것은 없다
             case ALREADY_ENTERED -> ResponseEntity.ok().build();
             case ACTIVE_REQUEST_EXISTS -> throw RoomErrors.alreadyQueued("자동 매칭을 돌리는 동안에는 파티방에 들어갈 수 없습니다");
-            case FULL -> throw new ApiException(HttpStatus.CONFLICT, "ROOM_FULL", "파티방이 가득 찼습니다");
+            case FULL -> throw RoomErrors.roomFull();
             case IN_OTHER_ROOM -> throw RoomErrors.inOtherRoom();
             case ROOM_NOT_FOUND -> throw RoomErrors.roomNotFound();
             case ROOM_CONFIRMED -> throw new ApiException(HttpStatus.CONFLICT, "ROOM_CONFIRMED", "이미 확정된 파티방입니다");

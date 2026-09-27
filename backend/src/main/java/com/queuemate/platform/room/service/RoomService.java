@@ -1,11 +1,13 @@
 package com.queuemate.platform.room.service;
 
 import com.queuemate.platform.common.push.PushEventType;
+import com.queuemate.platform.party.match.MatchPartyKeys;
 import com.queuemate.platform.room.RoomProperties;
 import com.queuemate.platform.room.domain.Confirmation;
 import com.queuemate.platform.room.domain.ConfirmResult;
 import com.queuemate.platform.room.domain.CreateResult;
 import com.queuemate.platform.room.domain.LeaveResult;
+import com.queuemate.platform.room.domain.MatchRoomResult;
 import com.queuemate.platform.room.domain.RoomMemberIds;
 import com.queuemate.platform.room.domain.RoomState;
 import com.queuemate.platform.room.domain.RoomStateUnavailableException;
@@ -33,7 +35,9 @@ import java.util.function.BooleanSupplier;
  *
  * <p><b>게시판({@code party})이 부르는 창구이기도 하다</b>(2026-09-25 2단계). 글 쓰기가 {@link #create} 를, 방장 확정이 {@link #confirm} 을
  * 글의 트랜잭션 안에서 부르고({@code party.service.PostStore}), 목록 · 단건 · 고치기 · 입장 검사가 {@link #states} 로 방 안을 읽는다.
- * <b>이 클래스는 {@code party} 를 부르지 않는다</b> — {@code party} 가 이것을 부르므로 거꾸로 물면 빈 순환이다.
+ * 자동 매칭 파티의 방은 {@link #enterMatchRoom} 이다({@code party.service.MatchPartyService} 가 트랜잭션 밖에서 부른다 — 2026-09-27 · docs/11 D-42).
+ * <b>이 클래스는 {@code party} 의 빈을 부르지 않는다</b> — {@code party} 가 이것을 부르므로 거꾸로 물면 빈 순환이다({@code party.match.MatchPartyKeys} 는
+ * 상수라 빈이 아니다).
  *
  * <p>알림은 {@link RoomNotifier} 가 낸다 — 트랜잭션 안에서 부르면 커밋 뒤에 나가고 되돌려지면 나가지 않는다(두 발행기가 그렇게 만들어져 있다).
  * 그래서 글의 트랜잭션 안에서 방을 만들거나 확정해도 되돌려진 변경을 알리지 않는다.
@@ -53,6 +57,43 @@ public class RoomService {
     private final RoomNotifier roomNotifier;
     @SuppressWarnings("rawtypes")
     private final RedisScript<List> leaveRoomScript;
+    @SuppressWarnings("rawtypes")
+    private final RedisScript<List> enterMatchRoomScript;
+
+    /**
+     * 자동 매칭 파티의 방 — <b>없으면 만들고 있으면 들어간다</b>({@code lua/enter-match-room.lua} 하나. 2026-09-27 소유자 결정 — docs/11 D-42).
+     * {@code roomId} 는 {@code matching} 의 {@code partyId}(UUID 문자열)다. 파티원 전원이 {@code MATCH_CONFIRMED} 를 받고 동시에 부르므로 "첫 사람이 만들고
+     * 나머지는 들어간다"가 한 스크립트 안이어야 한다 — 둘로 나누면 먼저 온 둘이 각자 만들거나 만들기 전에 들어가려다 거절당한다.
+     *
+     * <p>확정인가 · 파티원인가 · 정원({@code target})은 스크립트가 <b>{@code matching} 의 파티 HASH 를 읽어</b> 가른다 — 자바가 먼저 읽고 판단하면 그 사이에
+     * HASH 가 사라질 수 있다. 부르는 쪽({@code party.service.MatchPartyService})도 같은 HASH 를 읽지만 그것은 DB 에 적을 값을 얻기 위한 것이고, 방의 판정은 여기다.
+     * <b>활성 요청 키를 보지 않는다</b> — 확정된 파티원의 활성 요청은 {@code status = 'PARTY'} 로 60초쯤 더 남아 있고 그것이 곧 이 파티다(스크립트 머리).
+     *
+     * <p>들어왔으면({@link MatchRoomResult#ENTERED}) 먼저 있던 사람들에게 {@code ROOM_MEMBER_ENTERED} 를 알린다 — 게시판 방의 입장
+     * ({@code RoomMemberService#enter})과 같은 {@code payload} 다. <b>게시판 신호는 내지 않는다</b> — 자동 매칭 파티에는 글이 없다.
+     * 만들었을 때({@link MatchRoomResult#CREATED})는 알릴 사람이 없다.
+     */
+    public MatchRoomResult enterMatchRoom(String roomId, String userId)
+    {
+        // 순서는 스크립트 머리의 KEYS 와 같다. 첫 키는 matching 의 파티 HASH 다 — 스크립트는 그것을 읽기만 한다
+        List<String> keys = List.of(
+                MatchPartyKeys.partyKey(roomId),
+                RoomKeys.activeRoomKey(userId),
+                RoomKeys.roomHostKey(roomId),
+                RoomKeys.roomMemberKey(roomId),
+                RoomKeys.roomConfirmedKey(roomId));
+        List<?> reply = RoomRedis.call("enterMatchRoom", () -> redis.execute(enterMatchRoomScript, keys, userId, roomId,
+                String.valueOf(roomProperties.ttlSeconds())));
+        MatchRoomResult result = MatchRoomResult.fromCode(reply == null || reply.isEmpty() ? null : (Long) reply.get(0));
+
+        // 발행은 예외를 밖으로 내보내지 않는다 — 알림이 실패해도 이미 성립한 입장은 그대로다 (CLAUDE.md §3.2)
+        if(result == MatchRoomResult.ENTERED)
+        {
+            roomNotifier.toEach(othersIn(reply, userId), PushEventType.ROOM_MEMBER_ENTERED,
+                    Map.of("roomId", roomId, "userId", userId));
+        }
+        return result;
+    }
 
     /**
      * 방을 만든다. 만든 사람이 방장이고, 만들면서 곧바로 그 방에 들어와 있다.

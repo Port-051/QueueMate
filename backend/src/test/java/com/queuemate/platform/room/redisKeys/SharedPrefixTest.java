@@ -1,6 +1,7 @@
 package com.queuemate.platform.room.redisKeys;
 
 import com.queuemate.platform.common.push.PushChannels;
+import com.queuemate.platform.party.match.MatchPartyKeys;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -66,6 +67,14 @@ class SharedPrefixTest {
     {
         assertThat(matchingSharedKeys())
                 .contains("PUSH_CHANNEL_PREFIX = \"" + PushChannels.PUSH_CHANNEL_PREFIX + "\"");
+    }
+
+    @Test
+    @DisplayName("확정된 파티 HASH 의 접두사가 원본(matching 의 SharedKeys)과 같다 — 이 앱은 읽기만 한다(D-42)")
+    void partyPrefixMatchesMatching() throws IOException
+    {
+        assertThat(matchingSharedKeys())
+                .contains("PARTY_PREFIX = \"" + MatchPartyKeys.PARTY_PREFIX + "\"");
     }
 
     private static String matchingSharedKeys() throws IOException

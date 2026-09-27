@@ -1,5 +1,6 @@
 package com.queuemate.platform.room.service;
 
+import com.queuemate.platform.party.service.MatchPartyStore;
 import com.queuemate.platform.party.service.PostEntryGate;
 import com.queuemate.platform.party.service.PostLifecycle;
 import com.queuemate.platform.room.RoomProperties;
@@ -27,8 +28,14 @@ import java.util.Map;
  *
  * <p><b>게시판을 부르는 곳이 둘이다.</b> ① 입장(2026-09-25 2단계 — 입장권을 없앴다. 소유자 결정 ①) — 스크립트를 부르기 <b>전에</b> {@link PostEntryGate} 가
  * 글의 상태와 차단을 본다. ② 나가기(2026-09-25 소유자 결정 — "확정 전에는 방과 글이 같이 끝난다") — 방이 닫히면(나가기 · 접속 확인의 {@code ROOM_CLOSED}) {@link PostLifecycle} 이
- * 글을 만료시킨다. 확정한 방이었으면 대신 파티를 닫는다(2026-09-26 소유자 결정). 두 창구 모두 {@code PostService} 를 물지 않는 따로 선 빈이라 이 클래스와 빈 순환이 생기지 않는다
- * ({@code PostService} → {@code RoomService} 이고, 이 클래스 → {@code PostEntryGate} → {@code PostStore} · {@code RoomService}, 이 클래스 → {@code PostLifecycle} 이다).
+ * 글을 만료시킨다. 확정한 방이었으면 대신 파티를 닫는다(2026-09-26 소유자 결정). <b>방 번호가 UUID 면 자동 매칭 파티의 방이다</b>(2026-09-27 — docs/11 D-42) —
+ * 글이 없으니 {@link MatchPartyStore} 가 파티만 닫는다. 세 창구 모두 {@code PostService} 를 물지 않는 따로 선 빈이라 이 클래스와 빈 순환이 생기지 않는다
+ * ({@code PostService} → {@code RoomService} 이고, 이 클래스 → {@code PostEntryGate} → {@code PostStore} · {@code RoomService}, 이 클래스 → {@code PostLifecycle} ·
+ * {@code MatchPartyStore} 이다).
+ *
+ * <p><b>자동 매칭 파티의 방에 들어오는 길은 여기({@link #enter})가 아니다</b> — {@code POST /api/v1/match-parties/{partyId}/room}({@code party.controller.MatchPartyController} →
+ * {@link RoomService#enterMatchRoom}). 이 입장은 글부터 보므로 UUID {@code roomId} 는 404 {@code POST_NOT_FOUND} 다. 나가기 · 강퇴 · 접속 확인 · 목록 · 시그널은
+ * 방 번호를 글자 그대로 키에 넣으므로 UUID 방에도 그대로 쓴다.
  */
 @Slf4j
 @Service
@@ -51,6 +58,7 @@ public class RoomMemberService {
     private final RoomProperties roomProperties;
     private final PostEntryGate postEntryGate;
     private final PostLifecycle postLifecycle;
+    private final MatchPartyStore matchPartyStore;
     private final RoomService roomService;
 
     /**
@@ -105,23 +113,33 @@ public class RoomMemberService {
     }
 
     /**
-     * 방이 없어진 글을 정리한다 — 확정 전이면 글을 만료시키고, 확정한 방이면 파티를 닫는다({@link PostLifecycle#endByRoomClosed}).
-     * 게시판 신호를 냈으면(글이 이 호출로 만료됐으면) {@code true}
+     * 방이 없어진 글 · 파티를 정리한다 — 글 번호(숫자)의 방이면 확정 전이면 글을 만료시키고 확정한 방이면 파티를 닫는다({@link PostLifecycle#endByRoomClosed}).
+     * <b>숫자가 아니면 자동 매칭 파티의 방({@code roomId} = {@code matching} 의 UUID)이다</b> — 글이 없으니 파티만 닫는다({@link MatchPartyStore#closeByRoomClosed}.
+     * 2026-09-27 — docs/11 D-42). 게시판 신호를 냈으면(글이 이 호출로 만료됐으면) {@code true}
+     *
+     * <p>자동 매칭 파티는 <b>"전원이 말없이 사라져 키만 만료"된 경우 닫히지 않는다</b> — 글이 없어 목록 · 단건의 옮겨 적기(길 ②)가 그 방 키를 볼 일이 없다.
+     * 남은 사람의 접속 확인(여기 {@code ROOM_CLOSED})이 그 자리를 얼마간 메우지만, 전원이 신호 없이 사라지면 {@code parties} 에 {@code ACTIVE} 로 남는다.
+     * <b>미정으로 남겨 둔다</b>(D-42 "아직 미정") — 게시판 파티의 길 ② 에 해당하는 것을 어디에 둘지 정해지지 않았다.
      */
     private boolean endPostOf(String roomId)
     {
         try
         {
-            return postLifecycle.endByRoomClosed(Long.parseLong(roomId));
-        }
-        catch(NumberFormatException e)
-        {
-            // 방 번호는 글 번호라 숫자다. 숫자가 아니면 그 방의 글이 있을 수 없다
-            return false;
+            Long postId;
+            try
+            {
+                postId = Long.parseLong(roomId);
+            }
+            catch(NumberFormatException e)
+            {
+                matchPartyStore.closeByRoomClosed(roomId);
+                return false;
+            }
+            return postLifecycle.endByRoomClosed(postId);
         }
         catch(RuntimeException e)
         {
-            log.warn("방은 닫혔는데 글을 정리하지 못했다(만료 · 파티 닫기) — 목록 · 단건의 옮겨 적기에 맡긴다 roomId={}: {}", roomId, e.toString());
+            log.warn("방은 닫혔는데 글 · 파티를 정리하지 못했다(만료 · 파티 닫기) — 목록 · 단건의 옮겨 적기에 맡긴다 roomId={}: {}", roomId, e.toString());
             return false;
         }
     }

@@ -65,6 +65,37 @@ public interface PartyRecordRepository extends JpaRepository<PartyMember, PartyM
     int closeIfActive(@Param("postId") Long postId, @Param("now") Instant now);
 
     /**
+     * <b>자동 매칭 파티</b>(2026-09-27 소유자 결정 — docs/11 D-42) — {@code match_party_id} 가 {@code matching} 의 {@code partyId}(UUID 문자열 = 그 파티의
+     * {@code roomId})이고 {@code post_id} 는 없다(글이 없다). <b>"매칭의 파티 하나에 파티 하나"는 {@code UNIQUE (match_party_id)} 가 지킨다</b>(V2) —
+     * 파티원 전원이 {@code MATCH_CONFIRMED} 를 받고 동시에 부르므로 {@code ON CONFLICT (match_party_id)} 다. 돌려주는 값이 1 이면 이 호출이 파티를 만들었다 —
+     * 그 호출의 사용자를 {@code is_host} 로 적는다({@code party.service.MatchPartyStore}). 파티의 id 는 {@link #findPartyIdByMatchPartyId} 로 다시 읽는다.
+     */
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            INSERT INTO parties (source, match_party_id, game, status, created_at)
+            VALUES ('MATCH', :matchPartyId, :game, 'ACTIVE', :now)
+            ON CONFLICT (match_party_id) DO NOTHING
+            """)
+    int insertMatchPartyIfAbsent(@Param("matchPartyId") String matchPartyId, @Param("game") String game, @Param("now") Instant now);
+
+    /** 그 자동 매칭 파티의 파티 id. 아직 아무 파티원도 이 앱을 부르지 않았으면 비어 있다 */
+    @Query(nativeQuery = true, value = "SELECT p.id FROM parties p WHERE p.match_party_id = :matchPartyId")
+    Optional<Long> findPartyIdByMatchPartyId(@Param("matchPartyId") String matchPartyId);
+
+    /**
+     * 자동 매칭 파티를 닫는다 — {@link #closeIfActive} 의 자동 매칭 판이다. 그 파티의 방({@code roomId} = {@code match_party_id})이 없어질 때
+     * ({@code RoomMemberService} 의 나가기 · 접속 확인) 부른다. 조건부 UPDATE 라 몇 번 와도 1줄을 받는 것은 한 호출뿐이다.
+     *
+     * @return 이 호출이 닫았으면 1, 이미 닫혔거나 그런 파티가 없으면 0
+     */
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            UPDATE parties SET status = 'CLOSED', closed_at = :now
+             WHERE match_party_id = :matchPartyId AND status = 'ACTIVE'
+            """)
+    int closeIfActiveByMatchPartyId(@Param("matchPartyId") String matchPartyId, @Param("now") Instant now);
+
+    /**
      * 주어진 글 가운데 <b>파티가 아직 열려 있는</b> 글의 번호 — 목록 · 단건이 확정된 글의 방 키를 읽을지 가른다({@code PostService#observe}).
      * 이미 닫힌 파티의 글은 방 키를 다시 읽지 않는다(Redis 부담을 늘리지 않게). 쿼리 한 번이다.
      */
