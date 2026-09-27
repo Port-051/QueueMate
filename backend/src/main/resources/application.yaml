@@ -45,20 +45,8 @@ spring:
   sql:
     init:
       mode: embedded
-  # 이 앱의 Flyway — 이 앱이 소유하는 표(matching_outbox) 하나만 만든다. blocks 는 platform 의 Flyway 것이다.
-  #   table               platform 의 Flyway 와 같은 DB(public)를 쓰므로 이력 표 이름을 따로 둔다. 기본값(flyway_schema_history)
-  #                       을 그대로 두면 두 앱의 Flyway 가 같은 이력 표를 놓고 서로의 마이그레이션을 깨뜨린다.
-  #   baseline-on-migrate 운영 DB 는 platform 표들이 이미 있는 "비어 있지 않은 스키마"다. Flyway 는 이력 표가 없는
-  #                       비어 있지 않은 스키마를 거절하므로, 첫 실행에 버전 0 으로 기준선을 긋고 V1 부터 적용하게 한다.
-  #                       (H2 는 비어 있어 기준선 없이 바로 V1 이 돈다 — 결과는 같다)
-  flyway:
-    table: matching_flyway_history
-    locations: classpath:db/migration
-    baseline-on-migrate: true
-    baseline-version: 0
   jpa:
-    # blocks 는 platform 의 Flyway 가(H2 는 위 schema.sql), matching_outbox 는 이 앱의 Flyway 가 만든다.
-    # Hibernate 는 테이블을 건드리지 않는다.
+    # 스키마는 platform 의 Flyway 가 만든다(H2 는 위 schema.sql). Hibernate가 테이블을 건드리지 않게 한다.
     hibernate:
       ddl-auto: none
     # 컨트롤러까지 커넥션을 붙잡고 있지 않게 한다. 매칭은 커넥션을 오래 쥐면 안 된다.
