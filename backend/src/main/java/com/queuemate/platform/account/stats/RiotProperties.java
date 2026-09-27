@@ -20,7 +20,7 @@ import java.time.Duration;
  * @param connectTimeout  Riot 을 부를 때의 연결 타임아웃
  * @param readTimeout     Riot 을 부를 때의 읽기 타임아웃. 긁는 것은 전용 풀이라 요청 스레드를 붙잡지는 않지만, 느린 응답에 전용 풀이 묶이면 안 된다
  * @param refreshCooldown <b>전적 갱신 요청</b>({@code POST …/game-accounts/{game}/refresh})을 같은 게임 계정에 다시 받기까지 기다리는 시간
- *                        (2026-09-24 소유자 결정 — <b>2분</b>). 사용자가 누르는 것이라 남용을 막는 것이 이것뿐이다 — 한 번이 Riot 호출 21번이다
+ *                        (2026-09-24 소유자 결정 — <b>2분</b>). 사용자가 누르는 것이라 남용을 막는 것이 이것뿐이다 — 한 번이 Riot 호출 25번이다
  * @param refreshTimeout  그 요청이 <b>다 긁기를 기다리는 상한</b>(2026-09-24 소유자 결정 — <b>30초</b>). 넘으면 요청은 실패로 끝내고
  *                        <b>뒤에서 돌던 갱신은 그대로 둔다</b> — 끝나면 전적은 갱신된다({@link GameStatsRefresher}).
  *                        <b>LoL 게임 계정 연결도 같은 상한이다</b>(2026-09-27) — 그쪽은 늦게 끝난 긁기를 저장하지 않고 버린다

@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,13 +24,15 @@ import java.util.function.ToIntFunction;
  * LoL 의 전적을 Riot API 에서 긁는다 — <b>응답의 JSON 칸을 읽는 곳은 이 클래스 하나다</b>(부르는 곳은 {@link RiotApiClient}).
  * Riot 이 칸 이름을 바꾸면 여기만 고친다.
  *
- * <p>순서는 다섯 걸음이다.
+ * <p>순서는 여섯 걸음이다 — Riot 호출은 경기 20판이면 <b>25번</b>(계정 · 소환사 · 리그 · 경기 id · 경기 20 · 숙련도).
  * <ol>
  *   <li>게임 닉네임을 {@code 이름#태그} 로 가른다 — <b>태그가 없으면 긁지 않는다</b>({@code null} 을 돌려준다)</li>
  *   <li>{@code account-v1} → {@code puuid}</li>
  *   <li>{@code summoner-v4} → 소환사 {@code id} → {@code league-v4} 에서 <b>솔로랭크 줄</b>의 승/패(= 시즌 누적)와 <b>티어</b></li>
  *   <li>{@code match-v5} → 최근 경기 id 목록(새 경기가 먼저)</li>
  *   <li>경기마다 참가자 가운데 <b>그 {@code puuid} 인 사람</b>의 챔피언 · K/D/A · 승패</li>
+ *   <li>{@code champion-mastery-v4} → 모스트 챔피언 각각의 <b>숙련도</b>(레벨 · 점수) — 한 번에 전부 받아 고른다.
+ *       <b>이 걸음만은 실패해도 전적을 살린다</b>(WARN 하고 숙련도를 비운다 — 전적의 본체가 아니다). 모스트 챔피언이 없으면 부르지 않는다</li>
  * </ol>
  *
  * <p><b>티어도 여기서 만든다</b>(2026-09-27 소유자 결정 — LoL 은 요청에서 {@code tier} 를 빼고 Riot 에서 채운다).
@@ -68,6 +71,10 @@ public class LolStatsProvider implements GameStatsProvider {
     private static final String FIELD_DEATHS = "deaths";
     private static final String FIELD_ASSISTS = "assists";
     private static final String FIELD_WIN = "win";
+    /** 경기 참가자의 챔피언 번호(숫자). 숙련도 응답과 맞추는 열쇠다 — 숙련도에는 {@code championName} 이 없다 */
+    private static final String FIELD_CHAMPION_KEY = "championId";
+    private static final String FIELD_CHAMPION_LEVEL = "championLevel";
+    private static final String FIELD_CHAMPION_POINTS = "championPoints";
 
     /** 솔로랭크 줄을 가르는 값. 자유랭크({@code RANKED_FLEX_SR})의 승/패를 섞지 않는다 */
     private static final String SOLO_QUEUE = "RANKED_SOLO_5x5";
@@ -124,7 +131,7 @@ public class LolStatsProvider implements GameStatsProvider {
                 rank == null ? null : rank.wins(),
                 rank == null ? null : rank.losses(),
                 games == 0 ? null : winStreak(played),
-                detail(played),
+                detail(puuid, played),
                 rank == null ? null : onLadder(rank.tier()));
     }
 
@@ -238,6 +245,7 @@ public class LolStatsProvider implements GameStatsProvider {
                 continue;
             }
             return new Played(text(participant.path(FIELD_CHAMPION_NAME)),
+                longValue(participant.path(FIELD_CHAMPION_KEY)),
                     intOrZero(participant.path(FIELD_KILLS)),
                     intOrZero(participant.path(FIELD_DEATHS)),
                     intOrZero(participant.path(FIELD_ASSISTS)),
@@ -319,42 +327,98 @@ public class LolStatsProvider implements GameStatsProvider {
     }
 
     /**
-     * {@code {"mostChampions": [{"championId", "games", "winRate"}]}} — 판 수 많은 순 → 같으면 승률 높은 순 → 같으면 이름순으로 셋까지.
+     * {@code {"mostChampions": [{"championId", "games", "winRate", "masteryLevel", "masteryPoints"}]}} — 판 수 많은 순 → 같으면 승률 높은 순 → 같으면 이름순으로 셋까지.
      * {@code championId} 의 값은 Riot 의 {@code championName}({@code "Samira"})이고 {@code winRate} 는 정수 퍼센트다.
-     * 경기를 하나도 못 읽었으면 빈 배열이다 — {@code detail} 은 {@code null} 이 될 수 없다(컬럼이 {@code NOT NULL}).
+     * {@code masteryLevel} · {@code masteryPoints} 는 그 챔피언의 숙련도이고(2026-09-27 소유자 지시 — "숙련도만"), 숙련도 목록에 없거나
+     * 숙련도를 못 받았으면 둘 다 {@code null} 이다. 경기를 하나도 못 읽었으면 빈 배열이다 — {@code detail} 은 {@code null} 이 될 수 없다(컬럼이 {@code NOT NULL}).
      */
-    private String detail(List<Played> played)
+    private String detail(String puuid, List<Played> played)
     {
-        Map<String, int[]> byChampion = new LinkedHashMap<>();
+        Map<String, Champion> byChampion = new LinkedHashMap<>();
         for(Played one : played)
         {
             if(one.championName() == null)
             {
                 continue;
             }
-            int[] count = byChampion.computeIfAbsent(one.championName(), name -> new int[2]);
-            count[0]++;
+            Champion champion = byChampion.computeIfAbsent(one.championName(), name -> new Champion());
+            champion.games++;
             if(one.win())
             {
-                count[1]++;
+                champion.wins++;
+            }
+            if(champion.key == null)
+            {
+                champion.key = one.championKey();
             }
         }
-        List<Map.Entry<String, int[]>> ranked = new ArrayList<>(byChampion.entrySet());
+        List<Map.Entry<String, Champion>> ranked = new ArrayList<>(byChampion.entrySet());
         ranked.sort(Comparator
-                .<Map.Entry<String, int[]>>comparingInt(entry -> -entry.getValue()[0])
-                .thenComparingInt(entry -> -percent(entry.getValue()[1], entry.getValue()[0]))
+                .<Map.Entry<String, Champion>>comparingInt(entry -> -entry.getValue().games)
+                .thenComparingInt(entry -> -percent(entry.getValue().wins, entry.getValue().games))
                 .thenComparing(Map.Entry::getKey));
+        List<Map.Entry<String, Champion>> most = ranked.subList(0, Math.min(MOST_CHAMPIONS, ranked.size()));
+        Map<Long, JsonNode> masteries = most.isEmpty() ? Map.of() : masteries(puuid);
 
         ObjectNode root = objectMapper.createObjectNode();
         ArrayNode champions = root.putArray("mostChampions");
-        for(Map.Entry<String, int[]> entry : ranked.subList(0, Math.min(MOST_CHAMPIONS, ranked.size())))
+        for(Map.Entry<String, Champion> entry : most)
         {
+            Champion counted = entry.getValue();
             ObjectNode champion = champions.addObject();
             champion.put("championId", entry.getKey());
-            champion.put("games", entry.getValue()[0]);
-            champion.put("winRate", percent(entry.getValue()[1], entry.getValue()[0]));
+            champion.put("games", counted.games);
+            champion.put("winRate", percent(counted.wins, counted.games));
+            JsonNode mastery = counted.key == null ? null : masteries.get(counted.key);
+            putIntOrNull(champion, "masteryLevel", mastery == null ? null : integer(mastery.path(FIELD_CHAMPION_LEVEL)));
+            putIntOrNull(champion, "masteryPoints", mastery == null ? null : integer(mastery.path(FIELD_CHAMPION_POINTS)));
         }
         return root.toString();
+    }
+
+    /**
+     * 챔피언 번호 → 숙련도 한 줄. <b>실패해도(4xx · 5xx · 타임아웃 · JSON 이 아닌 응답) 던지지 않는다</b> — WARN 하고 빈 맵이다(숙련도만 비고 전적은 산다).
+     * 모양이 다른 줄(번호가 없는 줄)은 건너뛴다
+     */
+    private Map<Long, JsonNode> masteries(String puuid)
+    {
+        JsonNode list;
+        try
+        {
+            list = riot.championMasteries(puuid);
+        }
+        catch(RiotApiException e)
+        {
+            log.warn("Riot 의 챔피언 숙련도를 받지 못했다 — 숙련도를 비운 채 간다 status={} cause={}", e.status(), e.getMessage());
+            return Map.of();
+        }
+        if(!list.isArray())
+        {
+            log.warn("Riot 의 챔피언 숙련도 응답이 배열이 아니다 — 숙련도를 비운 채 간다");
+            return Map.of();
+        }
+        Map<Long, JsonNode> byKey = new HashMap<>();
+        for(JsonNode mastery : list)
+        {
+            Long key = longValue(mastery.path(FIELD_CHAMPION_KEY));
+            if(key != null)
+            {
+                byKey.putIfAbsent(key, mastery);
+            }
+        }
+        return byKey;
+    }
+
+    private static void putIntOrNull(ObjectNode node, String field, Integer value)
+    {
+        if(value == null)
+        {
+            node.putNull(field);
+        }
+        else
+        {
+            node.put(field, value);
+        }
     }
 
     private static int percent(int wins, int games)
@@ -405,6 +469,16 @@ public class LolStatsProvider implements GameStatsProvider {
         return Math.max(0, node.intValue());
     }
 
+    /** 정수가 아니면 {@code null}. 챔피언 번호처럼 음수가 뜻이 없는 것도 그대로 읽는다(맞춰 보는 열쇠일 뿐이다) */
+    private static Long longValue(JsonNode node)
+    {
+        if(node == null || !node.isIntegralNumber())
+        {
+            return null;
+        }
+        return node.longValue();
+    }
+
     private static int intOrZero(JsonNode node)
     {
         Integer value = integer(node);
@@ -416,6 +490,13 @@ public class LolStatsProvider implements GameStatsProvider {
     }
 
     /** 경기 하나에서 이 사람의 기록 */
-    record Played(String championName, int kills, int deaths, int assists, boolean win) {
+    record Played(String championName, Long championKey, int kills, int deaths, int assists, boolean win) {
+    }
+
+    /** 모스트 챔피언을 셀 때 한 챔피언의 판 수 · 승 수와 숙련도를 찾을 번호(처음 읽힌 경기의 것) */
+    private static final class Champion {
+        int games;
+        int wins;
+        Long key;
     }
 }

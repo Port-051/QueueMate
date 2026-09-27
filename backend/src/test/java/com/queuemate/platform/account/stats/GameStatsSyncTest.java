@@ -126,6 +126,9 @@ class GameStatsSyncTest extends ApiTestSupport {
                 play("Ahri", 2, 7, 4, false),
                 play("Yasuo", 3, 5, 1, false),
                 play("LeeSin", 5, 5, 5, true)));
+        // 숙련도 — LeeSin 은 넣지 않는다(숙련도 목록에 없는 챔피언은 null)
+        FAKE.stubMastery(puuid, Map.of("Samira", new int[]{7, 123_456}, "Ahri", new int[]{45, 1_234_567}));
+        int callsBefore = FAKE.calls();
 
         // 동기다 — 응답이 오면 이미 긁혀 적혀 있다
         JsonNode linked = readBody(putGameAccount(cookie, "LOL", json("gameNickname", "달콤한 인생#KR7", "mainPosition", "TOP"))
@@ -161,6 +164,15 @@ class GameStatsSyncTest extends ApiTestSupport {
         assertThat(champions.get(1).get("winRate").asInt()).isEqualTo(50);
         assertThat(champions.get(2).get("championId").asString()).isEqualTo("LeeSin");
         assertThat(champions.get(2).get("winRate").asInt()).isEqualTo(100);
+        // 숙련도는 챔피언 번호로 맞춘다(엉뚱한 Teemo 줄을 고르지 않는다). 목록에 없는 LeeSin 은 둘 다 null
+        assertThat(champions.get(0).get("masteryLevel").asInt()).isEqualTo(7);
+        assertThat(champions.get(0).get("masteryPoints").asInt()).isEqualTo(123_456);
+        assertThat(champions.get(1).get("masteryLevel").asInt()).isEqualTo(45);
+        assertThat(champions.get(1).get("masteryPoints").asInt()).isEqualTo(1_234_567);
+        assertThat(champions.get(2).get("masteryLevel").isNull()).isTrue();
+        assertThat(champions.get(2).get("masteryPoints").isNull()).isTrue();
+        // 계정 · 소환사 · 리그 · 경기 id · 경기 7 · 숙련도 1 — 숙련도는 챔피언마다 부르지 않는다
+        assertThat(FAKE.calls() - callsBefore).isEqualTo(12);
 
         // users/me 도 같은 값이다
         JsonNode profile = profile(cookie, "LOL");
@@ -378,6 +390,45 @@ class GameStatsSyncTest extends ApiTestSupport {
     }
 
     @Test
+    @DisplayName("숙련도 호출만 500 이면 연결은 200 이고 나머지 전적은 정상 · 숙련도만 null 이다 — 경기 20판이면 Riot 호출은 25번")
+    @ExtendWith(OutputCaptureExtension.class)
+    void masteryFailureKeepsStats(CapturedOutput output) throws Exception
+    {
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
+        List<FakeRiotApi.Play> twenty = new java.util.ArrayList<>();
+        for(int i = 0; i < 20; i++)
+        {
+            twenty.add(play(i < 12 ? "Ahri" : "Yasuo", 4, 2, 6, i % 2 == 0));
+        }
+        String puuid = stubLol("숙련도#KR1", "sum-mastery", 30, 20, twenty);
+        FAKE.stubMastery(puuid, Map.of("Ahri", new int[]{12, 99_999}));
+        FAKE.failMasteryWith(500);
+        int callsBefore = FAKE.calls();
+
+        JsonNode stats = readBody(putGameAccount(cookie, "LOL", json("gameNickname", "숙련도#KR1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tier").value("EMERALD_4"))).get("stats");
+
+        // 계정 · 소환사 · 리그 · 경기 id · 경기 20 · 숙련도 1
+        assertThat(FAKE.calls() - callsBefore).isEqualTo(25);
+        assertThat(stats.get("games").asInt()).isEqualTo(20);
+        assertThat(stats.get("wins").asInt()).isEqualTo(30);
+        assertThat(stats.get("losses").asInt()).isEqualTo(20);
+        JsonNode champions = stats.get("detail").get("mostChampions");
+        assertThat(champions).hasSize(2);
+        assertThat(champions.get(0).get("championId").asString()).isEqualTo("Ahri");
+        assertThat(champions.get(0).get("games").asInt()).isEqualTo(12);
+        for(JsonNode champion : champions)
+        {
+            assertThat(champion.get("masteryLevel").isNull()).isTrue();
+            assertThat(champion.get("masteryPoints").isNull()).isTrue();
+        }
+        assertThat(output).contains("챔피언 숙련도를 받지 못했다");
+        assertThat(statsRow(gameAccountId(userIdOf(nickname), "LOL"))).isNotNull();
+    }
+
+    @Test
     @DisplayName("Riot 이 500 · 429 를 주거나 응답이 없으면 503 GAME_STATS_UNAVAILABLE 이고 game_accounts 에 줄이 생기지 않는다")
     void riotFailuresSaveNothing() throws Exception
     {
@@ -435,7 +486,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
-        // 부르는 것이 7번(계정 · 소환사 · 리그 · 경기 id · 경기 3) — 한 번에 0.7초면 상한 3초를 넘긴다(읽기 타임아웃 1초는 안 넘는다)
+        // 부르는 것이 8번(계정 · 소환사 · 리그 · 경기 id · 경기 3 · 숙련도) — 한 번에 0.7초면 상한 3초를 넘긴다(읽기 타임아웃 1초는 안 넘는다)
         stubLol("느림#KR1", "sum-slow", 1, 1, List.of(
                 play("Ahri", 1, 1, 1, true), play("Ahri", 1, 1, 1, true), play("Ahri", 1, 1, 1, true)));
         FAKE.respondAfter(Duration.ofMillis(700));
@@ -448,7 +499,7 @@ class GameStatsSyncTest extends ApiTestSupport {
         // 뒤에서 돌던 긁기가 끝나기를 기다린다 — 끝나도 아무것도 적히지 않는다
         awaitSyncIdle();
         FAKE.respondAfter(Duration.ZERO);
-        assertThat(FAKE.calls()).as("뒤에서 끝까지 긁기는 했다").isEqualTo(before + 7);
+        assertThat(FAKE.calls()).as("뒤에서 끝까지 긁기는 했다").isEqualTo(before + 8);
         assertThat(gameAccountCount(userIdOf(nickname))).isZero();
     }
 

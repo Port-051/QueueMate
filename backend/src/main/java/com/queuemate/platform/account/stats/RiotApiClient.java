@@ -19,13 +19,14 @@ import java.net.http.HttpClient;
  * Riot API 를 부르는 <b>전송 쪽</b> — 주소 · 경로 · 키 헤더 · 타임아웃만 안다. 응답의 JSON 을 해석하지 않고 {@link JsonNode} 를 그대로 돌려준다
  * (칸을 읽는 곳은 {@link LolStatsProvider} 한 곳이다). {@link com.queuemate.platform.account.oauth.OAuthClient} 와 같은 방식으로 짰다.
  *
- * <p><b>경로가 이 한 곳에 모여 있다</b> — Riot 이 경로를 바꾸면 여기만 고친다. 지금 부르는 것은 다섯이다.
+ * <p><b>경로가 이 한 곳에 모여 있다</b> — Riot 이 경로를 바꾸면 여기만 고친다. 지금 부르는 것은 여섯이다.
  * <ol>
  *   <li>{@code account-v1} — Riot ID({@code 이름#태그}) → {@code puuid} <b>(대륙 주소)</b></li>
  *   <li>{@code summoner-v4} — {@code puuid} → 소환사({@code id} = encrypted summoner id) <b>(플랫폼 주소)</b></li>
  *   <li>{@code league-v4} — 소환사의 리그 목록(솔로랭크의 승/패) <b>(플랫폼 주소)</b></li>
  *   <li>{@code match-v5} — 최근 경기 id 목록 <b>(대륙 주소)</b></li>
  *   <li>{@code match-v5} — 경기 하나 <b>(대륙 주소)</b></li>
+ *   <li>{@code champion-mastery-v4} — 그 소환사의 챔피언 숙련도 전부(배열) <b>(플랫폼 주소)</b></li>
  * </ol>
  *
  * <p><b>키는 헤더로만 보낸다</b>({@code X-Riot-Token}) — 쿼리에 실으면 주소가 로그 · 예외 메시지에 남는다. 키를 어디에도 찍지 않는다.
@@ -47,6 +48,7 @@ public class RiotApiClient {
     static final String LEAGUE_ENTRIES_BY_SUMMONER = "/lol/league/v4/entries/by-summoner/{summonerId}";
     static final String MATCH_IDS_BY_PUUID = "/lol/match/v5/matches/by-puuid/{puuid}/ids?start=0&count={count}";
     static final String MATCH_BY_ID = "/lol/match/v5/matches/{matchId}";
+    static final String CHAMPION_MASTERIES_BY_PUUID = "/lol/champion-mastery/v4/champion-masteries/by-puuid/{puuid}";
 
     private final RiotProperties properties;
     private final ObjectMapper objectMapper;
@@ -97,6 +99,12 @@ public class RiotApiClient {
     JsonNode match(String matchId)
     {
         return get(properties.regionalBaseUrl() + MATCH_BY_ID, matchId);
+    }
+
+    /** 그 소환사가 해 본 <b>모든</b> 챔피언의 숙련도(배열 — {@code championId} 는 숫자다). 챔피언마다 부르지 않고 한 번에 받는다 */
+    JsonNode championMasteries(String puuid)
+    {
+        return get(properties.platformBaseUrl() + CHAMPION_MASTERIES_BY_PUUID, puuid);
     }
 
     private JsonNode get(String uriTemplate, Object... uriVariables)

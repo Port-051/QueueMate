@@ -17,7 +17,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 테스트용 <b>가짜 Riot API</b> — {@code account-v1} · {@code summoner-v4} · {@code league-v4} · {@code match-v5} 의 다섯 주소를 흉내 낸다.
+ * 테스트용 <b>가짜 Riot API</b> — {@code account-v1} · {@code summoner-v4} · {@code league-v4} · {@code match-v5} · {@code champion-mastery-v4} 의 여섯 주소를 흉내 낸다.
  * JDK 의 {@link HttpServer} 를 임의 포트로 띄운다({@code FakeOAuthProvider} 와 같은 방식 — WireMock 같은 새 의존성을 들이지 않는다).
  *
  * <p><b>대륙 주소와 플랫폼 주소를 한 서버가 같이 받는다</b> — 경로가 겹치지 않으므로 테스트가 두 설정을 같은 주소로 돌려도 된다.
@@ -27,7 +27,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <li>키 헤더({@code X-Riot-Token})가 없거나 다르면 <b>403</b> 이다. 실제 Riot 과 같은 자리에서 걸러진다</li>
  *   <li>{@link #failWith(int)} 로 모든 주소가 그 상태를 주게 한다(500 · 429). {@link #respondAfter(Duration)} 로 늦게 답한다(타임아웃)</li>
  *   <li>{@link #calls()} 는 <b>받은 요청의 수</b>다 — "아예 부르지 않는지" 를 이것으로 본다</li>
- *   <li>넣어 두지 않은 Riot ID · 소환사 · 경기는 <b>404</b> 다</li>
+ *   <li>넣어 두지 않은 Riot ID · 소환사 · 경기는 <b>404</b> 다. 숙련도는 넣어 두지 않으면 빈 배열이다</li>
+ *   <li>경기 참가자의 {@code championId}(숫자)는 {@link #championKey(String)} 가 챔피언 이름으로 정한다 — 숙련도와 맞추는 열쇠다</li>
+ *   <li>{@link #failMasteryWith(int)} 로 숙련도 주소 하나만 실패시킨다</li>
  * </ul>
  */
 final class FakeRiotApi {
@@ -49,9 +51,12 @@ final class FakeRiotApi {
     private final Map<String, List<String>> matchIds = new ConcurrentHashMap<>();
     /** 경기 id → 경기 응답의 JSON */
     private final Map<String, String> matches = new ConcurrentHashMap<>();
+    /** {@code puuid} → 숙련도 응답의 JSON(배열) */
+    private final Map<String, String> masteries = new ConcurrentHashMap<>();
 
     private final AtomicInteger matchSequence = new AtomicInteger();
     private volatile int failStatus;
+    private volatile int masteryFailStatus;
     private volatile Duration delay = Duration.ZERO;
 
     FakeRiotApi()
@@ -70,6 +75,7 @@ final class FakeRiotApi {
         // 더 긴 접두사가 이긴다 — by-puuid 의 요청이 경기 하나를 주는 핸들러로 가지 않는다
         server.createContext("/lol/match/v5/matches/by-puuid/", this::matchIdList);
         server.createContext("/lol/match/v5/matches/", this::match);
+        server.createContext("/lol/champion-mastery/v4/champion-masteries/by-puuid/", this::mastery);
         server.setExecutor(executor);
         server.start();
     }
@@ -141,6 +147,39 @@ final class FakeRiotApi {
         matchIds.put(puuid, ids);
     }
 
+    /**
+     * 숙련도. 열쇠는 챔피언 <b>이름</b>이고 값은 {@code {레벨, 점수}} 다 — 응답에는 {@link #championKey(String)} 의 번호로 나간다.
+     * 모스트 챔피언과 상관없는 챔피언을 하나 같이 넣는다(엉뚱한 줄을 고르지 않는지 본다)
+     */
+    void stubMastery(String puuid, Map<String, int[]> byChampion)
+    {
+        List<String> rows = new ArrayList<>();
+        rows.add(masteryRow(puuid, "Teemo", 3, 12_345));
+        byChampion.forEach((champion, levelAndPoints) ->
+                rows.add(masteryRow(puuid, champion, levelAndPoints[0], levelAndPoints[1])));
+        masteries.put(puuid, "[" + String.join(",", rows) + "]");
+    }
+
+    private static String masteryRow(String puuid, String champion, int level, int points)
+    {
+        return "{\"puuid\":\"" + puuid + "\",\"championId\":" + championKey(champion) + ",\"championLevel\":" + level
+                + ",\"championPoints\":" + points + ",\"lastPlayTime\":1700000000000,\"chestGranted\":false}";
+    }
+
+    /** 챔피언 이름 → Riot 의 챔피언 번호. 아는 이름은 실제 번호이고 모르는 이름은 이름에서 만든 값이다(같은 이름이면 늘 같다) */
+    static long championKey(String champion)
+    {
+        return switch(champion)
+        {
+            case "Ahri" -> 103;
+            case "Yasuo" -> 157;
+            case "LeeSin" -> 64;
+            case "Samira" -> 360;
+            case "Teemo" -> 17;
+            default -> 10_000 + Math.floorMod(champion.hashCode(), 10_000);
+        };
+    }
+
     /** 경기 하나에서 그 사람의 기록. 엉뚱한 참가자를 하나 같이 넣는다 — {@code puuid} 로 골라 읽는지 본다 */
     record Play(String champion, int kills, int deaths, int assists, boolean win, String position) {
     }
@@ -156,7 +195,7 @@ final class FakeRiotApi {
 
     private static String participant(String puuid, Play play)
     {
-        return "{\"puuid\":\"" + puuid + "\",\"championName\":\"" + play.champion() + "\",\"championId\":1,"
+        return "{\"puuid\":\"" + puuid + "\",\"championName\":\"" + play.champion() + "\",\"championId\":" + championKey(play.champion()) + ","
                 + "\"kills\":" + play.kills() + ",\"deaths\":" + play.deaths() + ",\"assists\":" + play.assists()
                 + ",\"win\":" + play.win() + ",\"teamPosition\":\"" + play.position() + "\"}";
     }
@@ -167,6 +206,12 @@ final class FakeRiotApi {
     void failWith(int status)
     {
         failStatus = status;
+    }
+
+    /** 숙련도 주소만 이 상태를 준다. 0 이면 정상 */
+    void failMasteryWith(int status)
+    {
+        masteryFailStatus = status;
     }
 
     /** 이만큼 늦게 답한다 — 읽기 타임아웃을 본다 */
@@ -183,6 +228,7 @@ final class FakeRiotApi {
     void reset()
     {
         failStatus = 0;
+        masteryFailStatus = 0;
         delay = Duration.ZERO;
         calls.set(0);
     }
@@ -262,6 +308,22 @@ final class FakeRiotApi {
             return;
         }
         respondOr404(exchange, matches.get(tail(exchange, "/lol/match/v5/matches/")));
+    }
+
+    private void mastery(HttpExchange exchange) throws IOException
+    {
+        if(!accept(exchange))
+        {
+            return;
+        }
+        int status = masteryFailStatus;
+        if(status != 0)
+        {
+            respond(exchange, status, "{\"status\":{\"status_code\":" + status + "}}");
+            return;
+        }
+        String rows = masteries.get(tail(exchange, "/lol/champion-mastery/v4/champion-masteries/by-puuid/"));
+        respond(exchange, 200, rows == null ? "[]" : rows);
     }
 
     // ---- 공통 ----
