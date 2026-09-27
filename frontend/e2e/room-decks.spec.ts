@@ -67,6 +67,36 @@ async function expectNoPageOverflow(page: Page) {
   expect(widths.document, JSON.stringify(widths)).toBeLessThanOrEqual(widths.viewport + 1);
 }
 
+test.describe('방 메시지 표시', () => {
+  test.use({ timezoneId: 'Asia/Seoul' });
+  test('연속 메시지는 묶고 날짜가 바뀌면 분리하며 입력할 때만 전송 버튼이 나타난다', async ({ page }) => {
+    await seedRooms(page, [room('messages', [member('u-me'), member('friend')], {
+      messages: [
+        { id: 'one', authorId: 'u-me', text: '첫 메시지', createdAt: Date.parse('2026-09-27T23:58:00+09:00') },
+        { id: 'two', authorId: 'u-me', text: '이어지는 메시지', createdAt: Date.parse('2026-09-27T23:59:00+09:00') },
+        { id: 'three', authorId: 'u-me', text: '다음 날 메시지', createdAt: Date.parse('2026-09-28T00:00:00+09:00') },
+        { id: 'four', authorId: 'friend', text: '상대방 답장', createdAt: Date.parse('2026-09-28T00:01:00+09:00') },
+      ],
+    })]);
+    await login(page);
+    const chat = page.getByRole('region', { name: '방 채팅과 음성' });
+    await expect(chat.locator('.room-conversation-day')).toHaveText(['2026년 9월 27일', '2026년 9월 28일']);
+    await expect(chat.locator('.room-conversation-message.is-grouped')).toHaveText(/이어지는 메시지/);
+    await expect(chat.locator('.room-conversation-roster').getByRole('img', { name: '방장' })).toBeVisible();
+    const input = chat.getByPlaceholder('메시지 입력...');
+    const send = chat.getByRole('button', { name: '메시지 보내기', exact: true });
+    await expect(send).toHaveCount(0);
+    await input.fill('   ');
+    await expect(send).toHaveCount(0);
+    await input.fill('버튼으로 전송');
+    await expect(send).toBeEnabled();
+    await send.click();
+    await expect(chat.getByRole('log')).toContainText('버튼으로 전송');
+    await expect(input).toHaveValue('');
+    await expect(send).toHaveCount(0);
+  });
+});
+
 test('방장은 혼자 있어도 마감하고 다시 열며 대화와 초안을 유지한다', async ({ page }) => {
   await seedRooms(page, [room('reopen', [member('u-me')], { capacity: 3 })]);
   await login(page);

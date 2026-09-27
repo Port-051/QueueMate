@@ -1,6 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Avatar, Button, useToast } from '../components/ui';
-import { IconChat, IconCheck, IconPlay, IconLogout, IconMic, IconMicOff, IconSend, IconShield, IconX } from '../components/icons';
+import { IconChat, IconCheck, IconPlay, IconLogout, IconMic, IconMicOff, IconX } from '../components/icons';
+import { IconDirectMessage } from '../components/NotificationPanel';
+import { RoomMemberAvatar } from './RoomDeck';
 import { USE_MOCK } from '../config';
 import { MockPartyClient } from '../webrtc/MockPartyClient';
 import type { VoiceStatus } from '../webrtc/types';
@@ -29,7 +31,10 @@ function Headphones({ off = false }: { off?: boolean }) {
   </svg>;
 }
 
-const clock = new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+const clock = new Intl.DateTimeFormat('ko-KR', { hour: 'numeric', minute: '2-digit' });
+const messageDate = new Intl.DateTimeFormat('ko-KR', { year: '2-digit', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+const dayLabel = new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+const sameDay = (a: number, b: number) => new Date(a).toDateString() === new Date(b).toDateString();
 
 export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConfirm, onReopen, onAutoConfirm, onExtend, visible = true, onMember }: RoomConversationProps) {
   const toast = useToast();
@@ -170,9 +175,6 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
   return <section className="room-conversation" aria-label="방 채팅과 음성">
     <header className="room-conversation-header">
       <div className="room-conversation-heading">
-        <span className={`room-conversation-status${confirmed ? ' is-confirmed' : ''}`}>
-          {confirmed ? <IconCheck size={12} /> : <i />} {confirmed ? '모집 마감 · 대화 가능' : '팀원 모집 중'}
-        </span>
         <h2>{room.title}</h2>
       </div>
       <span className="room-conversation-count"><b>{room.members.length}</b><span>/{room.capacity}</span></span>
@@ -181,12 +183,11 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
 
     <div className="room-conversation-roster" aria-label="참여한 사람">
       {room.members.map(member => <div className="room-conversation-member" key={member.id}>
-        <span className={`room-conversation-avatar${member.id === selfId && voiceOn && !muted ? ' is-voice-ready' : ''}`}><button type="button" className="room-profile-avatar-button" aria-label={`${member.nickname} 프로필 보기`} onClick={() => onMember(member)}><Avatar name={member.nickname} avatarUrl={member.avatarUrl} size={42} /></button>
-          {member.id === room.ownerId ? <span className="room-conversation-host" title="방장" aria-label="방장"><IconShield size={11} /></span> : null}
+        <span className={`room-conversation-avatar${member.id === selfId && voiceOn && !muted ? ' is-voice-ready' : ''}`}><button type="button" className="room-profile-avatar-button" aria-label={`${member.nickname} 프로필 보기`} onClick={() => onMember(member)}><RoomMemberAvatar room={room} member={member} size={42} /></button>
           {isHost && member.id !== selfId ? <button className="room-conversation-kick" type="button" aria-label={`${member.nickname} 내보내기`} title="내보내기" onClick={() => setAction({ kind: 'kick', id: member.id })}><IconX size={12} /></button> : null}
         </span>
-        <button type="button" className="room-profile-name-button" title={member.nickname} aria-label={`${member.nickname} 프로필 보기`} onClick={() => onMember(member)}>{member.nickname}{member.id === selfId ? <small> 나</small> : null}</button>
-        <small className="room-member-voice-state">{member.id === selfId ? voiceOn ? muted ? '마이크 꺼짐' : '마이크 준비' : '음성 참여 전' : '음성 연결 전'}</small>
+        <button type="button" className="room-profile-name-button" title={member.nickname} aria-label={`${member.nickname} 프로필 보기`} onClick={() => onMember(member)}>{member.nickname}</button>
+        {member.id === selfId && voiceOn ? <small className="room-member-voice-state">{muted ? '마이크 꺼짐' : '마이크 준비'}</small> : null}
       </div>)}
       {Array.from({ length: Math.max(0, room.capacity - room.members.length) }, (_, index) => <div className="room-conversation-member is-empty" key={`empty-${index}`} aria-label="빈 자리"><span className="room-conversation-empty-seat">+</span><span>빈 자리</span></div>)}
     </div>
@@ -227,7 +228,6 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
       </div> : null}
     </section>
 
-    <div className="room-conversation-chat-heading"><IconChat size={15} /><h3>채팅</h3></div>
     <div className="room-conversation-log-wrap">
       <div className="room-conversation-log" ref={log} role="log" aria-label="방 메시지" aria-live="polite" aria-relevant="additions text" onScroll={event => {
         const element = event.currentTarget;
@@ -235,14 +235,24 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
         if (stickToBottom.current) setUnread(false);
       }}>
         {room.messages.length === 0 ? <div className="room-conversation-no-messages"><IconChat size={26} /><p>첫 메시지를 보내보세요</p></div> : room.messages.map((message, index) => {
-          if (!message.authorId) return <p className="room-conversation-system" key={message.id}>{message.text}</p>;
-          const author = room.members.find(member => member.id === message.authorId);
           const previous = room.messages[index - 1];
-          const grouped = previous?.authorId === message.authorId && message.createdAt - previous.createdAt < 120_000;
-          return <div className={`room-conversation-message${grouped ? ' is-grouped' : ''}`} key={message.id}>
-            {author ? <button type="button" className="room-profile-avatar-button" aria-label={`${author.nickname} 프로필 보기`} onClick={() => onMember(author)}><Avatar name={author.nickname} avatarUrl={author.avatarUrl} size={30} /></button> : <Avatar name="이전 참여자" size={30} />}
-            <div><div className="room-conversation-message-meta">{author ? <button type="button" className="room-profile-name-button" onClick={() => onMember(author)} aria-label={`${author.nickname} 프로필 보기`}>{author.nickname}</button> : <b>이전 참여자</b>}{message.authorId === room.ownerId ? <IconShield size={11} /> : null}<time dateTime={new Date(message.createdAt).toISOString()}>{clock.format(message.createdAt)}</time></div><p>{message.text}</p></div>
-          </div>;
+          const startsDay = !previous || !sameDay(previous.createdAt, message.createdAt);
+          const author = room.members.find(member => member.id === message.authorId);
+          const grouped = !startsDay && Boolean(message.authorId) && previous?.authorId === message.authorId
+            && message.createdAt >= previous.createdAt && message.createdAt - previous.createdAt < 300_000;
+          return <Fragment key={message.id}>
+            {startsDay ? <div className="room-conversation-day"><time dateTime={new Date(message.createdAt).toISOString()}>{dayLabel.format(message.createdAt)}</time></div> : null}
+            {!message.authorId ? <p className="room-conversation-system">{message.text}</p> : <div className={`room-conversation-message${grouped ? ' is-grouped' : ''}`}>
+              {author ? <button type="button" className="room-profile-avatar-button" aria-label={`${author.nickname} 프로필 보기`} onClick={() => onMember(author)}><RoomMemberAvatar room={room} member={author} size={36} /></button> : <Avatar name="이전 참여자" size={36} />}
+              <div>
+                <div className="room-conversation-message-meta">
+                  {author ? <button type="button" className="room-profile-name-button" onClick={() => onMember(author)} aria-label={`${author.nickname} 프로필 보기`}>{author.nickname}</button> : <b>이전 참여자</b>}
+                  <time dateTime={new Date(message.createdAt).toISOString()} title={messageDate.format(message.createdAt)}>{(sameDay(message.createdAt, now) ? clock : messageDate).format(message.createdAt)}</time>
+                </div>
+                <p>{message.text}</p>
+              </div>
+            </div>}
+          </Fragment>;
         })}
       </div>
       {unread ? <button className="room-conversation-new" type="button" onClick={() => {
@@ -252,10 +262,10 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
       }}>새 메시지 보기 ↓</button> : null}
     </div>
     <form className="room-conversation-compose" onSubmit={event => { event.preventDefault(); send(); }}>
-      <textarea ref={input} value={draft} rows={1} maxLength={2000} disabled={!self} aria-label="방에 메시지 보내기" placeholder="메시지 보내기" onChange={event => setDraft(event.target.value)} onKeyDown={event => {
+      <textarea ref={input} value={draft} rows={1} maxLength={2000} disabled={!self} aria-label="방에 메시지 보내기" placeholder="메시지 입력..." onChange={event => setDraft(event.target.value)} onKeyDown={event => {
         if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); send(); }
       }} />
-      <button type="submit" disabled={sending || !draft.trim() || !self} aria-label="메시지 보내기"><IconSend size={19} /></button>
+      {draft.trim() ? <button type="submit" disabled={sending || !self} aria-label="메시지 보내기" aria-busy={sending}><IconDirectMessage size={20} filled /></button> : null}
     </form>
   </section>;
 }

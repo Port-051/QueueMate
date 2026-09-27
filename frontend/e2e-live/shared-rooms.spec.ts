@@ -66,7 +66,7 @@ test('실제 두 계정의 방 입장, 이벤트 동기화, 채팅 재시도와 
     await room.getByRole('button', { name: '서포터 자리 참여', exact: true }).click();
     await b.getByRole('button', { name: '참여하기', exact: true }).click();
     await expect(b.getByRole('region', { name: '방 채팅과 음성' })).toBeVisible();
-    await expect(a.getByText('모집 마감 · 대화 가능', { exact: true })).toBeVisible();
+    await expect(a.getByRole('article', { name: `서버 검증 ${id} 방 정보`, exact: true })).toHaveAttribute('data-status', 'CONFIRMED');
     await expect(a.getByRole('button', { name: '모집 다시 열기', exact: true })).toBeDisabled();
     await expect(b.getByRole('button', { name: /모집 다시 열기|모집 마감/ })).toHaveCount(0);
     const input = a.getByRole('textbox', { name: '방에 메시지 보내기' });
