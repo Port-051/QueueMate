@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: QueueMate shared room pilot
-  version: 0.2.0
+  version: 0.3.0
   description: |
     Authenticated room pilot enabled with queuemate.rooms.enabled=true.
     Existing proposal/party endpoints keep their contracts. Rooms are created before recruitment completes.
@@ -73,7 +73,11 @@ paths:
         Only the current owner can CONFIRM (close) or REOPEN recruitment. Closing has no
         minimum member count and does not start a game. REOPEN requires a vacant seat
         and, for reservations, a future start time. Repeated same-state requests are no-ops.
-        A full room stays closed until a member leaves and the owner explicitly reopens it.
+        Reaching capacity automatically closes recruitment. A departure, kick or room transfer
+        automatically reopens the remaining room, including manually closed rooms, unless the
+        reservation start time has passed. An empty room is deleted; owner departure transfers
+        ownership to a remaining member. Changes emit ROOMS_UPDATED after commit.
+        The UI exposes only CONFIRM; REOPEN remains available for existing API clients.
         Reopening checks Redis availability and emits ROOMS_UPDATED after commit.
       requestBody:
         required: true
