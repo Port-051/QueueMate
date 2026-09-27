@@ -780,7 +780,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     {
         // mode 는 gameconfig 에 있는 이름이어야 한다(2026-09-24) — ApiTestSupport 가 심어 둔다
         String body = "{\"game\":\"LOL\",\"mode\":\"" + LOL_MODE + "\",\"title\":\"같이 하실 분\",\"description\":\"즐겁게\","
-                + "\"voice\":\"REQUIRED\",\"purpose\":\"RANK_UP\",\"conditions\":{},\"wantedPositions\":[\"MID\"]}";
+                + "\"voice\":\"REQUIRED\",\"conditions\":{},\"wantedPositions\":[\"MID\"]}";
         ResultActions created = mockMvc.perform(post("/api/v1/posts").cookie(cookie)
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated());
         return readBody(created).get("postId").asLong();

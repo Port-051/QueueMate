@@ -104,8 +104,8 @@ public abstract class RoomTestSupport extends ApiTestSupport {
         return roomIds.computeIfAbsent(label, l -> {
             long id = ThreadLocalRandom.current().nextLong(3_000_000_000_000_000L, 4_000_000_000_000_000L);
             jdbcTemplate.update("insert into recruit_posts "
-                    + "(id, host_id, game, mode, title, voice, purpose, conditions, status, created_at, updated_at) "
-                    + "overriding system value values (?, ?, 'LOL', ?, '방의 테스트', 'REQUIRED', 'RANK_UP', '{}'::jsonb, 'RECRUITING', now(), now())",
+                    + "(id, host_id, game, mode, title, voice, conditions, status, created_at, updated_at) "
+                    + "overriding system value values (?, ?, 'LOL', ?, '방의 테스트', 'REQUIRED', '{}'::jsonb, 'RECRUITING', now(), now())",
                     id, insertUser(), LOL_MODE);
             String roomId = String.valueOf(id);
             labels.put(roomId, l);

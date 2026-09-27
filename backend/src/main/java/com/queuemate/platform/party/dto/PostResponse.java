@@ -24,7 +24,6 @@ public record PostResponse(
         String title,
         String description,
         String voice,
-        String purpose,
         @JsonRawValue String conditions,
         List<String> wantedPositions,
         String status,

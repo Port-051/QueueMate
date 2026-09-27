@@ -217,7 +217,6 @@ CREATE TABLE recruit_posts (
     title        varchar(60)  NOT NULL,
     description  varchar(300),
     voice        varchar(10)  NOT NULL,
-    purpose      varchar(10)  NOT NULL,
     conditions   jsonb        NOT NULL DEFAULT '{}',
     status       varchar(12)  NOT NULL,
     created_at   timestamptz  NOT NULL,
@@ -228,7 +227,6 @@ CREATE TABLE recruit_posts (
     CONSTRAINT recruit_posts_host_id_fkey FOREIGN KEY (host_id) REFERENCES users (id) ON DELETE CASCADE,
     CONSTRAINT recruit_posts_game_check CHECK (game IN ('LOL', 'VALORANT', 'PUBG')),
     CONSTRAINT recruit_posts_voice_check CHECK (voice IN ('REQUIRED', 'NO_VOICE')),
-    CONSTRAINT recruit_posts_purpose_check CHECK (purpose IN ('RANK_UP', 'NORMAL', 'FUN')),
     CONSTRAINT recruit_posts_status_check CHECK (status IN ('RECRUITING', 'CONFIRMED', 'EXPIRED')),
     -- 상태와 시각이 어긋난 줄을 DB 가 받지 않는다 — CONFIRMED 면 confirmed_at 이 있고, 아니면 없다. EXPIRED 도 같다
     CONSTRAINT recruit_posts_confirmed_at_check CHECK ((status = 'CONFIRMED') = (confirmed_at IS NOT NULL)),

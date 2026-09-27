@@ -238,13 +238,12 @@ class PostBoardTest extends PostTestSupport {
         editPost(hostCookie, postId, "{\"title\":\"제목만 바꾼다\"}")
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("ROOM_HAS_OTHER_MEMBERS"));
-        editPost(hostCookie, postId, "{\"voice\":\"NO_VOICE\",\"purpose\":\"FUN\"}")
+        editPost(hostCookie, postId, "{\"voice\":\"NO_VOICE\"}")
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("ROOM_HAS_OTHER_MEMBERS"));
         // 아무 칸도 바뀌지 않았다 — DB 를 다시 읽어 본다
         assertThat(columnOf(postId, "title")).isEqualTo("혼자 있다");
         assertThat(columnOf(postId, "voice")).isEqualTo("REQUIRED");
-        assertThat(columnOf(postId, "purpose")).isEqualTo("RANK_UP");
 
         redisTemplate.opsForSet().remove(membersKey(postId), String.valueOf(guestId));
         editPost(hostCookie, postId, "{\"title\":\"다 나갔다\"}")

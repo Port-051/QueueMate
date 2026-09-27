@@ -150,8 +150,8 @@ class PartyMigrationTest extends ApiTestSupport {
     /** {@code id} 를 주지 않는다 — {@code GENERATED ALWAYS AS IDENTITY} 라 넣을 수도 없다 */
     private static String insertPostSql(String status, String confirmedAt, String expiredAt)
     {
-        return "insert into recruit_posts (host_id, game, title, voice, purpose, status, created_at, updated_at, "
-                + "confirmed_at, expired_at) values (?, 'LOL', 't', 'REQUIRED', 'FUN', " + status + ", now(), now(), "
+        return "insert into recruit_posts (host_id, game, title, voice, status, created_at, updated_at, "
+                + "confirmed_at, expired_at) values (?, 'LOL', 't', 'REQUIRED', " + status + ", now(), now(), "
                 + confirmedAt + ", " + expiredAt + ")";
     }
 

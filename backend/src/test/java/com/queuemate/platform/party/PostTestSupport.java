@@ -173,7 +173,7 @@ abstract class PostTestSupport extends ApiTestSupport {
             quoted.add('"' + position + '"');
         }
         return "{\"game\":\"" + game + "\",\"mode\":\"" + modeOf(game) + "\",\"title\":\"" + title + "\",\"description\":\"즐겁게\","
-                + "\"voice\":\"REQUIRED\",\"purpose\":\"RANK_UP\",\"conditions\":" + conditionsJson
+                + "\"voice\":\"REQUIRED\",\"conditions\":" + conditionsJson
                 + ",\"wantedPositions\":[" + String.join(",", quoted) + "]}";
     }
 
@@ -244,8 +244,8 @@ abstract class PostTestSupport extends ApiTestSupport {
     {
         java.sql.Timestamp at = java.sql.Timestamp.from(createdAt);
         Long postId = jdbcTemplate.queryForObject("insert into recruit_posts "
-                + "(host_id, game, mode, title, voice, purpose, conditions, status, created_at, updated_at) "
-                + "values (?, ?, ?, ?, 'REQUIRED', 'RANK_UP', '{}'::jsonb, 'RECRUITING', ?, ?) returning id",
+                + "(host_id, game, mode, title, voice, conditions, status, created_at, updated_at) "
+                + "values (?, ?, ?, ?, 'REQUIRED', '{}'::jsonb, 'RECRUITING', ?, ?) returning id",
                 Long.class, hostId, game, modeOf(game), title, at, at);
         openRoom(postId, hostId);
         return postId;

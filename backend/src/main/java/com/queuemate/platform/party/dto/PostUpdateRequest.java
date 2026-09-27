@@ -23,8 +23,6 @@ public record PostUpdateRequest(
 
         String voice,
 
-        String purpose,
-
         Map<String, Object> conditions,
 
         List<String> wantedPositions

@@ -85,7 +85,7 @@ public class PostStore {
         RecruitPost post = new RecruitPost(hostId, game,
                 request.mode(), PostValidation.title(request.title()),
                 PostValidation.blankToNull(request.description()), PostValidation.voice(request.voice()),
-                PostValidation.purpose(request.purpose()), PostValidation.conditions(game, request.conditions()),
+                PostValidation.conditions(game, request.conditions()),
                 PostValidation.wantedPositions(game, request.wantedPositions()), now);
         try
         {
@@ -156,7 +156,6 @@ public class PostStore {
                 request.title() == null ? post.getTitle() : PostValidation.title(request.title()),
                 request.description() == null ? post.getDescription() : PostValidation.blankToNull(request.description()),
                 request.voice() == null ? post.getVoice() : PostValidation.voice(request.voice()),
-                request.purpose() == null ? post.getPurpose() : PostValidation.purpose(request.purpose()),
                 request.conditions() == null ? post.getConditions() : PostValidation.conditions(game, request.conditions()),
                 request.wantedPositions() == null ? new LinkedHashSet<>(post.getWantedPositions())
                         : PostValidation.wantedPositions(game, request.wantedPositions()),

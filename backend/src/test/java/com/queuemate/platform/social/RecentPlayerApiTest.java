@@ -128,8 +128,8 @@ class RecentPlayerApiTest extends ApiTestSupport {
     private Long insertParty()
     {
         Long postId = jdbcTemplate.queryForObject("insert into recruit_posts "
-                + "(host_id, game, mode, title, voice, purpose, status, created_at, updated_at, confirmed_at) "
-                + "values (?, 'LOL', 'RANKED_SOLO', 't', 'REQUIRED', 'FUN', 'CONFIRMED', now(), now(), now()) returning id",
+                + "(host_id, game, mode, title, voice, status, created_at, updated_at, confirmed_at) "
+                + "values (?, 'LOL', 'RANKED_SOLO', 't', 'REQUIRED', 'CONFIRMED', now(), now(), now()) returning id",
                 Long.class, insertUser());
         return jdbcTemplate.queryForObject("insert into parties (source, post_id, game, status, created_at) "
                 + "values ('BOARD', ?, 'LOL', 'ACTIVE', now()) returning id", Long.class, postId);

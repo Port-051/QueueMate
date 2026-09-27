@@ -3,7 +3,6 @@ package com.queuemate.platform.party.service;
 import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.gameconfig.GameConfigReader;
-import com.queuemate.platform.party.domain.PlayPurpose;
 import com.queuemate.platform.party.domain.VoicePreference;
 
 import java.util.LinkedHashSet;
@@ -55,12 +54,6 @@ final class PostValidation {
     {
         return VoicePreference.fromName(name).orElseThrow(
                 () -> ApiException.validationFailed("voice", "REQUIRED · NO_VOICE 가운데 하나여야 합니다"));
-    }
-
-    static PlayPurpose purpose(String name)
-    {
-        return PlayPurpose.fromName(name).orElseThrow(
-                () -> ApiException.validationFailed("purpose", "RANK_UP · NORMAL · FUN 가운데 하나여야 합니다"));
     }
 
     /** 비어 있지 않아야 한다. 길이는 애너테이션이 본다 */

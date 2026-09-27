@@ -55,8 +55,8 @@ class AccountMigrationTest extends ApiTestSupport {
                 other, gone);
         // 지워지는 사람이 방장인 글과 그 글의 파티 — 다른 사람도 파티원이다
         Long postId = jdbcTemplate.queryForObject("insert into recruit_posts "
-                + "(host_id, game, mode, title, voice, purpose, status, created_at, updated_at, confirmed_at) "
-                + "values (?, 'LOL', 'RANKED_SOLO', 't', 'REQUIRED', 'FUN', 'CONFIRMED', now(), now(), now()) returning id", Long.class, gone);
+                + "(host_id, game, mode, title, voice, status, created_at, updated_at, confirmed_at) "
+                + "values (?, 'LOL', 'RANKED_SOLO', 't', 'REQUIRED', 'CONFIRMED', now(), now(), now()) returning id", Long.class, gone);
         Long partyId = jdbcTemplate.queryForObject("insert into parties (source, post_id, game, status, created_at) "
                 + "values ('BOARD', ?, 'LOL', 'ACTIVE', now()) returning id", Long.class, postId);
         jdbcTemplate.update("insert into party_members (party_id, user_id, is_host, joined_at) values (?, ?, true, now()), (?, ?, false, now())",

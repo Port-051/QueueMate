@@ -88,7 +88,7 @@ public class PostService {
     /**
      * 글을 고친다. <b>방에 방장 말고 누가 있으면 고칠 수 없다</b>(2026-09-24 <b>소유자 결정</b> — {@code contracts/platform-api.md} "모집 글 · 목록" · P-19).
      *
-     * <p><b>왜</b> — 고칠 수 있는 칸에 {@code mode} · {@code voice} · {@code purpose} · {@code conditions} 가 있다. {@code NO_VOICE} 를 보고 들어와 앉아 있는
+     * <p><b>왜</b> — 고칠 수 있는 칸에 {@code mode} · {@code voice} · {@code conditions} 가 있다. {@code NO_VOICE} 를 보고 들어와 앉아 있는
      * 사람 앞에서 {@code REQUIRED} 로 바꿀 수 있고, <b>그 사람에게 바뀌었다고 알려 줄 길이 없다</b> — 게시판 신호는 목록을 보는 사람에게 가고,
      * 방 안 알림({@code ROOM_*})에는 "글이 바뀌었다" 가 없다(그 알림의 이름과 {@code payload} 가 미정이다 — CLAUDE.md §7.1). 그래서 칸을 가리지 않고 아예 막는다.
      *
@@ -454,7 +454,7 @@ public class PostService {
         List<String> wanted = post.getGame().positions().stream().filter(post.getWantedPositions()::contains).toList();
 
         return new PostResponse(post.getId(), post.getHostId(), post.getGame().name(), post.getMode(), post.getTitle(),
-                post.getDescription(), post.getVoice().name(), post.getPurpose().name(), post.getConditions(),
+                post.getDescription(), post.getVoice().name(), post.getConditions(),
                 wanted, post.getStatus().name(), post.getCreatedAt(),
                 cards.size(), BoardProperties.ROOM_CAPACITY, cards.size() >= BoardProperties.ROOM_CAPACITY,
                 card(post.getHostId(), post, profiles), cards);

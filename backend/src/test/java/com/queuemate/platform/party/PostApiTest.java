@@ -48,7 +48,8 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(jsonPath("$.title").value("에메 듀오 구해요"))
                 .andExpect(jsonPath("$.description").value("즐겁게"))
                 .andExpect(jsonPath("$.voice").value("REQUIRED"))
-                .andExpect(jsonPath("$.purpose").value("RANK_UP"))
+                // purpose 칸은 없다(2026-09-27 소유자 결정 — P-29)
+                .andExpect(jsonPath("$.purpose").doesNotExist())
                 .andExpect(jsonPath("$.conditions").isMap())
                 .andExpect(jsonPath("$.conditions").isEmpty())
                 // 겹친 값은 하나로 치고, 그 게임의 포지션 순서로 온다
@@ -95,7 +96,7 @@ class PostApiTest extends PostTestSupport {
         createPost(cookie, "{}").andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(detailFor("game")).andExpect(detailFor("title")).andExpect(detailFor("mode"))
-                .andExpect(detailFor("voice")).andExpect(detailFor("purpose"));
+                .andExpect(detailFor("voice"));
         createPost(cookie, postBody("OVERWATCH", "x", "{}")).andExpect(status().isBadRequest()).andExpect(detailFor("game"));
         createPost(cookie, lolPostBody("가".repeat(61))).andExpect(status().isBadRequest()).andExpect(detailFor("title"));
         createPost(cookie, lolPostBody("   ")).andExpect(status().isBadRequest()).andExpect(detailFor("title"));
@@ -111,7 +112,6 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(status().isBadRequest()).andExpect(detailFor("mode"));
         createPost(cookie, lolPostBody("x").replace(LOL_MODE, ""))
                 .andExpect(status().isBadRequest()).andExpect(detailFor("mode"));
-        createPost(cookie, lolPostBody("x").replace("RANK_UP", "WIN")).andExpect(status().isBadRequest()).andExpect(detailFor("purpose"));
         // 다른 게임의 포지션 · PUBG 의 포지션
         createPost(cookie, lolPostBody("x", "DUELIST")).andExpect(status().isBadRequest()).andExpect(detailFor("wantedPositions"));
         createPost(cookie, postBody("PUBG", "x", "{\"perspective\":\"TPP\"}", "MID"))
@@ -219,19 +219,22 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(jsonPath("$.voice").value("REQUIRED"))
                 .andExpect(jsonPath("$.wantedPositions.length()").value(2));
 
-        editPost(cookie, postId, "{\"mode\":\"" + LOL_MODE_2 + "\",\"description\":\"\",\"voice\":\"NO_VOICE\",\"purpose\":\"FUN\","
+        editPost(cookie, postId, "{\"mode\":\"" + LOL_MODE_2 + "\",\"description\":\"\",\"voice\":\"NO_VOICE\","
                 + "\"wantedPositions\":[\"TOP\",\"MID\"]}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("제목만 바꾼다"))
                 .andExpect(jsonPath("$.mode").value(LOL_MODE_2))
                 .andExpect(jsonPath("$.description").isEmpty())
                 .andExpect(jsonPath("$.voice").value("NO_VOICE"))
-                .andExpect(jsonPath("$.purpose").value("FUN"))
                 .andExpect(jsonPath("$.wantedPositions[0]").value("TOP"))
                 .andExpect(jsonPath("$.wantedPositions[1]").value("MID"));
         editPost(cookie, postId, "{\"wantedPositions\":[]}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.wantedPositions").isEmpty());
+        // 없앤 purpose 를 보내면 다른 모르는 칸처럼 무시된다(2026-09-27 — P-29). 따로 거절하지 않는다
+        editPost(cookie, postId, "{\"purpose\":\"WIN\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.purpose").doesNotExist());
 
         // 다시 읽어도 같다 — 응답을 요청에서 되짚어 만든 것이 아니다
         mockMvc.perform(get("/api/v1/posts/" + postId).cookie(cookie))

@@ -71,10 +71,6 @@ public class RecruitPost {
     @Column(name = "voice", nullable = false, length = 10)
     private VoicePreference voice;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "purpose", nullable = false, length = 10)
-    private PlayPurpose purpose;
-
     /** 게임마다 다른 조건. <b>jsonb 의 글자 그대로</b> 들고 있다가 응답에 그대로 싣는다. 모양은 쓸 때 검증한다({@code PostConditions}) */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "conditions", nullable = false)
@@ -110,7 +106,7 @@ public class RecruitPost {
     private Set<String> wantedPositions = new LinkedHashSet<>();
 
     public RecruitPost(Long hostId, Game game, String mode, String title, String description,
-                       VoicePreference voice, PlayPurpose purpose, String conditions, Set<String> wantedPositions,
+                       VoicePreference voice, String conditions, Set<String> wantedPositions,
                        Instant now)
     {
         this.hostId = hostId;
@@ -119,7 +115,6 @@ public class RecruitPost {
         this.title = title;
         this.description = description;
         this.voice = voice;
-        this.purpose = purpose;
         this.conditions = conditions;
         this.wantedPositions = new LinkedHashSet<>(wantedPositions);
         this.status = PostStatus.RECRUITING;
@@ -128,14 +123,13 @@ public class RecruitPost {
     }
 
     /** 글의 내용을 고친다. 상태 · 방장 · 게임은 바뀌지 않는다. 부르는 쪽이 "준 것만" 골라 넘긴다 — 여기는 받은 대로 적는다 */
-    public void edit(String mode, String title, String description, VoicePreference voice, PlayPurpose purpose,
+    public void edit(String mode, String title, String description, VoicePreference voice,
                      String conditions, Set<String> wantedPositions, Instant now)
     {
         this.mode = mode;
         this.title = title;
         this.description = description;
         this.voice = voice;
-        this.purpose = purpose;
         this.conditions = conditions;
         if(!this.wantedPositions.equals(wantedPositions))
         {
