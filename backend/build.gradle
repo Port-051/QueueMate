@@ -39,7 +39,7 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok'
 
 	// ---- 아직 넣지 않은 것 — 미정 사항이 정해지면 그때 넣는다 (CLAUDE.md §7) ----
-	// AWS SDK (SQS)   : ProposalConfirmed.fifo 소비 · PartyClosed.fifo 와 outbox 의 배선 시점이 미정이다 (§7 "SQS 배선 시점")
+	// AWS SDK (SQS)   : 들이지 않는다 — 확정된 자동 매칭 파티는 matching 의 Redis 파티 HASH 를 직접 읽는다 (docs/11 D-42, 2026-09-27)
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
