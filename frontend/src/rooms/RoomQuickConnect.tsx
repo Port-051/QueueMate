@@ -6,7 +6,7 @@ import { IconDirectMessage } from '../components/NotificationPanel';
 import { HomeProfileRail } from '../components/HomeProfileRail';
 import { useAuth } from '../state/AuthContext';
 import { SelfIntroductionFields } from '../components/SelfIntroductionFields';
-import { usesKeyCondition, visibleModes } from '../domain/gameConfig';
+import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
 import { emptyIntroduction, introductionInputError, readIntroduction, saveIntroduction, type SelfIntroduction } from '../domain/introduction';
 import { RoomVoice } from './RoomVoice';
 import { RoomCapacityPicker } from './RoomCapacityPicker';
@@ -34,8 +34,10 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onSelectSeat, o
   const { user, gameAccounts } = useAuth();
   const [value, setValue] = useState<SelfIntroduction>(() => {
     const saved = readIntroduction(member.id, game) ?? { ...emptyIntroduction(), primaryRoles: member.roles, primaryRole: member.roles[0] ?? 'ANY', voice: member.voice, bio: member.bio };
-    const primaryRole = saved.primaryRoles?.[0] ?? saved.primaryRole;
-    return { ...saved, primaryRole, primaryRoles: primaryRole === 'ANY' ? [] : [primaryRole], voice: roomVoice(saved.voice), queueType: visibleModes(game).some(mode => mode.key === saved.queueType) ? saved.queueType : modeKey };
+    const roles = keyConditionOptions(game).filter(role => role.value !== 'ANY').map(role => role.value);
+    const allRoles = keyConditionOptions(game).some(role => role.value === 'ANY') && roles.every(role => saved.primaryRoles?.includes(role));
+    const primaryRole = allRoles ? 'ANY' : saved.primaryRoles?.[0] ?? saved.primaryRole;
+    return { ...saved, primaryRole, primaryRoles: allRoles ? roles : primaryRole === 'ANY' ? [] : [primaryRole], voice: roomVoice(saved.voice), queueType: visibleModes(game).some(mode => mode.key === saved.queueType) ? saved.queueType : modeKey };
   });
   const [started, setStarted] = useState(false);
   const [skipped, setSkipped] = useState<string[]>([]);
@@ -54,7 +56,7 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onSelectSeat, o
   const reset = () => { setStarted(false); setSkipped([]); };
   const update = (next: SelfIntroduction) => {
     const normalized = { ...next, roomCapacity: normalizeRoomCapacity(game, next.queueType, next.roomCapacity) };
-    if (needsFullLineup(game, normalized.queueType, normalized.roomCapacity)) {
+    if (needsFullLineup(game, normalized.queueType, normalized.roomCapacity) && normalized.primaryRoles?.length === 1) {
       normalized.desiredRoles = normalized.desiredRoles.filter(role => !normalized.primaryRoles?.includes(role));
     }
     setCreateError('');
@@ -95,7 +97,7 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onSelectSeat, o
     <form noValidate onSubmit={event => { event.preventDefault(); const timeError = start === null ? null : reservationTimeError(start); if (timeError) { setCreateError(timeError); return; } if (!error && (!hasRoles || ownRoles.length)) { setCreateError(''); setStarted(true); setSkipped([]); } }}>
       <fieldset className="recruitment-composer">
         {error ? <div className="banner warn" role="alert">{error}</div> : null}
-        <SelfIntroductionFields binaryVoice showTierRange compact singleRole game={game} value={value} onChange={update} disabledDesiredRoles={fullLineup ? ownRoles : []}
+        <SelfIntroductionFields binaryVoice showTierRange compact singleRole game={game} value={value} onChange={update} disabledDesiredRoles={fullLineup && ownRoles.length === 1 ? ownRoles : []}
           afterMode={<RoomCapacityPicker game={game} modeKey={value.queueType} value={capacity} onChange={roomCapacity => update({ ...value, roomCapacity })} />} />
         <RoomStartTimePicker value={start} onChange={next => { setStart(next); setCreateError(''); reset(); }} />
         {createError ? <p className="room-create-error" role="alert">{createError}</p> : positionError ? <p className="room-create-hint">{positionError}</p> : null}

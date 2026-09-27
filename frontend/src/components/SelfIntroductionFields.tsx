@@ -16,6 +16,7 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
 }) {
   const roles = keyConditionOptions(game).filter(role => role.value !== 'ANY');
   const ownRoles = value.primaryRoles ?? (value.primaryRole !== 'ANY' ? [value.primaryRole] : []);
+  const allOwnRoles = keyConditionOptions(game).some(role => role.value === 'ANY') && roles.every(role => ownRoles.includes(role.value));
   const hasRoles = usesKeyCondition(game, value.queueType);
   const [championText, setChampionText] = useState(value.champions.join(', '));
   const patch = (next: Partial<SelfIntroduction>) => onChange({ ...value, ...next });
@@ -34,7 +35,7 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
       </SlidingSelector></fieldset>
       {afterMode}
       {hasRoles ? <>
-        <fieldset className="introduction-choice"><legend>{roleTitle}</legend>{singleRole ? <SingleRolePicker game={game} value={ownRoles[0] ?? null} label={roleTitle} onChange={role => patch({ primaryRoles: [role], primaryRole: role })} /> : <div className="intro-role-options" role="group" aria-label={roleTitle}>
+        <fieldset className="introduction-choice"><legend>{roleTitle}</legend>{singleRole ? <SingleRolePicker game={game} value={allOwnRoles ? 'ANY' : ownRoles[0] ?? null} label={roleTitle} onChange={role => patch({ primaryRoles: role === 'ANY' ? roles.map(option => option.value) : [role], primaryRole: role })} /> : <div className="intro-role-options" role="group" aria-label={roleTitle}>
           {roles.map(role => <button type="button" key={role.value} className="filter-role" aria-label={role.label} aria-pressed={ownRoles.includes(role.value)} onClick={() => { const next = ownRoles.includes(role.value) ? ownRoles.filter(item => item !== role.value) : [...ownRoles, role.value]; patch({ primaryRoles: next, primaryRole: next[0] ?? 'ANY' }); }}><FilterRoleIcon game={game} value={role.value} /><span>{role.label}</span></button>)}
         </div>}</fieldset>
         <fieldset className="introduction-choice"><legend>{game === 'LOL' ? '찾는 포지션' : game === 'VALORANT' ? '찾는 상대 역할' : '찾는 상대 스타일'}</legend><div className="intro-role-options" role="group" aria-label="찾는 포지션">
