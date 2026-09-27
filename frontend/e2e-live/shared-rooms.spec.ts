@@ -5,14 +5,23 @@ const password = 'QueueMate123!';
 
 test('실제 두 계정의 방 입장, 이벤트 동기화, 채팅 재시도와 복원', async ({ browser, request }) => {
   const id = Date.now().toString(36);
-  const accounts = ['a', 'b'].map(letter => ({ email: `room-e2e-${id}-${letter}@queuemate.local`, nickname: `검증${id}${letter}`, password }));
+  const seed = process.env.ROOM_E2E_SEED ?? 'shared-room';
+  const accounts = ['a', 'b'].map(letter => ({ email: `room-e2e-${seed}-${letter}@queuemate.local`, nickname: `검증${seed}${letter}`, password }));
   const tokens: string[] = [];
   for (const account of accounts) {
-    expect((await request.post(`${api}/auth/signup`, { data: account })).status()).toBe(201);
-    const login = await request.post(`${api}/auth/login`, { data: { email: account.email, password } });
+    let login = await request.post(`${api}/auth/login`, { data: { email: account.email, password } });
+    if (login.status() === 401) {
+      expect((await request.post(`${api}/auth/signup`, { data: account })).status()).toBe(201);
+      login = await request.post(`${api}/auth/login`, { data: { email: account.email, password } });
+    }
+    expect(login.status()).toBe(200);
     const { accessToken } = await login.json();
     tokens.push(accessToken);
-    expect((await request.post(`${api}/users/me/game-accounts`, { headers: { Authorization: `Bearer ${accessToken}` }, data: { game: 'LOL', externalGameId: `Demo${id}#${account.nickname.slice(-1)}`, region: 'KR' } })).status()).toBe(201);
+    const headers = { Authorization: `Bearer ${accessToken}` };
+    const gameAccounts = await (await request.get(`${api}/users/me/game-accounts`, { headers })).json();
+    if (!gameAccounts.some((item: { game: string }) => item.game === 'LOL')) {
+      expect((await request.post(`${api}/users/me/game-accounts`, { headers, data: { game: 'LOL', externalGameId: `Demo${seed}#${account.nickname.slice(-1)}`, region: 'KR' } })).status()).toBe(201);
+    }
   }
   const ca = await browser.newContext();
   const cb = await browser.newContext();
