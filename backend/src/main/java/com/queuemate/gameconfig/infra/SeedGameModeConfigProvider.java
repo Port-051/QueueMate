@@ -21,7 +21,10 @@ public class SeedGameModeConfigProvider implements GameModeConfigProvider {
 
     private final Map<GameKey, List<GameModeConfig>> byGame;
 
-    public SeedGameModeConfigProvider() {
+    public SeedGameModeConfigProvider() { this(false); }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public SeedGameModeConfigProvider(@org.springframework.beans.factory.annotation.Value("${queuemate.rooms.enabled:false}") boolean roomsEnabled) {
         Map<GameKey, List<GameModeConfig>> configs = new LinkedHashMap<>();
         configs.put(GameKey.LOL, List.of(
                 // 자리가 하나뿐이라 포지션 중복을 hard reject 한다.
@@ -32,6 +35,12 @@ public class SeedGameModeConfigProvider implements GameModeConfigProvider {
         configs.put(GameKey.PUBG, List.of(
                 new GameModeConfig(GameKey.PUBG, "DUO", 2, false, true),
                 new GameModeConfig(GameKey.PUBG, "SQUAD", 4, false, true)));
+        if (roomsEnabled) configs.put(GameKey.LOL, List.of(
+                new GameModeConfig(GameKey.LOL, "SOLO_DUO_RANKED", 2, true, true),
+                new GameModeConfig(GameKey.LOL, "FLEX_RANKED", 5, true, true),
+                new GameModeConfig(GameKey.LOL, "NORMAL_DRAFT", 5, true, true),
+                new GameModeConfig(GameKey.LOL, "SWIFTPLAY", 5, true, true),
+                new GameModeConfig(GameKey.LOL, "ARAM", 5, false, true)));
         this.byGame = Map.copyOf(configs);
     }
 
