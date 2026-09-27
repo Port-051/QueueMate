@@ -22,6 +22,17 @@ queuemate:
     reconnect-delay-min-ms: ${SSE_RECONNECT_DELAY_MIN_MS:1000}
     reconnect-delay-max-ms: ${SSE_RECONNECT_DELAY_MAX_MS:2000}
 
+  # 인증 — platform 이 서명한 access 토큰(쿠키 qm_access)을 공개 키로 검증만 한다 (CLAUDE.md §7.2 "인증").
+  # 공개 키는 JWT_PUBLIC_KEY(X.509 PEM — 운영은 이것. Secrets Manager)가 먼저이고, 비어 있으면 JWT_PUBLIC_KEY_FILE 의 파일을 읽는다.
+  # 파일의 기본값은 platform 이 만드는 개발용 공개 키다(backend/ 에서 띄울 때의 상대 경로). 둘 다 없으면 기동하지 않는다 —
+  # 인증 없이 뜨면 아무나 남의 알림을 받는다
+  jwt:
+    public-key: ${JWT_PUBLIC_KEY:}
+    public-key-file: ${JWT_PUBLIC_KEY_FILE:../../platform/backend/.dev-keys/public.pem}
+  web:
+    # 상태를 바꾸는 요청(POST/PUT/PATCH/DELETE)에 허용하는 Origin (쉼표로 구분). 지금은 GET 하나뿐이라 걸릴 요청이 없다 — OriginCheckFilter
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+
 logging:
   level:
     com.queuemate: INFO
