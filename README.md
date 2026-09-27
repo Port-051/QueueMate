@@ -77,13 +77,18 @@ queuemate/
 - "연결이 주제 채널도 구독한다"는 개념은 생기지 않는다 — 연결마다 주제를 기억하지 않는다. 패턴 구독 금지 · sticky session 불필요 · 놓친 것을 다시 보내지 않는다는 그대로다.
 - 미정 — 채널 이름의 원본 상수를 어느 서비스에 둘지(지금은 이 서비스의 `redisKeys/BoardChannels.java` 와 `platform` 의 `party/board/BoardChannels` 두 곳에 같은 값이 있다 — 옛 `room` 사본은 합치며 없어졌다. `topics` 표기와 "`room` 이 방의 게임을 아는 법"의 미정은 D-22 로 없어졌다). 상세는 `CLAUDE.md` §7.1.
 
-## 아직 정할 것 · 해야 할 것
+## 인증 — 쿠키 `qm_access` (2026-09-27)
 
-- 인증 — 방식은 **쿠키**로 정해졌다(`matching` docs/11 D-14. access 토큰은 쿠키로 오는 JWT 라 브라우저가 SSE 연결에도
-  자동으로 붙인다). 처음에 남았던 것(토큰 검증 방법 · 없거나 만료됐을 때의 응답 · `?userId=` 전환 · 로컬 CORS)은
-  **`platform` 쪽 소유자 결정으로 정해졌다** — RS256 공개 키(`JWT_PUBLIC_KEY`)로 검증만 · 쿠키 `qm_access` · `token_use` 가 `access` 인지 확인 ·
-  `sub` 는 사용자 번호 · 연결할 때만 검증하고 401 이면 프런트가 재발급 뒤 다시 연결 · 서비스에 CORS 를 넣지 않고 프런트 개발 서버의 프록시로(`CLAUDE.md` §7.2 "인증" ·
-  원본은 `../platform/CLAUDE.md` §5.1). **이 서비스에 붙이는 작업은 아직 안 했다 — 해야 한다**(전환 순서는 `notification` → `matching`)
+`GET /api/v1/events` 는 **쿠키 `qm_access` 의 access 토큰**(`platform` 이 RS256 으로 서명한 JWT)으로 "나"를 정한다 — 토큰의 `sub`(사용자 번호 `"42"`)가
+채널 `qm:pubsub:push:{userId}` 의 `userId` 다. `EventSource` 는 헤더를 못 붙이지만 같은 출처의 쿠키는 자동으로 싣는다.
+**2026-09-26 까지는 `?userId=` 를 그대로 받았다 — 2026-09-27 에 없어졌다**(줘도 보지 않는다. 개발용 스위치도 두지 않았다).
 
-엔드포인트 경로는 `GET /api/v1/events` 로 정했다. 인증이 구현될 때까지 `userId` 를 쿼리 파라미터로
-받는다(2026-09-26 현재 아직 받는다). 계약 원본의 `contracts/openapi.yaml` 에는 이 경로가 아직 없다.
+- **검증만 한다** — 공개 키로 서명 · `exp` · `iss`(`queuemate-platform`) · `token_use`(`access`) · `sub`(숫자 문자열)를 본다. 개인 키는 `platform` 만 갖는다.
+- **공개 키** — 환경변수 `JWT_PUBLIC_KEY`(X.509 PEM — 운영). 비어 있으면 `JWT_PUBLIC_KEY_FILE`(기본값 `../../platform/backend/.dev-keys/public.pem` —
+  `backend/` 에서 띄울 때 `platform` 이 만든 개발용 공개 키)을 읽는다. **둘 다 없으면 기동하지 않는다** — 로컬에서는 `platform` 을 먼저 한 번 띄운다.
+- 실패는 전부 401 `{"code":"UNAUTHENTICATED", …}`(`platform` 과 같은 본문). 연결할 때만 검증하고 열린 연결은 만료돼도 끊지 않는다 —
+  401 로 재접속이 멈추면 프런트가 재발급한 뒤 `EventSource` 를 새로 만든다.
+- `Origin` 검사(`ALLOWED_ORIGINS`)도 `platform` 과 같은 모양으로 넣었지만 지금은 GET 하나뿐이라 걸릴 요청이 없다.
+- 상세는 `CLAUDE.md` §5.1, 원본 규칙은 `../platform/CLAUDE.md` §5.1.
+
+엔드포인트 경로는 `GET /api/v1/events` 로 정했다. 계약 원본의 `contracts/openapi.yaml` 에는 이 경로가 아직 없다.

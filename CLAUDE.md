@@ -10,7 +10,7 @@
 > - **`room` 앱이 `platform`에 합쳐졌다**(2026-09-25 · P-22). 방 안의 일(입장 · 강퇴 · 시그널 · `ROOM_*` 알림 · 방 쪽 게시판 신호)은 이제 **`platform`의 `room` 패키지**가 발행한다. 포트 8083은 없어졌다.
 >   옆 폴더 `room`은 **합치기 전의 기록**으로 남는다 — 근거로 쓰지 않는다. **이 서비스가 받는 채널 · 봉투는 바뀌지 않았다** — 발행하는 앱의 이름이 바뀌었을 뿐이다.
 > - **`userId`는 사용자 번호(bigint)다**(2026-09-22 · P-11) — 채널은 `qm:pubsub:push:42`처럼 숫자다. 로그인 아이디(`loginId`)는 2026-09-26 에 없어졌다 — 가입 · 로그인이 소셜(카카오 · 디스코드)뿐이라 식별자는 사용자 번호 하나다(P-24 · docs/11 D-35). 채널 · 토큰은 그대로 사용자 번호다.
-> - **인증 세부가 정해졌다**(`../platform/CLAUDE.md` §5.1 · P-2 · P-15) — §7.2 "인증". **이 서비스의 `?userId=` → 쿠키 전환은 아직 안 했다 — 해야 한다.**
+> - **인증 세부가 정해졌다**(`../platform/CLAUDE.md` §5.1 · P-2 · P-15). **이 서비스의 `?userId=` → 쿠키 전환은 2026-09-27 에 했다**(소유자 지시 — §5.1). `GET /api/v1/events`는 이제 쿠키 `qm_access`의 access 토큰(RS256)을 **공개 키로 검증만** 하고 그 `sub`로 채널을 연다. 공개 키는 `JWT_PUBLIC_KEY` · 로컬은 `platform`의 `.dev-keys/public.pem`이다.
 
 ---
 
@@ -51,7 +51,7 @@ platform  ──PUBLISH──▶  qm:pubsub:push:{userId}
 
 | 항목 | 값 | 원본 (`matching` 기준) |
 |---|---|---|
-| 채널 | `qm:pubsub:push:{userId}` — **`{userId}`는 사용자 번호(숫자의 십진 문자열)다**(`qm:pubsub:push:42`. 2026-09-22 `platform` 소유자 결정 · P-11 — 그 전에는 로그인 아이디 문자열이었다. 인증이 붙으면 access 토큰의 `sub`(`"42"`)로 채널을 열므로 같은 글자가 된다) | `redisKeys/SharedKeys.java`의 `PUSH_CHANNEL_PREFIX = "qm:pubsub:push:"` + `pushChannel(userId)` |
+| 채널 | `qm:pubsub:push:{userId}` — **`{userId}`는 사용자 번호(숫자의 십진 문자열)다**(`qm:pubsub:push:42`. 2026-09-22 `platform` 소유자 결정 · P-11 — 그 전에는 로그인 아이디 문자열이었다. 2026-09-27 부터 access 토큰의 `sub`(`"42"`)로 채널을 열므로 같은 글자다 — §5.1) | `redisKeys/SharedKeys.java`의 `PUSH_CHANNEL_PREFIX = "qm:pubsub:push:"` + `pushChannel(userId)` |
 | 봉투 | `{type, eventId, occurredAt, payload}` 네 칸 고정 | `notification/PushPublisher.java`의 `record Envelope` |
 | `type` | `PushEventType` 이름 문자열 | `notification/PushEventType.java` |
 | `eventId` | 매번 새 UUID 문자열. **SSE `id:` 필드에 그대로 싣는다.** 클라이언트가 중복을 거르는 데 쓴다 — `Last-Event-ID` 로 이어 보내지는 **않는다**(`contracts/events.md` "재연결") | `PushPublisher#publish()` · `contracts/events.md` "재연결" |
@@ -83,6 +83,7 @@ SSE 이고 보내는 쪽은 `app:room`의 REST `POST`였다(`matching` docs/11 D
 | 빌드 | Gradle (`io.spring.dependency-management` 1.1.7) |
 | SSE | `SseEmitter` |
 | 구독 | Spring Data Redis `RedisMessageListenerContainer` (Pub/Sub) |
+| 인증 | **Spring Security `oauth2-resource-server`(Nimbus)** — `NimbusJwtDecoder.withPublicKey()`로 **검증만** 한다(2026-09-27 — §5.1). 개인 키 · 서명 · jjwt · `oauth2-client` · JWKS는 없다 |
 
 `matching`과 버전을 맞추는 이유는 한 사람이 두 서비스를 같이 다루므로 의존성·설정 감각을 한 벌로
 유지하기 위해서다. WebFlux가 아니라 MVC인 이유는 서블릿 비동기(§5)로 유휴 연결 문제가 풀리기
@@ -113,6 +114,28 @@ SSE 이고 보내는 쪽은 `app:room`의 REST `POST`였다(`matching` docs/11 D
   Tomcat `server.tomcat.max-connections`다. 연결 수를 늘리려고 스레드 풀을 키우지 마라.
 - **sticky session이 필요 없다.** 어느 인스턴스에 붙든 그 인스턴스가 그 사용자 채널을 구독하고,
   Redis가 모든 구독자에게 뿌린다.
+
+### 5.1 인증 — 쿠키 `qm_access`의 access 토큰 (2026-09-27 구현 · 소유자 지시)
+
+> **옛 모양** — 2026-09-18 부터 `GET /api/v1/events?userId=`로 사용자를 그대로 받았다(임시 식별). **2026-09-27 에 쿠키로 바뀌었다** — `?userId=`는 없어졌고 줘도 보지 않는다.
+> "쿠키가 없으면 `?userId=`를 받는 개발용 스위치"(`../platform/CLAUDE.md` §5.1 (아))는 **두지 않았다** — 소유자가 그냥 바꾸라고 했다.
+> 규칙의 원본은 `../platform/CLAUDE.md` §5.1 · `../platform/contracts/platform-api.md` "공통" · "access 토큰"이다(P-2 · P-15 — docs/11 D-24 · D-26).
+
+- **"나"는 쿠키 `qm_access`의 access 토큰이다.** `EventSource`는 헤더를 못 붙이지만 같은 출처의 쿠키는 자동으로 싣는다 — 그래서 쿠키 방식이 SSE에 맞는다.
+  `Authorization` 헤더 · 쿼리 파라미터의 토큰은 받지 않는다(`security/CookieBearerTokenResolver` — `/api/v1/` 밖의 경로에서는 쿠키도 집지 않는다).
+- **검증만 한다 — 서명은 `platform`만 한다(RS256).** 이 서비스는 개인 키를 받지도 읽지도 않는다. 검증하는 것 — 서명 · `exp` · **`iss` = `queuemate-platform`** · **`token_use` = `access`**(소셜 가입 대기 토큰 `social_signup`도 같은 키로 서명되므로 반드시 본다) · **`sub`가 사용자 번호의 숫자 문자열**(`^[0-9]{1,19}$`) (`security/JwtConfig` — `platform`의 `JwtConfig#jwtDecoder`와 같은 모양).
+  **토큰의 `sub`가 곧 채널 `qm:pubsub:push:{userId}`의 `userId`다**(`EventStreamController`가 `@AuthenticationPrincipal Jwt`에서 꺼낸다).
+- **고정값은 `security/TokenClaims`에 베껴 두었다 — 원본은 `platform`의 `common/security/TokenClaims`다.** 채널 접두사(§3)와 같은 위험이다 — 여기서만 바꾸면 모든 연결이 401이 된다. 바꿀 때는 `platform`과 같이 바꾼다.
+- **공개 키** — 환경변수 **`JWT_PUBLIC_KEY`**(X.509 PEM — 운영은 이것. Secrets Manager. 줄바꿈이 글자 `\n`으로 들어와도 읽는다)가 먼저이고, 비어 있으면 **`JWT_PUBLIC_KEY_FILE`**의 파일을 읽는다.
+  파일의 기본값은 **`../../platform/backend/.dev-keys/public.pem`**(`backend/`에서 띄울 때의 상대 경로 — `platform`이 처음 뜰 때 만드는 개발용 공개 키다).
+  **둘 다 없으면 기동하지 않는다**(`security/JwtPublicKey`) — 인증 없이 뜨면 아무나 남의 알림을 받는다. `platform`과 달리 키를 새로 만들지 않는다(여기서 만든 키로는 `platform`의 토큰을 검증할 수 없다). **로컬에서는 `platform`을 한 번 띄워 키를 만든 뒤에 이 서비스를 띄운다.** JWKS 엔드포인트는 없다.
+- **실패는 전부 같은 401이다** — `{"code":"UNAUTHENTICATED","message":"로그인이 필요합니다","details":[]}`(`platform`과 같은 본문 — `security/ApiAuthenticationEntryPoint`). 쿠키가 없든 · 만료됐든 · 서명이 틀리든 · `token_use`가 다르든 같다. **거절되면 구독도 연결도 생기지 않는다.**
+- **연결할 때만 검증한다** — 열린 연결은 토큰이 만료돼도 끊지 않는다. 재접속이 401로 멈추면(`EventSource`는 200이 아닌 응답에 재접속을 멈춘다) 프런트가 재발급(`platform`의 `POST /api/v1/auth/refresh`)한 뒤 `EventSource`를 새로 만든다 — 서버 쪽 장치는 없다(`../platform/CLAUDE.md` §5.1 (바)).
+- **stateless** — 세션을 만들지 않고 Spring의 CSRF 필터 · 폼 로그인 · 기본 로그아웃을 끈다(`security/SecurityConfig`). **ASYNC · ERROR 디스패치는 열어 두었다** — SSE는 서블릿 비동기라 연결이 끝날 때 ASYNC 디스패치가 한 번 더 도는데, 이미 인증을 통과한 요청의 뒷부분이다.
+  **`/health/**` · `/info`는 인증 없이 열려 있다 — 다만 이 서비스에는 아직 actuator가 없어 그 경로는 404다**(자리만 둔 것이다).
+- **`Origin` 검사도 넣었다**(`web/OriginCheckFilter` — `platform`과 같은 모양 · 설정 `ALLOWED_ORIGINS` 기본값 `http://localhost:5173,http://localhost:3000`). POST/PUT/PATCH/DELETE에 허용 목록에 없는 `Origin`이면 403 `ORIGIN_NOT_ALLOWED`이고 `Origin`이 없으면 통과한다.
+  **지금은 걸릴 요청이 없다** — 엔드포인트가 GET 하나다. 나중에 상태를 바꾸는 요청이 생겨도 빠뜨리지 않게 미리 넣어 두었다. **CORS 설정은 넣지 않는다**(프런트 개발 서버의 프록시 — `../platform/CLAUDE.md` §5.1 (사)).
+- **테스트** — 테스트가 도는 동안만 있는 키 쌍을 만들어 공개 키를 `@DynamicPropertySource`로 넣고 개인 키로 토큰을 찍는다(`test/…/security/TestTokens`). 개인 키는 저장소에 없다. **새 `@SpringBootTest`에는 `TestTokens.register`를 부르는 `@DynamicPropertySource`를 꼭 붙인다** — 없으면 공개 키가 없어 컨텍스트가 뜨지 않는다.
 
 ## 6. 배포 기준
 
@@ -174,10 +197,10 @@ SSE 이고 보내는 쪽은 `app:room`의 REST `POST`였다(`matching` docs/11 D
 | 항목 | 상황 |
 |---|---|
 | 알림 종류의 수 | 방 쪽이 새 알림 `type` 다섯(`ROOM_MEMBER_ENTERED` · `ROOM_MEMBER_LEFT` · `ROOM_CLOSED` · `ROOM_MEMBER_KICKED` · `ROOM_CONFIRMED`)을 발행한다(`matching` docs/11 D-21). 발행하던 `room` 앱이 2026-09-25 에 `platform`에 합쳐져 **지금은 `platform`의 `room` 패키지가 발행하고, 계약은 `../platform/contracts/platform-api.md` "방" 의 "알림"이다**(옛 `../room/contracts/room-api.md` "알림"은 합치기 전의 기록이다). **§3의 "전체 SSE 계약은 15종"이 어떻게 달라지는지는 계약 원본에서 정할 일이라 여기서 고치지 않았다** — 그 다섯이 `PARTY_*`와 같은 뜻인지에 달려 있다. **이 서비스의 코드는 바뀌지 않는다** — `type`을 열어 보지 않고 그대로 흘려보낸다 |
-| 인증 | **방식은 쿠키로 정해졌다 (`matching` docs/11 D-14). 이 서비스의 구현은 아직이다 — 해야 한다.** access 토큰은 쿠키로 오는 JWT이고 브라우저가 SSE 연결에도 자동으로 붙인다. 처음에 적은 미정 넷 — ① 검증하는 방법 ② 토큰이 없거나 만료됐을 때 ③ `?userId=` 전환 ④ 로컬 CORS — 은 **`platform` 쪽 소유자 결정으로 정해졌다**(2026-09-21 ~ 2026-09-23 — 원본은 `../platform/CLAUDE.md` §5.1 · `../platform/contracts/platform-api.md` "공통" · "access 토큰" · P-2 · P-15. 세부는 거기를 본다). **① 검증** — RS256. 서명(개인 키)은 `platform`만 하고 이 서비스는 **공개 키로 검증만** 한다. 공개 키는 환경변수 **`JWT_PUBLIC_KEY`**(X.509 PEM)로 받는다(로컬은 `platform`이 만든 `../platform/backend/.dev-keys/public.pem`). JWKS 엔드포인트는 없다. 쿠키 이름은 **`qm_access`**, `iss`는 `queuemate-platform`이고 **`token_use`가 `access`인지 반드시 본다**(값은 `access` · `social_signup` 둘이다 — 입장권 `room_ticket`은 2026-09-25 에 없어졌다). `sub`는 사용자 번호의 십진 문자열이다(`"42"`). access 15분 · refresh 7일이고 **access denylist는 없다** — 이 서비스는 Redis를 조회하지 않고 스스로 검증한다. **② 만료** — **연결할 때만** 검증하고 열린 연결은 토큰이 만료돼도 끊지 않는다. 재접속이 401로 멈추면 프런트가 재발급한 뒤 `EventSource`를 새로 만든다 — 서버 쪽 장치는 두지 않는다(§5.1 (바)). **③ 전환** — 토큰의 `sub`가 `?userId=`를 대신한다. 순서는 **`notification` → `matching`**이고(맨 앞이던 `room`은 `platform`에 합치며 끝났다) 쿠키가 없으면 `userId`를 받는 개발용 스위치를 잠깐 남겨도 되지만 임시로 표시하고 운영에서는 끈다(§5.1 (아)). **④ CORS** — 서비스에 CORS 설정을 넣지 않는다. 프런트 개발 서버의 프록시가 경로별로 나눠 보낸다(운영이 같은 출처라서다 — §5.1 (사)). `Origin` 검사(§5.1 (다))는 POST/PUT/PATCH/DELETE에 거는 것이다. **남은 것** — 이 서비스에 위를 실제로 붙이는 작업(아직 안 했다) |
+| ~~인증~~ | **2026-09-27 에 구현했다 — 이 파일 §5.1.** 아래는 구현 전의 기록이다(이 행의 "§5.1 (가) ~ (아)"는 `../platform/CLAUDE.md`의 절이다). **방식은 쿠키로 정해졌다 (`matching` docs/11 D-14). 이 서비스의 구현은 아직이다 — 해야 한다.** access 토큰은 쿠키로 오는 JWT이고 브라우저가 SSE 연결에도 자동으로 붙인다. 처음에 적은 미정 넷 — ① 검증하는 방법 ② 토큰이 없거나 만료됐을 때 ③ `?userId=` 전환 ④ 로컬 CORS — 은 **`platform` 쪽 소유자 결정으로 정해졌다**(2026-09-21 ~ 2026-09-23 — 원본은 `../platform/CLAUDE.md` §5.1 · `../platform/contracts/platform-api.md` "공통" · "access 토큰" · P-2 · P-15. 세부는 거기를 본다). **① 검증** — RS256. 서명(개인 키)은 `platform`만 하고 이 서비스는 **공개 키로 검증만** 한다. 공개 키는 환경변수 **`JWT_PUBLIC_KEY`**(X.509 PEM)로 받는다(로컬은 `platform`이 만든 `../platform/backend/.dev-keys/public.pem`). JWKS 엔드포인트는 없다. 쿠키 이름은 **`qm_access`**, `iss`는 `queuemate-platform`이고 **`token_use`가 `access`인지 반드시 본다**(값은 `access` · `social_signup` 둘이다 — 입장권 `room_ticket`은 2026-09-25 에 없어졌다). `sub`는 사용자 번호의 십진 문자열이다(`"42"`). access 15분 · refresh 7일이고 **access denylist는 없다** — 이 서비스는 Redis를 조회하지 않고 스스로 검증한다. **② 만료** — **연결할 때만** 검증하고 열린 연결은 토큰이 만료돼도 끊지 않는다. 재접속이 401로 멈추면 프런트가 재발급한 뒤 `EventSource`를 새로 만든다 — 서버 쪽 장치는 두지 않는다(§5.1 (바)). **③ 전환** — 토큰의 `sub`가 `?userId=`를 대신한다. 순서는 **`notification` → `matching`**이고(맨 앞이던 `room`은 `platform`에 합치며 끝났다) 쿠키가 없으면 `userId`를 받는 개발용 스위치를 잠깐 남겨도 되지만 임시로 표시하고 운영에서는 끈다(§5.1 (아)). **④ CORS** — 서비스에 CORS 설정을 넣지 않는다. 프런트 개발 서버의 프록시가 경로별로 나눠 보낸다(운영이 같은 출처라서다 — §5.1 (사)). `Origin` 검사(§5.1 (다))는 POST/PUT/PATCH/DELETE에 거는 것이다. **남은 것** — 이 서비스에 위를 실제로 붙이는 작업(아직 안 했다) → **2026-09-27 에 했다(§5.1). 개발용 스위치는 두지 않았다.** |
 
 정해진 것 (2026-09-18): 엔드포인트 경로는 **`GET /api/v1/events`**다. 인증이 **구현될** 때까지 `userId`를
-쿼리 파라미터로 그대로 받는다 — 인증이 붙으면 이 파라미터는 없어진다(2026-09-26 현재 아직 받는다 — 위 "인증"의 ③). 계약 원본의
+쿼리 파라미터로 그대로 받았다 — **2026-09-27 에 인증이 붙어 이 파라미터는 없어졌다**(§5.1 — 쿠키 `qm_access`의 `sub`가 대신한다). 계약 원본의
 `contracts/openapi.yaml`에는 이 경로가 아직 없다.
 
 ## 8. 저장소 구성과 커밋 규칙
@@ -192,6 +215,14 @@ queuemate/
 ├── room/           room 브랜치 — 옛 app:room. 2026-09-25 에 platform 에 합쳐졌고 합치기 전의 기록으로 남는다(태그 pre-room-merge)
 └── notification/   notification 브랜치 (이 폴더)
     └── backend/    스프링 앱. matching/backend/ 와 같은 모양이다
+        └── src/main/java/com/queuemate/notification/
+            ├── controller/   EventStreamController — GET /api/v1/events (쿠키의 sub 가 "나")
+            ├── sse/          연결 목록 · 하트비트 · 재접속 대기 · 종료
+            ├── subscription/ 사용자 채널 · 게시판 채널 구독과 리스너
+            ├── redisKeys/    채널 이름 상수(원본은 matching · platform)
+            ├── config/       Redis 구독 컨테이너 · 전송 풀
+            ├── security/     access 토큰 검증 — 공개 키 · JwtDecoder · 쿠키 리졸버 · 401 · 보안 설정 (2026-09-27, §5.1)
+            └── web/          Origin 검사 · 에러 본문 (2026-09-27, §5.1)
 ```
 
 커밋은 `matching`과 같은 AngularJS commit convention을 따른다. 형식: `type(scope): subject`
@@ -253,4 +284,5 @@ queuemate/
 - 채널 접두사를 `matching`과 따로 바꾸기
 - Redis 리스너 스레드에서 직접 전송
 - k8s/HPA/sticky session 전제 구현
+- 인증(§5.1)에서 — 개인 키를 들이거나 서명하기, jjwt 등 다른 JWT 라이브러리 · `oauth2-client` · JWKS 엔드포인트, **`token_use`를 안 보고 토큰 받기**, `security/TokenClaims`의 값을 `platform`과 따로 바꾸기, **`?userId=`를 되살리거나 "쿠키가 없으면 `?userId=`" 개발 스위치 두기**, 공개 키 없이 뜨게 하기
 - 포트 6379 / `queuemate-v2-*` 컨테이너 조작, 띄워 놓고 안 끈 `bootRun`
