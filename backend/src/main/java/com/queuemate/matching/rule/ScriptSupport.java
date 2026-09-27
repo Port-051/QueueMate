@@ -3,7 +3,6 @@ package com.queuemate.matching.rule;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -65,22 +64,10 @@ public final class ScriptSupport {
         return ((Number) result.get(0)).longValue();
     }
 
-    /** 스크립트가 {@code {code, HKEYS 결과, ...}} 로 돌려준 결과에서 참가자 userId 만 뽑는다. */
     public static  List<String> memberIds(List<Object> candidate)
     {
         @SuppressWarnings("unchecked")
         List<String> fields = (List<String>) candidate.get(1);
-        return memberIdsFromFields(fields);
-    }
-
-    /**
-     * 파티 HASH 의 필드 이름 목록에서 참가자 userId 만 뽑는다.
-     *
-     * <p>스크립트 결과가 아니라 자바가 직접 읽은 HASH({@code HKEYS} / {@code HGETALL})에 쓴다 —
-     * 확정 직전 차단 검증({@code block/PartyBlockCheck})이 그 자리다. {@code member:} 접두사를 아는 곳을
-     * 여기 하나로 두려고 {@link #memberIds} 와 같은 규칙을 공유한다.
-     */
-    public static List<String> memberIdsFromFields(Collection<String> fields) {
         return fields.stream()
                 .filter(field -> field.startsWith(MEMBER_FIELD_PREFIX))
                 // userId 는 요청 바디로 받는 자유 문자열이라 콜론이 들어갈 수 있다.

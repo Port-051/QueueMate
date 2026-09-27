@@ -77,8 +77,7 @@ public class ProposalController {
 
             case NOT_A_MEMBER -> forbidden(proposalId);
 
-            // 제안이 없다 — 정원 미달 · 만료 · 다른 참가자의 거절, 그리고 **파티원 사이에 차단이 있어
-            // 서버가 제안을 깬 경우**(INV-6, ProposalService#accept)도 여기다. 클라이언트가 할 일은
+            // 제안이 없다 — 정원 미달 · 만료 · 다른 참가자의 거절. 클라이언트가 할 일은
             // 전부 같다 (대기 화면 복귀 후 상태 조회)
             case NOT_FOUND -> notFound(proposalId);
         };

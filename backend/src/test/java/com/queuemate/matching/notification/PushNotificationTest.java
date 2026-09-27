@@ -3,12 +3,10 @@ package com.queuemate.matching.notification;
 import com.queuemate.matching.concurrency.ConcurrencyTestSupport;
 import com.queuemate.matching.domain.CancelResult;
 import com.queuemate.matching.domain.GameKey;
-import com.queuemate.matching.domain.ProposalResult;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
 import com.queuemate.matching.rule.CandidateRule;
 import com.queuemate.matching.service.MatchCancelService;
 import com.queuemate.matching.service.MatchRequestService;
-import com.queuemate.matching.service.ProposalService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -18,7 +16,6 @@ import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.listener.PatternTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
-import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
@@ -74,10 +71,6 @@ class PushNotificationTest extends ConcurrencyTestSupport {
     private MatchCancelService matchCancelService;
     @Autowired
     private List<CandidateRule> candidateRules;
-    @Autowired
-    private ProposalService proposalService;
-    @Autowired
-    private JdbcTemplate jdbc;
 
     private RedisMessageListenerContainer container;
 
@@ -97,8 +90,6 @@ class PushNotificationTest extends ConcurrencyTestSupport {
         inbox.clear();
         received.clear();
         probes.clear();
-        // 차단 행은 컨텍스트가 재사용되는 동안 남는다. 다른 테스트의 차단이 여기 파티를 깨지 않게 비운다
-        jdbc.update("delete from blocks");
 
         container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
@@ -320,34 +311,6 @@ class PushNotificationTest extends ConcurrencyTestSupport {
         assertThat(channelsSeen()).containsExactlyInAnyOrder(channel("u1"), channel("u2"));
     }
 
-    @Test
-    @DisplayName("파티원 사이에 차단이 있어 수락이 제안을 깨면 MATCH_PROPOSAL_EXPIRED 가 그 제안의 전원에게 간다 (INV-6)")
-    void blockedPairBreakingAProposalNotifiesEveryFormerMember() throws InterruptedException {
-        // 차단 테이블을 실제로 묻게 하려면 사용자 번호여야 한다 (PartyBlockCheck — 숫자가 아니면 건너뛴다)
-        enqueue(command("101", "RANKED_SOLO", "TOP"));
-        awaitPush("101");
-        enqueue(command("102", "RANKED_SOLO", "JUNGLE"));
-        String partyId = partyIdOf("102");
-        assertThat(partyId).isNotBlank();
-        awaitPush("101");
-        awaitPush("102");
-        drain();
-
-        // 파티가 찬 뒤에 생긴 차단이라 배정 경로의 선필터는 볼 수 없었다
-        jdbc.update("insert into blocks(id, blocker_id, blocked_id) values (?, ?, ?)", 1L, 101L, 102L);
-
-        assertThat(proposalService.accept(partyId, "101")).isEqualTo(ProposalResult.NOT_FOUND);
-
-        // 취소가 먼저 돌며 남아 있던 쪽에 MATCH_CANCELLED 가 한 번 갈 수 있다(leave-party.lua). 그것은 순서에
-        // 따라 누구에게 가는지가 다르므로 여기서 세지 않고, 만료 알림이 둘 모두에게 왔는지만 본다 —
-        // 뜻이 "이 제안은 없어졌다. 상태를 다시 조회해라" 라 만료와 같은 종류를 쓴다
-        for (String userId : List.of("101", "102")) {
-            Map<String, Object> envelope = awaitPushOfType(userId, PushEventType.MATCH_PROPOSAL_EXPIRED);
-            assertThat(payload(envelope)).as("%s 가 받은 payload", userId).containsEntry("partyId", partyId);
-        }
-        assertThat(channelsSeen()).containsExactlyInAnyOrder(channel("101"), channel("102"));
-    }
-
     // ── 요청을 넣는 길 ───────────────────────────────────────────────────────
 
     /** 활성 요청을 만들고 배정까지 태운다. 컨트롤러가 하는 두 단계와 같다 */
@@ -412,18 +375,6 @@ class PushNotificationTest extends ConcurrencyTestSupport {
                 .poll(ARRIVAL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         assertThat(envelope).as("%s 채널로 알림이 오지 않았다", userId).isNotNull();
         return envelope;
-    }
-
-    /** 그 종류의 알림이 올 때까지 이 사용자 수신함을 비운다. 다른 종류는 지나가고, 시간 안에 안 오면 실패다 */
-    private Map<String, Object> awaitPushOfType(String userId, PushEventType type) throws InterruptedException {
-        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(ARRIVAL_TIMEOUT_MS);
-        while (System.nanoTime() < deadline) {
-            Map<String, Object> envelope = queueOf(channel(userId)).poll(100, TimeUnit.MILLISECONDS);
-            if (envelope != null && type.name().equals(type(envelope))) {
-                return envelope;
-            }
-        }
-        throw new AssertionError(userId + " 채널로 " + type + " 가 오지 않았다");
     }
 
     /**
