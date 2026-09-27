@@ -582,7 +582,7 @@ test('티어 범위는 두 번째 선택에 바로 적용하고 한 번만 선�
   await expect(trigger).toHaveText('모든 티어');
 });
 
-test('방 필터는 모드·시간·모집 상태를 묶고 기존 선택기 크기를 유지하며 간격을 줄인다', async ({ page }) => {
+test('방 필터는 높이 64px로 정렬하고 선택기와 모집 상태를 같은 영역에 묶는다', async ({ page }) => {
   await login(page);
   const filters = page.locator('.room-filters');
   const modes = page.getByRole('group', { name: '찾는 큐 타입', exact: true });
@@ -600,11 +600,16 @@ test('방 필터는 모드·시간·모집 상태를 묶고 기존 선택기 크
     const a = (await board.boundingBox())!;
     const b = (await sidebar.boundingBox())!;
     expect(Math.abs(a.width - b.width)).toBeLessThan(1);
-    expect(Math.abs(a.height - b.height)).toBeLessThan(1);
+    expect(a.height).toBe(64);
   }
   const primary = filters.locator('.room-filter-primary');
   await expect(primary.getByRole('group', { name: '방 시작 시간', exact: true })).toBeVisible();
   await expect(primary.getByRole('checkbox', { name: '모집 중인 방만', exact: true })).toBeVisible();
+  for (const control of [primary.getByRole('group', { name: '방 시작 시간', exact: true }), primary.locator('.room-open-filter')]) {
+    const bounds = (await control.boundingBox())!;
+    expect(bounds.height).toBe(64);
+    expect(Math.abs(bounds.y - modeBounds.y)).toBeLessThan(1);
+  }
   const primaryFit = await primary.evaluate(element => ({ width: element.clientWidth, content: element.scrollWidth, gap: getComputedStyle(element).gap }));
   expect(primaryFit.content).toBeLessThanOrEqual(primaryFit.width);
   expect(primaryFit.gap).toBe('8px');

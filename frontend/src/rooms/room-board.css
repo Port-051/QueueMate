@@ -25,15 +25,23 @@
 .room-home.has-active-room .room-home-layout { grid-template-columns:minmax(320px,.8fr) minmax(430px,1.2fr); }
 .room-board { min-width:0; }
 .room-conversation-rail { min-width:0; position:sticky; top:28px; }
-.room-home .room-filters { display:grid; gap:8px; margin:0 0 16px; padding:0; border:none; background:none; }
+.room-home .room-filters {
+  --room-control-height:64px;
+  --room-filter-height:64px;
+  --room-option-height:calc(var(--room-control-height) - var(--room-selector-inset) * 2 - 2px);
+  display:grid; gap:8px; margin:0 0 16px; padding:0; border:none; background:none;
+}
 .room-filter-primary { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 .room-filter-primary .board-mode-options { width:var(--room-rail-content-width); max-width:100%; flex:none; }
 .room-home .room-time-filter { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); flex:none; }
 .room-home .room-time-filter>button { padding-inline:14px; font-size:14px; }
 .room-time-filter>button:is([aria-pressed=true],:hover) { color:#f4f1fa; }
 .room-time-filter>button:focus-visible { outline:2px solid #bda4ff; outline-offset:-2px; }
-.room-open-filter { display:flex; align-items:center; gap:7px; padding:10px 4px; color:#b6a9c5; font-size:13px; white-space:nowrap; cursor:pointer; }
-.room-open-filter input { flex:none; width:15px; height:15px; margin:0; accent-color:#9b78e9; cursor:pointer; }
+.room-open-filter { display:flex; flex:none; align-items:center; justify-content:center; gap:8px; height:var(--room-control-height); padding:0 16px; border:1px solid var(--line); border-radius:999px; background:transparent; color:#b6a9c5; font-size:14px; white-space:nowrap; cursor:pointer; }
+.room-open-filter:hover { background:#ffffff09; color:#f4f1fa; }
+.room-open-filter:has(input:checked) { border-color:#9b78e9; background:#9b78e91c; color:#e3d3ff; }
+.room-open-filter:has(input:focus-visible) { outline:2px solid #bda4ff; outline-offset:2px; }
+.room-open-filter input { flex:none; width:16px; height:16px; margin:0; accent-color:#9b78e9; cursor:pointer; }
 .room-home .room-filters .board-filter-line { flex-wrap:nowrap; gap:8px; overflow-x:auto; padding:0; border-bottom:0; }
 .room-home .room-filters .filter-reset { margin-left:auto; width:32px; height:32px; }
 .room-deck-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); column-gap:26px; row-gap:42px; }
@@ -334,6 +342,7 @@
 /* Board and rail share the same controls; only their placement differs. */
 .room-home .board-setting-filter { width:var(--room-setting-width); }
 .room-home .board-role-filter { grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:64px; width:auto; }
+.room-home .room-filters .board-role-filter { padding-block:0; }
 
 /* Keep a single highlight mounted and translate it between the selected items. */
 .room-home .sliding-selector { position:relative; isolation:isolate; }
