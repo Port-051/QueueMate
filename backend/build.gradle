@@ -19,10 +19,16 @@ repositories {
 
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	// 인증 — platform 이 서명한 access 토큰(쿠키 qm_access · JWT RS256)을 공개 키로 검증만 한다(NimbusJwtDecoder).
+	// 개인 키 · 서명 · jjwt 같은 다른 JWT 라이브러리 · oauth2-client 는 들이지 않는다 (CLAUDE.md §7.2 "인증" · ../platform/CLAUDE.md §5.1 (가))
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-redis-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testCompileOnly 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
