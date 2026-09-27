@@ -26,13 +26,13 @@
 .room-board { min-width:0; }
 .room-conversation-rail { min-width:0; position:sticky; top:28px; }
 .room-home .room-filters {
-  --room-control-height:64px;
-  --room-filter-height:64px;
+  --room-control-height:44px;
+  --room-filter-height:44px;
   --room-option-height:calc(var(--room-control-height) - var(--room-selector-inset) * 2 - 2px);
-  display:grid; gap:8px; margin:0 0 16px; padding:0; border:none; background:none;
+  display:grid; grid-template-columns:minmax(0,1fr); gap:8px; margin:0 0 16px; padding:0; border:none; background:none;
 }
 .room-filter-primary { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
-.room-filter-primary .board-mode-options { width:var(--room-rail-content-width); max-width:100%; flex:none; }
+.room-filter-primary .board-mode-options { width:fit-content; max-width:100%; flex:none; overflow-x:auto; scrollbar-width:none; }
 .room-home .room-time-filter { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); flex:none; }
 .room-home .room-time-filter>button { padding-inline:14px; font-size:14px; }
 .room-time-filter>button:is([aria-pressed=true],:hover) { color:#f4f1fa; }
@@ -339,10 +339,15 @@
 }
 .room-home .intro-role-options>.filter-role[aria-pressed=true] { border-color:var(--accent); }
 
-/* Board and rail share the same controls; only their placement differs. */
-.room-home .board-setting-filter { width:var(--room-setting-width); }
-.room-home .board-role-filter { grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:64px; width:auto; }
-.room-home .room-filters .board-role-filter { padding-block:0; }
+/* Board filters place each icon beside its label in compact capsules. */
+.room-home .board-setting-filter { width:160px; }
+.room-home .board-setting-filter:has(.tier-range-picker) { width:248px; }
+.room-home .room-filters .room-mode-options { display:flex; }
+.room-home .room-filters .filter-mode { flex:none; flex-direction:row; gap:5px; padding:3px 8px; white-space:nowrap; }
+.room-home .room-filters .room-setting-row .intro-voice-options.is-binary>.filter-mode { min-width:0; flex-direction:row; gap:5px; padding:3px 8px; }
+.room-home .room-filters .board-role-filter { display:flex; width:auto; padding:0; }
+.room-home .room-filters .board-role-filter>.filter-role { flex-direction:row; aspect-ratio:auto; width:auto; height:var(--room-control-height); padding:0 8px; gap:5px; border-radius:999px; }
+.room-home .room-filters .tier-range-trigger-content { padding-inline:8px; gap:6px; }
 
 /* Keep a single highlight mounted and translate it between the selected items. */
 .room-home .sliding-selector { position:relative; isolation:isolate; }

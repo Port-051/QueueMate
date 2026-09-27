@@ -582,7 +582,7 @@ test('티어 범위는 두 번째 선택에 바로 적용하고 한 번만 선�
   await expect(trigger).toHaveText('모든 티어');
 });
 
-test('방 필터는 높이 64px로 정렬하고 선택기와 모집 상태를 같은 영역에 묶는다', async ({ page }) => {
+test('방 필터는 아이콘과 이름을 한 줄에 배치하고 높이 44px로 정렬한다', async ({ page }) => {
   await login(page);
   const filters = page.locator('.room-filters');
   const modes = page.getByRole('group', { name: '찾는 큐 타입', exact: true });
@@ -590,24 +590,21 @@ test('방 필터는 높이 64px로 정렬하고 선택기와 모집 상태를 �
   const filterBounds = (await filters.locator('.board-filter-line').boundingBox())!;
   expect(Math.abs(modeBounds.x - filterBounds.x)).toBeLessThan(1);
   expect(modeBounds.y + modeBounds.height).toBeLessThan(filterBounds.y);
-  const rail = page.getByRole('region', { name: '빠른 연결', exact: true });
-  for (const [board, sidebar] of [
-    [modes, rail.getByRole('group', { name: '원하는 큐 타입', exact: true })],
-    [filters.getByRole('group', { name: '포지션', exact: true }).getByRole('button', { name: '탑', exact: true }), rail.locator('.intro-role-options[aria-label="찾는 포지션"]').getByRole('button', { name: '탑', exact: true })],
-    [filters.getByRole('group', { name: '마이크 필터', exact: true }), rail.getByRole('group', { name: '음성', exact: true })],
-    [filters.getByRole('button', { name: '모집 티어 범위', exact: true }), rail.getByRole('button', { name: '찾는 티어 범위', exact: true })],
+  for (const board of [
+    modes,
+    filters.getByRole('group', { name: '포지션', exact: true }).getByRole('button', { name: '탑', exact: true }),
+    filters.getByRole('group', { name: '마이크 필터', exact: true }),
+    filters.getByRole('button', { name: '모집 티어 범위', exact: true }),
   ]) {
     const a = (await board.boundingBox())!;
-    const b = (await sidebar.boundingBox())!;
-    expect(Math.abs(a.width - b.width)).toBeLessThan(1);
-    expect(a.height).toBe(64);
+    expect(a.height).toBe(44);
   }
   const primary = filters.locator('.room-filter-primary');
   await expect(primary.getByRole('group', { name: '방 시작 시간', exact: true })).toBeVisible();
   await expect(primary.getByRole('checkbox', { name: '모집 중인 방만', exact: true })).toBeVisible();
   for (const control of [primary.getByRole('group', { name: '방 시작 시간', exact: true }), primary.locator('.room-open-filter')]) {
     const bounds = (await control.boundingBox())!;
-    expect(bounds.height).toBe(64);
+    expect(bounds.height).toBe(44);
     expect(Math.abs(bounds.y - modeBounds.y)).toBeLessThan(1);
   }
   const primaryFit = await primary.evaluate(element => ({ width: element.clientWidth, content: element.scrollWidth, gap: getComputedStyle(element).gap }));
@@ -629,11 +626,11 @@ test('방 필터는 높이 64px로 정렬하고 선택기와 모집 상태를 �
       const rect = control.getBoundingClientRect();
       return { centerY: rect.y + rect.height / 2, right: rect.right };
     });
-    const choices = Array.from(line.querySelectorAll('.filter-mode,.filter-role,.room-rank')).map(choice => {
+    const choices = Array.from(element.querySelectorAll('.filter-mode,.filter-role,.tier-range-endpoint')).map(choice => {
       const icon = choice.querySelector('.rank-emblem,svg,img')!.getBoundingClientRect();
       const label = choice.querySelector(':scope > strong,:scope > span:last-child')!;
       const rect = label.getBoundingClientRect();
-      return { stacked: icon.bottom <= rect.top, clipped: label.scrollWidth > label.clientWidth };
+      return { inline: icon.right <= rect.left, centered: Math.abs(icon.y + icon.height / 2 - rect.y - rect.height / 2) < 1, clipped: label.scrollWidth > label.clientWidth };
     });
     return { right: bounds.right, controls, choices };
   });
@@ -643,7 +640,8 @@ test('방 필터는 높이 64px로 정렬하고 선택기와 모집 상태를 �
     expect(control.right).toBeLessThanOrEqual(layout.right + 1);
   }
   for (const choice of layout.choices) {
-    expect(choice.stacked).toBe(true);
+    expect(choice.inline).toBe(true);
+    expect(choice.centered).toBe(true);
     expect(choice.clipped).toBe(false);
   }
   const mic = filters.getByRole('group', { name: '마이크 필터', exact: true });
