@@ -392,21 +392,25 @@ test('5인 방의 방장이 나가도 그 포지션을 다시 빈자리로 표�
 });
 
 test('예약 방은 과거 시간을 거절하고 미래 시간으로 만든 즉시 채팅할 수 있다', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-09-27T03:30:00Z'));
   await login(page);
   const composer = page.getByRole('region', { name: '빠른 연결', exact: true });
   await composer.getByRole('button', { name: '시간 선택', exact: true }).click();
   await composer.getByLabel('한마디', { exact: true }).fill('조금 뒤에 다 같이');
   await selectFullLineup(composer);
-  await composer.getByLabel('시작 날짜', { exact: true }).fill('2000-01-01');
+  await composer.getByRole('button', { name: '시작 날짜', exact: true }).click();
+  const calendar = page.getByRole('dialog', { name: '시작 날짜 선택', exact: true });
+  await expect(calendar.getByRole('button', { name: '2026년 9월 26일 토요일', exact: true })).toBeDisabled();
+  await expect(calendar.getByRole('button', { name: '이전 달', exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  // A date can become past while the user keeps the form open.
+  await page.clock.setFixedTime(new Date('2026-09-27T10:30:00Z'));
   await composer.getByRole('button', { name: '방 만들기', exact: true }).click();
   await expect(composer.getByRole('alert')).toContainText('현재보다 뒤');
-  const next = await page.evaluate(() => {
-    const date = new Date(Date.now() + 2 * 60 * 60_000);
-    date.setMinutes(0, 0, 0);
-    return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-  });
-  await composer.getByLabel('시작 날짜', { exact: true }).fill(next.slice(0, 10));
-  await composer.getByLabel('시작 시각', { exact: true }).selectOption(next.slice(11, 13));
+  await composer.getByRole('button', { name: '시작 날짜', exact: true }).click();
+  await calendar.getByRole('button', { name: '2026년 9월 28일 월요일', exact: true }).click();
+  await expect(calendar).toHaveCount(0);
+  await composer.getByLabel('시작 시각', { exact: true }).selectOption('21');
   await expect(composer.getByLabel('시작 시각', { exact: true }).locator('option')).toHaveCount(24);
   await composer.getByRole('button', { name: '방 만들기', exact: true }).click();
   await page.getByRole('dialog', { name: '이대로 방을 만들까요?', exact: true }).getByRole('button', { name: '방 올리기', exact: true }).click();
@@ -415,6 +419,38 @@ test('예약 방은 과거 시간을 거절하고 미래 시간으로 만든 즉
   await page.getByRole('group', { name: '우측 영역 선택' }).getByRole('button', { name: /방 채팅/ }).click();
   await expect(page.getByRole('textbox', { name: '방에 메시지 보내기', exact: true })).toBeEnabled();
   await expect(deck).toHaveAttribute('data-status', 'OPEN');
+});
+
+test('시작 날짜 달력은 월 이동과 키보드 선택을 지원하고 좁은 화면에서도 잘리지 않는다', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-09-27T03:30:00Z'));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  const rail = page.getByRole('region', { name: '빠른 연결', exact: true });
+  await rail.getByRole('button', { name: '시간 선택', exact: true }).click();
+  const trigger = rail.getByRole('button', { name: '시작 날짜', exact: true });
+  await trigger.click();
+  const calendar = page.getByRole('dialog', { name: '시작 날짜 선택', exact: true });
+  const bounds = (await calendar.boundingBox())!;
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+  expect(bounds.y).toBeGreaterThanOrEqual(0);
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(844);
+  await calendar.getByRole('button', { name: '다음 달', exact: true }).click();
+  await expect(calendar.locator('header strong')).toHaveText('2026년 10월');
+  await calendar.getByRole('button', { name: '2026년 10월 27일 화요일', exact: true }).press('ArrowRight');
+  await expect(calendar.getByRole('button', { name: '2026년 10월 28일 수요일', exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(calendar).toHaveCount(0);
+  await expect(trigger).toContainText('10월 28일');
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await calendar.getByRole('button', { name: '2026년 10월 28일 수요일', exact: true }).press('ArrowLeft');
+  await page.keyboard.press('Escape');
+  await expect(trigger).toContainText('10월 28일');
+  await expect(trigger).toBeFocused();
+  await rail.getByRole('button', { name: '지금', exact: true }).click();
+  await expect(trigger).toHaveCount(0);
+  await expectNoPageOverflow(page);
 });
 
 test.describe('통합 방 시간', () => {
