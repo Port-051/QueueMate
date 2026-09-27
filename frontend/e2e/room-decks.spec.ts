@@ -582,18 +582,18 @@ test('티어 범위는 두 번째 선택에 바로 적용하고 한 번만 선�
   await expect(trigger).toHaveText('모든 티어');
 });
 
-test('게시판은 우측과 같은 선택기를 쓰고 상단 모드와 필터가 각각 한 줄을 유지한다', async ({ page }) => {
+test('방 필터는 모드·시간·모집 상태를 묶고 기존 선택기 크기를 유지하며 간격을 줄인다', async ({ page }) => {
   await login(page);
   const filters = page.locator('.room-filters');
   const modes = page.getByRole('group', { name: '찾는 큐 타입', exact: true });
   const modeBounds = (await modes.boundingBox())!;
-  const filterBounds = (await filters.boundingBox())!;
+  const filterBounds = (await filters.locator('.board-filter-line').boundingBox())!;
   expect(Math.abs(modeBounds.x - filterBounds.x)).toBeLessThan(1);
   expect(modeBounds.y + modeBounds.height).toBeLessThan(filterBounds.y);
   const rail = page.getByRole('region', { name: '빠른 연결', exact: true });
   for (const [board, sidebar] of [
     [modes, rail.getByRole('group', { name: '원하는 큐 타입', exact: true })],
-    [filters.getByRole('group', { name: '포지션', exact: true }), rail.locator('.intro-role-options[aria-label="찾는 포지션"]')],
+    [filters.getByRole('group', { name: '포지션', exact: true }).getByRole('button', { name: '탑', exact: true }), rail.locator('.intro-role-options[aria-label="찾는 포지션"]').getByRole('button', { name: '탑', exact: true })],
     [filters.getByRole('group', { name: '마이크 필터', exact: true }), rail.getByRole('group', { name: '음성', exact: true })],
     [filters.getByRole('button', { name: '모집 티어 범위', exact: true }), rail.getByRole('button', { name: '찾는 티어 범위', exact: true })],
   ]) {
@@ -602,6 +602,13 @@ test('게시판은 우측과 같은 선택기를 쓰고 상단 모드와 필터�
     expect(Math.abs(a.width - b.width)).toBeLessThan(1);
     expect(Math.abs(a.height - b.height)).toBeLessThan(1);
   }
+  const primary = filters.locator('.room-filter-primary');
+  await expect(primary.getByRole('group', { name: '방 시작 시간', exact: true })).toBeVisible();
+  await expect(primary.getByRole('checkbox', { name: '모집 중인 방만', exact: true })).toBeVisible();
+  const primaryFit = await primary.evaluate(element => ({ width: element.clientWidth, content: element.scrollWidth, gap: getComputedStyle(element).gap }));
+  expect(primaryFit.content).toBeLessThanOrEqual(primaryFit.width);
+  expect(primaryFit.gap).toBe('8px');
+  await expect(page.locator('.room-board-count')).toHaveCount(0);
   const trigger = filters.getByRole('button', { name: '모집 티어 범위', exact: true });
   const originalWidth = (await trigger.boundingBox())!.width;
   await trigger.click();
@@ -640,6 +647,51 @@ test('게시판은 우측과 같은 선택기를 쓰고 상단 모드와 필터�
   await filters.getByRole('button', { name: '초기화', exact: true }).click();
   await expect(trigger).toHaveText('모든 티어');
   await expect(mic.getByRole('button', { name: '마이크 사용', exact: true })).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('시작 시간과 모집 상태를 함께 필터링하고 초기화하면 전체 방으로 돌아온다', async ({ page }) => {
+  const later = new Date(Date.now() + 86_400_000).toISOString();
+  await seedRooms(page, [
+    room('now-open', [member('now-host')], { voice: 'REQUIRED' }),
+    room('now-closed', [member('closed-host')], { status: 'CONFIRMED' }),
+    room('later-open', [member('later-host')], { type: 'RESERVATION', availableFrom: later, voice: 'REQUIRED' }),
+    room('later-full', [member('full-host'), member('full-guest', { roles: ['TOP'] })], { type: 'RESERVATION', availableFrom: later, capacity: 2 }),
+    room('later-no-voice', [member('quiet-host')], { type: 'RESERVATION', availableFrom: later, voice: 'NO_VOICE' }),
+    room('past', [member('past-host')], { type: 'RESERVATION', availableFrom: new Date(Date.now() - 86_400_000).toISOString(), status: 'CONFIRMED' }),
+  ].map(value => ({ ...value, createdAt: 1 })));
+  await login(page);
+  const filters = page.getByRole('group', { name: '방 필터', exact: true });
+  const time = filters.getByRole('group', { name: '방 시작 시간', exact: true });
+  const openOnly = filters.getByRole('checkbox', { name: '모집 중인 방만', exact: true });
+  const mic = filters.getByRole('group', { name: '마이크 필터', exact: true });
+  const titles = page.locator('.room-deck h3');
+  await expect(titles).toHaveCount(6);
+  await time.getByRole('button', { name: '지금', exact: true }).click();
+  await expect(titles).toHaveText(['테스트 방 now-open', '테스트 방 now-closed']);
+  await openOnly.check();
+  await expect(titles).toHaveText(['테스트 방 now-open']);
+  await time.getByRole('button', { name: '나중', exact: true }).click();
+  await expect(titles).toHaveText(['테스트 방 later-open', '테스트 방 later-no-voice']);
+  await mic.getByRole('button', { name: '마이크 사용', exact: true }).click();
+  await expect(titles).toHaveText(['테스트 방 later-open']);
+  await expect(page.getByRole('group', { name: '시작 시간 선택', exact: true }).getByRole('button', { name: '지금', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await filters.getByRole('button', { name: '초기화', exact: true }).click();
+  await expect(titles).toHaveCount(6);
+  await expect(time.getByRole('button', { name: '전체', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(openOnly).not.toBeChecked();
+  await expect(mic.getByRole('button', { name: '마이크 사용', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  await time.getByRole('button', { name: '지금', exact: true }).click();
+  await openOnly.check();
+  await mic.getByRole('button', { name: '마이크 미사용', exact: true }).click();
+  await expect(titles).toHaveCount(0);
+  await page.getByRole('button', { name: '필터 초기화', exact: true }).click();
+  await expect(titles).toHaveCount(6);
+  await expect(openOnly).not.toBeChecked();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await time.getByRole('button', { name: '나중', exact: true }).click();
+  await expect(titles).toHaveCount(3);
+  await expect(openOnly).toBeVisible();
+  await expectNoPageOverflow(page);
 });
 
 test('우측 티어 범위를 보관하고 방 생성 시 빈자리 조건으로 이어진다', async ({ page }) => {

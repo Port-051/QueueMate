@@ -24,9 +24,10 @@ import '../styles/duo-home.css';
 import '../styles/matching-rail.css';
 import './room-board.css';
 
-type Filters = { modeKey: string; tierRange: TierRange; roles: string[]; voice: '' | 'REQUIRED' | 'NO_VOICE' };
+type Filters = { modeKey: string; tierRange: TierRange; roles: string[]; voice: '' | 'REQUIRED' | 'NO_VOICE'; start: 'ALL' | 'NOW' | 'LATER'; openOnly: boolean };
+const START_FILTERS = [{ value: 'ALL', label: '전체' }, { value: 'NOW', label: '지금' }, { value: 'LATER', label: '나중' }] as const;
 const roomActivity = (room: GameRoom | null) => room ? `${room.id}:${room.members.map(member => member.id).join(',')}:${room.messages.at(-1)?.id ?? ''}` : '';
-const defaults = (game: GameKey): Filters => ({ modeKey: game === 'LOL' ? 'NORMAL_DRAFT' : visibleModes(game)[0].key, tierRange: ALL_TIERS, roles: [], voice: '' });
+const defaults = (game: GameKey): Filters => ({ modeKey: game === 'LOL' ? 'NORMAL_DRAFT' : visibleModes(game)[0].key, tierRange: ALL_TIERS, roles: [], voice: '', start: 'ALL', openOnly: false });
 
 export function RoomBoardHome() {
   const { user, gameAccounts } = useAuth();
@@ -42,7 +43,6 @@ export function RoomBoardHome() {
   useEffect(() => { if (!exploring) setLastSeen(activity); }, [activity, exploring]);
   const [profileTarget, setProfileTarget] = useState<{ room: GameRoom; member: RoomMember } | null>(null);
   const showMember = (room: GameRoom, member: RoomMember) => setProfileTarget({ room, member });
-  const [openOnly, setOpenOnly] = useState(false);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   const finishEntrance = useCallback(() => setJustCreatedId(null), []);
   const previousGame = useRef(selectedGame);
@@ -69,7 +69,9 @@ export function RoomBoardHome() {
   }, [user, selectedGame, gameAccounts]);
   const filtered = rooms.filter(room => {
     if (room.game !== selectedGame || room.modeKey !== filters.modeKey) return false;
-    if (openOnly && (room.status !== 'OPEN' || room.members.length >= room.capacity)) return false;
+    if (filters.openOnly && (room.status !== 'OPEN' || room.members.length >= room.capacity)) return false;
+    if (filters.start === 'NOW' && room.type !== 'REALTIME') return false;
+    if (filters.start === 'LATER' && (room.type !== 'RESERVATION' || !room.availableFrom || Date.parse(room.availableFrom) <= Date.now())) return false;
     if (!tierRangesOverlap(selectedGame, filters.tierRange, room.desiredTierRange)) return false;
     if (filters.voice && roomVoice(room.voice) !== filters.voice) return false;
     return !filters.roles.length || !usesKeyCondition(selectedGame, room.modeKey)
@@ -77,25 +79,28 @@ export function RoomBoardHome() {
   }).sort((a, b) => b.createdAt - a.createdAt);
   const current = rooms.find(room => room.id === selected?.id);
   const run = (action: () => void) => { try { action(); } catch (error) { toast(error instanceof Error ? error.message : '다시 시도해 주세요.', 'error'); } };
-  const canReset = filters.tierRange.minTier || filters.tierRange.maxTier || filters.roles.length || filters.voice !== '';
+  const canReset = filters.tierRange.minTier || filters.tierRange.maxTier || filters.roles.length || filters.voice !== '' || filters.start !== 'ALL' || filters.openOnly;
+  const resetFilters = () => setFilters({ ...defaults(selectedGame), modeKey: filters.modeKey });
 
   return <div className={`room-home board-home${activeRoom ? ' has-active-room' : ''}${exploring ? ' is-exploring' : ''}`}>
-    <header className="room-home-heading">
-      <SlidingSelector className="intro-mode-options room-mode-options board-mode-options" role="group" aria-label="찾는 큐 타입">{visibleModes(selectedGame).map(mode => <button type="button" className="filter-mode" aria-label={mode.label} aria-pressed={filters.modeKey === mode.key} key={mode.key} onClick={() => setFilters({ ...filters, modeKey: mode.key, roles: [] })}><FilterModeIcon mode={mode.key} /><span>{mode.label}</span></button>)}</SlidingSelector>
-    </header>
     <div className="room-home-layout"><section className="room-board" aria-label="방 목록">
-      <div className="board-filter-bar room-filters"><div className="board-filter-line">
+      <div className="board-filter-bar room-filters" role="group" aria-label="방 필터">
+        <div className="room-filter-primary">
+          <SlidingSelector className="intro-mode-options room-mode-options board-mode-options" role="group" aria-label="찾는 큐 타입">{visibleModes(selectedGame).map(mode => <button type="button" className="filter-mode" aria-label={mode.label} aria-pressed={filters.modeKey === mode.key} key={mode.key} onClick={() => setFilters({ ...filters, modeKey: mode.key, roles: [] })}><FilterModeIcon mode={mode.key} /><span>{mode.label}</span></button>)}</SlidingSelector>
+          <SlidingSelector className="room-type-tabs room-time-filter" aria-label="방 시작 시간">{START_FILTERS.map(option => <button type="button" key={option.value} aria-pressed={filters.start === option.value} onClick={() => setFilters({ ...filters, start: option.value })}>{option.label}</button>)}</SlidingSelector>
+          <label className="room-open-filter"><input type="checkbox" checked={filters.openOnly} onChange={event => setFilters({ ...filters, openOnly: event.target.checked })} />모집 중인 방만</label>
+        </div>
+        <div className="board-filter-line">
         <div className="room-setting-row board-setting-filter"><TierRangePicker label="모집 티어 범위" game={selectedGame} value={filters.tierRange} stacked onChange={tierRange => setFilters({ ...filters, tierRange })} /></div>
         {usesKeyCondition(selectedGame, filters.modeKey) ? <div className="intro-role-options board-role-filter" role="group" aria-label="포지션">{keyConditionOptions(selectedGame).filter(role => role.value !== 'ANY').map(role => <button className="filter-role" type="button" key={role.value} aria-label={role.label} title={role.label} aria-pressed={filters.roles.includes(role.value)} onClick={() => setFilters({ ...filters, roles: filters.roles.includes(role.value) ? filters.roles.filter(value => value !== role.value) : [...filters.roles, role.value] })}><FilterRoleIcon game={selectedGame} value={role.value} /><span>{role.label}</span></button>)}</div> : null}
         <div className="room-setting-row board-setting-filter"><SlidingSelector className="intro-voice-options is-binary" role="group" aria-label="마이크 필터">{ROOM_VOICES.map(voice => <button type="button" className="filter-mode" key={voice} aria-label={voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용'} title={voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용'} aria-pressed={filters.voice === voice} onClick={() => setFilters({ ...filters, voice: filters.voice === voice ? '' : voice })}><VoiceIcon preference={voice} size={22}/><span>{voice === 'REQUIRED' ? '사용' : '미사용'}</span></button>)}</SlidingSelector></div>
-        {canReset ? <button className="filter-reset" type="button" aria-label="초기화" onClick={() => setFilters({ ...defaults(selectedGame), modeKey: filters.modeKey })}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg></button> : null}
+        {canReset ? <button className="filter-reset" type="button" aria-label="초기화" onClick={resetFilters}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg></button> : null}
       </div></div>
-      <div className="room-board-count"><strong>{filtered.length}</strong>개의 방<label><input type="checkbox" checked={openOnly} onChange={event => setOpenOnly(event.target.checked)} />모집 중인 방만</label></div>
       <div className={`room-deck-grid${selectedGame === 'LOL' && filters.modeKey === 'SOLO_DUO_RANKED' ? ' is-duo-grid' : ''}`}>{filtered.map(room => <RoomDeck room={room} selfId={member.id} key={room.id} entering={justCreatedId === room.id} onEntered={finishEntrance} onMember={showMember} entryError={roomEntryError(room, member.tier, activeRoom?.id)} onSeat={(room, roles) => {
         const intro = readIntroduction(member.id, room.game) ?? emptyIntroduction();
         setSelected({ id: room.id, roles, fromRoomId: activeRoom?.id, profile: { ...member, roles: intro.primaryRoles ?? [], bio: intro.bio, voice: roomVoice(room.voice) } });
       }} />)}</div>
-      {!filtered.length ? <div className="room-board-empty"><p>이 조건에 맞는 방이 없어요.</p><button className="room-secondary-button" onClick={() => setFilters(defaults(selectedGame))}>필터 초기화</button></div> : null}
+      {!filtered.length ? <div className="room-board-empty"><p>이 조건에 맞는 방이 없어요.</p><button className="room-secondary-button" onClick={resetFilters}>필터 초기화</button></div> : null}
     </section>
     <aside className="room-workspace-rail" aria-label="탐색과 내 방">
       {activeRoom ? <SlidingSelector className="room-rail-switch" role="group" aria-label="우측 영역 선택">
