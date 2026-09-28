@@ -16,7 +16,7 @@
 
 ## 2. 백엔드와의 약속 — 프런트가 지킬 것
 
-| 항목 | 우리 백엔드 | 원본 프런트(지금 코드) | 출처 |
+| 항목 | 우리 백엔드 | 원본 프런트(2단계 전 코드 — 2026-09-28 에 우리 것으로 바꿨다, `START_HERE.md` §1 "2단계 뒤의 모양") | 출처 |
 |---|---|---|---|
 | 인증 | **쿠키 `qm_access`**(RS256 JWT · 15분 · `HttpOnly`) + **`qm_refresh`**(불투명 UUID · 7일 · `Path=/api/v1/auth/refresh`). 프런트는 토큰을 **보지도 저장하지도 않는다.** 만료되면 `POST /api/v1/auth/refresh`(본문 없음 · 쿠키만) — 401 `INVALID_REFRESH_TOKEN` 이면 로그아웃 상태다 | `localStorage['qm.tokens']` + `Authorization: Bearer` · `POST /auth/refresh {refreshToken}` | `platform-api.md` "공통" · "access 토큰" · "refresh 토큰" · D-24 · D-26 |
 | 가입 · 로그인 | **소셜만**(카카오 · 디스코드) — `GET /api/v1/auth/oauth/{KAKAO\|DISCORD}/start` 로 **브라우저 이동**, 콜백은 백엔드가 받고 `FRONT_BASE_URL` + `/`(로그인됨) · `/signup/social`(처음 온 사람 → `GET /auth/social/pending` · `POST /auth/social/signup {nickname}`) · `/login?error=OAUTH_FAILED` · `/settings?linked=…` · `/settings?error=…` 로 302. 이메일 · 비밀번호 · 직접 가입은 **없다** | `POST /auth/signup {email,password,nickname}` · `POST /auth/login` · `GET /auth/oauth/providers` · `POST /auth/oauth/exchange {code}` · 라우트 `/auth/callback` | `platform-api.md` "소셜 로그인" · "잇기 · 끊기" · D-35 · D-38 |
@@ -36,7 +36,7 @@
 1. **프런트 통합은 `codex/room-card-board` 위에서 다시 시작한다.** `main` 기반 옛 시도는 버렸다(브랜치째 지웠다). 옛 시도가 했던 2 · 3단계(쿠키 인증 · 소셜 전용 로그인 · 프록시 셋 · SSE · 게임 설정 상수 · mock 삭제 · 게임 계정 · 매칭)는 **이 브랜치 위에서 새로 한다** — 옮겨 오지 않는다.
 2. **콜백 경로는 프런트가 백엔드에 맞춘다** — `/signup/social` · `/login?error=OAUTH_FAILED` · `/settings?linked={PROVIDER}` · `/settings?error=…` 라우트를 프런트가 만든다. 백엔드의 `FRONT_BASE_URL` 기본값은 `http://localhost:5173` 이다. (원본의 `/auth/callback?code=` 는 없어진다.)
 3. **게임 · 모드 · 티어 목록은 프런트의 정적 상수다.** 원본은 `matching/seed/gameconfig.redis` — **seed 와 프런트 두 곳**이고 모드를 더하면 둘 다 고친다. 백엔드에 조회 API 를 만들어 달라고 하지 않는다.
-4. **mock 층과 e2e 는 지운다** — `src/mocks/*` · `VITE_API_MODE` 분기 · `e2e/*` · `e2e-live/*` · `playwright*.config.ts` · `dev:mock*` · `dev:rooms` 스크립트. 진짜 백엔드 셋을 띄워 본다(루트 `START_HERE.md` §6). `tests/*.spec.ts`(브라우저 없는 순수 함수 테스트 5개)를 남길지는 그때 묻는다(§5).
+4. **mock 층과 e2e 는 지운다** — `src/mocks/*` · `VITE_API_MODE` 분기 · `e2e/*` · `e2e-live/*` · `playwright*.config.ts` · `dev:mock*` · `dev:rooms` 스크립트. 진짜 백엔드 셋을 띄워 본다(루트 `START_HERE.md` §6). **방 카드 보드가 real 모드의 기본 홈이다**(같은 날 소유자 결정 — `LegacyRecruitmentHome` 은 파일만 남기고 라우트에서 뺐다). `tests/*.spec.ts`(브라우저 없는 순수 함수 테스트 5개)도 같이 지웠다 — Playwright 러너를 썼다. **2단계에서 했다(2026-09-28).**
 5. **온보딩은 게임 계정 화면으로의 전환이다** — 소셜 가입 뒤 게임 계정이 없으면 게임 계정 연결 화면(`PUT /api/v1/users/me/game-accounts/{game}`)으로 보낸다. 게임 계정이 없어도 쓸 수 있는 기능은 막지 않는다(백엔드가 강제하지 않는다).
 6. **확인은 `npm run build` · `npm run typecheck` 만이다.** 브라우저에서 실제 소셜 로그인은 카카오 · 디스코드 앱 키가 없어 아직 못 해 본다(`platform/START_HERE.md` §4 F-1).
 7. **백엔드에 대응물이 없는 화면은 일단 남긴다** — 예약(`/reservations`) · DM(`/messages`) · 듀오 제안 · 아바타 업로드 · Ready/PLAYING 파티 · 알림함 · **방 카드 보드의 채팅 · 예약 시간 · 자동 마감**. 지우지도 백엔드를 만들어 달라고도 하지 않는다 — 어떻게 할지는 미정(§5).
@@ -59,15 +59,15 @@
 
 | 항목 | 상황 |
 |---|---|
-| **방 카드 보드를 어떻게 살릴까** | codex 가 더한 `src/rooms/*` 는 원본 백엔드의 `/rooms` API(방 = 독립 자원 · 채팅 · 예약 시간 · `CONFIRM/REOPEN` 토글 · 자동 마감)를 전제한다. 우리 백엔드는 **글이 곧 방**이고 목록은 `GET /posts?game=`, 입장은 `POST /rooms/{roomId}/members`, 확정은 되돌릴 수 없다. **카드 보드를 우리 목록 위에 다시 그릴지, legacy 홈(`LegacyRecruitmentHome`)을 우리 게시판에 맞출지, 둘 다 남길지** — 4단계에 닿기 전에 묻는다. 대조표는 `START_HERE.md` §4 |
+| **방 카드 보드를 우리 API 위에 어떻게 옮길까** | **홈은 방 카드 보드다(2026-09-28 소유자 결정 · 2단계에서 `HomePage` 가 `RoomBoardHome` 만 그린다).** `LegacyRecruitmentHome` 은 파일만 남기고 라우트에서 뺐다 — 지울지는 4단계에서 정한다. 남은 물음은 보드가 전제하는 원본 `/rooms` API(방 = 독립 자원 · 채팅 · 예약 시간 · `CONFIRM/REOPEN` 토글 · 자동 마감)를 우리 계약(글이 곧 방 · `GET /posts?game=` · `POST /rooms/{roomId}/members` · 확정은 되돌릴 수 없다)으로 옮기는 세부다 — 대조표는 `START_HERE.md` §4.3. 4단계에 닿기 전에 묻는다 |
 | 방 채팅(`RoomConversation`) | 우리 서버에 텍스트가 없다 — WebRTC DataChannel 로 브라우저끼리 주고받아야 한다(D-9). 화면을 남길지 · DataChannel 을 언제 만들지 |
 | 예약 시간(`availableFrom` · `REALTIME/RESERVATION`) · 자동 마감(`autoClose`) · `REOPEN` | 우리 글에는 시각 칸이 없고 예약은 `app:reservation`(Lambda · 시작 안 함)의 일이다. 확정은 되돌릴 수 없다(`REOPEN` 없음). 자동 마감 · 유휴 시간은 우리 방에 없다(수명 600초 · 접속 확인만) |
 | 티어 범위(`desiredTierRange` · `TierRangePicker`) | 글에 티어 범위 칸이 없다. 자동 합류(`POST /posts/auto-join`)의 티어 판정은 gameconfig `tier-range` 로 서버가 한다 — 화면에 범위 선택을 남길지 |
-| 게임 · 모드 · 티어 상수의 자리와 모양 | seed 의 모드 키(LoL `RANKED_SOLO` · `RANKED_FLEX_2/3/5` · `ARAM_2~5` · `NORMAL_2~5`, VALORANT `COMPETITIVE_DUO/TRIO` · `UNRATED_DUO/TRIO`, PUBG `NORMAL_/RANKED_ × DUO/SQUAD × TPP/FPP`)와 사다리(LoL `IRON_4`…`CHALLENGER` 32 · VALORANT `IRON_1`…`RADIANT` 26 — **디비전 순서가 반대다** · PUBG 27)를 어느 파일에 어떤 모양으로 둘지 · 한글 라벨 · 정원(`targetPartySize`)을 같이 베낄지 |
+| ~~게임 · 모드 · 티어 상수의 자리와 모양~~ | **정해졌다(2단계 · 2026-09-28)** — `src/domain/gameCatalog.ts` 에 seed 값 그대로(모드 24 · 정원 · `tierRule` · `positionUniqueness` · 사다리 셋 `UNRANKED` 포함 · 핵심 조건 값)와 한글 라벨. 라벨 · 파일 이름 · 모양은 Claude 가 정했다 — 소유자 검토 항목. seed 를 고치면 여기도 고친다 |
 | 대응물 없는 화면의 처지 | 예약 · DM · 듀오 제안 · 아바타 · Ready/PLAYING · 알림함 · `GET /match-requests/history`. 남긴 채 숨길지 · 지울지 |
-| `tests/*.spec.ts`(브라우저 없는 단위 테스트 5개) | e2e 를 지울 때 같이 지울지(Playwright 의존을 없애려면 지워야 한다) |
+| ~~`tests/*.spec.ts`(브라우저 없는 단위 테스트 5개)~~ | **지웠다(2단계)** — Playwright 러너에 묶여 있었다. 순수 함수 테스트를 다시 둘지는 러너를 고를 때 묻는다 |
 | `BOARD_CHANGED` 재요청 묶기 간격 | 백엔드도 미정(`platform/CLAUDE.md` §3.2). 몇 초에 최대 1번 |
-| 재발급 흐름 | access 가 15분이라 **프런트가 만료 전에 `POST /api/v1/auth/refresh` 를 불러야 한다**(서버 장치 없음). 401 마다 한 번 재발급 → 재시도(원본의 single-flight 구조를 쿠키 방식으로 옮기면 된다) · SSE 401 뒤 재발급 → `EventSource` 새로. **모든 기기 로그아웃은 백엔드에도 없다** |
+| 재발급 흐름 | **401 뒤 한 번 재발급 → 재시도, SSE 401 → 재발급 → `EventSource` 새로 — 2단계에서 구현했다**(`api/http.ts` `refreshSession()` · `api/sse.ts`). **남은 것** — access 가 15분이라 **만료 전 선제 재발급**을 둘지(서버 장치 없음 · 지금은 401 을 맞고 나서 한 번). **모든 기기 로그아웃은 백엔드에도 없다** |
 | 라우트 이름 | `/signup/social` · `/login` · `/settings` 는 백엔드가 정한 경로다(따른다). 그 밖(`/app/home` · `/app/party/:id` …)은 프런트 마음이지만 **방 화면의 경로에 `roomId`(게시판은 숫자 · 자동 매칭은 UUID)를 쓴다** |
 | WebRTC `signal` 의 모양 | 서버는 열어 보지 않는다 — `platform-api.md` "`signal` 의 권장 모양"(`kind: description \| candidate`)을 따른다. 원본의 `WebRtcSignalMessage{signalType: OFFER\|ANSWER\|ICE}` 를 옮길 때 그 모양으로 |
 
@@ -96,6 +96,6 @@
 | platform 계약 — 공통 · 토큰 · 소셜 로그인 · 게임 프로필 · 글 · 방 · 자동 매칭 파티의 방 · 자동 합류 · 친구 · 차단 · 신고 · 알림 · P-1~P-31 | `../platform/contracts/platform-api.md` |
 | matching 계약 — 매칭 요청 · heartbeat · 제안 · `MatchRequestView` · 열린 이름 물음(#4 · #5) | `../matching/contracts/openapi.yaml` · `README.md` · `events.md` |
 | SSE — 경로 · 인증 · heartbeat · `retry:` · 게시판 채널 | `../notification/CLAUDE.md` §5 · §7 |
-| gameconfig 원본(모드 키 · 티어 사다리 · 정원) | `../matching/seed/gameconfig.redis` · `../matching/docs/GAME_CONFIG.md` |
+| gameconfig 원본(모드 키 · 티어 사다리 · 정원) | `../matching/seed/gameconfig.redis` · `../matching/docs/GAME_CONFIG.md` — 이 폴더의 사본은 `src/domain/gameCatalog.ts`(두 곳) |
 | 결정 로그 D-1~D-44 | `../matching/docs/11_DECISION_LOG.md` |
 | 원본 저장소의 방 API 계약(우리 계약이 아니다 — 방 카드 보드가 무엇을 기대하는지 볼 때만) | `Port-051/QueueMate` `codex/room-card-board` 의 `contracts/rooms.openapi.yaml`(이 폴더에 가져오지 않았다 — `START_HERE.md` §4 에 요약) |

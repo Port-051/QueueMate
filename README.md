@@ -10,17 +10,13 @@ QueueMate 의 **브라우저 앱**이다. React 18 · react-router 6 · TypeScri
 
 ```bash
 npm ci
-npm run dev          # VITE_API_MODE=real, 5173 — 프록시 → 8080 (지금은 원본 백엔드 전제. 프록시 셋으로 바꾸는 것이 2단계다)
-npm run dev:mock     # 5174 — 브라우저 안의 가짜 서버(localStorage). 기본 화면이 방 카드 보드다
-npm run dev:rooms    # 5174 — real 모드 + VITE_HOME_LAYOUT=rooms + 데모 로그인 버튼(원본 파일럿 전용)
+npm run dev          # 5173 — 프록시 셋: /api/v1/events → 8081, /api/v1/match-requests · /api/v1/proposals → 8080, 나머지 /api → 8082 (백엔드 셋을 먼저 띄운다 — 루트 START_HERE.md §6)
 npm run build        # tsc -b && vite build
 npm run typecheck    # tsc --noEmit
-npm run e2e          # Playwright — mock 모드 전제(35 spec + room-decks). 통합 뒤에는 지운다(소유자 결정)
-npx playwright test --config tests/playwright.config.ts   # 브라우저 없는 단위 테스트 5개(rooms 의 순수 함수)
 ```
 
-`npm ci` · `build` · `typecheck` 는 2026-09-28 에 이 자리(OneDrive 아래 WSL)에서 통과했다. **dev 서버는 띄웠으면 반드시 내린다**(`ss -ltnp | grep :5173` → `kill <PID>`. `pkill -f` 금지).
+mock 서버 · Playwright e2e · `dev:mock` · `dev:rooms` 는 2단계(2026-09-28)에 지웠다 — 화면을 보려면 백엔드를 띄운다. `build` · `typecheck` 는 2단계 커밋마다 이 자리(OneDrive 아래 WSL)에서 통과했다. **dev 서버는 띄웠으면 반드시 내린다**(`ss -ltnp | grep :5173` → `kill <PID>`. `pkill -f` 금지).
 
 ## 지금 어디까지
 
-**1단계(가져오기 · 빌드) 끝.** 코드는 아직 원본 그대로라 **우리 백엔드와 통하지 않는다** — 토큰을 `localStorage` 에 두고 `Authorization: Bearer` 로 보내며, 이메일 · 비밀번호 가입 · 로그인과 `/ws` WebSocket 을 전제한다. 우리 쪽은 쿠키 `qm_access` · 소셜 로그인만 · SSE 다. 무엇을 어떤 순서로 바꾸는지는 `START_HERE.md` §2, 경로 하나하나의 대조는 `START_HERE.md` §3 이다.
+**1단계(가져오기 · 빌드) · 2단계(인증 · 전송) 끝.** 쿠키 `qm_access` 인증 · 소셜 전용 로그인(`/login` · `/signup/social` · `/settings`) · 프록시 셋 · SSE `GET /api/v1/events` · 게임 설정 정적 상수(`src/domain/gameCatalog.ts` — 원본은 `matching/seed/gameconfig.redis`)가 우리 백엔드 모양이고, **홈은 방 카드 보드다**(소유자 결정). 게임 계정 · 매칭 · 제안 · 파티(3단계), 방 카드 보드의 API · 게시판(4단계), 친구 · 차단 · 신고(5단계)는 아직 원본 경로다 — 컴파일만 된다. 무엇을 어떤 순서로 바꾸는지는 `START_HERE.md` §2, 경로 하나하나의 대조는 `START_HERE.md` §3 이다. 실제 소셜 로그인은 카카오 · 디스코드 앱 키가 없어 아직 브라우저에서 못 해 본다.
