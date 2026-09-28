@@ -1,7 +1,7 @@
 # CLAUDE.md — frontend 규칙 (Non-Negotiable)
 
 작업 전에 루트 `CLAUDE.md` → 루트 `START_HERE.md` → 이 폴더의 `START_HERE.md`(지금 상태 · 통합 계획 · API 대조표 · 미정) → 이 파일 → 계약 순으로 읽어라.
-계약은 **옆 폴더에 있다** — `platform/contracts/platform-api.md`(계정 · 소셜 로그인 · 게임 프로필 · 모집 글 · 방 · 자동 매칭 파티의 방 · 친구 · 차단 · 신고 · 알림) · `matching/contracts/openapi.yaml` · `events.md`(매칭 요청 · 제안 · `MATCH_*` 알림) · `notification/CLAUDE.md`(SSE). 기준일은 2026-09-28 이다.
+계약은 **옆 폴더에 있다** — `platform/contracts/platform-api.md`(계정 · 소셜 로그인 · 게임 프로필 · 모집 글 · 방 · 자동 매칭 파티의 방 · 친구 · 차단 · 신고 · 알림) · `matching/contracts/openapi.yaml` · `events.md`(매칭 요청 · 제안 · `MATCH_*` 알림) · `notification/CLAUDE.md`(SSE). 기준일은 2026-09-29 이다.
 
 ---
 
@@ -39,7 +39,8 @@
 4. **mock 층과 e2e 는 지운다** — `src/mocks/*` · `VITE_API_MODE` 분기 · `e2e/*` · `e2e-live/*` · `playwright*.config.ts` · `dev:mock*` · `dev:rooms` 스크립트. 진짜 백엔드 셋을 띄워 본다(루트 `START_HERE.md` §6). **방 카드 보드가 real 모드의 기본 홈이다**(같은 날 소유자 결정 — `LegacyRecruitmentHome` 은 파일만 남기고 라우트에서 뺐다). `tests/*.spec.ts`(브라우저 없는 순수 함수 테스트 5개)도 같이 지웠다 — Playwright 러너를 썼다. **2단계에서 했다(2026-09-28).**
 5. **온보딩은 게임 계정 화면으로의 전환이다** — 소셜 가입 뒤 게임 계정이 없으면 게임 계정 연결 화면(`PUT /api/v1/users/me/game-accounts/{game}`)으로 보낸다. 게임 계정이 없어도 쓸 수 있는 기능은 막지 않는다(백엔드가 강제하지 않는다).
 6. **확인은 `npm run build` · `npm run typecheck` 만이다.** 브라우저에서 실제 소셜 로그인은 카카오 · 디스코드 앱 키가 없어 아직 못 해 본다(`platform/START_HERE.md` §4 F-1).
-7. **백엔드에 대응물이 없는 화면은 일단 남긴다** — 예약(`/reservations`) · DM(`/messages`) · 듀오 제안 · 아바타 업로드 · Ready/PLAYING 파티 · 알림함 · **방 카드 보드의 채팅 · 예약 시간 · 자동 마감**. 지우지도 백엔드를 만들어 달라고도 하지 않는다 — 어떻게 할지는 미정(§5).
+7. **백엔드에 대응물이 없는 화면은 일단 남긴다** — 예약(`/reservations`) · DM(`/messages`) · 듀오 제안 · 아바타 업로드 · 알림함 · `LegacyRecruitmentHome`(라우트 밖). 지우지도 백엔드를 만들어 달라고도 하지 않는다. **단 방 카드 보드 흐름 안에서 우리 계약과 모순되는 것은 걷어낸다**(2026-09-29 소유자 결정 — 방 채팅 `/messages` · 예약 시각 · `REOPEN` · 정원 선택 · 방 이동 · 자동 마감 타이머 · Ready/PLAYING · 자리 선택. 4단계에서 파일째 지웠다 — `START_HERE.md` §1 "4단계 뒤의 모양"). 남긴 파일에는 "대응물 없음" 주석을 단다.
+8. **4단계(게시판 · 방)는 2026-09-29 에 끝났다** — 홈은 방 카드 보드를 우리 게시판(`GET /posts?game=` · `POST /posts` · `POST /rooms/{roomId}/members` · `BOARD_CHANGED`)에 맞춘 것이고, 방 화면 `/app/party/:roomId` 는 게시판 방(글 번호)과 자동 매칭 방(UUID)이 같은 화면 · 같은 요청이다. 내 방(입장 표시 키의 사본 · heartbeat · `ROOM_*`)은 `state/RoomSessionContext.tsx` 가 든다. 5단계(친구 · 차단 · 신고)는 `SocialContext` · `FriendManagementPanel` · `ReportModal` · `DirectMessagesPage` 와 `client.ts` · `types.ts` 의 소셜 절이다 — 4단계는 그것을 건드리지 않았다.
 
 ## 4. 하지 말 것
 
@@ -48,7 +49,7 @@
 - **토큰을 `localStorage` · 메모리에 두거나 `Authorization: Bearer` 로 보내기.** 쿠키가 전부다. `?userId=` · 본문 `userId` 를 되살리기(백엔드가 받지 않는다).
 - **WebSocket(`/ws`) · `SESSION_SNAPSHOT` 을 전제하기.** 실시간은 SSE `GET /api/v1/events` 하나다. **`ROOMS_UPDATED` · `ROOM_MESSAGES_UPDATED` · `PARTY_*` · `RECRUITMENT_UPDATED` 를 기다리기** — 오지 않는다. 방의 변화는 `ROOM_*` 5종 + `BOARD_CHANGED`, 파티 성립은 `MATCH_CONFIRMED` 다.
 - **원본의 방 API(`GET/POST /rooms` · `/rooms/{id}/join` · `/actions` · `/messages`)를 우리 백엔드에 부르기.** 우리 방은 글(`posts`)에서 시작하고 입장은 `POST /rooms/{roomId}/members` 다(대조표 — `START_HERE.md` §4). **텍스트 채팅 · 방 메시지를 서버에 두기** — 우리는 두지 않는다(D-9 · #6: 음성 · 텍스트는 WebRTC 직결).
-- **`BOARD_CHANGED` 마다 즉시 · 무제한으로 목록을 다시 받기** — 묶는다(간격은 미정 · 몇 초). 신호를 받았을 때 커서를 쓰기(펼친 만큼을 `limit` 으로 맨 위부터 다시 받는다).
+- **`BOARD_CHANGED` 마다 즉시 · 무제한으로 목록을 다시 받기** — 묶는다(**2.5초 창 · 보이는 탭만** — 4단계에서 프런트가 정했다 · `rooms/useRoomData.ts`). 신호를 받았을 때 커서를 쓰기(펼친 만큼을 `limit` 으로 맨 위부터 다시 받는다). **방 안을 맨손으로 그리기** — 내 방 · 사람 목록 · heartbeat · `ROOM_*` 는 `state/RoomSessionContext.tsx` 하나가 든다(방 요청을 화면에서 직접 부르지 않는다). 방 화면에서 `POST /rooms/{roomId}/members` · `/confirm` 을 자동 매칭 방(UUID)에 부르기(그 방은 `POST /match-parties/{partyId}/room` 으로만 들어가고 처음부터 확정이다).
 - **`GET /rooms/{roomId}/members` 로 목록을 그리기** — 방 안 사람만 볼 수 있다(403). 방 밖에서 방 안을 보는 창구는 게시판 목록이다.
 - **`mode` · `tier` · 포지션의 값을 소문자 · 다른 이름으로 보내기** — 백엔드는 대문자 enum 그대로만 받는다(`LOL` · `RANKED_SOLO` · `GOLD_4` · `MID`). 원본의 `SOLO_DUO_RANKED` · `PLAY_STYLE` · `OPTIONAL` · 디비전 없는 티어 `GOLD`(우리 사다리는 `GOLD_4` 꼴이고 이름은 seed 의 것이어야 한다) 같은 옛 이름을 남기기.
 - **게임 설정 조회 API · 사람 검색 API · 확정된 파티 조회(`parties`) · 아바타 업로드 · 예약 API 를 백엔드에 만들어 달라고 하기.** 미정이거나 두지 않기로 한 것이다(§5).
@@ -59,17 +60,17 @@
 
 | 항목 | 상황 |
 |---|---|
-| **방 카드 보드를 우리 API 위에 어떻게 옮길까** | **홈은 방 카드 보드다(2026-09-28 소유자 결정 · 2단계에서 `HomePage` 가 `RoomBoardHome` 만 그린다).** `LegacyRecruitmentHome` 은 파일만 남기고 라우트에서 뺐다 — 지울지는 4단계에서 정한다. 남은 물음은 보드가 전제하는 원본 `/rooms` API(방 = 독립 자원 · 채팅 · 예약 시간 · `CONFIRM/REOPEN` 토글 · 자동 마감)를 우리 계약(글이 곧 방 · `GET /posts?game=` · `POST /rooms/{roomId}/members` · 확정은 되돌릴 수 없다)으로 옮기는 세부다 — 대조표는 `START_HERE.md` §4.3. 4단계에 닿기 전에 묻는다 |
-| 방 채팅(`RoomConversation`) | 우리 서버에 텍스트가 없다 — WebRTC DataChannel 로 브라우저끼리 주고받아야 한다(D-9). 화면을 남길지 · DataChannel 을 언제 만들지 |
-| 예약 시간(`availableFrom` · `REALTIME/RESERVATION`) · 자동 마감(`autoClose`) · `REOPEN` | 우리 글에는 시각 칸이 없고 예약은 `app:reservation`(Lambda · 시작 안 함)의 일이다. 확정은 되돌릴 수 없다(`REOPEN` 없음). 자동 마감 · 유휴 시간은 우리 방에 없다(수명 600초 · 접속 확인만) |
-| 티어 범위(`desiredTierRange` · `TierRangePicker`) | 글에 티어 범위 칸이 없다. 자동 합류(`POST /posts/auto-join`)의 티어 판정은 gameconfig `tier-range` 로 서버가 한다 — 화면에 범위 선택을 남길지 |
+| ~~방 카드 보드를 우리 API 위에 어떻게 옮길까~~ | **정해졌고 했다(4단계 · 2026-09-29)** — 보드는 `GET /posts?game=` · `POST /posts` · `POST /rooms/{roomId}/members` · `BOARD_CHANGED` 위에 있고(`rooms/useRoomData.ts` · `boardRoom.ts`) `LegacyRecruitmentHome` 은 남긴 채 라우트 밖이다(지우지 않는다 — 소유자 결정). 계약과 모순되는 부품은 파일째 지웠다(§3-7). Claude 가 정한 세부는 `START_HERE.md` §1 "4단계 뒤의 모양" 끝 줄 — 소유자 검토 항목 |
+| ~~방 채팅(`RoomConversation`)~~ | **정해졌다(4단계)** — 보드의 채팅 레일(`RoomConversation` · `/messages`)은 지웠다. 방 화면의 채팅은 WebRTC DataChannel(`PartySessionContext` · `WebRtcPartyClient`)로 브라우저끼리 오가고 서버에 남지 않는다(D-9) — 방에 들어가면 바로 연결한다 |
+| ~~예약 시간(`availableFrom` · `REALTIME/RESERVATION`) · 자동 마감(`autoClose`) · `REOPEN`~~ | **걷어냈다(4단계 · 2026-09-29 소유자 결정)** — 우리 글에는 시각 칸이 없고(예약은 `app:reservation` 의 일 · 미착수) 확정은 되돌릴 수 없으며 자동 마감은 없다(수명 600초 · 접속 확인만). 예약 화면 자체(`/reservations`)는 남아 있다(라우트 밖 대응물 없음) |
+| ~~티어 범위(`desiredTierRange` · `TierRangePicker`)~~ | **뺐다(4단계 · Claude 가 정했다 — 검토 항목)** — 글에 칸이 없고 자동 합류의 티어 판정은 서버의 gameconfig `tier-range` 라 프런트 범위 필터는 그 판정과 어긋난 것을 보여 주게 된다. 보드 필터 · 글 쓰기 폼에서 없앴고 `TierRangePicker` · `domain/tierRange.ts` 는 legacy 홈이 써서 남아 있다 |
 | ~~게임 · 모드 · 티어 상수의 자리와 모양~~ | **정해졌다(2단계 · 2026-09-28)** — `src/domain/gameCatalog.ts` 에 seed 값 그대로(모드 24 · 정원 · `tierRule` · `positionUniqueness` · 사다리 셋 `UNRANKED` 포함 · 핵심 조건 값)와 한글 라벨. 라벨 · 파일 이름 · 모양은 Claude 가 정했다 — 소유자 검토 항목. seed 를 고치면 여기도 고친다 |
-| 대응물 없는 화면의 처지 | 예약 · DM · 듀오 제안 · 아바타 · Ready/PLAYING(`PartyRoomPage` — 4단계에서 방 화면으로) · 알림함(`GET /recruitments/mine` 을 아직 부른다). 남긴 채 숨길지 · 지울지(3단계 소유자 결정 — 남긴다). `GET /match-requests/history` 는 3단계에서 API 만 지웠다(화면이 없었다) |
+| 대응물 없는 화면의 처지 | 예약 · DM · 듀오 제안 · 아바타 · 알림함 · `LegacyRecruitmentHome` — 남긴 채 라우트 밖(3 · 4단계 소유자 결정 — 지우지 않는다). Ready/PLAYING 은 4단계에서 방 화면이 됐고, 알림함의 `GET /recruitments/mine` 폴링은 껐다(알림함 자체는 남았다). `GET /match-requests/history` 는 3단계에서 API 만 지웠다(화면이 없었다). **DM · 알림함 화면을 어떻게 할지는 5단계 전에 묻는다** |
 | 제안 화면의 팀원 목록 | 없다 — `GET /proposals/{id}` 가 없고 수락 진행 이벤트가 계약에 없다(`events.md` "미해결 계약 구멍"). 3단계는 남은 시간 · 정원(`MATCH_PROPOSAL_CREATED` 의 `target`) · 내 수락 여부만 그린다. 백엔드에 만들어 달라고 하지 않는다 — 소유자가 정한다 |
 | ~~`tests/*.spec.ts`(브라우저 없는 단위 테스트 5개)~~ | **지웠다(2단계)** — Playwright 러너에 묶여 있었다. 순수 함수 테스트를 다시 둘지는 러너를 고를 때 묻는다 |
-| `BOARD_CHANGED` 재요청 묶기 간격 | 백엔드도 미정(`platform/CLAUDE.md` §3.2). 몇 초에 최대 1번 |
+| ~~`BOARD_CHANGED` 재요청 묶기 간격~~ | **프런트가 정했다(4단계)** — 2.5초 창에 최대 1번 · 보이는 탭만 · 숨은 탭의 신호는 보일 때 한 번(`rooms/useRoomData.ts`). 백엔드는 여전히 미정이라(`platform/CLAUDE.md` §3.2) 소유자 검토 항목 |
 | 재발급 흐름 | **401 뒤 한 번 재발급 → 재시도, SSE 401 → 재발급 → `EventSource` 새로 — 2단계에서 구현했다**(`api/http.ts` `refreshSession()` · `api/sse.ts`). **남은 것** — access 가 15분이라 **만료 전 선제 재발급**을 둘지(서버 장치 없음 · 지금은 401 을 맞고 나서 한 번). **모든 기기 로그아웃은 백엔드에도 없다** |
-| 라우트 이름 | `/signup/social` · `/login` · `/settings` 는 백엔드가 정한 경로다(따른다). 그 밖(`/app/home` · `/app/party/:id` …)은 프런트 마음이지만 **방 화면의 경로에 `roomId`(게시판은 숫자 · 자동 매칭은 UUID)를 쓴다** |
+| 라우트 이름 | `/signup/social` · `/login` · `/settings` 는 백엔드가 정한 경로다(따른다). 그 밖(`/app/home` …)은 프런트 마음이고 **방 화면은 `/app/party/:roomId`**(게시판은 글 번호 · 자동 매칭은 UUID = `partyId` — 4단계 ✅ · `/app/party` 는 내 방 또는 홈으로) |
 | WebRTC `signal` 의 모양 | 서버는 열어 보지 않는다 — `platform-api.md` "`signal` 의 권장 모양"(`kind: description \| candidate`)을 따른다. 원본의 `WebRtcSignalMessage{signalType: OFFER\|ANSWER\|ICE}` 를 옮길 때 그 모양으로 |
 
 ## 6. 작업 방식 · 커밋
