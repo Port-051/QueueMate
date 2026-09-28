@@ -7,7 +7,6 @@ import com.queuemate.platform.room.domain.Confirmation;
 import com.queuemate.platform.room.domain.ConfirmResult;
 import com.queuemate.platform.room.domain.CreateResult;
 import com.queuemate.platform.room.domain.LeaveResult;
-import com.queuemate.platform.room.domain.MatchRoomEntry;
 import com.queuemate.platform.room.domain.MatchRoomResult;
 import com.queuemate.platform.room.domain.RoomMemberIds;
 import com.queuemate.platform.room.domain.RoomState;
@@ -74,7 +73,7 @@ public class RoomService {
      * ({@code RoomMemberService#enter})과 같은 {@code payload} 다. <b>게시판 신호는 내지 않는다</b> — 자동 매칭 파티에는 글이 없다.
      * 만들었을 때({@link MatchRoomResult#CREATED})는 알릴 사람이 없다.
      */
-    public MatchRoomEntry enterMatchRoom(String roomId, String userId)
+    public MatchRoomResult enterMatchRoom(String roomId, String userId)
     {
         // 순서는 스크립트 머리의 KEYS 와 같다. 첫 키는 matching 의 파티 HASH 다 — 스크립트는 그것을 읽기만 한다
         List<String> keys = List.of(
@@ -90,13 +89,10 @@ public class RoomService {
         // 발행은 예외를 밖으로 내보내지 않는다 — 알림이 실패해도 이미 성립한 입장은 그대로다 (CLAUDE.md §3.2)
         if(result == MatchRoomResult.ENTERED)
         {
-            List<String> priorMembers = othersIn(reply, userId);
-            roomNotifier.toEach(priorMembers, PushEventType.ROOM_MEMBER_ENTERED,
+            roomNotifier.toEach(othersIn(reply, userId), PushEventType.ROOM_MEMBER_ENTERED,
                     Map.of("roomId", roomId, "userId", userId));
-            // 먼저 있던 사람들을 같이 돌려준다 — party 가 최근 함께한 사람을 "그 순간 방에 있던 사람"과 적는다 (MatchRoomEntry)
-            return new MatchRoomEntry(result, priorMembers);
         }
-        return MatchRoomEntry.of(result);
+        return result;
     }
 
     /**

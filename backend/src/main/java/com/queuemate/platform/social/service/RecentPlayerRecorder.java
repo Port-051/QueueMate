@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.Collection;
 
 /**
  * 최근 함께한 사람을 <b>채우는</b> 창구 — {@code party} 가 파티를 닫는 트랜잭션 안에서 부른다({@code party.service.PostLifecycle#closeParty}.
@@ -30,12 +29,5 @@ public class RecentPlayerRecorder {
     public int recordParty(Long partyId, Instant at)
     {
         return recentPlayerRepository.recordParty(partyId, at);
-    }
-
-    /** 자동 매칭 파티 — {@code me} 가 방에 들어온 순간, 그때 방에 있던 {@code others} 와 양방향으로 적는다 ({@link RecentPlayerRepository#recordEntry}) */
-    @Transactional
-    public int recordEntry(Long partyId, Long me, Collection<Long> others, Instant at)
-    {
-        return recentPlayerRepository.recordEntry(partyId, me, others, at);
     }
 }
