@@ -58,15 +58,15 @@ export function RoomBoardHome() {
   const member = useMemo<RoomMember>(() => {
     const intro = readIntroduction(userId ?? '', selectedGame) ?? emptyIntroduction();
     const account = gameAccounts.find(account => account.game === selectedGame);
-    const rank = accountRank(account, filters.modeKey);
+    const rank = accountRank(account);
     return {
       id: userId ?? '', nickname: user?.nickname ?? '나', avatarUrl: null,
-      // 티어 · 승률 · KDA · 챔피언은 자기소개(localStorage)가 아니라 게임 계정에서 온다 — 3단계에서 게임 프로필(`stats`)로 채운다.
+      // 티어는 게임 프로필(`tier` — `GOLD_4` 꼴)에서 온다(3단계). 승률 · KDA · 챔피언(`stats`)을 카드에 채우는 것은 방 API 전환과 같이 4단계다.
       tier: rank.tier, division: rank.division,
       winRate: null, kda: null, roles: intro.primaryRoles ?? [],
       champions: [], bio: intro.bio, voice: roomVoice(intro.voice),
     };
-  }, [user, selectedGame, gameAccounts, filters.modeKey]);
+  }, [user, selectedGame, gameAccounts]);
   const filtered = rooms.filter(room => {
     if (room.game !== selectedGame || room.modeKey !== filters.modeKey) return false;
     if (filters.openOnly && (room.status !== 'OPEN' || room.members.length >= room.capacity)) return false;

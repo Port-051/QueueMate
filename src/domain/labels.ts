@@ -72,13 +72,13 @@ export function conditionSummary(c: MatchCondition): string[] {
 }
 
 /**
- * `rankCode`는 서버가 Riot에서 읽어 채우는 파생 값이다 (contracts GameAccountView).
- * 형식은 `GOLD_2`이고, 마스터 위로는 단계가 없어 티어 이름만 온다.
+ * 게임 프로필의 `tier` 는 gameconfig 사다리의 이름이다(`matching/seed/gameconfig.redis` — 사본 `domain/gameCatalog.ts`). 형식은 `GOLD_4` 이고
+ * 단이 없는 티어(`MASTER` · `RADIANT` · `UNRANKED` …)는 이름 그대로다. LoL 은 Riot 이 채우고 VALORANT · PUBG 는 자기신고다.
  *
- * 여기 없는 티어가 와도 화면은 깨지지 않아야 한다. Riot이 티어를 추가한 전례가 있다
- * (2023년 EMERALD). 모르는 값은 받은 그대로 보여준다.
+ * 여기 없는 티어가 와도 화면은 깨지지 않아야 한다 — seed 에 티어가 더해질 수 있다. 모르는 값은 받은 그대로 보여준다.
  */
 const TIER_LABEL: Record<string, string> = {
+  UNRANKED: '언랭크',
   IRON: '아이언',
   BRONZE: '브론즈',
   SILVER: '실버',
@@ -89,11 +89,23 @@ const TIER_LABEL: Record<string, string> = {
   MASTER: '마스터',
   GRANDMASTER: '그랜드마스터',
   CHALLENGER: '챌린저',
+  ASCENDANT: '초월자',
+  IMMORTAL: '불멸',
+  RADIANT: '레디언트',
+  CRYSTAL: '크리스탈',
+  SURVIVOR: '서바이버',
 };
 
-export function rankLabel(rankCode: string | null): string | null {
-  if (!rankCode) return null;
-  const [tier, division] = rankCode.split('_');
-  const label = TIER_LABEL[tier] ?? tier;
+/** `GOLD_4` → `골드 4`. `null`(LoL 언랭 · 자기신고 안 함)이면 `null`. */
+export function rankLabel(tier: string | null | undefined): string | null {
+  if (!tier) return null;
+  const [name, division] = tier.split('_');
+  const label = TIER_LABEL[name] ?? name;
   return division ? `${label} ${division}` : label;
+}
+
+/** 게임 프로필의 `mainPosition`(LOL 포지션 · VALORANT 역할군) 한글 라벨. PUBG 는 `null`. */
+export function positionLabel(game: GameKey, position: string | null | undefined): string | null {
+  if (!position) return null;
+  return gameConfig(game).keyCondition.options.find((o) => o.value === position)?.label ?? position;
 }

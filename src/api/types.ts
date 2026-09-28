@@ -1,7 +1,7 @@
 /**
  * 백엔드 계약의 타입 — `platform/contracts/platform-api.md` · `matching/contracts/openapi.yaml` · `events.md` 1:1 매핑.
  * 계약에 없는 필드를 임의로 추가하지 않는다. 계약이 정본이고 구현이 따라간다.
- * 아직 원본 프런트의 모양이 남은 절(게임 계정 · 매칭 요청 · 제안 · 파티 · 예약 · 친구 · 차단 · 신고)은 3 · 5단계에서 바꾼다 — 각 절의 주석 참조.
+ * 아직 원본 프런트의 모양이 남은 절(파티 · 예약 — 대응물이 없다 · 친구 · 차단 · 신고 — 5단계)은 각 절의 주석 참조. 게임 계정 · 매칭 · 제안은 3단계에서 우리 모양이 됐다.
  */
 
 export type GameKey = 'LOL' | 'VALORANT' | 'PUBG';
@@ -51,21 +51,17 @@ export interface UserProfile {
   createdAt: string;
   /** 연결된 소셜 제공자. 화면은 이것으로 제공자마다 "연결됨 / 연결하기" 를 그린다(P-27). */
   socialProviders: SocialProvider[];
-  /**
-   * 게임 계정(게임마다 하나). **3단계에서 `GameProfile[]` 로 바꾼다** — 지금은 원본 프런트의 `GameAccountView` 모양을 그대로 두어
-   * 게임 계정 화면(`OnboardingPage` · `MyInfoPage` · `rooms/accountRank`)이 컴파일만 되게 했다(START_HERE.md §2 "2단계가 남긴 것").
-   * 런타임에는 서버가 `GameProfile` 모양을 주므로 이 화면들은 아직 값을 제대로 그리지 못한다. `RequireOnboarding` 은 개수만 본다.
-   */
-  gameAccounts: GameAccountView[];
+  /** 게임 계정(게임마다 하나) — 게임 프로필 그대로. 목록을 따로 받는 요청은 없다(`GET …/game-accounts` 없음). `RequireOnboarding` 은 개수만 본다. */
+  gameAccounts: GameProfile[];
 }
 
 /** `PATCH /users/me`. 닉네임 하나다(2~16자 · 유일 · 409 `NICKNAME_TAKEN`). */
 export interface UpdateUserRequest { nickname: string; }
 
 /**
- * 게임 프로필 — 게임 계정 하나를 밖에 보여 주는 모양(`users/me.gameAccounts[]` · 게시판 카드의 `profile`). 세 게임이 같은 모양이다.
- * `tier` 는 gameconfig 사다리의 이름(`GOLD_4` 꼴), `mainPosition` 은 LOL `TOP|JUNGLE|MID|ADC|SUPPORT` · VALORANT 4역할군 · PUBG `null`,
- * `server` 는 PUBG 만(`STEAM` · `KAKAO`). `verified` · `stats` 는 읽기 전용이다. 3단계(게임 계정 화면)에서 쓴다.
+ * 게임 프로필 — 게임 계정 하나를 밖에 보여 주는 모양(`users/me.gameAccounts[]` · 게시판 카드의 `profile`). 세 게임이 같은 모양이다(platform-api.md "게임 프로필").
+ * `tier` 는 gameconfig 사다리의 이름(`GOLD_4` 꼴 · LoL 은 Riot 이 채우고 언랭이면 `null`), `mainPosition` 은 LOL `TOP|JUNGLE|MID|ADC|SUPPORT` · VALORANT 4역할군 · PUBG `null`,
+ * `server` 는 PUBG 만(`STEAM` · `KAKAO`). `verified` · `stats` 는 읽기 전용이다. 언제 긁은 것인지는 `stats.syncedAt` 이다.
  */
 export interface GameProfile {
   game: GameKey;
@@ -73,9 +69,11 @@ export interface GameProfile {
   verified: boolean;
   tier: string | null;
   mainPosition: string | null;
-  server: 'STEAM' | 'KAKAO' | null;
+  server: PubgServer | null;
   stats: GameStats | null;
 }
+
+export type PubgServer = 'STEAM' | 'KAKAO';
 
 /** 전적 스냅숏. 비는 칸은 빠지지 않고 `null` 이다 — PUBG 는 `wins` · `losses` · `winStreak` · `avgAssists` · `kda` 가 늘 `null`. */
 export interface GameStats {
@@ -88,25 +86,34 @@ export interface GameStats {
   avgDeaths: number | null;
   avgAssists: number | null;
   kda: number | null;
-  /** 게임마다 다르다 — LOL `{mostChampions}` · VALORANT `{mostAgents, mainWeapon, …}` · PUBG `{seasonMode, avgDamage, kd, top1Rate}` */
-  detail: Record<string, unknown>;
+  /** 게임마다 다르다 — LOL `{mostChampions}` · VALORANT `{mostAgents, mainWeapon, …}` · PUBG `{seasonMode, avgDamage, kd, top1Rate}`. jsonb 그대로라 `null` 일 수 있다. */
+  detail: GameStatsDetail | null;
   syncedAt: string;
 }
 
-/**
- * 원본 프런트의 게임 계정 모양 — **우리 백엔드에는 없다.** 3단계에서 `GameProfile` 로 바꾸며 지운다.
- * 원본 API `GET /users/me/game-accounts` · `POST …` · `DELETE …/{id}` 는 대응물이 `PUT|DELETE /users/me/game-accounts/{game}` 이다.
- */
-export interface GameAccountView {
-  id: string;
-  game: GameKey;
-  externalGameId: string;
-  region: string | null;
-  rankCode: string | null;
-  flexRankCode: string | null;
-  verifiedAt: string | null;
+/** LoL `stats.detail.mostChampions[]` — 판 수 많은 순 셋까지. `championId` 는 Riot 의 `championName`(`"Samira"`). 숙련도 둘은 못 받으면 `null`. */
+export interface LolMostChampion {
+  championId: string;
+  games: number;
+  winRate: number | null;
+  masteryLevel: number | null;
+  masteryPoints: number | null;
 }
-export interface CreateGameAccountRequest { game: GameKey; externalGameId: string; region?: string | null; }
+export interface GameStatsDetail {
+  mostChampions?: LolMostChampion[] | null;
+  [key: string]: unknown;
+}
+
+/**
+ * `PUT /api/v1/users/me/game-accounts/{game}` 의 본문 — **게임마다 다르다**(P-26).
+ * LOL 은 `gameNickname`(`이름#태그`) + `mainPosition`(선택) — `tier` · `server` 를 보내면 400(티어는 Riot 이 채운다) ·
+ * VALORANT 는 `gameNickname` + `tier`(선택) + `mainPosition`(선택) · PUBG 는 `gameNickname` + `tier`(선택) + `server`.
+ * `tier` 는 그 게임의 사다리 이름이어야 하고(400 `VALIDATION_FAILED`), 없으면 보내지 않는다(`undefined` — JSON 에서 빠진다).
+ */
+export interface LolGameAccountRequest { gameNickname: string; mainPosition?: string; }
+export interface ValorantGameAccountRequest { gameNickname: string; tier?: string; mainPosition?: string; }
+export interface PubgGameAccountRequest { gameNickname: string; tier?: string; server: PubgServer; }
+export type GameAccountRequest = LolGameAccountRequest | ValorantGameAccountRequest | PubgGameAccountRequest;
 
 /* game config(GET /games · match-schema)는 없다 — 정적 상수 `domain/gameCatalog.ts`(원본 seed 의 사본) */
 
@@ -157,11 +164,7 @@ export interface CreateReservationRequest {
   playAmount: PlayAmount;
 }
 
-/**
- * v2에서 `partyId`가 제거됐다 (docs/14 §11-13).
- * 파티에 가려면 `proposalId`로 `GET /proposals/{id}`를 불러 `partyId`를 읽는다.
- * 실시간 매칭(MatchRequestView)과 같은 규칙이다.
- */
+/** 원본 프런트의 예약 — **우리 백엔드에 없다**(`app:reservation` Lambda · 미착수). 화면이 컴파일되게만 남겼다(START_HERE.md §5). */
 export interface ReservationView {
   id: string;
   status: ReservationStatus;
@@ -175,7 +178,7 @@ export interface ReservationView {
   proposalId: string | null;
 }
 
-/* ---------- party ---------- */
+/* ---------- party — 원본 프런트의 Ready/PLAYING 파티. **우리 백엔드에 없다**(파티 조회 경로를 두지 않는다 — P-31). `PartyRoomPage` 가 컴파일되게 남겼다 — 4단계에서 방 요청으로 ---------- */
 export type PartyStatus = 'OPEN' | 'READY' | 'PLAYING' | 'CLOSED';
 
 export interface PartyMemberView {
@@ -242,10 +245,10 @@ export type ServerEventType =
   | 'BOARD_CHANGED';
 
 /**
- * **원본 백엔드의 이름 — 우리 백엔드는 보내지 않고 `sse.ts` 의 화이트리스트에도 없다.** 그 이름을 기다리는 핸들러(`MatchContext` ·
- * `PartySessionContext` · `rooms/useRoomData`)가 컴파일되게만 남겼다 — 3단계(매칭 · 파티)와 4단계(방 · 게시판)에서 우리 이름으로 바꾸며 지운다.
- * `SESSION_SNAPSHOT` 은 대응물이 없다(연결 직후 `GET /match-requests` · `GET /rooms/me` 로 맞춘다) · `PARTY_*` 는 두지 않기로 했다(D-44 · P-31) ·
- * `ROOMS_UPDATED` · `ROOM_MESSAGES_UPDATED` · `RECRUITMENT_UPDATED` 의 자리는 `BOARD_CHANGED` + `ROOM_*` 다 · `RESERVATION_*` 은 예약이 없다.
+ * **원본 백엔드의 이름 — 우리 백엔드는 보내지 않고 `sse.ts` 의 화이트리스트에도 없다.** 그 이름을 기다리는 핸들러(`rooms/useRoomData` · `state/notifications`)가
+ * 컴파일되게만 남겼다 — 4단계(방 · 게시판)에서 우리 이름으로 바꾸며 지운다(`MatchContext` 의 옛 핸들러는 3단계에서 걷어냈다).
+ * `SESSION_SNAPSHOT` 은 대응물이 없다(연결 직후 `GET /match-requests` · `GET /rooms/me` 로 맞춘다) · `ROOMS_UPDATED` · `ROOM_MESSAGES_UPDATED` · `RECRUITMENT_UPDATED` 의 자리는
+ * `BOARD_CHANGED` + `ROOM_*` 다. `PARTY_*` 는 두지 않기로 했다(D-44 · P-31) — `PartyRoomPage` 의 `startsWith('PARTY_')` 는 오지 않는 이벤트를 기다린다(4단계).
  */
 export type LegacyServerEventType =
   | 'SESSION_SNAPSHOT' | 'ROOMS_UPDATED' | 'ROOM_MESSAGES_UPDATED' | 'RECRUITMENT_UPDATED' | 'RESERVATION_PROPOSAL_CREATED'

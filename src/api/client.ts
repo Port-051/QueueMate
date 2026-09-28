@@ -1,15 +1,15 @@
 import { request } from './http';
 import type {
-  BlockView, CreateBlockRequest, CreateFriendRequest, CreateGameAccountRequest, CreateMatchRequest,
+  BlockView, CreateBlockRequest, CreateFriendRequest, CreateMatchRequest,
   CreateReportRequest, CreateReservationRequest, FriendRequestDirection, FriendRequestView, FriendView,
-  GameAccountView, MatchHistoryView, MatchRequestView,
+  GameAccountRequest, GameKey, GameProfile, MatchHistoryView, MatchRequestView,
   PartyView, ProposalView, RecentPlayerView, ReservationView, SessionUser, SocialProvider, SocialSignupPending,
   SendRoomSignalRequest, SocialSignupRequest, UpdateUserRequest, UserProfile,
 } from './types';
 
 /**
  * 백엔드 엔드포인트. 계정 · 소셜 · 방 · 게시판은 `platform/contracts/platform-api.md`, 매칭 · 제안은 `matching/contracts/openapi.yaml` 이 원본이다.
- * 계약에 없는 경로를 부르지 않고, 계약에 있는 경로를 빠뜨리지 않는다. 아직 원본 프런트의 경로가 남은 절(게임 계정 · 매칭 · 제안 · 파티 · 예약 ·
+ * 계약에 없는 경로를 부르지 않고, 계약에 있는 경로를 빠뜨리지 않는다. 아직 원본 프런트의 경로가 남은 절(매칭 · 제안 · 파티 · 예약 ·
  * 친구 · 차단 · 신고)은 3 · 5단계에서 바꾼다 — START_HERE.md §3 의 대조표가 그 목록이다.
  */
 
@@ -41,14 +41,23 @@ export const unlinkSocial = (provider: SocialProvider) =>
  */
 export const uploadAvatar = (file: File) =>
   request<UserProfile>('/users/me/avatar', { method: 'POST', file });
+/* ---------- game accounts (platform-api.md "계정" · "게임 프로필" · "전적을 긁는 것") — 목록은 `users/me.gameAccounts` 다(따로 받는 요청이 없다) ---------- */
 /**
- * 게임 계정 — 아직 원본 프런트의 경로다. 우리 계약은 `PUT /users/me/game-accounts/{game}`(게임마다 본문이 다르다) · `DELETE …/{game}` ·
- * `POST …/{game}/refresh` 이고 목록은 `users/me.gameAccounts` 다 — **3단계에서 바꾼다**(START_HERE.md §2).
+ * 게임 계정 연결 · 수정 — 없으면 만들고 있으면 바꾼다. 본문은 게임마다 다르다(`GameAccountRequest`). 200 게임 프로필.
+ * **LOL 은 저장하기 전에 Riot 을 동기로 긁는다 — 상한 30초.** 응답에 `tier` · `stats` 가 바로 들어 있다. 이름#태그가 Riot 에 없으면 404 `RIOT_ID_NOT_FOUND`,
+ * Riot 장애 · 시간 초과 · 키 없음은 503 `GAME_STATS_UNAVAILABLE` — 둘 다 저장하지 않는다. 400 `VALIDATION_FAILED` 는 `details[0]` 이 `"필드: 사유"` 다.
  */
-export const linkGameAccount = (body: CreateGameAccountRequest) =>
-  request<GameAccountView>('/users/me/game-accounts', { method: 'POST', body });
-export const unlinkGameAccount = (id: string) =>
-  request<void>(`/users/me/game-accounts/${id}`, { method: 'DELETE' });
+export const putGameAccount = (game: GameKey, body: GameAccountRequest) =>
+  request<GameProfile>(`/users/me/game-accounts/${game}`, { method: 'PUT', body });
+/** 연결 해제. 없어도 204. */
+export const deleteGameAccount = (game: GameKey) =>
+  request<void>(`/users/me/game-accounts/${game}`, { method: 'DELETE' });
+/**
+ * 전적 갱신 — **LOL 만**(동기 · 상한 30초 · 같은 계정은 2분에 한 번). 200 갱신된 게임 프로필(`PUT` 과 같은 모양 — 그대로 갈아 끼운다).
+ * 429 `TOO_MANY_STATS_REFRESHES` + `Retry-After`(초) · 404 `GAME_ACCOUNT_NOT_FOUND` · 409 `GAME_STATS_NOT_SUPPORTED`(VALORANT · PUBG) · 503 `GAME_STATS_UNAVAILABLE`.
+ */
+export const refreshGameStats = (game: GameKey) =>
+  request<GameProfile>(`/users/me/game-accounts/${game}/refresh`, { method: 'POST' });
 
 /* ---------- game config — 없다. 게임 · 모드 · 티어는 정적 상수 `domain/gameCatalog.ts`(seed 의 사본 · 2026-09-28 소유자 결정) ---------- */
 

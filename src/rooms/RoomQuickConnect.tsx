@@ -50,7 +50,7 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onSelectSeat, o
   const ownRoles = value.primaryRoles ?? (value.primaryRole !== 'ANY' ? [value.primaryRole] : []);
   const fullLineup = needsFullLineup(game, value.queueType, capacity);
   const positionError = roomPositionError({ game, modeKey: value.queueType, capacity, desiredRoles: value.desiredRoles }, ownRoles);
-  const rank = accountRank(gameAccounts.find(account => account.game === game), value.queueType);
+  const rank = accountRank(gameAccounts.find(account => account.game === game));
   const criteria: QuickConnectCriteria = { game, modeKey: value.queueType, capacity, availableFrom: start, role: ownRoles[0] ?? '', roles: ownRoles, desiredRoles: value.desiredRoles, voice: value.voice, userId: member.id, ownTier: rank.tier, desiredTierRange: value.desiredTierRange };
   const candidates = quickConnectCandidates(rooms, criteria);
   const candidate = candidates.find(room => !skipped.includes(room.id));

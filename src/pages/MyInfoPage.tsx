@@ -6,11 +6,14 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
-import type { GameKey, SocialProvider } from '../api/types';
+import type { GameKey, GameProfile, SocialProvider } from '../api/types';
+import { GameAccountForm, gameAccountErrorMessage } from '../components/GameAccountForm';
 import { IconCheck, IconLogout, IconPencil, IconPlus, IconShield } from '../components/icons';
-import { AVATAR_CHOICES, avatarImageSrc, Avatar, Button, ConfirmDialog, Field, Modal, useToast } from '../components/ui';
+import { AVATAR_CHOICES, avatarImageSrc, Avatar, Button, ConfirmDialog, Field, Modal, Tag, useToast } from '../components/ui';
 import { GAMES } from '../domain/gameConfig';
-import { gameFullLabel, rankLabel } from '../domain/labels';
+import { gameFullLabel, positionLabel, rankLabel } from '../domain/labels';
+import { championName } from '../domain/champions';
+import { accountRank } from '../rooms/accountRank';
 import { useAuth } from '../state/AuthContext';
 import { useSocial } from '../state/SocialContext';
 import { PROVIDER_LABEL, settingsNoticeMessage, takeSettingsNotice } from '../state/settingsNotice';
@@ -20,20 +23,77 @@ const SOCIAL_PROVIDERS: SocialProvider[] = ['KAKAO', 'DISCORD'];
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 const AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
+const SERVER_LABEL = { STEAM: '스팀', KAKAO: '카카오' } as const;
+
+const syncedLabel = (iso: string) => new Date(iso).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+const number = (value: number | null, digits = 1) => value === null ? '—' : Number.isInteger(value) ? String(value) : value.toFixed(digits);
+
+/**
+ * 게임 프로필 카드 하나(platform-api.md "게임 프로필"). 세 게임이 같은 모양이고 게임마다 비는 칸이 다르다 — `null` 은 "정보 없음"으로.
+ * LoL 은 `stats` 가 채워지고(연결 · 전적 갱신 때 Riot 에서), VALORANT · PUBG 는 아직 늘 `null` 이다(그 둘의 전적 API 는 미정).
+ */
+function GameProfileCard({ game, profile, onEdit, onUnlink, onRefresh, refreshing }: {
+  game: GameKey; profile: GameProfile | null; onEdit: () => void; onUnlink: () => void; onRefresh: () => void; refreshing: boolean;
+}) {
+  const name = gameFullLabel(game);
+  const rank = accountRank(profile ?? undefined);
+  const stats = profile?.stats ?? null;
+  const champions = game === 'LOL' ? stats?.detail?.mostChampions ?? [] : [];
+  return <div className="profile-game-card">
+    <div className="profile-game-account">
+      <GameBadge game={game} />
+      <div className="profile-game-detail">
+        <h3>{name}</h3>
+        {profile ? <p className="profile-game-id">{profile.gameNickname}</p> : <p className="profile-game-unregistered">연결된 계정이 없습니다</p>}
+      </div>
+      <div className="profile-game-head-actions">
+        {profile ? <>
+          {game === 'LOL' ? <Button size="sm" variant="ghost" disabled={refreshing} aria-label={`${name} 전적 갱신`} onClick={onRefresh}>{refreshing ? '갱신 중…' : '전적 갱신'}</Button> : null}
+          <Button size="sm" variant="ghost" aria-label={`${name} 계정 수정`} onClick={onEdit}><IconPencil size={14} />수정</Button>
+          <Button size="sm" variant="ghost" className="profile-unlink" aria-label={`${name} 연결 해제`} onClick={onUnlink}>연결 해제</Button>
+        </> : <Button size="sm" variant="ghost" aria-label={`${name} 계정 연결`} onClick={onEdit}><IconPlus size={15} />계정 연결</Button>}
+      </div>
+    </div>
+    {profile ? <div className="profile-game-body">
+      <div className="profile-game-facts">
+        <span className="row-tier"><FilterTierIcon game={game} tier={rank.tier} size={22} /><span>{rankLabel(profile.tier) ?? (game === 'LOL' ? '언랭크 · 배치 전' : '티어 미입력')}</span></span>
+        {profile.mainPosition ? <span>{game === 'LOL' ? '주 포지션' : '주 역할군'} · {positionLabel(game, profile.mainPosition)}</span> : null}
+        {profile.server ? <span>서버 · {SERVER_LABEL[profile.server]}</span> : null}
+        {profile.verified ? <Tag tone="ok">인증됨</Tag> : <Tag>{game === 'LOL' ? 'Riot 조회' : '자기신고'}</Tag>}
+      </div>
+      {stats ? <>
+        <dl className="profile-game-stats">
+          <div><dt>{game === 'PUBG' ? '판 수' : '최근 경기'}</dt><dd>{stats.games}판</dd></div>
+          <div><dt>{game === 'PUBG' ? '치킨' : '승률'}</dt><dd>{stats.winRate !== null ? `${stats.winRate}%` : '—'}{stats.wins !== null && stats.losses !== null ? <small style={{ marginLeft: 6, fontWeight: 400, color: 'var(--muted)' }}>{stats.wins}승 {stats.losses}패</small> : null}</dd></div>
+          <div><dt>KDA</dt><dd>{stats.kda !== null ? stats.kda.toFixed(2) : `${number(stats.avgKills)} / ${number(stats.avgDeaths)}`}</dd></div>
+          <div><dt>연승</dt><dd>{stats.winStreak !== null ? `${stats.winStreak}연승` : '—'}</dd></div>
+        </dl>
+        {champions.length ? <div className="profile-game-champions" aria-label="최근 선호 챔피언">
+          {champions.map((champion) => <span className="profile-game-champion" key={champion.championId}>
+            <b>{championName(champion.championId) ?? champion.championId}</b>
+            <span>{champion.games}판{champion.winRate !== null ? ` · ${champion.winRate}%` : ''}{champion.masteryLevel !== null ? ` · 숙련도 ${champion.masteryLevel}` : ''}{champion.masteryPoints !== null ? ` (${champion.masteryPoints.toLocaleString('ko-KR')})` : ''}</span>
+          </span>)}
+        </div> : null}
+        <p className="profile-game-synced">{syncedLabel(stats.syncedAt)} 기준{game === 'LOL' ? ' · 전적 갱신은 2분에 한 번' : ''}</p>
+      </> : <p className="profile-game-synced">{game === 'LOL' ? '전적 정보가 없습니다. 전적 갱신을 눌러 보세요.' : '전적 정보 없음 — 이 게임의 전적 연동은 아직 없습니다.'}</p>}
+    </div> : null}
+  </div>;
+}
+
 export function MyInfoPage() {
-  const { user, gameAccounts, updateProfile, uploadAvatar, refreshGameAccounts, refreshSession, logout } = useAuth();
+  const { user, gameAccounts, updateProfile, uploadAvatar, applyGameAccount, removeGameAccount, refreshSession, logout } = useAuth();
   const { blocks } = useSocial();
   const toast = useToast();
   const navigate = useNavigate();
 
   const [nickname, setNickname] = useState(user?.nickname ?? '');
   const [linkGame, setLinkGame] = useState<GameKey | null>(null);
-  const [externalId, setExternalId] = useState('');
   const [busy, setBusy] = useState(false);
+  const [refreshingGame, setRefreshingGame] = useState<GameKey | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [nicknameOpen, setNicknameOpen] = useState(false);
-  const [unlinkTarget, setUnlinkTarget] = useState<{ id: string; game: GameKey } | null>(null);
+  const [unlinkTarget, setUnlinkTarget] = useState<GameKey | null>(null);
   // 모달 안에서만 쓰는 임시 선택이다. 저장 전까지 실제 프로필은 건드리지 않는다.
   const [picked, setPicked] = useState<string | null>(null);
   const [savingAvatar, setSavingAvatar] = useState(false);
@@ -58,10 +118,6 @@ export function MyInfoPage() {
       else toast(isApiError(err) ? err.message : '연결을 끊지 못했습니다', 'error');
     }
   };
-
-  const lolAccount = gameAccounts.find((account) => account.game === 'LOL');
-  const soloRank = rankLabel(lolAccount?.rankCode ?? null);
-  const flexRank = rankLabel(lolAccount?.flexRankCode ?? null);
 
   const nicknameChanged = nickname.trim() !== user?.nickname;
   const nicknameError = nicknameChanged && (nickname.trim().length < 2 || nickname.trim().length > 16) ? '닉네임은 2~16자로 입력해주세요.' : undefined;
@@ -111,27 +167,24 @@ export function MyInfoPage() {
     toast('프로필 사진은 아직 지원하지 않습니다', 'info');
   };
 
-  const link = async () => {
-    if (!linkGame) return;
-    if (!externalId.trim()) { toast('게임 아이디를 입력해주세요', 'error'); return; }
-    setBusy(true);
-    try {
-      await api.linkGameAccount({ game: linkGame, externalGameId: externalId.trim(), region: 'KR' });
-      await refreshGameAccounts();
-      setExternalId('');
-      setLinkGame(null);
-      toast('게임 ID를 등록했습니다', 'ok');
-    } catch (err) {
-      toast(isApiError(err) ? err.message : '게임 ID를 등록하지 못했습니다', 'error');
-    } finally {
-      setBusy(false);
-    }
+  /** `DELETE …/game-accounts/{game}` — 없어도 204. 목록에서 그 자리에서 뺀다. */
+  const unlink = async (game: GameKey) => {
+    await api.deleteGameAccount(game);
+    removeGameAccount(game);
+    toast('게임 계정 연결을 해제했습니다');
   };
 
-  const unlink = async (id: string) => {
-    await api.unlinkGameAccount(id);
-    await refreshGameAccounts();
-    toast('게임 계정 연결을 해제했습니다');
+  /** 전적 갱신 — LOL 만 · 동기(상한 30초) · 2분에 한 번(429 + `Retry-After`). 응답의 게임 프로필을 그대로 갈아 끼운다. */
+  const refreshStats = async (game: GameKey) => {
+    setRefreshingGame(game);
+    try {
+      applyGameAccount(await api.refreshGameStats(game));
+      toast('전적을 갱신했습니다', 'ok');
+    } catch (err) {
+      toast(gameAccountErrorMessage(err, '전적을 갱신하지 못했습니다'), 'error');
+    } finally {
+      setRefreshingGame(null);
+    }
   };
 
   const handleLogout = async () => {
@@ -143,6 +196,8 @@ export function MyInfoPage() {
     }
     navigate('/', { replace: true });
   };
+
+  const editing = linkGame ? gameAccounts.find((account) => account.game === linkGame) ?? null : null;
 
   return (
     <section className="page profile-page" aria-label="프로필">
@@ -161,29 +216,16 @@ export function MyInfoPage() {
       </header>
 
       <div className="profile-sections">
-          <section className="profile-section" aria-labelledby="profile-games-heading">
-            <div className="profile-section-heading">
-              <h2 id="profile-games-heading">게임 ID</h2>
-              <p>매칭된 팀원에게 공유됩니다.</p>
-            </div>
-            <div className="profile-game-accounts">
-              {GAMES.flatMap((item) => {
-                const accounts = gameAccounts.filter((a) => a.game === item.key);
-                return (accounts.length ? accounts : [null]).map((account) => <div key={account?.id ?? item.key} className="profile-game-account account-row">
-                  <GameBadge game={item.key} />
-                  <div className="profile-game-detail"><h3>{item.name}</h3>{account ? <p className="profile-game-id">{account.externalGameId}</p> : null}</div>
-                  {account ? <Button size="sm" variant="ghost" className="profile-unlink" aria-label={`${item.name} 연결 해제`} onClick={() => setUnlinkTarget({ id: account.id, game: account.game })}>연결 해제</Button> : <Button size="sm" variant="ghost" aria-label={`${item.name} ID 등록`} onClick={() => { setExternalId(''); setLinkGame(item.key); }}><IconPlus size={15} />ID 등록</Button>}
-                </div>);
-              })}
-            </div>
-          </section>
-        <section className="profile-section" aria-labelledby="profile-record-heading">
-          <div className="profile-section-heading"><h2 id="profile-record-heading">내 전적</h2></div>
-          <section className="linked-game-record" aria-label="롤 전적 정보">
-            <div className="linked-record-heading"><FilterTierIcon game="LOL" tier={lolAccount?.rankCode?.split('_')[0] ?? null} size={26} /><strong>리그 오브 레전드 전적</strong><span>{soloRank || flexRank ? '랭크 연동' : '연동 대기'}</span></div>
-            <dl><div><dt>솔로 랭크</dt><dd>{soloRank ?? '—'}</dd></div><div><dt>자유 랭크</dt><dd>{flexRank ?? '—'}</dd></div><div><dt>승률</dt><dd>—</dd></div><div><dt>KDA</dt><dd>—</dd></div></dl>
-            <div className="linked-record-champions" aria-label="챔피언 연동 대기"><span /><span /><span /><small>챔피언 · 최근 20경기</small></div>
-          </section>
+        <section className="profile-section" aria-labelledby="profile-games-heading">
+          <div className="profile-section-heading">
+            <h2 id="profile-games-heading">게임 계정</h2>
+            <p>게임마다 하나. 파티원과 게시판 카드에 표시됩니다. LOL 의 티어 · 전적은 Riot 에서 가져오고 VALORANT · PUBG 는 직접 적습니다.</p>
+          </div>
+          <div className="profile-game-accounts">
+            {GAMES.map((item) => <GameProfileCard key={item.key} game={item.key} profile={gameAccounts.find((a) => a.game === item.key) ?? null}
+              onEdit={() => setLinkGame(item.key)} onUnlink={() => setUnlinkTarget(item.key)}
+              onRefresh={() => void refreshStats(item.key)} refreshing={refreshingGame === item.key} />)}
+          </div>
         </section>
         <section className="profile-section" aria-labelledby="profile-social-heading">
           <div className="profile-section-heading">
@@ -232,14 +274,12 @@ export function MyInfoPage() {
           <div className="profile-edit-actions"><Button variant="ghost" disabled={busy} onClick={() => setNicknameOpen(false)}>취소</Button><Button type="submit" variant="primary" disabled={busy || !nicknameChanged || Boolean(nicknameError)}>{busy ? '저장 중…' : '변경 사항 저장'}</Button></div>
         </form>
       </Modal> : null}
-      {linkGame ? <Modal title={`${gameFullLabel(linkGame)} ID 등록`} className="profile-edit-modal" onClose={() => { if (!busy) setLinkGame(null); }}>
-        <form className="profile-edit-form" onSubmit={(event) => { event.preventDefault(); if (!busy) void link(); }}>
-          <Field label="게임 ID" hint="게임에 표시되는 ID를 정확히 입력하세요."><input className="input" placeholder={linkGame === 'PUBG' ? '예: QueueMaster' : '예: QueueMaster#KR1'} value={externalId} disabled={busy} onChange={(event) => setExternalId(event.target.value)} /></Field>
-          <div className="profile-edit-actions"><Button variant="ghost" disabled={busy} onClick={() => setLinkGame(null)}>취소</Button><Button type="submit" disabled={busy || !externalId.trim()} variant="primary">{busy ? '등록 중…' : 'ID 등록'}</Button></div>
-        </form>
+      {linkGame ? <Modal title={`${gameFullLabel(linkGame)} ${editing ? '계정 수정' : '계정 연결'}`} className="profile-edit-modal" onClose={() => setLinkGame(null)}>
+        <GameAccountForm game={linkGame} initial={editing} onCancel={() => setLinkGame(null)}
+          onSaved={(profile) => { setLinkGame(null); toast(editing ? `${profile.gameNickname} 계정을 수정했습니다` : `${profile.gameNickname} 계정을 연결했습니다`, 'ok'); }} />
       </Modal> : null}
       {unlinkSocialTarget ? <ConfirmDialog title={`${PROVIDER_LABEL[unlinkSocialTarget]} 계정 연결을 끊을까요?`} description="이 계정으로는 더 이상 로그인할 수 없습니다. 마지막 하나는 끊을 수 없습니다." confirmLabel="연결 끊기" onConfirm={() => unlinkSocial(unlinkSocialTarget)} onClose={() => setUnlinkSocialTarget(null)} /> : null}
-      {unlinkTarget ? <ConfirmDialog title={`${gameFullLabel(unlinkTarget.game)} 연결을 해제할까요?`} description="이 게임의 ID가 파티원에게 표시되지 않습니다. 나중에 다시 등록할 수 있습니다." confirmLabel="연결 해제" onConfirm={() => unlink(unlinkTarget.id)} onClose={() => setUnlinkTarget(null)} /> : null}
+      {unlinkTarget ? <ConfirmDialog title={`${gameFullLabel(unlinkTarget)} 연결을 해제할까요?`} description="이 게임의 닉네임 · 티어 · 전적이 파티원에게 표시되지 않습니다. 나중에 다시 연결할 수 있습니다." confirmLabel="연결 해제" onConfirm={() => unlink(unlinkTarget)} onClose={() => setUnlinkTarget(null)} /> : null}
 
       {avatarOpen ? (
         <Modal

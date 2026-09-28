@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ReactNode } from 'react';
 import * as api from '../api/client';
 import { setAuthLostHandler } from '../api/http';
-import type { GameAccountView, UpdateUserRequest, UserProfile } from '../api/types';
+import type { GameKey, GameProfile, UpdateUserRequest, UserProfile } from '../api/types';
 
 type Status = 'loading' | 'authenticated' | 'anonymous';
 
@@ -20,8 +20,8 @@ interface AuthValue {
    * 로그인 전에는 `null`.
    */
   userId: string | null;
-  /** `user.gameAccounts` 와 같다 — 3단계까지 원본 모양(`GameAccountView`)이다(types.ts 주석). */
-  gameAccounts: GameAccountView[];
+  /** `user.gameAccounts` 와 같다 — 게임 프로필(게임마다 하나). 매칭 요청의 `tier` 가 여기서 온다(`domain/matchRequest.ts`). */
+  gameAccounts: GameProfile[];
   /** 쿠키가 바뀐 뒤(소셜 가입 · 재발급) `GET /users/me` 를 다시 불러 세션을 맞춘다. 실패하면 익명이다. */
   refreshSession(): Promise<void>;
   logout(): Promise<void>;
@@ -30,6 +30,13 @@ interface AuthValue {
   uploadAvatar(file: File): Promise<void>;
   /** 게임 계정 목록은 `users/me` 안에 있다 — 다시 읽는 것은 `refreshSession` 과 같다. */
   refreshGameAccounts(): Promise<void>;
+  /**
+   * `PUT …/game-accounts/{game}` · `POST …/refresh` 의 응답(게임 프로필)을 그 자리에서 목록에 끼운다 — `GET /users/me` 를 다시 부르지 않는다
+   * (응답이 곧 저장된 값이다). `game` 이 같은 항목을 갈아 끼우고 없으면 더한다.
+   */
+  applyGameAccount(profile: GameProfile): void;
+  /** `DELETE …/game-accounts/{game}` 뒤 목록에서 뺀다. */
+  removeGameAccount(game: GameKey): void;
 }
 
 const AuthCtx = createContext<AuthValue | null>(null);
@@ -89,12 +96,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await api.uploadAvatar(file));
   }, []);
 
+  const applyGameAccount = useCallback((profile: GameProfile) => {
+    setUser((current) => current && {
+      ...current,
+      gameAccounts: current.gameAccounts.some((a) => a.game === profile.game)
+        ? current.gameAccounts.map((a) => (a.game === profile.game ? profile : a))
+        : [...current.gameAccounts, profile],
+    });
+  }, []);
+
+  const removeGameAccount = useCallback((game: GameKey) => {
+    setUser((current) => current && { ...current, gameAccounts: current.gameAccounts.filter((a) => a.game !== game) });
+  }, []);
+
   const userId = user ? String(user.userId) : null;
   const gameAccounts = useMemo(() => user?.gameAccounts ?? [], [user]);
 
   const value = useMemo<AuthValue>(() => ({
     status, user, userId, gameAccounts, refreshSession: load, logout, updateProfile, uploadAvatar, refreshGameAccounts: load,
-  }), [status, user, userId, gameAccounts, load, logout, updateProfile, uploadAvatar]);
+    applyGameAccount, removeGameAccount,
+  }), [status, user, userId, gameAccounts, load, logout, updateProfile, uploadAvatar, applyGameAccount, removeGameAccount]);
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }
