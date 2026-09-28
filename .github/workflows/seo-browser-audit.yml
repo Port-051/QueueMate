@@ -1,0 +1,82 @@
+name: SEO browser and accessibility audit
+on:
+  push:
+    branches: [feat/seo-landing, main]
+    paths: ['landing/src/**', 'landing/qa/**', 'landing/scripts/check-url.mjs', '.github/workflows/seo-browser-audit.yml']
+  pull_request:
+    paths: ['landing/src/**', 'landing/qa/**', 'landing/scripts/check-url.mjs', '.github/workflows/seo-browser-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: seo-browser-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  source-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test source and install isolated pinned audit tools
+        run: |
+          npm ci --prefix landing --ignore-scripts --no-audit --no-fund
+          npm test --prefix landing
+          npm run build --prefix landing
+          python -m pip install --disable-pip-version-check playwright==1.55.0
+          npm install --prefix "$RUNNER_TEMP/qmate-audit-tools" --no-audit --no-fund agent-browser@0.38.1 lighthouse@12.8.2
+          echo "CHROME_BIN=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          mkdir -p qa-results
+          cp "$RUNNER_TEMP/qmate-audit-tools/package-lock.json" qa-results/audit-tools-lock.json
+      - name: Start local server and verify it with agent-browser
+        run: |
+          node landing/scripts/serve.mjs > qa-results/server.log 2>&1 &
+          echo $! > "$RUNNER_TEMP/qmate-audit-server.pid"
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:4173/ >/dev/null && break; sleep 1; done
+          AB="$RUNNER_TEMP/qmate-audit-tools/node_modules/.bin/agent-browser"
+          "$AB" --session qmate-audit --executable-path "$CHROME_BIN" open http://127.0.0.1:4173
+          "$AB" --session qmate-audit snapshot -i > qa-results/agent-snapshot.txt
+          "$AB" --session qmate-audit screenshot qa-results/agent-initial.png
+          "$AB" --session qmate-audit errors > qa-results/agent-errors.txt
+          node landing/scripts/check-url.mjs http://127.0.0.1:4173 preview qa-results/http-local.json
+      - name: Six-width browser interactions and JavaScript-disabled checks
+        run: python landing/qa/browser_audit.py --output qa-results
+      - name: Run axe accessibility audits without disabling rules
+        run: |
+          AB="$RUNNER_TEMP/qmate-audit-tools/node_modules/.bin/agent-browser"
+          for width in 390 1440; do
+            "$AB" --session qmate-audit set viewport "$width" 900
+            "$AB" --session qmate-audit open http://127.0.0.1:4173
+            "$AB" --session qmate-audit eval 'document.querySelectorAll("details").forEach(d => d.open = true)'
+            "$AB" --session qmate-audit a11y --tags wcag2a,wcag2aa --json > "qa-results/a11y-$width.json"
+          done
+      - name: Record mobile and desktop Lighthouse lab reports
+        run: |
+          LH="$RUNNER_TEMP/qmate-audit-tools/node_modules/.bin/lighthouse"
+          "$LH" http://127.0.0.1:4173 --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" --only-categories=performance,accessibility,best-practices,seo --output=json --output=html --output-path=qa-results/lighthouse-mobile --quiet
+          "$LH" http://127.0.0.1:4173 --preset=desktop --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" --only-categories=performance,accessibility,best-practices,seo --output=json --output=html --output-path=qa-results/lighthouse-desktop --quiet
+      - name: Summarize source quality and fail on accessibility violations
+        run: node landing/qa/summarize-audit.mjs qa-results
+      - name: Inspect deployed URL anonymously (separate from source quality)
+        if: always()
+        continue-on-error: true
+        run: node landing/scripts/check-url.mjs https://q-mate-landing-36418820590-cerit5nsr-port-051.vercel.app preview qa-results/http-live.json
+      - name: Stop only this audit's browser and server
+        if: always()
+        run: |
+          AB="$RUNNER_TEMP/qmate-audit-tools/node_modules/.bin/agent-browser"
+          if [ -x "$AB" ]; then "$AB" --session qmate-audit close || true; fi
+          if [ -f "$RUNNER_TEMP/qmate-audit-server.pid" ]; then kill "$(cat "$RUNNER_TEMP/qmate-audit-server.pid")" 2>/dev/null || true; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: seo-browser-audit
+          path: qa-results/
+          retention-days: 7
