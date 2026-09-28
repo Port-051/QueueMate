@@ -219,7 +219,7 @@ payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약
 > **대신 이렇게 간다.**
 > 1. 전원 수락으로 확정되면 이 앱의 `cleanup-confirmed.lua` 가 파티 HASH **`qm:party:{partyId}`** 를 자기완결로 채우고 `MATCH_CONFIRMED {partyId}` 를 파티 전원에게 보낸다.
 > 2. 클라이언트가 `app:platform` 의 **`POST /api/v1/match-parties/{partyId}/room`** 을 부른다 — 본문 없음, 201(방을 만듦)/200(들어감), 404 `MATCH_PARTY_NOT_FOUND` · 403 `NOT_PARTY_MEMBER` · 409 `IN_OTHER_ROOM` · 503 (`../platform/contracts/platform-api.md` "자동 매칭 파티의 방" · P-30, 2026-09-27).
-> 3. platform 이 그 HASH 를 읽어(`status == CONFIRMED` 확인) 파티와 방을 만들고 파티원 전원에게 입장 표시 키 `qm:user:active-room:{userId}` 를 찍는다(D-19). 파티원 다섯이 다 눌러도 `partyId` 유일 키로 **한 번만** 만든다.
+> 3. platform 이 그 HASH 를 읽어(`status == CONFIRMED` 확인) 처음 부른 사람이면 파티(DB)와 방을 만들고, 부른 사람마다 방에 넣으며 **그 사람의** 입장 표시 키 `qm:user:active-room:{userId}` 를 찍는다(D-19 — 방에 없는 사람의 키는 찍지 않는다). `party_members` 도 들어온 사람만 적는다(2026-09-28 소유자 결정 — 실제로 함께한 사람의 기록). **프런트는 알림을 받으면 사용자 조작 없이 즉시 부른다** — 그래서 온라인인 파티원은 전부 들어간다. 다섯이 다 눌러도 `partyId` 유일 키로 파티는 **한 번만** 만든다.
 >
 > **파티 HASH 의 필드가 계약이다** — 이름을 바꾸면 platform 이 조용히 깨진다(`redisKeys/SharedKeys` 의 경고와 같다).
 >
