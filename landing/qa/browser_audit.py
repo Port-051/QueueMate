@@ -15,7 +15,7 @@ if u.scheme != 'http' or u.hostname != '127.0.0.1':
     raise SystemExit('This source audit accepts only the loopback preview server.')
 out = Path(a.output)
 out.mkdir(parents=True, exist_ok=True)
-report = {'scope': 'local source build, not the Vercel deployment', 'checks': [], 'widths': []}
+report = {'scope': 'local source build, not the Vercel deployment', 'checks': [], 'widths': [], 'diagnostics': []}
 
 def check(name, ok):
     report['checks'].append({'name': name, 'pass': bool(ok)})
@@ -30,9 +30,10 @@ try:
             for width in [320, 390, 640, 768, 1024, 1440]:
                 context = browser.new_context(viewport={'width': width, 'height': 900}, reduced_motion='reduce', locale='ko-KR')
                 page = context.new_page()
-                errors, failed, external = [], [], []
+                errors, failed, external, bad_responses = [], [], [], []
                 page.on('pageerror', lambda e: errors.append(str(e)))
-                page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
+                page.on('console', lambda m: errors.append({'text': m.text, 'location': m.location}) if m.type == 'error' else None)
+                page.on('response', lambda r: bad_responses.append({'url': r.url, 'status': r.status}) if r.status >= 400 else None)
                 page.on('requestfailed', lambda r: failed.append(r.url))
                 page.on('request', lambda r: external.append(r.url) if not r.url.startswith(a.url) else None)
                 response = page.goto(a.url, wait_until='networkidle')
@@ -56,6 +57,7 @@ try:
                 page.locator('[data-cta="explore-preview"]').first.click()
                 check(f'{width}px: primary button reaches example', page.url.endswith('#preview'))
                 report['widths'].append(width)
+                report['diagnostics'].append({'width': width, 'consoleErrors': errors, 'failedRequests': failed, 'badResponses': bad_responses, 'externalRequests': external})
                 context.close()
             context = browser.new_context(java_script_enabled=False, viewport={'width': 390, 'height': 844})
             page = context.new_page()

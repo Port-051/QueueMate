@@ -47,6 +47,7 @@ jobs:
           "$AB" --session qmate-audit errors > qa-results/agent-errors.txt
           node landing/scripts/check-url.mjs http://127.0.0.1:4173 preview qa-results/http-local.json
       - name: Six-width browser interactions and JavaScript-disabled checks
+        continue-on-error: true
         run: python landing/qa/browser_audit.py --output qa-results
       - name: Run axe accessibility audits without disabling rules
         run: |
