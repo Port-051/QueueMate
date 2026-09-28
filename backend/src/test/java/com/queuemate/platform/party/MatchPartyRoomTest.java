@@ -186,6 +186,53 @@ class MatchPartyRoomTest extends RoomTestSupport {
         assertThat(partyMembersOf(partyId)).hasSize(3);
     }
 
+    // ---- 파티 HASH 가 수명(600초)으로 사라진 뒤 — 방에 있는 사람은 방 키로, 방에 없는 사람만 HASH 로 판정한다 (2026-09-28) ----
+
+    @Test
+    @DisplayName("방에 들어와 있는 사람은 파티 HASH 가 사라진 뒤에 다시 불러도(새로고침) 200 이고 방 키 · 멤버 SET 이 그대로다")
+    void refreshAfterPartyHashExpiredIsStillOk() throws Exception
+    {
+        Cookie u1 = member("u1");
+        member("u2");
+        String partyId = seedConfirmedParty("CONFIRMED", "u1", "u2");
+        mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u1)).andExpect(status().isCreated());
+
+        // 수명 만료 흉내 — matching 의 HASH 가 600초 뒤 사라진 상태
+        redisTemplate.delete("qm:party:" + partyId);
+
+        mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roomId").value(partyId));
+
+        assertThat(roomHost(partyId)).isEqualTo(u("u1"));
+        assertThat(redisTemplate.opsForValue().get("qm:room:" + partyId + ":confirmed")).isEqualTo(partyId);
+        assertThat(roomMembers(partyId)).containsExactly(u("u1"));
+        assertThat(marker("u1")).isEqualTo(partyId);
+        assertThat(partyCountOf(partyId)).isEqualTo(1);
+        // HASH 를 되살리지 않는다 — 읽기만 한다
+        assertThat(redisTemplate.hasKey("qm:party:" + partyId)).isFalse();
+    }
+
+    @Test
+    @DisplayName("파티 HASH 가 사라진 뒤 아직 방에 안 들어온 파티원은 404 MATCH_PARTY_NOT_FOUND 이고 방에 들어가지 않는다")
+    void newcomerAfterPartyHashExpiredIsNotFound() throws Exception
+    {
+        Cookie u1 = member("u1");
+        Cookie u2 = member("u2");
+        String partyId = seedConfirmedParty("CONFIRMED", "u1", "u2");
+        mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u1)).andExpect(status().isCreated());
+
+        redisTemplate.delete("qm:party:" + partyId);
+
+        mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u2))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("MATCH_PARTY_NOT_FOUND"));
+
+        assertThat(roomMembers(partyId)).containsExactly(u("u1"));
+        assertThat(marker("u2")).isNull();
+        assertThat(partyCountOf(partyId)).isEqualTo(1);
+    }
+
     @Test
     @DisplayName("파티원이 아니면 403 NOT_PARTY_MEMBER 이고 아무 키도 · 아무 줄도 생기지 않는다")
     void outsiderIsRejected() throws Exception

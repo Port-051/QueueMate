@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 방 자체 — 방장 확정 · 내 방 찾기. 경로 · 상태 코드 · 에러 코드의 원본은 {@code contracts/platform-api.md} "방" 이다.
  *
  * <p><b>방 만들기 요청({@code POST /api/v1/rooms/{roomId}})은 없다</b>(2026-09-25 2단계 — 소유자 결정 C). 게시판의 방은 글 쓰기가 만든다
- * ({@code POST /api/v1/posts}). 자동 매칭 파티의 방을 어떻게 만들지는 미정이다.
+ * ({@code POST /api/v1/posts}). 자동 매칭 파티의 방은 {@code POST /api/v1/match-parties/{partyId}/room} 이 만든다(2026-09-27 P-30).
  *
  * <p><b>"나"는 access 토큰에서 온다</b>({@link CurrentUserId}). 방 키에는 사용자 번호를 십진 문자열로 적는다.
  */

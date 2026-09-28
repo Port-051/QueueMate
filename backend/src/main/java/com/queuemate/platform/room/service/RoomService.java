@@ -99,7 +99,7 @@ public class RoomService {
      * 방을 만든다. 만든 사람이 방장이고, 만들면서 곧바로 그 방에 들어와 있다.
      *
      * <p><b>HTTP 요청이 없다</b>(2026-09-25 2단계 — 소유자 결정 C). 게시판의 방은 글 쓰기가 만든다({@code PostStore#create}) — 글과 방이 한 요청에서 같이 생긴다.
-     * 자동 매칭 파티의 방을 어떻게 만들지는 미정이다(CLAUDE.md §7.2 (다)).
+     * 자동 매칭 파티의 방은 {@link #enterMatchRoom} 이 만든다(2026-09-27 P-30).
      */
     public CreateResult create(String roomId, String userId)
     {

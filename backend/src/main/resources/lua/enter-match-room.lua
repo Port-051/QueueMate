@@ -17,10 +17,10 @@
 -- 들어왔을 때(3)만 뒤에 "내가 들어오기 전부터 방에 있던 사람들"이 붙는다 — 서비스가 그 사람들에게 입장을 알린다.
 -- 뜻이 같은 값은 enter-room.lua 와 번호를 맞췄다(2 · -2 · -3 · -4)
 --   1 = 방을 만들고 들어왔다. 내가 방장이다                     { 1 }
---   2 = 이미 이 방에 들어와 있다 (아무것도 쓰지 않는다)           { 2 }
+--   2 = 이미 이 방에 들어와 있다 (아무것도 쓰지 않는다 · 파티 HASH 를 보지 않는다)  { 2 }
 --   3 = 있던 방에 들어왔다                                      { 3, "u1", "u2", ... }
 --  -2 = 방이 가득 찼다 — 정원은 파티 HASH 의 target 이다
---  -3 = 다른 방에 들어가 있다
+--  -3 = 다른 방에 들어가 있다 (파티 HASH 를 보지 않는다 — 그 파티가 있든 없든 이 값이다)
 --  -4 = 확정된 파티가 없다 (아직 제안 중이다 · 수명이 다해 사라졌다 · 그런 파티가 없다 · HASH 에 target 이 없다)
 --  -6 = 이 파티의 파티원이 아니다
 --
@@ -28,6 +28,15 @@
 -- status = 'PARTY' 로 60초쯤 더 남아 있고, 그 활성 요청이 곧 이 파티다 — 그것을 보고 거절하면 아무도 방에 못 들어온다. "매칭 대기와 방은 한 번에 하나"
 -- (D-19)는 그대로 지켜진다: 그 키를 쓰지도 지우지도 않고(EXISTS 로도 보지 않는다), 입장 표시 키를 세우면 matching 의 claim-request.lua 가 그것을
 -- 보고 새 매칭을 거절한다. 게시판 방에 있는 사람이 자동 매칭 파티의 파티원일 수는 없다 — 매칭을 걸 때 입장 표시 키가 있으면 거절됐다.
+--
+-- 검사 순서 — ① 입장 표시 키가 이 방이면 { 2 } → ② 입장 표시 키가 다른 방이면 { -3 } → ③ 파티 HASH 의 status 가 CONFIRMED 이고 target 이 있는가(아니면 { -4 })
+-- → ④ HASH 에 member:{userId} 가 있는가(아니면 { -6 }) → ⑤ 방이 없으면 만든다({ 1 }) · 있으면 정원을 보고 들어간다({ 3 } / { -2 }).
+--
+-- **왜 입장 표시 키를 파티 HASH 보다 먼저 보는가**(2026-09-28 — 소유자 지적. "방에 있는 사람의 판정은 방 키로, 방에 없는 사람의 판정만 HASH 로").
+-- 파티 HASH 는 수명이 600초이고 방 키는 접속 확인으로 그보다 오래 산다. HASH 를 먼저 보면 확정 10분 뒤 방에 멀쩡히 앉아 있는 사람이 새로고침(같은 요청)을
+-- 했을 때 { -4 } 로 404 가 나 튕긴 것처럼 보인다. 이미 방에 들어온 사람에게는 방 키(입장 표시 키)가 원본이다 — 그 사람의 자격은 들어올 때 HASH 로 이미 봤다.
+-- 다른 방에 들어가 있는 사람({ -3 })도 HASH 를 볼 필요가 없어 같이 앞에 두었다. 방에 없는 사람은 HASH 로만 자격을 보므로, HASH 가 사라지면 못 들어온다
+-- (게시판 확정 방의 "확정 뒤 새 사람은 못 들어온다" 와 같다).
 --
 -- 확인을 전부 끝낸 뒤에 쓴다. Lua 에는 되돌리기가 없어서, 쓰다가 거절하면 쓴 것이 그대로 남는다.
 
@@ -41,6 +50,16 @@ local userId = ARGV[1]
 local roomId = ARGV[2]
 local ttl = tonumber(ARGV[3])
 
+-- 방에 있는 사람은 방 키로 판정한다 — 파티 HASH 가 수명으로 사라진 뒤에도 새로고침이 { 2 } 다 (머리 주석)
+local currentRoomId = redis.call('GET', activeRoomKey)
+if currentRoomId == roomId then
+    return { 2 }
+end
+if currentRoomId then
+    return { -3 }
+end
+
+-- 여기부터는 방에 없는 사람이다 — 자격은 파티 HASH 로만 본다
 -- 키가 없으면 HGET 은 false 를 준다 — 사라진 파티도 여기서 걸린다
 if redis.call('HGET', partyKey, 'status') ~= 'CONFIRMED' then
     return { -4 }
@@ -54,14 +73,6 @@ end
 -- EXISTS · HEXISTS 는 0 / 1 을 준다. Lua 에서는 0 도 참이라 반드시 == 0 으로 비교한다
 if redis.call('HEXISTS', partyKey, 'member:' .. userId) == 0 then
     return { -6 }
-end
-
-local currentRoomId = redis.call('GET', activeRoomKey)
-if currentRoomId == roomId then
-    return { 2 }
-end
-if currentRoomId then
-    return { -3 }
 end
 
 local host = redis.call('GET', roomHostKey)

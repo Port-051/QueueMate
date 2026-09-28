@@ -35,9 +35,9 @@ public class MatchPartyController {
     private final MatchPartyService matchPartyService;
 
     /**
-     * 방을 만들거나(첫 사람 — 201) 들어간다(나머지 — 200). 이미 들어와 있으면 200 이다 — 재시도 · 새로고침이다. 응답의 {@code roomId} 는 {@code partyId} 와 같다.
+     * 방을 만들거나(첫 사람 — 201) 들어간다(나머지 — 200). 이미 들어와 있으면 200 이다 — 재시도 · 새로고침이다(파티 HASH 가 600초로 사라진 뒤에도 — 방 키가 원본이다). 응답의 {@code roomId} 는 {@code partyId} 와 같다.
      *
-     * <p>거절 — 404 {@code MATCH_PARTY_NOT_FOUND}(확정된 파티가 없다 — 아직 제안 중 · 600초가 지나 사라짐 · 없는 id · UUID 가 아닌 경로) ·
+     * <p>거절 — 404 {@code MATCH_PARTY_NOT_FOUND}(확정된 파티가 없다 — 아직 제안 중 · 600초가 지나 사라짐(방에 아직 없는 사람) · 없는 id · UUID 가 아닌 경로) ·
      * 403 {@code NOT_PARTY_MEMBER} · 409 {@code ROOM_FULL} · 409 {@code IN_OTHER_ROOM} · 503 {@code ROOM_STATE_UNAVAILABLE}.
      * 404 · 403 은 서비스가 HASH 를 읽고 던지지만, 그 뒤 스크립트가 같은 것을 다시 볼 수 있어(그 사이 HASH 가 사라졌다) 아래 {@code switch} 에도 있다.
      */
