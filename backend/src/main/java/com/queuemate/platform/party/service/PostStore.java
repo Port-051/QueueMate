@@ -57,6 +57,10 @@ public class PostStore {
     /** 방장의 칸에서 {@code users(id)} 로 가는 FK 의 이름이다(V1__schema.sql) */
     static final String HOST_FKEY = "recruit_posts_host_id_fkey";
 
+    /** 입장 검사({@link PostEntryGate})의 두 거절 코드 — 게시판 방 먼저 합류({@code AutoJoinService})가 "다음 방으로 넘어갈 거절" 을 가르는 데 쓴다 */
+    static final String POST_NOT_FOUND = "POST_NOT_FOUND";
+    static final String POST_NOT_RECRUITING = "POST_NOT_RECRUITING";
+
     private final RecruitPostRepository postRepository;
     private final PartyRecordRepository partyRecordRepository;
     private final BoardSignalPublisher boardSignal;
@@ -260,6 +264,16 @@ public class PostStore {
     }
 
     /**
+     * 게시판 방 먼저 합류의 후보 글 — 그 게임 · 그 모드의 모집 중인 글을 오래된 순으로 많아야 {@code limit} 개({@link RecruitPostRepository#findAutoJoinCandidates}.
+     * 2026-09-28 · P-28). 찾는 포지션까지 쿼리 둘이다. 부르는 쪽({@code AutoJoinService})은 트랜잭션 밖에서 방 키를 읽고 스크립트를 부른다
+     */
+    @Transactional(readOnly = true)
+    public List<RecruitPost> findAutoJoinCandidates(Game game, String mode, int limit)
+    {
+        return postRepository.findAutoJoinCandidates(game, mode, Limit.of(limit));
+    }
+
+    /**
      * 확정된 글 가운데 <b>파티가 아직 열려 있는</b> 글 — 목록 · 단건이 그 글들의 방 키만 읽어 "방이 없어졌나" 를 본다({@code PostService#observe}).
      * 파티가 이미 닫힌 글의 방 키는 다시 읽지 않는다.
      */
@@ -400,12 +414,12 @@ public class PostStore {
 
     static ApiException postNotFound()
     {
-        return new ApiException(HttpStatus.NOT_FOUND, "POST_NOT_FOUND", "없는 글입니다");
+        return new ApiException(HttpStatus.NOT_FOUND, POST_NOT_FOUND, "없는 글입니다");
     }
 
     static ApiException postNotRecruiting()
     {
-        return new ApiException(HttpStatus.CONFLICT, "POST_NOT_RECRUITING", "모집 중인 글이 아닙니다");
+        return new ApiException(HttpStatus.CONFLICT, POST_NOT_RECRUITING, "모집 중인 글이 아닙니다");
     }
 
     /** {@link PostService#edit} 도 쓴다 — 방 안을 보기 전에 방장인지 먼저 갈라야 해서다(그쪽 주석) */

@@ -2,10 +2,13 @@ package com.queuemate.platform.party.controller;
 
 import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.common.security.CurrentUserId;
+import com.queuemate.platform.party.dto.AutoJoinRequest;
+import com.queuemate.platform.party.dto.AutoJoinResponse;
 import com.queuemate.platform.party.dto.PostCreateRequest;
 import com.queuemate.platform.party.dto.PostListResponse;
 import com.queuemate.platform.party.dto.PostResponse;
 import com.queuemate.platform.party.dto.PostUpdateRequest;
+import com.queuemate.platform.party.service.AutoJoinService;
 import com.queuemate.platform.party.service.PostService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +33,9 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>{@code postId} 가 숫자가 아니면 400 이다({@code GlobalExceptionHandler#handleTypeMismatch}).
  * <b>방 안의 일(입장 · 강퇴 · 방장 확정)은 여기 없다</b> — {@code /api/v1/rooms/**}({@code room} 패키지)다. 2026-09-25 2단계로 입장권
  * ({@code …/ticket})과 확정의 기록({@code …/confirm})이 여기서 빠졌다 — 입장이 글을 직접 검사하고, 방장 확정 한 요청이 기록까지 한다.
+ *
+ * <p><b>{@code POST /api/v1/posts/auto-join}</b>(2026-09-28)은 {@code /{postId}} 와 겹치지 않는다 — {@code POST} 가 걸린 경로 변수 매핑이 없고, 있더라도 스프링은
+ * 글자 그대로의 경로를 경로 변수보다 먼저 고른다.
  */
 @RestController
 @RequestMapping("/api/v1/posts")
@@ -37,6 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class PostController {
 
     private final PostService postService;
+    private final AutoJoinService autoJoinService;
 
     /**
      * 글을 쓰고 <b>그 글의 방을 같이 만든다</b>(2026-09-25 2단계 — 소유자 결정 C). 쓴 사람이 방장이고 방에 들어와 있다 — 응답의 {@code members} 에 방장이 있다.
@@ -46,6 +53,18 @@ public class PostController {
     public ResponseEntity<PostResponse> create(@CurrentUserId Long userId, @Valid @RequestBody PostCreateRequest request)
     {
         return ResponseEntity.status(HttpStatus.CREATED).body(postService.create(userId, request));
+    }
+
+    /**
+     * <b>자동 매칭 전에 조건 맞는 게시판 방에 먼저 합류한다</b>(2026-09-28 소유자 결정 · P-28 · docs/11 D-40). 본문은 {@code matching} 의 매칭 요청과 같은 모양이다 —
+     * 맞는 방이 있으면 넣고 200 {@code {postId, roomId}}, 없으면 404 {@code NO_MATCHING_POST}(프런트가 {@code matching} 을 부른다).
+     * 409 {@code IN_OTHER_ROOM} · {@code ALREADY_QUEUED}(다음 방으로 넘어갈 수 없는 거절) · 503 {@code ROOM_STATE_UNAVAILABLE}(Redis 를 못 읽었다 — fail-closed).
+     * 활성 요청 키를 만들지 않는다 — 누른 순간 한 번만 본다({@link AutoJoinService}).
+     */
+    @PostMapping("/auto-join")
+    public AutoJoinResponse autoJoin(@CurrentUserId Long userId, @Valid @RequestBody AutoJoinRequest request)
+    {
+        return autoJoinService.join(userId, request);
     }
 
     /**

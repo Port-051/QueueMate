@@ -7,9 +7,17 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
 /**
  * {@code mode} · {@code tier} 가 <b>있는 값인지</b> gameconfig 에서 확인한다(2026-09-24 소유자 결정 — {@code contracts/platform-api.md} "gameconfig 를 읽는 것").
  * 모드는 {@code party}(모집 글), 티어는 {@code account}(게임 계정)가 쓴다 — 도메인 둘이 같이 쓰므로 {@code common} 에 있다.
+ * <b>2026-09-28 부터는 게시판 방 먼저 합류(P-28 · docs/11 D-40)가 모드 HASH 의 내용({@code tierRule} · {@code targetPartySize}) · 티어의 단계 번호 ·
+ * 티어별 허용 범위도 읽는다</b>({@link #modeConfig} · {@link #tierScores} · {@link #tierRanges} — {@code party.service.AutoJoinService}).
  *
  * <p><b>왜 남의 앱 키를 읽어도 되는가</b> — gameconfig 는 {@code matching} 이 쓰는 상태가 아니다. 원본이 {@code matching/seed/gameconfig.redis} 파일이고
  * 그 머리가 "앱은 부팅 시 설정을 밀어넣지 않고 Redis 에서 읽기만 한다"고 적었다 — <b>쓰는 앱이 없고 {@code matching} 도 읽는 쪽이다.</b>
@@ -18,16 +26,30 @@ import org.springframework.stereotype.Component;
  *
  * <p><b>읽기 전용이다 — 쓰는 명령이 없다.</b> 이 앱이 seed 를 심게 만들지 마라(그러면 모드를 하나 추가할 때마다 이 앱을 재배포해야 한다 — 설정을 데이터로 뺀 뜻이 사라진다).
  *
- * <p><b>fail-open 이다</b>(소유자 결정) — Redis 를 못 읽으면 <b>검증만 건너뛰고 통과시킨다.</b> 글 쓰기 · 게임 계정 연결이 gameconfig 에 묶여 같이 죽는 것보다
- * 이상한 모드가 들어오는 것이 낫다는 판단이고, 목록 조회가 이미 "Redis 를 못 읽으면 방 정보를 비운 채 글만 내려 준다"는 fail-open 인 것과 결을 맞춘 것이다.
- * 대가로 <b>Redis 가 죽은 동안에는 이상한 값이 들어올 수 있다</b> — WARN 한 줄을 남긴다. <b>fail-open 은 이 클래스 한 곳에만 있다</b> — 부르는 쪽은 "있는 값인가"만 묻는다.
+ * <p><b>정책이 둘이다 — 부르는 쪽이 다르다.</b>
+ * <ul>
+ *   <li><b>fail-open</b>({@link #hasMode} · {@link #hasTier} — 소유자 결정) — Redis 를 못 읽으면 <b>검증만 건너뛰고 통과시킨다.</b> 글 쓰기 · 게임 계정 연결이 gameconfig 에
+ *       묶여 같이 죽는 것보다 이상한 모드가 들어오는 것이 낫다는 판단이고, 목록 조회가 이미 "Redis 를 못 읽으면 방 정보를 비운 채 글만 내려 준다"는 fail-open 인 것과
+ *       결을 맞춘 것이다. 대가로 <b>Redis 가 죽은 동안에는 이상한 값이 들어올 수 있다</b> — WARN 한 줄을 남긴다. <b>gameconfig 가 아예 안 심긴 Redis 도 통과시킨다</b>
+ *       (검증할 원본이 없는 것과 값이 틀린 것은 다르다 — 가르는 열쇠는 티어 사다리 키다, {@link #seeded}).</li>
+ *   <li><b>fail-closed</b>({@link #seeded} · {@link #modeConfig} · {@link #tierScores} · {@link #tierRanges} — 2026-09-28, 게시판 방 먼저 합류) — Redis 를 못 읽으면
+ *       {@link GameConfigUnavailableException} 을 던지고 부르는 쪽이 503 {@code ROOM_STATE_UNAVAILABLE} 로 옮긴다. 그 요청은 곧이어 방 키(Redis)를 읽고 방에 넣어야
+ *       하므로 어차피 Redis 없이는 끝낼 수 없다 — 검증을 건너뛰고 통과시켜도 얻는 것이 없다. <b>안 심긴 Redis 는 여기서도 통과다</b> — 부르는 쪽이 {@link #seeded} 로
+ *       갈라 티어 검사와 모드 정원 검사를 건너뛴다(정원은 방 정원 5). 심긴 것과 못 읽은 것을 가르는 것은 같은 열쇠(티어 사다리 키)다.</li>
+ * </ul>
+ * 두 정책이 <b>이 클래스 한 곳에만</b> 있다 — 부르는 쪽은 "있는 값인가" · "값이 무엇인가" 만 묻는다.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class GameConfigReader {
 
+    private static final String FIELD_TIER_RULE = "tierRule";
+    private static final String FIELD_TARGET_PARTY_SIZE = "targetPartySize";
+
     private final StringRedisTemplate redis;
+
+    // ---- fail-open — mode · tier 검증 (2026-09-24) ----
 
     /** 그 게임에 그 모드가 있는가 — 모드별 설정 HASH 의 {@code EXISTS} 하나다(내용은 읽지 않는다) */
     public boolean hasMode(Game game, String modeKey)
@@ -75,5 +97,144 @@ public class GameConfigReader {
     {
         log.warn("gameconfig 를 읽지 못해 검증을 건너뛴다 game={}: {}", game, e.toString());
         return true;
+    }
+
+    // ---- fail-closed — 게시판 방 먼저 합류 (2026-09-28 · P-28) ----
+
+    /**
+     * 그 게임의 gameconfig 가 심겼는가 — 티어 사다리 키의 {@code EXISTS}({@link #notSeeded} 와 같은 열쇠). {@code false} 면 부르는 쪽이 티어 검사 · 모드 정원 검사를 건너뛴다.
+     *
+     * @throws GameConfigUnavailableException Redis 를 못 읽었다
+     */
+    public boolean seeded(Game game)
+    {
+        try
+        {
+            boolean seeded = Boolean.TRUE.equals(redis.hasKey(GameConfigKeys.tierLadder(game)));
+            if(!seeded)
+            {
+                log.warn("gameconfig 가 없어 티어 · 정원 검사를 건너뛴다 game={} — matching/seed/gameconfig.redis 를 심어라", game);
+            }
+            return seeded;
+        }
+        catch(DataAccessException e)
+        {
+            throw failClosed(game, e);
+        }
+    }
+
+    /**
+     * 모드별 설정 HASH 의 {@code tierRule} · {@code targetPartySize} — {@code HMGET} 한 번이다. <b>HASH 가 없으면 비어 있다</b>(두 필드가 다 {@code null} 로 온다 —
+     * {@code matching} 의 validator 가 없는 모드를 아는 법과 같다). 필드 하나만 빠진 모드는 그 칸이 {@code null} 인 채로 돌려준다 — 판단은 부르는 쪽이 한다.
+     *
+     * @throws GameConfigUnavailableException Redis 를 못 읽었다
+     */
+    public Optional<ModeConfig> modeConfig(Game game, String modeKey)
+    {
+        try
+        {
+            List<String> values = redis.<String, String>opsForHash()
+                    .multiGet(GameConfigKeys.mode(game, modeKey), List.of(FIELD_TIER_RULE, FIELD_TARGET_PARTY_SIZE));
+            String tierRule = (values == null || values.isEmpty()) ? null : values.get(0);
+            String size = (values == null || values.size() < 2) ? null : values.get(1);
+            if(tierRule == null && size == null)
+            {
+                return Optional.empty();
+            }
+            return Optional.of(new ModeConfig(tierRule, parseSize(size)));
+        }
+        catch(DataAccessException e)
+        {
+            throw failClosed(game, e);
+        }
+    }
+
+    /**
+     * 티어 이름들의 사다리 단계 번호 — {@code ZMSCORE} 한 번이다. 사다리에 없는 이름은 결과에 <b>없다</b>(값이 {@code null} 인 채로 넣지 않는다).
+     * 허용 범위 {@code MIN:MAX} 를 단계 번호로 옮겨 "내 티어가 그 사이인가" 를 비교하는 데 쓴다.
+     *
+     * @throws GameConfigUnavailableException Redis 를 못 읽었다
+     */
+    public Map<String, Double> tierScores(Game game, Collection<String> tierNames)
+    {
+        List<String> names = tierNames.stream().distinct().toList();
+        if(names.isEmpty())
+        {
+            return Map.of();
+        }
+        try
+        {
+            List<Double> scores = redis.opsForZSet().score(GameConfigKeys.tierLadder(game), names.toArray());
+            Map<String, Double> found = new LinkedHashMap<>();
+            for(int i = 0; i < names.size(); i++)
+            {
+                Double score = (scores == null || i >= scores.size()) ? null : scores.get(i);
+                if(score != null)
+                {
+                    found.put(names.get(i), score);
+                }
+            }
+            return found;
+        }
+        catch(DataAccessException e)
+        {
+            throw failClosed(game, e);
+        }
+    }
+
+    /**
+     * 그 모드의 티어별 허용 범위 표에서 여러 티어의 줄 — {@code HMGET} 한 번이다. 값은 {@code MIN:MAX}(티어 이름 둘) 또는 {@code SOLO_ONLY} 이고,
+     * <b>줄이 없는 티어는 결과에 없다</b>(표에 없는 티어는 규칙을 모르는 값이다 — {@code matching} 의 validator 와 같다).
+     *
+     * @throws GameConfigUnavailableException Redis 를 못 읽었다
+     */
+    public Map<String, String> tierRanges(Game game, String modeKey, Collection<String> tierNames)
+    {
+        List<String> names = tierNames.stream().distinct().toList();
+        if(names.isEmpty())
+        {
+            return Map.of();
+        }
+        try
+        {
+            List<String> ranges = redis.<String, String>opsForHash().multiGet(GameConfigKeys.tierRange(game, modeKey), names);
+            Map<String, String> found = new LinkedHashMap<>();
+            for(int i = 0; i < names.size(); i++)
+            {
+                String range = (ranges == null || i >= ranges.size()) ? null : ranges.get(i);
+                if(range != null)
+                {
+                    found.put(names.get(i), range);
+                }
+            }
+            return found;
+        }
+        catch(DataAccessException e)
+        {
+            throw failClosed(game, e);
+        }
+    }
+
+    private static Integer parseSize(String size)
+    {
+        if(size == null)
+        {
+            return null;
+        }
+        try
+        {
+            return Integer.valueOf(size.trim());
+        }
+        catch(NumberFormatException e)
+        {
+            log.warn("gameconfig 의 targetPartySize 가 숫자가 아니다 — 무시한다");
+            return null;
+        }
+    }
+
+    private static GameConfigUnavailableException failClosed(Game game, DataAccessException e)
+    {
+        log.warn("gameconfig 를 읽지 못했다 — 게시판 방 먼저 합류를 거절한다 game={}: {}", game, e.toString());
+        return new GameConfigUnavailableException(e);
     }
 }

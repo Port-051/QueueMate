@@ -74,6 +74,21 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
     List<RecruitPost> findBoardAfter(@Param("game") Game game, @Param("postId") long postId, Limit limit);
 
     /**
+     * <b>게시판 방 먼저 합류의 후보</b>(2026-09-28 소유자 결정 · P-28) — 그 게임 · 그 모드의 <b>모집 중인</b> 글을 <b>오래된 순({@code id} 오름차순)</b>으로 많아야 {@code limit} 개.
+     * "여럿이면 가장 오래된 방부터" 다. {@code game} 이 등호 조건이라 {@code (game, id DESC)} 인덱스를 거꾸로 훑고, {@code mode} · {@code status} 는 그 위에서 거른다
+     * (모집 중인 글은 게임마다 많지 않다 — 부분 UNIQUE 인덱스가 사람마다 하나로 묶는다). 나머지 조건(음성 · 시점 · 포지션 · 티어 · 방 안 인원)은 자바가 본다.
+     */
+    @Query("""
+            select p
+              from RecruitPost p
+             where p.game = :game
+               and p.mode = :mode
+               and p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING
+             order by p.id asc
+            """)
+    List<RecruitPost> findAutoJoinCandidates(@Param("game") Game game, @Param("mode") String mode, Limit limit);
+
+    /**
      * 글을 고칠 때 — 줄을 잠그고 읽는다({@code SELECT … FOR UPDATE}). 읽고 판단하는 사이에 만료 · 확정이 끼어들지 못한다
      * (그쪽의 조건부 UPDATE 가 이 트랜잭션이 끝날 때까지 기다린다).
      */

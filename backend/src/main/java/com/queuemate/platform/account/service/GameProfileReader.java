@@ -2,13 +2,16 @@ package com.queuemate.platform.account.service;
 
 import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.account.dto.GameProfileResponse;
+import com.queuemate.platform.account.domain.GameAccount;
 import com.queuemate.platform.account.dto.UserGameProfile;
+import com.queuemate.platform.account.repository.GameAccountRepository;
 import com.queuemate.platform.account.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -27,6 +30,7 @@ import java.util.stream.Collectors;
 public class GameProfileReader {
 
     private final UserRepository userRepository;
+    private final GameAccountRepository gameAccountRepository;
 
     /**
      * 여러 사용자의 닉네임과 그 게임의 게임 프로필. <b>쿼리 한 번이다</b> — 사람 수만큼 되풀이하지 않는다.
@@ -45,5 +49,26 @@ public class GameProfileReader {
         return userRepository.findGameProfileRows(new HashSet<>(userIds), game).stream()
                 .collect(Collectors.toMap(row -> row.userId(), row -> new UserGameProfile(row.userId(), row.nickname(),
                         row.account() == null ? null : GameProfileResponse.of(row.account(), row.stats()))));
+    }
+
+    /**
+     * 여러 사용자의 그 게임 계정 <b>티어</b>만 — <b>쿼리 한 번이다.</b> 게시판 방 먼저 합류(2026-09-28 · P-28)가 후보 글들의 방장 티어로 "내 티어가 그 방의 허용 범위 안인가" 를
+     * 볼 때 쓴다({@code party.service.AutoJoinService}). 사용자 번호가 글({@code recruit_posts.host_id})에서 오므로 JOIN 으로도 되지만 글 쿼리를 무겁게 하지 않으려고 창구로 둔다.
+     *
+     * @return 사용자 번호 → 티어. <b>그 게임에 계정이 없는 사용자는 결과에 없고</b>, 계정은 있는데 티어를 안 적은 사용자는 값이 {@code null} 이다
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, String> findTiers(Collection<Long> userIds, Game game)
+    {
+        if(userIds == null || userIds.isEmpty())
+        {
+            return Map.of();
+        }
+        Map<Long, String> tiers = new HashMap<>();
+        for(GameAccount account : gameAccountRepository.findByUserIdInAndGame(new HashSet<>(userIds), game))
+        {
+            tiers.put(account.getUserId(), account.getTier());
+        }
+        return tiers;
     }
 }

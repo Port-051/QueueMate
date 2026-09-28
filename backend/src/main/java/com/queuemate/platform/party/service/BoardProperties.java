@@ -12,10 +12,14 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param maxRefills 차단으로 숨겨진 글 때문에 한 페이지가 {@code limit} 에 모자랄 때 <b>그 뒤를 더 읽어 채우는 횟수의 상한</b>
  *                   (2026-09-23 소유자 결정). 채우기 한 번이 목록 조립 한 벌(글 쿼리 · Redis 파이프라인 · 프로필 · 차단)이라
  *                   무한정 할 수 없다 — 다 써도 모자라면 있는 만큼 내려 준다
+ * @param autoJoinScan 게시판 방 먼저 합류({@code POST /api/v1/posts/auto-join} — 2026-09-28 · P-28)가 <b>한 번에 보는 후보 글의 상한</b>.
+ *                     그 게임 · 그 모드의 모집 중인 글을 오래된 순으로 이만큼만 읽고 그 안에서 고른다 — 다 돌아도 맞는 방이 없으면 404 다(그 뒤는 보지 않는다).
+ *                     후보 하나가 방 키 읽기 한 자리(파이프라인)와 입장 스크립트 한 번이라 상한이 없으면 한 요청이 게시판을 끝까지 훑는다. 이름과 기본값(50)은 Claude 가 정했다
  */
 @ConfigurationProperties(prefix = "platform.board")
 public record BoardProperties(
-        @DefaultValue("3") int maxRefills
+        @DefaultValue("3") int maxRefills,
+        @DefaultValue("50") int autoJoinScan
 ) {
     /** 목록의 기본 페이지 크기 — {@code limit} 을 주지 않았을 때다 (2026-09-23 소유자 결정) */
     public static final int DEFAULT_PAGE_LIMIT = 20;

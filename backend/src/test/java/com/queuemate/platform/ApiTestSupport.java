@@ -148,7 +148,7 @@ public abstract class ApiTestSupport {
         });
     }
 
-    private void seedIfAbsent(String key, Consumer<String> seed)
+    protected void seedIfAbsent(String key, Consumer<String> seed)
     {
         if(Boolean.TRUE.equals(redisTemplate.hasKey(key)))
         {

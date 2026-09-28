@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -60,6 +61,12 @@ public interface GameAccountRepository extends JpaRepository<GameAccount, Long> 
                 @Param("gameNickname") String gameNickname, @Param("tier") String tier,
                 @Param("mainPosition") String mainPosition, @Param("server") String server,
                 @Param("now") Instant now);
+
+    /**
+     * 여러 사용자의 그 게임 계정 — <b>쿼리 한 번이다</b>(전적은 읽지 않는다). 게시판 방 먼저 합류가 후보 글들의 방장 티어를 한꺼번에 읽는다
+     * ({@code account.service.GameProfileReader#findTiers} — 2026-09-28). 그 게임에 계정이 없는 사용자는 결과에 없다
+     */
+    List<GameAccount> findByUserIdInAndGame(Collection<Long> userIds, Game game);
 
     /** 그 사람의 그 게임 계정의 번호만 — 엔티티를 읽지 않는다(같은 트랜잭션의 네이티브 UPDATE 뒤에 낡은 엔티티가 남지 않게) */
     @Query("select a.id from GameAccount a where a.userId = :userId and a.game = :game")
