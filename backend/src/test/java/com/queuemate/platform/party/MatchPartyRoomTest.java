@@ -59,13 +59,19 @@ class MatchPartyRoomTest extends RoomTestSupport {
     /** {@code matching} 이 확정 직후 남기는 모양 그대로 심는다. {@code target} 은 파티원 수와 같다 — 자동 매칭은 정원이 차야 확정된다 */
     private String seedConfirmedParty(String status, String... memberLabels)
     {
+        return seedConfirmedPartyOf("LOL", LOL_MODE_2, status, memberLabels);
+    }
+
+    /** 게임을 골라 심는 판 — 목록이 자기 게임의 파티만 닫는지 볼 때 쓴다(이름이 다른 것은 가변 인자끼리 겹쳐 모호해지기 때문이다) */
+    private String seedConfirmedPartyOf(String game, String modeKey, String status, String... memberLabels)
+    {
         String partyId = UUID.randomUUID().toString();
         seededParties.add(partyId);
         String key = "qm:party:" + partyId;
         redisTemplate.opsForHash().put(key, "status", status);
         redisTemplate.opsForHash().put(key, "confirmedAt", String.valueOf(System.currentTimeMillis()));
-        redisTemplate.opsForHash().put(key, "game", "LOL");
-        redisTemplate.opsForHash().put(key, "modeKey", LOL_MODE_2);
+        redisTemplate.opsForHash().put(key, "game", game);
+        redisTemplate.opsForHash().put(key, "modeKey", modeKey);
         redisTemplate.opsForHash().put(key, "voicePreference", "REQUIRED");
         redisTemplate.opsForHash().put(key, "playPurpose", "RANK_UP");
         redisTemplate.opsForHash().put(key, "target", String.valueOf(memberLabels.length));
@@ -458,5 +464,97 @@ class MatchPartyRoomTest extends RoomTestSupport {
 
         mockMvc.perform(post("/api/v1/rooms/" + partyId + "/heartbeat").cookie(u1)).andExpect(status().isNotFound());
         assertThat(partyOf(partyId).get("closed_at")).isEqualTo(closedAt);
+    }
+
+    // ---- 목록 GET 이 사라진 방의 자동 매칭 파티를 닫는다 — 게시판 파티의 길 ② 의 자동 매칭 판 (2026-09-28 소유자 결정) ----
+
+    /** 그 게임의 게시판 목록을 한 번 연다 — 글이 하나도 없어도 200 이고, 그 안에서 자동 매칭 파티의 방 키를 같이 읽는다 */
+    private void openBoard(String game, Cookie viewer) throws Exception
+    {
+        mockMvc.perform(get("/api/v1/posts").param("game", game).cookie(viewer)).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("전원이 말없이 사라져 방 키 셋이 없어진 자동 매칭 파티는 그 게임의 목록 GET 이 닫는다 — CLOSED · closed_at · 최근 함께한 사람 여섯 줄. 다시 열어도 한 번만")
+    void listClosesAMatchPartyWhoseRoomVanished() throws Exception
+    {
+        Cookie u1 = member("u1");
+        Cookie u2 = member("u2");
+        Cookie u3 = member("u3");
+        String partyId = seedConfirmedParty("CONFIRMED", "u1", "u2", "u3");
+        mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u1)).andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u2)).andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u3)).andExpect(status().isOk());
+        Long partyRow = (Long) partyOf(partyId).get("id");
+        // 수명이 다한 척 — 방 키 셋만 지운다. 나가기도 접속 확인도 아무도 부르지 않는다
+        redisTemplate.delete(List.of("qm:room:" + partyId + ":host", "qm:room:" + partyId + ":members", "qm:room:" + partyId + ":confirmed"));
+        assertThat(partyOf(partyId)).containsEntry("status", "ACTIVE");
+
+        openBoard("LOL", u1);
+
+        Map<String, Object> party = partyOf(partyId);
+        assertThat(party).containsEntry("status", "CLOSED");
+        Object closedAt = party.get("closed_at");
+        assertThat(closedAt).isNotNull();
+        Long a = Long.parseLong(u("u1"));
+        Long b = Long.parseLong(u("u2"));
+        Long c = Long.parseLong(u("u3"));
+        assertThat(recentPairsOf(partyRow)).containsExactlyInAnyOrder(
+                List.of(a, b), List.of(a, c), List.of(b, a), List.of(b, c), List.of(c, a), List.of(c, b));
+
+        // 멱등 — 다시 열어도 닫는 시각이 바뀌지 않고 최근 함께한 사람도 그대로다
+        openBoard("LOL", u2);
+        assertThat(partyOf(partyId).get("closed_at")).isEqualTo(closedAt);
+        assertThat(recentPairsOf(partyRow)).hasSize(6);
+    }
+
+    @Test
+    @DisplayName("방이 살아 있는 자동 매칭 파티는 목록 GET 이 건드리지 않는다 — ACTIVE 그대로 · 최근 함께한 사람 없음")
+    void listLeavesALiveMatchPartyAlone() throws Exception
+    {
+        Cookie u1 = member("u1");
+        Cookie u2 = member("u2");
+        Cookie u3 = member("u3");
+        String partyId = seedConfirmedParty("CONFIRMED", "u1", "u2", "u3");
+        mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u1)).andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u2)).andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u3)).andExpect(status().isOk());
+        Long partyRow = (Long) partyOf(partyId).get("id");
+
+        openBoard("LOL", u1);
+
+        Map<String, Object> party = partyOf(partyId);
+        assertThat(party).containsEntry("status", "ACTIVE");
+        assertThat(party.get("closed_at")).isNull();
+        assertThat(recentPairsOf(partyRow)).isEmpty();
+        // 방장 키만 없는 것은 승계 중이다(D-23) — 그것으로도 닫지 않는다
+        redisTemplate.delete("qm:room:" + partyId + ":host");
+        openBoard("LOL", u2);
+        assertThat(partyOf(partyId)).containsEntry("status", "ACTIVE");
+        assertThat(recentPairsOf(partyRow)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("목록 GET 은 자기 게임의 자동 매칭 파티만 본다 — LOL 게시판은 방이 사라진 VALORANT 파티를 닫지 않고, VALORANT 게시판이 닫는다")
+    void listOnlyTouchesItsOwnGame() throws Exception
+    {
+        Cookie u1 = member("u1");
+        Cookie u2 = member("u2");
+        String partyId = seedConfirmedPartyOf("VALORANT", VALORANT_MODE, "CONFIRMED", "u1", "u2");
+        mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u1)).andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u2)).andExpect(status().isOk());
+        assertThat(partyOf(partyId)).containsEntry("game", "VALORANT");
+        Long partyRow = (Long) partyOf(partyId).get("id");
+        redisTemplate.delete(List.of("qm:room:" + partyId + ":host", "qm:room:" + partyId + ":members", "qm:room:" + partyId + ":confirmed"));
+
+        openBoard("LOL", u1);
+        assertThat(partyOf(partyId)).containsEntry("status", "ACTIVE");
+        assertThat(recentPairsOf(partyRow)).isEmpty();
+
+        openBoard("VALORANT", u1);
+        Map<String, Object> party = partyOf(partyId);
+        assertThat(party).containsEntry("status", "CLOSED");
+        assertThat(party.get("closed_at")).isNotNull();
+        assertThat(recentPairsOf(partyRow)).hasSize(2);
     }
 }

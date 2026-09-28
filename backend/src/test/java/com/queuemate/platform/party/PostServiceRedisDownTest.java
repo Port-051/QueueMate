@@ -7,6 +7,7 @@ import com.queuemate.platform.common.gameconfig.GameConfigReader;
 import com.queuemate.platform.party.dto.PostResponse;
 import com.queuemate.platform.party.dto.PostUpdateRequest;
 import com.queuemate.platform.party.service.BoardProperties;
+import com.queuemate.platform.party.service.MatchPartyStore;
 import com.queuemate.platform.party.service.PostEntryGate;
 import com.queuemate.platform.party.service.PostService;
 import com.queuemate.platform.party.service.PostStore;
@@ -53,18 +54,25 @@ class PostServiceRedisDownTest extends PostTestSupport {
     @Autowired
     GameConfigReader gameConfig;
 
+    /** 자동 매칭 파티를 닫는 창구 — 진짜 빈이다. 목록이 방 키를 못 읽으면 여기까지 오지 않아야 한다(2026-09-28) */
+    @Autowired
+    MatchPartyStore matchPartyStore;
+
     /** 방의 상태 읽기만 실패한다 — 스크립트(만들기 · 확정)는 진짜다. RoomService 에는 트랜잭션 프록시가 없어 그대로 감쌀 수 있다 */
     private RoomService brokenStates()
     {
         RoomService broken = spy(roomService);
         doThrow(new RoomStateUnavailableException(new IllegalStateException("테스트 — Redis 가 죽었다")))
                 .when(broken).states(any());
+        // 자동 매칭 파티의 방(UUID)을 읽는 문자열 판도 같이 죽는다 — 목록이 그 파티를 닫는 판정도 하지 않아야 한다
+        doThrow(new RoomStateUnavailableException(new IllegalStateException("테스트 — Redis 가 죽었다")))
+                .when(broken).statesOf(any());
         return broken;
     }
 
     private PostService withBrokenRedis()
     {
-        return new PostService(postStore, brokenStates(), gameProfileReader, blockReader, boardProperties, gameConfig);
+        return new PostService(postStore, matchPartyStore, brokenStates(), gameProfileReader, blockReader, boardProperties, gameConfig);
     }
 
     @Test

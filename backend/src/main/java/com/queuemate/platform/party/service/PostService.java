@@ -54,6 +54,8 @@ import java.util.stream.Collectors;
  *
  * <p><b>목록 조회(GET)가 글을 만료 · 확정으로 바꾼다</b> — 방은 수명이 다하면 Redis 에서 저절로 사라져 그 순간 돌아가는 코드가 없다.
  * 그래서 방 키를 볼 때 스스로 옮겨 적는다(CLAUDE.md §3.3). 허용된 부수 효과이고 전부 조건부 UPDATE 라 멱등하다.
+ * <b>같은 목록이 그 게임의 열려 있는 자동 매칭 파티도 닫는다</b>(2026-09-28 소유자 결정 — {@link #closeVanishedMatchParties}). 글이 없어 글에서 출발하는
+ * 옮겨 적기가 닿지 않던 파티다.
  */
 @Slf4j
 @Service
@@ -62,6 +64,7 @@ import java.util.stream.Collectors;
 public class PostService {
 
     private final PostStore postStore;
+    private final MatchPartyStore matchPartyStore;
     private final RoomService roomService;
     private final GameProfileReader gameProfileReader;
     private final BlockReader blockReader;
@@ -213,6 +216,8 @@ public class PostService {
                 break;
             }
         }
+        // 글에서 출발하는 옮겨 적기(observe)가 닿지 않는 자동 매칭 파티 — 목록 한 번에 한 번, 글이 하나도 없는 게시판이어도 본다
+        closeVanishedMatchParties(game);
         return new PostListResponse(visible, more ? cursor : null);
     }
 
@@ -351,6 +356,68 @@ public class PostService {
                 throw RoomErrors.stateUnavailable();
             }
             log.warn("방 키를 읽지 못해 방 정보를 비운 채 내려 준다 — 만료 판정도 하지 않는다 posts={}", postIds.size());
+            return null;
+        }
+    }
+
+    // ---- 자동 매칭 파티 — 사라진 방의 발견 (2026-09-28 소유자 결정) ----
+
+    /**
+     * 그 게임의 <b>열려 있는 자동 매칭 파티</b> 가운데 방이 없어진 것을 닫는다 — 게시판 파티의 <b>길 ②</b>(전원이 말없이 사라져 방 키가 수명으로 없어진 것을
+     * 목록 · 단건이 발견해서 닫는다 — D-36 · P-25)의 <b>자동 매칭 판</b>이다(2026-09-28 소유자 결정 — {@code contracts/platform-api.md} "자동 매칭 파티의 방").
+     *
+     * <p><b>왜 여기인가</b> — 자동 매칭 파티({@code source = MATCH})는 글이 없어 {@link #observe} 가 글에서 출발해 읽는 방 키에 잡히지 않았다. 그래서 전원이
+     * 말없이 사라지면 그 파티는 {@code ACTIVE} 로 영원히 남고 최근 함께한 사람도 적히지 않았다. 목록 GET 이 글을 만료 · 확정 · 닫힘으로 옮겨 적는 것은
+     * 허용된 부수 효과다(CLAUDE.md §3.3) — 이것도 그 하나다. 방 키에서 읽은 사실을 옮기는 것이고 누가 불러도 결과가 같다.
+     *
+     * <p>규칙은 게시판 파티와 같다 — <b>방장 키 · 멤버 SET · 확정 표시 키가 셋 다 없을 때만</b>({@link #isGone}) 닫는다(방장 키만 없는 것은 승계 중이다 — D-23).
+     * 닫는 것은 {@link MatchPartyStore#closeByRoomClosed} 다 — 나가기 · 접속 확인이 쓰는 것과 같은 조건부 UPDATE 라 몇 길이 겹쳐도 한 번이고, 그 호출이
+     * 최근 함께한 사람을 적는다. <b>그 게임의 파티만</b> 본다(게시판은 게임별 페이지다 — P-21). 한 번에 많아야 200개다(넘치면 다음 목록이 이어서 본다).
+     * <b>방 키를 못 읽으면 아무것도 닫지 않는다</b>(목록과 같은 fail-open — 못 읽은 것을 "방이 없다"로 읽으면 멀쩡한 파티가 닫힌다).
+     * 단건 조회({@link #get})에서는 부르지 않는다 — 글 하나를 보는 요청이 게임 전체를 훑을 이유가 없다.
+     * 그 게임의 게시판을 아무도 열지 않으면 닫히지 않는 것은 게시판 파티의 길 ② 와 같다.
+     */
+    private void closeVanishedMatchParties(Game game)
+    {
+        List<String> partyIds = postStore.findActiveMatchPartyIds(game);
+        if(partyIds.isEmpty())
+        {
+            return;
+        }
+        Map<String, RoomState> states = readRoomStatesOf(partyIds);
+        if(states == null)
+        {
+            return;
+        }
+        int closed = 0;
+        for(String partyId : partyIds)
+        {
+            RoomState state = states.get(partyId);
+            if(state != null && isGone(state) && matchPartyStore.closeByRoomClosed(partyId))
+            {
+                closed++;
+            }
+        }
+        if(closed > 0)
+        {
+            log.info("목록이 사라진 방의 자동 매칭 파티를 닫았다 game={} closed={} seen={}", game, closed, partyIds.size());
+        }
+    }
+
+    /**
+     * {@link #readRoomStates} 의 {@code roomId} 문자열 판 — 자동 매칭 파티의 방은 {@code roomId} 가 UUID 다. <b>fail-open 만</b>이다(목록에서만 부른다).
+     *
+     * @return 읽지 못했으면 {@code null}
+     */
+    private Map<String, RoomState> readRoomStatesOf(List<String> roomIds)
+    {
+        try
+        {
+            return roomService.statesOf(roomIds);
+        }
+        catch(RoomStateUnavailableException e)
+        {
+            log.warn("방 키를 읽지 못해 자동 매칭 파티의 닫힘 판정을 하지 않는다 parties={}", roomIds.size());
             return null;
         }
     }

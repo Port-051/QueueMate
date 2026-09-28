@@ -102,6 +102,21 @@ public interface PartyRecordRepository extends JpaRepository<PartyMember, PartyM
     @Query(nativeQuery = true, value = "SELECT p.post_id FROM parties p WHERE p.post_id IN (:postIds) AND p.status = 'ACTIVE'")
     List<Long> findActivePartyPostIds(@Param("postIds") Collection<Long> postIds);
 
+    /**
+     * 그 게임의 <b>아직 열려 있는 자동 매칭 파티</b>의 {@code match_party_id}(= 그 방의 {@code roomId}, UUID) — 게시판 목록이 그 방 키를 같이 읽어
+     * "방이 없어졌나" 를 본다({@code PostService#closeVanishedMatchParties} — 2026-09-28 소유자 결정. 게시판 파티의 길 ② 의 자동 매칭 판이다).
+     * 자동 매칭 파티는 글이 없어 {@link #findActivePartyPostIds} 로는 잡히지 않는다.
+     *
+     * <p><b>{@code LIMIT 200} 인 이유</b> — 목록 조회 한 번이 열린 파티를 끝없이 훑지 않게 한다(방 키 읽기가 파티 수만큼 파이프라인에 실린다).
+     * 넘치는 것은 다음 목록 조회가 이어서 본다 — 닫힌 파티는 {@code ACTIVE} 가 아니라 다시 나오지 않으므로 앞에서부터 줄어든다.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT p.match_party_id FROM parties p
+             WHERE p.source = 'MATCH' AND p.status = 'ACTIVE' AND p.game = :game
+             ORDER BY p.id LIMIT 200
+            """)
+    List<String> findActiveMatchPartyIds(@Param("game") String game);
+
     @Query("select m from PartyMember m where m.key.partyId = :partyId")
     List<PartyMember> findByPartyId(@Param("partyId") Long partyId);
 }

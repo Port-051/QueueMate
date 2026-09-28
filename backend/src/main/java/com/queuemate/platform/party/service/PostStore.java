@@ -284,6 +284,17 @@ public class PostStore {
     }
 
     /**
+     * 그 게임의 <b>아직 열려 있는 자동 매칭 파티</b>의 {@code match_party_id}(= 방의 {@code roomId}, UUID) — 목록이 그 방 키를 같이 읽어 "방이 없어졌나" 를
+     * 본다({@code PostService#closeVanishedMatchParties} — 2026-09-28 소유자 결정). 자동 매칭 파티는 글이 없어 {@link #findActivePartyPostIds} 에 잡히지 않는다.
+     * 많아야 200개다({@link PartyRecordRepository#findActiveMatchPartyIds}).
+     */
+    @Transactional(readOnly = true)
+    public List<String> findActiveMatchPartyIds(Game game)
+    {
+        return partyRecordRepository.findActiveMatchPartyIds(game.name());
+    }
+
+    /**
      * 방 키를 읽고 알게 된 것을 <b>한 트랜잭션으로</b> 글에 옮긴다 — 방이 사라졌다 · 방장이 확정했다 · 확정한 방이 사라졌다(파티 닫힘 — 2026-09-26).
      * 전부 조건부 UPDATE 라 같은 관찰이 동시에 여러 요청에서 와도 한 번만 바뀐다. 신호는 몇 개가 바뀌든 커밋 뒤에 한 번이다.
      */

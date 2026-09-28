@@ -241,6 +241,26 @@ public class RoomService {
     {
         // 같은 방을 두 번 묻지 않는다. 순서를 지켜야 결과를 자리로 짝지을 수 있다
         List<Long> ids = new ArrayList<>(new LinkedHashSet<>(roomIds));
+        Map<String, RoomState> byRoomId = statesOf(ids.stream().map(String::valueOf).toList());
+        Map<Long, RoomState> states = new LinkedHashMap<>();
+        for(Long id : ids)
+        {
+            states.put(id, byRoomId.get(String.valueOf(id)));
+        }
+        return states;
+    }
+
+    /**
+     * {@link #states} 의 <b>{@code roomId} 문자열 판</b> — 자동 매칭 파티의 방은 {@code roomId} 가 UUID 라 숫자가 아니다(2026-09-27 · P-30).
+     * 게시판 목록이 그 게임의 열려 있는 자동 매칭 파티의 방 키를 읽어 "방이 없어졌나" 를 볼 때 부른다({@code party.service.PostService} — 2026-09-28).
+     * 읽는 명령 · 파이프라인 · 못 읽을 때의 예외는 {@link #states} 와 같다 — 숫자 방은 그 메서드가 이것으로 온다.
+     *
+     * @return 물어본 방이 전부 들어 있는 맵(없는 방은 "방장 키 없음 · 멤버 없음"이다). 물어본 순서대로다
+     */
+    public Map<String, RoomState> statesOf(Collection<String> roomIds)
+    {
+        // 같은 방을 두 번 묻지 않는다. 순서를 지켜야 결과를 자리로 짝지을 수 있다
+        List<String> ids = new ArrayList<>(new LinkedHashSet<>(roomIds));
         if(ids.isEmpty())
         {
             return Map.of();
@@ -249,11 +269,11 @@ public class RoomService {
         try
         {
             results = redis.executePipelined((RedisCallback<Object>) connection -> {
-                for(Long id : ids)
+                for(String id : ids)
                 {
-                    connection.keyCommands().exists(bytes(RoomKeys.roomHostKey(String.valueOf(id))));
-                    connection.setCommands().sMembers(bytes(RoomKeys.roomMemberKey(String.valueOf(id))));
-                    connection.keyCommands().exists(bytes(RoomKeys.roomConfirmedKey(String.valueOf(id))));
+                    connection.keyCommands().exists(bytes(RoomKeys.roomHostKey(id)));
+                    connection.setCommands().sMembers(bytes(RoomKeys.roomMemberKey(id)));
+                    connection.keyCommands().exists(bytes(RoomKeys.roomConfirmedKey(id)));
                 }
                 // 파이프라인의 콜백은 null 을 돌려줘야 한다 — 결과는 executePipelined 가 모아서 준다
                 return null;
@@ -271,14 +291,14 @@ public class RoomService {
                     "파이프라인의 결과 수가 다르다 expected=" + ids.size() * COMMANDS_PER_ROOM + " actual=" + results.size()));
         }
 
-        Map<Long, RoomState> states = new LinkedHashMap<>();
+        Map<String, RoomState> states = new LinkedHashMap<>();
         for(int i = 0; i < ids.size(); i++)
         {
             int at = i * COMMANDS_PER_ROOM;
             // SMEMBERS 의 결과는 템플릿의 문자열 직렬화기가 이미 문자열로 풀어 준다. 없는 키는 빈 집합이다
             Object members = results.get(at + 1);
             states.put(ids.get(i), new RoomState(Boolean.TRUE.equals(results.get(at)),
-                    RoomMemberIds.parse(String.valueOf(ids.get(i)), members instanceof Collection<?> c ? c : null),
+                    RoomMemberIds.parse(ids.get(i), members instanceof Collection<?> c ? c : null),
                     Boolean.TRUE.equals(results.get(at + 2))));
         }
         return states;
