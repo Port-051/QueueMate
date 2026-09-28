@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { myRecruitments } from '../api/recruitment';
 import { useAuth } from './AuthContext';
 import { useMatch } from './MatchContext';
 import { useSocial } from './SocialContext';
 
+/** `RECRUITMENT`(원본의 참여 신청) 는 더 만들지 않는다 — 우리 게시판에 신청 · 승인이 없다(4단계). 저장된 옛 항목이 읽히게 이름만 남겼다. */
 export type NotificationKind = 'MATCH' | 'PARTY' | 'RECRUITMENT' | 'FRIEND' | 'MESSAGE' | 'RECOMMENDATION';
 export interface AppNotification {
   id: string;
@@ -92,34 +92,7 @@ export function useNotifications() {
     })));
   }, [receivedRequests, add]);
 
-  useEffect(() => {
-    if (!userId) return;
-    let disposed = false;
-    let refreshing = false;
-    let repeat = false;
-    const refresh = async () => {
-      if (refreshing) { repeat = true; return; }
-      refreshing = true;
-      try {
-        const rows = await myRecruitments();
-        if (disposed) return;
-        const entries: NotificationInput[] = [];
-        for (const row of rows.filter(row => row.userId === userId && ['OPEN', 'STALE'].includes(row.status))) {
-          for (const applicant of row.applicants) entries.push({ id: `recruitment:${row.id}:applicant:${applicant.id}`, kind: 'RECRUITMENT', title: `${applicant.nickname}님이 참여를 신청했어요`, body: '내 매칭에서 신청한 팀원을 확인해 주세요.', href: '/app/home', createdAt: new Date().toISOString() });
-        }
-        add(entries);
-      } catch { /* A notification refresh must not interrupt the current screen. */ }
-      finally {
-        refreshing = false;
-        if (!disposed && repeat) { repeat = false; void refresh(); }
-      }
-    };
-    const unsubscribe = stream?.subscribe(event => { if (event.type === 'RECRUITMENT_UPDATED') void refresh(); });
-    const onFocus = () => void refresh();
-    void refresh();
-    window.addEventListener('focus', onFocus);
-    return () => { disposed = true; unsubscribe?.(); window.removeEventListener('focus', onFocus); };
-  }, [userId, stream, add]);
+  // 원본의 `GET /recruitments/mine` 폴링(참여 신청 알림 · `RECRUITMENT_UPDATED`)은 우리 백엔드에 대응물이 없어 2026-09-29 에 껐다 — 알림함 자체는 남는다(START_HERE.md §5).
 
   useEffect(() => {
     const onMessage = (event: Event) => {

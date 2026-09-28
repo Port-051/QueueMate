@@ -6,6 +6,7 @@ import { ToastProvider } from './components/ui';
 import { AuthProvider } from './state/AuthContext';
 import { MatchProvider } from './state/MatchContext';
 import { PartySessionProvider } from './state/PartySessionContext';
+import { RoomSessionProvider } from './state/RoomSessionContext';
 import { SocialProvider } from './state/SocialContext';
 import './styles/theme.css';
 import './styles/pages.css';
@@ -25,7 +26,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <AuthProvider>
           <MatchProvider>
             <SocialProvider>
-              <PartySessionProvider><App /></PartySessionProvider>
+              <RoomSessionProvider><PartySessionProvider><App /></PartySessionProvider></RoomSessionProvider>
             </SocialProvider>
           </MatchProvider>
         </AuthProvider>

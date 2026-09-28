@@ -385,3 +385,9 @@
 }
 
 .room-home button:not(.compact-seat) { border-radius:999px; }
+
+/* 4단계(2026-09-29) — 끝난 글(확정 · 만료)은 흐리게, 내 방 안내와 "더 보기". */
+.room-deck.is-confirmed[data-status="EXPIRED"] { opacity:.5; }
+.room-session-banner { display:flex; align-items:center; gap:10px; margin:0 0 14px; }
+.room-session-link { font-weight:700; text-decoration:underline; }
+.room-board-more { margin:16px 0 4px; }

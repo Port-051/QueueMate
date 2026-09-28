@@ -1,16 +1,16 @@
 import { request } from './http';
 import type {
-  AutoJoinResponse, BlockView, CreateBlockRequest, CreateFriendRequest, CreateMatchRequest,
+  AutoJoinResponse, BlockView, CreateBlockRequest, CreateFriendRequest, CreateMatchRequest, CreatePostRequest,
   CreateReportRequest, CreateReservationRequest, FriendRequestDirection, FriendRequestView, FriendView,
-  GameAccountRequest, GameKey, GameProfile, MatchRequestView, MatchRoomResponse,
-  PartyView, RecentPlayerView, ReservationView, SessionUser, SocialProvider, SocialSignupPending,
-  SendRoomSignalRequest, SocialSignupRequest, UpdateUserRequest, UserProfile,
+  GameAccountRequest, GameKey, GameProfile, MatchRequestView, MatchRoomResponse, MyRoomResponse,
+  PartyView, PostListResponse, PostResponse, RecentPlayerView, ReservationView, RoomMembersResponse, SessionUser, SocialProvider, SocialSignupPending,
+  SendRoomSignalRequest, SocialSignupRequest, UpdatePostRequest, UpdateUserRequest, UserProfile,
 } from './types';
 
 /**
  * 백엔드 엔드포인트. 계정 · 소셜 · 방 · 게시판은 `platform/contracts/platform-api.md`, 매칭 · 제안은 `matching/contracts/openapi.yaml` 이 원본이다.
  * 계약에 없는 경로를 부르지 않고, 계약에 있는 경로를 빠뜨리지 않는다. 아직 원본 프런트의 경로가 남은 절(친구 · 차단 · 신고 — 5단계)과
- * **대응물이 없는 절(파티 Ready/PLAYING · 예약 · 아바타 — 부르면 404 · 화면을 남긴다, START_HERE.md §5)**은 각 절의 주석 참조.
+ * **대응물이 없는 절(예약 · 아바타 — 부르면 404 · 화면을 남긴다, START_HERE.md §5)**은 각 절의 주석 참조. 모집 글 · 방은 4단계에서 우리 경로가 됐다.
  */
 
 /* ---------- auth (인증 불필요 — /api/v1/auth/**) ---------- */
@@ -107,21 +107,62 @@ export const updateReservation = (id: string, body: CreateReservationRequest) =>
   request<ReservationView>(`/reservations/${id}`, { method: 'PUT', body });
 export const cancelReservation = (id: string) => request<void>(`/reservations/${id}`, { method: 'DELETE' });
 
-/* ---------- party — **우리 백엔드에 없다**(확정된 파티를 조회하는 경로를 두지 않는다 — P-31. Ready/PLAYING 도 없다). `PartyRoomPage` 가 컴파일되게 남겼다 — 4단계에서 방 요청(`GET /rooms/{roomId}/members` 등)으로 ---------- */
-export const getParty = async (id: string) => normalizeParty(await request<PartyView>(`/parties/${id}`));
-/** 토글이 아니라 명시적 대입이다. 준비를 푸는 것은 `{ready:false}`다. */
-export const setPartyReady = async (id: string, ready: boolean) =>
-  normalizeParty(await request<PartyView>(`/parties/${id}/ready`, { method: 'POST', body: { ready } }));
+/* ---------- party — **우리 백엔드에 없다**(P-31). 옛 `PartyRoomPage` 가 컴파일되게 남겼다 — 4단계 방 화면(다음 커밋)에서 지운다 ---------- */
+export const getParty = (id: string) => request<PartyView>(`/parties/${id}`);
+export const setPartyReady = (id: string, ready: boolean) => request<PartyView>(`/parties/${id}/ready`, { method: 'POST', body: { ready } });
 export const leaveParty = (id: string) => request<void>(`/parties/${id}/leave`, { method: 'POST' });
 
-/* ---------- room signals (platform-api.md "시그널 보내기") ---------- */
+/* ---------- 모집 글 (platform-api.md "모집 글 · 목록" — 글이 곧 방이다: `roomId = String(postId)`) ---------- */
+/**
+ * 게시판 목록 — `game` 필수(대문자) · `limit` 1~100(없으면 20 · 벗어나면 400) · `cursor` 는 앞 응답의 `nextCursor`. `id` 내림차순이고 끝난 글도 `status` 로 섞여 온다(P-20).
+ * 차단 관계인 사람이 방 안에 있는 글은 빠진다(D-20). Redis 를 못 읽으면 방 정보를 비운 채 글만 온다(fail-open). `BOARD_CHANGED` 뒤에는 **커서 없이** 맨 위부터 `limit` 으로 다시 받는다.
+ */
+export const listPosts = (game: GameKey, limit = 20, cursor?: number) =>
+  request<PostListResponse>('/posts', { query: { game, limit, cursor } });
+/** 단건. 차단으로 숨겨진 글도 없는 글과 같은 404 `POST_NOT_FOUND`. 방 안 사람의 카드(`members[].profile`)는 이것으로 붙인다 — `GET /rooms/{roomId}/members` 에는 id 뿐이다. */
+export const getPost = (postId: number) => request<PostResponse>(`/posts/${postId}`);
+/**
+ * 글 쓰기 = 방 만들기 — 201 이면 그 번호의 방이 생겼고 내가 방장으로 들어와 있다(`members = [방장]`). 방을 못 만들면 글도 되돌려진다.
+ * 409 `ALREADY_RECRUITING`(모집 중인 내 글이 있다) · `ALREADY_QUEUED`(자동 매칭 중) · `IN_OTHER_ROOM`(이미 방에 있다) · 503 `ROOM_STATE_UNAVAILABLE`(+`Retry-After: 5`) · 400 `VALIDATION_FAILED`(`details[0]` = "필드: 사유").
+ */
+export const createPost = (body: CreatePostRequest) => request<PostResponse>('/posts', { method: 'POST', body });
+/** 방장만 · 모집 중일 때만 · **방에 방장 말고 누가 있으면 409 `ROOM_HAS_OTHER_MEMBERS`**(P-19). 403 `NOT_POST_HOST` · 409 `POST_NOT_RECRUITING` · 503(방 안을 못 읽음). */
+export const updatePost = (postId: number, body: UpdatePostRequest) => request<PostResponse>(`/posts/${postId}`, { method: 'PATCH', body });
+/** 지우지 않고 만료로 바꾸고 **방도 닫는다**(`ROOM_CLOSED` — 있던 전원의 입장 표시 키가 지워진다). 204. 확정된 글은 409 `POST_CONFIRMED` · 403 `NOT_POST_HOST`. */
+export const deletePost = (postId: number) => request<void>(`/posts/${postId}`, { method: 'DELETE' });
+
+/* ---------- 방 (platform-api.md "방" — `{roomId}` 는 게시판 방이면 글 번호의 십진 문자열, 자동 매칭 방이면 UUID. 두 방이 같은 요청을 쓴다) ---------- */
+const room = (roomId: string) => `/rooms/${encodeURIComponent(roomId)}`;
+/**
+ * 게시판 방 입장 — 본문 없음 · **201 들어감 / 200 이미 있음**(둘 다 본문 없음). 자동 매칭 방에는 쓰지 않는다(그쪽은 `enterMatchPartyRoom`).
+ * 글의 검사가 먼저다 — 404 `POST_NOT_FOUND`(없거나 차단으로 숨김) → 409 `POST_NOT_RECRUITING` → 503 → 방의 Lua(409 `ALREADY_QUEUED` · `ROOM_FULL` · `IN_OTHER_ROOM` · `ROOM_CONFIRMED` · 404 `ROOM_NOT_FOUND`).
+ */
+export const enterRoom = (roomId: string) => request<void>(`${room(roomId)}/members`, { method: 'POST' });
+/** 방 안 사람 — 방 안의 사람만(밖이면 403 `NOT_IN_ROOM` — 방 화면을 닫는다). `hostId` 가 바뀌면 승계다(D-23). */
+export const getRoomMembers = (roomId: string) => request<RoomMembersResponse>(`${room(roomId)}/members`);
+/** 나가기 — **늘 204**(없는 방 · 안 들어간 방도). 미확정 방의 방장이 나가면 방이 닫히고 글이 만료된다 · 확정한 방은 승계된다. */
+export const leaveRoom = (roomId: string) => request<void>(`${room(roomId)}/members/me`, { method: 'DELETE' });
+/** 강퇴 — 방장만. 204. 403 `NOT_HOST` · 400 `CANNOT_KICK_SELF` · 404 `TARGET_NOT_IN_ROOM` · 404 `ROOM_NOT_FOUND`. */
+export const kickMember = (roomId: string, targetUserId: string) =>
+  request<void>(`${room(roomId)}/members/${encodeURIComponent(targetUserId)}`, { method: 'DELETE' });
+/**
+ * 방장 확정 — 게시판 방만 · 방장만 · 2명 이상 · **되돌릴 수 없다**(REOPEN 없음 — 화면이 한 번 더 묻는다). 204 확정 / 200 이미 확정.
+ * 그 순간 방 안의 전원이 파티원이 되고(`ROOM_CONFIRMED {members}`) 글은 `CONFIRMED` 다. 403 `NOT_HOST` · 409 `NOT_ENOUGH_MEMBERS` · 409 `POST_NOT_RECRUITING` · 404.
+ */
+export const confirmRoom = (roomId: string) => request<void>(`${room(roomId)}/confirm`, { method: 'POST' });
+/**
+ * 접속 확인 — 방에 있는 동안 **1분마다**. 204. 방의 수명(600초)을 늘린다(미확정 방은 방장의 것만 방을 살린다).
+ * 403 `NOT_IN_ROOM` · 404 `ROOM_NOT_FOUND` 는 둘 다 "이 방에 없다" — 방 화면을 닫는다. TTL 로 사라진 방은 알림이 없어 이것으로만 안다.
+ */
+export const roomHeartbeat = (roomId: string) => request<void>(`${room(roomId)}/heartbeat`, { method: 'POST' });
+/** 내 방 — 새로 열었을 때 복구. `{roomId: null}` 이면 없다. */
+export const getMyRoom = () => request<MyRoomResponse>('/rooms/me');
 /**
  * WebRTC 시그널을 같은 방의 상대에게. 202 는 발행했다는 뜻이지 도착이 아니다 — 답이 없으면 다시 보낸다(WebRtcPartyClient).
  * 403 `NOT_IN_ROOM`(내가 이 방에 없다 — 방 화면을 닫는다) · 404 `TARGET_NOT_IN_ROOM`(상대가 나갔다 — 그 연결을 정리한다).
- * 방의 다른 요청(입장 · 나가기 · 강퇴 · 확정 · 접속 확인 · 목록)은 4단계에서 붙인다.
  */
-export const sendRoomSignal = (roomId: string, body: SendRoomSignalRequest) =>
-  request<void>(`/rooms/${encodeURIComponent(roomId)}/signals`, { method: 'POST', body });
+export const sendSignal = (roomId: string, body: SendRoomSignalRequest) =>
+  request<void>(`${room(roomId)}/signals`, { method: 'POST', body });
 
 /* ---------- social ---------- */
 export const listFriends = () => request<FriendView[]>('/friends');
@@ -141,12 +182,3 @@ export const unblockUser = (userId: string) => request<void>(`/blocks/${userId}`
 /** limit 범위는 1~50이다. 벗어나면 400 VALIDATION_FAILED다 (docs/14 §11-7). */
 export const listRecentPlayers = (limit = 20) => request<RecentPlayerView[]>('/recent-players', { query: { limit } });
 export const reportUser = (body: CreateReportRequest) => request<void>('/reports', { method: 'POST', body });
-
-/* ---------- normalization ---------- */
-
-/** 원본 계약은 party member 의 `nickname` 이 `null` 일 수 있다고 못박았다. 이름이 없다고 화면이 죽으면 안 되므로 여기서 한 번만 메꾼다(파티 조회는 대응물이 없다 — 위). */
-const UNKNOWN_NICKNAME = '알 수 없음';
-
-function normalizeParty(party: PartyView): PartyView {
-  return { ...party, members: party.members.map((m) => ({ ...m, nickname: m.nickname ?? UNKNOWN_NICKNAME })) };
-}

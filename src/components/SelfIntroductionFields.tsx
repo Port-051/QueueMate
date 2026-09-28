@@ -10,8 +10,10 @@ import { FilterModeIcon, FilterRoleIcon } from './FilterSymbols';
 import { VoiceIcon } from './FilterSymbols';
 import '../styles/introduction.css';
 
-export function SelfIntroductionFields({ game, value, onChange, modeLocked = false, binaryVoice = false, showTierRange = false, compact = false, singleRole = false, afterMode, disabledDesiredRoles = [] }: {
+export function SelfIntroductionFields({ game, value, onChange, modeLocked = false, binaryVoice = false, showTierRange = false, compact = false, singleRole = false, afterMode, disabledDesiredRoles = [], hideDesiredRoles = false }: {
   game: GameKey; value: SelfIntroduction; onChange: (value: SelfIntroduction) => void; modeLocked?: boolean; binaryVoice?: boolean; showTierRange?: boolean; compact?: boolean; singleRole?: boolean; afterMode?: ReactNode; disabledDesiredRoles?: string[];
+  /** "찾는 포지션" 을 그리지 않는다 — 우리 글의 `wantedPositions` 가 없는 게임 · 모드(PUBG · 칼바람)에서(4단계). */
+  hideDesiredRoles?: boolean;
 }) {
   const roles = keyConditionOptions(game).filter(role => role.value !== 'ANY');
   const ownRoles = value.primaryRoles ?? (value.primaryRole !== 'ANY' ? [value.primaryRole] : []);
@@ -32,9 +34,9 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
         <fieldset className="introduction-choice"><legend>{roleTitle}</legend>{singleRole ? <SingleRolePicker game={game} value={allOwnRoles ? 'ANY' : ownRoles[0] ?? null} label={roleTitle} onChange={role => patch({ primaryRoles: role === 'ANY' ? roles.map(option => option.value) : [role], primaryRole: role })} /> : <div className="intro-role-options" role="group" aria-label={roleTitle}>
           {roles.map(role => <button type="button" key={role.value} className="filter-role" aria-label={role.label} aria-pressed={ownRoles.includes(role.value)} onClick={() => { const next = ownRoles.includes(role.value) ? ownRoles.filter(item => item !== role.value) : [...ownRoles, role.value]; patch({ primaryRoles: next, primaryRole: next[0] ?? 'ANY' }); }}><FilterRoleIcon game={game} value={role.value} /><span>{role.label}</span></button>)}
         </div>}</fieldset>
-        <fieldset className="introduction-choice"><legend>{game === 'LOL' ? '찾는 포지션' : game === 'VALORANT' ? '찾는 상대 역할' : '찾는 상대 스타일'}</legend><div className="intro-role-options" role="group" aria-label="찾는 포지션">
+        {hideDesiredRoles ? null : <fieldset className="introduction-choice"><legend>{game === 'LOL' ? '찾는 포지션' : game === 'VALORANT' ? '찾는 상대 역할' : '찾는 상대 스타일'}</legend><div className="intro-role-options" role="group" aria-label="찾는 포지션">
           {roles.map(role => <button type="button" key={role.value} className="filter-role" aria-label={role.label} disabled={disabledDesiredRoles.includes(role.value)} aria-pressed={value.desiredRoles.includes(role.value)} onClick={() => patch({ desiredRoles: normalizeDesiredRoles(game, value.desiredRoles.includes(role.value) ? value.desiredRoles.filter(item => item !== role.value) : [...value.desiredRoles, role.value]) })}><FilterRoleIcon game={game} value={role.value} /><span>{role.label}</span></button>)}
-        </div></fieldset>
+        </div></fieldset>}
       </> : null}
       <SettingsPair {...(compact ? { className: 'room-settings-pair' } : {})}>
       {showTierRange ? <div className="room-setting-row"><span>찾는 티어</span><TierRangePicker game={game} value={value.desiredTierRange} label="찾는 티어 범위" stacked={compact} onChange={desiredTierRange => patch({ desiredTierRange })} /></div> : null}

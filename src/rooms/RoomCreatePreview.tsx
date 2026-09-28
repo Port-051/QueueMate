@@ -1,21 +1,21 @@
 import { useRef, useState } from 'react';
+import type { CreatePostRequest } from '../api/types';
 import { Button, Modal } from '../components/ui';
 import { FilterModeIcon } from '../components/FilterSymbols';
 import { IconDirectMessage } from '../components/NotificationPanel';
-import { TierRangeLabel } from '../components/TierRangePicker';
-import { gameConfig, usesKeyCondition, visibleModes } from '../domain/gameConfig';
-import { roomStartLabel } from './schedule';
+import { gameConfig } from '../domain/gameConfig';
+import { modeLabel } from '../domain/labels';
+import { roomErrorMessage } from './errors';
 import { RoomRoles } from './RoomDeck';
 import { RoomVoice } from './RoomVoice';
-import type { CreateRoomInput, RoomMember } from './types';
+import { hasPositions } from './summary';
 import './room-create-preview.css';
 
-export interface RoomDraft { input: CreateRoomInput; profile: RoomMember; }
-
-export function RoomCreatePreview({ draft: { input, profile }, onClose, onConfirm }: {
-  draft: RoomDraft;
+/** 글 쓰기(`POST /posts`) 직전의 확인 창. 본문이 곧 계약의 요청이다 — 정원(늘 5) · 시작 시각 · 티어 범위 · 내 포지션은 우리 글에 칸이 없어 2026-09-29 에 뺐다. */
+export function RoomCreatePreview({ draft, onClose, onConfirm }: {
+  draft: CreatePostRequest;
   onClose: () => void;
-  onConfirm: (input: CreateRoomInput, profile: RoomMember) => void | Promise<void>;
+  onConfirm: (body: CreatePostRequest) => void | Promise<void>;
 }) {
   const submitting = useRef(false);
   const [error, setError] = useState('');
@@ -23,26 +23,23 @@ export function RoomCreatePreview({ draft: { input, profile }, onClose, onConfir
   const confirm = async () => {
     if (submitting.current) return;
     submitting.current = true; setBusy(true);
-    try { await onConfirm(input, profile); }
+    try { await onConfirm(draft); }
     catch (cause) {
       submitting.current = false; setBusy(false);
-      setError(cause instanceof Error ? cause.message : '방을 올리지 못했어요. 다시 시도해 주세요.');
+      setError(roomErrorMessage(cause, '방을 올리지 못했어요. 다시 시도해 주세요.'));
     }
   };
-  const hasRoles = usesKeyCondition(input.game, input.modeKey);
+  const positions = hasPositions(draft.game, draft.mode);
   return <Modal title="이대로 방을 만들까요?" className="room-create-preview" closeLabel="요약 닫기" onClose={onClose}
-    foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy} onClick={confirm}><span className="room-create-icon"><IconDirectMessage size={21} /></span>방 올리기</Button></>}>
-    <div className="room-preview-title"><span>{gameConfig(input.game).name}</span><h3>{input.title}</h3></div>
+    foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy} onClick={confirm}><span className="room-create-icon"><IconDirectMessage size={21} /></span>{busy ? '올리는 중…' : '방 올리기'}</Button></>}>
+    <div className="room-preview-title"><span>{gameConfig(draft.game).name}</span><h3>{draft.title}</h3></div>
     <dl className="room-preview-conditions">
-      <div><dt>게임 모드</dt><dd><FilterModeIcon mode={input.modeKey} size={22} />{visibleModes(input.game).find(mode => mode.key === input.modeKey)?.label ?? input.modeKey}<span className="room-preview-capacity">{input.capacity}명</span></dd></div>
-      {hasRoles ? <>
-        <div><dt>{input.game === 'LOL' ? '내 포지션' : input.game === 'VALORANT' ? '내 역할' : '플레이 스타일'}</dt><dd><RoomRoles game={input.game} roles={profile.roles} labels /></dd></div>
-        <div><dt>{input.game === 'LOL' ? '찾는 포지션' : input.game === 'VALORANT' ? '찾는 역할' : '찾는 스타일'}</dt><dd><RoomRoles game={input.game} roles={input.desiredRoles} labels /></dd></div>
-      </> : null}
-      <div><dt>찾는 티어</dt><dd><TierRangeLabel game={input.game} value={input.desiredTierRange} /></dd></div>
-      <div><dt>음성</dt><dd><RoomVoice value={input.voice} />{input.voice === 'REQUIRED' ? '사용' : '미사용'}</dd></div>
-      <div><dt>시작 시간</dt><dd><time dateTime={input.availableFrom ?? undefined}>{roomStartLabel(input.availableFrom)}</time></dd></div>
+      <div><dt>게임 모드</dt><dd><FilterModeIcon mode={draft.mode} size={22} />{modeLabel(draft.game, draft.mode)}{draft.conditions.perspective ? ` · ${draft.conditions.perspective}` : ''}<span className="room-preview-capacity">최대 5명</span></dd></div>
+      {positions ? <div><dt>{draft.game === 'LOL' ? '찾는 포지션' : '찾는 역할'}</dt><dd><RoomRoles game={draft.game} roles={draft.wantedPositions} labels /></dd></div> : null}
+      <div><dt>음성</dt><dd><RoomVoice value={draft.voice} />{draft.voice === 'REQUIRED' ? '사용' : '미사용'}</dd></div>
+      {draft.description ? <div><dt>소개</dt><dd>{draft.description}</dd></div> : null}
     </dl>
+    <p className="room-move-notice">글을 올리면 그 번호의 방이 같이 생기고 내가 방장으로 들어가요. 내 카드의 포지션 · 티어는 프로필의 게임 계정에서 와요.</p>
     {error ? <p className="room-preview-error" role="alert">{error}</p> : null}
   </Modal>;
 }

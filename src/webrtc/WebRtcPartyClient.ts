@@ -214,7 +214,7 @@ export class WebRtcPartyClient implements PartyClient {
    */
   private signal(toUserId: string, signal: RoomSignal): void {
     if (this.closed) return;
-    void api.sendRoomSignal(this.opts.roomId, { toUserId, signal }).catch((err) => {
+    void api.sendSignal(this.opts.roomId, { toUserId, signal }).catch((err) => {
       if (this.closed) return;
       if (isApiError(err) && err.code === 'TARGET_NOT_IN_ROOM') this.dropPeer(toUserId);
       else if (isApiError(err) && err.code === 'NOT_IN_ROOM') this.opts.handlers.onStatus('error', '이 방에 들어와 있지 않습니다. 방 화면을 다시 여세요.');

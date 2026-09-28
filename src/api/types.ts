@@ -1,7 +1,7 @@
 /**
  * 백엔드 계약의 타입 — `platform/contracts/platform-api.md` · `matching/contracts/openapi.yaml` · `events.md` 1:1 매핑.
  * 계약에 없는 필드를 임의로 추가하지 않는다. 계약이 정본이고 구현이 따라간다.
- * 아직 원본 프런트의 모양이 남은 절(파티 · 예약 — 대응물이 없다 · 친구 · 차단 · 신고 — 5단계)은 각 절의 주석 참조. 게임 계정 · 매칭 · 제안은 3단계에서 우리 모양이 됐다.
+ * 아직 원본 프런트의 모양이 남은 절(예약 — 대응물이 없다 · 친구 · 차단 · 신고 — 5단계)은 각 절의 주석 참조. 게임 계정 · 매칭 · 제안은 3단계, 모집 글 · 방은 4단계에서 우리 모양이 됐다.
  */
 
 export type GameKey = 'LOL' | 'VALORANT' | 'PUBG';
@@ -177,12 +177,81 @@ export interface ReservationView {
   proposalId: string | null;
 }
 
-/* ---------- party — 원본 프런트의 Ready/PLAYING 파티. **우리 백엔드에 없다**(파티 조회 경로를 두지 않는다 — P-31). `PartyRoomPage` 가 컴파일되게 남겼다 — 4단계에서 방 요청으로 ---------- */
+/* ---------- 모집 글 · 방 (platform-api.md "모집 글 · 목록" · "방" · "자동 매칭 파티의 방") ---------- */
+
+/** 글의 상태. 목록은 셋을 `id` 내림차순으로 섞어 내려 준다(끝난 글도 남는다 — P-20). 화면은 `RECRUITING` 이 아닌 글을 흐리게 그린다. */
+export type PostStatus = 'RECRUITING' | 'CONFIRMED' | 'EXPIRED';
+export type PubgPerspective = 'TPP' | 'FPP';
+/** 게임별 조건 — PUBG 는 `{perspective}` 가 필수이고 LoL · VALORANT 는 `{}` 다(모르는 키는 400). `@JsonRawValue` 라 JSON **객체**로 온다. */
+export interface PostConditions { perspective?: PubgPerspective; [key: string]: unknown }
+
+/**
+ * 목록 · 단건의 사람 카드(`host` · `members[]`). `userId` 는 JSON **숫자**(방 응답의 문자열 id 와 비교할 때는 `String()`).
+ * `nickname` · `profile` 은 가입하지 않은 번호면 `null` 이다(방 키에 손으로 넣은 값). `profile` 은 그 글의 게임에 연결한 게임 프로필 전체다 — 없으면 `null`.
+ */
+export interface MemberCard { userId: number; nickname: string | null; host: boolean; profile: GameProfile | null }
+
+/**
+ * 모집 글 한 줄 — `GET /posts?game=` 의 `posts[]` · `GET /posts/{postId}` · `POST /posts` 201 · `PATCH` 200 이 같은 모양이다.
+ * **`postId` 가 곧 `roomId` 다**(방 키에는 십진 문자열로 — 방 요청의 경로에는 `String(postId)`). `capacity` 는 늘 5, `memberCount` 는 끝난 글이면 0, `members` 는 방장 먼저다.
+ * 시각은 ISO-8601 문자열. `mode` 는 옛 글이면 `null` 일 수 있다(P-16 미정).
+ */
+export interface PostResponse {
+  postId: number;
+  hostId: number;
+  game: GameKey;
+  mode: string | null;
+  title: string;
+  description: string | null;
+  voice: VoicePreference;
+  conditions: PostConditions;
+  wantedPositions: string[];
+  status: PostStatus;
+  createdAt: string;
+  memberCount: number;
+  capacity: number;
+  full: boolean;
+  host: MemberCard;
+  members: MemberCard[];
+}
+/** `nextCursor` 는 마지막으로 **읽은** 글의 번호(숫자) — 더 볼 것이 없으면 `null`. 다음 페이지는 `?cursor=` 에 그대로 넣는다(P-14). */
+export interface PostListResponse { posts: PostResponse[]; nextCursor: number | null }
+/**
+ * `POST /posts`. `mode` 는 그 게임의 gameconfig 모드(필수 · ≤30) · `title` 1~60 · `description` ≤300(없으면 보내지 않는다) ·
+ * `conditions` 는 PUBG 만 `{perspective}` · `wantedPositions` 는 그 게임의 포지션 이름(PUBG 는 빈 배열). 방이 같이 생기고 응답의 `members` 에 방장이 있다.
+ */
+export interface CreatePostRequest {
+  game: GameKey;
+  mode: string;
+  title: string;
+  description?: string;
+  voice: VoicePreference;
+  conditions: PostConditions;
+  wantedPositions: string[];
+}
+/** `PATCH /posts/{postId}` — 준 것만 바꾼다(`null` · 없음 = 그대로). `description` 은 빈 문자열이면 비운다 · `title` · `mode` 의 빈 문자열은 400. */
+export interface UpdatePostRequest {
+  mode?: string;
+  title?: string;
+  description?: string;
+  voice?: VoicePreference;
+  conditions?: PostConditions;
+  wantedPositions?: string[];
+}
+
+/**
+ * `GET /rooms/{roomId}/members` — 방 안의 사람만 볼 수 있다(밖이면 403 `NOT_IN_ROOM`). id 는 전부 **십진 문자열**(방 키의 글자 그대로) · `members` 에 방장이 들어 있고 순서는 없다.
+ * 확정한 방은 `hostId` 가 바뀔 수 있다(승계 — D-23). 닉네임 · 프로필은 여기 없다 — 게시판 방이면 `GET /posts/{postId}` 의 카드로 붙인다.
+ */
+export interface RoomMembersResponse { roomId: string; hostId: string; members: string[] }
+/** `GET /rooms/me` — 내 입장 표시 키. 없으면 `{roomId: null}`(404 가 아니다). 게시판 방은 글 번호 문자열 · 자동 매칭 방은 UUID. */
+export interface MyRoomResponse { roomId: string | null }
+
+/* ---------- party — 원본 프런트의 Ready/PLAYING 파티. **우리 백엔드에 없다**(파티 조회 경로를 두지 않는다 — P-31). `PartyRoomPage` 가 컴파일되게 남겼다 — 4단계 방 화면(다음 커밋)에서 지운다 ---------- */
 export type PartyStatus = 'OPEN' | 'READY' | 'PLAYING' | 'CLOSED';
 
 export interface PartyMemberView {
   userId: string;
-  /** 서버가 null을 줄 수 있다 (docs/14 §7.1). `client.ts`가 정규화해서 넘긴다. */
   nickname: string;
   ready: boolean;
   gameIds?: string[];
@@ -243,16 +312,9 @@ export type ServerEventType =
   | 'WEBRTC_SIGNAL'
   | 'BOARD_CHANGED';
 
-/**
- * **원본 백엔드의 이름 — 우리 백엔드는 보내지 않고 `sse.ts` 의 화이트리스트에도 없다.** 그 이름을 기다리는 핸들러(`rooms/useRoomData` · `state/notifications`)가
- * 컴파일되게만 남겼다 — 4단계(방 · 게시판)에서 우리 이름으로 바꾸며 지운다(`MatchContext` 의 옛 핸들러는 3단계에서 걷어냈다).
- * `SESSION_SNAPSHOT` 은 대응물이 없다(연결 직후 `GET /match-requests` · `GET /rooms/me` 로 맞춘다) · `ROOMS_UPDATED` · `ROOM_MESSAGES_UPDATED` · `RECRUITMENT_UPDATED` 의 자리는
- * `BOARD_CHANGED` + `ROOM_*` 다. `PARTY_*` 는 두지 않기로 했다(D-44 · P-31) — `PartyRoomPage` 의 `startsWith('PARTY_')` 는 오지 않는 이벤트를 기다린다(4단계).
- */
-export type LegacyServerEventType = 'SESSION_SNAPSHOT' | 'ROOMS_UPDATED' | 'ROOM_MESSAGES_UPDATED' | 'RECRUITMENT_UPDATED';
 
 export interface ServerEvent<T = Record<string, unknown>> {
-  type: ServerEventType | LegacyServerEventType;
+  type: ServerEventType;
   /** SSE `id:` 와 같다. 재연결 직후 같은 이벤트를 다시 받을 수 있다 — 클라이언트가 멱등해야 한다. */
   eventId: string;
   /** ISO-8601 UTC · 밀리초 */

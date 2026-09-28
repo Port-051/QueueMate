@@ -3,6 +3,7 @@ import type { ComponentType } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../state/AuthContext';
 import { useMatch } from '../state/MatchContext';
+import { useRoomSession } from '../state/RoomSessionContext';
 import { useNotifications } from '../state/notifications';
 import { useDirectMessages } from '../state/directMessages';
 import { Logo } from './Logo';
@@ -24,6 +25,7 @@ const NAV: NavItem[] = [
 export function AppShell() {
   const { user, userId } = useAuth();
   const { request, proposal } = useMatch();
+  const { roomId } = useRoomSession();
   const notifications = useNotifications();
   const messages = useDirectMessages(userId);
   const location = useLocation();
@@ -66,7 +68,7 @@ export function AppShell() {
             <span className="nav-icon"><MenuIcon size={24} filled={isActive} />
               {item.to === '/app/messages' && messages.unreadCount > 0 ? <span className={`nav-badge${messages.unreadCount > 99 ? ' nav-badge-long' : ''}`} aria-label={`안 읽은 메시지 ${messages.unreadCount}개`}>{messages.unreadCount > 99 ? '99+' : messages.unreadCount}</span> : null}
             </span><span className="nav-label">{item.label}</span>
-            {item.to === '/app/home' && request ? <span className="nav-dot" role="img" aria-label="매칭 중" /> : null}
+            {item.to === '/app/home' && (request || roomId) ? <span className="nav-dot" role="img" aria-label={request ? '매칭 중' : '방에 참여 중'} /> : null}
           </>}
         </NavLink>;
       })}
@@ -101,6 +103,8 @@ export function AppShell() {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
         </div>
+        {/* 내 방(입장 표시 키)이 있는데 그 방 화면이 아니면 — 새로 열었을 때의 복구 · 다른 화면에서의 안내(4단계). */}
+        {roomId && location.pathname !== `/app/party/${roomId}` ? <div className="banner room-session-banner" role="status">방에 들어가 있어요. <Link className="room-session-link" to={`/app/party/${roomId}`}>방으로 가기</Link></div> : null}
         <Outlet context={{ selectedGame, setSelectedGame } satisfies AppShellOutletContext} />
       </main>
       {menuOpen ? <Modal title="메뉴" closeLabel="메뉴 닫기" onClose={() => setMenuOpen(false)}>{gameNavigation(true)}{navigation(true)}</Modal> : null}

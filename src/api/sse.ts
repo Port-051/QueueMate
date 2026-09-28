@@ -27,8 +27,7 @@ export interface EventStream {
 
 /**
  * 우리 백엔드가 실제로 발행하는 `type` 14종 — matching 5(`events.md`) · platform 9(`platform-api.md` "방" 의 "알림" · "이 앱이 내는 알림" ·
- * "게시판 채널 신호"). 모르는 type 의 프레임은 버린다. 원본 프런트의 이름(`SESSION_SNAPSHOT` · `PARTY_*` · `ROOMS_UPDATED` …)은 여기 없다 —
- * 오지 않는 이벤트를 기다리는 화면은 멈춘 것처럼 보인다(types.ts `LegacyServerEventType`).
+ * "게시판 채널 신호"). 모르는 type 의 프레임은 버린다. 원본 프런트의 이름(`SESSION_SNAPSHOT` · `PARTY_*` · `ROOMS_UPDATED` · `RECRUITMENT_UPDATED` …)은 여기도 타입에도 없다(4단계에서 마지막 사용처를 지웠다).
  */
 const SERVER_EVENT_TYPES = new Set<string>([
   'MATCH_QUEUE_UPDATED', 'MATCH_PROPOSAL_CREATED', 'MATCH_PROPOSAL_EXPIRED', 'MATCH_CONFIRMED', 'MATCH_CANCELLED',
