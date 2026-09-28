@@ -28,7 +28,7 @@ platform  ──publish──▶  qm:pubsub:push:{userId}
 
 - **놓친 알림을 다시 보내지 않는다.** Redis Pub/Sub 은 구독자가 없으면 메시지를 버린다.
   페이지를 나가 있던 동안의 알림은 사라지고, 다시 들어온 사용자는 `matching` 의 상태 조회
-  (`GET /api/v1/match-requests?userId=`)로 현재 상태를 따라잡는다. 이력을 쌓으려 하지 마라.
+  (`GET /api/v1/match-requests` — 2026-09-27 부터 그쪽도 `?userId=` 가 아니라 쿠키 `qm_access` 다)로 현재 상태를 따라잡는다. 이력을 쌓으려 하지 마라.
 - 매칭 상태를 읽거나 바꾸지 않는다. Redis 에서 만지는 것은 접속 중인 사용자의
   `qm:pubsub:push:{userId}` 채널 구독뿐이다.
 
