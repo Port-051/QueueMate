@@ -5,6 +5,7 @@ import com.queuemate.matching.dto.CreateMatchRequestCommand;
 import com.queuemate.matching.redisKeys.SharedKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,13 @@ public class MatchRequestService {
     private final RedisScript<Long> claimRequestScript;
 
     /**
+     * 접속 확인의 유예(ms) — 접수 순간의 첫 신호에 이 값을 더한 시각이 시한이다 (docs/11 D-43).
+     * 생성자 주입이 아니라 필드 주입인 것은 Lombok 의 {@code @RequiredArgsConstructor} 가 {@code @Value} 를 옮겨 주지 않아서다.
+     */
+    @Value("${queuemate.alive.grace-ms}")
+    private long aliveGraceMs;
+
+    /**
      * 활성 요청 자리를 선점하고 요청 내용을 기록한다.
      *
      * "이미 대기 중인가?"를 확인하고 등록하는 두 동작 사이에 다른 요청이 끼어들면
@@ -46,14 +54,17 @@ public class MatchRequestService {
         String activeKey = activeRequestKey(command.getUserId());
 
         List<String> args = new ArrayList<>();
-        requestFields(command, requestId, queuedAt).forEach((field, value) -> {   // ARGV[1..]
+        args.add(command.getUserId());                                             // ARGV[1] — 접속 확인 목록의 member
+        args.add(String.valueOf(queuedAt + aliveGraceMs));                         // ARGV[2] — 첫 신호의 시한 (D-43)
+        requestFields(command, requestId, queuedAt).forEach((field, value) -> {   // ARGV[3..]
             args.add(field);
             args.add(value);
         });
 
         Long result = redis.execute(
                 claimRequestScript,
-                List.of(activeKey, SharedKeys.activeRoomKey(command.getUserId())),
+                List.of(activeKey, SharedKeys.activeRoomKey(command.getUserId()),
+                        SharedKeys.HEARTBEAT_KEY),
                 args.toArray());
 
         if (Long.valueOf(IN_ROOM).equals(result)) {

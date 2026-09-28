@@ -8,7 +8,12 @@
 --             HASH. 활성 요청 표시이자, 나중에 키를 되조립할 재료를 담는다.
 -- KEYS[2]   = qm:user:active-room:{userId}
 --             app:room 의 입장 표시 키. 있는지만 본다 — 쓰지도 지우지도 값을 읽지도 않는다.
--- ARGV[1..] = HASH 필드 쌍 (field, value, field, value, ...)
+-- KEYS[3]   = qm:request:alive
+--             접속 확인(heartbeat) 목록. ZSET, member = userId, score = 이 시각까지 신호가 없으면 빠진다(epoch ms).
+--             접수가 첫 신호다 — HSET 과 같은 원자 실행 안에 넣어야 "선점됐는데 목록에 없어 스위퍼가 못 보는" 사람이 없다 (docs/11 D-43)
+-- ARGV[1]   = userId (ZSET 의 member)
+-- ARGV[2]   = 첫 신호의 시한 (epoch ms) — 자바가 now + 유예 로 계산해 넘긴다
+-- ARGV[3..] = HASH 필드 쌍 (field, value, field, value, ...)
 --
 -- 반환
 --   1 = 선점 성공
@@ -26,8 +31,8 @@ if redis.call('EXISTS', KEYS[2]) == 1 then
     return -1
 end
 
-redis.call('HSET', KEYS[1], unpack(ARGV))
-
+redis.call('HSET', KEYS[1], unpack(ARGV, 3))
+redis.call('ZADD', KEYS[3], tonumber(ARGV[2]), ARGV[1])
 -- 자리만 잡고 파티 배정 전에 앱이 죽으면, 이 키가 영원히 남아 그 사용자는
 -- 매칭도 못 되고 INV-1 때문에 새 요청도 못 건다. 응답을 못 받았으면 requestId 를
 -- 모르니 취소도 못 한다. 그래서 만료를 걸어 두고, 파티 배정에 성공한 스크립트가

@@ -124,6 +124,22 @@ public final class SharedKeys {
      */
     public static final String PENDING_KEY = "qm:proposal:pending";
 
+    // ── 접속 확인 ───────────────────────────────────────────────────────────
+
+    /**
+     * 대기 요청의 접속 확인(heartbeat) 목록 (docs/11 D-43). ZSET, member = userId, score = 시한(epoch ms) —
+     * 그 시각까지 신호가 없으면 큐에서 빠진다. {@link #PENDING_KEY} 처럼 접두사가 아니라 키 하나다.
+     *
+     * <p>넣는 자리는 둘이다 — 접수({@code shared/claim-request.lua} 가 {@code KEYS[3]} 으로 받아 {@code HSET} 과 같은
+     * 원자 실행 안에서 {@code ZADD}. 문자열을 리터럴로 갖고 있지 않으므로 위 Lua 목록에는 없다)과 heartbeat
+     * ({@code HeartBeatService} 가 같은 member 의 score 를 {@code now + 유예} 로 덮어쓴다). <b>빼는 자리는
+     * {@code RequestAliveExpiryService} 하나뿐이다</b> — {@code PENDING_KEY} 와 달리 끝나는 자리마다 {@code ZREM} 하지
+     * 않고, 시한이 지나 스위퍼가 꺼냈을 때 활성 요청이 없거나 {@code PARTY} 면 목록에서만 빼는 <b>게으른 정리</b>다.
+     * Lua 어디에도 {@code ZREM} 이 없는 것이 실수가 아닌 이유는 그 클래스 머리말에 있다.
+     * <pre>{@code "qm:request:alive"    (접두사가 아니라 키 하나다)}</pre>
+     */
+    public static final String HEARTBEAT_KEY = "qm:request:alive";
+
     // ── 사용자 ──────────────────────────────────────────────────────────────
 
     /**

@@ -100,6 +100,12 @@ queuemate:
     interval-ms: ${SCAN_INTERVAL_MS:1000}
   sweep:
     interval-ms: ${SWEEP_INTERVAL_MS:1000}
+  # 대기 요청의 접속 확인(heartbeat) — docs/11 D-43. 클라이언트가 대기 화면에서 주기적으로 POST /match-requests/heartbeat 를 보내고,
+  # grace-ms 동안 신호가 없으면 RequestAliveSweeper 가 그 요청을 취소한다(창을 닫거나 브라우저가 죽은 사람이 파티 자리를 붙들지 않게).
+  # 30초 주기에 90초 유예 = 신호 세 번을 놓치면 빠진다. 너무 짧으면 새로고침 · 잠깐의 끊김에 억울하게 빠진다
+  alive:
+    grace-ms: ${ALIVE_GRACE_MS:90000}
+    sweep-interval-ms: ${ALIVE_SWEEP_INTERVAL_MS:5000}
 
   # ------------------------------------------------------------------
   # [실험용] Redis 페일오버 재시도 - 제거 시 이 failover 블록만 통째로 삭제

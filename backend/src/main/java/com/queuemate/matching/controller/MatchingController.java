@@ -8,6 +8,7 @@ import com.queuemate.matching.dto.AcceptedRequest;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
 import com.queuemate.matching.dto.JoinResult;
 import com.queuemate.matching.dto.MatchRequestResponse;
+import com.queuemate.matching.service.HeartBeatService;
 import com.queuemate.matching.service.MatchCancelService;
 import com.queuemate.matching.service.MatchQueryService;
 import com.queuemate.matching.service.MatchRequestService;
@@ -36,7 +37,7 @@ public class MatchingController {
     private final MatchTrigger matchTrigger;
     private final MatchCancelService matchCancelService;
     private final MatchQueryService matchQueryService;
-
+    private final HeartBeatService heartBeatService;
 
     /**
      * 매칭을 시작한다. <b>요청한 사람은 access 토큰의 {@code sub} 다</b> — 본문의 {@code userId} 는 받지 않는다
@@ -147,5 +148,31 @@ public class MatchingController {
             case REQUEST_MISMATCH -> ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(
                     "MATCH_REQUEST_MISMATCH", "이미 종료된 매칭 요청입니다: " + requestId));
         };
+    }
+
+    /**
+     * 대기 중인 매칭 요청의 접속 확인(heartbeat) — "아직 기다리고 있다"는 신호다 (docs/11 D-43).
+     *
+     * <p>클라이언트가 대기 화면에서 주기적으로 보낸다. {@code queuemate.alive.grace-ms} 동안 신호가 없으면
+     * {@code RequestAliveSweeper} 가 그 요청을 취소한다 — 창을 닫거나 브라우저가 죽은 사람이 파티 자리를
+     * 붙들고 있지 않게 하기 위해서다. 상태 조회({@code GET})가 있는데 따로 두는 이유는 조회는 읽기라
+     * 시한을 밀지 않기 때문이다(상태를 바꾸는 GET 을 만들지 않는다 — CLAUDE.md §3).
+     *
+     * <p><b>POST 이고 본문이 없다.</b> 시한을 뒤로 미는 쓰기라 GET 이 아니고, 누구의 요청인지는 access 토큰의
+     * {@code sub} 로 충분하다 — 활성 요청이 사용자 단위이므로({@code qm:user:active-request:{userId}}, INV-1)
+     * {@code requestId} 를 받을 이유가 없다. 늦게 도착한 신호가 새 요청의 시한을 미는 것은 해가 아니다.
+     *
+     * <p><b>활성 요청이 없으면 404 다.</b> 204 로 조용히 받아도 엔진은 아무 문제가 없지만, 클라이언트에게는
+     * "네 요청은 이미 없다"(스위퍼가 뺐거나 다른 탭에서 취소했다)를 알 수 있는 유일한 자리다 — 대기 화면이
+     * 이 답을 보고 상태 조회로 복구하거나 처음 화면으로 돌아간다. 코드는 취소와 같은 {@code MATCH_REQUEST_NOT_FOUND} 다.
+     */
+    @PostMapping("/heartbeat")
+    public ResponseEntity<?> heartbeat(@CurrentUserId String userId) {
+
+        if (!heartBeatService.update(userId)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse.of(
+                    "MATCH_REQUEST_NOT_FOUND", "진행 중인 매칭 요청이 없습니다"));
+        }
+        return ResponseEntity.noContent().build();
     }
 }
