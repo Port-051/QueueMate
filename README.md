@@ -15,8 +15,8 @@ npm run build        # tsc -b && vite build
 npm run typecheck    # tsc --noEmit
 ```
 
-mock 서버 · Playwright e2e · `dev:mock` · `dev:rooms` 는 2단계(2026-09-28)에 지웠다 — 화면을 보려면 백엔드를 띄운다. `build` · `typecheck` 는 2단계 커밋마다 이 자리(OneDrive 아래 WSL)에서 통과했다. **dev 서버는 띄웠으면 반드시 내린다**(`ss -ltnp | grep :5173` → `kill <PID>`. `pkill -f` 금지).
+mock 서버 · Playwright e2e · `dev:mock` · `dev:rooms` 는 2단계(2026-09-28)에 지웠다 — 화면을 보려면 백엔드를 띄운다. `build` · `typecheck` 는 2 · 3단계 커밋마다 이 자리(OneDrive 아래 WSL)에서 통과했다. **dev 서버는 띄웠으면 반드시 내린다**(`ss -ltnp | grep :5173` → `kill <PID>`. `pkill -f` 금지).
 
 ## 지금 어디까지
 
-**1단계(가져오기 · 빌드) · 2단계(인증 · 전송) 끝.** 쿠키 `qm_access` 인증 · 소셜 전용 로그인(`/login` · `/signup/social` · `/settings`) · 프록시 셋 · SSE `GET /api/v1/events` · 게임 설정 정적 상수(`src/domain/gameCatalog.ts` — 원본은 `matching/seed/gameconfig.redis`)가 우리 백엔드 모양이고, **홈은 방 카드 보드다**(소유자 결정). 게임 계정 · 매칭 · 제안 · 파티(3단계), 방 카드 보드의 API · 게시판(4단계), 친구 · 차단 · 신고(5단계)는 아직 원본 경로다 — 컴파일만 된다. 무엇을 어떤 순서로 바꾸는지는 `START_HERE.md` §2, 경로 하나하나의 대조는 `START_HERE.md` §3 이다. 실제 소셜 로그인은 카카오 · 디스코드 앱 키가 없어 아직 브라우저에서 못 해 본다.
+**1단계(가져오기 · 빌드) · 2단계(인증 · 전송) · 3단계(게임 계정 · 매칭) 끝.** 쿠키 `qm_access` 인증 · 소셜 전용 로그인(`/login` · `/signup/social` · `/settings`) · 프록시 셋 · SSE `GET /api/v1/events` · 게임 설정 정적 상수(`src/domain/gameCatalog.ts` — 원본은 `matching/seed/gameconfig.redis`) · 게임 계정(`PUT /users/me/game-accounts/{game}` · 온보딩 · 내 정보) · 매칭("매칭 시작" = `POST /posts/auto-join` → 404 면 `POST /match-requests` · `GET /match-requests` 폴링 · heartbeat · 제안 · `MATCH_CONFIRMED` → `POST /match-parties/{partyId}/room`)이 우리 백엔드 모양이고, **홈은 방 카드 보드다**(소유자 결정). 방 카드 보드의 API · 게시판 · 방 화면(4단계), 친구 · 차단 · 신고(5단계)는 아직 원본 경로다 — 컴파일만 된다. 무엇을 어떤 순서로 바꾸는지는 `START_HERE.md` §2, 경로 하나하나의 대조는 `START_HERE.md` §3 이다. 실제 소셜 로그인은 카카오 · 디스코드 앱 키가 없어 아직 브라우저에서 못 해 본다.

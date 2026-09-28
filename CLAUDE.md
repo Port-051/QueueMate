@@ -64,7 +64,8 @@
 | 예약 시간(`availableFrom` · `REALTIME/RESERVATION`) · 자동 마감(`autoClose`) · `REOPEN` | 우리 글에는 시각 칸이 없고 예약은 `app:reservation`(Lambda · 시작 안 함)의 일이다. 확정은 되돌릴 수 없다(`REOPEN` 없음). 자동 마감 · 유휴 시간은 우리 방에 없다(수명 600초 · 접속 확인만) |
 | 티어 범위(`desiredTierRange` · `TierRangePicker`) | 글에 티어 범위 칸이 없다. 자동 합류(`POST /posts/auto-join`)의 티어 판정은 gameconfig `tier-range` 로 서버가 한다 — 화면에 범위 선택을 남길지 |
 | ~~게임 · 모드 · 티어 상수의 자리와 모양~~ | **정해졌다(2단계 · 2026-09-28)** — `src/domain/gameCatalog.ts` 에 seed 값 그대로(모드 24 · 정원 · `tierRule` · `positionUniqueness` · 사다리 셋 `UNRANKED` 포함 · 핵심 조건 값)와 한글 라벨. 라벨 · 파일 이름 · 모양은 Claude 가 정했다 — 소유자 검토 항목. seed 를 고치면 여기도 고친다 |
-| 대응물 없는 화면의 처지 | 예약 · DM · 듀오 제안 · 아바타 · Ready/PLAYING · 알림함 · `GET /match-requests/history`. 남긴 채 숨길지 · 지울지 |
+| 대응물 없는 화면의 처지 | 예약 · DM · 듀오 제안 · 아바타 · Ready/PLAYING(`PartyRoomPage` — 4단계에서 방 화면으로) · 알림함(`GET /recruitments/mine` 을 아직 부른다). 남긴 채 숨길지 · 지울지(3단계 소유자 결정 — 남긴다). `GET /match-requests/history` 는 3단계에서 API 만 지웠다(화면이 없었다) |
+| 제안 화면의 팀원 목록 | 없다 — `GET /proposals/{id}` 가 없고 수락 진행 이벤트가 계약에 없다(`events.md` "미해결 계약 구멍"). 3단계는 남은 시간 · 정원(`MATCH_PROPOSAL_CREATED` 의 `target`) · 내 수락 여부만 그린다. 백엔드에 만들어 달라고 하지 않는다 — 소유자가 정한다 |
 | ~~`tests/*.spec.ts`(브라우저 없는 단위 테스트 5개)~~ | **지웠다(2단계)** — Playwright 러너에 묶여 있었다. 순수 함수 테스트를 다시 둘지는 러너를 고를 때 묻는다 |
 | `BOARD_CHANGED` 재요청 묶기 간격 | 백엔드도 미정(`platform/CLAUDE.md` §3.2). 몇 초에 최대 1번 |
 | 재발급 흐름 | **401 뒤 한 번 재발급 → 재시도, SSE 401 → 재발급 → `EventSource` 새로 — 2단계에서 구현했다**(`api/http.ts` `refreshSession()` · `api/sse.ts`). **남은 것** — access 가 15분이라 **만료 전 선제 재발급**을 둘지(서버 장치 없음 · 지금은 401 을 맞고 나서 한 번). **모든 기기 로그아웃은 백엔드에도 없다** |
