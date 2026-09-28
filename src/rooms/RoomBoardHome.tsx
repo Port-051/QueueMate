@@ -17,7 +17,7 @@ import { RoomSeatJoin, roomEntryError } from './RoomSeatJoin';
 import { RoomQuickConnect } from './RoomQuickConnect';
 import { roomVoice, ROOM_VOICES } from './voice';
 import { quickConnectCandidates, type QuickConnectCriteria } from './quickConnect';
-import { remainingRoomRoles, vacantRoleOptions } from './positions';
+import { remainingRoomRoles } from './positions';
 import { useRoomData } from './useRoomData';
 import { accountRank } from './accountRank';
 import type { GameRoom, RoomMember } from './types';
@@ -109,12 +109,9 @@ export function RoomBoardHome() {
         <button type="button" aria-pressed={exploring} onClick={() => setRailView('explore')}>탐색 · 매칭</button>
         <button type="button" aria-pressed={!exploring} onClick={() => setRailView('chat')}>방 채팅{exploring && lastSeen !== activity ? <i className="room-update-dot" role="img" aria-label="내 방 새 소식" /> : null}</button>
       </SlidingSelector> : null}
-      <div className="room-quick-rail" hidden={!exploring}><RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.modeKey} rooms={rooms} member={member} activeRoom={activeRoom} onShowRoom={() => setRailView('chat')}
-        onCreate={async (input, profile) => { const room = await create(input, profile); setFilters({ ...defaults(input.game), modeKey: input.modeKey }); setLastSeen(roomActivity(room)); setRailView('explore'); setJustCreatedId(room.id); }} onSelectSeat={(room, profile, criteria) => {
-          const vacancies = vacantRoleOptions(room);
-          const roles = vacancies.find(options => options.some(role => profile.roles.includes(role))) ?? vacancies[0] ?? [];
-          setSelected({ id: room.id, roles, profile, fromRoomId: activeRoom?.id, criteria });
-        }} /></div>
+      {/* "매칭 시작" 은 3단계부터 서버의 auto-join → 대기열 매칭이다(RoomQuickConnect) — 클라이언트가 방을 골라 자리를 제안하던 onSelectSeat 는 없어졌다. */}
+      <div className="room-quick-rail" hidden={!exploring}><RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.modeKey} member={member} activeRoom={activeRoom} onShowRoom={() => setRailView('chat')}
+        onCreate={async (input, profile) => { const room = await create(input, profile); setFilters({ ...defaults(input.game), modeKey: input.modeKey }); setLastSeen(roomActivity(room)); setRailView('explore'); setJustCreatedId(room.id); }} /></div>
       {activeRoom ? <div className="room-conversation-rail" hidden={exploring}><RoomConversation key={activeRoom.id} room={activeRoom} selfId={member.id} visible={!exploring} onMember={profile => showMember(activeRoom, profile)} onSend={text => send(text)} onLeave={() => run(leave)} onKick={id => kick(activeRoom.id, id)} onConfirm={() => confirm(activeRoom.id)} onReopen={() => reopen(activeRoom.id)} onAutoConfirm={deadline => autoConfirm(activeRoom.id, deadline)} onExtend={deadline => run(() => extendRecruitment(activeRoom.id, deadline))} /></div> : null}
     </aside>
     </div>

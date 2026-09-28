@@ -74,10 +74,10 @@ export function useNotifications() {
   }, [userId]);
 
   useEffect(() => {
-    if (!proposal || proposal.status !== 'PENDING') return;
-    const names = proposal.members.filter(member => member.userId !== userId).map(member => member.nickname).join(', ');
-    add([{ id: `proposal:${proposal.id}`, kind: 'MATCH', title: '함께할 팀원을 찾았어요', body: `${names || '팀원'}의 제안을 확인하고 수락해 주세요.`, href: '/app/home', createdAt: new Date().toISOString() }]);
-  }, [proposal, userId, add]);
+    if (!proposal) return;
+    // 제안에는 팀원 목록이 없다(3단계 — `GET /proposals/{id}` 없음). 정원만 적는다.
+    add([{ id: `proposal:${proposal.partyId}`, kind: 'MATCH', title: '함께할 팀원을 찾았어요', body: `${proposal.target ? `${proposal.target}인 파티` : '파티'} 제안을 확인하고 수락해 주세요.`, href: '/app/home', createdAt: new Date().toISOString() }]);
+  }, [proposal, add]);
 
   useEffect(() => {
     if (!activePartyId) return;

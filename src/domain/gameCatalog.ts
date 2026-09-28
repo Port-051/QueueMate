@@ -11,7 +11,9 @@ import type { GameKey, KeyConditionType, PlayPurpose, VoicePreference } from '..
  * - 모드 키 · 정원 · `tierRule`(`EXIST` = 티어를 본다 · `NONE` = 안 본다) · `positionUniqueness`(파티 안에서 포지션이 겹칠 수 없는가 — PUBG 에는 없다)는
  *   `HSET qm:gameconfig:{GAME}:{MODE}` 그대로. 티어별 허용 범위(`tier-range`)는 옮기지 않았다 — 판정은 서버가 한다(자동 합류 · 매칭).
  * - 핵심 조건(`keyCondition`)의 type 과 값은 `matching/contracts/openapi.yaml` `KeyCondition` · `platform-api.md` "계정" 의 `mainPosition`:
- *   LoL `POSITION`(TOP/JUNGLE/MID/ADC/SUPPORT/NONE) · VALORANT `ROLE`(4역할군) · PUBG `PLATFORM`(STEAM/KAKAO — 원본 프런트의 `PLAY_STYLE` 이 아니다, A-13).
+ *   LoL `POSITION`(TOP/JUNGLE/MID/ADC/SUPPORT) · VALORANT `ROLE`(4역할군) · PUBG `PLATFORM`(STEAM/KAKAO — 원본 프런트의 `PLAY_STYLE` 이 아니다, A-13).
+ *   **LoL 의 `NONE`(포지션 없음)은 선택지가 아니라 서버에 보내는 값이다** — `positionUniqueness=false` 모드(칼바람)에서만 · 그때는 `NONE` 만 받고, 포지션을 보는 모드에서는
+ *   `NONE` 을 거절한다(`matching` `LolConditionValidator`). 화면은 그 자리를 `ANY` 로 두고 보낼 때 옮긴다(`domain/matchRequest.ts`). VALORANT · PUBG 에는 "없음" 이 없다.
  * - 티어 사다리는 `ZADD qm:gameconfig:{GAME}:tier` 의 순서(오름차순 · 0 이 `UNRANKED`). VALORANT 는 디비전이 1→3 으로 커지고 LoL · PUBG 는 4→1 로 작아진다.
  * - `VoicePreference` 는 `REQUIRED` · `NO_VOICE` 둘이다 — `OPTIONAL` 은 없다(openapi 개정 이력 · docs/11 #31). `PlayPurpose` 는 셋.
  */
@@ -84,7 +86,6 @@ export const GAME_CATALOG: Record<GameKey, GameSeed> = {
       { value: 'MID', label: '미드' },
       { value: 'ADC', label: '원딜' },
       { value: 'SUPPORT', label: '서포터' },
-      { value: 'NONE', label: '무관' },
     ],
     modes: [
       { key: 'RANKED_SOLO', label: '솔로 랭크', targetPartySize: 2, positionUniqueness: true, tierRule: 'EXIST' },

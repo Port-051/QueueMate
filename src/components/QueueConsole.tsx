@@ -65,7 +65,7 @@ export function QueueConsole() {
   const queuedAt = request?.queuedAt;
   useEffect(() => {
     if (!queuedAt) return;
-    const started = new Date(queuedAt).getTime();
+    const started = queuedAt;
     const tick = () => setElapsed(Math.floor((Date.now() - started) / 1000));
     tick();
     const timer = window.setInterval(tick, 1000);
@@ -103,7 +103,7 @@ export function QueueConsole() {
       <div className="queue-console live">
         <div className="qc-head">
           <h2><span className="pulse" /> 팀원을 찾는 중</h2>
-          <button type="button" className="qc-detail" onClick={() => navigate(`/app/match/waiting/${request.id}`)}>
+          <button type="button" className="qc-detail" onClick={() => navigate(`/app/match/waiting/${request.requestId ?? ''}`)}>
             대기 화면 →
           </button>
         </div>
@@ -123,7 +123,7 @@ export function QueueConsole() {
           </div>
           <div className="qc-actions">
             <Button size="lg" disabled={busy} onClick={() => void cancelMatching()}>매칭 취소</Button>
-            <Button variant="primary" size="lg" className="qc-start" onClick={() => navigate(`/app/match/waiting/${request.id}`)}>
+            <Button variant="primary" size="lg" className="qc-start" onClick={() => navigate(`/app/match/waiting/${request.requestId ?? ''}`)}>
               대기 화면 열기
             </Button>
           </div>

@@ -56,10 +56,10 @@ export function LegacyRecruitmentHome() {
   const proposalSeen = useRef<string | null>(null);
   const active = mine.filter(r => !['CLOSED', 'MATCHED'].includes(r.status));
   // 매칭 종료 응답이 먼저 도착하면 이전 매칭 요청의 정리까지 기다리지 않고 다음 매칭을 열 수 있다.
-  const liveRequest = mine.some(row => row.id === match.request?.id && ['CLOSED', 'MATCHED'].includes(row.status)) ? null : match.request;
+  const liveRequest = mine.some(row => row.id === match.request?.requestId && ['CLOSED', 'MATCHED'].includes(row.status)) ? null : match.request;
   const own = active.find(r => r.id === ownId) ?? active.find(r => r.type === query.type && r.condition.game === query.condition.game) ?? active[0];
   const source = active.find(r => r.type === query.type && r.condition.game === selected?.condition.game && (r.condition.modeKey === 'ANY' || selected?.condition.modeKey === 'ANY' || r.condition.modeKey === selected?.condition.modeKey));
-  const stageKey = match.proposal?.status === 'PENDING' ? match.proposal.id : match.activePartyId;
+  const stageKey = match.proposal ? match.proposal.partyId : match.activePartyId;
   const revealedStage = useRef<string | null>(null);
   useEffect(() => {
     if (!page?.hasMore || loading || loadingMore || error || loadMoreError || !loadMoreRef.current) return;
@@ -99,7 +99,7 @@ export function LegacyRecruitmentHome() {
   };
   const changed = async () => {
     await refresh();
-    if (match.request) await match.adoptRequest(match.request.id).catch(() => {});
+    if (match.request) await match.refresh().catch(() => {});
     if (selected) {
       try {
         const latest = await api.getRecruitment(selected.id);
@@ -111,11 +111,11 @@ export function LegacyRecruitmentHome() {
     const proposal = active.find(r => r.proposalId && r.status === 'PROPOSED');
     if (proposal?.proposalId && !match.proposal && proposalSeen.current !== proposal.proposalId) {
       proposalSeen.current = proposal.proposalId;
-      void match.adoptProposal(proposal.proposalId).catch(() => { proposalSeen.current = null; });
+      void match.refresh().catch(() => { proposalSeen.current = null; });
     }
     const request = active.find(r => r.type === 'REALTIME');
-    if (request && !match.request) void match.adoptRequest(request.id).catch(() => {});
-  }, [mine, match.proposal, match.request, match.adoptProposal, match.adoptRequest]);
+    if (request && !match.request) void match.refresh().catch(() => {});
+  }, [mine, match.proposal, match.request, match.refresh]);
   useEffect(() => {
     const id = new URLSearchParams(location.search).get('recruitment');
     if (!id) return;
@@ -134,9 +134,9 @@ export function LegacyRecruitmentHome() {
       const type = state.matchComposer.mode ?? 'REALTIME';
       setComposer({ initial: { type, condition: state.matchComposer.condition ?? defaultCondition('LOL'), preferences: anyPreferences(), description: '', autoMatch: false, ...(type === 'RESERVATION' ? reservationWindow() : { availableFrom: null, availableTo: null, playAmount: null }) } });
     }
-    if (state?.requestId) void match.adoptRequest(state.requestId).catch(() => {});
+    if (state?.requestId) void match.refresh().catch(() => {});
     if (state?.matchComposer || state?.requestId) navigate('/app/home', { replace: true, state: null });
-  }, [location.state, navigate, match.adoptRequest]);
+  }, [location.state, navigate, match.refresh]);
   const join = async () => {
     if (!selected) return;
     if (selected.userId === userId) { setOwnId(selected.id); setSelected(null); setFocusStage(true); return; }
@@ -187,10 +187,10 @@ export function LegacyRecruitmentHome() {
     </div></div>
     </div>
     <HomeProfileRail user={user} game={query.condition.game} gameAccount={gameAccounts.find(account => account.game === query.condition.game)}>
-    {own || liveRequest || match.activePartyId || match.proposal?.status === 'PENDING' ? <section hidden={Boolean(form || selected) && match.proposal?.status !== 'PENDING'} className="match-stage" aria-label="내 매칭 진행" tabIndex={-1} ref={stageRef}>
-      <MatchProgress step={match.proposal?.status === 'PENDING' ? 1 : match.activePartyId ? 2 : 0} />
+    {own || liveRequest || match.activePartyId || match.proposal ? <section hidden={Boolean(form || selected) && !match.proposal} className="match-stage" aria-label="내 매칭 진행" tabIndex={-1} ref={stageRef}>
+      <MatchProgress step={match.proposal ? 1 : match.activePartyId ? 2 : 0} />
       {connection !== 'connected' ? <p className="banner warn" role="status">서버에 다시 연결하고 있어요.</p> : null}
-      {match.proposal?.status === 'PENDING' ? <>{composer ? <p className="hint">작성 중인 조건은 보관했어요.</p> : null}<InlineProposal knownRows={[...(page?.items ?? []), ...mine]} /></> : match.activePartyId ? <PartyRoomPage embedded /> : <>
+      {match.proposal ? <>{composer ? <p className="hint">작성 중인 조건은 보관했어요.</p> : null}<InlineProposal knownRows={[...(page?.items ?? []), ...mine]} /></> : match.activePartyId ? <PartyRoomPage embedded /> : <>
         {active.length > 1 ? <label className="my-recruitment-picker">관리할 매칭<select value={own?.id ?? ''} onChange={e => setOwnId(e.target.value)}>{active.map(row => <option key={row.id} value={row.id}>{row.type === 'REALTIME' ? '실시간' : row.availableFrom ? timeLabel(row.availableFrom) : '예약'} · {BOARD_STATUS[row.status]}</option>)}</select></label> : null}
         {own ? <RecruitmentPanel key={own.id} row={own} onChanged={changed} onEdit={() => setComposer({ initial: writeFrom(own), editing: own })} /> : liveRequest ? <ActiveMatchCard /> : null}
 
@@ -198,8 +198,8 @@ export function LegacyRecruitmentHome() {
     </section> : null}
 
     {query.type === 'RESERVATION' && own?.type === 'RESERVATION' && !stageKey && !form && !selected ? <Button block onClick={() => compose()}>새 예약</Button> : null}
-    {selected && !composer && match.proposal?.status !== 'PENDING' ? <RecruitmentDetail row={selected} busy={busy} hasSource={Boolean(source)} disabled={Boolean(source && source.status !== 'OPEN') || Boolean(match.activePartyId && selected.type === 'REALTIME')} disabledReason={match.activePartyId && selected.type === 'REALTIME' ? '현재 파티에 참여 중이에요. 파티에서 나온 뒤 실시간 매칭에 참여할 수 있어요.' : source && source.status !== 'OPEN' ? '내 매칭을 재개하거나 진행 중인 신청을 마친 뒤 참여해 주세요.' : undefined} onClose={() => { if (!busy) setSelected(null); }} onJoin={() => void join()} /> : null}
-    {form ? <RecruitmentComposer key={composer ? `explicit:${composer.editing?.id ?? composer.joinId ?? 'new'}` : `idle:${query.condition.game}:${query.type}`} focusOnMount={Boolean(composer)} suspended={Boolean(selected) || match.proposal?.status === 'PENDING'} initial={form.initial} editing={mine.find(row => row.id === form.editing?.id) ?? form.editing} onClose={saved => {
+    {selected && !composer && !match.proposal ? <RecruitmentDetail row={selected} busy={busy} hasSource={Boolean(source)} disabled={Boolean(source && source.status !== 'OPEN') || Boolean(match.activePartyId && selected.type === 'REALTIME')} disabledReason={match.activePartyId && selected.type === 'REALTIME' ? '현재 파티에 참여 중이에요. 파티에서 나온 뒤 실시간 매칭에 참여할 수 있어요.' : source && source.status !== 'OPEN' ? '내 매칭을 재개하거나 진행 중인 신청을 마친 뒤 참여해 주세요.' : undefined} onClose={() => { if (!busy) setSelected(null); }} onJoin={() => void join()} /> : null}
+    {form ? <RecruitmentComposer key={composer ? `explicit:${composer.editing?.id ?? composer.joinId ?? 'new'}` : `idle:${query.condition.game}:${query.type}`} focusOnMount={Boolean(composer)} suspended={Boolean(selected) || Boolean(match.proposal)} initial={form.initial} editing={mine.find(row => row.id === form.editing?.id) ?? form.editing} onClose={saved => {
       const editing = Boolean(form.editing);
       const joinId = form.joinId;
       setComposer(null);
@@ -209,7 +209,7 @@ export function LegacyRecruitmentHome() {
       });
     }} onSaved={async row => {
       rememberCondition(row.condition); setOwnId(row.id); setFocusStage(true);
-      if (row.type === 'REALTIME') await match.adoptRequest(row.id); else await match.refreshReservations();
+      if (row.type === 'REALTIME') await match.refresh(); else await match.refreshReservations();
       if (form.joinId) try {
         await api.joinRecruitment(form.joinId, row.id); toast('참여 신청을 보냈습니다', 'ok');
       } catch (err) { toast(`${errorMessage(err)} 내 매칭은 유지됩니다.`, 'error'); }

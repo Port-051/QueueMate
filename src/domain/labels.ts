@@ -1,5 +1,5 @@
 import type {
-  Acceptance, GameKey, MatchCondition, PartyStatus, PlayAmount, PlayPurpose,
+  GameKey, MatchCondition, PartyStatus, PlayAmount, PlayPurpose,
   ReportReason, ReservationStatus, VoicePreference,
 } from '../api/types';
 import { gameConfig, modeConfig, usesKeyCondition } from './gameConfig';
@@ -49,12 +49,6 @@ export const PARTY_STATUS_LABEL: Record<PartyStatus, string> = {
   READY: '준비 완료',
   PLAYING: '전원 준비 확인됨',
   CLOSED: '종료됨',
-};
-
-export const ACCEPTANCE_LABEL: Record<Acceptance, string> = {
-  PENDING: '응답 대기',
-  ACCEPTED: '수락',
-  DECLINED: '거절',
 };
 
 export const REPORT_REASONS: { value: ReportReason; label: string }[] = [

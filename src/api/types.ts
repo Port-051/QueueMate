@@ -117,41 +117,40 @@ export type GameAccountRequest = LolGameAccountRequest | ValorantGameAccountRequ
 
 /* game config(GET /games · match-schema)는 없다 — 정적 상수 `domain/gameCatalog.ts`(원본 seed 의 사본) */
 
-/* ---------- realtime matching ---------- */
-export type CreateMatchRequest = MatchCondition;
-export type MatchRequestStatus = 'QUEUED' | 'PROPOSED' | 'MATCHED' | 'CANCELLED' | 'EXPIRED';
+/* ---------- realtime matching (matching/contracts/openapi.yaml · platform-api.md "자동 매칭이 게시판 방에 먼저 합류하는 길") ---------- */
 
+/**
+ * `POST /api/v1/match-requests`(matching) 와 `POST /api/v1/posts/auto-join`(platform) 의 **같은 본문** — `CreateMatchRequestCommand` 와 필드 이름이 글자까지 같다.
+ * `MatchCondition` 은 화면의 값이고 이것은 서버에 보내는 값이다 — 둘을 잇는 것은 `domain/matchRequest.ts` `buildMatchRequest` 다:
+ * `keyCondition.value` 의 화면 사본 `ANY` 는 `NONE` 으로 · `tier` 는 내 게임 계정의 티어를 **`tierRule=EXIST` 모드에서만** 싣는다(`NONE` 모드에 실으면 400).
+ * `userId` 는 없다 — 쿠키의 사용자다.
+ */
+export interface CreateMatchRequest extends MatchCondition { tier?: string; }
+
+/** `POST /posts/auto-join` 200 — 들어간 글과 방. 둘은 같은 숫자다(게시판 방의 `roomId` 는 글의 번호). 방 화면 경로에는 `String(roomId)`. */
+export interface AutoJoinResponse { postId: number; roomId: number; }
+
+/** `POST /match-parties/{partyId}/room` 201/200 — `roomId` 는 `partyId` 와 같은 UUID 문자열이다(P-30). */
+export interface MatchRoomResponse { roomId: string; }
+
+export type MatchRequestStatus = 'IDLE' | 'QUEUED' | 'PROPOSED' | 'MATCHED';
+
+/**
+ * `MatchRequestView` — 접수(201)와 상태 조회(`GET /match-requests` · 늘 200)가 같은 모양이다. **`status` 만 항상 있고 나머지는 그 갈래에서만 온다**(`@JsonInclude(NON_NULL)`).
+ * `IDLE` 은 `{status}` 뿐(취소 · 만료로 빠진 경우도 여기) · `QUEUED` 는 `requestId` `queuedAt`(+ 파티가 잡혔으면 `partyId` `target` `memberCount`) ·
+ * `PROPOSED` 는 `requestId` `queuedAt` `partyId` `expiresAt` `isAccepted` · `MATCHED` 는 `requestId` `queuedAt` `partyId`. 시각은 전부 **epoch ms**.
+ * 이름 · 타입은 원본 계약과 열려 있다(`matching/contracts/README.md` #4 · #5) — 코드(`MatchRequestResponse.java`)가 답하는 모양을 따랐다.
+ */
 export interface MatchRequestView {
-  id: string;
   status: MatchRequestStatus;
-  /** 최초 대기 시작 시각. 제안을 거절하고 큐로 돌아와도 유지된다. */
-  queuedAt: string;
-  proposalId: string | null;
-}
-
-export interface MatchHistoryView extends Omit<MatchRequestView, 'status'> {
-  status: 'MATCHED' | 'CANCELLED' | 'EXPIRED';
-  condition: MatchCondition;
-}
-
-export type ProposalStatus = 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'EXPIRED' | 'CANCELLED';
-export type Acceptance = 'PENDING' | 'ACCEPTED' | 'DECLINED';
-
-export interface ProposalMember {
-  userId: string;
-  /** 서버가 null을 줄 수 있다. `client.ts`가 정규화해서 넘긴다. */
-  nickname: string;
-  acceptance: Acceptance;
-}
-
-export interface ProposalView {
-  id: string;
-  status: ProposalStatus;
-  /** 절대 시각이다. 남은 초는 클라이언트가 계산한다. */
-  expiresAt: string;
-  members: ProposalMember[];
-  /** 확정 전에는 null이고 CONFIRMED 이후에만 채워진다. */
-  partyId: string | null;
+  requestId?: string;
+  queuedAt?: number;
+  /** 배정된 파티 = `proposalId`. `POST /proposals/{id}/accept|decline` 의 `{id}` 이고 확정 뒤 `POST /match-parties/{id}/room` 의 `{partyId}` 다. */
+  partyId?: string;
+  target?: number;
+  memberCount?: number;
+  expiresAt?: number;
+  isAccepted?: boolean;
 }
 
 /* ---------- reservation ---------- */
@@ -250,9 +249,7 @@ export type ServerEventType =
  * `SESSION_SNAPSHOT` 은 대응물이 없다(연결 직후 `GET /match-requests` · `GET /rooms/me` 로 맞춘다) · `ROOMS_UPDATED` · `ROOM_MESSAGES_UPDATED` · `RECRUITMENT_UPDATED` 의 자리는
  * `BOARD_CHANGED` + `ROOM_*` 다. `PARTY_*` 는 두지 않기로 했다(D-44 · P-31) — `PartyRoomPage` 의 `startsWith('PARTY_')` 는 오지 않는 이벤트를 기다린다(4단계).
  */
-export type LegacyServerEventType =
-  | 'SESSION_SNAPSHOT' | 'ROOMS_UPDATED' | 'ROOM_MESSAGES_UPDATED' | 'RECRUITMENT_UPDATED' | 'RESERVATION_PROPOSAL_CREATED'
-  | 'PARTY_MEMBER_LEFT' | 'PARTY_READY_CHANGED' | 'PARTY_PLAYING' | 'PARTY_CLOSED';
+export type LegacyServerEventType = 'SESSION_SNAPSHOT' | 'ROOMS_UPDATED' | 'ROOM_MESSAGES_UPDATED' | 'RECRUITMENT_UPDATED';
 
 export interface ServerEvent<T = Record<string, unknown>> {
   type: ServerEventType | LegacyServerEventType;
@@ -299,18 +296,3 @@ export type RoomSignal =
   | { kind: 'candidate'; candidate: RTCIceCandidateInit };
 export interface SendRoomSignalRequest { toUserId: string; signal: RoomSignal; }
 export interface WebRtcSignalPayload { roomId: string; fromUserId: string; signal: RoomSignal; }
-
-/* payload — 원본 프런트의 모양. `LegacyServerEventType` 과 같은 처지다 — 3 · 4단계에서 지운다 */
-
-/** @deprecated 원본 `SESSION_SNAPSHOT`. 대응물 없음. */
-export interface SessionSnapshotPayload { parties: PartyView[] }
-/** @deprecated 원본 `MATCH_PROPOSAL_CREATED` / `RESERVATION_PROPOSAL_CREATED` 의 모양. 우리 것은 `MatchProposalCreatedPayload`. */
-export interface ProposalCreatedPayload { proposal: ProposalView; }
-/** @deprecated 원본 `MATCH_PROPOSAL_EXPIRED` / `MATCH_CANCELLED` 의 모양. 우리 것은 `MatchProposalExpiredPayload` · `MatchCancelledPayload`. */
-export interface ProposalSettledPayload { proposalId: string; }
-/** @deprecated 원본 `PARTY_*`. 두지 않기로 했다(D-44). */
-export interface PartyReadyChangedPayload { partyId: string; userId: string; ready: boolean; status: PartyStatus; }
-export interface PartyMemberLeftPayload { partyId: string; userId: string; status: PartyStatus; }
-export interface PartyPlayingPayload { partyId: string; status: 'PLAYING'; }
-export type PartyClosedReason = 'MEMBER_LEFT' | 'PLAY_TIMEOUT';
-export interface PartyClosedPayload { partyId: string; reason: PartyClosedReason; }

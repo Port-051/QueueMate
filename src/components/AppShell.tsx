@@ -37,7 +37,7 @@ export function AppShell() {
   useEffect(() => {
     setNotificationAnchor(null);
     setMenuOpen(false);
-  }, [location.pathname, proposal?.id]);
+  }, [location.pathname, proposal?.partyId]);
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const target = location.hash ? document.getElementById(location.hash.slice(1)) : null;

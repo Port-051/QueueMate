@@ -131,8 +131,8 @@ export function usesKeyCondition(game: GameKey, modeKey: string): boolean {
 }
 
 /**
- * 모드를 바꾼다. 핵심 조건을 안 보는 모드(칼바람)에서는 값을 `ANY` 로 둔다 — **원본 프런트의 표시용 값이다.**
- * 서버에 보낼 때(`POST /match-requests` · `POST /posts/auto-join`)는 LoL `NONE` 으로 옮겨야 한다 — 3단계(매칭 전환)의 일이다(START_HERE.md §2).
+ * 모드를 바꾼다. 핵심 조건을 안 보는 모드(칼바람)에서는 값을 `ANY` 로 둔다 — **화면의 값이다.**
+ * 서버에 보낼 때(`POST /match-requests` · `POST /posts/auto-join`)는 `domain/matchRequest.ts` `buildMatchRequest` 가 LoL `NONE` 으로 옮긴다.
  */
 export function conditionForMode(condition: MatchCondition, modeKey: string): MatchCondition {
   return {
