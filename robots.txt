@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+# Preview pages use an HTML noindex directive.
