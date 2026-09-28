@@ -3,7 +3,7 @@ import type {
   AutoJoinResponse, BlockView, CreateBlockRequest, CreateFriendRequest, CreateMatchRequest, CreatePostRequest,
   CreateReportRequest, CreateReservationRequest, FriendRequestDirection, FriendRequestView, FriendView,
   GameAccountRequest, GameKey, GameProfile, MatchRequestView, MatchRoomResponse, MyRoomResponse,
-  PartyView, PostListResponse, PostResponse, RecentPlayerView, ReservationView, RoomMembersResponse, SessionUser, SocialProvider, SocialSignupPending,
+  PostListResponse, PostResponse, RecentPlayerView, ReservationView, RoomMembersResponse, SessionUser, SocialProvider, SocialSignupPending,
   SendRoomSignalRequest, SocialSignupRequest, UpdatePostRequest, UpdateUserRequest, UserProfile,
 } from './types';
 
@@ -107,10 +107,7 @@ export const updateReservation = (id: string, body: CreateReservationRequest) =>
   request<ReservationView>(`/reservations/${id}`, { method: 'PUT', body });
 export const cancelReservation = (id: string) => request<void>(`/reservations/${id}`, { method: 'DELETE' });
 
-/* ---------- party — **우리 백엔드에 없다**(P-31). 옛 `PartyRoomPage` 가 컴파일되게 남겼다 — 4단계 방 화면(다음 커밋)에서 지운다 ---------- */
-export const getParty = (id: string) => request<PartyView>(`/parties/${id}`);
-export const setPartyReady = (id: string, ready: boolean) => request<PartyView>(`/parties/${id}/ready`, { method: 'POST', body: { ready } });
-export const leaveParty = (id: string) => request<void>(`/parties/${id}/leave`, { method: 'POST' });
+/* ---------- party(원본의 Ready/PLAYING · `GET /parties/{id}`) — **없다**(P-31). 확정된 파티는 방이다 — 위 `enterMatchPartyRoom` 과 방의 요청(아래) ---------- */
 
 /* ---------- 모집 글 (platform-api.md "모집 글 · 목록" — 글이 곧 방이다: `roomId = String(postId)`) ---------- */
 /**

@@ -3,7 +3,6 @@ import * as api from '../api/client';
 import { hasErrorCode } from '../api/error';
 import type { RoomConfirmedPayload, RoomMemberPayload, ServerEvent } from '../api/types';
 import { useToast } from '../components/ui';
-import { roomErrorMessage } from '../rooms/errors';
 import { useAuth } from './AuthContext';
 import { useMatch } from './MatchContext';
 
@@ -80,7 +79,7 @@ export function RoomSessionProvider({ children }: { children: ReactNode }) {
       const mine = await api.getMyRoom();
       if (!live.current) return;
       if (mine.roomId && mine.roomId !== except && roomRef.current !== mine.roomId) {
-        setRoomId(mine.roomId); setHostId(null); setMembers([]); setConfirmed(isMatchRoomId(mine.roomId));
+        setRoomId(mine.roomId); setHostId(null); setMembers([]); setConfirmed(isMatchRoomId(mine.roomId)); setLoading(true);
       }
     } catch { /* 방 상태를 못 읽어도 화면은 돈다 — 방 화면이 열리면 다시 확인한다. */ }
   }, []);
@@ -199,16 +198,15 @@ export function RoomSessionProvider({ children }: { children: ReactNode }) {
   const kick = useCallback(async (targetUserId: string) => {
     const current = roomRef.current;
     if (!current) throw new Error('방에 들어가 있지 않아요');
-    try { await api.kickMember(current, targetUserId); }
-    catch (err) { throw new Error(roomErrorMessage(err, '내보내지 못했어요')); }
+    // 실패는 ApiError 그대로 — 서버의 message 가 한글이라 부르는 쪽(ConfirmDialog)이 그대로 보여 준다.
+    await api.kickMember(current, targetUserId);
     await refresh();
   }, [refresh]);
 
   const confirm = useCallback(async () => {
     const current = roomRef.current;
     if (!current) throw new Error('방에 들어가 있지 않아요');
-    try { await api.confirmRoom(current); }
-    catch (err) { throw new Error(roomErrorMessage(err, '확정하지 못했어요')); }
+    await api.confirmRoom(current);
     if (!live.current) return;
     setConfirmed(true);
     await refresh();

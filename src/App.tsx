@@ -16,6 +16,13 @@ import { LandingPage } from './pages/LandingPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { SettingsRedirectPage } from './pages/SettingsRedirectPage';
 import { SocialSignupPage } from './pages/SocialSignupPage';
+import { useRoomSession } from './state/RoomSessionContext';
+
+/** `/app/party` — 내 방(입장 표시 키)이 있으면 그 방으로, 없으면 홈으로. */
+function MyRoomRedirect() {
+  const { roomId } = useRoomSession();
+  return <Navigate to={roomId ? `/app/party/${roomId}` : '/app/home'} replace />;
+}
 
 function LegacyFriendsRedirect() {
   const { search } = useLocation();
@@ -45,8 +52,9 @@ export function App() {
         <Route path="reservations" element={<ReservationsPage />} />
         <Route path="reservations/new" element={<ReservationNewPage />} />
         <Route path="proposals/:proposalId" element={<ProposalPage />} />
-        <Route path="party" element={<PartyRoomPage />} />
-        <Route path="party/:partyId" element={<PartyRoomPage />} />
+        {/* 방 화면 — `roomId` 는 게시판 방이면 글 번호, 자동 매칭 방이면 UUID(= partyId). 둘 다 같은 화면이다(4단계). */}
+        <Route path="party" element={<MyRoomRedirect />} />
+        <Route path="party/:roomId" element={<PartyRoomPage />} />
         <Route path="messages" element={<DirectMessagesPage />} />
         <Route path="friends" element={<LegacyFriendsRedirect />} />
         <Route path="recent" element={<Navigate to="/app/messages" replace />} />

@@ -22,7 +22,6 @@ import { useMatch } from '../state/MatchContext';
 import { useRecruitmentBoard } from '../state/useRecruitmentBoard';
 import { useConnectionStatus } from '../state/useConnectionStatus';
 import { rememberCondition } from '../state/recentConditions';
-import { PartyRoomPage } from './PartyRoomPage';
 import '../styles/duo-home.css';
 import '../styles/matching-rail.css';
 
@@ -190,7 +189,7 @@ export function LegacyRecruitmentHome() {
     {own || liveRequest || match.activePartyId || match.proposal ? <section hidden={Boolean(form || selected) && !match.proposal} className="match-stage" aria-label="내 매칭 진행" tabIndex={-1} ref={stageRef}>
       <MatchProgress step={match.proposal ? 1 : match.activePartyId ? 2 : 0} />
       {connection !== 'connected' ? <p className="banner warn" role="status">서버에 다시 연결하고 있어요.</p> : null}
-      {match.proposal ? <>{composer ? <p className="hint">작성 중인 조건은 보관했어요.</p> : null}<InlineProposal knownRows={[...(page?.items ?? []), ...mine]} /></> : match.activePartyId ? <PartyRoomPage embedded /> : <>
+      {match.proposal ? <>{composer ? <p className="hint">작성 중인 조건은 보관했어요.</p> : null}<InlineProposal knownRows={[...(page?.items ?? []), ...mine]} /></> : match.activePartyId ? <Button variant="primary" onClick={() => navigate(`/app/party/${match.activePartyId}`)}>파티룸으로</Button> : <>
         {active.length > 1 ? <label className="my-recruitment-picker">관리할 매칭<select value={own?.id ?? ''} onChange={e => setOwnId(e.target.value)}>{active.map(row => <option key={row.id} value={row.id}>{row.type === 'REALTIME' ? '실시간' : row.availableFrom ? timeLabel(row.availableFrom) : '예약'} · {BOARD_STATUS[row.status]}</option>)}</select></label> : null}
         {own ? <RecruitmentPanel key={own.id} row={own} onChanged={changed} onEdit={() => setComposer({ initial: writeFrom(own), editing: own })} /> : liveRequest ? <ActiveMatchCard /> : null}
 

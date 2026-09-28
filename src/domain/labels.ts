@@ -1,5 +1,5 @@
 import type {
-  GameKey, MatchCondition, PartyStatus, PlayAmount, PlayPurpose,
+  GameKey, MatchCondition, PlayAmount, PlayPurpose,
   ReportReason, ReservationStatus, VoicePreference,
 } from '../api/types';
 import { gameConfig, modeConfig, usesKeyCondition } from './gameConfig';
@@ -42,13 +42,6 @@ export const RESERVATION_STATUS_LABEL: Record<ReservationStatus, string> = {
   CANCELLED: '취소됨',
   EXPIRED: '만료됨',
   COMPLETED: '완료됨',
-};
-
-export const PARTY_STATUS_LABEL: Record<PartyStatus, string> = {
-  OPEN: '매칭 완료',
-  READY: '준비 완료',
-  PLAYING: '전원 준비 확인됨',
-  CLOSED: '종료됨',
 };
 
 export const REPORT_REASONS: { value: ReportReason; label: string }[] = [

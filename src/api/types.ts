@@ -247,25 +247,6 @@ export interface RoomMembersResponse { roomId: string; hostId: string; members: 
 /** `GET /rooms/me` — 내 입장 표시 키. 없으면 `{roomId: null}`(404 가 아니다). 게시판 방은 글 번호 문자열 · 자동 매칭 방은 UUID. */
 export interface MyRoomResponse { roomId: string | null }
 
-/* ---------- party — 원본 프런트의 Ready/PLAYING 파티. **우리 백엔드에 없다**(파티 조회 경로를 두지 않는다 — P-31). `PartyRoomPage` 가 컴파일되게 남겼다 — 4단계 방 화면(다음 커밋)에서 지운다 ---------- */
-export type PartyStatus = 'OPEN' | 'READY' | 'PLAYING' | 'CLOSED';
-
-export interface PartyMemberView {
-  userId: string;
-  nickname: string;
-  ready: boolean;
-  gameIds?: string[];
-}
-
-export interface PartyView {
-  id: string;
-  game: GameKey;
-  modeKey: string;
-  targetSize: number;
-  status: PartyStatus;
-  members: PartyMemberView[];
-}
-
 /* ---------- social ---------- */
 export interface FriendView { userId: string; nickname: string; avatarUrl: string | null; friendedAt: string; }
 export type FriendRequestDirection = 'RECEIVED' | 'SENT';
