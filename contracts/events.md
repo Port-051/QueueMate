@@ -36,6 +36,9 @@
 > 이 됐다. **`PARTY_*` 가운데 방 입장 · 퇴장 · 강퇴 알림을 어느 앱이 어떤 `type` 으로 내는지는 미정이다
 > (D-16)** — 그래서 `PARTY_*` 는 옮기지 않고 그대로 두었다. 7종의 이름이 이 컴퓨터에 없어 가를 수도 없다.
 >
+> 개정 이력(2026-09-28 적음): **`PARTY_*` 5종은 두지 않는다**(docs/11 D-44 · platform P-31 — 소유자 결정). 위 "`PARTY_*`·`FRIEND_*` 7종 = `app:platform`" 은
+> `FRIEND_*` 2종만 남는다. 원본과 합칠 때 `PARTY_*` 는 지운다(`README.md` A-17).
+>
 > 개정 이력(2026-09-26 적음): 방 입장 · 퇴장 · 방 닫힘 · 강퇴 · 방장 확정 알림은 `PARTY_*` 를 다시 쓰지 않고 새 이름
 > `ROOM_MEMBER_ENTERED` · `ROOM_MEMBER_LEFT` · `ROOM_CLOSED` · `ROOM_MEMBER_KICKED` · `ROOM_CONFIRMED` 로 정해졌다(docs/11 D-21).
 > **2026-09-25 에 `app:room` 을 `app:platform` 에 합쳐(docs/11 D-33) 이것들과 `WEBRTC_SIGNAL` 의 발행 주체는 `app:platform` 이다.**
