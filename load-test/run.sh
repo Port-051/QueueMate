@@ -4,6 +4,7 @@
 # 환경변수: BASE_URL(기본 WSL eth0 IP:8080 — 도커 k6 가 호스트 앱을 보는 주소) VUS WARMUP DURATION LABEL
 #           TIER(기본 GOLD_2)  TOKENS(풀 크기, 기본 100000 — N + 측정 요청 수 이상이어야 한다. token_exhausted 참고)
 # 사용자 번호: stock.js 가 풀의 [0, N), measure.js 가 [N, ...) 을 쓴다 (lt.js TOKEN_OFFSET).
+# 접속 확인(heartbeat)은 보내지 않는다 — 앱을 ALIVE_GRACE_MS=3600000 으로 띄워야 적재한 대기자가 90초 뒤 빠지지 않는다 (README "접속 확인(heartbeat)과 부하 테스트").
 set -eu
 N=$1
 DIR="$(cd "$(dirname "$0")" && pwd)"

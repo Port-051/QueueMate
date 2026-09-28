@@ -3,6 +3,7 @@
 # 환경변수: BASE_URL VUS WARMUP DURATION TIER(기본 GOLD_2) TOKENS(풀 크기, 기본 200000)
 # 45초에 8만 요청을 낸 기록이 있어(docs/PERFORMANCE_EVIDENCE.md §2.4) 풀 기본값이 run.sh 보다 크다.
 # 결과 줄의 token_exhausted 가 0 이 아니면 TOKENS 를 늘려라.
+# 접속 확인(heartbeat)은 보내지 않는다 — 앱을 ALIVE_GRACE_MS=3600000 으로 띄워야 대기자가 90초 뒤 빠지지 않는다 (README "접속 확인(heartbeat)과 부하 테스트").
 set -eu
 LABEL=$1
 DIR="$(cd "$(dirname "$0")" && pwd)"

@@ -55,6 +55,26 @@ LABEL=x CONC=20 PROCS=10 ROUNDS=100 POLL_SLEEP=0.001 python3 match_latency.py
 
 `Origin` 헤더는 어느 스크립트도 보내지 않는다 — 없는 요청은 통과한다. 붙이면 `ALLOWED_ORIGINS` 에 있어야 한다.
 
+## 접속 확인(heartbeat)과 부하 테스트 (2026-09-28)
+
+대기 중인 매칭 요청은 접속 확인으로 산다(docs/11 D-43) — 클라이언트가 `POST /api/v1/match-requests/heartbeat` 를 30초마다 보내고,
+마지막 신호로부터 **`ALIVE_GRACE_MS`(기본 90000 = 90초)** 안에 다음 신호가 없으면 `RequestAliveSweeper` 가 그 요청을 **취소**한다
+(`leave-party.lua` — 파티에서 빼고 색인을 되돌린다).
+
+**여기 스크립트는 어느 것도 신호를 보내지 않는다.** 그래서 기본 설정으로 띄운 앱에서는 `prefill.py` · `stock.js` 로 적재한 대기자가
+**90초 뒤 전부 빠진다** — 색인 깊이가 0 으로 돌아가고 측정은 빈 풀을 재게 된다(90초 넘게 걸리는 실행은 전부 해당한다 — `run.sh` 의
+적재 + 안정화 + 측정, `run_matrix.sh` · `run_final.sh`, `match_latency.py` 의 긴 라운드).
+
+**앱을 긴 유예로 띄운다** — 스크립트는 고치지 않는다(신호를 넣으면 재는 대상이 달라지고, 설정으로 끄는 스위치는 두지 않기로 했다).
+
+```bash
+cd backend && ALIVE_GRACE_MS=3600000 ./gradlew bootRun          # 유예 1시간. 필요하면 ALIVE_SWEEP_INTERVAL_MS=60000 도 (스위퍼 부하를 재는 게 아니면 상관없다)
+```
+
+확인 — `docker exec qm-redis redis-cli ZRANGE qm:request:alive 0 -1 WITHSCORES` 의 score 가 `now + 3600000` 근처면 맞게 뜬 것이다.
+`clean.sh` · `clean_match.sh` 가 `qm:request:alive` 를 지우지 않아도 된다 — 끝난 요청의 member 는 스위퍼가 한 번 꺼내 목록에서만 뺀다(게으른 정리,
+docs/11 D-43). 다만 유예 1시간 동안은 남아 있으니 `ZCARD qm:request:alive` 를 대기자 수로 읽지 마라 — 대기자 수는 needs 칸의 `ZCARD` 다.
+
 ## 파일
 
 | 파일 | 역할 |

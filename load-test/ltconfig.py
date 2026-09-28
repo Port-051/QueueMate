@@ -10,6 +10,9 @@
   HOST / PORT / REDIS_HOST / REDIS_PORT   앱과 Redis 위치. 기본 127.0.0.1:8080 / 127.0.0.1:6379.
   JWT_PRIVATE_KEY_FILE   서명에 쓸 platform 개발용 개인 키. 기본 ../../platform/backend/.dev-keys/private.pem
             (이 저장소 루트 기준 ../platform). 이 저장소 안으로 복사하지 마라.
+  (앱 쪽) ALIVE_GRACE_MS   이 스크립트들의 환경변수가 아니라 앱의 것이다. 여기 스크립트는 접속 확인(heartbeat)을
+            보내지 않으므로 앱을 ALIVE_GRACE_MS=3600000 으로 띄워야 적재한 대기자가 90초 뒤 빠지지 않는다
+            (README "접속 확인(heartbeat)과 부하 테스트", docs/11 D-43).
 
 왜 모두 한 티어인가.
   티어 모드의 대기 색인은 (포지션 x 티어) 격자다 — Lua 가 needs 키 뒤에 ':' .. 티어이름 을 붙인다
