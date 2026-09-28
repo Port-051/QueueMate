@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import type { OAuthProviderView } from '../api/types';
-import { API_ORIGIN, USE_MOCK } from '../config';
+import { API_ORIGIN } from '../config';
 import { useAuth } from '../state/AuthContext';
 
 /**
@@ -23,11 +22,9 @@ function startLabel(displayName: string): string {
   return `${displayName}${jongseong === 0 || jongseong === 8 ? '로' : '으로'} 시작하기`;
 }
 
-export function SocialLoginButtons({ redirectTo, onError }: { redirectTo: string; onError(message: string): void }) {
-  const { completeOAuth, status } = useAuth();
-  const navigate = useNavigate();
+export function SocialLoginButtons({ redirectTo }: { redirectTo: string; onError?(message: string): void }) {
+  const { status } = useAuth();
   const [providers, setProviders] = useState<OAuthProviderView[]>([]);
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,25 +37,11 @@ export function SocialLoginButtons({ redirectTo, onError }: { redirectTo: string
 
   if (providers.length === 0) return null;
 
-  const start = async (provider: OAuthProviderView) => {
-    if (!USE_MOCK) {
-      // 제공자 동의 화면으로 나갔다가 /auth/callback으로 돌아온다. XHR로는 못 하는 이동이다.
-      const url = new URL(API_ORIGIN + provider.authorizeUrl, window.location.origin);
-      url.searchParams.set('redirect', redirectTo);
-      window.location.assign(url.toString());
-      return;
-    }
-    // mock 모드에는 나갔다 올 제공자가 없다. 리다이렉트 구간을 건너뛰고 교환부터 한다.
-    setBusy(true);
-    try {
-      await completeOAuth(`mock-${provider.provider.toLowerCase()}`);
-      // real 모드에서는 콜백 화면이 하는 일이다. 여기서는 그 화면을 거치지 않는다.
-      navigate(redirectTo, { replace: true });
-    } catch {
-      onError('소셜 로그인을 완료하지 못했습니다');
-    } finally {
-      setBusy(false);
-    }
+  const start = (provider: OAuthProviderView) => {
+    // 제공자 동의 화면으로 나갔다가 /auth/callback으로 돌아온다. XHR로는 못 하는 이동이다.
+    const url = new URL(API_ORIGIN + provider.authorizeUrl, window.location.origin);
+    url.searchParams.set('redirect', redirectTo);
+    window.location.assign(url.toString());
   };
 
   return (
@@ -69,8 +52,8 @@ export function SocialLoginButtons({ redirectTo, onError }: { redirectTo: string
           key={p.provider}
           type="button"
           className={`social-btn s-${p.provider}`}
-          disabled={busy || status === 'loading'}
-          onClick={() => void start(p)}
+          disabled={status === 'loading'}
+          onClick={() => start(p)}
         >
           {startLabel(p.displayName)}
         </button>

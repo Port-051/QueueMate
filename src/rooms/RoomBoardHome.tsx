@@ -19,7 +19,6 @@ import { roomVoice, ROOM_VOICES } from './voice';
 import { quickConnectCandidates, type QuickConnectCriteria } from './quickConnect';
 import { remainingRoomRoles, vacantRoleOptions } from './positions';
 import { useRoomData } from './useRoomData';
-import { USE_MOCK } from '../config';
 import { accountRank } from './accountRank';
 import type { GameRoom, RoomMember } from './types';
 import '../styles/duo-home.css';
@@ -60,13 +59,12 @@ export function RoomBoardHome() {
     const intro = readIntroduction(user?.id ?? '', selectedGame) ?? emptyIntroduction();
     const account = gameAccounts.find(account => account.game === selectedGame);
     const rank = accountRank(account, filters.modeKey);
-    const roman: Record<string, number> = { I: 1, II: 2, III: 3, IV: 4 };
     return {
       id: user?.id ?? '', nickname: user?.nickname ?? '나', avatarUrl: user?.avatarUrl ?? null,
-      tier: rank.tier ?? (USE_MOCK ? intro.ownTier : null),
-      division: rank.division ?? (USE_MOCK && intro.rankDivision ? roman[intro.rankDivision] : null),
-      winRate: USE_MOCK ? intro.winRate : null, kda: USE_MOCK ? intro.kda : null, roles: intro.primaryRoles ?? [],
-      champions: USE_MOCK ? intro.champions : [], bio: intro.bio, voice: roomVoice(intro.voice),
+      // 티어 · 승률 · KDA · 챔피언은 자기소개(localStorage)가 아니라 게임 계정에서 온다 — 3단계에서 게임 프로필(`stats`)로 채운다.
+      tier: rank.tier, division: rank.division,
+      winRate: null, kda: null, roles: intro.primaryRoles ?? [],
+      champions: [], bio: intro.bio, voice: roomVoice(intro.voice),
     };
   }, [user, selectedGame, gameAccounts, filters.modeKey]);
   const filtered = rooms.filter(room => {

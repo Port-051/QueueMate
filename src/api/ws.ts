@@ -1,5 +1,4 @@
-import { USE_MOCK, WS_BEARER_PREFIX, WS_PATH, WS_PROTOCOL_VERSION, WS_URL_OVERRIDE } from '../config';
-import { subscribeMockEvents } from '../mocks/bus';
+import { WS_BEARER_PREFIX, WS_PATH, WS_PROTOCOL_VERSION, WS_URL_OVERRIDE } from '../config';
 import type { ServerEvent, ServerEventType, WebRtcSignalMessage } from './types';
 
 export type EventHandler = (event: ServerEvent) => void;
@@ -23,25 +22,6 @@ const SERVER_EVENT_TYPES = new Set<string>([
 
 export const isServerEventType = (value: unknown): value is ServerEventType =>
   typeof value === 'string' && SERVER_EVENT_TYPES.has(value);
-
-function createMockStream(): EventStream {
-  const handlers = new Set<EventHandler>();
-  const unsubscribe = subscribeMockEvents((event) => handlers.forEach((h) => h(event)));
-  return {
-    subscribeStatus(handler) { handler('connected'); return () => undefined; },
-    subscribe(handler) {
-      handlers.add(handler);
-      return () => handlers.delete(handler);
-    },
-    sendSignal() {
-      /* mock 모드에는 원격 peer가 없으므로 signaling은 버린다 */
-    },
-    close() {
-      handlers.clear();
-      unsubscribe();
-    },
-  };
-}
 
 function createSocketStream(token: string | null): EventStream {
   const handlers = new Set<EventHandler>();
@@ -151,5 +131,5 @@ function parseEvent(raw: unknown): ServerEvent | null {
 }
 
 export function createEventStream(token: string | null): EventStream {
-  return USE_MOCK ? createMockStream() : createSocketStream(token);
+  return createSocketStream(token);
 }

@@ -7,7 +7,6 @@ import { DirectVoiceStage } from '../components/DirectVoiceStage';
 import { ReportModal } from '../components/ReportModal';
 import { IconChat, IconPencil, IconSearch, IconSend, IconParty, IconShield } from '../components/icons';
 import { ActionMenu, Avatar, Button, ConfirmDialog, Modal, useToast } from '../components/ui';
-import { USE_MOCK } from '../config';
 import { relativeTime } from '../domain/time';
 import { useAuth } from '../state/AuthContext';
 import { useSocial } from '../state/SocialContext';
@@ -73,7 +72,7 @@ export function DirectMessagesPage() {
   }, [managementParam]);
   useEffect(() => {
     if (!user?.id || sourceContacts.length === 0) return;
-    try { ensureDirectContacts(user.id, sourceContacts, USE_MOCK); }
+    try { ensureDirectContacts(user.id, sourceContacts); }
     catch { setStorageError('대화를 저장하지 못했습니다. 브라우저 저장 공간을 확인해주세요.'); }
   }, [user?.id, sourceContacts]);
   useEffect(() => {
@@ -207,7 +206,7 @@ export function DirectMessagesPage() {
             <Avatar name={selected.nickname} avatarUrl={selected.avatarUrl} size={40} />
             <div className="dm-thread-person"><h2 ref={headingRef} tabIndex={-1}>{selected.nickname}</h2><span>{relationship(selected)}</span></div>
             <div className="dm-thread-actions">
-              <button type="button" className="dm-icon-btn dm-call-button" aria-label="통화 시작" title={USE_MOCK ? '음성 통화 · 미리보기' : '음성 연결 준비 중'} disabled={!USE_MOCK || voiceContact === selected.userId} onClick={() => setVoiceContact(selected.userId)}><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 2.5 9 7.7a1.5 1.5 0 0 1-.4 1.7l-1.5 1.2a15 15 0 0 0 6.3 6.3l1.2-1.5a1.5 1.5 0 0 1 1.7-.4l5.2 2.4c.5.2.8.8.6 1.4l-.6 2c-.2.7-.9 1.2-1.6 1.2C10.1 22 2 13.9 2 4.1c0-.7.5-1.4 1.2-1.6l2-.6c.6-.2 1.2.1 1.4.6Z" /></svg></button>
+              <button type="button" className="dm-icon-btn dm-call-button" aria-label="통화 시작" title="음성 연결 준비 중" disabled onClick={() => setVoiceContact(selected.userId)}><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 2.5 9 7.7a1.5 1.5 0 0 1-.4 1.7l-1.5 1.2a15 15 0 0 0 6.3 6.3l1.2-1.5a1.5 1.5 0 0 1 1.7-.4l5.2 2.4c.5.2.8.8.6 1.4l-.6 2c-.2.7-.9 1.2-1.6 1.2C10.1 22 2 13.9 2 4.1c0-.7.5-1.4 1.2-1.6l2-.6c.6-.2 1.2.1 1.4.6Z" /></svg></button>
               {!selected.friend ? <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(
                 () => pendingReceived ? social.acceptRequest(pendingReceived.id) : pendingSent ? social.cancelRequest(pendingSent.id) : social.addFriend(selected.userId),
                 pendingReceived ? '친구 요청을 수락했습니다' : pendingSent ? '요청을 취소했습니다' : '친구 요청을 보냈습니다',

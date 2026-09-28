@@ -1,4 +1,3 @@
-import { USE_MOCK } from '../config';
 import { useEffect, useState } from 'react';
 import type { BoardRow } from '../api/recruitment';
 import type { GameKey } from '../api/types';
@@ -105,7 +104,7 @@ export function RecruitmentIntroduction({ row }: { row: IntroductionRecord }) {
       <span>승률<PerformanceValue kind="winRate" value={introduction.winRate} /></span>
       <span>KDA<PerformanceValue kind="kda" value={introduction.kda} /></span>
     </div>
-    <span className="introduction-detail-source">{USE_MOCK ? '예시 전적' : '전적 확인 전'}</span>
+    <span className="introduction-detail-source">전적 확인 전</span>
     {introduction.bio ? <p>{introduction.bio}</p> : null}
     <dl>
       {usesKeyCondition(row.condition.game, row.condition.modeKey) ? <><dt>{roleTitle(row)} → 찾는 상대</dt><dd><RecruitmentRoleIcons row={row} /></dd></> : null}

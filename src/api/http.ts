@@ -1,4 +1,4 @@
-import { API_BASE, USE_MOCK } from '../config';
+import { API_BASE } from '../config';
 import { ApiError, toApiError } from './error';
 import type { TokenResponse } from './types';
 
@@ -114,16 +114,10 @@ async function refreshTokens(): Promise<StoredTokens | null> {
   return refreshing;
 }
 
-/** REST 한 번의 호출. mock 모드에서는 네트워크 대신 in-memory adapter가 응답한다. */
+/** REST 한 번의 호출. */
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method ?? 'GET';
   const fullPath = withQuery(path, options.query);
-
-  if (USE_MOCK) {
-    // 실제 서버 모드에서 테스트 데이터 초기화나 브라우저 API에 의존하지 않는다.
-    const { handleMockRequest } = await import('../mocks/server');
-    return handleMockRequest<T>(method, fullPath, options.file ?? options.body, readTokens()?.accessToken ?? null);
-  }
 
   const res = await send(method, fullPath, options, readTokens()?.accessToken ?? null);
 

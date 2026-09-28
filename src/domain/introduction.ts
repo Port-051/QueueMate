@@ -1,7 +1,6 @@
 import { normalizeTierRange, type TierRange } from './tierRange';
 import type { BoardRow, BoardWrite } from '../api/recruitment';
 import type { GameKey, VoicePreference } from '../api/types';
-import { USE_MOCK } from '../config';
 import { conditionForMode, usesKeyCondition, keyConditionOptions } from './gameConfig';
 import { normalizeLolRankDetails, type LolRankDivision } from './lolRank';
 
@@ -96,26 +95,9 @@ export function applyIntroduction(value: BoardWrite, introduction: SelfIntroduct
   };
 }
 
-const seedUsers = ['u-gankflow', 'u-playmaker', 'u-supportlife', 'u-lategame', 'u-midtheory', 'u-aimking', 'u-blueocean', 'u-chickendinner', 'u-silentjungle', 'u-healingyou'];
-const seedChampions: Record<GameKey, string[][]> = {
-  LOL: [['리 신', '비에고'], ['아리', '오리아나'], ['쓰레쉬', '룰루'], ['징크스', '카이사'], ['신드라', '아지르']],
-  VALORANT: [['제트', '레이나'], ['소바', '페이드'], ['오멘', '브림스톤'], ['사이퍼', '킬조이'], ['세이지', '스카이']],
-  PUBG: [['M416', '미니14'], ['베릴 M762', 'SLR'], ['AUG', 'Mk12'], ['AKM', 'Kar98k'], ['UMP', 'SKS']],
-};
-
 export function introductionForRow(row: IntroductionRecord): SelfIntroduction {
-  const saved = readIntroduction(row.userId, row.condition.game);
-  if (saved) return introductionFromBoard(row, saved);
-  const modeExample = /^u-lol-(?:normal_draft|swiftplay|aram)-(\d)$/.exec(row.userId);
-  const index = USE_MOCK ? modeExample ? Number(modeExample[1]) : seedUsers.indexOf(row.userId) : -1;
-  const example = index >= 0 ? {
-    ...emptyIntroduction(), champions: seedChampions[row.condition.game][index % 5],
-    ownTier: row.preferences.ownTier,
-    ...normalizeLolRankDetails(row.condition.game === 'LOL' ? row.preferences.ownTier : null, ['II', 'III', 'I', 'IV'][index % 4]),
-    winRate: 48 + index * 2, kda: Number((2.1 + index * 0.19).toFixed(2)),
-    recentResults: Array.from({ length: 20 }, (_, i): MatchResult => (i + index) % 5 < 3 ? 'WIN' : 'LOSS'),
-  } : null;
-  return introductionFromBoard(row, example);
+  // 예시 전적(mock 의 seed 사용자)은 2026-09-28 에 mock 과 함께 지웠다 — 저장된 자기소개가 없으면 빈 값이다.
+  return introductionFromBoard(row, readIntroduction(row.userId, row.condition.game));
 }
 
 export function introductionInputError(value: SelfIntroduction): string {

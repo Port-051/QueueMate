@@ -3,9 +3,7 @@ import { Avatar, Button, Modal, useToast } from '../components/ui';
 import { IconChat, IconLogout, IconMic, IconMicOff, IconX } from '../components/icons';
 import { IconDirectMessage } from '../components/NotificationPanel';
 import { RoomMemberAvatar } from './RoomDeck';
-import { USE_MOCK } from '../config';
-import { MockPartyClient } from '../webrtc/MockPartyClient';
-import type { VoiceStatus } from '../webrtc/types';
+import type { PartyClient, VoiceStatus } from '../webrtc/types';
 import type { GameRoom, RoomMember } from './types';
 import { autoClosePhase } from './autoClose';
 import './room-conversation.css';
@@ -58,7 +56,8 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
   const [deafened, setDeafened] = useState(false);
   const [action, setAction] = useState<{ kind: 'kick'; id: string } | { kind: 'leave' } | null>(null);
   const [unread, setUnread] = useState(false);
-  const voiceClient = useRef<MockPartyClient | null>(null);
+  // 방의 음성은 아직 연결하지 않는다 — WebRTC 시그널(`POST /rooms/{roomId}/signals` ↔ `WEBRTC_SIGNAL`)로 붙이는 것은 4단계다. 미리보기용 mock 은 2026-09-28 에 지웠다.
+  const voiceClient = useRef<PartyClient | null>(null);
   const log = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const stickToBottom = useRef(true);
@@ -100,25 +99,7 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
     setAction(null);
     setUnread(false);
     stickToBottom.current = true;
-    // These rooms are frontend previews. Do not connect real signaling, invent remote
-    // participants, or inject MockPartyClient's timed greeting messages into the room.
-    if (!USE_MOCK) return;
-    const client = new MockPartyClient({
-      selfUserId: selfId,
-      selfNickname: self?.nickname ?? '',
-      members: [],
-      handlers: {
-        onChat: () => {},
-        onPeer: () => {},
-        onStatus: status => { if (active) setVoice(status); },
-      },
-    });
-    voiceClient.current = client;
-    return () => {
-      active = false;
-      client.close();
-      if (voiceClient.current === client) voiceClient.current = null;
-    };
+    return () => { active = false; };
   }, [room.id, selfId]);
 
   useLayoutEffect(() => {
@@ -227,8 +208,8 @@ export function RoomConversation({ room, selfId, onSend, onLeave, onKick, onConf
     <section className={`room-conversation-voice${voiceOn ? ' is-previewing' : ''}`} aria-label="방 음성 채널">
       <div className="room-conversation-voice-top">
         <span className="room-conversation-voice-symbol"><Headphones /></span>
-        <div><h3>{voiceOn ? '음성 미리보기' : '음성 채널'}</h3><p role="status">{voiceOn ? '실제 음성은 전송되지 않아요' : voice === 'error' ? '다시 시도해 주세요' : USE_MOCK ? '모집 중에도 대화할 수 있어요' : '음성은 다음 단계에서 연결돼요'}</p></div>
-        {!voiceOn ? <Button size="sm" variant="primary" disabled={!USE_MOCK || !self || voice === 'connecting'} onClick={() => void startVoice()}>{!USE_MOCK ? '연결 준비 중' : voice === 'connecting' ? '준비 중' : '참여'}</Button> : null}
+        <div><h3>{voiceOn ? '음성 미리보기' : '음성 채널'}</h3><p role="status">{voiceOn ? '실제 음성은 전송되지 않아요' : voice === 'error' ? '다시 시도해 주세요' : '음성은 다음 단계에서 연결돼요'}</p></div>
+        {!voiceOn ? <Button size="sm" variant="primary" disabled onClick={() => void startVoice()}>연결 준비 중</Button> : null}
       </div>
       {voiceOn ? <div className="room-conversation-voice-controls">
         <span className="room-conversation-voice-self"><Avatar name={self?.nickname} avatarUrl={self?.avatarUrl} size={27} /><b>{self?.nickname}</b></span>

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { USE_MOCK } from '../config';
 import type { MessageContact } from '../state/directMessages';
 import { Avatar, Button } from './ui';
 import { IconMic, IconX } from './icons';
@@ -28,7 +27,7 @@ export function DirectVoiceStage({ contact, ownerName, onClose }: { contact: Mes
     <div className="dm-voice-footer">
       <p role="status">{calling ? `통화 요청 중 · 00:${String(elapsed).padStart(2, '0')}` : unanswered ? '응답이 없습니다' : '음성으로 함께하기'}</p>
       {calling ? <Button variant="danger" size="sm" onClick={onClose}><IconX size={16} />요청 취소</Button>
-        : <Button variant="primary" size="sm" disabled={!USE_MOCK} onClick={() => { setElapsed(0); setUnanswered(false); setStartedAt(Date.now()); }}><IconMic size={16} />{unanswered ? '다시 통화하기' : '통화 시작'}</Button>}
+        : <Button variant="primary" size="sm" disabled onClick={() => { setElapsed(0); setUnanswered(false); setStartedAt(Date.now()); }}><IconMic size={16} />{unanswered ? '다시 통화하기' : '통화 시작'}</Button>}
     </div>
   </section>;
 }

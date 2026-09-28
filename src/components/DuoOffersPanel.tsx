@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { BoardRow } from '../api/recruitment';
 import { errorMessage } from '../api/error';
 import { useAuth } from '../state/AuthContext';
-import { useDuoOffers } from '../state/duoOffers';
+import { useDuoOffers, writeDuoOffers } from '../state/duoOffers';
 import { Avatar, Button, useToast } from './ui';
 import { MatchConditionSummary } from './MatchConditionSummary';
 import { introductionForRow } from '../domain/introduction';
@@ -21,9 +21,9 @@ export function DuoOffersPanel({ source }: { source: BoardRow }) {
     if (!user || busy) return;
     setBusy(id);
     try {
-      const mock = await import('../mocks/recruitment');
-      if (peerId) mock.sendDuoInterest(source.id, peerId);
-      else mock.dismissDuoOffer(user.id, id);
+      // 듀오 제안은 백엔드 대응물이 없다(mock 전용이었다 — 2026-09-28 에 mock 을 지웠다). 처지는 미정(START_HERE.md §5).
+      if (peerId) toast('듀오 제안은 아직 지원하지 않습니다', 'info');
+      else writeDuoOffers(user.id, offers => offers.filter(offer => offer.id !== id));
     } catch (error) { toast(errorMessage(error), 'error'); }
     finally { setBusy(null); }
   };

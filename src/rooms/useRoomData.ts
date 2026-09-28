@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { request } from '../api/http';
-import { USE_MOCK } from '../config';
 import { useMatch } from '../state/MatchContext';
-import { useRoomStore } from './store';
 import type { CreateRoomInput, GameRoom, RoomMember } from './types';
 
 function useLiveRooms(userId: string) {
@@ -83,7 +81,5 @@ function useLiveRooms(userId: string) {
   };
 }
 
-function useDemoRooms(userId: string) {
-  return { ...useRoomStore(userId), loading: false, error: '', refresh: async () => {} };
-}
-export const useRoomData = USE_MOCK ? useDemoRooms : useLiveRooms;
+/** 방 카드 보드의 데이터. 아직 원본 백엔드의 `/rooms` 를 부른다 — 우리 계약(`posts` · `rooms/{roomId}/members`)으로 바꾸는 것은 4단계다(START_HERE.md §4.3). */
+export const useRoomData = useLiveRooms;

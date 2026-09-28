@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { myRecruitments } from '../api/recruitment';
-import { USE_MOCK } from '../config';
 import { useAuth } from './AuthContext';
 import { useMatch } from './MatchContext';
 import { useSocial } from './SocialContext';
@@ -35,7 +34,7 @@ function loadNotifications(userId: string): AppNotification[] {
 export function useNotifications() {
   const { user } = useAuth();
   const { proposal, activePartyId, stream } = useMatch();
-  const { receivedRequests, recentPlayers, blocks } = useSocial();
+  const { receivedRequests, blocks } = useSocial();
   const userId = user?.id ?? '';
   const [store, setStore] = useState(() => ({ userId, items: userId ? loadNotifications(userId) : [] }));
   const items = store.userId === userId ? store.items : [];
@@ -87,18 +86,11 @@ export function useNotifications() {
 
   useEffect(() => {
     add(receivedRequests.filter(request => request.status === 'PENDING').map(request => ({
-      id: `friend:${USE_MOCK ? request.counterpartUserId : request.id}`, kind: 'FRIEND',
+      id: `friend:${request.id}`, kind: 'FRIEND',
       title: `${request.counterpartNickname}님의 친구 요청`, body: '요청을 확인하고 대화를 시작해 보세요.',
       href: `/app/messages?user=${encodeURIComponent(request.counterpartUserId)}`, createdAt: request.createdAt,
     })));
   }, [receivedRequests, add]);
-
-  useEffect(() => {
-    if (!USE_MOCK) return;
-    const player = recentPlayers.find(person => !person.friend && !blocks.some(block => block.userId === person.userId));
-    if (!player) return;
-    add([{ id: `demo-recommendation:${player.userId}`, kind: 'RECOMMENDATION', title: `${player.nickname}님과 다시 함께해 볼까요?`, body: '최근 함께한 팀원에게 메시지를 보내 보세요.', href: `/app/messages?user=${encodeURIComponent(player.userId)}`, createdAt: player.lastPlayedAt }]);
-  }, [recentPlayers, blocks, add]);
 
   useEffect(() => {
     if (!userId) return;

@@ -2,9 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import * as api from '../api/recruitment';
 import { errorMessage } from '../api/error';
-import { USE_MOCK } from '../config';
-import { DuoOffersPanel } from '../components/DuoOffersPanel';
-import { useDuoOffers } from '../state/duoOffers';
 import { ActiveMatchCard } from '../components/ActiveMatchCard';
 import type { AppShellOutletContext } from '../components/AppShell';
 import { HomeProfileRail } from '../components/HomeProfileRail';
@@ -38,7 +35,6 @@ export function LegacyRecruitmentHome() {
   const { user, gameAccounts } = useAuth();
   const { selectedGame, setSelectedGame } = useOutletContext<AppShellOutletContext>();
   const match = useMatch();
-  const duoOffers = useDuoOffers(user?.id ?? '');
   const connection = useConnectionStatus(match.stream);
   const toast = useToast();
   const location = useLocation();
@@ -84,9 +80,6 @@ export function LegacyRecruitmentHome() {
   useEffect(() => {
     if (match.activePartyId) setComposer(null);
   }, [match.activePartyId]);
-  useEffect(() => {
-    if (composer?.editing && duoOffers.some(offer => offer.sourceId === composer.editing!.id && offer.status === 'MATCHED')) setComposer(null);
-  }, [duoOffers, composer?.editing?.id]);
   const changeQuery = (value: api.BoardSearch) => {
     if (value.type !== query.type || value.condition.game !== query.condition.game) setOwnId(null);
     setSelectedGame(value.condition.game);
@@ -97,21 +90,6 @@ export function LegacyRecruitmentHome() {
     if (query.condition.game === selectedGame) return;
     changeQuery({ ...browseSearch(selectedGame), type: query.type, availableFrom: query.availableFrom, availableTo: query.availableTo, playAmount: query.playAmount });
   }, [selectedGame]);
-  useEffect(() => {
-    // 예시 예약이 다음 시간대로 넘어갈 때 기본 검색 시간도 맞춘다. 선택한 일정과 작성 중인 입력은 유지한다.
-    if (!USE_MOCK || composer || selected || recruitmentInputError(filter)) return;
-    const previous = previewReservationTimes.current;
-    const current = reservationTimes.current;
-    if (current.availableFrom !== previous.availableFrom || current.availableTo !== previous.availableTo || current.playAmount !== previous.playAmount) return;
-    if (!current.availableTo || Date.parse(current.availableTo) > Date.now()) return;
-    const next = reservationWindow();
-    reservationTimes.current = next;
-    previewReservationTimes.current = next;
-    if (query.type === 'RESERVATION') {
-      setQuery(value => ({ ...value, ...next, page: 0 }));
-      setFilter(value => ({ ...value, ...next, page: 0 }));
-    }
-  }, [page?.asOf, query.type, composer, selected, filter]);
   const compose = (joinRow?: api.BoardRow) => {
     const base: api.BoardWrite = { type: query.type, condition: defaultCondition(query.condition.game), preferences: anyPreferences(), description: '', autoMatch: false, availableFrom: query.availableFrom, availableTo: query.availableTo, playAmount: query.playAmount };
     const introduction = readIntroduction(user!.id, query.condition.game) ?? emptyIntroduction();
@@ -169,17 +147,14 @@ export function LegacyRecruitmentHome() {
     }
     setBusy(true);
     try {
-      if (USE_MOCK) (await import('../mocks/recruitment')).sendDuoInterest(source.id, selected.id);
-      else await api.joinRecruitment(selected.id, source.id);
+      await api.joinRecruitment(selected.id, source.id);
       setSelected(null); setFocusStage(true);
-      if (!USE_MOCK) toast('참여 신청을 보냈습니다', 'ok');
+      toast('참여 신청을 보냈습니다', 'ok');
     }
     catch (err) { toast(errorMessage(err), 'error'); }
     finally { await changed(); setBusy(false); }
   };
   const canCreate = query.type === 'RESERVATION' || (!active.some(r => r.type === 'REALTIME') && !liveRequest && !match.activePartyId);
-  const sentToSelected = USE_MOCK && duoOffers.some(offer => offer.sourceId === source?.id && offer.peer.userId === selected?.userId && offer.status === 'SENT');
-  const completed = USE_MOCK && !own && !liveRequest ? duoOffers.filter(offer => offer.status === 'MATCHED' && offer.peer.condition.game === query.condition.game && offer.peer.type === query.type).at(-1) : undefined;
   const idleComposer = Boolean(page && user && canCreate && !stageKey && !composer && (!own || own.type !== query.type || own.condition.game !== query.condition.game));
   const form = composer ?? (idleComposer ? { initial: applyIntroduction({
     type: query.type, condition: defaultCondition(query.condition.game), preferences: anyPreferences(),
@@ -211,9 +186,9 @@ export function LegacyRecruitmentHome() {
       </div> : null}
     </div></div>
     </div>
-    <HomeProfileRail user={user} game={query.condition.game} gameAccount={gameAccounts.find(account => account.game === query.condition.game)} below={USE_MOCK && own && (!form || form.editing?.id === own.id) && !selected && !stageKey ? <DuoOffersPanel key={own.id} source={own} /> : null}>
+    <HomeProfileRail user={user} game={query.condition.game} gameAccount={gameAccounts.find(account => account.game === query.condition.game)}>
     {own || liveRequest || match.activePartyId || match.proposal?.status === 'PENDING' ? <section hidden={Boolean(form || selected) && match.proposal?.status !== 'PENDING'} className="match-stage" aria-label="내 매칭 진행" tabIndex={-1} ref={stageRef}>
-      {!USE_MOCK ? <MatchProgress step={match.proposal?.status === 'PENDING' ? 1 : match.activePartyId ? 2 : 0} /> : null}
+      <MatchProgress step={match.proposal?.status === 'PENDING' ? 1 : match.activePartyId ? 2 : 0} />
       {connection !== 'connected' ? <p className="banner warn" role="status">서버에 다시 연결하고 있어요.</p> : null}
       {match.proposal?.status === 'PENDING' ? <>{composer ? <p className="hint">작성 중인 조건은 보관했어요.</p> : null}<InlineProposal knownRows={[...(page?.items ?? []), ...mine]} /></> : match.activePartyId ? <PartyRoomPage embedded /> : <>
         {active.length > 1 ? <label className="my-recruitment-picker">관리할 매칭<select value={own?.id ?? ''} onChange={e => setOwnId(e.target.value)}>{active.map(row => <option key={row.id} value={row.id}>{row.type === 'REALTIME' ? '실시간' : row.availableFrom ? timeLabel(row.availableFrom) : '예약'} · {BOARD_STATUS[row.status]}</option>)}</select></label> : null}
@@ -223,8 +198,7 @@ export function LegacyRecruitmentHome() {
     </section> : null}
 
     {query.type === 'RESERVATION' && own?.type === 'RESERVATION' && !stageKey && !form && !selected ? <Button block onClick={() => compose()}>새 예약</Button> : null}
-    {completed && !selected && !composer ? <section className="duo-completed" aria-label="매칭 성사"><h2>{completed.peer.nickname}님과 매칭됐어요</h2><p>메시지에서 대화와 보이스챗을 시작하세요.</p><Button block variant="primary" onClick={() => navigate(`/app/messages?user=${encodeURIComponent(completed.peer.userId)}`)}>메시지로 이동</Button></section> : null}
-    {selected && !composer && match.proposal?.status !== 'PENDING' ? <RecruitmentDetail row={selected} joinLabel={USE_MOCK ? sentToSelected ? '오케이 보냄' : source ? '같이 할래요' : '자기소개 작성하고 오케이 보내기' : undefined} busy={busy} hasSource={Boolean(source)} disabled={sentToSelected || Boolean(source && source.status !== 'OPEN') || Boolean(match.activePartyId && selected.type === 'REALTIME')} disabledReason={sentToSelected ? '상대의 응답을 기다리며 계속 매칭 중이에요.' : match.activePartyId && selected.type === 'REALTIME' ? '현재 파티에 참여 중이에요. 파티에서 나온 뒤 실시간 매칭에 참여할 수 있어요.' : source && source.status !== 'OPEN' ? '내 매칭을 재개하거나 진행 중인 신청을 마친 뒤 참여해 주세요.' : undefined} onClose={() => { if (!busy) setSelected(null); }} onJoin={() => void join()} /> : null}
+    {selected && !composer && match.proposal?.status !== 'PENDING' ? <RecruitmentDetail row={selected} busy={busy} hasSource={Boolean(source)} disabled={Boolean(source && source.status !== 'OPEN') || Boolean(match.activePartyId && selected.type === 'REALTIME')} disabledReason={match.activePartyId && selected.type === 'REALTIME' ? '현재 파티에 참여 중이에요. 파티에서 나온 뒤 실시간 매칭에 참여할 수 있어요.' : source && source.status !== 'OPEN' ? '내 매칭을 재개하거나 진행 중인 신청을 마친 뒤 참여해 주세요.' : undefined} onClose={() => { if (!busy) setSelected(null); }} onJoin={() => void join()} /> : null}
     {form ? <RecruitmentComposer key={composer ? `explicit:${composer.editing?.id ?? composer.joinId ?? 'new'}` : `idle:${query.condition.game}:${query.type}`} focusOnMount={Boolean(composer)} suspended={Boolean(selected) || match.proposal?.status === 'PENDING'} initial={form.initial} editing={mine.find(row => row.id === form.editing?.id) ?? form.editing} onClose={saved => {
       const editing = Boolean(form.editing);
       const joinId = form.joinId;
@@ -237,8 +211,7 @@ export function LegacyRecruitmentHome() {
       rememberCondition(row.condition); setOwnId(row.id); setFocusStage(true);
       if (row.type === 'REALTIME') await match.adoptRequest(row.id); else await match.refreshReservations();
       if (form.joinId) try {
-        if (USE_MOCK) (await import('../mocks/recruitment')).sendDuoInterest(row.id, form.joinId);
-        else { await api.joinRecruitment(form.joinId, row.id); toast('참여 신청을 보냈습니다', 'ok'); }
+        await api.joinRecruitment(form.joinId, row.id); toast('참여 신청을 보냈습니다', 'ok');
       } catch (err) { toast(`${errorMessage(err)} 내 매칭은 유지됩니다.`, 'error'); }
       await refresh(true);
     }} /> : null}
