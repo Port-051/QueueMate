@@ -40,7 +40,8 @@ function usePersistentSession() {
     if (!connectionId || !selfId || !stream) return;
     let live = true;
     setConnectedPeers([]); setMuted(false);
-    const client = createPartyClient({ partyId: connectionId, selfUserId: selfId, selfNickname: nickname ?? '플레이어', members: membersRef.current, stream,
+    // 자동 매칭 파티의 방은 roomId = partyId 다(P-30). 파티 조회(GET /parties) 자체는 3단계에서 방 요청으로 바뀐다.
+    const client = createPartyClient({ roomId: connectionId, selfUserId: selfId, selfNickname: nickname ?? '플레이어', members: membersRef.current, stream,
       handlers: {
         onChat: message => { if (live) setMessages(prev => [...prev.slice(-499), message]); },
         onStatus: (status, detail) => { if (live) { setVoice(status); setVoiceDetail(detail ?? null); } },

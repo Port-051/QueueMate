@@ -3,8 +3,8 @@ import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
-import { createEventStream } from '../api/ws';
-import type { EventStream } from '../api/ws';
+import { createEventStream } from '../api/sse';
+import type { EventStream } from '../api/sse';
 import type {
   CreateReservationRequest, MatchCondition, MatchRequestView, ProposalView, ReservationView, ServerEvent,
   MatchConfirmedPayload, PartyClosedPayload, PartyPlayingPayload, ProposalCreatedPayload,
@@ -135,8 +135,8 @@ function MatchSession({ children }: { children: ReactNode }) {
       }
       return;
     }
-    // 인증은 쿠키다 — 토큰을 넘기지 않는다(WebSocket 자체는 SSE 로 바뀐다 — 다음 커밋).
-    const created = createEventStream(null);
+    // SSE — 인증은 쿠키라 넘길 것이 없다. 아래 핸들러의 이벤트 이름은 아직 원본의 것이다(3단계에서 MATCH_* · ROOM_* 로 바꾼다).
+    const created = createEventStream();
     setStream(created);
     return () => created.close();
   }, [status]);

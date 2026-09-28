@@ -246,71 +246,86 @@ export interface CreateReportRequest {
   partyId?: string | null;
 }
 
-/* ---------- websocket (contracts/events.md) ---------- */
+/* ---------- SSE (matching/contracts/events.md · platform-api.md "알림" · notification/CLAUDE.md §5) ---------- */
 
 /**
- * Server → Client. **백엔드가 실제로 발행하는 것만 둔다.**
- *
- * 계약에는 17종이 적혀 있지만 `MATCH_QUEUE_UPDATED` `RESERVATION_UPDATED`
- * `PARTY_MEMBER_JOINED` `FRIEND_REQUEST_RECEIVED` `FRIEND_REQUEST_UPDATED`
- * `PARTY_INVITE_RECEIVED` 6종은 enum 선언만 있고 발행 지점이 0건이다. 영영 오지 않는
- * 이벤트를 기다리는 화면은 멈춘 것처럼 보이므로 타입에서 지우고 REST 조회로 대체했다.
- *
- * `SESSION_SNAPSHOT`은 연결 직후 한 번, `PARTY_PLAYING`은 게임 시작 판정이다.
+ * Server → Client `type`. **우리 세 백엔드가 실제로 발행하는 14종만 둔다** — matching 5 · platform 9. 봉투는 `ServerEvent`.
+ * 알림은 "다시 조회하라"는 신호다 — 순서 · 재전송 보장이 없으니 핸들러는 멱등해야 하고 데이터는 REST 로 다시 받는다(events.md "순서 보장 범위").
  */
 export type ServerEventType =
-  | 'SESSION_SNAPSHOT'
-  | 'ROOMS_UPDATED'
-  | 'ROOM_MESSAGES_UPDATED'
-  | 'RECRUITMENT_UPDATED'
-  | 'MATCH_PROPOSAL_CREATED'
-  | 'MATCH_PROPOSAL_EXPIRED'
-  | 'MATCH_CONFIRMED'
-  | 'MATCH_CANCELLED'
-  | 'RESERVATION_PROPOSAL_CREATED'
-  | 'PARTY_MEMBER_LEFT'
-  | 'PARTY_READY_CHANGED'
-  | 'PARTY_PLAYING'
-  | 'PARTY_CLOSED'
-  | 'WEBRTC_SIGNAL';
+  | 'MATCH_QUEUE_UPDATED' | 'MATCH_PROPOSAL_CREATED' | 'MATCH_PROPOSAL_EXPIRED' | 'MATCH_CONFIRMED' | 'MATCH_CANCELLED'
+  | 'FRIEND_REQUEST_RECEIVED' | 'FRIEND_REQUEST_ACCEPTED'
+  | 'ROOM_MEMBER_ENTERED' | 'ROOM_MEMBER_LEFT' | 'ROOM_CLOSED' | 'ROOM_MEMBER_KICKED' | 'ROOM_CONFIRMED'
+  | 'WEBRTC_SIGNAL'
+  | 'BOARD_CHANGED';
+
+/**
+ * **원본 백엔드의 이름 — 우리 백엔드는 보내지 않고 `sse.ts` 의 화이트리스트에도 없다.** 그 이름을 기다리는 핸들러(`MatchContext` ·
+ * `PartySessionContext` · `rooms/useRoomData`)가 컴파일되게만 남겼다 — 3단계(매칭 · 파티)와 4단계(방 · 게시판)에서 우리 이름으로 바꾸며 지운다.
+ * `SESSION_SNAPSHOT` 은 대응물이 없다(연결 직후 `GET /match-requests` · `GET /rooms/me` 로 맞춘다) · `PARTY_*` 는 두지 않기로 했다(D-44 · P-31) ·
+ * `ROOMS_UPDATED` · `ROOM_MESSAGES_UPDATED` · `RECRUITMENT_UPDATED` 의 자리는 `BOARD_CHANGED` + `ROOM_*` 다 · `RESERVATION_*` 은 예약이 없다.
+ */
+export type LegacyServerEventType =
+  | 'SESSION_SNAPSHOT' | 'ROOMS_UPDATED' | 'ROOM_MESSAGES_UPDATED' | 'RECRUITMENT_UPDATED' | 'RESERVATION_PROPOSAL_CREATED'
+  | 'PARTY_MEMBER_LEFT' | 'PARTY_READY_CHANGED' | 'PARTY_PLAYING' | 'PARTY_CLOSED';
 
 export interface ServerEvent<T = Record<string, unknown>> {
-  type: ServerEventType;
-  /** 재연결 직후 같은 이벤트를 다시 받을 수 있다. 클라이언트가 멱등해야 한다. */
+  type: ServerEventType | LegacyServerEventType;
+  /** SSE `id:` 와 같다. 재연결 직후 같은 이벤트를 다시 받을 수 있다 — 클라이언트가 멱등해야 한다. */
   eventId: string;
+  /** ISO-8601 UTC · 밀리초 */
   occurredAt: string;
   payload: T;
 }
 
-export type SignalType = 'OFFER' | 'ANSWER' | 'ICE';
+/* payload — matching 5종 (events.md "구현 상태" 표. 계약이 정한 것이 아니라 구현이 먼저 정한 것이다) */
 
-/** Client → Server는 이것 하나뿐이다. */
-export interface WebRtcSignalMessage {
-  type: 'WEBRTC_SIGNAL';
-  partyId: string;
-  targetUserId: string;
-  signalType: SignalType;
-  data: Record<string, unknown>;
-}
+/** 대기 상태가 바뀌었다(새 파티 · 정원 미달 합류). 상태는 `GET /match-requests` 로 다시 받는다. */
+export interface MatchQueueUpdatedPayload { memberNumber: number; }
+/** 정원이 차서 제안이 떴다. `partyId` 가 `POST /proposals/{id}/accept|decline` 의 `{id}` 다. 남은 시간 · 내 수락 여부는 `GET /match-requests`. */
+export interface MatchProposalCreatedPayload { memberNumber: number; target: number; partyId: string; }
+/** 제안 시한 만료 — 그 제안에 있던 전원이 받는다(수락한 사람 포함). */
+export interface MatchProposalExpiredPayload { partyId: string; }
+/** 전원 수락으로 확정. **받으면 조작 없이 바로 `POST /match-parties/{partyId}/room`** 을 부른다(D-42 · P-30) — `roomId = partyId`. */
+export interface MatchConfirmedPayload { partyId: string; }
+/** 파티원 누가 취소했다 — 남은 파티원에게만. */
+export interface MatchCancelledPayload { memberNumber: number; }
 
-/* payload shapes — 서버 발행 지점과 맞춘 것이다 */
+/* payload — platform 9종 (platform-api.md "방" 의 "알림" · "이 앱이 내는 알림" · "게시판 채널 신호") */
 
-/** 연결 직후 한 번. payload는 영역이 늘면 키가 추가되므로 모르는 키는 무시한다. */
+/** `FRIEND_*` 의 id 는 JSON **숫자**다(방 알림의 문자열 id 와 다르다). 친구 목록 · 요청 목록을 다시 받는다. */
+export interface FriendRequestReceivedPayload { requestId: number; fromUserId: number; }
+export interface FriendRequestAcceptedPayload { requestId: number; userId: number; }
+/** 방 알림의 id 는 **십진 문자열**(방 키에 적힌 글자 그대로). `ROOM_MEMBER_ENTERED` · `ROOM_MEMBER_LEFT` · `ROOM_MEMBER_KICKED` 가 같은 모양이다. */
+export interface RoomMemberPayload { roomId: string; userId: string; }
+export interface RoomClosedPayload { roomId: string; }
+/** 방장이 확정했다 — `members` 가 파티원이다(방장 포함). */
+export interface RoomConfirmedPayload { roomId: string; members: string[]; }
+/** 게시판이 바뀌었다 — 데이터가 없다(`{}`). 게시판 페이지를 보고 있을 때만 · 묶어서 · 커서 없이 맨 위부터 `limit` 으로 다시 받는다. */
+export type BoardChangedPayload = Record<string, never>;
+
+/**
+ * WebRTC 시그널 — 받기는 SSE `WEBRTC_SIGNAL`, 보내기는 `POST /rooms/{roomId}/signals {toUserId, signal}`(202). 서버는 `signal` 을 열어 보지 않는다.
+ * 모양은 클라이언트끼리의 약속이고 platform-api.md "`signal` 의 권장 모양" 을 따른다 — 브라우저의 WebRTC API 가 내주는 객체 그대로에 `kind` 만 씌운다.
+ * 자동 매칭 파티의 방은 `roomId = partyId`(UUID), 게시판 방은 글 번호의 십진 문자열이다.
+ */
+export type RoomSignal =
+  | { kind: 'description'; description: RTCSessionDescriptionInit }
+  | { kind: 'candidate'; candidate: RTCIceCandidateInit };
+export interface SendRoomSignalRequest { toUserId: string; signal: RoomSignal; }
+export interface WebRtcSignalPayload { roomId: string; fromUserId: string; signal: RoomSignal; }
+
+/* payload — 원본 프런트의 모양. `LegacyServerEventType` 과 같은 처지다 — 3 · 4단계에서 지운다 */
+
+/** @deprecated 원본 `SESSION_SNAPSHOT`. 대응물 없음. */
 export interface SessionSnapshotPayload { parties: PartyView[] }
-
-/** MATCH_PROPOSAL_CREATED / RESERVATION_PROPOSAL_CREATED. proposal 하나만 실린다. */
+/** @deprecated 원본 `MATCH_PROPOSAL_CREATED` / `RESERVATION_PROPOSAL_CREATED` 의 모양. 우리 것은 `MatchProposalCreatedPayload`. */
 export interface ProposalCreatedPayload { proposal: ProposalView; }
-
-/** MATCH_PROPOSAL_EXPIRED / MATCH_CANCELLED. proposalId만 실린다. */
+/** @deprecated 원본 `MATCH_PROPOSAL_EXPIRED` / `MATCH_CANCELLED` 의 모양. 우리 것은 `MatchProposalExpiredPayload` · `MatchCancelledPayload`. */
 export interface ProposalSettledPayload { proposalId: string; }
-
-/** MATCH_CONFIRMED. 클라이언트는 partyId로 파티룸에 들어간다. */
-export interface MatchConfirmedPayload { proposalId: string; partyId: string; }
-
+/** @deprecated 원본 `PARTY_*`. 두지 않기로 했다(D-44). */
 export interface PartyReadyChangedPayload { partyId: string; userId: string; ready: boolean; status: PartyStatus; }
 export interface PartyMemberLeftPayload { partyId: string; userId: string; status: PartyStatus; }
 export interface PartyPlayingPayload { partyId: string; status: 'PLAYING'; }
 export type PartyClosedReason = 'MEMBER_LEFT' | 'PLAY_TIMEOUT';
 export interface PartyClosedPayload { partyId: string; reason: PartyClosedReason; }
-
-export interface WebRtcSignalPayload { partyId: string; fromUserId: string; signalType: SignalType; data: Record<string, unknown>; }

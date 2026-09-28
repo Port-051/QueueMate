@@ -4,7 +4,7 @@ import type {
   CreateReportRequest, CreateReservationRequest, FriendRequestDirection, FriendRequestView, FriendView,
   GameAccountView, GameKey, GameView, MatchHistoryView, MatchRequestView, MatchSchemaView,
   PartyView, ProposalView, RecentPlayerView, ReservationView, SessionUser, SocialProvider, SocialSignupPending,
-  SocialSignupRequest, UpdateUserRequest, UserProfile,
+  SendRoomSignalRequest, SocialSignupRequest, UpdateUserRequest, UserProfile,
 } from './types';
 
 /**
@@ -86,6 +86,15 @@ export const getParty = async (id: string) => normalizeParty(await request<Party
 export const setPartyReady = async (id: string, ready: boolean) =>
   normalizeParty(await request<PartyView>(`/parties/${id}/ready`, { method: 'POST', body: { ready } }));
 export const leaveParty = (id: string) => request<void>(`/parties/${id}/leave`, { method: 'POST' });
+
+/* ---------- room signals (platform-api.md "시그널 보내기") ---------- */
+/**
+ * WebRTC 시그널을 같은 방의 상대에게. 202 는 발행했다는 뜻이지 도착이 아니다 — 답이 없으면 다시 보낸다(WebRtcPartyClient).
+ * 403 `NOT_IN_ROOM`(내가 이 방에 없다 — 방 화면을 닫는다) · 404 `TARGET_NOT_IN_ROOM`(상대가 나갔다 — 그 연결을 정리한다).
+ * 방의 다른 요청(입장 · 나가기 · 강퇴 · 확정 · 접속 확인 · 목록)은 4단계에서 붙인다.
+ */
+export const sendRoomSignal = (roomId: string, body: SendRoomSignalRequest) =>
+  request<void>(`/rooms/${encodeURIComponent(roomId)}/signals`, { method: 'POST', body });
 
 /* ---------- social ---------- */
 export const listFriends = () => request<FriendView[]>('/friends');

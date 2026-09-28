@@ -1,12 +1,15 @@
-import type { EventStream } from '../api/ws';
-import type { ServerEvent, WebRtcSignalPayload } from '../api/types';
+import * as api from '../api/client';
+import { isApiError } from '../api/error';
+import type { EventStream } from '../api/sse';
+import type { RoomSignal, ServerEvent, WebRtcSignalPayload } from '../api/types';
 import type { PartyChatMessage, PartyClient, PartyClientHandlers } from './types';
 
 const ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
 const CHAT_CHANNEL = 'party-chat';
 
 export interface WebRtcPartyOptions {
-  partyId: string;
+  /** 방 id — 시그널 `POST /rooms/{roomId}/signals` 의 그것. 자동 매칭 파티의 방은 `roomId = partyId`(UUID · P-30). */
+  roomId: string;
   selfUserId: string;
   selfNickname: string;
   stream: EventStream;
@@ -14,8 +17,10 @@ export interface WebRtcPartyOptions {
 }
 
 /**
- * 파티 음성(audio track)과 텍스트(DataChannel)를 파티원끼리 직접 연결한다.
- * 서버 WebSocket은 signaling만 나른다(contracts/events.md).
+ * 파티 음성(audio track)과 텍스트(DataChannel)를 파티원끼리 직접 연결한다(D-9 · #6 — 서버를 거치지 않는다).
+ * 시그널만 서버가 우체부로 나른다 — 보내기는 REST `POST /rooms/{roomId}/signals {toUserId, signal}`(202), 받기는 SSE `WEBRTC_SIGNAL {roomId, fromUserId, signal}`.
+ * `signal` 의 모양은 platform-api.md "`signal` 의 권장 모양" — `{kind: 'description', description}` · `{kind: 'candidate', candidate}`.
+ * 순서가 보장되지 않아(후보가 offer 보다 먼저 올 수 있다) 후보를 모아 두고, 놓친 시그널은 재협상으로 복구한다(events.md "WEBRTC_SIGNAL 의 전달").
  */
 export class WebRtcPartyClient implements PartyClient {
   private peers = new Map<string, RTCPeerConnection>();
@@ -136,7 +141,7 @@ export class WebRtcPartyClient implements PartyClient {
 
     pc.onicecandidate = (e) => {
       if (!e.candidate) return;
-      this.signal(peerId, 'ICE', e.candidate.toJSON() as unknown as Record<string, unknown>);
+      this.signal(peerId, { kind: 'candidate', candidate: e.candidate.toJSON() });
     };
     pc.ontrack = (e) => this.attachRemoteAudio(peerId, e.streams[0] ?? new MediaStream([e.track]));
     pc.onconnectionstatechange = () => {
@@ -157,7 +162,7 @@ export class WebRtcPartyClient implements PartyClient {
       const offer = await pc.createOffer();
       if (this.closed || pc.remoteDescription || pc.signalingState !== 'stable') return;
       await pc.setLocalDescription(offer);
-      this.signal(peerId, 'OFFER', { sdp: offer.sdp, type: offer.type });
+      this.signal(peerId, { kind: 'description', description: { type: offer.type, sdp: offer.sdp } });
     } finally { this.makingOffers.delete(peerId); }
   }
 
@@ -203,23 +208,26 @@ export class WebRtcPartyClient implements PartyClient {
     this.opts.handlers.onPeer({ userId: peerId, connected: false });
   }
 
-  private signal(targetUserId: string, signalType: 'OFFER' | 'ANSWER' | 'ICE', data: Record<string, unknown>): void {
+  /**
+   * 202 는 "상대 채널에 발행했다"이지 도착이 아니다. 404 `TARGET_NOT_IN_ROOM` 은 상대가 나간 것이라 그 연결을 정리하고,
+   * 403 `NOT_IN_ROOM` 은 내가 이 방에 없는 것이라 방 화면이 닫혀야 한다 — 여기서는 상태로 알린다. 그 밖의 실패는 재협상이 메운다.
+   */
+  private signal(toUserId: string, signal: RoomSignal): void {
     if (this.closed) return;
-    this.opts.stream.sendSignal({
-      type: 'WEBRTC_SIGNAL',
-      partyId: this.opts.partyId,
-      targetUserId,
-      signalType,
-      data,
+    void api.sendRoomSignal(this.opts.roomId, { toUserId, signal }).catch((err) => {
+      if (this.closed) return;
+      if (isApiError(err) && err.code === 'TARGET_NOT_IN_ROOM') this.dropPeer(toUserId);
+      else if (isApiError(err) && err.code === 'NOT_IN_ROOM') this.opts.handlers.onStatus('error', '이 방에 들어와 있지 않습니다. 방 화면을 다시 여세요.');
     });
   }
 
   private async onSignal(payload: WebRtcSignalPayload): Promise<void> {
-    if (this.closed || payload.partyId !== this.opts.partyId) return;
+    if (this.closed || payload.roomId !== this.opts.roomId) return;
     const peerId = payload.fromUserId;
-    if (peerId === this.opts.selfUserId) return;
+    if (peerId === this.opts.selfUserId || !payload.signal) return;
+    const { signal } = payload;
 
-    if (payload.signalType === 'OFFER') {
+    if (signal.kind === 'description' && signal.description.type === 'offer') {
       window.clearTimeout(this.offerTimers.get(peerId));
       this.offerTimers.delete(peerId);
       // 탭을 다시 연 상대는 새 DTLS 인증서를 사용한다. 닫힌 채널의 예전 PC를 재사용하지 않는다.
@@ -229,28 +237,30 @@ export class WebRtcPartyClient implements PartyClient {
       const collision = this.makingOffers.has(peerId) || (pc.signalingState !== 'stable' && !this.settingAnswers.has(peerId));
       if (collision && this.opts.selfUserId < peerId) return;
       // polite peer는 브라우저의 implicit rollback으로 자기 offer를 접고 상대 offer를 수락한다.
-      await pc.setRemoteDescription(payload.data as unknown as RTCSessionDescriptionInit);
+      await pc.setRemoteDescription(signal.description);
       await this.flushIce(peerId, pc);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      this.signal(peerId, 'ANSWER', { sdp: answer.sdp, type: answer.type });
+      this.signal(peerId, { kind: 'description', description: { type: answer.type, sdp: answer.sdp } });
       return;
     }
 
     const pc = this.peers.get(peerId);
-    if (payload.signalType === 'ICE' && !pc?.remoteDescription) {
+    // 후보가 offer 보다 먼저 도착할 수 있다 — setRemoteDescription 전에 온 후보는 모아 두었다가 그 뒤에 넣는다.
+    if (signal.kind === 'candidate' && !pc?.remoteDescription) {
       const candidates = this.pendingIce.get(peerId) ?? [];
-      candidates.push(payload.data as unknown as RTCIceCandidateInit);
+      candidates.push(signal.candidate);
       this.pendingIce.set(peerId, candidates);
       return;
     }
     if (!pc) return;
-    if (payload.signalType === 'ANSWER') {
+    if (signal.kind === 'description') {
+      // answer 다(offer 는 위에서 걸렀다).
       this.settingAnswers.add(peerId);
-      try { await pc.setRemoteDescription(payload.data as unknown as RTCSessionDescriptionInit); await this.flushIce(peerId, pc); }
+      try { await pc.setRemoteDescription(signal.description); await this.flushIce(peerId, pc); }
       finally { this.settingAnswers.delete(peerId); }
     } else {
-      await pc.addIceCandidate(payload.data as unknown as RTCIceCandidateInit).catch(() => { /* 늦게 온 candidate는 무시 */ });
+      await pc.addIceCandidate(signal.candidate).catch(() => { /* 늦게 온 candidate는 무시 */ });
     }
   }
 
