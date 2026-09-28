@@ -1,0 +1,17 @@
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# TypeScript incremental build
+*.tsbuildinfo
+
+# 빌드 산출물 · 의존성 · 환경 (frontend worktree 에서 보탬 — 2026-09-28)
+node_modules/
+dist/
+.vite/
+*.log
+.env*
+!.env.example
+.DS_Store

@@ -1,0 +1,48 @@
+import { SlidingSelector } from './SlidingSelector';
+import { TierRangePicker } from './TierRangePicker';
+import { SingleRolePicker } from './SingleRolePicker';
+import { Fragment, type ReactNode } from 'react';
+import type { GameKey } from '../api/types';
+import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
+import { normalizeDesiredRoles } from '../domain/introduction';
+import type { SelfIntroduction } from '../domain/introduction';
+import { FilterModeIcon, FilterRoleIcon } from './FilterSymbols';
+import { VoiceIcon } from './FilterSymbols';
+import '../styles/introduction.css';
+
+export function SelfIntroductionFields({ game, value, onChange, modeLocked = false, binaryVoice = false, showTierRange = false, compact = false, singleRole = false, afterMode, disabledDesiredRoles = [] }: {
+  game: GameKey; value: SelfIntroduction; onChange: (value: SelfIntroduction) => void; modeLocked?: boolean; binaryVoice?: boolean; showTierRange?: boolean; compact?: boolean; singleRole?: boolean; afterMode?: ReactNode; disabledDesiredRoles?: string[];
+}) {
+  const roles = keyConditionOptions(game).filter(role => role.value !== 'ANY');
+  const ownRoles = value.primaryRoles ?? (value.primaryRole !== 'ANY' ? [value.primaryRole] : []);
+  const allOwnRoles = keyConditionOptions(game).some(role => role.value === 'ANY') && roles.every(role => ownRoles.includes(role.value));
+  const hasRoles = usesKeyCondition(game, value.queueType);
+  const patch = (next: Partial<SelfIntroduction>) => onChange({ ...value, ...next });
+  const roleTitle = game === 'LOL' ? compact ? '내 포지션' : '포지션' : game === 'VALORANT' ? '주 역할' : '플레이 스타일';
+  const VoiceField = compact ? 'div' : 'fieldset';
+  const VoiceLabel = compact ? 'span' : 'legend';
+  const SettingsPair = compact ? 'div' : Fragment;
+  return <section className="self-introduction" aria-label="자기소개">
+    <div className="introduction-fields button-fields">
+      <fieldset className="introduction-choice"><legend>게임 모드</legend><SlidingSelector enabled={compact} className={`intro-mode-options${compact ? ' room-mode-options' : ''}`} role="group" aria-label="원하는 큐 타입">
+        {visibleModes(game).map(mode => <button type="button" key={mode.key} className="filter-mode" aria-label={mode.label} aria-pressed={value.queueType === mode.key} disabled={modeLocked} onClick={() => patch({ queueType: mode.key })}><FilterModeIcon mode={mode.key} size={compact ? 22 : 16} /><span>{mode.label}</span></button>)}
+      </SlidingSelector></fieldset>
+      {afterMode}
+      {hasRoles ? <>
+        <fieldset className="introduction-choice"><legend>{roleTitle}</legend>{singleRole ? <SingleRolePicker game={game} value={allOwnRoles ? 'ANY' : ownRoles[0] ?? null} label={roleTitle} onChange={role => patch({ primaryRoles: role === 'ANY' ? roles.map(option => option.value) : [role], primaryRole: role })} /> : <div className="intro-role-options" role="group" aria-label={roleTitle}>
+          {roles.map(role => <button type="button" key={role.value} className="filter-role" aria-label={role.label} aria-pressed={ownRoles.includes(role.value)} onClick={() => { const next = ownRoles.includes(role.value) ? ownRoles.filter(item => item !== role.value) : [...ownRoles, role.value]; patch({ primaryRoles: next, primaryRole: next[0] ?? 'ANY' }); }}><FilterRoleIcon game={game} value={role.value} /><span>{role.label}</span></button>)}
+        </div>}</fieldset>
+        <fieldset className="introduction-choice"><legend>{game === 'LOL' ? '찾는 포지션' : game === 'VALORANT' ? '찾는 상대 역할' : '찾는 상대 스타일'}</legend><div className="intro-role-options" role="group" aria-label="찾는 포지션">
+          {roles.map(role => <button type="button" key={role.value} className="filter-role" aria-label={role.label} disabled={disabledDesiredRoles.includes(role.value)} aria-pressed={value.desiredRoles.includes(role.value)} onClick={() => patch({ desiredRoles: normalizeDesiredRoles(game, value.desiredRoles.includes(role.value) ? value.desiredRoles.filter(item => item !== role.value) : [...value.desiredRoles, role.value]) })}><FilterRoleIcon game={game} value={role.value} /><span>{role.label}</span></button>)}
+        </div></fieldset>
+      </> : null}
+      <SettingsPair {...(compact ? { className: 'room-settings-pair' } : {})}>
+      {showTierRange ? <div className="room-setting-row"><span>찾는 티어</span><TierRangePicker game={game} value={value.desiredTierRange} label="찾는 티어 범위" stacked={compact} onChange={desiredTierRange => patch({ desiredTierRange })} /></div> : null}
+      <VoiceField className={compact ? 'room-setting-row' : 'introduction-choice'}><VoiceLabel>음성</VoiceLabel><SlidingSelector enabled={compact} className={`intro-voice-options${binaryVoice ? ' is-binary' : ''}`} role="group" aria-label="음성">
+        {([{ value: 'OPTIONAL', label: '무관' }, { value: 'REQUIRED', label: '사용' }, { value: 'NO_VOICE', label: '안 씀' }] as const).filter(option => !binaryVoice || option.value !== 'OPTIONAL').map(({ value: voice, label }) => <button type="button" key={voice} className="filter-mode" aria-label={binaryVoice ? voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용' : label} title={binaryVoice ? voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용' : label} aria-pressed={value.voice === voice} onClick={() => patch({ voice })}><VoiceIcon preference={voice} />{!binaryVoice || compact ? <span>{compact && voice === 'NO_VOICE' ? '미사용' : label}</span> : null}</button>)}
+      </SlidingSelector></VoiceField>
+      </SettingsPair>
+      <label className="introduction-wide">한마디<input aria-label="한마디" maxLength={120} placeholder="편하게 두 판 하실 분, 서로 존중해요" value={value.bio} onChange={event => patch({ bio: event.target.value })} /></label>
+    </div>
+  </section>;
+}

@@ -1,0 +1,79 @@
+.profile-identity { display: flex; align-items: center; gap: 24px; padding: 30px; border: 1px solid var(--line-soft); border-radius: 20px; background: linear-gradient(110deg, rgba(124,77,255,.09), rgba(255,255,255,.015) 65%); }
+.profile-photo { position: relative; display: grid; flex: none; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
+.profile-photo .avatar { box-shadow: 0 0 0 5px rgba(162,116,255,.08); }
+.profile-photo-edit { position: absolute; right: -2px; bottom: -2px; display: grid; place-items: center; width: 28px; height: 28px; border: 2px solid var(--bg); border-radius: 50%; background: #292338; color: var(--text-dim); transition: background .15s; }
+.profile-photo:hover .profile-photo-edit { background: var(--accent); color: white; }
+.profile-identity-info { flex: 1; min-width: 0; }
+.profile-identity h1 { font-size: 30px; line-height: 1.35; letter-spacing: -.025em; overflow-wrap: anywhere; }
+.profile-activity { display: flex; flex-wrap: wrap; gap: 4px 20px; margin-top: 10px; }
+.profile-activity a { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; color: var(--muted); font-size: 13px; }
+.profile-activity a:hover { color: var(--text); }
+.profile-activity b { color: var(--text-dim); font-weight: 600; font-variant-numeric: tabular-nums; }
+.profile-edit-name { flex: none; background: rgba(255,255,255,.035); }
+.profile-sections { margin-top: 40px; }
+.profile-section { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 36px; padding-block: 30px; border-top: 1px solid var(--line-soft); scroll-margin-top: var(--page-top); }
+.profile-section:first-child { border-top: 0; padding-top: 0; }
+.profile-section-heading h2 { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 17px; font-weight: 650; line-height: 1.5; }
+.profile-section-heading h2 span { color: var(--muted); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.profile-section-heading p { margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.6; word-break: keep-all; }
+.profile-game-accounts { min-width: 0; border: 1px solid var(--line-soft); border-radius: 14px; background: rgba(255,255,255,.018); padding-inline: 20px; }
+.profile-game-account { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding-block: 20px; border-bottom: 1px solid var(--line-soft); }
+.profile-game-account:last-child { border-bottom: 0; }
+.profile-game-detail { min-width: 0; }
+.profile-game-detail h3 { color: var(--muted); font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
+.profile-game-id { margin-top: 5px; font-size: 16px; line-height: 1.5; font-weight: 550; overflow-wrap: anywhere; user-select: all; }
+.profile-game-unregistered { margin-top: 5px; color: var(--muted); font-size: 14px; }
+.profile-game-account .btn { font-size: 12px; padding-inline: 12px; }
+.profile-game-account .profile-unlink { border-color: transparent; color: var(--muted); }
+.profile-game-account .profile-unlink:hover { color: var(--danger); background: rgba(255,93,108,.06); border-color: transparent; }
+.profile-preferences { min-width: 0; }
+.profile-preferences .opt-row { grid-template-columns: 100px minmax(0, 1fr); align-items: center; gap: 20px; padding: 0 0 18px; border: 0; }
+.profile-preferences .opt-row + .opt-row { padding-top: 4px; }
+.profile-preferences .opt-label b { font-size: 14px; font-weight: 500; }
+.profile-preferences .opt-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 12px; background: rgba(255,255,255,.035); }
+.profile-preferences .opt { min-width: 0; padding: 10px 8px; border: 1px solid transparent; border-radius: 9px; background: none; font-size: 13px; }
+.profile-preferences .opt.on { background: var(--accent-soft); border-color: var(--accent-line); box-shadow: none; color: var(--text); }
+.profile-auto-save { display: block; text-align: right; color: var(--muted); font-size: 12px; }
+.profile-privacy { min-width: 0; }
+.profile-blocks { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 12px 16px; border-radius: 12px; background: rgba(255,255,255,.025); font-size: 14px; transition: background .15s; }
+.profile-blocks:hover { background: rgba(255,255,255,.06); }
+.profile-blocks > svg { color: var(--muted); }
+.profile-blocks b { margin-left: auto; color: var(--muted); font-size: 13px; font-weight: 500; }
+.profile-blocks > span:last-child { margin-left: 4px; color: var(--muted); font-size: 22px; }
+.profile-privacy-details { margin-top: 8px; color: var(--muted); font-size: 13px; }
+.profile-privacy-details > summary { width: fit-content; padding: 14px 0; cursor: pointer; }
+.profile-privacy-details ul { display: grid; gap: 8px; padding: 0 0 8px 18px; list-style: disc; line-height: 1.7; }
+.profile-signout { padding-top: 22px; border-top: 1px solid var(--line-soft); }
+.profile-signout .btn { color: var(--muted); border-color: transparent; padding-inline: 0; }
+.profile-signout .btn:hover { color: var(--danger); border-color: transparent; }
+.profile-edit-modal { width: min(460px, 100%); }
+.profile-edit-form { display: grid; gap: 24px; }
+.profile-edit-actions { display: flex; justify-content: flex-end; gap: 8px; }
+@media (max-width: 1100px) {
+  .profile-section { grid-template-columns: 160px minmax(0, 1fr); gap: 24px; }
+  .profile-preferences .opt-row { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+}
+@media (max-width: 900px) {
+  .profile-section { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .profile-identity { flex-wrap: wrap; padding: 24px; gap: 20px; }
+  .profile-edit-name { margin-left: 108px; }
+}
+@media (max-width: 767px) {
+  .profile-identity { padding: 22px 18px; gap: 20px 16px; }
+  .profile-photo .avatar, .profile-photo .avatar-wrap { width: 64px !important; height: 64px !important; }
+  .profile-identity-info { flex-basis: calc(100% - 80px); }
+  .profile-identity h1 { font-size: 26px; }
+  .profile-activity { column-gap: 14px; margin-top: 6px; }
+  .profile-edit-name { margin-left: 80px; padding: 8px 12px; font-size: 13px; }
+  .profile-sections { margin-top: 30px; }
+  .profile-section { padding-block: 24px; }
+  .profile-section-heading p { margin-top: 5px; }
+  .profile-game-accounts { padding-inline: 14px; }
+  .profile-game-account { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 12px; padding-block: 18px; }
+  .profile-game-account .game-logo { width: 36px !important; height: 36px !important; }
+  .profile-game-account .btn { min-height: 40px; padding-inline: 8px; }
+  .profile-game-id { font-size: 14px; }
+  .profile-game-unregistered { font-size: 13px; }
+}
+
+.profile-section > .linked-game-record { border: 0; margin: 0; padding: 0; }

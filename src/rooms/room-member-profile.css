@@ -1,0 +1,15 @@
+.modal.room-member-profile { width:min(440px,100%); border-radius:26px; background:var(--panel); }
+.room-profile-identity { display:flex; flex-direction:column; align-items:center; gap:13px; padding:8px 0 24px; }
+.room-profile-identity .room-host-crown { top:-11px; width:23px; height:20px; }
+.room-profile-identity .room-host-crown svg { width:20px; height:20px; }
+.room-profile-identity h3 { margin:0; max-width:100%; font-size:23px; font-weight:650; line-height:1.4; text-align:center; overflow-wrap:anywhere; }
+.room-profile-identity p { margin:0; color:var(--muted); font-size:13px; }
+.room-member-profile .room-member-facts { min-height:165px; gap:22px 16px; padding:18px 0; }
+.room-member-profile .room-member-facts dt { font-size:13px; }
+.room-member-profile .room-member-facts .room-rank strong,.room-member-profile .room-member-facts .room-role-icons b { font-size:15px; }
+.room-member-profile .room-member-facts .room-rank img,.room-member-profile .room-member-facts .room-rank svg,.room-member-profile .room-member-facts .room-role-icons svg { width:32px; height:32px; }
+.room-member-profile .room-member-facts .performance-value,.room-member-profile .room-member-facts .room-unknown-stat { font-size:23px; }
+.room-profile-champions { padding:24px 0 10px; text-align:center; }
+.room-profile-champions .preferred-champions { justify-content:center; flex-wrap:wrap; gap:12px; }
+.room-profile-champions .preferred-champion-portrait { width:42px; height:42px; }
+.room-profile-bio { padding:16px 18px; margin:20px 0 0; border-radius:16px; background:#252033; color:var(--text-dim); font-size:15px; line-height:1.7; overflow-wrap:anywhere; white-space:pre-wrap; }

@@ -1,0 +1,26 @@
+.room-calendar { position:fixed; z-index:1500; box-sizing:border-box; width:320px; max-width:calc(100vw - 24px); overflow:auto; padding:16px; border:1px solid var(--line,#353047); border-radius:24px; background:var(--panel-2,#191b29); color:var(--text,#ecebff); box-shadow:0 16px 48px #0007; font-family:inherit; animation:room-calendar-in .14s ease-out; }
+.room-calendar-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.room-calendar-header strong { font-size:15px; font-weight:650; }
+.room-calendar-header>div { display:flex; gap:4px; }
+.room-calendar button { display:grid; place-items:center; border:0; border-radius:50%; background:transparent; color:inherit; font:inherit; cursor:pointer; }
+.room-calendar-header button { width:32px; height:32px; background:#ffffff06; }
+.room-calendar button:hover:not(:disabled):not([aria-pressed=true]) { background:#aa85ff1c; }
+.room-calendar button:focus-visible { outline:2px solid #bda4ff; outline-offset:-2px; }
+.room-calendar button:disabled { color:#625e70; opacity:.45; cursor:default; }
+.room-calendar-weekdays,.room-calendar-days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; }
+.room-calendar-weekdays { margin-bottom:6px; color:#9792a8; font-size:12px; text-align:center; }
+.room-calendar-weekdays>span { padding:4px 0; }
+.room-calendar-days button { position:relative; width:100%; aspect-ratio:1; padding:0; font-size:14px; font-variant-numeric:tabular-nums; }
+.room-calendar-days .is-outside-month { color:#8b849c; }
+.room-calendar-days button[aria-current=date]::after { content:''; position:absolute; bottom:4px; width:3px; height:3px; border-radius:50%; background:#bda4ff; }
+.room-calendar-days button[aria-pressed=true] { background:var(--accent,#7955d9); color:#fff; }
+.room-calendar-days button[aria-pressed=true]::after { background:#fff; }
+.room-hour-picker .room-calendar-header>span { color:#9792a8; font-size:12px; }
+.room-hour-section+.room-hour-section { margin-top:16px; }
+.room-hour-section h4 { margin:0 0 8px; color:#b6a9cc; font-size:12px; font-weight:500; }
+.room-hour-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; }
+.room-hour-grid button { height:36px; padding:0 4px; border:1px solid #ffffff08; border-radius:999px; background:#ffffff05; font-size:13px; font-variant-numeric:tabular-nums; }
+.room-hour-grid button[aria-pressed=true]:not(:disabled) { border-color:transparent; background:var(--accent,#7955d9); color:#fff; }
+.room-hour-empty { margin:14px 0 0; color:#a5a0b4; font-size:12px; line-height:1.5; }
+@keyframes room-calendar-in { from { opacity:0; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
+@media(prefers-reduced-motion:reduce) { .room-calendar { animation:none; } }

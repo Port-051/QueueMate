@@ -1,0 +1,60 @@
+import { useEffect, useState } from 'react';
+import { isApiError } from '../api/error';
+import { ReportModal } from '../components/ReportModal';
+import { IconShield } from '../components/icons';
+import { ActionMenu, Avatar, Button, Card, EmptyState, Tag, useToast } from '../components/ui';
+import { relativeTime } from '../domain/time';
+import { useSocial } from '../state/SocialContext';
+
+export function RecentPlayersPage() {
+  const { recentPlayers, refresh, addFriend, block } = useSocial();
+  const toast = useToast();
+  const [reportTarget, setReportTarget] = useState<{ userId: string; nickname: string } | null>(null);
+
+  // 파티가 끝나야 갱신되는 목록이고 알려주는 이벤트가 없다. 화면을 열 때 다시 읽는다.
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const run = async (action: Promise<void>, message: string) => {
+    try {
+      await action;
+      toast(message, 'ok');
+    } catch (err) {
+      toast(isApiError(err) ? err.message : '요청을 처리하지 못했습니다', 'error');
+    }
+  };
+
+  return (
+    <section className="page focus-page list-page">
+      <div className="page-head">
+        <h1>최근 함께한 사람</h1>
+      </div>
+
+      <Card className="flat">
+        {recentPlayers.length === 0 ? (
+          <EmptyState title="아직 함께한 사람이 없습니다" desc="파티가 끝나면 기록됩니다." />
+        ) : recentPlayers.map((p) => (
+          <div key={p.userId} className="list-item">
+            <Avatar name={p.nickname} avatarUrl={p.avatarUrl} size={38} />
+            <div className="li-main">
+              <b>{p.nickname}</b>
+              <p>{relativeTime(p.lastPlayedAt)} · {p.playCount}회 함께 플레이</p>
+            </div>
+            {p.friend
+              ? <Tag tone="accent">친구</Tag>
+              : <Button size="sm" variant="primary" onClick={() => void run(addFriend(p.userId), `${p.nickname}님에게 친구 요청을 보냈습니다`)}>친구 추가</Button>}
+            <ActionMenu label={`${p.nickname} 관리`}>
+              <Button size="sm" onClick={() => void run(block(p.userId), `${p.nickname}님을 차단했습니다`)}>차단</Button>
+              <Button size="sm" variant="ghost" onClick={() => setReportTarget({ userId: p.userId, nickname: p.nickname })}>
+                <IconShield size={13} /> 신고
+              </Button>
+            </ActionMenu>
+          </div>
+        ))}
+      </Card>
+
+      {reportTarget ? (
+        <ReportModal targetUserId={reportTarget.userId} targetNickname={reportTarget.nickname} onClose={() => setReportTarget(null)} />
+      ) : null}
+    </section>
+  );
+}
