@@ -24,8 +24,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * <b>자동 매칭 파티의 방</b>(2026-09-27 소유자 결정 — docs/11 D-42) — {@code POST /api/v1/match-parties/{partyId}/room}. {@code matching} 이 남긴 파티 HASH
- * ({@code qm:party:{partyId}})를 읽어 첫 사람은 방을 만들고(201) 나머지는 들어가며(200), 파티는 {@code parties}({@code source = MATCH} · {@code match_party_id}) ·
- * {@code party_members} 에 한 번만 적힌다. 방이 없어지면 파티가 닫히고 최근 함께한 사람이 적힌다({@code PartyCloseTest} 와 같은 단언).
+ * ({@code qm:party:{partyId}})를 읽어 첫 사람은 방을 만들고(201) 나머지는 들어가며(200), 파티는 {@code parties}({@code source = MATCH} · {@code match_party_id})
+ * 에 한 번만 적히고 {@code party_members} 에는 <b>들어온 사람만</b> 한 줄씩 적힌다(2026-09-28 소유자 결정 — HASH 의 파티원 전부가 아니다).
+ * 방이 없어지면 파티가 닫히고 최근 함께한 사람이 적힌다({@code PartyCloseTest} 와 같은 단언).
  *
  * <p><b>{@code matching} 인 척 파티 HASH 를 이 테스트가 직접 심는다</b>({@link #seedConfirmedParty}) — 필드 이름은 {@code matching} 의
  * {@code proposal/cleanup-confirmed.lua} 머리의 것이다. 이 키는 이 테스트의 것이라 끝나면 지운다(방 키 셋도). 사용자의 입장 표시 키 · 활성 요청 키는
@@ -114,7 +115,7 @@ class MatchPartyRoomTest extends RoomTestSupport {
     // ---- 만들기 · 들어가기 ----
 
     @Test
-    @DisplayName("첫 파티원이 부르면 201 이고 roomId 는 partyId 다 — 방장 키 · 확정 표시 키 · 멤버 SET · 입장 표시 키가 서고, parties 에 MATCH 한 줄 · party_members 에 셋(is_host 는 첫 사람만)")
+    @DisplayName("첫 파티원이 부르면 201 이고 roomId 는 partyId 다 — 방장 키 · 확정 표시 키 · 멤버 SET · 입장 표시 키가 서고, parties 에 MATCH 한 줄 · party_members 에는 들어온 그 사람 한 줄(is_host)")
     void firstCallerCreatesTheRoom() throws Exception
     {
         Cookie u1 = member("u1");
@@ -139,11 +140,10 @@ class MatchPartyRoomTest extends RoomTestSupport {
         Map<String, Object> party = partyOf(partyId);
         assertThat(party).containsEntry("source", "MATCH").containsEntry("game", "LOL").containsEntry("status", "ACTIVE");
         assertThat(party.get("post_id")).isNull();
+        // party_members 는 들어온 사람만 — 아직 안 들어온 u2 · u3 은 HASH 에 있어도 적히지 않는다 (2026-09-28)
         List<Map<String, Object>> members = partyMembersOf(partyId);
-        assertThat(members).extracting(m -> m.get("user_id")).containsExactlyInAnyOrder(
-                Long.parseLong(u("u1")), Long.parseLong(u("u2")), Long.parseLong(u("u3")));
-        assertThat(members.stream().filter(m -> Boolean.TRUE.equals(m.get("is_host"))).map(m -> m.get("user_id")))
-                .containsExactly(Long.parseLong(u("u1")));
+        assertThat(members).extracting(m -> m.get("user_id")).containsExactly(Long.parseLong(u("u1")));
+        assertThat(members).extracting(m -> m.get("is_host")).containsExactly(true);
 
         // 내 방 찾기도 UUID 를 그대로 준다
         mockMvc.perform(get("/api/v1/rooms/me").cookie(u1))
@@ -151,7 +151,7 @@ class MatchPartyRoomTest extends RoomTestSupport {
     }
 
     @Test
-    @DisplayName("두 번째 파티원은 200 으로 들어가고 먼저 있던 사람이 ROOM_MEMBER_ENTERED 를 받는다. 다시 불러도 200 이고 바뀌는 것이 없다 — 파티는 여전히 한 줄")
+    @DisplayName("두 번째 파티원은 200 으로 들어가고 먼저 있던 사람이 ROOM_MEMBER_ENTERED 를 받는다. 다시 불러도 200 이고 바뀌는 것이 없다 — 파티는 여전히 한 줄 · party_members 는 들어온 둘(둘째는 is_host 아님)")
     void othersEnterAndRetryIsIdempotent() throws Exception
     {
         Cookie u1 = member("u1");
@@ -183,7 +183,11 @@ class MatchPartyRoomTest extends RoomTestSupport {
         assertThat(marker("u2")).isEqualTo(partyId);
         assertThat(roomHost(partyId)).isEqualTo(u("u1"));
         assertThat(partyCountOf(partyId)).isEqualTo(1);
-        assertThat(partyMembersOf(partyId)).hasSize(3);
+        // 들어온 둘만 — 재시도가 줄을 늘리지 않고, 아직 안 들어온 u3 은 없다
+        List<Map<String, Object>> members = partyMembersOf(partyId);
+        assertThat(members).extracting(m -> m.get("user_id")).containsExactlyInAnyOrder(Long.parseLong(u("u1")), Long.parseLong(u("u2")));
+        assertThat(members.stream().filter(m -> Boolean.TRUE.equals(m.get("is_host"))).map(m -> m.get("user_id")))
+                .containsExactly(Long.parseLong(u("u1")));
     }
 
     // ---- 파티 HASH 가 수명(600초)으로 사라진 뒤 — 방에 있는 사람은 방 키로, 방에 없는 사람만 HASH 로 판정한다 (2026-09-28) ----
@@ -337,7 +341,7 @@ class MatchPartyRoomTest extends RoomTestSupport {
     }
 
     @Test
-    @DisplayName("파티원 셋이 동시에 불러도 파티는 한 줄 · 멤버 SET 은 셋 · 방장은 한 명 · 201 은 한 번이다")
+    @DisplayName("파티원 셋이 동시에 불러도 파티는 한 줄 · 멤버 SET 은 셋 · party_members 는 들어온 셋 · 방장(is_host)은 한 명 · 201 은 한 번이다")
     void concurrentCallsMakeOneRoom() throws Exception
     {
         Cookie[] cookies = { member("u0"), member("u1"), member("u2") };
@@ -396,7 +400,7 @@ class MatchPartyRoomTest extends RoomTestSupport {
     // ---- 나가기 → 파티 닫힘 ----
 
     @Test
-    @DisplayName("셋이 들어온 뒤 전부 나가면(방장이 나가면 승계 — D-23) 마지막 나가기에 파티가 CLOSED · closed_at 이고 최근 함께한 사람에 여섯 줄이 적힌다")
+    @DisplayName("셋이 들어온 뒤 전부 나가면(방장이 나가면 승계 — D-23) 마지막 나가기에 파티가 CLOSED · closed_at 이다. 최근 함께한 사람 여섯 줄은 들어올 때 이미 적혀 있다")
     void lastLeaveClosesTheMatchParty() throws Exception
     {
         Cookie u1 = member("u1");
@@ -434,6 +438,40 @@ class MatchPartyRoomTest extends RoomTestSupport {
         Long c = Long.parseLong(u("u3"));
         assertThat(recentPairsOf(partyRow)).containsExactlyInAnyOrder(
                 List.of(a, b), List.of(a, c), List.of(b, a), List.of(b, c), List.of(c, a), List.of(c, b));
+    }
+
+    @Test
+    @DisplayName("최근 함께한 사람은 들어올 때 적힌다 — 들어온 순간 방에 있던 사람과만 짝이 되고, 먼저 나간 사람과 뒤에 들어온 사람은 짝이 되지 않는다")
+    void recentPlayersAreRecordedOnEntryWithWhoeverIsInTheRoom() throws Exception
+    {
+        Cookie u1 = member("u1");
+        Cookie u2 = member("u2");
+        Cookie u3 = member("u3");
+        String partyId = seedConfirmedParty("CONFIRMED", "u1", "u2", "u3");
+        Long a = Long.parseLong(u("u1"));
+        Long b = Long.parseLong(u("u2"));
+        Long c = Long.parseLong(u("u3"));
+
+        // 첫 사람 — 방에 아무도 없어 적을 짝이 없다
+        mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u1)).andExpect(status().isCreated());
+        Long partyRow = (Long) partyOf(partyId).get("id");
+        assertThat(recentPairsOf(partyRow)).isEmpty();
+
+        // 둘째 — 그 순간 방에 있던 첫 사람과 양방향으로. 파티는 아직 ACTIVE 다(닫힌 적 없다)
+        mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u2)).andExpect(status().isOk());
+        assertThat(recentPairsOf(partyRow)).containsExactlyInAnyOrder(List.of(a, b), List.of(b, a));
+        assertThat(partyOf(partyId)).containsEntry("status", "ACTIVE");
+
+        // 다시 불러도(새로고침) 이미 파티원이라 짝을 또 적지 않는다
+        mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u2)).andExpect(status().isOk());
+        assertThat(recentPairsOf(partyRow)).hasSize(2);
+
+        // 첫 사람이 나간 뒤 셋째가 들어온다 — 셋째는 그 순간 방에 있던 둘째하고만 짝이 된다. party_members 에는 첫 사람이 남아 있지만
+        // 짝은 스크립트가 돌려준 "먼저 있던 사람"(방 멤버 SET)으로 적으므로 서로 마주친 적 없는 첫째–셋째는 적히지 않는다
+        mockMvc.perform(delete("/api/v1/rooms/" + partyId + "/members/me").cookie(u1)).andExpect(status().isNoContent());
+        mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u3)).andExpect(status().isOk());
+        assertThat(recentPairsOf(partyRow)).containsExactlyInAnyOrder(
+                List.of(a, b), List.of(b, a), List.of(c, b), List.of(b, c));
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.queuemate.platform.party.service;
 import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.party.match.MatchParty;
 import com.queuemate.platform.party.match.MatchPartyReader;
+import com.queuemate.platform.room.domain.MatchRoomEntry;
 import com.queuemate.platform.room.domain.MatchRoomResult;
 import com.queuemate.platform.room.service.RoomService;
 import lombok.RequiredArgsConstructor;
@@ -69,10 +70,18 @@ public class MatchPartyService {
             throw notPartyMember();
         }
         // PostService#now() 와 같은 정밀도(밀리초)로 적는다
-        Long recordedPartyId = matchPartyStore.record(party, me, Instant.now().truncatedTo(ChronoUnit.MILLIS));
-        MatchRoomResult result = roomService.enterMatchRoom(partyId, String.valueOf(me));
-        log.info("자동 매칭 파티 방 matchPartyId={} partyId={} userId={} result={}", partyId, recordedPartyId, me, result);
-        return result;
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        Long recordedPartyId = matchPartyStore.record(party, me, now);
+        MatchRoomEntry entry = roomService.enterMatchRoom(partyId, String.valueOf(me));
+        if(entry.result() == MatchRoomResult.ENTERED)
+        {
+            // 최근 함께한 사람은 방에 실제로 들어간 순간, 그때 방에 있던 사람과만 적는다(2026-09-28 소유자 결정). 만든 사람(CREATED)은
+            // 방에 아무도 없어 적을 짝이 없고, 이미 있던 사람(ALREADY_IN_ROOM)은 처음 들어올 때 적었다. Lua 뒤의 DB 쓰기라
+            // 트랜잭션 안에서 Redis 를 기다리는 것이 아니다 — 실패해도 입장은 성립했고 짝만 빠진다(재입장은 다시 적지 않는다 — 감수)
+            matchPartyStore.recordEntry(recordedPartyId, me, entry.priorMembers(), now);
+        }
+        log.info("자동 매칭 파티 방 matchPartyId={} partyId={} userId={} result={}", partyId, recordedPartyId, me, entry.result());
+        return entry.result();
     }
 
     /**
@@ -80,7 +89,7 @@ public class MatchPartyService {
      */
     private MatchRoomResult enterRoomWithoutParty(Long me, String partyId)
     {
-        MatchRoomResult result = roomService.enterMatchRoom(partyId, String.valueOf(me));
+        MatchRoomResult result = roomService.enterMatchRoom(partyId, String.valueOf(me)).result();
         if(result != MatchRoomResult.ALREADY_IN_ROOM)
         {
             // HASH 가 없으면 스크립트가 방을 만들거나 들여보낼 수 없다(자격을 HASH 로 본다) — 쓰기 없이 거절만 돌아온다
