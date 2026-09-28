@@ -16,7 +16,6 @@ jobs:
     env:
       VERCEL_TELEMETRY_DISABLED: '1'
       NO_COLOR: '1'
-      AUTH_DIR: ${{ runner.temp }}/qmate-vercel-auth
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -39,7 +38,7 @@ jobs:
           import {cp, mkdir, readFile, writeFile} from 'node:fs/promises';
           import {stripVTControlCharacters} from 'node:util';
           const cli = `${process.env.RUNNER_TEMP}/qmate-vercel-cli/node_modules/.bin/vercel`;
-          const auth = process.env.AUTH_DIR;
+          const auth = `${process.env.RUNNER_TEMP}/qmate-vercel-auth`;
           const {GITHUB_TOKEN, ...childEnv} = process.env;
           const repository = process.env.GITHUB_REPOSITORY;
           const sha = process.env.GITHUB_SHA;
@@ -116,6 +115,7 @@ jobs:
       - name: Revoke temporary CLI login and remove local credentials
         if: always()
         run: |
+          AUTH_DIR="$RUNNER_TEMP/qmate-vercel-auth"
           CLI="$RUNNER_TEMP/qmate-vercel-cli/node_modules/.bin/vercel"
           if [ -x "$CLI" ]; then timeout 20 "$CLI" logout --global-config "$AUTH_DIR" --no-color >/dev/null 2>&1 || true; fi
           rm -rf "$AUTH_DIR"
