@@ -1,4 +1,4 @@
-name: Publish existing SEO preview safely
+name: Publish existing SEO landing safely
 on:
   push:
     branches: [feat/seo-landing]
@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify target guards and build the unchanged preview
+      - name: Verify target guards and build the unchanged landing
         working-directory: landing
         run: |
           npm ci --ignore-scripts --no-audit --no-fund

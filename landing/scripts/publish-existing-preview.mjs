@@ -23,7 +23,11 @@ export function assertTarget(project, deployment, list, domains) {
   assert.equal(deployment.url, TARGET.host, 'Unexpected deployment hostname');
   assert.equal(deployment.meta?.githubCommitSha, TARGET.sourceSha, 'Unexpected deployed source');
   assert.equal(deployment.readyState, 'READY', 'Deployment is not ready');
-  assert.ok(!deployment.target || deployment.target === 'preview', 'Not a preview deployment');
+  // Vercel classifies a new project's first deployment as production, even when
+  // preview was requested. Identity, source, singleton and domain guards below
+  // still apply: this is NOT permission to publish an arbitrary production app.
+  // https://vercel.com/docs/domains/working-with-domains/deploying-and-redirecting
+  assert.ok([undefined,null,'preview','production'].includes(deployment.target), 'Unknown deployment target');
   assert.ok(Array.isArray(list.deployments), 'Deployment list missing');
   assert.equal(list.deployments.length, 1, 'Refusing to expose other deployments');
   assert.equal(list.deployments[0].uid, deployment.id, 'Deployment list differs from target');
@@ -139,6 +143,12 @@ async function main() {
       const deployment=await api(`/v13/deployments/${TARGET.host}`);
       const list=await api(`/v7/deployments?projectId=${encodeURIComponent(project.id)}&limit=2`);
       const domains=await api(`/v9/projects/${project.id}/domains`);
+      // Save only nonsecret scope facts so a failed guard is diagnosable.
+      report.scope={projectId:project.id,projectName:project.name,accountId:project.accountId,
+        deploymentId:deployment.id,target:deployment.target ?? null,readyState:deployment.readyState,
+        sourceSha:deployment.meta?.githubCommitSha,deployments:list.deployments?.map(d=>({id:d.uid,url:d.url})),
+        domains:domains.domains?.map(d=>d.name)};
+      await writeFile(`${auditDir}/report.json`,JSON.stringify(report,null,2)+'\n');
       assertTarget(project,deployment,list,domains);
       report.projectId=project.id;
       oldProtection=project.ssoProtection ? {deploymentType:project.ssoProtection.deploymentType} : null;
