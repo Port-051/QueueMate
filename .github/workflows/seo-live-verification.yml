@@ -1,0 +1,72 @@
+name: Verify existing SEO preview URL
+on:
+  push:
+    branches: [feat/seo-landing]
+    paths: ['.github/workflows/seo-live-verification.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  statuses: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Inspect anonymous response without changing the deployment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node --input-type=module <<'NODE'
+          import {writeFile} from 'node:fs/promises';
+          const url = 'https://q-mate-landing-36418820590-cerit5nsr-port-051.vercel.app/';
+          const report = {checkedAt: new Date().toISOString(), deploymentUrl: url, authenticated: false};
+          const safeUrl = value => {const u = new URL(value);return u.origin + u.pathname;};
+          try {
+            const first = await fetch(url, {redirect:'manual', signal:AbortSignal.timeout(15000)});
+            report.initialStatus = first.status;
+            const location = first.headers.get('location');
+            report.redirectTo = location ? safeUrl(new URL(location, url)) : null;
+            await first.body?.cancel();
+            const res = await fetch(url, {redirect:'follow', signal:AbortSignal.timeout(20000)});
+            const html = await res.text();
+            report.finalStatus = res.status;
+            report.finalUrl = safeUrl(res.url);
+            report.contentType = res.headers.get('content-type');
+            report.title = html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.slice(0,200) || null;
+            report.robotTags = [...html.matchAll(/<meta\b[^>]*>/gi)].map(m=>m[0]).filter(t=>/name\s*=\s*["']robots["']/i.test(t)).map(t=>t.match(/content\s*=\s*["']([^"']*)["']/i)?.[1]);
+            report.xRobotsTag = res.headers.get('x-robots-tag');
+            report.hasQueueMateContent = /롤 듀오/.test(html) && /QueueMate/.test(html);
+            const sameOrigin = new URL(res.url).origin === new URL(url).origin;
+            const loginHost = new URL(res.url).hostname === 'vercel.com';
+            const protectedPage = [401,403].includes(report.initialStatus) || (loginHost && /login|sso|auth/.test(new URL(res.url).pathname));
+            report.classification = sameOrigin && res.status===200 && report.hasQueueMateContent && report.robotTags.some(x=>/noindex/i.test(x||''))
+              ? 'PUBLIC_PREVIEW_VERIFIED' : protectedPage ? 'DEPLOYED_LOGIN_REQUIRED' : 'UNEXPECTED_RESPONSE';
+            if (report.classification==='PUBLIC_PREVIEW_VERIFIED') {
+              report.assets=[];
+              for(const path of ['/assets/site.css','/assets/queuemate-wordmark.svg','/assets/og-cover.webp','/robots.txt','/__qmate_expected_missing__']) {
+                const asset=await fetch(new URL(path,url),{redirect:'manual',signal:AbortSignal.timeout(10000)});
+                report.assets.push({path,status:asset.status,contentType:asset.headers.get('content-type')});await asset.body?.cancel();
+              }
+              if(report.assets.some(a=>a.status!==(a.path==='/__qmate_expected_missing__'?404:200)))report.classification='ASSET_CHECK_FAILED';
+            }
+          } catch(error) {report.classification='CHECK_FAILED';report.error=error.message;}
+          console.log(JSON.stringify(report,null,2));
+          await writeFile('live-audit.json',JSON.stringify(report,null,2)+'\n');
+          await writeFile(process.env.GITHUB_STEP_SUMMARY,`## Existing Vercel deployment\n\n${url}\n\nResult: **${report.classification}**\n\nThis check is anonymous and read-only. It does not deploy, authenticate, change access controls, or change DNS.\n`);
+          const description = `${report.classification}; HTTP ${report.initialStatus ?? '?'} -> ${report.finalStatus ?? '?'}`;
+          const result = await fetch(`https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/statuses/${process.env.GITHUB_SHA}`,{
+            method:'POST',signal:AbortSignal.timeout(15000),headers:{Authorization:`Bearer ${process.env.GITHUB_TOKEN}`,Accept:'application/vnd.github+json','Content-Type':'application/json'},
+            body:JSON.stringify({state:report.classification==='PUBLIC_PREVIEW_VERIFIED'?'success':'failure',context:'SEO preview public access',description,target_url:url})
+          });
+          if(!result.ok)throw Error(`Could not publish audit status: ${result.status}`);
+          if(report.classification!=='PUBLIC_PREVIEW_VERIFIED')process.exitCode=1;
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: seo-live-audit
+          path: live-audit.json
+          retention-days: 7
