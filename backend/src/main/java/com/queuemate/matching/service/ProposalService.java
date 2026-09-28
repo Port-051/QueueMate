@@ -8,12 +8,17 @@ import com.queuemate.matching.redisKeys.SharedKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.DefaultTypedTuple;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 제안 수락 / 거절.
@@ -74,6 +79,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ProposalService {
 
+    /** 파티 HASH 의 참가자 필드 접두사 — 배정 스크립트가 {@code member:{userId}} 로 적는다({@code ScriptSupport} 와 같은 값) */
+    private static final String MEMBER_FIELD_PREFIX = "member:";
+
     private final StringRedisTemplate redis;
 
     /**
@@ -105,6 +113,13 @@ public class ProposalService {
      */
     @Value("${queuemate.proposal.confirmed-party-ttl-seconds}")
     private long confirmedPartyTtlSeconds;
+
+    /**
+     * 거절한 사람과 그 제안에 있던 상대들이 서로 다시 매칭되지 않는 시간(초). {@link #decline} 이 양쪽의
+     * {@code qm:user:declined:{userId}} 에 적는 score(풀리는 시각)와 키 TTL 둘 다 이 값이다.
+     */
+    @Value("${queuemate.proposal.decline-avoid-seconds}")
+    private long declineAvoidSeconds;
 
     /**
      * 한 참가자의 수락을 기록한다. 그 수락으로 전원이 차면 확정까지 한다.
@@ -183,6 +198,12 @@ public class ProposalService {
      * {@link MatchCancelService#cancel(String, String)} 을 부른다. 제안을 거절한 사람을
      * 같은 파티에 그대로 두면 바로 다시 매칭될 수 있기 때문이다.
      *
+     * <p><b>거절한 상대는 한동안 다시 만나지 않는다.</b> 거절한 사람이 바로 다시 큐에 들어오면 방금 거절한 사람들과 또
+     * 같은 파티가 될 수 있다 — 거절한 이유가 그 사람들이라면 같은 제안이 되풀이된다. 그래서 제안을 실제로 깬 그 한 번에
+     * {@link #recordDeclined} 로 양쪽의 {@code qm:user:declined:{userId}} 에 적는다(score = 풀리는 시각,
+     * {@code decline-avoid-seconds}). 상대 목록은 <b>큐에서 빼기 전에</b> 파티 HASH 에서 읽는다 — 뺀 뒤에는
+     * {@code leave-party.lua} 가 내 {@code member:} 를 지우고 파티가 비면 HASH 째 없앤다. 배정 선필터가 이 집합을 읽는 것은 다음 일이다.
+     *
      * <p><b>거절은 멱등이 아니다.</b> 첫 호출만 {@link ProposalResult#DECLINED} 이고,
      * 같은 거절의 재시도는 {@code status} 가 이미 지워졌으므로
      * {@link ProposalResult#NOT_FOUND} 다. 두 답 모두 클라이언트가 갈 화면은 같다
@@ -199,6 +220,7 @@ public class ProposalService {
     public ProposalResult decline(String proposalId, String userId) {
         ProposalResult answer = run(declineProposalScript, proposalId, userId);
         if (answer == ProposalResult.DECLINED) {
+            Set<String> others = otherMembers(proposalId, userId);
             // 활성 요청은 HASH 다 — requestId 는 그 필드에서 읽는다. 클라이언트가 주던 값을 서버가 직접 읽으므로
             // 값이 틀려 본인이 파티에 남는 일이 없다. 스크립트가 멤버 여부를 먼저 봤으니 옛 요청이 끼어들 틈도 없다
             String requestId = redis.<String, String>opsForHash()
@@ -207,8 +229,41 @@ public class ProposalService {
             if (cancelled != CancelResult.CANCELLED && cancelled != CancelResult.CANCELLED_AND_PARTY_CLOSED) {
                 log.warn("거절 뒤 큐에서 빼지 못했다 partyId={} userId={} result={}", proposalId, userId, cancelled);
             }
+            if (!others.isEmpty()) {
+                recordDeclined(userId, others);
+            }
         }
         return answer;
+    }
+
+    /** 파티 HASH 의 {@code member:} 필드에서 나를 뺀 나머지 userId. 파티가 없으면 빈 집합 */
+    private Set<String> otherMembers(String partyId, String me) {
+        String myField = MEMBER_FIELD_PREFIX + me;
+        return redis.<String, String>opsForHash().keys(SharedKeys.partyKey(partyId)).stream()
+                .filter(field -> field.startsWith(MEMBER_FIELD_PREFIX) && !field.equals(myField))
+                .map(field -> field.substring(MEMBER_FIELD_PREFIX.length()))
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * 거절한 상대를 <b>양쪽에</b> 적는다 — 내 ZSET 에 상대들, 상대 ZSET 마다 나. score 는 풀리는 시각(epoch ms)이고
+     * 키 TTL 은 매번 다시 건다(마지막 거절 기준 — 안 그러면 9분 전 거절 때 걸린 TTL 이 방금 거절한 사람의 10분을 1분으로 줄인다).
+     * 그 사이 이미 풀린 member 가 키에 남을 수 있으니 읽는 쪽은 score 로 거른다. Redis 예외는 다른 자리와 같이 그대로 올라간다.
+     */
+    private void recordDeclined(String me, Set<String> others) {
+        long until = System.currentTimeMillis() + declineAvoidSeconds * 1000;
+        Duration ttl = Duration.ofSeconds(declineAvoidSeconds);
+        String myKey = SharedKeys.declinedKey(me);
+        Set<ZSetOperations.TypedTuple<String>> tuples = others.stream()
+                .map(other -> (ZSetOperations.TypedTuple<String>) new DefaultTypedTuple<>(other, (double) until))
+                .collect(Collectors.toSet());
+        redis.opsForZSet().add(myKey, tuples);
+        redis.expire(myKey, ttl);
+        for (String other : others) {
+            String key = SharedKeys.declinedKey(other);
+            redis.opsForZSet().add(key, me, until);
+            redis.expire(key, ttl);
+        }
     }
 
     /**

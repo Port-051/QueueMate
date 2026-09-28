@@ -7,6 +7,7 @@ import com.queuemate.matching.domain.CancelResult;
 import com.queuemate.matching.domain.GameKey;
 import com.queuemate.matching.domain.condition.lol.LolPosition;
 import com.queuemate.matching.dto.CreateMatchRequestCommand;
+import com.queuemate.matching.redisKeys.SharedKeys;
 import com.queuemate.matching.redisLock.PoolLock;
 import com.queuemate.matching.rule.CandidateRule;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -52,8 +54,12 @@ public class LolCandidateRule implements CandidateRule {
         // 내 차단 목록은 어느 후보를 보든 같다. 후보마다 다시 물을 이유가 없으므로
         // 락을 잡기 전에 한 번만 가져온다. 락 안에서 DB 를 치면 응답이 늦을 때
         // 유지 시간을 넘겨 락이 저 혼자 풀린다 (PoolLock 클래스 주석).
-        Set<String> blockedUserIds = BlockedUsers.of(blockRepository, command.getUserId());
-
+        // 차단(DB)에 더해 최근 거절 기록(Redis qm:user:declined:{me}, score = 풀리는 시각)도 같이 거른다 —
+        // 거절 때 양쪽에 적으므로 내 키 하나로 충분하다(ProposalService#recordDeclined).
+        // BlockedUsers.of 는 고칠 수 없는 집합을 주므로 복사해서 합친다
+        Set<String> blockedUserIds = new HashSet<>(BlockedUsers.of(blockRepository, command.getUserId()));
+        blockedUserIds.addAll(redis.opsForZSet().rangeByScore(
+                SharedKeys.declinedKey(command.getUserId()), System.currentTimeMillis(), Double.POSITIVE_INFINITY));
         if (command.getTier() == null) {
             poolLock.run(keys.poolKey(command),
                     () -> untieredAssigner.assign(command, config, blockedUserIds));

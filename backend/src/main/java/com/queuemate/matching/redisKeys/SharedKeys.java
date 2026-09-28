@@ -158,6 +158,17 @@ public final class SharedKeys {
     public static final String ACTIVE_ROOM_PREFIX = "qm:user:active-room:";
 
     /**
+     * 거절한 상대 ZSET 접두사 — member 는 상대 userId, score 는 <b>그 기록이 풀리는 시각</b>(epoch ms).
+     * 제안을 거절한 사람이 바로 다시 큐에 들어오면 방금 거절한 사람들과 또 같은 파티가 될 수 있다 — 거절한 이유가
+     * 그 사람들이라면 같은 제안이 되풀이된다. 그래서 거절 때 <b>양쪽에</b> 적는다(내 키에 상대들, 상대 키마다 나) —
+     * 배정 선필터는 "내가 들어가려는 파티의 멤버가 내 집합에 있나"만 보므로 한쪽만 적으면 순서에 따라 절반은 못 막는다.
+     * 키 TTL 은 마지막 거절 뒤 {@code queuemate.proposal.decline-avoid-seconds}(기본 600초)다 — 그 안에 이미 풀린 member 가
+     * 남아 있을 수 있으니 읽는 쪽은 score 로 거른다({@code ZRANGEBYSCORE now +inf}). 쓰는 자리는 {@code ProposalService#decline} 하나다.
+     * <pre>{@code "qm:user:declined:"  →  qm:user:declined:u123}</pre>
+     */
+    public static final String DECLINED_PREFIX = "qm:user:declined:";
+
+    /**
      * 푸시 알림 채널 접두사. 배달은 app:realtime 이 한다 (CLAUDE.md §3).
      * <pre>{@code "qm:pubsub:push:"  →  qm:pubsub:push:u123}</pre>
      */
@@ -221,6 +232,14 @@ public final class SharedKeys {
      */
     public static String activeRoomKey(String userId) {
         return ACTIVE_ROOM_PREFIX + userId;
+    }
+
+    /**
+     * 이 사용자가 거절했거나 이 사용자를 거절한 상대의 ZSET. score 가 풀리는 시각이다.
+     * <pre>{@code qm:user:declined:u123}</pre>
+     */
+    public static String declinedKey(String userId) {
+        return DECLINED_PREFIX + userId;
     }
 
     /**

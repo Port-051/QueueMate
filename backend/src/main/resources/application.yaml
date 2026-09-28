@@ -96,6 +96,10 @@ queuemate:
     # 직접 읽어 파티 · 방을 만든다 — outbox → SQS 대신이다. 지나면 파티가 증발한다(받아들인 절충).
     # 상태 조회 · 수락 재전송도 이 안에서만 답한다
     confirmed-party-ttl-seconds: ${PROPOSAL_CONFIRMED_PARTY_TTL_SECONDS:600}
+    # 제안을 거절한 사람과 그 제안에 있던 상대들이 서로 다시 매칭되지 않는 시간. 거절한 사람이 바로 다시 큐에 들어와
+    # 방금 거절한 사람들과 같은 파티가 되는 것을 막는다. 거절 때 양쪽의 qm:user:declined:{userId} 에 적고(score = 풀리는 시각)
+    # 키 TTL 도 이 값으로 다시 건다 — 마지막 거절 기준이다
+    decline-avoid-seconds: ${PROPOSAL_DECLINE_AVOID_SECONDS:600}
   scan:
     interval-ms: ${SCAN_INTERVAL_MS:1000}
   sweep:
