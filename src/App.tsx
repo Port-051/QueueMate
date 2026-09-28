@@ -15,6 +15,8 @@ import { ReservationNewPage } from './pages/ReservationNewPage';
 import { ReservationsPage } from './pages/ReservationsPage';
 import { LandingPage } from './pages/LandingPage';
 import { OnboardingPage } from './pages/OnboardingPage';
+import { SettingsRedirectPage } from './pages/SettingsRedirectPage';
+import { SocialSignupPage } from './pages/SocialSignupPage';
 
 function LegacyFriendsRedirect() {
   const { search } = useLocation();
@@ -27,8 +29,11 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      {/* 소셜 콜백은 백엔드가 받아 이 네 경로로 302 한다 — `/`(로그인됨) · `/signup/social`(처음 온 사람) · `/login?error=` · `/settings?linked=|error=`(잇기).
+          경로는 백엔드의 것이고 프런트가 맞춘다(2026-09-28 소유자 결정). 직접 가입 · 원본의 `/auth/callback` 코드 교환은 없다. */}
       <Route path="/login" element={<AuthPage />} />
-      {/* 직접 가입 · 원본의 OAuth 코드 교환 콜백은 없다 — 소셜 콜백은 백엔드가 받아 프런트로 302 한다(CLAUDE.md §2). */}
+      <Route path="/signup/social" element={<SocialSignupPage />} />
+      <Route path="/settings" element={<SettingsRedirectPage />} />
       <Route path="/signup" element={<Navigate to="/login" replace />} />
       <Route path="/auth/callback" element={<Navigate to="/" replace />} />
       <Route path="/onboarding" element={<RequireAuth><OnboardingPage /></RequireAuth>} />

@@ -78,9 +78,8 @@
 .social-btn:active:not(:disabled) { transform: translateY(1px); }
 .social-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .social-btn.s-KAKAO { background: #fee500; color: #191600; }
-.social-btn.s-NAVER { background: #03c75a; color: #fff; }
+.social-btn.s-DISCORD { background: #5865f2; color: #fff; }
 /* 개발용 가짜 제공자. 운영에서는 목록에 없다. 눈에 띄게 다르게 둔다. */
-.social-btn.s-DEV { background: transparent; border-color: var(--line); color: var(--text-dim); border-style: dashed; }
 
 .auth-hint { margin-top: 18px; padding: 12px 14px; border-radius: var(--r-md); border: 1px dashed var(--line); font-size: 12.5px; color: var(--muted); line-height: 1.6; }
 

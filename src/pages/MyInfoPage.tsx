@@ -2,23 +2,26 @@ import { FilterTierIcon } from '../components/FilterSymbols';
 import '../styles/introduction.css';
 import { GameBadge } from '../components/GameSymbol';
 import { ProfileSettings } from '../components/ProfileSettings';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
-import type { GameKey } from '../api/types';
+import type { GameKey, SocialProvider } from '../api/types';
 import { IconCheck, IconLogout, IconPencil, IconPlus, IconShield } from '../components/icons';
 import { AVATAR_CHOICES, avatarImageSrc, Avatar, Button, ConfirmDialog, Field, Modal, useToast } from '../components/ui';
 import { GAMES } from '../domain/gameConfig';
 import { gameFullLabel, rankLabel } from '../domain/labels';
 import { useAuth } from '../state/AuthContext';
 import { useSocial } from '../state/SocialContext';
+import { PROVIDER_LABEL, settingsNoticeMessage, takeSettingsNotice } from '../state/settingsNotice';
+
+const SOCIAL_PROVIDERS: SocialProvider[] = ['KAKAO', 'DISCORD'];
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 const AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
 export function MyInfoPage() {
-  const { user, gameAccounts, updateProfile, uploadAvatar, refreshGameAccounts, logout } = useAuth();
+  const { user, gameAccounts, updateProfile, uploadAvatar, refreshGameAccounts, refreshSession, logout } = useAuth();
   const { blocks } = useSocial();
   const toast = useToast();
   const navigate = useNavigate();
@@ -35,6 +38,26 @@ export function MyInfoPage() {
   const [picked, setPicked] = useState<string | null>(null);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [unlinkSocialTarget, setUnlinkSocialTarget] = useState<SocialProvider | null>(null);
+
+  // 소셜 계정 잇기의 결과(`/settings?linked=|error=` → `SettingsRedirectPage` 가 담은 쪽지)를 한 번만 보여 준다.
+  useEffect(() => {
+    const notice = takeSettingsNotice();
+    const shown = notice ? settingsNoticeMessage(notice) : null;
+    if (shown) toast(shown.text, shown.tone);
+    if (notice?.linked) void refreshSession();
+  }, [toast, refreshSession]);
+
+  const unlinkSocial = async (provider: SocialProvider) => {
+    try {
+      await api.unlinkSocial(provider);
+      await refreshSession();
+      toast(`${PROVIDER_LABEL[provider]} 계정 연결을 끊었습니다`, 'ok');
+    } catch (err) {
+      if (isApiError(err) && err.code === 'LAST_SOCIAL_IDENTITY') toast('마지막 로그인 수단은 끊을 수 없습니다', 'error');
+      else toast(isApiError(err) ? err.message : '연결을 끊지 못했습니다', 'error');
+    }
+  };
 
   const lolAccount = gameAccounts.find((account) => account.game === 'LOL');
   const soloRank = rankLabel(lolAccount?.rankCode ?? null);
@@ -162,6 +185,24 @@ export function MyInfoPage() {
             <div className="linked-record-champions" aria-label="챔피언 연동 대기"><span /><span /><span /><small>챔피언 · 최근 20경기</small></div>
           </section>
         </section>
+        <section className="profile-section" aria-labelledby="profile-social-heading">
+          <div className="profile-section-heading">
+            <h2 id="profile-social-heading">소셜 계정</h2>
+            <p>로그인에 쓰는 계정입니다. 하나는 남겨야 합니다.</p>
+          </div>
+          <div className="profile-game-accounts">
+            {SOCIAL_PROVIDERS.map((provider) => {
+              const linked = user?.socialProviders.includes(provider) ?? false;
+              return <div key={provider} className="profile-game-account account-row">
+                <span className={`social-btn s-${provider}`} aria-hidden="true" style={{ width: 40, height: 40, padding: 0, borderRadius: 12 }} />
+                <div className="profile-game-detail"><h3>{PROVIDER_LABEL[provider]}</h3><p className="profile-game-id">{linked ? '연결됨' : '연결 안 됨'}</p></div>
+                {linked
+                  ? <Button size="sm" variant="ghost" className="profile-unlink" aria-label={`${PROVIDER_LABEL[provider]} 연결 끊기`} onClick={() => setUnlinkSocialTarget(provider)}>연결 끊기</Button>
+                  : <Button size="sm" variant="ghost" aria-label={`${PROVIDER_LABEL[provider]} 연결하기`} onClick={() => window.location.assign(api.oauthStartPath(provider))}><IconPlus size={15} />연결하기</Button>}
+              </div>;
+            })}
+          </div>
+        </section>
         <ProfileSettings />
         <section className="profile-section" aria-labelledby="profile-privacy-heading">
           <div className="profile-section-heading"><h2 id="profile-privacy-heading">개인정보와 안전</h2></div>
@@ -197,6 +238,7 @@ export function MyInfoPage() {
           <div className="profile-edit-actions"><Button variant="ghost" disabled={busy} onClick={() => setLinkGame(null)}>취소</Button><Button type="submit" disabled={busy || !externalId.trim()} variant="primary">{busy ? '등록 중…' : 'ID 등록'}</Button></div>
         </form>
       </Modal> : null}
+      {unlinkSocialTarget ? <ConfirmDialog title={`${PROVIDER_LABEL[unlinkSocialTarget]} 계정 연결을 끊을까요?`} description="이 계정으로는 더 이상 로그인할 수 없습니다. 마지막 하나는 끊을 수 없습니다." confirmLabel="연결 끊기" onConfirm={() => unlinkSocial(unlinkSocialTarget)} onClose={() => setUnlinkSocialTarget(null)} /> : null}
       {unlinkTarget ? <ConfirmDialog title={`${gameFullLabel(unlinkTarget.game)} 연결을 해제할까요?`} description="이 게임의 ID가 파티원에게 표시되지 않습니다. 나중에 다시 등록할 수 있습니다." confirmLabel="연결 해제" onConfirm={() => unlink(unlinkTarget.id)} onClose={() => setUnlinkTarget(null)} /> : null}
 
       {avatarOpen ? (

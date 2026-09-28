@@ -1,8 +1,9 @@
 import { Logo } from '../components/Logo';
 import { GameBadge } from '../components/GameSymbol';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { IconBolt, IconMic, IconShield, IconTarget } from '../components/icons';
 import { GAMES } from '../domain/gameConfig';
+import { useAuth } from '../state/AuthContext';
 
 const FEATURES = [
   { icon: <IconBolt />, title: '팀원 찾기', desc: '매칭에 직접 신청하거나 자동으로 찾아요.' },
@@ -12,6 +13,9 @@ const FEATURES = [
 ];
 
 export function LandingPage() {
+  const { status } = useAuth();
+  // 소셜 로그인의 콜백이 성공을 `/` 로 돌려보낸다 — 로그인돼 있으면 곧장 홈이다.
+  if (status === 'authenticated') return <Navigate to="/app/home" replace />;
   return (
     <main className="landing">
       <header className="landing-header">
@@ -29,7 +33,7 @@ export function LandingPage() {
             실시간·예약 매칭으로 찾으세요.
           </p>
           <div className="hero-actions">
-            <Link className="btn btn-primary btn-lg" to="/signup">시작하기</Link>
+            <Link className="btn btn-primary btn-lg" to="/login">시작하기</Link>
           </div>
         </div>
 
