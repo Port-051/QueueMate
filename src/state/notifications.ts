@@ -85,10 +85,11 @@ export function useNotifications() {
   }, [activePartyId, add]);
 
   useEffect(() => {
-    add(receivedRequests.filter(request => request.status === 'PENDING').map(request => ({
-      id: `friend:${request.id}`, kind: 'FRIEND',
-      title: `${request.counterpartNickname}님의 친구 요청`, body: '요청을 확인하고 대화를 시작해 보세요.',
-      href: `/app/messages?user=${encodeURIComponent(request.counterpartUserId)}`, createdAt: request.createdAt,
+    // 받은 요청은 대기 중인 것만 온다(5단계 — `GET /friend-requests?direction=RECEIVED`). id 는 숫자라 문자열로 맞춘다.
+    add(receivedRequests.map(request => ({
+      id: `friend:${request.requestId}`, kind: 'FRIEND',
+      title: `${request.requester.nickname}님의 친구 요청`, body: '받은 요청에서 수락하거나 거절할 수 있어요.',
+      href: `/app/messages?manage=received`, createdAt: request.createdAt,
     })));
   }, [receivedRequests, add]);
 
@@ -97,7 +98,7 @@ export function useNotifications() {
   useEffect(() => {
     const onMessage = (event: Event) => {
       const message = (event as CustomEvent<{ ownerId: string; conversationId: string; senderId: string; senderName: string; text: string; createdAt: string }>).detail;
-      if (!message || message.ownerId !== userId || message.senderId === userId || blocks.some(block => block.userId === message.senderId)) return;
+      if (!message || message.ownerId !== userId || message.senderId === userId || blocks.some(block => String(block.userId) === message.senderId)) return;
       add([{ id: `message:${message.conversationId}:${message.createdAt}:${message.senderId}`, kind: 'MESSAGE', title: `${message.senderName}님의 메시지`, body: message.text, href: `/app/messages?user=${encodeURIComponent(message.senderId)}`, createdAt: message.createdAt }]);
     };
     window.addEventListener('qm:direct-message', onMessage);
@@ -107,7 +108,7 @@ export function useNotifications() {
   useEffect(() => {
     const matched = (event: Event) => {
       const data = (event as CustomEvent<{ ownerId: string; matchId: string; contact: { userId: string; nickname: string }; createdAt: string }>).detail;
-      if (!data || data.ownerId !== userId || blocks.some(block => block.userId === data.contact.userId)) return;
+      if (!data || data.ownerId !== userId || blocks.some(block => String(block.userId) === data.contact.userId)) return;
       add([{ id: `duo:${data.matchId}`, kind: 'MATCH', title: `${data.contact.nickname}님도 오케이했어요`, body: '서로 수락했어요. 메시지에서 대화와 보이스챗을 시작하세요.', href: `/app/messages?user=${encodeURIComponent(data.contact.userId)}`, createdAt: data.createdAt }]);
     };
     window.addEventListener('qm:duo-matched', matched);

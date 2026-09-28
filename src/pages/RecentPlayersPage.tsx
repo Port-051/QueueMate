@@ -1,25 +1,29 @@
 import { useEffect, useState } from 'react';
-import { isApiError } from '../api/error';
 import { ReportModal } from '../components/ReportModal';
 import { IconShield } from '../components/icons';
 import { ActionMenu, Avatar, Button, Card, EmptyState, Tag, useToast } from '../components/ui';
+import { socialErrorMessage } from '../domain/socialErrors';
 import { relativeTime } from '../domain/time';
 import { useSocial } from '../state/SocialContext';
 
+/**
+ * 원본의 최근 함께한 사람 페이지 — **라우트 밖이다**(`/app/recent` 는 메시지 화면의 친구 관리 패널 `?manage=recent` 로 간다 — `App.tsx` · `FriendManagementPanel`).
+ * 5단계(2026-09-29)에 우리 API 모양(`GET /recent-players` → `{players}` · `playCount` · `avatarUrl` · `friend` 없음)으로 컴파일만 되게 고쳤다.
+ */
 export function RecentPlayersPage() {
-  const { recentPlayers, refresh, addFriend, block } = useSocial();
+  const { recentPlayers, refresh, isFriend, addFriend, block } = useSocial();
   const toast = useToast();
-  const [reportTarget, setReportTarget] = useState<{ userId: string; nickname: string } | null>(null);
+  const [reportTarget, setReportTarget] = useState<{ userId: number; nickname: string } | null>(null);
 
-  // 파티가 끝나야 갱신되는 목록이고 알려주는 이벤트가 없다. 화면을 열 때 다시 읽는다.
-  useEffect(() => { void refresh(); }, [refresh]);
+  // 확정된 파티가 닫혀야 채워지는 목록이고 알려주는 이벤트가 없다. 화면을 열 때 다시 읽는다.
+  useEffect(() => { void refresh().catch(() => {}); }, [refresh]);
 
   const run = async (action: Promise<void>, message: string) => {
     try {
       await action;
       toast(message, 'ok');
     } catch (err) {
-      toast(isApiError(err) ? err.message : '요청을 처리하지 못했습니다', 'error');
+      toast(socialErrorMessage(err), 'error');
     }
   };
 
@@ -31,15 +35,15 @@ export function RecentPlayersPage() {
 
       <Card className="flat">
         {recentPlayers.length === 0 ? (
-          <EmptyState title="아직 함께한 사람이 없습니다" desc="파티가 끝나면 기록됩니다." />
+          <EmptyState title="아직 함께한 사람이 없습니다" desc="확정된 파티가 끝나면 기록됩니다." />
         ) : recentPlayers.map((p) => (
           <div key={p.userId} className="list-item">
-            <Avatar name={p.nickname} avatarUrl={p.avatarUrl} size={38} />
+            <Avatar name={p.nickname} size={38} />
             <div className="li-main">
               <b>{p.nickname}</b>
-              <p>{relativeTime(p.lastPlayedAt)} · {p.playCount}회 함께 플레이</p>
+              <p>#{p.userId} · {relativeTime(p.lastPlayedAt)} 함께 플레이</p>
             </div>
-            {p.friend
+            {isFriend(p.userId)
               ? <Tag tone="accent">친구</Tag>
               : <Button size="sm" variant="primary" onClick={() => void run(addFriend(p.userId), `${p.nickname}님에게 친구 요청을 보냈습니다`)}>친구 추가</Button>}
             <ActionMenu label={`${p.nickname} 관리`}>
@@ -53,7 +57,7 @@ export function RecentPlayersPage() {
       </Card>
 
       {reportTarget ? (
-        <ReportModal targetUserId={reportTarget.userId} targetNickname={reportTarget.nickname} onClose={() => setReportTarget(null)} />
+        <ReportModal targetUserId={String(reportTarget.userId)} targetNickname={reportTarget.nickname} onClose={() => setReportTarget(null)} />
       ) : null}
     </section>
   );

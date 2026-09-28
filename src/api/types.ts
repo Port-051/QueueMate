@@ -1,7 +1,7 @@
 /**
  * 백엔드 계약의 타입 — `platform/contracts/platform-api.md` · `matching/contracts/openapi.yaml` · `events.md` 1:1 매핑.
  * 계약에 없는 필드를 임의로 추가하지 않는다. 계약이 정본이고 구현이 따라간다.
- * 아직 원본 프런트의 모양이 남은 절(예약 — 대응물이 없다 · 친구 · 차단 · 신고 — 5단계)은 각 절의 주석 참조. 게임 계정 · 매칭 · 제안은 3단계, 모집 글 · 방은 4단계에서 우리 모양이 됐다.
+ * 원본 프런트의 모양이 남은 절은 예약 하나다(대응물이 없다 — 그 절의 주석 참조). 게임 계정 · 매칭 · 제안은 3단계, 모집 글 · 방은 4단계, 친구 · 차단 · 신고 · 최근 함께한 사람은 5단계에서 우리 모양이 됐다.
  */
 
 export type GameKey = 'LOL' | 'VALORANT' | 'PUBG';
@@ -247,38 +247,44 @@ export interface RoomMembersResponse { roomId: string; hostId: string; members: 
 /** `GET /rooms/me` — 내 입장 표시 키. 없으면 `{roomId: null}`(404 가 아니다). 게시판 방은 글 번호 문자열 · 자동 매칭 방은 UUID. */
 export interface MyRoomResponse { roomId: string | null }
 
-/* ---------- social ---------- */
-export interface FriendView { userId: string; nickname: string; avatarUrl: string | null; friendedAt: string; }
+/* ---------- social (platform-api.md "차단" · "친구 · 신고 · 최근 함께한 사람") — 5단계(2026-09-29)에 우리 모양이 됐다 ---------- */
+
+/**
+ * **id 표기** — 응답의 `userId` · `requestId` · `lastPartyId` · `reportId` 는 JSON **숫자**(사용자 번호 · bigint)다. 요청 본문의 `userId` · `targetUserId` · `contextId` 는
+ * **문자열**로 보낸다(서버가 `String` 으로 받아 `Long` 으로 판다 — 숫자가 아니면 없는 사용자와 같은 404 `USER_NOT_FOUND`). `AuthContext.userId` · 방 응답 · `ROOM_*` 의 id 는
+ * 십진 문자열이라 비교할 때는 `String(userId)` 다. **사람 검색 API 는 없다** — 상대의 번호는 방 안 카드 · 최근 함께한 사람 · 요청 목록에서 오거나 사용자가 직접 넣는다.
+ */
+export interface SocialUser { userId: number; nickname: string; }
+/** `GET /friends` 의 `friends[]` · `POST /friend-requests/{id}/accept` 200. `since` 는 친구가 된 시각(ISO). */
+export interface FriendView { userId: number; nickname: string; since: string; }
+export interface FriendListResponse { friends: FriendView[]; }
+/** `GET /friend-requests?direction=` — **대문자 그대로**(소문자는 400). 기본 `RECEIVED`. */
 export type FriendRequestDirection = 'RECEIVED' | 'SENT';
-export type FriendRequestStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELLED';
-export interface FriendRequestView {
-  id: string;
-  direction: FriendRequestDirection;
-  counterpartUserId: string;
-  counterpartNickname: string;
-  status: FriendRequestStatus;
-  createdAt: string;
-}
-export interface CreateFriendRequest { targetUserId: string; }
-export interface BlockView { userId: string; nickname: string; blockedAt: string; }
-export interface CreateBlockRequest { targetUserId: string; }
+/** 친구 요청 한 줄 — 대기 중인 것만 온다(`status` 칸이 없다). 상대는 `RECEIVED` 면 `requester`, `SENT` 면 `receiver` 다. */
+export interface FriendRequestView { requestId: number; requester: SocialUser; receiver: SocialUser; createdAt: string; }
+export interface FriendRequestListResponse { requests: FriendRequestView[]; }
+/** `POST /friend-requests` — 상대의 사용자 번호(문자열). 409 `ALREADY_FRIENDS` · `FRIEND_REQUEST_ALREADY_SENT` · `FRIEND_REQUEST_ALREADY_RECEIVED` · 400 `CANNOT_FRIEND_SELF` · 404 `USER_NOT_FOUND`(차단 관계도). */
+export interface CreateFriendRequest { userId: string; }
+/** `GET /blocks` 의 `blocks[]` · `POST /blocks` 201 — 내가 차단한 사람만. */
+export interface BlockView { userId: number; nickname: string; createdAt: string; }
+export interface BlockListResponse { blocks: BlockView[]; }
+/** `POST /blocks` — 차단할 사람의 사용자 번호(문자열). 409 `ALREADY_BLOCKED` · 400 `CANNOT_BLOCK_SELF` · 404 `USER_NOT_FOUND`. */
+export interface CreateBlockRequest { userId: string; }
+/**
+ * `GET /recent-players` 의 `players[]` — 확정된 파티가 닫힐 때 채워진다(P-25 · P-30). 최근순 · 50명 · 차단 관계는 뺀다. `?limit` 은 없다.
+ * `lastPartyId` 는 `parties.id`(조회 경로가 없다 — P-31). 원본의 `avatarUrl` · `playCount` · `friend` 는 없다 — "친구" 표시는 친구 목록과 대조해 프런트가 만든다.
+ */
+export interface RecentPlayerView { userId: number; nickname: string; lastPartyId: number | null; lastPlayedAt: string; }
+export interface RecentPlayerListResponse { players: RecentPlayerView[]; }
 
-export interface RecentPlayerView {
-  userId: string;
-  nickname: string;
-  avatarUrl: string | null;
-  lastPlayedAt: string;
-  playCount: number;
-  friend: boolean;
-}
-
-export type ReportReason = 'ABUSIVE_LANGUAGE' | 'HARASSMENT' | 'CHEATING' | 'TROLLING_OR_AFK' | 'INAPPROPRIATE_PROFILE' | 'OTHER';
-export interface CreateReportRequest {
-  targetUserId: string;
-  reason: ReportReason;
-  description?: string | null;
-  partyId?: string | null;
-}
+/** 신고 사유 — `ABUSE`(욕설 · 비매너) · `CHEATING`(핵 · 대리) · `SPAM`(도배 · 광고) · `NO_SHOW`(잠수 · 탈주) · `OTHER`(`detail` 필수). 대문자 그대로. */
+export type ReportReason = 'ABUSE' | 'CHEATING' | 'SPAM' | 'NO_SHOW' | 'OTHER';
+/**
+ * `POST /reports`. `detail` 은 1000자까지(없으면 보내지 않는다 · `OTHER` 면 필수 — 400 `VALIDATION_FAILED`). `contextId` 는 **글의 id 를 문자열로**(게시판 방의 `roomId` 가 그것이다 ·
+ * 자동 매칭 방은 글이 없어 보내지 않는다 · 숫자가 아니면 400). 접수만 받는다 — 차단 관계도 신고할 수 있다. 400 `CANNOT_REPORT_SELF` · 404 `USER_NOT_FOUND`.
+ */
+export interface CreateReportRequest { targetUserId: string; reason: ReportReason; detail?: string; contextId?: string; }
+export interface ReportResponse { reportId: number; createdAt: string; }
 
 /* ---------- SSE (matching/contracts/events.md · platform-api.md "알림" · notification/CLAUDE.md §5) ---------- */
 

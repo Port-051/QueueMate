@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import * as api from '../api/client';
-import { hasErrorCode, isApiError } from '../api/error';
+import { hasErrorCode } from '../api/error';
 import type { UpdatePostRequest, VoicePreference } from '../api/types';
 import { GameBadge } from '../components/GameSymbol';
 import { ReportModal } from '../components/ReportModal';
@@ -9,6 +9,7 @@ import { IconLogout, IconMic, IconMicOff, IconSend, IconShield } from '../compon
 import { ActionMenu, Avatar, Button, Card, CardHead, ConfirmDialog, EmptyState, Field, Modal, Tag, useToast } from '../components/ui';
 import { visibleModes } from '../domain/gameConfig';
 import { gameFullLabel, modeLabel } from '../domain/labels';
+import { socialErrorMessage } from '../domain/socialErrors';
 import { formatTime } from '../domain/time';
 import { toBoardRoom } from '../rooms/boardRoom';
 import { roomErrorMessage } from '../rooms/errors';
@@ -37,14 +38,14 @@ const VOICE_LABEL: Record<VoiceStatus, string> = {
  * - 사람 목록은 id 뿐이라(`GET …/members`) **게시판 방이면 `GET /posts/{postId}` 의 카드로** 닉네임 · 프로필을 붙인다. 자동 매칭 방은 글이 없어 id 만 보여 준다(게임 · 정원도 모른다 — 응답에 없다).
  * - 나가기 `DELETE …/members/me`(늘 204) · 강퇴 `DELETE …/members/{userId}`(방장) · 확정 `POST …/confirm`(게시판 방 · 방장 · 2명 이상 · **되돌릴 수 없다** — 한 번 더 묻는다).
  *   글 고치기 `PATCH /posts/{postId}`(방장 혼자일 때만 — 409 `ROOM_HAS_OTHER_MEMBERS`) · 지우기 `DELETE /posts/{postId}`(만료로 바꾸고 방도 닫힌다).
- * - 음성 · 채팅은 WebRTC 직결(`PartySessionContext`). 친구 · 차단 · 신고 버튼은 `SocialContext` 를 부른다 — 그 내부를 우리 API 로 바꾸는 것은 5단계다.
+ * - 음성 · 채팅은 WebRTC 직결(`PartySessionContext`). 친구 추가 · 차단 · 신고는 `SocialContext` · `ReportModal`(5단계 — 우리 API. 신고의 `contextId` 는 게시판 방이면 글 번호, 자동 매칭 방은 없다).
  */
 export function PartyRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const { userId } = useAuth();
   const session = useRoomSession();
   const { messages, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef, setConnectionAttempt } = usePartySession();
-  const { friends, addFriend, block } = useSocial();
+  const { isFriend, addFriend, block } = useSocial();
   const navigate = useNavigate();
   const toast = useToast();
   const postId = roomId && !isMatchRoomId(roomId) ? Number(roomId) : null;
@@ -127,12 +128,12 @@ export function PartyRoomPage() {
 
   const onFriendRequest = async (targetId: string, nickname: string) => {
     try { await addFriend(targetId); toast(`${nickname}님에게 친구 요청을 보냈습니다`, 'ok'); }
-    catch (err) { toast(isApiError(err) ? err.message : '친구 요청을 보내지 못했습니다', 'error'); }
+    catch (err) { toast(socialErrorMessage(err, '친구 요청을 보내지 못했습니다'), 'error'); }
   };
 
   const onBlock = async (targetId: string, nickname: string) => {
     try { await block(targetId); toast(`${nickname}님을 차단했습니다. 앞으로 같은 파티가 되지 않습니다`, 'ok'); }
-    catch (err) { toast(isApiError(err) ? err.message : '차단하지 못했습니다', 'error'); }
+    catch (err) { toast(socialErrorMessage(err, '차단하지 못했습니다'), 'error'); }
   };
 
   return (
@@ -232,7 +233,7 @@ export function PartyRoomPage() {
                   {room && m.card ? <RoomMemberFacts room={room} member={m.card} /> : <p className="hint">{postId === null ? `사용자 번호 ${m.id}` : '프로필 정보 없음'}</p>}
                   {m.id !== userId ? (
                     <div className="row" style={{ gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                      {friends.some((f) => f.userId === m.id)
+                      {isFriend(m.id)
                         ? <Tag tone="accent">친구</Tag>
                         : <Button size="sm" onClick={() => void onFriendRequest(m.id, m.nickname)}>친구 추가</Button>}
                       {isHost ? <Button size="sm" variant="ghost" onClick={() => setDialog({ kind: 'kick', userId: m.id, nickname: m.nickname })}>내보내기</Button> : null}
@@ -259,7 +260,7 @@ export function PartyRoomPage() {
       {dialog?.kind === 'delete' ? <ConfirmDialog title="글을 지우고 방을 닫을까요?" confirmLabel="지우기" onClose={() => setDialog(null)} onConfirm={deletePost}
         description="글은 만료로 바뀌어 게시판에 남고, 방은 닫혀 안에 있던 사람이 모두 나가게 돼요." /> : null}
       {dialog?.kind === 'edit' && room ? <EditPostModal room={room} onClose={() => setDialog(null)} onSaved={next => { setRoom(next); setDialog(null); toast('글을 고쳤어요', 'ok'); }} /> : null}
-      {reportTarget ? <ReportModal targetUserId={reportTarget.userId} targetNickname={nicknameOf(reportTarget.userId)} partyId={postId !== null ? roomId : null} onClose={() => setReportTarget(null)} /> : null}
+      {reportTarget ? <ReportModal targetUserId={reportTarget.userId} targetNickname={nicknameOf(reportTarget.userId)} contextId={postId !== null ? roomId : null} onClose={() => setReportTarget(null)} /> : null}
     </section>
   );
 }

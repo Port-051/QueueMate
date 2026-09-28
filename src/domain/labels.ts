@@ -44,13 +44,13 @@ export const RESERVATION_STATUS_LABEL: Record<ReservationStatus, string> = {
   COMPLETED: '완료됨',
 };
 
+/** 신고 사유 — platform-api.md "친구 · 신고 · 최근 함께한 사람" 의 다섯(원본의 여섯 이름은 우리 백엔드에 없다). `OTHER` 는 `detail` 이 필수다. */
 export const REPORT_REASONS: { value: ReportReason; label: string }[] = [
-  { value: 'ABUSIVE_LANGUAGE', label: '욕설/비속어' },
-  { value: 'HARASSMENT', label: '괴롭힘' },
-  { value: 'CHEATING', label: '핵/불법 프로그램' },
-  { value: 'TROLLING_OR_AFK', label: '트롤링/잠수' },
-  { value: 'INAPPROPRIATE_PROFILE', label: '부적절한 프로필' },
-  { value: 'OTHER', label: '기타' },
+  { value: 'ABUSE', label: '욕설 · 비매너' },
+  { value: 'CHEATING', label: '핵 · 대리' },
+  { value: 'SPAM', label: '도배 · 광고' },
+  { value: 'NO_SHOW', label: '잠수 · 탈주' },
+  { value: 'OTHER', label: '기타 (설명 필수)' },
 ];
 
 /** 조건 한 줄 요약. 카드/리스트에서 재사용한다. */

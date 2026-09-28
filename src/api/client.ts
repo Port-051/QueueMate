@@ -1,16 +1,16 @@
 import { request } from './http';
 import type {
-  AutoJoinResponse, BlockView, CreateBlockRequest, CreateFriendRequest, CreateMatchRequest, CreatePostRequest,
-  CreateReportRequest, CreateReservationRequest, FriendRequestDirection, FriendRequestView, FriendView,
+  AutoJoinResponse, BlockListResponse, BlockView, CreateBlockRequest, CreateFriendRequest, CreateMatchRequest, CreatePostRequest,
+  CreateReportRequest, CreateReservationRequest, FriendListResponse, FriendRequestDirection, FriendRequestListResponse, FriendRequestView, FriendView,
   GameAccountRequest, GameKey, GameProfile, MatchRequestView, MatchRoomResponse, MyRoomResponse,
-  PostListResponse, PostResponse, RecentPlayerView, ReservationView, RoomMembersResponse, SessionUser, SocialProvider, SocialSignupPending,
+  PostListResponse, PostResponse, RecentPlayerListResponse, ReportResponse, ReservationView, RoomMembersResponse, SessionUser, SocialProvider, SocialSignupPending,
   SendRoomSignalRequest, SocialSignupRequest, UpdatePostRequest, UpdateUserRequest, UserProfile,
 } from './types';
 
 /**
  * 백엔드 엔드포인트. 계정 · 소셜 · 방 · 게시판은 `platform/contracts/platform-api.md`, 매칭 · 제안은 `matching/contracts/openapi.yaml` 이 원본이다.
- * 계약에 없는 경로를 부르지 않고, 계약에 있는 경로를 빠뜨리지 않는다. 아직 원본 프런트의 경로가 남은 절(친구 · 차단 · 신고 — 5단계)과
- * **대응물이 없는 절(예약 · 아바타 — 부르면 404 · 화면을 남긴다, START_HERE.md §5)**은 각 절의 주석 참조. 모집 글 · 방은 4단계에서 우리 경로가 됐다.
+ * 계약에 없는 경로를 부르지 않고, 계약에 있는 경로를 빠뜨리지 않는다. **대응물이 없는 절(예약 · 아바타 — 부르면 404 · 화면을 남긴다, START_HERE.md §5)**은
+ * 각 절의 주석 참조. 모집 글 · 방은 4단계, 친구 · 차단 · 신고 · 최근 함께한 사람은 5단계(2026-09-29)에서 우리 경로가 됐다.
  */
 
 /* ---------- auth (인증 불필요 — /api/v1/auth/**) ---------- */
@@ -161,21 +161,39 @@ export const getMyRoom = () => request<MyRoomResponse>('/rooms/me');
 export const sendSignal = (roomId: string, body: SendRoomSignalRequest) =>
   request<void>(`${room(roomId)}/signals`, { method: 'POST', body });
 
-/* ---------- social ---------- */
-export const listFriends = () => request<FriendView[]>('/friends');
-export const removeFriend = (userId: string) => request<void>(`/friends/${userId}`, { method: 'DELETE' });
+/* ---------- social (platform-api.md "차단" · "친구 · 신고 · 최근 함께한 사람" — 5단계 · 2026-09-29) — 경로의 `{userId}` · `{requestId}` 는 숫자여야 한다(아니면 400) ---------- */
+/** 친구 목록 — 닉네임순. 응답은 `{friends: […]}` 로 감싸여 있다. */
+export const listFriends = () => request<FriendListResponse>('/friends');
+/** 친구 끊기 — 친구가 아니어도 204(멱등). 상대에게 알리지 않는다. */
+export const removeFriend = (userId: string) => request<void>(`/friends/${encodeURIComponent(userId)}`, { method: 'DELETE' });
+/** 대기 중인 친구 요청 — `direction` 은 **대문자 그대로**(`RECEIVED` 기본 · `SENT`). 새것이 먼저. `{requests: […]}`. */
 export const listFriendRequests = (direction: FriendRequestDirection = 'RECEIVED') =>
-  request<FriendRequestView[]>('/friend-requests', { query: { direction } });
+  request<FriendRequestListResponse>('/friend-requests', { query: { direction } });
+/**
+ * 친구 요청 — 본문 `{userId}`(상대의 사용자 번호 · 문자열). 201 친구 요청 한 줄. 상대에게 `FRIEND_REQUEST_RECEIVED` 가 간다.
+ * 409 `ALREADY_FRIENDS` · `FRIEND_REQUEST_ALREADY_SENT` · `FRIEND_REQUEST_ALREADY_RECEIVED`(상대가 이미 보냈다 — 받은 요청을 수락하면 된다) · 400 `CANNOT_FRIEND_SELF` ·
+ * 404 `USER_NOT_FOUND`(없는 번호 · 숫자가 아님 · **어느 방향이든 차단 관계** — 차단당한 사실이 새지 않게 같은 404 다).
+ */
 export const sendFriendRequest = (body: CreateFriendRequest) =>
   request<FriendRequestView>('/friend-requests', { method: 'POST', body });
-export const acceptFriendRequest = (id: string) => request<FriendView>(`/friend-requests/${id}/accept`, { method: 'POST' });
-export const declineFriendRequest = (id: string) => request<void>(`/friend-requests/${id}/decline`, { method: 'POST' });
-export const cancelFriendRequest = (id: string) => request<void>(`/friend-requests/${id}`, { method: 'DELETE' });
+/** 수락 — 200 새 친구 `{userId, nickname, since}`. 보낸 사람에게 `FRIEND_REQUEST_ACCEPTED` 가 간다. 404 `FRIEND_REQUEST_NOT_FOUND`(없음 · 내가 받은 것이 아님 · 이미 처리됨). */
+export const acceptFriendRequest = (requestId: number) => request<FriendView>(`/friend-requests/${requestId}/accept`, { method: 'POST' });
+/** 거절 — 204. 상대에게 알리지 않는다. 404 `FRIEND_REQUEST_NOT_FOUND`. */
+export const declineFriendRequest = (requestId: number) => request<void>(`/friend-requests/${requestId}/decline`, { method: 'POST' });
+/** 거두기 — 보낸 사람이. 204. 404 `FRIEND_REQUEST_NOT_FOUND`. */
+export const cancelFriendRequest = (requestId: number) => request<void>(`/friend-requests/${requestId}`, { method: 'DELETE' });
 
-export const listBlocks = () => request<BlockView[]>('/blocks');
+/** 내가 차단한 사람 — 새로 차단한 사람이 먼저. `{blocks: […]}`. 나를 차단한 사람은 알 수 없다. */
+export const listBlocks = () => request<BlockListResponse>('/blocks');
+/**
+ * 차단 — 본문 `{userId}`(문자열). 201 `{userId, nickname, createdAt}`. 이미 맺은 친구 관계 · 같은 방에 있는 상태는 건드리지 않는다(미정 그대로).
+ * 그 뒤로 그 사람이 있는 글은 목록에서 빠지고 매칭에서도 만나지 않는다. 409 `ALREADY_BLOCKED` · 400 `CANNOT_BLOCK_SELF` · 404 `USER_NOT_FOUND`.
+ */
 export const blockUser = (body: CreateBlockRequest) => request<BlockView>('/blocks', { method: 'POST', body });
-export const unblockUser = (userId: string) => request<void>(`/blocks/${userId}`, { method: 'DELETE' });
+/** 차단 해제 — 차단한 적 없어도 204(멱등). */
+export const unblockUser = (userId: string) => request<void>(`/blocks/${encodeURIComponent(userId)}`, { method: 'DELETE' });
 
-/** limit 범위는 1~50이다. 벗어나면 400 VALIDATION_FAILED다 (docs/14 §11-7). */
-export const listRecentPlayers = (limit = 20) => request<RecentPlayerView[]>('/recent-players', { query: { limit } });
-export const reportUser = (body: CreateReportRequest) => request<void>('/reports', { method: 'POST', body });
+/** 최근 함께한 사람 — 최근순 · 50명까지 · 차단 관계 제외. `?limit` 은 없다. `{players: […]}`. 확정된 파티가 닫힐 때 채워진다(P-25 · P-30). */
+export const listRecentPlayers = () => request<RecentPlayerListResponse>('/recent-players');
+/** 신고 — 201 `{reportId, createdAt}`. 접수만 한다(처리 화면 · 제재 없음). 같은 사람을 여러 번 신고할 수 있다. 400 `CANNOT_REPORT_SELF` · 404 `USER_NOT_FOUND` · 400 `VALIDATION_FAILED`(`details[0]`). */
+export const reportUser = (body: CreateReportRequest) => request<ReportResponse>('/reports', { method: 'POST', body });

@@ -27,7 +27,7 @@ function MyRoomRedirect() {
 function LegacyFriendsRedirect() {
   const { search } = useLocation();
   const tab = new URLSearchParams(search).get('tab');
-  const manage = tab === 'blocks' || tab === 'sent' ? tab : 'friends';
+  const manage = tab === 'blocks' || tab === 'sent' || tab === 'received' ? tab : 'friends';
   return <Navigate to={`/app/messages?manage=${manage}`} replace />;
 }
 
@@ -57,7 +57,8 @@ export function App() {
         <Route path="party/:roomId" element={<PartyRoomPage />} />
         <Route path="messages" element={<DirectMessagesPage />} />
         <Route path="friends" element={<LegacyFriendsRedirect />} />
-        <Route path="recent" element={<Navigate to="/app/messages" replace />} />
+        {/* 친구 · 차단 · 최근 함께한 사람은 메시지 화면의 친구 관리 패널(`?manage=`)이다(5단계). `pages/FriendsPage` · `RecentPlayersPage` 는 라우트 밖이다. */}
+        <Route path="recent" element={<Navigate to="/app/messages?manage=recent" replace />} />
         <Route path="me" element={<MyInfoPage />} />
         <Route path="settings" element={<Navigate to="/app/me#settings" replace />} />
       </Route>

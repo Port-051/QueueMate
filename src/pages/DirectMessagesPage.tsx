@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { isApiError } from '../api/error';
+import { socialErrorMessage } from '../domain/socialErrors';
 import { ConversationMenu, ConversationPin } from '../components/ConversationMenu';
 import { FriendManagementPanel, type ManagementTab } from '../components/FriendManagementPanel';
 import { DirectVoiceStage } from '../components/DirectVoiceStage';
@@ -56,19 +56,21 @@ export function DirectMessagesPage() {
   const searchRef = useRef<HTMLInputElement>(null);
   const selectedButtonRef = useRef<HTMLButtonElement>(null);
   // The local social adapter may update the array in place; derive from IDs, not its reference.
-  const blockedKey = JSON.stringify(social.blocks.map(contact => contact.userId).sort());
+  const blockedKey = JSON.stringify(social.blocks.map(contact => String(contact.userId)).sort());
   const blockedIds = useMemo(() => new Set<string>(JSON.parse(blockedKey)), [blockedKey]);
   const sourceContacts = useMemo(() => {
     const contacts = new Map<string, Contact>();
-    [...social.receivedRequests, ...social.sentRequests].forEach(request => contacts.set(request.counterpartUserId, { userId: request.counterpartUserId, nickname: request.counterpartNickname, avatarUrl: null, friend: false }));
-    social.recentPlayers.forEach(contact => contacts.set(contact.userId, { ...contact, friend: false, recentAt: contact.lastPlayedAt }));
-    social.friends.forEach(contact => contacts.set(contact.userId, { ...contacts.get(contact.userId), ...contact, friend: true }));
+    // 5단계 — 서버의 id 는 숫자다. 이 화면(localStorage 의 대화 · 방 응답)은 십진 문자열을 쓰므로 여기서 `String()` 으로 맞춘다. 아바타는 우리 백엔드에 없다(늘 null).
+    social.receivedRequests.forEach(request => contacts.set(String(request.requester.userId), { userId: String(request.requester.userId), nickname: request.requester.nickname, avatarUrl: null, friend: false }));
+    social.sentRequests.forEach(request => contacts.set(String(request.receiver.userId), { userId: String(request.receiver.userId), nickname: request.receiver.nickname, avatarUrl: null, friend: false }));
+    social.recentPlayers.forEach(contact => contacts.set(String(contact.userId), { userId: String(contact.userId), nickname: contact.nickname, avatarUrl: null, friend: false, recentAt: contact.lastPlayedAt }));
+    social.friends.forEach(contact => contacts.set(String(contact.userId), { ...contacts.get(String(contact.userId)), userId: String(contact.userId), nickname: contact.nickname, avatarUrl: null, friend: true }));
     return [...contacts.values()].filter(contact => contact.userId !== userId && !blockedIds.has(contact.userId));
   }, [social.recentPlayers, social.friends, social.receivedRequests, social.sentRequests, userId, blockedIds]);
 
   useEffect(() => { void social.refresh().catch(() => toast('연락처를 불러오지 못했습니다.', 'error')); }, [social.refresh, toast]);
   useEffect(() => {
-    setManagement(managementParam ? managementParam === 'blocks' ? 'blocks' : managementParam === 'sent' ? 'sent' : managementParam === 'friends' ? 'friends' : 'received' : null);
+    setManagement(managementParam ? managementParam === 'blocks' ? 'blocks' : managementParam === 'sent' ? 'sent' : managementParam === 'friends' ? 'friends' : managementParam === 'recent' ? 'recent' : 'received' : null);
   }, [managementParam]);
   useEffect(() => {
     if (!userId || sourceContacts.length === 0) return;
@@ -113,8 +115,8 @@ export function DirectMessagesPage() {
       && (!term || contact.nickname.toLocaleLowerCase().includes(term) || thread?.messages.some(message => message.text.toLocaleLowerCase().includes(term)))
       && (listTab !== 'unread' || Boolean(thread && userId && unreadMessages(thread, userId)));
   });
-  const pendingSent = social.sentRequests.find(request => request.counterpartUserId === selectedId);
-  const pendingReceived = social.receivedRequests.find(request => request.counterpartUserId === selectedId);
+  const pendingSent = selectedId ? social.requestTo(selectedId) : undefined;
+  const pendingReceived = selectedId ? social.requestFrom(selectedId) : undefined;
 
   useEffect(() => {
     if (!selected || !userId || management) return;
@@ -152,7 +154,7 @@ export function DirectMessagesPage() {
     if (busy) return;
     setBusy(true);
     try { await action(); toast(message, 'ok'); }
-    catch (error) { toast(isApiError(error) ? error.message : '요청을 처리하지 못했습니다.', 'error'); }
+    catch (error) { toast(socialErrorMessage(error, '요청을 처리하지 못했습니다.'), 'error'); }
     finally { setBusy(false); }
   };
   const pin = (contact: Contact) => {
@@ -161,7 +163,7 @@ export function DirectMessagesPage() {
     catch { setStorageError('고정 상태를 저장하지 못했습니다.'); }
   };
   const relationship = (contact: Contact) => contact.friend ? '친구' : contact.recentAt ? '최근 함께한 사람'
-    : [...social.receivedRequests, ...social.sentRequests].some(request => request.counterpartUserId === contact.userId) ? '친구 요청' : '연락처';
+    : social.requestFrom(contact.userId) || social.requestTo(contact.userId) ? '친구 요청' : '연락처';
 
   const renderContact = (contact: Contact) => {
     const thread = snapshot.conversations[contact.userId];
@@ -208,7 +210,7 @@ export function DirectMessagesPage() {
             <div className="dm-thread-actions">
               <button type="button" className="dm-icon-btn dm-call-button" aria-label="통화 시작" title="음성 연결 준비 중" disabled onClick={() => setVoiceContact(selected.userId)}><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 2.5 9 7.7a1.5 1.5 0 0 1-.4 1.7l-1.5 1.2a15 15 0 0 0 6.3 6.3l1.2-1.5a1.5 1.5 0 0 1 1.7-.4l5.2 2.4c.5.2.8.8.6 1.4l-.6 2c-.2.7-.9 1.2-1.6 1.2C10.1 22 2 13.9 2 4.1c0-.7.5-1.4 1.2-1.6l2-.6c.6-.2 1.2.1 1.4.6Z" /></svg></button>
               {!selected.friend ? <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(
-                () => pendingReceived ? social.acceptRequest(pendingReceived.id) : pendingSent ? social.cancelRequest(pendingSent.id) : social.addFriend(selected.userId),
+                () => pendingReceived ? social.acceptRequest(pendingReceived.requestId) : pendingSent ? social.cancelRequest(pendingSent.requestId) : social.addFriend(selected.userId),
                 pendingReceived ? '친구 요청을 수락했습니다' : pendingSent ? '요청을 취소했습니다' : '친구 요청을 보냈습니다',
               )}>{pendingReceived ? '요청 수락' : pendingSent ? '요청 취소' : '친구 추가'}</Button> : null}
               <ActionMenu label={`${selected.nickname} 관리`}>
