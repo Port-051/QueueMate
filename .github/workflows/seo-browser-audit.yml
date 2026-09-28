@@ -2,9 +2,9 @@ name: SEO browser and accessibility audit
 on:
   push:
     branches: [feat/seo-landing, main]
-    paths: ['landing/src/**', 'landing/qa/**', 'landing/scripts/check-url.mjs', '.github/workflows/seo-browser-audit.yml']
+    paths: ['landing/src/**', 'landing/public/**', 'landing/qa/**', 'landing/scripts/check-url.mjs', '.github/workflows/seo-browser-audit.yml']
   pull_request:
-    paths: ['landing/src/**', 'landing/qa/**', 'landing/scripts/check-url.mjs', '.github/workflows/seo-browser-audit.yml']
+    paths: ['landing/src/**', 'landing/public/**', 'landing/qa/**', 'landing/scripts/check-url.mjs', '.github/workflows/seo-browser-audit.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -30,10 +30,13 @@ jobs:
           npm ci --prefix landing --ignore-scripts --no-audit --no-fund
           npm test --prefix landing
           npm run build --prefix landing
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
           python -m pip install --disable-pip-version-check playwright==1.55.0
           npm install --prefix "$RUNNER_TEMP/qmate-audit-tools" --no-audit --no-fund agent-browser@0.38.1 lighthouse@12.8.2
           echo "CHROME_BIN=$(command -v google-chrome)" >> "$GITHUB_ENV"
           mkdir -p qa-results
+          fc-match -f '%{family}\n' 'sans:lang=ko' > qa-results/korean-font.txt
           cp "$RUNNER_TEMP/qmate-audit-tools/package-lock.json" qa-results/audit-tools-lock.json
       - name: Start local server and verify it with agent-browser
         run: |
