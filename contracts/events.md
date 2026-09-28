@@ -65,7 +65,7 @@
 | `MATCH_PROPOSAL_CREATED` | 같은 클래스들의 `JOINED_AND_FULL` 분기 | **발행됨.** payload `{memberNumber, target, partyId}` |
 | `MATCH_CANCELLED` | `rule/{lol,pubg,valorant}/*PartyLeaver.java` (남은 파티원에게만, 취소한 본인 제외) | **발행됨.** payload `{memberNumber}` |
 | `MATCH_PROPOSAL_EXPIRED` | `service/ProposalExpiryService.java#expire()` | **발행됨.** payload `{partyId}`. 시한이 지난 제안을 `service/ProposalSweeper.java`(`@Scheduled`, `queuemate.sweep.interval-ms`, 기본 1초)가 `qm:proposal:pending` ZSET 에서 꺼내 `redis/proposal/expiry-proposal.lua` 로 깬다. **받는 사람은 그 제안에 있던 전원**이다 — 수락하지 않은 사람(큐에서도 빠진다)과 수락한 사람(파티에 남아 다시 기다린다)을 가리지 않는다. 수락자도 받아야 제안 화면에 갇히지 않기 때문이다. **거절**로 제안이 깨졌을 때 남은 사람에게 알리는 것은 여전히 없다(계약에 그 type 이 없다 — 아래 "미해결 계약 구멍") |
-| `MATCH_CONFIRMED` | `service/ProposalService.java#accept()` | **발행됨.** payload `{partyId}`. `redis/proposal/accept-proposal.lua` 가 수락자 SET 을 `SCARD` 로 세어 `target` 에 닿으면 `status = CONFIRMED` 를 찍고(INV-4), 이어서 `redis/proposal/cleanup-confirmed.lua` 가 돌려준 파티원 전원에게 나간다. **확정을 만든 그 한 번의 호출에서만 나간다** — 이미 확정된 제안에 수락이 또 오면 스크립트가 `CONFIRMED` 가 아니라 `ALREADY_RESPONDED` 를 돌려주므로 같은 알림이 두 번 나가지 않는다. **이 알림이 파티 생성의 신호다**(docs/11 D-42) — `cleanup-confirmed.lua` 가 파티 HASH `qm:party:{partyId}` 에 `game` / `modeKey` / `voicePreference` / `playPurpose` / `confirmedAt` 을 채워 두고 TTL 600초를 걸며, 받은 클라이언트가 `app:platform` 의 "이 매칭으로 파티 만들기"(경로 미정)를 부르면 platform 이 그 HASH 를 읽어 파티와 방을 만든다(파티원 다섯이 다 눌러도 `partyId` 로 한 번만). 알림을 놓쳤으면 60초 안(`confirmed-retention-seconds`)에는 `GET /match-requests` 가 `MATCHED` + `partyId` 를 답해 복구된다. `ProposalConfirmed.fifo` 는 두지 않는다 — 아래 "서버 간 이벤트" 절 |
+| `MATCH_CONFIRMED` | `service/ProposalService.java#accept()` | **발행됨.** payload `{partyId}`. `redis/proposal/accept-proposal.lua` 가 수락자 SET 을 `SCARD` 로 세어 `target` 에 닿으면 `status = CONFIRMED` 를 찍고(INV-4), 이어서 `redis/proposal/cleanup-confirmed.lua` 가 돌려준 파티원 전원에게 나간다. **확정을 만든 그 한 번의 호출에서만 나간다** — 이미 확정된 제안에 수락이 또 오면 스크립트가 `CONFIRMED` 가 아니라 `ALREADY_RESPONDED` 를 돌려주므로 같은 알림이 두 번 나가지 않는다. **이 알림이 파티 생성의 신호다**(docs/11 D-42) — `cleanup-confirmed.lua` 가 파티 HASH `qm:party:{partyId}` 에 `game` / `modeKey` / `voicePreference` / `playPurpose` / `confirmedAt` 을 채워 두고 TTL 600초를 걸며, 받은 클라이언트가 `app:platform` 의 `POST /api/v1/match-parties/{partyId}/room`(그쪽 계약 P-30, 2026-09-27)을 부르면 platform 이 그 HASH 를 읽어 파티와 방을 만든다(파티원 다섯이 다 눌러도 `partyId` 로 한 번만). 알림을 놓쳤으면 60초 안(`confirmed-retention-seconds`)에는 `GET /match-requests` 가 `MATCHED` + `partyId` 를 답해 복구된다. `ProposalConfirmed.fifo` 는 두지 않는다 — 아래 "서버 간 이벤트" 절 |
 
 payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약 구멍"이 지적한 그대로
 15종 전부 payload 스키마가 비어 있어서, 구현이 먼저 정하고 여기에 적어 둔 것이다.
@@ -218,7 +218,7 @@ payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약
 >
 > **대신 이렇게 간다.**
 > 1. 전원 수락으로 확정되면 이 앱의 `cleanup-confirmed.lua` 가 파티 HASH **`qm:party:{partyId}`** 를 자기완결로 채우고 `MATCH_CONFIRMED {partyId}` 를 파티 전원에게 보낸다.
-> 2. 클라이언트가 `app:platform` 의 **"이 매칭으로 파티 만들기"** 를 부른다 — **경로 · 요청 본문 · 에러 코드는 platform 이 정한다(미정).**
+> 2. 클라이언트가 `app:platform` 의 **`POST /api/v1/match-parties/{partyId}/room`** 을 부른다 — 본문 없음, 201(방을 만듦)/200(들어감), 404 `MATCH_PARTY_NOT_FOUND` · 403 `NOT_PARTY_MEMBER` · 409 `IN_OTHER_ROOM` · 503 (`../platform/contracts/platform-api.md` "자동 매칭 파티의 방" · P-30, 2026-09-27).
 > 3. platform 이 그 HASH 를 읽어(`status == CONFIRMED` 확인) 파티와 방을 만들고 파티원 전원에게 입장 표시 키 `qm:user:active-room:{userId}` 를 찍는다(D-19). 파티원 다섯이 다 눌러도 `partyId` 유일 키로 **한 번만** 만든다.
 >
 > **파티 HASH 의 필드가 계약이다** — 이름을 바꾸면 platform 이 조용히 깨진다(`redisKeys/SharedKeys` 의 경고와 같다).

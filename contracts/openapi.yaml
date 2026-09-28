@@ -141,6 +141,31 @@ paths:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '503': { description: Matching unavailable — Retry-After 5 (MATCHING_UNAVAILABLE) }
 
+  /match-requests/heartbeat:
+    post:
+      summary: Heartbeat for the active realtime matching request
+      description: |
+        [구현됨] MatchingController#heartbeat (2026-09-28)
+        > 개정 이력: 2026-09-28 (A-16) — 이 사본이 원본보다 앞서간 변경이다. 원본에는 이 엔드포인트가 없다 (docs/11 D-43).
+        왜 — 대기 화면을 열어 둔 채 창을 닫거나 브라우저가 죽은 사람의 요청이 그대로 남아 파티 자리를 붙들고 제안을 만료시킨다.
+        배정 전의 claim TTL(60초)은 배정되면 풀리므로 배정 뒤에는 이것이 유일한 거두는 길이다.
+        클라이언트 규약 — 대기 화면(QUEUED · PROPOSED)이 열려 있는 동안 **30초마다** 보낸다. 본문 없음. 누구의 요청인지는 쿠키의 sub 다.
+        서버는 마지막 신호로부터 **90초**(queuemate.alive.grace-ms) 안에 다음 신호가 없으면 그 요청을 취소한다 — 신호 세 번을 놓치면 빠진다.
+        취소되면 남은 파티원에게 MATCH_CANCELLED 가 가고 본인에게는 아무 알림도 없다(창이 닫힌 사람이다) — 살아 있는데 신호를 못 보낸 클라이언트는
+        다음 heartbeat 의 404 로 안다. 확정된 요청(MATCHED)에는 보내지 않아도 된다 — 서버가 취소하지 않는다(그 뒤 접속 확인은 platform 의 방 몫이다).
+        닫기 신호(pagehide 의 keepalive DELETE)는 두지 않는다 — 새로고침도 취소돼 버린다. 새로고침은 신호가 몇 초 끊길 뿐 유예 안이다.
+        응답 본문은 없다. 접수 · 조회 응답에 "다음 신호까지" 를 싣지 않는다 — 주기는 이 규약(30초)이다.
+      responses:
+        '204': { description: Alive — 활성 요청이 있어 시한을 뒤로 밀었다 }
+        '401': { description: Missing or invalid qm_access cookie (UNAUTHENTICATED) }
+        '403': { description: Origin not allowed (ORIGIN_NOT_ALLOWED) }
+        '404':
+          description: No active request (MATCH_REQUEST_NOT_FOUND) — 이미 큐에서 빠졌다(취소 · 유예 만료 · 확정 뒤 60초 경과). GET /match-requests 로 상태를 다시 조회한다
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503': { description: Matching unavailable — Retry-After 5 (MATCHING_UNAVAILABLE) }
+
   # ── proposal ─────────────────────────────────────────────────
   # > 개정 이력: 2026-09-27 — 이 사본이 원본보다 앞서간 변경이다 (contracts/README.md A-13, 불일치 표 #6 · #6-1 · #6-2).
   #   원본은 accept 가 200 + ProposalView, decline 이 200(본문 없음)이었다. 구현(controller/ProposalController.java)에 맞춰
@@ -380,7 +405,7 @@ components:
             - INVALID_MATCH_CONDITION  # 400 — 게임별 조건 검증 실패 (없는 modeKey, 모드에 안 맞는 keyCondition 값, tierRule 에 안 맞는 tier)
             - ALREADY_QUEUED           # 409 — INV-1
             - IN_ROOM                  # 409 — 게시판 방에 들어가 있다 (docs/11 D-11 15번) — contracts/README.md A-10
-            - MATCH_REQUEST_NOT_FOUND  # 404 — 취소할 활성 요청이 없다
+            - MATCH_REQUEST_NOT_FOUND  # 404 — 취소할 활성 요청이 없다. heartbeat 도 같은 코드다 (2026-09-28, A-16)
             - MATCH_REQUEST_MISMATCH   # 404 — 저장된 requestId 와 다르다 (늦게 도착한 취소)
             - PROPOSAL_NOT_FOUND       # 404 — 진행 중인 제안이 없다 (만료 · 누가 거절함 · 거절 재시도) (2026-09-27, A-13)
             - PROPOSAL_CONFLICT        # 409 — 이미 확정됐다 / 수락해 놓고 거절했다 / 다른 참가자가 거절했다 (2026-09-27, A-13)
