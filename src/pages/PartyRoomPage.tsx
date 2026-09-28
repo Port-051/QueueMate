@@ -25,7 +25,7 @@ const VOICE_LABEL: Record<VoiceStatus, string> = {
 
 export function PartyRoomPage({ embedded = false }: { embedded?: boolean }) {
   const { partyId: routePartyId } = useParams<{ partyId: string }>();
-  const { user } = useAuth();
+  const { user, userId } = useAuth();
   const { stream, activePartyId, setActivePartyId } = useMatch();
   const partyId = embedded ? activePartyId ?? undefined : routePartyId;
   const { messages, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef, setConnectionAttempt } = usePartySession();
@@ -88,8 +88,8 @@ export function PartyRoomPage({ embedded = false }: { embedded?: boolean }) {
     );
   }
 
-  const me = party.members.find((m) => m.userId === user?.id);
-  const peerCount = party.members.filter((m) => m.userId !== user?.id).length;
+  const me = party.members.find((m) => m.userId === userId);
+  const peerCount = party.members.filter((m) => m.userId !== userId).length;
   const canChat = !closed && connectedPeers.length > 0;
   const needsReconnect = !closed && connectedPeers.length < peerCount;
   const connectionHint = needsReconnect ? (canChat ? `${connectedPeers.length}/${peerCount}명 연결됨 · 연결된 팀원에게만 전송됩니다.` : '팀원 연결 대기 중') : undefined;
@@ -161,7 +161,7 @@ export function PartyRoomPage({ embedded = false }: { embedded?: boolean }) {
         <b>{m.nickname}</b>
         {(m.gameIds ?? []).map(id => <div className="game-id" key={id}><code>{id}</code><Button size="sm" aria-label={`${m.nickname} 게임 ID ${id} 복사`} onClick={() => void navigator.clipboard.writeText(id).then(() => toast('게임 ID를 복사했습니다', 'ok')).catch(() => toast('복사하지 못했습니다', 'error'))}>복사</Button></div>)}
         {!m.gameIds?.length ? <p className="hint">게임 ID 미등록</p> : null}
-        {m.userId !== user?.id ? <div className="row-between">
+        {m.userId !== userId ? <div className="row-between">
           {friends.some(f => f.userId === m.userId) ? <Tag>친구</Tag> : <Button size="sm" onClick={() => void onFriendRequest(m.userId, m.nickname)}>친구 추가</Button>}
           <ActionMenu label={`${m.nickname} 관리`}><Button size="sm" onClick={() => void onBlock(m.userId, m.nickname)}>차단</Button><Button size="sm" onClick={() => setReportTarget({ userId: m.userId, nickname: m.nickname })}>신고</Button></ActionMenu>
         </div> : null}
@@ -217,10 +217,10 @@ export function PartyRoomPage({ embedded = false }: { embedded?: boolean }) {
             <div className="voice-row">
               <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
                 {party.members.map((m) => (
-                  <div key={m.userId} className={!closed && (connectedPeers.includes(m.userId) || (m.userId === user?.id && voice === 'connected')) ? 'voice-chip on' : 'voice-chip'}>
-                    <Avatar name={m.nickname} avatarUrl={m.userId === user?.id ? user?.avatarUrl ?? null : null} size={28} />
+                  <div key={m.userId} className={!closed && (connectedPeers.includes(m.userId) || (m.userId === userId && voice === 'connected')) ? 'voice-chip on' : 'voice-chip'}>
+                    <Avatar name={m.nickname} size={28} />
                     <span>{m.nickname}</span>
-                    {m.userId === user?.id && muted ? <IconMicOff size={14} /> : <IconMic size={14} />}
+                    {m.userId === userId && muted ? <IconMicOff size={14} /> : <IconMic size={14} />}
                   </div>
                 ))}
               </div>
@@ -273,13 +273,13 @@ export function PartyRoomPage({ embedded = false }: { embedded?: boolean }) {
             <CardHead title={`파티원 (${party.members.length}/${party.targetSize})`} />
             {party.members.map((m) => (
               <div key={m.userId} className="list-item" style={{ alignItems: 'flex-start' }}>
-                <Avatar name={m.nickname} avatarUrl={m.userId === user?.id ? user?.avatarUrl ?? null : null} size={36} />
+                <Avatar name={m.nickname} size={36} />
                 <div className="li-main">
-                  <b>{m.nickname}{m.userId === user?.id ? ' (나)' : ''}</b>
+                  <b>{m.nickname}{m.userId === userId ? ' (나)' : ''}</b>
                   <p>{closed ? '참여 종료' : m.ready ? '준비 완료' : '준비 중'}</p>
                   {(m.gameIds ?? []).map((id) => <div key={id} className="game-id"><code>{id}</code><Button size="sm" aria-label={`${m.nickname} 게임 ID ${id} 복사`} onClick={() => void navigator.clipboard.writeText(id).then(() => toast('게임 ID를 복사했습니다', 'ok')).catch(() => toast('복사하지 못했습니다. ID를 선택해 복사하세요.', 'error'))}>복사</Button></div>)}
                   {!m.gameIds?.length ? <p>게임 ID 미등록</p> : null}
-                  {m.userId !== user?.id ? (
+                  {m.userId !== userId ? (
                     <div className="row" style={{ gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
                       {friends.some((f) => f.userId === m.userId)
                         ? <Tag tone="accent">친구</Tag>

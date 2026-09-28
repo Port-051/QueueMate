@@ -59,7 +59,7 @@ export function MyInfoPage() {
   };
 
   const openAvatarPicker = () => {
-    setPicked(user?.avatarUrl ?? null);
+    setPicked(null);
     setAvatarOpen(true);
   };
 
@@ -83,19 +83,9 @@ export function MyInfoPage() {
   };
 
   const saveAvatar = async () => {
-    setSavingAvatar(true);
-    try {
-      // null을 명시해야 서버가 아바타를 지운다. 키를 빼면 유지된다 (contracts UpdateUserRequest).
-      await updateProfile({ avatarUrl: picked });
-      setAvatarOpen(false);
-      toast(picked ? '프로필 사진을 변경했습니다' : '기본 프로필 사진으로 되돌렸습니다', 'ok');
-    } catch (err) {
-      // 저장이 안 됐으니 화면도 되돌린다. 반영된 것처럼 보이면 안 된다.
-      setPicked(user?.avatarUrl ?? null);
-      toast(isApiError(err) ? err.message : '프로필 사진을 변경하지 못했습니다', 'error');
-    } finally {
-      setSavingAvatar(false);
-    }
+    // 우리 백엔드에 아바타(`avatarUrl`)가 없다 — `PATCH /users/me` 는 닉네임만 받는다(platform-api.md "계정"). 화면의 처지는 미정(START_HERE.md §5).
+    setAvatarOpen(false);
+    toast('프로필 사진은 아직 지원하지 않습니다', 'info');
   };
 
   const link = async () => {
@@ -135,7 +125,7 @@ export function MyInfoPage() {
     <section className="page profile-page" aria-label="프로필">
       <header className="profile-identity">
         <button type="button" className="profile-photo" aria-label="프로필 사진 변경" onClick={openAvatarPicker}>
-          <Avatar name={user?.nickname ?? '?'} size={88} avatarUrl={user?.avatarUrl ?? null} />
+          <Avatar name={user?.nickname ?? '?'} size={88} />
           <span className="profile-photo-edit" aria-hidden="true"><IconPencil size={14} /></span>
         </button>
         <div className="profile-identity-info">

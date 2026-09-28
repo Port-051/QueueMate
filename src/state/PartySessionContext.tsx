@@ -7,7 +7,7 @@ import { useAuth } from './AuthContext';
 import { useMatch } from './MatchContext';
 
 function usePersistentSession() {
-  const { user } = useAuth();
+  const { user, userId } = useAuth();
   const { activePartyId, stream } = useMatch();
   const [party, setParty] = useState<PartyView | null>(null);
   const [messages, setMessages] = useState<PartyChatMessage[]>([]);
@@ -32,9 +32,9 @@ function usePersistentSession() {
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 15_000);
     window.addEventListener('focus', load);
     return () => { live = false; off?.(); window.clearInterval(timer); window.removeEventListener('focus', load); };
-  }, [activePartyId, user?.id, stream]);
+  }, [activePartyId, userId, stream]);
   const connectionId = party?.status !== 'CLOSED' && party?.id === activePartyId ? party?.id : null;
-  const selfId = user?.id;
+  const selfId = userId;
   const nickname = user?.nickname;
   useEffect(() => {
     if (!connectionId || !selfId || !stream) return;

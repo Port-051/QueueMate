@@ -68,12 +68,12 @@ const writeActiveParty = (userId: string | undefined, id: string | null) => {
 };
 
 export function MatchProvider({ children }: { children: ReactNode }) {
-  const { status, user } = useAuth();
-  return <MatchSession key={`${status}:${user?.id ?? ''}`}>{children}</MatchSession>;
+  const { status, userId } = useAuth();
+  return <MatchSession key={`${status}:${userId ?? ''}`}>{children}</MatchSession>;
 }
 
 function MatchSession({ children }: { children: ReactNode }) {
-  const { status, token, user } = useAuth();
+  const { status, userId } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const pathnameRef = useRef(location.pathname);
@@ -84,12 +84,11 @@ function MatchSession({ children }: { children: ReactNode }) {
   const [condition, setCondition] = useState<MatchCondition | null>(null);
   const [proposal, setProposal] = useState<ProposalView | null>(null);
   const [proposalSource, setProposalSource] = useState<ProposalSource | null>(null);
-  const [activePartyId, setActivePartyIdState] = useState<string | null>(() => readActiveParty(user?.id));
+  const [activePartyId, setActivePartyIdState] = useState<string | null>(() => readActiveParty(userId ?? undefined));
   const [reservations, setReservations] = useState<ReservationView[]>([]);
   const [reservationsLoaded, setReservationsLoaded] = useState(false);
   const [reservationsError, setReservationsError] = useState<string | null>(null);
   const [stream, setStream] = useState<EventStream | null>(null);
-  const userId = user?.id;
   const [restoredUserId, setRestoredUserId] = useState<string | null>(null);
 
   const requestRef = useRef<MatchRequestView | null>(null);
@@ -102,7 +101,7 @@ function MatchSession({ children }: { children: ReactNode }) {
 
   const setActivePartyId = useCallback((id: string | null) => {
     if (!live.current) return;
-    writeActiveParty(userId, id);
+    writeActiveParty(userId ?? undefined, id);
     setActivePartyIdState(id);
   }, [userId]);
 
@@ -136,10 +135,11 @@ function MatchSession({ children }: { children: ReactNode }) {
       }
       return;
     }
-    const created = createEventStream(token);
+    // 인증은 쿠키다 — 토큰을 넘기지 않는다(WebSocket 자체는 SSE 로 바뀐다 — 다음 커밋).
+    const created = createEventStream(null);
     setStream(created);
     return () => created.close();
-  }, [status, token]);
+  }, [status]);
 
   useEffect(() => {
     if (status !== 'authenticated') return;

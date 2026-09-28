@@ -31,9 +31,9 @@ const roomActivity = (room: GameRoom | null) => room ? `${room.id}:${room.member
 const defaults = (game: GameKey): Filters => ({ modeKey: game === 'LOL' ? 'NORMAL_DRAFT' : visibleModes(game)[0].key, tierRange: ALL_TIERS, roles: [], voice: '', start: 'ALL', openOnly: false });
 
 export function RoomBoardHome() {
-  const { user, gameAccounts } = useAuth();
+  const { user, userId, gameAccounts } = useAuth();
   const { selectedGame } = useOutletContext<AppShellOutletContext>();
-  const { rooms, activeRoom, create, join, leave, kick, confirm, reopen, send, autoConfirm, extendRecruitment, loading, error: connectionError, refresh } = useRoomData(user?.id ?? '');
+  const { rooms, activeRoom, create, join, leave, kick, confirm, reopen, send, autoConfirm, extendRecruitment, loading, error: connectionError, refresh } = useRoomData(userId ?? '');
   const toast = useToast();
   const [filters, setFilters] = useState(() => ({ ...defaults(selectedGame), ...(activeRoom?.game === selectedGame ? { modeKey: activeRoom.modeKey } : {}) }));
   const [selected, setSelected] = useState<{ id: string; roles: string[]; profile: RoomMember; fromRoomId?: string; criteria?: QuickConnectCriteria } | null>(null);
@@ -56,11 +56,11 @@ export function RoomBoardHome() {
   }, [selectedGame]);
   useEffect(() => { const timer = window.setInterval(() => tick(value => value + 1), 30_000); return () => clearInterval(timer); }, []);
   const member = useMemo<RoomMember>(() => {
-    const intro = readIntroduction(user?.id ?? '', selectedGame) ?? emptyIntroduction();
+    const intro = readIntroduction(userId ?? '', selectedGame) ?? emptyIntroduction();
     const account = gameAccounts.find(account => account.game === selectedGame);
     const rank = accountRank(account, filters.modeKey);
     return {
-      id: user?.id ?? '', nickname: user?.nickname ?? '나', avatarUrl: user?.avatarUrl ?? null,
+      id: userId ?? '', nickname: user?.nickname ?? '나', avatarUrl: null,
       // 티어 · 승률 · KDA · 챔피언은 자기소개(localStorage)가 아니라 게임 계정에서 온다 — 3단계에서 게임 프로필(`stats`)로 채운다.
       tier: rank.tier, division: rank.division,
       winRate: null, kda: null, roles: intro.primaryRoles ?? [],

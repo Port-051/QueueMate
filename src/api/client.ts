@@ -2,46 +2,49 @@ import { request } from './http';
 import type {
   BlockView, CreateBlockRequest, CreateFriendRequest, CreateGameAccountRequest, CreateMatchRequest,
   CreateReportRequest, CreateReservationRequest, FriendRequestDirection, FriendRequestView, FriendView,
-  GameAccountView, GameKey, GameView, LoginRequest, MatchHistoryView, MatchRequestView, MatchSchemaView,
-  OAuthProviderView,
-  PartyView, ProposalView, RecentPlayerView, ReservationView, SignupRequest, TokenResponse,
-  UpdateUserRequest, UserProfile,
+  GameAccountView, GameKey, GameView, MatchHistoryView, MatchRequestView, MatchSchemaView,
+  PartyView, ProposalView, RecentPlayerView, ReservationView, SessionUser, SocialProvider, SocialSignupPending,
+  SocialSignupRequest, UpdateUserRequest, UserProfile,
 } from './types';
 
 /**
- * contracts/openapi.yaml의 엔드포인트.
- * 계약에 없는 경로를 부르지 않고, 계약에 있는 경로를 빠뜨리지 않는다.
+ * 백엔드 엔드포인트. 계정 · 소셜 · 방 · 게시판은 `platform/contracts/platform-api.md`, 매칭 · 제안은 `matching/contracts/openapi.yaml` 이 원본이다.
+ * 계약에 없는 경로를 부르지 않고, 계약에 있는 경로를 빠뜨리지 않는다. 아직 원본 프런트의 경로가 남은 절(게임 계정 · 매칭 · 제안 · 파티 · 예약 ·
+ * 친구 · 차단 · 신고)은 3 · 5단계에서 바꾼다 — START_HERE.md §3 의 대조표가 그 목록이다.
  */
 
-/* ---------- auth (인증 불필요, docs/14 §0.4) ---------- */
-export const signup = (body: SignupRequest) =>
-  request<UserProfile>('/auth/signup', { method: 'POST', body, anonymous: true });
-export const login = (body: LoginRequest) =>
-  request<TokenResponse>('/auth/login', { method: 'POST', body, anonymous: true });
-export const refresh = (refreshToken: string) =>
-  request<TokenResponse>('/auth/refresh', { method: 'POST', body: { refreshToken }, anonymous: true });
-/** refresh token 자체가 자격 증명이라 access token을 요구하지 않는다 (docs/14 §11-12). */
-export const logout = (refreshToken: string) =>
-  request<void>('/auth/logout', { method: 'POST', body: { refreshToken }, anonymous: true });
-
-/** 자격 증명이 설정된 제공자만 내려온다. 눌러도 실패할 버튼을 그리지 않기 위해서다. */
-export const listOAuthProviders = () =>
-  request<OAuthProviderView[]>('/auth/oauth/providers', { anonymous: true });
-/** 콜백이 들려준 일회용 코드를 토큰으로 바꾼다. 두 번째 호출은 401이다. */
-export const exchangeOAuthCode = (code: string) =>
-  request<TokenResponse>('/auth/oauth/exchange', { method: 'POST', body: { code }, anonymous: true });
+/* ---------- auth (인증 불필요 — /api/v1/auth/**) ---------- */
+/**
+ * 소셜 로그인은 XHR 이 아니라 **브라우저 이동**이다 — `window.location.assign(oauthStartPath(provider))`.
+ * 콜백은 백엔드가 받아 `FRONT_BASE_URL` + `/` · `/signup/social` · `/login?error=OAUTH_FAILED` · `/settings?linked=` · `/settings?error=` 로 302 한다.
+ * 로그인한 채 부르면 새 사용자를 만들지 않고 **같은 사용자에 잇는다**(P-27).
+ */
+export const oauthStartPath = (provider: SocialProvider) => `/api/v1/auth/oauth/${provider}/start`;
+/** 재발급(`POST /auth/refresh`)은 `http.ts` 의 `refreshSession()` 이다 — 동시 호출을 한 번으로 묶어야 해서 거기 있다. */
+/** 로그아웃. 본문 없음 · 204 · 쿠키 둘 제거. 쿠키가 없어도 · Redis 가 죽어 있어도 204 다. */
+export const logout = () => request<void>('/auth/logout', { method: 'POST', noRetry: true });
+/** 소셜로 처음 온 사람의 가입 대기 정보. 대기 토큰(`qm_social_signup`)이 없으면 401 `NO_PENDING_SOCIAL_SIGNUP`. */
+export const getSocialSignupPending = () => request<SocialSignupPending>('/auth/social/pending', { noRetry: true });
+/** 닉네임 하나로 가입 — 201 `{userId, nickname}` + 로그인 쿠키. 409 `NICKNAME_TAKEN` · 400 `VALIDATION_FAILED`. */
+export const socialSignup = (body: SocialSignupRequest) =>
+  request<SessionUser>('/auth/social/signup', { method: 'POST', body, noRetry: true });
 
 /* ---------- user ---------- */
 export const getMe = () => request<UserProfile>('/users/me');
-/** 부분 수정이다. `avatarUrl: null`을 보내면 지워지고, 키를 빼면 유지된다. */
 export const updateMe = (body: UpdateUserRequest) => request<UserProfile>('/users/me', { method: 'PATCH', body });
+/** 소셜 계정 끊기. 내 것이 아니어도 204(멱등). 마지막 하나면 409 `LAST_SOCIAL_IDENTITY`. 잇기는 `oauthStartPath` 로의 이동이다. */
+export const unlinkSocial = (provider: SocialProvider) =>
+  request<void>(`/users/me/social/${provider}`, { method: 'DELETE' });
 /**
- * 프로필 사진 업로드. 서버가 정사각 512px PNG로 바꿔 저장하고 갱신된 프로필을 돌려준다.
- * 지우는 것은 이쪽이 아니라 `updateMe({ avatarUrl: null })`이다.
+ * 아바타 업로드 — **우리 백엔드에 없다**(원본 `POST /users/me/avatar`). 부르면 404 다. 아바타 화면의 처지는 미정(START_HERE.md §5)이라
+ * 화면이 컴파일되게만 남겼다.
  */
 export const uploadAvatar = (file: File) =>
   request<UserProfile>('/users/me/avatar', { method: 'POST', file });
-export const getGameAccounts = () => request<GameAccountView[]>('/users/me/game-accounts');
+/**
+ * 게임 계정 — 아직 원본 프런트의 경로다. 우리 계약은 `PUT /users/me/game-accounts/{game}`(게임마다 본문이 다르다) · `DELETE …/{game}` ·
+ * `POST …/{game}/refresh` 이고 목록은 `users/me.gameAccounts` 다 — **3단계에서 바꾼다**(START_HERE.md §2).
+ */
 export const linkGameAccount = (body: CreateGameAccountRequest) =>
   request<GameAccountView>('/users/me/game-accounts', { method: 'POST', body });
 export const unlinkGameAccount = (id: string) =>

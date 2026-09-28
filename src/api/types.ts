@@ -22,37 +22,84 @@ export interface MatchCondition {
   playPurpose: PlayPurpose;
 }
 
-/* ---------- auth / user ---------- */
-export interface SignupRequest { email: string; password: string; nickname: string; }
-export interface LoginRequest { email: string; password: string; }
-export interface TokenResponse { accessToken: string; refreshToken: string; tokenType: 'Bearer'; expiresIn: number; }
-export interface RefreshRequest { refreshToken: string; }
+/* ---------- auth / user (platform-api.md "계정" · "소셜 로그인" · "게임 프로필") ---------- */
 
-/** 소셜 로그인. DEV는 로컬 개발용 가짜 제공자라 운영에는 뜨지 않는다. */
-export type OAuthProviderKey = 'KAKAO' | 'NAVER' | 'DEV';
-export interface OAuthProviderView {
-  provider: OAuthProviderKey;
-  displayName: string;
-  /** 브라우저를 이동시킬 경로. 프론트엔드가 직접 조립하지 않는다. */
-  authorizeUrl: string;
-}
-export interface OAuthExchangeRequest { code: string; }
-export interface UserProfile { id: string; nickname: string; avatarUrl: string | null; }
+/** 소셜 제공자 — 대문자 enum. 가입 · 로그인은 이것뿐이다(D-35). */
+export type SocialProvider = 'KAKAO' | 'DISCORD';
 
 /**
- * 부분 수정이다. **키를 생략한 항목은 건드리지 않는다.**
- * `avatarUrl: null`을 명시하면 아바타를 지운다. `nickname: null`은 400이다 (openapi UpdateUserRequest).
+ * 소셜 가입 · 재발급이 돌려주는 본문. `userId` 는 **사용자 번호**(bigint → JSON 숫자)다 — 로그인 아이디 · 이메일은 없다.
+ * `POST /auth/social/signup` 201 · `POST /auth/refresh` 200 이 같은 모양이다.
  */
-export interface UpdateUserRequest { nickname?: string; avatarUrl?: string | null; }
+export interface SessionUser { userId: number; nickname: string; }
 
+/** `GET /auth/social/pending`. `suggestedNickname` 은 `null` 일 수 있다(16자로 자른 값). */
+export interface SocialSignupPending { provider: SocialProvider; suggestedNickname: string | null; }
+export interface SocialSignupRequest { nickname: string; }
+
+/**
+ * `GET /users/me`. 식별자는 `userId`(사용자 번호 · 숫자) 하나, 보여 주는 이름은 `nickname` 하나다(D-25).
+ * 방 응답 · 알림 `payload` 의 id 는 **십진 문자열**(`"42"`)이라 비교할 때는 `String(userId)` 다 — `AuthContext` 의 `userId` 가 그것이다.
+ * 아바타(`avatarUrl`) · 로그인 아이디 · 이메일은 우리 백엔드에 없다.
+ */
+export interface UserProfile {
+  userId: number;
+  nickname: string;
+  createdAt: string;
+  /** 연결된 소셜 제공자. 화면은 이것으로 제공자마다 "연결됨 / 연결하기" 를 그린다(P-27). */
+  socialProviders: SocialProvider[];
+  /**
+   * 게임 계정(게임마다 하나). **3단계에서 `GameProfile[]` 로 바꾼다** — 지금은 원본 프런트의 `GameAccountView` 모양을 그대로 두어
+   * 게임 계정 화면(`OnboardingPage` · `MyInfoPage` · `rooms/accountRank`)이 컴파일만 되게 했다(START_HERE.md §2 "2단계가 남긴 것").
+   * 런타임에는 서버가 `GameProfile` 모양을 주므로 이 화면들은 아직 값을 제대로 그리지 못한다. `RequireOnboarding` 은 개수만 본다.
+   */
+  gameAccounts: GameAccountView[];
+}
+
+/** `PATCH /users/me`. 닉네임 하나다(2~16자 · 유일 · 409 `NICKNAME_TAKEN`). */
+export interface UpdateUserRequest { nickname: string; }
+
+/**
+ * 게임 프로필 — 게임 계정 하나를 밖에 보여 주는 모양(`users/me.gameAccounts[]` · 게시판 카드의 `profile`). 세 게임이 같은 모양이다.
+ * `tier` 는 gameconfig 사다리의 이름(`GOLD_4` 꼴), `mainPosition` 은 LOL `TOP|JUNGLE|MID|ADC|SUPPORT` · VALORANT 4역할군 · PUBG `null`,
+ * `server` 는 PUBG 만(`STEAM` · `KAKAO`). `verified` · `stats` 는 읽기 전용이다. 3단계(게임 계정 화면)에서 쓴다.
+ */
+export interface GameProfile {
+  game: GameKey;
+  gameNickname: string;
+  verified: boolean;
+  tier: string | null;
+  mainPosition: string | null;
+  server: 'STEAM' | 'KAKAO' | null;
+  stats: GameStats | null;
+}
+
+/** 전적 스냅숏. 비는 칸은 빠지지 않고 `null` 이다 — PUBG 는 `wins` · `losses` · `winStreak` · `avgAssists` · `kda` 가 늘 `null`. */
+export interface GameStats {
+  games: number;
+  wins: number | null;
+  losses: number | null;
+  winRate: number | null;
+  winStreak: number | null;
+  avgKills: number | null;
+  avgDeaths: number | null;
+  avgAssists: number | null;
+  kda: number | null;
+  /** 게임마다 다르다 — LOL `{mostChampions}` · VALORANT `{mostAgents, mainWeapon, …}` · PUBG `{seasonMode, avgDamage, kd, top1Rate}` */
+  detail: Record<string, unknown>;
+  syncedAt: string;
+}
+
+/**
+ * 원본 프런트의 게임 계정 모양 — **우리 백엔드에는 없다.** 3단계에서 `GameProfile` 로 바꾸며 지운다.
+ * 원본 API `GET /users/me/game-accounts` · `POST …` · `DELETE …/{id}` 는 대응물이 `PUT|DELETE /users/me/game-accounts/{game}` 이다.
+ */
 export interface GameAccountView {
   id: string;
   game: GameKey;
   externalGameId: string;
   region: string | null;
-  /** 솔로/듀오 랭크. 서버가 채우는 파생 값이다 */
   rankCode: string | null;
-  /** 자유 랭크. 솔로와 독립이라 한쪽만 있을 수 있다 */
   flexRankCode: string | null;
   verifiedAt: string | null;
 }

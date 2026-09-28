@@ -11,19 +11,19 @@ import { RankBadge } from './RankBadge';
 import { IconCheck, IconX } from './icons';
 
 export function DuoOffersPanel({ source }: { source: BoardRow }) {
-  const { user } = useAuth();
-  const offers = useDuoOffers(user?.id ?? '').filter(offer => offer.sourceId === source.id);
+  const { user, userId } = useAuth();
+  const offers = useDuoOffers(userId ?? '').filter(offer => offer.sourceId === source.id);
   const [busy, setBusy] = useState<string | null>(null);
   const toast = useToast();
   const found = offers.filter(offer => offer.status === 'FOUND' || offer.status === 'RECEIVED');
   const sent = offers.filter(offer => offer.status === 'SENT');
   const act = async (id: string, peerId?: string) => {
-    if (!user || busy) return;
+    if (!userId || busy) return;
     setBusy(id);
     try {
       // 듀오 제안은 백엔드 대응물이 없다(mock 전용이었다 — 2026-09-28 에 mock 을 지웠다). 처지는 미정(START_HERE.md §5).
       if (peerId) toast('듀오 제안은 아직 지원하지 않습니다', 'info');
-      else writeDuoOffers(user.id, offers => offers.filter(offer => offer.id !== id));
+      else writeDuoOffers(userId, offers => offers.filter(offer => offer.id !== id));
     } catch (error) { toast(errorMessage(error), 'error'); }
     finally { setBusy(null); }
   };

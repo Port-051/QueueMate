@@ -32,10 +32,10 @@ function loadNotifications(userId: string): AppNotification[] {
 }
 
 export function useNotifications() {
-  const { user } = useAuth();
+  const { userId: selfId } = useAuth();
   const { proposal, activePartyId, stream } = useMatch();
   const { receivedRequests, blocks } = useSocial();
-  const userId = user?.id ?? '';
+  const userId = selfId ?? '';
   const [store, setStore] = useState(() => ({ userId, items: userId ? loadNotifications(userId) : [] }));
   const items = store.userId === userId ? store.items : [];
 

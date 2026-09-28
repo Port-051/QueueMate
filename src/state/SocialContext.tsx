@@ -24,14 +24,14 @@ interface SocialValue {
 const SocialCtx = createContext<SocialValue | null>(null);
 
 export function SocialProvider({ children }: { children: ReactNode }) {
-  const { status, user } = useAuth();
+  const { status, userId } = useAuth();
   // Account changes remount state so in-flight responses cannot reach the next account.
-  return <SocialSession key={`${status}:${user?.id ?? ''}`} >{children}</SocialSession>;
+  return <SocialSession key={`${status}:${userId ?? ''}`} >{children}</SocialSession>;
 }
 
 function SocialSession({ children }: { children: ReactNode }) {
-  const { status, user } = useAuth();
-  const ownerId = user?.id;
+  const { status, userId } = useAuth();
+  const ownerId = userId ?? undefined;
   const [friends, setFriends] = useState<FriendView[]>([]);
   const [receivedRequests, setReceived] = useState<FriendRequestView[]>([]);
   const [sentRequests, setSent] = useState<FriendRequestView[]>([]);

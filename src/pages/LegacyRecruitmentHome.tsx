@@ -32,7 +32,7 @@ const browseSearch = (game: api.BoardWrite['condition']['game'] = 'LOL'): api.Bo
 };
 
 export function LegacyRecruitmentHome() {
-  const { user, gameAccounts } = useAuth();
+  const { user, userId, gameAccounts } = useAuth();
   const { selectedGame, setSelectedGame } = useOutletContext<AppShellOutletContext>();
   const match = useMatch();
   const connection = useConnectionStatus(match.stream);
@@ -92,7 +92,7 @@ export function LegacyRecruitmentHome() {
   }, [selectedGame]);
   const compose = (joinRow?: api.BoardRow) => {
     const base: api.BoardWrite = { type: query.type, condition: defaultCondition(query.condition.game), preferences: anyPreferences(), description: '', autoMatch: false, availableFrom: query.availableFrom, availableTo: query.availableTo, playAmount: query.playAmount };
-    const introduction = readIntroduction(user!.id, query.condition.game) ?? emptyIntroduction();
+    const introduction = readIntroduction(userId!, query.condition.game) ?? emptyIntroduction();
     // 참여할 매칭을 고른 경우에는 그 모드를 사용한다. 목록 필터만으로 내 소개를 바꾸지는 않는다.
     const next = joinRow && joinRow.condition.modeKey !== 'ANY' ? { ...introduction, queueType: joinRow.condition.modeKey } : introduction;
     setComposer({ initial: applyIntroduction(base, next), joinId: joinRow?.id });
@@ -139,7 +139,7 @@ export function LegacyRecruitmentHome() {
   }, [location.state, navigate, match.adoptRequest]);
   const join = async () => {
     if (!selected) return;
-    if (selected.userId === user?.id) { setOwnId(selected.id); setSelected(null); setFocusStage(true); return; }
+    if (selected.userId === userId) { setOwnId(selected.id); setSelected(null); setFocusStage(true); return; }
     if (!source) {
       if (query.type === 'REALTIME' && (active.some(r => r.type === 'REALTIME') || liveRequest)) toast('진행 중인 실시간 매칭을 확인해 주세요. 동시에 두 개를 등록할 수 없습니다.', 'info');
       else { compose(selected); setSelected(null); }
@@ -159,7 +159,7 @@ export function LegacyRecruitmentHome() {
   const form = composer ?? (idleComposer ? { initial: applyIntroduction({
     type: query.type, condition: defaultCondition(query.condition.game), preferences: anyPreferences(),
     description: '', autoMatch: false, availableFrom: query.availableFrom, availableTo: query.availableTo, playAmount: query.playAmount,
-  }, readIntroduction(user!.id, query.condition.game) ?? emptyIntroduction()), editing: undefined, joinId: undefined } : null);
+  }, readIntroduction(userId!, query.condition.game) ?? emptyIntroduction()), editing: undefined, joinId: undefined } : null);
   return <section className="page board-home" aria-label="듀오 찾기">
     <div className="board-layout"><div className="board-feed">
     <div className="board-workspace"><div className="board-main" ref={listRef} tabIndex={-1}>
@@ -177,7 +177,7 @@ export function LegacyRecruitmentHome() {
       {!loading && !error && page?.items.length === 0 ? <div className="board-empty"><h2>조건에 맞는 매칭이 없어요</h2></div> : null}
       {page?.items.length ? <div className={`board-list-region${loading || stale ? ' is-updating' : ''}`} aria-busy={loading} aria-disabled={stale}><RecruitmentList rows={page.items} selected={selected?.id} onSelect={row => {
         if (loading || stale) return;
-        if (row.userId === user?.id) { setOwnId(row.id); setSelected(null); setComposer(null); setFocusStage(true); return; }
+        if (row.userId === userId) { setOwnId(row.id); setSelected(null); setComposer(null); setFocusStage(true); return; }
         if (composer) { toast('자기소개를 저장하거나 닫은 뒤 매칭을 선택해 주세요.', 'info'); return; }
         setSelected(row);
       }} /></div> : null}

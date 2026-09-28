@@ -27,8 +27,7 @@ function uniqueRows(rows: api.BoardRow[]) {
 
 export function useRecruitmentBoard(query: api.BoardSearch) {
   const { stream } = useMatch();
-  const { user } = useAuth();
-  const userId = user?.id ?? null;
+  const { userId } = useAuth();
   const [page, setPage] = useState<api.BoardPage | null>(null);
   const [mine, setMine] = useState<api.BoardRow[]>([]);
   const [error, setError] = useState('');

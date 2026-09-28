@@ -12,7 +12,7 @@ import { useMatch } from '../state/MatchContext';
 
 export function ProposalPage() {
   const { proposalId } = useParams<{ proposalId: string }>();
-  const { user } = useAuth();
+  const { user, userId } = useAuth();
   const { proposal, proposalSource, condition, reservations, adoptProposal, accept, decline } = useMatch();
   const navigate = useNavigate();
   const toast = useToast();
@@ -48,9 +48,9 @@ export function ProposalPage() {
 
   const sourceReservation = reservations.find((r) => r.proposalId === proposal.id);
   const shownCondition = proposalSource === 'RESERVATION' ? sourceReservation?.condition ?? condition : condition;
-  const me = proposal.members.find((m) => m.userId === user?.id);
+  const me = proposal.members.find((m) => m.userId === userId);
   const accepted = me?.acceptance === 'ACCEPTED';
-  const teammates = proposal.members.filter((m) => m.userId !== user?.id);
+  const teammates = proposal.members.filter((m) => m.userId !== userId);
 
   const onAccept = async () => {
     setBusy(true);
@@ -104,7 +104,7 @@ export function ProposalPage() {
               {proposal.members.map((m) => (
                 <div key={m.userId} className={m.acceptance === 'ACCEPTED' ? 'member-card ok' : 'member-card'}>
                   <Avatar name={m.nickname} size={46} />
-                  <b>{m.nickname}{m.userId === user?.id ? ' (나)' : ''}</b>
+                  <b>{m.nickname}{m.userId === userId ? ' (나)' : ''}</b>
                   <Tag tone={m.acceptance === 'ACCEPTED' ? 'ok' : m.acceptance === 'DECLINED' ? 'danger' : 'default'}>
                     {ACCEPTANCE_LABEL[m.acceptance]}
                   </Tag>

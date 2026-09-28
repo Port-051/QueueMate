@@ -1,23 +1,34 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import * as api from '../api/client';
-import { readTokens, setAuthLostHandler, subscribeTokens, writeTokens } from '../api/http';
-import type { GameAccountView, TokenResponse, UpdateUserRequest, UserProfile } from '../api/types';
+import { setAuthLostHandler } from '../api/http';
+import type { GameAccountView, UpdateUserRequest, UserProfile } from '../api/types';
 
 type Status = 'loading' | 'authenticated' | 'anonymous';
 
+/**
+ * 세션은 쿠키에 있고 프런트는 토큰을 보지 않는다(platform-api.md "공통" · CLAUDE.md §2).
+ * **로그인 여부의 판정은 `GET /users/me` 가 200 인가** 하나다 — 처음 열 때 한 번 묻고, 소셜 가입 · 재발급 뒤에는 다시 묻는다(`refreshSession`).
+ * 401 이면 `http.ts` 가 재발급을 한 번 시도하고, 그것도 실패하면 `onAuthLost` 로 여기에 알려 익명 상태가 된다.
+ */
 interface AuthValue {
   status: Status;
+  /** `GET /users/me` 그대로. `userId` 는 숫자다. */
   user: UserProfile | null;
-  token: string | null;
+  /**
+   * 사용자 번호의 **십진 문자열**(`"42"`). 방 응답 · 알림 `payload` · 방 키의 id 가 이 모양이라 비교 · localStorage 키에 이것을 쓴다.
+   * 로그인 전에는 `null`.
+   */
+  userId: string | null;
+  /** `user.gameAccounts` 와 같다 — 3단계까지 원본 모양(`GameAccountView`)이다(types.ts 주석). */
   gameAccounts: GameAccountView[];
-  login(email: string, password: string): Promise<void>;
-  /** 소셜 로그인 콜백이 들려준 일회용 코드로 세션을 연다. */
-  completeOAuth(code: string): Promise<void>;
-  signup(email: string, password: string, nickname: string): Promise<void>;
+  /** 쿠키가 바뀐 뒤(소셜 가입 · 재발급) `GET /users/me` 를 다시 불러 세션을 맞춘다. 실패하면 익명이다. */
+  refreshSession(): Promise<void>;
   logout(): Promise<void>;
   updateProfile(patch: UpdateUserRequest): Promise<void>;
+  /** 우리 백엔드에 아바타가 없다 — 부르면 404 다(client.ts 주석). 화면이 컴파일되게 남겼다. */
   uploadAvatar(file: File): Promise<void>;
+  /** 게임 계정 목록은 `users/me` 안에 있다 — 다시 읽는 것은 `refreshSession` 과 같다. */
   refreshGameAccounts(): Promise<void>;
 }
 
@@ -27,90 +38,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const authAttempt = useRef(0);
   const [status, setStatus] = useState<Status>('loading');
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [token, setToken] = useState<string | null>(() => readTokens()?.accessToken ?? null);
-  const [gameAccounts, setGameAccounts] = useState<GameAccountView[]>([]);
-
-  const refreshGameAccounts = useCallback(async () => {
-    setGameAccounts(await api.getGameAccounts());
-  }, []);
-
-  // 재발급으로 access token이 갈리면 state도 따라간다. WebSocket이 새 token으로 다시 붙는다.
-  useEffect(() => subscribeTokens((tokens) => setToken(tokens?.accessToken ?? null)), []);
 
   // 재발급까지 실패하면 세션이 끝난 것이다. 화면을 익명 상태로 되돌린다.
   useEffect(() => {
     setAuthLostHandler(() => {
+      authAttempt.current += 1;
       setUser(null);
-      setGameAccounts([]);
       setStatus('anonymous');
     });
     return () => setAuthLostHandler(null);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    const attempt = authAttempt.current;
-    const isObsolete = () => cancelled || attempt !== authAttempt.current;
-    const stored = readTokens();
-    if (!stored) {
+  /**
+   * `GET /users/me` 로 세션을 확인한다. 성공이면 로그인, 실패면 익명이다.
+   * 401 은 `http.ts` 가 재발급을 한 번 시도한 뒤의 것이라 여기서는 더 하지 않는다. 네트워크 오류 · 5xx 도 익명으로 본다 —
+   * 로그인 화면에서 다시 시도하면 된다(세션 자체는 쿠키에 남아 있다).
+   */
+  const load = useCallback(async () => {
+    const attempt = ++authAttempt.current;
+    try {
+      const me = await api.getMe();
+      if (attempt !== authAttempt.current) return;
+      setUser(me);
+      setStatus('authenticated');
+    } catch {
+      if (attempt !== authAttempt.current) return;
+      setUser(null);
       setStatus('anonymous');
-      return () => { cancelled = true; };
     }
-    (async () => {
-      try {
-        const me = await api.getMe();
-        if (isObsolete()) return;
-        const accounts = await api.getGameAccounts();
-        if (isObsolete()) return;
-        setUser(me);
-        setToken(stored.accessToken);
-        setGameAccounts(accounts);
-        setStatus('authenticated');
-      } catch {
-        if (isObsolete()) return;
-        writeTokens(null);
-        setToken(null);
-        setStatus('anonymous');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [refreshGameAccounts]);
+  }, []);
 
-  // 토큰을 어디서 받았든 세션을 여는 절차는 같다. 비밀번호와 소셜이 갈라지는 곳은 그 앞뿐이다.
-  const adoptTokens = useCallback(async (tokens: TokenResponse) => {
-    writeTokens({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken });
-    setToken(tokens.accessToken);
-    const me = await api.getMe();
-    setUser(me);
-    await refreshGameAccounts();
-    setStatus('authenticated');
-  }, [refreshGameAccounts]);
-
-  const login = useCallback(async (email: string, password: string) => {
-    authAttempt.current += 1;
-    await adoptTokens(await api.login({ email, password }));
-  }, [adoptTokens]);
-
-  const completeOAuth = useCallback(async (code: string) => {
-    authAttempt.current += 1;
-    await adoptTokens(await api.exchangeOAuthCode(code));
-  }, [adoptTokens]);
-
-  const signup = useCallback(async (email: string, password: string, nickname: string) => {
-    await api.signup({ email, password, nickname });
-    await login(email, password);
-  }, [login]);
+  useEffect(() => { void load(); }, [load]);
 
   const logout = useCallback(async () => {
     authAttempt.current += 1;
-    const stored = readTokens();
     try {
-      if (stored) await api.logout(stored.refreshToken);
+      await api.logout();
     } finally {
-      writeTokens(null);
-      setToken(null);
+      // 서버 요청이 실패해도 화면은 익명으로 간다 — 쿠키는 만료로 사라진다(access 15분 · refresh 7일).
       setUser(null);
-      setGameAccounts([]);
       setStatus('anonymous');
     }
   }, []);
@@ -123,9 +89,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await api.uploadAvatar(file));
   }, []);
 
+  const userId = user ? String(user.userId) : null;
+  const gameAccounts = useMemo(() => user?.gameAccounts ?? [], [user]);
+
   const value = useMemo<AuthValue>(() => ({
-    status, user, token, gameAccounts, login, completeOAuth, signup, logout, updateProfile, uploadAvatar, refreshGameAccounts,
-  }), [status, user, token, gameAccounts, login, completeOAuth, signup, logout, updateProfile, uploadAvatar, refreshGameAccounts]);
+    status, user, userId, gameAccounts, refreshSession: load, logout, updateProfile, uploadAvatar, refreshGameAccounts: load,
+  }), [status, user, userId, gameAccounts, load, logout, updateProfile, uploadAvatar]);
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }

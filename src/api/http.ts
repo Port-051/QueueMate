@@ -1,45 +1,21 @@
 import { API_BASE } from '../config';
 import { ApiError, toApiError } from './error';
-import type { TokenResponse } from './types';
+import type { SessionUser } from './types';
 
 export { ApiError, isApiError, hasErrorCode, errorMessage, toApiError } from './error';
 export type { ErrorCode, ErrorResponse } from './error';
 
-const TOKEN_KEY = 'qm.tokens';
-
-export interface StoredTokens { accessToken: string; refreshToken: string; }
-
-export function readTokens(): StoredTokens | null {
-  try {
-    const raw = localStorage.getItem(TOKEN_KEY);
-    return raw ? (JSON.parse(raw) as StoredTokens) : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
- * token이 바뀌면 알린다. 재발급으로 access token이 갈리면 WebSocket도 새 token으로
- * 다시 붙어야 한다. handshake 때 한 번만 인증하므로 기존 연결은 갱신되지 않는다.
+ * 인증은 쿠키다 (platform-api.md "공통" · "access 토큰" · "refresh 토큰" · D-24 · D-26).
+ *
+ * - access 는 `qm_access`(HttpOnly · RS256 JWT · 15분), refresh 는 `qm_refresh`(HttpOnly · 불투명 UUID · 7일 ·
+ *   `Path=/api/v1/auth/refresh`). **프런트는 토큰을 보지도 저장하지도 않는다** — `Authorization` 헤더 · localStorage 가 없다.
+ * - 브라우저가 같은 출처(프록시 · 운영은 한 도메인)라 쿠키가 저절로 붙는다. `credentials: 'include'` 는 base 가 절대 URL 일 때를 위한 보험이다.
+ * - 401 이면 `POST /api/v1/auth/refresh`(본문 없음 · 쿠키만)를 **한 번** 부르고 같은 요청을 다시 보낸다. 재발급이 401 `INVALID_REFRESH_TOKEN` 이면
+ *   로그아웃 상태다 — `onAuthLost` 로 AuthContext 에 알린다. `/api/v1/auth/**` 는 인증이 필요 없는 경로라 재시도하지 않는다.
  */
-const tokenListeners = new Set<(tokens: StoredTokens | null) => void>();
 
-export function subscribeTokens(listener: (tokens: StoredTokens | null) => void): () => void {
-  tokenListeners.add(listener);
-  return () => tokenListeners.delete(listener);
-}
-
-export function writeTokens(tokens: StoredTokens | null): void {
-  try {
-    if (tokens) localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens));
-    else localStorage.removeItem(TOKEN_KEY);
-  } catch {
-    /* storage 접근이 막힌 브라우저에서도 앱은 동작해야 한다 */
-  }
-  tokenListeners.forEach((l) => l(tokens));
-}
-
-/** access token이 살아나지 못했을 때 앱에 알린다. AuthContext가 로그아웃 처리를 한다. */
+/** access 가 살아나지 못했을 때 앱에 알린다. AuthContext 가 익명 상태로 되돌린다. */
 type AuthLostHandler = () => void;
 let onAuthLost: AuthLostHandler | null = null;
 export function setAuthLostHandler(handler: AuthLostHandler | null): void {
@@ -52,14 +28,11 @@ export interface RequestOptions {
   query?: Record<string, string | number | undefined>;
   /**
    * multipart로 보낼 파일. `body`와 함께 쓰지 않는다.
-   *
-   * Content-Type을 직접 정하지 않는다. FormData를 fetch에 넘기면 브라우저가
-   * boundary까지 붙여서 채워 준다. 손으로 지정하면 boundary가 빠져 서버가 못 읽는다.
+   * Content-Type을 직접 정하지 않는다 — FormData를 fetch에 넘기면 브라우저가 boundary까지 붙여서 채워 준다.
+   * (우리 백엔드에 파일을 받는 요청은 아직 없다 — 아바타 업로드는 대응물이 없다, START_HERE.md §3.)
    */
   file?: File;
-  /** 인증 헤더를 붙이지 않는다. auth 엔드포인트 4개가 쓴다 (docs/14 §0.4). */
-  anonymous?: boolean;
-  /** 401을 만나도 재발급을 시도하지 않는다. 재발급 호출 자신이 쓴다. */
+  /** 401을 만나도 재발급을 시도하지 않는다. 재발급 호출 자신과 `/auth/**` 가 쓴다. */
   noRetry?: boolean;
 }
 
@@ -71,40 +44,33 @@ function withQuery(path: string, query?: RequestOptions['query']): string {
 }
 
 /**
- * 계약상 본문 없는 응답은 204뿐이지만 201도 빈 본문이 온다 (`POST /reports`).
- * `res.json()`은 빈 본문에서 예외를 던지므로 텍스트로 먼저 읽고 판단한다.
+ * 본문 없는 응답(204 · 202)과 빈 201 이 있다. `res.json()`은 빈 본문에서 예외를 던지므로 텍스트로 먼저 읽고 판단한다.
  */
 async function readBody<T>(res: Response): Promise<T> {
-  if (res.status === 204) return undefined as T;
+  if (res.status === 204 || res.status === 202) return undefined as T;
   const text = await res.text();
   if (!text) return undefined as T;
   return JSON.parse(text) as T;
 }
 
 /**
- * access token 재발급. 동시에 여러 요청이 401을 만나도 한 번만 돈다.
- * refresh token은 rotate되므로 두 번 부르면 뒤엣것이 재사용 판정으로 401이 된다.
+ * 재발급. 동시에 여러 요청이 401을 만나도 **한 번만** 돈다(single-flight).
+ * refresh 는 rotation 이라(`GETDEL`) 두 번 부르면 뒤엣것이 401 이 된다 — 그래서 묶는다.
+ *
+ * 성공하면 새 쿠키 둘이 응답에 실려 온다(본문은 `{userId, nickname}`). 실패는 전부 401 `INVALID_REFRESH_TOKEN` 이고
+ * 그때 서버가 refresh 쿠키를 지운다 — 프런트는 `onAuthLost` 를 부르고 `null` 을 돌려준다.
+ * SSE(`api/sse.ts`)가 401 로 닫혔을 때도 이것을 부른 뒤 `EventSource` 를 새로 만든다.
  */
-let refreshing: Promise<StoredTokens | null> | null = null;
+let refreshing: Promise<SessionUser | null> | null = null;
 
-async function refreshTokens(): Promise<StoredTokens | null> {
+export function refreshSession(): Promise<SessionUser | null> {
   if (refreshing) return refreshing;
-  const stored = readTokens();
-  if (!stored?.refreshToken) return null;
-
   refreshing = (async () => {
     try {
-      const next = await request<TokenResponse>('/auth/refresh', {
-        method: 'POST',
-        body: { refreshToken: stored.refreshToken },
-        anonymous: true,
-        noRetry: true,
-      });
-      const tokens = { accessToken: next.accessToken, refreshToken: next.refreshToken };
-      writeTokens(tokens);
-      return tokens;
+      const res = await send('POST', '/auth/refresh', {});
+      if (!res.ok) throw toApiError(res.status, await res.text().catch(() => ''), res.statusText);
+      return await readBody<SessionUser>(res);
     } catch {
-      writeTokens(null);
       onAuthLost?.();
       return null;
     } finally {
@@ -114,31 +80,26 @@ async function refreshTokens(): Promise<StoredTokens | null> {
   return refreshing;
 }
 
-/** REST 한 번의 호출. */
+/** REST 한 번의 호출. 쿠키가 자격 증명이다. */
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method ?? 'GET';
   const fullPath = withQuery(path, options.query);
 
-  const res = await send(method, fullPath, options, readTokens()?.accessToken ?? null);
+  const res = await send(method, fullPath, options);
 
   // 401이면 한 번만 재발급하고 같은 요청을 다시 보낸다. 실패하면 그대로 던진다.
-  if (res.status === 401 && !options.anonymous && !options.noRetry) {
-    const tokens = await refreshTokens();
-    if (tokens) {
-      const retried = await send(method, fullPath, options, tokens.accessToken);
+  // `/auth/**` 는 인증이 필요 없는 경로라 401 이 "토큰이 없다"가 아니다(예: 가입 대기 토큰이 없다 · 재발급 실패).
+  if (res.status === 401 && !options.noRetry && !fullPath.startsWith('/auth/')) {
+    const session = await refreshSession();
+    if (session) {
+      const retried = await send(method, fullPath, options);
       return finish<T>(retried);
     }
   }
   return finish<T>(res);
 }
 
-async function send(
-  method: string,
-  fullPath: string,
-  options: RequestOptions,
-  token: string | null,
-): Promise<Response> {
-  const useAuth = !options.anonymous && Boolean(token);
+function send(method: string, fullPath: string, options: RequestOptions): Promise<Response> {
   let form: FormData | undefined;
   if (options.file) {
     form = new FormData();
@@ -146,12 +107,11 @@ async function send(
   }
   return fetch(`${API_BASE}${fullPath}`, {
     method,
+    credentials: 'include',
     headers: {
       Accept: 'application/json',
-      // 계약은 바디가 있는 요청에만 Content-Type을 요구한다. 없으면 415다 (docs/14 §0.2).
-      // multipart는 예외다. boundary를 붙일 수 있는 것은 브라우저뿐이라 비워 둔다.
+      // multipart는 Content-Type 을 비워 둔다 — boundary를 붙일 수 있는 것은 브라우저뿐이다.
       ...(options.body === undefined || form ? {} : { 'Content-Type': 'application/json;charset=UTF-8' }),
-      ...(useAuth ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: form ?? (options.body === undefined ? undefined : JSON.stringify(options.body)),
   });
@@ -159,9 +119,9 @@ async function send(
 
 async function finish<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    // 모든 4xx/5xx는 `{code, message}`다. 인증 필터가 막은 401도 같다 (docs/14 §0.6).
+    // 모든 4xx/5xx는 `{code, message, details}`다. 인증 필터가 막은 401도 같다 (platform-api.md "공통").
     const raw = await res.text().catch(() => '');
-    throw toApiError(res.status, raw, res.statusText);
+    throw toApiError(res.status, raw, res.statusText, res.headers.get('Retry-After'));
   }
   try {
     return await readBody<T>(res);

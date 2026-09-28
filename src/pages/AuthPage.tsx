@@ -1,49 +1,19 @@
+import { Link } from 'react-router-dom';
 import { Logo } from '../components/Logo';
-import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { isApiError } from '../api/error';
-import { SocialLoginButtons } from '../components/SocialLoginButtons';
-import { Button, Field } from '../components/ui';
-import { useAuth } from '../state/AuthContext';
+import { oauthStartPath } from '../api/client';
+import type { SocialProvider } from '../api/types';
 
-export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
-  const { login, signup, status } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const from = (location.state as { from?: string } | null)?.from ?? '/app/home';
+/**
+ * 로그인 — 소셜만이다(카카오 · 디스코드 · D-35). 이메일 · 비밀번호 · 직접 가입은 백엔드에 없다.
+ * 버튼은 XHR 이 아니라 **브라우저 이동**이다(`GET /api/v1/auth/oauth/{PROVIDER}/start` → 302 → 제공자 → 백엔드 콜백 → 프런트로 302).
+ * 상대 경로라 프록시(로컬) · 같은 출처(운영)를 그대로 탄다.
+ */
+const PROVIDERS: { provider: SocialProvider; label: string }[] = [
+  { provider: 'KAKAO', label: '카카오로 시작하기' },
+  { provider: 'DISCORD', label: '디스코드로 시작하기' },
+];
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [nickname, setNickname] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const isSignup = mode === 'signup';
-
-  const validate = (): string | null => {
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return '이메일 형식을 확인해주세요';
-    if (password.length < 8) return '비밀번호는 8자 이상이어야 합니다';
-    if (isSignup && (nickname.trim().length < 2 || nickname.trim().length > 16)) return '닉네임은 2~16자로 입력해주세요';
-    return null;
-  };
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const invalid = validate();
-    if (invalid) { setError(invalid); return; }
-    setBusy(true);
-    setError(null);
-    try {
-      if (isSignup) await signup(email, password, nickname.trim());
-      else await login(email, password);
-      navigate(from, { replace: true });
-    } catch (err) {
-      setError(isApiError(err) ? err.message : '요청을 처리하지 못했습니다');
-    } finally {
-      setBusy(false);
-    }
-  };
-
+export function AuthPage() {
   return (
     <div className="auth">
       <aside className="auth-aside">
@@ -56,35 +26,14 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
 
       <main className="auth-main">
         <div className="auth-card">
-          <h1>{isSignup ? '회원가입' : '로그인'}</h1>
-
-          <SocialLoginButtons redirectTo={from} onError={setError} />
-
-          <form className="auth-form" onSubmit={submit}>
-            <Field label="이메일">
-              <input className="input" disabled={status === 'loading' || busy} type="email" autoComplete="email" placeholder="이메일 주소를 입력하세요"
-                value={email} onChange={(e) => setEmail(e.target.value)} />
-            </Field>
-            {isSignup ? (
-              <Field label="닉네임" hint="2~16자">
-                <input className="input" disabled={status === 'loading' || busy} type="text" placeholder="닉네임을 입력하세요"
-                  value={nickname} onChange={(e) => setNickname(e.target.value)} />
-              </Field>
-            ) : null}
-            <Field label="비밀번호" hint={isSignup ? '8자 이상' : undefined} error={error ?? undefined}>
-              <input className="input" disabled={status === 'loading' || busy} type="password" autoComplete={isSignup ? 'new-password' : 'current-password'}
-                placeholder="비밀번호를 입력하세요" value={password} onChange={(e) => setPassword(e.target.value)} />
-            </Field>
-            <Button type="submit" variant="primary" size="lg" block disabled={busy || status === 'loading'}>
-              {busy ? '처리 중...' : isSignup ? '회원가입' : '로그인'}
-            </Button>
-          </form>
-
-          <div className="auth-alt">
-            {isSignup ? '이미 계정이 있으신가요? ' : '계정이 없으신가요? '}
-            <button type="button" onClick={() => navigate(isSignup ? '/login' : '/signup')}>
-              {isSignup ? '로그인하기' : '회원가입하기'}
-            </button>
+          <h1>로그인</h1>
+          <p className="hint" style={{ marginTop: 8 }}>소셜 계정으로 시작합니다. 처음이면 닉네임만 정하면 됩니다.</p>
+          <div className="social-login">
+            {PROVIDERS.map(({ provider, label }) => (
+              <button key={provider} type="button" className={`social-btn s-${provider}`} onClick={() => window.location.assign(oauthStartPath(provider))}>
+                {label}
+              </button>
+            ))}
           </div>
         </div>
       </main>
