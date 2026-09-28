@@ -25,7 +25,7 @@ export interface SelfIntroduction {
 
 export const emptyIntroduction = (): SelfIntroduction => ({
   primaryRole: 'ANY', desiredRoles: [], ownTier: null, rankDivision: null, champions: [], winRate: null, kda: null,
-  queueType: 'ANY', recentResults: Array<MatchResult>(20).fill(null), voice: 'OPTIONAL', bio: '',
+  queueType: 'ANY', recentResults: Array<MatchResult>(20).fill(null), voice: 'NO_VOICE', bio: '',
 });
 const storageKey = (userId: string, game: GameKey) => `queuemate:introduction:v1:${encodeURIComponent(userId)}:${game}`;
 const text = (value: unknown, fallback = '') => typeof value === 'string' ? value.slice(0, 120) : fallback;
@@ -52,7 +52,7 @@ function normalize(value: Partial<SelfIntroduction>, game: GameKey): SelfIntrodu
     queueType: text(value.queueType, defaults.queueType) || 'ANY',
     roomCapacity: typeof value.roomCapacity === 'number' && Number.isInteger(value.roomCapacity) && value.roomCapacity >= 2 && value.roomCapacity <= 5 ? value.roomCapacity : undefined,
     recentResults: Array.from({ length: 20 }, (_, i) => game !== 'LOL' ? null : value.recentResults?.[i] === 'WIN' ? 'WIN' : value.recentResults?.[i] === 'LOSS' ? 'LOSS' : null),
-    voice: ['REQUIRED', 'OPTIONAL', 'NO_VOICE'].includes(value.voice ?? '') ? value.voice! : defaults.voice,
+    voice: ['REQUIRED', 'NO_VOICE'].includes(value.voice ?? '') ? value.voice! : defaults.voice,
     bio: text(value.bio),
   };
 }

@@ -17,7 +17,7 @@ export const desiredLabel = (row: IntroductionRecord) => normalizeDesiredRoles(r
 const ownRoles = (row: IntroductionRecord) => row.preferences.ownKeys ?? (row.condition.keyCondition.value !== 'ANY' ? [row.condition.keyCondition.value] : []);
 const roleLabel = (row: IntroductionRecord) => ownRoles(row).length ? ownRoles(row).map(value => keyConditionOptions(row.condition.game).find(role => role.value === value)?.label ?? value).join('·') : '전체';
 const queueLabel = (row: IntroductionRecord) => row.condition.modeKey === 'ANY' ? '큐 무관' : modeLabel(row.condition.game, row.condition.modeKey);
-const voiceLabel = (row: IntroductionRecord) => row.condition.voicePreference === 'OPTIONAL' ? '음성 무관' : VOICE_LABEL[row.condition.voicePreference];
+const voiceLabel = (row: IntroductionRecord) => VOICE_LABEL[row.condition.voicePreference];
 const roleTitle = (row?: IntroductionRecord) => row?.condition.game === 'VALORANT' ? '주 역할' : row?.condition.game === 'PUBG' ? '플레이 스타일' : '포지션';
 
 export function RecruitmentVoice({ row }: { row: IntroductionRecord }) {

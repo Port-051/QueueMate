@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { RequireAuth } from './components/RequireAuth';
-import { RequireGameCatalog } from './components/RequireGameCatalog';
 import { RequireOnboarding } from './components/RequireOnboarding';
 import { AuthPage } from './pages/AuthPage';
 import { HomePage } from './pages/HomePage';
@@ -38,7 +37,7 @@ export function App() {
       <Route path="/auth/callback" element={<Navigate to="/" replace />} />
       <Route path="/onboarding" element={<RequireAuth><OnboardingPage /></RequireAuth>} />
 
-      <Route path="/app" element={<RequireAuth><RequireOnboarding><RequireGameCatalog><AppShell /></RequireGameCatalog></RequireOnboarding></RequireAuth>}>
+      <Route path="/app" element={<RequireAuth><RequireOnboarding><AppShell /></RequireOnboarding></RequireAuth>}>
         <Route index element={<Navigate to="home" replace />} />
         <Route path="home" element={<HomePage />} />
         <Route path="match" element={<MatchConditionPage />} />

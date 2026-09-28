@@ -8,12 +8,21 @@ export interface Preferences {
   defaultPurpose: PlayPurpose;
 }
 
-export const DEFAULT_PREFERENCES: Preferences = { defaultVoice: 'OPTIONAL', defaultPurpose: 'NORMAL' };
+export const DEFAULT_PREFERENCES: Preferences = { defaultVoice: 'NO_VOICE', defaultPurpose: 'NORMAL' };
+
+const VOICES: readonly string[] = ['REQUIRED', 'NO_VOICE'];
+const PURPOSES: readonly string[] = ['RANK_UP', 'NORMAL', 'FUN'];
 
 export function readPreferences(): Preferences {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? { ...DEFAULT_PREFERENCES, ...(JSON.parse(raw) as Partial<Preferences>) } : DEFAULT_PREFERENCES;
+    if (!raw) return DEFAULT_PREFERENCES;
+    const saved = JSON.parse(raw) as Partial<Preferences>;
+    // 옛 저장값의 `OPTIONAL` 처럼 이제 없는 값은 기본값으로 — 서버가 400 을 낸다.
+    return {
+      defaultVoice: saved.defaultVoice && VOICES.includes(saved.defaultVoice) ? saved.defaultVoice : DEFAULT_PREFERENCES.defaultVoice,
+      defaultPurpose: saved.defaultPurpose && PURPOSES.includes(saved.defaultPurpose) ? saved.defaultPurpose : DEFAULT_PREFERENCES.defaultPurpose,
+    };
   } catch {
     return DEFAULT_PREFERENCES;
   }

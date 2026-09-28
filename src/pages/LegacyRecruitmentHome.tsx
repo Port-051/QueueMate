@@ -28,7 +28,7 @@ import '../styles/matching-rail.css';
 
 const browseSearch = (game: api.BoardWrite['condition']['game'] = 'LOL'): api.BoardSearch => {
   const initial = initialSearch(game);
-  return { ...initial, browse: true, sort: 'RECENT', condition: { ...initial.condition, keyCondition: { ...initial.condition.keyCondition, value: 'ANY' }, voicePreference: 'OPTIONAL' } };
+  return { ...initial, browse: true, sort: 'RECENT', condition: { ...initial.condition, keyCondition: { ...initial.condition.keyCondition, value: 'ANY' } } };
 };
 
 export function LegacyRecruitmentHome() {

@@ -1,27 +1,23 @@
-import * as api from '../api/client';
-import type {
-  GameKey, GameModeView, KeyConditionType, MatchCondition, MatchSchemaView, PlayPurpose, VoicePreference,
-} from '../api/types';
+import type { GameKey, KeyConditionType, MatchCondition, PlayPurpose, VoicePreference } from '../api/types';
+import { GAME_CATALOG, GAME_KEYS, modeSeed, PLAY_PURPOSES, VOICE_PREFERENCES } from './gameCatalog';
 
 /**
- * 게임별 조건 카탈로그.
+ * 게임별 조건 카탈로그를 화면이 쓰는 모양으로 내주는 곳.
  *
- * **모드/핵심 조건 값의 정본은 서버다.** `GET /games/{gameKey}/match-schema`가 주는 것만
- * 화면에 그린다. 예전에는 이 파일이 모드 목록을 하드코딩했는데, 서버가 모르는 모드를
- * 노출해서 매칭 시작이 404 `UNKNOWN_GAME_MODE`로 죽었다. 목록을 서버에서 받으면
- * 백엔드가 모드를 늘리거나 줄여도 이 파일을 고칠 일이 없다.
- *
- * 여기 남는 것은 서버가 주지 않는 **표시 문구**뿐이다. 서버는 `modeKey`와 조건 값만 주고
- * 한글 라벨은 주지 않는다.
+ * **모드 · 핵심 조건 값 · 티어의 원본은 `matching/seed/gameconfig.redis` 이고 이 앱의 사본은 `gameCatalog.ts` 다**(두 곳 — 2026-09-28 소유자 결정).
+ * 서버 조회(`GET /games` · `match-schema`)는 없다 — 그래서 로그인 전에도 · 부팅 직후에도 바로 쓸 수 있고 `RequireGameCatalog` 같은 문이 없다.
+ * 여기에는 표시 문구(게임 이름 · 태그라인)와 조건을 다루는 작은 함수만 남는다.
  */
 
 export interface ModeConfig {
   key: string;
   label: string;
-  /** 파티 목표 인원. 서버가 정한다 (docs/03 §9). */
+  /** 파티 목표 인원. seed 의 `targetPartySize` — 클라이언트는 정원을 보내지 않는다. */
   targetPartySize: number;
-  /** 같은 파티 안에서 핵심 조건 값이 유일해야 하는가 (LoL POSITION hard rule). */
+  /** 같은 파티 안에서 핵심 조건 값이 유일해야 하는가(seed 의 `positionUniqueness`). PUBG 는 없다(false). */
   keyConditionUniqueness: boolean;
+  /** 이 모드가 티어를 보는가(seed 의 `tierRule`). */
+  usesTier: boolean;
 }
 
 export interface KeyConditionOption { value: string; label: string; }
@@ -39,12 +35,7 @@ export interface GameConfig {
   };
 }
 
-/**
- * 표시 문구 카탈로그. 매칭 가능 여부와는 무관하다.
- *
- * 로그인 전 화면(랜딩)과 게임 계정 연결처럼 match-schema를 부를 수 없거나 부를 필요가
- * 없는 자리가 이 목록을 쓴다. 매칭 조건 UI는 `availableGames()`를 써야 한다.
- */
+/** 표시 문구 카탈로그. 랜딩 · 게임 계정 연결 · 매칭 조건 UI 가 다 같이 쓴다. */
 export const GAMES: GameConfig[] = [
   {
     key: 'LOL',
@@ -52,17 +43,10 @@ export const GAMES: GameConfig[] = [
     shortName: '리그 오브 레전드',
     tagline: '포지션이 맞는 팀원과',
     keyCondition: {
-      type: 'POSITION',
+      type: GAME_CATALOG.LOL.keyConditionType,
       label: '희망 포지션',
-      desc: '주로 플레이할 포지션을 선택하세요.',
-      options: [
-        { value: 'TOP', label: '탑' },
-        { value: 'JUNGLE', label: '정글' },
-        { value: 'MID', label: '미드' },
-        { value: 'ADC', label: '바텀' },
-        { value: 'SUPPORT', label: '서포터' },
-        { value: 'ANY', label: '전체' },
-      ],
+      desc: '이번에 같이 할 때 맡을 포지션을 선택하세요.',
+      options: [...GAME_CATALOG.LOL.keyConditionValues],
     },
   },
   {
@@ -71,76 +55,36 @@ export const GAMES: GameConfig[] = [
     shortName: '발로란트',
     tagline: '역할군이 맞는 팀원과',
     keyCondition: {
-      type: 'ROLE',
+      type: GAME_CATALOG.VALORANT.keyConditionType,
       label: '선호 역할군',
       desc: '주로 맡을 역할군을 선택하세요.',
-      options: [
-        { value: 'DUELIST', label: '타격대' },
-        { value: 'INITIATOR', label: '척후대' },
-        { value: 'CONTROLLER', label: '전략가' },
-        { value: 'SENTINEL', label: '감시자' },
-      ],
+      options: [...GAME_CATALOG.VALORANT.keyConditionValues],
     },
   },
   {
     key: 'PUBG',
     name: '배틀그라운드',
     shortName: '배틀그라운드',
-    tagline: '플레이 스타일이 맞는 팀원과',
+    tagline: '같은 플랫폼의 팀원과',
     keyCondition: {
-      type: 'PLAY_STYLE',
-      label: '플레이 스타일',
-      desc: '어떤 스타일로 플레이할지 선택하세요.',
-      options: [
-        { value: 'AGGRESSIVE', label: '공격적' },
-        { value: 'BALANCED', label: '균형형' },
-        { value: 'SURVIVAL', label: '생존형' },
-      ],
+      type: GAME_CATALOG.PUBG.keyConditionType,
+      label: '플랫폼',
+      desc: '스팀과 카카오는 서버가 달라 서로 파티를 맺을 수 없습니다.',
+      options: [...GAME_CATALOG.PUBG.keyConditionValues],
     },
   },
 ];
 
-/**
- * `modeKey` → 한글 라벨. 서버가 모르는 키를 주면 키를 그대로 보여준다.
- * 라벨이 없다고 선택지를 감추지는 않는다. 감추면 서버가 지원하는 모드를 못 고르게 된다.
- */
-const MODE_LABELS: Record<string, string> = {
-  SOLO_DUO_RANKED: '2인 랭크',
-  FLEX_RANKED: '자유 랭크',
-  NORMAL_DRAFT: '일반',
-  SWIFTPLAY: '신속',
-  ARAM: '칼바람',
-  COMPETITIVE: '경쟁전',
-  UNRATED: '일반전',
-  DUO: '듀오',
-  SQUAD: '스쿼드',
+const toModeConfig = (game: GameKey, modeKey: string): ModeConfig | undefined => {
+  const m = modeSeed(game, modeKey);
+  return m && {
+    key: m.key,
+    label: m.label,
+    targetPartySize: m.targetPartySize,
+    keyConditionUniqueness: m.positionUniqueness ?? false,
+    usesTier: m.tierRule === 'EXIST',
+  };
 };
-
-/* ---------- 서버 카탈로그 ---------- */
-
-const catalog = new Map<GameKey, MatchSchemaView>();
-let loaded = false;
-
-/**
- * 서버가 지원한다고 말한 게임과 모드를 받아 온다.
- * 인증이 필요한 엔드포인트라 로그인 이후에 한 번 부른다.
- */
-export async function loadGameCatalog(): Promise<void> {
-  const games = await api.listGames();
-  const schemas = await Promise.all(games.map((g) => api.getMatchSchema(g.game)));
-  catalog.clear();
-  schemas.forEach((schema) => catalog.set(schema.game, schema));
-  loaded = true;
-}
-
-export const isGameCatalogLoaded = (): boolean => loaded;
-
-const toModeConfig = (m: GameModeView): ModeConfig => ({
-  key: m.modeKey,
-  label: MODE_LABELS[m.modeKey] ?? m.modeKey,
-  targetPartySize: m.targetPartySize,
-  keyConditionUniqueness: m.roleUniqueness,
-});
 
 export function gameConfig(game: GameKey): GameConfig {
   const found = GAMES.find((g) => g.key === game);
@@ -148,51 +92,48 @@ export function gameConfig(game: GameKey): GameConfig {
   return found;
 }
 
-/** 매칭 조건 UI가 쓰는 게임 목록. 서버가 모드를 하나도 주지 않은 게임은 고를 수 없다. */
+/** 매칭 조건 UI가 쓰는 게임 목록 — 셋 다 모드가 있다. */
 export function availableGames(): GameConfig[] {
-  return GAMES.filter((g) => (catalog.get(g.key)?.modes.length ?? 0) > 0);
+  return GAME_KEYS.map(gameConfig);
 }
 
 export function visibleModes(game: GameKey): ModeConfig[] {
-  return (catalog.get(game)?.modes ?? []).map(toModeConfig);
+  return GAME_CATALOG[game].modes.map((m) => toModeConfig(game, m.key)!);
 }
 
-/** 서버가 허용한 핵심 조건 값만 남긴다. 라벨은 정적 카탈로그에서 찾고 없으면 값을 그대로 쓴다. */
+/** 핵심 조건의 선택지 — seed 의 값과 프런트의 라벨. */
 export function keyConditionOptions(game: GameKey): KeyConditionOption[] {
-  const cfg = gameConfig(game);
-  const values = catalog.get(game)?.keyCondition.values;
-  if (!values) return cfg.keyCondition.options;
-  return values.map((value) => ({
-    value,
-    label: cfg.keyCondition.options.find((o) => o.value === value)?.label ?? value,
-  }));
+  return gameConfig(game).keyCondition.options;
 }
 
-export const VOICE_OPTIONS: { value: VoicePreference; label: string }[] = [
-  { value: 'REQUIRED', label: '사용' },
-  { value: 'OPTIONAL', label: '선택' },
-  { value: 'NO_VOICE', label: '사용 안 함' },
-];
+export const VOICE_OPTIONS: { value: VoicePreference; label: string }[] = VOICE_PREFERENCES.map((value) => ({
+  value, label: value === 'REQUIRED' ? '사용' : '사용 안 함',
+}));
 
-export const PURPOSE_OPTIONS: { value: PlayPurpose; label: string }[] = [
-  { value: 'RANK_UP', label: '랭크 상승' },
-  { value: 'NORMAL', label: '일반 플레이' },
-  { value: 'FUN', label: '즐겜' },
-];
+export const PURPOSE_OPTIONS: { value: PlayPurpose; label: string }[] = PLAY_PURPOSES.map((value) => ({
+  value, label: value === 'RANK_UP' ? '랭크 상승' : value === 'NORMAL' ? '일반 플레이' : '즐겜',
+}));
 
 export function modeConfig(game: GameKey, modeKey: string): ModeConfig | undefined {
-  return visibleModes(game).find((m) => m.key === modeKey);
+  return toModeConfig(game, modeKey);
 }
 
 export function targetPartySize(game: GameKey, modeKey: string): number {
   return modeConfig(game, modeKey)?.targetPartySize ?? 2;
 }
 
-/** 칼바람은 포지션을 정하지 않으므로 검색·매칭 조건에서도 제외한다. */
+/**
+ * 이 모드에서 핵심 조건을 고르는가. seed 의 `positionUniqueness=false`(LoL 칼바람 — 포지션 개념이 없다)만 아니다.
+ * PUBG 는 seed 에 그 필드가 없지만 플랫폼은 늘 고른다(hard 조건).
+ */
 export function usesKeyCondition(game: GameKey, modeKey: string): boolean {
-  return game !== 'LOL' || modeKey !== 'ARAM';
+  return modeSeed(game, modeKey)?.positionUniqueness !== false;
 }
 
+/**
+ * 모드를 바꾼다. 핵심 조건을 안 보는 모드(칼바람)에서는 값을 `ANY` 로 둔다 — **원본 프런트의 표시용 값이다.**
+ * 서버에 보낼 때(`POST /match-requests` · `POST /posts/auto-join`)는 LoL `NONE` 으로 옮겨야 한다 — 3단계(매칭 전환)의 일이다(START_HERE.md §2).
+ */
 export function conditionForMode(condition: MatchCondition, modeKey: string): MatchCondition {
   return {
     ...condition, modeKey,
@@ -200,18 +141,14 @@ export function conditionForMode(condition: MatchCondition, modeKey: string): Ma
   };
 }
 
-/**
- * 게임을 고르면 해당 게임의 기본 조건으로 초기화한다.
- * 카탈로그가 비어 있으면 서버가 모르는 값을 만들어내지 않고 빈 문자열을 둔다.
- * 폼이 빈 선택으로 보이고 매칭 시작은 서버가 막는다.
- */
+/** 게임을 고르면 해당 게임의 기본 조건으로 초기화한다 — 첫 모드 · 첫 핵심 조건 값. */
 export function defaultCondition(game: GameKey): MatchCondition {
   const cfg = gameConfig(game);
   return {
     game,
     modeKey: visibleModes(game)[0]?.key ?? '',
     keyCondition: { type: cfg.keyCondition.type, value: keyConditionOptions(game)[0]?.value ?? '' },
-    voicePreference: 'OPTIONAL',
+    voicePreference: 'NO_VOICE',
     playPurpose: 'NORMAL',
   };
 }

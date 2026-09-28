@@ -2,7 +2,7 @@ import { request } from './http';
 import type {
   BlockView, CreateBlockRequest, CreateFriendRequest, CreateGameAccountRequest, CreateMatchRequest,
   CreateReportRequest, CreateReservationRequest, FriendRequestDirection, FriendRequestView, FriendView,
-  GameAccountView, GameKey, GameView, MatchHistoryView, MatchRequestView, MatchSchemaView,
+  GameAccountView, MatchHistoryView, MatchRequestView,
   PartyView, ProposalView, RecentPlayerView, ReservationView, SessionUser, SocialProvider, SocialSignupPending,
   SendRoomSignalRequest, SocialSignupRequest, UpdateUserRequest, UserProfile,
 } from './types';
@@ -50,10 +50,7 @@ export const linkGameAccount = (body: CreateGameAccountRequest) =>
 export const unlinkGameAccount = (id: string) =>
   request<void>(`/users/me/game-accounts/${id}`, { method: 'DELETE' });
 
-/* ---------- game config ---------- */
-export const listGames = () => request<GameView[]>('/games');
-/** 조건 폼의 선택지 전체. 프론트가 폼을 그리는 근거다 (docs/14 §3.3). */
-export const getMatchSchema = (gameKey: GameKey) => request<MatchSchemaView>(`/games/${gameKey}/match-schema`);
+/* ---------- game config — 없다. 게임 · 모드 · 티어는 정적 상수 `domain/gameCatalog.ts`(seed 의 사본 · 2026-09-28 소유자 결정) ---------- */
 
 /* ---------- realtime matching ---------- */
 export const createMatchRequest = (body: CreateMatchRequest) =>

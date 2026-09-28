@@ -1,13 +1,16 @@
 /**
- * contracts/openapi.yaml v2.0.0 + contracts/events.md 1:1 매핑.
+ * 백엔드 계약의 타입 — `platform/contracts/platform-api.md` · `matching/contracts/openapi.yaml` · `events.md` 1:1 매핑.
  * 계약에 없는 필드를 임의로 추가하지 않는다. 계약이 정본이고 구현이 따라간다.
+ * 아직 원본 프런트의 모양이 남은 절(게임 계정 · 매칭 요청 · 제안 · 파티 · 예약 · 친구 · 차단 · 신고)은 3 · 5단계에서 바꾼다 — 각 절의 주석 참조.
  */
 
 export type GameKey = 'LOL' | 'VALORANT' | 'PUBG';
-export type VoicePreference = 'REQUIRED' | 'OPTIONAL' | 'NO_VOICE';
+/** `OPTIONAL` 은 없다(openapi `VoicePreference` 개정 이력 · docs/11 #31) — 매칭 전에 답이 정해지지 않는 조건은 조건이 아니다. */
+export type VoicePreference = 'REQUIRED' | 'NO_VOICE';
 export type PlayPurpose = 'RANK_UP' | 'NORMAL' | 'FUN';
 export type PlayAmount = 'ONE_GAME' | 'TWO_PLUS';
-export type KeyConditionType = 'POSITION' | 'ROLE' | 'PLAY_STYLE';
+/** LoL = POSITION · VALORANT = ROLE · PUBG = PLATFORM(STEAM/KAKAO — 원본의 PLAY_STYLE 이 아니다, A-13). */
+export type KeyConditionType = 'POSITION' | 'ROLE' | 'PLATFORM';
 
 export interface KeyCondition {
   type: KeyConditionType;
@@ -105,28 +108,7 @@ export interface GameAccountView {
 }
 export interface CreateGameAccountRequest { game: GameKey; externalGameId: string; region?: string | null; }
 
-/* ---------- game config ---------- */
-export interface GameView {
-  game: GameKey;
-  keyConditionType: KeyConditionType;
-}
-
-/** targetPartySize는 서버가 정한다. 클라이언트는 파티 정원을 보내지 않는다 (docs/03 §9). */
-export interface GameModeView {
-  modeKey: string;
-  targetPartySize: number;
-  /** true면 파티 안에서 keyCondition 값이 겹칠 수 없다 (LoL POSITION hard rule). */
-  roleUniqueness: boolean;
-}
-
-/** 프론트가 조건 폼을 그리는 근거 (docs/14 §3.3). */
-export interface MatchSchemaView {
-  game: GameKey;
-  modes: GameModeView[];
-  keyCondition: { type: KeyConditionType; values: string[] };
-  voicePreferences: VoicePreference[];
-  playPurposes: PlayPurpose[];
-}
+/* game config(GET /games · match-schema)는 없다 — 정적 상수 `domain/gameCatalog.ts`(원본 seed 의 사본) */
 
 /* ---------- realtime matching ---------- */
 export type CreateMatchRequest = MatchCondition;

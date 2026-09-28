@@ -21,7 +21,6 @@ export const keyConditionTitle = (game: GameKey) => gameConfig(game).keyConditio
 
 export const VOICE_LABEL: Record<VoicePreference, string> = {
   REQUIRED: '음성 사용',
-  OPTIONAL: '음성 선택',
   NO_VOICE: '음성 사용 안 함',
 };
 
