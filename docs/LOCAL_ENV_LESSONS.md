@@ -67,6 +67,8 @@ kill <PID>
 curl -N --max-time 30 "http://localhost:8081/api/v1/events?userId=u1"
 ```
 
+> (2026-09-27 부터 `notification` 은 `?userId=` 를 보지 않고 쿠키 `qm_access` 를 검증한다 — 지금은 `--cookie "qm_access=<access 토큰>"` 을 붙여야 한다. 위 줄은 옮겨 온 당시의 것이다.)
+
 ## 4. 스프링 · 라이브러리에서 걸린 것
 
 - **Lombok 과 Spring 에 같은 이름의 `@Value` 가 있다.** 설정값 주입은 **`org.springframework.beans.factory.annotation.Value`** 다.

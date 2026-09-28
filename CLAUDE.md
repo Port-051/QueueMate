@@ -59,7 +59,7 @@
 > **2026-09-26 소유자 결정 — 확정된 방이 없어질 때 파티가 닫힌다**(§3.3 "파티 닫힘" · `contracts/platform-api.md` **P-25**). `parties.status = 'CLOSED'` · `closed_at`을 적고, 그 순간의 파티원(`party_members`)끼리 서로를 `recent_players`에 적는다 — **최근 함께한 사람이 이제 채워진다.**
 > 게시판 파티는 `PartyClosed.fifo`(SQS) 없이 이 앱 안에서 닫는다(자동 매칭 파티는 6단계에서 다시 본다 — **→ 2026-09-27 D-42 · P-30 으로 같은 나가기 콜백으로 닫는다**). 글은 `CONFIRMED` 그대로 · 응답에 새 칸 없음 · `PARTY_*` 알림은 여전히 내지 않는다.
 > **왜** — `parties.status`가 `ACTIVE`로 박힌 채 아무도 바꾸지 않았고 "파티가 닫혔다"가 미정이라 최근 함께한 사람이 늘 빈 목록이었다. **새 규칙이다 — docs/11 D-36으로 남겼다**(2026-09-26).
-> **같은 날 결정 로그가 따라잡았다** — 위 블록들이 "docs/11에 D-항목이 없다"고 적었던 소유자 결정(P-2 · P-11 ~ P-24)은 `matching`의 docs/11 **D-24 ~ D-35**로 남았다(대응은 머리 "지금 상태와 그 지위" · `contracts/platform-api.md` 맨 아래 표). `matching`의 `Block.java`도 같은 날 `Long` · `public.blocks`로 고쳐졌다. **`notification` · `matching`의 `?userId=` → 쿠키 전환은 아직 안 했다**(§5.1 (아)).
+> **같은 날 결정 로그가 따라잡았다** — 위 블록들이 "docs/11에 D-항목이 없다"고 적었던 소유자 결정(P-2 · P-11 ~ P-24)은 `matching`의 docs/11 **D-24 ~ D-35**로 남았다(대응은 머리 "지금 상태와 그 지위" · `contracts/platform-api.md` 맨 아래 표). `matching`의 `Block.java`도 같은 날 `Long` · `public.blocks`로 고쳐졌다. **`notification` · `matching`의 `?userId=` → 쿠키 전환은 2026-09-27 에 둘 다 했다**(§5.1 (아) — `notification` 은 그 폴더 `CLAUDE.md` §5.1, `matching` 은 `HANDOFF.md` §0-5. 개발용 스위치는 어느 쪽도 두지 않았다).
 
 > **2026-09-27 소유자 결정 — LoL 게임 계정의 `tier`는 Riot에서 채운다(전적과 함께). `mainPosition`은 자기신고 그대로다**(§7 "게임 계정 연동" · `contracts/platform-api.md` **P-26**).
 > 처음에는 "`gameNickname`만 받고 `tier` · `mainPosition`을 Riot에서 채운다"였다 — **같은 날 소유자가 주 포지션 절반을 되물렸다: 주 포지션은 "이번에 같이 할 때 맡을 자리"라 사용자가 정한다**(최근 경기의 최빈값은 그 뜻이 아니다).
@@ -245,7 +245,7 @@ Redis `PUBLISH qm:pubsub:push:{userId}`에 **JSON 문자열 하나**를 보낸�
 
   **`qm:party:{partyId}` 는 이 표에 없다 — `matching` 의 키이고 이 앱은 읽기만 한다**(2026-09-27 — docs/11 D-42. `HGETALL` · `HEXISTS` 만. 쓰지도 지우지도 `EXPIRE` 를 걸지도 않는다). 필드 계약(`status` · `confirmedAt` · `game` · `modeKey` · `voicePreference` · `playPurpose` · `target` · `member:{userId}` · `tierLo`/`tierHi` · 수명 600초)은 `contracts/platform-api.md` "자동 매칭 파티의 방" 의 "파티 HASH 의 계약" 이다. 접두사 `qm:party:` 의 원본은 `matching` 의 `redisKeys/SharedKeys.PARTY_PREFIX` 이고 이 앱의 사본은 `party/match/MatchPartyKeys.PARTY_PREFIX` 다(`SharedPrefixTest` 가 대조한다 — 어긋나면 컴파일 · 테스트가 통과한 채로 모든 자동 매칭 파티가 404 다). 자동 매칭 방의 `{roomId}` 는 이 UUID 그대로다.
 
-  - **`matching`과의 키 약속(D-19)은 그대로다** — "자동 매칭 대기와 방은 한 번에 하나만"을 키 둘로 지킨다. **활성 요청 키(`qm:user:active-request:{userId}`)는 `matching`이 쓰고 이 앱은 `EXISTS`만 한다**(글 쓰기 · 입장의 Lua가 409 `ALREADY_QUEUED`). **입장 표시 키는 이 앱이 쓰고 지우며 `matching`은 `EXISTS`만 한다**(매칭 요청이 409 `IN_ROOM`). 키 이름의 원본은 `matching`의 `SharedKeys`다(사본 `room/redisKeys/SharedKeys`).
+  - **`matching`과의 키 약속(D-19)은 그대로다** — "자동 매칭 대기와 방은 한 번에 하나만"을 키 둘로 지킨다. **활성 요청 키(`qm:user:active-request:{userId}`)는 `matching`이 쓰고 이 앱은 `EXISTS`만 한다**(글 쓰기 · 입장의 Lua가 409 `ALREADY_QUEUED`). **입장 표시 키는 이 앱이 쓰고 지우며 `matching`은 `EXISTS`만 한다**(매칭 요청이 409 `IN_ROOM`). 키 이름의 원본은 `matching`의 `SharedKeys`다(사본 `room/redisKeys/SharedKeys`). **활성 요청 키는 영구적이지 않다** — 대기 중인 요청은 클라이언트의 접속 확인(`matching` 의 `POST /api/v1/match-requests/heartbeat`, 30초 주기)이 끊기면 90초 안에 `matching` 이 스스로 취소하고(docs/11 **D-43**, 2026-09-28), 확정된 요청(`status=PARTY`)은 60초 뒤 만료된다(D-42). 그래서 이 앱의 409 `ALREADY_QUEUED` 가 영원히 남는 일은 없다.
   - 모든 키가 수명 600초(설정 `platform.room.ttl-seconds` · 환경변수 `ROOM_TTL_SECONDS`)이고 브라우저가 1분마다 보내는 접속 확인(`POST …/heartbeat`)이 늘린다. **확정하지 않은 방의 수명(방장 키 · 멤버 SET)은 방장의 신호만 늘린다** — 방장이 명시적으로 나가든 말없이 사라지든 방장 키가 없어지고, 방에 다른 사람이 있어도 방을 통째로 없앤다(D-21).
     대가 — 방장이 말없이 사라진 방은 최대 10분 살아 있는 것처럼 보인다.
   - **방장 승계 — 확정한 방은 방장이 나가도 방이 이어진다(D-23).** 남은 멤버 가운데 한 명이 방장을 넘겨받는다 — 방장이 나가기를 부르면 그 자리에서, 말없이 사라지면 방장 키가 만료된 뒤 처음 접속 확인을 보낸 멤버가(확정한 방에 한해 일반 멤버의 접속 확인도 멤버 SET · 확정 표시 키의 수명을 늘린다). 넘겨받을 사람이 없을 때만 세 키가 함께 없어진다.
@@ -268,7 +268,7 @@ Redis `PUBLISH qm:pubsub:push:{userId}`에 **JSON 문자열 하나**를 보낸�
 |---|---|---|
 | ~~`ProposalConfirmed.fifo`~~ | **만들지 않는다**(D-42). 원안(docs/11 #21)은 `matching` 이 outbox 로 발행하고 이 앱이 소비해 파티를 DB 에 만드는 것이었다 | 이 앱이 `qm:party:{partyId}` 를 읽는다. SQS 를 고른 이유(#18 · #21 — 앱별 스키마라 DB 로 대화할 수 없었던 것 · `BlockChanged` 의 순서 보장)가 D-34 · D-12 로 둘 다 사라졌고, 파티당 한 번 나가는 이벤트라 지킬 순서가 없다. DB · Redis 를 공유하는 두 앱이 AWS 를 한 바퀴 도는 것은 장치만 늘린다(D-42 "근거") |
 | ~~`PartyClosed.fifo`~~ | **만들지 않는다**(D-36 · D-42). 원안은 이 앱이 발행 + 소비(소비자는 이 앱 하나 — D-13) | 게시판 파티(D-36 · P-25)도 자동 매칭 파티(D-42 · P-30)도 **같은 앱 안에서** 나가기 콜백으로 닫고 `recent_players` 를 적는다(§3.3 "파티 닫힘"). `matching` 은 이 큐를 읽지 않는다(D-13 그대로 — 읽을 큐 자체가 없어졌다) |
-| ~~`BlockChanged.fifo`~~ | **만들지 않는다**(docs/11 D-12) | 원안(docs/11 #21)은 이 앱이 발행하고 `matching`이 받아 Redis 선필터를 만드는 것이었으나, `matching`은 확정 직전에 `blocks`를 직접 조회하는 한 겹으로 INV-6을 지킨다(D-1·D-2). 차단/해제는 DB 트랜잭션으로 끝난다 |
+| ~~`BlockChanged.fifo`~~ | **만들지 않는다**(docs/11 D-12) | 원안(docs/11 #21)은 이 앱이 발행하고 `matching`이 받아 Redis 선필터를 만드는 것이었으나, `matching`은 **배정 때 선필터로** `blocks`를 직접 읽는 한 겹으로 INV-6을 지킨다(D-1·D-2 — 확정 직전 검증은 두지 않는다, docs/11 **D-41**, 2026-09-27). 차단/해제는 DB 트랜잭션으로 끝난다 |
 
 - **outbox 테이블 · relay · AWS SDK 를 들이지 않는다.** `parties.source` 의 `MATCH` 는 P-30(`POST /api/v1/match-parties/{partyId}/room`)이 채운다 — 2026-09-21 에 `backend/build.gradle` 에 남긴 "SQS 를 넣을 자리" 주석은 낡았다.
 - **Kafka/RabbitMQ/Redis Streams 로 바꾸지 마라**(docs/11 #21 · #26) — 큐가 없어진 것이지 다른 큐로 바꾼 것이 아니다. 서비스별 DB 로 진짜 갈라지는 날 `matching` 의 확정 자리(`ProposalService`)에 큐를 넣는다(D-42 "근거").
@@ -437,7 +437,7 @@ Redis `PUBLISH qm:pubsub:push:{userId}`에 **JSON 문자열 하나**를 보낸�
 **(사) 로컬 CORS — 서비스에 CORS 설정을 넣지 않는다.** **프런트 개발 서버의 프록시**가 경로별로 8080~8083에 나눠 보낸다 — 운영이 같은 출처라서다. (다)의 `Origin` 검사도 로컬과 운영이 같은 모양이 된다.
 프런트가 이 컴퓨터에 없어 개발 서버가 무엇인지는 모른다.
 
-**(아) 임시 식별(`?userId=`)에서의 전환.** 1단계가 끝나 **로그인이 도는 것을 본 뒤**, 서비스별로 따로 옮긴다. 순서는 **`notification` → `matching`**이다(맨 앞이던 `room`은 2026-09-25 에 이 앱에 합치며 쿠키로 바뀌었다 — P-22).
+**(아) 임시 식별(`?userId=`)에서의 전환.** 1단계가 끝나 **로그인이 도는 것을 본 뒤**, 서비스별로 따로 옮긴다. 순서는 **`notification` → `matching`**이다(맨 앞이던 `room`은 2026-09-25 에 이 앱에 합치며 쿠키로 바뀌었다 — P-22). **→ 2026-09-27 에 둘 다 했다**(`notification` 은 그 폴더 `CLAUDE.md` §5.1, `matching` 은 `HANDOFF.md` §0-5 — docs/11 D-24 의 적용. 개발용 스위치는 두지 않았다).
 각 서비스에 "쿠키가 없으면 `userId` 파라미터를 받는" 개발용 스위치를 잠깐 남겨도 된다 — **임시 처리로 표시하고 운영에서는 끈다.** 바꾸는 작업은 각 폴더에서 한다(§9).
 
 **이 절의 "남은 것"은 정해졌다(2026-09-21 소유자 확정. 원본은 `contracts/platform-api.md` "공통" · "access 토큰" · P-2 — docs/11 D-24로 남겼다, 2026-09-26).**
@@ -460,7 +460,7 @@ Redis `PUBLISH qm:pubsub:push:{userId}`에 **JSON 문자열 하나**를 보낸�
 - **"상태를 바꾸는 GET을 만들지 않는다"의 예외가 하나 생겼다** — 소셜 로그인의 콜백이다. OAuth가 GET을 강제한다. `state` 검증이 그 자리를 지킨다(`contracts/platform-api.md` "소셜 로그인"). 목록 조회의 옮겨 적기는 §3.3.
 - ~~**로그인 실패 제한**~~(2026-09-21 — 계정 단위 · 15분 안에 5번 틀리면 잠그고 두 배씩 · 429 `TOO_MANY_LOGIN_ATTEMPTS` · 세는 열쇠는 로그인 아이디 — P-10) — **2026-09-26에 통째로 없어졌다**(소유자 결정 — P-24. 틀릴 비밀번호가 없다). IP 단위의 제한을 앞단(CloudFront/WAF)의 일로 둔 것은 그대로다.
 - **refresh 토큰이 붙었다(2026-09-23 소유자 결정 · 구현됐다).** (라) · (마)가 설계로만 적어 두었던 것이 코드가 됐고 **`TEMP-NO-REFRESH` 표식이 없어졌다**(`grep -rn "TEMP-NO-REFRESH" backend/src`가 0건이다). **남은 것** — 한 사용자의 refresh를 한꺼번에 끊는 길(모든 기기 로그아웃)과 프런트의 재발급 흐름이다(§7 · `START_HERE.md` §4 A).
-- **옆 서비스의 전환((아))은 둘이 남았다** — `notification` · `matching`은 아직 `?userId=`를 받는다. 각 폴더의 일이다. (옛 `room`은 이 앱에 합치며 쿠키로 바뀌었다 — P-22.)
+- **옆 서비스의 전환((아))은 끝났다** — `notification` · `matching`도 2026-09-27 에 `?userId=`를 버리고 쿠키 `qm_access`를 이 앱의 공개 키로 검증한다(각 폴더에서 했다 — `notification` `CLAUDE.md` §5.1 · `matching` `HANDOFF.md` §0-5). (옛 `room`은 이 앱에 합치며 쿠키로 바뀌었다 — P-22.)
 
 ## 6. 배포 기준
 
@@ -708,7 +708,7 @@ queuemate/
 
 | 무엇 | 경로 |
 |---|---|
-| **시작 안내** — 지금 어디까지 됐나, 옆 서비스(`notification` · `matching`)의 임시 식별(`?userId=`)과 이 앱이 줄 수 있는 것, 만드는 순서와 단계별 확인, 다음에 닿기 전에 물어야 하는 것 · 소유자가 검토해야 하는 것, 로컬에서 띄우는 법 | `START_HERE.md` (이 폴더) |
+| **시작 안내** — 지금 어디까지 됐나, 옆 서비스(`notification` · `matching`)의 임시 식별(`?userId=` — 2026-09-27 에 둘 다 쿠키로 끝났다)과 이 앱이 줄 수 있는 것, 만드는 순서와 단계별 확인, 다음에 닿기 전에 물어야 하는 것 · 소유자가 검토해야 하는 것, 로컬에서 띄우는 법 | `START_HERE.md` (이 폴더) |
 | **이 폴더에서 정한 계약** — 공통(에러 · 인증 · `Origin`) · access 토큰 · 계정 · 게임 프로필 · 소셜 로그인 · 차단 · 모집 글/목록(글 쓰기가 방을 만든다 · 만료) · **방**(입장 · 나가기 · 강퇴 · 방장 확정 · 접속 확인 · 시그널 · 방 알림 · Redis 키 — 옛 `room`의 계약을 합쳤다) · 친구/신고/최근 함께한 사람 · 알림 · refresh 토큰 · **gameconfig를 읽는 것**(§3.6) · **자동 매칭 파티의 방**(`POST /api/v1/match-parties/{partyId}/room` · 파티 HASH 의 필드 계약 — 2026-09-27) · **"원본에 올려야 할 것" P-1~P-30.** Claude가 정했고 소유자가 항목별로 검토하지 않았다(P-11 ~ P-29는 소유자가 직접 정한 것이고 P-30은 D-42 위에 Claude가 정한 세부다) | `contracts/platform-api.md` (이 폴더) |
 | **ERD**(테이블의 원본은 `backend/src/main/resources/db/migration/V1__schema.sql`이다 — 그림이 어긋나면 마이그레이션이 맞다. **2026-09-26 에 스키마가 `public` 하나가 되고 FK가 생겼다** — 그림이 스키마 셋이면 낡은 것이다) | <https://claude.ai/artifact/LBngVYThyCjipLUkatC6Bq> |
 | 매칭 엔진 규칙 (제품 경계·INV·Contract first의 원형) | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/CLAUDE.md` |

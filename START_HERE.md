@@ -51,10 +51,10 @@
 > **2026-09-26 소유자 결정 — 확정된 방이 없어질 때 파티가 닫힌다**(`contracts/platform-api.md` **P-25** "방" 의 "파티 닫힘" · `CLAUDE.md` §3.3).
 > `parties.status = 'CLOSED'` · `closed_at` 을 적고, 그 순간의 파티원(`party_members`)끼리 서로를 **`recent_players`** 에 적는다(방향마다 한 줄 · 다시 만나면 시각만 갱신) — **최근 함께한 사람이 이제 채워진다.**
 > 길이 둘 — ① 마지막 사람이 나가기를 눌러 방 키가 지워질 때 그 자리에서 ② 전원이 말없이 사라져 키가 수명(600초)으로 없어지면 목록 · 단건이 방 키를 읽다가 발견해서(방장 키 · 멤버 SET · 확정 표시 키가 **전부** 없을 때만 — 방장 키만 없는 것은 승계 중이다, D-23). 조건부 UPDATE 라 겹쳐도 한 번이다.
-> 확정 전에 방이 없어지면 파티가 없으니 글만 만료된다(그대로). **글은 `CONFIRMED` 그대로 · 응답에 새 칸 없음 · `PARTY_*` 알림은 여전히 내지 않는다.** **`PartyClosed.fifo`(SQS)는 게시판 파티에 필요 없어졌다** — 같은 앱 안에서 끝난다(자동 매칭 파티는 6단계에서 다시 본다).
+> 확정 전에 방이 없어지면 파티가 없으니 글만 만료된다(그대로). **글은 `CONFIRMED` 그대로 · 응답에 새 칸 없음 · `PARTY_*` 알림은 여전히 내지 않는다.** **`PartyClosed.fifo`(SQS)는 게시판 파티에 필요 없어졌다** — 같은 앱 안에서 끝난다(자동 매칭 파티는 6단계에서 다시 본다 — **→ 2026-09-27 D-42 · P-30: 자동 매칭 파티도 같은 나가기 콜백으로 닫고 큐는 두지 않는다**).
 > **왜** — `parties.status` 가 `ACTIVE` 로 박힌 채 아무도 바꾸지 않았고 "파티가 닫혔다" 가 미정이라 최근 함께한 사람이 늘 빈 목록이었다. 코드는 지금 붙는 중이다 — 세부는 코드 참조. **새 규칙이고 docs/11 에 D-항목이 아직 없다.**
 
-> **2026-09-26 — 결정 로그가 따라잡았다.** 이 절의 블록들이 "docs/11 에 D-항목이 없다" 고 적었던 소유자 결정(P-2 · P-11 ~ P-24)이 `matching` 의 docs/11 **D-24 ~ D-35** 로 올라갔다(블록마다 번호를 고쳐 적었다). `matching` 의 `Block.java` 도 같은 날 `Long` · `public.blocks` 로 고쳐졌다. **`notification` · `matching` 의 `?userId=` → 쿠키 전환은 아직 안 했다**(§2).
+> **2026-09-26 — 결정 로그가 따라잡았다.** 이 절의 블록들이 "docs/11 에 D-항목이 없다" 고 적었던 소유자 결정(P-2 · P-11 ~ P-24)이 `matching` 의 docs/11 **D-24 ~ D-35** 로 올라갔다(블록마다 번호를 고쳐 적었다). `matching` 의 `Block.java` 도 같은 날 `Long` · `public.blocks` 로 고쳐졌다. **`notification` · `matching` 의 `?userId=` → 쿠키 전환은 2026-09-27 에 둘 다 했다**(§2).
 
 > **2026-09-27 소유자 결정 — LoL 게임 계정의 `tier` 는 Riot 에서 채운다(전적과 함께). `mainPosition` 은 자기신고 그대로다**(`contracts/platform-api.md` **P-26** · `CLAUDE.md` §7 "게임 계정 연동").
 > 처음에는 "`gameNickname` 만 받고 `tier` · `mainPosition` 을 Riot 에서 채운다"였다 — **같은 날 주 포지션 절반은 되물렸다 — 사용자가 정한다**(주 포지션은 "이번에 맡을 자리" 라 최근 경기의 최빈값이 아니다).
@@ -230,15 +230,15 @@
 | 서비스 | 상태 (2026-09-21) | platform 을 기다리던 것 → 지금 |
 |---|---|---|
 | `room` | **2026-09-25 에 이 앱에 합쳤다**(P-22) — 이제 이 앱의 `room` 패키지다. `../room` 폴더 · 브랜치는 옛 모습 그대로 남는다(고치지 않는다) | 기다리던 것(인증 · 입장권 · 방장 확인)이 **합치며 없어졌다** — 방의 요청은 쿠키의 사용자를 쓰고, 입장권 대신 입장 요청 안에서 글을 검사하며, 방장은 글을 쓴 사람이다(글 쓰기가 방을 만든다) |
-| `notification` | 개인 알림(SSE)과 **게시판 채널 구독**(기동 때 `qm:pubsub:board` 하나를 구독해 모든 연결로 전달 — D-22)이 됐다. 인증만 없다(`?userId=`) | **access 토큰의 발급 → 됐다.** 검증을 붙이는 것은 `notification` 폴더의 일이다(`CLAUDE.md` §5.1 (가) · (바) — SSE 는 연결할 때만 검증한다). **이 앱의 게시판 신호 발행 → 됐다**(글이 생기거나 · 고쳐지거나 · 만료되거나 · 확정될 때). `notification` 을 거쳐 SSE 로 도착하는 것까지는 아직 보지 않았다 |
-| `matching` | 매칭 엔진은 됐다(세 게임 · 제안 · 수락 · 확정 · 만료 · 상태 조회 · 409 `IN_ROOM`). **outbox · SQS 는 두지 않는다**(2026-09-27 D-42 — 확정 때 파티 HASH `qm:party:{partyId}` 를 자기완결로 채우고 60초 · 600초 수명을 건다. `HANDOFF.md` §0-6) | ① `blocks` 테이블 → **생겼다**(옛 `social/V4__social_blocks.sql` — 2026-09-26 부터 `V1__schema.sql` 의 `public.blocks` 다. **`Block.java` 도 2026-09-26 에 `schema = "social"` 을 빼고 `Long` 이 됐다** — P-23. **스키마별 DB 롤은 두지 않는다**(2026-09-22 소유자 결정) — `matching` 은 별도 롤 없이 같은 방식으로 붙어 읽는다. `matching` 을 같은 DB 에 붙여 INV-6 이 실제 데이터로 도는 것은 **아직 보지 않았다**) ② ~~`ProposalConfirmed.fifo` 를 받아 줄 소비자~~ → **큐가 없어졌다(D-42)** — 이 앱이 `qm:party:{partyId}` 를 읽어 `POST /api/v1/match-parties/{partyId}/room` 에서 파티와 방을 만든다(P-30) ③ `status=PARTY` 를 누가 푸는가 → **정해졌다(D-42)** — 아무도 지우지 않는다. `matching` 이 60초 수명을 걸고 그 뒤는 이 앱의 입장 표시 키가 맡는다(`CLAUDE.md` §7.2 (라) 의 방향 그대로) ④ 인증 → 토큰은 있다. 검증은 `matching` 폴더의 일이다 |
+| `notification` | 개인 알림(SSE)과 **게시판 채널 구독**(기동 때 `qm:pubsub:board` 하나를 구독해 모든 연결로 전달 — D-22)이 됐다. 인증도 됐다 — 2026-09-27 에 `?userId=` 를 쿠키 `qm_access` 검증으로 바꿨다(그 폴더 `CLAUDE.md` §5.1) | **access 토큰의 발급 → 됐다. 검증 → `notification` 폴더에서 2026-09-27 에 붙였다**(`CLAUDE.md` §5.1 (가) · (바) — SSE 는 연결할 때만 검증한다). **이 앱의 게시판 신호 발행 → 됐다**(글이 생기거나 · 고쳐지거나 · 만료되거나 · 확정될 때). `notification` 을 거쳐 SSE 로 도착하는 것까지는 아직 보지 않았다 |
+| `matching` | 매칭 엔진은 됐다(세 게임 · 제안 · 수락 · 확정 · 만료 · 상태 조회 · 409 `IN_ROOM`). **outbox · SQS 는 두지 않는다**(2026-09-27 D-42 — 확정 때 파티 HASH `qm:party:{partyId}` 를 자기완결로 채우고 60초 · 600초 수명을 건다. `HANDOFF.md` §0-6) | ① `blocks` 테이블 → **생겼다**(옛 `social/V4__social_blocks.sql` — 2026-09-26 부터 `V1__schema.sql` 의 `public.blocks` 다. **`Block.java` 도 2026-09-26 에 `schema = "social"` 을 빼고 `Long` 이 됐다** — P-23. **스키마별 DB 롤은 두지 않는다**(2026-09-22 소유자 결정) — `matching` 은 별도 롤 없이 같은 방식으로 붙어 읽는다. `matching` 을 같은 DB 에 붙여 INV-6 이 실제 데이터로 도는 것은 **아직 보지 않았다**) ② ~~`ProposalConfirmed.fifo` 를 받아 줄 소비자~~ → **큐가 없어졌다(D-42)** — 이 앱이 `qm:party:{partyId}` 를 읽어 `POST /api/v1/match-parties/{partyId}/room` 에서 파티와 방을 만든다(P-30) ③ `status=PARTY` 를 누가 푸는가 → **정해졌다(D-42)** — 아무도 지우지 않는다. `matching` 이 60초 수명을 걸고 그 뒤는 이 앱의 입장 표시 키가 맡는다(`CLAUDE.md` §7.2 (라) 의 방향 그대로) ④ 인증 → **됐다(2026-09-27)** — `matching` 이 쿠키 `qm_access` 를 이 앱의 공개 키로 검증한다(`HANDOFF.md` §0-5 — docs/11 D-24 의 적용) ⑤ 대기 요청의 접속 확인 → `matching` 이 `POST /api/v1/match-requests/heartbeat` 를 두어 신호가 90초 끊긴 대기 요청을 스스로 취소한다(docs/11 D-43, 2026-09-28). 활성 요청 키가 영원히 남지 않으므로 이 앱의 409 `ALREADY_QUEUED` 도 영구적이지 않다 |
 | `app:reservation`(Lambda) | 이 컴퓨터에 폴더가 없다 (docs/11 D-15) | `reservation` 스키마의 마이그레이션을 누가 실행하는가(`CLAUDE.md` §7 — 미정. 정해지기 전에 이 앱에 넣지 않는다) |
 | 프런트 | 이 컴퓨터에 없다 (queueMate 본 저장소 `feature/frontend`) | 계약 → **이 폴더에서 정한 것이 `contracts/platform-api.md` 에 있다.** 원본에 platform 엔드포인트가 이미 있으면 그쪽과 맞춰야 한다(P-1 — 이 컴퓨터에서는 볼 수 없었다). |
 
-## 2. 옆 서비스의 임시 식별(`?userId=`)과, 이 앱에서 받아 갈 수 있는 것
+## 2. 옆 서비스의 임시 식별(`?userId=`)과, 이 앱에서 받아 갈 수 있는 것 — **2026-09-27 에 둘 다 쿠키로 끝났다**
 
 **`room` 은 2026-09-25 에 이 앱에 합쳤다**(P-22) — 그쪽의 임시 처리(`TEMP-NO-PLATFORM` — 요청의 `userId` 를 믿고 입장권을 검증하지 않던 것)는 **합치며 없어졌다**(`grep -rn "TEMP-NO-PLATFORM" backend/src` 0건).
-방의 요청은 `qm_access` 쿠키의 사용자를 쓰고, 입장권은 없어졌다 — 입장 요청 안에서 글을 검사한다(§1). **남은 것은 `notification` · `matching` 두 서비스다** — 둘 다 요청의 `userId` 파라미터를 그대로 믿는다(`?userId=`. 그쪽에는 표식이 없다).
+방의 요청은 `qm_access` 쿠키의 사용자를 쓰고, 입장권은 없어졌다 — 입장 요청 안에서 글을 검사한다(§1). **`notification` · `matching` 두 서비스도 2026-09-27 에 끝났다** — 둘 다 쿠키 `qm_access` 의 access 토큰을 이 앱의 공개 키로 검증한다(`notification` `CLAUDE.md` §5.1 · `matching` `HANDOFF.md` §0-5. `?userId=` 는 없어졌고 개발용 스위치도 두지 않았다). 아래는 그 전의 기록이다.
 
 **옆 서비스가 받아 가는 것 — 원본은 `contracts/platform-api.md` "access 토큰"이다**(쿠키 이름 · `iss` · 키 · 환경변수 이름 · `token_use` 는 소유자 확정 — P-2).
 
@@ -252,7 +252,7 @@
   **옆 서비스가 `userId` 를 문자열로 받아 쓰는 자리(요청 파라미터 · Redis 채널)는 `"42"` 가 들어가도 코드를 바꿀 것이 없다.** 바꿔야 했던 것은 하나다 — **`matching` 의 `block/Block.java`**(`blocks` 의 두 칸이 bigint 가 됐다. 2026-09-26 에 그 폴더에서 `Long` 으로 바꿨다).
 - **`token_use` 를 반드시 본다.** 이 앱은 access 토큰과 소셜 가입 대기 토큰(`token_use` = `social_signup`)을 **같은 키로 서명한다** — 서명 · `iss` · `exp` 만 보면 한쪽을 다른 쪽으로 쓸 수 있다. 옆 서비스가 받을 것은 `access` 하나다.
   (입장권 `room_ticket` 도 같은 키였는데 2026-09-25 2단계로 없어졌다.) JOSE 헤더의 `typ` 으로 가르지 않은 이유는 Spring Security 의 기본 디코더가 `typ` 이 `JWT` 가 아니면 거절하기 때문이다(`contracts/platform-api.md`).
-- **전환의 시점과 순서는 정해져 있다**(2026-09-21 소유자 확정 — `CLAUDE.md` §5.1 (아)). 원래 순서는 **`room` → `notification` → `matching`** 이었고 **`room` 은 합치며 끝났다.** 남은 것은 **`notification` → `matching`** 이고 **아직 둘 다 옮기지 않았다.**
+- **전환의 시점과 순서는 정해져 있다**(2026-09-21 소유자 확정 — `CLAUDE.md` §5.1 (아)). 원래 순서는 **`room` → `notification` → `matching`** 이었고 **`room` 은 합치며 끝났다.** 남은 것은 **`notification` → `matching`** 이었고 **2026-09-27 에 둘 다 옮겼다.**
   각 서비스에 "쿠키가 없으면 `userId` 파라미터를 받는" 개발용 스위치를 잠깐 남겨도 된다 — 임시 처리로 표시하고 운영에서는 끈다. `Origin` 검사(§5.1 (다))도 두 서비스에 걸리는 결정이다 — 언제 넣는지는 정하지 않았다(설정의 이름은 이 앱이 `ALLOWED_ORIGINS` 로 정했다). **바꾸는 작업은 각 폴더에서 한다** — 여기서 옆 폴더의 파일을 고치지 않는다(`CLAUDE.md` §9).
 - **이 앱에는 임시 처리 표식이 하나도 없다** — 2026-09-23 에 refresh 를 붙이며 `TEMP-NO-REFRESH` 를 걷었고(`grep -rn "TEMP-NO-REFRESH" backend/src` 가 **0건**이다) 2026-09-25 에 `room` 을 합치며 `TEMP-NO-PLATFORM` 도 없어졌다. 임시 처리를 다시 넣게 되면 같은 방식으로 표시한다 — 표식 문구를 담은 주석을 달아 검색 한 번으로 전부 찾을 수 있게 한다. 표시 없는 임시 처리는 구멍으로 남는다.
 
@@ -323,7 +323,7 @@
 
 **E. 옆 서비스의 전환** (`CLAUDE.md` §5.1 (아) · §2)
 
-1. 순서는 정해져 있다 — **`room` → `notification` → `matching`.** **`room` 은 2026-09-25 에 합치며 끝났다**(P-22). 남은 둘은 각 폴더의 일이다. **언제 시작하는가**, 개발용 스위치(`?userId=` 를 받는)를 남길지.
+1. 순서는 정해져 있다 — **`room` → `notification` → `matching`.** **`room` 은 2026-09-25 에 합치며 끝났다**(P-22). **남은 둘도 2026-09-27 에 각 폴더에서 끝났다** — 개발용 스위치(`?userId=` 를 받는)는 두지 않았다(`notification` `CLAUDE.md` §5.1 · `matching` `HANDOFF.md` §0-5).
 2. `Origin` 검사를 두 서비스에 언제 넣는가. 공개 키를 담는 환경변수의 이름을 세 서비스가 같게 쓸지.
 3. 게시판 채널 이름의 **원본 상수를 어느 서비스에 둘지** — 지금 두 앱(이 앱 · `notification`)이 각자 적어 두었다(두 값이 같아야 한다 — `CLAUDE.md` §3.2). 프런트가 재요청을 묶는 간격.
 
