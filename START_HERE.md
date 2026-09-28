@@ -23,7 +23,7 @@
     DB를 치는 곳은 차단 조회 하나뿐이다. match_requests 테이블을 만들지 마라.
   · 배정까지 구현된 게임은 LoL · PUBG · VALORANT 셋이다
     (전부 validator + CandidateRule + Lua + 시드). **세 게임 모두 동시성 테스트가 있다** —
-    LoL 3종 10건 + VALORANT 8건 + PUBG 9건 = 27건.
+    LoL 3종 12건 + VALORANT 9건 + PUBG 9건 = 30건.
   · 불변식은 Lua 안에서 지킨다. GET → 판단 → SET 으로 지키지 마라.
     backend/src/main/resources/redis/ 의 lua 20개가 그 자리다. 후보 찾기와 합류가
     두 스크립트로 나뉘어 있고, 그 사이 틈은 redisLock/PoolLock.java 의 후보 풀 락이 막는다.
@@ -104,7 +104,7 @@ cd "/mnt/c/Users/kimye/OneDrive/바탕 화면/matching/backend"
 
 ### Redis가 필요한 것 (이 환경에서는 실행 못 함) ⚠️
 
-동시성 테스트 4종(LoL 3 + `ValorantPartyJoinConcurrencyTest`), `PushNotificationTest`(6건), `ProposalIdempotencyTest`(11건,
+동시성 테스트 4종(LoL 3 + `ValorantPartyJoinConcurrencyTest`), `PushNotificationTest`(6건), `ProposalIdempotencyTest`(16건,
 `backend/src/test/java/com/queuemate/matching/proposal/ProposalIdempotencyTest.java`)는
 `localhost:6379`의 Redis **DB 15번**을 쓰고 매 테스트마다 `FLUSHDB` 한다
 (`ConcurrencyTestSupport`. 알림·제안 테스트도 그것을 상속한다).
@@ -199,6 +199,13 @@ curl -sS -X POST localhost:8080/api/v1/match-requests --cookie "qm_access=$TOKEN
 # 취소 — 누구의 요청인지는 쿠키의 sub 다 (2026-09-27 까지는 ?userId= 였다)
 curl -sS -X DELETE "localhost:8080/api/v1/match-requests/<requestId>" --cookie "qm_access=$TOKEN" -i
 # → 204
+
+# 접속 확인(heartbeat, 2026-09-28 — docs/11 D-43) — 대기 화면이 열려 있는 동안 클라이언트가 30초마다 보낸다. 본문 없음
+curl -sS -X POST localhost:8080/api/v1/match-requests/heartbeat --cookie "qm_access=$TOKEN" -i
+# → 204 (활성 요청이 있다 — qm:request:alive 의 시한을 now+90초로 밀었다)
+# → 404 {"code":"MATCH_REQUEST_NOT_FOUND",...} (활성 요청이 없다 — 클라이언트는 GET /match-requests 로 다시 조회한다)
+#    90초(ALIVE_GRACE_MS) 동안 안 보내면 RequestAliveSweeper(5초 주기)가 그 요청을 취소한다 — 위 접수 뒤 가만히 두고 ZRANGE 로 지켜보면 된다:
+#    docker exec -it qm-redis redis-cli ZRANGE qm:request:alive 0 -1 WITHSCORES
 
 # 상태 조회 — requestId 가 아니라 "나"(쿠키의 sub)로 찾는다 (경로 변수 없음)
 curl -sS "localhost:8080/api/v1/match-requests" --cookie "qm_access=$TOKEN" -i
@@ -357,7 +364,7 @@ backend/src/test/java/com/queuemate/matching/
 │   ├── ValorantPartyJoinConcurrencyTest.java  같은 것을 VALORANT 경로로
 │   └── NaiveVsLuaComparisonTest.java     순진한 방식이 깨짐을 대조로 증명
 ├── notification/PushNotificationTest.java  알림 6건. 실제로 구독해서 받아 본다
-└── proposal/ProposalIdempotencyTest.java   수락/거절 멱등성 11건
+└── proposal/ProposalIdempotencyTest.java   수락/거절 멱등성 16건
 
 backend/src/test/resources/schema.sql     테스트용 H2 에만 만드는 social.blocks (운영은 public.blocks · bigint — 맞춰야 한다, D-25 · D-34)
 seed/gameconfig.redis                     모드 설정 원본. LoL(12모드 + 티어 사다리 32 + tier-range 표 4모드)
@@ -448,6 +455,7 @@ POST /api/v1/proposals/{partyId}/decline?requestId=   ("나" = 쿠키의 sub)
 | `qm:party:{partyId}` | HASH | `partyId/target/createdAt/tierLo/tierHi` + `member:{userId} = keyValue` (+ 정원이 차면 `status`/`expiresAt`). **확정되면 `cleanup-confirmed.lua` 가 `status=CONFIRMED` 위에 `confirmedAt`(epoch ms) · `game` · `modeKey` · `voicePreference` · `playPurpose` 를 더 채우고 TTL 600초(`queuemate.proposal.confirmed-party-ttl-seconds`)를 건다 — `app:platform` 이 이 HASH 만 읽고 파티를 만들 수 있게 한 것이고, 그 필드 이름이 platform 과의 계약이다(docs/11 D-42, `contracts/events.md` SQS 절).** 인원 수 필드는 없다 — `member:` 를 센다. `tierLo/tierHi` 는 사다리 **순번**이고 `ZRANK` 값 **그대로**라 0부터다 — 읽는 쪽이 `ZRANGE lo hi` 에 그대로 넘긴다. 티어를 안 보는 모드도 `0/0` 으로 같은 모양을 갖는다. VALORANT 파티는 여기에 `minTier`/`maxTier`(지금까지 들어온 사람의 최저·최고 순번)가 더 붙는다 |
 | `qm:proposal:accepts:{partyId}` | SET | 제안 수락자 userId. `accept-proposal.lua` 가 `SADD` 후 `SCARD` 로 세어 `target` 과 비교한다. 거절(`decline-proposal.lua`) · 만료(`expiry-proposal.lua`) · 취소(`leave-party.lua`)가 `DEL` 하고, 확정되면 `cleanup-confirmed.lua` 가 `EXPIRE`(`queuemate.proposal.confirmed-retention-seconds`, 기본 60초)만 건다 — 재전송된 수락이 도착하는 창만큼만 남긴다. 제안 상태(`status`/`expiresAt`)는 별도 `qm:proposal:{id}` 레코드가 아니라 파티 HASH 에 있다 — **제안 id = partyId** |
 | `qm:proposal:pending` | ZSET | **진행 중인 제안 목록.** member = partyId, score = `expiresAt`. 정원이 찰 때 합류 스크립트가 `HSETNX status 'PENDING'` 성공 분기 안에서 `ZADD` 하고, 제안이 끝나는 **모든** 자리(확정 · 거절 · 취소 · 만료)가 `ZREM` 한다. 읽는 쪽은 `ProposalSweeper#sweep()` 하나다 — `ZRANGEBYSCORE 0 now LIMIT 0 100` 으로 시한이 지난 것만 꺼낸다. 게임을 구분하지 않는 키가 하나뿐인 것은 제안이 파티 HASH 위에서만 돌기 때문이다 |
+| `qm:request:alive` | ZSET | **접속 확인(heartbeat) 목록**(2026-09-28, docs/11 D-43). member = userId, score = **시한**(epoch ms = 마지막 신호 + `queuemate.alive.grace-ms` 90초). 넣는 자리 둘 — 접수 `claim-request.lua`(`KEYS[3]`, `HSET` 과 같은 원자 실행)와 `POST /match-requests/heartbeat`(`HeartBeatService`, score 덮어쓰기 — `NX` 아님). **빼는 자리 하나** — `RequestAliveExpiryService#expire` 의 `ZREM`. `qm:proposal:pending` 과 달리 취소 · 만료 · 확정 자리(Lua)에서 `ZREM` 하지 않는다 — 끝난 요청의 member 는 시한까지 남았다가 `RequestAliveSweeper`(5초, `ZRANGEBYSCORE 0 now LIMIT 0 100`)가 한 번 꺼내고, 활성 요청이 없거나 `status=PARTY` 면 목록에서만 뺀다(확정된 사람은 취소하지 않는다). 아니면 `MatchCancelService#cancel` 로 뺀다. **부하 테스트는 `ALIVE_GRACE_MS=3600000` 으로 띄운다**(`load-test/README.md`) |
 | `qm:party:open:LOL:{mode}:{voice}:{purpose}:needs:{keyValue}` | ZSET | **그 값을 아직 못 채운** 파티들. score = createdAt |
 | `qm:party:open:LOL:{mode}:{voice}:{purpose}:needs:{keyValue}:{tier}` | ZSET | 위의 티어판. 색인이 (포지션 x 티어) 격자가 된다. `:{tier}` 접미사는 **Lua 가 붙인다** — 자바는 접미사 없는 키만 KEYS 로 넘긴다 |
 | `qm:lock:pool:qm:party:open:LOL:{mode}:{voice}:{purpose}` | — | Redisson 후보 풀 락 (`PoolLock`). keyValue 는 **들어가지 않는다** |
@@ -525,7 +533,7 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
   `decline-proposal.lua`). 수락자 SET 을 `SCARD` 로 세어 `target` 에 닿을 때만
   `status=CONFIRMED` (INV-4), 확정은 거절로 뒤집히지 않는다 (INV-5 의 confirmed 갈래).
   거절은 제안 흔적(`status`/`expiresAt`/수락자 SET)을 지우고 거절한 본인만 큐에서 뺀다.
-  `ProposalIdempotencyTest` 11건이 멱등성으로 지킨다
+  `ProposalIdempotencyTest` 16건이 멱등성으로 지킨다
 - 확정 뒷정리 — `cleanup-confirmed.lua` 가 파티 HASH 에 `game` / `modeKey` / `voicePreference` /
   `playPurpose` / `confirmedAt` 을 채우고(`app:platform` 이 읽는 계약 — docs/11 D-42), 파티원 활성 요청에
   `status=PARTY` 를 찍은 뒤 TTL 을 건다 — 파티 HASH 600초, 활성 요청 · 수락자 SET 60초(지우지 않고
@@ -539,6 +547,12 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 - 제안 만료 — `qm:proposal:pending` ZSET + `ProposalSweeper`(`@Scheduled`, 기본 1초) +
   `ProposalExpiryService` + `expiry-proposal.lua`. **수락하지 않은 사람만** 큐에서 빼고
   (수락자는 파티에 남아 다시 기다린다) `MATCH_PROPOSAL_EXPIRED` 를 그 제안에 있던 전원에게 보낸다
+- **접속 확인(heartbeat, 2026-09-28 — docs/11 D-43)** — `POST /api/v1/match-requests/heartbeat`(본문 없음, 204 / 404 `MATCH_REQUEST_NOT_FOUND`).
+  클라이언트가 대기 화면에서 30초마다 보내고, ZSET `qm:request:alive`(score = 시한)에 `HeartBeatService` 가 `now + 90초` 를 덮어쓴다. 접수
+  `claim-request.lua` 가 `KEYS[3]` 으로 첫 시한을 같이 넣는다. `RequestAliveSweeper`(`@Scheduled`, 기본 5초) → `RequestAliveExpiryService#expire` —
+  `ZREM` 먼저, 활성 요청이 없거나 `status=PARTY` 면 끝(확정된 사람은 취소하지 않는다), 아니면 `MatchCancelService#cancel` 로 빼서 `leave-party.lua` 가
+  파티 · 색인 · 제안 흔적을 치우고 `MATCH_CANCELLED` 를 보낸다. **끝난 요청은 게으르게 지운다 — Lua 에 `ZREM` 이 없다.** 닫기 신호(`pagehide`)는 두지 않는다.
+  설정 `queuemate.alive.grace-ms`(`ALIVE_GRACE_MS`, 90000) · `sweep-interval-ms`(`ALIVE_SWEEP_INTERVAL_MS`, 5000). 테스트 `alive/RequestAliveTest`
 - 사용자 알림 publish — `qm:pubsub:push:{userId}` 로 `MATCH_QUEUE_UPDATED` /
   `MATCH_PROPOSAL_CREATED` / `MATCH_CANCELLED` / `MATCH_PROPOSAL_EXPIRED` /
   `MATCH_CONFIRMED` **5종 전부**. 봉투는 `{type, eventId, occurredAt, payload}`
@@ -579,7 +593,7 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 - `rule/valorant` 도 채워졌다 (`Valorant*` 6개). `domain/condition/pubg` 에는 `.gitkeep` 만
   있다 — PUBG 핵심 조건은 플랫폼 문자열이라 enum 이 없고 validator 가 값을 직접 본다
 - **테스트도 세 게임 모두 있다** — `PartyJoinConcurrencyTest`(LoL) ·
-  `ValorantPartyJoinConcurrencyTest`(8건) · `PubgPartyJoinConcurrencyTest`(9건)
+  `ValorantPartyJoinConcurrencyTest`(9건) · `PubgPartyJoinConcurrencyTest`(9건)
 
 LoL 만으로 시작한 범위 축소는 사고가 아니라 결정이다 — docs/11 **#30**("LoL만 / Tier 0만 / 차단 검증 제외").
 

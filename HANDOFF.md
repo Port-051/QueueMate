@@ -40,7 +40,12 @@
 - **계약 이름 결정** — `MatchRequestView` 의 `requestId` vs `id` · `partyId` vs `proposalId` · epoch millis vs `date-time`(README #4), 조회 경로를
   `/match-requests/me` 로 옮길지(#5). 원본(queueMate 본 저장소)과 같이 정한다.
 - **untiered `join-party.lua` 의 파티 존재 가드 없음** — 찾기와 합류 사이에 마지막 멤버가 취소하면 `HSET` 이 파티를 되살린다. 확률이 극히 낮아 그대로 둔다(§3-D).
-- **접속 확인(heartbeat)으로 대기 요청 거두기 — 소유자가 직접 구현한다** (docs/11 **D-43**, 2026-09-27). 설계는 그 항목에 있다 — 서버 ZSET `qm:request:alive`(이름 미정) + 스위퍼가 `MatchCancelService#cancel` 로 뺀다, 클라이언트 `pagehide` 의 `keepalive` DELETE 는 선택. 구현하면 D-43 의 "미정" 과 `CLAUDE.md` §3 · §4 Lua 표 · `contracts/README.md`(A-항목)를 같이 고친다.
+- ~~**접속 확인(heartbeat)으로 대기 요청 거두기 — 소유자가 직접 구현한다** (docs/11 **D-43**, 2026-09-27)~~ → **됐다(2026-09-28).** 소유자가 구현하고 Claude 가 일부를 고쳤다 —
+  `POST /api/v1/match-requests/heartbeat`(204 / 404 `MATCH_REQUEST_NOT_FOUND`) · ZSET `qm:request:alive`(score = 시한) · `claim-request.lua` `KEYS[3]` 의 첫 `ZADD` ·
+  `HeartBeatService` · `RequestAliveSweeper`(5초) · `RequestAliveExpiryService`(`ZREM` 먼저, 확정된 요청은 건너뜀, 아니면 `MatchCancelService#cancel`) · 유예 90초.
+  **끝난 요청은 게으르게 지운다 — Lua 에 `ZREM` 이 없다**(D-43 첫 초안과 다른 점). 닫기 신호는 두지 않는다. 테스트 `alive/RequestAliveTest`.
+  D-43 의 "미정" · `CLAUDE.md` §3 · §4(Lua 표 · "`qm:request:alive` ZSET의 수명" · 회귀 테스트 표) · `contracts/README.md` A-16 · `openapi.yaml` · `START_HERE.md` · `load-test/README.md` 를 같이 고쳤다.
+  **남은 것은 없다.** 단 하나 기억할 것 — `load-test/` 스크립트는 신호를 보내지 않으므로 **부하 테스트는 앱을 `ALIVE_GRACE_MS=3600000` 으로 띄운다**(`load-test/README.md` "접속 확인(heartbeat)과 부하 테스트"). 안 그러면 적재한 대기자가 90초 뒤 전부 빠진다.
 
 **환경 함정 한 줄.** 이 zsh 에서 `/dev/tcp` 로 포트를 확인하면 **항상 "닫힘"으로 나온다** — python `socket` 으로 확인해라. 테스트 Redis 는
 `docker.exe run -d --rm --name qm-matching-test-redis -p 6390:6379 redis:7-alpine`, 테스트는 `REDIS_PORT=6390`.

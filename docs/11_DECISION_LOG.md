@@ -3589,42 +3589,75 @@ platform 이 입장 키를 못 찍으면 그 사이 사용자가 새 매칭을 �
 **아직 미정 — platform 몫.** 전원이 말없이 사라져 방 키만 만료된 자동 매칭 파티는 닫히지 않는다(글이 없어 목록의 길 ② 가 없다) · `playPurpose` 는 `parties` 에
 칸이 없다 · `PARTY_*` 알림 이름.
 
-### D-43. 대기 중인 매칭 요청은 접속 확인(heartbeat)으로 산다 — 창을 닫으면 저절로 빠진다 (2026-09-27, 소유자가 직접 구현한다)
+### D-43. 대기 중인 매칭 요청은 접속 확인(heartbeat)으로 산다 — 창을 닫으면 저절로 빠진다 (2026-09-27 결정 · 2026-09-28 구현)
 
-> **프로젝트 소유자가 정했다. 결정과 설계만이다 — 소유자가 직접 구현한다**(Claude 는 코드를 짜지 않는다). 경로 이름 · 주기 · 유예 시간 같은 세부는
-> 구현하며 정하고, 정해지면 이 항목의 "미정" 을 고치고 `CLAUDE.md` §3 · §4 Lua 표 · `contracts/README.md`(A-항목)에 옮긴다.
+> **프로젝트 소유자가 정했다. 2026-09-27 에 결정과 설계만 적었고(Claude 는 코드를 짜지 않았다), 2026-09-28 에 소유자가 구현했고
+> Claude 가 일부를 고쳤다.** 첫 초안이 "미정" 으로 남긴 값은 아래 **정해진 것(2026-09-28)** 에 있고, 결정 1 · 2 의 글머리도 정해진 값으로
+> 고쳐 적었다(첫 초안과 달라진 자리는 그 줄에 표시했다 — "빼는 자리" 와 "닫기 신호"). `CLAUDE.md` §3 · §4(Lua 표 · "`qm:request:alive` ZSET의
+> 수명" · 회귀 테스트 표) · `contracts/openapi.yaml` · `contracts/README.md` A-16 · `START_HERE.md` · `load-test/README.md` 에 옮겼다.
 
 **문제.** 사용자가 대기 화면을 열어 둔 채 창을 닫거나 브라우저가 죽으면 매칭 요청이 그대로 남는다. 그 사람은 파티에 배정되고
 제안까지 받지만 아무도 수락하지 않아 제안이 만료되고, 다른 사람들이 그 사람 때문에 기다린다. 배정 전에는 claim 의 `EXPIRE 60`
 이 있지만 배정되면 `PERSIST` 로 풀리므로(INV-1 의 안전장치는 "배정 전에 죽은 경우" 만 막는다) 그 뒤에는 아무것도 거두지 않는다.
 
-**결정.** 두 겹으로 막는다. **서버의 접속 확인이 본체이고 클라이언트의 닫기 신호는 최적화다.**
+**결정.** **서버의 접속 확인 한 겹이다.** 첫 초안은 "두 겹 — 서버의 접속 확인이 본체이고 클라이언트의 닫기 신호는 최적화" 였는데,
+2026-09-28 에 닫기 신호를 빼기로 했다(아래 2).
 
 1. **서버 — 접속 확인 + 스위퍼.** 방(`app:platform` 의 `room`)이 이미 쓰는 방식과 같다(방은 1분 신호 · 600초 수명).
-   - 대기 화면이 열려 있는 동안 클라이언트가 주기적으로 접속 확인 요청을 보낸다(**경로 · 주기 미정** — 예: `POST /api/v1/match-requests/heartbeat`, 30초).
-     "나" 는 쿠키의 `sub` 다. 본문은 없어도 된다(활성 요청은 사용자 단위 키 하나다 — INV-1).
-   - 서버는 ZSET **`qm:request:alive`**(이름 미정) 에 `member = userId`, `score = 마지막 신호 시각(epoch ms)` 으로 `ZADD` 한다. 활성 요청이 없으면
-     아무것도 하지 않고 200 이다(늦게 온 신호가 빈 키를 만들면 안 된다). 접수(`claim-request.lua`)가 첫 신호를 같이 찍는다.
-   - 스위퍼(`ProposalSweeper` 와 같은 모양 — `ZRANGEBYSCORE 0 now-유예 LIMIT 0 100`, **유예 미정** — 예: 90초)가 신호가 끊긴 요청을 꺼내
-     `MatchCancelService#cancel(userId, requestId)` 로 뺀다(`requestId` 는 활성 요청 HASH 에서 읽는다). 그러면 게임별 `leave-party.lua` 가
-     파티에서 빼고 색인을 되돌리고 제안 흔적을 지우고 남은 사람에게 `MATCH_CANCELLED` 를 보낸다 — **새 Lua 가 필요 없다.**
-   - **넣는 자리 하나, 빼는 자리는 요청이 끝나는 모든 곳.** `ZREM` 은 취소(`leave-party.lua` 3종) · 만료로 빠질 때(같은 경로) · **확정**
-     (`cleanup-confirmed.lua` — 확정 뒤엔 방의 접속 확인이 맡는다, D-42) 에 있어야 한다. 한 군데라도 빠지면 스위퍼가 끝난 요청을 영원히 다시 꺼낸다
-     (`qm:proposal:pending` 의 규칙과 같다 — `CLAUDE.md` §4).
-   - **확정된 요청(`status=PARTY`)은 스위퍼가 건너뛴다** — 그 뒤의 자물쇠는 platform 의 입장 표시 키다(D-42). `ZREM` 을 빠뜨렸을 때의 방어다.
-2. **클라이언트 — 닫기 신호(선택).** `pagehide` 에서 `fetch(DELETE /match-requests/{requestId}, { keepalive: true, credentials: 'include' })`.
-   페이지가 사라져도 브라우저가 끝까지 보낸다(`sendBeacon` 은 POST 만 돼서 못 쓴다). **새로고침도 `pagehide` 라 큐가 취소된다** — 그것이
-   싫으면 이 겹은 빼고 1 만 둔다. 1 이 있으면 새로고침은 신호가 몇 초 끊길 뿐 유예 안이라 살아 있다.
+   - 대기 화면이 열려 있는 동안 클라이언트가 **30초마다** **`POST /api/v1/match-requests/heartbeat`** 를 보낸다
+     (`controller/MatchingController#heartbeat` → `service/HeartBeatService#update`). "나" 는 쿠키의 `sub` 다(`@CurrentUserId`). **본문은 없다**
+     (활성 요청은 사용자 단위 키 하나다 — INV-1). 다른 POST 처럼 쿠키 인증 + `Origin` 대조(D-24).
+     응답은 둘 — 활성 요청이 있으면 **204**(시한을 뒤로 밀었다), 없으면 **404 `MATCH_REQUEST_NOT_FOUND`**(넣지 않는다 — 늦게 온 신호가
+     빈 member 를 만들면 안 된다). 404 는 클라이언트에게 쓸모가 있다 — 자기가 큐에서 빠졌음을 알고 `GET /match-requests` 로 상태를 다시 조회한다.
+   - 서버는 ZSET **`qm:request:alive`**(`redisKeys/SharedKeys.HEARTBEAT_KEY`) 에 `member = userId`, **`score = 시한(epoch ms = 마지막 신호 + 유예)`**
+     으로 `ZADD` 한다 — 첫 초안의 "마지막 신호 시각" 이 아니라 **시한**이다. 그래야 스위퍼가 `now-유예` 가 아니라 `now` 로 자르고, 유예 설정을
+     바꿔도 이미 들어간 member 의 뜻이 바뀌지 않는다. `ZADD` 는 **`NX` 가 아니다** — 접수가 넣은 member 의 score 를 신호마다 덮어써야 한다.
+     접수(`shared/claim-request.lua`)가 **같은 원자 실행 안에서** 첫 시한을 `ZADD` 한다 — `KEYS[3]` 이 이 ZSET, `ARGV[1]` = userId,
+     `ARGV[2]` = 첫 시한(자바가 `now + 유예` 로 계산), `ARGV[3..]` 이 활성 요청 HASH 의 필드 쌍이다. 선점됐는데 목록에 없어 스위퍼가 못 보는 사람이
+     없게 하기 위해서다.
+   - 스위퍼 `service/RequestAliveSweeper`(`@Scheduled`, **`queuemate.alive.sweep-interval-ms` 기본 5초** — `ZRANGEBYSCORE 0 now LIMIT 0 100`,
+     `ProposalSweeper` 와 같은 모양)가 시한이 지난 member 를 꺼내 `service/RequestAliveExpiryService#expire(userId)` 에 넘긴다. `expire()` 는
+     **`ZREM` 을 먼저** 하고(안 빼면 매 회차 다시 꺼낸다), 활성 요청 HASH 를 읽어 `requestId` 를 얻어 `MatchCancelService#cancel(userId, requestId)`
+     로 뺀다. 그러면 게임별 `leave-party.lua` 가 파티에서 빼고 색인을 되돌리고 제안 흔적을 지우고 남은 사람에게 `MATCH_CANCELLED` 를 보낸다 —
+     **새 Lua 가 필요 없다.** 유예는 **`queuemate.alive.grace-ms` 기본 90초**(`ALIVE_GRACE_MS`) — 30초 주기에 신호 세 번을 놓치면 빠진다.
+     두 인스턴스가 같은 사람을 꺼내도 두 번째 `cancel()` 은 `NOT_FOUND` 라 한 번만 빠진다 — 락이 없는 이유다.
+   - **넣는 자리 둘(접수 Lua · heartbeat), 빼는 자리 하나(`RequestAliveExpiryService#expire` 의 `ZREM`) — 끝난 요청은 게으르게 지운다.**
+     **첫 초안과 다르다.** 초안은 `qm:proposal:pending` 처럼 "취소(`leave-party.lua` 3종) · 만료 · 확정(`cleanup-confirmed.lua`)마다 `ZREM`" 이었는데
+     구현하며 뺐다 — **Lua 어디에도 `ZREM qm:request:alive` 가 없다.** 취소 · 만료 · 확정으로 끝난 요청의 member 는 시한까지(최대 유예만큼) 남아
+     있다가 스위퍼가 한 번 꺼내고, `expire()` 가 활성 요청이 없거나 `status=PARTY` 인 것을 보고 목록에서만 뺀다. 그래도 되는 이유 —
+     ① 꺼내도 대부분 아무 일도 안 하고 비용은 `HGETALL` 한 번이다(`qm:proposal:pending` 은 꺼내면 실제 일을 하므로 끝나는 자리마다 `ZREM` 해야 하고,
+     한 군데 빠뜨리면 아무 잘못 없는 사람을 큐에서 뺀다 — 여기엔 그 위험이 없다) ② 같은 사용자가 유예 안에 다시 접수하면 `claim-request.lua` 의
+     `ZADD` 가 같은 member 의 score 를 새 시한으로 덮어쓰므로 **옛 시한이 새 요청을 죽이지 않는다** ③ 끝나는 자리 여섯(Lua 3종 x 2 + 확정)에 같은
+     줄을 넣고 하나라도 빠지면 스위퍼가 영원히 다시 꺼내는 구조보다, 빼는 자리 하나가 지키기 쉽다.
+   - **확정된 요청(`status=PARTY`)은 취소하지 않는다** — `expire()` 가 목록에서만 빼고 끝낸다. 확정 뒤 클라이언트는 방으로 넘어가 이 앱에 신호를 보내지
+     않고, 그 뒤의 접속 확인은 platform 의 방이 맡는다(D-42). 여기서 `cancel()` 을 부르면 `leave-party.lua` 가 확정된 파티에서 사람을 빼고 색인에
+     다시 올린다 — platform 이 파티 HASH 를 읽기 전에 멤버가 사라진다. 게으른 정리라 확정된 요청의 member 는 **반드시 한 번 꺼내지므로** 이 분기는
+     초안의 "`ZREM` 을 빠뜨렸을 때의 방어" 가 아니라 본선이다.
+2. **클라이언트 — 닫기 신호는 두지 않는다(2026-09-28).** 초안은 선택으로 남겼다 — `pagehide` 에서 `fetch(DELETE /match-requests/{requestId},
+   { keepalive: true, credentials: 'include' })`(`sendBeacon` 은 POST 만 돼서 못 쓴다). **새로고침도 `pagehide` 라 큐가 취소되므로** 빼고 1 만 둔다.
+   신호가 끊기면 유예 뒤 저절로 빠진다. 새로고침은 신호가 몇 초 끊길 뿐 유예 안이라 살아 있다.
 
 **근거.** 닫기 신호만으로는 강제 종료 · 네트워크 끊김 · 모바일(`pagehide` 가 안 뜨는 경우)을 못 잡고 새로고침과 닫기를 못 가른다.
 접속 확인은 그 넷을 다 덮고, 방이 이미 같은 방식으로 살고 있어 사용자와 프런트가 새로 배울 것이 없다. 스위퍼 · 취소 경로 · 알림이 전부
-있어서 새로 만드는 것은 엔드포인트 하나 · `ZADD` 하나 · 스위퍼 분기 하나다.
+있어서 새로 만든 것은 엔드포인트 하나 · `ZADD` 둘(접수 Lua · 서비스) · 스위퍼와 만료 서비스 한 쌍이다.
 
-**감수하는 것.** 창을 닫은 사람이 유예 시간(예: 90초)만큼 파티 자리를 차지한다 — 그 사이 정원이 차면 제안이 열리고 그 사람 때문에 만료된다.
+**감수하는 것.** 창을 닫은 사람이 유예 시간(90초)만큼 파티 자리를 차지한다 — 그 사이 정원이 차면 제안이 열리고 그 사람 때문에 만료된다.
 유예를 줄이면 네트워크가 잠깐 끊긴 사람이 억울하게 빠진다. 주기 30초 · 유예 90초(신호 세 번 놓치면 빠짐)가 출발점이다.
+게으른 정리의 값 — 끝난 요청의 member 가 최대 유예만큼 ZSET 에 남고, 스위퍼가 그것을 한 번 꺼내 `HGETALL` 한 번을 쓴다.
 
-**아직 미정 — 구현하며 정한다.** 경로와 응답 코드 · 주기 · 유예 · ZSET 이름 · 닫기 신호를 둘지 · 접수 응답 · 조회 응답에 "다음 신호까지" 를 실을지 ·
-`load-test/` 의 스크립트가 신호를 보내야 하는지(안 보내면 부하 테스트의 요청이 유예 뒤 전부 빠진다 — `TIER` 처럼 설정으로 끌 수 있게 하거나 스크립트가 신호를 낸다).
+**정해진 것(2026-09-28).**
+- 경로 · 응답 — `POST /api/v1/match-requests/heartbeat`, 본문 없음. **204**(활성 요청이 있어 시한을 밀었다) / **404 `MATCH_REQUEST_NOT_FOUND`**(활성
+  요청이 없다 — 넣지 않는다). 401 · 403 `ORIGIN_NOT_ALLOWED` · 503 은 다른 POST 와 같다. 접수 응답 · 조회 응답에 "다음 신호까지" 는 **싣지 않는다** —
+  주기는 클라이언트 규약(30초)이다(`contracts/openapi.yaml` · `contracts/README.md` A-16).
+- 주기 30초(클라이언트) · 유예 90초(`queuemate.alive.grace-ms` = `ALIVE_GRACE_MS`, 기본 90000) · 스위퍼 5초(`queuemate.alive.sweep-interval-ms` =
+  `ALIVE_SWEEP_INTERVAL_MS`, 기본 5000).
+- ZSET 이름 `qm:request:alive`(`SharedKeys.HEARTBEAT_KEY`), member = userId, **score = 시한(epoch ms)**.
+- 닫기 신호(`pagehide` 의 `keepalive` DELETE)는 **두지 않는다.**
+- **게으른 정리** — Lua(`leave-party.lua` · `expiry-proposal.lua` · `cleanup-confirmed.lua`)에 `ZREM` 이 없다. 빼는 자리는 `RequestAliveExpiryService#expire`
+  하나다. 확정된 요청(`status=PARTY`)은 목록에서만 빼고 취소하지 않는다.
+- `load-test/` 의 스크립트는 신호를 보내지 않는다 — **부하 테스트는 앱을 긴 유예로 띄운다**(`ALIVE_GRACE_MS=3600000`, `load-test/README.md`
+  "접속 확인(heartbeat)과 부하 테스트"). 안 그러면 적재해 둔 대기자가 90초 뒤 전부 빠진다. 스크립트에 신호를 넣거나 설정으로 끄는 스위치는 두지 않았다.
+- 테스트 — `backend/src/test/java/.../alive/RequestAliveTest`(신호 끊긴 요청이 빠지고, 확정된 요청은 건너뛰고, 끝난 요청은 게으르게 지워진다).
 
 ---
 
