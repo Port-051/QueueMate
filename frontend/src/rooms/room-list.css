@@ -1,7 +1,7 @@
 /* Shared column widths turn room summaries into a comparable, compact list. */
 .room-board {
   container-type:inline-size;
-  --room-list-columns:minmax(136px,1.15fr) 48px 76px 126px minmax(148px,1.05fr) 112px minmax(110px,1.15fr) 68px 72px;
+  --room-list-columns:minmax(136px,1.15fr) 64px 96px 150px minmax(180px,1.05fr) 128px 84px 72px;
 }
 .room-list-heading { display:none; }
 .room-board .room-deck-grid { gap:12px; border:0; border-radius:0; overflow:visible; }
@@ -28,7 +28,6 @@
 .room-board .compact-members-toggle { grid-column:2; grid-row:2; min-height:32px; padding:4px 6px; font-size:11px; }
 .room-board .compact-member .room-member-facts { grid-column:1 / -1; grid-row:3; }
 .room-board .compact-member-champions { grid-column:1 / -1; grid-row:4; }
-.room-board .compact-member-note { display:none; }
 .room-board .compact-member:not(.compact-seat) .room-member-facts>div { gap:4px; }
 .room-board .compact-member:not(.compact-seat) .room-member-record { border:0; padding:0; }
 .room-board .compact-seat { min-height:58px; background:#2a2236; }
@@ -53,7 +52,7 @@
 @container(min-width:1000px) {
   .room-list-heading { display:grid; grid-template-columns:var(--room-list-columns); gap:8px; align-items:center; padding:10px 12px; background:#171923; color:#9397ac; font-size:11px; }
   .room-list-heading>span { text-align:center; }
-  .room-list-heading>span:first-child,.room-list-heading>span:nth-child(7) { text-align:left; }
+  .room-list-heading>span:first-child { text-align:left; }
   .room-list-heading { margin-bottom:6px; border-radius:8px; }
   .room-board .compact-member:not(.compact-seat) { grid-template-columns:var(--room-list-columns); gap:8px; min-height:72px; padding:9px 12px; }
   .room-board .compact-member-name { grid-column:1; grid-row:1; }
@@ -64,9 +63,8 @@
   .room-board .compact-member-champions { grid-column:4; grid-row:1; }
   .room-board .room-member-record { grid-column:5; grid-row:1; }
   .room-board .room-fact-kda { grid-column:6; grid-row:1; }
-  .room-board .compact-room-header h3,.room-board .compact-member-note { grid-column:7; grid-row:1; min-width:0; margin:0; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; white-space:normal; overflow-wrap:anywhere; color:#c7c4d5; font-size:12px; line-height:1.5; }
-  .room-board .compact-room-header time,.room-board .compact-room-header .room-status { grid-column:8; grid-row:1; margin:0; justify-self:center; text-align:center; white-space:normal; font-size:11px; line-height:1.5; }
-  .room-board .compact-members-toggle { grid-column:9; grid-row:1; }
+  .room-board .compact-room-header time,.room-board .compact-room-header .room-status { grid-column:7; grid-row:1; margin:0; justify-self:center; text-align:center; white-space:normal; font-size:11px; line-height:1.5; }
+  .room-board .compact-members-toggle { grid-column:8; grid-row:1; }
   .room-board .compact-member:not(.compact-seat) .room-member-facts dt,
   .room-board .compact-champions-label,
   .room-board .room-kda-detail>.room-stat-caption { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }

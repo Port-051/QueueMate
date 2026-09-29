@@ -1576,7 +1576,7 @@ test('목록 머리글과 전적 열이 정렬되고 방장 여섯 명을 조밀
   await expect(board.locator('.room-list-heading')).toBeVisible();
   const alignment = await board.evaluate(element => {
     const headers = Array.from(element.querySelectorAll('.room-list-heading>span')).map(el => el.getBoundingClientRect());
-    const selectors = ['.compact-member-name', '.room-fact-role', '.room-fact-tier', '.compact-member-champions', '.room-member-record', '.room-fact-kda', '.compact-member-note', '.compact-room-header time', '.compact-members-toggle'];
+    const selectors = ['.compact-member-name', '.room-fact-role', '.room-fact-tier', '.compact-member-champions', '.room-member-record', '.room-fact-kda', '.compact-room-header time', '.compact-members-toggle'];
     return Array.from(element.querySelectorAll('.compact-member.is-host')).slice(0, 6).map(row => ({
       height: row.getBoundingClientRect().height,
       offsets: selectors.map((selector, index) => {

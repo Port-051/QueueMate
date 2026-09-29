@@ -117,7 +117,7 @@ export function RoomBoardHome() {
       {loading ? <p role="status">방 목록을 불러오는 중이에요.</p> : null}
       <div className="room-list-heading" aria-hidden="true">
         <span>플레이어</span><span>포지션</span><span>티어</span><span>{selectedGame === 'LOL' ? '최근 챔피언' : selectedGame === 'VALORANT' ? '선호 요원' : '선호 무기'}</span>
-        <span>승률</span><span>KDA</span><span>한마디</span><span>시작</span><span>인원</span>
+        <span>승률</span><span>KDA</span><span>시작</span><span>인원</span>
       </div>
       <div className={`room-deck-grid${selectedGame === 'LOL' && filters.modeKey === 'SOLO_DUO_RANKED' ? ' is-duo-grid' : ''}`}>{filtered.map(room => <RoomDeck room={room} selfId={member.id} key={room.id} entering={justCreatedId === room.id} onEntered={finishEntrance} onMember={showMember} entryError={roomEntryError(room, member.tier, activeRoom?.id)} onSeat={(room, roles) => {
         const intro = readIntroduction(member.id, room.game) ?? emptyIntroduction();

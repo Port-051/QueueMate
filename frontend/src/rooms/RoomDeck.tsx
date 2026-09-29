@@ -70,7 +70,6 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, entryError
     <button type="button" className="compact-member-name" aria-label={`${member.nickname} 프로필 보기`} onClick={() => onMember(room, member)}><RoomMemberAvatar room={room} member={member} size={28}/><strong title={member.nickname}>{member.nickname}</strong></button>
     <RoomMemberFacts room={room} member={member} />
     <RoomChampionStats game={room.game} member={member} />
-    <p className="compact-member-note" title={member.bio}>{member.bio}</p>
     {host ? <div className="compact-room-header" aria-label="방 요약">
       {closed ? <span className="room-status is-confirmed">마감</span> : null}
       {!closed ? <time dateTime={room.availableFrom ?? undefined}>{roomStartLabel(room.availableFrom)}</time> : null}
