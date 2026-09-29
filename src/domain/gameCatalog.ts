@@ -192,7 +192,16 @@ export const PERSPECTIVE_LABEL: Record<PubgPerspective, string> = { TPP: '3인�
 
 /** `OPTIONAL` 은 없다 — 매칭 전에 답이 정해지지 않는 조건은 조건이 아니다(openapi `VoicePreference` 개정 이력). */
 export const VOICE_PREFERENCES: readonly VoicePreference[] = ['REQUIRED', 'NO_VOICE'];
-export const PLAY_PURPOSES: readonly PlayPurpose[] = ['RANK_UP', 'NORMAL', 'FUN'];
+export const PLAY_PURPOSES: readonly PlayPurpose[] = ['RANK_UP', 'TRYHARD', 'FUN'];
+
+/**
+ * 브라우저에 저장해 둔 목적 값을 읽을 때 쓴다 — 2026-09-29 matching 이 `NORMAL`(일반 플레이)을 `TRYHARD`(빡겜)로 바꿨고
+ * 옛 이름을 별칭으로 받지 않는다(400 — docs/11 D-49). 옛 브라우저가 `NORMAL` 을 그대로 보내지 않게 새 이름으로 옮겨 읽는다. 모르는 값은 `undefined`.
+ */
+export function storedPlayPurpose(value: unknown): PlayPurpose | undefined {
+  const renamed = value === 'NORMAL' ? 'TRYHARD' : value;
+  return PLAY_PURPOSES.find(purpose => purpose === renamed);
+}
 
 export const modeSeed = (game: GameKey, modeKey: string): GameModeSeed | undefined =>
   GAME_CATALOG[game].modes.find((m) => m.key === modeKey);

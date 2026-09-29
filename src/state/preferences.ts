@@ -1,4 +1,5 @@
 import type { PlayPurpose, VoicePreference } from '../api/types';
+import { storedPlayPurpose } from '../domain/gameCatalog';
 
 const KEY = 'qm.preferences';
 
@@ -8,10 +9,9 @@ export interface Preferences {
   defaultPurpose: PlayPurpose;
 }
 
-export const DEFAULT_PREFERENCES: Preferences = { defaultVoice: 'NO_VOICE', defaultPurpose: 'NORMAL' };
+export const DEFAULT_PREFERENCES: Preferences = { defaultVoice: 'NO_VOICE', defaultPurpose: 'TRYHARD' };
 
 const VOICES: readonly string[] = ['REQUIRED', 'NO_VOICE'];
-const PURPOSES: readonly string[] = ['RANK_UP', 'NORMAL', 'FUN'];
 
 export function readPreferences(): Preferences {
   try {
@@ -19,9 +19,10 @@ export function readPreferences(): Preferences {
     if (!raw) return DEFAULT_PREFERENCES;
     const saved = JSON.parse(raw) as Partial<Preferences>;
     // 옛 저장값의 `OPTIONAL` 처럼 이제 없는 값은 기본값으로 — 서버가 400 을 낸다.
+    // 목적의 옛 이름 `NORMAL` 은 `TRYHARD`(빡겜)로 옮겨 읽는다(2026-09-29 — matching D-49).
     return {
       defaultVoice: saved.defaultVoice && VOICES.includes(saved.defaultVoice) ? saved.defaultVoice : DEFAULT_PREFERENCES.defaultVoice,
-      defaultPurpose: saved.defaultPurpose && PURPOSES.includes(saved.defaultPurpose) ? saved.defaultPurpose : DEFAULT_PREFERENCES.defaultPurpose,
+      defaultPurpose: storedPlayPurpose(saved.defaultPurpose) ?? DEFAULT_PREFERENCES.defaultPurpose,
     };
   } catch {
     return DEFAULT_PREFERENCES;

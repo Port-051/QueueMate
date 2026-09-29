@@ -1,4 +1,6 @@
 import type { MatchCondition } from '../api/types';
+import { storedPlayPurpose } from '../domain/gameCatalog';
+import { readPreferences } from './preferences';
 
 const KEY = 'qm.recentConditions';
 const MAX = 3;
@@ -11,7 +13,9 @@ const sameCondition = (a: MatchCondition, b: MatchCondition) =>
 export function readRecentConditions(): MatchCondition[] {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as MatchCondition[]) : [];
+    const saved = raw ? (JSON.parse(raw) as MatchCondition[]) : [];
+    // 옛 저장값의 목적 `NORMAL` 은 `TRYHARD`(빡겜)로 — 그대로 다시 보내면 matching 이 400 이다(2026-09-29 · D-49).
+    return saved.map((c) => ({ ...c, playPurpose: storedPlayPurpose(c.playPurpose) ?? readPreferences().defaultPurpose }));
   } catch {
     return [];
   }

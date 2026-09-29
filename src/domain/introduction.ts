@@ -2,7 +2,7 @@ import { normalizeTierRange, type TierRange } from './tierRange';
 import type { BoardRow, BoardWrite } from '../api/recruitment';
 import type { GameKey, PlayPurpose, VoicePreference } from '../api/types';
 import { conditionForMode, usesKeyCondition, keyConditionOptions } from './gameConfig';
-import { PLAY_PURPOSES } from './gameCatalog';
+import { storedPlayPurpose } from './gameCatalog';
 import { normalizeLolRankDetails, type LolRankDivision } from './lolRank';
 
 export type MatchResult = 'WIN' | 'LOSS' | null;
@@ -59,7 +59,8 @@ function normalize(value: Partial<SelfIntroduction>, game: GameKey): SelfIntrodu
     roomCapacity: typeof value.roomCapacity === 'number' && Number.isInteger(value.roomCapacity) && value.roomCapacity >= 2 && value.roomCapacity <= 5 ? value.roomCapacity : undefined,
     recentResults: Array.from({ length: 20 }, (_, i) => game !== 'LOL' ? null : value.recentResults?.[i] === 'WIN' ? 'WIN' : value.recentResults?.[i] === 'LOSS' ? 'LOSS' : null),
     voice: ['REQUIRED', 'NO_VOICE'].includes(value.voice ?? '') ? value.voice! : defaults.voice,
-    playPurpose: value.playPurpose && PLAY_PURPOSES.includes(value.playPurpose) ? value.playPurpose : undefined,
+    // 옛 저장값의 `NORMAL` 은 `TRYHARD` 로 옮겨 읽는다(2026-09-29 — matching D-49, 옛 이름은 400).
+    playPurpose: storedPlayPurpose(value.playPurpose),
     bio: text(value.bio),
   };
 }

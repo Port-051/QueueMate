@@ -111,7 +111,7 @@ export const VOICE_OPTIONS: { value: VoicePreference; label: string }[] = VOICE_
 }));
 
 export const PURPOSE_OPTIONS: { value: PlayPurpose; label: string }[] = PLAY_PURPOSES.map((value) => ({
-  value, label: value === 'RANK_UP' ? '랭크 상승' : value === 'NORMAL' ? '일반 플레이' : '즐겜',
+  value, label: value === 'RANK_UP' ? '랭크 상승' : value === 'TRYHARD' ? '빡겜' : '즐겜',
 }));
 
 export function modeConfig(game: GameKey, modeKey: string): ModeConfig | undefined {
@@ -149,7 +149,7 @@ export function defaultCondition(game: GameKey): MatchCondition {
     modeKey: visibleModes(game)[0]?.key ?? '',
     keyCondition: { type: cfg.keyCondition.type, value: keyConditionOptions(game)[0]?.value ?? '' },
     voicePreference: 'NO_VOICE',
-    playPurpose: 'NORMAL',
+    playPurpose: 'TRYHARD',
   };
 }
 

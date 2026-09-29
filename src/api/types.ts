@@ -7,7 +7,8 @@
 export type GameKey = 'LOL' | 'VALORANT' | 'PUBG';
 /** `OPTIONAL` 은 없다(openapi `VoicePreference` 개정 이력 · docs/11 #31) — 매칭 전에 답이 정해지지 않는 조건은 조건이 아니다. */
 export type VoicePreference = 'REQUIRED' | 'NO_VOICE';
-export type PlayPurpose = 'RANK_UP' | 'NORMAL' | 'FUN';
+/** 랭크 상승 · 빡겜 · 즐겜. `TRYHARD`(빡겜)는 옛 `NORMAL`(일반 플레이)을 바꾼 것이다 — 2026-09-29 소유자 결정(matching D-49 · A-19 — 옛 이름은 400). */
+export type PlayPurpose = 'RANK_UP' | 'TRYHARD' | 'FUN';
 export type PlayAmount = 'ONE_GAME' | 'TWO_PLUS';
 /** LoL = POSITION · VALORANT = ROLE · PUBG = PLATFORM(STEAM/KAKAO — 원본의 PLAY_STYLE 이 아니다, A-13). */
 export type KeyConditionType = 'POSITION' | 'ROLE' | 'PLATFORM';

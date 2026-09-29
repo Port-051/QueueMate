@@ -10,6 +10,8 @@ import type {
 } from '../api/types';
 import { useToast } from '../components/ui';
 import { buildMatchRequest, matchErrorMessage, matchRequestError } from '../domain/matchRequest';
+import { storedPlayPurpose } from '../domain/gameCatalog';
+import { readPreferences } from './preferences';
 import { rememberCondition } from './recentConditions';
 import { useAuth } from './AuthContext';
 
@@ -100,7 +102,10 @@ const readSavedMatch = (userId: string): SavedMatch | null => {
   try {
     const raw = localStorage.getItem(`${ACTIVE_MATCH_KEY}${userId}`);
     const saved = raw ? JSON.parse(raw) as Partial<SavedMatch> : null;
-    return saved?.requestId && saved.condition ? { requestId: saved.requestId, condition: saved.condition } : null;
+    if (!saved?.requestId || !saved.condition) return null;
+    // 옛 저장값의 목적 `NORMAL` 은 `TRYHARD`(빡겜)로 옮겨 읽는다(2026-09-29 — matching D-49 · 라벨이 비지 않게).
+    const playPurpose = storedPlayPurpose(saved.condition.playPurpose) ?? readPreferences().defaultPurpose;
+    return { requestId: saved.requestId, condition: { ...saved.condition, playPurpose } };
   } catch { return null; }
 };
 
