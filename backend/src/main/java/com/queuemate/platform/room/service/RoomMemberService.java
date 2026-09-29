@@ -80,9 +80,10 @@ public class RoomMemberService {
         keys.add(RoomKeys.roomMemberKey(roomId));
         keys.add(RoomKeys.roomHostKey(roomId));
         keys.add(RoomKeys.roomConfirmedKey(roomId));
+        keys.add(RoomKeys.noEntryKey(userId));
         // StringRedisTemplate 이라 인자는 전부 문자열로 넘긴다. 순서는 스크립트 머리의 ARGV 와 같다
         List<?> reply = RoomRedis.call("enter", () -> redis.execute(enterRoomScript, keys, userId, roomId, String.valueOf(CAPACITY),
-                String.valueOf(roomProperties.ttlSeconds())));
+                String.valueOf(roomProperties.ttlSeconds()), String.valueOf(System.currentTimeMillis())));
         EnterResult result = EnterResult.fromCode(codeOf(reply));
 
         // 발행은 예외를 밖으로 내보내지 않는다 — 알림이 실패해도 이미 성립한 입장은 그대로다 (CLAUDE.md §3.2)
@@ -147,16 +148,23 @@ public class RoomMemberService {
     /**
      * 강퇴. 방장이 방에 들어와 있는 사람을 내보낸다. 부른 사람이 방장인지는 스크립트가 방장 키와 비교해서 안다 —
      * 여기서 먼저 읽어 보고 판단하지 않는다(그 사이에 방장이 나가 방이 닫힐 수 있다).
-     * 강퇴했으면 방에 남은 사람들과 강퇴된 본인에게 알린다. 재입장은 막지 않는다 (미정 — {@code contracts/platform-api.md} "방" 의 강퇴).
+     * 강퇴했으면 방에 남은 사람들과 강퇴된 본인에게 알린다.
+     *
+     * <p><b>강퇴당한 사람은 10분 동안 그 방에 다시 들어올 수 없다</b>(2026-09-29 소유자 결정 — 직접 입장도 자동 합류도). 금지는 스크립트가 강퇴와 한 번에
+     * 적는다({@code RoomKeys#noEntryKey} · {@code noAutoJoinKey}) — 여기서 따로 쓰면 강퇴만 되고 금지는 안 남는 틈이 생긴다. 풀리는 시각은 이 앱의 시계로 넘긴다.
      */
     public KickResult kick(String roomId, String hostUserId, String targetUserId)
     {
         List<String> keys = new ArrayList<>();
         keys.add(RoomKeys.roomHostKey(roomId));
         keys.add(RoomKeys.roomMemberKey(roomId));
-        // 부른 사람이 아니라 대상의 입장 표시 키다
+        // 부른 사람이 아니라 대상의 입장 표시 키다. 금지 목록 둘도 대상의 것이다
         keys.add(RoomKeys.activeRoomKey(targetUserId));
-        List<?> reply = RoomRedis.call("kick", () -> redis.execute(kickRoomScript, keys, hostUserId, targetUserId, roomId));
+        keys.add(RoomKeys.noAutoJoinKey(targetUserId));
+        keys.add(RoomKeys.noEntryKey(targetUserId));
+        long expireTime = System.currentTimeMillis() + 600000;
+        List<?> reply = RoomRedis.call("kick", () -> redis.execute(kickRoomScript, keys, hostUserId, targetUserId,
+                                                                        roomId, String.valueOf(expireTime)));
         KickResult result = KickResult.fromCode(codeOf(reply));
 
         if (result == KickResult.KICKED)

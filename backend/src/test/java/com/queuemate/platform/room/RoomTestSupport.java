@@ -40,6 +40,8 @@ import java.util.stream.Collectors;
 public abstract class RoomTestSupport extends ApiTestSupport {
 
     private static final Pattern ROOM_KEY = Pattern.compile("^qm:room:([^:]+):(host|members|confirmed)$");
+    /** 강퇴 · 나가기의 금지 목록 — 사용자별 키다({@code qm:room:no-entry:u1}. 2026-09-29) */
+    private static final Pattern BAN_KEY = Pattern.compile("^qm:room:(no-entry|no-auto-join):(.+)$");
     private static final Pattern USER_KEY = Pattern.compile("^qm:user:(active-room|active-request):(.+)$");
 
     @Autowired
@@ -122,6 +124,11 @@ public abstract class RoomTestSupport extends ApiTestSupport {
     /** 이름표로 적은 키({@code "qm:room:r1:host"} · {@code "qm:user:active-room:u1"})를 진짜 키로 바꾼다 */
     protected String key(String labelled)
     {
+        Matcher ban = BAN_KEY.matcher(labelled);
+        if(ban.matches())
+        {
+            return "qm:room:" + ban.group(1) + ":" + u(ban.group(2));
+        }
         Matcher room = ROOM_KEY.matcher(labelled);
         if(room.matches())
         {
@@ -152,6 +159,21 @@ public abstract class RoomTestSupport extends ApiTestSupport {
     protected String host(String roomLabel)
     {
         return labelOf(redisTemplate.opsForValue().get(key("qm:room:" + roomLabel + ":host")));
+    }
+
+    /**
+     * 금지 목록({@code no-entry} · {@code no-auto-join})에서 그 사용자 · 그 방의 score(풀리는 시각 epoch ms). 없으면 {@code null}.
+     * {@code kick-room.lua} · {@code leave-room.lua} 가 적고 {@code enter-room.lua} · 자동 합류가 읽는다(2026-09-29)
+     */
+    protected Double ban(String list, String userLabel, String roomLabel)
+    {
+        return redisTemplate.opsForZSet().score(key("qm:room:" + list + ":" + userLabel), r(roomLabel));
+    }
+
+    /** 금지를 지난 것으로 만든다 — score 를 과거로. 10분을 기다리지 않고 "풀린 뒤"를 본다 */
+    protected void expireBan(String list, String userLabel, String roomLabel)
+    {
+        redisTemplate.opsForZSet().add(key("qm:room:" + list + ":" + userLabel), r(roomLabel), 1);
     }
 
     /**
@@ -196,6 +218,9 @@ public abstract class RoomTestSupport extends ApiTestSupport {
         {
             all.add("qm:user:active-room:" + user);
             all.add("qm:user:active-request:" + user);
+            // 강퇴 · 나가기의 금지 목록도 이 사람의 것이다 — 안 지우면 다음 바퀴(또는 다음 테스트)의 입장이 KICKED_RECENTLY 로 막힌다
+            all.add("qm:room:no-entry:" + user);
+            all.add("qm:room:no-auto-join:" + user);
         }
         return all;
     }

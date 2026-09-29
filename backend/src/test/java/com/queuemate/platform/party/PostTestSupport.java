@@ -55,7 +55,9 @@ abstract class PostTestSupport extends ApiTestSupport {
             }
             redisTemplate.delete(List.of(hostKey(roomId), membersKey(roomId), confirmedKey(roomId)));
         }
-        touchedUsers.forEach(userId -> redisTemplate.delete("qm:user:active-room:" + userId));
+        touchedUsers.forEach(userId -> redisTemplate.delete(List.of("qm:user:active-room:" + userId,
+                // 나가기 · 강퇴가 남기는 10분 금지 목록(2026-09-29) — 방이 아니라 사람의 키라 방 키와 같이 안 지워진다
+                "qm:room:no-entry:" + userId, "qm:room:no-auto-join:" + userId)));
         touchedRooms.clear();
         touchedUsers.clear();
     }

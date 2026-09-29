@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -356,6 +357,48 @@ class AutoJoinTest extends PostTestSupport {
         expectNoMatchingPost(autoJoin(me, rankedBody("GOLD_4", "MID")));
         // 읽기만 했다 — 글의 상태를 옮겨 적지 않는다(그것은 목록 · 단건의 일이다)
         assertThat(statusOf(gone)).isEqualTo("RECRUITING");
+    }
+
+    // ---- ⑬ 나갔거나 강퇴당한 방은 10분 동안 건너뛴다 (2026-09-29 소유자 결정) ----
+
+    @Test
+    @DisplayName("스스로 나간 방은 10분 동안 자동 합류에서 건너뛴다 — 그 방뿐이면 404, 다른 방이 있으면(더 새 글이어도) 그리로 간다")
+    void skipsRoomLeftWithinTenMinutes() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie me = login(nickname);
+        Long meId = userIdOf(nickname);
+        Long left = insertRankedPost(hostWithTier("GOLD_1"), "MID");
+        assertJoined(autoJoin(me, rankedBody("GOLD_4", "MID")), left, meId);
+
+        // 나가기가 no-auto-join 에 그 방을 적는다(leave-room.lua)
+        mockMvc.perform(delete("/api/v1/rooms/{roomId}/members/me", left).cookie(me)).andExpect(status().isNoContent());
+        assertThat(redisTemplate.opsForZSet().score("qm:room:no-auto-join:" + meId, String.valueOf(left))).isNotNull();
+
+        expectNoMatchingPost(autoJoin(me, rankedBody("GOLD_4", "MID")));
+        assertThat(redisTemplate.opsForSet().members(membersKey(left))).doesNotContain(String.valueOf(meId));
+
+        // 더 새 글(id 가 큰 방)이라도 나간 방 대신 그리로 간다 — "가장 오래된 방부터" 는 건너뛴 다음의 순서다
+        Long other = insertRankedPost(hostWithTier("GOLD_1"), "MID");
+        assertJoined(autoJoin(me, rankedBody("GOLD_4", "MID")), other, meId);
+    }
+
+    @Test
+    @DisplayName("풀리는 시각이 지난 방은 다시 후보다 — score 를 과거로 두면 그 방으로 들어간다")
+    void rejoinsAfterBanExpires() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie me = login(nickname);
+        Long meId = userIdOf(nickname);
+        Long left = insertRankedPost(hostWithTier("GOLD_1"), "MID");
+        assertJoined(autoJoin(me, rankedBody("GOLD_4", "MID")), left, meId);
+        mockMvc.perform(delete("/api/v1/rooms/{roomId}/members/me", left).cookie(me)).andExpect(status().isNoContent());
+        expectNoMatchingPost(autoJoin(me, rankedBody("GOLD_4", "MID")));
+
+        // 10분을 기다리지 않는다 — 풀리는 시각(score)을 과거로
+        redisTemplate.opsForZSet().add("qm:room:no-auto-join:" + meId, String.valueOf(left), 1);
+
+        assertJoined(autoJoin(me, rankedBody("GOLD_4", "MID")), left, meId);
     }
 
     // ---- ⑫ playPurpose ----

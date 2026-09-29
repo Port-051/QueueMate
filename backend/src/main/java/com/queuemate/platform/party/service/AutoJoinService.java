@@ -37,7 +37,8 @@ import java.util.regex.Pattern;
  * <b>서버가 {@code matching} 을 부르지 않고 활성 요청 키를 만들지 않는다</b>(누른 순간 한 번만 게시판을 본다 — D-19 그대로).
  *
  * <p><b>흐름</b> — ① 본문 검증(게임 · 음성 · 조건의 종류와 값 — 400) → ② gameconfig 로 모드 · 티어 규칙 검증({@code matching} 의 validator 와 같은 순서 — 400) →
- * ③ 후보 글 조회(그 게임 · 그 모드 · 그 음성 · 모집 중 · 내 글 제외 · 오래된 순 · 많아야 {@code platform.board.auto-join-scan} 개) → ④ 자바 필터(PUBG 시점 · 포지션 · 방장 티어) →
+ * ③ 후보 글 조회(그 게임 · 그 모드 · 그 음성 · 모집 중 · 내 글 제외 · 오래된 순 · 많아야 {@code platform.board.auto-join-scan} 개) →
+ * ④ 자바 필터(10분 안에 나갔거나 강퇴당한 방 — {@code RoomService#noAutoJoinRooms} · PUBG 시점 · 포지션 · 방장 티어) →
  * ⑤ 방 키를 파이프라인 한 번으로 읽어 사라진 방 · 확정된 방 · 모드 정원이 찬 방 제외 → ⑥ 남은 순서대로 입장({@link RoomMemberService#enter} — 안에서 {@link PostEntryGate} 가
  * 차단 · 상태를 본다). 들어갔으면 200, 다음 방으로 넘어갈 수 없는 거절({@code IN_OTHER_ROOM} · {@code ALREADY_QUEUED})은 그 코드로 409, 다 돌아도 없으면 404.
  *
@@ -85,7 +86,6 @@ public class AutoJoinService {
         VoicePreference voice = VoicePreference.fromName(request.voicePreference()).orElseThrow(
                 () -> ApiException.validationFailed("voicePreference", "REQUIRED · NO_VOICE 가운데 하나여야 합니다"));
         String myPosition = positionOf(game, request.keyCondition());
-        // playPurpose 는 받되 보지 않는다 — 글에서 purpose 가 없어졌다(P-29)
 
         Gate gate;
         List<RecruitPost> candidates;
@@ -94,7 +94,9 @@ public class AutoJoinService {
         {
             gate = gate(game, modeKey, request.tier());
             candidates = postStore.findAutoJoinCandidates(game, modeKey, voice, me, boardProperties.autoJoinScan());
-            candidates = filter(game, modeKey, myPosition, gate, candidates);
+            // 10분 안에 내가 나갔거나 강퇴당한 방은 후보에서 뺀다(2026-09-29 소유자 결정) — 방 키는 room 이 읽는다(§3.3)
+            Set<String> skip = roomService.noAutoJoinRooms(String.valueOf(me));
+            candidates = filter(game, modeKey, myPosition, gate, skip, candidates);
             states = roomService.states(candidates.stream().map(RecruitPost::getId).toList());
         }
         catch(GameConfigUnavailableException | RoomStateUnavailableException e)
@@ -229,15 +231,20 @@ public class AutoJoinService {
     // ---- 글 거르기 ----
 
     /**
-     * PUBG 시점 · 포지션 · 방장 티어. 순서는 그대로다(오래된 순). 내 글 제외 · 음성은 쿼리가 본다({@link PostStore#findAutoJoinCandidates} — 2026-09-29 에 옮겼다.
-     * 여기 남은 셋은 SQL 로 못 보거나 어색한 것이다 — 시점은 jsonb 안, 포지션은 별도 표에 "비어 있으면 누구든", 티어는 Redis)
+     * 건너뛸 방(10분 안에 나갔거나 강퇴당한 방 — {@link RoomService#noAutoJoinRooms}) · PUBG 시점 · 포지션 · 방장 티어. 순서는 그대로다(오래된 순).
+     * 내 글 제외 · 음성은 쿼리가 본다({@link PostStore#findAutoJoinCandidates} — 2026-09-29 에 옮겼다.
+     * 여기 남은 것은 SQL 로 못 보거나 어색한 것이다 — 건너뛸 방과 티어는 Redis, 시점은 jsonb 안, 포지션은 별도 표에 "비어 있으면 누구든")
      */
-    private List<RecruitPost> filter(Game game, String modeKey, String myPosition, Gate gate, List<RecruitPost> candidates)
+    private List<RecruitPost> filter(Game game, String modeKey, String myPosition, Gate gate, Set<String> skip, List<RecruitPost> candidates)
     {
         String perspective = perspectiveOf(game, modeKey);
         List<RecruitPost> matched = new ArrayList<>();
         for(RecruitPost post : candidates)
         {
+            if(skip.contains(String.valueOf(post.getId())))
+            {
+                continue;
+            }
             if(perspective != null && !perspective.equals(perspectiveOf(post)))
             {
                 continue;
@@ -355,7 +362,9 @@ public class AutoJoinService {
         return switch(result)
         {
             case ENTERED, ALREADY_ENTERED -> true;
-            case FULL, ROOM_CONFIRMED, ROOM_NOT_FOUND -> false;
+            // 강퇴당한 지 10분이 안 된 방은 다음 방으로 — 후보 거르기가 no-auto-join 목록으로 먼저 빼지만, 그 목록에 없고 no-entry 에만 있는 경우는 없다(강퇴는 둘 다 쓴다).
+            // 그래도 스크립트가 거절하면 넘어간다(두 목록의 수명이 어긋난 창)
+            case FULL, ROOM_CONFIRMED, ROOM_NOT_FOUND, KICKED_RECENTLY -> false;
             case IN_OTHER_ROOM -> throw RoomErrors.inOtherRoom();
             case ACTIVE_REQUEST_EXISTS -> throw RoomErrors.alreadyQueued("자동 매칭을 돌리는 동안에는 게시판 방에 들어갈 수 없습니다");
         };

@@ -52,6 +52,10 @@ public class RoomMemberController {
             case IN_OTHER_ROOM -> throw RoomErrors.inOtherRoom();
             case ROOM_NOT_FOUND -> throw RoomErrors.roomNotFound();
             case ROOM_CONFIRMED -> throw new ApiException(HttpStatus.CONFLICT, "ROOM_CONFIRMED", "이미 확정된 파티방입니다");
+            // 강퇴당한 방의 10분 재입장 금지(2026-09-29 소유자 결정). 403 인 것은 방의 상태가 아니라 이 사람에 대한 거절이라서다 —
+            // 다른 방에는 그대로 들어갈 수 있고, 시간이 지나면 풀린다(Claude 가 정한 세부 — 계약에 적어야 한다)
+            case KICKED_RECENTLY -> throw new ApiException(HttpStatus.FORBIDDEN, "KICKED_RECENTLY",
+                    "강퇴당한 파티방에는 10분 동안 다시 들어갈 수 없습니다");
         };
     }
 

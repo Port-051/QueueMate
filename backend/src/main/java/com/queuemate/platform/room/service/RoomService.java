@@ -27,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -185,8 +186,11 @@ public class RoomService {
         keys.add(RoomKeys.roomMemberKey(roomId));
         keys.add(RoomKeys.roomHostKey(roomId));
         keys.add(RoomKeys.roomConfirmedKey(roomId));
+        keys.add(RoomKeys.noAutoJoinKey(userId));
         // 접두사를 넘기는 이유 — 방을 없앨 때 남은 사람들의 입장 표시 키를 스크립트가 직접 조립한다
-        List<?> reply = RoomRedis.call("leave", () -> redis.execute(leaveRoomScript, keys, userId, roomId, RoomKeys.ACTIVE_ROOM_PREFIX));
+        List<?> reply = RoomRedis.call("leave", () -> redis.execute(leaveRoomScript, keys, userId, roomId,
+                                                                        RoomKeys.ACTIVE_ROOM_PREFIX,
+                                                                        String.valueOf(System.currentTimeMillis() + 600000)));
         LeaveResult result = LeaveResult.fromCode(reply == null || reply.isEmpty() ? null : (Long) reply.get(0));
 
         // 발행은 예외를 밖으로 내보내지 않는다 — 알림이 실패해도 이미 성립한 나가기는 그대로다 (CLAUDE.md §3.2)
@@ -302,6 +306,28 @@ public class RoomService {
                     Boolean.TRUE.equals(results.get(at + 2))));
         }
         return states;
+    }
+
+    /**
+     * 자동 합류가 건너뛸 방 — 그 사람이 <b>10분 안에 나갔거나 강퇴당한</b> 방의 {@code roomId} 들이다(2026-09-29 소유자 결정. {@code RoomKeys#noAutoJoinKey}).
+     * {@code kick-room.lua} · {@code leave-room.lua} 가 적고 게시판 방 먼저 합류({@code party.service.AutoJoinService})가 후보를 거를 때 부른다 —
+     * {@code party} 는 방 키를 직접 읽지 않는다(§3.3). 풀리는 시각(score)이 아직 안 지난 원소만 준다 — 지난 원소는 키의 수명이 지운다.
+     *
+     * <p>못 읽으면 {@link RoomStateUnavailableException} — {@link #states} 와 같다(자동 합류는 fail-closed 라 부르는 쪽이 503 으로 바꾼다).
+     */
+    public Set<String> noAutoJoinRooms(String userId)
+    {
+        try
+        {
+            Set<String> rooms = redis.opsForZSet().rangeByScore(RoomKeys.noAutoJoinKey(userId),
+                    System.currentTimeMillis(), Double.POSITIVE_INFINITY);
+            return rooms == null ? Set.of() : rooms;
+        }
+        catch(RuntimeException e)
+        {
+            log.warn("자동 합류 건너뛰기 목록을 읽지 못했다 userId={}: {}", userId, e.toString());
+            throw new RoomStateUnavailableException(e);
+        }
     }
 
     private static byte[] bytes(String key)

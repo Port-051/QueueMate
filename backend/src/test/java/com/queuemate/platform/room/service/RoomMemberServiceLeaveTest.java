@@ -42,6 +42,20 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
     }
 
     @Test
+    @DisplayName("스스로 나간 사람은 그 방을 10분 동안 자동 합류에서 건너뛴다(no-auto-join) — 직접 입장은 막지 않는다(no-entry 에 없다) (2026-09-29 소유자 결정)")
+    void leavingWritesOnlyAutoJoinBan()
+    {
+        roomService.create(r("r1"), u("host"));
+        roomMemberService.enter(r("r1"), u("u1"));
+
+        assertThat(roomMemberService.leave(r("r1"), u("u1"))).isEqualTo(LeaveResult.LEFT);
+
+        assertThat(ban("no-auto-join", "u1", "r1")).isNotNull().isGreaterThan(System.currentTimeMillis());
+        assertThat(ban("no-entry", "u1", "r1")).isNull();
+        assertThat(roomMemberService.enter(r("r1"), u("u1"))).isEqualTo(EnterResult.ENTERED);
+    }
+
+    @Test
     @DisplayName("나갔다가 다시 들어올 수 있고, 나간 자리에 다른 사람이 들어올 수 있다")
     void canEnterAgainAfterLeaving()
     {

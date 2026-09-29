@@ -256,7 +256,8 @@ class RoomServiceConfirmTest extends RoomTestSupport {
 
         assertThat(roomMemberService.leave(r("r1"), u("host"))).isEqualTo(LeaveResult.ROOM_CLOSED);
 
-        assertThat(ownKeys()).isEmpty();
+        // 방 키 셋(host · members · confirmed)과 입장 표시는 전부 없어졌다. 남는 것은 먼저 나간 u1 의 자동 합류 건너뛰기뿐이다 — 사람의 키라 방과 함께 지워지지 않는다(2026-09-29)
+        assertThat(ownKeys()).containsExactly("qm:room:no-auto-join:u1");
         // 이 테스트는 확정을 방에만 했다(글의 기록 없이) — 그래서 방이 닫힐 때 글이 모집 중이었고 나가기가 그 글을 만료시켰다(2026-09-25 — 확정 전에는 방과 글이 같이 끝난다).
         // 여기서 보려는 것은 "다시 만든 방이 확정돼 있지 않다" 하나라 글을 되살려 입장이 글에서 막히지 않게 한다
         jdbcTemplate.update("update recruit_posts set status = 'RECRUITING', expired_at = null where id = ?", Long.parseLong(r("r1")));

@@ -81,18 +81,43 @@ class RoomMemberServiceKickTest extends RoomTestSupport {
     }
 
     @Test
-    @DisplayName("지금의 동작: 강퇴된 사람이 같은 방에 다시 입장할 수 있다 — 재입장을 막을지는 미정이다 (CLAUDE.md §7)")
-    void kickedUserCanEnterAgain()
+    @DisplayName("강퇴된 사람은 10분 동안 같은 방에 다시 못 들어온다 — 두 금지 목록에 그 방이 적히고, 풀리는 시각이 지나면 들어온다 (2026-09-29 소유자 결정)")
+    void kickedUserCannotEnterAgainForTenMinutes()
     {
+        long before = System.currentTimeMillis();
         roomService.create(r("r1"), u("host"));
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.kick(r("r1"), u("host"), u("u1"));
 
-        // 막기로 정해지면 이 테스트가 깨진다 — 그때 기대값을 바꾼다
-        assertThat(roomMemberService.enter(r("r1"), u("u1"))).isEqualTo(EnterResult.ENTERED);
+        // 강퇴가 두 목록에 같이 적는다 — 직접 입장(no-entry)도 자동 합류(no-auto-join)도 막는다. score 는 지금 + 10분이다
+        assertThat(ban("no-entry", "u1", "r1")).isNotNull().isBetween((double) before + 600_000, (double) System.currentTimeMillis() + 600_000);
+        assertThat(ban("no-auto-join", "u1", "r1")).isNotNull();
 
+        assertThat(roomMemberService.enter(r("r1"), u("u1"))).isEqualTo(EnterResult.KICKED_RECENTLY);
+        // 거절은 아무것도 쓰지 않는다
+        assertThat(members("r1")).containsExactly("host");
+        assertThat(marker("u1")).isNull();
+
+        // 풀리는 시각이 지나면 그대로 들어온다
+        expireBan("no-entry", "u1", "r1");
+        assertThat(roomMemberService.enter(r("r1"), u("u1"))).isEqualTo(EnterResult.ENTERED);
         assertThat(members("r1")).containsExactlyInAnyOrder("host", "u1");
         assertThat(marker("u1")).isEqualTo("r1");
+    }
+
+    @Test
+    @DisplayName("거절된 강퇴(방장 아님 · 방에 없는 사람)는 금지 목록에 아무것도 적지 않는다")
+    void rejectedKickWritesNoBan()
+    {
+        roomService.create(r("r1"), u("host"));
+        roomMemberService.enter(r("r1"), u("u1"));
+
+        assertThat(roomMemberService.kick(r("r1"), u("u1"), u("host"))).isEqualTo(KickResult.NOT_HOST);
+        assertThat(roomMemberService.kick(r("r1"), u("host"), u("u9"))).isEqualTo(KickResult.TARGET_NOT_IN_ROOM);
+
+        assertThat(ban("no-entry", "host", "r1")).isNull();
+        assertThat(ban("no-entry", "u9", "r1")).isNull();
+        assertThat(ban("no-auto-join", "u9", "r1")).isNull();
     }
 
     // ── 거절 ────────────────────────────────────────────────────────────────
@@ -274,6 +299,14 @@ class RoomMemberServiceKickTest extends RoomTestSupport {
             if (labelled.endsWith(":members"))
             {
                 all.put(labelled, members(labelled.split(":")[2]));
+            }
+            else if (labelled.startsWith("qm:room:no-entry:") || labelled.startsWith("qm:room:no-auto-join:"))
+            {
+                // 금지 목록은 ZSET — 방(이름표) → 풀리는 시각. 거절된 강퇴가 여기에 아무것도 더하지 않는 것도 이 비교가 본다
+                Map<String, Double> bans = new TreeMap<>();
+                redisTemplate.opsForZSet().rangeWithScores(key(labelled), 0, -1)
+                        .forEach(t -> bans.put(labelOf(t.getValue()), t.getScore()));
+                all.put(labelled, bans);
             }
             else
             {

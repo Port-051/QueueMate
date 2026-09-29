@@ -169,7 +169,8 @@ class RoomApiTest extends RoomTestSupport {
                 .andExpect(status().isNoContent());
         mockMvc.perform(delete("/api/v1/rooms/{roomId}/members/me", r("r1")).cookie(hostCookie))
                 .andExpect(status().isNoContent());
-        assertThat(ownKeys()).isEmpty();
+        // 방 키와 입장 표시는 전부 없어졌다. 남는 것은 강퇴당한 member 의 금지 목록 둘뿐이다 — 방이 아니라 사람의 키라 방과 함께 지워지지 않고 10분 뒤 수명으로 사라진다(2026-09-29)
+        assertThat(ownKeys()).containsExactly("qm:room:no-auto-join:member", "qm:room:no-entry:member");
     }
 
     @Test

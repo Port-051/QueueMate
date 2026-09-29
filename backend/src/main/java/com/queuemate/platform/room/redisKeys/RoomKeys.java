@@ -60,4 +60,26 @@ public final class RoomKeys {
     {
         return prefix + roomId + ":confirmed";
     }
+
+    /**
+     * 입장 금지 목록. ZSET 이고 <b>원소는 {@code roomId}, score 는 금지가 풀리는 시각(epoch ms)</b> 이다 — 한 사람이 여러 방에서 강퇴당할 수 있어 사용자별 키 하나에 방을 모은다.
+     * <b>강퇴가 쓴다</b>(2026-09-29 소유자 결정 — 강퇴당한 사람은 그 방에 10분 동안 직접 들어올 수 없다). 입장 스크립트({@code enter-room.lua})가 그 방의 score 를 읽어
+     * 아직 안 지났으면 거절한다. 스스로 나간 사람은 여기 들지 않는다 — 직접 입장은 막지 않는다.
+     * <pre>{@code qm:room:no-entry:42}</pre>
+     */
+    public static String noEntryKey(String userId)
+    {
+        return prefix + "no-entry:" + userId;
+    }
+
+    /**
+     * 자동 합류 건너뛰기 목록. 모양은 {@link #noEntryKey} 와 같다(ZSET · 원소 {@code roomId} · score 는 풀리는 시각). <b>강퇴와 나가기 둘 다 쓴다</b> —
+     * 강퇴당했든 스스로 나갔든 그 방은 10분 동안 게시판 방 먼저 합류({@code POST /api/v1/posts/auto-join} · P-28)의 후보에서 뺀다.
+     * 읽는 곳은 이 앱의 {@code party.service.AutoJoinService} 다 — {@code matching} 앱과는 무관하다(그쪽의 "거절한 상대 회피" D-45 는 사람 단위, 이것은 방 단위다).
+     * <pre>{@code qm:room:no-auto-join:42}</pre>
+     */
+    public static String noAutoJoinKey(String userId)
+    {
+        return prefix + "no-auto-join:" + userId;
+    }
 }
