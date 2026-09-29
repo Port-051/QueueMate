@@ -136,6 +136,7 @@ test('빈자리가 있으면 방장이 마감을 켜고 끄며 대화와 초안�
 });
 
 test('둥근 방 박스 안에서 멤버 정보가 한 줄씩 정렬되고 빈자리에 참여할 수 있다', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
   await login(page);
   const grid = page.locator('.room-deck-grid');
   await expect(grid).toBeVisible();
@@ -146,6 +147,12 @@ test('둥근 방 박스 안에서 멤버 정보가 한 줄씩 정렬되고 빈�
   await expect(deck.locator('.room-bubble-tail')).toHaveCount(0);
   const roster = deck.locator('.compact-members');
   await expect(roster.locator('.compact-member')).toHaveCount(5);
+  // A laptop viewport fits two five-person rooms and the complete creation controls.
+  await expect(grid.locator('.room-deck').nth(1)).toBeInViewport({ ratio: 1 });
+  const rail = page.locator('.room-workspace-rail');
+  expect((await rail.boundingBox())!.width).toBeLessThanOrEqual(320);
+  await expect(rail.getByRole('button', { name: '방 만들기', exact: true })).toBeInViewport({ ratio: 1 });
+  await expect(rail.getByRole('button', { name: '매칭 시작', exact: true })).toBeInViewport({ ratio: 1 });
   await expect(roster.locator('.compact-seat .room-role-icons b')).toHaveText(['바텀', '서포터']);
   const fit = await roster.evaluate(element => {
     const rows = Array.from(element.children).map(row => {
@@ -825,7 +832,7 @@ test('티어 범위는 두 번째 선택에 바로 적용하고 한 번만 선�
   await expect(trigger).toHaveText('모든 티어');
 });
 
-test('방 필터는 아이콘과 이름을 한 줄에 배치하고 높이 44px로 정렬한다', async ({ page }) => {
+test('방 필터는 아이콘과 이름을 한 줄에 배치하고 높이 36px로 정렬한다', async ({ page }) => {
   await login(page);
   const filters = page.locator('.room-filters');
   const modes = page.getByRole('group', { name: '찾는 큐 타입', exact: true });
@@ -840,14 +847,14 @@ test('방 필터는 아이콘과 이름을 한 줄에 배치하고 높이 44px�
     filters.getByRole('button', { name: '모집 티어 범위', exact: true }),
   ]) {
     const a = (await board.boundingBox())!;
-    expect(a.height).toBe(44);
+    expect(a.height).toBe(36);
   }
   const primary = filters.locator('.room-filter-primary');
   await expect(primary.getByRole('group', { name: '방 시작 시간', exact: true })).toBeVisible();
   await expect(primary.getByRole('checkbox', { name: '모집 중인 방만', exact: true })).toBeVisible();
   for (const control of [primary.getByRole('group', { name: '방 시작 시간', exact: true }), primary.locator('.room-open-filter')]) {
     const bounds = (await control.boundingBox())!;
-    expect(bounds.height).toBe(44);
+    expect(bounds.height).toBe(36);
     expect(Math.abs(bounds.y - modeBounds.y)).toBeLessThan(1);
   }
   const primaryFit = await primary.evaluate(element => ({ width: element.clientWidth, content: element.scrollWidth, gap: getComputedStyle(element).gap }));
@@ -1031,10 +1038,9 @@ test('양쪽 티어 선택창은 한 줄을 유지하고 사이드바 밖에서 
           onScreen: panel.left >= 0 && panel.right <= window.innerWidth && panel.top >= 0 && panel.bottom <= window.innerHeight,
         };
       });
-      if (width === 1600) {
-        expect(layout.overflow).toBeLessThanOrEqual(1);
-        expect(layout.allInside).toBe(true);
-      } else expect(layout.overflow).toBeGreaterThan(0);
+      if (width === 1600) expect(layout.overflow).toBeLessThanOrEqual(1);
+      if (width <= 768) expect(layout.overflow).toBeGreaterThan(0);
+      if (layout.overflow <= 1) expect(layout.allInside).toBe(true);
       expect(layout.onScreen).toBe(true);
       expect(layout.outsideSidebar).toBe(true);
       expect(layout.rows).toBe(1);

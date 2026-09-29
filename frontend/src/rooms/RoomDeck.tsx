@@ -72,7 +72,7 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, entryError
     </div>
     <div className="compact-members" role="group" aria-label="방 구성원 정보" tabIndex={0}>
       {room.members.map(member => <div className="compact-member" key={member.id}>
-        <button type="button" className="compact-member-name" aria-label={`${member.nickname} 프로필 보기`} onClick={() => onMember(room, member)}><RoomMemberAvatar room={room} member={member} size={32}/><strong title={member.nickname}>{member.nickname}</strong></button>
+        <button type="button" className="compact-member-name" aria-label={`${member.nickname} 프로필 보기`} onClick={() => onMember(room, member)}><RoomMemberAvatar room={room} member={member} size={28}/><strong title={member.nickname}>{member.nickname}</strong></button>
         <RoomMemberFacts room={room} member={member} />
         <div className="compact-member-champions" aria-label={`${member.nickname} ${room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '선호 요원' : '선호 무기'}`}><PreferredChampions game={room.game} names={member.champions.slice(0,3)}/>{room.game === 'LOL' ? Array.from({ length: Math.max(0, 3 - member.champions.length) }, (_, index) => <span className="compact-champion-empty" key={index} role="img" aria-label="챔피언 미등록" title="챔피언 미등록">—</span>) : null}</div>
       </div>)}

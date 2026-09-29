@@ -99,3 +99,23 @@
 .room-kick-target strong { overflow-wrap:anywhere; }
 .room-kick-dialog p { color:var(--muted); font-size:14px; }
 .room-kick-dialog .btn { border-radius:999px; }
+
+/* Keep the active room usable within the compact workspace rail. */
+.room-workspace-rail .room-conversation-header { gap:8px; padding:14px 12px 10px; }
+.room-workspace-rail .room-conversation-heading h2 { font-size:16px; }
+.room-workspace-rail .room-conversation-close.btn { padding-inline:8px; }
+.room-workspace-rail .room-conversation-roster { gap:6px; padding:6px 12px 12px; }
+.room-workspace-rail .room-conversation-member { flex:1 1 0; width:auto; gap:5px; }
+.room-workspace-rail .room-conversation-voice { margin:0 12px 12px; padding:10px; }
+.room-workspace-rail .room-conversation-voice-top { gap:8px; }
+.room-workspace-rail .room-conversation-voice-top .btn { padding-inline:10px; }
+.room-workspace-rail .room-conversation-log { padding:12px; }
+.room-workspace-rail .room-conversation-message { column-gap:8px; margin-top:14px; }
+.room-workspace-rail .room-conversation-message.is-grouped { margin-top:4px; }
+.room-workspace-rail .room-conversation-message:first-child { margin-top:0; }
+.room-workspace-rail .room-conversation-message p,
+.room-workspace-rail .room-conversation-message-meta .room-profile-name-button { font-size:13px; }
+.room-workspace-rail .room-conversation-compose { margin:8px 12px 12px; padding:4px 4px 4px 12px; gap:4px; }
+.room-workspace-rail .room-conversation-compose textarea { font-size:13px; }
+.room-workspace-rail .room-close-policy { margin:0 12px 10px; }
+.room-workspace-rail .room-auto-close-notice { margin:0 12px 10px; padding:10px; }
