@@ -458,3 +458,51 @@
   .room-compact .compact-member:not(.compact-seat) .room-member-facts { grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 12px; }
   .room-compact .compact-member:not(.compact-seat) .room-member-record { border:0; padding:0; }
 }
+
+/* Matching sits above the board; an opened conversation keeps its own column. */
+.room-home.is-exploring .room-home-layout { grid-template-columns:minmax(0,1fr); gap:24px; }
+.room-home.is-exploring .room-workspace-rail { position:static; grid-column:1; grid-row:1; }
+.room-home.is-exploring .room-board { grid-column:1; grid-row:2; }
+.room-home:not(.is-exploring) .room-workspace-rail { grid-column:2; grid-row:1; }
+.room-home:not(.is-exploring) .room-board { grid-column:1; grid-row:1; }
+.room-home.is-exploring .home-profile-stack,
+.room-home.is-exploring .room-workspace-rail:has(.room-rail-switch) .home-profile-stack { max-height:none; overflow:visible; padding:0; margin:0; }
+.room-home.is-exploring .home-profile-content { padding:20px 24px; border-radius:24px; }
+.room-home.is-exploring .home-profile-account { margin-bottom:16px; }
+.room-home.is-exploring .room-rail-switch { width:var(--room-rail-width); max-width:100%; }
+.room-home.is-exploring .room-matching-form {
+  --room-control-height:56px;
+  --room-option-height:calc(var(--room-control-height) - var(--room-selector-inset) * 2 - 2px);
+}
+.room-home.is-exploring .room-matching-form .introduction-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:start; gap:16px 24px; }
+.room-home.is-exploring .room-matching-form .introduction-wide { grid-column:auto; }
+.room-home.is-exploring .room-matching-form .room-settings-pair { gap:12px; }
+.room-home.is-exploring .room-matching-form .intro-role-options { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); }
+.room-home.is-exploring .room-matching-form .intro-role-options>.filter-role { max-width:44px; }
+.room-home.is-exploring .room-matching-form .recruitment-composer { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px 24px; }
+.room-home.is-exploring .room-matching-form .self-introduction,
+.room-home.is-exploring .room-matching-form .banner { grid-column:1 / -1; }
+.room-home.is-exploring .room-start-picker { align-self:start; }
+.room-home.is-exploring .room-create-hint,
+.room-home.is-exploring .room-create-error { align-self:center; margin:0; }
+.room-home.is-exploring .room-rail-actions { position:static; grid-column:3; align-self:end; width:100%; padding:0; }
+.room-home.is-exploring .room-rail-actions>.btn { white-space:nowrap; }
+.room-home.is-exploring .room-quick-rail .duo-offers { margin-top:12px; }
+@media(max-width:1100px) {
+  .room-home:not(.is-exploring) .room-home-layout { grid-template-columns:minmax(0,1fr); }
+  .room-home:not(.is-exploring) .room-workspace-rail { grid-column:1; grid-row:1; }
+  .room-home:not(.is-exploring) .room-board { grid-column:1; grid-row:2; }
+  .room-home.is-exploring .room-matching-form .introduction-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .room-home.is-exploring .room-matching-form .recruitment-composer { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .room-home.is-exploring .room-rail-actions { grid-column:2; grid-row:2; }
+  .room-home.is-exploring .room-create-hint,
+  .room-home.is-exploring .room-create-error { grid-column:1 / -1; grid-row:3; }
+}
+@media(max-width:650px) {
+  .room-home.is-exploring .home-profile-content { padding:16px; }
+  .room-home.is-exploring .room-matching-form .introduction-fields,
+  .room-home.is-exploring .room-matching-form .recruitment-composer { grid-template-columns:minmax(0,1fr); }
+  .room-home.is-exploring .room-rail-actions { grid-column:1; grid-row:auto; }
+  .room-home.is-exploring .room-create-hint,
+  .room-home.is-exploring .room-create-error { grid-row:auto; }
+}

@@ -85,7 +85,21 @@ export function RoomBoardHome() {
   const resetFilters = () => setFilters({ ...defaults(selectedGame), modeKey: filters.modeKey });
 
   return <div className={`room-home board-home${activeRoom ? ' has-active-room' : ''}${exploring ? ' is-exploring' : ''}`}>
-    <div className="room-home-layout"><section className="room-board" aria-label="방 목록">
+    <div className="room-home-layout">
+    <aside className="room-workspace-rail" aria-label="탐색과 내 방">
+      {activeRoom ? <SlidingSelector className="room-rail-switch" role="group" aria-label="탐색과 채팅 선택">
+        <button type="button" aria-pressed={exploring} onClick={() => setRailView('explore')}>탐색 · 매칭</button>
+        <button type="button" aria-pressed={!exploring} onClick={() => setRailView('chat')}>방 채팅{exploring && lastSeen !== activity ? <i className="room-update-dot" role="img" aria-label="내 방 새 소식" /> : null}</button>
+      </SlidingSelector> : null}
+      <div className="room-quick-rail" hidden={!exploring}><RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.modeKey} rooms={rooms} member={member} activeRoom={activeRoom} onShowRoom={() => setRailView('chat')}
+        onCreate={async (input, profile) => { const room = await create(input, profile); setFilters({ ...defaults(input.game), modeKey: input.modeKey }); setLastSeen(roomActivity(room)); setRailView('explore'); setJustCreatedId(room.id); }} onSelectSeat={(room, profile, criteria) => {
+          const vacancies = vacantRoleOptions(room);
+          const roles = vacancies.find(options => options.some(role => profile.roles.includes(role))) ?? vacancies[0] ?? [];
+          setSelected({ id: room.id, roles, profile, fromRoomId: activeRoom?.id, criteria });
+        }} /></div>
+      {activeRoom ? <div className="room-conversation-rail" hidden={exploring}><RoomConversation key={activeRoom.id} room={activeRoom} selfId={member.id} visible={!exploring} onMember={profile => showMember(activeRoom, profile)} onSend={text => send(text)} onLeave={() => run(leave)} onKick={id => kick(activeRoom.id, id)} onConfirm={() => confirm(activeRoom.id)} onReopen={() => reopen(activeRoom.id)} onAutoConfirm={deadline => autoConfirm(activeRoom.id, deadline)} onExtend={deadline => run(() => extendRecruitment(activeRoom.id, deadline))} /></div> : null}
+    </aside>
+    <section className="room-board" aria-label="방 목록">
       <div className="board-filter-bar room-filters" role="group" aria-label="방 필터">
         <div className="room-filter-primary">
           <SlidingSelector className="intro-mode-options room-mode-options board-mode-options" role="group" aria-label="찾는 큐 타입">{visibleModes(selectedGame).map(mode => <button type="button" className="filter-mode" aria-label={mode.label} aria-pressed={filters.modeKey === mode.key} key={mode.key} onClick={() => setFilters({ ...filters, modeKey: mode.key, roles: [] })}><FilterModeIcon mode={mode.key} /><span>{mode.label}</span></button>)}</SlidingSelector>
@@ -106,19 +120,7 @@ export function RoomBoardHome() {
       }} />)}</div>
       {!loading && !connectionError && !filtered.length ? <div className="room-board-empty"><p>이 조건에 맞는 방이 없어요.</p><button className="room-secondary-button" onClick={resetFilters}>필터 초기화</button></div> : null}
     </section>
-    <aside className="room-workspace-rail" aria-label="탐색과 내 방">
-      {activeRoom ? <SlidingSelector className="room-rail-switch" role="group" aria-label="우측 영역 선택">
-        <button type="button" aria-pressed={exploring} onClick={() => setRailView('explore')}>탐색 · 매칭</button>
-        <button type="button" aria-pressed={!exploring} onClick={() => setRailView('chat')}>방 채팅{exploring && lastSeen !== activity ? <i className="room-update-dot" role="img" aria-label="내 방 새 소식" /> : null}</button>
-      </SlidingSelector> : null}
-      <div className="room-quick-rail" hidden={!exploring}><RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.modeKey} rooms={rooms} member={member} activeRoom={activeRoom} onShowRoom={() => setRailView('chat')}
-        onCreate={async (input, profile) => { const room = await create(input, profile); setFilters({ ...defaults(input.game), modeKey: input.modeKey }); setLastSeen(roomActivity(room)); setRailView('explore'); setJustCreatedId(room.id); }} onSelectSeat={(room, profile, criteria) => {
-          const vacancies = vacantRoleOptions(room);
-          const roles = vacancies.find(options => options.some(role => profile.roles.includes(role))) ?? vacancies[0] ?? [];
-          setSelected({ id: room.id, roles, profile, fromRoomId: activeRoom?.id, criteria });
-        }} /></div>
-      {activeRoom ? <div className="room-conversation-rail" hidden={exploring}><RoomConversation key={activeRoom.id} room={activeRoom} selfId={member.id} visible={!exploring} onMember={profile => showMember(activeRoom, profile)} onSend={text => send(text)} onLeave={() => run(leave)} onKick={id => kick(activeRoom.id, id)} onConfirm={() => confirm(activeRoom.id)} onReopen={() => reopen(activeRoom.id)} onAutoConfirm={deadline => autoConfirm(activeRoom.id, deadline)} onExtend={deadline => run(() => extendRecruitment(activeRoom.id, deadline))} /></div> : null}
-    </aside>
+
     </div>
     {selected && current ? <RoomSeatJoin key={current.id} room={current} roles={selected.roles} profile={selected.profile}
       leavingRoom={activeRoom} entryError={selected.fromRoomId !== activeRoom?.id ? '참여 중인 방이 바뀌었어요. 닫고 다시 선택해 주세요.' : roomEntryError(current, selected.profile.tier, activeRoom?.id)} onClose={() => setSelected(null)} onJoin={async role => {

@@ -103,11 +103,11 @@ export function RoomQuickConnect({ game, modeKey, rooms, member, onSelectSeat, o
           afterMode={<RoomCapacityPicker game={game} modeKey={value.queueType} value={capacity} onChange={roomCapacity => update({ ...value, roomCapacity })} />} />
         <RoomStartTimePicker value={start} onChange={next => { setStart(next); setCreateError(''); reset(); }} />
         {createError ? <p className="room-create-error" role="alert">{createError}</p> : positionError ? <p className="room-create-hint">{positionError}</p> : null}
-      </fieldset>
       <div className={`matching-rail-footer room-rail-actions${activeRoom ? ' is-search-only' : ''}`}>
         {!activeRoom ? <Button block disabled={Boolean(error || positionError)} onClick={startRoom}><CreateRoomIcon />방 만들기</Button> : null}
         <Button block type="submit" variant="primary" className="room-match-start" disabled={Boolean(error) || (hasRoles && !ownRoles.length)}><IconMatch size={22}/>{started ? '다시 찾기' : '매칭 시작'}</Button>
       </div>
+      </fieldset>
     </form>
 
   </section></HomeProfileRail>

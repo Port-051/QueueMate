@@ -233,7 +233,7 @@ test('다섯 명 방을 만들면 한 열 목록과 대화를 함께 쓰고 확�
   await expect.poll(() => page.locator('.room-deck-grid').evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length)).toBe(1);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(composer).toBeVisible();
-  await page.getByRole('group', { name: '우측 영역 선택' }).getByRole('button', { name: /방 채팅/ }).click();
+  await page.getByRole('group', { name: '탐색과 채팅 선택' }).getByRole('button', { name: /방 채팅/ }).click();
   await page.getByRole('textbox', { name: '방에 메시지 보내기', exact: true }).fill('확정 전부터 여기서 이야기해요');
   await page.getByRole('button', { name: '메시지 보내기', exact: true }).click();
   await expect(page.getByText('확정 전부터 여기서 이야기해요', { exact: true })).toBeVisible();
@@ -321,7 +321,7 @@ test('5인 방에서 강퇴를 확인하고 빈자리를 다시 모집하며 모
   await expect(close).toBeDisabled();
   await expect(close).toHaveText('마감 취소');
   await expect(chat).not.toContainText(/5\s*\/\s*5|모집 다시 열기/);
-  await expect(page.getByRole('group', { name: '우측 영역 선택' })).not.toContainText(/5\s*\/\s*5/);
+  await expect(page.getByRole('group', { name: '탐색과 채팅 선택' })).not.toContainText(/5\s*\/\s*5/);
   await expect(chat.locator('.room-conversation-roster .room-conversation-member')).toHaveCount(5);
   const fit = await chat.locator('.room-conversation-roster').evaluate(e => e.scrollWidth - e.clientWidth);
   expect(fit).toBeLessThanOrEqual(1);
@@ -552,7 +552,7 @@ test('예약 방은 과거 시간을 거절하고 미래 시간으로 만든 즉
   const deck = page.getByRole('article', { name: '조금 뒤에 다 같이 방 정보', exact: true });
   await expandMembers(deck);
   await expect(deck.locator('.compact-room-header time')).toBeVisible();
-  await page.getByRole('group', { name: '우측 영역 선택' }).getByRole('button', { name: /방 채팅/ }).click();
+  await page.getByRole('group', { name: '탐색과 채팅 선택' }).getByRole('button', { name: /방 채팅/ }).click();
   await expect(page.getByRole('textbox', { name: '방에 메시지 보내기', exact: true })).toBeEnabled();
   await expect(deck).toHaveAttribute('data-status', 'OPEN');
 });
@@ -1033,7 +1033,7 @@ test('양쪽 티어 선택창은 한 줄을 유지하고 사이드바 밖에서 
           onScreen: panel.left >= 0 && panel.right <= window.innerWidth && panel.top >= 0 && panel.bottom <= window.innerHeight,
         };
       });
-      if (width === 1600) {
+      if (width >= 1200) {
         expect(layout.overflow).toBeLessThanOrEqual(1);
         expect(layout.allInside).toBe(true);
       } else expect(layout.overflow).toBeGreaterThan(0);
@@ -1145,7 +1145,7 @@ test('요약 확인 뒤에만 방을 만들며 저장 실패 후에도 초안과
   await expect(deck.locator('.compact-member:not(.compact-seat) .room-role-icons b')).toHaveText(['바텀']);
   await expect(deck.locator('.compact-seat .room-role-icons b')).toHaveText(['서포터']);
   await expect(deck.locator('.compact-seat').getByRole('img', { name: '마이크 미사용', exact: true })).toBeVisible();
-  await page.getByRole('group', { name: '우측 영역 선택' }).getByRole('button', { name: /방 채팅/ }).click();
+  await page.getByRole('group', { name: '탐색과 채팅 선택' }).getByRole('button', { name: /방 채팅/ }).click();
   await expect(page.getByRole('textbox', { name: '방에 메시지 보내기', exact: true })).toBeEnabled();
   await login(page);
   await expect(deck).toBeVisible();
@@ -1319,7 +1319,7 @@ test('내 방을 유지한 채 추천을 찾고 채팅 초안과 음성을 유�
   await input.fill('아직 작성 중인 메시지');
   await chat.getByRole('region', { name: '방 음성 채널' }).getByRole('button', { name: '참여', exact: true }).click();
   await expect(chat.getByRole('heading', { name: '음성 미리보기' })).toBeVisible();
-  const views = page.getByRole('group', { name: '우측 영역 선택' });
+  const views = page.getByRole('group', { name: '탐색과 채팅 선택' });
   const railWidth = (await views.boundingBox())!.width;
   const tabWidths = await views.getByRole('button').evaluateAll(buttons => buttons.map(button => button.getBoundingClientRect().width));
   expect(Math.abs(tabWidths[0] - tabWidths[1])).toBeLessThan(1);
@@ -1542,4 +1542,30 @@ test('최근 챔피언의 승률·경기 수와 평균 KDA를 표시하고 누�
   await profile.getByRole('button', { name: '프로필 닫기' }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await expectNoPageOverflow(page);
+});
+
+test('매칭 설정이 게시판 위에 있고 넓은 목록에서 상세 전적이 한 줄에 보인다', async ({ page }) => {
+  await login(page);
+  const form = page.getByRole('region', { name: '빠른 연결', exact: true });
+  const board = page.getByRole('region', { name: '방 목록', exact: true });
+  const layout = await page.locator('.room-home').evaluate(element => {
+    const form = element.querySelector('.room-workspace-rail')!.getBoundingClientRect();
+    const board = element.querySelector('.room-board')!.getBoundingClientRect();
+    const row = element.querySelector('.compact-member.is-host')!;
+    const parts = ['.compact-member-name', '.room-member-facts', '.compact-member-champions', '.compact-members-toggle']
+      .map(selector => row.querySelector(selector)!.getBoundingClientRect());
+    return { above: form.bottom <= board.top, sameWidth: Math.abs(form.width - board.width) < 1,
+      aligned: parts.every(rect => rect.top < parts[0].bottom && rect.bottom > parts[0].top) };
+  });
+  expect(layout).toEqual({ above: true, sameWidth: true, aligned: true });
+  await expect(form.getByRole('button', { name: '매칭 시작', exact: true })).toBeVisible();
+  await expect(board.locator('.room-champion-stat>strong').first()).toBeVisible();
+  for (const width of [1200, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expectNoPageOverflow(page);
+    const actions = await form.locator('.room-rail-actions>.btn').evaluateAll(buttons => buttons.map(button => ({ height: button.getBoundingClientRect().height, overflow: button.scrollWidth - button.clientWidth })));
+    for (const action of actions) { expect(action.height).toBeLessThanOrEqual(56); expect(action.overflow).toBeLessThanOrEqual(1); }
+    const top = await form.boundingBox(), bottom = await board.boundingBox();
+    expect(top!.y + top!.height).toBeLessThan(bottom!.y);
+  }
 });
