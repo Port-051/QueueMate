@@ -63,7 +63,7 @@ class GameStatsSyncTest extends ApiTestSupport {
         // 대륙 주소와 플랫폼 주소를 한 가짜 서버로 돌린다 — 경로가 겹치지 않는다
         registry.add("platform.riot.regional-base-url", FAKE::baseUrl);
         registry.add("platform.riot.platform-base-url", FAKE::baseUrl);
-        registry.add("platform.riot.match-count", () -> 20);
+        // match-count 는 덮지 않는다 — 기본값(10판 — 2026-09-29 소유자 결정)으로 돈다. 그것을 masteryFailureKeepsStats 가 본다
         // 로컬 가짜 서버라 짧게 둔다 — 타임아웃을 보는 테스트가 오래 기다리지 않게
         registry.add("platform.riot.connect-timeout", () -> "PT1S");
         registry.add("platform.riot.read-timeout", () -> "PT1S");
@@ -388,16 +388,17 @@ class GameStatsSyncTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("숙련도 호출만 500 이면 연결은 200 이고 나머지 전적은 정상 · 숙련도만 null 이다 — 경기 20판이면 Riot 호출은 24번")
+    @DisplayName("숙련도 호출만 500 이면 연결은 200 이고 나머지 전적은 정상 · 숙련도만 null 이다 — 경기가 20판 있어도 기본값대로 최근 10판만 읽어 Riot 호출은 14번")
     @ExtendWith(OutputCaptureExtension.class)
     void masteryFailureKeepsStats(CapturedOutput output) throws Exception
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
+        // 가짜 서버는 count 를 보지 않고 20판을 다 준다 — 앱이 match-count(기본 10)만큼만 읽는지 본다. 최근 10판은 Ahri 6 · Yasuo 4 다
         List<FakeRiotApi.Play> twenty = new java.util.ArrayList<>();
         for(int i = 0; i < 20; i++)
         {
-            twenty.add(play(i < 12 ? "Ahri" : "Yasuo", 4, 2, 6, i % 2 == 0));
+            twenty.add(play(i < 6 ? "Ahri" : "Yasuo", 4, 2, 6, i % 2 == 0));
         }
         String puuid = stubLol("숙련도#KR1", 30, 20, twenty);
         FAKE.stubMastery(puuid, Map.of("Ahri", new int[]{12, 99_999}));
@@ -408,15 +409,18 @@ class GameStatsSyncTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tiers.SOLO").value("EMERALD_4"))).get("stats");
 
-        // 계정 · 리그 · 경기 id · 경기 20 · 숙련도 1
-        assertThat(FAKE.calls() - callsBefore).isEqualTo(24);
-        assertThat(stats.get("games").asInt()).isEqualTo(20);
+        // 계정 · 리그 · 경기 id · 경기 10 · 숙련도 1 — 경기 20판이던 때는 24번이었다
+        assertThat(FAKE.calls() - callsBefore).isEqualTo(14);
+        assertThat(stats.get("games").asInt()).isEqualTo(10);
+        // 승/패는 읽은 경기 수와 무관한 솔로랭크 시즌 누적이다
         assertThat(stats.get("wins").asInt()).isEqualTo(30);
         assertThat(stats.get("losses").asInt()).isEqualTo(20);
         JsonNode champions = stats.get("detail").get("mostChampions");
         assertThat(champions).hasSize(2);
         assertThat(champions.get(0).get("championId").asString()).isEqualTo("Ahri");
-        assertThat(champions.get(0).get("games").asInt()).isEqualTo(12);
+        assertThat(champions.get(0).get("games").asInt()).isEqualTo(6);
+        assertThat(champions.get(1).get("championId").asString()).isEqualTo("Yasuo");
+        assertThat(champions.get(1).get("games").asInt()).isEqualTo(4);
         for(JsonNode champion : champions)
         {
             assertThat(champion.get("masteryLevel").isNull()).isTrue();

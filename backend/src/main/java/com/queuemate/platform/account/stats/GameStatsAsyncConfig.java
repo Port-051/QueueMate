@@ -8,7 +8,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
- * 전적을 긁는 <b>전용 풀</b>. 요청 스레드에서 Riot 을 20여 번 기다리면 <b>자를 방법이 없어서</b> 여기에 던지고 상한(30초)만큼 기다린다.
+ * 전적을 긁는 <b>전용 풀</b>. 요청 스레드에서 Riot 을 10여 번(경기 10판이면 14번) 기다리면 <b>자를 방법이 없어서</b> 여기에 던지고 상한(30초)만큼 기다린다.
  * 던지는 쪽은 둘이다 — 전적 갱신(2026-09-24)과 <b>LoL 게임 계정 연결</b>(2026-09-27 소유자 결정 — 동기로 긁는다). 둘 다 {@link GameStatsRefresher} 다.
  * (2026-09-27 까지는 게임 계정 저장 뒤의 비동기 갱신이 {@code @Async} 로 여기서 돌았다 — 그 길을 없애며 {@code @EnableAsync} 도 뺐다.)
  *

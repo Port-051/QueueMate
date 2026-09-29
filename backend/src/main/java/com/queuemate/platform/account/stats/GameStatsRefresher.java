@@ -33,7 +33,7 @@ import java.util.concurrent.TimeoutException;
  * {@code qm:riot:sync:{gameAccountId}} · {@code qm:riot:refresh:{gameAccountId}} 다(이름에 {@code riot} 이 들었지만 게임 계정 번호가 게임을 가른다 — 새 접두사를 두지 않았다).
  *
  * <p><b>상한(30초)을 어떻게 거나 — 전용 풀에 던지고 {@link Future#get(long, TimeUnit)} 으로 기다린다.</b>
- * 요청 스레드에서 그냥 긁으면 <b>자를 방법이 없다</b>(Riot 호출 24번 × 읽기 타임아웃 3초). 상한을 넘기면 요청은 실패로 끝내지만
+ * 요청 스레드에서 그냥 긁으면 <b>자를 방법이 없다</b>(Riot 호출 14번 × 읽기 타임아웃 3초 — 경기 10판). 상한을 넘기면 요청은 실패로 끝내지만
  * <b>돌던 작업은 자르지 않는다</b> — 자물쇠가 중복을 막고 있고, 잠시 뒤에 끝나면 전적은 갱신된다(다음 조회에서 보인다).
  * 대가 — 그 풀은 스레드 둘 · 큐 50 · {@code DiscardPolicy} 라 <b>넘치면 조용히 버려진다</b>({@code RejectedExecutionException} 이 아니다).
  * 버려지면 {@code Future} 가 영원히 완료되지 않아 30초를 기다린 뒤 503 이 되므로, <b>큐가 꽉 찼으면 던지기 전에 503 으로 끊는다</b>

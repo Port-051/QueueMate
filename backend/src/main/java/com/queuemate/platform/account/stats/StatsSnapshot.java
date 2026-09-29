@@ -17,7 +17,7 @@ import java.util.Map;
  * @param avgKills   읽은 경기들의 평균, 소수 첫째 자리. 경기가 없으면 {@code null}
  * @param avgDeaths  같음
  * @param avgAssists 같음
- * @param wins       <b>시즌 누적 승</b>(솔로랭크) — 읽은 경기 20개의 승패가 아니다. 솔로랭크 줄이 없으면(언랭) {@code null}
+ * @param wins       <b>시즌 누적 승</b>(솔로랭크) — 읽은 최근 경기(기본 10판 — {@code match-count})의 승패가 아니다. 솔로랭크 줄이 없으면(언랭) {@code null}
  * @param losses     시즌 누적 패. {@code wins} 와 같이 있거나 같이 없다
  * @param winStreak  가장 최근 경기부터 이어지는 연승. 최근 경기가 패면 0 이고, 경기를 하나도 못 읽었으면 {@code null}
  * @param detail     게임마다 다른 나머지를 담은 <b>JSON 객체의 글자</b>(jsonb 로 들어간다). LoL 은 {@code {"mostChampions": […]}} 다

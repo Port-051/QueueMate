@@ -103,7 +103,7 @@ public class GameStatsSyncWorker {
      *
      * <p><b>{@code @Async} 가 없다 — 어느 스레드에서 돌지는 부르는 쪽이 정한다.</b> {@code @Async} 를 달면 결과를 기다릴 수 없고
      * (돌려주는 값이 {@code Future} 가 된다) 그 요청이 상한(30초)을 스스로 걸 수도 없다. 그래서 갱신 요청은 이것을 <b>전용 풀에 직접 던져</b> 기다린다.
-     * <b>요청 스레드에서 그냥 부르지 마라</b> — Riot 을 20여 번 기다리는 동안 그 스레드가 묶이고, 중간에 자를 수도 없다.
+     * <b>요청 스레드에서 그냥 부르지 마라</b> — Riot 을 10여 번(경기 10판이면 14번) 기다리는 동안 그 스레드가 묶이고, 중간에 자를 수도 없다.
      *
      * @throws RiotApiException 게임사 API 가 거절했거나 응답이 없다(PUBG 는 {@link PubgApiException})
      */

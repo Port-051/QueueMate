@@ -24,13 +24,15 @@ import java.util.function.ToIntFunction;
  * LoL 의 전적을 Riot API 에서 긁는다 — <b>응답의 JSON 칸을 읽는 곳은 이 클래스 하나다</b>(부르는 곳은 {@link RiotApiClient}).
  * Riot 이 칸 이름을 바꾸면 여기만 고친다.
  *
- * <p>순서는 여섯 걸음이다 — Riot 호출은 경기 20판이면 <b>24번</b>(계정 · 리그 · 경기 id · 경기 20 · 숙련도).
+ * <p>순서는 여섯 걸음이다 — Riot 호출은 경기 10판(기본 — {@code match-count}, 2026-09-29 소유자 결정으로 20판에서 줄였다)이면
+ * <b>14번</b>(계정 · 리그 · 경기 id · 경기 10 · 숙련도 — 대륙 주소 12 · 플랫폼 주소 2).
+ * 평균 K/D/A · 모스트 챔피언 · 연승은 그 경기들로 내고, 승/패는 경기 수와 무관한 솔로랭크 시즌 누적이다.
  * <ol>
  *   <li>게임 닉네임을 {@code 이름#태그} 로 가른다 — <b>태그가 없으면 긁지 않는다</b>({@code null} 을 돌려준다)</li>
  *   <li>{@code account-v1} → {@code puuid}</li>
  *   <li>{@code league-v4}({@code entries/by-puuid}) 에서 <b>솔로랭크 줄</b>의 승/패(= 시즌 누적)와 티어, <b>자유랭크 줄</b>의 티어.
  *       (2026-09-29 까지는 {@code summoner-v4} 로 소환사 {@code id} 를 받아 {@code entries/by-summoner} 를 불렀다 — 실제 소환사 응답에 {@code id} 가 없어 늘 비었다.
- *       그 호출을 없애 25번이 24번이 됐다)</li>
+ *       그 호출을 없애 25번이 24번이 됐다 — 경기 20판일 때의 수다)</li>
  *   <li>{@code match-v5} → 최근 경기 id 목록(새 경기가 먼저)</li>
  *   <li>경기마다 참가자 가운데 <b>그 {@code puuid} 인 사람</b>의 챔피언 · K/D/A · 승패</li>
  *   <li>{@code champion-mastery-v4} → 모스트 챔피언 각각의 <b>숙련도</b>(레벨 · 점수) — 한 번에 전부 받아 고른다.

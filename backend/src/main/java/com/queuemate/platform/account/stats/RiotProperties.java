@@ -16,11 +16,13 @@ import java.time.Duration;
  *                        {@code stats} 가 {@code null} 로 남는다. <b>로그에 찍지 않는다</b>({@link #toString()})
  * @param regionalBaseUrl 대륙 주소 — {@code account-v1}(Riot ID → puuid) · {@code match-v5}(경기)
  * @param platformBaseUrl 플랫폼 주소 — {@code league-v4}(솔로 · 자유랭크의 티어 · 솔로랭크의 승/패 — {@code puuid} 로 부른다, 2026-09-29) · {@code champion-mastery-v4}
- * @param matchCount      최근 몇 경기를 읽어 평균을 낼지. 경기 하나가 요청 하나다 — 개발용 키의 한도(2분당 100회)를 생각해 작게 둔다
+ * @param matchCount      최근 몇 경기를 읽어 평균 · 모스트 챔피언을 낼지. 경기 하나가 요청 하나다 — <b>기본 10판</b>(2026-09-29 소유자 결정 — 20판에서 줄였다).
+ *                        개발용 키의 한도가 <b>지역마다 2분에 100회</b>인데 20판이면 한 번에 Riot 호출 24번(대륙 22 · 플랫폼 2)이라 2분에 4명이 한계였다.
+ *                        10판이면 14번(대륙 12 · 플랫폼 2) — 2분에 8명이다. 승/패는 이 수와 무관하다(솔로랭크 시즌 누적 — {@code league-v4})
  * @param connectTimeout  Riot 을 부를 때의 연결 타임아웃
  * @param readTimeout     Riot 을 부를 때의 읽기 타임아웃. 긁는 것은 전용 풀이라 요청 스레드를 붙잡지는 않지만, 느린 응답에 전용 풀이 묶이면 안 된다
  * @param refreshCooldown <b>전적 갱신 요청</b>({@code POST …/game-accounts/{game}/refresh})을 같은 게임 계정에 다시 받기까지 기다리는 시간
- *                        (2026-09-24 소유자 결정 — <b>2분</b>). 사용자가 누르는 것이라 남용을 막는 것이 이것뿐이다 — 한 번이 Riot 호출 24번이다(PUBG 는 2 ~ 4번)
+ *                        (2026-09-24 소유자 결정 — <b>2분</b>). 사용자가 누르는 것이라 남용을 막는 것이 이것뿐이다 — 한 번이 Riot 호출 14번이다(경기 10판 — PUBG 는 2 ~ 4번)
  * @param refreshTimeout  그 요청이 <b>다 긁기를 기다리는 상한</b>(2026-09-24 소유자 결정 — <b>30초</b>). 넘으면 요청은 실패로 끝내고
  *                        <b>뒤에서 돌던 갱신은 그대로 둔다</b> — 끝나면 전적은 갱신된다({@link GameStatsRefresher}).
  *                        <b>LoL 게임 계정 연결도 같은 상한이다</b>(2026-09-27) — 그쪽은 늦게 끝난 긁기를 저장하지 않고 버린다
@@ -30,7 +32,7 @@ public record RiotProperties(
         @DefaultValue("") String apiKey,
         @DefaultValue("https://asia.api.riotgames.com") String regionalBaseUrl,
         @DefaultValue("https://kr.api.riotgames.com") String platformBaseUrl,
-        @DefaultValue("20") int matchCount,
+        @DefaultValue("10") int matchCount,
         @DefaultValue("PT3S") Duration connectTimeout,
         @DefaultValue("PT3S") Duration readTimeout,
         @DefaultValue("PT2M") Duration refreshCooldown,
