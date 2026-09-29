@@ -100,6 +100,9 @@ class ValorantPartyJoinConcurrencyTest extends ConcurrencyTestSupport {
      *
      * <p>앱은 gameconfig 를 밀어넣지 않고 읽기만 한다 (CLAUDE.md §3). 테스트에서만 넣는 것이고,
      * 값은 {@code seed/gameconfig.redis} 와 같아야 한다.
+     *
+     * <p>{@code tierLadder} 는 넣지 않는다 — 시드에는 있지만(경쟁전의 사다리 키, docs/11 D-48)
+     * 읽는 쪽은 app:platform · frontend 이고 이 앱은 읽지 않는다.
      */
     @BeforeEach
     void seedValorantGameConfig() {

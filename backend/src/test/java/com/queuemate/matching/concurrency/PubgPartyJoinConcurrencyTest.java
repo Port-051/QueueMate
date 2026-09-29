@@ -134,6 +134,9 @@ class PubgPartyJoinConcurrencyTest extends ConcurrencyTestSupport {
      *
      * <p>{@code positionUniqueness} 를 <b>일부러 넣지 않는다.</b> 시드에도 없다 —
      * 배그에는 중복을 금지할 대상 자체가 없다.
+     *
+     * <p>{@code tierLadder} 도 넣지 않는다 — 시드에는 있지만(랭크 모드의 사다리 키, docs/11 D-48)
+     * 읽는 쪽은 app:platform · frontend 이고 이 앱은 읽지 않는다.
      */
     @BeforeEach
     void seedPubgGameConfig() {
