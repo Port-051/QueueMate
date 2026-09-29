@@ -503,8 +503,8 @@ class GameStatsSyncTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("VALORANT · PUBG 는 긁지 않는다 — 자기신고를 그대로 적고 곧바로 답한다")
-    void onlyLolIsFetched() throws Exception
+    @DisplayName("VALORANT 는 긁지 않는다 — 자기신고를 그대로 적고 곧바로 답한다. Riot 을 부르지 않는다(PUBG 는 PUBG API 다 — PubgStatsSyncTest)")
+    void valorantIsNotFetched() throws Exception
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
@@ -514,14 +514,10 @@ class GameStatsSyncTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tiers.COMPETITIVE").value("DIAMOND_2"))
                 .andExpect(jsonPath("$.stats").isEmpty());
-        putGameAccount(cookie, "PUBG", json("gameNickname", "chicken#KR", "server", "STEAM"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.server").value("STEAM"));
         awaitSyncIdle();
 
         assertThat(FAKE.calls()).isEqualTo(before);
         assertThat(statsRow(gameAccountId(userIdOf(nickname), "VALORANT"))).isNull();
-        assertThat(statsRow(gameAccountId(userIdOf(nickname), "PUBG"))).isNull();
     }
 
     @Test
@@ -654,23 +650,19 @@ class GameStatsSyncTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("긁는 구현이 없는 게임(VALORANT · PUBG)은 409 GAME_STATS_NOT_SUPPORTED 다 — 200 을 주면 거짓말이고, 쿨타임도 소모하지 않는다")
+    @DisplayName("긁는 구현이 없는 게임(VALORANT)은 409 GAME_STATS_NOT_SUPPORTED 다 — 200 을 주면 거짓말이고, 쿨타임도 소모하지 않는다 (PUBG 는 2026-09-29 부터 된다)")
     void refreshUnsupportedGame() throws Exception
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
         putGameAccount(cookie, "VALORANT", json("gameNickname", "제트#EU1"))
                 .andExpect(status().isOk());
-        putGameAccount(cookie, "PUBG", json("gameNickname", "chicken#KR", "server", "STEAM")).andExpect(status().isOk());
         awaitSyncIdle();
         int callsBefore = FAKE.calls();
 
-        for(String game : new String[]{"VALORANT", "PUBG"})
-        {
-            refresh(cookie, game)
-                    .andExpect(status().isConflict())
-                    .andExpect(jsonPath("$.code").value("GAME_STATS_NOT_SUPPORTED"));
-        }
+        refresh(cookie, "VALORANT")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("GAME_STATS_NOT_SUPPORTED"));
 
         assertThat(FAKE.calls()).isEqualTo(callsBefore);
         assertThat(redisTemplate.keys(GameStatsRefreshCooldown.REFRESH_KEY_PREFIX + "*")).isEmpty();

@@ -54,7 +54,7 @@ class UserApiTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("게임 계정 PUT 은 없으면 만들고 있으면 바꾼다 — 두 번 불러도 한 줄이다 (자기신고 — VALORANT · PUBG)")
+    @DisplayName("게임 계정 PUT 은 없으면 만들고 있으면 바꾼다 — 두 번 불러도 한 줄이다 (자기신고 — VALORANT)")
     void putGameAccountTwice() throws Exception
     {
         String nickname = newNickname();
@@ -77,8 +77,8 @@ class UserApiTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.tiers.length()").value(1))
                 .andExpect(jsonPath("$.tiers.COMPETITIVE").isEmpty());
 
-        putGameAccount(cookie, "PUBG", json("gameNickname", "chicken", "tier", null))
-                .andExpect(status().isOk());
+        // PUBG 는 PUBG API 를 긁어야 연결된다(2026-09-29 — P-36) — 이 컨텍스트에는 키가 없어 SQL 로 넣는다(PubgStatsSyncTest 가 연결을 본다)
+        insertGameAccount(userIdOf(nickname), "PUBG", "chicken", null);
 
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from game_accounts where user_id = ? and game = 'VALORANT'",
@@ -119,7 +119,7 @@ class UserApiTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("그 게임의 티어가 아니면 400 이다 (자기신고 — VALORANT · PUBG)")
+    @DisplayName("그 게임의 티어가 아니면 400 이다 (자기신고 — VALORANT). PUBG 는 tier 자체를 받지 않는다")
     void invalidGameAccount() throws Exception
     {
         Cookie cookie = login(newNickname());
@@ -133,7 +133,8 @@ class UserApiTest extends ApiTestSupport {
         putGameAccount(cookie, "VALORANT", json("gameNickname", "x", "tier", UNKNOWN_TIER))
                 .andExpect(status().isBadRequest())
                 .andExpect(detailFor("tier"));
-        putGameAccount(cookie, "PUBG", json("gameNickname", "x", "tier", "ASCENDANT_1"))
+        // PUBG 는 티어를 PUBG API 에서 채운다 — 보내면 400(2026-09-29 — P-36)
+        putGameAccount(cookie, "PUBG", json("gameNickname", "x", "server", "STEAM", "tier", "GOLD_1"))
                 .andExpect(status().isBadRequest())
                 .andExpect(detailFor("tier"));
         putGameAccount(cookie, "VALORANT", json("gameNickname", " ", "tier", null))

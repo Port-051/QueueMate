@@ -68,25 +68,19 @@ class GameProfileTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("server 는 PUBG 만 받는다(STEAM · KAKAO) — 다른 게임의 server 와 PUBG 의 모르는 server 는 400 이다")
+    @DisplayName("server 는 PUBG 만 받고 PUBG 에는 필수다(STEAM · KAKAO) — 없거나 모르는 값 · 다른 게임의 server 는 400 이다. 저장된 server 는 프로필에 나간다")
     void server() throws Exception
     {
-        Cookie cookie = login(newNickname());
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
 
-        putGameAccount(cookie, "PUBG", json("gameNickname", "chicken", "tier", null, "server", "STEAM"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.server").value("STEAM"));
-        putGameAccount(cookie, "PUBG", json("gameNickname", "chicken", "server", "KAKAO"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.server").value("KAKAO"));
-        // 비울 수 있다
+        // PUBG 는 서버가 곧 PUBG API 의 shard 다 — 없으면 물어볼 수 없다(2026-09-29 — P-36). 거절은 PUBG 를 부르기 전이다
         putGameAccount(cookie, "PUBG", json("gameNickname", "chicken", "server", null))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.server").isEmpty());
-
-        putGameAccount(cookie, "PUBG", json("gameNickname", "chicken", "server", "XBOX"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(detailFor("server"));
+        putGameAccount(cookie, "PUBG", json("gameNickname", "chicken", "server", "XBOX"))
+                .andExpect(status().isBadRequest())
                 .andExpect(detailFor("server"));
         putGameAccount(cookie, "LOL", json("gameNickname", "x", "server", "STEAM"))
                 .andExpect(status().isBadRequest())
@@ -94,10 +88,16 @@ class GameProfileTest extends ApiTestSupport {
         putGameAccount(cookie, "VALORANT", json("gameNickname", "x", "server", "KAKAO"))
                 .andExpect(status().isBadRequest())
                 .andExpect(detailFor("server"));
+        mockMvc.perform(get("/api/v1/users/me").cookie(cookie))
+                .andExpect(jsonPath("$.gameAccounts").isEmpty());
 
+        // 연결은 PUBG API 를 긁어야 된다 — 이 컨텍스트에는 키가 없어 SQL 로 넣고 읽는 쪽을 본다(연결은 PubgStatsSyncTest)
+        insertPubgAccount(userIdOf(nickname), "chicken", "KAKAO");
         mockMvc.perform(get("/api/v1/users/me").cookie(cookie))
                 .andExpect(jsonPath("$.gameAccounts.length()").value(1))
-                .andExpect(jsonPath("$.gameAccounts[0].game").value("PUBG"));
+                .andExpect(jsonPath("$.gameAccounts[0].game").value("PUBG"))
+                .andExpect(jsonPath("$.gameAccounts[0].server").value("KAKAO"))
+                .andExpect(jsonPath("$.gameAccounts[0].tiers.RANKED").isEmpty());
     }
 
     @Test
@@ -185,7 +185,7 @@ class GameProfileTest extends ApiTestSupport {
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
-        putGameAccount(cookie, "PUBG", json("gameNickname", "chicken", "server", "STEAM")).andExpect(status().isOk());
+        insertPubgAccount(userIdOf(nickname), "chicken", "STEAM");
         // 승/패도 연승도 어시스트도 없다 — 치킨률 · 평균 데미지는 detail 에 담긴다
         insertStats(gameAccountId(userIdOf(nickname), "PUBG"), 120, null, null, "4.2", "3.1", null, null,
                 "{\"chickenRate\":7,\"avgDamage\":312.5}");
@@ -220,8 +220,8 @@ class GameProfileTest extends ApiTestSupport {
         login(withoutStatsNickname);
         insertGameAccount(userIdOf(withStatsNickname), "LOL", "one", "GOLD_1");
         insertGameAccount(userIdOf(withoutStatsNickname), "LOL", "two", null);
-        putGameAccount(login(otherGameOnlyNickname), "PUBG",
-                json("gameNickname", "three", "server", "STEAM")).andExpect(status().isOk());
+        login(otherGameOnlyNickname);
+        insertPubgAccount(userIdOf(otherGameOnlyNickname), "three", "STEAM");
         Long withStats = userIdOf(withStatsNickname);
         Long withoutStats = userIdOf(withoutStatsNickname);
         Long otherGameOnly = userIdOf(otherGameOnlyNickname);
@@ -262,6 +262,13 @@ class GameProfileTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.socialProviders").isArray())
                 .andExpect(jsonPath("$.socialProviders").isEmpty());
+    }
+
+    /** PUBG 게임 계정을 SQL 로 — 연결은 PUBG API 를 긁어야 저장되고(2026-09-29 — P-36) 이 컨텍스트에는 키가 없다 */
+    private void insertPubgAccount(Long userId, String gameNickname, String server)
+    {
+        Long id = insertGameAccount(userId, "PUBG", gameNickname, null);
+        jdbcTemplate.update("update game_accounts set server = ? where id = ?", server, id);
     }
 
     private Long gameAccountId(Long userId, String game)

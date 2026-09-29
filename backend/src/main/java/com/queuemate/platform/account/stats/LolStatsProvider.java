@@ -112,7 +112,14 @@ public class LolStatsProvider implements GameStatsProvider {
     }
 
     @Override
-    public StatsSnapshot fetch(String gameNickname)
+    public boolean configured()
+    {
+        return properties.configured();
+    }
+
+    /** {@code server} 는 보지 않는다 — LoL 에는 서버가 없다(Riot 의 지역은 설정의 주소다) */
+    @Override
+    public StatsSnapshot fetch(String gameNickname, String server)
     {
         String[] riotId = splitRiotId(gameNickname);
         if(riotId == null)

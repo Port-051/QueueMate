@@ -50,17 +50,17 @@ public class GameStatsStore {
     }
 
     /**
-     * <b>LoL 게임 계정 연결</b>(2026-09-27 소유자 결정) — 게임 계정 줄 upsert(이름 · Riot 의 사다리별 티어)와 긁어 온 것을 <b>한 트랜잭션</b>으로 적는다.
-     * Riot 을 다 긁은 <b>뒤에</b> 부른다 — 긁는 동안 커넥션을 붙잡지 않는다({@link GameStatsRefresher#link}).
-     * {@code server} 는 {@code null} 이다(LoL 에 서버가 없다 — DB 의 CHECK 도 PUBG 만 받는다).
+     * <b>LoL · PUBG 게임 계정 연결</b>(2026-09-27 · 2026-09-29 소유자 결정) — 게임 계정 줄 upsert(이름 · 서버 · 게임사 API 의 사다리별 티어)와 긁어 온 것을
+     * <b>한 트랜잭션</b>으로 적는다. 게임사 API 를 다 긁은 <b>뒤에</b> 부른다 — 긁는 동안 커넥션을 붙잡지 않는다({@link GameStatsRefresher#link}).
+     * {@code server} 는 PUBG 만 값이 있다(LoL 은 {@code null} — DB 의 CHECK 도 PUBG 만 받는다).
      *
      * @throws org.springframework.dao.DataIntegrityViolationException 그 사용자가 DB 에 없다(FK) — 부르는 쪽이 401 로 옮긴다
      */
     @Transactional
-    public void link(Long userId, Game game, String gameNickname, StatsSnapshot snapshot, Instant now)
+    public void link(Long userId, Game game, String gameNickname, String server, StatsSnapshot snapshot, Instant now)
     {
         String tiers = GameTiers.write(game, snapshot.tiers());
-        gameAccountRepository.upsert(userId, game.name(), gameNickname, tiers, null, now);
+        gameAccountRepository.upsert(userId, game.name(), gameNickname, tiers, server, now);
         Long gameAccountId = gameAccountRepository.findIdByUserIdAndGame(userId, game)
                 .orElseThrow(() -> new IllegalStateException("방금 넣은 게임 계정이 없다 userId=" + userId + " game=" + game));
         write(gameAccountId, game, snapshot, now);

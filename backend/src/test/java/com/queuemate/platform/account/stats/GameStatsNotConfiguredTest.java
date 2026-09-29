@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 여기서 보는 것은 <b>전용 풀에 일이 들어가지도 않는다</b>는 것이다.
  *
  * <p><b>LoL 게임 계정 연결은 503 이고 아무것도 저장하지 않는다</b>(2026-09-27 소유자 결정 — LoL 은 Riot 을 긁어야 연결된다).
- * VALORANT · PUBG 는 자기신고라 키와 상관없이 된다.
+ * <b>PUBG 도 같다</b>({@code PUBG_API_KEY} — 2026-09-29 소유자 결정 · P-36). VALORANT 는 자기신고라 키와 상관없이 된다.
  * <b>사용자가 누르는 전적 갱신</b>({@code POST …/game-accounts/{game}/refresh} — 2026-09-24)도 <b>503</b> 이고 쿨타임을 소모하지 않는다.
  */
 class GameStatsNotConfiguredTest extends ApiTestSupport {
@@ -59,6 +59,31 @@ class GameStatsNotConfiguredTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.stats").isEmpty());
         assertThat(pool.getThreadPoolExecutor().getTaskCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("PUBG_API_KEY 가 없으면 PUBG 게임 계정 연결 · 전적 갱신이 503 GAME_STATS_UNAVAILABLE 이고 저장 · 쿨타임이 없다")
+    void pubgFailsWithoutApiKey() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
+
+        mockMvc.perform(put("/api/v1/users/me/game-accounts/PUBG").cookie(cookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json("gameNickname", "chicken", "server", "STEAM")))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("GAME_STATS_UNAVAILABLE"));
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from game_accounts where user_id = ?", Integer.class, userIdOf(nickname))).isZero();
+
+        // 키가 있던 때 연결해 둔 계정이라고 친다
+        Long gameAccountId = insertGameAccount(userIdOf(nickname), "PUBG", "chicken", "GOLD_1");
+        mockMvc.perform(post("/api/v1/users/me/game-accounts/PUBG/refresh").cookie(cookie))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("GAME_STATS_UNAVAILABLE"));
+        assertThat(redisTemplate.hasKey(GameStatsRefreshCooldown.REFRESH_KEY_PREFIX + gameAccountId)).isFalse();
+        ThreadPoolTaskExecutor pool = (ThreadPoolTaskExecutor) gameStatsExecutor;
+        assertThat(pool.getThreadPoolExecutor().getTaskCount()).as("전용 풀에 일이 들어가지 않았다").isZero();
     }
 
     @Test

@@ -27,8 +27,10 @@ import java.util.concurrent.TimeoutException;
  *
  * <p><b>동기다 — 다 긁을 때까지 기다렸다가 최신을 준다</b>(소유자 결정). 알맹이는 {@link GameStatsSyncWorker#syncNow} 다.
  *
- * <p><b>LoL 게임 계정 연결도 이 클래스가 한다</b>({@link #link} — 2026-09-27 소유자 결정). 같은 풀 · 같은 상한 · 같은 자물쇠를 쓰고
+ * <p><b>LoL · PUBG 게임 계정 연결도 이 클래스가 한다</b>({@link #link} — 2026-09-27 · PUBG 는 2026-09-29 소유자 결정 "LoL 처럼 동기로"). 같은 풀 · 같은 상한 · 같은 자물쇠를 쓰고
  * <b>쿨타임은 적용하지 않는다</b>(쿨타임은 전적 갱신 요청의 것이다). 거절의 갈래는 {@link #link} 의 주석에 있다.
+ * <b>상한 · 쿨타임 · 자물쇠는 게임을 가리지 않는다</b> — 수치는 {@link RiotProperties} 의 {@code refresh-timeout} · {@code refresh-cooldown} 이고 키는
+ * {@code qm:riot:sync:{gameAccountId}} · {@code qm:riot:refresh:{gameAccountId}} 다(이름에 {@code riot} 이 들었지만 게임 계정 번호가 게임을 가른다 — 새 접두사를 두지 않았다).
  *
  * <p><b>상한(30초)을 어떻게 거나 — 전용 풀에 던지고 {@link Future#get(long, TimeUnit)} 으로 기다린다.</b>
  * 요청 스레드에서 그냥 긁으면 <b>자를 방법이 없다</b>(Riot 호출 25번 × 읽기 타임아웃 3초). 상한을 넘기면 요청은 실패로 끝내지만
@@ -40,12 +42,12 @@ import java.util.concurrent.TimeoutException;
  * <p><b>거절은 넷이다</b>(상태 코드는 소유자가 정했고 <b>에러 코드의 이름과 글귀는 Claude 가 정했다</b> — 계약의 "전적을 긁는 것").
  * <ul>
  *   <li>404 {@code GAME_ACCOUNT_NOT_FOUND} — 그 게임 계정을 연결하지 않았다</li>
- *   <li>409 {@code GAME_STATS_NOT_SUPPORTED} — 그 게임은 긁는 구현이 없다(VALORANT · PUBG). <b>200 을 주면 거짓말이다</b> — 아무것도 갱신되지 않는다.
+ *   <li>409 {@code GAME_STATS_NOT_SUPPORTED} — 그 게임은 긁는 구현이 없다(VALORANT — PUBG 는 2026-09-29 부터 된다). <b>200 을 주면 거짓말이다</b> — 아무것도 갱신되지 않는다.
  *       요청이 잘못된 것이 아니라 서버가 못 하는 것이라 400 이 아니다. <b>쿨타임을 소모하지 않는다</b></li>
  *   <li>429 {@code TOO_MANY_STATS_REFRESHES} + {@code Retry-After} — 쿨타임(2분) 안에 또 불렀거나 <b>누가 이미 같은 계정을 긁고 있다</b></li>
  *   <li>503 {@code GAME_STATS_UNAVAILABLE} — 지금 전적을 가져올 수 없다. <b>전적 줄은 건드리지 않는다</b>(옛 값이 남는다).
- *       Riot 이 거절 · 응답이 없다 · 30초를 넘겼다 · {@code RIOT_API_KEY} 가 없다 · 닉네임이 {@code 이름#태그} 가 아니어서 물어볼 수도 없다 —
- *       <b>이유를 가르지 않는다.</b> 사용자가 할 수 있는 것은 "잠시 뒤 다시" 또는 "게임 닉네임을 고친다" 둘뿐이고, 갈라 주면 프런트가 갈래마다 다르게 그려야 한다</li>
+ *       게임사 API 가 거절 · 응답이 없다 · 30초를 넘겼다 · 키({@code RIOT_API_KEY} · {@code PUBG_API_KEY})가 없다 · 닉네임이 {@code 이름#태그} 가 아니거나
+ *       PUBG 계정에 서버가 없어 물어볼 수도 없다 — <b>이유를 가르지 않는다</b>(PUBG 의 429 만 {@code Retry-After} 를 싣는다 — 2026-09-29). 사용자가 할 수 있는 것은 "잠시 뒤 다시" 또는 "게임 닉네임을 고친다" 둘뿐이고, 갈라 주면 프런트가 갈래마다 다르게 그려야 한다</li>
  * </ul>
  */
 @Slf4j
@@ -58,6 +60,8 @@ public class GameStatsRefresher {
     static final String UNAVAILABLE = "GAME_STATS_UNAVAILABLE";
     /** LoL 게임 계정 연결에서 그 Riot ID({@code 이름#태그})가 Riot 에 없다 — 2026-09-27. 이름과 글귀는 Claude 가 정했다 */
     static final String RIOT_ID_NOT_FOUND = "RIOT_ID_NOT_FOUND";
+    /** PUBG 게임 계정 연결에서 그 서버(shard)에 그 닉네임이 없다 — 2026-09-29(P-36). 이름은 계약에서 정해졌고 글귀는 Claude 가 정했다 */
+    static final String PUBG_PLAYER_NOT_FOUND = "PUBG_PLAYER_NOT_FOUND";
 
     private final RiotProperties properties;
     private final GameStatsSyncWorker worker;
@@ -88,12 +92,14 @@ public class GameStatsRefresher {
     }
 
     /**
-     * <b>LoL 게임 계정 연결</b>({@code PUT …/game-accounts/LOL} — 2026-09-27 소유자 결정). 저장하기 <b>전에</b> Riot 을 긁고,
-     * 성공하면 게임 계정 줄(이름 · Riot 의 티어 · {@code external_id})과 전적을 <b>한 트랜잭션</b>으로 적은 뒤 다시 읽어 돌려준다.
+     * <b>LoL · PUBG 게임 계정 연결</b>({@code PUT …/game-accounts/LOL} · {@code …/PUBG} — 2026-09-27 · 2026-09-29 소유자 결정). 저장하기 <b>전에</b> 게임사 API 를 긁고,
+     * 성공하면 게임 계정 줄(이름 · 서버 · 사다리별 티어 · {@code external_id})과 전적을 <b>한 트랜잭션</b>으로 적은 뒤 다시 읽어 돌려준다.
      * <b>실패하면 아무것도 적지 않는다</b> — 연동이 안 된 것이다.
      *
-     * <p>거절 — 404 {@code RIOT_ID_NOT_FOUND}(그 이름#태그가 Riot 에 없다) · 429 {@code TOO_MANY_STATS_REFRESHES}(누가 이미 같은 계정을 긁고 있다) ·
-     * 503 {@code GAME_STATS_UNAVAILABLE}(Riot 거절 · 429 · 응답 없음 · 30초 초과 · {@code RIOT_API_KEY} 없음 · 응답에 {@code puuid} 가 없다).
+     * <p>거절 — 404 {@code RIOT_ID_NOT_FOUND}(그 이름#태그가 Riot 에 없다) · 404 {@code PUBG_PLAYER_NOT_FOUND}(그 서버에 그 PUBG 닉네임이 없다) ·
+     * 429 {@code TOO_MANY_STATS_REFRESHES}(누가 이미 같은 계정을 긁고 있다) ·
+     * 503 {@code GAME_STATS_UNAVAILABLE}(게임사 API 거절 · 429 · 응답 없음 · 30초 초과 · 키({@code RIOT_API_KEY} · {@code PUBG_API_KEY}) 없음 · 응답에 식별자가 없다.
+     * <b>PUBG 의 429 는 {@code Retry-After} 를 싣는다</b> — 한도가 풀리는 때까지).
      * <b>쿨타임은 보지도 찍지도 않는다.</b>
      *
      * <p><b>긁기는 전용 풀 · 저장은 이 스레드다</b> — 전적 갱신과 다르다. 30초를 넘겨 이 요청이 503 으로 끝났는데 뒤에서 긁기가 끝나 저장해 버리면
@@ -103,15 +109,15 @@ public class GameStatsRefresher {
      *
      * @throws org.springframework.dao.DataIntegrityViolationException 그 사용자가 DB 에 없다(FK) — 부르는 쪽이 401 로 옮긴다
      */
-    public GameAccountWithStats link(Long userId, Game game, String gameNickname)
+    public GameAccountWithStats link(Long userId, Game game, String gameNickname, String server)
     {
         if(!worker.supports(game))
         {
             throw new IllegalStateException(game + " 은 게임사 API 로 연결하지 않는다");
         }
-        if(!properties.configured())
+        if(!worker.configured(game))
         {
-            log.warn("게임 계정 연결 요청을 받았지만 RIOT_API_KEY 가 없다 userId={} game={}", userId, game);
+            log.warn("게임 계정 연결 요청을 받았지만 그 게임사 API 키(LOL — RIOT_API_KEY · PUBG — PUBG_API_KEY)가 없다 userId={} game={}", userId, game);
             throw unavailable();
         }
         Optional<Long> existingId = store.find(userId, game).map(found -> found.account().getId());
@@ -123,13 +129,13 @@ public class GameStatsRefresher {
                 log.info("게임 계정 연결 거절(이미 긁는 중) userId={} gameAccountId={}", userId, existingId.get());
                 throw tooManyRefreshes(GameStatsSyncLock.LOCK_TTL.toSeconds());
             }
-            StatsSnapshot snapshot = await(() -> worker.fetch(game, gameNickname), "게임 계정 연결 userId=" + userId, true);
+            StatsSnapshot snapshot = await(() -> worker.fetch(game, gameNickname, server), "게임 계정 연결 userId=" + userId, true);
             if(snapshot == null)
             {
-                // 물어볼 수 없었다 — 형식은 부르는 쪽이 400 으로 먼저 거르므로 Riot 응답에 puuid 가 없던 경우다
+                // 물어볼 수 없었다 — 형식 · 서버는 부르는 쪽이 400 으로 먼저 거르므로 게임사 응답에 식별자(puuid 등)가 없던 경우다
                 throw unavailable();
             }
-            store.link(userId, game, gameNickname, snapshot, Instant.now().truncatedTo(ChronoUnit.MILLIS));
+            store.link(userId, game, gameNickname, server, snapshot, Instant.now().truncatedTo(ChronoUnit.MILLIS));
             log.info("게임 계정 연결 userId={} game={} tiers={}", userId, game, snapshot.tiers());
         }
         finally
@@ -154,10 +160,10 @@ public class GameStatsRefresher {
             throw new ApiException(HttpStatus.CONFLICT, NOT_SUPPORTED, game.name() + " 의 전적은 아직 가져오지 않습니다");
         }
         GameAccountWithStats before = store.find(userId, game).orElseThrow(GameStatsRefresher::notFound);
-        if(!properties.configured())
+        if(!worker.configured(game))
         {
             // 키가 없다 — 긁을 길이 없다. 쿨타임을 찍지 않는다(아무것도 소모하지 않았다)
-            log.warn("전적 갱신 요청을 받았지만 RIOT_API_KEY 가 없다 userId={} game={}", userId, game);
+            log.warn("전적 갱신 요청을 받았지만 그 게임사 API 키(LOL — RIOT_API_KEY · PUBG — PUBG_API_KEY)가 없다 userId={} game={}", userId, game);
             throw unavailable();
         }
         Long gameAccountId = before.account().getId();
@@ -189,10 +195,11 @@ public class GameStatsRefresher {
 
     /**
      * 전용 풀에 던지고 상한만큼 기다린다. <b>기다림을 넘기거나 · 던질 자리가 없거나 · 긁다가 터지면 전부 503 이다</b> —
-     * 실패의 갈래를 응답으로 가르지 않고 로그로만 남긴다. 예외는 하나 — {@code riotIdNotFound} 가 켜져 있으면(게임 계정 연결)
-     * Riot ID 가 없다는 것만 404 {@code RIOT_ID_NOT_FOUND} 로 가른다(전적 갱신은 지금처럼 503 이다 — 그 요청의 거절 갈래를 바꾸지 않았다).
+     * 실패의 갈래를 응답으로 가르지 않고 로그로만 남긴다. 예외는 둘이다 — ① {@code linking} 이 켜져 있으면(게임 계정 연결) 계정이 없다는 것만 404 로 가른다
+     * ({@code RIOT_ID_NOT_FOUND} · {@code PUBG_PLAYER_NOT_FOUND} — 전적 갱신은 지금처럼 503 이다, 그 요청의 거절 갈래를 바꾸지 않았다)
+     * ② <b>PUBG 의 429 는 503 에 {@code Retry-After}</b>(한도가 풀리기까지 남은 초 — {@code X-RateLimit-Reset}, 없으면 60)를 싣는다 — 연결 · 갱신 둘 다(2026-09-29 · P-36).
      */
-    private <T> T await(Callable<T> task, String what, boolean riotIdNotFound)
+    private <T> T await(Callable<T> task, String what, boolean linking)
     {
         if(executor.getThreadPoolExecutor().getQueue().remainingCapacity() == 0)
         {
@@ -224,12 +231,22 @@ public class GameStatsRefresher {
         catch(ExecutionException e)
         {
             Throwable cause = (e.getCause() == null) ? e : e.getCause();
-            if(riotIdNotFound && cause instanceof RiotIdNotFoundException)
+            if(linking && cause instanceof RiotIdNotFoundException)
             {
                 log.info("Riot 에 그 Riot ID 가 없다 {}", what);
                 throw new ApiException(HttpStatus.NOT_FOUND, RIOT_ID_NOT_FOUND, "Riot 에 그 이름#태그가 없습니다");
             }
+            if(linking && cause instanceof PubgPlayerNotFoundException)
+            {
+                log.info("PUBG 에 그 닉네임이 없다 {}", what);
+                throw new ApiException(HttpStatus.NOT_FOUND, PUBG_PLAYER_NOT_FOUND, "그 서버에 그 PUBG 닉네임이 없습니다");
+            }
             log.warn("긁기에 실패했다 {}: {}", what, cause.toString());
+            if(cause instanceof PubgApiException pubg && pubg.rateLimited())
+            {
+                throw ApiException.retryAfter(HttpStatus.SERVICE_UNAVAILABLE, UNAVAILABLE, "지금 전적을 가져올 수 없습니다",
+                        pubg.retryAfterSeconds());
+            }
             throw unavailable();
         }
         catch(InterruptedException e)

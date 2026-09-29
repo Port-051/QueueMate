@@ -9,8 +9,9 @@ import jakarta.validation.constraints.Size;
  * 게임 계정 연결 요청. 어느 게임인지는 경로에 있다.
  *
  * <p><b>LoL 은 {@code gameNickname}(이름#태그) 하나만 받는다</b>(2026-09-27 소유자 결정 · 2026-09-29 주 포지션을 뺐다) — {@code tier} · {@code server} 는
- * 보내면 400 이다(티어는 Riot 에서 채우고 LoL 에 서버가 없다).
- * 아래 {@code tier} 설명의 "자기신고"는 <b>VALORANT · PUBG</b> 의 것이다. 게임별로 가르는 것은 서비스다({@code UserService#putGameAccount}).
+ * 보내면 400 이다(티어는 Riot 에서 채우고 LoL 에 서버가 없다). <b>PUBG 는 {@code gameNickname} · {@code server}(필수)를 받는다</b>(2026-09-29 소유자 결정 — P-36) —
+ * {@code tier} 를 보내면 400 이다(PUBG API 에서 채운다).
+ * 아래 {@code tier} 설명의 "자기신고"는 <b>VALORANT</b> 의 것이다(경쟁전 사다리 {@code COMPETITIVE} 에 적힌다). 게임별로 가르는 것은 서비스다({@code UserService#putGameAccount}).
  *
  * <p><b>주 포지션은 게임 계정에 없다</b>(2026-09-29 소유자 결정 — {@code contracts/platform-api.md} P-35. 포지션은 게시판에 글을 쓸 때 정하는 것이라
  * 계정 연동에서 받을 이유가 없다). <b>그래도 {@code mainPosition} 칸은 남겨 둔다 — 값이 오면 400 으로 거절하려는 것이다</b>:
@@ -24,7 +25,7 @@ import jakarta.validation.constraints.Size;
  *                     아래 {@code @Pattern} 은 사다리 검사보다 넓지만 <b>남겨 둔다</b> — Redis 를 못 읽어 검증을 건너뛸 때(fail-open) DB 칸({@code varchar(20)})에
  *                     들어갈 수 없는 값을 막는 것이 이것뿐이다
  * @param mainPosition <b>받지 않는다</b> — 값이 있으면 400 {@code VALIDATION_FAILED} 다(위)
- * @param server       PUBG 만({@code STEAM} · {@code KAKAO}). 없어도 된다. 다른 게임은 {@code null} 만 받는다 — 서비스에서 검증한다({@code Game#allowsServer})
+ * @param server       PUBG 만({@code STEAM} · {@code KAKAO}) — <b>PUBG 는 필수다</b>(PUBG API 의 shard 다 — 2026-09-29). 다른 게임은 {@code null} 만 받는다 — 서비스에서 검증한다
  *
  * <p><b>{@code verified} · {@code externalId} · {@code stats} 칸이 없다</b> — 읽기 전용이라 요청으로 바꿀 수 없다.
  * 본문에 그런 이름이 들어 있어도 무시된다(모르는 칸은 읽지 않는다).
