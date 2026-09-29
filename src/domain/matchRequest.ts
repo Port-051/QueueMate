@@ -14,7 +14,8 @@ import { profileTier } from './profileTier';
  *   티어가 사다리마다 따로다. 솔로 랭크는 `SOLO`, 자유 랭크는 `FLEX`, PUBG 랭크 모드는 전부 `RANKED`). `NONE` 모드에 실으면 400 이라 빼고, `EXIST` 모드인데 그 사다리의 티어가 `null` 이면
  *   서버가 400 을 내므로 보내기 전에 막는다(`matchRequestError` — "자유랭크 티어가 없습니다 — …"). `UNRANKED` 는 사다리의 `SOLO_ONLY` 라 서버가 400 으로 거절한다 — 그 글귀(`details[0]`)를 그대로 보여 준다.
  *   (게임 계정을 연동하면 요청에서 사라질 "임시 필드" 라고 계약이 적었지만 지금은 두 서버 모두 본문의 자기신고를 읽는다 — 그래서 프런트가 계정의 티어를 옮겨 싣는다.)
- * - `playPurpose` 는 그대로 — auto-join 은 받되 무시하고(P-29), matching 은 색인 키의 한 조각이다.
+ * - `playPurpose` 는 그대로 — auto-join 은 받되 무시하고(P-29), matching 은 색인 키의 한 조각이다(필수). 값은 **빠른 연결 폼의 "플레이 목적" 칸**이다
+ *   (2026-09-29 소유자 결정 — 전에는 폼에 칸이 없어 프로필 설정의 기본값이 보이지 않게 실렸다. 이제 그 기본값은 칸의 처음 값일 뿐이다 — `rooms/RoomQuickConnect.tsx`).
  */
 
 /** 서버가 "포지션 없음" 으로 받는 값(LoL `LolPosition.NONE`). 화면의 사본은 `ANY` 다(`gameConfig.ts` `conditionForMode`). */

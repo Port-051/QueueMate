@@ -36,7 +36,9 @@ function CreateRoomIcon() {
  *   원본의 정원 선택 · 시작 시각(예약) · 티어 범위는 우리 글에 칸이 없어 2026-09-29 에 뺐다(정원은 늘 5). PUBG 의 `conditions.perspective` 는 고른 모드의 시점이다(`perspectiveFromMode`).
  *
  * 조건은 이 폼의 값에서 만든다 — 모드 `queueType` · 내 포지션(매칭 시작의 핵심 조건 · 글에는 실리지 않는다 — 카드에 사람별 포지션은 없다, 2026-09-29) · 찾는 포지션(글의 `wantedPositions`) ·
- * 음성 · "한마디"(글 제목). 플레이 목적은 프로필 설정의 기본값(폼에 칸이 없다). 티어는 폼이 아니라 내 게임 계정에서 온다(`buildMatchRequest`).
+ * 음성 · **플레이 목적**(`playPurpose` — 매칭 시작에만 · 글에는 목적이 없다, platform P-29) · "한마디"(글 제목). 티어는 폼이 아니라 내 게임 계정에서 온다(`buildMatchRequest`).
+ * - **플레이 목적**(2026-09-29 소유자 결정) — 전에는 폼에 칸이 없어 프로필 설정의 기본값이 보이지 않게 실려 갔다. 이제 칸이 있고, 처음 값이 그 기본값이며
+ *   고르면 다른 칸처럼 이 브라우저에 게임마다 기억한다(`saveIntroduction`). 자동 합류(`POST /posts/auto-join`)는 같은 본문을 받되 목적을 보지 않는다.
  */
 export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, onCreate }: {
   game: GameKey; modeKey: string; selfId: string;
@@ -53,7 +55,11 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, onCreate
     const roles = keyConditionOptions(game).filter(role => role.value !== 'ANY').map(role => role.value);
     const allRoles = keyConditionOptions(game).some(role => role.value === 'ANY') && roles.every(role => saved.primaryRoles?.includes(role));
     const primaryRole = allRoles ? 'ANY' : saved.primaryRoles?.[0] ?? saved.primaryRole;
-    return { ...saved, primaryRole, primaryRoles: allRoles ? roles : primaryRole === 'ANY' ? [] : [primaryRole], voice: roomVoice(saved.voice), queueType: visibleModes(game).some(mode => mode.key === saved.queueType) ? saved.queueType : modeKey };
+    return {
+      ...saved, primaryRole, primaryRoles: allRoles ? roles : primaryRole === 'ANY' ? [] : [primaryRole], voice: roomVoice(saved.voice),
+      playPurpose: saved.playPurpose ?? readPreferences().defaultPurpose,
+      queueType: visibleModes(game).some(mode => mode.key === saved.queueType) ? saved.queueType : modeKey,
+    };
   });
   const [starting, setStarting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -85,7 +91,7 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, onCreate
     modeKey: value.queueType,
     keyCondition: { type: GAME_CATALOG[game].keyConditionType, value: hasRoles ? ownRoles.length === 1 ? ownRoles[0] : 'ANY' : 'ANY' },
     voicePreference: value.voice,
-    playPurpose: readPreferences().defaultPurpose,
+    playPurpose: value.playPurpose ?? readPreferences().defaultPurpose,
   });
   const startCondition = conditionFromForm();
   const startBlocked = error || (hasRoles && !ownRoles.length ? (game === 'PUBG' ? '플랫폼을 골라 주세요' : '포지션을 골라 주세요') : '') || matchRequestError(startCondition, gameAccounts) || '';
@@ -155,7 +161,7 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, onCreate
     <form noValidate onSubmit={event => { event.preventDefault(); if (!starting && !waiting) void startMatching(); }}>
       <fieldset className="recruitment-composer" disabled={starting}>
         {error ? <div className="banner warn" role="alert">{error}</div> : null}
-        <SelfIntroductionFields binaryVoice compact singleRole hideDesiredRoles={!positionsForPost} game={game} value={value} onChange={update} />
+        <SelfIntroductionFields binaryVoice compact singleRole showPurpose hideDesiredRoles={!positionsForPost} game={game} value={value} onChange={update} />
         {createError ? <p className="room-create-error" role="alert">{createError}</p> : startBlocked ? <p className="room-create-hint">{startBlocked}</p> : null}
       </fieldset>
       <div className={`matching-rail-footer room-rail-actions${activeRoomId ? ' is-search-only' : ''}`}>

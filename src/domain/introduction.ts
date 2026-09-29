@@ -1,7 +1,8 @@
 import { normalizeTierRange, type TierRange } from './tierRange';
 import type { BoardRow, BoardWrite } from '../api/recruitment';
-import type { GameKey, VoicePreference } from '../api/types';
+import type { GameKey, PlayPurpose, VoicePreference } from '../api/types';
 import { conditionForMode, usesKeyCondition, keyConditionOptions } from './gameConfig';
+import { PLAY_PURPOSES } from './gameCatalog';
 import { normalizeLolRankDetails, type LolRankDivision } from './lolRank';
 
 export type MatchResult = 'WIN' | 'LOSS' | null;
@@ -20,6 +21,11 @@ export interface SelfIntroduction {
   roomCapacity?: number;
   recentResults: MatchResult[];
   voice: VoicePreference;
+  /**
+   * 플레이 목적 — 빠른 연결 폼의 "매칭 시작" 에만 쓴다(2026-09-29 소유자 결정 · 글에는 목적이 없다 — platform P-29).
+   * 없으면(옛 저장값 · 고른 적 없음) 부르는 쪽이 프로필 설정의 기본값(`readPreferences().defaultPurpose`)으로 채운다.
+   */
+  playPurpose?: PlayPurpose;
   bio: string;
 }
 
@@ -53,6 +59,7 @@ function normalize(value: Partial<SelfIntroduction>, game: GameKey): SelfIntrodu
     roomCapacity: typeof value.roomCapacity === 'number' && Number.isInteger(value.roomCapacity) && value.roomCapacity >= 2 && value.roomCapacity <= 5 ? value.roomCapacity : undefined,
     recentResults: Array.from({ length: 20 }, (_, i) => game !== 'LOL' ? null : value.recentResults?.[i] === 'WIN' ? 'WIN' : value.recentResults?.[i] === 'LOSS' ? 'LOSS' : null),
     voice: ['REQUIRED', 'NO_VOICE'].includes(value.voice ?? '') ? value.voice! : defaults.voice,
+    playPurpose: value.playPurpose && PLAY_PURPOSES.includes(value.playPurpose) ? value.playPurpose : undefined,
     bio: text(value.bio),
   };
 }
