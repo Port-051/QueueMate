@@ -9,7 +9,6 @@
 .room-preview-conditions dd { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:8px; min-width:0; margin:0; color:var(--text); font-size:14px; }
 .room-preview-conditions .room-role-icons { justify-content:flex-end; flex-wrap:wrap; gap:10px; }
 .room-preview-conditions .room-role-icons b { font-size:13px; font-weight:500; }
-.room-preview-capacity { margin-left:4px; padding:3px 8px; border-radius:8px; background:var(--panel-3); color:var(--text-dim); font-size:12px; }
 .room-preview-error { margin:18px 0 0; color:var(--danger); font-size:13px; line-height:1.5; }
 .room-create-preview .modal-foot>.btn { min-height:44px; border-radius:999px; }
 .room-create-preview .modal-foot>.btn-primary { min-width:132px; }
@@ -26,18 +25,19 @@
 
 .modal:is(.room-create-preview,.room-member-profile) button { border-radius:999px; }
 
-/* 글 쓰기 팝업의 "찾는 포지션" · "한마디"(2026-09-29 소유자 지시 — 자동 매칭 판에서 옮겨 왔고 모양은 판에 있던 그대로다). 창은 body 로 포털되어
-   판의 규칙(`.room-home …` — room-board.css · matching-rail.css · duo-home.css · recruitment.css 의 `.recruitment-composer input`)이 닿지 않으므로 그 값을 여기 옮겨 적는다.
-   판의 모양을 바꾸면 여기도 같이 바꾼다. */
+/* 글 쓰기 팝업의 칸 — 게임 모드 · 내 포지션 · 찾는 포지션 · 음성 · 한마디(2026-09-30 소유자 지시로 폼이 됐다. 모양은 자동 매칭 판 그대로다).
+   창은 body 로 포털되어 판의 규칙(`.room-home …` — room-board.css)이 닿지 않으므로 칸들을 `room-home room-preview-scope` 로 감싸 그 규칙
+   (모드 선택기 · 내 포지션 · 찾는 포지션 동그라미 · 음성 · 미끄러지는 선택 표시 · 크기 변수)을 그대로 받고, `.room-home` 자신의 폭 · 여백만 여기서 되돌린다.
+   (2026-09-29 에는 찾는 포지션 동그라미의 값을 여기 옮겨 적었다 — 감싸게 되어 지웠다.) 판의 규칙 가운데 `.home-profile` · `.room-matching-form` 아래에만 걸린 것
+   (칸 이름 · 한마디 입력칸 — matching-rail.css · duo-home.css · recruitment.css 의 `.recruitment-composer input`)은 여전히 닿지 않아 아래에 옮겨 적었다. 판을 바꾸면 같이 바꾼다. */
+.room-home.room-preview-scope { width:auto; max-width:none; margin:0; padding:0; }
+.room-preview-game { margin:0 0 22px; }
+.room-preview-game dd { font-weight:600; }
+.room-preview-missing { margin:16px 0 0; text-align:right; }
+.room-preview-missing:empty { display:none; }
 .room-preview-fieldset { min-width:0; margin:0; padding:0; border:0; }
 .room-create-preview .room-preview-fields .introduction-choice legend { color:#bcc1d2; font-size:14px; }
-.room-create-preview .room-preview-fields .introduction-fields label { color:var(--text-dim); font-size:14px; }
-.room-create-preview .intro-role-options { gap:5px; padding:6px 0; border:0; background:none; }
-.room-create-preview .intro-role-options>.filter-role { flex:none; flex-direction:column; gap:4px; justify-self:center; width:min(100%,64px); height:auto; min-height:0; aspect-ratio:1; padding:3px; border:1px solid var(--line); border-radius:50%; font-size:12px; line-height:1.3; }
-.room-create-preview .intro-role-options>.filter-role span { font-size:12px; }
-.room-create-preview .intro-role-options>.filter-role svg { flex:none; width:22px; height:22px; }
-.room-create-preview .intro-role-options>.filter-role[aria-pressed=true] { border-color:var(--accent); }
-.room-create-preview .intro-role-options>.filter-role:disabled { opacity:.3; cursor:not-allowed; }
+.room-create-preview .room-preview-fields .introduction-fields label.introduction-wide { color:var(--text-dim); font-size:14px; }
 .room-create-preview input[aria-label="한마디"] { width:100%; min-width:0; min-height:48px; padding:12px 20px; border:1px solid var(--line); border-radius:999px; background:#151723; color:var(--text); font:inherit; font-size:15px; line-height:1.5; color-scheme:dark; }
 .room-create-preview input[aria-label="한마디"]:focus { border-color:var(--accent); }
 .room-create-preview input[aria-label="한마디"]::placeholder { color:#626270; font-size:15px; opacity:1; }

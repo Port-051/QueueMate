@@ -2,7 +2,7 @@ import { SlidingSelector } from './SlidingSelector';
 import { TierRangePicker } from './TierRangePicker';
 import { SingleRolePicker } from './SingleRolePicker';
 import { Fragment, useId, type ReactNode } from 'react';
-import type { GameKey } from '../api/types';
+import type { GameKey, VoicePreference } from '../api/types';
 import { keyConditionOptions, usesKeyCondition } from '../domain/gameConfig';
 import { normalizeDesiredRoles } from '../domain/introduction';
 import type { SelfIntroduction } from '../domain/introduction';
@@ -34,6 +34,18 @@ export function IntroductionBioField({ value, onChange, describedBy, invalid = f
   value: string; onChange: (value: string) => void; describedBy?: string; invalid?: boolean;
 }) {
   return <label className="introduction-wide">한마디<input aria-label="한마디" maxLength={120} placeholder="편하게 두 판 하실 분, 서로 존중해요" value={value} aria-describedby={describedBy} aria-invalid={invalid || undefined} onChange={event => onChange(event.target.value)} /></label>;
+}
+
+/**
+ * "음성" 의 두 버튼(사용 · 안 씀). `binary` 는 마이크 그림 중심의 모양, `compact` 는 자동 매칭 판의 모양(미끄러지는 선택 표시 · 글자 "사용 · 미사용")이다.
+ * `value` 가 `null` 이면 아무것도 눌리지 않는다 — "글 쓰고 파티 찾기" 팝업이 처음에 그렇다(2026-09-30 소유자 지시). 판(`SelfIntroductionFields`)과 팝업이 같은 부품을 쓴다.
+ */
+export function VoiceOptions({ value, onChange, binary = false, compact = false }: {
+  value: VoicePreference | null; onChange: (voice: VoicePreference) => void; binary?: boolean; compact?: boolean;
+}) {
+  return <SlidingSelector enabled={compact} className={`intro-voice-options${binary ? ' is-binary' : ''}`} role="group" aria-label="음성">
+    {([{ value: 'REQUIRED', label: '사용' }, { value: 'NO_VOICE', label: '안 씀' }] as const).map(({ value: voice, label }) => <button type="button" key={voice} className="filter-mode" aria-label={binary ? voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용' : label} title={binary ? voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용' : label} aria-pressed={value === voice} onClick={() => onChange(voice)}><VoiceIcon preference={voice} />{!binary || compact ? <span>{compact && voice === 'NO_VOICE' ? '미사용' : label}</span> : null}</button>)}
+  </SlidingSelector>;
 }
 
 export function SelfIntroductionFields({ game, value, onChange, modeLocked = false, binaryVoice = false, showTierRange = false, compact = false, singleRole = false, afterMode, disabledDesiredRoles = [], hidePostFields = false, showPurpose = false }: {
@@ -77,9 +89,7 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
       </> : purposeField}
       <SettingsPair {...(compact ? { className: 'room-settings-pair' } : {})}>
       {showTierRange ? <div className="room-setting-row"><span>찾는 티어</span><TierRangePicker game={game} value={value.desiredTierRange} label="찾는 티어 범위" stacked={compact} onChange={desiredTierRange => patch({ desiredTierRange })} /></div> : null}
-      <VoiceField className={compact ? 'room-setting-row' : 'introduction-choice'}><VoiceLabel>음성</VoiceLabel><SlidingSelector enabled={compact} className={`intro-voice-options${binaryVoice ? ' is-binary' : ''}`} role="group" aria-label="음성">
-        {([{ value: 'REQUIRED', label: '사용' }, { value: 'NO_VOICE', label: '안 씀' }] as const).map(({ value: voice, label }) => <button type="button" key={voice} className="filter-mode" aria-label={binaryVoice ? voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용' : label} title={binaryVoice ? voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용' : label} aria-pressed={value.voice === voice} onClick={() => patch({ voice })}><VoiceIcon preference={voice} />{!binaryVoice || compact ? <span>{compact && voice === 'NO_VOICE' ? '미사용' : label}</span> : null}</button>)}
-      </SlidingSelector></VoiceField>
+      <VoiceField className={compact ? 'room-setting-row' : 'introduction-choice'}><VoiceLabel>음성</VoiceLabel><VoiceOptions value={value.voice} binary={binaryVoice} compact={compact} onChange={voice => patch({ voice })} /></VoiceField>
       </SettingsPair>
       {hidePostFields ? null : <IntroductionBioField value={value.bio} onChange={bio => patch({ bio })} />}
     </div>

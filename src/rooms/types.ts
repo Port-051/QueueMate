@@ -48,6 +48,11 @@ export interface BoardRoom {
   /** PUBG 만. `conditions.perspective`. */
   perspective: PubgPerspective | null;
   wantedPositions: string[];
+  /**
+   * 방장(글쓴이)의 포지션 — 글을 쓸 때 고른 것이다(2026-09-30 소유자 결정). 방장 카드에 아이콘 하나로 붙는다(`RoomMemberFacts`).
+   * 포지션이 없는 모드 · 옛 글 · 이 게임에 없는 이름이면 `null`. 사람별 포지션(게임 계정의 주 포지션)은 여전히 없다 — 이것은 **글의** 값이다.
+   */
+  hostPosition: string | null;
   /** ISO-8601. */
   createdAt: string;
   host: BoardMember;

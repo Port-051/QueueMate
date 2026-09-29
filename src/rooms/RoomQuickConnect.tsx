@@ -16,8 +16,7 @@ import { conditionSummary, gameFullLabel, modeLabel } from '../domain/labels';
 import { matchErrorMessage, matchRequestProblem } from '../domain/matchRequest';
 import { formatDuration } from '../domain/time';
 import { emptyIntroduction, introductionInputError, readIntroduction, saveIntroduction, type SelfIntroduction } from '../domain/introduction';
-import { perspectiveFromMode } from './boardRoom';
-import { RoomCreatePreview, type PostDraft } from './RoomCreatePreview';
+import { RoomCreatePreview } from './RoomCreatePreview';
 import { roomVoice } from './voice';
 import './room-quick-connect.css';
 
@@ -30,13 +29,14 @@ function CreateRoomIcon() {
  * 가로로 넓게 선다(넓은 화면에서 칸이 여러 열 · 좁으면 옛 레일처럼 한 열 — `room-board.css` 의 `.room-match-top`). 프로필 요약(`HomeProfileRail`)은 판의 머리 한 줄로 남겼다.
  * - **"자동 매칭 시작"**(2026-09-29 소유자 지시로 "매칭 시작" 에서 이름을 바꿨다 — 진행 중 글자 "찾는 중…" · "매칭 진행 중" 은 그대로)은 서버의 자동 매칭이다(3단계 · `MatchContext#start`): ① `POST /posts/auto-join`(조건이 맞는 열린 게시판 방이 있으면 서버가 바로 넣는다) → 그 방으로 ·
  *   ② 404 면 `POST /match-requests`(대기열) → 판 바로 아래에 대기 카드가 뜨고 제안은 제안 화면으로.
- * - **"글 쓰고 파티 찾기"**(옛 "방 만들기")는 글 쓰기다(4단계 · `POST /posts {game, mode, title, voice, conditions, wantedPositions}`) — 글이 곧 방이고 201 이면 그 방으로 간다.
- *   **버튼은 보드의 필터 한 줄 오른쪽 끝에 선다**(2026-09-29 소유자 지시) — 이 폼의 값(게임 · 모드 · 음성 · PUBG 시점)으로 글을 쓰므로 여기서 그려 `createSlot` 에 옮긴다(`createPortal`).
- *   누르면 막는 것(방에 있음 · 매칭 대기 중 · 입력 오류)만 보고 팝업(`RoomCreatePreview`)을 연다. **"찾는 포지션" · "한마디"(글 제목)는 이 판에 없고 팝업에서 받는다**
- *   (2026-09-29 소유자 지시 — "자동 매칭 시작" 에는 쓰이지 않던 칸이다. 한마디의 검사(필수 · 60자)와 본문의 마지막 조립도 팝업이 한다. 두 칸은 기억하지 않는다 — 같은 날 소유자 지시).
- *   원본의 정원 선택 · 시작 시각(예약) · 티어 범위는 우리 글에 칸이 없어 2026-09-29 에 뺐다(정원은 늘 5). PUBG 의 `conditions.perspective` 는 고른 모드의 시점이다(`perspectiveFromMode`).
+ * - **"글 쓰고 파티 찾기"**(옛 "방 만들기")는 글 쓰기다(4단계 · `POST /posts {game, mode, title, voice, conditions, wantedPositions, hostPosition}`) — 글이 곧 방이고 201 이면 그 방으로 간다.
+ *   **버튼은 보드의 필터 한 줄 오른쪽 끝에 선다**(2026-09-29 소유자 지시) — 여기서 그려 `createSlot` 에 옮긴다(`createPortal`). 누르면 **여는 것을 막는 것**(방에 있음 → 알림 ·
+ *   자동 매칭 대기 중 → 판의 문구 자리에 문구)만 보고 팝업(`RoomCreatePreview`)을 연다. 막는 문구가 판의 문구 자리에 뜨고 대기 상태가 이 판의 것이라 버튼도 여기 남았다.
+ *   **글의 칸은 전부 팝업이 받는다**(2026-09-30 소유자 지시 — 게임 모드 · 내 포지션 · 찾는 포지션 · 음성 · 한마디). 팝업은 **이 판의 값(모드 · 음성 · 입력 오류)을 가져오지 않고**
+ *   아무것도 고르지 않은 채로 열린다(같은 날 소유자 지시 — "매번 다를 수도 있는데 왜 시작 때 특정한 값으로 고정을 할려는 거지"). 넘기는 것은 게시판의 지금 게임뿐이다.
+ *   원본의 정원 선택 · 시작 시각(예약) · 티어 범위는 우리 글에 칸이 없어 2026-09-29 에 뺐다(정원은 늘 5).
  *
- * 조건은 이 폼의 값에서 만든다 — 모드 `queueType` · 내 포지션(자동 매칭 시작의 핵심 조건 · 글에는 실리지 않는다 — 카드에 사람별 포지션은 없다, 2026-09-29) ·
+ * 조건은 이 폼의 값에서 만든다 — 모드 `queueType` · 내 포지션(자동 매칭 시작의 핵심 조건 · **글에는 실리지 않는다** — 글의 내 포지션 `hostPosition` 은 팝업에서 따로 고른다, 2026-09-30) ·
  * 음성 · **플레이 목적**(`playPurpose` — 자동 매칭 시작에만 · 글에는 목적이 없다, platform P-29). 티어는 폼이 아니라 내 게임 계정에서 온다(`buildMatchRequest`).
  * 폼의 값은 이 브라우저에 게임마다 기억한다(`saveIntroduction`) — 글에만 쓰이는 두 칸(`bio` · `desiredRoles`)은 옛 저장값을 읽지 않고 빈 값으로 둔다.
  * - **플레이 목적**(2026-09-29 소유자 결정) — 전에는 폼에 칸이 없어 프로필 설정의 기본값이 보이지 않게 실려 갔다. 이제 칸이 있고, 처음 값이 그 기본값이며
@@ -75,7 +75,7 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, createSl
   const [starting, setStarting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [createError, setCreateError] = useState('');
-  const [draft, setDraft] = useState<PostDraft | null>(null);
+  const [writing, setWriting] = useState(false);
   const [now, setNow] = useState(Date.now());
   const hasRoles = usesKeyCondition(game, value.queueType);
   const ownRoles = value.primaryRoles ?? (value.primaryRole !== 'ANY' ? [value.primaryRole] : []);
@@ -137,14 +137,15 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, createSl
     finally { setCancelling(false); }
   };
 
-  /** "글 쓰고 파티 찾기" — 막는 것만 보고 팝업을 연다. 제목(한마디) · 찾는 포지션은 팝업이 받고 본문도 거기서 마저 채운다(`RoomCreatePreview`). */
+  /**
+   * "글 쓰고 파티 찾기" — 여는 것을 막는 것(방에 있음 · 자동 매칭 대기 중)만 보고 팝업을 연다. 글의 칸은 전부 팝업이 받고 본문도 거기서 만든다(`RoomCreatePreview`).
+   * 이 판의 입력 오류는 보지 않는다 — 팝업은 판의 값을 쓰지 않는다(2026-09-30 소유자 지시).
+   */
   const startRoom = () => {
-    if (error) { setCreateError(error); return; }
     if (activeRoomId) { toast('이미 방에 들어가 있어요. 방에서 나온 뒤 새 방을 만들 수 있어요.', 'info'); return; }
     if (request) { setCreateError('자동 매칭을 기다리는 중이에요. 매칭을 취소한 뒤 방을 만들 수 있어요.'); return; }
     setCreateError('');
-    const perspective = perspectiveFromMode(game, value.queueType);
-    setDraft({ game, mode: value.queueType, voice: value.voice, conditions: perspective ? { perspective } : {} });
+    setWriting(true);
   };
 
   // 대기 · 제안 · 내 방 — 판 바로 아래 카드 하나. 매칭 데이터는 MatchContext(상태 조회 + 알림), 내 방은 RoomSessionContext(`GET /rooms/me` + ROOM_*)에서 온다.
@@ -181,7 +182,7 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, createSl
       </div>
     </form>
   </section></HomeProfileRail>
-    {createSlot && !activeRoomId ? createPortal(<Button variant="primary" className="board-create-button" disabled={Boolean(error) || waiting} onClick={startRoom}><CreateRoomIcon />글 쓰고 파티 찾기</Button>, createSlot) : null}
-    {draft ? <RoomCreatePreview draft={draft} onClose={() => setDraft(null)} onConfirm={async body => { await onCreate(body); setDraft(null); }} /> : null}
+    {createSlot && !activeRoomId ? createPortal(<Button variant="primary" className="board-create-button" disabled={waiting} onClick={startRoom}><CreateRoomIcon />글 쓰고 파티 찾기</Button>, createSlot) : null}
+    {writing ? <RoomCreatePreview game={game} onClose={() => setWriting(false)} onConfirm={async body => { await onCreate(body); setWriting(false); }} /> : null}
   </>;
 }

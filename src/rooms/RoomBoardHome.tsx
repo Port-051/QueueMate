@@ -28,8 +28,9 @@ import './room-board.css';
  * 홈 = 방 카드 보드(2026-09-28 소유자 결정). 목록은 `GET /posts?game=`(게임은 왼쪽 레일 · 필터 줄의 게임 칸에서 고른 것 — 같은 상태 `AppShell` 의 `selectedGame` · 게시판은 게임별 페이지다, P-21).
  * **배치는 위에서 아래로 한 줄기다**(2026-09-29 소유자 지시 — OP.GG 듀오 찾기처럼): ① 맨 위 **자동 매칭 판**(`RoomQuickConnect` — 매칭 시작 폼 · 대기/제안/내 방 카드)
  * ② **필터 한 줄**(게임 · 모드 · 찾는 포지션 · 음성 · 모집 중인 방만 · 초기화 · 오른쪽 끝 **"글 쓰고 파티 찾기"**) ③ 글 카드(`RoomDeck` — 모양은 그대로다, 소유자가 카드를 바꾸지 말라고 했다).
- * 오른쪽 레일은 없어졌다 — 카드 목록이 폭을 다 쓴다. "글 쓰고 파티 찾기" 는 옛 "방 만들기" 그대로이고 폼 값(모드 · 음성)을 가진 `RoomQuickConnect` 가
- * 그려서 이 줄 끝의 자리(`createSlot`)에 옮겨 놓는다 — 누르면 뜨는 팝업(`RoomCreatePreview`)이 "찾는 포지션" · "한마디"(글 제목)를 받는다(2026-09-29 소유자 지시 — 판에서 옮겼다).
+ * 오른쪽 레일은 없어졌다 — 카드 목록이 폭을 다 쓴다. "글 쓰고 파티 찾기" 는 옛 "방 만들기" 자리이고 판의 매칭 상태(대기 중이면 막는다)를 가진 `RoomQuickConnect` 가
+ * 그려서 이 줄 끝의 자리(`createSlot`)에 옮겨 놓는다 — 누르면 뜨는 팝업(`RoomCreatePreview`)이 글의 칸을 전부 받는다(게임 모드 · 내 포지션 · 찾는 포지션 · 음성 · 한마디 —
+ * 2026-09-30 소유자 지시. 처음에는 아무것도 고르지 않은 채이고 판의 값을 가져오지 않는다).
  * 필터는 프런트가 받은 목록을 거르는 것뿐이다 — 모드 · 찾는 포지션 · 음성 · 모집 중인 방만. 모드는 묶음 · 인원 · (PUBG) 시점 셋으로 나눠 거르고 셋 다 `''`/`0` 이 "전체" 다
  * (2026-09-29 소유자 지시 — `domain/modeChoice.ts`). 인원 · 시점 줄은 묶음을 고른 뒤에만 서고, 인원이 하나뿐인 묶음(솔로 랭크)은 인원 줄이 없다. 원본의 시작 시각(지금/나중) · 티어 범위 필터는 글에 그 칸이 없어 2026-09-29 에 뺐다
  * (자동 합류의 티어 판정은 서버가 gameconfig `tier-range` 로 한다 — 프런트가 범위를 고르게 하면 그 판정과 어긋난 것을 보여 주게 된다).
@@ -50,7 +51,7 @@ export function RoomBoardHome() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [profileTarget, setProfileTarget] = useState<{ room: BoardRoom; member: BoardMember } | null>(null);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
-  // 필터 줄 오른쪽 끝 — "글 쓰고 파티 찾기" 가 설 자리. 버튼은 폼 값을 가진 RoomQuickConnect 가 그린다(머리 주석).
+  // 필터 줄 오른쪽 끝 — "글 쓰고 파티 찾기" 가 설 자리. 버튼은 RoomQuickConnect 가 그린다(머리 주석).
   const [createSlot, setCreateSlot] = useState<HTMLDivElement | null>(null);
   const finishEntrance = useCallback(() => setJustCreatedId(null), []);
   const previousGame = useRef<GameKey>(selectedGame);

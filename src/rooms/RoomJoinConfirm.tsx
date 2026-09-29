@@ -30,7 +30,8 @@ export function RoomJoinConfirm({ room, entryError, onClose, onJoin }: {
     <div className="room-preview-title"><h3>{room.title}</h3></div>
     <dl className="room-preview-conditions">
       <div><dt>게임 모드</dt><dd><FilterModeIcon mode={modeChoice(room.game, room.modeKey)?.group ?? room.modeKey} size={22} />{modeChoiceLabel(room.game, room.modeKey, room.perspective)}</dd></div>
-      <div><dt>방장</dt><dd>{room.host.nickname}</dd></div>
+      {/* 방장이 글을 쓸 때 고른 자기 포지션(2026-09-30 소유자 결정) — 카드와 같은 아이콘 + 이름을 닉네임 뒤에. */}
+      <div><dt>방장</dt><dd>{room.host.nickname}{room.hostPosition && hasPositions(room.game, room.modeKey) ? <RoomRoles game={room.game} roles={[room.hostPosition]} labels /> : null}</dd></div>
       <div><dt>인원</dt><dd>{room.memberCount} / {room.capacity}명</dd></div>
       {hasPositions(room.game, room.modeKey) ? <div><dt>찾는 포지션</dt><dd><RoomRoles game={room.game} roles={room.wantedPositions} labels /></dd></div> : null}
       <div><dt>음성</dt><dd><RoomVoice value={room.voice} />{room.voice === 'REQUIRED' ? '사용' : '미사용'}</dd></div>

@@ -59,13 +59,17 @@ export function RoomMemberAvatar({ member, size }: { member: BoardMember; size: 
  * 카드의 사실 — 티어 · 승률 · KDA, PUBG 는 티어 · 서버 · 치킨률 · K/D 넷. 전부 게임 프로필(`profile`)에서 온다 — VALORANT 의 전적은 아직 없어 `—` 다.
  * **티어는 그 글의 모드의 사다리 티어**이고 사다리가 없는 모드면 그 사람의 가장 높은 티어다(2026-09-29 — `rooms/boardRoom.ts` `toBoardMember`). 어느 사다리인지는 풍선말로.
  * **사람별 포지션 칸은 없다**(2026-09-29 소유자 결정 — 게임 계정에서 주 포지션 · 주 역할군을 없앴다). 그래서 LoL · VALORANT 는 티어가 한 줄을 다 쓴다(`is-wide`).
+ * **방장 카드만 예외다 — 글의 `hostPosition`(방장이 글을 쓸 때 고른 자기 포지션 · 2026-09-30 소유자 결정)이 있으면 티어 옆에 그 포지션 아이콘 + 이름**이 붙는다
+ * (티어 칸이 반으로 줄고 옆 반에 선다 — PUBG 의 티어 · 서버와 같은 모양. 카드의 틀 · 높이는 그대로다). 게임 계정의 값이 아니라 글의 값이라 방장 한 사람만이다.
  */
 export function RoomMemberFacts({ room, member, iconSize = 22 }: { room: BoardRoom; member: BoardMember; iconSize?: number }) {
   const pubg = room.game === 'PUBG';
   const server = member.profile?.server;
   const ladderLabel = member.tierLadder ? TIER_LADDER_LABEL[member.tierLadder] : undefined;
+  const hostPosition = member.host && !pubg && hasPositions(room.game, room.modeKey) ? room.hostPosition : null;
   return <dl className="room-member-facts">
-    <div className={pubg ? undefined : 'is-wide'}><dt className="sr-only">{ladderLabel ? `${ladderLabel} 티어` : '티어'}</dt><dd><RoomRank game={room.game} tier={member.tier} division={member.division} size={iconSize} ladderLabel={ladderLabel} /></dd></div>
+    <div className={pubg || hostPosition ? undefined : 'is-wide'}><dt className="sr-only">{ladderLabel ? `${ladderLabel} 티어` : '티어'}</dt><dd><RoomRank game={room.game} tier={member.tier} division={member.division} size={iconSize} ladderLabel={ladderLabel} /></dd></div>
+    {hostPosition ? <div className="room-host-position"><dt className="sr-only">{room.game === 'VALORANT' ? '방장의 역할' : '방장의 포지션'}</dt><dd><RoomRoles game={room.game} roles={[hostPosition]} labels /></dd></div> : null}
     {pubg ? <div><dt className="sr-only">서버</dt><dd><span className="room-random-role">{server === 'STEAM' ? '스팀' : server === 'KAKAO' ? '카카오' : '서버 미정'}</span></dd></div> : null}
     <div><dt>{pubg ? '치킨' : '승률'}</dt><dd><Stat kind="winRate" value={member.winRate} plain={pubg} /></dd></div>
     <div><dt>{pubg ? 'K/D' : 'KDA'}</dt><dd><Stat kind="kda" value={member.kda} /></dd></div>

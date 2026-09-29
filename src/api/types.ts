@@ -236,6 +236,11 @@ export interface PostResponse {
   voice: VoicePreference;
   conditions: PostConditions;
   wantedPositions: string[];
+  /**
+   * 방장(글쓴이)의 포지션 — `wantedPositions` 와 같은 이름(LoL `MID` · VALORANT `DUELIST` …). 포지션이 없는 모드(PUBG · 칼바람)와 옛 글은 `null`(2026-09-30 소유자 결정).
+   * 그날 platform 이 붙이는 중이라 옛 서버는 이 칸을 아예 안 보낼 수 있다 — 읽는 쪽(`toBoardRoom`)이 없는 값을 `null` 로 받는다.
+   */
+  hostPosition: string | null;
   status: PostStatus;
   createdAt: string;
   memberCount: number;
@@ -249,6 +254,8 @@ export interface PostListResponse { posts: PostResponse[]; nextCursor: number | 
 /**
  * `POST /posts`. `mode` 는 그 게임의 gameconfig 모드(필수 · ≤30) · `title` 1~60 · `description` ≤300(없으면 보내지 않는다) ·
  * `conditions` 는 PUBG 만 `{perspective}` · `wantedPositions` 는 그 게임의 포지션 이름(PUBG 는 빈 배열). 방이 같이 생기고 응답의 `members` 에 방장이 있다.
+ * `hostPosition`(내 포지션 — 2026-09-30 소유자 결정)은 포지션이 있는 모드에서 **필수**이고 `wantedPositions` 에 들 수 없다. 포지션이 없는 모드(PUBG · 칼바람)면
+ * **싣지 않는다**(`description` 처럼 — 서버는 없는 칸을 `null` 로 읽는다). 맞지 않으면 400 `VALIDATION_FAILED` 의 `details` 가 `"hostPosition: …"` 이다.
  */
 export interface CreatePostRequest {
   game: GameKey;
@@ -258,6 +265,7 @@ export interface CreatePostRequest {
   voice: VoicePreference;
   conditions: PostConditions;
   wantedPositions: string[];
+  hostPosition?: string;
 }
 /** `PATCH /posts/{postId}` — 준 것만 바꾼다(`null` · 없음 = 그대로). `description` 은 빈 문자열이면 비운다 · `title` · `mode` 의 빈 문자열은 400. */
 export interface UpdatePostRequest {

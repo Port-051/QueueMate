@@ -27,9 +27,23 @@ const ROOM_ERROR_MESSAGES: Record<string, string> = {
   NOT_PARTY_MEMBER: '이 파티의 멤버가 아니에요',
 };
 
+/**
+ * 400 `VALIDATION_FAILED` 의 `details` 줄("필드: 사유")에서 필드 이름을 화면의 칸 이름으로 바꾼다 — `hostPosition: 필요합니다` → `내 포지션: 필요합니다`.
+ * 글 쓰기 팝업의 칸 이름과 같다(2026-09-30 — 내 포지션이 생기며 붙였다). 모르는 필드는 받은 줄 그대로다. 사유는 서버의 글귀 그대로다.
+ */
+const POST_FIELD_LABELS: Record<string, string> = {
+  hostPosition: '내 포지션', wantedPositions: '찾는 포지션', title: '한마디', mode: '게임 모드', voice: '음성', 'conditions.perspective': '시점', description: '소개',
+};
+
+function readableDetail(detail: string): string {
+  const match = /^([\w.]+):\s*(.*)$/.exec(detail);
+  const label = match ? POST_FIELD_LABELS[match[1]] : undefined;
+  return label && match ? `${label}: ${match[2]}` : detail;
+}
+
 export function roomErrorMessage(error: unknown, fallback = '요청을 처리하지 못했어요'): string {
   if (isApiError(error)) {
-    if (error.code === 'VALIDATION_FAILED' && error.details[0]) return error.details[0];
+    if (error.code === 'VALIDATION_FAILED' && error.details[0]) return readableDetail(error.details[0]);
     const known = ROOM_ERROR_MESSAGES[error.code];
     if (known) return error.retryAfterSeconds && error.status === 503 ? `${known}(${error.retryAfterSeconds}초 뒤)` : known;
   }
