@@ -12,7 +12,8 @@ import { useAuth } from '../state/AuthContext';
  * 버튼은 XHR 이 아니라 **브라우저 이동**이다(`GET /api/v1/auth/oauth/{PROVIDER}/start` → 302 → 제공자 → 백엔드 콜백 → 프런트로 302).
  * 상대 경로라 프록시(로컬) · 같은 출처(운영)를 그대로 탄다.
  *
- * 화면은 소유자가 준 그림 그대로다(2026-09-29) — 같은 너비의 큰 버튼 셋이 세로로 쌓이고, 마지막으로 누른 제공자에 "최근 사용" 배지가 붙는다.
+ * 화면은 원본 프런트의 로그인 카드(어두운 카드 · 제목 · 가운데 글자 구분선 · 점선 박스)에 우리 버튼 셋만 넣은 것이다(2026-09-29 소유자 지시).
+ * 원본의 이메일 · 비밀번호 칸 · 로그인 버튼 · 회원가입 링크 · 네이버는 없다. 마지막으로 누른 제공자에 "최근 사용" 배지가 붙는다.
  */
 const PROVIDERS: { provider: SocialProvider; label: string }[] = [
   { provider: 'KAKAO', label: '카카오로 시작하기' },
@@ -70,24 +71,24 @@ export function AuthPage() {
       </aside>
 
       <main className="auth-main">
-        <div className="auth-card login-card">
+        <div className="auth-card">
           <h1>로그인</h1>
-          <p className="login-sub">소셜 계정으로 시작합니다. 처음이면 닉네임만 정하면 됩니다.</p>
           {message ? <p className="login-error" role="alert">{message}</p> : null}
           <div className="social-login">
+            <div className="social-divider"><span>소셜 계정으로 계속하기</span></div>
             {PROVIDERS.map(({ provider, label }) => {
               const recent = provider === lastProvider;
               return (
                 <button key={provider} type="button" className={`social-btn s-${provider}${recent ? ' is-recent' : ''}`}
                   aria-label={recent ? `${label} (최근 사용)` : label} onClick={() => start(provider)}>
-                  <SocialProviderIcon provider={provider} />
+                  <SocialProviderIcon provider={provider} size={20} />
                   <span>{label}</span>
                   {recent ? <span className="social-recent" aria-hidden="true">최근 사용</span> : null}
                 </button>
               );
             })}
           </div>
-          {/* TEMP-DEV-LOGIN — 개발 서버에서만 그린다. 운영 빌드에서는 `import.meta.env.DEV` 가 `false` 로 바뀌어 이 줄과 DevLoginPanel 모듈이 빠진다. */}
+          {/* TEMP-DEV-LOGIN — 개발 서버에서만 그린다(원본의 점선 "데모 계정" 박스 자리). 운영 빌드에서는 `import.meta.env.DEV` 가 `false` 로 바뀌어 이 줄과 DevLoginPanel 모듈이 빠진다. */}
           {import.meta.env.DEV ? <DevLoginPanel /> : null}
         </div>
       </main>
