@@ -60,7 +60,6 @@ test('실제 5인 방의 자동 마감·재모집, 강퇴 확인과 채팅 복�
     }
     await expect(room.locator('.compact-member:not(.compact-seat)')).toHaveCount(4);
     await a.getByRole('button', { name: /방 채팅/ }).click();
-    await room.getByRole('button', { name: '참여자 펼치기', exact: true }).click();
     await room.getByRole('button', { name: '서포터 자리 참여', exact: true }).click();
     await b.getByRole('button', { name: '참여하기', exact: true }).click();
     await expect(b.getByRole('region', { name: '방 채팅과 음성' })).toBeVisible();
@@ -102,7 +101,6 @@ test('실제 5인 방의 자동 마감·재모집, 강퇴 확인과 채팅 복�
     await expect(room).toHaveAttribute('data-status', 'OPEN');
     await expect(room.locator('.compact-member:not(.compact-seat)')).toHaveCount(4);
     await expect(b.getByRole('region', { name: '방 채팅과 음성' })).toHaveCount(0);
-    await room.getByRole('button', { name: '참여자 펼치기', exact: true }).click();
     await room.getByRole('button', { name: '서포터 자리 참여', exact: true }).click();
     await b.getByRole('button', { name: '참여하기', exact: true }).click();
     await expect(room).toHaveAttribute('data-status', 'CONFIRMED');
