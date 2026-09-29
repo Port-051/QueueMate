@@ -54,7 +54,7 @@
 --
 --    [변경 — 조건 값]  CLAUDE.md §2 (코드가 원본)
 --      enum voice_mode   ('REQUIRED','AVAILABLE','NONE')      -> REQUIRED / NO_VOICE  ("가능"은 제거됐다)
---      enum play_purpose ('CASUAL','WIN','LEARN','SKILLED')   -> RANK_UP / NORMAL / FUN
+--      enum play_purpose ('CASUAL','WIN','LEARN','SKILLED')   -> RANK_UP / TRYHARD / FUN  (TRYHARD 는 옛 NORMAL — 2026-09-29, docs/11 D-49)
 --      enum lol_position (... 'BOT' ...)                      -> TOP/JUNGLE/MID/ADC/SUPPORT/NONE
 --      *_tier_order, allowed_tier_min_order / allowed_tier_max_order
 --        -> 티어 순번은 DB 컬럼이 아니라 Redis ZSET 의 score 다. 사용자가 고르는 허용 범위는 없다.

@@ -3868,6 +3868,59 @@ LoL 은 솔로랭크 · 자유랭크 둘 다. 모드 HASH 의 `tierLadder` 를 `
 동시성 테스트 둘(PUBG · VALORANT)의 javadoc 에 "`tierLadder` 는 넣지 않는다" 한 줄씩(동작 변경 없음 · 전체 98건 통과, 2026-09-29).
 아직 "연동이 붙으면 `tier` 가 바디에서 사라진다" 로 적힌 곳 — `CLAUDE.md` §2 · `dto/CreateMatchRequestCommand` 의 `tier` 주석 — 은 이번에 고치지 않았다.
 
+### D-49. 플레이 목적 `NORMAL`(일반 플레이)을 `TRYHARD`(빡겜)로 바꾼다 — 이름과 뜻이 같이 바뀐다 (2026-09-29)
+
+> **프로젝트 소유자가 정했다.** 값 이름 `TRYHARD` 는 Claude 가 정했다(소유자 검토). 원본은 이 저장소의 `domain/condition/PlayPurpose.java` 다.
+> **이 저장소에 걸리는 것 — enum 값 하나.** 나머지(색인 키 · 활성 요청 · 파티 HASH)는 그 enum 을 따라 저절로 바뀐다.
+
+**소유자의 말(요지).** 화면의 플레이 목적 "랭크 상승 · 일반 플레이 · 즐겜" 가운데 **"일반 플레이" 를 "빡겜" 으로** 바꾸고, **matching 의 enum 까지** 고쳐라.
+
+**원안.** `PlayPurpose` = `RANK_UP` · `NORMAL` · `FUN`(원본 계약 `openapi.yaml` · `docs/02` §2 그대로). 화면 라벨은 "랭크 상승 · 일반 플레이 · 즐겜".
+
+**결정.**
+
+1. **`NORMAL` 을 `TRYHARD` 로 바꾼다** — `PlayPurpose` = `RANK_UP, TRYHARD, FUN`. `RANK_UP` · `FUN` 은 그대로다.
+2. **뜻도 바뀐다** — "평범하게 한다" 가 아니라 **"진지하게(빡세게) 한다"** 다. 이름만 갈아 끼운 것이 아니므로 옛 이름을 별칭으로 받지 않는다 — 요청에 `NORMAL` 을 실으면 **400** 이다.
+3. 조건의 개수(게임당 4개)와 성질(hard — 색인 키의 한 조각, `docs/02` 부록 A-1)은 그대로다. 조건을 더한 것이 아니라 한 조건의 값 하나를 바꾼 것이라 `docs/12` 절차 대상이 아니다.
+
+**왜.** 화면의 "일반 플레이" 는 뜻이 흐렸다 — 랭크 상승 · 즐겜과 무엇이 다른지가 분명하지 않았다(소유자). 목적은 hard 조건이라 같은 값끼리만 파티가 되므로,
+값의 뜻이 곧 "누구와 만나는가" 다 — 뜻이 흐린 값은 기대가 다른 사람끼리 묶는다.
+
+**이 앱에서 바뀐 것**(`3e0227e`).
+- `domain/condition/PlayPurpose.java` 한 줄(+ 주석). 값이 들어가는 자리는 전부 `name()` · `valueOf()` 라 enum 을 따라 **저절로** 바뀐다 —
+  활성 요청 HASH 의 `playPurpose`(`MatchRequestService#requestFields`) · 후보 색인과 후보 풀 락 키(`SharedKeys#poolKey` ← `{Lol,Pubg,Valorant}PartyKeys` —
+  `qm:party:open:{GAME}:{MODE}:{VOICE}:TRYHARD:needs:…` · `qm:lock:pool:…`) · 취소가 되읽는 `MatchCancelService`(`PlayPurpose.valueOf`) ·
+  확정 때 파티 HASH 로 베끼는 `proposal/cleanup-confirmed.lua`(문자열을 그대로 옮긴다 — 주석의 값 목록만 고쳤다).
+- **문자열로 박힌 자리는 없었다** — Lua 는 그 주석 하나, 테스트 · `load-test/` · `redis-ha-lab/` 은 `RANK_UP` · `FUN` 만 쓴다.
+- **모드 이름의 `NORMAL`**(LoL `NORMAL_2` ~ `NORMAL_5` · PUBG `NORMAL_{DUO,SQUAD}_{TPP,FPP}` — gameconfig 모드 키)은 **별개이고 그대로다.**
+
+**테스트.** `backend/src/test/java/.../web/PlayPurposeApiTest`(2건) — `TRYHARD` 가 접수 → 활성 요청 · 색인 키에 이름 그대로 → 취소(`valueOf` 로 되읽기)를 한 바퀴 돌고,
+옛 이름 `NORMAL` 은 400 이며 접수되지 않는다. 옛 enum 으로 돌리면 둘 다 실패하는 것을 확인했다. 전체 100건 통과(2026-09-29, `REDIS_PORT=6390`).
+
+**다른 앱에 걸리는 것.**
+- **`app:platform` — 코드 변경 없음, 문서만.** 게시판 방 먼저 합류(`POST /api/v1/posts/auto-join` — D-40)의 본문 `playPurpose` 와 파티 HASH 의 `playPurpose`(D-42)를
+  **문자열로 받아 버린다**(`party/dto/AutoJoinRequest` · `party/match/MatchPartyReader` — `parties` 에 담지 않는다, 2026-09-28). 낡는 것은
+  `party/match/MatchParty.java` 의 주석과 `../platform/contracts/platform-api.md` "파티 HASH 의 계약" 표의 값 목록(`RANK_UP` · `NORMAL` · `FUN`)이다 — 그 폴더에서 고친다.
+- **frontend** — 타입(`PlayPurpose`) · 라벨("일반 플레이" → "빡겜") · 기본값 · **저장해 둔 옛 값**(localStorage 의 조건에 남은 `NORMAL`)을 새 값으로 옮겨 읽는다. 옛 값을 그대로 보내면 400 이다. 그 폴더에서 한다.
+- 파티 HASH 의 **필드 이름 `playPurpose` 는 그대로다**(D-42 의 계약) — 값만 바뀐다.
+
+**감수하는 것 — 배포 순간 Redis 에 `NORMAL` 로 들어가 있던 대기 요청 · 색인은 새 코드와 이어지지 않는다.**
+새 코드에 `playPurpose=NORMAL` 인 활성 요청(배정된 것) · 파티 · 색인을 심고 불러 확인했다(2026-09-29 실험 — 커밋하지 않은 임시 테스트).
+- 새 요청(`TRYHARD`)은 옛 `…:NORMAL:needs:…` 색인을 보지 않으므로 옛 대기자와 만나지 않는다. 옛 색인 ZSET 은 주인 없이 남는다.
+- 옛 대기자의 **취소는 400**(`BAD_REQUEST` "No enum constant …PlayPurpose.NORMAL" — `MatchCancelService` 의 `valueOf`)이고, **접속 확인 스위퍼도 같은 자리에서 예외로 끝나 거둬 가지 못한다**
+  (`RequestAliveExpiryService#expire` — 목록에서는 이미 뺀 뒤다). 배정된 활성 요청은 TTL 이 없어(`PERSIST`) **그 사용자는 409 `ALREADY_QUEUED` 로 계속 막힌다**(키를 손으로 지울 때까지).
+  상태 조회(`GET`)는 `QUEUED` 로 그대로 답한다. 제안 거절 · 제안 만료도 같은 `cancel()` 을 부르므로 같은 예외로 끝날 것이다(코드로 읽은 것 — 실험은 취소와 스위퍼 둘).
+- **운영 전이라 지금은 영향이 없다.** 운영 뒤에 이런 값 이름 바꾸기를 한다면 **대기열을 비우고 배포한다**(활성 요청 `qm:user:active-request:*` · 파티 `qm:party:*` ·
+  색인 `qm:party:open:*` · `qm:proposal:*` · `qm:request:alive`). 옛 이름을 별칭으로 읽는 호환 코드는 두지 않았다.
+
+**Claude 가 정한 세부(소유자 검토).** 값 이름 `TRYHARD` · 옛 이름 `NORMAL` 을 별칭으로 받지 않는 것(400).
+
+**개정하는 옛 항목.** 없다 — 목적의 값 목록을 결정으로 적은 D-항목이 없다(D-39 의 원안이 `RANK_UP` · `NORMAL` · `FUN` 을 적은 것은 글의 `purpose` 가 이 enum 과 같은 이름이었다는 **기록**이라 고치지 않는다).
+`docs/02` §2 는 원문 사본이라 본문을 두고 부록 E-1 을 달았다.
+
+**영향.** `PlayPurpose.java` · `cleanup-confirmed.lua`(주석) · `web/PlayPurposeApiTest`(`3e0227e`) · `contracts/openapi.yaml` · `contracts/events.md`(파티 HASH 필드 표) ·
+`contracts/README.md` A-19(`d2b9c3f`) · `CLAUDE.md` §2 · `HANDOFF.md` §0-7 · `docs/02` 부록 E · `db-design/`(개정본에 남아 있던 값 목록 일곱 자리).
+
 ---
 
 ## 문서 정합성 점검 기록 (2026-09-11)

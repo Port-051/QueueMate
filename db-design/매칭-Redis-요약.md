@@ -65,7 +65,7 @@
 | `tier` | 티어를 보는 모드에서만 필요하다. 조건이 아니라 자격이다. 지금은 자기신고다 |
 | `keyCondition` | 게임별 핵심 조건 **하나** — LoL 포지션(`POSITION`) / VALORANT 역할군(`ROLE`) / PUBG 플랫폼(`PLATFORM`) |
 | `voicePreference` | `REQUIRED` / `NO_VOICE` |
-| `playPurpose` | `RANK_UP` / `NORMAL` / `FUN` |
+| `playPurpose` | `RANK_UP` / `TRYHARD` / `FUN` — `TRYHARD`(빡겜)는 2026-09-29 에 `NORMAL`(일반 플레이)을 바꾼 것이다(docs/11 D-49) |
 
 옛 판의 메모에 있던 `targetSize` · `playMinutes` · `subPositions` · `allowedTierMinOrder` / `allowedTierMaxOrder` 는 없다 —
 조건은 게임당 정확히 4개이고(CLAUDE.md §2), 인원은 modeKey 에(docs/11 #31), 티어 허용 범위는 gameconfig 의 표에 있다.

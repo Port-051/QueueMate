@@ -85,7 +85,7 @@ PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했�
 | 게임 | `domain/GameKey.java` | `LOL, VALORANT, PUBG` |
 | 조건 타입 | `domain/condition/KeyConditionType.java` | `POSITION, ROLE, PLATFORM` |
 | 음성 | `domain/condition/VoicePreference.java` | **`REQUIRED, NO_VOICE`** — `OPTIONAL`은 **제거됐다** |
-| 목적 | `domain/condition/PlayPurpose.java` | `RANK_UP, NORMAL, FUN` |
+| 목적 | `domain/condition/PlayPurpose.java` | **`RANK_UP, TRYHARD, FUN`**(랭크 상승 · 빡겜 · 즐겜) — `TRYHARD` 는 2026-09-29 에 `NORMAL`(일반 플레이)을 바꾼 것이다 (docs/11 D-49). 뜻도 "진지하게 한다" 로 바뀌었다. **모드 이름의 `NORMAL`(`NORMAL_2` · `NORMAL_DUO_TPP` 등 gameconfig 모드 키)은 별개이고 그대로다** |
 | LoL 포지션 | `domain/condition/lol/LolPosition.java` | `TOP, JUNGLE, MID, ADC, SUPPORT, NONE` |
 | LoL 티어 | **자바에 없다.** Redis ZSET `qm:gameconfig:LOL:tier` (`seed/gameconfig.redis`) | `UNRANKED`(score 0), `IRON_4` … `CHALLENGER`(score 31) — 단(division)까지 **32개**. **조건이 아니다, 아래 참고** |
 

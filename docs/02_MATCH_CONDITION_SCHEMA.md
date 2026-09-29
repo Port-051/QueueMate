@@ -445,3 +445,19 @@ A-5(LoL 포지션에 `NONE` 이 더 있다) 는 그대로 유효하다.
 (`STEAM` / `KAKAO`) 문자열이라 enum 을 두지 않았고 `PubgConditionValidator` 가 값을 직접 본다.
 C-1 이 LoL 티어를 자바에서 뺀 것과는 이유가 다르다 — 저쪽은 값이 자주 바뀌어(단 추가, 라이엇
 패치) 재배포를 피하려고 Redis 로 옮긴 것이고, 이쪽은 값이 둘뿐이라 enum 을 만들 값이 없었다.
+
+---
+
+## 부록 E. 구현 대조 기록 갱신 (2026-09-29, `app:matching`)
+
+본문은 원문 그대로 두고, 그 뒤에 달라진 것만 적는다.
+
+### E-1. §2 의 `PlayPurpose.NORMAL` 은 `TRYHARD` 가 됐다
+
+§2 가 적은 `RANK_UP` / `NORMAL` / `FUN` 가운데 **`NORMAL`(일반 플레이)이 `TRYHARD`(빡겜)로 바뀌었다** —
+`domain/condition/PlayPurpose.java` 는 `RANK_UP, TRYHARD, FUN` 이다(docs/11 **D-49** — 소유자 결정, 값 이름은 Claude 가 정했다).
+이름만이 아니라 **뜻도 바뀌었다** — "평범하게 한다" 가 아니라 "진지하게(빡세게) 한다" 다.
+
+목적은 여전히 hard 조건이다(A-1) — 값이 후보 색인 키 `qm:party:open:…:{playPurpose}:needs:…` 에 `name()` 그대로 들어가므로
+`TRYHARD` 와 `RANK_UP` · `FUN` 은 서로 다른 ZSET 이다. 옛 이름 `NORMAL` 을 요청에 실으면 400 이다.
+**모드 이름의 `NORMAL`(LoL `NORMAL_2` · PUBG `NORMAL_DUO_TPP` 등 gameconfig 모드 키)은 이것과 무관하고 그대로다.**

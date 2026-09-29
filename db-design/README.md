@@ -75,7 +75,7 @@ Redis 요약, 아키텍처 리뷰가 들어 있다. 당시 설계는 **LoL 전�
 | 12 | 요청 조건: 큐 · 목표 인원 · 허용 티어 범위(사용자 지정, 양방향) · 주/부 포지션 · 음성 · 목적 · 최대 대기시간 · 예상 플레이시간 | 조건은 **게임당 정확히 4개** — 게임 모드 · 핵심 조건 하나(LoL 포지션 / VALORANT 역할군 / PUBG 플랫폼) · 음성 · 목적. 티어는 조건이 아니라 자격이고 범위는 gameconfig 의 tier-range 표가 정한다. 새 조건은 `docs/12` 절차 없이는 금지 | `CLAUDE.md` §2·§4 INV-8, `docs/GAME_CONFIG.md` |
 | 13 | 목표 인원을 사용자가 고른다. 자유 랭크 4인은 `CHECK` 로 차단 | 인원은 modeKey 가 정한다. 인원이 가변인 모드는 modeKey 를 인원별로 쪼개고, 금지된 인원은 modeKey 를 만들지 않는다 | `docs/11` #31 |
 | 14 | 음성 `필수 / 가능 / 사용하지 않음` + 호환 규칙 | `REQUIRED` / `NO_VOICE` 둘뿐. "가능"(`OPTIONAL`)은 제거됐고 되돌리지 않는다 | `CLAUDE.md` §2, `contracts/README.md` 불일치 표 #1 |
-| 15 | 플레이 목적 4종(가볍게 / 승리·랭크 / 초보 학습 / 숙련자) | `RANK_UP` / `NORMAL` / `FUN` | `CLAUDE.md` §2 (코드가 원본) |
+| 15 | 플레이 목적 4종(가볍게 / 승리·랭크 / 초보 학습 / 숙련자) | `RANK_UP` / `TRYHARD` / `FUN` — `TRYHARD`(빡겜)는 2026-09-29 에 `NORMAL`(일반 플레이)을 바꾼 것이다(docs/11 D-49) | `CLAUDE.md` §2 (코드가 원본) |
 | 16 | 사용자 차단 · 신고 · 재회 목록은 제외 기능 | 친구 / 차단 / 최근 함께한 사람 / 신고는 **필수**다. 차단 관계의 사용자는 같은 파티가 될 수 없다(INV-6) | `docs/11` #13, `docs/00` §5, `CLAUDE.md` §1·§4 |
 | 17 | (옛 설계에 없음) | 차단은 DB(`social.blocks`)에 저장하는 것으로 끝난다. `matching` 은 확정 직전에 그 테이블을 **직접 조회**한다. `shared_read.blocked_pairs` 뷰도, Redis 선필터도, **`BlockChanged.fifo` 도 만들지 않는다**(2026-09-19 폐기) | `docs/11` D-1·D-2, `../platform/CLAUDE.md` §3.4 |
 | 18 | 확정 후 나가기 없음, 파티 완료 상태 없음 | 파티룸에 **나가기**가 있다. 파티가 닫히면 `PartyClosed.fifo` 가 발행되고 **소비자는 `app:platform` 하나**다(2026-09-19 확정). `matching` 의 `status=PARTY` 를 누가 푸는지는 미정이다 | `docs/00` §5, `docs/11` #21, `../platform/CLAUDE.md` §3.4·§7 |

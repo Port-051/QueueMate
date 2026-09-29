@@ -94,7 +94,7 @@
 > | `match_offer` · `offer_seat` · `offer_participant` | **폐기 — Redis 로 이동.** 진행 중 제안·수락 집계는 Redis 다. 좌석·충원 회차가 없다. DB 에는 **확정된 것만** `matching.match_proposals` + `matching.proposal_members` 로 들어간다 | docs/11 #27·#28·#32·#33 |
 > | `user_busy_interval` | **변경.** 실시간 요청은 점유 대상이 아니다. exclusion constraint 기법은 INV-9(활성 예약 겹침 금지)에 그대로 쓴다 | docs/WHY_POSTGRESQL.md §1-1 |
 > | `app_user` | **변경.** PK 는 `bigint` 일련번호가 아니라 **가입할 때 정한 로그인 아이디(문자열)** 다. `discord_id` · `discord_username` · `discord_dm_enabled` 는 폐기. 자리는 `account.users` | ../platform/CLAUDE.md §3.5, docs/11 #16·D-4 |
-> | `user_sub_position`, `app_user.primary_position` / `voice_mode` / `purpose` / `mood` | **미정.** LoL 전용 프로필이다. 게임이 셋인 지금 프로필을 어떻게 둘지 정해지지 않았다. 음성·목적의 값 집합은 바뀌었다(`REQUIRED`/`NO_VOICE`, `RANK_UP`/`NORMAL`/`FUN`) | CLAUDE.md §2 |
+> | `user_sub_position`, `app_user.primary_position` / `voice_mode` / `purpose` / `mood` | **미정.** LoL 전용 프로필이다. 게임이 셋인 지금 프로필을 어떻게 둘지 정해지지 않았다. 음성·목적의 값 집합은 바뀌었다(`REQUIRED`/`NO_VOICE`, `RANK_UP`/`TRYHARD`/`FUN` — `TRYHARD` 는 2026-09-29 에 `NORMAL` 을 바꾼 것, docs/11 D-49) | CLAUDE.md §2 |
 > | `riot_account` | **변경·미정.** LoL(Riot) 전용이다. 지금은 게임 셋의 `account.game_accounts` 이고 외부 API 연동 범위는 미정이다 | ../platform/CLAUDE.md §3.5·§7 |
 > | `push_subscription` · `push_delivery` | **폐기.** Web Push 가 없다. 알림은 SSE 하나이고 이력을 저장하지 않는다 | contracts/events.md, ../notification/CLAUDE.md §2 |
 > | `party_discord_channel` · `party_discord_member` | **폐기.** Discord 연동이 없다. 파티 소통은 자체 WebRTC 다 | docs/11 #6·#25 |
