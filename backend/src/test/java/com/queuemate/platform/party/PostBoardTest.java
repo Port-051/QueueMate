@@ -50,7 +50,7 @@ class PostBoardTest extends PostTestSupport {
         Cookie hostCookie = login(host);
         Long hostId = userIdOf(host);
         insertGameAccount(hostId, "LOL", "host#KR1", "EMERALD_4");
-        insertStats(hostId, "LOL", 180, 184, "{\"mostChampions\":[{\"championId\":103,\"games\":40,\"winRate\":55}]}");
+        insertStats(hostId, "LOL", 180, 184, "{\"mostChampions\":[{\"championId\":\"Ahri\",\"masteryLevel\":45,\"masteryPoints\":1234567}]}");
         login(support);
         Long supportId = userIdOf(support);
         insertGameAccount(supportId, "LOL", "sup#KR1", "GOLD_1");
@@ -93,7 +93,7 @@ class PostBoardTest extends PostTestSupport {
         assertThat(hostProfile.get("stats").get("games").asInt()).isEqualTo(364);
         assertThat(hostProfile.get("stats").get("wins").asInt()).isEqualTo(180);
         assertThat(hostProfile.get("stats").get("winRate").asInt()).isEqualTo(49);
-        assertThat(hostProfile.get("stats").get("detail").get("mostChampions").get(0).get("championId").asInt()).isEqualTo(103);
+        assertThat(hostProfile.get("stats").get("detail").get("mostChampions").get(0).get("championId").asString()).isEqualTo("Ahri");
         assertThat(line.get("host").get("userId").asLong()).isEqualTo(hostId);
         assertThat(line.get("host").get("profile").get("gameNickname").asString()).isEqualTo("host#KR1");
 

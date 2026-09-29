@@ -27,7 +27,10 @@ import java.net.http.HttpClient;
  *       ({@code profileIconId} · {@code puuid} · {@code revisionDate} · {@code summonerLevel} 넷뿐). {@code entries/by-puuid} 는 200 으로 동작해 그리로 바꾸고 소환사 호출을 없앴다)</li>
  *   <li>{@code match-v5} — 최근 경기 id 목록 <b>(대륙 주소)</b></li>
  *   <li>{@code match-v5} — 경기 하나 <b>(대륙 주소)</b></li>
- *   <li>{@code champion-mastery-v4} — 그 소환사의 챔피언 숙련도 전부(배열) <b>(플랫폼 주소)</b></li>
+ *   <li>{@code champion-mastery-v4} — 그 소환사의 숙련도 <b>점수 상위 몇 개</b>({@code top?count=}) <b>(플랫폼 주소)</b>.
+ *       (2026-09-30 까지는 {@code by-puuid/{puuid}} 로 숙련도 <b>전부</b>를 받아 최근 경기의 챔피언과 맞췄다 — 모스트 챔피언이 숙련도 상위 셋이 되며
+ *       {@code top} 으로 바꿨다. 호출 수는 그대로 한 번이고 응답이 작다. 2026-09-30 실제 키로 확인 — 200 · 점수 내림차순 배열
+ *       {@code [{puuid, championId(숫자), championLevel, championPoints, lastPlayTime, …}]} · 이름 칸은 없다)</li>
  * </ol>
  *
  * <p><b>키는 헤더로만 보낸다</b>({@code X-Riot-Token}) — 쿼리에 실으면 주소가 로그 · 예외 메시지에 남는다. 키를 어디에도 찍지 않는다.
@@ -49,7 +52,7 @@ public class RiotApiClient {
     static final String LEAGUE_ENTRIES_BY_PUUID = "/lol/league/v4/entries/by-puuid/{puuid}";
     static final String MATCH_IDS_BY_PUUID = "/lol/match/v5/matches/by-puuid/{puuid}/ids?start=0&count={count}";
     static final String MATCH_BY_ID = "/lol/match/v5/matches/{matchId}";
-    static final String CHAMPION_MASTERIES_BY_PUUID = "/lol/champion-mastery/v4/champion-masteries/by-puuid/{puuid}";
+    static final String TOP_CHAMPION_MASTERIES_BY_PUUID = "/lol/champion-mastery/v4/champion-masteries/by-puuid/{puuid}/top?count={count}";
 
     private final RiotProperties properties;
     private final ObjectMapper objectMapper;
@@ -96,10 +99,10 @@ public class RiotApiClient {
         return get(properties.regionalBaseUrl() + MATCH_BY_ID, matchId);
     }
 
-    /** 그 소환사가 해 본 <b>모든</b> 챔피언의 숙련도(배열 — {@code championId} 는 숫자다). 챔피언마다 부르지 않고 한 번에 받는다 */
-    JsonNode championMasteries(String puuid)
+    /** 숙련도 <b>점수 상위 {@code count} 개</b>(배열 — 점수 내림차순 · {@code championId} 는 숫자다). 한 번에 받는다 */
+    JsonNode topChampionMasteries(String puuid, int count)
     {
-        return get(properties.platformBaseUrl() + CHAMPION_MASTERIES_BY_PUUID, puuid);
+        return get(properties.platformBaseUrl() + TOP_CHAMPION_MASTERIES_BY_PUUID, puuid, count);
     }
 
     private JsonNode get(String uriTemplate, Object... uriVariables)

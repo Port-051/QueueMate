@@ -25,8 +25,8 @@ import java.util.function.ToIntFunction;
  * Riot 이 칸 이름을 바꾸면 여기만 고친다.
  *
  * <p>순서는 여섯 걸음이다 — Riot 호출은 경기 10판(기본 — {@code match-count}, 2026-09-29 소유자 결정으로 20판에서 줄였다)이면
- * <b>14번</b>(계정 · 리그 · 경기 id · 경기 10 · 숙련도 — 대륙 주소 12 · 플랫폼 주소 2).
- * 평균 K/D/A · 모스트 챔피언 · 연승은 그 경기들로 내고, 승/패는 경기 수와 무관한 솔로랭크 시즌 누적이다.
+ * <b>14번</b>(계정 · 리그 · 경기 id · 경기 10 · 숙련도 — 대륙 주소 12 · 플랫폼 주소 2). 경기가 하나도 없으면 4번이다(숙련도는 경기와 무관하게 부른다).
+ * 평균 K/D/A · 연승은 그 경기들로 내고, 승/패는 경기 수와 무관한 솔로랭크 시즌 누적, 모스트 챔피언은 경기와 무관한 통산 숙련도 상위 셋이다.
  * <ol>
  *   <li>게임 닉네임을 {@code 이름#태그} 로 가른다 — <b>태그가 없으면 긁지 않는다</b>({@code null} 을 돌려준다)</li>
  *   <li>{@code account-v1} → {@code puuid}</li>
@@ -34,10 +34,13 @@ import java.util.function.ToIntFunction;
  *       (2026-09-29 까지는 {@code summoner-v4} 로 소환사 {@code id} 를 받아 {@code entries/by-summoner} 를 불렀다 — 실제 소환사 응답에 {@code id} 가 없어 늘 비었다.
  *       그 호출을 없애 25번이 24번이 됐다 — 경기 20판일 때의 수다)</li>
  *   <li>{@code match-v5} → 최근 경기 id 목록(새 경기가 먼저)</li>
- *   <li>경기마다 참가자 가운데 <b>그 {@code puuid} 인 사람</b>의 챔피언 · K/D/A · 승패</li>
- *   <li>{@code champion-mastery-v4} → 모스트 챔피언 각각의 <b>숙련도</b>(레벨 · 점수) — 한 번에 전부 받아 고른다.
- *       <b>이 걸음만은 실패해도 전적을 살린다</b>(WARN 하고 숙련도를 비운다 — 전적의 본체가 아니다). 모스트 챔피언이 없으면 부르지 않는다</li>
+ *   <li>경기마다 참가자 가운데 <b>그 {@code puuid} 인 사람</b>의 K/D/A · 승패. 참가자 전원의 챔피언 번호 → 이름도 모아 둔다(6걸음의 이름표에 없는 새 챔피언을 메운다)</li>
+ *   <li>{@code champion-mastery-v4} {@code top?count=3} → <b>모스트 챔피언 = 숙련도 점수 상위 셋</b>(2026-09-30 소유자 결정 — P-39).
+ *       칸은 챔피언 · 레벨 · 점수 셋뿐이다 — 최근 경기의 판 수 · 승률을 섞지 않는다({@link #detail}).
+ *       <b>이 걸음만은 실패해도 전적을 살린다</b>(WARN 하고 모스트 챔피언을 빈 배열로 — 전적의 본체가 아니다)</li>
  * </ol>
+ * (2026-09-30 까지는 모스트 챔피언이 <b>최근 경기에서 많이 한 셋</b>이었고 판 수 · 승률 옆에 그 챔피언의 통산 숙련도를 붙였다 — 최근 10판의 수와 통산 숙련도가
+ * 한 줄에 섞여 소유자가 "숙련도만, 숙련도가 가장 높은 챔피언으로" 바꿨다. 숙련도는 그때도 한 번에 받았으므로 호출 수는 그대로다.)
  *
  * <p><b>티어도 여기서 만든다</b>(2026-09-27 소유자 결정 — LoL 은 요청에서 {@code tier} 를 빼고 Riot 에서 채운다).
  * <b>사다리가 둘이다</b>(2026-09-29 소유자 결정 "모드별 티어를 무조건 저장한다" — P-36) — 솔로랭크 줄({@code RANKED_SOLO_5x5})이 {@code SOLO},
@@ -76,7 +79,7 @@ public class LolStatsProvider implements GameStatsProvider {
     private static final String FIELD_DEATHS = "deaths";
     private static final String FIELD_ASSISTS = "assists";
     private static final String FIELD_WIN = "win";
-    /** 경기 참가자의 챔피언 번호(숫자). 숙련도 응답과 맞추는 열쇠다 — 숙련도에는 {@code championName} 이 없다 */
+    /** 챔피언 번호(숫자) — 숙련도 응답과 경기 참가자에 같은 이름으로 있다. <b>숙련도에는 {@code championName} 이 없다</b> — 이름은 {@link LolChampionNames} 에서 찾는다 */
     private static final String FIELD_CHAMPION_KEY = "championId";
     private static final String FIELD_CHAMPION_LEVEL = "championLevel";
     private static final String FIELD_CHAMPION_POINTS = "championPoints";
@@ -90,8 +93,17 @@ public class LolStatsProvider implements GameStatsProvider {
     static final String LADDER_SOLO = "SOLO";
     static final String LADDER_FLEX = "FLEX";
 
-    /** {@code detail} 의 모스트 챔피언은 셋까지다 ({@code contracts/platform-api.md} "게임 프로필") */
-    private static final int MOST_CHAMPIONS = 3;
+    /** {@code detail} 의 모스트 챔피언은 셋까지다 ({@code contracts/platform-api.md} "게임 프로필") — 숙련도 {@code top?count=} 에 그대로 싣는다 */
+    static final int MOST_CHAMPIONS = 3;
+
+    /**
+     * 모스트 챔피언의 순서 — 점수 내림차순 → 같으면 레벨 내림차순 → 같으면 {@code championId}(이름의 글자) 오름차순(Claude 가 정한 세부 — P-39).
+     * Riot 이 이미 점수 순으로 주지만 같은 점수의 순서는 말하지 않아 다시 줄 세운다. 셋째와 넷째가 같은 점수면 누가 셋에 드는지는 Riot 이 고른다(넷째를 받지 않는다)
+     */
+    static final Comparator<MostChampion> MOST_CHAMPION_ORDER = Comparator
+            .comparingLong(MostChampion::masteryPoints).reversed()
+            .thenComparing(Comparator.comparingInt(MostChampion::masteryLevel).reversed())
+            .thenComparing(MostChampion::championId);
 
     /**
      * 단이 없는 티어 — 사다리 이름에 {@code _단} 을 붙이지 않는다({@code MASTER}). Riot 은 이 셋에도 {@code rank: "I"} 를 준다.
@@ -106,6 +118,7 @@ public class LolStatsProvider implements GameStatsProvider {
     private final RiotProperties properties;
     private final ObjectMapper objectMapper;
     private final GameConfigReader gameConfig;
+    private final LolChampionNames championNames;
 
     @Override
     public Game game()
@@ -139,7 +152,8 @@ public class LolStatsProvider implements GameStatsProvider {
         }
 
         Ranks ranks = ranks(puuid);
-        List<Played> played = recentMatches(puuid);
+        Matches matches = recentMatches(puuid);
+        List<Played> played = matches.played();
 
         int games = played.size();
         Map<String, String> tiers = new LinkedHashMap<>();
@@ -152,7 +166,7 @@ public class LolStatsProvider implements GameStatsProvider {
                 ranks.solo() == null ? null : ranks.solo().wins(),
                 ranks.solo() == null ? null : ranks.solo().losses(),
                 games == 0 ? null : winStreak(played),
-                detail(puuid, played),
+                detail(puuid, matches.championNames()),
                 tiers);
     }
 
@@ -222,14 +236,15 @@ public class LolStatsProvider implements GameStatsProvider {
     // ---- 4 · 5걸음: 최근 경기 ----
 
     /** 새 경기가 먼저인 순서를 지킨다 — 연승을 그 순서로 센다. 읽지 못한 경기는 빠진다 */
-    private List<Played> recentMatches(String puuid)
+    private Matches recentMatches(String puuid)
     {
         JsonNode matchIds = riot.matchIds(puuid, properties.matchCount());
         List<Played> played = new ArrayList<>();
+        Map<Long, String> championNames = new HashMap<>();
         if(!matchIds.isArray())
         {
             log.warn("Riot 의 경기 id 응답이 배열이 아니다 — 경기를 읽지 않는다");
-            return played;
+            return new Matches(played, championNames);
         }
         int calls = 0;
         for(JsonNode matchIdNode : matchIds)
@@ -244,13 +259,34 @@ public class LolStatsProvider implements GameStatsProvider {
                 continue;
             }
             calls++;
-            Played one = participation(riot.match(matchId), puuid);
+            JsonNode match = riot.match(matchId);
+            collectChampionNames(match, championNames);
+            Played one = participation(match, puuid);
             if(one != null)
             {
                 played.add(one);
             }
         }
-        return played;
+        return new Matches(played, championNames);
+    }
+
+    /** 그 경기 참가자 전원의 챔피언 번호 → {@code championName}. 이름표({@link LolChampionNames})에 없는 새 챔피언을 메우는 데만 쓴다. 모양이 다르면 건너뛴다 */
+    private static void collectChampionNames(JsonNode match, Map<Long, String> championNames)
+    {
+        JsonNode participants = match.path(FIELD_INFO).path(FIELD_PARTICIPANTS);
+        if(!participants.isArray())
+        {
+            return;
+        }
+        for(JsonNode participant : participants)
+        {
+            Long key = longValue(participant.path(FIELD_CHAMPION_KEY));
+            String name = text(participant.path(FIELD_CHAMPION_NAME));
+            if(key != null && name != null)
+            {
+                championNames.putIfAbsent(key, name);
+            }
+        }
     }
 
     /** 그 경기에서 이 사람의 기록. 참가자 목록에 없거나 모양이 다르면 {@code null} — 그 경기를 건너뛴다 */
@@ -267,9 +303,7 @@ public class LolStatsProvider implements GameStatsProvider {
             {
                 continue;
             }
-            return new Played(text(participant.path(FIELD_CHAMPION_NAME)),
-                longValue(participant.path(FIELD_CHAMPION_KEY)),
-                    intOrZero(participant.path(FIELD_KILLS)),
+            return new Played(intOrZero(participant.path(FIELD_KILLS)),
                     intOrZero(participant.path(FIELD_DEATHS)),
                     intOrZero(participant.path(FIELD_ASSISTS)),
                     participant.path(FIELD_WIN).isBoolean() && participant.path(FIELD_WIN).booleanValue());
@@ -350,103 +384,86 @@ public class LolStatsProvider implements GameStatsProvider {
     }
 
     /**
-     * {@code {"mostChampions": [{"championId", "games", "winRate", "masteryLevel", "masteryPoints"}]}} — 판 수 많은 순 → 같으면 승률 높은 순 → 같으면 이름순으로 셋까지.
-     * {@code championId} 의 값은 Riot 의 {@code championName}({@code "Samira"})이고 {@code winRate} 는 정수 퍼센트다.
-     * {@code masteryLevel} · {@code masteryPoints} 는 그 챔피언의 숙련도이고(2026-09-27 소유자 지시 — "숙련도만"), 숙련도 목록에 없거나
-     * 숙련도를 못 받았으면 둘 다 {@code null} 이다. 경기를 하나도 못 읽었으면 빈 배열이다 — {@code detail} 은 {@code null} 이 될 수 없다(컬럼이 {@code NOT NULL}).
+     * {@code {"mostChampions": [{"championId", "masteryLevel", "masteryPoints"}]}} — <b>숙련도 점수 상위 셋</b>(2026-09-30 소유자 결정 — P-39).
+     * 순서는 {@link #MOST_CHAMPION_ORDER}. <b>최근 경기의 판 수 · 승률은 싣지 않는다</b>(그 둘이 통산 숙련도와 한 줄에 섞였던 것을 걷어냈다).
+     *
+     * <p>{@code championId} 의 값은 챔피언 <b>이름</b>({@code "Kaisa"} — Data Dragon ID)이다. 숙련도 응답에는 숫자만 있어 {@link LolChampionNames} 로 옮긴다.
+     * 그 표에 없는 새 챔피언은 최근 경기 참가자의 {@code championName} 으로 메우고, 거기에도 없으면 <b>번호를 글자로</b>({@code "999"} 꼴) 쓰고 WARN 한다 —
+     * 셋의 자리를 비우거나 넷째로 채우면 "숙련도 상위 셋"이 틀려진다(Claude 가 정한 세부).
+     *
+     * <p>{@code masteryLevel} · {@code masteryPoints} 는 늘 값이 있다 — 번호 · 레벨 · 점수 가운데 하나라도 못 읽은 줄은 건너뛴다.
+     * 숙련도를 못 받았거나 하나도 없으면 빈 배열이다 — {@code detail} 은 {@code null} 이 될 수 없다(컬럼이 {@code NOT NULL}).
      */
-    private String detail(String puuid, List<Played> played)
+    private String detail(String puuid, Map<Long, String> namesFromMatches)
     {
-        Map<String, Champion> byChampion = new LinkedHashMap<>();
-        for(Played one : played)
+        List<MostChampion> most = new ArrayList<>();
+        for(JsonNode mastery : topMasteries(puuid))
         {
-            if(one.championName() == null)
+            Long key = longValue(mastery.path(FIELD_CHAMPION_KEY));
+            Integer level = integer(mastery.path(FIELD_CHAMPION_LEVEL));
+            Long points = longValue(mastery.path(FIELD_CHAMPION_POINTS));
+            if(key == null || level == null || points == null)
             {
+                log.warn("Riot 의 숙련도 줄에 {} · {} · {} 가운데 못 읽은 칸이 있다 — 그 줄을 건너뛴다",
+                        FIELD_CHAMPION_KEY, FIELD_CHAMPION_LEVEL, FIELD_CHAMPION_POINTS);
                 continue;
             }
-            Champion champion = byChampion.computeIfAbsent(one.championName(), name -> new Champion());
-            champion.games++;
-            if(one.win())
-            {
-                champion.wins++;
-            }
-            if(champion.key == null)
-            {
-                champion.key = one.championKey();
-            }
+            most.add(new MostChampion(championName(key, namesFromMatches), level, Math.max(0, points)));
         }
-        List<Map.Entry<String, Champion>> ranked = new ArrayList<>(byChampion.entrySet());
-        ranked.sort(Comparator
-                .<Map.Entry<String, Champion>>comparingInt(entry -> -entry.getValue().games)
-                .thenComparingInt(entry -> -percent(entry.getValue().wins, entry.getValue().games))
-                .thenComparing(Map.Entry::getKey));
-        List<Map.Entry<String, Champion>> most = ranked.subList(0, Math.min(MOST_CHAMPIONS, ranked.size()));
-        Map<Long, JsonNode> masteries = most.isEmpty() ? Map.of() : masteries(puuid);
+        most.sort(MOST_CHAMPION_ORDER);
 
         ObjectNode root = objectMapper.createObjectNode();
         ArrayNode champions = root.putArray("mostChampions");
-        for(Map.Entry<String, Champion> entry : most)
+        for(MostChampion one : most.subList(0, Math.min(MOST_CHAMPIONS, most.size())))
         {
-            Champion counted = entry.getValue();
             ObjectNode champion = champions.addObject();
-            champion.put("championId", entry.getKey());
-            champion.put("games", counted.games);
-            champion.put("winRate", percent(counted.wins, counted.games));
-            JsonNode mastery = counted.key == null ? null : masteries.get(counted.key);
-            putIntOrNull(champion, "masteryLevel", mastery == null ? null : integer(mastery.path(FIELD_CHAMPION_LEVEL)));
-            putIntOrNull(champion, "masteryPoints", mastery == null ? null : integer(mastery.path(FIELD_CHAMPION_POINTS)));
+            champion.put("championId", one.championId());
+            champion.put("masteryLevel", one.masteryLevel());
+            champion.put("masteryPoints", one.masteryPoints());
         }
         return root.toString();
     }
 
+    /** 이름표 → 최근 경기 참가자 → 번호의 글자 순이다(위 {@link #detail}) */
+    private String championName(long key, Map<Long, String> namesFromMatches)
+    {
+        String name = championNames.name(key);
+        if(name == null)
+        {
+            name = namesFromMatches.get(key);
+        }
+        if(name == null)
+        {
+            log.warn("이름을 모르는 챔피언이다 championId={} — 번호를 그대로 쓴다(resources/{} 를 새 Data Dragon 버전으로 다시 떠라)",
+                    key, LolChampionNames.RESOURCE);
+            return String.valueOf(key);
+        }
+        return name;
+    }
+
     /**
-     * 챔피언 번호 → 숙련도 한 줄. <b>실패해도(4xx · 5xx · 타임아웃 · JSON 이 아닌 응답) 던지지 않는다</b> — WARN 하고 빈 맵이다(숙련도만 비고 전적은 산다).
-     * 모양이 다른 줄(번호가 없는 줄)은 건너뛴다
+     * 숙련도 점수 상위 셋의 줄들. <b>실패해도(4xx · 5xx · 타임아웃 · JSON 이 아닌 응답) 던지지 않는다</b> — WARN 하고 빈 목록이다(모스트 챔피언만 비고 전적은 산다)
      */
-    private Map<Long, JsonNode> masteries(String puuid)
+    private List<JsonNode> topMasteries(String puuid)
     {
         JsonNode list;
         try
         {
-            list = riot.championMasteries(puuid);
+            list = riot.topChampionMasteries(puuid, MOST_CHAMPIONS);
         }
         catch(RiotApiException e)
         {
-            log.warn("Riot 의 챔피언 숙련도를 받지 못했다 — 숙련도를 비운 채 간다 status={} cause={}", e.status(), e.getMessage());
-            return Map.of();
+            log.warn("Riot 의 챔피언 숙련도를 받지 못했다 — 모스트 챔피언을 비운 채 간다 status={} cause={}", e.status(), e.getMessage());
+            return List.of();
         }
         if(!list.isArray())
         {
-            log.warn("Riot 의 챔피언 숙련도 응답이 배열이 아니다 — 숙련도를 비운 채 간다");
-            return Map.of();
+            log.warn("Riot 의 챔피언 숙련도 응답이 배열이 아니다 — 모스트 챔피언을 비운 채 간다");
+            return List.of();
         }
-        Map<Long, JsonNode> byKey = new HashMap<>();
-        for(JsonNode mastery : list)
-        {
-            Long key = longValue(mastery.path(FIELD_CHAMPION_KEY));
-            if(key != null)
-            {
-                byKey.putIfAbsent(key, mastery);
-            }
-        }
-        return byKey;
-    }
-
-    private static void putIntOrNull(ObjectNode node, String field, Integer value)
-    {
-        if(value == null)
-        {
-            node.putNull(field);
-        }
-        else
-        {
-            node.put(field, value);
-        }
-    }
-
-    private static int percent(int wins, int games)
-    {
-        return games == 0 ? 0 : (int) Math.round(wins * 100.0 / games);
+        List<JsonNode> rows = new ArrayList<>();
+        list.forEach(rows::add);
+        return rows;
     }
 
     // ---- 값 꺼내기 ----
@@ -518,14 +535,15 @@ public class LolStatsProvider implements GameStatsProvider {
         static final Ranks NONE = new Ranks(null, null);
     }
 
-    /** 경기 하나에서 이 사람의 기록 */
-    record Played(String championName, Long championKey, int kills, int deaths, int assists, boolean win) {
+    /** 경기 하나에서 이 사람의 기록. 챔피언은 담지 않는다 — 모스트 챔피언은 경기가 아니라 숙련도에서 온다(2026-09-30 — P-39) */
+    record Played(int kills, int deaths, int assists, boolean win) {
     }
 
-    /** 모스트 챔피언을 셀 때 한 챔피언의 판 수 · 승 수와 숙련도를 찾을 번호(처음 읽힌 경기의 것) */
-    private static final class Champion {
-        int games;
-        int wins;
-        Long key;
+    /** 읽은 최근 경기 — 이 사람의 기록(새 경기가 먼저)과 참가자 전원의 챔피언 번호 → 이름 */
+    private record Matches(List<Played> played, Map<Long, String> championNames) {
+    }
+
+    /** 모스트 챔피언 한 줄 — {@code detail} 에 나가는 세 칸 그대로다 */
+    record MostChampion(String championId, int masteryLevel, long masteryPoints) {
     }
 }

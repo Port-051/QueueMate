@@ -30,7 +30,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <li>{@link #failWith(int)} 로 모든 주소가 그 상태를 주게 한다(500 · 429). {@link #respondAfter(Duration)} 로 늦게 답한다(타임아웃)</li>
  *   <li>{@link #calls()} 는 <b>받은 요청의 수</b>다 — "아예 부르지 않는지" 를 이것으로 본다</li>
  *   <li>넣어 두지 않은 Riot ID · 경기는 <b>404</b> 다. 리그 목록 · 숙련도는 넣어 두지 않으면 빈 배열이다</li>
- *   <li>경기 참가자의 {@code championId}(숫자)는 {@link #championKey(String)} 가 챔피언 이름으로 정한다 — 숙련도와 맞추는 열쇠다</li>
+ *   <li>경기 참가자 · 숙련도의 {@code championId}(숫자)는 {@link #championKey(String)} 가 챔피언 이름으로 정한다 — 아는 이름은 실제 번호다</li>
+ *   <li>숙련도는 실제처럼 {@code …/by-puuid/{puuid}/top?count=N} 이면 <b>점수 내림차순으로 N 개</b>(없으면 3 — Riot 의 기본값)를 준다.
+ *       같은 점수는 넣은 순서 그대로다 — 앱이 다시 줄 세우는지 본다. 앱이 부른 꼴은 {@link #lastMasteryRequest()} 다</li>
  *   <li>{@link #failMasteryWith(int)} 로 숙련도 주소 하나만 실패시킨다</li>
  * </ul>
  */
@@ -53,8 +55,10 @@ final class FakeRiotApi {
     private final Map<String, List<String>> matchIds = new ConcurrentHashMap<>();
     /** 경기 id → 경기 응답의 JSON */
     private final Map<String, String> matches = new ConcurrentHashMap<>();
-    /** {@code puuid} → 숙련도 응답의 JSON(배열) */
-    private final Map<String, String> masteries = new ConcurrentHashMap<>();
+    /** {@code puuid} → 숙련도 줄(넣은 순서) */
+    private final Map<String, List<MasteryRow>> masteries = new ConcurrentHashMap<>();
+    /** 앱이 마지막으로 부른 숙련도 주소의 {@code puuid} 뒤({@code "/top?count=3"}) — 부르지 않았으면 {@code null} */
+    private volatile String lastMasteryRequest;
 
     private final AtomicInteger matchSequence = new AtomicInteger();
     private volatile int failStatus;
@@ -157,21 +161,27 @@ final class FakeRiotApi {
 
     /**
      * 숙련도. 열쇠는 챔피언 <b>이름</b>이고 값은 {@code {레벨, 점수}} 다 — 응답에는 {@link #championKey(String)} 의 번호로 나간다.
-     * 모스트 챔피언과 상관없는 챔피언을 하나 같이 넣는다(엉뚱한 줄을 고르지 않는지 본다)
+     * <b>Teemo(레벨 3 · 12,345점)를 맨 앞에 하나 같이 넣는다</b> — 점수가 낮아 상위에 들지 않아야 한다.
+     * 같은 점수의 순서를 보려면 {@link java.util.LinkedHashMap} 으로 넣는다(넣은 순서가 응답의 순서다)
      */
     void stubMastery(String puuid, Map<String, int[]> byChampion)
     {
-        List<String> rows = new ArrayList<>();
-        rows.add(masteryRow(puuid, "Teemo", 3, 12_345));
+        List<MasteryRow> rows = new ArrayList<>();
+        rows.add(new MasteryRow(championKey("Teemo"), 3, 12_345));
         byChampion.forEach((champion, levelAndPoints) ->
-                rows.add(masteryRow(puuid, champion, levelAndPoints[0], levelAndPoints[1])));
-        masteries.put(puuid, "[" + String.join(",", rows) + "]");
+                rows.add(new MasteryRow(championKey(champion), levelAndPoints[0], levelAndPoints[1])));
+        masteries.put(puuid, rows);
     }
 
-    private static String masteryRow(String puuid, String champion, int level, int points)
+    /** 2026-09-30 실제 {@code top} 응답의 칸 모양이다 — 이름 칸이 없다 */
+    private static String masteryJson(String puuid, MasteryRow row)
     {
-        return "{\"puuid\":\"" + puuid + "\",\"championId\":" + championKey(champion) + ",\"championLevel\":" + level
-                + ",\"championPoints\":" + points + ",\"lastPlayTime\":1700000000000,\"chestGranted\":false}";
+        return "{\"puuid\":\"" + puuid + "\",\"championId\":" + row.key() + ",\"championLevel\":" + row.level()
+                + ",\"championPoints\":" + row.points() + ",\"lastPlayTime\":1700000000000,\"championPointsSinceLastLevel\":100"
+                + ",\"championPointsUntilNextLevel\":900,\"markRequiredForNextLevel\":2,\"tokensEarned\":1,\"championSeasonMilestone\":1}";
+    }
+
+    private record MasteryRow(long key, int level, long points) {
     }
 
     /** 챔피언 이름 → Riot 의 챔피언 번호. 아는 이름은 실제 번호이고 모르는 이름은 이름에서 만든 값이다(같은 이름이면 늘 같다) */
@@ -239,10 +249,17 @@ final class FakeRiotApi {
         return summonerCalls.get();
     }
 
+    /** 앱이 마지막으로 부른 숙련도 주소의 {@code puuid} 뒤 — {@code "/top?count=3"} 꼴이다. 부르지 않았으면 {@code null} */
+    String lastMasteryRequest()
+    {
+        return lastMasteryRequest;
+    }
+
     void reset()
     {
         failStatus = 0;
         masteryFailStatus = 0;
+        lastMasteryRequest = null;
         delay = Duration.ZERO;
         calls.set(0);
         summonerCalls.set(0);
@@ -336,8 +353,30 @@ final class FakeRiotApi {
             respond(exchange, status, "{\"status\":{\"status_code\":" + status + "}}");
             return;
         }
-        String rows = masteries.get(tail(exchange, "/lol/champion-mastery/v4/champion-masteries/by-puuid/"));
-        respond(exchange, 200, rows == null ? "[]" : rows);
+        // …/by-puuid/{puuid} (전부) 또는 …/by-puuid/{puuid}/top?count=N (점수 상위 N)
+        String tail = tail(exchange, "/lol/champion-mastery/v4/champion-masteries/by-puuid/");
+        String query = exchange.getRequestURI().getQuery();
+        boolean top = tail.endsWith("/top");
+        String puuid = top ? tail.substring(0, tail.length() - "/top".length()) : tail;
+        lastMasteryRequest = tail.substring(puuid.length()) + (query == null ? "" : "?" + query);
+        List<MasteryRow> rows = new ArrayList<>(masteries.getOrDefault(puuid, List.of()));
+        if(top)
+        {
+            // 안정 정렬 — 같은 점수는 넣은 순서 그대로다
+            rows.sort(java.util.Comparator.comparingLong(MasteryRow::points).reversed());
+            int count = 3;
+            if(query != null && query.startsWith("count="))
+            {
+                count = Integer.parseInt(query.substring("count=".length()));
+            }
+            rows = rows.subList(0, Math.min(count, rows.size()));
+        }
+        List<String> json = new ArrayList<>();
+        for(MasteryRow row : rows)
+        {
+            json.add(masteryJson(puuid, row));
+        }
+        respond(exchange, 200, "[" + String.join(",", json) + "]");
     }
 
     // ---- 공통 ----

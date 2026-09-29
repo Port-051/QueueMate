@@ -16,7 +16,8 @@ import java.time.Duration;
  *                        {@code stats} 가 {@code null} 로 남는다. <b>로그에 찍지 않는다</b>({@link #toString()})
  * @param regionalBaseUrl 대륙 주소 — {@code account-v1}(Riot ID → puuid) · {@code match-v5}(경기)
  * @param platformBaseUrl 플랫폼 주소 — {@code league-v4}(솔로 · 자유랭크의 티어 · 솔로랭크의 승/패 — {@code puuid} 로 부른다, 2026-09-29) · {@code champion-mastery-v4}
- * @param matchCount      최근 몇 경기를 읽어 평균 · 모스트 챔피언을 낼지. 경기 하나가 요청 하나다 — <b>기본 10판</b>(2026-09-29 소유자 결정 — 20판에서 줄였다).
+ * @param matchCount      최근 몇 경기를 읽어 평균 · 연승을 낼지. 경기 하나가 요청 하나다 — <b>기본 10판</b>(2026-09-29 소유자 결정 — 20판에서 줄였다).
+ *                        모스트 챔피언은 경기가 아니라 통산 숙련도 상위 셋이라 이 수와 무관하다(2026-09-30 — P-39).
  *                        개발용 키의 한도가 <b>지역마다 2분에 100회</b>인데 20판이면 한 번에 Riot 호출 24번(대륙 22 · 플랫폼 2)이라 2분에 4명이 한계였다.
  *                        10판이면 14번(대륙 12 · 플랫폼 2) — 2분에 8명이다. 승/패는 이 수와 무관하다(솔로랭크 시즌 누적 — {@code league-v4})
  * @param connectTimeout  Riot 을 부를 때의 연결 타임아웃

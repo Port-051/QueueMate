@@ -121,9 +121,9 @@ platform:
     # 테스트는 둘 다 가짜 서버로 덮는다
     regional-base-url: ${RIOT_REGIONAL_BASE_URL:https://asia.api.riotgames.com}
     platform-base-url: ${RIOT_PLATFORM_BASE_URL:https://kr.api.riotgames.com}
-    # 최근 몇 경기로 평균 · 모스트 챔피언을 낼지. 경기 하나가 요청 하나다 — 기본 10판(2026-09-29 소유자 결정 — 20판에서 줄였다).
+    # 최근 몇 경기로 평균 · 연승을 낼지. 경기 하나가 요청 하나다 — 기본 10판(2026-09-29 소유자 결정 — 20판에서 줄였다).
     # 개발용 키의 한도가 지역마다 2분에 100회인데 20판이면 한 번에 24번(대륙 22 · 플랫폼 2)이라 2분에 4명이 한계였다. 10판이면 14번(대륙 12 · 플랫폼 2) — 8명.
-    # 승/패는 이 수와 무관하다(솔로랭크 시즌 누적 — league-v4). 따로 지은 환경변수는 없다 — 바꾸려면 PLATFORM_RIOT_MATCH_COUNT(스프링의 느슨한 바인딩)
+    # 승/패(솔로랭크 시즌 누적 — league-v4)와 모스트 챔피언(통산 숙련도 상위 셋 — 2026-09-30, P-39)은 이 수와 무관하다. 따로 지은 환경변수는 없다 — 바꾸려면 PLATFORM_RIOT_MATCH_COUNT(스프링의 느슨한 바인딩)
     match-count: 10
     # Riot 이 느려지면 전용 풀(작다 — GameStatsAsyncConfig)이 묶인다. 짧게 끊는다
     connect-timeout: PT3S

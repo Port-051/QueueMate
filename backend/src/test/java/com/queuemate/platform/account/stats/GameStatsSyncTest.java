@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -81,6 +82,9 @@ class GameStatsSyncTest extends ApiTestSupport {
     @Qualifier(GameStatsAsyncConfig.EXECUTOR)
     Executor gameStatsExecutor;
 
+    @Autowired
+    LolChampionNames championNames;
+
     /**
      * 돌고 있는 갱신이 지워진 계정을 건드리지 않게 먼저 기다린다(하위 클래스의 {@code @AfterEach} 가 상위의 계정 삭제보다 먼저 돈다).
      * 그 다음 이 앱의 락 키와 <b>전적 갱신 쿨타임 키</b>만 지운다(쿨타임은 2분이라 그냥 두면 다음 테스트가 429 를 받는다) —
@@ -112,7 +116,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("LoL 게임 계정을 연결하면 응답에 티어 · 전적이 바로 들어 있다 — 평균 · 연승 · 모스트 챔피언 · 솔로랭크의 승/패, external_id 에 puuid")
+    @DisplayName("LoL 게임 계정을 연결하면 응답에 티어 · 전적이 바로 들어 있다 — 평균 · 연승 · 솔로랭크의 승/패 · 숙련도 상위 셋의 모스트 챔피언, external_id 에 puuid")
     void linkFillsFromRiot() throws Exception
     {
         String nickname = newNickname();
@@ -126,8 +130,9 @@ class GameStatsSyncTest extends ApiTestSupport {
                 play("Ahri", 2, 7, 4, false),
                 play("Yasuo", 3, 5, 1, false),
                 play("LeeSin", 5, 5, 5, true)));
-        // 숙련도 — LeeSin 은 넣지 않는다(숙련도 목록에 없는 챔피언은 null)
-        FAKE.stubMastery(puuid, Map.of("Samira", new int[]{7, 123_456}, "Ahri", new int[]{45, 1_234_567}));
+        // 숙련도 — 가짜 서버가 Teemo(3 · 12,345)를 같이 넣는다. 가장 많이 한 Samira 가 아니라 점수가 가장 높은 Ahri 가 먼저이고,
+        // 한 판도 안 한 Teemo 도 셋에 든다(경기와 무관하다). 넷째(Yasuo 1,000점)는 top?count=3 이 잘라 받지 않는다. LeeSin 은 숙련도가 없어 들지 않는다
+        FAKE.stubMastery(puuid, Map.of("Samira", new int[]{7, 123_456}, "Ahri", new int[]{45, 1_234_567}, "Yasuo", new int[]{5, 1_000}));
         int callsBefore = FAKE.calls();
 
         // 동기다 — 응답이 오면 이미 긁혀 적혀 있다
@@ -156,24 +161,15 @@ class GameStatsSyncTest extends ApiTestSupport {
         assertThat(number(stats, "avgDeaths")).isEqualTo(4.6);
         assertThat(number(stats, "avgAssists")).isEqualTo(4.1);
 
-        // 판 수 많은 순 → 같으면 승률 높은 순(Yasuo 0% 보다 LeeSin 100% 가 먼저) → 셋까지
+        // 모스트 챔피언 = 숙련도 점수 상위 셋(2026-09-30 소유자 결정 — P-39). 칸은 셋뿐이다 — 최근 경기의 판 수 · 승률(games · winRate)은 없다.
+        // 이름은 숙련도의 숫자 번호를 이름표(Data Dragon)로 옮긴 것이다 — 103 → Ahri · 360 → Samira · 17 → Teemo
         JsonNode champions = stats.get("detail").get("mostChampions");
         assertThat(champions).hasSize(3);
-        assertThat(champions.get(0).get("championId").asString()).isEqualTo("Samira");
-        assertThat(champions.get(0).get("games").asInt()).isEqualTo(3);
-        assertThat(champions.get(0).get("winRate").asInt()).isEqualTo(67);
-        assertThat(champions.get(1).get("championId").asString()).isEqualTo("Ahri");
-        assertThat(champions.get(1).get("winRate").asInt()).isEqualTo(50);
-        assertThat(champions.get(2).get("championId").asString()).isEqualTo("LeeSin");
-        assertThat(champions.get(2).get("winRate").asInt()).isEqualTo(100);
-        // 숙련도는 챔피언 번호로 맞춘다(엉뚱한 Teemo 줄을 고르지 않는다). 목록에 없는 LeeSin 은 둘 다 null
-        assertThat(champions.get(0).get("masteryLevel").asInt()).isEqualTo(7);
-        assertThat(champions.get(0).get("masteryPoints").asInt()).isEqualTo(123_456);
-        assertThat(champions.get(1).get("masteryLevel").asInt()).isEqualTo(45);
-        assertThat(champions.get(1).get("masteryPoints").asInt()).isEqualTo(1_234_567);
-        assertThat(champions.get(2).get("masteryLevel").isNull()).isTrue();
-        assertThat(champions.get(2).get("masteryPoints").isNull()).isTrue();
-        // 계정 · 리그 · 경기 id · 경기 7 · 숙련도 1 — 숙련도는 챔피언마다 부르지 않는다. 소환사(summoner-v4)는 부르지 않는다 —
+        assertMostChampion(champions.get(0), "Ahri", 45, 1_234_567);
+        assertMostChampion(champions.get(1), "Samira", 7, 123_456);
+        assertMostChampion(champions.get(2), "Teemo", 3, 12_345);
+        assertThat(FAKE.lastMasteryRequest()).isEqualTo("/top?count=3");
+        // 계정 · 리그 · 경기 id · 경기 7 · 숙련도 1 — 숙련도는 챔피언마다 부르지 않고 상위 셋을 한 번에 받는다. 소환사(summoner-v4)는 부르지 않는다 —
         // 실제 응답에 id 가 없어 리그를 puuid 로 부른다(2026-09-29)
         assertThat(FAKE.calls() - callsBefore).isEqualTo(11);
         assertThat(FAKE.summonerCalls()).isZero();
@@ -388,17 +384,18 @@ class GameStatsSyncTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("숙련도 호출만 500 이면 연결은 200 이고 나머지 전적은 정상 · 숙련도만 null 이다 — 경기가 20판 있어도 기본값대로 최근 10판만 읽어 Riot 호출은 14번")
+    @DisplayName("숙련도 호출만 500 이면 연결은 200 이고 나머지 전적은 정상 · 모스트 챔피언만 빈 배열이다 — 경기가 20판 있어도 기본값대로 최근 10판만 읽어 Riot 호출은 14번")
     @ExtendWith(OutputCaptureExtension.class)
     void masteryFailureKeepsStats(CapturedOutput output) throws Exception
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
-        // 가짜 서버는 count 를 보지 않고 20판을 다 준다 — 앱이 match-count(기본 10)만큼만 읽는지 본다. 최근 10판은 Ahri 6 · Yasuo 4 다
+        // 가짜 서버는 count 를 보지 않고 20판을 다 준다 — 앱이 match-count(기본 10)만큼만 읽는지 본다(games 10 · 평균이 그 10판의 것)
         List<FakeRiotApi.Play> twenty = new java.util.ArrayList<>();
         for(int i = 0; i < 20; i++)
         {
-            twenty.add(play(i < 6 ? "Ahri" : "Yasuo", 4, 2, 6, i % 2 == 0));
+            // 최근 10판은 킬 4, 나머지 10판은 킬 8 — 평균 킬이 4.0 이면 최근 10판만 읽은 것이다
+            twenty.add(play(i < 6 ? "Ahri" : "Yasuo", i < 10 ? 4 : 8, 2, 6, i % 2 == 0));
         }
         String puuid = stubLol("숙련도#KR1", 30, 20, twenty);
         FAKE.stubMastery(puuid, Map.of("Ahri", new int[]{12, 99_999}));
@@ -409,25 +406,82 @@ class GameStatsSyncTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tiers.SOLO").value("EMERALD_4"))).get("stats");
 
-        // 계정 · 리그 · 경기 id · 경기 10 · 숙련도 1 — 경기 20판이던 때는 24번이었다
+        // 계정 · 리그 · 경기 id · 경기 10 · 숙련도 1 — 경기 20판이던 때는 24번이었다. 모스트 챔피언을 숙련도 상위 셋으로 바꾼 뒤(2026-09-30)에도 14번 그대로다
         assertThat(FAKE.calls() - callsBefore).isEqualTo(14);
         assertThat(stats.get("games").asInt()).isEqualTo(10);
+        assertThat(number(stats, "avgKills")).isEqualTo(4.0);
         // 승/패는 읽은 경기 수와 무관한 솔로랭크 시즌 누적이다
         assertThat(stats.get("wins").asInt()).isEqualTo(30);
         assertThat(stats.get("losses").asInt()).isEqualTo(20);
-        JsonNode champions = stats.get("detail").get("mostChampions");
-        assertThat(champions).hasSize(2);
-        assertThat(champions.get(0).get("championId").asString()).isEqualTo("Ahri");
-        assertThat(champions.get(0).get("games").asInt()).isEqualTo(6);
-        assertThat(champions.get(1).get("championId").asString()).isEqualTo("Yasuo");
-        assertThat(champions.get(1).get("games").asInt()).isEqualTo(4);
-        for(JsonNode champion : champions)
-        {
-            assertThat(champion.get("masteryLevel").isNull()).isTrue();
-            assertThat(champion.get("masteryPoints").isNull()).isTrue();
-        }
+        // 모스트 챔피언은 숙련도에서만 온다 — 최근 경기로 채우지 않는다
+        assertThat(stats.get("detail").get("mostChampions")).isEmpty();
         assertThat(output).contains("챔피언 숙련도를 받지 못했다");
         assertThat(statsRow(gameAccountId(userIdOf(nickname), "LOL"))).isNotNull();
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    @DisplayName("모스트 챔피언의 순서와 이름 — 점수 같으면 레벨 높은 순 → 이름순. 이름표에 없는 챔피언은 최근 경기의 이름, 거기에도 없으면 번호의 글자 (P-39)")
+    void mostChampionsOrderAndNames(CapturedOutput output) throws Exception
+    {
+        Cookie cookie = login(newNickname());
+        // Lulu · Neverplayed 는 가짜 서버가 실제가 아닌 번호(10000 이상)를 준다 — 이름표에 없는 "새 챔피언" 이다.
+        // Lulu 는 최근 경기에 있어 그 championName 으로 메우고, Neverplayed 는 어디에도 없어 번호를 글자로 쓴다
+        String puuid = stubLol("순서#KR1", 5, 5, List.of(play("Lulu", 1, 1, 1, true)));
+        Map<String, int[]> masteries = new LinkedHashMap<>();
+        // 셋 다 500,000점 — 가짜 서버는 같은 점수를 넣은 순서(Lulu · Neverplayed · Ahri)로 준다. 앱이 다시 줄 세운다
+        masteries.put("Lulu", new int[]{8, 500_000});
+        masteries.put("Neverplayed", new int[]{8, 500_000});
+        masteries.put("Ahri", new int[]{10, 500_000});
+        FAKE.stubMastery(puuid, masteries);
+        String neverplayed = String.valueOf(FakeRiotApi.championKey("Neverplayed"));
+
+        JsonNode champions = readBody(putGameAccount(cookie, "LOL", json("gameNickname", "순서#KR1"))
+                .andExpect(status().isOk())).get("stats").get("detail").get("mostChampions");
+
+        // 레벨 10 인 Ahri 가 먼저 → 레벨 8 둘은 이름(글자)순 — 숫자가 글자보다 앞이다(String 비교). 넷째 Teemo(12,345점)는 받지 않는다
+        assertThat(champions).hasSize(3);
+        assertMostChampion(champions.get(0), "Ahri", 10, 500_000);
+        assertMostChampion(champions.get(1), neverplayed, 8, 500_000);
+        assertMostChampion(champions.get(2), "Lulu", 8, 500_000);
+        assertThat(output).contains("이름을 모르는 챔피언이다 championId=" + neverplayed);
+        assertThat(output).doesNotContain("이름을 모르는 챔피언이다 championId=" + FakeRiotApi.championKey("Lulu"));
+    }
+
+    @Test
+    @DisplayName("경기가 하나도 없어도 모스트 챔피언은 숙련도에서 채운다 — Riot 호출은 계정 · 리그 · 경기 id · 숙련도 4번")
+    void mostChampionsWithoutMatches() throws Exception
+    {
+        Cookie cookie = login(newNickname());
+        String puuid = stubLol("무경기숙련#KR1", 5, 5, List.of());
+        FAKE.stubMastery(puuid, Map.of("Samira", new int[]{20, 300_000}));
+        int callsBefore = FAKE.calls();
+
+        JsonNode stats = readBody(putGameAccount(cookie, "LOL", json("gameNickname", "무경기숙련#KR1"))
+                .andExpect(status().isOk())).get("stats");
+
+        assertThat(stats.get("games").asInt()).isZero();
+        JsonNode champions = stats.get("detail").get("mostChampions");
+        assertThat(champions).hasSize(2);
+        assertMostChampion(champions.get(0), "Samira", 20, 300_000);
+        assertMostChampion(champions.get(1), "Teemo", 3, 12_345);
+        assertThat(FAKE.calls() - callsBefore).isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName("챔피언 이름표 — Data Dragon 16.18.1 의 173개. 숫자 번호를 프런트 목록과 같은 이름(Data Dragon ID)으로 옮기고, 모르는 번호는 null")
+    void championNameTable()
+    {
+        assertThat(championNames.size()).isEqualTo(173);
+        assertThat(championNames.name(7)).isEqualTo("Leblanc");
+        assertThat(championNames.name(145)).isEqualTo("Kaisa");
+        assertThat(championNames.name(268)).isEqualTo("Azir");
+        assertThat(championNames.name(517)).isEqualTo("Sylas");
+        assertThat(championNames.name(64)).isEqualTo("LeeSin");
+        assertThat(championNames.name(9)).isEqualTo("Fiddlesticks");
+        assertThat(championNames.name(950)).isEqualTo("Naafiri");
+        assertThat(championNames.name(0)).isNull();
+        assertThat(championNames.name(FakeRiotApi.championKey("Lulu"))).isNull();
     }
 
     @Test
@@ -738,6 +792,15 @@ class GameStatsSyncTest extends ApiTestSupport {
         FAKE.stubSoloRank(puuid, wins, losses);
         FAKE.stubMatches(puuid, plays);
         return puuid;
+    }
+
+    /** 모스트 챔피언 한 줄 — 칸이 정확히 셋(championId · masteryLevel · masteryPoints)이고 최근 경기의 칸(games · winRate)이 없다 */
+    private static void assertMostChampion(JsonNode champion, String championId, int level, long points)
+    {
+        assertThat(champion.propertyNames()).containsExactly("championId", "masteryLevel", "masteryPoints");
+        assertThat(champion.get("championId").asString()).isEqualTo(championId);
+        assertThat(champion.get("masteryLevel").asInt()).isEqualTo(level);
+        assertThat(champion.get("masteryPoints").asLong()).isEqualTo(points);
     }
 
     /** 미드로 한 판 */

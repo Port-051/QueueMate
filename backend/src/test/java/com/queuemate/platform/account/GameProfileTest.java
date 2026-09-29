@@ -135,7 +135,7 @@ class GameProfileTest extends ApiTestSupport {
         Cookie cookie = login(nickname);
         insertGameAccount(userIdOf(nickname), "LOL", "stats#KR1", "EMERALD_4");
         insertStats(gameAccountId(userIdOf(nickname), "LOL"), 364, 180, 184, "10.6", "5.7", "5.8", 3,
-                "{\"mostChampions\":[{\"championId\":103,\"games\":40,\"winRate\":55}]}");
+                "{\"mostChampions\":[{\"championId\":\"Ahri\",\"masteryLevel\":45,\"masteryPoints\":1234567}]}");
 
         mockMvc.perform(get("/api/v1/users/me").cookie(cookie))
                 .andExpect(status().isOk())
@@ -150,7 +150,8 @@ class GameProfileTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.gameAccounts[0].stats.avgAssists").value(5.8))
                 // (10.6 + 5.8) / 5.7 = 2.877…
                 .andExpect(jsonPath("$.gameAccounts[0].stats.kda").value(2.88))
-                .andExpect(jsonPath("$.gameAccounts[0].stats.detail.mostChampions[0].championId").value(103))
+                .andExpect(jsonPath("$.gameAccounts[0].stats.detail.mostChampions[0].championId").value("Ahri"))
+                .andExpect(jsonPath("$.gameAccounts[0].stats.detail.mostChampions[0].masteryPoints").value(1234567))
                 .andExpect(jsonPath("$.gameAccounts[0].stats.syncedAt").isString())
                 // 출처(SELF · API)는 계약의 모양에 없다
                 .andExpect(jsonPath("$.gameAccounts[0].stats.source").doesNotExist());

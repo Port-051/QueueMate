@@ -385,6 +385,74 @@ class AccountMigrationTest extends ApiTestSupport {
                 "select count(*) from pg_namespace where nspname = 'v5_migration_check'", Integer.class)).isZero();
     }
 
+    /**
+     * V7 의 모스트 챔피언 옮기기(2026-09-30 — P-39) — V5 와 같은 방식으로 <b>빈 스키마에서 다시 돌려</b> 본다.
+     * 그 SQL 이 읽는 칸만 가진 표 둘({@code game_accounts} · {@code game_account_stats})을 만들고 옛 모양의 {@code detail} 을 넣는다. 한 트랜잭션에서 하고 되돌린다.
+     */
+    @Test
+    @DisplayName("V7 — LoL 의 옛 모스트 챔피언에서 games · winRate 를 버리고 숙련도가 없는 줄을 뺀 뒤 점수 → 레벨 → 이름 순으로 줄 세운다. 새 모양 · 다른 게임 · 배열이 없는 줄은 그대로다")
+    void v7MovesOldMostChampions()
+    {
+        List<String> details = jdbcTemplate.execute((ConnectionCallback<List<String>>) connection -> {
+            boolean autoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+            try(Statement statement = connection.createStatement())
+            {
+                statement.execute("create schema v7_migration_check");
+                statement.execute("set local search_path to v7_migration_check");
+                statement.execute("create table game_accounts (id int primary key, game varchar(10) not null)");
+                statement.execute("create table game_account_stats (game_account_id int primary key, detail jsonb not null)");
+                statement.execute("insert into game_accounts values (1, 'LOL'), (2, 'LOL'), (3, 'LOL'), (4, 'LOL'), (5, 'LOL'), (6, 'PUBG')");
+                statement.execute("insert into game_account_stats values "
+                        // 옛 모양 — 가장 많이 한 Samira 가 첫째였다. 숙련도가 null 인 LeeSin 은 빠진다
+                        + "(1, '{\"mostChampions\": [{\"championId\": \"Samira\", \"games\": 3, \"winRate\": 67, \"masteryLevel\": 7, \"masteryPoints\": 123456},"
+                        + " {\"championId\": \"Ahri\", \"games\": 2, \"winRate\": 50, \"masteryLevel\": 45, \"masteryPoints\": 1234567},"
+                        + " {\"championId\": \"LeeSin\", \"games\": 1, \"winRate\": 100, \"masteryLevel\": null, \"masteryPoints\": null}]}'),"
+                        // 점수가 같으면 레벨 높은 Zed → 레벨도 같으면 이름순(Ahri · Yasuo)
+                        + "(2, '{\"mostChampions\": [{\"championId\": \"Yasuo\", \"games\": 1, \"winRate\": 0, \"masteryLevel\": 5, \"masteryPoints\": 100},"
+                        + " {\"championId\": \"Ahri\", \"games\": 1, \"winRate\": 0, \"masteryLevel\": 5, \"masteryPoints\": 100},"
+                        + " {\"championId\": \"Zed\", \"games\": 1, \"winRate\": 0, \"masteryLevel\": 9, \"masteryPoints\": 100}]}'),"
+                        // 숙련도가 하나도 없었다 → 빈 배열
+                        + "(3, '{\"mostChampions\": [{\"championId\": \"Ahri\", \"games\": 1, \"winRate\": 100, \"masteryLevel\": null, \"masteryPoints\": null}]}'),"
+                        // 이미 새 모양 → 그대로
+                        + "(4, '{\"mostChampions\": [{\"championId\": \"Kaisa\", \"masteryLevel\": 29, \"masteryPoints\": 292707}]}'),"
+                        // mostChampions 가 없다 → 그대로
+                        + "(5, '{}'),"
+                        // 다른 게임 → 그대로
+                        + "(6, '{\"kd\": 1.5, \"seasonMode\": \"RANKED\"}')");
+                ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/migration/V7__lol_most_champions_by_mastery.sql"));
+
+                List<String> moved = new ArrayList<>();
+                try(ResultSet rows = statement.executeQuery("select detail::text from game_account_stats order by game_account_id"))
+                {
+                    while(rows.next())
+                    {
+                        moved.add(rows.getString(1));
+                    }
+                }
+                return moved;
+            }
+            finally
+            {
+                connection.rollback();
+                connection.setAutoCommit(autoCommit);
+            }
+        });
+
+        assertThat(details).containsExactly(
+                "{\"mostChampions\": [{\"championId\": \"Ahri\", \"masteryLevel\": 45, \"masteryPoints\": 1234567}, "
+                        + "{\"championId\": \"Samira\", \"masteryLevel\": 7, \"masteryPoints\": 123456}]}",
+                "{\"mostChampions\": [{\"championId\": \"Zed\", \"masteryLevel\": 9, \"masteryPoints\": 100}, "
+                        + "{\"championId\": \"Ahri\", \"masteryLevel\": 5, \"masteryPoints\": 100}, "
+                        + "{\"championId\": \"Yasuo\", \"masteryLevel\": 5, \"masteryPoints\": 100}]}",
+                "{\"mostChampions\": []}",
+                "{\"mostChampions\": [{\"championId\": \"Kaisa\", \"masteryLevel\": 29, \"masteryPoints\": 292707}]}",
+                "{}",
+                "{\"kd\": 1.5, \"seasonMode\": \"RANKED\"}");
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from pg_namespace where nspname = 'v7_migration_check'", Integer.class)).isZero();
+    }
+
     @Test
     @DisplayName("게임은 셋뿐이고, 한 사용자에 게임마다 한 줄이다. 사용자를 지우면 딸린 줄도 지워진다")
     void gameAccountConstraintsAndCascade()
