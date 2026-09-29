@@ -254,6 +254,7 @@ export interface PostListResponse { posts: PostResponse[]; nextCursor: number | 
 /**
  * `POST /posts`. `mode` 는 그 게임의 gameconfig 모드(필수 · ≤30) · `title` 1~60 · `description` ≤300(없으면 보내지 않는다) ·
  * `conditions` 는 PUBG 만 `{perspective}` · `wantedPositions` 는 그 게임의 포지션 이름(PUBG 는 빈 배열). 방이 같이 생기고 응답의 `members` 에 방장이 있다.
+ * 포지션이 있는 모드면 `wantedPositions` 는 **하나 이상**이다(2026-09-30 소유자 결정 — 빈 글 "누구든" 은 없어졌다 · 400 `wantedPositions: …`. 옛 글은 빈 채로 남아 있다).
  * `hostPosition`(내 포지션 — 2026-09-30 소유자 결정)은 포지션이 있는 모드에서 **필수**이고 `wantedPositions` 에 들 수 없다. 포지션이 없는 모드(PUBG · 칼바람)면
  * **싣지 않는다**(`description` 처럼 — 서버는 없는 칸을 `null` 로 읽는다). 맞지 않으면 400 `VALIDATION_FAILED` 의 `details` 가 `"hostPosition: …"` 이다.
  */
@@ -267,7 +268,11 @@ export interface CreatePostRequest {
   wantedPositions: string[];
   hostPosition?: string;
 }
-/** `PATCH /posts/{postId}` — 준 것만 바꾼다(`null` · 없음 = 그대로). `description` 은 빈 문자열이면 비운다 · `title` · `mode` 의 빈 문자열은 400. */
+/**
+ * `PATCH /posts/{postId}` — 준 것만 바꾼다(`null` · 없음 = 그대로). `description` 은 빈 문자열이면 비운다 · `title` · `mode` 의 빈 문자열은 400.
+ * `hostPosition`(2026-09-30)은 비우는 길이 없다. **`mode` · `hostPosition` · `wantedPositions` 가운데 하나라도 주면 고친 뒤의 모양을 글 쓰기 규칙으로 다시 본다** —
+ * 포지션 없는 모드로 바꾸면 서버가 방장 포지션을 비우고, 포지션 있는 모드인데 없으면 400 `hostPosition: 필요합니다`, 찾는 포지션과 겹치면 400. 셋을 안 주면 보지 않는다.
+ */
 export interface UpdatePostRequest {
   mode?: string;
   title?: string;
@@ -275,6 +280,7 @@ export interface UpdatePostRequest {
   voice?: VoicePreference;
   conditions?: PostConditions;
   wantedPositions?: string[];
+  hostPosition?: string;
 }
 
 /**

@@ -26,10 +26,11 @@ const TITLE_MAX = 60;
  * - **내 포지션**은 포지션이 있는 모드(`hasPositions` — PUBG · 칼바람은 없다)에서 **필수**이고 글의 `hostPosition` 이 되어 게시판의 방장 카드에 붙는다.
  *   내 포지션으로 고른 것은 찾는 포지션에서 고를 수 없다(누를 수 없고, 이미 골라 두었으면 빠진다). 포지션이 없는 모드로 바꾸면 두 칸의 값을 다 비운다 —
  *   그때는 두 칸이 없고 본문은 `wantedPositions: []` · `hostPosition` 없음이다.
- * - **"방 올리기" 는 다 채워야 눌린다** — 모드 · 음성 · (포지션이 있는 모드면) 내 포지션 · 한마디(앞뒤 공백을 뗀 1~60자). 빈 칸은 빨간 오류가 아니라 버튼 위의 흐린 한 줄
- *   ("채워야 할 칸 — …")로 알린다. 한마디가 60자를 넘을 때만 칸 아래가 빨갛다. 찾는 포지션은 비워도 된다(빈 배열 = 누구든 — 전과 같다).
+ * - **"방 올리기" 는 다 채워야 눌린다** — 모드 · 음성 · (포지션이 있는 모드면) 내 포지션 · **찾는 포지션 하나 이상** · 한마디(앞뒤 공백을 뗀 1~60자). 빈 칸은 빨간 오류가 아니라
+ *   버튼 위의 흐린 한 줄("채워야 할 칸 — …")로 알린다. 한마디가 60자를 넘을 때만 칸 아래가 빨갛다. 찾는 포지션을 비우는 글("누구든")은 같은 날 소유자 결정으로 없어졌다
+ *   (서버도 400 `wantedPositions: …` — 옛 글은 빈 채로 남아 있어 게시판 필터의 "빈 글은 누구든" 은 그대로다).
  * - 본문은 계약의 요청 그대로 `{game, mode, title, voice, conditions, wantedPositions, hostPosition}` 이다 — PUBG 의 `conditions.perspective` 는 고른 모드의 시점
- *   (`perspectiveFromMode`), `hostPosition` 은 포지션이 없는 모드면 **싣지 않는다**(서버는 없는 칸을 `null` 로 읽는다). 정원(늘 5) · 시작 시각 · 티어 범위는 우리 글에 칸이 없고
+ *   (`perspectiveFromMode`), 포지션이 없는 모드면 찾는 포지션은 빈 배열(`[]` — 값을 싣지 않는다)이고 `hostPosition` 은 **칸째 싣지 않는다**(서버는 없는 칸을 `null` 로 읽는다). 정원(늘 5) · 시작 시각 · 티어 범위는 우리 글에 칸이 없고
  *   소개(`description`)는 보내지 않는다. 서버의 400 은 창 안의 빨간 문구다 — `hostPosition: …` 같은 줄은 칸 이름으로 바꿔 보여 준다(`roomErrorMessage`).
  * - 창은 `body` 로 포털되어 판의 CSS(`.room-home …` — `room-board.css`)가 닿지 않는다. 그래서 칸들을 **`room-home room-preview-scope`** 로 감싸 판의 규칙을 그대로 받고
  *   `.room-home` 자신의 폭 · 여백만 `room-create-preview.css` 에서 되돌린다(모양이 판과 늘 같게 — 판을 바꾸면 여기도 바뀐다).
@@ -54,13 +55,15 @@ export function RoomCreatePreview({ game, onClose, onConfirm }: {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const positions = Boolean(mode) && hasPositions(game, mode);
-  // 판의 핵심 조건 칸과 같은 이름 — VALORANT 는 역할(찾는 쪽 칸 이름 "찾는 상대 역할" 과 짝이다).
+  // 판의 핵심 조건 칸과 같은 이름 — VALORANT 는 역할(찾는 쪽 칸 이름 "찾는 상대 역할" 과 짝이다 — `DesiredRolesField` 의 칸 이름).
   const positionTitle = game === 'VALORANT' ? '내 역할' : '내 포지션';
+  const wantedTitle = game === 'VALORANT' ? '찾는 상대 역할' : '찾는 포지션';
   const trimmed = title.trim();
   const tooLong = trimmed.length > TITLE_MAX;
   const missing = [
     mode ? '' : '게임 모드',
     positions && !hostPosition ? positionTitle : '',
+    positions && !wantedPositions.length ? `${wantedTitle}(하나 이상)` : '',
     voice ? '' : '음성',
     trimmed ? '' : '한마디',
   ].filter(Boolean);
@@ -81,6 +84,7 @@ export function RoomCreatePreview({ game, onClose, onConfirm }: {
 
   const confirm = async () => {
     if (submitting.current || !ready || !voice) return;
+    // 포지션이 없는 모드면 두 포지션 값은 이미 비어 있다(`chooseMode`) — 아래에서 한 번 더 가린다.
     const perspective = perspectiveFromMode(game, mode);
     const body: CreatePostRequest = {
       game, mode, title: trimmed, voice,

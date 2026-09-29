@@ -8,6 +8,7 @@ import { ReportModal } from '../components/ReportModal';
 import { IconLogout, IconMic, IconMicOff, IconSend, IconShield } from '../components/icons';
 import { ActionMenu, Avatar, Button, Card, CardHead, ConfirmDialog, EmptyState, Field, Modal, Tag, useToast } from '../components/ui';
 import { PERSPECTIVE_LABEL } from '../domain/gameCatalog';
+import { keyConditionOptions } from '../domain/gameConfig';
 import { gameFullLabel } from '../domain/labels';
 import { groupPerspectives, groupSizes, modeChoice, modeChoiceLabel, modeGroups, pickMode } from '../domain/modeChoice';
 import { socialErrorMessage } from '../domain/socialErrors';
@@ -269,6 +270,12 @@ export function PartyRoomPage() {
 /**
  * 글 고치기 — `PATCH /posts/{postId}`(준 것만 바꾼다). 방에 방장 말고 누가 있으면 서버가 409 `ROOM_HAS_OTHER_MEMBERS` 로 막는다(P-19 — 방 안 사람에게 알릴 길이 없어서다).
  * `game` 은 바꿀 수 없고 PUBG 의 `conditions.perspective` 는 고른 모드의 시점을 따라간다. 모드는 묶음 · 인원 · (PUBG) 시점으로 나눠 고른다(2026-09-29 — `domain/modeChoice.ts`).
+ * **내 포지션(`hostPosition`) · 찾는 포지션은 글 쓰기 팝업과 같은 규칙이다**(2026-09-30 소유자 결정) — 포지션이 있는 모드에서만 칸이 있고, **둘 다 차야 저장이 눌린다**
+ * (내 포지션 하나 · 찾는 포지션 하나 이상 — 빈 칸은 저장 위 흐린 한 줄로 알린다), 내 포지션은 찾는 포지션에서 고를 수 없다(고르면 거기서 빠진다).
+ * 고치기는 기존 글의 값이라 **글의 `hostPosition` · `wantedPositions` 로 미리 채운다**(글 쓰기 팝업은 빈 채로 연다 — 다르다). 그 전에 쓴 글(방장 포지션이 없거나 찾는 포지션이 빈 글)은
+ * 포지션이 있는 모드면 두 칸을 채워야 저장된다. 서버 규칙(platform-api.md "방장 포지션"): `hostPosition` 을 안 주면 그대로이고 비우는 길이 없다 ·
+ * `mode` · `hostPosition` · `wantedPositions` 가운데 하나라도 주면 고친 뒤의 모양을 글 쓰기 규칙으로 다시 본다(포지션 없는 모드로 바꾸면 서버가 방장 포지션을 비운다).
+ * 그래서 **세 칸은 바뀐 것만 싣는다**(바뀌지 않았으면 서버가 다시 볼 것이 없다). 포지션이 없는 모드면 찾는 포지션은 빈 배열이다.
  */
 function EditPostModal({ room, onClose, onSaved }: { room: BoardRoom; onClose: () => void; onSaved: (room: BoardRoom) => void }) {
   const [mode, setMode] = useState(room.modeKey);
@@ -276,21 +283,34 @@ function EditPostModal({ room, onClose, onSaved }: { room: BoardRoom; onClose: (
   const [description, setDescription] = useState(room.description);
   const [voice, setVoice] = useState<VoicePreference>(room.voice);
   const [wanted, setWanted] = useState<string[]>(room.wantedPositions);
+  const [hostPosition, setHostPosition] = useState<string | null>(room.hostPosition);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const positions = hasPositions(room.game, mode);
+  const positionTitle = room.game === 'VALORANT' ? '내 역할' : '내 포지션';
+  const roleLabel = (role: string) => keyConditionOptions(room.game).find(option => option.value === role)?.label ?? role;
   const choice = modeChoice(room.game, mode);
   const sizes = choice ? groupSizes(room.game, choice.group) : [];
   const perspectives = choice ? groupPerspectives(room.game, choice.group) : [];
   const groups = modeGroups(room.game);
   const fixedSize = sizes.length < 2;
+  const chooseHostPosition = (role: string) => { setHostPosition(role); setWanted(current => current.filter(item => item !== role)); };
+  const nextWanted = positions ? canonicalRoomRoles(room.game, wanted) : [];
+  // 포지션이 있는 모드에서 비면 저장을 막는 칸(2026-09-30 소유자 결정 — 글 쓰기와 같다).
+  const missing = positions ? [hostPosition ? '' : positionTitle, nextWanted.length ? '' : '찾는 포지션(하나 이상)'].filter(Boolean) : [];
   const save = async () => {
     const trimmed = title.trim();
+    if (missing.length) return;
     if (!trimmed) { setError('제목을 입력해 주세요.'); return; }
     if (trimmed.length > 60) { setError('제목은 60자까지예요.'); return; }
     if (description.length > 300) { setError('소개는 300자까지예요.'); return; }
-    const body: UpdatePostRequest = { title: trimmed, description, voice, wantedPositions: positions ? canonicalRoomRoles(room.game, wanted) : [] };
-    if (mode !== room.modeKey) {
+    const modeChanged = mode !== room.modeKey;
+    const wantedChanged = nextWanted.join() !== canonicalRoomRoles(room.game, room.wantedPositions).join();
+    const hostChanged = positions && hostPosition !== null && hostPosition !== room.hostPosition;
+    const body: UpdatePostRequest = { title: trimmed, description, voice };
+    if (wantedChanged) body.wantedPositions = nextWanted;
+    if (hostChanged && hostPosition) body.hostPosition = hostPosition;
+    if (modeChanged) {
       body.mode = mode;
       if (room.game === 'PUBG') { const perspective = perspectiveFromMode(room.game, mode); body.conditions = perspective ? { perspective } : {}; }
     }
@@ -299,7 +319,7 @@ function EditPostModal({ room, onClose, onSaved }: { room: BoardRoom; onClose: (
     catch (err) { setError(roomErrorMessage(err, '글을 고치지 못했어요')); }
     finally { setBusy(false); }
   };
-  return <Modal title="글 고치기" onClose={() => { if (!busy) onClose(); }} foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy} onClick={() => void save()}>{busy ? '저장 중…' : '저장'}</Button></>}>
+  return <Modal title="글 고치기" onClose={() => { if (!busy) onClose(); }} foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || missing.length > 0} onClick={() => void save()}>{busy ? '저장 중…' : '저장'}</Button></>}>
     {/* 묶음은 한 줄에 같은 폭으로 — 폰 폭(360px)에서도 줄바꿈하지 않는다. */}
     <Field label="게임 모드"><div role="group" aria-label="게임 모드" style={{ display: 'grid', gridTemplateColumns: `repeat(${groups.length}, minmax(0, 1fr))`, gap: 6, maxWidth: groups.length * 120 }}>{groups.map(group => <Button key={group.key} size="sm" variant={choice?.group === group.key ? 'primary' : 'default'} aria-pressed={choice?.group === group.key} style={{ minWidth: 0, paddingInline: 4, whiteSpace: 'nowrap' }} onClick={() => setMode(pickMode(room.game, group.key, choice?.size, choice?.perspective))}>{group.label}</Button>)}</div></Field>
     {choice ? <Field label="인원"><div role="group" aria-label="인원" className="row" style={{ gap: 6 }}>{sizes.map(size => <Button key={size} size="sm" variant={choice.size === size ? 'primary' : 'default'} aria-pressed={choice.size === size} disabled={fixedSize} title={fixedSize ? `이 모드는 ${size}인만 있어요` : undefined} style={fixedSize ? { opacity: 1, cursor: 'default' } : undefined} onClick={() => setMode(pickMode(room.game, choice.group, size, choice.perspective))}>{size}인</Button>)}</div></Field> : null}
@@ -307,8 +327,11 @@ function EditPostModal({ room, onClose, onSaved }: { room: BoardRoom; onClose: (
     <Field label="제목" hint="60자까지"><input className="input" maxLength={60} value={title} onChange={e => setTitle(e.target.value)} /></Field>
     <Field label="소개" hint="300자까지 · 비우면 지워져요"><textarea className="input" rows={3} maxLength={300} value={description} onChange={e => setDescription(e.target.value)} /></Field>
     <Field label="음성"><div className="row" style={{ gap: 8 }}>{(['REQUIRED', 'NO_VOICE'] as const).map(v => <Button key={v} size="sm" variant={voice === v ? 'primary' : 'default'} onClick={() => setVoice(v)}>{v === 'REQUIRED' ? '사용' : '안 씀'}</Button>)}</div></Field>
-    {positions ? <Field label="찾는 포지션" hint="아무것도 고르지 않으면 누구든 찾는 글이에요"><div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>{ROOM_ROLES[room.game].map(role => <Button key={role} size="sm" variant={wanted.includes(role) ? 'primary' : 'default'} onClick={() => setWanted(current => current.includes(role) ? current.filter(r => r !== role) : [...current, role])}>{role}</Button>)}</div></Field> : null}
+    {positions ? <Field label={positionTitle} hint="게시판의 내 카드에 보여요 · 찾는 포지션에서는 고를 수 없어요"><div role="radiogroup" aria-label={positionTitle} className="row" style={{ gap: 6, flexWrap: 'wrap' }}>{ROOM_ROLES[room.game].map(role => <Button key={role} size="sm" role="radio" aria-checked={hostPosition === role} variant={hostPosition === role ? 'primary' : 'default'} onClick={() => chooseHostPosition(role)}>{roleLabel(role)}</Button>)}</div></Field> : null}
+    {positions ? <Field label="찾는 포지션" hint={`하나 이상 골라 주세요 · ${positionTitle}은 고를 수 없어요`}><div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>{ROOM_ROLES[room.game].map(role => <Button key={role} size="sm" variant={wanted.includes(role) ? 'primary' : 'default'} aria-pressed={wanted.includes(role)} disabled={role === hostPosition} title={role === hostPosition ? `${positionTitle}이라 고를 수 없어요` : undefined} onClick={() => setWanted(current => current.includes(role) ? current.filter(r => r !== role) : [...current, role])}>{roleLabel(role)}</Button>)}</div></Field> : null}
     <p className="hint">방에 다른 사람이 들어와 있으면 고칠 수 없어요(방 안 사람에게 바뀐 조건을 알릴 길이 없어서예요).</p>
+    {/* 늘 두고 비우기만 한다 — 읽어 주는 영역이 처음부터 있어야 바뀐 글이 읽힌다. */}
+    <p className="hint edit-post-missing" aria-live="polite">{missing.length ? `채워야 할 칸 — ${missing.join(' · ')}` : ''}</p>
     {error ? <p className="banner warn" role="alert">{error}</p> : null}
   </Modal>;
 }
