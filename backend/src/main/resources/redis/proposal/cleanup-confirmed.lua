@@ -30,7 +30,7 @@
 --   game             LOL / VALORANT / PUBG          ┐
 --   modeKey          예 RANKED_SOLO                 │ 이 스크립트가 활성 요청에서 베껴 적는다
 --   voicePreference  REQUIRED / NO_VOICE            │
---   playPurpose      RANK_UP / NORMAL / FUN         ┘
+--   playPurpose      RANK_UP / TRYHARD / FUN        ┘  (TRYHARD 는 옛 NORMAL — 2026-09-29, docs/11 D-49)
 --   target           정원. 배정 스크립트가 적는다
 --   member:{userId}  파티원. 값은 keyValue(포지션 · 역할군 · 플랫폼). 배정 스크립트가 적는다
 --   tierLo / tierHi  티어 모드만. 사다리 순번(ZRANK, 0 부터). 배정 스크립트가 적는다
