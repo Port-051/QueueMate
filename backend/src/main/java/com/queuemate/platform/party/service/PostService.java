@@ -5,6 +5,7 @@ import com.queuemate.platform.account.dto.UserGameProfile;
 import com.queuemate.platform.account.service.GameProfileReader;
 import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.gameconfig.GameConfigReader;
+import com.queuemate.platform.common.gameconfig.ModePositions;
 import com.queuemate.platform.party.domain.PostStatus;
 import com.queuemate.platform.party.domain.RecruitPost;
 import com.queuemate.platform.party.dto.MemberCard;
@@ -78,12 +79,17 @@ public class PostService {
      *
      * <p><b>방도 같이 만든다</b>(2026-09-25 2단계 — 소유자 결정 C). 방을 못 만들면 글도 되돌려진다({@link PostStore#create}).
      * 그래서 응답의 {@code members} 에 방장이 들어 있고 {@code memberCount} 는 1 이다 — 브라우저가 방 만들기를 따로 부르지 않는다.
+     *
+     * <p><b>방장 포지션</b>(2026-09-30 소유자 결정 — P-38)의 규칙은 그 모드에 포지션이 있는가(gameconfig 의 {@code positionUniqueness})로 정해진다 —
+     * 그것도 여기서 읽고, 검증은 찾는 포지션을 본 뒤에 {@link PostStore#create} 가 한다(둘이 겹치면 안 된다).
      */
     public PostResponse create(Long me, PostCreateRequest request)
     {
         // gameconfig(Redis)를 읽는 검증은 여기서 한다 — PostStore 의 트랜잭션이 Redis 를 기다리며 DB 커넥션을 붙잡지 않게 (2026-09-24)
-        PostValidation.mode(gameConfig, PostValidation.game(request.game()), request.mode());
-        RecruitPost post = postStore.create(me, request, now());
+        Game game = PostValidation.game(request.game());
+        PostValidation.mode(gameConfig, game, request.mode());
+        ModePositions modePositions = PostValidation.modePositions(gameConfig, game, request.mode());
+        RecruitPost post = postStore.create(me, request, modePositions, now());
         // 방금 만든 방이다 — 방장 혼자 들어 있는 것을 안다. 방 키를 다시 읽지 않는다
         return renderAll(me, List.of(post), Map.of(post.getId(), Set.of(me)), false).getFirst();
     }
@@ -119,7 +125,10 @@ public class PostService {
             throw PostStore.postNotRecruiting();
         }
         requireHostAlone(post);
-        postStore.edit(me, postId, request, now());
+        // 고친 뒤의 모드에 포지션이 있는가(2026-09-30 — P-38). 방장 포지션은 PostStore#edit 이 잠금 안에서 고친 뒤의 모양으로 본다
+        ModePositions modePositions = PostValidation.modePositions(gameConfig, post.getGame(),
+                request.mode() != null ? request.mode() : post.getMode());
+        postStore.edit(me, postId, request, modePositions, now());
         // 고친 글은 방이 떠 있는 글이다 — 방 안 사람까지 채운 한 줄을 돌려준다. 방장의 글이라 차단으로 걸러지지 않는다
         return get(me, postId);
     }
@@ -522,7 +531,7 @@ public class PostService {
 
         return new PostResponse(post.getId(), post.getHostId(), post.getGame().name(), post.getMode(), post.getTitle(),
                 post.getDescription(), post.getVoice().name(), post.getConditions(),
-                wanted, post.getStatus().name(), post.getCreatedAt(),
+                wanted, post.getHostPosition(), post.getStatus().name(), post.getCreatedAt(),
                 cards.size(), BoardProperties.ROOM_CAPACITY, cards.size() >= BoardProperties.ROOM_CAPACITY,
                 card(post.getHostId(), post, profiles), cards);
     }

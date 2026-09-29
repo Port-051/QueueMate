@@ -14,7 +14,8 @@ import com.queuemate.platform.account.domain.Game;
  * <p><b>이 앱은 이 키들에 절대 쓰지 않는다</b> — 심는 것은 운영자(배포 때 seed 를 붓는다)이고 {@code matching} 도 읽는 쪽이다.
  * 모드별 설정 HASH 의 내용 가운데 <b>{@code tierRule} · {@code targetPartySize} 둘(2026-09-29 부터 {@code tierLadder} 까지 셋 — 필드 이름은
  * {@link GameConfigReader} 한 곳에 있다)과 티어별 허용 범위({@code qm:gameconfig:{GAME}:tier-range:{MODE}})는 2026-09-28 부터 읽는다</b> — 자동 매칭이 게시판 방에 먼저 합류하는 길(P-28 · docs/11 D-40)이 "내 티어가 그 모드의 허용 범위 안인가" 와 "그 모드의 정원" 을
- * 봐야 해서다({@code party.service.AutoJoinService}). 그 밖의 필드({@code positionUniqueness} 등)는 여전히 읽지 않는다 — 이 앱은 그 뜻을 모른다.
+ * 봐야 해서다({@code party.service.AutoJoinService}). <b>2026-09-30 부터 {@code positionUniqueness} 도 읽는다</b> — 모집 글의 방장 포지션이
+ * 그 모드에 포지션이 있는지를 봐야 해서다({@link GameConfigReader#modePositions} · P-38). 그 밖의 필드는 여전히 읽지 않는다 — 이 앱은 그 뜻을 모른다.
  */
 public final class GameConfigKeys {
 

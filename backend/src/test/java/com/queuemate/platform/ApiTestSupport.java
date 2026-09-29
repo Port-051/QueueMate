@@ -141,6 +141,10 @@ public abstract class ApiTestSupport {
         seedFieldIfAbsent("qm:gameconfig:LOL:" + LOL_MODE_2, "tierLadder", "FLEX");
         seedFieldIfAbsent("qm:gameconfig:VALORANT:" + VALORANT_MODE, "tierLadder", "COMPETITIVE");
         seedFieldIfAbsent("qm:gameconfig:PUBG:" + PUBG_MODE, "tierLadder", "RANKED");
+        // 모드에 포지션이 있는가(2026-09-30 — P-38 · 모집 글의 방장 포지션이 필수가 된다). seed 의 값이다 — PUBG 모드에는 이 필드가 없다
+        seedFieldIfAbsent("qm:gameconfig:LOL:" + LOL_MODE, "positionUniqueness", "true");
+        seedFieldIfAbsent("qm:gameconfig:LOL:" + LOL_MODE_2, "positionUniqueness", "true");
+        seedFieldIfAbsent("qm:gameconfig:VALORANT:" + VALORANT_MODE, "positionUniqueness", "true");
         seedIfAbsent("qm:gameconfig:LOL:tier", key -> {
             redisTemplate.opsForZSet().add(key, "UNRANKED", 0);
             redisTemplate.opsForZSet().add(key, "GOLD_4", 13);

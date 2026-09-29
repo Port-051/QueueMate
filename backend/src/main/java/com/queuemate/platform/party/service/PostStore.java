@@ -3,6 +3,7 @@ package com.queuemate.platform.party.service;
 import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.error.ConstraintViolations;
+import com.queuemate.platform.common.gameconfig.ModePositions;
 import com.queuemate.platform.party.board.BoardSignalPublisher;
 import com.queuemate.platform.party.domain.PartyMember;
 import com.queuemate.platform.party.domain.PostStatus;
@@ -81,17 +82,23 @@ public class PostStore {
      * <p><b>스크립트는 성공했는데 커밋이 실패하면</b>(드물다) 방이 Redis 에 고아로 남는다 — 방장 키 · 멤버 SET · 쓴 사람의 입장 표시 키. <b>감수한다</b>:
      * 수명(600초)이 다하면 저절로 사라지고, 그동안 그 사람은 나가기({@code DELETE …/members/me})로 풀 수 있다. 글이 없으니 목록에도 입장에도 걸리지 않는다
      * (입장은 글부터 본다 — {@link PostEntryGate}).
+     *
+     * @param modePositions 그 모드에 포지션이 있는가 — 방장 포지션의 규칙이다(2026-09-30 — P-38). gameconfig(Redis)를 읽어야 해서 부르는 쪽이 트랜잭션 밖에서 읽었다
      */
     @Transactional
-    public RecruitPost create(Long hostId, PostCreateRequest request, Instant now)
+    public RecruitPost create(Long hostId, PostCreateRequest request, ModePositions modePositions, Instant now)
     {
         Game game = PostValidation.game(request.game());
         // mode 는 부르는 쪽이 이미 검증했다 — gameconfig(Redis)를 읽어야 해서 트랜잭션 밖에서 본다 (PostService#create)
-        RecruitPost post = new RecruitPost(hostId, game,
-                request.mode(), PostValidation.title(request.title()),
-                PostValidation.blankToNull(request.description()), PostValidation.voice(request.voice()),
-                PostValidation.conditions(game, request.conditions()),
-                PostValidation.wantedPositions(game, request.wantedPositions()), now);
+        String title = PostValidation.title(request.title());
+        String description = PostValidation.blankToNull(request.description());
+        VoicePreference voice = PostValidation.voice(request.voice());
+        String conditions = PostValidation.conditions(game, request.conditions());
+        Set<String> wanted = PostValidation.wantedPositions(game, request.wantedPositions());
+        // 방장 포지션은 찾는 포지션과 겹치면 안 된다 — 찾는 포지션을 검증한 뒤에 본다
+        String hostPosition = PostValidation.hostPosition(game, modePositions, request.hostPosition(), wanted);
+        RecruitPost post = new RecruitPost(hostId, game, request.mode(), title, description, voice, conditions, wanted,
+                hostPosition, now);
         try
         {
             // id 가 null 인 새 엔티티라 persist 다 — 반드시 INSERT 가 나가고 그때 id(= roomId)를 받는다. flush 로 위반을 지금 드러낸다
@@ -143,7 +150,7 @@ public class PostStore {
      * {@link PostService#edit} 이 트랜잭션 밖에서 한다. 여기 있는 방장 · 상태 검사는 그쪽에서도 한 번 하지만 <b>잠금 안의 이 판정이 최종</b>이다.
      */
     @Transactional
-    public RecruitPost edit(Long me, Long postId, PostUpdateRequest request, Instant now)
+    public RecruitPost edit(Long me, Long postId, PostUpdateRequest request, ModePositions modePositions, Instant now)
     {
         RecruitPost post = postRepository.findByIdForUpdate(postId).orElseThrow(PostStore::postNotFound);
         if(!post.isHost(me))
@@ -155,16 +162,17 @@ public class PostStore {
             throw postNotRecruiting();
         }
         Game game = post.getGame();
-        post.edit(
-                // 준 mode 는 부르는 쪽이 이미 검증했다(트랜잭션 밖 — PostService#edit). 빈 문자열로 비우는 길은 없어졌다
-                request.mode() == null ? post.getMode() : request.mode(),
-                request.title() == null ? post.getTitle() : PostValidation.title(request.title()),
-                request.description() == null ? post.getDescription() : PostValidation.blankToNull(request.description()),
-                request.voice() == null ? post.getVoice() : PostValidation.voice(request.voice()),
-                request.conditions() == null ? post.getConditions() : PostValidation.conditions(game, request.conditions()),
-                request.wantedPositions() == null ? new LinkedHashSet<>(post.getWantedPositions())
-                        : PostValidation.wantedPositions(game, request.wantedPositions()),
-                now);
+        String mode = request.mode() == null ? post.getMode() : request.mode();
+        String title = request.title() == null ? post.getTitle() : PostValidation.title(request.title());
+        String description = request.description() == null ? post.getDescription() : PostValidation.blankToNull(request.description());
+        VoicePreference voice = request.voice() == null ? post.getVoice() : PostValidation.voice(request.voice());
+        String conditions = request.conditions() == null ? post.getConditions() : PostValidation.conditions(game, request.conditions());
+        Set<String> wanted = request.wantedPositions() == null ? new LinkedHashSet<>(post.getWantedPositions())
+                : PostValidation.wantedPositions(game, request.wantedPositions());
+        // 고친 뒤의 모양을 본다(2026-09-30 — P-38). modePositions 는 고친 뒤의 모드의 것이다(PostService#edit 이 트랜잭션 밖에서 읽었다)
+        String hostPosition = PostValidation.editedHostPosition(game, modePositions, request, post.getHostPosition(), wanted);
+        // 준 mode 는 부르는 쪽이 이미 검증했다(트랜잭션 밖 — PostService#edit). 빈 문자열로 비우는 길은 없어졌다
+        post.edit(mode, title, description, voice, conditions, wanted, hostPosition, now);
         postRepository.saveAndFlush(post);
         boardSignal.changed();
         log.info("모집 글 수정 postId={}", postId);

@@ -18,6 +18,7 @@ import java.util.Optional;
  * 모드는 {@code party}(모집 글), 티어는 {@code account}(게임 계정)가 쓴다 — 도메인 둘이 같이 쓰므로 {@code common} 에 있다.
  * <b>2026-09-28 부터는 게시판 방 먼저 합류(P-28 · docs/11 D-40)가 모드 HASH 의 내용({@code tierRule} · {@code targetPartySize} · 2026-09-29 부터 {@code tierLadder}) · 티어의 단계 번호 ·
  * 티어별 허용 범위도 읽는다</b>({@link #modeConfig} · {@link #tierScores} · {@link #tierRanges} — {@code party.service.AutoJoinService}).
+ * <b>2026-09-30 부터는 모집 글의 방장 포지션이 모드 HASH 의 {@code positionUniqueness} 를 읽는다</b>({@link #modePositions} — P-38).
  *
  * <p><b>왜 남의 앱 키를 읽어도 되는가</b> — gameconfig 는 {@code matching} 이 쓰는 상태가 아니다. 원본이 {@code matching/seed/gameconfig.redis} 파일이고
  * 그 머리가 "앱은 부팅 시 설정을 밀어넣지 않고 Redis 에서 읽기만 한다"고 적었다 — <b>쓰는 앱이 없고 {@code matching} 도 읽는 쪽이다.</b>
@@ -28,7 +29,7 @@ import java.util.Optional;
  *
  * <p><b>정책이 둘이다 — 부르는 쪽이 다르다.</b>
  * <ul>
- *   <li><b>fail-open</b>({@link #hasMode} · {@link #hasTier} — 소유자 결정) — Redis 를 못 읽으면 <b>검증만 건너뛰고 통과시킨다.</b> 글 쓰기 · 게임 계정 연결이 gameconfig 에
+ *   <li><b>fail-open</b>({@link #hasMode} · {@link #hasTier} — 소유자 결정. 2026-09-30 의 {@link #modePositions} 도 이쪽이다) — Redis 를 못 읽으면 <b>검증만 건너뛰고 통과시킨다.</b> 글 쓰기 · 게임 계정 연결이 gameconfig 에
  *       묶여 같이 죽는 것보다 이상한 모드가 들어오는 것이 낫다는 판단이고, 목록 조회가 이미 "Redis 를 못 읽으면 방 정보를 비운 채 글만 내려 준다"는 fail-open 인 것과
  *       결을 맞춘 것이다. 대가로 <b>Redis 가 죽은 동안에는 이상한 값이 들어올 수 있다</b> — WARN 한 줄을 남긴다. <b>gameconfig 가 아예 안 심긴 Redis 도 통과시킨다</b>
  *       (검증할 원본이 없는 것과 값이 틀린 것은 다르다 — 가르는 열쇠는 티어 사다리 키다, {@link #seeded}).</li>
@@ -49,6 +50,9 @@ public class GameConfigReader {
     private static final String FIELD_TARGET_PARTY_SIZE = "targetPartySize";
     /** 그 모드가 보는 티어 사다리(2026-09-29 — P-36 · docs/11 D-48). {@code tierRule NONE} 모드에는 없다 */
     private static final String FIELD_TIER_LADDER = "tierLadder";
+    /** 그 모드에 포지션이 있는가(2026-09-30 — P-38). {@code "true"} 만 "있다" 다. PUBG 모드에는 없다 */
+    private static final String FIELD_POSITION_UNIQUENESS = "positionUniqueness";
+    private static final String TRUE = "true";
 
     private final StringRedisTemplate redis;
 
@@ -93,6 +97,37 @@ public class GameConfigReader {
         }
         log.warn("gameconfig 가 없어 검증을 건너뛴다 game={} — matching/seed/gameconfig.redis 를 심어라", game);
         return true;
+    }
+
+    /**
+     * 그 모드에 <b>포지션이 있는가</b> — 모드별 설정 HASH 의 {@code positionUniqueness} 한 필드다(2026-09-30 소유자 결정 — 모집 글의 방장 포지션, P-38).
+     * {@code "true"} 면 {@link ModePositions#YES}, HASH 는 있는데 그 값이 아니면(없거나 {@code "false"}) {@link ModePositions#NO} 다.
+     *
+     * <p><b>fail-open 이다</b>({@link #hasMode} 와 같은 쪽) — Redis 를 못 읽거나 모드 HASH 가 없으면(gameconfig 가 안 심겼다 — 모드 검증을 지난 뒤라
+     * 그것 말고는 없다) {@link ModePositions#UNKNOWN} 이고 WARN 한 줄을 남긴다. 부르는 쪽은 그때 방장 포지션을 요구하지도 거절하지도 않는다.
+     */
+    public ModePositions modePositions(Game game, String modeKey)
+    {
+        String key = GameConfigKeys.mode(game, modeKey);
+        try
+        {
+            String value = redis.<String, String>opsForHash().get(key, FIELD_POSITION_UNIQUENESS);
+            if(TRUE.equals(value))
+            {
+                return ModePositions.YES;
+            }
+            if(value != null || Boolean.TRUE.equals(redis.hasKey(key)))
+            {
+                return ModePositions.NO;
+            }
+            log.warn("gameconfig 에 그 모드가 없어 방장 포지션 검사를 건너뛴다 game={} — matching/seed/gameconfig.redis 를 심어라", game);
+            return ModePositions.UNKNOWN;
+        }
+        catch(DataAccessException e)
+        {
+            log.warn("gameconfig 를 읽지 못해 방장 포지션 검사를 건너뛴다 game={}: {}", game, e.toString());
+            return ModePositions.UNKNOWN;
+        }
     }
 
     /** 값 자체는 로그에 남기지 않는다 — 사용자가 적은 문자열이다 */

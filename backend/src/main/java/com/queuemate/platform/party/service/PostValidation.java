@@ -3,7 +3,9 @@ package com.queuemate.platform.party.service;
 import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.gameconfig.GameConfigReader;
+import com.queuemate.platform.common.gameconfig.ModePositions;
 import com.queuemate.platform.party.domain.VoicePreference;
+import com.queuemate.platform.party.dto.PostUpdateRequest;
 
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -114,6 +116,89 @@ final class PostValidation {
             wanted.add(position);
         }
         return wanted;
+    }
+
+    /**
+     * 그 모드에 포지션이 있는가 — 방장 포지션({@link #hostPosition})의 규칙을 정한다(2026-09-30 소유자 결정 — P-38).
+     * <b>포지션이 없는 게임(PUBG)은 gameconfig 를 읽지 않고 {@link ModePositions#NO}</b> 다. 모드가 비어 있는 옛 글은 물을 데가 없어 {@link ModePositions#UNKNOWN} 이다.
+     *
+     * <p>{@link #mode} 처럼 <b>Redis 를 읽으므로 트랜잭션 밖에서 부른다</b>({@code PostService}). 못 읽으면 {@link ModePositions#UNKNOWN} 이다(fail-open — {@link GameConfigReader#modePositions}).
+     */
+    static ModePositions modePositions(GameConfigReader gameConfig, Game game, String mode)
+    {
+        if(game.positions().isEmpty())
+        {
+            return ModePositions.NO;
+        }
+        return (mode == null || mode.isBlank()) ? ModePositions.UNKNOWN : gameConfig.modePositions(game, mode);
+    }
+
+    /**
+     * <b>방장 자신의 포지션</b>(2026-09-30 소유자 결정 — P-38). 거르는 순서는 ① 포지션이 있는 모드인데 없다 → {@code "필요합니다"}
+     * ② 포지션이 없는 게임 · 모드인데 있다 → 거절(조용히 버리지 않는다 — P-35 의 {@code mainPosition} 과 같은 뜻이다) ③ 그 게임의 포지션 이름이 아니다
+     * ④ 찾는 포지션({@code wantedPositions})에 들어 있다. 전부 400 {@code VALIDATION_FAILED} 이고 {@code details} 는 {@code "hostPosition: …"} 한 줄이다.
+     *
+     * <p><b>모르면({@link ModePositions#UNKNOWN}) 요구하지도 거절하지도 않는다</b> — gameconfig 를 못 읽었거나 안 심겼을 때다({@link #mode} 의 fail-open 과 같다).
+     * 그때도 ③ ④ 는 본다 — 이름의 목록({@link Game#positions()})과 찾는 포지션은 Redis 없이 알 수 있다.
+     *
+     * @param wanted 이미 검증한 찾는 포지션({@link #wantedPositions})
+     */
+    static String hostPosition(Game game, ModePositions modePositions, String hostPosition, Set<String> wanted)
+    {
+        boolean noPositions = game.positions().isEmpty() || modePositions == ModePositions.NO;
+        if(hostPosition == null)
+        {
+            // 포지션이 있는 게임의, 포지션이 있다고 확인된 모드다 — 모르면(UNKNOWN) 요구하지 않는다
+            if(!noPositions && modePositions == ModePositions.YES)
+            {
+                throw ApiException.validationFailed("hostPosition", "필요합니다");
+            }
+            return null;
+        }
+        if(noPositions)
+        {
+            throw ApiException.validationFailed("hostPosition", game.positions().isEmpty()
+                    ? game.name() + " 에는 포지션이 없습니다"
+                    : "포지션이 없는 모드입니다");
+        }
+        if(!game.positions().contains(hostPosition))
+        {
+            throw ApiException.validationFailed("hostPosition", game.name() + " 의 포지션이 아닙니다");
+        }
+        if(wanted.contains(hostPosition))
+        {
+            throw ApiException.validationFailed("hostPosition", "찾는 포지션(wantedPositions)과 겹칠 수 없습니다");
+        }
+        return hostPosition;
+    }
+
+    /**
+     * 고치기({@code PATCH})의 방장 포지션 — <b>고친 뒤의 모양</b>을 {@link #hostPosition} 의 규칙으로 본다(Claude 가 정한 세부 — P-38).
+     * <ul>
+     *   <li>{@code mode} · {@code hostPosition} · {@code wantedPositions} 를 <b>하나도 주지 않았으면 보지 않는다</b> — 제목 · 소개 · 음성만 고치는 요청이
+     *       그 전에 쓴 글(방장 포지션이 없다)에서도 된다</li>
+     *   <li>{@code hostPosition} 을 주지 않았는데 고친 뒤의 모드에 포지션이 없으면 <b>적혀 있던 값을 비운다</b>(포지션이 있는 모드 → 없는 모드)</li>
+     *   <li>그 밖에는 준 값(없으면 적혀 있던 값)을 고친 뒤의 모드 · 찾는 포지션으로 검증한다 — 포지션이 있는 모드로 바꾸며 방장 포지션을 안 주면
+     *       (적혀 있던 것도 없으면) 400 {@code "hostPosition: 필요합니다"} 다</li>
+     * </ul>
+     * 비우는 길은 따로 없다({@code null} 은 "그대로" 다 — 다른 칸과 같다). 빈 문자열은 포지션 이름이 아니라 400 이다.
+     *
+     * @param modePositions 고친 뒤의 모드에 포지션이 있는가({@link #modePositions})
+     * @param stored        지금 글에 적힌 방장 포지션
+     * @param wanted        고친 뒤의 찾는 포지션
+     */
+    static String editedHostPosition(Game game, ModePositions modePositions, PostUpdateRequest request, String stored,
+                                     Set<String> wanted)
+    {
+        if(request.mode() == null && request.hostPosition() == null && request.wantedPositions() == null)
+        {
+            return stored;
+        }
+        if(request.hostPosition() == null && (game.positions().isEmpty() || modePositions == ModePositions.NO))
+        {
+            return null;
+        }
+        return hostPosition(game, modePositions, request.hostPosition() != null ? request.hostPosition() : stored, wanted);
     }
 
     /**

@@ -56,6 +56,8 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(jsonPath("$.wantedPositions.length()").value(2))
                 .andExpect(jsonPath("$.wantedPositions[0]").value("MID"))
                 .andExpect(jsonPath("$.wantedPositions[1]").value("SUPPORT"))
+                // 방장 자신의 포지션(2026-09-30 — P-38). 도우미가 찾는 포지션과 겹치지 않게 골라 보냈다. 규칙은 PostHostPositionTest 가 본다
+                .andExpect(jsonPath("$.hostPosition").value("JUNGLE"))
                 // 찾는 포지션 가운데 채워진 것의 강조(filledPositions)는 없앴다 — 주 포지션은 그 방에서 할 포지션이 아니다(2026-09-24 소유자 결정)
                 .andExpect(jsonPath("$.filledPositions").doesNotExist())
                 .andExpect(jsonPath("$.status").value("RECRUITING"))
@@ -85,6 +87,7 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(jsonPath("$.game").value("PUBG"))
                 .andExpect(jsonPath("$.conditions.perspective").value("FPP"))
                 .andExpect(jsonPath("$.wantedPositions").isEmpty())
+                .andExpect(jsonPath("$.hostPosition").isEmpty())
                 .andExpect(jsonPath("$.host.profile").isEmpty());
     }
 

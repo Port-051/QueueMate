@@ -144,7 +144,7 @@ class PostServiceRedisDownTest extends PostTestSupport {
         PostService service = withBrokenRedis();
 
         assertThatThrownBy(() -> service.edit(hostId, postId,
-                new PostUpdateRequest(null, "고쳐 보자", null, null, null, null)))
+                new PostUpdateRequest(null, "고쳐 보자", null, null, null, null, null)))
                 .isInstanceOfSatisfying(ApiException.class, e -> {
                     assertThat(e.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
                     assertThat(e.getCode()).isEqualTo("ROOM_STATE_UNAVAILABLE");

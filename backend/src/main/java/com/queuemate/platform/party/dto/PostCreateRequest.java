@@ -16,6 +16,9 @@ import java.util.Map;
  *                        <b>있는 값인지는 서비스가 읽어서 본다</b>({@code GameConfigReader}). 30자 제한은 seed 의 모드 이름이 그보다 짧기 때문이다
  * @param conditions      게임별 조건. PUBG 는 {@code {"perspective": "TPP" | "FPP"}}(필수), 다른 게임은 {@code {}}. 모르는 키는 400 이다
  * @param wantedPositions 그 게임의 포지션 이름. 없으면 빈 배열로 친다. 겹치는 값은 하나로 친다
+ * @param hostPosition    <b>방장 자신의 포지션</b>(2026-09-30 소유자 결정 — P-38). 그 게임의 포지션 이름 하나. <b>포지션이 있는 모드면 필수</b>이고
+ *                        (gameconfig 모드 HASH 의 {@code positionUniqueness} 가 {@code true}), 포지션이 없는 모드 · PUBG 면 보내면 400 이다.
+ *                        {@code wantedPositions} 에 들어 있으면 400 이다. 검증은 서비스가 한다({@code PostValidation#hostPosition})
  */
 public record PostCreateRequest(
         @NotBlank(message = "필요합니다") String game,
@@ -34,6 +37,8 @@ public record PostCreateRequest(
 
         Map<String, Object> conditions,
 
-        List<String> wantedPositions
+        List<String> wantedPositions,
+
+        String hostPosition
 ) {
 }

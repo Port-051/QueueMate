@@ -167,16 +167,44 @@ abstract class PostTestSupport extends ApiTestSupport {
         return postBody("LOL", title, "{}", wantedPositions);
     }
 
+    /**
+     * 글 쓰기의 본문. 모드는 {@link #modeOf} 이고 <b>방장 포지션은 {@link #defaultHostPosition} 이 고른다</b> — 테스트의 LoL · VALORANT 모드는 포지션이 있는
+     * 모드라 방장 포지션이 필수다(2026-09-30 — P-38). 방장 포지션을 보는 테스트는 {@link #postBodyWithHostPosition} 으로 직접 준다
+     */
     protected static String postBody(String game, String title, String conditionsJson, String... wantedPositions)
+    {
+        return postBodyWithHostPosition(game, modeOf(game), title, conditionsJson, defaultHostPosition(game, wantedPositions), wantedPositions);
+    }
+
+    /** {@code hostPosition} 이 {@code null} 이면 그 칸을 보내지 않는다 */
+    protected static String postBodyWithHostPosition(String game, String mode, String title, String conditionsJson, String hostPosition,
+                                                     String... wantedPositions)
     {
         List<String> quoted = new ArrayList<>();
         for(String position : wantedPositions)
         {
             quoted.add('"' + position + '"');
         }
-        return "{\"game\":\"" + game + "\",\"mode\":\"" + modeOf(game) + "\",\"title\":\"" + title + "\",\"description\":\"즐겁게\","
+        return "{\"game\":\"" + game + "\",\"mode\":\"" + mode + "\",\"title\":\"" + title + "\",\"description\":\"즐겁게\","
                 + "\"voice\":\"REQUIRED\",\"conditions\":" + conditionsJson
-                + ",\"wantedPositions\":[" + String.join(",", quoted) + "]}";
+                + ",\"wantedPositions\":[" + String.join(",", quoted) + "]"
+                + (hostPosition == null ? "" : ",\"hostPosition\":\"" + hostPosition + "\"") + "}";
+    }
+
+    /**
+     * 찾는 포지션과 겹치지 않는 방장 포지션 하나 — 테스트들이 찾는 포지션에 잘 안 쓰는 것부터 고른다. 포지션이 없는 게임(PUBG · 모르는 게임)이면 {@code null} 이다.
+     * 테스트들이 다른 포지션을 찾는 포지션으로 고쳐도(예: {@code ["TOP","MID"]}) 겹치지 않게 LoL 은 {@code JUNGLE}, VALORANT 는 {@code CONTROLLER} 가 먼저다
+     */
+    protected static String defaultHostPosition(String game, String... wantedPositions)
+    {
+        List<String> order = switch(game)
+        {
+            case "LOL" -> List.of("JUNGLE", "ADC", "TOP", "MID", "SUPPORT");
+            case "VALORANT" -> List.of("CONTROLLER", "INITIATOR", "DUELIST", "SENTINEL");
+            default -> List.of();
+        };
+        List<String> wanted = List.of(wantedPositions);
+        return order.stream().filter(position -> !wanted.contains(position)).findFirst().orElse(null);
     }
 
     /**

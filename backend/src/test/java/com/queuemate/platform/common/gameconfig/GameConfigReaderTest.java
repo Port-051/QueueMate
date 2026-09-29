@@ -43,7 +43,9 @@ class GameConfigReaderTest {
         GameConfigReader reader = new GameConfigReader(deadRedis(attempts));
         assertThat(reader.hasMode(Game.LOL, "무엇이든")).isTrue();
         assertThat(reader.hasTier(Game.LOL, "무엇이든")).isTrue();
-        assertThat(attempts).hasValue(2);
+        // 모드에 포지션이 있는가(2026-09-30 — P-38) — 모른다. 방장 포지션을 요구하지도 거절하지도 않는다
+        assertThat(reader.modePositions(Game.LOL, "RANKED_SOLO")).isEqualTo(ModePositions.UNKNOWN);
+        assertThat(attempts).hasValue(3);
     }
 
     @Test
@@ -53,6 +55,7 @@ class GameConfigReaderTest {
         GameConfigReader reader = new GameConfigReader(emptyRedis());
         assertThat(reader.hasMode(Game.PUBG, "NORMAL_SQUAD_TPP")).isTrue();
         assertThat(reader.hasTier(Game.PUBG, "GOLD_1")).isTrue();
+        assertThat(reader.modePositions(Game.LOL, "RANKED_SOLO")).isEqualTo(ModePositions.UNKNOWN);
     }
 
     // ---- fail-closed (2026-09-28 — 게시판 방 먼저 합류) ----
@@ -103,7 +106,7 @@ class GameConfigReaderTest {
     @Test
     @DisabledIf(value = "com.queuemate.platform.ApiTestSupport#pointsAtForeignPorts",
             disabledReason = "REDIS_PORT=6379 다 — 다른 프로젝트의 것이다. 테스트용을 6380 으로 띄워라")
-    @DisplayName("모드 HASH 의 tierRule · targetPartySize · tierLadder, 사다리의 score, tier-range 의 줄을 seed 의 모양 그대로 읽는다 — 없는 것은 없다고 답한다")
+    @DisplayName("모드 HASH 의 tierRule · targetPartySize · tierLadder · positionUniqueness, 사다리의 score, tier-range 의 줄을 seed 의 모양 그대로 읽는다 — 없는 것은 없다고 답한다")
     void readsSeededGameConfigFromRedis()
     {
         StringRedisTemplate redis = realRedis();
@@ -121,6 +124,10 @@ class GameConfigReaderTest {
         String oldModeKey = modeKey + "_OLD";
         seededKeys.add(oldModeKey);
         redis.opsForHash().putAll(oldModeKey, Map.of("targetPartySize", "2", "tierRule", "EXIST"));
+        // 포지션이 없는 모드 — seed 의 ARAM_* 모양이다(positionUniqueness false)
+        String aramKey = modeKey + "_ARAM";
+        seededKeys.add(aramKey);
+        redis.opsForHash().putAll(aramKey, Map.of("targetPartySize", "5", "positionUniqueness", "false", "tierRule", "NONE"));
         redis.opsForHash().putAll(rangeKey, Map.of("GOLD_4", "SILVER_4:PLATINUM_1", "UNRANKED", "SOLO_ONLY"));
         if(!Boolean.TRUE.equals(redis.hasKey(ladderKey)))
         {
@@ -141,8 +148,14 @@ class GameConfigReaderTest {
         assertThat(reader.tierRanges(Game.LOL, mode, List.of("GOLD_4", "UNRANKED", "NO_SUCH_TIER")))
                 .containsEntry("GOLD_4", "SILVER_4:PLATINUM_1").containsEntry("UNRANKED", "SOLO_ONLY")
                 .doesNotContainKey("NO_SUCH_TIER");
+        // 모드에 포지션이 있는가(2026-09-30 — P-38) — "true" 만 있다. 필드가 없는 모드(PUBG 의 모양)도 없다. HASH 가 없으면 모른다(fail-open)
+        assertThat(reader.modePositions(Game.LOL, mode)).isEqualTo(ModePositions.YES);
+        assertThat(reader.modePositions(Game.LOL, mode + "_ARAM")).isEqualTo(ModePositions.NO);
+        assertThat(reader.modePositions(Game.LOL, mode + "_OLD")).isEqualTo(ModePositions.NO);
+        assertThat(reader.modePositions(Game.LOL, mode + "_NOPE")).isEqualTo(ModePositions.UNKNOWN);
         // 읽기만 했다 — 심은 모양 그대로다
         assertThat(redis.opsForHash().entries(modeKey)).hasSize(4);
+        assertThat(Boolean.TRUE.equals(redis.hasKey(modeKey + "_NOPE"))).isFalse();
     }
 
     private StringRedisTemplate realRedis()

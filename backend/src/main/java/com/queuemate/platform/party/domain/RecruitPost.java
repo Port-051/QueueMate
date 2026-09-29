@@ -105,9 +105,16 @@ public class RecruitPost {
     @Column(name = "position", nullable = false, length = 20)
     private Set<String> wantedPositions = new LinkedHashSet<>();
 
+    /**
+     * 방장 자신의 포지션(2026-09-30 소유자 결정 — P-38). 그 게임의 포지션 이름이고 {@link #wantedPositions} 에 들지 않는다 — 검증은 쓸 때 한다
+     * ({@code PostValidation#hostPosition}). 포지션이 없는 모드 · 그 전에 쓴 글은 {@code null} 이다. 값의 목록이 코드와 gameconfig 에 있어 DB 는 CHECK 를 걸지 않는다(V6)
+     */
+    @Column(name = "host_position", length = 20)
+    private String hostPosition;
+
     public RecruitPost(Long hostId, Game game, String mode, String title, String description,
                        VoicePreference voice, String conditions, Set<String> wantedPositions,
-                       Instant now)
+                       String hostPosition, Instant now)
     {
         this.hostId = hostId;
         this.game = game;
@@ -117,6 +124,7 @@ public class RecruitPost {
         this.voice = voice;
         this.conditions = conditions;
         this.wantedPositions = new LinkedHashSet<>(wantedPositions);
+        this.hostPosition = hostPosition;
         this.status = PostStatus.RECRUITING;
         this.createdAt = now;
         this.updatedAt = now;
@@ -124,7 +132,7 @@ public class RecruitPost {
 
     /** 글의 내용을 고친다. 상태 · 방장 · 게임은 바뀌지 않는다. 부르는 쪽이 "준 것만" 골라 넘긴다 — 여기는 받은 대로 적는다 */
     public void edit(String mode, String title, String description, VoicePreference voice,
-                     String conditions, Set<String> wantedPositions, Instant now)
+                     String conditions, Set<String> wantedPositions, String hostPosition, Instant now)
     {
         this.mode = mode;
         this.title = title;
@@ -137,6 +145,7 @@ public class RecruitPost {
             this.wantedPositions.retainAll(wantedPositions);
             this.wantedPositions.addAll(wantedPositions);
         }
+        this.hostPosition = hostPosition;
         this.updatedAt = now;
     }
 
