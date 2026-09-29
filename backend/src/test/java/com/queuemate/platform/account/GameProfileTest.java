@@ -38,18 +38,19 @@ class GameProfileTest extends ApiTestSupport {
     GameProfileReader gameProfileReader;
 
     @Test
-    @DisplayName("PUT 의 응답은 게임 프로필이다 — verified 는 false, stats 는 null. users/me 도 같은 모양을 준다")
+    @DisplayName("PUT 의 응답은 게임 프로필이다 — verified 는 false, stats 는 null, 주 포지션 칸은 없다. users/me 도 같은 모양을 준다")
     void putReturnsGameProfile() throws Exception
     {
         Cookie cookie = login(newNickname());
 
-        putGameAccount(cookie, "VALORANT", json("gameNickname", "제트#KR7", "tier", "DIAMOND_2", "mainPosition", "DUELIST"))
+        putGameAccount(cookie, "VALORANT", json("gameNickname", "제트#KR7", "tier", "DIAMOND_2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.game").value("VALORANT"))
                 .andExpect(jsonPath("$.gameNickname").value("제트#KR7"))
                 .andExpect(jsonPath("$.verified").value(false))
                 .andExpect(jsonPath("$.tier").value("DIAMOND_2"))
-                .andExpect(jsonPath("$.mainPosition").value("DUELIST"))
+                // 게임 계정에 주 포지션은 없다(2026-09-29 소유자 결정 — P-35). null 로도 싣지 않는다
+                .andExpect(jsonPath("$.mainPosition").doesNotExist())
                 .andExpect(jsonPath("$.server").isEmpty())
                 .andExpect(jsonPath("$.stats").isEmpty())
                 // 게임사 쪽 식별자는 밖에 내보내지 않는다
@@ -58,6 +59,7 @@ class GameProfileTest extends ApiTestSupport {
         mockMvc.perform(get("/api/v1/users/me").cookie(cookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.gameAccounts[0].verified").value(false))
+                .andExpect(jsonPath("$.gameAccounts[0].mainPosition").doesNotExist())
                 .andExpect(jsonPath("$.gameAccounts[0].server").isEmpty())
                 .andExpect(jsonPath("$.gameAccounts[0].stats").isEmpty());
     }
@@ -68,7 +70,7 @@ class GameProfileTest extends ApiTestSupport {
     {
         Cookie cookie = login(newNickname());
 
-        putGameAccount(cookie, "PUBG", json("gameNickname", "chicken", "tier", null, "mainPosition", null, "server", "STEAM"))
+        putGameAccount(cookie, "PUBG", json("gameNickname", "chicken", "tier", null, "server", "STEAM"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.server").value("STEAM"));
         putGameAccount(cookie, "PUBG", json("gameNickname", "chicken", "server", "KAKAO"))
@@ -102,7 +104,7 @@ class GameProfileTest extends ApiTestSupport {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
         Long userId = userIdOf(nickname);
-        putGameAccount(cookie, "VALORANT", json("gameNickname", "before", "tier", "DIAMOND_2", "mainPosition", "SENTINEL"))
+        putGameAccount(cookie, "VALORANT", json("gameNickname", "before", "tier", "DIAMOND_2"))
                 .andExpect(status().isOk());
         // 게임사 인증이 붙었다고 치고 DB 에서 직접 켠다 — 앱에는 켜는 길이 없다
         jdbcTemplate.update("update game_accounts set verified = true, external_id = 'puuid-123' "
@@ -110,7 +112,7 @@ class GameProfileTest extends ApiTestSupport {
         insertStats(gameAccountId(userId, "VALORANT"), 15, 10, 5, "3.0", "2.0", "4.0", 2, "{}");
 
         // 본문에 읽기 전용 칸을 실어 보내도 무시된다
-        putGameAccount(cookie, "VALORANT", "{\"gameNickname\":\"after\",\"tier\":\"ASCENDANT_1\",\"mainPosition\":\"DUELIST\","
+        putGameAccount(cookie, "VALORANT", "{\"gameNickname\":\"after\",\"tier\":\"ASCENDANT_1\","
                 + "\"verified\":false,\"externalId\":\"hacked\",\"stats\":{\"wins\":999}}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.gameNickname").value("after"))
@@ -128,7 +130,7 @@ class GameProfileTest extends ApiTestSupport {
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
-        insertGameAccount(userIdOf(nickname), "LOL", "stats#KR1", "EMERALD_4", "MID");
+        insertGameAccount(userIdOf(nickname), "LOL", "stats#KR1", "EMERALD_4");
         insertStats(gameAccountId(userIdOf(nickname), "LOL"), 364, 180, 184, "10.6", "5.7", "5.8", 3,
                 "{\"mostChampions\":[{\"championId\":103,\"games\":40,\"winRate\":55}]}");
 
@@ -158,7 +160,7 @@ class GameProfileTest extends ApiTestSupport {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
         Long userId = userIdOf(nickname);
-        insertGameAccount(userId, "LOL", "a#KR1", null, null);
+        insertGameAccount(userId, "LOL", "a#KR1", null);
         putGameAccount(cookie, "VALORANT", json("gameNickname", "b")).andExpect(status().isOk());
         insertStats(gameAccountId(userId, "LOL"), 0, 0, 0, "3.0", "0.0", "1.0", 0, "{}");
         insertStats(gameAccountId(userId, "VALORANT"), 4, 3, 1, null, null, null, 0, "{}");
@@ -213,8 +215,8 @@ class GameProfileTest extends ApiTestSupport {
         String otherGameOnlyNickname = newNickname();
         login(withStatsNickname);
         login(withoutStatsNickname);
-        insertGameAccount(userIdOf(withStatsNickname), "LOL", "one", "GOLD_1", "MID");
-        insertGameAccount(userIdOf(withoutStatsNickname), "LOL", "two", null, "SUPPORT");
+        insertGameAccount(userIdOf(withStatsNickname), "LOL", "one", "GOLD_1");
+        insertGameAccount(userIdOf(withoutStatsNickname), "LOL", "two", null);
         putGameAccount(login(otherGameOnlyNickname), "PUBG",
                 json("gameNickname", "three", "server", "STEAM")).andExpect(status().isOk());
         Long withStats = userIdOf(withStatsNickname);
@@ -230,7 +232,7 @@ class GameProfileTest extends ApiTestSupport {
 
         assertThat(profiles).containsOnlyKeys(withStats, withoutStats, otherGameOnly);
         assertThat(profiles.get(withStats).nickname()).isEqualTo(withStatsNickname);
-        assertThat(profiles.get(withStats).profile().mainPosition()).isEqualTo("MID");
+        assertThat(profiles.get(withStats).profile().tier()).isEqualTo("GOLD_1");
         assertThat(profiles.get(withStats).profile().stats().games()).isEqualTo(10);
         assertThat(profiles.get(withStats).profile().stats().winRate()).isEqualTo(60);
         assertThat(profiles.get(withStats).profile().stats().kda()).isEqualByComparingTo(new BigDecimal("4.00"));

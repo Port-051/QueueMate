@@ -49,13 +49,13 @@ class PostBoardTest extends PostTestSupport {
         String noAccount = newNickname();
         Cookie hostCookie = login(host);
         Long hostId = userIdOf(host);
-        insertGameAccount(hostId, "LOL", "host#KR1", "EMERALD_4", "MID");
+        insertGameAccount(hostId, "LOL", "host#KR1", "EMERALD_4");
         insertStats(hostId, "LOL", 180, 184, "{\"mostChampions\":[{\"championId\":103,\"games\":40,\"winRate\":55}]}");
         login(support);
         Long supportId = userIdOf(support);
-        insertGameAccount(supportId, "LOL", "sup#KR1", "GOLD_1", "SUPPORT");
+        insertGameAccount(supportId, "LOL", "sup#KR1", "GOLD_1");
         // LOL 계정은 없고 VALORANT 계정만 있다 — 이 글(LOL)의 카드에서는 profile 이 null 이다
-        putGameAccount(login(noAccount), "VALORANT", json("gameNickname", "val#1", "mainPosition", "DUELIST"));
+        putGameAccount(login(noAccount), "VALORANT", json("gameNickname", "val#1"));
         Long noAccountId = userIdOf(noAccount);
         // stranger 는 이 앱에 가입하지 않은 사용자 번호다 — 방에 들어온 뒤 사라진 계정이 이렇게 남는다
         Long stranger = unknownUserId();
@@ -84,7 +84,8 @@ class PostBoardTest extends PostTestSupport {
         assertThat(hostProfile.get("gameNickname").asString()).isEqualTo("host#KR1");
         assertThat(hostProfile.get("verified").asBoolean()).isFalse();
         assertThat(hostProfile.get("tier").asString()).isEqualTo("EMERALD_4");
-        assertThat(hostProfile.get("mainPosition").asString()).isEqualTo("MID");
+        // 사람별 포지션은 없다 — 게임 계정의 주 포지션을 없앴다(2026-09-29 소유자 결정 — P-35. D-20 ② 의 주 포지션 절반을 개정)
+        assertThat(hostProfile.has("mainPosition")).isFalse();
         assertThat(hostProfile.get("server").isNull()).isTrue();
         assertThat(hostProfile.get("stats").get("games").asInt()).isEqualTo(364);
         assertThat(hostProfile.get("stats").get("wins").asInt()).isEqualTo(180);
@@ -506,9 +507,9 @@ class PostBoardTest extends PostTestSupport {
             String host = newNickname();
             String member = newNickname();
             Cookie hostCookie = login(host);
-            insertGameAccount(userIdOf(host), "LOL", "h" + i, null, "MID");
+            insertGameAccount(userIdOf(host), "LOL", "h" + i, null);
             login(member);
-            insertGameAccount(userIdOf(member), "LOL", "m" + i, null, "TOP");
+            insertGameAccount(userIdOf(member), "LOL", "m" + i, null);
             Long postId = createLolPost(hostCookie, "TOP", "MID");
             openRoom(postId, userIdOf(host), userIdOf(member), unknownUserId());
             posts.add(postId);

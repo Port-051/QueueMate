@@ -51,7 +51,8 @@ public class UserController {
      * (게시판 목록의 {@code game} 과 같은 본문. 2026-09-27 소유자 지시 — 문자열로 받아 서비스가 파던 것을 없앴다).
      * 응답은 <b>게임 프로필</b>이다({@code verified} · {@code stats} 포함 — 둘은 요청으로 바꿀 수 없다).
      *
-     * <p><b>LoL 은 본문이 {@code gameNickname}(이름#태그)과 선택인 {@code mainPosition} 이고 저장하기 전에 Riot 을 긁는다</b>(최대 30초 — 2026-09-27 소유자 결정).
+     * <p><b>LoL 은 본문이 {@code gameNickname}(이름#태그) 하나이고 저장하기 전에 Riot 을 긁는다</b>(최대 30초 — 2026-09-27 소유자 결정).
+     * <b>어느 게임이든 {@code mainPosition} 을 보내면 400 이다</b>(2026-09-29 소유자 결정 — 게임 계정에 주 포지션이 없다. {@code GameAccountRequest}).
      * 티어 · 전적이 Riot 에서 채워져 응답에 바로 들어 있다. VALORANT · PUBG 는 자기신고 그대로다. 갈래는 {@code UserService#putGameAccount}.
      */
     @PutMapping("/game-accounts/{game}")

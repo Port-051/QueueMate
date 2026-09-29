@@ -248,17 +248,17 @@ public abstract class ApiTestSupport {
     /**
      * API 를 거치지 않고 게임 계정 한 줄을 바로 넣고 그 번호를 돌려준다(있으면 바꾼다). <b>LoL 은 연결이 Riot 을 긁어야 저장되므로</b>
      * (2026-09-27 소유자 결정 — {@code PUT …/game-accounts/LOL}) 게시판 · 프로필 테스트가 Riot 흐름을 매번 타지 않고 계정을 갖추려고 쓴다.
-     * 사용자를 지우면 FK 의 {@code ON DELETE CASCADE} 가 같이 지운다.
+     * 사용자를 지우면 FK 의 {@code ON DELETE CASCADE} 가 같이 지운다. 주 포지션의 칸은 없다(2026-09-29 — V4 가 지웠다, P-35).
      */
-    protected Long insertGameAccount(Long userId, String game, String gameNickname, String tier, String mainPosition)
+    protected Long insertGameAccount(Long userId, String game, String gameNickname, String tier)
     {
         return jdbcTemplate.queryForObject("insert into game_accounts "
-                        + "(user_id, game, game_nickname, tier, main_position, created_at, updated_at) "
-                        + "values (?, ?, ?, ?, ?, now(), now()) "
+                        + "(user_id, game, game_nickname, tier, created_at, updated_at) "
+                        + "values (?, ?, ?, ?, now(), now()) "
                         + "on conflict on constraint game_accounts_user_id_game_key do update "
                         + "set game_nickname = excluded.game_nickname, tier = excluded.tier, "
-                        + "main_position = excluded.main_position, updated_at = excluded.updated_at returning id",
-                Long.class, userId, game, gameNickname, tier, mainPosition);
+                        + "updated_at = excluded.updated_at returning id",
+                Long.class, userId, game, gameNickname, tier);
     }
 
     /**

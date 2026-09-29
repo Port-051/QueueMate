@@ -39,8 +39,8 @@ import java.util.function.ToIntFunction;
  * 솔로랭크 줄의 {@code tier} + {@code rank} 를 gameconfig 사다리의 이름으로({@link #ladderName}). 줄이 없으면(언랭) {@code null},
  * 만든 이름이 사다리에 없으면(Riot 이 티어를 새로 만들었다 등) WARN 하고 {@code null}. Redis 를 못 읽으면 {@link GameConfigReader} 의 fail-open 대로 그 이름을 그대로 둔다.
  *
- * <p><b>주 포지션은 만들지 않는다</b>(같은 날 소유자 결정) — 주 포지션은 "지금 하고 싶은 포지션"이라 사용자가 정한다.
- * 최근 경기의 {@code teamPosition} 은 "지금까지 한 것"이라 뜻이 다르다. 그래서 그 칸을 읽지도 않는다.
+ * <p><b>주 포지션은 만들지 않는다</b>(같은 날 소유자 결정) — 최근 경기의 {@code teamPosition} 은 "지금까지 한 것"이라 뜻이 다르다. 그래서 그 칸을 읽지도 않는다.
+ * (2026-09-29 부터는 게임 계정에 주 포지션 칸 자체가 없다 — P-35.)
  *
  * <p><b>Riot ID 가 없으면({@code account-v1} 404) {@link RiotIdNotFoundException}</b> 이다 — 게임 계정 연결이 404 {@code RIOT_ID_NOT_FOUND} 로 옮긴다.
  *

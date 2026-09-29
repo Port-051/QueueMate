@@ -129,7 +129,7 @@ class AutoJoinTest extends PostTestSupport {
     private Long hostWithTier(String tier)
     {
         Long hostId = insertUser();
-        insertGameAccount(hostId, "LOL", "host#KR1", tier, "TOP");
+        insertGameAccount(hostId, "LOL", "host#KR1", tier);
         return hostId;
     }
 

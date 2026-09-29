@@ -17,7 +17,8 @@ import java.time.Instant;
 /**
  * 사용자가 연결한 게임 계정. 게임마다 하나다({@code UNIQUE (user_id, game)}). 티어는 <b>VALORANT · PUBG 는 자기신고</b>이고
  * <b>LoL 은 Riot 에서 채운다</b>(2026-09-27 소유자 결정) — 게임사 API 에서 가져오는 것은 전적({@code GameAccountStats}) · {@code externalId},
- * 그리고 LoL 의 티어다({@code account.stats}). <b>주 포지션은 세 게임 모두 사용자가 정한다</b>("지금 하고 싶은 포지션" — 같은 날 소유자 결정).
+ * 그리고 LoL 의 티어다({@code account.stats}). <b>주 포지션은 없다</b>(2026-09-29 소유자 결정 — P-35. 포지션은 게시판에 글을 쓸 때 정하는 것이다 —
+ * {@code main_position} 칸은 마이그레이션 V4 가 지웠다).
  *
  * <p><b>읽기 전용으로 쓴다.</b> 만들기 · 바꾸기는 엔티티를 거치지 않고 {@code INSERT … ON CONFLICT DO UPDATE} 한 문장으로 한다
  * ({@code GameAccountRepository#upsert}) — "있는지 보고 없으면 넣는다"로 하면 동시에 온 두 요청이 둘 다 넣으려 든다.
@@ -51,9 +52,6 @@ public class GameAccount {
 
     @Column(name = "tier", length = 20)
     private String tier;
-
-    @Column(name = "main_position", length = 20)
-    private String mainPosition;
 
     /** 게임사 쪽 계정 식별자 — LoL 은 {@code puuid} 다({@code account.stats} 가 전적을 긁을 때 적는다). VALORANT · PUBG 는 아직 {@code null} 이다. 응답에 싣지 않는다 */
     @Column(name = "external_id", length = 100)

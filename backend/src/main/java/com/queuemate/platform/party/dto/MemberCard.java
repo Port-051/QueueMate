@@ -6,7 +6,7 @@ import com.queuemate.platform.account.dto.GameProfileResponse;
  * 방 안 사람 한 명의 카드 — 글 한 줄의 {@code host} 와 {@code members[]} 가 같은 모양을 쓴다 ({@code contracts/platform-api.md} "글 한 줄").
  *
  * <p>화면이 글을 눌러 펼치지 않고 한 줄에 전원을 보여 주므로 <b>게임 프로필 전체</b>({@code gameNickname} · {@code verified} · {@code tier} ·
- * {@code mainPosition} · {@code server} · {@code stats})를 싣는다.
+ * {@code server} · {@code stats})를 싣는다. <b>사람별 포지션은 없다</b> — 게임 계정의 주 포지션을 없앴다(2026-09-29 소유자 결정 — P-35).
  *
  * @param userId   사용자 번호
  * @param nickname 이 앱에 없는 번호면 {@code null} 이다(방에 들어온 뒤 사라진 계정 등 — 그런 사람도 카드에서 빼지 않는다.

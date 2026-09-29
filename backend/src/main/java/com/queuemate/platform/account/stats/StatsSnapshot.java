@@ -22,7 +22,7 @@ import java.math.BigDecimal;
  * @param detail     게임마다 다른 나머지를 담은 <b>JSON 객체의 글자</b>(jsonb 로 들어간다). LoL 은 {@code {"mostChampions": […]}} 다
  * @param tier         <b>{@code game_accounts.tier} 에 적는다</b>(2026-09-27 소유자 결정 — LoL 은 티어를 요청으로 받지 않고 Riot 에서 채운다).
  *                     gameconfig 티어 사다리의 이름({@code GOLD_2} · {@code MASTER})이다. 언랭이거나 사다리에 없는 이름이면 {@code null}.
- *                     <b>주 포지션은 여기 없다</b> — 사용자가 정한다(같은 날 소유자 결정. 게임 계정 연결의 요청에서 온다)
+ *                     <b>주 포지션은 여기 없다</b> — Riot 에서 뽑지 않는다(같은 날 소유자 결정. 2026-09-29 부터는 게임 계정에 그 칸 자체가 없다 — P-35)
  */
 public record StatsSnapshot(
         String externalId,

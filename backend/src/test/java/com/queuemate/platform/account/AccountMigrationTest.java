@@ -283,6 +283,20 @@ class AccountMigrationTest extends ApiTestSupport {
     }
 
     @Test
+    @DisplayName("V4 — 게임 계정에 주 포지션 칸이 없다(2026-09-29 소유자 결정 — P-35). 나머지 칸은 그대로다")
+    void gameAccountHasNoMainPosition()
+    {
+        assertThat(jdbcTemplate.queryForList(
+                "select column_name from information_schema.columns "
+                        + "where table_schema = 'public' and table_name = 'game_accounts' order by column_name",
+                String.class)).containsExactly("created_at", "external_id", "game", "game_nickname", "id", "server",
+                "tier", "updated_at", "user_id", "verified");
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from flyway_schema_history where version = '4' and success", Integer.class))
+                .isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("게임은 셋뿐이고, 한 사용자에 게임마다 한 줄이다. 사용자를 지우면 딸린 줄도 지워진다")
     void gameAccountConstraintsAndCascade()
     {

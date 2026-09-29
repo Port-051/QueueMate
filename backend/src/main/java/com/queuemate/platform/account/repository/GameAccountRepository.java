@@ -47,20 +47,17 @@ public interface GameAccountRepository extends JpaRepository<GameAccount, Long> 
      */
     @Modifying
     @Query(nativeQuery = true, value = """
-            INSERT INTO game_accounts (user_id, game, game_nickname, tier, main_position, server, created_at, updated_at)
-            VALUES (:userId, :game, :gameNickname, CAST(:tier AS varchar), CAST(:mainPosition AS varchar),
-                    CAST(:server AS varchar), :now, :now)
+            INSERT INTO game_accounts (user_id, game, game_nickname, tier, server, created_at, updated_at)
+            VALUES (:userId, :game, :gameNickname, CAST(:tier AS varchar), CAST(:server AS varchar), :now, :now)
             ON CONFLICT ON CONSTRAINT game_accounts_user_id_game_key DO UPDATE
                SET game_nickname = EXCLUDED.game_nickname,
                    tier          = EXCLUDED.tier,
-                   main_position = EXCLUDED.main_position,
                    server        = EXCLUDED.server,
                    updated_at    = EXCLUDED.updated_at
             """)
     void upsert(@Param("userId") Long userId, @Param("game") String game,
                 @Param("gameNickname") String gameNickname, @Param("tier") String tier,
-                @Param("mainPosition") String mainPosition, @Param("server") String server,
-                @Param("now") Instant now);
+                @Param("server") String server, @Param("now") Instant now);
 
     /**
      * 여러 사용자의 그 게임 계정 — <b>쿼리 한 번이다</b>(전적은 읽지 않는다). 게시판 방 먼저 합류가 후보 글들의 방장 티어를 한꺼번에 읽는다
@@ -75,7 +72,6 @@ public interface GameAccountRepository extends JpaRepository<GameAccount, Long> 
     /**
      * Riot 에서 긁어 온 것을 게임 계정 줄에 적는다 — 게임사 쪽 식별자(LoL 은 {@code puuid}) · <b>티어</b>
      * (2026-09-27 소유자 결정 — LoL 은 티어를 요청으로 받지 않고 Riot 에서 채운다. {@code account.stats}).
-     * <b>{@code main_position} 은 건드리지 않는다</b> — 사용자가 정하는 값이다(같은 날 소유자 결정).
      * <b>{@code verified} 는 건드리지 않는다</b> — 식별자를 알아낸 것은 본인 확인이 아니다(켜는 길은 아직 없다 — CLAUDE.md §7).
      * <b>{@code game_nickname} 도 건드리지 않는다</b> — 사용자가 적은 값이다.
      * 둘이 다 그대로면 UPDATE 를 내지 않는다({@code where} 절이 가른다) — 전적만 갱신되는 흔한 경우에 {@code updated_at} 이 흔들리지 않게.

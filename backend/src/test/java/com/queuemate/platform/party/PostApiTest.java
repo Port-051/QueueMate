@@ -37,7 +37,7 @@ class PostApiTest extends PostTestSupport {
         String host = newNickname();
         Cookie cookie = login(host);
         Long hostId = userIdOf(host);
-        insertGameAccount(hostId, "LOL", "달콤한 인생#KR7", "EMERALD_4", "MID");
+        insertGameAccount(hostId, "LOL", "달콤한 인생#KR7", "EMERALD_4");
 
         createPost(cookie, lolPostBody("에메 듀오 구해요", "SUPPORT", "MID", "SUPPORT"))
                 .andExpect(status().isCreated())
@@ -67,7 +67,8 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(jsonPath("$.host.nickname").value(host))
                 .andExpect(jsonPath("$.host.host").value(true))
                 .andExpect(jsonPath("$.host.profile.gameNickname").value("달콤한 인생#KR7"))
-                .andExpect(jsonPath("$.host.profile.mainPosition").value("MID"))
+                // 사람별 포지션은 카드에 없다 — 게임 계정의 주 포지션을 없앴다(2026-09-29 소유자 결정 — P-35)
+                .andExpect(jsonPath("$.host.profile.mainPosition").doesNotExist())
                 .andExpect(jsonPath("$.members.length()").value(1))
                 .andExpect(jsonPath("$.members[0].userId").value(equalTo(hostId), Long.class))
                 .andExpect(jsonPath("$.members[0].host").value(true));

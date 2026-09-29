@@ -73,12 +73,13 @@ public class UserService {
     /**
      * 게임 계정을 연결한다 — 없으면 만들고 있으면 바꾼다. 게임마다 하나다. 게임에 따라 길이 둘이다(2026-09-27 소유자 결정).
      * <ul>
-     *   <li><b>LoL — 티어 · 전적은 Riot 에서 채운다.</b> 본문은 {@code gameNickname}(이름#태그)과 선택인 {@code mainPosition} 이고 {@code tier} · {@code server} 를 보내면 400 이다.
-     *       주 포지션은 "지금 하고 싶은 포지션"이라 사용자가 정한다(Riot 의 최근 경기에서 뽑지 않는다 — 같은 날 소유자 결정).
+     *   <li><b>LoL — 티어 · 전적은 Riot 에서 채운다.</b> 본문은 {@code gameNickname}(이름#태그) 하나이고 {@code tier} · {@code server} 를 보내면 400 이다.
      *       <b>저장하기 전에 Riot 을 긁는다</b>(동기 · 상한 30초) — 티어는 솔로랭크에서 채우고 응답에 {@code stats} 까지 들어 있다.
      *       이름#태그가 Riot 에 없으면 404 {@code RIOT_ID_NOT_FOUND}, Riot 을 못 부르면 503 — <b>둘 다 저장하지 않는다</b>({@link GameStatsRefresher#link})</li>
      *   <li><b>VALORANT · PUBG — 자기신고.</b> 게임사 API 가 없어 적은 대로 저장하고 긁지 않는다</li>
      * </ul>
+     * <b>주 포지션은 어느 게임도 받지 않는다</b>(2026-09-29 소유자 결정 — P-35). {@code mainPosition} 이 오면 이 메서드에 닿기 전에
+     * {@code @Valid} 가 400 으로 거른다({@link GameAccountRequest}).
      *
      * <p><b>{@code @Transactional} 이 없다 — 붙이면 안 된다.</b> LoL 은 최대 30초를 기다리므로 그동안 DB 커넥션을 붙잡으면 커넥션 풀이 마른다.
      * 저장은 짧은 트랜잭션으로 따로 한다(LoL 은 {@code stats.GameStatsStore#link}, 자기신고는 {@link #saveSelfReported}).
@@ -104,20 +105,16 @@ public class UserService {
         }
     }
 
-    /** LoL — 요청은 이름#태그와 (선택) 주 포지션이다. 티어 · 서버를 보내면 400(전부 Riot 을 부르기 전에 거른다) */
+    /** LoL — 요청은 이름#태그 하나다. 티어 · 서버를 보내면 400(전부 Riot 을 부르기 전에 거른다) */
     private GameAccountWithStats linkFromRiot(Long userId, GameAccountRequest request)
     {
         rejectForRiot("tier", request.tier());
         rejectForRiot("server", request.server());
-        if(!Game.LOL.allowsPosition(request.mainPosition()))
-        {
-            throw ApiException.validationFailed("mainPosition", Game.LOL.name() + " 의 포지션이 아닙니다");
-        }
         if(!LolStatsProvider.isRiotId(request.gameNickname()))
         {
             throw ApiException.validationFailed("gameNickname", "LOL 은 '이름#태그' 여야 합니다");
         }
-        return gameStatsRefresher.link(userId, Game.LOL, request.gameNickname(), request.mainPosition());
+        return gameStatsRefresher.link(userId, Game.LOL, request.gameNickname());
     }
 
     private static void rejectForRiot(String field, String value)
@@ -137,12 +134,6 @@ public class UserService {
         {
             throw ApiException.validationFailed("tier", game.name() + " 의 티어가 아닙니다");
         }
-        if(!game.allowsPosition(request.mainPosition()))
-        {
-            throw ApiException.validationFailed("mainPosition", game.positions().isEmpty()
-                    ? game.name() + " 에는 포지션이 없습니다"
-                    : game.name() + " 의 포지션이 아닙니다");
-        }
         if(!game.allowsServer(request.server()))
         {
             throw ApiException.validationFailed("server", game.servers().isEmpty()
@@ -151,7 +142,7 @@ public class UserService {
         }
         return transactionTemplate.execute(status -> {
             gameAccountRepository.upsert(userId, game.name(), request.gameNickname(), request.tier(),
-                    request.mainPosition(), request.server(), Instant.now().truncatedTo(ChronoUnit.MILLIS));
+                    request.server(), Instant.now().truncatedTo(ChronoUnit.MILLIS));
             // 요청에서 되짚어 만들지 않고 다시 읽는다 — verified · stats 는 요청에 없는 칸이라 DB 에만 있다
             return gameAccountRepository.findWithStatsByUserIdAndGame(userId, game)
                     .map(GameProfileResponse::from)

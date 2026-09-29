@@ -55,7 +55,7 @@ class GameStatsNotConfiguredTest extends ApiTestSupport {
 
         mockMvc.perform(put("/api/v1/users/me/game-accounts/VALORANT").cookie(cookie)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json("gameNickname", "제트#KR1", "mainPosition", "DUELIST")))
+                        .content(json("gameNickname", "제트#KR1")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.stats").isEmpty());
         assertThat(pool.getThreadPoolExecutor().getTaskCount()).isZero();
@@ -68,7 +68,7 @@ class GameStatsNotConfiguredTest extends ApiTestSupport {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
         // 키가 있던 때 연결해 둔 계정이라고 친다 — 지금은 API 로 LoL 계정을 만들 수 없다
-        Long gameAccountId = insertGameAccount(userIdOf(nickname), "LOL", "달콤한 인생#KR7", null, null);
+        Long gameAccountId = insertGameAccount(userIdOf(nickname), "LOL", "달콤한 인생#KR7", null);
 
         mockMvc.perform(post("/api/v1/users/me/game-accounts/LOL/refresh").cookie(cookie))
                 .andExpect(status().isServiceUnavailable())
