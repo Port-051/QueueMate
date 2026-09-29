@@ -43,6 +43,7 @@
 8. **4단계(게시판 · 방)는 2026-09-29 에 끝났다** — 홈은 방 카드 보드를 우리 게시판(`GET /posts?game=` · `POST /posts` · `POST /rooms/{roomId}/members` · `BOARD_CHANGED`)에 맞춘 것이고, 방 화면 `/app/party/:roomId` 는 게시판 방(글 번호)과 자동 매칭 방(UUID)이 같은 화면 · 같은 요청이다. 내 방(입장 표시 키의 사본 · heartbeat · `ROOM_*`)은 `state/RoomSessionContext.tsx` 가 든다.
 9. **5단계(소셜)도 2026-09-29 에 끝났다 — 통합 다섯 단계가 다 됐다.** 친구 · 차단 · 신고 · 최근 함께한 사람은 `state/SocialContext.tsx` · `FriendManagementPanel`(메시지 화면의 패널 — `?manage=friends|received|sent|blocks|recent`) · `ReportModal` · `domain/socialErrors.ts` 다. **사람 검색은 없다** — 상대의 사용자 번호를 직접 넣거나 방 안 카드 · 최근 함께한 사람에서 온다. 응답의 id 는 숫자, 본문의 `userId` · `targetUserId` · `contextId` 는 문자열이다. `FRIEND_*` 는 "다시 조회하라" 다. 대응물 없는 화면(DM · 알림함 · 아바타 · 예약 · 듀오 제안)은 **남기되 연결하지 않는다**(같은 날 소유자 결정 — DM 은 연락처 출처만 새 API). 남은 것은 `START_HERE.md` §5.
 10. **로그인 화면 · Google · 개발용 로그인(2026-09-29)** — `/login` 은 소유자가 준 그림대로 **카카오 · Discord · Google 큰 버튼 셋**이 세로로 쌓이고 마지막으로 누른 제공자에 **"최근 사용" 배지**(`localStorage['qm.lastProvider']`)가 붙는다. `GOOGLE` 은 카카오 · 디스코드와 같은 경로 · 같은 콜백 갈래다(백엔드는 platform 에서 구현 중). **개발용 로그인**은 `import.meta.env.DEV` 일 때만 그리고(운영 빌드에서 빠진다) 관련 코드는 전부 **`TEMP-DEV-LOGIN`** 주석이다 — 나중에 `grep -rn TEMP-DEV-LOGIN src` 로 통째로 걷어낸다. 세부와 Claude 가 정한 것(흰 로그인 카드 등)은 `START_HERE.md` §1 "로그인 화면 · Google · 개발용 로그인".
+11. **게임 계정에 주 포지션 · 주 역할군이 없다(2026-09-29)** — "포지션은 게시판에 글 쓸 때 하는 것이니 계정 연동에서 할 이유가 없다." 게임 계정 본문은 LOL `{gameNickname}` · VALORANT `{gameNickname, tier?}` · PUBG `{gameNickname, tier?, server}` 이고 **`mainPosition` 을 보내면 400**, 게임 프로필에도 그 칸이 없다(platform 도 같이 바꾼다). 게임 계정 폼 · 내 정보 카드 · 방 카드(`RoomMemberFacts`)에서 사람별 포지션을 뺐다. **포지션은 글의 `wantedPositions`(찾는 포지션)와 매칭 조건의 `keyCondition` 둘뿐이다.** 세부는 `START_HERE.md` §1 "게임 계정의 주 포지션 · 주 역할군을 없앴다".
 
 ## 4. 하지 말 것
 
@@ -54,6 +55,7 @@
 - **`BOARD_CHANGED` 마다 즉시 · 무제한으로 목록을 다시 받기** — 묶는다(**2.5초 창 · 보이는 탭만** — 4단계에서 프런트가 정했다 · `rooms/useRoomData.ts`). 신호를 받았을 때 커서를 쓰기(펼친 만큼을 `limit` 으로 맨 위부터 다시 받는다). **방 안을 맨손으로 그리기** — 내 방 · 사람 목록 · heartbeat · `ROOM_*` 는 `state/RoomSessionContext.tsx` 하나가 든다(방 요청을 화면에서 직접 부르지 않는다). 방 화면에서 `POST /rooms/{roomId}/members` · `/confirm` 을 자동 매칭 방(UUID)에 부르기(그 방은 `POST /match-parties/{partyId}/room` 으로만 들어가고 처음부터 확정이다).
 - **개발용 로그인을 운영 빌드에 새게 하기** — `DevLoginPanel` · `devLogin` 은 `import.meta.env.DEV` 조건 안에서만 부른다. 개발용 경로 · 화면을 더할 때 `TEMP-DEV-LOGIN` 표시 없이 쓰지 않는다(걷어낼 때 grep 한 번으로 다 나와야 한다).
 - **`GET /rooms/{roomId}/members` 로 목록을 그리기** — 방 안 사람만 볼 수 있다(403). 방 밖에서 방 안을 보는 창구는 게시판 목록이다.
+- **게임 계정 · 게임 프로필 · 방 카드에 주 포지션 · 주 역할군(`mainPosition`)을 되살리기** · 그 자리를 채울 새 칸(글 쓸 때 방장 자기 포지션 · 입장 때 고르는 포지션 등)을 지어내기 — 소유자가 없앴고(§3-11) 새 칸은 정하지 않았다.
 - **`mode` · `tier` · 포지션의 값을 소문자 · 다른 이름으로 보내기** — 백엔드는 대문자 enum 그대로만 받는다(`LOL` · `RANKED_SOLO` · `GOLD_4` · `MID`). 원본의 `SOLO_DUO_RANKED` · `PLAY_STYLE` · `OPTIONAL` · 디비전 없는 티어 `GOLD`(우리 사다리는 `GOLD_4` 꼴이고 이름은 seed 의 것이어야 한다) 같은 옛 이름을 남기기.
 - **게임 설정 조회 API · 사람 검색 API · 확정된 파티 조회(`parties`) · 아바타 업로드 · 예약 API 를 백엔드에 만들어 달라고 하기.** 미정이거나 두지 않기로 한 것이다(§5).
 - **`dev` 서버를 띄워 놓고 안 내리기.** `pkill -f` 금지. `git add -A` · `git add .` 금지(IntelliJ 가 자동 스테이징한다). **푸시는 지시가 있을 때만.**
