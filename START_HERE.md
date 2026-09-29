@@ -10,7 +10,7 @@
 |---|---|
 | 원본 | `Port-051/QueueMate` **`codex/room-card-board` 7ee7177**(2026-09-28)의 `frontend/` · 277 파일. `main`(f860ada) 과의 merge-base 는 f860ada — 즉 **main 전부 + 방 카드 보드 90커밋**이다(§4). 커밋 `14946a9` |
 | 가져오며 한 것 | 원본 README → `docs/UPSTREAM_README.md`. `.gitignore` 에 `node_modules/ dist/ .vite/ *.log .env*(.env.example 예외) .DS_Store` 보탬. `node_modules` · `dist` 제외. 원본의 `contracts/`(`rooms.openapi.yaml` · `openapi.yaml` · `events.md`)는 **가져오지 않았다** — 우리 계약이 아니다(§4 에 방 API 모양만 요약) |
-| 확인 | `npm run build` · `npm run typecheck` **통과**(2026-09-28 · 2 · 3단계 커밋마다 · 2026-09-29 4 · 5단계 커밋마다 · 사다리별 티어 커밋. OneDrive 아래 WSL). dev 서버 · 백엔드는 띄우지 않았다 — 소셜 로그인은 카카오 · 디스코드 앱 키가 없어 브라우저에서 아직 못 해 본다(소유자 결정). **3단계의 흐름(auto-join → 대기열 → 제안 → 확정 → 파티룸)도 4단계의 흐름(글 쓰기 → 입장 → 방 화면 → 확정)도 5단계의 흐름(친구 요청 → `FRIEND_*` → 수락)도 실제로 띄워 본 적이 없다** — 계약과 백엔드 코드를 읽고 맞췄다. **로그인 화면(2026-09-29)만은 눈으로 봤다** — 운영 · 개발 모드 빌드를 `vite preview`(4180 · 4181 — 5173 은 건드리지 않았다)로 띄워 headless Chromium 으로 1440 · 360 폭을 찍었다(백엔드 없이 — 버튼 셋 · 최근 사용 배지 · `?error=` 문구 · 가로 넘침 없음 · 개발용 버튼이 프록시의 500 에 문구를 내는 것까지) |
+| 확인 | `npm run build` · `npm run typecheck` **통과**(2026-09-28 · 2 · 3단계 커밋마다 · 2026-09-29 4 · 5단계 커밋마다 · 사다리별 티어 커밋. OneDrive 아래 WSL). dev 서버 · 백엔드는 띄우지 않았다 — 소셜 로그인은 카카오 · 디스코드 앱 키가 없어 브라우저에서 아직 못 해 본다(소유자 결정). **3단계의 흐름(auto-join → 대기열 → 제안 → 확정 → 파티룸)도 4단계의 흐름(글 쓰기 → 입장 → 방 화면 → 확정)도 5단계의 흐름(친구 요청 → `FRIEND_*` → 수락)도 실제로 띄워 본 적이 없다** — 계약과 백엔드 코드를 읽고 맞췄다. **로그인 화면(2026-09-29)만은 눈으로 봤다** — 운영 · 개발 모드 빌드를 `vite preview`(4180 · 4181 — 5173 은 건드리지 않았다)로 띄워 headless Chromium 으로 1440 · 360 폭을 찍었다(백엔드 없이 — 버튼 셋 · 최근 사용 배지 · `?error=` 문구 · 가로 넘침 없음 · 개발용 버튼이 프록시의 500 에 문구를 내는 것까지). **2026-09-30 부터 실제 백엔드 e2e 가 있다**(`npm run e2e` — 소유자 결정 · `CLAUDE.md` §3-21 · 아래 §6 "실제 백엔드 e2e"). 첫 실행에서 시나리오 열 개 가운데 아홉이 통과했고 **하나(음성)는 제품 버그를 찾았다** — 답한 쪽의 소리가 제안한 쪽에 가지 않는다(`src/webrtc/WebRtcPartyClient.ts`). **3 · 4 · 5단계의 흐름(자동 매칭 → 제안 → 확정 → 파티 방 · 글 쓰기 → 입장 → 확정 · 친구)을 이 e2e 가 실제 백엔드로 처음 돌렸다** |
 | 코드 | **4단계까지 우리 백엔드 모양이다** — 쿠키 인증(`api/http.ts`) · 소셜 전용 로그인(`/login` — 카카오 · Discord · Google + dev 서버에서만 개발용 로그인(`TEMP-DEV-LOGIN`) · `/signup/social` · `/settings`) · 프록시 셋(`vite.config.ts`) · SSE(`api/sse.ts`) · 게임 설정 정적 상수(`domain/gameCatalog.ts`) · **게임 계정(`GameAccountForm` · `OnboardingPage` · `MyInfoPage`) · 매칭(`state/MatchContext.tsx` · `domain/matchRequest.ts` · `RoomQuickConnect` 의 "자동 매칭 시작"(2026-09-29 까지 "매칭 시작") · `ProposalPage`)** · mock · e2e · Playwright 없음. **홈은 방 카드 보드다**(`RoomBoardHome` — 2026-09-28 소유자 결정) · **게시판(`GET /posts?game=` · `POST /posts` · 입장) · 내 방(`state/RoomSessionContext.tsx`) · 방 화면(`PartyRoomPage` — `/app/party/:roomId`)**(4단계 · 2026-09-29) · **친구 · 차단 · 신고 · 최근 함께한 사람(`SocialContext` · `FriendManagementPanel` · `ReportModal` · `domain/socialErrors.ts`)**(5단계 · 2026-09-29) · **사다리별 티어 · PUBG 연동(`domain/profileTier.ts` — 2026-09-29, 아래 "사다리별 티어 · PUBG 연동")**. **원본 경로가 남은 곳은 대응물이 없는 것뿐이다** — 예약(`/reservations`) · 아바타(`POST /users/me/avatar`) · legacy 홈의 `/recruitments/*`(전부 라우트 밖 · 부르면 404). 아래 "5단계 뒤의 모양" |
 | 단계 | **1단계(가져오기 · 빌드) ✅ · 2단계(인증 · 전송) ✅ · 3단계(게임 계정 · 매칭) ✅**(2026-09-28 · 커밋 `fdd9aa3`~`3e3e028` · `9ef996d` · `33707e1`) · **4단계(게시판 · 방) ✅**(2026-09-29 · 커밋 `1bd673b` · `f0c998e`) · **5단계(소셜) ✅**(2026-09-29 · 커밋 `33bb4d2`). **통합 다섯 단계가 끝났다** — 남은 것은 §5 |
 
@@ -319,7 +319,7 @@
   - **Claude 가 정한 세부의 검토** — §1 의 3 · 4 · 5단계 "뒤의 모양" 끝 줄(503 을 matching 으로 넘기는 것 · `BOARD_CHANGED` 2.5초 · 티어 범위 필터를 뺀 것 · `FRIEND_*` 토스트 · 최근 함께한 사람 탭 등) · **로그인 화면**(원본 카드에 맞춘 버튼 크기 · Google 테두리 · 최근 사용의 색 · 배지 자리 — §1 "로그인 화면 · Google · 개발용 로그인" 의 "Claude 가 정한 세부") · **사다리별 티어**(사다리 없는 모드의 카드 티어 = 가장 높은 티어 · 라벨 · 막는 문구 · PUBG 전적 칸 · `top1Rate` 단위 — §1 "사다리별 티어 · PUBG 연동" 끝 줄).
   - **계약의 구멍**(백엔드에 만들어 달라고 하지 않는다 — 소유자가 정한다) — 제안 화면의 팀원 목록(`GET /proposals/{id}` 없음) · 자동 매칭 방의 파티원 닉네임 · 프로필(사용자 조회 API 없음 — `#번호` 만) · 방 안 사람에게 "글이 바뀌었다" 를 알릴 길 · `recruit_posts.mode` 의 `null`(P-16).
   - **인증에 남은 것** — access 15분의 **만료 전 선제 재발급**(지금은 401 뒤 한 번) · 모든 기기 로그아웃(백엔드에도 없다) · **개발용 로그인(`TEMP-DEV-LOGIN`)을 걷어낼 때**(소셜 앱 키가 등록된 뒤 — 소유자가 정한다. `grep -rn TEMP-DEV-LOGIN src`).
-  - **테스트** — 순수 함수 테스트를 다시 둘지와 러너(2단계에서 Playwright 러너째 지웠다).
+  - **테스트** — 순수 함수 테스트를 다시 둘지와 러너(2단계에서 Playwright 러너째 지웠다). → **2026-09-30 에 러너는 Playwright 로 돌아왔다 — 실제 백엔드 e2e 로**(`CLAUDE.md` §3-21 · §6 "실제 백엔드 e2e"). 순수 함수 테스트는 여전히 미정이다.
   - ~~**PUBG 의 "플레이 스타일"(2026-09-29)**~~ — **정해졌다(같은 날 소유자 결정)**: PUBG 의 "플레이 스타일" 은 넣지 않는다(matching 이 일부러 플랫폼으로 바꿔 없앤 조건이다). 그 자리에 **세 게임 공통 "플레이 목적"**(`playPurpose` — 매칭 시작에만)을 폼에 두었다 — §1 "매칭 시작 폼의 플레이 목적 · 배그 플랫폼 기본값 · 모드 표기". 원본의 `PUBG_STYLES`(`AGGRESSIVE` 등)는 채우지 않는다.
   - **게임 계정을 선택으로 한 것에서 Claude 가 정한 세부의 검토(2026-09-29)** — 저장 키 · "시작하기" 도 기억하는 것 · 온보딩을 로그인 직후의 목적지에서만 권하는 것(딥 링크는 거치지 않는다) · 문구 · 링크 자리 — §1 "게임 계정 연결을 선택으로" 의 "Claude 가 정한 세부".
   - **플레이 목적 · 모드 표기에서 Claude 가 정한 세부의 검토** — 라벨(프로필 설정의 "랭크 상승 · ~~일반 플레이~~ 빡겜 · 즐겜") · 안내 문구 · 배그 서버는 폼이 비어 있을 때만 · 인원 표기 `4인`(듀오 · 스쿼드가 아니다) · LoL · VALORANT 도 같은 표기 — §1 그 절의 "Claude 가 정한 세부".
@@ -350,3 +350,40 @@ ss -ltnp | grep :5173   # → kill <PID>. pkill -f 금지
 - **dev 서버가 고친 파일을 못 볼 수 있다** — `CLAUDE.md` §7.
 - platform 의 `FRONT_BASE_URL` 기본값이 `http://localhost:5173` 이라 콜백이 5173 으로 돌아온다. `ALLOWED_ORIGINS` 기본값에 5173 이 있어 `Origin` 검사도 통과한다.
 - SSE 도착 확인은 `PUBSUB NUMSUB` 이 1 이 된 뒤에(루트 `START_HERE.md` §8).
+
+### 실제 백엔드 e2e(2026-09-30 소유자 결정 — `CLAUDE.md` §3-21)
+
+"API를 보내고 이제 동작이 우리가 원하는 기능대로 흘러가는지 검증" — 요청을 보내고(필요한 곳은 화면을 눌러) **그 동작이 일으켜야 하는 것을 전부** 본다: 뒤따르는 조회 · 맞는 사람에게만 가는 SSE 알림 · 설계대로 거절 · 허용되는 뒤의 요청.
+
+**돌리기 전에 떠 있어야 하는 것 — e2e 는 아무것도 띄우지도 내리지도 않는다**(`webServer` 없음):
+platform 8082(**`DEV_LOGIN_ENABLED=true`** — 개발용 로그인으로 사람을 만든다 · LoL 을 돌리려면 `RIOT_API_KEY`) · notification 8081 · matching 8080 · Vite 5173(`npm run dev` — 프록시 셋) · PostgreSQL 5433 · Redis 6380(gameconfig seed 가 심겨 있어야 한다). 브라우저는 `~/.cache/ms-playwright` 의 chromium 1234(`@playwright/test` 1.62.1 이 쓰는 리비전 — 없으면 `npx playwright install chromium`).
+
+```bash
+cd "/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/frontend"
+npm run e2e                                   # 시나리오 1 ~ 10 (9 는 아래 환경변수가 없으면 건너뛴다)
+E2E_LOL_A='이름#태그' E2E_LOL_B='이름#태그' npm run e2e   # 9 까지 — 실제 Riot ID 는 명령줄에만(저장소에 적지 않는다)
+npx playwright test 05-                       # 하나만
+npx tsc -p e2e                                # e2e 의 타입 검사(앱의 tsc -b 는 src 만 본다)
+npx playwright show-report                    # 실패하면 trace · 스크린숏(test-results/ · playwright-report/ 는 .gitignore)
+```
+
+- **걸리는 시간 — 약 3분 반**(2026-09-30 측정 · 3:29). 그 가운데 약 2분은 **확정된 매칭 요청의 60초 잠금**(matching D-42 — 확정 뒤 60초 동안 그 사람은 글 쓰기 · 입장 · 자동 합류 · 새 매칭이 409 `ALREADY_QUEUED`)을 시나리오 6 · 10 의 준비가 기다린 것이다(앞의 5 · 9 가 확정까지 간다). 한 줄로만 돈다(`workers: 1` · `retries: 0`).
+- **Riot 예산** — LoL 계정 연결 한 번이 Riot 호출 14번(개발용 키 2분에 100번)이고 시나리오 9 가 두 계정을 **한 번씩만** 잇는다(한 번 돌 때 28번). 연달아 네 번 넘게 돌리지 않는다.
+- **사람** — 고정 닉네임 `e2e-a` · `e2e-b` · `e2e-c`(개발용 로그인이 없으면 만든다 — 사용자를 지우는 API 가 없어 이름을 고정했다). **`dev-tester` 는 쓰지 않는다.** 시나리오마다 앞뒤로 `reset`(`e2e/support/reset.ts`) — 방 나가기 · 매칭 대기 · 제안은 **취소**(거절하면 D-45 의 거절 기록이 남아 뒤 시나리오의 두 사람이 매칭되지 않는다) · 모집 중인 내 글 만료 · 차단 · 친구 · 친구 요청 걷기 · LoL 계정 끊기.
+- **남는 흔적(지우는 API 가 없다)** — 게시판에 **만료 · 확정된 `e2e sN …` 글**이 한 번 돌 때 열 개 남짓 쌓인다(끝난 글도 목록에 계속 남는다 — P-20) · e2e 사람끼리의 최근 함께한 사람 · 강퇴 · 나가기의 10분 금지 목록(`qm:room:no-entry:*` · `no-auto-join:*` — 10분 뒤 저절로 사라진다). 방 · 대기열 · 모집 중인 글 · 게임 계정은 남지 않는다(2026-09-30 DB · Redis 로 확인).
+- **남의 방을 건드리지 않는다** — 자동 합류(P-28) 시나리오는 같은 조건의 **남의 모집 중인 방**이 게시판에 있으면 그 판정을 건너뛴다(e2e 사람을 남의 방에 넣지 않는다). 매칭 대기열은 들여다볼 API 가 없다 — 소유자가 같은 조건(LoL 일반 2인 · 음성 안 씀 · 빡겜 / 솔로 랭크)으로 대기 중이면 e2e 사람과 매칭될 수 있다.
+
+| 파일 | 시나리오 | 보는 것 |
+|---|---|---|
+| `01-post-rules` | 1 글 쓰기 · 방장 포지션(P-38) | 400 다섯 갈래(`hostPosition: 필요합니다` · `wantedPositions: 하나 이상 필요합니다` · 겹침 · 칼바람 · PUBG) → 방이 안 생긴다 · 맞는 글 201 → 방장으로 방에 있다(`/rooms/me` · 방 안 사람) · 다른 사람에게 `BOARD_CHANGED` · 그 사람의 목록에 `hostPosition` |
+| `02-kick-ban` | 2 입장 · 강퇴 · 10분 금지(P-32) | 입장 → 방장에게 `ROOM_MEMBER_ENTERED`(본인은 안 받는다) · 강퇴 → 둘 다 `ROOM_MEMBER_KICKED` · 재입장 403 `KICKED_RECENTLY` · 자동 합류가 그 방을 건너뛴다(404) · 대조로 C 는 같은 본문으로 들어간다 |
+| `03-host-leaves` | 3 확정 전 방장 나가기 | 남은 사람에게 `ROOM_CLOSED`(방장은 안 받는다) · 글 `EXPIRED` · 둘 다 방 밖 · 그 방 입장 409 · 둘 다 곧바로 새 글 201 |
+| `04-confirm-party` | 4 확정 · 파티 · 닫힘(D-21 · D-23 · P-25) | 혼자 확정 409 · 방장 아님 403 · 확정 → 둘에게만 `ROOM_CONFIRMED {members}` · 다시 확정 200 · 글 `CONFIRMED` · C 입장 409(`POST_NOT_RECRUITING` — 글 검사가 먼저) · 방장 나가면 승계 · 마지막이 나가면 서로 최근 함께한 사람(새 파티 번호 · 시각) |
+| `05-auto-match` | 5 자동 매칭 두 사람(P-30) | `playPurpose: NORMAL` 400 · 대기 201 · 중복 409 · 둘 다 `MATCH_PROPOSAL_CREATED`(같은 `partyId` · 정원 2) · 한 명 수락 동안 확정 없음 · 둘 다 수락 → `MATCH_CONFIRMED` · `MATCHED` · 파티 방 201 → 200 · 방장 · `/rooms/me` · 시그널 202 → 상대에게만 `WEBRTC_SIGNAL`(보낸 그대로) · 나가기 |
+| `06-board-auto-join` | 6 게시판 방 먼저 합류(P-28 · P-38) | 방장 포지션(미드)으로 404 · 찾는 포지션(탑)으로 200 `{postId, roomId}` · 매칭 요청은 생기지 않는다 · 나간 뒤 10분 안의 재합류 404 · C 대조 200 · 직접 입장은 된다 |
+| `07-block` | 7 차단(D-20 · INV-6) | 목록에서 사라진다 · 단건 · 입장 404 `POST_NOT_FOUND` · C 에게는 보인다 · 중복 차단 409 · 맞는 조건으로 둘 다 대기해도 8초 동안 제안이 없다(둘 다 `QUEUED`) · 해제 |
+| `08-friends` | 8 친구 | 요청 → `FRIEND_REQUEST_RECEIVED {requestId, fromUserId}`(숫자) · 받은/보낸 목록 · 중복 409 · 수락 → `FRIEND_REQUEST_ACCEPTED` · 서로의 목록 · 끊기(알림 없음) |
+| `09-lol-ranked-ui` | 9 실제 LoL 연결 + 솔로 랭크 듀오(UI) | 내 정보 화면으로 연결 → `tiers.SOLO` · `FLEX` · `mostChampions` 가 `{championId, masteryLevel, masteryPoints}` 셋 이하 · 숙련도 순(P-39) · 게시판 자동 매칭 판(솔로 랭크)의 요청 본문 `tier` 가 연결한 솔로랭크 티어 · 제안 화면 → 수락 → 앱이 스스로 파티 방. 두 티어가 seed 의 `tier-range:RANKED_SOLO` 로 서로 맞지 않으면 매칭 단계를 건너뛰고 적는다 |
+| `10-voice` | 10 음성(UI) | "글 쓰고 파티 찾기" 팝업(요청 본문의 `hostPosition` · 내 포지션을 찾는 포지션에서 못 누름) · 카드의 빈 자리 → 참여하기 · 양쪽 "마이크 켜기" → 양쪽 `connectionState === 'connected'` · `inbound-rtp` 음성 `bytesReceived` 가 3초 사이에 는다 |
+
+**알려진 제품 버그(`test.fail` 로 표시 — 고쳐지면 "expected to fail" 로 빨갛게 되니 그때 지운다)** — 시나리오 10 의 **답한 쪽 → 제안한 쪽 음성**. 답하는 쪽도 offer 를 받기 전에 `ensurePeer` 가 `addTransceiver('audio')` 를 해 두는데 `setRemoteDescription(offer)` 는 `addTransceiver` 로 만든 것을 offer 의 m-line 에 붙이지 않아(JSEP — `addTrack` 으로 만든 것만 재사용) transceiver 가 둘이 된다 — 붙지 못한 것(mid=null · `startVoice` 의 `replaceTrack` 이 마이크를 여기 넣는다)과 offer 가 만든 recvonly 하나. 그래서 answer 가 recvonly 이고 소리가 한쪽(제안한 쪽 → 답한 쪽)으로만 간다. 확인한 상태: 제안한 쪽 `in=0B out=91817B` · 답한 쪽 `in=91817B out=0B`(`src/webrtc/WebRtcPartyClient.ts` — 고치는 것은 따로 연다).
