@@ -41,6 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li>포지션이 있는 모드(gameconfig 모드 HASH 의 {@code positionUniqueness = true} — LoL {@code RANKED_*} · {@code NORMAL_*} · VALORANT)면 <b>필수</b>다</li>
  *   <li>포지션이 없는 모드(LoL {@code ARAM_*})와 PUBG 는 <b>보내면 400</b> 이다 — 조용히 버리지 않는다</li>
  *   <li>그 게임의 포지션 이름이어야 하고 <b>찾는 포지션({@code wantedPositions})과 겹치면 안 된다</b></li>
+ *   <li><b>찾는 포지션도 모드를 따른다</b>(같은 날 소유자 결정 — 포지션이 있는 모드면 하나 이상 필수 · 없는 모드는 빈 배열만. "누구든" 글을 없앴다)</li>
  *   <li>gameconfig 를 못 읽거나 안 심겼으면 요구하지도 거절하지도 않는다(fail-open — P-16 과 같다). 이름 · 겹침은 그래도 본다</li>
  * </ul>
  * 글 한 줄의 칸이다 — 카드({@code {userId, nickname, host, profile}})의 모양은 그대로다.
@@ -140,7 +141,7 @@ class PostHostPositionTest extends PostTestSupport {
         create(cookie, "LOL", LOL_MODE, null, "MID").andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(detail("hostPosition: 필요합니다"));
-        create(cookie, "LOL", LOL_NORMAL, null).andExpect(status().isBadRequest()).andExpect(detail("hostPosition: 필요합니다"));
+        create(cookie, "LOL", LOL_NORMAL, null, "TOP").andExpect(status().isBadRequest()).andExpect(detail("hostPosition: 필요합니다"));
         create(cookie, "VALORANT", VALORANT_MODE, null, "SENTINEL").andExpect(status().isBadRequest())
                 .andExpect(detail("hostPosition: 필요합니다"));
         assertThat(jdbcTemplate.queryForObject("select count(*) from recruit_posts where host_id = ?", Integer.class, userIdOf(first)))
@@ -177,13 +178,13 @@ class PostHostPositionTest extends PostTestSupport {
     {
         Cookie cookie = login(newNickname());
 
-        create(cookie, "LOL", LOL_MODE, "DUELIST").andExpect(status().isBadRequest())
+        create(cookie, "LOL", LOL_MODE, "DUELIST", "TOP").andExpect(status().isBadRequest())
                 .andExpect(detail("hostPosition: LOL 의 포지션이 아닙니다"));
-        create(cookie, "LOL", LOL_MODE, "mid").andExpect(status().isBadRequest())
+        create(cookie, "LOL", LOL_MODE, "mid", "TOP").andExpect(status().isBadRequest())
                 .andExpect(detail("hostPosition: LOL 의 포지션이 아닙니다"));
-        create(cookie, "LOL", LOL_MODE, "").andExpect(status().isBadRequest())
+        create(cookie, "LOL", LOL_MODE, "", "TOP").andExpect(status().isBadRequest())
                 .andExpect(detail("hostPosition: LOL 의 포지션이 아닙니다"));
-        create(cookie, "VALORANT", VALORANT_MODE, "MID").andExpect(status().isBadRequest())
+        create(cookie, "VALORANT", VALORANT_MODE, "MID", "SENTINEL").andExpect(status().isBadRequest())
                 .andExpect(detail("hostPosition: VALORANT 의 포지션이 아닙니다"));
         create(cookie, "LOL", LOL_MODE, "MID", "MID", "TOP").andExpect(status().isBadRequest())
                 .andExpect(detail("hostPosition: 찾는 포지션(wantedPositions)과 겹칠 수 없습니다"));
@@ -197,10 +198,42 @@ class PostHostPositionTest extends PostTestSupport {
         create(cookie, "LOL", LOL_MODE, "MID", "TOP").andExpect(status().isCreated());
     }
 
+    @Test
+    @DisplayName("찾는 포지션도 모드를 따른다 — 포지션이 있는 모드는 하나 이상 필수(빈 배열 · 칸 없음은 400), 없는 모드(ARAM · PUBG)는 빈 배열만")
+    void wantedPositionsFollowTheMode() throws Exception
+    {
+        String first = newNickname();
+        Cookie cookie = login(first);
+
+        create(cookie, "LOL", LOL_MODE, "MID").andExpect(status().isBadRequest())
+                .andExpect(detail("wantedPositions: 하나 이상 필요합니다")).andExpect(jsonPath("$.details.length()").value(1));
+        create(cookie, "LOL", LOL_NORMAL, "MID").andExpect(status().isBadRequest()).andExpect(detail("wantedPositions: 하나 이상 필요합니다"));
+        create(cookie, "VALORANT", VALORANT_MODE, "DUELIST").andExpect(status().isBadRequest())
+                .andExpect(detail("wantedPositions: 하나 이상 필요합니다"));
+        // 칸을 아예 안 보내도 같다(null 은 빈 배열이다)
+        createPost(cookie, "{\"game\":\"LOL\",\"mode\":\"" + LOL_MODE + "\",\"title\":\"x\",\"voice\":\"REQUIRED\",\"conditions\":{},"
+                + "\"hostPosition\":\"MID\"}").andExpect(status().isBadRequest()).andExpect(detail("wantedPositions: 하나 이상 필요합니다"));
+        // 둘 다 없으면 찾는 포지션이 먼저다(방장 포지션은 찾는 포지션과 겹치는지를 봐야 해서 그 뒤다)
+        create(cookie, "LOL", LOL_MODE, null).andExpect(status().isBadRequest())
+                .andExpect(detail("wantedPositions: 하나 이상 필요합니다")).andExpect(jsonPath("$.details.length()").value(1));
+
+        create(cookie, "LOL", LOL_ARAM, null, "TOP").andExpect(status().isBadRequest())
+                .andExpect(detail("wantedPositions: 포지션이 없는 모드입니다"));
+        create(cookie, "PUBG", PUBG_MODE, null, "MID").andExpect(status().isBadRequest())
+                .andExpect(detail("wantedPositions: PUBG 에는 포지션이 없습니다"));
+        assertThat(jdbcTemplate.queryForObject("select count(*) from recruit_posts where host_id = ?", Integer.class,
+                userIdOf(first))).isZero();
+
+        create(cookie, "LOL", LOL_MODE, "MID", "TOP").andExpect(status().isCreated())
+                .andExpect(jsonPath("$.wantedPositions[0]").value("TOP"));
+        create(login(newNickname()), "LOL", LOL_ARAM, null).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.wantedPositions").isEmpty());
+    }
+
     // ---- 고치기 ----
 
     @Test
-    @DisplayName("고치기 — null 은 그대로 · 준 값은 고친 뒤의 모양으로 본다. 포지션이 없는 모드로 바꾸면 비워지고, 있는 모드로 돌아가면 다시 필수다")
+    @DisplayName("고치기 — null 은 그대로 · 준 값은 고친 뒤의 모양으로 본다. 포지션이 없는 모드로 바꾸면 방장 · 찾는 포지션이 비워지고, 있는 모드로 돌아가면 다시 필수다")
     void edit() throws Exception
     {
         Cookie cookie = login(newNickname());
@@ -212,7 +245,7 @@ class PostHostPositionTest extends PostTestSupport {
                 .andExpect(jsonPath("$.hostPosition").value("ADC"))
                 .andExpect(jsonPath("$.wantedPositions[0]").value("TOP"));
 
-        // 거절 — 겹침(찾는 포지션만 줘도 고친 뒤의 모양을 본다) · 이름 · 빈 문자열(비우는 길이 아니다) · 포지션이 없는 모드에 값
+        // 거절 — 겹침(찾는 포지션만 줘도 고친 뒤의 모양을 본다) · 이름 · 빈 문자열(비우는 길이 아니다) · 포지션이 없는 모드에 값 · 포지션이 있는 모드의 빈 찾는 포지션
         editPost(cookie, postId, "{\"wantedPositions\":[\"ADC\",\"TOP\"]}").andExpect(status().isBadRequest())
                 .andExpect(detail("hostPosition: 찾는 포지션(wantedPositions)과 겹칠 수 없습니다"));
         editPost(cookie, postId, "{\"hostPosition\":\"DUELIST\"}").andExpect(status().isBadRequest())
@@ -221,38 +254,52 @@ class PostHostPositionTest extends PostTestSupport {
                 .andExpect(detail("hostPosition: LOL 의 포지션이 아닙니다"));
         editPost(cookie, postId, "{\"mode\":\"" + LOL_ARAM + "\",\"hostPosition\":\"MID\"}").andExpect(status().isBadRequest())
                 .andExpect(detail("hostPosition: 포지션이 없는 모드입니다"));
+        editPost(cookie, postId, "{\"mode\":\"" + LOL_ARAM + "\",\"wantedPositions\":[\"TOP\"]}").andExpect(status().isBadRequest())
+                .andExpect(detail("wantedPositions: 포지션이 없는 모드입니다"));
+        editPost(cookie, postId, "{\"wantedPositions\":[]}").andExpect(status().isBadRequest())
+                .andExpect(detail("wantedPositions: 하나 이상 필요합니다"));
         // 거절된 고치기는 아무것도 바꾸지 않았다
         assertThat(storedHostPosition(postId)).isEqualTo("ADC");
         assertThat(jdbcTemplate.queryForObject("select mode from recruit_posts where id = ?", String.class, postId)).isEqualTo(LOL_MODE);
+        assertThat(jdbcTemplate.queryForList("select position from recruit_post_positions where post_id = ?", String.class, postId))
+                .containsExactly("TOP");
 
-        // 포지션이 없는 모드로 바꾸면 적혀 있던 방장 포지션이 비워진다
+        // 포지션이 없는 모드로 바꾸면 적혀 있던 방장 포지션과 찾는 포지션이 같이 비워진다
         editPost(cookie, postId, "{\"mode\":\"" + LOL_ARAM + "\"}").andExpect(status().isOk())
                 .andExpect(jsonPath("$.mode").value(LOL_ARAM))
-                .andExpect(jsonPath("$.hostPosition").isEmpty());
+                .andExpect(jsonPath("$.hostPosition").isEmpty())
+                .andExpect(jsonPath("$.wantedPositions").isEmpty());
         assertThat(storedHostPosition(postId)).isNull();
+        assertThat(jdbcTemplate.queryForObject("select count(*) from recruit_post_positions where post_id = ?", Integer.class, postId))
+                .isZero();
         editPost(cookie, postId, "{\"hostPosition\":\"MID\"}").andExpect(status().isBadRequest())
                 .andExpect(detail("hostPosition: 포지션이 없는 모드입니다"));
+        editPost(cookie, postId, "{\"wantedPositions\":[\"TOP\"]}").andExpect(status().isBadRequest())
+                .andExpect(detail("wantedPositions: 포지션이 없는 모드입니다"));
+        editPost(cookie, postId, "{\"wantedPositions\":[]}").andExpect(status().isOk());
 
-        // 포지션이 있는 모드로 돌아가려면 방장 포지션을 같이 줘야 한다
+        // 포지션이 있는 모드로 돌아가려면 찾는 포지션 · 방장 포지션을 같이 줘야 한다
         editPost(cookie, postId, "{\"mode\":\"" + LOL_MODE + "\"}").andExpect(status().isBadRequest())
+                .andExpect(detail("wantedPositions: 하나 이상 필요합니다"));
+        editPost(cookie, postId, "{\"mode\":\"" + LOL_MODE + "\",\"wantedPositions\":[\"TOP\"]}").andExpect(status().isBadRequest())
                 .andExpect(detail("hostPosition: 필요합니다"));
-        editPost(cookie, postId, "{\"mode\":\"" + LOL_MODE + "\",\"hostPosition\":\"SUPPORT\",\"wantedPositions\":[]}")
+        editPost(cookie, postId, "{\"mode\":\"" + LOL_MODE + "\",\"hostPosition\":\"SUPPORT\",\"wantedPositions\":[\"TOP\"]}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.mode").value(LOL_MODE))
                 .andExpect(jsonPath("$.hostPosition").value("SUPPORT"))
-                .andExpect(jsonPath("$.wantedPositions").isEmpty());
+                .andExpect(jsonPath("$.wantedPositions[0]").value("TOP"));
         mockMvc.perform(get("/api/v1/posts/" + postId).cookie(cookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hostPosition").value("SUPPORT"));
     }
 
     @Test
-    @DisplayName("그 전에 쓴 글(방장 포지션이 없다)은 hostPosition 이 null 이고, 포지션에 닿지 않는 고치기는 된다 — 찾는 포지션 · 모드를 고치면 그때 필수다")
+    @DisplayName("그 전에 쓴 글(방장 포지션도 찾는 포지션도 없다)은 hostPosition 이 null 이고, 포지션에 닿지 않는 고치기는 된다 — 포지션을 고치면 그때 둘 다 필수다")
     void postsWrittenBefore() throws Exception
     {
         String host = newNickname();
         Cookie cookie = login(host);
-        // SQL 로 넣는 글에는 host_position 이 없다 — V6 전에 쓴 글과 같은 모양이다(모드는 포지션이 있는 LOL_MODE)
+        // SQL 로 넣는 글에는 host_position 도 찾는 포지션도 없다 — 2026-09-30 전에 쓴 글과 같은 모양이다(모드는 포지션이 있는 LOL_MODE)
         Long postId = insertRecruitPost(userIdOf(host), "LOL", "옛 글", Instant.now());
 
         mockMvc.perform(get("/api/v1/posts/" + postId).cookie(cookie))
@@ -262,14 +309,17 @@ class PostHostPositionTest extends PostTestSupport {
                 .andExpect(jsonPath("$.hostPosition").isEmpty());
         editPost(cookie, postId, "{\"wantedPositions\":[\"TOP\"]}").andExpect(status().isBadRequest())
                 .andExpect(detail("hostPosition: 필요합니다"));
-        editPost(cookie, postId, "{\"hostPosition\":\"MID\"}").andExpect(status().isOk())
-                .andExpect(jsonPath("$.hostPosition").value("MID"));
+        editPost(cookie, postId, "{\"hostPosition\":\"MID\"}").andExpect(status().isBadRequest())
+                .andExpect(detail("wantedPositions: 하나 이상 필요합니다"));
+        editPost(cookie, postId, "{\"hostPosition\":\"MID\",\"wantedPositions\":[\"TOP\"]}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.hostPosition").value("MID"))
+                .andExpect(jsonPath("$.wantedPositions[0]").value("TOP"));
     }
 
     // ---- fail-open ----
 
     @Test
-    @DisplayName("gameconfig 가 안 심겼거나 Redis 를 못 읽으면 요구하지도 거절하지도 않는다(fail-open) — 이름 · 겹침은 그래도 본다")
+    @DisplayName("gameconfig 가 안 심겼거나 Redis 를 못 읽으면 방장 · 찾는 포지션을 요구하지도 거절하지도 않는다(fail-open) — 이름 · 겹침은 그래도 본다")
     void failsOpenWhenGameConfigIsUnreadable() throws Exception
     {
         for(StringRedisTemplate gameConfigRedis : List.of(emptyRedis(), deadRedis()))
@@ -280,9 +330,13 @@ class PostHostPositionTest extends PostTestSupport {
             // 포지션이 있는 모드인데 없어도 된다
             PostResponse without = createThrough(service, LOL_MODE, null, "TOP");
             assertThat(without.hostPosition()).isNull();
-            // 포지션이 없는 모드인데 있어도 된다 — 모드에 포지션이 있는지 모른다
-            PostResponse aram = createThrough(service, LOL_ARAM, "MID");
+            // 포지션이 없는 모드인데 있어도 된다 — 모드에 포지션이 있는지 모른다(찾는 포지션도 같다)
+            PostResponse aram = createThrough(service, LOL_ARAM, "MID", "TOP");
             assertThat(aram.hostPosition()).isEqualTo("MID");
+            assertThat(aram.wantedPositions()).containsExactly("TOP");
+            // 포지션이 있는 모드인데 찾는 포지션이 비어도 된다
+            PostResponse open = createThrough(service, LOL_MODE, "MID");
+            assertThat(open.wantedPositions()).isEmpty();
 
             String nickname = newNickname();
             login(nickname);

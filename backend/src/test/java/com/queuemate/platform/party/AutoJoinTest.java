@@ -118,7 +118,9 @@ class AutoJoinTest extends PostTestSupport {
     }
 
     /**
-     * 모집 중인 글을 SQL 로 넣고 방을 연다(방장 + {@code others}). 글 번호를 돌려준다. 방장은 {@link #insertUser()} 로 만든 사람이어야 한다(FK)
+     * 모집 중인 글을 SQL 로 넣고 방을 연다(방장 + {@code others}). 글 번호를 돌려준다. 방장은 {@link #insertUser()} 로 만든 사람이어야 한다(FK).
+     * <b>찾는 포지션이 빈 글은 이제 글 쓰기로는 만들 수 없다</b>(2026-09-30 — 포지션이 있는 모드는 하나 이상 필수, P-38) — 여기서 빈 배열로 넣는 글은 <b>그 전에 쓴 옛 글</b>이다.
+     * 방장 포지션({@code host_position})은 넣지 않는다 — 자동 합류는 그것을 보지 않는다
      */
     private Long insertPost(Long hostId, String game, String mode, String voice, String conditionsJson, String[] wanted, Long... others)
     {
@@ -236,7 +238,7 @@ class AutoJoinTest extends PostTestSupport {
     // ---- ⑤ 포지션 ----
 
     @Test
-    @DisplayName("포지션 — wantedPositions 에 내 포지션이 없으면 건너뛰고, 빈 배열이면 통과한다")
+    @DisplayName("포지션 — wantedPositions 에 내 포지션이 없으면 건너뛰고, 빈 배열(2026-09-30 전의 옛 글)이면 통과한다")
     void positionMustBeWantedOrAnyone() throws Exception
     {
         String nickname = newNickname();
@@ -249,7 +251,7 @@ class AutoJoinTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("포지션이 NONE 이거나 keyCondition 이 없으면 wantedPositions 가 빈 글만 맞는다")
+    @DisplayName("포지션이 NONE 이거나 keyCondition 이 없으면 wantedPositions 가 빈 글(옛 글)만 맞는다")
     void nonePositionMatchesOnlyOpenPosts() throws Exception
     {
         String nickname = newNickname();
@@ -260,6 +262,21 @@ class AutoJoinTest extends PostTestSupport {
 
         Long anyone = insertNormalPost(insertUser(), "REQUIRED");
         assertJoined(autoJoin(me, normalBody("NONE", "REQUIRED")), anyone, userIdOf(nickname));
+    }
+
+    @Test
+    @DisplayName("방장과 같은 포지션인 사람은 들어가지 못한다 — 글 쓰기가 찾는 포지션을 하나 이상 받고 방장 포지션과 겹치지 않게 해서다(2026-09-30 — P-38). 자동 합류 코드는 그대로다")
+    void hostPositionIsNeverWanted() throws Exception
+    {
+        Cookie host = login(newNickname());
+        Long postId = createdId(createPost(host, postBodyWithHostPosition("LOL", LOL_NORMAL_MODE, "일반 5인", "{}", "MID", "TOP"))
+                .andExpect(status().isCreated()));
+        String nickname = newNickname();
+        Cookie me = login(nickname);
+
+        // 방장이 미드다 — 미드는 찾는 포지션에 들 수 없으니 미드인 나는 이 글에 맞지 않는다. 찾는 포지션(탑)이면 들어간다
+        expectNoMatchingPost(autoJoin(me, normalBody("MID", "REQUIRED")));
+        assertJoined(autoJoin(me, normalBody("TOP", "REQUIRED")), postId, userIdOf(nickname));
     }
 
     // ---- ⑥ 티어 ----

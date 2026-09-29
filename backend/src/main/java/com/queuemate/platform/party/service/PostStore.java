@@ -94,7 +94,9 @@ public class PostStore {
         String description = PostValidation.blankToNull(request.description());
         VoicePreference voice = PostValidation.voice(request.voice());
         String conditions = PostValidation.conditions(game, request.conditions());
-        Set<String> wanted = PostValidation.wantedPositions(game, request.wantedPositions());
+        // 이름 → 모드에 따른 규칙(있는 모드는 하나 이상 · 없는 모드는 빈 배열만 — 2026-09-30, P-38)
+        Set<String> wanted = PostValidation.wantedPositionsForMode(game, modePositions,
+                PostValidation.wantedPositions(game, request.wantedPositions()));
         // 방장 포지션은 찾는 포지션과 겹치면 안 된다 — 찾는 포지션을 검증한 뒤에 본다
         String hostPosition = PostValidation.hostPosition(game, modePositions, request.hostPosition(), wanted);
         RecruitPost post = new RecruitPost(hostId, game, request.mode(), title, description, voice, conditions, wanted,
@@ -169,7 +171,9 @@ public class PostStore {
         String conditions = request.conditions() == null ? post.getConditions() : PostValidation.conditions(game, request.conditions());
         Set<String> wanted = request.wantedPositions() == null ? new LinkedHashSet<>(post.getWantedPositions())
                 : PostValidation.wantedPositions(game, request.wantedPositions());
-        // 고친 뒤의 모양을 본다(2026-09-30 — P-38). modePositions 는 고친 뒤의 모드의 것이다(PostService#edit 이 트랜잭션 밖에서 읽었다)
+        // 고친 뒤의 모양을 본다(2026-09-30 — P-38). modePositions 는 고친 뒤의 모드의 것이다(PostService#edit 이 트랜잭션 밖에서 읽었다).
+        // 찾는 포지션이 먼저다 — 포지션이 없는 모드로 바꾸면 둘 다 비워지고, 방장 포지션은 고친 뒤의 찾는 포지션과 겹치는지 본다
+        wanted = PostValidation.editedWantedPositions(game, modePositions, request, wanted);
         String hostPosition = PostValidation.editedHostPosition(game, modePositions, request, post.getHostPosition(), wanted);
         // 준 mode 는 부르는 쪽이 이미 검증했다(트랜잭션 밖 — PostService#edit). 빈 문자열로 비우는 길은 없어졌다
         post.edit(mode, title, description, voice, conditions, wanted, hostPosition, now);

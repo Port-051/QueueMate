@@ -169,11 +169,24 @@ abstract class PostTestSupport extends ApiTestSupport {
 
     /**
      * 글 쓰기의 본문. 모드는 {@link #modeOf} 이고 <b>방장 포지션은 {@link #defaultHostPosition} 이 고른다</b> — 테스트의 LoL · VALORANT 모드는 포지션이 있는
-     * 모드라 방장 포지션이 필수다(2026-09-30 — P-38). 방장 포지션을 보는 테스트는 {@link #postBodyWithHostPosition} 으로 직접 준다
+     * 모드라 방장 포지션이 필수이고 <b>찾는 포지션도 하나 이상 필수</b>다(2026-09-30 — P-38). 그래서 찾는 포지션을 안 주면 {@link #defaultWantedPositions} 를 넣는다.
+     * 방장 포지션 · 찾는 포지션의 규칙을 보는 테스트는 {@link #postBodyWithHostPosition} 으로 직접 준다. 찾는 포지션이 빈 옛 글이 필요하면 SQL 로 넣는다({@link #insertRecruitPost})
      */
     protected static String postBody(String game, String title, String conditionsJson, String... wantedPositions)
     {
-        return postBodyWithHostPosition(game, modeOf(game), title, conditionsJson, defaultHostPosition(game, wantedPositions), wantedPositions);
+        String[] wanted = wantedPositions.length == 0 ? defaultWantedPositions(game) : wantedPositions;
+        return postBodyWithHostPosition(game, modeOf(game), title, conditionsJson, defaultHostPosition(game, wanted), wanted);
+    }
+
+    /** 찾는 포지션을 안 준 LoL · VALORANT 글에 넣는 하나 — 방장 포지션의 첫 후보({@link #defaultHostPosition})와 겹치지 않는다. 포지션이 없는 게임은 빈 배열이다 */
+    protected static String[] defaultWantedPositions(String game)
+    {
+        return switch(game)
+        {
+            case "LOL" -> new String[]{"SUPPORT"};
+            case "VALORANT" -> new String[]{"DUELIST"};
+            default -> new String[0];
+        };
     }
 
     /** {@code hostPosition} 이 {@code null} 이면 그 칸을 보내지 않는다 */

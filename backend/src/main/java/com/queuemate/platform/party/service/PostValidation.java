@@ -97,6 +97,7 @@ final class PostValidation {
     /**
      * 그 게임의 포지션 이름이어야 한다. 겹치는 값은 하나로 친다. {@code null} 은 빈 배열이다. PUBG 는 포지션이 없어 빈 배열만 된다.
      * 돌려주는 집합의 순서는 뜻이 없다 — DB 의 줄에 순서가 없다. 내려 줄 때 게임의 포지션 순서로 세운다.
+     * <b>모드에 따른 규칙</b>(있는 모드는 하나 이상 · 없는 모드는 빈 배열만 — 2026-09-30)은 이 다음에 {@link #wantedPositionsForMode} 가 본다.
      */
     static Set<String> wantedPositions(Game game, List<String> positions)
     {
@@ -133,6 +134,65 @@ final class PostValidation {
         return (mode == null || mode.isBlank()) ? ModePositions.UNKNOWN : gameConfig.modePositions(game, mode);
     }
 
+    /** 포지션이 있는 게임의, 포지션이 있다고 <b>확인된</b> 모드다 — 모르면({@link ModePositions#UNKNOWN}) 아니다 */
+    private static boolean hasPositions(Game game, ModePositions modePositions)
+    {
+        return !game.positions().isEmpty() && modePositions == ModePositions.YES;
+    }
+
+    /** 포지션이 없는 게임(PUBG)이거나, 포지션이 없다고 <b>확인된</b> 모드다 — 모르면({@link ModePositions#UNKNOWN}) 아니다 */
+    private static boolean noPositions(Game game, ModePositions modePositions)
+    {
+        return game.positions().isEmpty() || modePositions == ModePositions.NO;
+    }
+
+    /**
+     * 찾는 포지션의 <b>모드에 따른 규칙</b>(2026-09-30 소유자 결정 — P-38). 포지션이 있는 모드면 <b>하나 이상 필수</b>다 — "찾는 포지션이 빈 글"(누구든)을 없앴다.
+     * 방장 포지션과 겹칠 수 없으므로 게시판 방 먼저 합류가 방장과 같은 포지션인 사람을 저절로 들이지 않는다({@code AutoJoinService} 는 그대로다).
+     * 포지션이 없는 모드(ARAM 등)는 <b>빈 배열만</b> 된다 — 값이 있으면 400 이다(조용히 버리지 않는다). PUBG 는 {@link #wantedPositions} 가 이미 거절했다.
+     * <b>모르면({@link ModePositions#UNKNOWN}) 보지 않는다</b>(fail-open — 이름은 {@link #wantedPositions} 가 봤다).
+     *
+     * @param wanted 이름을 검증한 찾는 포지션({@link #wantedPositions})
+     */
+    static Set<String> wantedPositionsForMode(Game game, ModePositions modePositions, Set<String> wanted)
+    {
+        if(hasPositions(game, modePositions) && wanted.isEmpty())
+        {
+            throw ApiException.validationFailed("wantedPositions", "하나 이상 필요합니다");
+        }
+        if(modePositions == ModePositions.NO && !wanted.isEmpty())
+        {
+            throw ApiException.validationFailed("wantedPositions", "포지션이 없는 모드입니다");
+        }
+        return wanted;
+    }
+
+    /**
+     * 고치기({@code PATCH})의 찾는 포지션 — <b>고친 뒤의 모양</b>을 {@link #wantedPositionsForMode} 로 본다(방장 포지션의 {@link #editedHostPosition} 과 같은 짜임이다).
+     * {@code mode} · {@code hostPosition} · {@code wantedPositions} 를 하나도 주지 않았으면 보지 않고, {@code wantedPositions} 를 주지 않았는데 고친 뒤의 모드에
+     * 포지션이 없으면 <b>적혀 있던 것을 비운다</b>(포지션이 있는 모드 → 없는 모드).
+     *
+     * @param wanted 고친 뒤의 찾는 포지션 — 준 값(이름을 검증했다) 또는 적혀 있던 값
+     */
+    static Set<String> editedWantedPositions(Game game, ModePositions modePositions, PostUpdateRequest request, Set<String> wanted)
+    {
+        if(!touchesPositions(request))
+        {
+            return wanted;
+        }
+        if(request.wantedPositions() == null && noPositions(game, modePositions))
+        {
+            return new LinkedHashSet<>();
+        }
+        return wantedPositionsForMode(game, modePositions, wanted);
+    }
+
+    /** 포지션에 닿는 고치기인가 — {@code mode} · {@code hostPosition} · {@code wantedPositions} 가운데 하나라도 줬다 */
+    private static boolean touchesPositions(PostUpdateRequest request)
+    {
+        return request.mode() != null || request.hostPosition() != null || request.wantedPositions() != null;
+    }
+
     /**
      * <b>방장 자신의 포지션</b>(2026-09-30 소유자 결정 — P-38). 거르는 순서는 ① 포지션이 있는 모드인데 없다 → {@code "필요합니다"}
      * ② 포지션이 없는 게임 · 모드인데 있다 → 거절(조용히 버리지 않는다 — P-35 의 {@code mainPosition} 과 같은 뜻이다) ③ 그 게임의 포지션 이름이 아니다
@@ -145,17 +205,15 @@ final class PostValidation {
      */
     static String hostPosition(Game game, ModePositions modePositions, String hostPosition, Set<String> wanted)
     {
-        boolean noPositions = game.positions().isEmpty() || modePositions == ModePositions.NO;
         if(hostPosition == null)
         {
-            // 포지션이 있는 게임의, 포지션이 있다고 확인된 모드다 — 모르면(UNKNOWN) 요구하지 않는다
-            if(!noPositions && modePositions == ModePositions.YES)
+            if(hasPositions(game, modePositions))
             {
                 throw ApiException.validationFailed("hostPosition", "필요합니다");
             }
             return null;
         }
-        if(noPositions)
+        if(noPositions(game, modePositions))
         {
             throw ApiException.validationFailed("hostPosition", game.positions().isEmpty()
                     ? game.name() + " 에는 포지션이 없습니다"
@@ -190,11 +248,11 @@ final class PostValidation {
     static String editedHostPosition(Game game, ModePositions modePositions, PostUpdateRequest request, String stored,
                                      Set<String> wanted)
     {
-        if(request.mode() == null && request.hostPosition() == null && request.wantedPositions() == null)
+        if(!touchesPositions(request))
         {
             return stored;
         }
-        if(request.hostPosition() == null && (game.positions().isEmpty() || modePositions == ModePositions.NO))
+        if(request.hostPosition() == null && noPositions(game, modePositions))
         {
             return null;
         }

@@ -209,7 +209,7 @@ class PostApiTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("고치기는 준 것만 바꾼다. 빈 문자열은 description 을 비우고, 빈 배열은 찾는 포지션을 비운다. mode 는 gameconfig 에 있는 다른 모드로만 바꾼다")
+    @DisplayName("고치기는 준 것만 바꾼다. 빈 문자열은 description 을 비운다 — 포지션이 있는 모드의 찾는 포지션은 비울 수 없다. mode 는 gameconfig 에 있는 다른 모드로만 바꾼다")
     void edit() throws Exception
     {
         Cookie cookie = login(newNickname());
@@ -232,9 +232,10 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(jsonPath("$.voice").value("NO_VOICE"))
                 .andExpect(jsonPath("$.wantedPositions[0]").value("TOP"))
                 .andExpect(jsonPath("$.wantedPositions[1]").value("MID"));
+        // 포지션이 있는 모드는 찾는 포지션이 하나 이상 필수다(2026-09-30 — P-38). 비우는 것은 포지션이 없는 모드에서만 된다(PostHostPositionTest)
         editPost(cookie, postId, "{\"wantedPositions\":[]}")
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.wantedPositions").isEmpty());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details", org.hamcrest.Matchers.hasItem("wantedPositions: 하나 이상 필요합니다")));
         // 없앤 purpose 를 보내면 다른 모르는 칸처럼 무시된다(2026-09-27 — P-29). 따로 거절하지 않는다
         editPost(cookie, postId, "{\"purpose\":\"WIN\"}")
                 .andExpect(status().isOk())
@@ -245,7 +246,8 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("제목만 바꾼다"))
                 .andExpect(jsonPath("$.voice").value("NO_VOICE"))
-                .andExpect(jsonPath("$.wantedPositions").isEmpty());
+                .andExpect(jsonPath("$.wantedPositions[0]").value("TOP"))
+                .andExpect(jsonPath("$.wantedPositions[1]").value("MID"));
 
         editPost(cookie, postId, "{\"title\":\"\"}").andExpect(status().isBadRequest()).andExpect(detailFor("title"));
         // mode 는 비울 수 없고(빈 문자열은 400) gameconfig 에 없는 이름도 400 이다 (2026-09-24). 안 주면 그대로다
