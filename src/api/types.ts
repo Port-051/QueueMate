@@ -62,16 +62,28 @@ export interface UserProfile {
 export interface UpdateUserRequest { nickname: string; }
 
 /**
- * 게임 프로필 — 게임 계정 하나를 밖에 보여 주는 모양(`users/me.gameAccounts[]` · 게시판 카드의 `profile`). 세 게임이 같은 모양이다(platform-api.md "게임 프로필").
- * `tier` 는 gameconfig 사다리의 이름(`GOLD_4` 꼴 · LoL 은 Riot 이 채우고 언랭이면 `null`), `server` 는 PUBG 만(`STEAM` · `KAKAO`).
- * `verified` · `stats` 는 읽기 전용이다. 언제 긁은 것인지는 `stats.syncedAt` 이다.
+ * 티어 사다리의 키 — 한 게임 안에서 랭크 큐마다 티어가 따로다(2026-09-29 소유자 결정 "모드별 티어를 무조건 저장한다").
+ * LoL `SOLO`(솔로랭크) · `FLEX`(자유랭크) / VALORANT `COMPETITIVE`(경쟁전) / PUBG `DUO_TPP` · `DUO_FPP` · `SQUAD_TPP` · `SQUAD_FPP`.
+ * 어느 모드가 어느 사다리를 보는지는 gameconfig 모드 HASH 의 `tierLadder` 다 — 사본은 `domain/gameCatalog.ts` 의 모드. 사다리 **안의** 티어 이름(`GOLD_4` …)은 게임마다 하나(`qm:gameconfig:{GAME}:tier`)를 같이 쓴다.
+ */
+export type LolTierLadder = 'SOLO' | 'FLEX';
+export type ValorantTierLadder = 'COMPETITIVE';
+export type PubgTierLadder = 'DUO_TPP' | 'DUO_FPP' | 'SQUAD_TPP' | 'SQUAD_FPP';
+export type TierLadder = LolTierLadder | ValorantTierLadder | PubgTierLadder;
+
+/**
+ * 게임 프로필 — 게임 계정 하나를 밖에 보여 주는 모양(`users/me.gameAccounts[]` · 게시판 카드의 `host.profile` · `members[].profile`). 세 게임이 같은 모양이다(platform-api.md "게임 프로필").
+ * **`tier` 칸은 없다 — `tiers` 가 사다리마다의 티어다**(2026-09-29 소유자 결정). 그 게임의 사다리 키가 **전부** 들어 있고 값은 사다리 이름(`GOLD_4` 꼴) 또는 `null`(언랭 · 모름) —
+ * 예 LoL `{"SOLO":"GOLD_4","FLEX":null}` · VALORANT `{"COMPETITIVE":"GOLD_2"}` · PUBG 넷. LoL · PUBG 는 게임사 API 가 채우고 VALORANT 는 자기신고다.
+ * 타입이 `Partial` 인 것은 게임마다 키가 다르기 때문이다 — 읽는 것은 `domain/profileTier.ts` 한 곳에서(없는 키 · 옛 응답도 `null` 로 읽는다).
+ * `server` 는 PUBG 만(`STEAM` · `KAKAO`). `verified` · `stats` 는 읽기 전용이다. 언제 긁은 것인지는 `stats.syncedAt` 이다.
  * **주 포지션 · 주 역할군(`mainPosition`)은 없다**(2026-09-29 소유자 결정 — 포지션은 글을 쓸 때(`wantedPositions`) · 매칭을 시작할 때(`keyCondition`) 고르는 것이다).
  */
 export interface GameProfile {
   game: GameKey;
   gameNickname: string;
   verified: boolean;
-  tier: string | null;
+  tiers: Partial<Record<TierLadder, string | null>>;
   server: PubgServer | null;
   stats: GameStats | null;
 }
@@ -89,7 +101,10 @@ export interface GameStats {
   avgDeaths: number | null;
   avgAssists: number | null;
   kda: number | null;
-  /** 게임마다 다르다 — LOL `{mostChampions}` · VALORANT `{mostAgents, mainWeapon, …}` · PUBG `{seasonMode, avgDamage, kd, top1Rate}`. jsonb 그대로라 `null` 일 수 있다. */
+  /**
+   * 게임마다 다르다 — LOL `{mostChampions}` · VALORANT `{mostAgents, mainWeapon, …}` · PUBG `{seasonMode, avgDamage, kd, top1Rate}`(이번 시즌 랭크 전 모드 합산 · 랭크 판이 없으면 일반 시즌 합산 — 2026-09-29).
+   * jsonb 그대로라 `null` 일 수 있다.
+   */
   detail: GameStatsDetail | null;
   syncedAt: string;
 }
@@ -102,20 +117,30 @@ export interface LolMostChampion {
   masteryLevel: number | null;
   masteryPoints: number | null;
 }
+/**
+ * `stats.detail`. PUBG 의 넷은 platform-api.md "게임 프로필" 의 PUBG 칸 그대로다 — 단위는 계약에 없어 프런트가 이렇게 읽는다(Claude 가 정한 세부):
+ * `top1Rate` 는 퍼센트 숫자(`winRate` 처럼 — `5.2` = 5.2%) · `kd` 는 킬 / 데스 · `avgDamage` 는 판당 평균 딜량 · `seasonMode` 는 합산의 출처(값 목록은 계약에 없다 — 받은 그대로 보여 준다).
+ */
 export interface GameStatsDetail {
   mostChampions?: LolMostChampion[] | null;
+  seasonMode?: string | null;
+  avgDamage?: number | null;
+  kd?: number | null;
+  top1Rate?: number | null;
   [key: string]: unknown;
 }
 
 /**
- * `PUT /api/v1/users/me/game-accounts/{game}` 의 본문 — **게임마다 다르다**(P-26).
- * LOL 은 `gameNickname`(`이름#태그`) 하나 — `tier` · `server` 를 보내면 400(티어는 Riot 이 채운다) ·
- * VALORANT 는 `gameNickname` + `tier`(선택) · PUBG 는 `gameNickname` + `tier`(선택) + `server`. **`mainPosition` 을 보내면 400 이다**(2026-09-29 소유자 결정).
+ * `PUT /api/v1/users/me/game-accounts/{game}` 의 본문 — **게임마다 다르다**(P-26 · 2026-09-29 소유자 결정).
+ * LOL 은 `gameNickname`(`이름#태그`) 하나 — 티어(솔로 · 자유)는 Riot 이 채운다 ·
+ * VALORANT 는 `gameNickname` + `tier`(선택 · `COMPETITIVE` 사다리로 저장된다 — 자기신고) ·
+ * **PUBG 는 `gameNickname` + `server` — `tier` 를 보내면 400 이다**(사다리 넷을 PUBG API 가 채운다). **`mainPosition` 을 보내면 400 이다**(2026-09-29 소유자 결정).
+ * LOL · PUBG 는 저장하기 전에 서버가 게임사 API 를 **동기로** 긁는다(상한 30초) — 응답에 `tiers` · `stats` 가 바로 있다.
  * `tier` 는 그 게임의 사다리 이름이어야 하고(400 `VALIDATION_FAILED`), 없으면 보내지 않는다(`undefined` — JSON 에서 빠진다).
  */
 export interface LolGameAccountRequest { gameNickname: string; }
 export interface ValorantGameAccountRequest { gameNickname: string; tier?: string; }
-export interface PubgGameAccountRequest { gameNickname: string; tier?: string; server: PubgServer; }
+export interface PubgGameAccountRequest { gameNickname: string; server: PubgServer; }
 export type GameAccountRequest = LolGameAccountRequest | ValorantGameAccountRequest | PubgGameAccountRequest;
 
 /* game config(GET /games · match-schema)는 없다 — 정적 상수 `domain/gameCatalog.ts`(원본 seed 의 사본) */
@@ -125,7 +150,7 @@ export type GameAccountRequest = LolGameAccountRequest | ValorantGameAccountRequ
 /**
  * `POST /api/v1/match-requests`(matching) 와 `POST /api/v1/posts/auto-join`(platform) 의 **같은 본문** — `CreateMatchRequestCommand` 와 필드 이름이 글자까지 같다.
  * `MatchCondition` 은 화면의 값이고 이것은 서버에 보내는 값이다 — 둘을 잇는 것은 `domain/matchRequest.ts` `buildMatchRequest` 다:
- * `keyCondition.value` 의 화면 사본 `ANY` 는 `NONE` 으로 · `tier` 는 내 게임 계정의 티어를 **`tierRule=EXIST` 모드에서만** 싣는다(`NONE` 모드에 실으면 400).
+ * `keyCondition.value` 의 화면 사본 `ANY` 는 `NONE` 으로 · `tier` 는 내 게임 계정의 **그 모드의 사다리(`tierLadder`) 티어**를 **`tierRule=EXIST` 모드에서만** 싣는다(`NONE` 모드에 실으면 400).
  * `userId` 는 없다 — 쿠키의 사용자다.
  */
 export interface CreateMatchRequest extends MatchCondition { tier?: string; }

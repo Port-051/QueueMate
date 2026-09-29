@@ -20,7 +20,7 @@ interface AuthValue {
    * 로그인 전에는 `null`.
    */
   userId: string | null;
-  /** `user.gameAccounts` 와 같다 — 게임 프로필(게임마다 하나). 매칭 요청의 `tier` 가 여기서 온다(`domain/matchRequest.ts`). */
+  /** `user.gameAccounts` 와 같다 — 게임 프로필(게임마다 하나). 매칭 요청의 `tier` 가 여기서 온다 — 모드의 사다리 티어 `tiers[ladder]`(`domain/matchRequest.ts`). */
   gameAccounts: GameProfile[];
   /** 쿠키가 바뀐 뒤(소셜 가입 · 재발급) `GET /users/me` 를 다시 불러 세션을 맞춘다. 실패하면 익명이다. */
   refreshSession(): Promise<void>;

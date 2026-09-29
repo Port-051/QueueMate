@@ -5,7 +5,9 @@ import { GameAccountForm } from '../components/GameAccountForm';
 import { GameBadge } from '../components/GameSymbol';
 import { Button, Tag, useToast } from '../components/ui';
 import { GAMES } from '../domain/gameConfig';
+import { TIER_LADDER_LABEL } from '../domain/gameCatalog';
 import { rankLabel } from '../domain/labels';
+import { highestTier } from '../domain/profileTier';
 import { useAuth } from '../state/AuthContext';
 
 /**
@@ -25,7 +27,7 @@ export function OnboardingPage() {
       <div className="onboarding-card">
         <h1 style={{ fontSize: 24, fontWeight: 800 }}>플레이할 게임 계정을 연결하세요</h1>
         <p style={{ color: 'var(--muted)', marginTop: 8, fontSize: 14 }}>
-          게임 닉네임은 파티원에게 표시됩니다. LOL 은 Riot 에서 티어와 전적을 가져오고, VALORANT · PUBG 는 직접 적습니다.
+          게임 닉네임은 파티원에게 표시됩니다. LOL 은 Riot, PUBG 는 PUBG 에서 티어와 전적을 가져오고, VALORANT 는 직접 적습니다.
         </p>
 
         <div className="game-picker" style={{ marginTop: 22 }}>
@@ -48,9 +50,11 @@ export function OnboardingPage() {
 
         {gameAccounts.length > 0 ? (
           <div style={{ marginTop: 22, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {gameAccounts.map((account) => (
-              <Tag key={account.game} tone="accent">{account.game} · {account.gameNickname}{account.tier ? ` · ${rankLabel(account.tier)}` : ''}</Tag>
-            ))}
+            {gameAccounts.map((account) => {
+              // 사다리마다 티어가 따로라(2026-09-29) 연결 확인 태그에는 가장 높은 것 하나를 사다리 이름과 같이 — `domain/profileTier.ts`.
+              const best = highestTier(account.game, account);
+              return <Tag key={account.game} tone="accent">{account.game} · {account.gameNickname}{best.tier && best.ladder ? ` · ${TIER_LADDER_LABEL[best.ladder]} ${rankLabel(best.tier)}` : ''}</Tag>;
+            })}
           </div>
         ) : null}
 

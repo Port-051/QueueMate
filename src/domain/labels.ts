@@ -59,8 +59,8 @@ export function conditionSummary(c: MatchCondition): string[] {
 }
 
 /**
- * 게임 프로필의 `tier` 는 gameconfig 사다리의 이름이다(`matching/seed/gameconfig.redis` — 사본 `domain/gameCatalog.ts`). 형식은 `GOLD_4` 이고
- * 단이 없는 티어(`MASTER` · `RADIANT` · `UNRANKED` …)는 이름 그대로다. LoL 은 Riot 이 채우고 VALORANT · PUBG 는 자기신고다.
+ * 게임 프로필 `tiers` 의 값은 gameconfig 티어 이름이다(`matching/seed/gameconfig.redis` — 사본 `domain/gameCatalog.ts` `tierNames`). 형식은 `GOLD_4` 이고
+ * 단이 없는 티어(`MASTER` · `RADIANT` · `UNRANKED` …)는 이름 그대로다. LoL · PUBG 는 게임사 API 가 채우고 VALORANT 는 자기신고다(2026-09-29 — 사다리마다 하나씩).
  *
  * 여기 없는 티어가 와도 화면은 깨지지 않아야 한다 — seed 에 티어가 더해질 수 있다. 모르는 값은 받은 그대로 보여준다.
  */
@@ -83,7 +83,7 @@ const TIER_LABEL: Record<string, string> = {
   SURVIVOR: '서바이버',
 };
 
-/** `GOLD_4` → `골드 4`. `null`(LoL 언랭 · 자기신고 안 함)이면 `null`. */
+/** `GOLD_4` → `골드 4`. `null`(언랭 · 모름 · 자기신고 안 함)이면 `null`. */
 export function rankLabel(tier: string | null | undefined): string | null {
   if (!tier) return null;
   const [name, division] = tier.split('_');

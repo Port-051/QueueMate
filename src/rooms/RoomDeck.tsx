@@ -5,6 +5,7 @@ import { Avatar } from '../components/ui';
 import { FilterRoleIcon, FilterTierIcon } from '../components/FilterSymbols';
 import { PerformanceValue, PreferredChampions } from '../components/IntroductionVisuals';
 import { keyConditionOptions } from '../domain/gameConfig';
+import { TIER_LADDER_LABEL } from '../domain/gameCatalog';
 import { modeLabel } from '../domain/labels';
 import { TIER_LABELS } from '../domain/recruitment';
 import { relativeTime } from '../domain/time';
@@ -29,13 +30,18 @@ export function RoomRoles({ game, roles, labels = false }: { game: GameKey; role
   })}</span>;
 }
 
-export function RoomRank({ game, tier, division, size = 30 }: { game: GameKey; tier: string | null; division: number | null; size?: number }) {
+/** 티어 하나. `ladderLabel` 은 그 티어가 온 사다리(`솔로랭크` · `듀오 TPP` …) — 풍선말(`title`)로만 보여 준다. */
+export function RoomRank({ game, tier, division, size = 30, ladderLabel }: { game: GameKey; tier: string | null; division: number | null; size?: number; ladderLabel?: string }) {
   const suffix = tier && division ? game === 'LOL' ? hasLolRankDivision(tier) ? ['', 'I', 'II', 'III', 'IV'][division] : '' : String(division) : '';
-  return <span className="room-rank"><FilterTierIcon game={game} tier={tier} size={size} /><strong style={{ color: tierColor(tier) }}>{tier ? `${TIER_LABELS[tier] ?? tier}${suffix ? ` ${suffix}` : ''}` : '—'}</strong></span>;
+  const text = tier ? `${TIER_LABELS[tier] ?? tier}${suffix ? ` ${suffix}` : ''}` : '—';
+  return <span className="room-rank" title={ladderLabel ? `${ladderLabel} · ${tier ? text : '언랭'}` : undefined}><FilterTierIcon game={game} tier={tier} size={size} /><strong style={{ color: tierColor(tier) }}>{text}</strong></span>;
 }
 
-function Stat({ kind, value }: { kind: 'winRate' | 'kda'; value: number | null }) {
-  return value === null ? <strong className="room-unknown-stat">—</strong> : <PerformanceValue kind={kind} value={value} />;
+/** PUBG 의 치킨률은 승률의 색 구간(45~60%)에 맞지 않아 색 없이 그린다 — 구간은 정하지 않았다. */
+function Stat({ kind, value, plain = false }: { kind: 'winRate' | 'kda'; value: number | null; plain?: boolean }) {
+  if (value === null) return <strong className="room-unknown-stat">—</strong>;
+  if (plain) return <strong className="performance-value">{kind === 'winRate' ? `${Number.isInteger(value) ? value : value.toFixed(1)}%` : value.toFixed(2)}</strong>;
+  return <PerformanceValue kind={kind} value={value} />;
 }
 
 export const POST_STATUS_LABEL: Record<BoardRoom['status'], string> = { RECRUITING: '모집 중', CONFIRMED: '확정', EXPIRED: '만료' };
@@ -50,17 +56,19 @@ export function RoomMemberAvatar({ member, size }: { member: BoardMember; size: 
 }
 
 /**
- * 카드의 사실 — 티어 · 승률 · KDA, PUBG 는 서버까지 넷. 전부 게임 프로필(`profile`)에서 온다 — VALORANT · PUBG 의 전적은 아직 없어 `—` 다.
+ * 카드의 사실 — 티어 · 승률 · KDA, PUBG 는 티어 · 서버 · 치킨률 · K/D 넷. 전부 게임 프로필(`profile`)에서 온다 — VALORANT 의 전적은 아직 없어 `—` 다.
+ * **티어는 그 글의 모드의 사다리 티어**이고 사다리가 없는 모드면 그 사람의 가장 높은 티어다(2026-09-29 — `rooms/boardRoom.ts` `toBoardMember`). 어느 사다리인지는 풍선말로.
  * **사람별 포지션 칸은 없다**(2026-09-29 소유자 결정 — 게임 계정에서 주 포지션 · 주 역할군을 없앴다). 그래서 LoL · VALORANT 는 티어가 한 줄을 다 쓴다(`is-wide`).
  */
 export function RoomMemberFacts({ room, member, iconSize = 22 }: { room: BoardRoom; member: BoardMember; iconSize?: number }) {
   const pubg = room.game === 'PUBG';
   const server = member.profile?.server;
+  const ladderLabel = member.tierLadder ? TIER_LADDER_LABEL[member.tierLadder] : undefined;
   return <dl className="room-member-facts">
-    <div className={pubg ? undefined : 'is-wide'}><dt className="sr-only">티어</dt><dd><RoomRank game={room.game} tier={member.tier} division={member.division} size={iconSize} /></dd></div>
+    <div className={pubg ? undefined : 'is-wide'}><dt className="sr-only">{ladderLabel ? `${ladderLabel} 티어` : '티어'}</dt><dd><RoomRank game={room.game} tier={member.tier} division={member.division} size={iconSize} ladderLabel={ladderLabel} /></dd></div>
     {pubg ? <div><dt className="sr-only">서버</dt><dd><span className="room-random-role">{server === 'STEAM' ? '스팀' : server === 'KAKAO' ? '카카오' : '서버 미정'}</span></dd></div> : null}
-    <div><dt>승률</dt><dd><Stat kind="winRate" value={member.winRate} /></dd></div>
-    <div><dt>KDA</dt><dd><Stat kind="kda" value={member.kda} /></dd></div>
+    <div><dt>{pubg ? '치킨' : '승률'}</dt><dd><Stat kind="winRate" value={member.winRate} plain={pubg} /></dd></div>
+    <div><dt>{pubg ? 'K/D' : 'KDA'}</dt><dd><Stat kind="kda" value={member.kda} /></dd></div>
   </dl>;
 }
 

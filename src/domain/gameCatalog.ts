@@ -1,4 +1,4 @@
-import type { GameKey, KeyConditionType, PlayPurpose, VoicePreference } from '../api/types';
+import type { GameKey, KeyConditionType, PlayPurpose, TierLadder, VoicePreference } from '../api/types';
 
 /**
  * 게임 · 모드 · 핵심 조건 값 · 티어 사다리의 **정적 상수**.
@@ -6,7 +6,7 @@ import type { GameKey, KeyConditionType, PlayPurpose, VoicePreference } from '..
  * **원본은 `matching/seed/gameconfig.redis` 이고 여기는 그 사본이다 — 두 곳이다**(2026-09-28 소유자 결정). 백엔드에 조회 API 가 없어
  * (`GET /games` 는 계약에만 있고 미구현 — `matching/contracts/README.md` #7) 프런트가 값을 들고 있는다. **seed 의 모드 · 티어를 고치면 여기도 같이 고친다** —
  * 어긋나면 서버가 400 을 낸다(`matching` `INVALID_MATCH_CONDITION` · `platform` `VALIDATION_FAILED "mode: … 에 없는 모드입니다"`).
- * 값은 seed 그대로다(모드 24 · `targetPartySize` · `tierRule` · `positionUniqueness` · 사다리 셋 — `UNRANKED` 포함). 한글 라벨만 프런트의 것이다(seed 에 없다).
+ * 값은 seed 그대로다(모드 24 · `targetPartySize` · `tierRule` · `positionUniqueness` · `tierLadder` · 티어 이름 셋 — `UNRANKED` 포함). 한글 라벨만 프런트의 것이다(seed 에 없다).
  *
  * - 모드 키 · 정원 · `tierRule`(`EXIST` = 티어를 본다 · `NONE` = 안 본다) · `positionUniqueness`(파티 안에서 포지션이 겹칠 수 없는가 — PUBG 에는 없다)는
  *   `HSET qm:gameconfig:{GAME}:{MODE}` 그대로. 티어별 허용 범위(`tier-range`)는 옮기지 않았다 — 판정은 서버가 한다(자동 합류 · 매칭).
@@ -14,20 +14,29 @@ import type { GameKey, KeyConditionType, PlayPurpose, VoicePreference } from '..
  *   LoL `POSITION`(TOP/JUNGLE/MID/ADC/SUPPORT) · VALORANT `ROLE`(4역할군) · PUBG `PLATFORM`(STEAM/KAKAO — 원본 프런트의 `PLAY_STYLE` 이 아니다, A-13).
  *   **LoL 의 `NONE`(포지션 없음)은 선택지가 아니라 서버에 보내는 값이다** — `positionUniqueness=false` 모드(칼바람)에서만 · 그때는 `NONE` 만 받고, 포지션을 보는 모드에서는
  *   `NONE` 을 거절한다(`matching` `LolConditionValidator`). 화면은 그 자리를 `ANY` 로 두고 보낼 때 옮긴다(`domain/matchRequest.ts`). VALORANT · PUBG 에는 "없음" 이 없다.
- * - 티어 사다리는 `ZADD qm:gameconfig:{GAME}:tier` 의 순서(오름차순 · 0 이 `UNRANKED`). VALORANT 는 디비전이 1→3 으로 커지고 LoL · PUBG 는 4→1 로 작아진다.
+ * - **사다리(`tierLadder`)는 모드가 어느 랭크 큐의 티어를 보는가다**(2026-09-29 소유자 결정 "모드별 티어를 무조건 저장한다" — seed 의 모드 HASH 에 새 필드 `tierLadder`, matching 에서 더하는 중).
+ *   LoL `RANKED_SOLO`→`SOLO` · `RANKED_FLEX_2/3/5`→`FLEX` / VALORANT `COMPETITIVE_DUO/TRIO`→`COMPETITIVE` / PUBG `RANKED_{DUO|SQUAD}_{TPP|FPP}`→`{DUO|SQUAD}_{TPP|FPP}`.
+ *   `tierRule=NONE` 모드는 사다리가 없다. 게임 프로필의 `tiers` 가 사다리마다 티어를 하나씩 든다(`api/types.ts` `GameProfile`) — 고르는 규칙은 `domain/profileTier.ts`.
+ * - 티어 **이름**(`tierNames`)은 `ZADD qm:gameconfig:{GAME}:tier` 의 순서(오름차순 · 0 이 `UNRANKED`)이고 한 게임의 사다리들이 같이 쓴다.
+ *   VALORANT 는 디비전이 1→3 으로 커지고 LoL · PUBG 는 4→1 로 작아진다. "더 높은 티어" 는 이 순서의 인덱스다.
  * - `VoicePreference` 는 `REQUIRED` · `NO_VOICE` 둘이다 — `OPTIONAL` 은 없다(openapi 개정 이력 · docs/11 #31). `PlayPurpose` 는 셋.
  */
 
 export type TierRule = 'NONE' | 'EXIST';
 
-export interface GameModeSeed {
+interface GameModeSeedBase {
   key: string;
   label: string;
   targetPartySize: number;
-  tierRule: TierRule;
   /** 파티 안에서 핵심 조건 값이 겹칠 수 없는가. seed 가 PUBG 에는 두지 않았다(`HDEL`) — 플랫폼은 겹쳐야 한다. */
   positionUniqueness?: boolean;
 }
+
+/** `tierRule=EXIST` 모드는 사다리가 반드시 있고 `NONE` 모드는 없다 — 타입이 그 짝을 지킨다(`mode.tierRule === 'EXIST'` 로 좁히면 `tierLadder` 가 있다). */
+export type GameModeSeed = GameModeSeedBase & (
+  | { tierRule: 'NONE'; tierLadder?: undefined }
+  | { tierRule: 'EXIST'; tierLadder: TierLadder }
+);
 
 export interface KeyConditionValue { value: string; label: string; }
 
@@ -36,8 +45,10 @@ export interface GameSeed {
   keyConditionType: KeyConditionType;
   keyConditionValues: readonly KeyConditionValue[];
   modes: readonly GameModeSeed[];
-  /** `UNRANKED` 부터 위로. 인덱스가 ZSET 의 score 다. */
-  tierLadder: readonly string[];
+  /** 그 게임의 사다리 키 — 게임 프로필 `tiers` 의 키 전부이고, 화면(내 정보의 티어 줄 · 카드의 "가장 높은 티어" 비교)은 이 순서로 돈다. */
+  tierLadders: readonly TierLadder[];
+  /** 티어 이름 — `UNRANKED` 부터 위로. 인덱스가 ZSET 의 score 다. 그 게임의 사다리들이 같이 쓴다. */
+  tierNames: readonly string[];
 }
 
 const LOL_TIERS = [
@@ -88,11 +99,11 @@ export const GAME_CATALOG: Record<GameKey, GameSeed> = {
       { value: 'SUPPORT', label: '서포터' },
     ],
     modes: [
-      { key: 'RANKED_SOLO', label: '솔로 랭크', targetPartySize: 2, positionUniqueness: true, tierRule: 'EXIST' },
+      { key: 'RANKED_SOLO', label: '솔로 랭크', targetPartySize: 2, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'SOLO' },
       // 게임 자체가 4인 파티 큐를 금지하므로 RANKED_FLEX_4 는 없다.
-      { key: 'RANKED_FLEX_2', label: '자유 랭크 2인', targetPartySize: 2, positionUniqueness: true, tierRule: 'EXIST' },
-      { key: 'RANKED_FLEX_3', label: '자유 랭크 3인', targetPartySize: 3, positionUniqueness: true, tierRule: 'EXIST' },
-      { key: 'RANKED_FLEX_5', label: '자유 랭크 5인', targetPartySize: 5, positionUniqueness: true, tierRule: 'EXIST' },
+      { key: 'RANKED_FLEX_2', label: '자유 랭크 2인', targetPartySize: 2, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'FLEX' },
+      { key: 'RANKED_FLEX_3', label: '자유 랭크 3인', targetPartySize: 3, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'FLEX' },
+      { key: 'RANKED_FLEX_5', label: '자유 랭크 5인', targetPartySize: 5, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'FLEX' },
       // 칼바람은 포지션 개념이 없다 — positionUniqueness=false 가 "핵심 조건을 안 본다" 의 근거다.
       { key: 'ARAM_2', label: '칼바람 2인', targetPartySize: 2, positionUniqueness: false, tierRule: 'NONE' },
       { key: 'ARAM_3', label: '칼바람 3인', targetPartySize: 3, positionUniqueness: false, tierRule: 'NONE' },
@@ -103,7 +114,8 @@ export const GAME_CATALOG: Record<GameKey, GameSeed> = {
       { key: 'NORMAL_4', label: '일반 4인', targetPartySize: 4, positionUniqueness: true, tierRule: 'NONE' },
       { key: 'NORMAL_5', label: '일반 5인', targetPartySize: 5, positionUniqueness: true, tierRule: 'NONE' },
     ],
-    tierLadder: LOL_TIERS,
+    tierLadders: ['SOLO', 'FLEX'],
+    tierNames: LOL_TIERS,
   },
   VALORANT: {
     key: 'VALORANT',
@@ -115,12 +127,13 @@ export const GAME_CATALOG: Record<GameKey, GameSeed> = {
       { value: 'SENTINEL', label: '감시자' },
     ],
     modes: [
-      { key: 'COMPETITIVE_DUO', label: '경쟁전 듀오', targetPartySize: 2, positionUniqueness: true, tierRule: 'EXIST' },
-      { key: 'COMPETITIVE_TRIO', label: '경쟁전 트리오', targetPartySize: 3, positionUniqueness: true, tierRule: 'EXIST' },
+      { key: 'COMPETITIVE_DUO', label: '경쟁전 듀오', targetPartySize: 2, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'COMPETITIVE' },
+      { key: 'COMPETITIVE_TRIO', label: '경쟁전 트리오', targetPartySize: 3, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'COMPETITIVE' },
       { key: 'UNRATED_DUO', label: '일반전 듀오', targetPartySize: 2, positionUniqueness: true, tierRule: 'NONE' },
       { key: 'UNRATED_TRIO', label: '일반전 트리오', targetPartySize: 3, positionUniqueness: true, tierRule: 'NONE' },
     ],
-    tierLadder: VALORANT_TIERS,
+    tierLadders: ['COMPETITIVE'],
+    tierNames: VALORANT_TIERS,
   },
   PUBG: {
     key: 'PUBG',
@@ -134,12 +147,13 @@ export const GAME_CATALOG: Record<GameKey, GameSeed> = {
       { key: 'NORMAL_DUO_FPP', label: '일반 듀오 FPP', targetPartySize: 2, tierRule: 'NONE' },
       { key: 'NORMAL_SQUAD_TPP', label: '일반 스쿼드 TPP', targetPartySize: 4, tierRule: 'NONE' },
       { key: 'NORMAL_SQUAD_FPP', label: '일반 스쿼드 FPP', targetPartySize: 4, tierRule: 'NONE' },
-      { key: 'RANKED_DUO_TPP', label: '경쟁전 듀오 TPP', targetPartySize: 2, tierRule: 'EXIST' },
-      { key: 'RANKED_DUO_FPP', label: '경쟁전 듀오 FPP', targetPartySize: 2, tierRule: 'EXIST' },
-      { key: 'RANKED_SQUAD_TPP', label: '경쟁전 스쿼드 TPP', targetPartySize: 4, tierRule: 'EXIST' },
-      { key: 'RANKED_SQUAD_FPP', label: '경쟁전 스쿼드 FPP', targetPartySize: 4, tierRule: 'EXIST' },
+      { key: 'RANKED_DUO_TPP', label: '경쟁전 듀오 TPP', targetPartySize: 2, tierRule: 'EXIST', tierLadder: 'DUO_TPP' },
+      { key: 'RANKED_DUO_FPP', label: '경쟁전 듀오 FPP', targetPartySize: 2, tierRule: 'EXIST', tierLadder: 'DUO_FPP' },
+      { key: 'RANKED_SQUAD_TPP', label: '경쟁전 스쿼드 TPP', targetPartySize: 4, tierRule: 'EXIST', tierLadder: 'SQUAD_TPP' },
+      { key: 'RANKED_SQUAD_FPP', label: '경쟁전 스쿼드 FPP', targetPartySize: 4, tierRule: 'EXIST', tierLadder: 'SQUAD_FPP' },
     ],
-    tierLadder: PUBG_TIERS,
+    tierLadders: ['DUO_TPP', 'DUO_FPP', 'SQUAD_TPP', 'SQUAD_FPP'],
+    tierNames: PUBG_TIERS,
   },
 };
 
@@ -156,4 +170,24 @@ export const modeSeed = (game: GameKey, modeKey: string): GameModeSeed | undefin
 export const modeUsesTier = (game: GameKey, modeKey: string): boolean => modeSeed(game, modeKey)?.tierRule === 'EXIST';
 
 /** 사다리에 있는 이름인가(`ZSCORE` 가 `null` 이 아닌가). */
-export const isKnownTier = (game: GameKey, tier: string): boolean => GAME_CATALOG[game].tierLadder.includes(tier);
+export const isKnownTier = (game: GameKey, tier: string): boolean => GAME_CATALOG[game].tierNames.includes(tier);
+
+/** 티어 이름의 높이 — `tierNames` 의 인덱스(`UNRANKED` 가 0). 사다리에 없는 이름은 `-1`(어느 티어보다 낮게 본다). */
+export const tierScore = (game: GameKey, tier: string): number => GAME_CATALOG[game].tierNames.indexOf(tier);
+
+/** 그 모드가 보는 사다리(seed 모드 HASH 의 `tierLadder`). `tierRule=NONE` 모드 · 모르는 모드는 `null`. */
+export const modeTierLadder = (game: GameKey, modeKey: string): TierLadder | null => {
+  const mode = modeSeed(game, modeKey);
+  return mode?.tierRule === 'EXIST' ? mode.tierLadder : null;
+};
+
+/** 사다리의 한글 이름 — 프런트의 것이다(seed 에 없다). 내 정보의 티어 줄 · 매칭을 막는 문구 · 카드의 티어 풍선말이 쓴다. */
+export const TIER_LADDER_LABEL: Record<TierLadder, string> = {
+  SOLO: '솔로랭크',
+  FLEX: '자유랭크',
+  COMPETITIVE: '경쟁전',
+  DUO_TPP: '듀오 TPP',
+  DUO_FPP: '듀오 FPP',
+  SQUAD_TPP: '스쿼드 TPP',
+  SQUAD_FPP: '스쿼드 FPP',
+};

@@ -1,4 +1,4 @@
-import type { GameKey, GameProfile, MemberCard, PostResponse, PostStatus, PubgPerspective, VoicePreference } from '../api/types';
+import type { GameKey, GameProfile, MemberCard, PostResponse, PostStatus, PubgPerspective, TierLadder, VoicePreference } from '../api/types';
 
 /**
  * 방 카드 보드가 그리는 모양 — 서버의 `PostResponse`(글이 곧 방)를 카드가 읽기 좋게 편 것이다(`boardRoom.ts` `toBoardRoom`).
@@ -6,17 +6,22 @@ import type { GameKey, GameProfile, MemberCard, PostResponse, PostStatus, PubgPe
  *
  * - `id` 는 `String(postId)` — 방 요청(`/rooms/{roomId}/…`) · 방 화면 경로(`/app/party/{roomId}`)에 그대로 쓴다.
  * - 사람의 id 도 십진 문자열이다(방 응답 · 알림 `payload` 와 같은 글자) — `AuthContext.userId` 와 바로 비교한다.
- * - 티어 · 승률 · KDA · 챔피언은 `profile`(그 글의 게임에 연결한 게임 프로필)에서 온다. VALORANT · PUBG 의 `stats` 는 아직 늘 `null` 이라 `—` 로 그린다.
+ * - 티어 · 승률 · KDA · 챔피언은 `profile`(그 글의 게임에 연결한 게임 프로필)에서 온다. **티어는 그 글의 모드의 사다리 티어**이고 사다리가 없는 모드면 가장 높은 티어다(2026-09-29 — `domain/profileTier.ts`).
+ *   PUBG 는 승률 · KDA 자리에 치킨률 · K/D 가 온다(2026-09-29 PUBG 연동). VALORANT 의 `stats` 는 아직 늘 `null` 이라 `—` 로 그린다.
  * - **사람별 포지션은 없다**(2026-09-29 소유자 결정 — 게임 계정에서 주 포지션 · 주 역할군을 없앴다). 포지션은 글의 `wantedPositions`(찾는 포지션) 하나다.
  */
 export interface BoardMember {
   id: string;
   nickname: string;
   host: boolean;
-  /** `GOLD_4` → `GOLD` · `4`. 언랭 · 미연결은 `null`. */
+  /** 그 글의 모드의 사다리 티어(`GOLD_4` → `GOLD` · `4`). 언랭 · 미연결은 `null`. */
   tier: string | null;
   division: number | null;
+  /** 그 티어가 온 사다리 — 카드의 풍선말("자유랭크")에 쓴다. 사다리가 없는 모드에서 티어가 하나도 없으면 `null`. */
+  tierLadder: TierLadder | null;
+  /** LoL · VALORANT 는 `stats.winRate`(정수 퍼센트), PUBG 는 치킨률(`stats.detail.top1Rate`). */
   winRate: number | null;
+  /** LoL · VALORANT 는 `stats.kda`, PUBG 는 K/D(`stats.detail.kd`). */
   kda: number | null;
   /** LoL `stats.detail.mostChampions[].championId`(Riot 의 영문 이름). 셋까지. */
   champions: string[];

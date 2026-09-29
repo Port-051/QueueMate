@@ -8,12 +8,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
 import type { GameKey, GameProfile, SocialProvider } from '../api/types';
-import { GameAccountForm, gameAccountErrorMessage } from '../components/GameAccountForm';
+import { GameAccountForm, gameAccountErrorMessage, STATS_SOURCE, statsFromApi } from '../components/GameAccountForm';
 import { IconCheck, IconLogout, IconPencil, IconPlus, IconShield } from '../components/icons';
 import { AVATAR_CHOICES, avatarImageSrc, Avatar, Button, ConfirmDialog, Field, Modal, Tag, useToast } from '../components/ui';
 import { GAMES } from '../domain/gameConfig';
+import { GAME_CATALOG, TIER_LADDER_LABEL } from '../domain/gameCatalog';
 import { gameFullLabel, rankLabel } from '../domain/labels';
 import { championName } from '../domain/champions';
+import { profileTier } from '../domain/profileTier';
 import { accountRank } from '../rooms/accountRank';
 import { useAuth } from '../state/AuthContext';
 import { useSocial } from '../state/SocialContext';
@@ -29,18 +31,33 @@ const SERVER_LABEL = { STEAM: '스팀', KAKAO: '카카오' } as const;
 
 const syncedLabel = (iso: string) => new Date(iso).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 const number = (value: number | null, digits = 1) => value === null ? '—' : Number.isInteger(value) ? String(value) : value.toFixed(digits);
+const finite = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) ? value : null;
+/** PUBG `detail.seasonMode` — 값 목록이 계약에 없어 아는 둘만 옮기고 나머지는 받은 그대로(Claude 가 정한 세부). */
+const SEASON_MODE_LABEL: Record<string, string> = { RANKED: '랭크 시즌 합산', NORMAL: '일반 시즌 합산' };
+
+/** 사다리마다 한 줄 — `솔로랭크 · 골드 4`. 값이 없으면 "언랭"(2026-09-29 — 티어가 사다리마다 따로다). */
+function LadderTiers({ game, profile }: { game: GameKey; profile: GameProfile }) {
+  return <>{GAME_CATALOG[game].tierLadders.map((ladder) => {
+    const tier = profileTier(profile, ladder);
+    return <span className="row-tier" key={ladder}><FilterTierIcon game={game} tier={accountRank(tier).tier} size={22} /><span>{TIER_LADDER_LABEL[ladder]} · {rankLabel(tier) ?? '언랭'}</span></span>;
+  })}</>;
+}
 
 /**
  * 게임 프로필 카드 하나(platform-api.md "게임 프로필"). 세 게임이 같은 모양이고 게임마다 비는 칸이 다르다 — `null` 은 "정보 없음"으로.
- * LoL 은 `stats` 가 채워지고(연결 · 전적 갱신 때 Riot 에서), VALORANT · PUBG 는 아직 늘 `null` 이다(그 둘의 전적 API 는 미정).
+ * **티어는 사다리마다 한 줄이다**(LoL 솔로 · 자유 / VALORANT 경쟁전 / PUBG 넷 — `tiers`). LoL · PUBG 는 `tiers` · `stats` 가 게임사 API 에서 오고(연결 · 전적 갱신 때 — 2026-09-29 PUBG 도),
+ * VALORANT 는 자기신고라 `stats` 가 늘 `null` 이다. PUBG 의 전적은 판 수 · 치킨률 · K/D · 평균 딜량이다(`stats.detail` — `wins` · `kda` 들은 늘 `null`).
  */
 function GameProfileCard({ game, profile, onEdit, onUnlink, onRefresh, refreshing }: {
   game: GameKey; profile: GameProfile | null; onEdit: () => void; onUnlink: () => void; onRefresh: () => void; refreshing: boolean;
 }) {
   const name = gameFullLabel(game);
-  const rank = accountRank(profile ?? undefined);
   const stats = profile?.stats ?? null;
   const champions = game === 'LOL' ? stats?.detail?.mostChampions ?? [] : [];
+  const fromApi = statsFromApi(game);
+  const detail = stats?.detail ?? null;
+  const pubg = game === 'PUBG' ? { top1Rate: finite(detail?.top1Rate), kd: finite(detail?.kd), avgDamage: finite(detail?.avgDamage) } : null;
+  const seasonMode = pubg && typeof detail?.seasonMode === 'string' ? detail.seasonMode : null;
   return <div className="profile-game-card">
     <div className="profile-game-account">
       <GameBadge game={game} />
@@ -50,7 +67,7 @@ function GameProfileCard({ game, profile, onEdit, onUnlink, onRefresh, refreshin
       </div>
       <div className="profile-game-head-actions">
         {profile ? <>
-          {game === 'LOL' ? <Button size="sm" variant="ghost" disabled={refreshing} aria-label={`${name} 전적 갱신`} onClick={onRefresh}>{refreshing ? '갱신 중…' : '전적 갱신'}</Button> : null}
+          {fromApi ? <Button size="sm" variant="ghost" disabled={refreshing} aria-label={`${name} 전적 갱신`} onClick={onRefresh}>{refreshing ? '갱신 중…' : '전적 갱신'}</Button> : null}
           <Button size="sm" variant="ghost" aria-label={`${name} 계정 수정`} onClick={onEdit}><IconPencil size={14} />수정</Button>
           <Button size="sm" variant="ghost" className="profile-unlink" aria-label={`${name} 연결 해제`} onClick={onUnlink}>연결 해제</Button>
         </> : <Button size="sm" variant="ghost" aria-label={`${name} 계정 연결`} onClick={onEdit}><IconPlus size={15} />계정 연결</Button>}
@@ -58,25 +75,30 @@ function GameProfileCard({ game, profile, onEdit, onUnlink, onRefresh, refreshin
     </div>
     {profile ? <div className="profile-game-body">
       <div className="profile-game-facts">
-        <span className="row-tier"><FilterTierIcon game={game} tier={rank.tier} size={22} /><span>{rankLabel(profile.tier) ?? (game === 'LOL' ? '언랭크 · 배치 전' : '티어 미입력')}</span></span>
+        <LadderTiers game={game} profile={profile} />
         {profile.server ? <span>서버 · {SERVER_LABEL[profile.server]}</span> : null}
-        {profile.verified ? <Tag tone="ok">인증됨</Tag> : <Tag>{game === 'LOL' ? 'Riot 조회' : '자기신고'}</Tag>}
+        {profile.verified ? <Tag tone="ok">인증됨</Tag> : <Tag>{fromApi ? `${STATS_SOURCE[game]} 조회` : '자기신고'}</Tag>}
       </div>
       {stats ? <>
-        <dl className="profile-game-stats">
-          <div><dt>{game === 'PUBG' ? '판 수' : '최근 경기'}</dt><dd>{stats.games}판</dd></div>
-          <div><dt>{game === 'PUBG' ? '치킨' : '승률'}</dt><dd>{stats.winRate !== null ? `${stats.winRate}%` : '—'}{stats.wins !== null && stats.losses !== null ? <small style={{ marginLeft: 6, fontWeight: 400, color: 'var(--muted)' }}>{stats.wins}승 {stats.losses}패</small> : null}</dd></div>
+        {pubg ? <dl className="profile-game-stats">
+          <div><dt>판 수</dt><dd>{stats.games}판</dd></div>
+          <div><dt>치킨률</dt><dd>{pubg.top1Rate !== null ? `${number(pubg.top1Rate)}%` : '—'}</dd></div>
+          <div><dt>K/D</dt><dd>{pubg.kd !== null ? pubg.kd.toFixed(2) : '—'}</dd></div>
+          <div><dt>평균 딜량</dt><dd>{pubg.avgDamage !== null ? Math.round(pubg.avgDamage).toLocaleString('ko-KR') : '—'}</dd></div>
+        </dl> : <dl className="profile-game-stats">
+          <div><dt>최근 경기</dt><dd>{stats.games}판</dd></div>
+          <div><dt>승률</dt><dd>{stats.winRate !== null ? `${stats.winRate}%` : '—'}{stats.wins !== null && stats.losses !== null ? <small style={{ marginLeft: 6, fontWeight: 400, color: 'var(--muted)' }}>{stats.wins}승 {stats.losses}패</small> : null}</dd></div>
           <div><dt>KDA</dt><dd>{stats.kda !== null ? stats.kda.toFixed(2) : `${number(stats.avgKills)} / ${number(stats.avgDeaths)}`}</dd></div>
           <div><dt>연승</dt><dd>{stats.winStreak !== null ? `${stats.winStreak}연승` : '—'}</dd></div>
-        </dl>
+        </dl>}
         {champions.length ? <div className="profile-game-champions" aria-label="최근 선호 챔피언">
           {champions.map((champion) => <span className="profile-game-champion" key={champion.championId}>
             <b>{championName(champion.championId) ?? champion.championId}</b>
             <span>{champion.games}판{champion.winRate !== null ? ` · ${champion.winRate}%` : ''}{champion.masteryLevel !== null ? ` · 숙련도 ${champion.masteryLevel}` : ''}{champion.masteryPoints !== null ? ` (${champion.masteryPoints.toLocaleString('ko-KR')})` : ''}</span>
           </span>)}
         </div> : null}
-        <p className="profile-game-synced">{syncedLabel(stats.syncedAt)} 기준{game === 'LOL' ? ' · 전적 갱신은 2분에 한 번' : ''}</p>
-      </> : <p className="profile-game-synced">{game === 'LOL' ? '전적 정보가 없습니다. 전적 갱신을 눌러 보세요.' : '전적 정보 없음 — 이 게임의 전적 연동은 아직 없습니다.'}</p>}
+        <p className="profile-game-synced">{syncedLabel(stats.syncedAt)} 기준{seasonMode ? ` · ${SEASON_MODE_LABEL[seasonMode] ?? seasonMode}` : ''}{fromApi ? ' · 전적 갱신은 2분에 한 번' : ''}</p>
+      </> : <p className="profile-game-synced">{fromApi ? '전적 정보가 없습니다. 전적 갱신을 눌러 보세요.' : '전적 정보 없음 — 이 게임의 전적 연동은 아직 없습니다.'}</p>}
     </div> : null}
   </div>;
 }
@@ -175,14 +197,14 @@ export function MyInfoPage() {
     toast('게임 계정 연결을 해제했습니다');
   };
 
-  /** 전적 갱신 — LOL 만 · 동기(상한 30초) · 2분에 한 번(429 + `Retry-After`). 응답의 게임 프로필을 그대로 갈아 끼운다. */
+  /** 전적 갱신 — LOL · PUBG(2026-09-29) · 동기(상한 30초) · 2분에 한 번(429 + `Retry-After`). 응답의 게임 프로필(사다리별 티어 포함)을 그대로 갈아 끼운다. */
   const refreshStats = async (game: GameKey) => {
     setRefreshingGame(game);
     try {
       applyGameAccount(await api.refreshGameStats(game));
       toast('전적을 갱신했습니다', 'ok');
     } catch (err) {
-      toast(gameAccountErrorMessage(err, '전적을 갱신하지 못했습니다'), 'error');
+      toast(gameAccountErrorMessage(err, game, '전적을 갱신하지 못했습니다'), 'error');
     } finally {
       setRefreshingGame(null);
     }
@@ -220,7 +242,7 @@ export function MyInfoPage() {
         <section className="profile-section" aria-labelledby="profile-games-heading">
           <div className="profile-section-heading">
             <h2 id="profile-games-heading">게임 계정</h2>
-            <p>게임마다 하나. 파티원과 게시판 카드에 표시됩니다. LOL 의 티어 · 전적은 Riot 에서 가져오고 VALORANT · PUBG 는 직접 적습니다.</p>
+            <p>게임마다 하나. 파티원과 게시판 카드에 표시됩니다. 티어는 랭크 큐마다 따로입니다. LOL 은 Riot, PUBG 는 PUBG 에서 티어 · 전적을 가져오고 VALORANT 는 직접 적습니다.</p>
           </div>
           <div className="profile-game-accounts">
             {GAMES.map((item) => <GameProfileCard key={item.key} game={item.key} profile={gameAccounts.find((a) => a.game === item.key) ?? null}

@@ -1,7 +1,8 @@
 import { isApiError } from '../api/error';
 import type { CreateMatchRequest, GameProfile, MatchCondition } from '../api/types';
-import { modeSeed } from './gameCatalog';
+import { modeSeed, TIER_LADDER_LABEL } from './gameCatalog';
 import { modeLabel } from './labels';
+import { profileTier } from './profileTier';
 
 /**
  * 화면의 매칭 조건(`MatchCondition`)을 서버 본문(`CreateMatchRequest`)으로 — `POST /api/v1/posts/auto-join`(platform) 과 `POST /api/v1/match-requests`(matching) 가
@@ -9,8 +10,9 @@ import { modeLabel } from './labels';
  *
  * - **핵심 조건** — LoL 은 `positionUniqueness=true` 모드(랭크 · 일반)면 실제 포지션 하나(`NONE` 거절), `false` 모드(칼바람)면 **`NONE` 만**. 화면의 "무관" 사본 `ANY` 는
  *   여기서 `NONE` 으로 옮긴다. VALORANT 는 역할군 하나가 필수(`NONE` 없음), PUBG 는 `STEAM` · `KAKAO`. type 은 게임이 정한다(`POSITION` · `ROLE` · `PLATFORM`).
- * - **`tier`** — 내 게임 계정(`users/me.gameAccounts`)의 `tier` 를 **`tierRule=EXIST` 모드에서만** 싣는다. `NONE` 모드에 실으면 400 이라 빼고, `EXIST` 모드인데 티어가 없으면
- *   서버가 400 을 내므로 보내기 전에 막는다(`matchRequestError`). `UNRANKED` 는 사다리의 `SOLO_ONLY` 라 서버가 400 으로 거절한다 — 그 글귀(`details[0]`)를 그대로 보여 준다.
+ * - **`tier`** — 내 게임 계정(`users/me.gameAccounts`)의 **그 모드의 사다리(`tierLadder`) 티어**(`tiers[ladder]`)를 **`tierRule=EXIST` 모드에서만** 싣는다(2026-09-29 소유자 결정 —
+ *   티어가 사다리마다 따로다. 솔로 랭크는 `SOLO`, 자유 랭크는 `FLEX`, PUBG 경쟁전은 모드마다). `NONE` 모드에 실으면 400 이라 빼고, `EXIST` 모드인데 그 사다리의 티어가 `null` 이면
+ *   서버가 400 을 내므로 보내기 전에 막는다(`matchRequestError` — "자유랭크 티어가 없습니다 — …"). `UNRANKED` 는 사다리의 `SOLO_ONLY` 라 서버가 400 으로 거절한다 — 그 글귀(`details[0]`)를 그대로 보여 준다.
  *   (게임 계정을 연동하면 요청에서 사라질 "임시 필드" 라고 계약이 적었지만 지금은 두 서버 모두 본문의 자기신고를 읽는다 — 그래서 프런트가 계정의 티어를 옮겨 싣는다.)
  * - `playPurpose` 는 그대로 — auto-join 은 받되 무시하고(P-29), matching 은 색인 키의 한 조각이다.
  */
@@ -32,9 +34,9 @@ export function matchRequestError(condition: MatchCondition, gameAccounts: reado
   if (mode.tierRule === 'EXIST') {
     const account = gameAccounts.find((a) => a.game === condition.game);
     if (!account) return '이 모드는 티어가 필요합니다. 먼저 게임 계정을 연결해 주세요';
-    if (!account.tier) return condition.game === 'LOL'
-      ? '이 모드는 티어가 필요합니다. 배치를 마친 뒤 내 정보에서 전적을 갱신해 주세요'
-      : '이 모드는 티어가 필요합니다. 내 정보에서 게임 계정의 티어를 적어 주세요';
+    if (!profileTier(account, mode.tierLadder)) return `${TIER_LADDER_LABEL[mode.tierLadder]} 티어가 없습니다 — ${condition.game === 'VALORANT'
+      ? '내 정보에서 게임 계정의 티어를 적어 주세요'
+      : '배치를 마친 뒤 내 정보에서 전적을 갱신해 주세요'}`;
   }
   return null;
 }
@@ -44,7 +46,7 @@ export function buildMatchRequest(condition: MatchCondition, gameAccounts: reado
   const mode = modeSeed(condition.game, condition.modeKey);
   const positionMode = mode?.positionUniqueness !== false;
   const value = positionMode ? condition.keyCondition.value : NO_KEY_CONDITION;
-  const tier = mode?.tierRule === 'EXIST' ? gameAccounts.find((a) => a.game === condition.game)?.tier ?? undefined : undefined;
+  const tier = mode?.tierRule === 'EXIST' ? profileTier(gameAccounts.find((a) => a.game === condition.game), mode.tierLadder) ?? undefined : undefined;
   return {
     game: condition.game,
     modeKey: condition.modeKey,
