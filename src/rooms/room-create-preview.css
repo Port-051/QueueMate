@@ -25,3 +25,22 @@
 .room-move-notice { margin:22px 0 0; padding:13px 15px; border-radius:12px; background:#272235; color:#cdc2df; font-size:13px; line-height:1.65; overflow-wrap:anywhere; }
 
 .modal:is(.room-create-preview,.room-member-profile) button { border-radius:999px; }
+
+/* 글 쓰기 팝업의 "찾는 포지션" · "한마디"(2026-09-29 소유자 지시 — 자동 매칭 판에서 옮겨 왔고 모양은 판에 있던 그대로다). 창은 body 로 포털되어
+   판의 규칙(`.room-home …` — room-board.css · matching-rail.css · duo-home.css · recruitment.css 의 `.recruitment-composer input`)이 닿지 않으므로 그 값을 여기 옮겨 적는다.
+   판의 모양을 바꾸면 여기도 같이 바꾼다. */
+.room-preview-fieldset { min-width:0; margin:0; padding:0; border:0; }
+.room-create-preview .room-preview-fields .introduction-choice legend { color:#bcc1d2; font-size:14px; }
+.room-create-preview .room-preview-fields .introduction-fields label { color:var(--text-dim); font-size:14px; }
+.room-create-preview .intro-role-options { gap:5px; padding:6px 0; border:0; background:none; }
+.room-create-preview .intro-role-options>.filter-role { flex:none; flex-direction:column; gap:4px; justify-self:center; width:min(100%,64px); height:auto; min-height:0; aspect-ratio:1; padding:3px; border:1px solid var(--line); border-radius:50%; font-size:12px; line-height:1.3; }
+.room-create-preview .intro-role-options>.filter-role span { font-size:12px; }
+.room-create-preview .intro-role-options>.filter-role svg { flex:none; width:22px; height:22px; }
+.room-create-preview .intro-role-options>.filter-role[aria-pressed=true] { border-color:var(--accent); }
+.room-create-preview .intro-role-options>.filter-role:disabled { opacity:.3; cursor:not-allowed; }
+.room-create-preview input[aria-label="한마디"] { width:100%; min-width:0; min-height:48px; padding:12px 20px; border:1px solid var(--line); border-radius:999px; background:#151723; color:var(--text); font:inherit; font-size:15px; line-height:1.5; color-scheme:dark; }
+.room-create-preview input[aria-label="한마디"]:focus { border-color:var(--accent); }
+.room-create-preview input[aria-label="한마디"]::placeholder { color:#626270; font-size:15px; opacity:1; }
+.room-create-preview input[aria-label="한마디"][aria-invalid=true] { border-color:var(--danger); }
+.room-preview-title-field { min-width:0; }
+.room-preview-title-field>:is(.room-create-hint,.room-create-error) { margin:8px 0 0; }

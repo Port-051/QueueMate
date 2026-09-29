@@ -72,7 +72,7 @@
 .button-fields { grid-template-columns: minmax(0, 1fr); gap: 18px; }
 .introduction-choice { border: 0; padding: 0; margin: 0; min-width: 0; }
 .introduction-choice legend { padding: 0; margin-bottom: 9px; color: var(--text-dim); font-size: 13px; }
-/* 칸 아래의 작은 흐린 안내 — 빠른 연결의 "플레이 목적" 이 "매칭 시작에만 쓰여요" 를 적는다(2026-09-29). */
+/* 칸 아래의 작은 흐린 안내 — 자동 매칭 판의 "플레이 목적" 이 "자동 매칭 시작에만 쓰여요" 를 적는다(2026-09-29). */
 .introduction-field-note { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .intro-mode-options, .intro-voice-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
 .intro-voice-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
