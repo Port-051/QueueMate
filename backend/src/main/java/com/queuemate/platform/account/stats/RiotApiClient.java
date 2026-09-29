@@ -19,11 +19,12 @@ import java.net.http.HttpClient;
  * Riot API 를 부르는 <b>전송 쪽</b> — 주소 · 경로 · 키 헤더 · 타임아웃만 안다. 응답의 JSON 을 해석하지 않고 {@link JsonNode} 를 그대로 돌려준다
  * (칸을 읽는 곳은 {@link LolStatsProvider} 한 곳이다). {@link com.queuemate.platform.account.oauth.OAuthClient} 와 같은 방식으로 짰다.
  *
- * <p><b>경로가 이 한 곳에 모여 있다</b> — Riot 이 경로를 바꾸면 여기만 고친다. 지금 부르는 것은 여섯이다.
+ * <p><b>경로가 이 한 곳에 모여 있다</b> — Riot 이 경로를 바꾸면 여기만 고친다. 지금 부르는 것은 다섯이다.
  * <ol>
  *   <li>{@code account-v1} — Riot ID({@code 이름#태그}) → {@code puuid} <b>(대륙 주소)</b></li>
- *   <li>{@code summoner-v4} — {@code puuid} → 소환사({@code id} = encrypted summoner id) <b>(플랫폼 주소)</b></li>
- *   <li>{@code league-v4} — 소환사의 리그 목록(솔로랭크의 승/패) <b>(플랫폼 주소)</b></li>
+ *   <li>{@code league-v4} — <b>{@code puuid} 로</b> 리그 목록(솔로랭크의 승/패 · 티어, 자유랭크의 티어) <b>(플랫폼 주소)</b>.
+ *       (2026-09-29 까지는 {@code summoner-v4} 로 소환사 {@code id} 를 받아 {@code entries/by-summoner} 를 불렀다 — <b>실제 키로 불러 보니 소환사 응답에 {@code id} 가 없었다</b>
+ *       ({@code profileIconId} · {@code puuid} · {@code revisionDate} · {@code summonerLevel} 넷뿐). {@code entries/by-puuid} 는 200 으로 동작해 그리로 바꾸고 소환사 호출을 없앴다)</li>
  *   <li>{@code match-v5} — 최근 경기 id 목록 <b>(대륙 주소)</b></li>
  *   <li>{@code match-v5} — 경기 하나 <b>(대륙 주소)</b></li>
  *   <li>{@code champion-mastery-v4} — 그 소환사의 챔피언 숙련도 전부(배열) <b>(플랫폼 주소)</b></li>
@@ -32,7 +33,7 @@ import java.net.http.HttpClient;
  * <p><b>키는 헤더로만 보낸다</b>({@code X-Riot-Token}) — 쿼리에 실으면 주소가 로그 · 예외 메시지에 남는다. 키를 어디에도 찍지 않는다.
  *
  * <p><b>실패는 전부 {@link RiotApiException} 이다</b> — 4xx · 5xx · 타임아웃 · JSON 이 아닌 응답. 재시도하지 않는다
- * (개발용 키는 2분당 100회라 429 를 받으면 되풀이해도 소용이 없다 — 그 자리에서 포기한다).
+ * (개발용 키는 2분당 100회라 429 를 받으면 되풀이해도 소용이 없다 — 그 자리에서 포기한다. 2026-09-29 실제 헤더 — {@code X-App-Rate-Limit: 100:120,20:1}).
  */
 @Slf4j
 @Component
@@ -44,8 +45,8 @@ public class RiotApiClient {
 
     // ---- 경로. Riot 이 바꾸면 여기만 고친다 ----
     static final String ACCOUNT_BY_RIOT_ID = "/riot/account/v1/accounts/by-riot-id/{gameName}/{tagLine}";
-    static final String SUMMONER_BY_PUUID = "/lol/summoner/v4/summoners/by-puuid/{puuid}";
-    static final String LEAGUE_ENTRIES_BY_SUMMONER = "/lol/league/v4/entries/by-summoner/{summonerId}";
+    /** 2026-09-29 실제 키로 확인 — 200 · {@code [{queueType, tier, rank, puuid, leaguePoints, wins, losses, …}]} */
+    static final String LEAGUE_ENTRIES_BY_PUUID = "/lol/league/v4/entries/by-puuid/{puuid}";
     static final String MATCH_IDS_BY_PUUID = "/lol/match/v5/matches/by-puuid/{puuid}/ids?start=0&count={count}";
     static final String MATCH_BY_ID = "/lol/match/v5/matches/{matchId}";
     static final String CHAMPION_MASTERIES_BY_PUUID = "/lol/champion-mastery/v4/champion-masteries/by-puuid/{puuid}";
@@ -78,16 +79,10 @@ public class RiotApiClient {
         return get(properties.regionalBaseUrl() + ACCOUNT_BY_RIOT_ID, gameName, tagLine);
     }
 
-    /** {@code puuid} → 소환사 */
-    JsonNode summoner(String puuid)
+    /** 그 {@code puuid} 의 리그 목록(배열) — 솔로랭크 · 자유랭크 줄이 그 안에 있을 수도 있고 없을 수도 있다(언랭) */
+    JsonNode leagueEntries(String puuid)
     {
-        return get(properties.platformBaseUrl() + SUMMONER_BY_PUUID, puuid);
-    }
-
-    /** 소환사의 리그 목록(배열) — 솔로랭크 줄이 그 안에 있을 수도 있고 없을 수도 있다(언랭) */
-    JsonNode leagueEntries(String summonerId)
-    {
-        return get(properties.platformBaseUrl() + LEAGUE_ENTRIES_BY_SUMMONER, summonerId);
+        return get(properties.platformBaseUrl() + LEAGUE_ENTRIES_BY_PUUID, puuid);
     }
 
     /** 최근 경기 id 의 배열 — <b>새 경기가 먼저</b> 온다 */

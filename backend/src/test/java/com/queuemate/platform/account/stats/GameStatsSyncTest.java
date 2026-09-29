@@ -117,7 +117,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
-        String puuid = stubLol("달콤한 인생#KR7", "sum-1", 18, 28, List.of(
+        String puuid = stubLol("달콤한 인생#KR7", 18, 28, List.of(
                 // 새 경기가 먼저다 — 연승은 2(이김 · 이김 · 짐)
                 play("Samira", 10, 2, 5, true),
                 play("Samira", 8, 4, 3, true),
@@ -173,8 +173,10 @@ class GameStatsSyncTest extends ApiTestSupport {
         assertThat(champions.get(1).get("masteryPoints").asInt()).isEqualTo(1_234_567);
         assertThat(champions.get(2).get("masteryLevel").isNull()).isTrue();
         assertThat(champions.get(2).get("masteryPoints").isNull()).isTrue();
-        // 계정 · 소환사 · 리그 · 경기 id · 경기 7 · 숙련도 1 — 숙련도는 챔피언마다 부르지 않는다
-        assertThat(FAKE.calls() - callsBefore).isEqualTo(12);
+        // 계정 · 리그 · 경기 id · 경기 7 · 숙련도 1 — 숙련도는 챔피언마다 부르지 않는다. 소환사(summoner-v4)는 부르지 않는다 —
+        // 실제 응답에 id 가 없어 리그를 puuid 로 부른다(2026-09-29)
+        assertThat(FAKE.calls() - callsBefore).isEqualTo(11);
+        assertThat(FAKE.summonerCalls()).isZero();
 
         // users/me 도 같은 값이다
         JsonNode profile = profile(cookie, "LOL");
@@ -203,11 +205,10 @@ class GameStatsSyncTest extends ApiTestSupport {
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
-        stubLol("처음#KR1", "sum-first", 1, 1, List.of(play("Ahri", 1, 1, 1, true, "TOP")));
+        stubLol("처음#KR1", 1, 1, List.of(play("Ahri", 1, 1, 1, true, "TOP")));
         String second = "puuid-" + newTag();
         FAKE.stubAccount("다음#KR2", second);
-        FAKE.stubSummoner(second, "sum-second");
-        FAKE.stubSoloRank("sum-second", "GOLD", "II", 5, 5);
+        FAKE.stubSoloRank(second, "GOLD", "II", 5, 5);
         FAKE.stubMatches(second, List.of(play("Lulu", 1, 1, 1, true, "UTILITY")));
 
         putGameAccount(cookie, "LOL", json("gameNickname", "처음#KR1"))
@@ -233,7 +234,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
-        stubLol("포지션#KR1", "sum-position", 3, 3, List.of(
+        stubLol("포지션#KR1", 3, 3, List.of(
                 play("Lulu", 1, 1, 1, true, "UTILITY"),
                 play("Nami", 1, 1, 1, true, "UTILITY")));
         int before = FAKE.calls();
@@ -284,8 +285,7 @@ class GameStatsSyncTest extends ApiTestSupport {
         Cookie cookie = login(newNickname());
         String puuid = "puuid-" + newTag();
         FAKE.stubAccount("새티어#KR1", puuid);
-        FAKE.stubSummoner(puuid, "sum-obsidian");
-        FAKE.stubSoloRank("sum-obsidian", "OBSIDIAN", "II", 7, 3);
+        FAKE.stubSoloRank(puuid, "OBSIDIAN", "II", 7, 3);
         FAKE.stubMatches(puuid, List.of(play("Ahri", 1, 1, 1, true)));
 
         putGameAccount(cookie, "LOL", json("gameNickname", "새티어#KR1"))
@@ -303,8 +303,7 @@ class GameStatsSyncTest extends ApiTestSupport {
         Cookie cookie = login(newNickname());
         String puuid = "puuid-" + newTag();
         FAKE.stubAccount("언랭#KR1", puuid);
-        FAKE.stubSummoner(puuid, "sum-unranked");
-        FAKE.stubNoSoloRank("sum-unranked");
+        FAKE.stubNoSoloRank(puuid);
         FAKE.stubMatches(puuid, List.of(play("Ahri", 3, 3, 3, true)));
 
         JsonNode linked = readBody(putGameAccount(cookie, "LOL", json("gameNickname", "언랭#KR1"))
@@ -326,7 +325,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     void winStreakAndNoMatches() throws Exception
     {
         Cookie cookie = login(newNickname());
-        String puuid = stubLol("연승#KR1", "sum-streak", 1, 1, List.of(
+        String puuid = stubLol("연승#KR1", 1, 1, List.of(
                 play("Ahri", 1, 1, 1, false),
                 play("Ahri", 1, 1, 1, true),
                 play("Ahri", 1, 1, 1, true)));
@@ -355,7 +354,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
-        stubLol("글쓴이#KR1", "sum-post", 5, 5, List.of(play("Ahri", 1, 1, 1, true)));
+        stubLol("글쓴이#KR1", 5, 5, List.of(play("Ahri", 1, 1, 1, true)));
         putGameAccount(cookie, "LOL", json("gameNickname", "글쓴이#KR1")).andExpect(status().isOk());
         Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
 
@@ -389,7 +388,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("숙련도 호출만 500 이면 연결은 200 이고 나머지 전적은 정상 · 숙련도만 null 이다 — 경기 20판이면 Riot 호출은 25번")
+    @DisplayName("숙련도 호출만 500 이면 연결은 200 이고 나머지 전적은 정상 · 숙련도만 null 이다 — 경기 20판이면 Riot 호출은 24번")
     @ExtendWith(OutputCaptureExtension.class)
     void masteryFailureKeepsStats(CapturedOutput output) throws Exception
     {
@@ -400,7 +399,7 @@ class GameStatsSyncTest extends ApiTestSupport {
         {
             twenty.add(play(i < 12 ? "Ahri" : "Yasuo", 4, 2, 6, i % 2 == 0));
         }
-        String puuid = stubLol("숙련도#KR1", "sum-mastery", 30, 20, twenty);
+        String puuid = stubLol("숙련도#KR1", 30, 20, twenty);
         FAKE.stubMastery(puuid, Map.of("Ahri", new int[]{12, 99_999}));
         FAKE.failMasteryWith(500);
         int callsBefore = FAKE.calls();
@@ -409,8 +408,8 @@ class GameStatsSyncTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tiers.SOLO").value("EMERALD_4"))).get("stats");
 
-        // 계정 · 소환사 · 리그 · 경기 id · 경기 20 · 숙련도 1
-        assertThat(FAKE.calls() - callsBefore).isEqualTo(25);
+        // 계정 · 리그 · 경기 id · 경기 20 · 숙련도 1
+        assertThat(FAKE.calls() - callsBefore).isEqualTo(24);
         assertThat(stats.get("games").asInt()).isEqualTo(20);
         assertThat(stats.get("wins").asInt()).isEqualTo(30);
         assertThat(stats.get("losses").asInt()).isEqualTo(20);
@@ -433,7 +432,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
-        stubLol("실패#KR1", "sum-fail", 3, 1, List.of(play("Ahri", 9, 1, 1, true)));
+        stubLol("실패#KR1", 3, 1, List.of(play("Ahri", 9, 1, 1, true)));
 
         for(int status : new int[]{500, 429})
         {
@@ -462,7 +461,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
-        stubLol("그대로#KR1", "sum-keep", 3, 1, List.of(play("Ahri", 9, 1, 1, true)));
+        stubLol("그대로#KR1", 3, 1, List.of(play("Ahri", 9, 1, 1, true)));
         putGameAccount(cookie, "LOL", json("gameNickname", "그대로#KR1")).andExpect(status().isOk());
         Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
         Instant good = syncedAt(gameAccountId);
@@ -485,8 +484,8 @@ class GameStatsSyncTest extends ApiTestSupport {
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
-        // 부르는 것이 8번(계정 · 소환사 · 리그 · 경기 id · 경기 3 · 숙련도) — 한 번에 0.7초면 상한 3초를 넘긴다(읽기 타임아웃 1초는 안 넘는다)
-        stubLol("느림#KR1", "sum-slow", 1, 1, List.of(
+        // 부르는 것이 7번(계정 · 리그 · 경기 id · 경기 3 · 숙련도) — 한 번에 0.7초면 상한 3초를 넘긴다(읽기 타임아웃 1초는 안 넘는다)
+        stubLol("느림#KR1", 1, 1, List.of(
                 play("Ahri", 1, 1, 1, true), play("Ahri", 1, 1, 1, true), play("Ahri", 1, 1, 1, true)));
         FAKE.respondAfter(Duration.ofMillis(700));
         int before = FAKE.calls();
@@ -498,7 +497,7 @@ class GameStatsSyncTest extends ApiTestSupport {
         // 뒤에서 돌던 긁기가 끝나기를 기다린다 — 끝나도 아무것도 적히지 않는다
         awaitSyncIdle();
         FAKE.respondAfter(Duration.ZERO);
-        assertThat(FAKE.calls()).as("뒤에서 끝까지 긁기는 했다").isEqualTo(before + 8);
+        assertThat(FAKE.calls()).as("뒤에서 끝까지 긁기는 했다").isEqualTo(before + 7);
         assertThat(gameAccountCount(userIdOf(nickname))).isZero();
     }
 
@@ -526,7 +525,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
-        stubLol("락#KR1", "sum-lock", 2, 2, List.of(play("Ahri", 1, 1, 1, true)));
+        stubLol("락#KR1", 2, 2, List.of(play("Ahri", 1, 1, 1, true)));
         putGameAccount(cookie, "LOL", json("gameNickname", "락#KR1")).andExpect(status().isOk());
         Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
         Instant good = syncedAt(gameAccountId);
@@ -558,7 +557,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
-        String puuid = stubLol("갱신#KR1", "sum-refresh", 10, 10, List.of(play("Ahri", 1, 1, 1, true)));
+        String puuid = stubLol("갱신#KR1", 10, 10, List.of(play("Ahri", 1, 1, 1, true)));
         putGameAccount(cookie, "LOL", json("gameNickname", "갱신#KR1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tiers.SOLO").value("EMERALD_4"))
@@ -569,7 +568,7 @@ class GameStatsSyncTest extends ApiTestSupport {
 
         // 그 사이에 두 판 더 이겼다(서폿으로) · 솔로랭크는 골드 II 로 떨어졌고 자유랭크는 사라졌다 — 갱신이 진짜로 다시 긁는지 보려는 것이다
         // (games 1 → 3, 연승 1 → 3). 사다리 둘을 통째로 갈아 끼운다 — 자유랭크 줄이 없어졌으니 FLEX 는 null 이 된다
-        FAKE.stubRanks("sum-refresh", "GOLD", "II", null, null, 11, 12);
+        FAKE.stubRanks(puuid, "GOLD", "II", null, null, 11, 12);
         FAKE.stubMatches(puuid, List.of(
                 play("Lulu", 9, 1, 3, true, "UTILITY"),
                 play("Nami", 7, 2, 4, true, "UTILITY"),
@@ -602,7 +601,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
-        stubLol("쿨타임#KR1", "sum-cool", 3, 3, List.of(play("Ahri", 1, 1, 1, true)));
+        stubLol("쿨타임#KR1", 3, 3, List.of(play("Ahri", 1, 1, 1, true)));
         putGameAccount(cookie, "LOL", json("gameNickname", "쿨타임#KR1")).andExpect(status().isOk());
         Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
 
@@ -675,7 +674,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
-        stubLol("갱신실패#KR1", "sum-refresh-fail", 4, 6, List.of(play("Ahri", 2, 2, 2, true)));
+        stubLol("갱신실패#KR1", 4, 6, List.of(play("Ahri", 2, 2, 2, true)));
         putGameAccount(cookie, "LOL", json("gameNickname", "갱신실패#KR1")).andExpect(status().isOk());
         Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
         Instant good = syncedAt(gameAccountId);
@@ -699,7 +698,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
-        stubLol("자물쇠#KR1", "sum-refresh-lock", 1, 2, List.of(play("Ahri", 1, 1, 1, true)));
+        stubLol("자물쇠#KR1", 1, 2, List.of(play("Ahri", 1, 1, 1, true)));
         putGameAccount(cookie, "LOL", json("gameNickname", "자물쇠#KR1")).andExpect(status().isOk());
         Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
         Instant good = syncedAt(gameAccountId);
@@ -727,13 +726,12 @@ class GameStatsSyncTest extends ApiTestSupport {
         return mockMvc.perform(post("/api/v1/users/me/game-accounts/" + game + "/refresh").cookie(cookie));
     }
 
-    /** 그 닉네임으로 계정 · 소환사 · 솔로랭크 · 경기를 한꺼번에 넣는다. 돌려주는 것은 {@code puuid} 다 */
-    private String stubLol(String riotId, String summonerId, int wins, int losses, List<FakeRiotApi.Play> plays)
+    /** 그 닉네임으로 계정 · 리그(솔로 에메랄드 IV · 자유 골드 II) · 경기를 한꺼번에 넣는다. 돌려주는 것은 {@code puuid} 다 */
+    private String stubLol(String riotId, int wins, int losses, List<FakeRiotApi.Play> plays)
     {
         String puuid = "puuid-" + newTag();
         FAKE.stubAccount(riotId, puuid);
-        FAKE.stubSummoner(puuid, summonerId);
-        FAKE.stubSoloRank(summonerId, wins, losses);
+        FAKE.stubSoloRank(puuid, wins, losses);
         FAKE.stubMatches(puuid, plays);
         return puuid;
     }

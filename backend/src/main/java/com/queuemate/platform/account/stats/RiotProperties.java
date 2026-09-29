@@ -9,18 +9,18 @@ import java.time.Duration;
  * 전적 동기화의 설정값. {@code application.yaml} 의 {@code platform.riot.*} 이고 환경변수로 바꾼다.
  * 환경변수의 이름은 {@code contracts/platform-api.md} "게임 프로필" 의 "전적을 긁는 것" 이 원본이다.
  *
- * <p><b>주소가 둘이다</b> — Riot 의 API 는 계정 · 경기가 <b>대륙</b> 주소({@code asia}), 소환사 · 리그가 <b>플랫폼</b> 주소({@code kr})에 있다.
+ * <p><b>주소가 둘이다</b> — Riot 의 API 는 계정 · 경기가 <b>대륙</b> 주소({@code asia}), 리그 · 숙련도가 <b>플랫폼</b> 주소({@code kr})에 있다.
  * 테스트는 둘 다 가짜 서버로 돌린다.
  *
  * @param apiKey          Riot 개발자 키(환경변수 {@code RIOT_API_KEY}). <b>비어 있으면 긁는 일 자체를 하지 않는다</b> — 기동은 정상이고
  *                        {@code stats} 가 {@code null} 로 남는다. <b>로그에 찍지 않는다</b>({@link #toString()})
  * @param regionalBaseUrl 대륙 주소 — {@code account-v1}(Riot ID → puuid) · {@code match-v5}(경기)
- * @param platformBaseUrl 플랫폼 주소 — {@code summoner-v4} · {@code league-v4}(솔로랭크의 승/패)
+ * @param platformBaseUrl 플랫폼 주소 — {@code league-v4}(솔로 · 자유랭크의 티어 · 솔로랭크의 승/패 — {@code puuid} 로 부른다, 2026-09-29) · {@code champion-mastery-v4}
  * @param matchCount      최근 몇 경기를 읽어 평균을 낼지. 경기 하나가 요청 하나다 — 개발용 키의 한도(2분당 100회)를 생각해 작게 둔다
  * @param connectTimeout  Riot 을 부를 때의 연결 타임아웃
  * @param readTimeout     Riot 을 부를 때의 읽기 타임아웃. 긁는 것은 전용 풀이라 요청 스레드를 붙잡지는 않지만, 느린 응답에 전용 풀이 묶이면 안 된다
  * @param refreshCooldown <b>전적 갱신 요청</b>({@code POST …/game-accounts/{game}/refresh})을 같은 게임 계정에 다시 받기까지 기다리는 시간
- *                        (2026-09-24 소유자 결정 — <b>2분</b>). 사용자가 누르는 것이라 남용을 막는 것이 이것뿐이다 — 한 번이 Riot 호출 25번이다
+ *                        (2026-09-24 소유자 결정 — <b>2분</b>). 사용자가 누르는 것이라 남용을 막는 것이 이것뿐이다 — 한 번이 Riot 호출 24번이다(PUBG 는 2 ~ 4번)
  * @param refreshTimeout  그 요청이 <b>다 긁기를 기다리는 상한</b>(2026-09-24 소유자 결정 — <b>30초</b>). 넘으면 요청은 실패로 끝내고
  *                        <b>뒤에서 돌던 갱신은 그대로 둔다</b> — 끝나면 전적은 갱신된다({@link GameStatsRefresher}).
  *                        <b>LoL 게임 계정 연결도 같은 상한이다</b>(2026-09-27) — 그쪽은 늦게 끝난 긁기를 저장하지 않고 버린다

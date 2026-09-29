@@ -17,7 +17,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 테스트용 <b>가짜 Riot API</b> — {@code account-v1} · {@code summoner-v4} · {@code league-v4} · {@code match-v5} · {@code champion-mastery-v4} 의 여섯 주소를 흉내 낸다.
+ * 테스트용 <b>가짜 Riot API</b> — {@code account-v1} · {@code league-v4}({@code entries/by-puuid}) · {@code match-v5} · {@code champion-mastery-v4} 의 다섯 주소를 흉내 낸다.
+ * {@code summoner-v4} 는 <b>앱이 부르지 않는지 세기만 한다</b>({@link #summonerCalls()} — 2026-09-29 실제 키로 보니 소환사 응답에 {@code id} 가 없어
+ * 리그를 {@code puuid} 로 부르게 바꿨다. 응답은 실제처럼 {@code id} 가 없는 모양이다).
  * JDK 의 {@link HttpServer} 를 임의 포트로 띄운다({@code FakeOAuthProvider} 와 같은 방식 — WireMock 같은 새 의존성을 들이지 않는다).
  *
  * <p><b>대륙 주소와 플랫폼 주소를 한 서버가 같이 받는다</b> — 경로가 겹치지 않으므로 테스트가 두 설정을 같은 주소로 돌려도 된다.
@@ -27,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <li>키 헤더({@code X-Riot-Token})가 없거나 다르면 <b>403</b> 이다. 실제 Riot 과 같은 자리에서 걸러진다</li>
  *   <li>{@link #failWith(int)} 로 모든 주소가 그 상태를 주게 한다(500 · 429). {@link #respondAfter(Duration)} 로 늦게 답한다(타임아웃)</li>
  *   <li>{@link #calls()} 는 <b>받은 요청의 수</b>다 — "아예 부르지 않는지" 를 이것으로 본다</li>
- *   <li>넣어 두지 않은 Riot ID · 소환사 · 경기는 <b>404</b> 다. 숙련도는 넣어 두지 않으면 빈 배열이다</li>
+ *   <li>넣어 두지 않은 Riot ID · 경기는 <b>404</b> 다. 리그 목록 · 숙련도는 넣어 두지 않으면 빈 배열이다</li>
  *   <li>경기 참가자의 {@code championId}(숫자)는 {@link #championKey(String)} 가 챔피언 이름으로 정한다 — 숙련도와 맞추는 열쇠다</li>
  *   <li>{@link #failMasteryWith(int)} 로 숙련도 주소 하나만 실패시킨다</li>
  * </ul>
@@ -43,10 +45,10 @@ final class FakeRiotApi {
 
     /** {@code "이름#태그"} → {@code puuid} */
     private final Map<String, String> accounts = new ConcurrentHashMap<>();
-    /** {@code puuid} → 소환사 응답의 JSON */
-    private final Map<String, String> summoners = new ConcurrentHashMap<>();
-    /** 소환사 id → 리그 목록의 JSON(배열) */
+    /** {@code puuid} → 리그 목록의 JSON(배열) */
     private final Map<String, String> leagues = new ConcurrentHashMap<>();
+    /** 앱이 {@code summoner-v4} 를 부른 수 — 0 이어야 한다 */
+    private final AtomicInteger summonerCalls = new AtomicInteger();
     /** {@code puuid} → 경기 id 목록(새 경기가 먼저) */
     private final Map<String, List<String>> matchIds = new ConcurrentHashMap<>();
     /** 경기 id → 경기 응답의 JSON */
@@ -71,7 +73,7 @@ final class FakeRiotApi {
         }
         server.createContext("/riot/account/v1/accounts/by-riot-id/", this::account);
         server.createContext("/lol/summoner/v4/summoners/by-puuid/", this::summoner);
-        server.createContext("/lol/league/v4/entries/by-summoner/", this::league);
+        server.createContext("/lol/league/v4/entries/by-puuid/", this::league);
         // 더 긴 접두사가 이긴다 — by-puuid 의 요청이 경기 하나를 주는 핸들러로 가지 않는다
         server.createContext("/lol/match/v5/matches/by-puuid/", this::matchIdList);
         server.createContext("/lol/match/v5/matches/", this::match);
@@ -99,51 +101,45 @@ final class FakeRiotApi {
         accounts.put(riotId, puuid);
     }
 
-    /** {@code puuid} → 소환사. {@code summonerId} 가 {@code null} 이면 {@code id} 칸이 없는 응답이다(칸이 사라진 경우를 본다) */
-    void stubSummoner(String puuid, String summonerId)
-    {
-        summoners.put(puuid, summonerId == null
-                ? "{\"puuid\":\"" + puuid + "\",\"profileIconId\":1234,\"summonerLevel\":300}"
-                : "{\"id\":\"" + summonerId + "\",\"puuid\":\"" + puuid + "\",\"profileIconId\":1234,\"summonerLevel\":300}");
-    }
-
     /**
      * 솔로랭크 줄(에메랄드 IV)이 있는 리그 목록. 자유랭크 줄(골드 II · 99승 99패)을 같이 넣는다 — 그쪽 승/패를 섞지 않고 티어는 {@code FLEX} 사다리로만
      * 읽는지 본다(2026-09-29 — P-36)
      */
-    void stubSoloRank(String summonerId, int wins, int losses)
+    void stubSoloRank(String puuid, int wins, int losses)
     {
-        stubSoloRank(summonerId, "EMERALD", "IV", wins, losses);
+        stubSoloRank(puuid, "EMERALD", "IV", wins, losses);
     }
 
     /** 티어를 골라 넣는다 — Riot 의 {@code tier} · {@code rank} 그대로({@code "MASTER"} · {@code "I"}). 자유랭크 줄(골드 II)을 같이 넣는다 */
-    void stubSoloRank(String summonerId, String tier, String rank, int wins, int losses)
+    void stubSoloRank(String puuid, String tier, String rank, int wins, int losses)
     {
-        stubRanks(summonerId, tier, rank, "GOLD", "II", wins, losses);
+        stubRanks(puuid, tier, rank, "GOLD", "II", wins, losses);
     }
 
     /** 솔로랭크 줄과 자유랭크 줄을 골라 넣는다. {@code flexTier} 가 {@code null} 이면 자유랭크 줄이 없다(자유랭크 언랭). 자유랭크 줄의 승/패는 99 · 99 다 */
-    void stubRanks(String summonerId, String soloTier, String soloRank, String flexTier, String flexRank, int wins, int losses)
+    void stubRanks(String puuid, String soloTier, String soloRank, String flexTier, String flexRank, int wins, int losses)
     {
         List<String> entries = new ArrayList<>();
         if(flexTier != null)
         {
-            entries.add(entry("RANKED_FLEX_SR", flexTier, flexRank, 99, 99));
+            entries.add(entry(puuid, "RANKED_FLEX_SR", flexTier, flexRank, 99, 99));
         }
-        entries.add(entry("RANKED_SOLO_5x5", soloTier, soloRank, wins, losses));
-        leagues.put(summonerId, "[" + String.join(",", entries) + "]");
+        entries.add(entry(puuid, "RANKED_SOLO_5x5", soloTier, soloRank, wins, losses));
+        leagues.put(puuid, "[" + String.join(",", entries) + "]");
     }
 
     /** 솔로랭크 줄이 없는 리그 목록(언랭 또는 자유랭크만) */
-    void stubNoSoloRank(String summonerId)
+    void stubNoSoloRank(String puuid)
     {
-        leagues.put(summonerId, "[" + entry("RANKED_FLEX_SR", "GOLD", "II", 7, 3) + "]");
+        leagues.put(puuid, "[" + entry(puuid, "RANKED_FLEX_SR", "GOLD", "II", 7, 3) + "]");
     }
 
-    private static String entry(String queueType, String tier, String rank, int wins, int losses)
+    /** 2026-09-29 실제 응답의 칸 모양이다 — {@code summonerId} 가 없고 {@code puuid} 가 있다 */
+    private static String entry(String puuid, String queueType, String tier, String rank, int wins, int losses)
     {
         return "{\"queueType\":\"" + queueType + "\",\"tier\":\"" + tier + "\",\"rank\":\"" + rank
-                + "\",\"leaguePoints\":42,\"wins\":" + wins + ",\"losses\":" + losses + "}";
+                + "\",\"puuid\":\"" + puuid + "\",\"leaguePoints\":42,\"wins\":" + wins + ",\"losses\":" + losses
+                + ",\"veteran\":false,\"inactive\":false,\"freshBlood\":false,\"hotStreak\":false}";
     }
 
     /** 최근 경기. <b>적은 순서가 곧 새 경기부터의 순서다</b> — 연승을 그 순서로 센다 */
@@ -237,12 +233,19 @@ final class FakeRiotApi {
         return calls.get();
     }
 
+    /** 앱이 {@code summoner-v4} 를 부른 수. {@link #calls()} 에는 들지 않는다 */
+    int summonerCalls()
+    {
+        return summonerCalls.get();
+    }
+
     void reset()
     {
         failStatus = 0;
         masteryFailStatus = 0;
         delay = Duration.ZERO;
         calls.set(0);
+        summonerCalls.set(0);
     }
 
     // ---- 주소 ----
@@ -270,13 +273,12 @@ final class FakeRiotApi {
                 + "\",\"tagLine\":\"" + segments[1] + "\"}");
     }
 
+    /** 앱이 부르면 안 된다 — 세고 실제처럼 {@code id} 가 없는 응답을 준다 */
     private void summoner(HttpExchange exchange) throws IOException
     {
-        if(!accept(exchange))
-        {
-            return;
-        }
-        respondOr404(exchange, summoners.get(tail(exchange, "/lol/summoner/v4/summoners/by-puuid/")));
+        summonerCalls.incrementAndGet();
+        String puuid = tail(exchange, "/lol/summoner/v4/summoners/by-puuid/");
+        respond(exchange, 200, "{\"puuid\":\"" + puuid + "\",\"profileIconId\":6,\"revisionDate\":1790653053054,\"summonerLevel\":300}");
     }
 
     private void league(HttpExchange exchange) throws IOException
@@ -285,7 +287,7 @@ final class FakeRiotApi {
         {
             return;
         }
-        String entries = leagues.get(tail(exchange, "/lol/league/v4/entries/by-summoner/"));
+        String entries = leagues.get(tail(exchange, "/lol/league/v4/entries/by-puuid/"));
         // 리그 목록은 없어도 404 가 아니라 빈 배열이다(언랭)
         respond(exchange, 200, entries == null ? "[]" : entries);
     }

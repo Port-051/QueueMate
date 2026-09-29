@@ -24,11 +24,13 @@ import java.util.function.ToIntFunction;
  * LoL 의 전적을 Riot API 에서 긁는다 — <b>응답의 JSON 칸을 읽는 곳은 이 클래스 하나다</b>(부르는 곳은 {@link RiotApiClient}).
  * Riot 이 칸 이름을 바꾸면 여기만 고친다.
  *
- * <p>순서는 여섯 걸음이다 — Riot 호출은 경기 20판이면 <b>25번</b>(계정 · 소환사 · 리그 · 경기 id · 경기 20 · 숙련도).
+ * <p>순서는 여섯 걸음이다 — Riot 호출은 경기 20판이면 <b>24번</b>(계정 · 리그 · 경기 id · 경기 20 · 숙련도).
  * <ol>
  *   <li>게임 닉네임을 {@code 이름#태그} 로 가른다 — <b>태그가 없으면 긁지 않는다</b>({@code null} 을 돌려준다)</li>
  *   <li>{@code account-v1} → {@code puuid}</li>
- *   <li>{@code summoner-v4} → 소환사 {@code id} → {@code league-v4} 에서 <b>솔로랭크 줄</b>의 승/패(= 시즌 누적)와 티어, <b>자유랭크 줄</b>의 티어</li>
+ *   <li>{@code league-v4}({@code entries/by-puuid}) 에서 <b>솔로랭크 줄</b>의 승/패(= 시즌 누적)와 티어, <b>자유랭크 줄</b>의 티어.
+ *       (2026-09-29 까지는 {@code summoner-v4} 로 소환사 {@code id} 를 받아 {@code entries/by-summoner} 를 불렀다 — 실제 소환사 응답에 {@code id} 가 없어 늘 비었다.
+ *       그 호출을 없애 25번이 24번이 됐다)</li>
  *   <li>{@code match-v5} → 최근 경기 id 목록(새 경기가 먼저)</li>
  *   <li>경기마다 참가자 가운데 <b>그 {@code puuid} 인 사람</b>의 챔피언 · K/D/A · 승패</li>
  *   <li>{@code champion-mastery-v4} → 모스트 챔피언 각각의 <b>숙련도</b>(레벨 · 점수) — 한 번에 전부 받아 고른다.
@@ -60,8 +62,6 @@ public class LolStatsProvider implements GameStatsProvider {
 
     // ---- Riot 응답의 칸 이름. 이 목록이 이 클래스에 있는 이유는 위 주석에 있다 ----
     private static final String FIELD_PUUID = "puuid";
-    /** 소환사의 encrypted summoner id — {@code league-v4} 를 부르는 열쇠다 */
-    private static final String FIELD_SUMMONER_ID = "id";
     private static final String FIELD_QUEUE_TYPE = "queueType";
     private static final String FIELD_TIER = "tier";
     private static final String FIELD_RANK = "rank";
@@ -183,21 +183,16 @@ public class LolStatsProvider implements GameStatsProvider {
     // ---- 3걸음: 솔로랭크의 시즌 누적 승/패와 티어 · 자유랭크의 티어 ----
 
     /**
-     * 리그 목록에서 솔로랭크 줄과 자유랭크 줄의 티어. 소환사 {@code id} 를 못 읽거나 목록이 배열이 아니면 둘 다 비어 있다 —
+     * {@code puuid} 의 리그 목록에서 솔로랭크 줄과 자유랭크 줄의 티어. 목록이 배열이 아니면 둘 다 비어 있다 —
      * 그러면 {@code wins} · {@code losses} · 두 사다리가 전부 비어 나간다. 솔로랭크 줄은 있는데 승/패 한쪽을 못 읽으면 승/패만 비우고 티어는 살린다.
      * 같은 큐의 줄이 둘 오면(정상이면 없다) 앞의 것을 쓴다
      */
     private Ranks ranks(String puuid)
     {
-        String summonerId = text(riot.summoner(puuid).path(FIELD_SUMMONER_ID));
-        if(summonerId == null)
-        {
-            log.warn("Riot 의 소환사 응답에 {} 가 없다 — 승/패 · 티어를 비운 채 간다", FIELD_SUMMONER_ID);
-            return Ranks.NONE;
-        }
-        JsonNode entries = riot.leagueEntries(summonerId);
+        JsonNode entries = riot.leagueEntries(puuid);
         if(!entries.isArray())
         {
+            log.warn("Riot 의 리그 목록 응답이 배열이 아니다 — 승/패 · 티어를 비운 채 간다");
             return Ranks.NONE;
         }
         SoloRank solo = null;
