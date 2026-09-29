@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
 import type { GameAccountRequest, GameKey, GameProfile, PubgServer } from '../api/types';
-import { GAME_CATALOG } from '../domain/gameCatalog';
 import { rankLabel } from '../domain/labels';
 import { profileTier } from '../domain/profileTier';
+import { joinTier, splitTier, tierGroups } from '../domain/tierParts';
 import { useAuth } from '../state/AuthContext';
 import { Button, Field } from './ui';
 
@@ -15,6 +15,8 @@ import { Button, Field } from './ui';
  * VALORANT: 게임 닉네임 + 티어(선택 · 자기신고 — 서버가 `COMPETITIVE` 사다리로 저장한다) ·
  * **PUBG: 게임 닉네임 + 서버(STEAM · KAKAO) — 티어 칸이 없다**(2026-09-29 소유자 결정 — `RANKED` 사다리를 PUBG API 가 채운다. `tier` 를 보내면 400).
  * VALORANT 티어의 선택지는 `domain/gameCatalog.ts` 의 티어 이름(seed 의 사본)이다 — 없는 이름을 보내면 400 이다.
+ * **VALORANT 티어는 "티어" · "단계" 두 칸으로 고른다**(2026-09-29 소유자 지시) — 넓은 칸이 티어(맨 앞 "없음(배치 전)"), 좁은 칸이 그 티어의 단계(1 · 2 · 3 — 레디언트 · 없음이면 비활성).
+ * 둘을 합친 값(`BRONZE_1` · `RADIANT`)을 보낸다 — 나누고 합치는 규칙은 `domain/tierParts.ts`. `UNRANKED` 는 선택지에 없고 "없음" 이면 `tier` 를 싣지 않는다.
  * **주 포지션 · 주 역할군 칸은 없다**(2026-09-29 소유자 결정 — 포지션은 글을 쓸 때 · 매칭을 시작할 때 고른다. 서버도 `mainPosition` 을 받으면 400 이다).
  *
  * **LOL · PUBG 는 저장하기 전에 서버가 게임사 API 를 동기로 긁는다**(상한 30초) — 그동안 로딩을 보여 준다. 못 찾으면(LOL 404 `RIOT_ID_NOT_FOUND` · PUBG 404 `PUBG_PLAYER_NOT_FOUND`)
@@ -68,12 +70,24 @@ export function gameAccountErrorMessage(err: unknown, game: GameKey, fallback = 
 export function GameAccountForm({ game, initial = null, onSaved, onCancel, align = 'end' }: GameAccountFormProps) {
   const { applyGameAccount } = useAuth();
   const [gameNickname, setGameNickname] = useState(initial?.gameNickname ?? '');
-  const [tier, setTier] = useState(game === 'VALORANT' ? profileTier(initial, 'COMPETITIVE') ?? '' : '');
+  // VALORANT 경쟁전 티어 — 두 칸(티어 · 단계). 저장된 값을 나눠 채운다(`UNRANKED` · 모르는 이름은 "없음").
+  const initialTier = game === 'VALORANT' ? splitTier(game, profileTier(initial, 'COMPETITIVE')) : null;
+  const [tierName, setTierName] = useState(initialTier?.name ?? '');
+  const [division, setDivision] = useState(initialTier?.division ?? '');
   const [server, setServer] = useState<PubgServer>(initial?.server ?? 'STEAM');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const tierNames = GAME_CATALOG[game].tierNames;
+  const tierId = useId();
+  const groups = game === 'VALORANT' ? tierGroups(game) : [];
+  const divisions = groups.find((group) => group.name === tierName)?.divisions ?? [];
+  const tier = tierName ? joinTier(tierName, division || null) : '';
+
+  /** 티어를 바꾸면 단계는 그 티어의 가장 낮은 단계로 맞춘다(단계가 없는 티어 · 없음이면 비운다). */
+  const changeTierName = (name: string) => {
+    setTierName(name);
+    setDivision(groups.find((group) => group.name === name)?.divisions[0] ?? '');
+  };
 
   const submit = async () => {
     const nickname = gameNickname.trim();
@@ -107,12 +121,21 @@ export function GameAccountForm({ game, initial = null, onSaved, onCancel, align
       </Field>
 
       {game === 'VALORANT' ? (
-        <Field label="경쟁전 티어" hint="자기신고입니다. 없으면 비워 두세요">
-          <select className="select" value={tier} disabled={busy} onChange={(event) => setTier(event.target.value)}>
-            <option value="">선택 안 함</option>
-            {tierNames.map((name) => <option key={name} value={name}>{rankLabel(name)}</option>)}
-          </select>
-        </Field>
+        <div className="field">
+          <label htmlFor={tierId}>경쟁전 티어</label>
+          <div className="tier-split">
+            <select id={tierId} className="select" aria-label="경쟁전 티어" aria-describedby={`${tierId}-help`} value={tierName} disabled={busy}
+              onChange={(event) => changeTierName(event.target.value)}>
+              <option value="">없음(배치 전)</option>
+              {groups.map((group) => <option key={group.name} value={group.name}>{rankLabel(group.name) ?? group.name}</option>)}
+            </select>
+            <select className="select tier-split-division" aria-label="단계" aria-describedby={`${tierId}-help`} value={division}
+              disabled={busy || divisions.length === 0} onChange={(event) => setDivision(event.target.value)}>
+              {divisions.length === 0 ? <option value="">—</option> : divisions.map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+          </div>
+          <div id={`${tierId}-help`} className="hint">자기신고입니다. 배치 전이면 "없음" 으로 두세요</div>
+        </div>
       ) : null}
 
       {game === 'PUBG' ? (

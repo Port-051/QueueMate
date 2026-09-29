@@ -49,6 +49,11 @@
 .profile-edit-modal { width: min(460px, 100%); }
 .profile-edit-form { display: grid; gap: 24px; }
 .profile-edit-actions { display: flex; justify-content: flex-end; gap: 8px; }
+/* VALORANT 경쟁전 티어 — 넓은 칸(티어) + 좁은 칸(단계). 360px 에서도 한 줄이다. */
+.tier-split { display: flex; gap: 8px; min-width: 0; }
+.tier-split .select { flex: 1 1 auto; min-width: 0; }
+.tier-split .tier-split-division { flex: 0 0 84px; width: 84px; }
+.tier-split .select:disabled { opacity: .5; cursor: not-allowed; }
 @media (max-width: 1100px) {
   .profile-section { grid-template-columns: 160px minmax(0, 1fr); gap: 24px; }
   .profile-preferences .opt-row { grid-template-columns: minmax(0, 1fr); gap: 10px; }
