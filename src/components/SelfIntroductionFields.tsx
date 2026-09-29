@@ -3,10 +3,11 @@ import { TierRangePicker } from './TierRangePicker';
 import { SingleRolePicker } from './SingleRolePicker';
 import { Fragment, type ReactNode } from 'react';
 import type { GameKey } from '../api/types';
-import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
+import { keyConditionOptions, usesKeyCondition } from '../domain/gameConfig';
 import { normalizeDesiredRoles } from '../domain/introduction';
 import type { SelfIntroduction } from '../domain/introduction';
-import { FilterModeIcon, FilterRoleIcon } from './FilterSymbols';
+import { FilterRoleIcon } from './FilterSymbols';
+import { ModePicker } from './ModePicker';
 import { VoiceIcon } from './FilterSymbols';
 import '../styles/introduction.css';
 
@@ -20,15 +21,14 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
   const allOwnRoles = keyConditionOptions(game).some(role => role.value === 'ANY') && roles.every(role => ownRoles.includes(role.value));
   const hasRoles = usesKeyCondition(game, value.queueType);
   const patch = (next: Partial<SelfIntroduction>) => onChange({ ...value, ...next });
-  const roleTitle = game === 'LOL' ? compact ? '내 포지션' : '포지션' : game === 'VALORANT' ? '주 역할' : '플레이 스타일';
+  // PUBG 의 핵심 조건은 플랫폼(STEAM · KAKAO)이다 — 원본 프런트의 "플레이 스타일"(PLAY_STYLE) 이 아니다(2026-09-29 소유자 지시).
+  const roleTitle = game === 'LOL' ? compact ? '내 포지션' : '포지션' : game === 'VALORANT' ? '주 역할' : '플랫폼';
   const VoiceField = compact ? 'div' : 'fieldset';
   const VoiceLabel = compact ? 'span' : 'legend';
   const SettingsPair = compact ? 'div' : Fragment;
   return <section className="self-introduction" aria-label="자기소개">
     <div className="introduction-fields button-fields">
-      <fieldset className="introduction-choice"><legend>게임 모드</legend><SlidingSelector enabled={compact} className={`intro-mode-options${compact ? ' room-mode-options' : ''}`} role="group" aria-label="원하는 큐 타입">
-        {visibleModes(game).map(mode => <button type="button" key={mode.key} className="filter-mode" aria-label={mode.label} aria-pressed={value.queueType === mode.key} disabled={modeLocked} onClick={() => patch({ queueType: mode.key })}><FilterModeIcon mode={mode.key} size={compact ? 22 : 16} /><span>{mode.label}</span></button>)}
-      </SlidingSelector></fieldset>
+      <fieldset className="introduction-choice"><legend>게임 모드</legend><ModePicker game={game} value={value.queueType} disabled={modeLocked} compact={compact} onChange={queueType => patch({ queueType })} /></fieldset>
       {afterMode}
       {hasRoles ? <>
         <fieldset className="introduction-choice"><legend>{roleTitle}</legend>{singleRole ? <SingleRolePicker game={game} value={allOwnRoles ? 'ANY' : ownRoles[0] ?? null} label={roleTitle} onChange={role => patch({ primaryRoles: role === 'ANY' ? roles.map(option => option.value) : [role], primaryRole: role })} /> : <div className="intro-role-options" role="group" aria-label={roleTitle}>

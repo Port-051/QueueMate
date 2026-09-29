@@ -1,11 +1,13 @@
 import { SlidingSelector } from '../components/SlidingSelector';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router-dom';
-import type { GameKey } from '../api/types';
+import type { GameKey, PubgPerspective } from '../api/types';
 import type { AppShellOutletContext } from '../components/AppShell';
 import { FilterModeIcon, FilterRoleIcon, VoiceIcon } from '../components/FilterSymbols';
 import { Button } from '../components/ui';
 import { keyConditionOptions, visibleModes } from '../domain/gameConfig';
+import { PERSPECTIVE_LABEL } from '../domain/gameCatalog';
+import { groupModes, groupPerspectives, groupSizes, modeChoice, modeGroups, pickMode } from '../domain/modeChoice';
 import { useAuth } from '../state/AuthContext';
 import { useRoomSession } from '../state/RoomSessionContext';
 import { roomEntryError } from './boardRoom';
@@ -23,12 +25,13 @@ import './room-board.css';
 
 /**
  * 홈 = 방 카드 보드(2026-09-28 소유자 결정). 목록은 `GET /posts?game=`(게임은 왼쪽 레일에서 고른 것 — 게시판은 게임별 페이지다, P-21).
- * 필터는 프런트가 받은 목록을 거르는 것뿐이다 — 모드(`''` 는 전체) · 찾는 포지션 · 음성 · 모집 중인 방만. 원본의 시작 시각(지금/나중) · 티어 범위 필터는 글에 그 칸이 없어 2026-09-29 에 뺐다
+ * 필터는 프런트가 받은 목록을 거르는 것뿐이다 — 모드 · 찾는 포지션 · 음성 · 모집 중인 방만. 모드는 묶음 · 인원 · (PUBG) 시점 셋으로 나눠 거르고 셋 다 `''`/`0` 이 "전체" 다
+ * (2026-09-29 소유자 지시 — `domain/modeChoice.ts`). 인원 · 시점 줄은 묶음을 고른 뒤에만 서고, 인원이 하나뿐인 묶음(솔로 랭크)은 인원 줄이 없다. 원본의 시작 시각(지금/나중) · 티어 범위 필터는 글에 그 칸이 없어 2026-09-29 에 뺐다
  * (자동 합류의 티어 판정은 서버가 gameconfig `tier-range` 로 한다 — 프런트가 범위를 고르게 하면 그 판정과 어긋난 것을 보여 주게 된다).
  * 방 안의 일(채팅 · 나가기 · 강퇴 · 확정)은 방 화면(`/app/party/{roomId}`)이다 — 원본의 오른쪽 "방 채팅" 레일은 없어졌다.
  */
-type Filters = { modeKey: string; roles: string[]; voice: '' | 'REQUIRED' | 'NO_VOICE'; openOnly: boolean };
-const defaults = (): Filters => ({ modeKey: '', roles: [], voice: '', openOnly: false });
+type Filters = { group: string; size: number; perspective: '' | PubgPerspective; roles: string[]; voice: '' | 'REQUIRED' | 'NO_VOICE'; openOnly: boolean };
+const defaults = (): Filters => ({ group: '', size: 0, perspective: '', roles: [], voice: '', openOnly: false });
 
 export function RoomBoardHome() {
   const { userId } = useAuth();
@@ -53,9 +56,25 @@ export function RoomBoardHome() {
   const [, tick] = useState(0);
   useEffect(() => { const timer = window.setInterval(() => tick(value => value + 1), 30_000); return () => clearInterval(timer); }, []);
 
-  const roleFilterVisible = ROOM_ROLES[selectedGame].length > 0 && (!filters.modeKey || hasPositions(selectedGame, filters.modeKey));
+  const groupHasPositions = (group: string) => groupModes(selectedGame, group).some(mode => hasPositions(selectedGame, mode.key));
+  const roleFilterVisible = ROOM_ROLES[selectedGame].length > 0 && (!filters.group || groupHasPositions(filters.group));
+  const sizes = filters.group ? groupSizes(selectedGame, filters.group) : [];
+  const perspectives = filters.group ? groupPerspectives(selectedGame, filters.group) : [];
+  /** 묶음을 바꾸면 인원 · 시점은 그 묶음에 있으면 그대로, 없으면 "전체" 다. */
+  const chooseGroup = (group: string) => {
+    const nextSizes = group ? groupSizes(selectedGame, group) : [];
+    const nextPerspectives = group ? groupPerspectives(selectedGame, group) : [];
+    setFilters({ ...filters, group, size: nextSizes.length > 1 && nextSizes.includes(filters.size) ? filters.size : 0,
+      perspective: filters.perspective && nextPerspectives.includes(filters.perspective) ? filters.perspective : '',
+      roles: !group || groupHasPositions(group) ? filters.roles : [] });
+  };
   const filtered = rooms.filter(room => {
-    if (filters.modeKey && room.modeKey !== filters.modeKey) return false;
+    if (filters.group) {
+      const choice = modeChoice(room.game, room.modeKey);
+      if (!choice || choice.group !== filters.group) return false;
+      if (filters.size && choice.size !== filters.size) return false;
+      if (filters.perspective && choice.perspective !== filters.perspective) return false;
+    }
     if (filters.openOnly && (room.status !== 'RECRUITING' || room.full)) return false;
     if (filters.voice && room.voice !== filters.voice) return false;
     // 찾는 포지션이 비어 있는 글은 누구든 찾는 글이다.
@@ -63,7 +82,7 @@ export function RoomBoardHome() {
       || filters.roles.some(role => room.wantedPositions.includes(role));
   });
   const selected = rooms.find(room => room.id === selectedId) ?? null;
-  const canReset = filters.modeKey || filters.roles.length || filters.voice !== '' || filters.openOnly;
+  const canReset = filters.group || filters.roles.length || filters.voice !== '' || filters.openOnly;
   const resetFilters = () => setFilters(defaults());
   const enter = (room: BoardRoom) => { session.adopt(room.id); navigate(`/app/party/${room.id}`); };
 
@@ -71,10 +90,18 @@ export function RoomBoardHome() {
     <div className="room-home-layout"><section className="room-board" aria-label="방 목록">
       <div className="board-filter-bar room-filters" role="group" aria-label="방 필터">
         <div className="room-filter-primary">
-          <SlidingSelector className="intro-mode-options room-mode-options board-mode-options" role="group" aria-label="찾는 큐 타입">
-            <button type="button" className="filter-mode" aria-label="전체 모드" aria-pressed={filters.modeKey === ''} onClick={() => setFilters({ ...filters, modeKey: '' })}><span>전체</span></button>
-            {visibleModes(selectedGame).map(mode => <button type="button" className="filter-mode" aria-label={mode.label} aria-pressed={filters.modeKey === mode.key} key={mode.key} onClick={() => setFilters({ ...filters, modeKey: mode.key, roles: hasPositions(selectedGame, mode.key) ? filters.roles : [] })}><FilterModeIcon mode={mode.key} /><span>{mode.label}</span></button>)}
+          <SlidingSelector className="intro-mode-options room-mode-options board-mode-options" role="group" aria-label="찾는 게임 모드">
+            <button type="button" className="filter-mode" aria-label="전체 모드" aria-pressed={filters.group === ''} onClick={() => chooseGroup('')}><span>전체</span></button>
+            {modeGroups(selectedGame).map(group => <button type="button" className="filter-mode" aria-pressed={filters.group === group.key} key={group.key} onClick={() => chooseGroup(group.key)}><FilterModeIcon mode={group.key} /><span>{group.label}</span></button>)}
           </SlidingSelector>
+          {sizes.length > 1 ? <SlidingSelector className="intro-mode-options room-mode-options board-mode-options board-sub-options" role="group" aria-label="찾는 인원">
+            <button type="button" className="filter-mode" aria-label="전체 인원" aria-pressed={filters.size === 0} onClick={() => setFilters({ ...filters, size: 0 })}><span>전체</span></button>
+            {sizes.map(size => <button type="button" className="filter-mode" aria-pressed={filters.size === size} key={size} onClick={() => setFilters({ ...filters, size })}><span>{size}인</span></button>)}
+          </SlidingSelector> : null}
+          {perspectives.length ? <SlidingSelector className="intro-mode-options room-mode-options board-mode-options board-sub-options" role="group" aria-label="찾는 시점">
+            <button type="button" className="filter-mode" aria-label="전체 시점" aria-pressed={filters.perspective === ''} onClick={() => setFilters({ ...filters, perspective: '' })}><span>전체</span></button>
+            {perspectives.map(view => <button type="button" className="filter-mode" aria-pressed={filters.perspective === view} key={view} onClick={() => setFilters({ ...filters, perspective: view })}><span>{PERSPECTIVE_LABEL[view]}</span></button>)}
+          </SlidingSelector> : null}
           <label className="room-open-filter"><input type="checkbox" checked={filters.openOnly} onChange={event => setFilters({ ...filters, openOnly: event.target.checked })} />모집 중인 방만</label>
         </div>
         <div className="board-filter-line">
@@ -90,7 +117,7 @@ export function RoomBoardHome() {
       {hasMore ? <div className="room-board-more"><Button block disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? '불러오는 중…' : '더 보기'}</Button></div> : null}
     </section>
     <aside className="room-workspace-rail" aria-label="탐색과 매칭">
-      <div className="room-quick-rail"><RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.modeKey || visibleModes(selectedGame)[0].key} selfId={selfId} activeRoomId={activeRoomId}
+      <div className="room-quick-rail"><RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.group ? pickMode(selectedGame, filters.group, filters.size || null, filters.perspective || null) : visibleModes(selectedGame)[0].key} selfId={selfId} activeRoomId={activeRoomId}
         onCreate={async body => { const room = await create(body); setJustCreatedId(room.id); enter(room); }} /></div>
     </aside>
     </div>

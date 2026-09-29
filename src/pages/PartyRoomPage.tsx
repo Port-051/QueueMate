@@ -7,11 +7,12 @@ import { GameBadge } from '../components/GameSymbol';
 import { ReportModal } from '../components/ReportModal';
 import { IconLogout, IconMic, IconMicOff, IconSend, IconShield } from '../components/icons';
 import { ActionMenu, Avatar, Button, Card, CardHead, ConfirmDialog, EmptyState, Field, Modal, Tag, useToast } from '../components/ui';
-import { visibleModes } from '../domain/gameConfig';
+import { PERSPECTIVE_LABEL } from '../domain/gameCatalog';
 import { gameFullLabel, modeLabel } from '../domain/labels';
+import { groupPerspectives, groupSizes, modeChoice, modeGroups, pickMode } from '../domain/modeChoice';
 import { socialErrorMessage } from '../domain/socialErrors';
 import { formatTime } from '../domain/time';
-import { toBoardRoom } from '../rooms/boardRoom';
+import { perspectiveFromMode, toBoardRoom } from '../rooms/boardRoom';
 import { roomErrorMessage } from '../rooms/errors';
 import { RoomMemberFacts, RoomRoles } from '../rooms/RoomDeck';
 import { canonicalRoomRoles, hasPositions, ROOM_ROLES } from '../rooms/summary';
@@ -267,7 +268,7 @@ export function PartyRoomPage() {
 
 /**
  * 글 고치기 — `PATCH /posts/{postId}`(준 것만 바꾼다). 방에 방장 말고 누가 있으면 서버가 409 `ROOM_HAS_OTHER_MEMBERS` 로 막는다(P-19 — 방 안 사람에게 알릴 길이 없어서다).
- * `game` 은 바꿀 수 없고 PUBG 의 `conditions.perspective` 는 모드 이름을 따라간다.
+ * `game` 은 바꿀 수 없고 PUBG 의 `conditions.perspective` 는 고른 모드의 시점을 따라간다. 모드는 묶음 · 인원 · (PUBG) 시점으로 나눠 고른다(2026-09-29 — `domain/modeChoice.ts`).
  */
 function EditPostModal({ room, onClose, onSaved }: { room: BoardRoom; onClose: () => void; onSaved: (room: BoardRoom) => void }) {
   const [mode, setMode] = useState(room.modeKey);
@@ -278,6 +279,11 @@ function EditPostModal({ room, onClose, onSaved }: { room: BoardRoom; onClose: (
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const positions = hasPositions(room.game, mode);
+  const choice = modeChoice(room.game, mode);
+  const sizes = choice ? groupSizes(room.game, choice.group) : [];
+  const perspectives = choice ? groupPerspectives(room.game, choice.group) : [];
+  const groups = modeGroups(room.game);
+  const fixedSize = sizes.length < 2;
   const save = async () => {
     const trimmed = title.trim();
     if (!trimmed) { setError('제목을 입력해 주세요.'); return; }
@@ -286,7 +292,7 @@ function EditPostModal({ room, onClose, onSaved }: { room: BoardRoom; onClose: (
     const body: UpdatePostRequest = { title: trimmed, description, voice, wantedPositions: positions ? canonicalRoomRoles(room.game, wanted) : [] };
     if (mode !== room.modeKey) {
       body.mode = mode;
-      if (room.game === 'PUBG') body.conditions = mode.endsWith('_FPP') ? { perspective: 'FPP' } : mode.endsWith('_TPP') ? { perspective: 'TPP' } : {};
+      if (room.game === 'PUBG') { const perspective = perspectiveFromMode(room.game, mode); body.conditions = perspective ? { perspective } : {}; }
     }
     setBusy(true); setError('');
     try { onSaved(toBoardRoom(await api.updatePost(room.postId, body))); }
@@ -294,7 +300,10 @@ function EditPostModal({ room, onClose, onSaved }: { room: BoardRoom; onClose: (
     finally { setBusy(false); }
   };
   return <Modal title="글 고치기" onClose={() => { if (!busy) onClose(); }} foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy} onClick={() => void save()}>{busy ? '저장 중…' : '저장'}</Button></>}>
-    <Field label="게임 모드"><select className="input" value={mode} onChange={e => setMode(e.target.value)}>{visibleModes(room.game).map(m => <option key={m.key} value={m.key}>{m.label}</option>)}</select></Field>
+    {/* 묶음은 한 줄에 같은 폭으로 — 폰 폭(360px)에서도 줄바꿈하지 않는다. */}
+    <Field label="게임 모드"><div role="group" aria-label="게임 모드" style={{ display: 'grid', gridTemplateColumns: `repeat(${groups.length}, minmax(0, 1fr))`, gap: 6, maxWidth: groups.length * 120 }}>{groups.map(group => <Button key={group.key} size="sm" variant={choice?.group === group.key ? 'primary' : 'default'} aria-pressed={choice?.group === group.key} style={{ minWidth: 0, paddingInline: 4, whiteSpace: 'nowrap' }} onClick={() => setMode(pickMode(room.game, group.key, choice?.size, choice?.perspective))}>{group.label}</Button>)}</div></Field>
+    {choice ? <Field label="인원"><div role="group" aria-label="인원" className="row" style={{ gap: 6 }}>{sizes.map(size => <Button key={size} size="sm" variant={choice.size === size ? 'primary' : 'default'} aria-pressed={choice.size === size} disabled={fixedSize} title={fixedSize ? `이 모드는 ${size}인만 있어요` : undefined} style={fixedSize ? { opacity: 1, cursor: 'default' } : undefined} onClick={() => setMode(pickMode(room.game, choice.group, size, choice.perspective))}>{size}인</Button>)}</div></Field> : null}
+    {choice && perspectives.length ? <Field label="시점"><div role="group" aria-label="시점" className="row" style={{ gap: 6 }}>{perspectives.map(view => <Button key={view} size="sm" variant={choice.perspective === view ? 'primary' : 'default'} aria-pressed={choice.perspective === view} onClick={() => setMode(pickMode(room.game, choice.group, choice.size, view))}>{PERSPECTIVE_LABEL[view]}</Button>)}</div></Field> : null}
     <Field label="제목" hint="60자까지"><input className="input" maxLength={60} value={title} onChange={e => setTitle(e.target.value)} /></Field>
     <Field label="소개" hint="300자까지 · 비우면 지워져요"><textarea className="input" rows={3} maxLength={300} value={description} onChange={e => setDescription(e.target.value)} /></Field>
     <Field label="음성"><div className="row" style={{ gap: 8 }}>{(['REQUIRED', 'NO_VOICE'] as const).map(v => <Button key={v} size="sm" variant={voice === v ? 'primary' : 'default'} onClick={() => setVoice(v)}>{v === 'REQUIRED' ? '사용' : '안 씀'}</Button>)}</div></Field>

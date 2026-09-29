@@ -1,4 +1,4 @@
-import type { GameKey, KeyConditionType, PlayPurpose, TierLadder, VoicePreference } from '../api/types';
+import type { GameKey, KeyConditionType, PlayPurpose, PubgPerspective, TierLadder, VoicePreference } from '../api/types';
 
 /**
  * 게임 · 모드 · 핵심 조건 값 · 티어 사다리의 **정적 상수**.
@@ -21,6 +21,9 @@ import type { GameKey, KeyConditionType, PlayPurpose, TierLadder, VoicePreferenc
  * - 티어 **이름**(`tierNames`)은 `ZADD qm:gameconfig:{GAME}:tier` 의 순서(오름차순 · 0 이 `UNRANKED`)이고 한 게임의 사다리들이 같이 쓴다.
  *   VALORANT 는 디비전이 1→3 으로 커지고 LoL · PUBG 는 4→1 로 작아진다. "더 높은 티어" 는 이 순서의 인덱스다.
  * - `VoicePreference` 는 `REQUIRED` · `NO_VOICE` 둘이다 — `OPTIONAL` 은 없다(openapi 개정 이력 · docs/11 #31). `PlayPurpose` 는 셋.
+ * - **모드의 `group` · `perspective` 와 게임의 `modeGroups` 는 seed 에 없는 프런트 전용 UI 메타다**(2026-09-29 소유자 지시 — "모드는 모드끼리 묶고 밑에 인원 수를 따로").
+ *   모드 선택기가 첫 줄에 묶음, 그 아래 인원(`targetPartySize`), PUBG 는 시점을 고르고 그 셋으로 모드 키 하나를 찾는다(`domain/modeChoice.ts`).
+ *   **묶음의 원본은 이 칸이다 — 모드 키 문자열을 잘라 묶지 않는다.** seed 에 모드를 더하면 `group`(PUBG 는 `perspective` 도)을 같이 채운다.
  */
 
 export type TierRule = 'NONE' | 'EXIST';
@@ -31,7 +34,14 @@ interface GameModeSeedBase {
   targetPartySize: number;
   /** 파티 안에서 핵심 조건 값이 겹칠 수 없는가. seed 가 PUBG 에는 두지 않았다(`HDEL`) — 플랫폼은 겹쳐야 한다. */
   positionUniqueness?: boolean;
+  /** 모드 선택기의 묶음 — `GameSeed.modeGroups` 의 키. **프런트 전용 UI 메타(seed 에 없다)** — 머리 주석. */
+  group: string;
+  /** PUBG 시점 — **프런트 전용 UI 메타**. seed 는 시점을 모드 키에 접어 두었다(`NORMAL_DUO_TPP`). 글의 `conditions.perspective` 도 이 값이다(`rooms/boardRoom.ts`). */
+  perspective?: PubgPerspective;
 }
+
+/** 모드 선택기 첫 줄의 한 칸 — **프런트 전용 UI 메타**(라벨도 프런트의 것이다). */
+export interface ModeGroupSeed { key: string; label: string; }
 
 /** `tierRule=EXIST` 모드는 사다리가 반드시 있고 `NONE` 모드는 없다 — 타입이 그 짝을 지킨다(`mode.tierRule === 'EXIST'` 로 좁히면 `tierLadder` 가 있다). */
 export type GameModeSeed = GameModeSeedBase & (
@@ -46,6 +56,8 @@ export interface GameSeed {
   keyConditionType: KeyConditionType;
   keyConditionValues: readonly KeyConditionValue[];
   modes: readonly GameModeSeed[];
+  /** 모드 선택기의 묶음 — 이 순서로 한 줄에 선다. 모드의 `group` 이 이 키다. **프런트 전용 UI 메타.** */
+  modeGroups: readonly ModeGroupSeed[];
   /** 그 게임의 사다리 키 — 게임 프로필 `tiers` 의 키 전부이고, 화면(내 정보의 티어 줄 · 카드의 "가장 높은 티어" 비교)은 이 순서로 돈다. */
   tierLadders: readonly TierLadder[];
   /** 티어 이름 — `UNRANKED` 부터 위로. 인덱스가 ZSET 의 score 다. 그 게임의 사다리들이 같이 쓴다. */
@@ -100,20 +112,26 @@ export const GAME_CATALOG: Record<GameKey, GameSeed> = {
       { value: 'SUPPORT', label: '서포터' },
     ],
     modes: [
-      { key: 'RANKED_SOLO', label: '솔로 랭크', targetPartySize: 2, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'SOLO' },
+      { key: 'RANKED_SOLO', label: '솔로 랭크', group: 'SOLO_RANKED', targetPartySize: 2, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'SOLO' },
       // 게임 자체가 4인 파티 큐를 금지하므로 RANKED_FLEX_4 는 없다.
-      { key: 'RANKED_FLEX_2', label: '자유 랭크 2인', targetPartySize: 2, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'FLEX' },
-      { key: 'RANKED_FLEX_3', label: '자유 랭크 3인', targetPartySize: 3, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'FLEX' },
-      { key: 'RANKED_FLEX_5', label: '자유 랭크 5인', targetPartySize: 5, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'FLEX' },
+      { key: 'RANKED_FLEX_2', label: '자유 랭크 2인', group: 'FLEX_RANKED', targetPartySize: 2, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'FLEX' },
+      { key: 'RANKED_FLEX_3', label: '자유 랭크 3인', group: 'FLEX_RANKED', targetPartySize: 3, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'FLEX' },
+      { key: 'RANKED_FLEX_5', label: '자유 랭크 5인', group: 'FLEX_RANKED', targetPartySize: 5, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'FLEX' },
       // 칼바람은 포지션 개념이 없다 — positionUniqueness=false 가 "핵심 조건을 안 본다" 의 근거다.
-      { key: 'ARAM_2', label: '칼바람 2인', targetPartySize: 2, positionUniqueness: false, tierRule: 'NONE' },
-      { key: 'ARAM_3', label: '칼바람 3인', targetPartySize: 3, positionUniqueness: false, tierRule: 'NONE' },
-      { key: 'ARAM_4', label: '칼바람 4인', targetPartySize: 4, positionUniqueness: false, tierRule: 'NONE' },
-      { key: 'ARAM_5', label: '칼바람 5인', targetPartySize: 5, positionUniqueness: false, tierRule: 'NONE' },
-      { key: 'NORMAL_2', label: '일반 2인', targetPartySize: 2, positionUniqueness: true, tierRule: 'NONE' },
-      { key: 'NORMAL_3', label: '일반 3인', targetPartySize: 3, positionUniqueness: true, tierRule: 'NONE' },
-      { key: 'NORMAL_4', label: '일반 4인', targetPartySize: 4, positionUniqueness: true, tierRule: 'NONE' },
-      { key: 'NORMAL_5', label: '일반 5인', targetPartySize: 5, positionUniqueness: true, tierRule: 'NONE' },
+      { key: 'ARAM_2', label: '칼바람 2인', group: 'ARAM', targetPartySize: 2, positionUniqueness: false, tierRule: 'NONE' },
+      { key: 'ARAM_3', label: '칼바람 3인', group: 'ARAM', targetPartySize: 3, positionUniqueness: false, tierRule: 'NONE' },
+      { key: 'ARAM_4', label: '칼바람 4인', group: 'ARAM', targetPartySize: 4, positionUniqueness: false, tierRule: 'NONE' },
+      { key: 'ARAM_5', label: '칼바람 5인', group: 'ARAM', targetPartySize: 5, positionUniqueness: false, tierRule: 'NONE' },
+      { key: 'NORMAL_2', label: '일반 2인', group: 'NORMAL', targetPartySize: 2, positionUniqueness: true, tierRule: 'NONE' },
+      { key: 'NORMAL_3', label: '일반 3인', group: 'NORMAL', targetPartySize: 3, positionUniqueness: true, tierRule: 'NONE' },
+      { key: 'NORMAL_4', label: '일반 4인', group: 'NORMAL', targetPartySize: 4, positionUniqueness: true, tierRule: 'NONE' },
+      { key: 'NORMAL_5', label: '일반 5인', group: 'NORMAL', targetPartySize: 5, positionUniqueness: true, tierRule: 'NONE' },
+    ],
+    modeGroups: [
+      { key: 'SOLO_RANKED', label: '솔로 랭크' },
+      { key: 'FLEX_RANKED', label: '자유 랭크' },
+      { key: 'ARAM', label: '칼바람' },
+      { key: 'NORMAL', label: '일반' },
     ],
     tierLadders: ['SOLO', 'FLEX'],
     tierNames: LOL_TIERS,
@@ -128,10 +146,14 @@ export const GAME_CATALOG: Record<GameKey, GameSeed> = {
       { value: 'SENTINEL', label: '감시자' },
     ],
     modes: [
-      { key: 'COMPETITIVE_DUO', label: '경쟁전 듀오', targetPartySize: 2, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'COMPETITIVE' },
-      { key: 'COMPETITIVE_TRIO', label: '경쟁전 트리오', targetPartySize: 3, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'COMPETITIVE' },
-      { key: 'UNRATED_DUO', label: '일반전 듀오', targetPartySize: 2, positionUniqueness: true, tierRule: 'NONE' },
-      { key: 'UNRATED_TRIO', label: '일반전 트리오', targetPartySize: 3, positionUniqueness: true, tierRule: 'NONE' },
+      { key: 'COMPETITIVE_DUO', label: '경쟁전 듀오', group: 'COMPETITIVE', targetPartySize: 2, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'COMPETITIVE' },
+      { key: 'COMPETITIVE_TRIO', label: '경쟁전 트리오', group: 'COMPETITIVE', targetPartySize: 3, positionUniqueness: true, tierRule: 'EXIST', tierLadder: 'COMPETITIVE' },
+      { key: 'UNRATED_DUO', label: '일반전 듀오', group: 'UNRATED', targetPartySize: 2, positionUniqueness: true, tierRule: 'NONE' },
+      { key: 'UNRATED_TRIO', label: '일반전 트리오', group: 'UNRATED', targetPartySize: 3, positionUniqueness: true, tierRule: 'NONE' },
+    ],
+    modeGroups: [
+      { key: 'COMPETITIVE', label: '경쟁전' },
+      { key: 'UNRATED', label: '일반전' },
     ],
     tierLadders: ['COMPETITIVE'],
     tierNames: VALORANT_TIERS,
@@ -144,14 +166,18 @@ export const GAME_CATALOG: Record<GameKey, GameSeed> = {
       { value: 'KAKAO', label: '카카오' },
     ],
     modes: [
-      { key: 'NORMAL_DUO_TPP', label: '일반 듀오 TPP', targetPartySize: 2, tierRule: 'NONE' },
-      { key: 'NORMAL_DUO_FPP', label: '일반 듀오 FPP', targetPartySize: 2, tierRule: 'NONE' },
-      { key: 'NORMAL_SQUAD_TPP', label: '일반 스쿼드 TPP', targetPartySize: 4, tierRule: 'NONE' },
-      { key: 'NORMAL_SQUAD_FPP', label: '일반 스쿼드 FPP', targetPartySize: 4, tierRule: 'NONE' },
-      { key: 'RANKED_DUO_TPP', label: '경쟁전 듀오 TPP', targetPartySize: 2, tierRule: 'EXIST', tierLadder: 'RANKED' },
-      { key: 'RANKED_DUO_FPP', label: '경쟁전 듀오 FPP', targetPartySize: 2, tierRule: 'EXIST', tierLadder: 'RANKED' },
-      { key: 'RANKED_SQUAD_TPP', label: '경쟁전 스쿼드 TPP', targetPartySize: 4, tierRule: 'EXIST', tierLadder: 'RANKED' },
-      { key: 'RANKED_SQUAD_FPP', label: '경쟁전 스쿼드 FPP', targetPartySize: 4, tierRule: 'EXIST', tierLadder: 'RANKED' },
+      { key: 'NORMAL_DUO_TPP', label: '일반 듀오 TPP', group: 'NORMAL', perspective: 'TPP', targetPartySize: 2, tierRule: 'NONE' },
+      { key: 'NORMAL_DUO_FPP', label: '일반 듀오 FPP', group: 'NORMAL', perspective: 'FPP', targetPartySize: 2, tierRule: 'NONE' },
+      { key: 'NORMAL_SQUAD_TPP', label: '일반 스쿼드 TPP', group: 'NORMAL', perspective: 'TPP', targetPartySize: 4, tierRule: 'NONE' },
+      { key: 'NORMAL_SQUAD_FPP', label: '일반 스쿼드 FPP', group: 'NORMAL', perspective: 'FPP', targetPartySize: 4, tierRule: 'NONE' },
+      { key: 'RANKED_DUO_TPP', label: '경쟁전 듀오 TPP', group: 'RANKED', perspective: 'TPP', targetPartySize: 2, tierRule: 'EXIST', tierLadder: 'RANKED' },
+      { key: 'RANKED_DUO_FPP', label: '경쟁전 듀오 FPP', group: 'RANKED', perspective: 'FPP', targetPartySize: 2, tierRule: 'EXIST', tierLadder: 'RANKED' },
+      { key: 'RANKED_SQUAD_TPP', label: '경쟁전 스쿼드 TPP', group: 'RANKED', perspective: 'TPP', targetPartySize: 4, tierRule: 'EXIST', tierLadder: 'RANKED' },
+      { key: 'RANKED_SQUAD_FPP', label: '경쟁전 스쿼드 FPP', group: 'RANKED', perspective: 'FPP', targetPartySize: 4, tierRule: 'EXIST', tierLadder: 'RANKED' },
+    ],
+    modeGroups: [
+      { key: 'NORMAL', label: '일반' },
+      { key: 'RANKED', label: '경쟁전' },
     ],
     tierLadders: ['RANKED'],
     tierNames: PUBG_TIERS,
@@ -159,6 +185,10 @@ export const GAME_CATALOG: Record<GameKey, GameSeed> = {
 };
 
 export const GAME_KEYS: readonly GameKey[] = ['LOL', 'VALORANT', 'PUBG'];
+
+/** PUBG 시점 — 선택기에 이 순서로 선다(3인칭 먼저 · 모르면 3인칭). 라벨은 프런트의 것이다(2026-09-29 소유자 지시 — "TPP · FPP" 가 아니라 "3인칭 · 1인칭"). */
+export const PERSPECTIVES: readonly PubgPerspective[] = ['TPP', 'FPP'];
+export const PERSPECTIVE_LABEL: Record<PubgPerspective, string> = { TPP: '3인칭', FPP: '1인칭' };
 
 /** `OPTIONAL` 은 없다 — 매칭 전에 답이 정해지지 않는 조건은 조건이 아니다(openapi `VoicePreference` 개정 이력). */
 export const VOICE_PREFERENCES: readonly VoicePreference[] = ['REQUIRED', 'NO_VOICE'];

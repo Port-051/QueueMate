@@ -1,4 +1,5 @@
 import type { GameKey, MemberCard, PostResponse, PubgPerspective } from '../api/types';
+import { modeSeed } from '../domain/gameCatalog';
 import { tierForMode } from '../domain/profileTier';
 import { accountRank } from './accountRank';
 import type { BoardMember, BoardRoom } from './types';
@@ -64,12 +65,12 @@ export function toBoardRoom(post: PostResponse): BoardRoom {
   };
 }
 
-/** PUBG 모드 이름에 접힌 시점(`RANKED_DUO_TPP` → `TPP`) — 서버의 auto-join 이 같은 규칙으로 읽는다(`AutoJoinService#perspectiveOf`). 글의 `conditions.perspective` 는 이것으로 채운다. */
+/**
+ * PUBG 모드의 시점 — 카탈로그 모드의 `perspective`(프런트 전용 UI 메타 · 2026-09-29)에서 읽는다. 값은 모드 이름에 접힌 시점과 같다(`RANKED_DUO_TPP` → `TPP` —
+ * 서버의 auto-join 은 이름에서 같은 규칙으로 읽는다, `AutoJoinService#perspectiveOf`). 글의 `conditions.perspective` 는 이것으로 채운다(글 쓰기 · 글 고치기).
+ */
 export function perspectiveFromMode(game: GameKey, modeKey: string): PubgPerspective | null {
-  if (game !== 'PUBG') return null;
-  if (modeKey.endsWith('_TPP')) return 'TPP';
-  if (modeKey.endsWith('_FPP')) return 'FPP';
-  return null;
+  return game === 'PUBG' ? modeSeed(game, modeKey)?.perspective ?? null : null;
 }
 
 /** 보드에서 참여 버튼을 누르기 전에 거르는 것 — 서버가 어차피 거절하는 것을 미리 문구로. `null` 이면 눌러도 된다. */

@@ -33,7 +33,7 @@ function CreateRoomIcon() {
  * - **"매칭 시작"** 은 서버의 자동 매칭이다(3단계 · `MatchContext#start`): ① `POST /posts/auto-join`(조건이 맞는 열린 게시판 방이 있으면 서버가 바로 넣는다) → 그 방으로 ·
  *   ② 404 면 `POST /match-requests`(대기열) → 아래에 대기 카드가 뜨고 제안은 제안 화면으로.
  * - **"방 만들기"** 는 글 쓰기다(4단계 · `POST /posts {game, mode, title, description, voice, conditions, wantedPositions}`) — 글이 곧 방이고 201 이면 그 방으로 간다.
- *   원본의 정원 선택 · 시작 시각(예약) · 티어 범위는 우리 글에 칸이 없어 2026-09-29 에 뺐다(정원은 늘 5). PUBG 의 `conditions.perspective` 는 모드 이름의 `_TPP/_FPP` 에서 온다.
+ *   원본의 정원 선택 · 시작 시각(예약) · 티어 범위는 우리 글에 칸이 없어 2026-09-29 에 뺐다(정원은 늘 5). PUBG 의 `conditions.perspective` 는 고른 모드의 시점이다(`perspectiveFromMode`).
  *
  * 조건은 이 폼의 값에서 만든다 — 모드 `queueType` · 내 포지션(매칭 시작의 핵심 조건 · 글에는 실리지 않는다 — 카드에 사람별 포지션은 없다, 2026-09-29) · 찾는 포지션(글의 `wantedPositions`) ·
  * 음성 · "한마디"(글 제목). 플레이 목적은 프로필 설정의 기본값(폼에 칸이 없다). 티어는 폼이 아니라 내 게임 계정에서 온다(`buildMatchRequest`).
