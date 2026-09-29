@@ -25,6 +25,7 @@ import type { GameRoom, RoomMember } from './types';
 import '../styles/duo-home.css';
 import '../styles/matching-rail.css';
 import './room-board.css';
+import './room-list.css';
 
 type Filters = { modeKey: string; tierRange: TierRange; roles: string[]; voice: '' | 'REQUIRED' | 'NO_VOICE'; start: 'ALL' | 'NOW' | 'LATER'; openOnly: boolean };
 const START_FILTERS = [{ value: 'ALL', label: '전체' }, { value: 'NOW', label: '지금' }, { value: 'LATER', label: '나중' }] as const;
@@ -114,6 +115,10 @@ export function RoomBoardHome() {
       </div></div>
       {connectionError ? <div className="banner warn" role="alert">{connectionError} <button onClick={() => void refresh()}>다시 연결</button></div> : null}
       {loading ? <p role="status">방 목록을 불러오는 중이에요.</p> : null}
+      <div className="room-list-heading" aria-hidden="true">
+        <span>플레이어</span><span>포지션</span><span>티어</span><span>{selectedGame === 'LOL' ? '최근 챔피언' : selectedGame === 'VALORANT' ? '선호 요원' : '선호 무기'}</span>
+        <span>승률</span><span>KDA</span><span>한마디</span><span>시작</span><span>인원</span>
+      </div>
       <div className={`room-deck-grid${selectedGame === 'LOL' && filters.modeKey === 'SOLO_DUO_RANKED' ? ' is-duo-grid' : ''}`}>{filtered.map(room => <RoomDeck room={room} selfId={member.id} key={room.id} entering={justCreatedId === room.id} onEntered={finishEntrance} onMember={showMember} entryError={roomEntryError(room, member.tier, activeRoom?.id)} onSeat={(room, roles) => {
         const intro = readIntroduction(member.id, room.game) ?? emptyIntroduction();
         setSelected({ id: room.id, roles, fromRoomId: activeRoom?.id, profile: { ...member, roles: intro.primaryRoles ?? [], bio: intro.bio, voice: roomVoice(room.voice) } });

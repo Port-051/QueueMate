@@ -1,0 +1,72 @@
+/* Shared column widths turn room summaries into a comparable, compact list. */
+.room-board {
+  container-type:inline-size;
+  --room-list-columns:minmax(136px,1.15fr) 48px 76px 126px minmax(148px,1.05fr) 112px minmax(110px,1.15fr) 68px 72px;
+}
+.room-list-heading { display:none; }
+.room-board .room-deck-grid { gap:0; border:1px solid #303142; border-radius:10px; overflow:hidden; }
+.room-board .room-deck.room-compact { padding:0; border:0; border-radius:0; background:#1b1c28; }
+.room-board .room-deck:nth-child(even) { background:#20212e; }
+.room-board .room-deck + .room-deck { border-top:1px solid #353645; }
+.room-board .room-deck.is-own { background:#2b223e; }
+.room-board .compact-members,.room-board .compact-member-details { gap:0; }
+.room-board .compact-member { border:0; border-radius:0; padding:12px; background:transparent; }
+.room-board .compact-member:not(.compact-seat) { grid-template-columns:minmax(0,1fr) auto; min-height:72px; gap:10px; }
+.room-board .compact-member-details { border-top:1px solid #393247; background:#12141e; }
+.room-board .compact-member-details>.compact-member + .compact-member { border-top:1px solid #2d2b3c; }
+.room-board .compact-room-header { grid-column:1 / -1; grid-row:1; margin:0; min-height:24px; }
+.room-board .compact-room-header h3 { font-size:13px; font-weight:500; }
+.room-board .compact-room-header time { font-size:11px; }
+.room-board .compact-member-name { grid-column:1; grid-row:2; }
+.room-board .compact-member-name>strong { font-size:13px; }
+.room-board .compact-members-toggle { grid-column:2; grid-row:2; min-height:32px; padding:4px 6px; font-size:11px; }
+.room-board .compact-member .room-member-facts { grid-column:1 / -1; grid-row:3; }
+.room-board .compact-member-champions { grid-column:1 / -1; grid-row:4; }
+.room-board .compact-member-note { display:none; }
+.room-board .compact-member:not(.compact-seat) .room-member-facts>div { gap:4px; }
+.room-board .compact-member:not(.compact-seat) .room-member-record { border:0; padding:0; }
+.room-board .compact-seat { min-height:58px; background:#2a2236; }
+.room-board .compact-seat .room-seat-voice { grid-row:1; }
+.room-board .compact-seat .room-member-facts { grid-row:2; }
+.room-board .room-kda-detail { gap:2px; }
+.room-board .room-kda-detail>.performance-value,.room-board .room-perfect-kda { order:2; font-size:13px; }
+.room-board .room-kda-split { order:1; font-size:11px; gap:3px; }
+.room-board .room-kda-detail>.room-stat-caption { order:3; }
+.room-board .room-champion-stat { position:relative; min-width:34px; gap:2px; }
+.room-board .room-champion-stat .preferred-champion-portrait { width:34px; height:34px; border-radius:50%; }
+.room-board .room-champion-stat>strong { position:absolute; top:20px; left:0; right:0; text-align:center; background:#10131edf; border-radius:0 0 12px 12px; line-height:14px; font-size:10px; }
+.room-board .compact-champions-list { gap:6px; }
+.room-board .room-win-record:has(.room-win-bar) { flex-direction:row; align-items:center; gap:6px; }
+.room-board .room-win-record:has(.room-win-bar) .room-win-summary { order:2; flex:none; }
+.room-board .room-win-record .performance-value { font-size:12px; }
+.room-board .room-win-count { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+.room-win-bar-labels { display:none; }
+.room-board .room-win-bar { position:relative; flex:1; height:20px; border-radius:3px; min-width:0; background:#b84a63; }
+.room-board .room-win-bar>.room-win-bar-labels { position:absolute; inset:0; display:flex; align-items:center; justify-content:space-between; padding:0 4px; background:none; color:#fff; font-size:10px; line-height:1; }
+.room-board .room-win-bar-labels b { font-weight:500; }
+@container(min-width:1000px) {
+  .room-list-heading { display:grid; grid-template-columns:var(--room-list-columns); gap:8px; align-items:center; padding:10px 12px; background:#171923; color:#9397ac; font-size:11px; }
+  .room-list-heading>span { text-align:center; }
+  .room-list-heading>span:first-child,.room-list-heading>span:nth-child(7) { text-align:left; }
+  .room-board .room-deck-grid { border-radius:0 0 8px 8px; }
+  .room-board .compact-member:not(.compact-seat) { grid-template-columns:var(--room-list-columns); gap:8px; min-height:72px; padding:9px 12px; }
+  .room-board .compact-member-name { grid-column:1; grid-row:1; }
+  .room-board .compact-member:not(.compact-seat) .room-member-facts,
+  .room-board .compact-room-header { display:contents; }
+  .room-board .room-fact-role { grid-column:2; grid-row:1; }
+  .room-board .room-fact-tier { grid-column:3; grid-row:1; }
+  .room-board .compact-member-champions { grid-column:4; grid-row:1; }
+  .room-board .room-member-record { grid-column:5; grid-row:1; }
+  .room-board .room-fact-kda { grid-column:6; grid-row:1; }
+  .room-board .compact-room-header h3,.room-board .compact-member-note { grid-column:7; grid-row:1; min-width:0; margin:0; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; white-space:normal; overflow-wrap:anywhere; color:#c7c4d5; font-size:12px; line-height:1.5; }
+  .room-board .compact-room-header time,.room-board .compact-room-header .room-status { grid-column:8; grid-row:1; margin:0; justify-self:center; text-align:center; white-space:normal; font-size:11px; line-height:1.5; }
+  .room-board .compact-members-toggle { grid-column:9; grid-row:1; }
+  .room-board .compact-member:not(.compact-seat) .room-member-facts dt,
+  .room-board .compact-champions-label,
+  .room-board .room-kda-detail>.room-stat-caption { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+  .room-board .compact-member:not(.compact-seat) .room-role-icons.has-labels b { display:none; }
+  .room-board .compact-member:not(.compact-seat) .room-member-facts .room-rank strong { font-size:11px; }
+  .room-board .compact-seat { grid-template-columns:minmax(136px,1.15fr) minmax(240px,2fr) 100px; padding-block:6px; }
+  .room-board .compact-seat .room-member-facts { grid-column:2; grid-row:1; }
+  .room-board .compact-seat .room-seat-voice { grid-column:3; grid-row:1; flex-direction:row; }
+}
