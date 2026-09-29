@@ -5,8 +5,8 @@ import { Avatar } from '../components/ui';
 import { FilterRoleIcon, FilterTierIcon } from '../components/FilterSymbols';
 import { PerformanceValue, PreferredChampions } from '../components/IntroductionVisuals';
 import { keyConditionOptions } from '../domain/gameConfig';
-import { TIER_LADDER_LABEL } from '../domain/gameCatalog';
-import { modeLabel } from '../domain/labels';
+import { PERSPECTIVE_LABEL, TIER_LADDER_LABEL } from '../domain/gameCatalog';
+import { modeChoiceLabel } from '../domain/modeChoice';
 import { TIER_LABELS } from '../domain/recruitment';
 import { relativeTime } from '../domain/time';
 import { hasLolRankDivision } from '../domain/lolRank';
@@ -93,7 +93,7 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, entryError
     <RoomBubbleTail />
     <div className="compact-room-header" aria-label="방 요약">
       <h3 ref={heading} tabIndex={-1} title={room.title}>{room.title}</h3>
-      <span className="room-status">{modeLabel(room.game, room.modeKey)}{room.perspective ? ` · ${room.perspective}` : ''}</span>
+      <span className="room-status">{modeChoiceLabel(room.game, room.modeKey, room.perspective)}</span>
       {closed ? <span className="room-status is-confirmed">{POST_STATUS_LABEL[room.status]}</span> : <time dateTime={room.createdAt}>{relativeTime(room.createdAt)}</time>}
     </div>
     <div className="compact-members" aria-label="방 구성원 정보">
@@ -108,7 +108,7 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, entryError
         onClick={() => onSeat(room)}>
         <span className="compact-seat-status">모집 중</span>
         <dl className="room-member-facts room-seat-facts">
-          <div><dt className="sr-only">찾는 포지션</dt><dd>{positions ? <RoomRoles game={room.game} roles={room.wantedPositions} labels /> : <span className="room-random-role">{room.game === 'PUBG' ? (room.perspective ?? '무작위') : '무작위'}</span>}</dd></div>
+          <div><dt className="sr-only">찾는 포지션</dt><dd>{positions ? <RoomRoles game={room.game} roles={room.wantedPositions} labels /> : <span className="room-random-role">{room.game === 'PUBG' && room.perspective ? PERSPECTIVE_LABEL[room.perspective] : '무작위'}</span>}</dd></div>
           <div><dt className="sr-only">인원</dt><dd><span className="room-random-role">{room.memberCount} / {room.capacity}명</span></dd></div>
         </dl>
         <span className="room-seat-voice"><RoomVoice value={room.voice} /><span>{room.voice === 'REQUIRED' ? '사용' : '미사용'}</span></span>

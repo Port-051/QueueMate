@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Button, Modal } from '../components/ui';
 import { FilterModeIcon } from '../components/FilterSymbols';
-import { modeLabel } from '../domain/labels';
+import { modeChoice, modeChoiceLabel } from '../domain/modeChoice';
 import { roomErrorMessage } from './errors';
 import { RoomRoles } from './RoomDeck';
 import { RoomVoice } from './RoomVoice';
@@ -29,7 +29,7 @@ export function RoomJoinConfirm({ room, entryError, onClose, onJoin }: {
     foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || Boolean(entryError)} onClick={confirm}>{busy ? '참여 중…' : '참여하기'}</Button></>}>
     <div className="room-preview-title"><h3>{room.title}</h3></div>
     <dl className="room-preview-conditions">
-      <div><dt>게임 모드</dt><dd><FilterModeIcon mode={room.modeKey} size={22} />{modeLabel(room.game, room.modeKey)}{room.perspective ? ` · ${room.perspective}` : ''}</dd></div>
+      <div><dt>게임 모드</dt><dd><FilterModeIcon mode={modeChoice(room.game, room.modeKey)?.group ?? room.modeKey} size={22} />{modeChoiceLabel(room.game, room.modeKey, room.perspective)}</dd></div>
       <div><dt>방장</dt><dd>{room.host.nickname}</dd></div>
       <div><dt>인원</dt><dd>{room.memberCount} / {room.capacity}명</dd></div>
       {hasPositions(room.game, room.modeKey) ? <div><dt>찾는 포지션</dt><dd><RoomRoles game={room.game} roles={room.wantedPositions} labels /></dd></div> : null}

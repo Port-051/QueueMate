@@ -4,7 +4,7 @@ import { Button, Modal } from '../components/ui';
 import { FilterModeIcon } from '../components/FilterSymbols';
 import { IconDirectMessage } from '../components/NotificationPanel';
 import { gameConfig } from '../domain/gameConfig';
-import { modeLabel } from '../domain/labels';
+import { modeChoice, modeChoiceLabel } from '../domain/modeChoice';
 import { roomErrorMessage } from './errors';
 import { RoomRoles } from './RoomDeck';
 import { RoomVoice } from './RoomVoice';
@@ -34,7 +34,7 @@ export function RoomCreatePreview({ draft, onClose, onConfirm }: {
     foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy} onClick={confirm}><span className="room-create-icon"><IconDirectMessage size={21} /></span>{busy ? '올리는 중…' : '방 올리기'}</Button></>}>
     <div className="room-preview-title"><span>{gameConfig(draft.game).name}</span><h3>{draft.title}</h3></div>
     <dl className="room-preview-conditions">
-      <div><dt>게임 모드</dt><dd><FilterModeIcon mode={draft.mode} size={22} />{modeLabel(draft.game, draft.mode)}{draft.conditions.perspective ? ` · ${draft.conditions.perspective}` : ''}<span className="room-preview-capacity">최대 5명</span></dd></div>
+      <div><dt>게임 모드</dt><dd><FilterModeIcon mode={modeChoice(draft.game, draft.mode)?.group ?? draft.mode} size={22} />{modeChoiceLabel(draft.game, draft.mode, draft.conditions.perspective ?? null)}<span className="room-preview-capacity">최대 5명</span></dd></div>
       {positions ? <div><dt>{draft.game === 'LOL' ? '찾는 포지션' : '찾는 역할'}</dt><dd><RoomRoles game={draft.game} roles={draft.wantedPositions} labels /></dd></div> : null}
       <div><dt>음성</dt><dd><RoomVoice value={draft.voice} />{draft.voice === 'REQUIRED' ? '사용' : '미사용'}</dd></div>
       {draft.description ? <div><dt>소개</dt><dd>{draft.description}</dd></div> : null}

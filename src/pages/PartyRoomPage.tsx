@@ -8,8 +8,8 @@ import { ReportModal } from '../components/ReportModal';
 import { IconLogout, IconMic, IconMicOff, IconSend, IconShield } from '../components/icons';
 import { ActionMenu, Avatar, Button, Card, CardHead, ConfirmDialog, EmptyState, Field, Modal, Tag, useToast } from '../components/ui';
 import { PERSPECTIVE_LABEL } from '../domain/gameCatalog';
-import { gameFullLabel, modeLabel } from '../domain/labels';
-import { groupPerspectives, groupSizes, modeChoice, modeGroups, pickMode } from '../domain/modeChoice';
+import { gameFullLabel } from '../domain/labels';
+import { groupPerspectives, groupSizes, modeChoice, modeChoiceLabel, modeGroups, pickMode } from '../domain/modeChoice';
 import { socialErrorMessage } from '../domain/socialErrors';
 import { formatTime } from '../domain/time';
 import { perspectiveFromMode, toBoardRoom } from '../rooms/boardRoom';
@@ -145,7 +145,7 @@ export function PartyRoomPage() {
           <div>
             <h1>{room ? room.title : postId !== null ? `게시판 방 #${roomId}` : '자동 매칭 파티'}</h1>
             <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-              {room ? <Tag>{gameFullLabel(room.game)} · {modeLabel(room.game, room.modeKey)}{room.perspective ? ` · ${room.perspective}` : ''}</Tag> : null}
+              {room ? <Tag>{gameFullLabel(room.game)} · {modeChoiceLabel(room.game, room.modeKey, room.perspective)}</Tag> : null}
               <Tag tone={confirmed ? 'ok' : 'accent'}>{confirmed ? '확정된 파티' : '모집 중'}</Tag>
               <Tag>{members.length}{room ? ` / ${room.capacity}` : ''}명</Tag>
               {room ? <Tag>{room.voice === 'REQUIRED' ? '음성 사용' : '음성 안 씀'}</Tag> : null}

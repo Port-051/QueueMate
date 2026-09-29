@@ -39,6 +39,8 @@ function CreateRoomIcon() {
  * 음성 · **플레이 목적**(`playPurpose` — 매칭 시작에만 · 글에는 목적이 없다, platform P-29) · "한마디"(글 제목). 티어는 폼이 아니라 내 게임 계정에서 온다(`buildMatchRequest`).
  * - **플레이 목적**(2026-09-29 소유자 결정) — 전에는 폼에 칸이 없어 프로필 설정의 기본값이 보이지 않게 실려 갔다. 이제 칸이 있고, 처음 값이 그 기본값이며
  *   고르면 다른 칸처럼 이 브라우저에 게임마다 기억한다(`saveIntroduction`). 자동 합류(`POST /posts/auto-join`)는 같은 본문을 받되 목적을 보지 않는다.
+ * - **PUBG 플랫폼의 처음 값**(2026-09-29) — 폼이 비어 있으면(저장한 값이 없거나 고른 적이 없으면) **연결한 PUBG 게임 계정의 `server`**(`STEAM` · `KAKAO`)로 채운다.
+ *   스팀 · 카카오는 서로 파티를 맺을 수 없어 대개 그 값이다. 바꿀 수는 있다(막지 않는다). 계정이 없으면 비워 둔다("플랫폼을 골라 주세요").
  */
 export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, onCreate }: {
   game: GameKey; modeKey: string; selfId: string;
@@ -54,7 +56,10 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, onCreate
     const saved = readIntroduction(selfId, game) ?? { ...emptyIntroduction(), primaryRole: 'ANY', voice: readPreferences().defaultVoice };
     const roles = keyConditionOptions(game).filter(role => role.value !== 'ANY').map(role => role.value);
     const allRoles = keyConditionOptions(game).some(role => role.value === 'ANY') && roles.every(role => saved.primaryRoles?.includes(role));
-    const primaryRole = allRoles ? 'ANY' : saved.primaryRoles?.[0] ?? saved.primaryRole;
+    let primaryRole = allRoles ? 'ANY' : saved.primaryRoles?.[0] ?? saved.primaryRole;
+    // PUBG 플랫폼이 비어 있으면(스팀 · 카카오 가운데 고른 것이 없으면) 연결한 PUBG 계정의 서버로 — 위 머리 주석. PUBG 에는 "전체"(`ANY`)가 없다.
+    const pubgServer = game === 'PUBG' ? gameAccounts.find(account => account.game === 'PUBG')?.server ?? null : null;
+    if (pubgServer && roles.includes(pubgServer) && !roles.includes(primaryRole)) primaryRole = pubgServer;
     return {
       ...saved, primaryRole, primaryRoles: allRoles ? roles : primaryRole === 'ANY' ? [] : [primaryRole], voice: roomVoice(saved.voice),
       playPurpose: saved.playPurpose ?? readPreferences().defaultPurpose,

@@ -1,5 +1,6 @@
 import type { GameKey, PubgPerspective } from '../api/types';
-import { GAME_CATALOG, PERSPECTIVES, type GameModeSeed, type ModeGroupSeed } from './gameCatalog';
+import { GAME_CATALOG, PERSPECTIVE_LABEL, PERSPECTIVES, type GameModeSeed, type ModeGroupSeed } from './gameCatalog';
+import { modeLabel } from './labels';
 
 /**
  * 모드를 **묶음 · 인원 · (PUBG) 시점** 셋으로 나눠 고르는 규칙(2026-09-29 소유자 지시 — "모드는 모드끼리 묶고 밑에 인원 수를 따로").
@@ -41,4 +42,17 @@ export function pickMode(game: GameKey, group: string, size?: number | null, per
     ?? PERSPECTIVES.map(view => sized.find(mode => mode.perspective === view)).find(Boolean)
     ?? sized[0];
   return found.key;
+}
+
+/**
+ * 모드를 **선택기와 같은 표기**로 한 줄에 — 묶음 · 인원 · (PUBG) 시점: `경쟁전 · 4인 · 1인칭` · `자유 랭크 · 3인` · `경쟁전 · 2인`.
+ * 카드 · 방 만들기 확인 창 · 입장 확인 창 · 방 화면 · 카드 프로필이 이것 하나를 쓴다(2026-09-29 — 모드 라벨 `경쟁전 스쿼드 FPP` 뒤에 글의 시점을 또 붙여
+ * `… FPP · FPP` 로 겹치던 것을 고쳤다). 시점은 **모드의 `perspective`** 에서만 읽는다 — PUBG 모드는 전부 시점을 들고 있고 글의 `conditions.perspective` 는 그 사본이다.
+ * 모르는 모드(옛 글의 `null` 등)면 모드 라벨(`modeLabel` — 모르는 키는 받은 그대로)에 `perspective`(글의 시점)를 붙인다.
+ */
+export function modeChoiceLabel(game: GameKey, modeKey: string, perspective: PubgPerspective | null = null): string {
+  const choice = modeChoice(game, modeKey);
+  if (!choice) return [modeLabel(game, modeKey), perspective ? PERSPECTIVE_LABEL[perspective] : ''].filter(Boolean).join(' · ');
+  const group = modeGroups(game).find(item => item.key === choice.group)?.label ?? choice.group;
+  return [group, `${choice.size}인`, choice.perspective ? PERSPECTIVE_LABEL[choice.perspective] : ''].filter(Boolean).join(' · ');
 }
