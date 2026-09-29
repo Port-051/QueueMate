@@ -15,7 +15,8 @@ import type { GameKey, KeyConditionType, PlayPurpose, TierLadder, VoicePreferenc
  *   **LoL 의 `NONE`(포지션 없음)은 선택지가 아니라 서버에 보내는 값이다** — `positionUniqueness=false` 모드(칼바람)에서만 · 그때는 `NONE` 만 받고, 포지션을 보는 모드에서는
  *   `NONE` 을 거절한다(`matching` `LolConditionValidator`). 화면은 그 자리를 `ANY` 로 두고 보낼 때 옮긴다(`domain/matchRequest.ts`). VALORANT · PUBG 에는 "없음" 이 없다.
  * - **사다리(`tierLadder`)는 모드가 어느 랭크 큐의 티어를 보는가다**(2026-09-29 소유자 결정 "모드별 티어를 무조건 저장한다" — seed 의 모드 HASH 에 새 필드 `tierLadder`, matching 에서 더하는 중).
- *   LoL `RANKED_SOLO`→`SOLO` · `RANKED_FLEX_2/3/5`→`FLEX` / VALORANT `COMPETITIVE_DUO/TRIO`→`COMPETITIVE` / PUBG `RANKED_{DUO|SQUAD}_{TPP|FPP}`→`{DUO|SQUAD}_{TPP|FPP}`.
+ *   LoL `RANKED_SOLO`→`SOLO` · `RANKED_FLEX_2/3/5`→`FLEX` / VALORANT `COMPETITIVE_DUO/TRIO`→`COMPETITIVE` / PUBG 랭크 모드 넷(`RANKED_{DUO|SQUAD}_{TPP|FPP}`)→전부 `RANKED`
+ *   (시즌 36(2025-06-05)부터 PUBG 티어/RP 는 듀오 · 스쿼드와 FPP · TPP 에 걸쳐 하나다 — `matching/WORKLOG_2026-09-14.md` §1).
  *   `tierRule=NONE` 모드는 사다리가 없다. 게임 프로필의 `tiers` 가 사다리마다 티어를 하나씩 든다(`api/types.ts` `GameProfile`) — 고르는 규칙은 `domain/profileTier.ts`.
  * - 티어 **이름**(`tierNames`)은 `ZADD qm:gameconfig:{GAME}:tier` 의 순서(오름차순 · 0 이 `UNRANKED`)이고 한 게임의 사다리들이 같이 쓴다.
  *   VALORANT 는 디비전이 1→3 으로 커지고 LoL · PUBG 는 4→1 로 작아진다. "더 높은 티어" 는 이 순서의 인덱스다.
@@ -147,12 +148,12 @@ export const GAME_CATALOG: Record<GameKey, GameSeed> = {
       { key: 'NORMAL_DUO_FPP', label: '일반 듀오 FPP', targetPartySize: 2, tierRule: 'NONE' },
       { key: 'NORMAL_SQUAD_TPP', label: '일반 스쿼드 TPP', targetPartySize: 4, tierRule: 'NONE' },
       { key: 'NORMAL_SQUAD_FPP', label: '일반 스쿼드 FPP', targetPartySize: 4, tierRule: 'NONE' },
-      { key: 'RANKED_DUO_TPP', label: '경쟁전 듀오 TPP', targetPartySize: 2, tierRule: 'EXIST', tierLadder: 'DUO_TPP' },
-      { key: 'RANKED_DUO_FPP', label: '경쟁전 듀오 FPP', targetPartySize: 2, tierRule: 'EXIST', tierLadder: 'DUO_FPP' },
-      { key: 'RANKED_SQUAD_TPP', label: '경쟁전 스쿼드 TPP', targetPartySize: 4, tierRule: 'EXIST', tierLadder: 'SQUAD_TPP' },
-      { key: 'RANKED_SQUAD_FPP', label: '경쟁전 스쿼드 FPP', targetPartySize: 4, tierRule: 'EXIST', tierLadder: 'SQUAD_FPP' },
+      { key: 'RANKED_DUO_TPP', label: '경쟁전 듀오 TPP', targetPartySize: 2, tierRule: 'EXIST', tierLadder: 'RANKED' },
+      { key: 'RANKED_DUO_FPP', label: '경쟁전 듀오 FPP', targetPartySize: 2, tierRule: 'EXIST', tierLadder: 'RANKED' },
+      { key: 'RANKED_SQUAD_TPP', label: '경쟁전 스쿼드 TPP', targetPartySize: 4, tierRule: 'EXIST', tierLadder: 'RANKED' },
+      { key: 'RANKED_SQUAD_FPP', label: '경쟁전 스쿼드 FPP', targetPartySize: 4, tierRule: 'EXIST', tierLadder: 'RANKED' },
     ],
-    tierLadders: ['DUO_TPP', 'DUO_FPP', 'SQUAD_TPP', 'SQUAD_FPP'],
+    tierLadders: ['RANKED'],
     tierNames: PUBG_TIERS,
   },
 };
@@ -186,8 +187,5 @@ export const TIER_LADDER_LABEL: Record<TierLadder, string> = {
   SOLO: '솔로랭크',
   FLEX: '자유랭크',
   COMPETITIVE: '경쟁전',
-  DUO_TPP: '듀오 TPP',
-  DUO_FPP: '듀오 FPP',
-  SQUAD_TPP: '스쿼드 TPP',
-  SQUAD_FPP: '스쿼드 FPP',
+  RANKED: '랭크',
 };

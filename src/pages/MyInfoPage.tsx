@@ -45,7 +45,7 @@ function LadderTiers({ game, profile }: { game: GameKey; profile: GameProfile })
 
 /**
  * 게임 프로필 카드 하나(platform-api.md "게임 프로필"). 세 게임이 같은 모양이고 게임마다 비는 칸이 다르다 — `null` 은 "정보 없음"으로.
- * **티어는 사다리마다 한 줄이다**(LoL 솔로 · 자유 / VALORANT 경쟁전 / PUBG 넷 — `tiers`). LoL · PUBG 는 `tiers` · `stats` 가 게임사 API 에서 오고(연결 · 전적 갱신 때 — 2026-09-29 PUBG 도),
+ * **티어는 사다리마다 한 줄이다**(LoL 솔로 · 자유 / VALORANT 경쟁전 / PUBG 랭크 — `tiers`). LoL · PUBG 는 `tiers` · `stats` 가 게임사 API 에서 오고(연결 · 전적 갱신 때 — 2026-09-29 PUBG 도),
  * VALORANT 는 자기신고라 `stats` 가 늘 `null` 이다. PUBG 의 전적은 판 수 · 치킨률 · K/D · 평균 딜량이다(`stats.detail` — `wins` · `kda` 들은 늘 `null`).
  */
 function GameProfileCard({ game, profile, onEdit, onUnlink, onRefresh, refreshing }: {

@@ -63,18 +63,19 @@ export interface UpdateUserRequest { nickname: string; }
 
 /**
  * 티어 사다리의 키 — 한 게임 안에서 랭크 큐마다 티어가 따로다(2026-09-29 소유자 결정 "모드별 티어를 무조건 저장한다").
- * LoL `SOLO`(솔로랭크) · `FLEX`(자유랭크) / VALORANT `COMPETITIVE`(경쟁전) / PUBG `DUO_TPP` · `DUO_FPP` · `SQUAD_TPP` · `SQUAD_FPP`.
+ * LoL `SOLO`(솔로랭크) · `FLEX`(자유랭크) / VALORANT `COMPETITIVE`(경쟁전) / PUBG `RANKED`(랭크 — 하나다. 시즌 36(2025-06-05)부터 티어/RP 가 듀오 · 스쿼드와 FPP · TPP 에 걸쳐
+ * 통합됐다 — `matching/WORKLOG_2026-09-14.md` §1. 처음에 넷(`DUO_TPP` …)으로 두었던 것은 틀린 전제였다).
  * 어느 모드가 어느 사다리를 보는지는 gameconfig 모드 HASH 의 `tierLadder` 다 — 사본은 `domain/gameCatalog.ts` 의 모드. 사다리 **안의** 티어 이름(`GOLD_4` …)은 게임마다 하나(`qm:gameconfig:{GAME}:tier`)를 같이 쓴다.
  */
 export type LolTierLadder = 'SOLO' | 'FLEX';
 export type ValorantTierLadder = 'COMPETITIVE';
-export type PubgTierLadder = 'DUO_TPP' | 'DUO_FPP' | 'SQUAD_TPP' | 'SQUAD_FPP';
+export type PubgTierLadder = 'RANKED';
 export type TierLadder = LolTierLadder | ValorantTierLadder | PubgTierLadder;
 
 /**
  * 게임 프로필 — 게임 계정 하나를 밖에 보여 주는 모양(`users/me.gameAccounts[]` · 게시판 카드의 `host.profile` · `members[].profile`). 세 게임이 같은 모양이다(platform-api.md "게임 프로필").
  * **`tier` 칸은 없다 — `tiers` 가 사다리마다의 티어다**(2026-09-29 소유자 결정). 그 게임의 사다리 키가 **전부** 들어 있고 값은 사다리 이름(`GOLD_4` 꼴) 또는 `null`(언랭 · 모름) —
- * 예 LoL `{"SOLO":"GOLD_4","FLEX":null}` · VALORANT `{"COMPETITIVE":"GOLD_2"}` · PUBG 넷. LoL · PUBG 는 게임사 API 가 채우고 VALORANT 는 자기신고다.
+ * 예 LoL `{"SOLO":"GOLD_4","FLEX":null}` · VALORANT `{"COMPETITIVE":"GOLD_2"}` · PUBG `{"RANKED":"DIAMOND_3"}`. LoL · PUBG 는 게임사 API 가 채우고 VALORANT 는 자기신고다.
  * 타입이 `Partial` 인 것은 게임마다 키가 다르기 때문이다 — 읽는 것은 `domain/profileTier.ts` 한 곳에서(없는 키 · 옛 응답도 `null` 로 읽는다).
  * `server` 는 PUBG 만(`STEAM` · `KAKAO`). `verified` · `stats` 는 읽기 전용이다. 언제 긁은 것인지는 `stats.syncedAt` 이다.
  * **주 포지션 · 주 역할군(`mainPosition`)은 없다**(2026-09-29 소유자 결정 — 포지션은 글을 쓸 때(`wantedPositions`) · 매칭을 시작할 때(`keyCondition`) 고르는 것이다).
@@ -134,7 +135,7 @@ export interface GameStatsDetail {
  * `PUT /api/v1/users/me/game-accounts/{game}` 의 본문 — **게임마다 다르다**(P-26 · 2026-09-29 소유자 결정).
  * LOL 은 `gameNickname`(`이름#태그`) 하나 — 티어(솔로 · 자유)는 Riot 이 채운다 ·
  * VALORANT 는 `gameNickname` + `tier`(선택 · `COMPETITIVE` 사다리로 저장된다 — 자기신고) ·
- * **PUBG 는 `gameNickname` + `server` — `tier` 를 보내면 400 이다**(사다리 넷을 PUBG API 가 채운다). **`mainPosition` 을 보내면 400 이다**(2026-09-29 소유자 결정).
+ * **PUBG 는 `gameNickname` + `server` — `tier` 를 보내면 400 이다**(`RANKED` 사다리를 PUBG API 가 채운다). **`mainPosition` 을 보내면 400 이다**(2026-09-29 소유자 결정).
  * LOL · PUBG 는 저장하기 전에 서버가 게임사 API 를 **동기로** 긁는다(상한 30초) — 응답에 `tiers` · `stats` 가 바로 있다.
  * `tier` 는 그 게임의 사다리 이름이어야 하고(400 `VALIDATION_FAILED`), 없으면 보내지 않는다(`undefined` — JSON 에서 빠진다).
  */

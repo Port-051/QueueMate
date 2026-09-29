@@ -11,7 +11,7 @@ import { profileTier } from './profileTier';
  * - **핵심 조건** — LoL 은 `positionUniqueness=true` 모드(랭크 · 일반)면 실제 포지션 하나(`NONE` 거절), `false` 모드(칼바람)면 **`NONE` 만**. 화면의 "무관" 사본 `ANY` 는
  *   여기서 `NONE` 으로 옮긴다. VALORANT 는 역할군 하나가 필수(`NONE` 없음), PUBG 는 `STEAM` · `KAKAO`. type 은 게임이 정한다(`POSITION` · `ROLE` · `PLATFORM`).
  * - **`tier`** — 내 게임 계정(`users/me.gameAccounts`)의 **그 모드의 사다리(`tierLadder`) 티어**(`tiers[ladder]`)를 **`tierRule=EXIST` 모드에서만** 싣는다(2026-09-29 소유자 결정 —
- *   티어가 사다리마다 따로다. 솔로 랭크는 `SOLO`, 자유 랭크는 `FLEX`, PUBG 경쟁전은 모드마다). `NONE` 모드에 실으면 400 이라 빼고, `EXIST` 모드인데 그 사다리의 티어가 `null` 이면
+ *   티어가 사다리마다 따로다. 솔로 랭크는 `SOLO`, 자유 랭크는 `FLEX`, PUBG 랭크 모드는 전부 `RANKED`). `NONE` 모드에 실으면 400 이라 빼고, `EXIST` 모드인데 그 사다리의 티어가 `null` 이면
  *   서버가 400 을 내므로 보내기 전에 막는다(`matchRequestError` — "자유랭크 티어가 없습니다 — …"). `UNRANKED` 는 사다리의 `SOLO_ONLY` 라 서버가 400 으로 거절한다 — 그 글귀(`details[0]`)를 그대로 보여 준다.
  *   (게임 계정을 연동하면 요청에서 사라질 "임시 필드" 라고 계약이 적었지만 지금은 두 서버 모두 본문의 자기신고를 읽는다 — 그래서 프런트가 계정의 티어를 옮겨 싣는다.)
  * - `playPurpose` 는 그대로 — auto-join 은 받되 무시하고(P-29), matching 은 색인 키의 한 조각이다.

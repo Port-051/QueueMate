@@ -13,7 +13,7 @@ import { Button, Field } from './ui';
  *
  * **받는 칸이 게임마다 다르다** — LOL: 이름#태그 하나(티어 — 솔로 · 자유 — 는 Riot 이 채운다) ·
  * VALORANT: 게임 닉네임 + 티어(선택 · 자기신고 — 서버가 `COMPETITIVE` 사다리로 저장한다) ·
- * **PUBG: 게임 닉네임 + 서버(STEAM · KAKAO) — 티어 칸이 없다**(2026-09-29 소유자 결정 — 사다리 넷을 PUBG API 가 채운다. `tier` 를 보내면 400).
+ * **PUBG: 게임 닉네임 + 서버(STEAM · KAKAO) — 티어 칸이 없다**(2026-09-29 소유자 결정 — `RANKED` 사다리를 PUBG API 가 채운다. `tier` 를 보내면 400).
  * VALORANT 티어의 선택지는 `domain/gameCatalog.ts` 의 티어 이름(seed 의 사본)이다 — 없는 이름을 보내면 400 이다.
  * **주 포지션 · 주 역할군 칸은 없다**(2026-09-29 소유자 결정 — 포지션은 글을 쓸 때 · 매칭을 시작할 때 고른다. 서버도 `mainPosition` 을 받으면 400 이다).
  *

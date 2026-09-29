@@ -30,7 +30,7 @@ export function RoomRoles({ game, roles, labels = false }: { game: GameKey; role
   })}</span>;
 }
 
-/** 티어 하나. `ladderLabel` 은 그 티어가 온 사다리(`솔로랭크` · `듀오 TPP` …) — 풍선말(`title`)로만 보여 준다. */
+/** 티어 하나. `ladderLabel` 은 그 티어가 온 사다리(`솔로랭크` · `랭크` …) — 풍선말(`title`)로만 보여 준다. */
 export function RoomRank({ game, tier, division, size = 30, ladderLabel }: { game: GameKey; tier: string | null; division: number | null; size?: number; ladderLabel?: string }) {
   const suffix = tier && division ? game === 'LOL' ? hasLolRankDivision(tier) ? ['', 'I', 'II', 'III', 'IV'][division] : '' : String(division) : '';
   const text = tier ? `${TIER_LABELS[tier] ?? tier}${suffix ? ` ${suffix}` : ''}` : '—';
