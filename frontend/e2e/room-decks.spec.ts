@@ -1482,3 +1482,35 @@ test('접힌 방은 실제 방장만 보이고 키보드 토글로 다섯 명을
   await expect(deck.locator('.compact-member:visible')).toHaveCount(1);
   await expectNoPageOverflow(page);
 });
+
+test('승패 수와 비율을 함께 표시하고 없는 전적을 만들어내지 않는다', async ({ page }) => {
+  await seedRooms(page, [room('records', [
+    member('host', { wins: 123, losses: 77, winRate: 50 }),
+    member('zero', { wins: 0, losses: 0, winRate: 50 }),
+    member('unknown', { winRate: null }),
+    member('partial', { wins: 12, losses: null, winRate: 60 }),
+    member('invalid', { wins: -1, losses: 2.5, winRate: 50 }),
+  ], { status: 'CONFIRMED' })]);
+  await login(page);
+  await page.getByRole('checkbox', { name: '모집 중인 방만', exact: true }).uncheck();
+  const deck = page.getByRole('article', { name: '테스트 방 records 방 정보', exact: true });
+  const host = deck.locator('.compact-member.is-host');
+  await expect(host.locator('.room-win-record')).toContainText('62%');
+  await expect(host.locator('.room-win-count')).toHaveText('123승 77패');
+  expect(await host.locator('.room-win-bar>span').evaluate(el => el.getAttribute('style'))).toContain('61.5%');
+  await expandMembers(deck);
+  const records = deck.locator('.room-win-record');
+  await expect(records.nth(1)).toHaveText('—아직 경기 없음');
+  await expect(records.nth(2)).toHaveText('—전적 정보 없음');
+  await expect(records.nth(3)).toHaveText('60%승패 정보 없음');
+  await expect(records.nth(4)).toHaveText('50%승패 정보 없음');
+  await expect(deck.locator('.room-win-bar')).toHaveCount(1);
+  await expectNoPageOverflow(page);
+  await page.reload();
+  await login(page);
+  await page.getByRole('checkbox', { name: '모집 중인 방만', exact: true }).uncheck();
+  await expect(host.locator('.room-win-count')).toHaveText('123승 77패');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(host.locator('.room-win-count')).toBeVisible();
+  await expectNoPageOverflow(page);
+});

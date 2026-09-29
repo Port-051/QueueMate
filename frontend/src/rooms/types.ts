@@ -8,6 +8,8 @@ export interface RoomMember {
   tier: string | null;
   division: number | null;
   winRate: number | null;
+  wins?: number | null;
+  losses?: number | null;
   kda: number | null;
   roles: string[];
   champions: string[];

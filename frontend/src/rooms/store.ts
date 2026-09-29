@@ -8,6 +8,7 @@ import { roomVoice, ROOM_VOICES } from './voice';
 import { autoClosePhase, canAutoClose, nextAutoCloseAt } from './autoClose';
 import { needsFullLineup, remainingRoomRoles, roomPositionError } from './positions';
 import { ceilRoomHour, reservationTimeError } from './schedule';
+import { matchCount } from './stats';
 
 export { roomCapacityLimit } from './summary';
 
@@ -47,6 +48,7 @@ function seedMember(game: GameKey, roomId: string, index: number, roomIndex: num
     tier: roomIndex === 3 && index === 1 ? null : tier,
     division: game === 'VALORANT' ? 1 + (n % 3) : 1 + (n % 4),
     winRate: game === 'PUBG' ? 12 + (n * 3) % 19 : 44 + (n * 3) % 23,
+    ...(game === 'LOL' ? { wins: 44 + (n * 3) % 23, losses: 100 - (44 + (n * 3) % 23) } : {}),
     kda: Math.round((1.5 + ((n * 7) % 30) / 10) * 100) / 100,
     roles: [roles[(index + roomIndex) % roles.length]],
     champions: game === 'LOL' ? CHAMPIONS[(index + roomIndex) % CHAMPIONS.length] : [],
@@ -104,10 +106,15 @@ function parseMember(value: unknown, game: GameKey): RoomMember | null {
   // Upgrade only untouched seeded examples; never invent a user's missing champion.
   const exampleChampions = game === 'LOL' && value.id.startsWith('example-room-lol-') && champions.length === 2
     ? CHAMPIONS.find(items => items[0] === champions[0] && items[1] === champions[1]) : undefined;
+  // Only built-in preview fixtures receive sample records; user records stay unknown.
+  const example = game === 'LOL' && value.wins === undefined && value.losses === undefined
+    ? /^example-room-lol-.+-(\d+)-member-(\d+)$/.exec(value.id) : null;
+  const sample = example ? seedMember(game, '', Number(example[2]), Number(example[1])) : null;
   return {
     id: value.id, nickname: value.nickname.slice(0, 40), avatarUrl: typeof value.avatarUrl === 'string' ? value.avatarUrl : null,
     tier: typeof value.tier === 'string' ? value.tier : null, division: nullableNumber(value.division, 5),
     winRate: nullableNumber(value.winRate, 100), kda: nullableNumber(value.kda), roles: canonicalRoomRoles(game, strings(value.roles)),
+    wins: matchCount(value.wins ?? sample?.wins), losses: matchCount(value.losses ?? sample?.losses),
     champions: exampleChampions ?? champions, bio: typeof value.bio === 'string' ? value.bio.slice(0, 160) : '',
     voice: roomVoice(value.voice),
   };

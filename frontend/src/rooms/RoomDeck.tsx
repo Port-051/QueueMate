@@ -11,6 +11,7 @@ import { roomStartLabel } from './schedule';
 import { hasLolRankDivision } from '../domain/lolRank';
 import { canonicalRoomRoles, ROOM_ROLES } from './summary';
 import { RoomVoice } from './RoomVoice';
+import { RoomWinRecord } from './RoomWinRecord';
 import { vacantRoleOptions } from './positions';
 import type { GameRoom, RoomMember } from './types';
 
@@ -49,11 +50,11 @@ export function RoomMemberAvatar({ room, member, size }: { room: GameRoom; membe
 
 export function RoomMemberFacts({ room, member, iconSize = 22 }: { room: GameRoom; member: RoomMember; iconSize?: number }) {
   return <dl className="room-member-facts">
-    <div><dt className="sr-only">티어</dt><dd><RoomRank game={room.game} tier={member.tier} division={member.division} size={iconSize} /></dd></div>
-    <div><dt className="sr-only">포지션</dt><dd>{usesKeyCondition(room.game, room.modeKey)
+    <div><dt>티어</dt><dd><RoomRank game={room.game} tier={member.tier} division={member.division} size={iconSize} /></dd></div>
+    <div><dt>포지션</dt><dd>{usesKeyCondition(room.game, room.modeKey)
       ? <RoomRoles game={room.game} roles={member.roles} labels={member.roles.length <= 1} />
       : <span className="room-random-role">무작위</span>}</dd></div>
-    <div><dt>승률</dt><dd><Stat kind="winRate" value={member.winRate} /></dd></div>
+    <div className="room-member-record"><dt>승률</dt><dd><RoomWinRecord member={member} /></dd></div>
     <div><dt>KDA</dt><dd><Stat kind="kda" value={member.kda} /></dd></div>
   </dl>;
 }
@@ -78,7 +79,7 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, entryError
   const memberRow = (member: RoomMember, host = false) => <div className={`compact-member${host ? ' is-host' : ''}`} key={member.id}>
     <button type="button" className="compact-member-name" aria-label={`${member.nickname} 프로필 보기`} onClick={() => onMember(room, member)}><RoomMemberAvatar room={room} member={member} size={28}/><strong title={member.nickname}>{member.nickname}</strong></button>
     <RoomMemberFacts room={room} member={member} />
-    <div className="compact-member-champions" aria-label={`${member.nickname} ${room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '선호 요원' : '선호 무기'}`}><PreferredChampions game={room.game} names={member.champions.slice(0,3)}/>{room.game === 'LOL' ? Array.from({ length: Math.max(0, 3 - member.champions.length) }, (_, index) => <span className="compact-champion-empty" key={index} role="img" aria-label="챔피언 미등록" title="챔피언 미등록">—</span>) : null}</div>
+    <div className="compact-member-champions" aria-label={`${member.nickname} ${room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '선호 요원' : '선호 무기'}`}><span className="compact-champions-label">{room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '선호 요원' : '선호 무기'}</span><span className="compact-champions-list"><PreferredChampions game={room.game} names={member.champions.slice(0,3)}/>{room.game === 'LOL' ? Array.from({ length: Math.max(0, 3 - member.champions.length) }, (_, index) => <span className="compact-champion-empty" key={index} role="img" aria-label="챔피언 미등록" title="챔피언 미등록">—</span>) : null}</span></div>
     {host ? <button ref={toggle} type="button" className="compact-members-toggle" aria-label={expanded ? '참여자 접기' : '참여자 펼치기'} aria-expanded={expanded} aria-controls={membersId} onClick={() => setExpanded(value => !value)}>
       <span>{room.members.length}<span className="compact-capacity">/{room.capacity}명</span></span>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
