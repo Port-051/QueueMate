@@ -150,8 +150,8 @@ test('방장을 먼저 보여주고 참여자와 빈자리를 세로로 펼친�
   expect(await grid.locator('.room-deck').count()).toBeGreaterThanOrEqual(6);
   const deck = grid.locator('.room-deck[data-status="OPEN"]').first();
   await expandMembers(deck);
-  await expect(deck).toHaveCSS('border-bottom-left-radius', '0px');
-  await expect(deck).toHaveCSS('border-bottom-right-radius', '0px');
+  await expect(deck).toHaveCSS('border-bottom-left-radius', '12px');
+  await expect(deck).toHaveCSS('border-bottom-right-radius', '12px');
   await expect(deck.locator('.room-bubble-tail')).toHaveCount(0);
   const roster = deck.locator('.compact-members');
   await expect(roster.locator('.compact-member')).toHaveCount(5);
@@ -225,8 +225,8 @@ test('다섯 명 방을 만들면 한 열 목록과 대화를 함께 쓰고 확�
   const ownBubble = page.getByRole('article', { name: '우리 다섯 명의 방 방 정보', exact: true });
   await expect(page.locator('html')).toHaveAttribute('data-room-send-animated', 'true');
   await expect(ownBubble).not.toHaveClass(/is-entering/);
-  await expect(ownBubble).toHaveCSS('border-bottom-right-radius', '0px');
-  await expect(ownBubble).toHaveCSS('border-bottom-left-radius', '0px');
+  await expect(ownBubble).toHaveCSS('border-bottom-right-radius', '12px');
+  await expect(ownBubble).toHaveCSS('border-bottom-left-radius', '12px');
   await expect(ownBubble.locator('.room-bubble-tail')).toHaveCount(0);
   await expect(ownBubble).toHaveCSS('background-color', 'rgb(43, 34, 62)');
   await expect(page.getByRole('region', { name: '방 만들기', exact: true })).toHaveCount(0);
@@ -253,7 +253,7 @@ test('다섯 명 방을 만들면 한 열 목록과 대화를 함께 쓰고 확�
   await page.getByRole('checkbox', { name: '모집 중인 방만', exact: true }).uncheck();
   await expect(deck).toHaveAttribute('data-status', 'CONFIRMED');
   await expect(deck).toHaveCSS('filter', 'grayscale(1)');
-  await expect(deck).toHaveCSS('border-bottom-right-radius', '0px');
+  await expect(deck).toHaveCSS('border-bottom-right-radius', '12px');
   await expect(page.getByRole('textbox', { name: '방에 메시지 보내기', exact: true })).toBeEnabled();
   await page.locator('.side-nav').getByRole('link', { name: '프로필', exact: true }).press('Enter');
   await page.locator('.side-nav').getByRole('link', { name: '홈', exact: true }).press('Enter');
@@ -1576,7 +1576,7 @@ test('목록 머리글과 전적 열이 정렬되고 방장 여섯 명을 조밀
   await expect(board.locator('.room-list-heading')).toBeVisible();
   const alignment = await board.evaluate(element => {
     const headers = Array.from(element.querySelectorAll('.room-list-heading>span')).map(el => el.getBoundingClientRect());
-    const selectors = ['.compact-member-name', '.room-fact-role', '.room-fact-tier', '.compact-member-champions', '.room-member-record', '.room-fact-kda', '.compact-room-header h3', '.compact-room-header time', '.compact-members-toggle'];
+    const selectors = ['.compact-member-name', '.room-fact-role', '.room-fact-tier', '.compact-member-champions', '.room-member-record', '.room-fact-kda', '.compact-member-note', '.compact-room-header time', '.compact-members-toggle'];
     return Array.from(element.querySelectorAll('.compact-member.is-host')).slice(0, 6).map(row => ({
       height: row.getBoundingClientRect().height,
       offsets: selectors.map((selector, index) => {

@@ -70,23 +70,28 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, entryError
     <button type="button" className="compact-member-name" aria-label={`${member.nickname} 프로필 보기`} onClick={() => onMember(room, member)}><RoomMemberAvatar room={room} member={member} size={28}/><strong title={member.nickname}>{member.nickname}</strong></button>
     <RoomMemberFacts room={room} member={member} />
     <RoomChampionStats game={room.game} member={member} />
+    <p className="compact-member-note" title={member.bio}>{member.bio}</p>
     {host ? <div className="compact-room-header" aria-label="방 요약">
-      <h3 ref={heading} tabIndex={-1} title={room.title}>{room.title}</h3>
       {closed ? <span className="room-status is-confirmed">마감</span> : null}
       {!closed ? <time dateTime={room.availableFrom ?? undefined}>{roomStartLabel(room.availableFrom)}</time> : null}
-    </div> : <p className="compact-member-note" title={member.bio}>{member.bio}</p>}
+    </div> : null}
     {host ? <button ref={toggle} type="button" className="compact-members-toggle" aria-label={expanded ? '참여자 접기' : '참여자 펼치기'} aria-expanded={expanded} aria-controls={membersId} onClick={() => setExpanded(value => !value)}>
       <span>{room.members.length}<span className="compact-capacity">/{room.capacity}명</span></span>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
     </button> : null}
   </div>;
-  return <article className={`room-deck room-compact${room.ownerId === selfId ? ' is-own' : ''}${closed ? ' is-confirmed' : ''}${entering ? ' is-entering' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`} onKeyDown={event => {
+  return <article className={`room-deck room-compact${room.ownerId === selfId ? ' is-own' : ''}${closed ? ' is-confirmed' : ''}${expanded ? ' is-expanded' : ''}${entering ? ' is-entering' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`} onKeyDown={event => {
     if (event.key === 'Escape' && expanded) {
       event.stopPropagation();
       setExpanded(false);
       toggle.current?.focus();
     }
   }}>
+    <div className="room-group-heading">
+      <span className="room-group-badge">{room.ownerId === selfId ? '내 방' : '모집 방'}</span>
+      <h3 ref={heading} tabIndex={-1} title={room.title}>{room.title}</h3>
+      <span className="room-group-count">{room.members.length}/{room.capacity}명</span>
+    </div>
     <div className="compact-members" aria-label="방 구성원 정보">
       {owner ? memberRow(owner, true) : null}
       <div id={membersId} className="compact-member-details" hidden={!expanded}>

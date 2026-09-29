@@ -4,15 +4,21 @@
   --room-list-columns:minmax(136px,1.15fr) 48px 76px 126px minmax(148px,1.05fr) 112px minmax(110px,1.15fr) 68px 72px;
 }
 .room-list-heading { display:none; }
-.room-board .room-deck-grid { gap:0; border:1px solid #303142; border-radius:10px; overflow:hidden; }
-.room-board .room-deck.room-compact { padding:0; border:0; border-radius:0; background:#1b1c28; }
+.room-board .room-deck-grid { gap:12px; border:0; border-radius:0; overflow:visible; }
+.room-board .room-deck.room-compact { padding:0; border:1px solid #414052; border-radius:12px; background:#1b1c28; overflow:hidden; }
 .room-board .room-deck:nth-child(even) { background:#20212e; }
-.room-board .room-deck + .room-deck { border-top:1px solid #353645; }
+.room-board .room-deck.is-expanded { border-color:#9170c5; box-shadow:0 0 0 1px #9170c526; }
 .room-board .room-deck.is-own { background:#2b223e; }
+.room-group-heading { display:flex; align-items:center; gap:10px; min-height:36px; padding:7px 12px; border-bottom:1px solid #414052; background:#272332; }
+.room-group-badge { flex:none; padding:3px 7px; border-radius:5px; background:#8664bd29; color:#ccb6ef; font-size:10px; font-weight:600; }
+.room-group-heading h3 { flex:1; min-width:0; margin:0; color:#e0d9ed; font-size:13px; line-height:1.5; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.room-group-heading h3:focus-visible { outline:2px solid #bda4ff; outline-offset:2px; }
+.room-group-count { flex:none; color:#bcb1ce; font-size:11px; font-variant-numeric:tabular-nums; }
+.room-board .room-deck.is-expanded .room-group-heading { background:#30253f; border-bottom-color:#614878; }
 .room-board .compact-members,.room-board .compact-member-details { gap:0; }
 .room-board .compact-member { border:0; border-radius:0; padding:12px; background:transparent; }
 .room-board .compact-member:not(.compact-seat) { grid-template-columns:minmax(0,1fr) auto; min-height:72px; gap:10px; }
-.room-board .compact-member-details { border-top:1px solid #393247; background:#12141e; }
+.room-board .compact-member-details { border-top:1px solid #614878; background:#12141e; box-shadow:inset 3px 0 #80629f; }
 .room-board .compact-member-details>.compact-member + .compact-member { border-top:1px solid #2d2b3c; }
 .room-board .compact-room-header { grid-column:1 / -1; grid-row:1; margin:0; min-height:24px; }
 .room-board .compact-room-header h3 { font-size:13px; font-weight:500; }
@@ -48,7 +54,7 @@
   .room-list-heading { display:grid; grid-template-columns:var(--room-list-columns); gap:8px; align-items:center; padding:10px 12px; background:#171923; color:#9397ac; font-size:11px; }
   .room-list-heading>span { text-align:center; }
   .room-list-heading>span:first-child,.room-list-heading>span:nth-child(7) { text-align:left; }
-  .room-board .room-deck-grid { border-radius:0 0 8px 8px; }
+  .room-list-heading { margin-bottom:6px; border-radius:8px; }
   .room-board .compact-member:not(.compact-seat) { grid-template-columns:var(--room-list-columns); gap:8px; min-height:72px; padding:9px 12px; }
   .room-board .compact-member-name { grid-column:1; grid-row:1; }
   .room-board .compact-member:not(.compact-seat) .room-member-facts,
