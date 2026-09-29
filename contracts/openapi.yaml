@@ -313,6 +313,8 @@ components:
       #   조건 5번째가 아니다 — 사용자가 고르는 조건이 아니라 연동 계정에서 가져올 derived 조건이자 자격 조건이다
       #   (docs/02 §6 · §3 "rank eligibility = hard", CLAUDE.md §2). 랭크 모드에서 티어 차이가 크면 게임에서 큐를
       #   같이 돌 수 없으므로, 안 보면 애초에 같이 들어갈 수 없는 파티가 만들어진다.
+      # > 개정 이력: 2026-09-29 — tier 가 "그 모드의 사다리(gameconfig 모드 HASH 의 tierLadder)의 티어" 임을 적고,
+      #   "연동이 붙으면 바디에서 사라진다" 를 고쳤다 (docs/11 D-48 · contracts/README.md A-18). 원본에는 없다.
       allOf:
         - $ref: '#/components/schemas/MatchCondition'
         - type: object
@@ -327,9 +329,14 @@ components:
                 **값은 단(division)까지 적는다** — `GOLD` 가 아니라 `GOLD_2` 다. 단이 없는 티어(`UNRANKED` / `MASTER` /
                 `GRANDMASTER` / `CHALLENGER`)는 이름 그대로다. 허용되는 이름의 원본은 자바 enum 이 아니라 Redis ZSET
                 `qm:gameconfig:{GAME}:tier` 다 (LoL 은 32개). 어느 사다리의 티어인지는 modeKey 가 정한다(솔랭과 자랭은 별개다).
+                그 답은 gameconfig 모드 HASH 의 `tierLadder`(사다리 키 — LoL `SOLO` · `FLEX` / VALORANT `COMPETITIVE` /
+                PUBG `DUO_TPP` · `DUO_FPP` · `SQUAD_TPP` · `SQUAD_FPP`)다 — **클라이언트는 그 사다리의 티어를 보낸다**
+                (2026-09-29, docs/11 D-48). 이 앱은 `tierLadder` 를 읽지 않고 받은 `tier` 를 그 모드의 티어로 쓴다.
 
                 **임시 필드다.** 지금은 사용자 자기신고이고, 게임 계정 연동이 붙으면 요청 바디에서 사라진다 —
                 받는 값이 아니라 연동 계정에서 가져오는 값이 된다.
+                → **2026-09-29 (docs/11 D-48) — 바디에 남는다.** app:platform 이 게임 계정의 티어를 사다리마다 저장하고,
+                클라이언트가 그 가운데 이 모드의 `tierLadder` 것을 골라 여기에 싣는다. 이 앱은 app:platform 을 부르지 않는다.
               example: GOLD_2
 
     MatchRequestView:

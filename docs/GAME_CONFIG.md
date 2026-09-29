@@ -26,6 +26,11 @@ QueueMate 실시간 매칭 MVP는 DB 없이 Redis만 쓴다. 설정은 **LoL과 
 > `:tier-range:` 는 읽지 않고, **쓰지도 심지도 않는다.** Redis 를 못 읽으면 검증을 건너뛴다(fail-open).
 > **그래서 키 모양(`SharedKeys.GAMECONFIG_PREFIX`)이나 seed 의 키 이름을 바꾸면 `app:platform` 의 검증이 조용히 꺼진다** — 바꿀 때는
 > `app:platform`(`common/gameconfig/GameConfigKeys`)과 같이 바꾼다. seed 에서 모드를 지우면 그 모드로는 모집 글을 쓸 수 없게 된다(400).
+>
+> **2026-09-29 부터 `app:platform` 은 모드 HASH 의 `tierLadder` 도 `HMGET` 으로 읽는다**(docs/11 D-48 — 아래 "모드 HASH 의 필드").
+> 위의 "내용은 읽지 않는다" 는 그 전에 D-40(2026-09-28 — 게시판 방 먼저 합류가 `tierRule` · `targetPartySize` · `:tier-range:` 를 읽는다)으로
+> 이미 낡았다. **frontend 도 모드 목록과 `tierLadder` 의 정적 사본을 갖는다**(`../frontend/src/domain/gameCatalog.ts` — "값은 seed 그대로다") —
+> seed 의 모드나 `tierLadder` 를 고치면 그쪽도 같이 고친다.
 
 | | 코드가 밀어넣는 방식 | 미리 심어두는 방식 (채택) |
 |---|---|---|
@@ -35,20 +40,20 @@ QueueMate 실시간 매칭 MVP는 DB 없이 Redis만 쓴다. 설정은 **LoL과 
 
 ## LoL 모드 12개
 
-| modeKey | 한글 이름 | targetPartySize | positionUniqueness | tierRule |
-|---|---|---|---|---|
-| `RANKED_SOLO` | 개인/2인 랭크 | 2 | true | `EXIST` |
-| `RANKED_FLEX_2` | 자유 랭크 2인 | 2 | true | `EXIST` |
-| `RANKED_FLEX_3` | 자유 랭크 3인 | 3 | true | `EXIST` |
-| `RANKED_FLEX_5` | 자유 랭크 5인 | 5 | true | `EXIST` |
-| `ARAM_2` | 무작위 총력전(칼바람 나락) 2인 | 2 | false | `NONE` |
-| `ARAM_3` | 무작위 총력전(칼바람 나락) 3인 | 3 | false | `NONE` |
-| `ARAM_4` | 무작위 총력전(칼바람 나락) 4인 | 4 | false | `NONE` |
-| `ARAM_5` | 무작위 총력전(칼바람 나락) 5인 | 5 | false | `NONE` |
-| `NORMAL_2` | 일반 2인 | 2 | true | `NONE` |
-| `NORMAL_3` | 일반 3인 | 3 | true | `NONE` |
-| `NORMAL_4` | 일반 4인 | 4 | true | `NONE` |
-| `NORMAL_5` | 일반 5인 | 5 | true | `NONE` |
+| modeKey | 한글 이름 | targetPartySize | positionUniqueness | tierRule | tierLadder |
+|---|---|---|---|---|---|
+| `RANKED_SOLO` | 개인/2인 랭크 | 2 | true | `EXIST` | `SOLO` |
+| `RANKED_FLEX_2` | 자유 랭크 2인 | 2 | true | `EXIST` | `FLEX` |
+| `RANKED_FLEX_3` | 자유 랭크 3인 | 3 | true | `EXIST` | `FLEX` |
+| `RANKED_FLEX_5` | 자유 랭크 5인 | 5 | true | `EXIST` | `FLEX` |
+| `ARAM_2` | 무작위 총력전(칼바람 나락) 2인 | 2 | false | `NONE` | — |
+| `ARAM_3` | 무작위 총력전(칼바람 나락) 3인 | 3 | false | `NONE` | — |
+| `ARAM_4` | 무작위 총력전(칼바람 나락) 4인 | 4 | false | `NONE` | — |
+| `ARAM_5` | 무작위 총력전(칼바람 나락) 5인 | 5 | false | `NONE` | — |
+| `NORMAL_2` | 일반 2인 | 2 | true | `NONE` | — |
+| `NORMAL_3` | 일반 3인 | 3 | true | `NONE` | — |
+| `NORMAL_4` | 일반 4인 | 4 | true | `NONE` | — |
+| `NORMAL_5` | 일반 5인 | 5 | true | `NONE` | — |
 
 > **`maxTierGap` 열이 없어졌다.** 필드 자체를 폐기했고, 예전 시드로 채워진 Redis에 남아
 > 있는 것은 시드가 `HDEL`로 걷어낸다.
@@ -78,6 +83,11 @@ QueueMate 실시간 매칭 MVP는 DB 없이 Redis만 쓴다. 설정은 **LoL과 
   끝까지 머문다. 대가로 서로 직접은 안 받을 두 사람이 같은 파티가 될 수 있다 — 의도한 타협이다.
 - **`tierRule`이 `EXIST`인데 표가 없으면 그 모드 요청은 전부 400이다.** 표에 줄이 없는
   티어도 마찬가지다 (fail-closed). 모드를 추가할 때 표를 같이 심어야 하는 이유다.
+- **`tierLadder`는 그 모드의 티어가 어느 랭크 사다리의 것인가다 (2026-09-29, docs/11 D-48).** 솔로랭크와
+  자유랭크는 같은 사람도 티어가 달라서 `SOLO` / `FLEX`로 가른다. 자유 랭크 셋(`_2` / `_3` / `_5`)은 한 사다리다.
+  `EXIST` 모드에만 있다. **매칭 엔진은 읽지 않는다** — 요청의 `tier`가 이미 그 사다리의 티어로 들어온다.
+  읽는 쪽은 `app:platform`(게임 계정이 사다리마다 저장한 티어)과 frontend(보낼 `tier`를 고른다)다.
+  "사다리"라는 말이 아래 "티어 사다리 (ZSET)"과 겹친다 — 그쪽은 티어 **이름의 순서**이고 한 게임의 사다리들이 같이 쓴다.
 
 ## LoL 티어 사다리 (32개)
 
@@ -224,16 +234,16 @@ LoL과 같은 구조(모드 HASH / 티어 사다리 ZSET / 티어 허용 범위 
 
 ### PUBG 모드 8개
 
-| modeKey | 한글 이름 | targetPartySize | tierRule |
-|---|---|---|---|
-| `NORMAL_DUO_TPP` | 일반 듀오 3인칭 | 2 | `NONE` |
-| `NORMAL_DUO_FPP` | 일반 듀오 1인칭 | 2 | `NONE` |
-| `NORMAL_SQUAD_TPP` | 일반 스쿼드 3인칭 | 4 | `NONE` |
-| `NORMAL_SQUAD_FPP` | 일반 스쿼드 1인칭 | 4 | `NONE` |
-| `RANKED_DUO_TPP` | 랭크 듀오 3인칭 | 2 | `EXIST` |
-| `RANKED_DUO_FPP` | 랭크 듀오 1인칭 | 2 | `EXIST` |
-| `RANKED_SQUAD_TPP` | 랭크 스쿼드 3인칭 | 4 | `EXIST` |
-| `RANKED_SQUAD_FPP` | 랭크 스쿼드 1인칭 | 4 | `EXIST` |
+| modeKey | 한글 이름 | targetPartySize | tierRule | tierLadder |
+|---|---|---|---|---|
+| `NORMAL_DUO_TPP` | 일반 듀오 3인칭 | 2 | `NONE` | — |
+| `NORMAL_DUO_FPP` | 일반 듀오 1인칭 | 2 | `NONE` | — |
+| `NORMAL_SQUAD_TPP` | 일반 스쿼드 3인칭 | 4 | `NONE` | — |
+| `NORMAL_SQUAD_FPP` | 일반 스쿼드 1인칭 | 4 | `NONE` | — |
+| `RANKED_DUO_TPP` | 랭크 듀오 3인칭 | 2 | `EXIST` | `DUO_TPP` |
+| `RANKED_DUO_FPP` | 랭크 듀오 1인칭 | 2 | `EXIST` | `DUO_FPP` |
+| `RANKED_SQUAD_TPP` | 랭크 스쿼드 3인칭 | 4 | `EXIST` | `SQUAD_TPP` |
+| `RANKED_SQUAD_FPP` | 랭크 스쿼드 1인칭 | 4 | `EXIST` | `SQUAD_FPP` |
 
 **각주 — 왜 이런 값인가**
 
@@ -244,6 +254,9 @@ LoL과 같은 구조(모드 HASH / 티어 사다리 ZSET / 티어 허용 범위 
 - **시점(TPP/FPP)은 조건이 아니라 modeKey에 접었다.** 파티 구성을 막지 않는 큐 선택이기 때문이다.
 - **TPP/FPP가 같은 티어 표를 쓴다.** 티어/RP는 시즌 36부터 듀오/스쿼드와 TPP/FPP에 걸쳐
   통합돼 있어 시점별 티어가 따로 없다.
+- **그래도 `tierLadder`는 랭크 모드 넷이 따로 갖는다 (2026-09-29, docs/11 D-48).** 소유자 결정이 "모드별 티어를
+  저장한다"이고, 바로 위 줄(2026-09-14 조사)과 어긋난다 — **어느 쪽이 맞는지는 다시 확인하지 않았다.** 통합이 맞다면
+  `app:platform`이 네 사다리에 같은 티어를 채울 뿐 틀리지는 않는다. 허용 범위 표(아래)는 그대로 TPP/FPP가 같다.
 - PUBG validator는 모드 HASH의 `tierRule` 하나로 모드 존재를 판단한다. `tierRule`이 없으면 그
   모드 요청은 전부 거부된다 (fail-closed). `NONE` 모드는 `tier`가 **null**이어야 통과한다(LoL과 같은 규약).
 
@@ -327,13 +340,26 @@ LoL과 같은 구조(모드 HASH / 티어 사다리 ZSET / 티어 허용 범위 
 
 | 키 | 타입 | 내용 | 쓰는 곳 |
 |---|---|---|---|
-| `qm:gameconfig:{game}:{modeKey}` | HASH | 필드 `targetPartySize`, `positionUniqueness`(LoL만. PUBG에는 없다), `tierRule`(`NONE` / `EXIST`) | 매칭 엔진이 파티 규칙 판정 |
+| `qm:gameconfig:{game}:{modeKey}` | HASH | 필드 `targetPartySize`, `positionUniqueness`(LoL · VALORANT. PUBG에는 없다), `tierRule`(`NONE` / `EXIST`), `tierLadder`(`EXIST` 모드만 — 아래 "모드 HASH 의 필드") | 매칭 엔진이 파티 규칙 판정 |
 | `qm:gameconfig:{game}:tier` | ZSET | 멤버 = 티어 이름, score = 사다리 단계 번호. **티어 값의 원본** | Lua가 `ZRANK`로 순번을 뽑고 `ZRANGE`로 색인 칸 목록을 만든다 |
 | `qm:gameconfig:{game}:tier-range:{modeKey}` | HASH | 필드 = 티어 이름, 값 = `MIN:MAX` 또는 `SOLO_ONLY` | `tierRule`이 `NONE`이 아닌 모드의 티어 검증 + 파티 생성 시 범위 결정 |
 
 예: `qm:gameconfig:LOL:RANKED_FLEX_5`, `qm:gameconfig:LOL:tier`,
 `qm:gameconfig:LOL:tier-range:RANKED_SOLO`, `qm:gameconfig:PUBG:RANKED_SQUAD_FPP`, `qm:gameconfig:PUBG:tier`,
 `qm:gameconfig:PUBG:tier-range:RANKED_DUO_TPP`.
+
+### 모드 HASH 의 필드
+
+| 필드 | 뜻 | 값 | 누가 읽나 |
+|---|---|---|---|
+| `targetPartySize` | 파티 정원 | 2 ~ 5 | 매칭 엔진 · `app:platform`(게시판 방 먼저 합류의 정원 — D-40) |
+| `positionUniqueness` | 파티 안에서 핵심 조건 값이 겹칠 수 없는가 | `true` / `false`. LoL · VALORANT만 — PUBG에는 없다 | 매칭 엔진 |
+| `tierRule` | 그 모드가 티어를 보는가 | `NONE` / `EXIST` | 매칭 엔진 · `app:platform`(게시판 방 먼저 합류 — D-40) |
+| `tierLadder` | **`EXIST` 모드의 티어가 어느 랭크 사다리의 것인가 (2026-09-29, docs/11 D-48)** | 사다리 키 — LoL `SOLO` · `FLEX` / VALORANT `COMPETITIVE` / PUBG `DUO_TPP` · `DUO_FPP` · `SQUAD_TPP` · `SQUAD_FPP`. `NONE` 모드에는 없다 | `app:platform`(모드 HASH `HMGET` — 게임 계정의 사다리별 티어) · frontend(정적 사본 `../frontend/src/domain/gameCatalog.ts` — 보낼 `tier`를 고른다). **매칭 엔진은 읽지 않는다** |
+
+> `tierLadder`를 두는 이유는 **모드 이름으로 사다리를 가르지 않으려는 것**이다(`RANKED_FLEX_*` → 자유랭크 같은 규칙을
+> 읽는 쪽마다 코드로 갖지 않는다). 사다리 키는 사다리가 몇 개인지를 정할 뿐 티어 이름은 늘리지 않는다 — 티어 이름과 순서는
+> 여전히 게임마다 ZSET 하나(`qm:gameconfig:{game}:tier`)다. 키 이름(모양)은 바뀌지 않았고 HASH에 필드 하나가 늘었다.
 
 > **모드 목록 SET(`qm:gameconfig:modes:{game}`)은 없앴다 (2026-09-15).** 모드가 있는지는 모드 HASH가
 > 답한다 — 없는 모드면 `HMGET`이 필드를 전부 null로 돌려주고 validator가 그걸로 거른다
@@ -408,6 +434,8 @@ done
 1. `seed/gameconfig.redis`에 `HSET` 한 줄을 넣는다. 모드 목록 SET이 없으므로 이 한 줄이 곧 모드 추가다.
    LoL은 `targetPartySize`, `positionUniqueness`, `tierRule`을 전부 쓰고,
    PUBG는 `targetPartySize`, `tierRule` 둘을 쓴다(`positionUniqueness`는 없다).
+   **`tierRule`이 `EXIST`면 `tierLadder`도 적는다**(docs/11 D-48). 매칭은 없어도 돌지만 `app:platform` · frontend가
+   그 모드에 보낼 티어를 고르지 못한다.
 2. **`tierRule`이 `EXIST`면 `qm:gameconfig:{game}:tier-range:<modeKey>` 표를 같이 심는다.**
    표는 `MULTI` / `DEL` / `HSET` / `EXEC`로 통째로 갈아끼운다.
    **사다리에 있는 티어 전부(LoL 32개 / PUBG 27개)에 줄이 있어야 한다.** 한 줄이라도 비면 그 티어의
