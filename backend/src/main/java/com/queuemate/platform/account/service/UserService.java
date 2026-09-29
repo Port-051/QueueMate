@@ -2,6 +2,7 @@ package com.queuemate.platform.account.service;
 
 import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.account.domain.GameAccountWithStats;
+import com.queuemate.platform.account.domain.GameTiers;
 import com.queuemate.platform.account.domain.SocialIdentity;
 import com.queuemate.platform.account.domain.SocialProvider;
 import com.queuemate.platform.account.domain.User;
@@ -25,7 +26,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 내 프로필과 게임 계정. 전부 "로그인한 나"의 것만 다룬다 — 남의 프로필을 번호로 조회하는 요청은 없다
@@ -74,9 +77,9 @@ public class UserService {
      * 게임 계정을 연결한다 — 없으면 만들고 있으면 바꾼다. 게임마다 하나다. 게임에 따라 길이 둘이다(2026-09-27 소유자 결정).
      * <ul>
      *   <li><b>LoL — 티어 · 전적은 Riot 에서 채운다.</b> 본문은 {@code gameNickname}(이름#태그) 하나이고 {@code tier} · {@code server} 를 보내면 400 이다.
-     *       <b>저장하기 전에 Riot 을 긁는다</b>(동기 · 상한 30초) — 티어는 솔로랭크에서 채우고 응답에 {@code stats} 까지 들어 있다.
+     *       <b>저장하기 전에 Riot 을 긁는다</b>(동기 · 상한 30초) — 티어는 솔로랭크 · 자유랭크 두 사다리를 채우고(P-36) 응답에 {@code stats} 까지 들어 있다.
      *       이름#태그가 Riot 에 없으면 404 {@code RIOT_ID_NOT_FOUND}, Riot 을 못 부르면 503 — <b>둘 다 저장하지 않는다</b>({@link GameStatsRefresher#link})</li>
-     *   <li><b>VALORANT · PUBG — 자기신고.</b> 게임사 API 가 없어 적은 대로 저장하고 긁지 않는다</li>
+     *   <li><b>VALORANT · PUBG — 자기신고.</b> 게임사 API 가 없어 적은 대로 저장하고 긁지 않는다. {@code tier} 는 그 게임의 사다리 하나에 적는다(P-36)</li>
      * </ul>
      * <b>주 포지션은 어느 게임도 받지 않는다</b>(2026-09-29 소유자 결정 — P-35). {@code mainPosition} 이 오면 이 메서드에 닿기 전에
      * {@code @Valid} 가 400 으로 거른다({@link GameAccountRequest}).
@@ -125,7 +128,11 @@ public class UserService {
         }
     }
 
-    /** VALORANT · PUBG — 자기신고를 검증해 그대로 적는다. 명령 하나(gameconfig)는 DB 에 쓰기 전이다 */
+    /**
+     * VALORANT · PUBG — 자기신고를 검증해 그대로 적는다. 명령 하나(gameconfig)는 DB 에 쓰기 전이다.
+     * <b>{@code tier} 는 그 게임의 사다리 하나에 적는다</b>(2026-09-29 — P-36. VALORANT {@code COMPETITIVE} · PUBG {@code RANKED} — 둘 다 사다리가 하나다).
+     * 사다리가 둘 이상인 게임은 요청 한 칸으로 어느 사다리인지 알 수 없어 받지 않는다(LoL 은 애초에 여기 오지 않는다). {@code tier} 가 없으면 {@code tiers} 는 비운다({@code {}}).
+     */
     private GameProfileResponse saveSelfReported(Long userId, Game game, GameAccountRequest request)
     {
         // 티어는 gameconfig 의 사다리에 있는 이름이어야 한다 (2026-09-24 소유자 결정 — contracts/platform-api.md "gameconfig 를 읽는 것").
@@ -140,8 +147,9 @@ public class UserService {
                     ? game.name() + " 에는 서버가 없습니다"
                     : "STEAM · KAKAO 가운데 하나여야 합니다");
         }
+        String tiers = GameTiers.write(game, selfReportedTiers(game, request.tier()));
         return transactionTemplate.execute(status -> {
-            gameAccountRepository.upsert(userId, game.name(), request.gameNickname(), request.tier(),
+            gameAccountRepository.upsert(userId, game.name(), request.gameNickname(), tiers,
                     request.server(), Instant.now().truncatedTo(ChronoUnit.MILLIS));
             // 요청에서 되짚어 만들지 않고 다시 읽는다 — verified · stats 는 요청에 없는 칸이라 DB 에만 있다
             return gameAccountRepository.findWithStatsByUserIdAndGame(userId, game)
@@ -149,6 +157,18 @@ public class UserService {
                     .orElseThrow(() -> new IllegalStateException(
                             "방금 넣은 게임 계정이 없다 userId=" + userId + " game=" + game));
         });
+    }
+
+    /** 자기신고 {@code tier} 를 그 게임의 사다리 하나에 — 사다리가 하나인 게임만 부른다({@code null} 이면 빈 맵) */
+    private static Map<String, String> selfReportedTiers(Game game, String tier)
+    {
+        if(game.tierLadders().size() != 1)
+        {
+            throw new IllegalStateException(game + " 은 사다리가 하나가 아니라 자기신고 티어를 한 칸으로 받을 수 없다");
+        }
+        Map<String, String> tiers = new HashMap<>();
+        tiers.put(game.tierLadders().get(0), tier);
+        return tiers;
     }
 
     /**

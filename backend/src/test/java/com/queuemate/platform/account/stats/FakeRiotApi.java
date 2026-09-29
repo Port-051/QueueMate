@@ -107,7 +107,10 @@ final class FakeRiotApi {
                 : "{\"id\":\"" + summonerId + "\",\"puuid\":\"" + puuid + "\",\"profileIconId\":1234,\"summonerLevel\":300}");
     }
 
-    /** 솔로랭크 줄(에메랄드 IV)이 있는 리그 목록. 자유랭크 줄을 같이 넣는다 — 그쪽 승/패 · 티어를 읽지 않는지 본다 */
+    /**
+     * 솔로랭크 줄(에메랄드 IV)이 있는 리그 목록. 자유랭크 줄(골드 II · 99승 99패)을 같이 넣는다 — 그쪽 승/패를 섞지 않고 티어는 {@code FLEX} 사다리로만
+     * 읽는지 본다(2026-09-29 — P-36)
+     */
     void stubSoloRank(String summonerId, int wins, int losses)
     {
         stubSoloRank(summonerId, "EMERALD", "IV", wins, losses);
@@ -116,10 +119,19 @@ final class FakeRiotApi {
     /** 티어를 골라 넣는다 — Riot 의 {@code tier} · {@code rank} 그대로({@code "MASTER"} · {@code "I"}). 자유랭크 줄(골드 II)을 같이 넣는다 */
     void stubSoloRank(String summonerId, String tier, String rank, int wins, int losses)
     {
-        leagues.put(summonerId, "["
-                + entry("RANKED_FLEX_SR", "GOLD", "II", 99, 99) + ","
-                + entry("RANKED_SOLO_5x5", tier, rank, wins, losses)
-                + "]");
+        stubRanks(summonerId, tier, rank, "GOLD", "II", wins, losses);
+    }
+
+    /** 솔로랭크 줄과 자유랭크 줄을 골라 넣는다. {@code flexTier} 가 {@code null} 이면 자유랭크 줄이 없다(자유랭크 언랭). 자유랭크 줄의 승/패는 99 · 99 다 */
+    void stubRanks(String summonerId, String soloTier, String soloRank, String flexTier, String flexRank, int wins, int losses)
+    {
+        List<String> entries = new ArrayList<>();
+        if(flexTier != null)
+        {
+            entries.add(entry("RANKED_FLEX_SR", flexTier, flexRank, 99, 99));
+        }
+        entries.add(entry("RANKED_SOLO_5x5", soloTier, soloRank, wins, losses));
+        leagues.put(summonerId, "[" + String.join(",", entries) + "]");
     }
 
     /** 솔로랭크 줄이 없는 리그 목록(언랭 또는 자유랭크만) */

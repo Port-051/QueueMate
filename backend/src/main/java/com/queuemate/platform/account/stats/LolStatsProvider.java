@@ -28,7 +28,7 @@ import java.util.function.ToIntFunction;
  * <ol>
  *   <li>게임 닉네임을 {@code 이름#태그} 로 가른다 — <b>태그가 없으면 긁지 않는다</b>({@code null} 을 돌려준다)</li>
  *   <li>{@code account-v1} → {@code puuid}</li>
- *   <li>{@code summoner-v4} → 소환사 {@code id} → {@code league-v4} 에서 <b>솔로랭크 줄</b>의 승/패(= 시즌 누적)와 <b>티어</b></li>
+ *   <li>{@code summoner-v4} → 소환사 {@code id} → {@code league-v4} 에서 <b>솔로랭크 줄</b>의 승/패(= 시즌 누적)와 티어, <b>자유랭크 줄</b>의 티어</li>
  *   <li>{@code match-v5} → 최근 경기 id 목록(새 경기가 먼저)</li>
  *   <li>경기마다 참가자 가운데 <b>그 {@code puuid} 인 사람</b>의 챔피언 · K/D/A · 승패</li>
  *   <li>{@code champion-mastery-v4} → 모스트 챔피언 각각의 <b>숙련도</b>(레벨 · 점수) — 한 번에 전부 받아 고른다.
@@ -36,8 +36,11 @@ import java.util.function.ToIntFunction;
  * </ol>
  *
  * <p><b>티어도 여기서 만든다</b>(2026-09-27 소유자 결정 — LoL 은 요청에서 {@code tier} 를 빼고 Riot 에서 채운다).
- * 솔로랭크 줄의 {@code tier} + {@code rank} 를 gameconfig 사다리의 이름으로({@link #ladderName}). 줄이 없으면(언랭) {@code null},
- * 만든 이름이 사다리에 없으면(Riot 이 티어를 새로 만들었다 등) WARN 하고 {@code null}. Redis 를 못 읽으면 {@link GameConfigReader} 의 fail-open 대로 그 이름을 그대로 둔다.
+ * <b>사다리가 둘이다</b>(2026-09-29 소유자 결정 "모드별 티어를 무조건 저장한다" — P-36) — 솔로랭크 줄({@code RANKED_SOLO_5x5})이 {@code SOLO},
+ * 자유랭크 줄({@code RANKED_FLEX_SR})이 {@code FLEX} 다. 그 전에는 자유랭크 줄을 버려 자유랭크 매칭이 솔로랭크 티어로 돌았다.
+ * 줄의 {@code tier} + {@code rank} 를 gameconfig 사다리의 이름으로({@link #ladderName}) — 두 큐가 같은 이름 목록({@code qm:gameconfig:LOL:tier})을 쓴다.
+ * 줄이 없으면(그 큐 언랭) 그 사다리는 {@code null}, 만든 이름이 사다리에 없으면(Riot 이 티어를 새로 만들었다 등) WARN 하고 {@code null}.
+ * Redis 를 못 읽으면 {@link GameConfigReader} 의 fail-open 대로 그 이름을 그대로 둔다. <b>승/패 · 연승 등 {@code stats} 는 지금대로 솔로랭크 줄이다</b> — 자유랭크의 승/패를 섞지 않는다.
  *
  * <p><b>주 포지션은 만들지 않는다</b>(같은 날 소유자 결정) — 최근 경기의 {@code teamPosition} 은 "지금까지 한 것"이라 뜻이 다르다. 그래서 그 칸을 읽지도 않는다.
  * (2026-09-29 부터는 게임 계정에 주 포지션 칸 자체가 없다 — P-35.)
@@ -76,8 +79,14 @@ public class LolStatsProvider implements GameStatsProvider {
     private static final String FIELD_CHAMPION_LEVEL = "championLevel";
     private static final String FIELD_CHAMPION_POINTS = "championPoints";
 
-    /** 솔로랭크 줄을 가르는 값. 자유랭크({@code RANKED_FLEX_SR})의 승/패를 섞지 않는다 */
+    /** 솔로랭크 줄을 가르는 값. 승/패(시즌 누적)는 이 줄에서만 읽는다 — 자유랭크의 승/패를 섞지 않는다 */
     private static final String SOLO_QUEUE = "RANKED_SOLO_5x5";
+    /** 자유랭크 줄을 가르는 값. <b>티어만</b> 읽는다(2026-09-29 — P-36) */
+    private static final String FLEX_QUEUE = "RANKED_FLEX_SR";
+
+    /** 사다리 키 — {@code Game.LOL.tierLadders()} 의 둘이다. 솔로랭크 줄 → {@code SOLO}, 자유랭크 줄 → {@code FLEX} */
+    static final String LADDER_SOLO = "SOLO";
+    static final String LADDER_FLEX = "FLEX";
 
     /** {@code detail} 의 모스트 챔피언은 셋까지다 ({@code contracts/platform-api.md} "게임 프로필") */
     private static final int MOST_CHAMPIONS = 3;
@@ -120,19 +129,22 @@ public class LolStatsProvider implements GameStatsProvider {
             return null;
         }
 
-        SoloRank rank = soloRank(puuid);
+        Ranks ranks = ranks(puuid);
         List<Played> played = recentMatches(puuid);
 
         int games = played.size();
+        Map<String, String> tiers = new LinkedHashMap<>();
+        tiers.put(LADDER_SOLO, ranks.solo() == null ? null : onLadder(ranks.solo().tier()));
+        tiers.put(LADDER_FLEX, onLadder(ranks.flexTier()));
         return new StatsSnapshot(puuid, games,
                 average(played, Played::kills, games),
                 average(played, Played::deaths, games),
                 average(played, Played::assists, games),
-                rank == null ? null : rank.wins(),
-                rank == null ? null : rank.losses(),
+                ranks.solo() == null ? null : ranks.solo().wins(),
+                ranks.solo() == null ? null : ranks.solo().losses(),
                 games == 0 ? null : winStreak(played),
                 detail(puuid, played),
-                rank == null ? null : onLadder(rank.tier()));
+                tiers);
     }
 
     /**
@@ -161,39 +173,46 @@ public class LolStatsProvider implements GameStatsProvider {
         }
     }
 
-    // ---- 3걸음: 솔로랭크의 시즌 누적 승/패와 티어 ----
+    // ---- 3걸음: 솔로랭크의 시즌 누적 승/패와 티어 · 자유랭크의 티어 ----
 
     /**
-     * 솔로랭크 줄. 언랭이거나 응답의 모양이 달라 못 읽으면 {@code null} 이다 — 그러면 {@code wins} · {@code losses} · 티어가 전부 비어 나간다.
-     * 줄은 있는데 승/패 한쪽을 못 읽으면 승/패만 비우고 티어는 살린다
+     * 리그 목록에서 솔로랭크 줄과 자유랭크 줄의 티어. 소환사 {@code id} 를 못 읽거나 목록이 배열이 아니면 둘 다 비어 있다 —
+     * 그러면 {@code wins} · {@code losses} · 두 사다리가 전부 비어 나간다. 솔로랭크 줄은 있는데 승/패 한쪽을 못 읽으면 승/패만 비우고 티어는 살린다.
+     * 같은 큐의 줄이 둘 오면(정상이면 없다) 앞의 것을 쓴다
      */
-    private SoloRank soloRank(String puuid)
+    private Ranks ranks(String puuid)
     {
         String summonerId = text(riot.summoner(puuid).path(FIELD_SUMMONER_ID));
         if(summonerId == null)
         {
-            log.warn("Riot 의 소환사 응답에 {} 가 없다 — 승/패를 비운 채 간다", FIELD_SUMMONER_ID);
-            return null;
+            log.warn("Riot 의 소환사 응답에 {} 가 없다 — 승/패 · 티어를 비운 채 간다", FIELD_SUMMONER_ID);
+            return Ranks.NONE;
         }
         JsonNode entries = riot.leagueEntries(summonerId);
         if(!entries.isArray())
         {
-            return null;
+            return Ranks.NONE;
         }
+        SoloRank solo = null;
+        String flexTier = null;
         for(JsonNode entry : entries)
         {
-            if(!SOLO_QUEUE.equals(text(entry.path(FIELD_QUEUE_TYPE))))
+            String queue = text(entry.path(FIELD_QUEUE_TYPE));
+            if(SOLO_QUEUE.equals(queue) && solo == null)
             {
-                continue;
+                Integer wins = integer(entry.path(FIELD_WINS));
+                Integer losses = integer(entry.path(FIELD_LOSSES));
+                String tier = ladderName(text(entry.path(FIELD_TIER)), text(entry.path(FIELD_RANK)));
+                // 한쪽만 읽히면 둘 다 버린다 — DB 의 CHECK 가 "같이 있거나 같이 없다"를 건다
+                boolean both = wins != null && losses != null;
+                solo = new SoloRank(both ? wins : null, both ? losses : null, tier);
             }
-            Integer wins = integer(entry.path(FIELD_WINS));
-            Integer losses = integer(entry.path(FIELD_LOSSES));
-            String tier = ladderName(text(entry.path(FIELD_TIER)), text(entry.path(FIELD_RANK)));
-            // 한쪽만 읽히면 둘 다 버린다 — DB 의 CHECK 가 "같이 있거나 같이 없다"를 건다
-            boolean both = wins != null && losses != null;
-            return new SoloRank(both ? wins : null, both ? losses : null, tier);
+            else if(FLEX_QUEUE.equals(queue) && flexTier == null)
+            {
+                flexTier = ladderName(text(entry.path(FIELD_TIER)), text(entry.path(FIELD_RANK)));
+            }
         }
-        return null;
+        return new Ranks(solo, flexTier);
     }
 
     // ---- 4 · 5걸음: 최근 경기 ----
@@ -487,6 +506,12 @@ public class LolStatsProvider implements GameStatsProvider {
 
     /** 솔로랭크 줄. {@code wins} · {@code losses} 는 같이 있거나 같이 없다. {@code tier} 는 사다리 이름(검사 전)이다 */
     private record SoloRank(Integer wins, Integer losses, String tier) {
+    }
+
+    /** 리그 목록에서 읽은 두 줄 — 솔로랭크 줄(없으면 {@code null})과 자유랭크 줄의 티어(사다리 이름 · 검사 전. 없으면 {@code null}) */
+    private record Ranks(SoloRank solo, String flexTier) {
+
+        static final Ranks NONE = new Ranks(null, null);
     }
 
     /** 경기 하나에서 이 사람의 기록 */

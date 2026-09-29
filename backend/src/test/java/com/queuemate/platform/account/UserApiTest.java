@@ -64,13 +64,18 @@ class UserApiTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.game").value("VALORANT"))
                 .andExpect(jsonPath("$.gameNickname").value("val#KR1"))
-                .andExpect(jsonPath("$.tier").value("DIAMOND_2"));
+                // 자기신고 티어는 VALORANT 의 사다리 하나(COMPETITIVE)에 적힌다 — tier 칸은 없다(2026-09-29 — P-36)
+                .andExpect(jsonPath("$.tiers.COMPETITIVE").value("DIAMOND_2"))
+                .andExpect(jsonPath("$.tiers.length()").value(1))
+                .andExpect(jsonPath("$.tier").doesNotExist());
 
         // 바꾸기 — 티어를 비운다(null 이 그대로 들어가는지도 같이 본다)
         putGameAccount(cookie, "VALORANT", json("gameNickname", "jett#KR2", "tier", null))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.gameNickname").value("jett#KR2"))
-                .andExpect(jsonPath("$.tier").isEmpty());
+                // 값이 없어도 사다리 키는 나간다 — null 로
+                .andExpect(jsonPath("$.tiers.length()").value(1))
+                .andExpect(jsonPath("$.tiers.COMPETITIVE").isEmpty());
 
         putGameAccount(cookie, "PUBG", json("gameNickname", "chicken", "tier", null))
                 .andExpect(status().isOk());
@@ -85,7 +90,7 @@ class UserApiTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.gameAccounts[0].game").value("PUBG"))
                 .andExpect(jsonPath("$.gameAccounts[1].game").value("VALORANT"))
                 .andExpect(jsonPath("$.gameAccounts[1].gameNickname").value("jett#KR2"))
-                .andExpect(jsonPath("$.gameAccounts[1].tier").isEmpty());
+                .andExpect(jsonPath("$.gameAccounts[1].tiers.COMPETITIVE").isEmpty());
     }
 
     @Test

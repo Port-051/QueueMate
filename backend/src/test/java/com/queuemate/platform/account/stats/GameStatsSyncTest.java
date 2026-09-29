@@ -135,8 +135,10 @@ class GameStatsSyncTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.game").value("LOL"))
                 .andExpect(jsonPath("$.gameNickname").value("달콤한 인생#KR7"))
-                // 솔로랭크 줄의 EMERALD + IV → 사다리 이름. 자유랭크 줄(GOLD II)을 읽지 않는다
-                .andExpect(jsonPath("$.tier").value("EMERALD_4"))
+                // 사다리가 둘이다(2026-09-29 — P-36) — 솔로랭크 줄의 EMERALD + IV → SOLO, 자유랭크 줄의 GOLD + II → FLEX. tier 칸은 없다
+                .andExpect(jsonPath("$.tiers.SOLO").value("EMERALD_4"))
+                .andExpect(jsonPath("$.tiers.FLEX").value("GOLD_2"))
+                .andExpect(jsonPath("$.tier").doesNotExist())
                 // 주 포지션 칸은 없다 — 경기는 전부 미드(teamPosition MIDDLE)였지만 Riot 에서 뽑지 않고, 게임 계정에 그 칸이 없다(2026-09-29 — P-35)
                 .andExpect(jsonPath("$.mainPosition").doesNotExist())
                 .andExpect(jsonPath("$.server").isEmpty())
@@ -176,8 +178,12 @@ class GameStatsSyncTest extends ApiTestSupport {
 
         // users/me 도 같은 값이다
         JsonNode profile = profile(cookie, "LOL");
-        assertThat(profile.get("tier").asString()).isEqualTo("EMERALD_4");
+        assertThat(profile.get("tiers").get("SOLO").asString()).isEqualTo("EMERALD_4");
+        assertThat(profile.get("tiers").get("FLEX").asString()).isEqualTo("GOLD_2");
         assertThat(profile.has("mainPosition")).isFalse();
+        // DB 에는 jsonb 한 칸에 사다리 둘이다
+        assertThat(jdbcTemplate.queryForObject("select tiers ->> 'FLEX' from game_accounts where id = ?", String.class,
+                gameAccountId)).isEqualTo("GOLD_2");
         assertThat(profile.get("stats").get("games").asInt()).isEqualTo(7);
 
         Map<String, Object> row = statsRow(gameAccountId);
@@ -206,11 +212,11 @@ class GameStatsSyncTest extends ApiTestSupport {
 
         putGameAccount(cookie, "LOL", json("gameNickname", "처음#KR1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.tier").value("EMERALD_4"));
+                .andExpect(jsonPath("$.tiers.SOLO").value("EMERALD_4"));
         putGameAccount(cookie, "LOL", json("gameNickname", "다음#KR2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.gameNickname").value("다음#KR2"))
-                .andExpect(jsonPath("$.tier").value("GOLD_2"))
+                .andExpect(jsonPath("$.tiers.SOLO").value("GOLD_2"))
                 .andExpect(jsonPath("$.stats.wins").value(5));
 
         Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
@@ -272,7 +278,7 @@ class GameStatsSyncTest extends ApiTestSupport {
 
     @Test
     @ExtendWith(OutputCaptureExtension.class)
-    @DisplayName("Riot 이 준 티어가 gameconfig 사다리에 없으면 tier 는 null 이고 WARN 한 줄을 남긴다 — 전적은 그대로 채운다")
+    @DisplayName("Riot 이 준 티어가 gameconfig 사다리에 없으면 그 사다리(SOLO)는 null 이고 WARN 한 줄을 남긴다 — 다른 사다리 · 전적은 그대로 채운다")
     void tierNotOnLadder(CapturedOutput output) throws Exception
     {
         Cookie cookie = login(newNickname());
@@ -284,13 +290,14 @@ class GameStatsSyncTest extends ApiTestSupport {
 
         putGameAccount(cookie, "LOL", json("gameNickname", "새티어#KR1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.tier").isEmpty())
+                .andExpect(jsonPath("$.tiers.SOLO").isEmpty())
+                .andExpect(jsonPath("$.tiers.FLEX").value("GOLD_2"))
                 .andExpect(jsonPath("$.stats.wins").value(7));
         assertThat(output.getAll()).contains("사다리에 없다 tier=OBSIDIAN_2");
     }
 
     @Test
-    @DisplayName("솔로랭크 줄이 없으면(언랭) tier 와 wins · losses · winRate 가 전부 null 이다 — 경기의 평균은 그대로 채운다")
+    @DisplayName("솔로랭크 줄이 없으면(언랭) SOLO 와 wins · losses · winRate 가 전부 null 이다 — 자유랭크 줄의 FLEX 와 경기의 평균은 그대로 채운다")
     void noSoloRank() throws Exception
     {
         Cookie cookie = login(newNickname());
@@ -302,8 +309,9 @@ class GameStatsSyncTest extends ApiTestSupport {
 
         JsonNode linked = readBody(putGameAccount(cookie, "LOL", json("gameNickname", "언랭#KR1"))
                 .andExpect(status().isOk())
-                // 자유랭크 줄(GOLD II)의 티어를 가져오지 않는다
-                .andExpect(jsonPath("$.tier").isEmpty()));
+                // 자유랭크 줄(GOLD II)의 티어는 FLEX 사다리다 — 솔로랭크 사다리로 옮기지 않는다(2026-09-29 — P-36)
+                .andExpect(jsonPath("$.tiers.SOLO").isEmpty())
+                .andExpect(jsonPath("$.tiers.FLEX").value("GOLD_2")));
 
         JsonNode stats = linked.get("stats");
         assertThat(stats.get("games").asInt()).isEqualTo(1);
@@ -399,7 +407,7 @@ class GameStatsSyncTest extends ApiTestSupport {
 
         JsonNode stats = readBody(putGameAccount(cookie, "LOL", json("gameNickname", "숙련도#KR1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.tier").value("EMERALD_4"))).get("stats");
+                .andExpect(jsonPath("$.tiers.SOLO").value("EMERALD_4"))).get("stats");
 
         // 계정 · 소환사 · 리그 · 경기 id · 경기 20 · 숙련도 1
         assertThat(FAKE.calls() - callsBefore).isEqualTo(25);
@@ -466,7 +474,7 @@ class GameStatsSyncTest extends ApiTestSupport {
 
         JsonNode profile = profile(cookie, "LOL");
         assertThat(profile.get("gameNickname").asString()).isEqualTo("그대로#KR1");
-        assertThat(profile.get("tier").asString()).isEqualTo("EMERALD_4");
+        assertThat(profile.get("tiers").get("SOLO").asString()).isEqualTo("EMERALD_4");
         assertThat(syncedAt(gameAccountId)).isEqualTo(good);
         assertThat(redisTemplate.hasKey(GameStatsSyncLock.SYNC_LOCK_PREFIX + gameAccountId)).as("락을 풀었다").isFalse();
     }
@@ -504,7 +512,7 @@ class GameStatsSyncTest extends ApiTestSupport {
 
         putGameAccount(cookie, "VALORANT", json("gameNickname", "제트#EU1", "tier", "DIAMOND_2"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.tier").value("DIAMOND_2"))
+                .andExpect(jsonPath("$.tiers.COMPETITIVE").value("DIAMOND_2"))
                 .andExpect(jsonPath("$.stats").isEmpty());
         putGameAccount(cookie, "PUBG", json("gameNickname", "chicken#KR", "server", "STEAM"))
                 .andExpect(status().isOk())
@@ -557,13 +565,15 @@ class GameStatsSyncTest extends ApiTestSupport {
         String puuid = stubLol("갱신#KR1", "sum-refresh", 10, 10, List.of(play("Ahri", 1, 1, 1, true)));
         putGameAccount(cookie, "LOL", json("gameNickname", "갱신#KR1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.tier").value("EMERALD_4"));
+                .andExpect(jsonPath("$.tiers.SOLO").value("EMERALD_4"))
+                .andExpect(jsonPath("$.tiers.FLEX").value("GOLD_2"));
         Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
         Instant before = syncedAt(gameAccountId);
         int callsBefore = FAKE.calls();
 
-        // 그 사이에 두 판 더 이겼다(서폿으로) · 골드 II 로 떨어졌다 — 갱신이 진짜로 다시 긁는지 보려는 것이다(games 1 → 3, 연승 1 → 3)
-        FAKE.stubSoloRank("sum-refresh", "GOLD", "II", 11, 12);
+        // 그 사이에 두 판 더 이겼다(서폿으로) · 솔로랭크는 골드 II 로 떨어졌고 자유랭크는 사라졌다 — 갱신이 진짜로 다시 긁는지 보려는 것이다
+        // (games 1 → 3, 연승 1 → 3). 사다리 둘을 통째로 갈아 끼운다 — 자유랭크 줄이 없어졌으니 FLEX 는 null 이 된다
+        FAKE.stubRanks("sum-refresh", "GOLD", "II", null, null, 11, 12);
         FAKE.stubMatches(puuid, List.of(
                 play("Lulu", 9, 1, 3, true, "UTILITY"),
                 play("Nami", 7, 2, 4, true, "UTILITY"),
@@ -575,7 +585,8 @@ class GameStatsSyncTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.game").value("LOL"))
                 .andExpect(jsonPath("$.gameNickname").value("갱신#KR1"))
-                .andExpect(jsonPath("$.tier").value("GOLD_2"))
+                .andExpect(jsonPath("$.tiers.SOLO").value("GOLD_2"))
+                .andExpect(jsonPath("$.tiers.FLEX").isEmpty())
                 .andExpect(jsonPath("$.mainPosition").doesNotExist())
                 .andExpect(jsonPath("$.stats.wins").value(11))
                 .andExpect(jsonPath("$.stats.games").value(3))

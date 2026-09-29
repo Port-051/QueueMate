@@ -130,7 +130,7 @@ public class GameStatsRefresher {
                 throw unavailable();
             }
             store.link(userId, game, gameNickname, snapshot, Instant.now().truncatedTo(ChronoUnit.MILLIS));
-            log.info("게임 계정 연결 userId={} game={} tier={}", userId, game, snapshot.tier());
+            log.info("게임 계정 연결 userId={} game={} tiers={}", userId, game, snapshot.tiers());
         }
         finally
         {

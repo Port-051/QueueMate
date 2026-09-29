@@ -11,21 +11,24 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.Map;
 
 /**
- * 사용자가 연결한 게임 계정. 게임마다 하나다({@code UNIQUE (user_id, game)}). 티어는 <b>VALORANT · PUBG 는 자기신고</b>이고
- * <b>LoL 은 Riot 에서 채운다</b>(2026-09-27 소유자 결정) — 게임사 API 에서 가져오는 것은 전적({@code GameAccountStats}) · {@code externalId},
- * 그리고 LoL 의 티어다({@code account.stats}). <b>주 포지션은 없다</b>(2026-09-29 소유자 결정 — P-35. 포지션은 게시판에 글을 쓸 때 정하는 것이다 —
- * {@code main_position} 칸은 마이그레이션 V4 가 지웠다).
+ * 사용자가 연결한 게임 계정. 게임마다 하나다({@code UNIQUE (user_id, game)}). <b>티어는 사다리(랭크 큐)마다 따로다</b>(2026-09-29 소유자 결정 — P-36.
+ * {@code tiers} jsonb 한 칸 — {@link GameTiers}). <b>LoL 은 Riot 에서 채우고</b>(2026-09-27 — 솔로 · 자유 둘) VALORANT 는 자기신고다 —
+ * 게임사 API 에서 가져오는 것은 전적({@code GameAccountStats}) · {@code externalId}, 그리고 티어다({@code account.stats}).
+ * <b>주 포지션은 없다</b>(2026-09-29 소유자 결정 — P-35. 포지션은 게시판에 글을 쓸 때 정하는 것이다 — {@code main_position} 칸은 마이그레이션 V4 가 지웠다).
  *
  * <p><b>읽기 전용으로 쓴다.</b> 만들기 · 바꾸기는 엔티티를 거치지 않고 {@code INSERT … ON CONFLICT DO UPDATE} 한 문장으로 한다
  * ({@code GameAccountRepository#upsert}) — "있는지 보고 없으면 넣는다"로 하면 동시에 온 두 요청이 둘 다 넣으려 든다.
  * 그래서 생성자도 세터도 없다.
  *
  * <p>{@code externalId} · {@code verified} 는 <b>사용자의 요청으로 바뀌지 않는다</b> — upsert 문장이 그 두 칸을 건드리지 않는다.
- * {@code externalId} 는 전적을 긁을 때 {@code account.stats} 가 적고({@code GameAccountRepository#applyRiotProfile}),
+ * {@code externalId} 는 전적을 긁을 때 {@code account.stats} 가 적고({@code GameAccountRepository#applyFetchedProfile}),
  * {@code verified} 는 <b>아직 켜는 길이 없다</b> — 식별자를 알아낸 것은 본인 확인이 아니다(RSO 인증은 미정 — CLAUDE.md §7 "게임 계정 연동").
  */
 @Entity
@@ -50,8 +53,13 @@ public class GameAccount {
     @Column(name = "game_nickname", nullable = false, length = 40)
     private String gameNickname;
 
-    @Column(name = "tier", length = 20)
-    private String tier;
+    /**
+     * 사다리별 티어 — <b>jsonb 의 글자 그대로</b>({@code {"SOLO":"GOLD_4"}}). 읽을 때는 {@link #ladderTiers()} 로 푼다.
+     * 옛 {@code tier} 칸(하나)은 마이그레이션 V5 가 이리로 옮기고 지웠다
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "tiers", nullable = false)
+    private String tiers;
 
     /** 게임사 쪽 계정 식별자 — LoL 은 {@code puuid} 다({@code account.stats} 가 전적을 긁을 때 적는다). VALORANT · PUBG 는 아직 {@code null} 이다. 응답에 싣지 않는다 */
     @Column(name = "external_id", length = 100)
@@ -70,4 +78,10 @@ public class GameAccount {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    /** 그 게임의 사다리 키 전부 → 티어 이름 또는 {@code null}(적은 순서 — {@link GameTiers#read}) */
+    public Map<String, String> ladderTiers()
+    {
+        return GameTiers.read(game, tiers);
+    }
 }

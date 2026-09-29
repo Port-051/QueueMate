@@ -83,7 +83,10 @@ class PostBoardTest extends PostTestSupport {
         JsonNode hostProfile = members.get(0).get("profile");
         assertThat(hostProfile.get("gameNickname").asString()).isEqualTo("host#KR1");
         assertThat(hostProfile.get("verified").asBoolean()).isFalse();
-        assertThat(hostProfile.get("tier").asString()).isEqualTo("EMERALD_4");
+        // 티어는 사다리마다다(2026-09-29 — P-36) — LoL 은 솔로 · 자유 둘이 늘 나가고 값이 없으면 null 이다
+        assertThat(hostProfile.get("tiers").get("SOLO").asString()).isEqualTo("EMERALD_4");
+        assertThat(hostProfile.get("tiers").get("FLEX").isNull()).isTrue();
+        assertThat(hostProfile.has("tier")).isFalse();
         // 사람별 포지션은 없다 — 게임 계정의 주 포지션을 없앴다(2026-09-29 소유자 결정 — P-35. D-20 ② 의 주 포지션 절반을 개정)
         assertThat(hostProfile.has("mainPosition")).isFalse();
         assertThat(hostProfile.get("server").isNull()).isTrue();

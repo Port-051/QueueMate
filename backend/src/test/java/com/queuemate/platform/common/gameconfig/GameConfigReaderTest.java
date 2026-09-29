@@ -103,7 +103,7 @@ class GameConfigReaderTest {
     @Test
     @DisabledIf(value = "com.queuemate.platform.ApiTestSupport#pointsAtForeignPorts",
             disabledReason = "REDIS_PORT=6379 다 — 다른 프로젝트의 것이다. 테스트용을 6380 으로 띄워라")
-    @DisplayName("모드 HASH 의 tierRule · targetPartySize, 사다리의 score, tier-range 의 줄을 seed 의 모양 그대로 읽는다 — 없는 것은 없다고 답한다")
+    @DisplayName("모드 HASH 의 tierRule · targetPartySize · tierLadder, 사다리의 score, tier-range 의 줄을 seed 의 모양 그대로 읽는다 — 없는 것은 없다고 답한다")
     void readsSeededGameConfigFromRedis()
     {
         StringRedisTemplate redis = realRedis();
@@ -115,7 +115,12 @@ class GameConfigReaderTest {
         String ladderKey = "qm:gameconfig:LOL:tier";
         seededKeys.add(modeKey);
         seededKeys.add(rangeKey);
-        redis.opsForHash().putAll(modeKey, Map.of("targetPartySize", "3", "positionUniqueness", "true", "tierRule", "EXIST"));
+        redis.opsForHash().putAll(modeKey, Map.of("targetPartySize", "3", "positionUniqueness", "true", "tierRule", "EXIST",
+                "tierLadder", "FLEX"));
+        // tierLadder 가 없는 옛 seed 의 모드 — 그 칸만 null 이다(2026-09-29 — P-36)
+        String oldModeKey = modeKey + "_OLD";
+        seededKeys.add(oldModeKey);
+        redis.opsForHash().putAll(oldModeKey, Map.of("targetPartySize", "2", "tierRule", "EXIST"));
         redis.opsForHash().putAll(rangeKey, Map.of("GOLD_4", "SILVER_4:PLATINUM_1", "UNRANKED", "SOLO_ONLY"));
         if(!Boolean.TRUE.equals(redis.hasKey(ladderKey)))
         {
@@ -127,7 +132,8 @@ class GameConfigReaderTest {
         redis.opsForZSet().add(ladderKey, "PLATINUM_1", 20);
 
         assertThat(reader.seeded(Game.LOL)).isTrue();
-        assertThat(reader.modeConfig(Game.LOL, mode)).contains(new ModeConfig("EXIST", 3));
+        assertThat(reader.modeConfig(Game.LOL, mode)).contains(new ModeConfig("EXIST", 3, "FLEX"));
+        assertThat(reader.modeConfig(Game.LOL, mode + "_OLD")).contains(new ModeConfig("EXIST", 2, null));
         assertThat(reader.modeConfig(Game.LOL, mode + "_NOPE")).isEmpty();
         assertThat(reader.tierScores(Game.LOL, List.of("GOLD_4", "SILVER_4", "PLATINUM_1", "NO_SUCH_TIER")))
                 .containsEntry("GOLD_4", 13.0).containsEntry("SILVER_4", 9.0).containsEntry("PLATINUM_1", 20.0)
@@ -136,7 +142,7 @@ class GameConfigReaderTest {
                 .containsEntry("GOLD_4", "SILVER_4:PLATINUM_1").containsEntry("UNRANKED", "SOLO_ONLY")
                 .doesNotContainKey("NO_SUCH_TIER");
         // 읽기만 했다 — 심은 모양 그대로다
-        assertThat(redis.opsForHash().entries(modeKey)).hasSize(3);
+        assertThat(redis.opsForHash().entries(modeKey)).hasSize(4);
     }
 
     private StringRedisTemplate realRedis()

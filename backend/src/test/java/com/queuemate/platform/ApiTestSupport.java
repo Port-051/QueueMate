@@ -1,5 +1,7 @@
 package com.queuemate.platform;
 
+import com.queuemate.platform.account.domain.Game;
+import com.queuemate.platform.account.domain.GameTiers;
 import com.queuemate.platform.common.security.AccessTokenIssuer;
 import com.queuemate.platform.common.security.RefreshTokens;
 import jakarta.servlet.http.Cookie;
@@ -97,6 +99,9 @@ public abstract class ApiTestSupport {
     /** 이 테스트가 <b>없어서 심은</b> gameconfig 키. 있던 키는 여기 들어오지 않아 지워지지 않는다 */
     private final List<String> seededGameConfigKeys = new CopyOnWriteArrayList<>();
 
+    /** 이 테스트가 <b>있던 HASH 에 없어서 더한</b> 필드({@code 키 → 필드}). 끝나면 그 필드만 지운다 — 소유자의 seed 에 있던 필드는 건드리지 않는다 */
+    private final List<String[]> seededGameConfigFields = new CopyOnWriteArrayList<>();
+
     /**
      * 이 테스트가 받은 refresh 토큰. 끝나면 그 키만 지운다 — <b>{@code KEYS} · {@code FLUSHDB} 를 쓰지 않는다</b>
      * (같은 Redis 를 {@code room} 이 쓸 수 있다). {@link #refreshCookieOf} 가 적어 둔다
@@ -131,6 +136,11 @@ public abstract class ApiTestSupport {
         seedIfAbsent("qm:gameconfig:VALORANT:" + VALORANT_MODE,
                 key -> redisTemplate.opsForHash().put(key, "targetPartySize", "2"));
         seedIfAbsent("qm:gameconfig:PUBG:" + PUBG_MODE, key -> redisTemplate.opsForHash().put(key, "targetPartySize", "2"));
+        // 모드가 보는 티어 사다리(2026-09-29 — P-36). 옛 seed 가 심긴 Redis 에도 없을 수 있어 필드 단위로 더한다 — 값은 새 seed 의 것이다
+        seedFieldIfAbsent("qm:gameconfig:LOL:" + LOL_MODE, "tierLadder", "SOLO");
+        seedFieldIfAbsent("qm:gameconfig:LOL:" + LOL_MODE_2, "tierLadder", "FLEX");
+        seedFieldIfAbsent("qm:gameconfig:VALORANT:" + VALORANT_MODE, "tierLadder", "COMPETITIVE");
+        seedFieldIfAbsent("qm:gameconfig:PUBG:" + PUBG_MODE, "tierLadder", "RANKED");
         seedIfAbsent("qm:gameconfig:LOL:tier", key -> {
             redisTemplate.opsForZSet().add(key, "UNRANKED", 0);
             redisTemplate.opsForZSet().add(key, "GOLD_4", 13);
@@ -159,9 +169,34 @@ public abstract class ApiTestSupport {
         seededGameConfigKeys.add(key);
     }
 
+    /**
+     * 있는 HASH 에 그 필드가 없을 때만 더한다({@code HSETNX}) — 끝나면 그 필드만 지운다. 소유자가 심은 옛 seed 에 새 필드가 아직 없을 때 쓴다
+     * (2026-09-29 의 {@code tierLadder}). 키가 통째로 없으면 {@link #seedIfAbsent} 처럼 키째 심은 것으로 적는다
+     */
+    protected void seedFieldIfAbsent(String key, String field, String value)
+    {
+        boolean keyExisted = Boolean.TRUE.equals(redisTemplate.hasKey(key));
+        if(Boolean.TRUE.equals(redisTemplate.opsForHash().putIfAbsent(key, field, value)))
+        {
+            if(keyExisted)
+            {
+                seededGameConfigFields.add(new String[]{key, field});
+            }
+            else
+            {
+                seededGameConfigKeys.add(key);
+            }
+        }
+    }
+
     @AfterEach
     void deleteSeededGameConfig()
     {
+        for(String[] keyAndField : seededGameConfigFields)
+        {
+            redisTemplate.opsForHash().delete(keyAndField[0], keyAndField[1]);
+        }
+        seededGameConfigFields.clear();
         redisTemplate.delete(seededGameConfigKeys);
         seededGameConfigKeys.clear();
     }
@@ -249,16 +284,26 @@ public abstract class ApiTestSupport {
      * API 를 거치지 않고 게임 계정 한 줄을 바로 넣고 그 번호를 돌려준다(있으면 바꾼다). <b>LoL 은 연결이 Riot 을 긁어야 저장되므로</b>
      * (2026-09-27 소유자 결정 — {@code PUT …/game-accounts/LOL}) 게시판 · 프로필 테스트가 Riot 흐름을 매번 타지 않고 계정을 갖추려고 쓴다.
      * 사용자를 지우면 FK 의 {@code ON DELETE CASCADE} 가 같이 지운다. 주 포지션의 칸은 없다(2026-09-29 — V4 가 지웠다, P-35).
+     *
+     * <p><b>{@code tier} 는 그 게임의 첫 사다리에 적는다</b>(2026-09-29 — P-36. LoL {@code SOLO} · VALORANT {@code COMPETITIVE} · PUBG {@code RANKED}).
+     * 사다리를 골라 넣으려면 {@link #insertGameAccountWithTiers} 다. {@code null} 이면 {@code tiers} 가 비어 있다.
      */
     protected Long insertGameAccount(Long userId, String game, String gameNickname, String tier)
     {
+        String firstLadder = Game.valueOf(game).tierLadders().get(0);
+        return insertGameAccountWithTiers(userId, game, gameNickname, tier == null ? Map.of() : Map.of(firstLadder, tier));
+    }
+
+    /** 사다리별 티어를 골라 넣는다(사다리 → 이름). 그 게임의 사다리가 아닌 키는 {@link GameTiers#write} 가 거절한다 */
+    protected Long insertGameAccountWithTiers(Long userId, String game, String gameNickname, Map<String, String> tiers)
+    {
         return jdbcTemplate.queryForObject("insert into game_accounts "
-                        + "(user_id, game, game_nickname, tier, created_at, updated_at) "
-                        + "values (?, ?, ?, ?, now(), now()) "
+                        + "(user_id, game, game_nickname, tiers, created_at, updated_at) "
+                        + "values (?, ?, ?, ?::jsonb, now(), now()) "
                         + "on conflict on constraint game_accounts_user_id_game_key do update "
-                        + "set game_nickname = excluded.game_nickname, tier = excluded.tier, "
+                        + "set game_nickname = excluded.game_nickname, tiers = excluded.tiers, "
                         + "updated_at = excluded.updated_at returning id",
-                Long.class, userId, game, gameNickname, tier);
+                Long.class, userId, game, gameNickname, GameTiers.write(Game.valueOf(game), tiers));
     }
 
     /**

@@ -4,6 +4,9 @@ import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -26,6 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p><b>gameconfig 는 seed 의 모양대로 심는다</b> — {@code ApiTestSupport} 가 모드 HASH 에 {@code targetPartySize} 만 심으므로 여기서 {@code tierRule} 을 보태고, 티어를 안 보는 모드
  * ({@code NORMAL_5} · PUBG {@code NORMAL_DUO_TPP})와 tier-range 표 · 사다리의 나머지 단계를 더 심는다. 있던 키는 건드리지 않고 없어서 심은 것만 끝나고 지운다.
  * 사다리에는 seed 와 같은 score 를 {@code ZADD} 한다 — 소유자의 사다리가 있으면 같은 값이라 바뀌지 않는다.
+ * 모드가 보는 티어 사다리({@code tierLadder} — 2026-09-29 P-36)는 {@code ApiTestSupport} 가 필드 단위로 보탠다(옛 seed 에는 없다).
  */
 class AutoJoinTest extends PostTestSupport {
 
@@ -33,6 +37,10 @@ class AutoJoinTest extends PostTestSupport {
     private static final String LOL_NORMAL_MODE = "NORMAL_5";
     /** PUBG 에서 티어를 안 보는 모드 — 이름 끝에 시점(TPP)이 접혀 있다 */
     private static final String PUBG_NORMAL_MODE = "NORMAL_DUO_TPP";
+    /** 자유랭크 5인 — 티어를 보고 사다리는 {@code FLEX} 다(seed 의 {@code tierLadder}) */
+    private static final String LOL_FLEX_MODE = LOL_MODE_2;
+    /** {@code tierLadder} 가 없는 옛 seed 의 랭크 모드를 흉내 낸 것 — 이 테스트만 심고 지운다(seed 에 없는 이름이다) */
+    private static final String OLD_SEED_MODE = "OLD_SEED_RANKED";
 
     @BeforeEach
     void seedAutoJoinGameConfig()
@@ -49,12 +57,24 @@ class AutoJoinTest extends PostTestSupport {
                 "GOLD_4", "SILVER_4:PLATINUM_1",
                 "GOLD_1", "SILVER_4:PLATINUM_1",
                 "EMERALD_4", "PLATINUM_4:EMERALD_1")));
+        // 자유랭크 5인 — 티어를 본다(소유자의 seed 면 이미 EXIST 다). 범위는 seed 의 값 — 골드는 UNRANKED(0)..DIAMOND_1(28)
+        seedFieldIfAbsent("qm:gameconfig:LOL:" + LOL_FLEX_MODE, "tierRule", "EXIST");
+        seedIfAbsent("qm:gameconfig:LOL:tier-range:" + LOL_FLEX_MODE, key -> redisTemplate.opsForHash().putAll(key, Map.of(
+                "GOLD_4", "UNRANKED:DIAMOND_1",
+                "GOLD_1", "UNRANKED:DIAMOND_1")));
+        // tierLadder 가 없는 옛 seed 의 랭크 모드 — 이 테스트만의 이름이라 늘 새로 심고 지운다
+        seedIfAbsent("qm:gameconfig:LOL:" + OLD_SEED_MODE, key -> redisTemplate.opsForHash()
+                .putAll(key, Map.of("targetPartySize", "2", "tierRule", "EXIST")));
+        seedIfAbsent("qm:gameconfig:LOL:tier-range:" + OLD_SEED_MODE, key -> redisTemplate.opsForHash().putAll(key, Map.of(
+                "GOLD_4", "SILVER_4:PLATINUM_1",
+                "GOLD_1", "SILVER_4:PLATINUM_1")));
         // 범위의 양끝 이름이 사다리에 있어야 단계 번호로 비교할 수 있다 — seed 의 score 그대로다
         String ladder = "qm:gameconfig:LOL:tier";
         redisTemplate.opsForZSet().add(ladder, "SILVER_4", 9);
         redisTemplate.opsForZSet().add(ladder, "PLATINUM_4", 17);
         redisTemplate.opsForZSet().add(ladder, "PLATINUM_1", 20);
         redisTemplate.opsForZSet().add(ladder, "EMERALD_1", 24);
+        redisTemplate.opsForZSet().add(ladder, "DIAMOND_1", 28);
     }
 
     // ---- 도우미 ----
@@ -291,6 +311,55 @@ class AutoJoinTest extends PostTestSupport {
         // GOLD_1 의 범위 SILVER_4(9)..PLATINUM_1(20) — 안이다
         Long inRange = insertRankedPost(hostWithTier("GOLD_1"), "MID");
         assertJoined(autoJoin(me, rankedBody("GOLD_4", "MID")), inRange, userIdOf(nickname));
+    }
+
+    // ---- ⑥-2 방장 티어는 그 모드의 사다리(tierLadder) 값이다 (2026-09-29 소유자 결정 — P-36) ----
+
+    @Test
+    @DisplayName("자유랭크 모드(tierLadder FLEX)는 방장의 자유랭크 티어로 본다 — 솔로랭크 티어만 있는 방장의 글은 건너뛰고, 자유랭크 티어가 있는 방장의 글에는 들어간다")
+    void flexModeUsesHostFlexTier() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie me = login(nickname);
+        String flexBody = body("LOL", LOL_FLEX_MODE, "GOLD_4", "POSITION", "MID", "REQUIRED", null);
+        Long soloOnlyHost = insertUser();
+        insertGameAccountWithTiers(soloOnlyHost, "LOL", "solo#KR1", Map.of("SOLO", "GOLD_1"));
+        insertPost(soloOnlyHost, "LOL", LOL_FLEX_MODE, "REQUIRED", "{}", new String[]{ "MID" });
+        expectNoMatchingPost(autoJoin(me, flexBody));
+
+        Long flexHost = insertUser();
+        insertGameAccountWithTiers(flexHost, "LOL", "flex#KR1", Map.of("FLEX", "GOLD_1"));
+        Long flexPost = insertPost(flexHost, "LOL", LOL_FLEX_MODE, "REQUIRED", "{}", new String[]{ "MID" });
+        assertJoined(autoJoin(me, flexBody), flexPost, userIdOf(nickname));
+    }
+
+    @Test
+    @DisplayName("솔로랭크 모드(tierLadder SOLO)는 방장의 자유랭크 티어를 보지 않는다 — 자유랭크 티어만 있는 방장은 티어가 없는 것과 같다")
+    void soloModeIgnoresHostFlexTier() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie me = login(nickname);
+        Long flexOnlyHost = insertUser();
+        insertGameAccountWithTiers(flexOnlyHost, "LOL", "flex#KR1", Map.of("FLEX", "GOLD_1"));
+        insertRankedPost(flexOnlyHost, "MID");
+        expectNoMatchingPost(autoJoin(me, rankedBody("GOLD_4", "MID")));
+
+        Long bothHost = insertUser();
+        insertGameAccountWithTiers(bothHost, "LOL", "both#KR1", Map.of("SOLO", "GOLD_1", "FLEX", "EMERALD_4"));
+        Long both = insertRankedPost(bothHost, "MID");
+        assertJoined(autoJoin(me, rankedBody("GOLD_4", "MID")), both, userIdOf(nickname));
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    @DisplayName("모드 HASH 에 tierLadder 가 없으면(옛 seed) 방장 티어를 알 수 없어 티어를 보는 글을 전부 건너뛰고 WARN 한 줄을 남긴다 — 모드 이름으로 짐작하지 않는다")
+    void missingTierLadderSkipsTieredPosts(CapturedOutput output) throws Exception
+    {
+        Cookie me = login(newNickname());
+        insertPost(hostWithTier("GOLD_1"), "LOL", OLD_SEED_MODE, "REQUIRED", "{}", new String[]{ "MID" });
+
+        expectNoMatchingPost(autoJoin(me, body("LOL", OLD_SEED_MODE, "GOLD_4", "POSITION", "MID", "REQUIRED", null)));
+        assertThat(output.getAll()).contains("tierLadder 가 없거나");
     }
 
     // ---- ⑦ 정원 · ⑧ 차단 · ⑨ 다른 방 · ⑩ 확정 ----

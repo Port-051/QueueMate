@@ -16,7 +16,7 @@ import java.util.Optional;
 /**
  * {@code mode} · {@code tier} 가 <b>있는 값인지</b> gameconfig 에서 확인한다(2026-09-24 소유자 결정 — {@code contracts/platform-api.md} "gameconfig 를 읽는 것").
  * 모드는 {@code party}(모집 글), 티어는 {@code account}(게임 계정)가 쓴다 — 도메인 둘이 같이 쓰므로 {@code common} 에 있다.
- * <b>2026-09-28 부터는 게시판 방 먼저 합류(P-28 · docs/11 D-40)가 모드 HASH 의 내용({@code tierRule} · {@code targetPartySize}) · 티어의 단계 번호 ·
+ * <b>2026-09-28 부터는 게시판 방 먼저 합류(P-28 · docs/11 D-40)가 모드 HASH 의 내용({@code tierRule} · {@code targetPartySize} · 2026-09-29 부터 {@code tierLadder}) · 티어의 단계 번호 ·
  * 티어별 허용 범위도 읽는다</b>({@link #modeConfig} · {@link #tierScores} · {@link #tierRanges} — {@code party.service.AutoJoinService}).
  *
  * <p><b>왜 남의 앱 키를 읽어도 되는가</b> — gameconfig 는 {@code matching} 이 쓰는 상태가 아니다. 원본이 {@code matching/seed/gameconfig.redis} 파일이고
@@ -44,8 +44,11 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class GameConfigReader {
 
+    // ---- 모드별 설정 HASH 에서 읽는 필드의 이름 — 이 한 곳에만 둔다(원본은 matching/seed/gameconfig.redis) ----
     private static final String FIELD_TIER_RULE = "tierRule";
     private static final String FIELD_TARGET_PARTY_SIZE = "targetPartySize";
+    /** 그 모드가 보는 티어 사다리(2026-09-29 — P-36 · docs/11 D-48). {@code tierRule NONE} 모드에는 없다 */
+    private static final String FIELD_TIER_LADDER = "tierLadder";
 
     private final StringRedisTemplate redis;
 
@@ -124,8 +127,9 @@ public class GameConfigReader {
     }
 
     /**
-     * 모드별 설정 HASH 의 {@code tierRule} · {@code targetPartySize} — {@code HMGET} 한 번이다. <b>HASH 가 없으면 비어 있다</b>(두 필드가 다 {@code null} 로 온다 —
-     * {@code matching} 의 validator 가 없는 모드를 아는 법과 같다). 필드 하나만 빠진 모드는 그 칸이 {@code null} 인 채로 돌려준다 — 판단은 부르는 쪽이 한다.
+     * 모드별 설정 HASH 의 {@code tierRule} · {@code targetPartySize} · {@code tierLadder} — {@code HMGET} 한 번이다. <b>HASH 가 없으면 비어 있다</b>(필드가 다 {@code null} 로 온다 —
+     * {@code matching} 의 validator 가 없는 모드를 아는 법과 같다). 필드 하나만 빠진 모드는 그 칸이 {@code null} 인 채로 돌려준다 — 판단은 부르는 쪽이 한다
+     * ({@code tierLadder} 가 없는 옛 seed 도 그렇다 — 2026-09-29).
      *
      * @throws GameConfigUnavailableException Redis 를 못 읽었다
      */
@@ -134,14 +138,15 @@ public class GameConfigReader {
         try
         {
             List<String> values = redis.<String, String>opsForHash()
-                    .multiGet(GameConfigKeys.mode(game, modeKey), List.of(FIELD_TIER_RULE, FIELD_TARGET_PARTY_SIZE));
-            String tierRule = (values == null || values.isEmpty()) ? null : values.get(0);
-            String size = (values == null || values.size() < 2) ? null : values.get(1);
-            if(tierRule == null && size == null)
+                    .multiGet(GameConfigKeys.mode(game, modeKey), List.of(FIELD_TIER_RULE, FIELD_TARGET_PARTY_SIZE, FIELD_TIER_LADDER));
+            String tierRule = field(values, 0);
+            String size = field(values, 1);
+            String tierLadder = field(values, 2);
+            if(tierRule == null && size == null && tierLadder == null)
             {
                 return Optional.empty();
             }
-            return Optional.of(new ModeConfig(tierRule, parseSize(size)));
+            return Optional.of(new ModeConfig(tierRule, parseSize(size), tierLadder));
         }
         catch(DataAccessException e)
         {
@@ -213,6 +218,11 @@ public class GameConfigReader {
         {
             throw failClosed(game, e);
         }
+    }
+
+    private static String field(List<String> values, int index)
+    {
+        return (values == null || values.size() <= index) ? null : values.get(index);
     }
 
     private static Integer parseSize(String size)

@@ -1,6 +1,7 @@
 package com.queuemate.platform.account.stats;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 /**
  * 게임사 API 에서 긁어 온 전적 — <b>{@code game_account_stats} 한 줄에 그대로 들어가는 모양</b>이다
@@ -20,9 +21,11 @@ import java.math.BigDecimal;
  * @param losses     시즌 누적 패. {@code wins} 와 같이 있거나 같이 없다
  * @param winStreak  가장 최근 경기부터 이어지는 연승. 최근 경기가 패면 0 이고, 경기를 하나도 못 읽었으면 {@code null}
  * @param detail     게임마다 다른 나머지를 담은 <b>JSON 객체의 글자</b>(jsonb 로 들어간다). LoL 은 {@code {"mostChampions": […]}} 다
- * @param tier         <b>{@code game_accounts.tier} 에 적는다</b>(2026-09-27 소유자 결정 — LoL 은 티어를 요청으로 받지 않고 Riot 에서 채운다).
- *                     gameconfig 티어 사다리의 이름({@code GOLD_2} · {@code MASTER})이다. 언랭이거나 사다리에 없는 이름이면 {@code null}.
- *                     <b>주 포지션은 여기 없다</b> — Riot 에서 뽑지 않는다(같은 날 소유자 결정. 2026-09-29 부터는 게임 계정에 그 칸 자체가 없다 — P-35)
+ * @param tiers      <b>{@code game_accounts.tiers} 에 통째로 적는다</b>(2026-09-27 소유자 결정 — 게임사 API 로 채우는 게임은 티어를 요청으로 받지 않는다.
+ *                   2026-09-29 — 사다리마다 따로다, P-36). 사다리 키({@code Game#tierLadders()}) → gameconfig 티어 사다리의 이름({@code GOLD_2} · {@code MASTER}).
+ *                   LoL 은 {@code SOLO} · {@code FLEX} 둘이다. 언랭이거나 사다리에 없는 이름이면 그 값이 {@code null} 이다(키를 빼도 같다 —
+ *                   {@code account.domain.GameTiers#write} 가 {@code null} 을 적지 않는다). {@code null} 이 아니다.
+ *                   <b>주 포지션은 여기 없다</b> — 게임사 API 에서 뽑지 않는다(2026-09-27 소유자 결정. 2026-09-29 부터는 게임 계정에 그 칸 자체가 없다 — P-35)
  */
 public record StatsSnapshot(
         String externalId,
@@ -34,6 +37,6 @@ public record StatsSnapshot(
         Integer losses,
         Integer winStreak,
         String detail,
-        String tier
+        Map<String, String> tiers
 ) {
 }

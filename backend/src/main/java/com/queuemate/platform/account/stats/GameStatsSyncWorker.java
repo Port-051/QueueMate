@@ -126,7 +126,7 @@ public class GameStatsSyncWorker {
                 // 물어볼 수 없는 닉네임이다(이유는 구현이 로그에 남겼다). 기존 전적 줄은 건드리지 않는다
                 return SyncOutcome.NOT_FETCHABLE;
             }
-            store.save(account.getId(), snapshot, Instant.now().truncatedTo(ChronoUnit.MILLIS));
+            store.save(account.getId(), game, snapshot, Instant.now().truncatedTo(ChronoUnit.MILLIS));
             return SyncOutcome.SAVED;
         }
         finally

@@ -13,22 +13,38 @@ import java.util.Set;
  * 게시판 방 먼저 합류의 {@code keyCondition} 이 이 목록으로 검증된다(CLAUDE.md §7.1). <b>PUBG 는 포지션이 없다</b>.
  * <b>게임 계정의 주 포지션은 없다</b>(2026-09-29 소유자 결정 — P-35. 그 칸만 검증하던 {@code allowsPosition} 도 같이 없앴다).
  * DB 의 CHECK({@code game_accounts_game_check})도 같은 세 이름을 건다.
+ *
+ * <p><b>티어 사다리의 키도 여기 있다</b>(2026-09-29 소유자 결정 "모드별 티어를 무조건 저장한다" — {@code contracts/platform-api.md} P-36).
+ * 한 게임 안에서 랭크 큐마다 티어가 따로다 — LoL {@code SOLO}(솔로랭크) · {@code FLEX}(자유랭크) / VALORANT {@code COMPETITIVE}(경쟁전) /
+ * PUBG {@code RANKED}(하나 — 시즌 36(2025-06-05)부터 듀오 · 스쿼드와 TPP · FPP 에 걸쳐 티어가 통합됐다). 게임 계정의 {@code tiers}(jsonb)의 키이고
+ * 게임 프로필의 {@code tiers} 에는 이 키가 <b>전부</b> 나간다. <b>이것은 구조 값이지 gameconfig 의 값 목록이 아니다</b> — 사다리 <b>안의</b> 이름({@code GOLD_4} …)과
+ * 어느 모드가 어느 사다리를 보는지({@code tierLadder})는 gameconfig 가 원본이고 이 앱에 베껴 두지 않는다. 사다리 키는 게임사 API 의 큐 · DB 의 칸 · 응답의 모양이
+ * 같이 기대는 뼈대라 {@link #positions()} 와 같은 자리에 둔다.
  */
 public enum Game {
 
-    LOL(List.of("TOP", "JUNGLE", "MID", "ADC", "SUPPORT"), Set.of()),
-    VALORANT(List.of("DUELIST", "INITIATOR", "CONTROLLER", "SENTINEL"), Set.of()),
-    PUBG(List.of(), Set.of("STEAM", "KAKAO"));
+    LOL(List.of("TOP", "JUNGLE", "MID", "ADC", "SUPPORT"), Set.of(), List.of("SOLO", "FLEX")),
+    VALORANT(List.of("DUELIST", "INITIATOR", "CONTROLLER", "SENTINEL"), Set.of(), List.of("COMPETITIVE")),
+    PUBG(List.of(), Set.of("STEAM", "KAKAO"), List.of("RANKED"));
 
     /** 적은 순서를 지킨다 — 모집 글의 "찾는 포지션"을 늘 같은 순서로 내려 주려는 것이다(DB 의 줄에는 순서가 없다) */
     private final Set<String> positions;
     /** 서버(플랫폼)를 가르는 게임은 PUBG 뿐이다. DB 의 CHECK({@code game_accounts_server_check})도 같은 값을 건다 */
     private final Set<String> servers;
+    /** 티어 사다리의 키. 적은 순서를 지킨다 — 게임 프로필의 {@code tiers} 가 늘 이 순서로 나간다 */
+    private final List<String> tierLadders;
 
-    Game(List<String> positions, Set<String> servers)
+    Game(List<String> positions, Set<String> servers, List<String> tierLadders)
     {
         this.positions = Collections.unmodifiableSet(new LinkedHashSet<>(positions));
         this.servers = servers;
+        this.tierLadders = List.copyOf(tierLadders);
+    }
+
+    /** 그 게임의 티어 사다리 키 전부(적은 순서). 게임마다 하나 이상이다 */
+    public List<String> tierLadders()
+    {
+        return tierLadders;
     }
 
     public Set<String> servers()

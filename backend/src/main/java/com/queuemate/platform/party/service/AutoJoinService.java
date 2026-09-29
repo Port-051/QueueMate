@@ -49,7 +49,8 @@ import java.util.regex.Pattern;
  * <p><b>빈 순환이 없다</b> — 이 클래스는 {@link RoomMemberService} · {@link RoomService} 를 물고 그 둘은 {@code party} 의 {@code PostService} 를 물지 않는다
  * ({@code RoomMemberService → PostEntryGate → PostStore → RoomService}). 이 클래스를 무는 것은 컨트롤러뿐이다.
  *
- * <p><b>Claude 가 정한 세부</b>(소유자 검토 항목) — 방장의 티어만 본다(방 안 다른 사람의 티어는 보지 않는다 — {@code matching} 이 파티를 만든 사람의 줄을 쓰는 것과 같다) ·
+ * <p><b>Claude 가 정한 세부</b>(소유자 검토 항목) — 방장의 티어만 본다(방 안 다른 사람의 티어는 보지 않는다 — {@code matching} 이 파티를 만든 사람의 줄을 쓰는 것과 같다.
+ * 그 티어는 <b>그 모드의 {@code tierLadder} 사다리 값</b>이다 — 2026-09-29 P-36. 모드 HASH 에 {@code tierLadder} 가 없으면(옛 seed) 티어를 보는 글을 전부 건너뛴다 + WARN) ·
  * 내 글은 후보에서 뺀다 · PUBG 의 {@code PLATFORM} 값은 방장의 {@code server} 와 대조하지 않는다(결정에 없다 — 미정) · {@code positionUniqueness} 는 읽지 않는다
  * (포지션 개념이 없는 모드에 포지션을 주면 {@code matching} 은 400 인데 여기는 그 포지션으로 글을 거른다) · 사라진 방 · 확정된 방은 스크립트에 가기 전에 뺀다 ·
  * 이미 내가 들어 있는 방은 정원을 보지 않고 200 이다(재시도) · 필터와 입장 사이의 경쟁(그 사이에 만석 · 확정 · 차단이 생긴다)은 스크립트 · {@link PostEntryGate} 의 거절로 다음 방에 간다 —
@@ -180,8 +181,10 @@ public class AutoJoinService {
      * @param seesTier 방장 티어를 봐야 하는가(심긴 Redis 이고 그 모드의 {@code tierRule} 이 {@code EXIST})
      * @param myScore  내 티어의 사다리 단계 번호({@code seesTier} 일 때만)
      * @param capacity 그 모드의 정원({@code targetPartySize}). 안 심긴 Redis · 필드가 없으면 방 정원 5
+     * @param ladder   그 모드가 보는 티어 사다리({@code tierLadder} — 2026-09-29 P-36). 방장의 게임 계정에서 <b>이 사다리의 티어</b>를 본다.
+     *                 {@code seesTier} 인데 {@code null} 이면(옛 seed) 방장 티어를 알 수 없다 — 티어를 보는 글을 전부 건너뛴다
      */
-    private record Gate(boolean seesTier, double myScore, int capacity) {
+    private record Gate(boolean seesTier, double myScore, int capacity, String ladder) {
     }
 
     /**
@@ -192,7 +195,7 @@ public class AutoJoinService {
     {
         if(!gameConfig.seeded(game))
         {
-            return new Gate(false, 0, BoardProperties.ROOM_CAPACITY);
+            return new Gate(false, 0, BoardProperties.ROOM_CAPACITY, null);
         }
         ModeConfig mode = gameConfig.modeConfig(game, modeKey).orElseThrow(
                 () -> ApiException.validationFailed("modeKey", game.name() + " 에 없는 모드입니다"));
@@ -209,7 +212,7 @@ public class AutoJoinService {
             {
                 throw ApiException.validationFailed("tier", modeKey + " 는 티어를 보지 않는 모드입니다");
             }
-            return new Gate(false, 0, capacity);
+            return new Gate(false, 0, capacity, null);
         }
         if(tier == null)
         {
@@ -225,7 +228,7 @@ public class AutoJoinService {
         {
             throw ApiException.validationFailed("tier", modeKey + " 에서 파티를 맺을 수 없는 티어입니다");
         }
-        return new Gate(true, myScore, capacity);
+        return new Gate(true, myScore, capacity, mode.tierLadder());
     }
 
     // ---- 글 거르기 ----
@@ -262,7 +265,10 @@ public class AutoJoinService {
 
     /**
      * 방장의 그 게임 게임 계정 티어로 "내 티어가 그 방의 허용 범위 안인가" 를 본다 — 파티를 만든 사람의 줄이 그 파티의 범위다({@code matching} 과 같다. 게시판이면 방장).
+     * <b>방장 티어는 그 모드의 사다리({@code tierLadder}) 값이다</b>(2026-09-29 — P-36. 자유랭크 방을 방장의 솔로랭크 티어로 보지 않는다 — SQL 이 jsonb 에서 뽑는다).
      * 방장 티어가 없거나 · 표에 줄이 없거나 · {@code SOLO_ONLY} 거나 · 범위의 끝 이름이 사다리에 없으면 그 방은 건너뛴다. DB 한 번 · {@code HMGET} 한 번 · {@code ZMSCORE} 한 번이다.
+     * <b>모드 HASH 에 {@code tierLadder} 가 없거나(옛 seed) 그 게임의 사다리가 아니면</b> 방장 티어를 알 수 없는 것으로 보고 전부 건너뛴다 + WARN(Claude 가 정한 세부 —
+     * "방장 티어가 없으면 건너뛴다" 와 같은 쪽이다. 모드 이름으로 사다리를 짐작하지 않는다).
      */
     private List<RecruitPost> byHostTier(Game game, String modeKey, Gate gate, List<RecruitPost> posts)
     {
@@ -270,9 +276,16 @@ public class AutoJoinService {
         {
             return posts;
         }
+        String ladder = gate.ladder();
+        if(ladder == null || !game.tierLadders().contains(ladder))
+        {
+            log.warn("gameconfig 모드 {}:{} 의 tierLadder 가 없거나 {} 의 사다리가 아니다 ladder={} — 방장 티어를 알 수 없어 후보 {}개를 건너뛴다"
+                    + "(matching/seed/gameconfig.redis 를 다시 심어라)", game, modeKey, game, ladder, posts.size());
+            return List.of();
+        }
         Set<Long> hostIds = new HashSet<>();
         posts.forEach(post -> hostIds.add(post.getHostId()));
-        Map<Long, String> hostTiers = gameProfileReader.findTiers(hostIds, game);
+        Map<Long, String> hostTiers = gameProfileReader.findTiers(hostIds, game, ladder);
 
         List<String> tierNames = hostTiers.values().stream().filter(tier -> tier != null).distinct().toList();
         Map<String, String> ranges = gameConfig.tierRanges(game, modeKey, tierNames);

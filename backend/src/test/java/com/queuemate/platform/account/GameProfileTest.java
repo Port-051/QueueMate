@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.entry;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -48,7 +49,9 @@ class GameProfileTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.game").value("VALORANT"))
                 .andExpect(jsonPath("$.gameNickname").value("제트#KR7"))
                 .andExpect(jsonPath("$.verified").value(false))
-                .andExpect(jsonPath("$.tier").value("DIAMOND_2"))
+                // 티어는 사다리마다다 — VALORANT 는 경쟁전 하나(2026-09-29 — P-36). tier 칸은 없다
+                .andExpect(jsonPath("$.tiers.COMPETITIVE").value("DIAMOND_2"))
+                .andExpect(jsonPath("$.tier").doesNotExist())
                 // 게임 계정에 주 포지션은 없다(2026-09-29 소유자 결정 — P-35). null 로도 싣지 않는다
                 .andExpect(jsonPath("$.mainPosition").doesNotExist())
                 .andExpect(jsonPath("$.server").isEmpty())
@@ -232,7 +235,9 @@ class GameProfileTest extends ApiTestSupport {
 
         assertThat(profiles).containsOnlyKeys(withStats, withoutStats, otherGameOnly);
         assertThat(profiles.get(withStats).nickname()).isEqualTo(withStatsNickname);
-        assertThat(profiles.get(withStats).profile().tier()).isEqualTo("GOLD_1");
+        // LoL 의 사다리는 둘이다 — 값이 없는 자유랭크도 키가 있고 null 이다(2026-09-29 — P-36)
+        assertThat(profiles.get(withStats).profile().tiers()).containsExactly(
+                entry("SOLO", "GOLD_1"), entry("FLEX", null));
         assertThat(profiles.get(withStats).profile().stats().games()).isEqualTo(10);
         assertThat(profiles.get(withStats).profile().stats().winRate()).isEqualTo(60);
         assertThat(profiles.get(withStats).profile().stats().kda()).isEqualByComparingTo(new BigDecimal("4.00"));

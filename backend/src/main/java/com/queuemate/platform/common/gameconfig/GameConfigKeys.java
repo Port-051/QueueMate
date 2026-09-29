@@ -12,8 +12,8 @@ import com.queuemate.platform.account.domain.Game;
  * 그래서 접두사를 이 한 곳에만 둔다. 바꿀 때는 {@code matching} 과 같이 바꾼다.
  *
  * <p><b>이 앱은 이 키들에 절대 쓰지 않는다</b> — 심는 것은 운영자(배포 때 seed 를 붓는다)이고 {@code matching} 도 읽는 쪽이다.
- * 모드별 설정 HASH 의 내용 가운데 <b>{@code tierRule} · {@code targetPartySize} 둘과 티어별 허용 범위({@code qm:gameconfig:{GAME}:tier-range:{MODE}})는
- * 2026-09-28 부터 읽는다</b> — 자동 매칭이 게시판 방에 먼저 합류하는 길(P-28 · docs/11 D-40)이 "내 티어가 그 모드의 허용 범위 안인가" 와 "그 모드의 정원" 을
+ * 모드별 설정 HASH 의 내용 가운데 <b>{@code tierRule} · {@code targetPartySize} 둘(2026-09-29 부터 {@code tierLadder} 까지 셋 — 필드 이름은
+ * {@link GameConfigReader} 한 곳에 있다)과 티어별 허용 범위({@code qm:gameconfig:{GAME}:tier-range:{MODE}})는 2026-09-28 부터 읽는다</b> — 자동 매칭이 게시판 방에 먼저 합류하는 길(P-28 · docs/11 D-40)이 "내 티어가 그 모드의 허용 범위 안인가" 와 "그 모드의 정원" 을
  * 봐야 해서다({@code party.service.AutoJoinService}). 그 밖의 필드({@code positionUniqueness} 등)는 여전히 읽지 않는다 — 이 앱은 그 뜻을 모른다.
  */
 public final class GameConfigKeys {
@@ -27,7 +27,8 @@ public final class GameConfigKeys {
     /**
      * 모드별 설정 HASH. <b>이 키가 있다 = 그 게임에 그 모드가 있다</b> — 모드 목록 SET 은 원본 seed 가 일부러 없앴다
      * (목록을 따로 두면 모드를 하나 고칠 때 두 곳이 어긋난다). 그래서 모드가 있는지는 이 키의 {@code EXISTS} 가 답한다.
-     * 필드 가운데 {@code tierRule}({@code NONE} · {@code EXIST})과 {@code targetPartySize} 는 게시판 방 먼저 합류가 읽는다({@link GameConfigReader#modeConfig}).
+     * 필드 가운데 {@code tierRule}({@code NONE} · {@code EXIST}) · {@code targetPartySize} · {@code tierLadder}(2026-09-29 — 그 모드가 보는 티어 사다리) 는
+     * 게시판 방 먼저 합류가 읽는다({@link GameConfigReader#modeConfig}).
      */
     public static String mode(Game game, String modeKey)
     {

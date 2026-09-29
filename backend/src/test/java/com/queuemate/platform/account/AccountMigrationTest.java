@@ -3,9 +3,15 @@ package com.queuemate.platform.account;
 import com.queuemate.platform.ApiTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.ConnectionCallback;
+import org.springframework.jdbc.datasource.init.ScriptUtils;
 
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -113,7 +119,7 @@ class AccountMigrationTest extends ApiTestSupport {
         assertThat(constraints).contains("users_pkey", "users_nickname_key",
                 "game_accounts_pkey", "game_accounts_user_id_fkey", "game_accounts_user_id_game_key",
                 "game_accounts_game_check",
-                "game_accounts_server_check",
+                "game_accounts_server_check", "game_accounts_tiers_check",
                 "game_account_stats_pkey", "game_account_stats_game_account_id_fkey",
                 "game_account_stats_source_check", "game_account_stats_counts_check",
                 "game_account_stats_wins_losses_together_check",
@@ -283,17 +289,100 @@ class AccountMigrationTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("V4 — 게임 계정에 주 포지션 칸이 없다(2026-09-29 소유자 결정 — P-35). 나머지 칸은 그대로다")
-    void gameAccountHasNoMainPosition()
+    @DisplayName("V4 · V5 — 게임 계정에 주 포지션 칸도 옛 tier 칸도 없고 tiers(jsonb) 가 있다(2026-09-29 소유자 결정 — P-35 · P-36). 나머지 칸은 그대로다")
+    void gameAccountColumns()
     {
         assertThat(jdbcTemplate.queryForList(
                 "select column_name from information_schema.columns "
                         + "where table_schema = 'public' and table_name = 'game_accounts' order by column_name",
                 String.class)).containsExactly("created_at", "external_id", "game", "game_nickname", "id", "server",
-                "tier", "updated_at", "user_id", "verified");
+                "tiers", "updated_at", "user_id", "verified");
+        assertThat(dataTypeOf("game_accounts", "tiers")).isEqualTo("jsonb");
+        assertThat(isNullable("game_accounts", "tiers")).isEqualTo("NO");
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from flyway_schema_history where version = '4' and success", Integer.class))
-                .isEqualTo(1);
+                "select count(*) from flyway_schema_history where version in ('4', '5') and success", Integer.class))
+                .isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("V5 — tiers 는 기본값이 {} 이고 JSON 객체만 받는다(game_accounts_tiers_check). 배열 · 문자열 · null 은 DB 가 거절한다")
+    void tiersIsAnObject()
+    {
+        Long userId = insertUser();
+        insertGameAccount(userId, "LOL");
+        assertThat(jdbcTemplate.queryForObject(
+                "select tiers::text from game_accounts where user_id = ? and game = 'LOL'", String.class, userId)).isEqualTo("{}");
+
+        for(String notAnObject : new String[]{"[]", "\"GOLD_4\"", "null"})
+        {
+            assertThatThrownBy(() -> jdbcTemplate.update(
+                    "update game_accounts set tiers = ?::jsonb where user_id = ? and game = 'LOL'", notAnObject, userId))
+                    .as(notAnObject)
+                    .isInstanceOf(DataIntegrityViolationException.class)
+                    .hasMessageContaining("game_accounts_tiers_check");
+        }
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "update game_accounts set tiers = null where user_id = ? and game = 'LOL'", userId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(jdbcTemplate.update("update game_accounts set tiers = '{\"SOLO\":\"GOLD_4\",\"FLEX\":\"GOLD_1\"}'::jsonb "
+                + "where user_id = ? and game = 'LOL'", userId)).isEqualTo(1);
+        // 앱이 방장 티어를 뽑는 식 그대로 — 사다리 하나의 값이 SQL 에서 나온다
+        assertThat(jdbcTemplate.queryForObject("select tiers ->> 'FLEX' from game_accounts where user_id = ? and game = 'LOL'",
+                String.class, userId)).isEqualTo("GOLD_1");
+    }
+
+    /**
+     * V5 의 옛 {@code tier} 옮기기 — 테스트 DB 에는 V5 가 이미 적용돼 있어 그 파일을 <b>빈 스키마에서 다시 돌려</b> 본다.
+     * V4 까지의 모양(칸 몇 개만 — 이 SQL 이 읽는 {@code game} · {@code tier})으로 표를 만들고 search_path 를 그 스키마로 돌린 뒤 V5 를 그대로 실행한다.
+     * <b>한 트랜잭션에서 하고 되돌린다</b> — 스키마 · 표 · search_path 가 남지 않는다(PostgreSQL 은 DDL 도 되돌린다).
+     */
+    @Test
+    @DisplayName("V5 — 옛 tier 를 LOL 은 SOLO · VALORANT 는 COMPETITIVE 로 옮기고 PUBG 는 버린 뒤 tier 칸을 지운다. 티어가 없던 줄은 {} 다")
+    void v5MovesOldTier()
+    {
+        List<String> tiers = jdbcTemplate.execute((ConnectionCallback<List<String>>) connection -> {
+            boolean autoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+            try(Statement statement = connection.createStatement())
+            {
+                statement.execute("create schema v5_migration_check");
+                statement.execute("set local search_path to v5_migration_check");
+                statement.execute("create table game_accounts (id int primary key, game varchar(10) not null, tier varchar(20))");
+                statement.execute("insert into game_accounts values (1, 'LOL', 'GOLD_4'), (2, 'VALORANT', 'DIAMOND_2'), "
+                        + "(3, 'PUBG', 'GOLD_1'), (4, 'LOL', null), (5, 'VALORANT', null)");
+                ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/migration/V5__game_accounts_tiers.sql"));
+
+                List<String> moved = new ArrayList<>();
+                try(ResultSet rows = statement.executeQuery("select tiers::text from game_accounts order by id"))
+                {
+                    while(rows.next())
+                    {
+                        moved.add(rows.getString(1));
+                    }
+                }
+                try(ResultSet columns = statement.executeQuery("select column_name from information_schema.columns "
+                        + "where table_schema = 'v5_migration_check' and table_name = 'game_accounts' order by column_name"))
+                {
+                    List<String> names = new ArrayList<>();
+                    while(columns.next())
+                    {
+                        names.add(columns.getString(1));
+                    }
+                    moved.add(String.join(",", names));
+                }
+                return moved;
+            }
+            finally
+            {
+                connection.rollback();
+                connection.setAutoCommit(autoCommit);
+            }
+        });
+
+        assertThat(tiers).containsExactly("{\"SOLO\": \"GOLD_4\"}", "{\"COMPETITIVE\": \"DIAMOND_2\"}", "{}", "{}", "{}",
+                "game,id,tiers");
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from pg_namespace where nspname = 'v5_migration_check'", Integer.class)).isZero();
     }
 
     @Test
