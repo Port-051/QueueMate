@@ -9,3 +9,8 @@ dist/
 .env*
 !.env.example
 .DS_Store
+
+# Playwright e2e 산출물(2026-09-30 — 실제 백엔드 e2e)
+test-results/
+playwright-report/
+.playwright/
