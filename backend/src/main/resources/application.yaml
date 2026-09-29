@@ -88,6 +88,11 @@ platform:
     allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
     # access 쿠키의 Secure. 운영은 true. 로컬은 http 라서 켜면 브라우저가 쿠키를 버린다
     cookie-secure: ${COOKIE_SECURE:false}
+  # TEMP-DEV-LOGIN — 개발용 로그인(POST /api/v1/auth/dev-login — 2026-09-29 소유자 결정 · contracts/platform-api.md P-34).
+  # 소셜 앱 키가 없어 로그인할 수 없는 동안 임시로 연다. 켜면 누구든 아무 닉네임의 사용자로 진짜 쿠키(access · refresh)를 받는다 —
+  # 운영에서는 두지 마라. 기본 false 이고 꺼져 있으면 그 경로는 없는 경로와 같은 404 다. 걷어낼 때는 grep -rn TEMP-DEV-LOGIN 이 가리키는 것을 전부 지운다
+  auth:
+    dev-login-enabled: ${DEV_LOGIN_ENABLED:false}
   # 파티 모집 게시판 (contracts/platform-api.md "모집 글 · 목록")
   # 2026-09-25 2단계로 둘이 빠졌다 — room-ticket-ttl(ROOM_TICKET_TTL — 입장권이 없어졌다) · room-grace(글 쓰기가 방을 같이 만들어 기다려 줄 방이 없다)
   board:
