@@ -4,7 +4,7 @@ import { tierColor } from '../domain/rankAssets';
 import type { GameKey } from '../api/types';
 import { Avatar } from '../components/ui';
 import { FilterRoleIcon, FilterTierIcon } from '../components/FilterSymbols';
-import { PerformanceValue, PreferredChampions } from '../components/IntroductionVisuals';
+import { RoomChampionStats, RoomKda } from './RoomRecentStats';
 import { keyConditionOptions, usesKeyCondition } from '../domain/gameConfig';
 import { TIER_LABELS } from '../domain/recruitment';
 import { roomStartLabel } from './schedule';
@@ -35,10 +35,6 @@ export function RoomRank({ game, tier, division, size = 30 }: { game: GameKey; t
   return <span className="room-rank"><FilterTierIcon game={game} tier={tier} size={size} /><strong style={{ color: tierColor(tier) }}>{tier ? `${TIER_LABELS[tier] ?? tier}${suffix ? ` ${suffix}` : ''}` : '—'}</strong></span>;
 }
 
-function Stat({ kind, value }: { kind: 'winRate' | 'kda'; value: number | null }) {
-  return value === null ? <strong className="room-unknown-stat">—</strong> : <PerformanceValue kind={kind} value={value} />;
-}
-
 export function RoomMemberAvatar({ room, member, size }: { room: GameRoom; member: RoomMember; size: number }) {
   return <span className="room-member-avatar">
     <Avatar name={member.nickname} avatarUrl={member.avatarUrl} size={size} />
@@ -55,7 +51,7 @@ export function RoomMemberFacts({ room, member, iconSize = 22 }: { room: GameRoo
       ? <RoomRoles game={room.game} roles={member.roles} labels={member.roles.length <= 1} />
       : <span className="room-random-role">무작위</span>}</dd></div>
     <div className="room-member-record"><dt>승률</dt><dd><RoomWinRecord member={member} /></dd></div>
-    <div><dt>KDA</dt><dd><Stat kind="kda" value={member.kda} /></dd></div>
+    <div><dt>KDA</dt><dd><RoomKda member={member} /></dd></div>
   </dl>;
 }
 
@@ -79,7 +75,7 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, entryError
   const memberRow = (member: RoomMember, host = false) => <div className={`compact-member${host ? ' is-host' : ''}`} key={member.id}>
     <button type="button" className="compact-member-name" aria-label={`${member.nickname} 프로필 보기`} onClick={() => onMember(room, member)}><RoomMemberAvatar room={room} member={member} size={28}/><strong title={member.nickname}>{member.nickname}</strong></button>
     <RoomMemberFacts room={room} member={member} />
-    <div className="compact-member-champions" aria-label={`${member.nickname} ${room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '선호 요원' : '선호 무기'}`}><span className="compact-champions-label">{room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '선호 요원' : '선호 무기'}</span><span className="compact-champions-list"><PreferredChampions game={room.game} names={member.champions.slice(0,3)}/>{room.game === 'LOL' ? Array.from({ length: Math.max(0, 3 - member.champions.length) }, (_, index) => <span className="compact-champion-empty" key={index} role="img" aria-label="챔피언 미등록" title="챔피언 미등록">—</span>) : null}</span></div>
+    <RoomChampionStats game={room.game} member={member} />
     {host ? <button ref={toggle} type="button" className="compact-members-toggle" aria-label={expanded ? '참여자 접기' : '참여자 펼치기'} aria-expanded={expanded} aria-controls={membersId} onClick={() => setExpanded(value => !value)}>
       <span>{room.members.length}<span className="compact-capacity">/{room.capacity}명</span></span>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>

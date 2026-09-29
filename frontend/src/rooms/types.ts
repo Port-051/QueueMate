@@ -1,6 +1,14 @@
 import type { TierRange } from '../domain/tierRange';
 import type { GameKey, VoicePreference } from '../api/types';
 
+export interface RecentRoomStats {
+  games: number;
+  kills: number;
+  deaths: number;
+  assists: number;
+  champions: { name: string; games: number; wins: number }[];
+}
+
 export interface RoomMember {
   id: string;
   nickname: string;
@@ -11,6 +19,7 @@ export interface RoomMember {
   wins?: number | null;
   losses?: number | null;
   kda: number | null;
+  recentStats?: RecentRoomStats | null;
   roles: string[];
   champions: string[];
   bio: string;

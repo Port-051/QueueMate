@@ -1514,3 +1514,32 @@ test('승패 수와 비율을 함께 표시하고 없는 전적을 만들어내�
   await expect(host.locator('.room-win-count')).toBeVisible();
   await expectNoPageOverflow(page);
 });
+
+test('최근 챔피언의 승률·경기 수와 평균 KDA를 표시하고 누락 전적은 비워 둔다', async ({ page }) => {
+  await seedRooms(page, [room('recent', [
+    member('host', { recentStats: { games: 20, kills: 6, deaths: 3, assists: 9,
+      champions: [{ name: 'Ahri', games: 10, wins: 7 }, { name: 'Orianna', games: 6, wins: 3 }, { name: 'Syndra', games: 4, wins: 1 }] } }),
+    member('perfect', { recentStats: { games: 5, kills: 4, deaths: 0, assists: 6, champions: [{ name: 'Lulu', games: 5, wins: 6 }] } }),
+    member('missing', { kda: null }),
+  ])]);
+  await login(page);
+  const deck = page.getByRole('article', { name: '테스트 방 recent 방 정보', exact: true });
+  const host = deck.locator('.is-host');
+  await expect(host.locator('.room-kda-detail')).toContainText('5.00');
+  await expect(host.locator('.room-kda-split')).toHaveText('6.0/3.0/9.0');
+  await expect(host.locator('.room-kda-detail')).toContainText('최근 20경기 평균');
+  await expect(host.locator('.room-champion-stat>strong')).toHaveText(['70%', '50%', '25%']);
+  await expect(host.locator('.room-champion-stat>small')).toHaveText(['10전', '6전', '4전']);
+  await expandMembers(deck);
+  const guests = deck.locator('.compact-member-details .compact-member:not(.compact-seat)');
+  await expect(guests.nth(0).locator('.room-perfect-kda')).toHaveText('Perfect');
+  await expect(guests.nth(0).locator('.room-champion-stat>strong')).toHaveCount(0);
+  await expect(guests.nth(1).locator('.room-kda-detail')).toHaveText('—상세 기록 없음');
+  await host.getByRole('button', { name: '테스터 host 프로필 보기' }).click();
+  const profile = page.getByRole('dialog');
+  await expect(profile.locator('.room-kda-split')).toHaveText('6.0/3.0/9.0');
+  await expect(profile.locator('.room-champion-stat>strong')).toHaveText(['70%', '50%', '25%']);
+  await profile.getByRole('button', { name: '프로필 닫기' }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expectNoPageOverflow(page);
+});

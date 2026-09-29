@@ -1,5 +1,5 @@
 import { Modal } from '../components/ui';
-import { PreferredChampions } from '../components/IntroductionVisuals';
+import { RoomChampionStats } from './RoomRecentStats';
 import { gameConfig, visibleModes } from '../domain/gameConfig';
 import { RoomMemberAvatar, RoomMemberFacts } from './RoomDeck';
 import type { GameRoom, RoomMember } from './types';
@@ -15,7 +15,7 @@ export function RoomMemberProfile({ room, member, onClose }: {
       <p>{gameConfig(room.game).name} · {visibleModes(room.game).find(mode => mode.key === room.modeKey)?.label ?? room.modeKey}</p>
     </div>
     <RoomMemberFacts room={room} member={member} iconSize={32} />
-    {member.champions.length ? <section className="room-profile-champions" aria-label={room.game === 'LOL' ? '주 챔피언' : '선호 캐릭터와 장비'}><PreferredChampions game={room.game} names={member.champions} /></section> : null}
+    <section className="room-profile-champions"><RoomChampionStats game={room.game} member={member} /></section>
     {member.bio.trim() ? <p className="room-profile-bio">{member.bio}</p> : null}
   </Modal>;
 }

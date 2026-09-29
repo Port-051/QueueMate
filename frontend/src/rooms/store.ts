@@ -8,7 +8,7 @@ import { roomVoice, ROOM_VOICES } from './voice';
 import { autoClosePhase, canAutoClose, nextAutoCloseAt } from './autoClose';
 import { needsFullLineup, remainingRoomRoles, roomPositionError } from './positions';
 import { ceilRoomHour, reservationTimeError } from './schedule';
-import { matchCount } from './stats';
+import { matchCount, recentRoomStats } from './stats';
 
 export { roomCapacityLimit } from './summary';
 
@@ -50,6 +50,8 @@ function seedMember(game: GameKey, roomId: string, index: number, roomIndex: num
     winRate: game === 'PUBG' ? 12 + (n * 3) % 19 : 44 + (n * 3) % 23,
     ...(game === 'LOL' ? { wins: 44 + (n * 3) % 23, losses: 100 - (44 + (n * 3) % 23) } : {}),
     kda: Math.round((1.5 + ((n * 7) % 30) / 10) * 100) / 100,
+    recentStats: game === 'LOL' ? { games: 20, kills: 4 + n % 5, deaths: 2 + n % 4, assists: 5 + n % 7,
+      champions: CHAMPIONS[(index + roomIndex) % CHAMPIONS.length].map((name, i) => ({ name, games: [10, 6, 4][i], wins: [6, 3, 3][i] })) } : null,
     roles: [roles[(index + roomIndex) % roles.length]],
     champions: game === 'LOL' ? CHAMPIONS[(index + roomIndex) % CHAMPIONS.length] : [],
     bio: ['실수해도 괜찮아요. 편하게 즐겨요.', '차분하게 소통하며 같이 해요.', '팀 플레이 좋아해요.', '오늘도 재미있는 한 판!'][n % 4],
@@ -107,14 +109,15 @@ function parseMember(value: unknown, game: GameKey): RoomMember | null {
   const exampleChampions = game === 'LOL' && value.id.startsWith('example-room-lol-') && champions.length === 2
     ? CHAMPIONS.find(items => items[0] === champions[0] && items[1] === champions[1]) : undefined;
   // Only built-in preview fixtures receive sample records; user records stay unknown.
-  const example = game === 'LOL' && value.wins === undefined && value.losses === undefined
+  const example = game === 'LOL'
     ? /^example-room-lol-.+-(\d+)-member-(\d+)$/.exec(value.id) : null;
   const sample = example ? seedMember(game, '', Number(example[2]), Number(example[1])) : null;
   return {
     id: value.id, nickname: value.nickname.slice(0, 40), avatarUrl: typeof value.avatarUrl === 'string' ? value.avatarUrl : null,
     tier: typeof value.tier === 'string' ? value.tier : null, division: nullableNumber(value.division, 5),
     winRate: nullableNumber(value.winRate, 100), kda: nullableNumber(value.kda), roles: canonicalRoomRoles(game, strings(value.roles)),
-    wins: matchCount(value.wins ?? sample?.wins), losses: matchCount(value.losses ?? sample?.losses),
+    wins: matchCount(value.wins === undefined ? sample?.wins : value.wins), losses: matchCount(value.losses === undefined ? sample?.losses : value.losses),
+    recentStats: recentRoomStats(value.recentStats === undefined ? sample?.recentStats : value.recentStats),
     champions: exampleChampions ?? champions, bio: typeof value.bio === 'string' ? value.bio.slice(0, 160) : '',
     voice: roomVoice(value.voice),
   };
