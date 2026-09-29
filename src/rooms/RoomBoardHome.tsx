@@ -4,9 +4,8 @@ import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 import type { GameKey, PubgPerspective } from '../api/types';
 import type { AppShellOutletContext } from '../components/AppShell';
 import { FilterModeIcon, FilterRoleIcon, VoiceIcon } from '../components/FilterSymbols';
-import { GameBadge } from '../components/GameSymbol';
 import { Button } from '../components/ui';
-import { availableGames, keyConditionOptions, visibleModes } from '../domain/gameConfig';
+import { keyConditionOptions, visibleModes } from '../domain/gameConfig';
 import { PERSPECTIVE_LABEL } from '../domain/gameCatalog';
 import { groupModes, groupPerspectives, groupSizes, modeChoice, modeGroups, pickMode } from '../domain/modeChoice';
 import { useAuth } from '../state/AuthContext';
@@ -25,9 +24,9 @@ import '../styles/matching-rail.css';
 import './room-board.css';
 
 /**
- * 홈 = 방 카드 보드(2026-09-28 소유자 결정). 목록은 `GET /posts?game=`(게임은 왼쪽 레일 · 필터 줄의 게임 칸에서 고른 것 — 같은 상태 `AppShell` 의 `selectedGame` · 게시판은 게임별 페이지다, P-21).
+ * 홈 = 방 카드 보드(2026-09-28 소유자 결정). 목록은 `GET /posts?game=`(게임은 왼쪽 레일에서 고른 것 — `AppShell` 의 `selectedGame` · 게시판은 게임별 페이지다, P-21. 필터 줄의 게임 칸은 2026-09-30 소유자 지시로 뺐다).
  * **배치는 위에서 아래로 한 줄기다**(2026-09-29 소유자 지시 — OP.GG 듀오 찾기처럼): ① 맨 위 **자동 매칭 판**(`RoomQuickConnect` — 매칭 시작 폼 · 대기/제안/내 방 카드)
- * ② **필터 한 줄**(게임 · 모드 · 찾는 포지션 · 음성 · 모집 중인 방만 · 초기화 · 오른쪽 끝 **"글 쓰고 파티 찾기"**) ③ 글 카드(`RoomDeck` — 모양은 그대로다, 소유자가 카드를 바꾸지 말라고 했다).
+ * ② **필터 한 줄**(모드 · 찾는 포지션 · 음성 · 모집 중인 방만 · 초기화 · 오른쪽 끝 **"글 쓰고 파티 찾기"**) ③ 글 카드(`RoomDeck` — 모양은 그대로다, 소유자가 카드를 바꾸지 말라고 했다).
  * 오른쪽 레일은 없어졌다 — 카드 목록이 폭을 다 쓴다. "글 쓰고 파티 찾기" 는 옛 "방 만들기" 자리이고 판의 매칭 상태(대기 중이면 막는다)를 가진 `RoomQuickConnect` 가
  * 그려서 이 줄 끝의 자리(`createSlot`)에 옮겨 놓는다 — 누르면 뜨는 팝업(`RoomCreatePreview`)이 글의 칸을 전부 받는다(게임 모드 · 내 포지션 · 찾는 포지션 · 음성 · 한마디 —
  * 2026-09-30 소유자 지시. 처음에는 아무것도 고르지 않은 채이고 판의 값을 가져오지 않는다).
@@ -42,7 +41,7 @@ const defaults = (): Filters => ({ group: '', size: 0, perspective: '', roles: [
 export function RoomBoardHome() {
   const { userId } = useAuth();
   const selfId = userId ?? '';
-  const { selectedGame, setSelectedGame } = useOutletContext<AppShellOutletContext>();
+  const { selectedGame } = useOutletContext<AppShellOutletContext>();
   const navigate = useNavigate();
   const session = useRoomSession();
   const activeRoomId = session.roomId;
@@ -100,9 +99,6 @@ export function RoomBoardHome() {
       createSlot={createSlot} onCreate={async body => { const room = await create(body); setJustCreatedId(room.id); enter(room); }} /></div>
     <section className="room-board" aria-label="방 목록">
       <div className="board-filter-bar room-filters" role="group" aria-label="방 필터">
-        <SlidingSelector className="intro-mode-options room-mode-options board-mode-options board-game-options" role="group" aria-label="게임">
-          {availableGames().map(game => <button type="button" className="filter-mode" key={game.key} aria-label={game.name} title={game.name} aria-pressed={selectedGame === game.key} onClick={() => setSelectedGame(game.key)}><GameBadge game={game.key} size={26} /></button>)}
-        </SlidingSelector>
         <SlidingSelector className="intro-mode-options room-mode-options board-mode-options" role="group" aria-label="찾는 게임 모드">
           <button type="button" className="filter-mode" aria-label="전체 모드" aria-pressed={filters.group === ''} onClick={() => chooseGroup('')}><span>전체</span></button>
           {modeGroups(selectedGame).map(group => <button type="button" className="filter-mode" aria-pressed={filters.group === group.key} key={group.key} onClick={() => chooseGroup(group.key)}><FilterModeIcon mode={group.key} /><span>{group.label}</span></button>)}
