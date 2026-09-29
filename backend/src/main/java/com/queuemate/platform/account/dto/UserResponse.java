@@ -11,7 +11,7 @@ import java.util.List;
  * {@code GET · PATCH /users/me} 의 응답. {@code createdAt} 은 ISO-8601 UTC 로 나간다.
  *
  * @param userId          사용자 번호
- * @param socialProviders 이 계정에 이어진 소셜 제공자의 이름(대문자 — {@code KAKAO} · {@code DISCORD}). 없으면 {@code []}
+ * @param socialProviders 이 계정에 이어진 소셜 제공자의 이름(대문자 — {@code KAKAO} · {@code DISCORD} · {@code GOOGLE}). 없으면 {@code []}
  * @param gameAccounts    게임 프로필의 목록. 게임 이름순이다
  */
 public record UserResponse(

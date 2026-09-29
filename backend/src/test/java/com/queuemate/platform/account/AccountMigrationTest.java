@@ -3,6 +3,7 @@ package com.queuemate.platform.account;
 import com.queuemate.platform.ApiTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
@@ -245,7 +246,8 @@ class AccountMigrationTest extends ApiTestSupport {
         assertThatThrownBy(() -> insertSocialIdentity("KAKAO", providerUserId + "-2", first))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("social_identities_user_id_provider_key");
-        assertThatThrownBy(() -> insertSocialIdentity("GOOGLE", providerUserId, second))
+        // 제공자는 셋뿐이다 — 구글은 V3 로 더했다(2026-09-29)
+        assertThatThrownBy(() -> insertSocialIdentity("NAVER", providerUserId, second))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("social_identities_provider_check");
         // 같은 회원 번호라도 제공자가 다르면 다른 계정이다
@@ -255,6 +257,29 @@ class AccountMigrationTest extends ApiTestSupport {
 
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from social_identities where user_id = ?", Integer.class, first)).isZero();
+    }
+
+    @Test
+    @DisplayName("V3 — 구글도 제공자이고(CHECK 이름은 그대로), 제공자 쪽 회원 번호는 255자까지 받는다(구글의 sub)")
+    void googleProviderAndLongProviderUserId()
+    {
+        Long userId = insertUser();
+        // 앞의 40자(mig- + UUID)가 겹치지 않게 한다 — 사용자를 지우면 연결도 지워진다
+        String longest = ("mig-" + UUID.randomUUID() + "x".repeat(255)).substring(0, 255);
+        insertSocialIdentity("GOOGLE", longest, userId);
+
+        assertThat(jdbcTemplate.queryForObject(
+                "select provider_user_id from social_identities where user_id = ? and provider = 'GOOGLE'", String.class, userId))
+                .hasSize(255);
+        assertThatThrownBy(() -> insertSocialIdentity("GOOGLE", longest + "y", insertUser()))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("varying(255)");
+        assertThat(jdbcTemplate.queryForObject("select character_maximum_length from information_schema.columns "
+                        + "where table_schema = 'public' and table_name = 'social_identities' and column_name = 'provider_user_id'",
+                Integer.class)).isEqualTo(255);
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from pg_constraint where conname = 'social_identities_provider_check'", Integer.class))
+                .isEqualTo(1);
     }
 
     @Test

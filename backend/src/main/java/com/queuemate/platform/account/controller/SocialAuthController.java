@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 소셜 로그인(카카오 · 디스코드). 넷 다 인증 없이 부른다. 원본은 {@code contracts/platform-api.md} "소셜 로그인" 이다.
+ * 소셜 로그인(카카오 · 디스코드 · 구글 — 구글은 2026-09-29 · P-33). 넷 다 인증 없이 부른다. 원본은 {@code contracts/platform-api.md} "소셜 로그인" 이다.
  *
  * <p>흐름 — {@code start}(동의 화면으로 302) → 제공자 → {@code callback}(302 세 갈래) → 처음 온 사람만 {@code pending} · {@code signup}.
  * <b>로그인된 채(유효한 {@code qm_access}) 콜백에 오면 잇기다</b> — 그 소셜 계정을 나에게 잇고 {@code /settings} 로 보낸다(2026-09-27 소유자 결정 · P-27).

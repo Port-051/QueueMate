@@ -10,13 +10,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 제공자마다 다른 사용자 정보 JSON 에서 회원 번호와 닉네임을 꺼내는 법. 스프링을 띄우지 않는다.
- * JSON 의 모양은 두 제공자의 문서에 있는 응답 예시에서 필요한 칸만 남긴 것이다.
+ * JSON 의 모양은 각 제공자의 문서에 있는 응답 예시에서 필요한 칸만 남긴 것이다(구글은 OpenID Connect 의 userinfo).
  */
 class OAuthProviderSpecTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final KakaoProviderSpec kakao = new KakaoProviderSpec();
     private final DiscordProviderSpec discord = new DiscordProviderSpec();
+    private final GoogleProviderSpec google = new GoogleProviderSpec();
 
     @Test
     @DisplayName("카카오 — id 는 숫자다. 닉네임은 kakao_account.profile.nickname, 없으면 properties.nickname")
@@ -63,7 +64,28 @@ class OAuthProviderSpecTest {
     }
 
     @Test
-    @DisplayName("미리 채울 닉네임 — 앞뒤 공백을 걷고 16자로 자른다. 두 칸짜리 글자의 가운데를 자르지 않는다. 남는 것이 없으면 null")
+    @DisplayName("구글 — sub 는 문자열이다(숫자로 와도 받지 않는다). 닉네임은 name, 없으면 null. scope 는 openid profile(이메일 없음)")
+    void google()
+    {
+        assertThat(google.provider()).isEqualTo(SocialProvider.GOOGLE);
+        assertThat(google.scope()).isEqualTo("openid profile");
+
+        assertThat(google.parseUser(objectMapper.readTree("""
+                {"sub": "110169484474386276334", "name": "홍길동", "given_name": "길동", "family_name": "홍",
+                 "picture": "https://lh3.googleusercontent.com/a/x", "locale": "ko"}
+                """))).isEqualTo(new OAuthUser("110169484474386276334", "홍길동"));
+        // 이름을 비워 둔 계정 — given_name 으로 채우지 않는다
+        assertThat(google.parseUser(objectMapper.readTree("{\"sub\": \"110169484474386276334\", \"given_name\": \"길동\"}")))
+                .isEqualTo(new OAuthUser("110169484474386276334", null));
+
+        assertThatThrownBy(() -> google.parseUser(objectMapper.readTree("{\"name\": \"홍길동\"}")))
+                .isInstanceOf(OAuthException.class);
+        assertThatThrownBy(() -> google.parseUser(objectMapper.readTree("{\"sub\": 110169484474386276334}")))
+                .isInstanceOf(OAuthException.class);
+    }
+
+    @Test
+    @DisplayName("미리 채울 닉네임 —앞뒤 공백을 걷고 16자로 자른다. 두 칸짜리 글자의 가운데를 자르지 않는다. 남는 것이 없으면 null")
     void suggestedNickname()
     {
         assertThat(SocialSignupTokens.suggestedNickname("  홍길동  ")).isEqualTo("홍길동");

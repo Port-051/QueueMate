@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 테스트용 가짜 제공자 — 카카오 · 디스코드의 <b>토큰 주소와 사용자 정보 주소</b>를 흉내 낸다. JDK 의 {@link HttpServer} 를 임의 포트로 띄운다
+ * 테스트용 가짜 제공자 — 카카오 · 디스코드 · 구글의 <b>토큰 주소와 사용자 정보 주소</b>를 흉내 낸다. JDK 의 {@link HttpServer} 를 임의 포트로 띄운다
  * (WireMock 같은 새 의존성을 들이지 않는다). 동의 화면(인가 주소)은 흉내 내지 않는다 — 브라우저가 가는 곳이라 앱이 부르지 않는다.
  *
  * <p>약속 — 토큰 주소는 {@code code} 를 받아 {@code access_token = "at-" + code} 를 돌려주고, 사용자 정보 주소는 그 토큰에 맞춰
@@ -40,7 +40,7 @@ final class FakeOAuthProvider {
         {
             throw new UncheckedIOException(e);
         }
-        for(String provider : new String[]{"kakao", "discord"})
+        for(String provider : new String[]{"kakao", "discord", "google"})
         {
             server.createContext("/" + provider + "/token", exchange -> token(provider, exchange));
             server.createContext("/" + provider + "/me", exchange -> me(provider, exchange));

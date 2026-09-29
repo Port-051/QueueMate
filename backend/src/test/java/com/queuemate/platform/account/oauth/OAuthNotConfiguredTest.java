@@ -11,7 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 제공자가 설정되지 않았을 때 — 기본 설정에서는 {@code KAKAO_CLIENT_ID} · {@code DISCORD_CLIENT_ID} 가 비어 있다.
+ * 제공자가 설정되지 않았을 때 — 기본 설정에서는 {@code KAKAO_CLIENT_ID} · {@code DISCORD_CLIENT_ID} · {@code GOOGLE_CLIENT_ID} 가 비어 있다.
  * (설정된 쪽은 {@link SocialLoginApiTest} 가 본다.)
  */
 class OAuthNotConfiguredTest extends ApiTestSupport {
@@ -20,7 +20,7 @@ class OAuthNotConfiguredTest extends ApiTestSupport {
     @DisplayName("클라이언트 id 가 비어 있는 제공자의 start 는 404 OAUTH_PROVIDER_NOT_CONFIGURED 다 — 인증 없이 그 답을 받는다")
     void startIsNotFound() throws Exception
     {
-        for(String provider : new String[]{"KAKAO", "DISCORD"})
+        for(String provider : new String[]{"KAKAO", "DISCORD", "GOOGLE"})
         {
             mockMvc.perform(get("/api/v1/auth/oauth/" + provider + "/start"))
                     .andExpect(status().isNotFound())

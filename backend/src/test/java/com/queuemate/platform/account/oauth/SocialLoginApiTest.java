@@ -44,7 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * 소셜 로그인 — {@code contracts/platform-api.md} "소셜 로그인" 의 네 요청을 <b>가짜 제공자</b>({@link FakeOAuthProvider})에 붙여서 본다.
- * 진짜 카카오 · 디스코드를 부르지 않는다.
+ * 진짜 카카오 · 디스코드 · 구글을 부르지 않는다(구글은 2026-09-29 — P-33).
  *
  * <p>{@code @DynamicPropertySource} 가 설정을 바꾸므로 <b>이 클래스만 스프링 컨텍스트를 따로 띄운다</b>(다른 API 테스트는 하나를 같이 쓴다).
  * 제공자가 설정되지 않았을 때의 404 는 그 기본 컨텍스트에서 본다({@link OAuthNotConfiguredTest}).
@@ -66,15 +66,16 @@ class SocialLoginApiTest extends ApiTestSupport {
         // 끝 슬래시를 붙여 적어도 슬래시가 겹치지 않는지 같이 본다
         registry.add("platform.oauth.front-base-url", () -> FRONT + "/");
         registry.add("platform.oauth.redirect-base-url", () -> REDIRECT_BASE);
-        for(String provider : new String[]{"kakao", "discord"})
+        for(String provider : new String[]{"kakao", "discord", "google"})
         {
             registry.add("platform.oauth." + provider + ".client-id", () -> provider + "-client");
             registry.add("platform.oauth." + provider + ".authorize-uri", () -> FAKE.baseUrl() + "/" + provider + "/authorize");
             registry.add("platform.oauth." + provider + ".token-uri", () -> FAKE.baseUrl() + "/" + provider + "/token");
             registry.add("platform.oauth." + provider + ".user-info-uri", () -> FAKE.baseUrl() + "/" + provider + "/me");
         }
-        // 카카오는 client secret 없이, 디스코드는 있게
+        // 카카오는 client secret 없이, 디스코드 · 구글은 있게
         registry.add("platform.oauth.discord.client-secret", () -> "discord-secret");
+        registry.add("platform.oauth.google.client-secret", () -> "google-secret");
     }
 
     @Autowired
@@ -122,19 +123,32 @@ class SocialLoginApiTest extends ApiTestSupport {
                 .getQueryParams().toSingleValueMap();
         assertThat(discordQuery.get("client_id")).isEqualTo("discord-client");
         assertThat(discordQuery.get("scope")).isEqualTo("identify");
+
+        // 구글 — scope 가 둘이라 사이의 공백이 %20 으로 나간다. email 은 청하지 않는다
+        MvcResult google = mockMvc.perform(get("/api/v1/auth/oauth/GOOGLE/start")).andExpect(status().isFound()).andReturn();
+        UriComponents googleLocation = UriComponentsBuilder
+                .fromUriString(google.getResponse().getHeader(HttpHeaders.LOCATION)).build();
+        Map<String, String> googleQuery = googleLocation.getQueryParams().toSingleValueMap();
+        assertThat(googleLocation.getPath()).isEqualTo("/google/authorize");
+        assertThat(googleQuery.get("response_type")).isEqualTo("code");
+        assertThat(googleQuery.get("client_id")).isEqualTo("google-client");
+        assertThat(googleQuery.get("scope")).isEqualTo("openid%20profile");
+        assertThat(googleQuery.get("redirect_uri")).isEqualTo("http%3A%2F%2Fapi.test%2Fapi%2Fv1%2Fauth%2Foauth%2FGOOGLE%2Fcallback");
+        assertThat(googleQuery.get("state")).isEqualTo(google.getResponse().getCookie("qm_oauth_state").getValue());
     }
 
     @Test
     @DisplayName("모르는 제공자 · 소문자 이름은 400 VALIDATION_FAILED 다 — 경로의 이름은 대문자 enum 이다(game 과 같다)")
     void unknownProvider() throws Exception
     {
-        mockMvc.perform(get("/api/v1/auth/oauth/GOOGLE/start"))
+        mockMvc.perform(get("/api/v1/auth/oauth/NAVER/start"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
         // 소문자는 받지 않는다 — 제공자에 등록한 Redirect URI 도 대문자다
         mockMvc.perform(get("/api/v1/auth/oauth/kakao/start")).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/auth/oauth/google/start")).andExpect(status().isBadRequest());
         // 콜백도 같다 — 제공자가 그런 주소로 돌려보낼 일은 없다
-        mockMvc.perform(get("/api/v1/auth/oauth/google/callback").param("code", "x").param("state", "y"))
+        mockMvc.perform(get("/api/v1/auth/oauth/naver/callback").param("code", "x").param("state", "y"))
                 .andExpect(status().isBadRequest());
     }
 
@@ -258,6 +272,124 @@ class SocialLoginApiTest extends ApiTestSupport {
         assertThat(jdbcTemplate.queryForObject(
                 "select provider_user_id from social_identities where user_id = ? and provider = 'DISCORD'",
                 String.class, userIdOf(nickname))).isEqualTo(discordId);
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // 구글 (2026-09-29 소유자 결정 — P-33). 흐름 · 콜백 갈래 · 에러 코드가 카카오 · 디스코드와 같다
+    // ------------------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("구글 — 처음 온 사람은 /signup/social(추천 닉네임은 name) → 가입 → users/me 에 GOOGLE. 다시 오면 / 로 바로 로그인이고 sub 는 문자열 그대로 남는다")
+    void google() throws Exception
+    {
+        String sub = randomGoogleSub();
+        String code = newCode();
+        FAKE.stubUser("google", code, "{\"sub\":\"" + sub + "\",\"name\":\"구글 이름\",\"given_name\":\"이름\"}");
+        Cookie state = startAndGetState("google");
+
+        MvcResult callback = callback("google", code, state.getValue(), state).andExpect(status().isFound()).andReturn();
+
+        assertThat(callback.getResponse().getHeader(HttpHeaders.LOCATION)).isEqualTo(FRONT + "/signup/social");
+        assertThat(callback.getResponse().getCookie("qm_access")).isNull();
+        assertThat(callback.getResponse().getCookie("qm_oauth_state").getMaxAge()).isZero();
+        // 토큰 요청 — 카카오 · 디스코드와 같은 form POST 이고 client secret 을 본문에 싣는다
+        Map<String, String> form = FAKE.lastTokenForm("google");
+        assertThat(form.get("(method)")).isEqualTo("POST");
+        assertThat(form.get("(content-type)")).startsWith("application/x-www-form-urlencoded");
+        assertThat(form.get("grant_type")).isEqualTo("authorization_code");
+        assertThat(form.get("client_id")).isEqualTo("google-client");
+        assertThat(form.get("client_secret")).isEqualTo("google-secret");
+        assertThat(form.get("redirect_uri")).isEqualTo(REDIRECT_BASE + "/api/v1/auth/oauth/GOOGLE/callback");
+        assertThat(form.get("code")).isEqualTo(code);
+
+        Cookie signupCookie = callback.getResponse().getCookie("qm_social_signup");
+        mockMvc.perform(get("/api/v1/auth/social/pending").cookie(signupCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.provider").value("GOOGLE"))
+                .andExpect(jsonPath("$.suggestedNickname").value("구글 이름"));
+
+        String nickname = newNickname();
+        MvcResult signup = socialSignup(signupCookie, nickname)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.nickname").value(nickname))
+                .andReturn();
+        assertThat(refreshCookieOf(signup)).isNotNull();
+        Long userId = userIdOf(nickname);
+        mockMvc.perform(get("/api/v1/users/me").cookie(signup.getResponse().getCookie("qm_access")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(equalTo(userId), Long.class))
+                .andExpect(jsonPath("$.socialProviders.length()").value(1))
+                .andExpect(jsonPath("$.socialProviders[0]").value("GOOGLE"));
+        assertThat(jdbcTemplate.queryForObject(
+                "select provider_user_id from social_identities where user_id = ? and provider = 'GOOGLE'",
+                String.class, userId)).isEqualTo(sub);
+
+        // 다시 오면 바로 로그인이다 — name 이 없어도 된다(sub 로 찾는다)
+        String secondCode = newCode();
+        FAKE.stubUser("google", secondCode, "{\"sub\":\"" + sub + "\"}");
+        Cookie secondState = startAndGetState("google");
+        MvcResult again = callback("google", secondCode, secondState.getValue(), secondState)
+                .andExpect(status().isFound())
+                .andReturn();
+        assertThat(again.getResponse().getHeader(HttpHeaders.LOCATION)).isEqualTo(FRONT + "/");
+        assertThat(again.getResponse().getCookie("qm_social_signup")).isNull();
+        assertThat(refreshCookieOf(again)).isNotNull();
+        mockMvc.perform(get("/api/v1/users/me").cookie(again.getResponse().getCookie("qm_access")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(equalTo(userId), Long.class));
+    }
+
+    @Test
+    @DisplayName("구글 — name 이 없으면 suggestedNickname 은 null 이다. sub 가 없으면 /login?error=OAUTH_FAILED 다")
+    void googleWithoutNameOrSub() throws Exception
+    {
+        String code = newCode();
+        FAKE.stubUser("google", code, "{\"sub\":\"" + randomGoogleSub() + "\"}");
+        Cookie state = startAndGetState("google");
+        Cookie signupCookie = callback("google", code, state.getValue(), state).andExpect(status().isFound()).andReturn()
+                .getResponse().getCookie("qm_social_signup");
+        mockMvc.perform(get("/api/v1/auth/social/pending").cookie(signupCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.provider").value("GOOGLE"))
+                .andExpect(jsonPath("$.suggestedNickname").isEmpty());
+
+        String noSub = newCode();
+        FAKE.stubUser("google", noSub, "{\"name\":\"구글 이름\"}");
+        expectOAuthFailed(callback("google", noSub, state.getValue(), state));
+    }
+
+    @Test
+    @DisplayName("구글 잇기 · 끊기 — 로그인된 채 구글 콜백이면 /settings?linked=GOOGLE 이다. 카카오를 끊으면 구글만 남고, 그 하나는 409 LAST_SOCIAL_IDENTITY 다")
+    void linkAndUnlinkGoogle() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie access = login(nickname);
+        Long userId = userIdOf(nickname);
+        insertIdentity("KAKAO", Long.toString(randomKakaoId()), userId);
+
+        String code = newCode();
+        FAKE.stubUser("google", code, "{\"sub\":\"" + randomGoogleSub() + "\",\"name\":\"x\"}");
+        Cookie state = startAndGetState("google");
+        MvcResult linked = mockMvc.perform(get("/api/v1/auth/oauth/GOOGLE/callback")
+                        .param("code", code).param("state", state.getValue()).cookie(state, access))
+                .andExpect(status().isFound())
+                .andReturn();
+
+        assertThat(linked.getResponse().getHeader(HttpHeaders.LOCATION)).isEqualTo(FRONT + "/settings?linked=GOOGLE");
+        // 잇기는 로그인 쿠키를 새로 주지 않는다 — state 쿠키를 지우는 것 하나뿐이다
+        assertThat(linked.getResponse().getHeaders(HttpHeaders.SET_COOKIE)).hasSize(1);
+        assertThat(jdbcTemplate.queryForList(
+                "select provider from social_identities where user_id = ? order by provider", String.class, userId))
+                .containsExactly("GOOGLE", "KAKAO");
+
+        mockMvc.perform(delete("/api/v1/users/me/social/KAKAO").cookie(access)).andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/v1/users/me").cookie(access))
+                .andExpect(jsonPath("$.socialProviders.length()").value(1))
+                .andExpect(jsonPath("$.socialProviders[0]").value("GOOGLE"));
+        mockMvc.perform(delete("/api/v1/users/me/social/GOOGLE").cookie(access))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("LAST_SOCIAL_IDENTITY"));
+        assertThat(countIdentities(userId)).isEqualTo(1);
     }
 
     @Test
@@ -613,6 +745,13 @@ class SocialLoginApiTest extends ApiTestSupport {
     private static String randomDiscordId()
     {
         return "80351110224678" + ThreadLocalRandom.current().nextInt(1000, 9999);
+    }
+
+    /** 구글 문서의 예시처럼 21자리 숫자 모양의 문자열 — long 에 안 들어가는 크기다 */
+    private static String randomGoogleSub()
+    {
+        return "1" + ThreadLocalRandom.current().nextLong(1_000_000_000L, 9_999_999_999L)
+                + String.format("%010d", ThreadLocalRandom.current().nextLong(10_000_000_000L));
     }
 
     /** 경로의 제공자 이름은 대문자 enum 이다 — 가짜 제공자의 stub 키("kakao:code")는 소문자라 여기서 올린다 */

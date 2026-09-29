@@ -23,7 +23,8 @@ public record OAuthProperties(
         @DefaultValue("PT3S") Duration connectTimeout,
         @DefaultValue("PT3S") Duration readTimeout,
         @DefaultValue Provider kakao,
-        @DefaultValue Provider discord
+        @DefaultValue Provider discord,
+        @DefaultValue Provider google
 ) {
     /**
      * 제공자 하나의 설정. 주소 셋의 기본값(실제 주소)은 {@code application.yaml} 에 있다 — 제공자마다 달라서 여기에 기본값을 둘 수 없다.
@@ -53,6 +54,7 @@ public record OAuthProperties(
         {
             case KAKAO -> kakao;
             case DISCORD -> discord;
+            case GOOGLE -> google;
         };
     }
 

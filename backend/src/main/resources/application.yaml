@@ -129,7 +129,7 @@ platform:
     #   LoL 게임 계정 연결(PUT …/game-accounts/LOL — 2026-09-27)도 이 상한을 쓴다. 쿨타임은 쓰지 않고, 늦게 끝난 긁기는 저장하지 않는다
     refresh-cooldown: PT2M
     refresh-timeout: PT30S
-  # 소셜 로그인(카카오 · 디스코드). 환경변수의 이름과 기본값은 contracts/platform-api.md "소셜 로그인" 이 원본이다.
+  # 소셜 로그인(카카오 · 디스코드 · 구글 — 구글은 2026-09-29 소유자 결정 · P-33). 환경변수의 이름과 기본값은 contracts/platform-api.md "소셜 로그인" 이 원본이다.
   # Spring 의 oauth2-client 를 쓰지 않는다(세션을 쓴다) — 인가 코드 흐름을 직접 짰다 (account.oauth.OAuthClient)
   oauth:
     # 제공자에 등록하는 Redirect URI 는 이 값 + /api/v1/auth/oauth/{provider}/callback 이다. 운영은 CloudFront 도메인이다
@@ -154,6 +154,13 @@ platform:
       authorize-uri: https://discord.com/oauth2/authorize
       token-uri: https://discord.com/api/oauth2/token
       user-info-uri: https://discord.com/api/users/@me
+    # 구글 — scope 는 openid profile(이메일은 청하지 않는다). 사용자 정보는 OpenID Connect 의 userinfo 이고 회원 번호는 sub(문자열)다
+    google:
+      client-id: ${GOOGLE_CLIENT_ID:}
+      client-secret: ${GOOGLE_CLIENT_SECRET:}
+      authorize-uri: https://accounts.google.com/o/oauth2/v2/auth
+      token-uri: https://oauth2.googleapis.com/token
+      user-info-uri: https://openidconnect.googleapis.com/v1/userinfo
 
 # 로그는 stdout 으로 나간다 (파일로 쓰지 않는다). CLAUDE.md §5 는 "stdout JSON 로그"를 적는다 —
 # 여기서는 켜지 않는다(로컬에서 읽기 어렵다). 운영에서 환경변수 LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs 로 켠다
