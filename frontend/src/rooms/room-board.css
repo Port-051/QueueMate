@@ -82,12 +82,10 @@
 .room-deck-grid { align-items:start; }
 
 
-/* Room rows share one five-card width; narrower screens scroll inside each room. */
+/* Room rows share the board width alongside the conversation rail. */
 .room-home.board-home {
-  --member-card-width:154px;
-  --member-card-gap:10px;
   --room-padding:16px;
-  --room-width:calc(var(--member-card-width) * 5 + var(--member-card-gap) * 4 + var(--room-padding) * 2 + 2px);
+  --room-width:844px;
   --room-rail-width:420px;
   --room-rail-content-width:calc(var(--room-rail-width) - 42px);
   --room-setting-width:calc((var(--room-rail-content-width) - 24px) / 2);
@@ -179,9 +177,34 @@
 .room-role-icons.has-labels { gap:8px; }
 .room-role-icons.has-labels>span { align-items:center; gap:5px; }
 .room-role-icons.has-labels b { font-size:13px; font-weight:500; color:#d9d2e8; }
-.compact-members { display:flex; align-items:stretch; gap:var(--member-card-gap); overflow-x:auto; scrollbar-width:thin; scrollbar-color:#44485d transparent; }
-.room-deck-grid.is-duo-grid .compact-members { justify-content:safe center; gap:20px; }
-.compact-member { flex:0 0 var(--member-card-width); width:var(--member-card-width); height:250px; box-sizing:border-box; min-width:0; padding:12px; display:flex; flex-direction:column; gap:10px; background:color-mix(in srgb, var(--app-background) 98%, white); border:1px solid #ffffff08; border-radius:18px; }
+.room-deck.room-compact { container-type:inline-size; }
+.compact-members,.compact-member-details { display:flex; flex-direction:column; gap:8px; min-width:0; }
+.compact-member-details[hidden] { display:none; }
+.compact-member { width:100%; box-sizing:border-box; min-width:0; min-height:64px; padding:12px; display:grid; grid-template-columns:minmax(110px,1.2fr) minmax(240px,2fr) 91px 84px; align-items:center; gap:12px; background:color-mix(in srgb, var(--app-background) 98%, white); border:1px solid #ffffff08; border-radius:18px; }
+.compact-members-toggle { display:flex; align-items:center; justify-content:center; gap:6px; min-height:36px; padding:6px 8px; border:1px solid #635079; background:#352745; color:#f1e9ff; font:inherit; font-size:13px; cursor:pointer; white-space:nowrap; }
+.compact-members-toggle:hover { background:#49345f; }
+.compact-members-toggle:focus-visible { outline:2px solid #c5a5ff; outline-offset:3px; }
+.compact-members-toggle svg { flex:none; transition:transform .18s ease; }
+.compact-members-toggle[aria-expanded=true] svg { transform:rotate(180deg); }
+.compact-capacity { color:#bcb1ce; }
+.room-compact .compact-member:not(.compact-seat) .room-member-facts { grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; align-items:center; }
+.room-compact .compact-member:not(.compact-seat) .room-member-facts .room-rank,
+.room-compact .compact-member:not(.compact-seat) .room-role-icons.has-labels>span { flex-direction:row; }
+.room-compact .compact-member .room-member-facts .room-rank strong,
+.room-compact .compact-member .room-member-facts .room-role-icons b { font-size:12px; }
+.room-compact .compact-seat { grid-template-columns:minmax(110px,1.2fr) minmax(240px,2fr) 187px; gap:12px; }
+.room-compact .room-seat-facts { grid-template-columns:1fr 1fr; align-items:center; }
+.room-compact .room-seat-voice { display:flex; align-items:center; justify-content:center; gap:8px; font-size:13px; }
+@container(max-width:650px) {
+  .compact-member { grid-template-columns:minmax(0,1fr) auto; gap:12px; }
+  .compact-member-name { grid-column:1; grid-row:1; }
+  .compact-members-toggle { grid-column:2; grid-row:1; }
+  .compact-member .room-member-facts { grid-column:1 / -1; grid-row:2; }
+  .compact-member-champions { grid-column:1 / -1; grid-row:3; }
+  .room-compact .compact-seat { grid-template-columns:minmax(0,1fr) auto; }
+  .compact-seat .room-seat-voice { grid-column:2; grid-row:1; }
+}
+@media(prefers-reduced-motion:reduce) { .compact-members-toggle svg { transition:none; } }
 .compact-member-name { display:flex; align-items:center; gap:7px; min-width:0; min-height:32px; flex:none; }
 .compact-member-name>strong { min-width:0; font-size:14px; font-weight:650; line-height:1.5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .room-member-avatar { display:inline-flex; position:relative; flex:none; }
@@ -243,8 +266,8 @@
   .compact-room-header h3 { flex-basis:calc(100% - 100px); }
 }
 
-/* Two duo rooms use the same board width as a five-person room. */
-.room-home.is-exploring .room-deck-grid.is-duo-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+/* Duo rooms keep the same full-width member rows as larger rooms. */
+.room-home.is-exploring .room-deck-grid.is-duo-grid { grid-template-columns:minmax(0,1fr); }
 .room-home .tier-range-trigger { width:auto; }
 .room-compact.is-confirmed .compact-seat-status { color:#a5abc0; }
 @media(max-width:700px) {

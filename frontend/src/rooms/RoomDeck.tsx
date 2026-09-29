@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { TierRangeLabel } from '../components/TierRangePicker';
 import { tierColor } from '../domain/rankAssets';
 import type { GameKey } from '../api/types';
@@ -60,6 +60,9 @@ export function RoomMemberFacts({ room, member, iconSize = 22 }: { room: GameRoo
 
 export function RoomDeck({ room, selfId, entering = false, onEntered, entryError, onSeat, onMember }: { room: GameRoom; selfId: string; entering?: boolean; onEntered?: () => void; entryError: string | null; onSeat: (room: GameRoom, roles: string[]) => void; onMember: (room: GameRoom, member: RoomMember) => void }) {
   const heading = useRef<HTMLHeadingElement>(null);
+  const toggle = useRef<HTMLButtonElement>(null);
+  const membersId = useId();
+  const [expanded, setExpanded] = useState(false);
   useLayoutEffect(() => {
     if (!entering) return;
     heading.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
@@ -70,7 +73,24 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, entryError
   const closed = room.status === 'CONFIRMED';
   const hasRoles = usesKeyCondition(room.game, room.modeKey);
   const vacancies = vacantRoleOptions(room);
-  return <article className={`room-deck room-compact${room.ownerId === selfId ? ' is-own' : ''}${closed ? ' is-confirmed' : ''}${entering ? ' is-entering' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`}>
+  const owner = room.members.find(member => member.id === room.ownerId);
+  const guests = room.members.filter(member => member.id !== room.ownerId);
+  const memberRow = (member: RoomMember, host = false) => <div className={`compact-member${host ? ' is-host' : ''}`} key={member.id}>
+    <button type="button" className="compact-member-name" aria-label={`${member.nickname} 프로필 보기`} onClick={() => onMember(room, member)}><RoomMemberAvatar room={room} member={member} size={28}/><strong title={member.nickname}>{member.nickname}</strong></button>
+    <RoomMemberFacts room={room} member={member} />
+    <div className="compact-member-champions" aria-label={`${member.nickname} ${room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '선호 요원' : '선호 무기'}`}><PreferredChampions game={room.game} names={member.champions.slice(0,3)}/>{room.game === 'LOL' ? Array.from({ length: Math.max(0, 3 - member.champions.length) }, (_, index) => <span className="compact-champion-empty" key={index} role="img" aria-label="챔피언 미등록" title="챔피언 미등록">—</span>) : null}</div>
+    {host ? <button ref={toggle} type="button" className="compact-members-toggle" aria-label={expanded ? '참여자 접기' : '참여자 펼치기'} aria-expanded={expanded} aria-controls={membersId} onClick={() => setExpanded(value => !value)}>
+      <span>{room.members.length}<span className="compact-capacity">/{room.capacity}명</span></span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+    </button> : null}
+  </div>;
+  return <article className={`room-deck room-compact${room.ownerId === selfId ? ' is-own' : ''}${closed ? ' is-confirmed' : ''}${entering ? ' is-entering' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`} onKeyDown={event => {
+    if (event.key === 'Escape' && expanded) {
+      event.stopPropagation();
+      setExpanded(false);
+      toggle.current?.focus();
+    }
+  }}>
     <RoomBubbleTail />
     <div className="compact-room-header" aria-label="방 요약">
       <h3 ref={heading} tabIndex={-1} title={room.title}>{room.title}</h3>
@@ -78,22 +98,21 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, entryError
       {!closed ? <time dateTime={room.availableFrom ?? undefined}>{roomStartLabel(room.availableFrom)}</time> : null}
     </div>
     <div className="compact-members" aria-label="방 구성원 정보">
-      {room.members.map(member => <div className="compact-member" key={member.id}>
-        <button type="button" className="compact-member-name" aria-label={`${member.nickname} 프로필 보기`} onClick={() => onMember(room, member)}><RoomMemberAvatar room={room} member={member} size={24}/><strong title={member.nickname}>{member.nickname}</strong></button>
-        <RoomMemberFacts room={room} member={member} />
-        <div className="compact-member-champions" aria-label={`${member.nickname} ${room.game === 'LOL' ? '주 챔피언' : room.game === 'VALORANT' ? '선호 요원' : '선호 무기'}`}><PreferredChampions game={room.game} names={member.champions.slice(0,3)}/>{room.game === 'LOL' ? Array.from({ length: Math.max(0, 3 - member.champions.length) }, (_, index) => <span className="compact-champion-empty" key={index} role="img" aria-label="챔피언 미등록" title="챔피언 미등록">—</span>) : null}</div>
-      </div>)}
-      {vacancies.map((roles, index) => <button type="button" className="compact-member compact-seat" key={`seat-${index}`}
-        disabled={Boolean(entryError)} title={entryError ?? undefined}
-        aria-label={`${hasRoles ? roles.map(role => keyConditionOptions(room.game).find(option => option.value === role)?.label ?? role).join(' · ') || '전체 포지션' : '무작위'} 자리 참여${entryError ? ` · ${entryError}` : ''}`}
-        onClick={() => onSeat(room, roles)}>
-        <span className="compact-seat-status">{closed ? '모집 마감' : '모집 중'}</span>
-        <dl className="room-member-facts room-seat-facts">
-          <div><dt className="sr-only">포지션</dt><dd>{hasRoles ? <RoomRoles game={room.game} roles={roles} labels /> : <span className="room-random-role">무작위</span>}</dd></div>
-          <div><dt className="sr-only">티어</dt><dd><TierRangeLabel game={room.game} value={room.desiredTierRange} stacked explicitBounds iconSize={22} /></dd></div>
-        </dl>
-        <span className="room-seat-voice"><RoomVoice value={room.voice} /><span>{room.voice === 'REQUIRED' ? '사용' : '미사용'}</span></span>
-      </button>)}
+      {owner ? memberRow(owner, true) : null}
+      <div id={membersId} className="compact-member-details" hidden={!expanded}>
+        {guests.map(member => memberRow(member))}
+        {vacancies.map((roles, index) => <button type="button" className="compact-member compact-seat" key={`seat-${index}`}
+          disabled={Boolean(entryError)} title={entryError ?? undefined}
+          aria-label={`${hasRoles ? roles.map(role => keyConditionOptions(room.game).find(option => option.value === role)?.label ?? role).join(' · ') || '전체 포지션' : '무작위'} 자리 참여${entryError ? ` · ${entryError}` : ''}`}
+          onClick={() => onSeat(room, roles)}>
+          <span className="compact-seat-status">{closed ? '모집 마감' : '모집 중'}</span>
+          <dl className="room-member-facts room-seat-facts">
+            <div><dt className="sr-only">포지션</dt><dd>{hasRoles ? <RoomRoles game={room.game} roles={roles} labels /> : <span className="room-random-role">무작위</span>}</dd></div>
+            <div><dt className="sr-only">티어</dt><dd><TierRangeLabel game={room.game} value={room.desiredTierRange} stacked explicitBounds iconSize={22} /></dd></div>
+          </dl>
+          <span className="room-seat-voice"><RoomVoice value={room.voice} /><span>{room.voice === 'REQUIRED' ? '사용' : '미사용'}</span></span>
+        </button>)}
+      </div>
     </div>
   </article>;
 }
