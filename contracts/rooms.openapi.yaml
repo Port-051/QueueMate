@@ -188,6 +188,27 @@ components:
               nullable: true
               description: wins와 같은 집계의 패배 수. 승패가 모두 제공될 때 해당 합계로 승률을 표시한다. 합계 0은 기록 없음이다.
             kda: {type: number, nullable: true}
+            recentStats:
+              type: object
+              nullable: true
+              description: 해당 게임 모드의 최근 경기 집계. 미연동 시 생략 또는 null이며 기존 승률·KDA로 역산하지 않는다. 킬·데스·어시스트는 경기당 평균이다.
+              required: [games, kills, deaths, assists, champions]
+              properties:
+                games: {type: integer, minimum: 1}
+                kills: {type: number, minimum: 0}
+                deaths: {type: number, minimum: 0}
+                assists: {type: number, minimum: 0}
+                champions:
+                  type: array
+                  maxItems: 3
+                  description: 같은 최근 경기 집계에서 많이 플레이한 챔피언 최대 3개. wins는 games 이하이며 챔피언별 경기 수 합계는 전체 games 이하이다.
+                  items:
+                    type: object
+                    required: [name, games, wins]
+                    properties:
+                      name: {type: string}
+                      games: {type: integer, minimum: 1}
+                      wins: {type: integer, minimum: 0}
             champions: {type: array, items: {type: string}}
             voice: {type: string}
     Message:
