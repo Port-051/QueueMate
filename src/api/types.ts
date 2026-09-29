@@ -27,8 +27,11 @@ export interface MatchCondition {
 
 /* ---------- auth / user (platform-api.md "계정" · "소셜 로그인" · "게임 프로필") ---------- */
 
-/** 소셜 제공자 — 대문자 enum. 가입 · 로그인은 이것뿐이다(D-35). */
-export type SocialProvider = 'KAKAO' | 'DISCORD';
+/**
+ * 소셜 제공자 — 대문자 enum. 가입 · 로그인은 이것뿐이다(D-35).
+ * `GOOGLE` 은 2026-09-29 소유자 결정으로 더했다 — 백엔드가 같은 경로(`/auth/oauth/GOOGLE/start`) · 같은 콜백 갈래로 받는다(platform 에서 구현 중).
+ */
+export type SocialProvider = 'KAKAO' | 'DISCORD' | 'GOOGLE';
 
 /**
  * 소셜 가입 · 재발급이 돌려주는 본문. `userId` 는 **사용자 번호**(bigint → JSON 숫자)다 — 로그인 아이디 · 이메일은 없다.

@@ -65,20 +65,44 @@
 .auth-form { display: grid; gap: 16px; margin-top: 20px; }
 .auth-alt { margin-top: 18px; text-align: center; font-size: 13px; color: var(--muted); }
 .auth-alt button { border: 0; background: none; color: var(--accent-2); font-weight: 600; cursor: pointer; }
-/* 소셜 로그인. 제공자 색은 각자의 브랜드 가이드 색을 쓴다. */
-.social-login { display: grid; gap: 10px; margin-top: 20px; }
+/*
+ * 소셜 로그인(2026-09-29 소유자 그림) — 같은 너비의 큰 버튼 셋이 세로로 쌓인다. 제공자 색은 각자의 브랜드 가이드 색이고 어두운 앱에서도 바꾸지 않는다.
+ * 로그인 카드만 흰 면이다 — Google 버튼의 옅은 회색 테두리 · 그림자와 "최근 사용" 의 남색 배지 · 테두리는 어두운 면에서 보이지 않는다.
+ * (가입 화면 `/signup/social` 의 카드는 어두운 그대로다.)
+ */
+.login-card { background: #fff; border-color: #e6e8ef; color: #191919; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35); }
+.login-card h1 { color: #111322; }
+.login-sub { margin-top: 8px; color: #5f6474; font-size: 14px; line-height: 1.6; }
+.login-error { margin-top: 16px; padding: 12px 14px; border-radius: 6px; border: 1px solid #f3c1c6; background: #fff4f5; color: #b3261e; font-size: 13.5px; line-height: 1.5; }
+.social-login { display: grid; gap: 12px; margin-top: 26px; }
 .social-divider { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 12.5px; }
 .social-divider::before, .social-divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 .social-btn {
-  width: 100%; padding: 14px 18px; border-radius: var(--r-md); border: 1px solid transparent;
-  font-size: 14.5px; font-weight: 700; cursor: pointer;
+  position: relative; display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; min-width: 0; min-height: 60px; padding: 0 20px; border-radius: 6px; border: 1px solid transparent;
+  font-size: 16px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; cursor: pointer;
   transition: filter 0.15s, transform 0.08s;
 }
-.social-btn:hover:not(:disabled) { filter: brightness(1.06); }
-.social-btn:active:not(:disabled) { transform: translateY(1px); }
-.social-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.social-btn.s-KAKAO { background: #fee500; color: #191600; }
+.social-btn > svg { flex: none; }
+.social-btn:hover { filter: brightness(0.96); }
+.social-btn:active { transform: translateY(1px); }
+.social-btn:focus-visible { outline: 3px solid #7c4dff; outline-offset: 3px; }
+.social-btn.s-KAKAO { background: #fee500; color: #191919; }
 .social-btn.s-DISCORD { background: #5865f2; color: #fff; }
+.social-btn.s-GOOGLE { background: #fff; color: #1f1f1f; border-color: #dadce0; box-shadow: 0 1px 2px rgba(60, 64, 67, 0.12), 0 1px 3px 1px rgba(60, 64, 67, 0.08); }
+/* 마지막으로 누른 제공자 — 진한 남색 테두리 2px + 오른쪽 위 모서리에 걸친 배지(`localStorage['qm.lastProvider']`). */
+.social-btn.is-recent { border: 2px solid #1f2355; }
+.social-recent {
+  position: absolute; top: -10px; right: -6px; padding: 3px 9px; border-radius: 999px;
+  background: #1f2355; color: #fff; font-size: 11px; font-weight: 700; line-height: 1.35; letter-spacing: 0;
+  box-shadow: 0 2px 6px rgba(31, 35, 85, 0.28); pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) { .social-btn { transition: none; } .social-btn:active { transform: none; } }
+/* 내 정보의 소셜 계정 줄 — 제공자 표식을 브랜드 색 네모에 담는다. */
+.social-mark { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; }
+.social-mark.s-KAKAO { background: #fee500; color: #191919; }
+.social-mark.s-DISCORD { background: #5865f2; color: #fff; }
+.social-mark.s-GOOGLE { background: #fff; border: 1px solid #dadce0; }
 
 .auth-hint { margin-top: 18px; padding: 12px 14px; border-radius: var(--r-md); border: 1px dashed var(--line); font-size: 12.5px; color: var(--muted); line-height: 1.6; }
 

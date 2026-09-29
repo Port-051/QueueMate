@@ -25,7 +25,7 @@ export function takeSettingsNotice(): SettingsNotice | null {
   }
 }
 
-export const PROVIDER_LABEL: Record<SocialProvider, string> = { KAKAO: '카카오', DISCORD: '디스코드' };
+export const PROVIDER_LABEL: Record<SocialProvider, string> = { KAKAO: '카카오', DISCORD: '디스코드', GOOGLE: 'Google' };
 
 /** 쪽지를 사람이 읽을 문구로. 모르는 `error` 값은 그대로 보여 준다(계약이 앞서갔을 수 있다). */
 export function settingsNoticeMessage(notice: SettingsNotice): { text: string; tone: 'ok' | 'error' } | null {

@@ -2,6 +2,7 @@ import { FilterTierIcon } from '../components/FilterSymbols';
 import '../styles/introduction.css';
 import { GameBadge } from '../components/GameSymbol';
 import { ProfileSettings } from '../components/ProfileSettings';
+import { SocialProviderIcon } from '../components/SocialProviderIcon';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
@@ -18,7 +19,8 @@ import { useAuth } from '../state/AuthContext';
 import { useSocial } from '../state/SocialContext';
 import { PROVIDER_LABEL, settingsNoticeMessage, takeSettingsNotice } from '../state/settingsNotice';
 
-const SOCIAL_PROVIDERS: SocialProvider[] = ['KAKAO', 'DISCORD'];
+/** 소셜 계정 절의 줄 순서 — 로그인 화면의 버튼 순서와 같다(`GOOGLE` 은 2026-09-29 소유자 결정). */
+const SOCIAL_PROVIDERS: SocialProvider[] = ['KAKAO', 'DISCORD', 'GOOGLE'];
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 const AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
@@ -236,7 +238,7 @@ export function MyInfoPage() {
             {SOCIAL_PROVIDERS.map((provider) => {
               const linked = user?.socialProviders.includes(provider) ?? false;
               return <div key={provider} className="profile-game-account account-row">
-                <span className={`social-btn s-${provider}`} aria-hidden="true" style={{ width: 40, height: 40, padding: 0, borderRadius: 12 }} />
+                <span className={`social-mark s-${provider}`} aria-hidden="true"><SocialProviderIcon provider={provider} size={20} /></span>
                 <div className="profile-game-detail"><h3>{PROVIDER_LABEL[provider]}</h3><p className="profile-game-id">{linked ? '연결됨' : '연결 안 됨'}</p></div>
                 {linked
                   ? <Button size="sm" variant="ghost" className="profile-unlink" aria-label={`${PROVIDER_LABEL[provider]} 연결 끊기`} onClick={() => setUnlinkSocialTarget(provider)}>연결 끊기</Button>
