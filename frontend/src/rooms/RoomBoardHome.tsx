@@ -40,6 +40,7 @@ export function RoomBoardHome() {
   const [filters, setFilters] = useState(() => ({ ...defaults(selectedGame), ...(activeRoom?.game === selectedGame ? { modeKey: activeRoom.modeKey } : {}) }));
   const [selected, setSelected] = useState<{ id: string; roles: string[]; profile: RoomMember; fromRoomId?: string; criteria?: QuickConnectCriteria } | null>(null);
   const [railView, setRailView] = useState<'explore' | 'chat'>(activeRoom ? 'chat' : 'explore');
+  useEffect(() => { if (activeRoom?.id) setRailView('chat'); }, [activeRoom?.id]);
   const exploring = !activeRoom || railView === 'explore';
   const [lastSeen, setLastSeen] = useState(() => roomActivity(activeRoom));
   const activity = roomActivity(activeRoom);
@@ -87,19 +88,13 @@ export function RoomBoardHome() {
 
   return <div className={`room-home board-home${activeRoom ? ' has-active-room' : ''}${exploring ? ' is-exploring' : ''}`}>
     <div className="room-home-layout">
-    <aside className="room-workspace-rail" aria-label="탐색과 내 방">
+    {activeRoom ? <aside className="room-workspace-rail" aria-label="탐색과 내 방">
       {activeRoom ? <SlidingSelector className="room-rail-switch" role="group" aria-label="탐색과 채팅 선택">
         <button type="button" aria-pressed={exploring} onClick={() => setRailView('explore')}>탐색 · 매칭</button>
         <button type="button" aria-pressed={!exploring} onClick={() => setRailView('chat')}>방 채팅{exploring && lastSeen !== activity ? <i className="room-update-dot" role="img" aria-label="내 방 새 소식" /> : null}</button>
       </SlidingSelector> : null}
-      <div className="room-quick-rail" hidden={!exploring}><RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.modeKey} rooms={rooms} member={member} activeRoom={activeRoom} onShowRoom={() => setRailView('chat')}
-        onCreate={async (input, profile) => { const room = await create(input, profile); setFilters({ ...defaults(input.game), modeKey: input.modeKey }); setLastSeen(roomActivity(room)); setRailView('explore'); setJustCreatedId(room.id); }} onSelectSeat={(room, profile, criteria) => {
-          const vacancies = vacantRoleOptions(room);
-          const roles = vacancies.find(options => options.some(role => profile.roles.includes(role))) ?? vacancies[0] ?? [];
-          setSelected({ id: room.id, roles, profile, fromRoomId: activeRoom?.id, criteria });
-        }} /></div>
       {activeRoom ? <div className="room-conversation-rail" hidden={exploring}><RoomConversation key={activeRoom.id} room={activeRoom} selfId={member.id} visible={!exploring} onMember={profile => showMember(activeRoom, profile)} onSend={text => send(text)} onLeave={() => run(leave)} onKick={id => kick(activeRoom.id, id)} onConfirm={() => confirm(activeRoom.id)} onReopen={() => reopen(activeRoom.id)} onAutoConfirm={deadline => autoConfirm(activeRoom.id, deadline)} onExtend={deadline => run(() => extendRecruitment(activeRoom.id, deadline))} /></div> : null}
-    </aside>
+    </aside> : null}
     <section className="room-board" aria-label="방 목록">
       <div className="board-filter-bar room-filters" role="group" aria-label="방 필터">
         <div className="room-filter-primary">
@@ -127,6 +122,12 @@ export function RoomBoardHome() {
     </section>
 
     </div>
+      <RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.modeKey} rooms={rooms} member={member} activeRoom={activeRoom} unavailable={connectionError || (loading ? '방 목록을 불러오는 중이에요.' : undefined)} onShowRoom={() => setRailView('chat')}
+        onCreate={async (input, profile) => { const room = await create(input, profile); setFilters({ ...defaults(input.game), modeKey: input.modeKey }); setLastSeen(roomActivity(room)); setRailView('chat'); setJustCreatedId(room.id); }} onSelectSeat={(room, profile, criteria) => {
+          const vacancies = vacantRoleOptions(room);
+          const roles = vacancies.find(options => options.some(role => profile.roles.includes(role))) ?? vacancies[0] ?? [];
+          setSelected({ id: room.id, roles, profile, fromRoomId: activeRoom?.id, criteria });
+        }} />
     {selected && current ? <RoomSeatJoin key={current.id} room={current} roles={selected.roles} profile={selected.profile}
       leavingRoom={activeRoom} entryError={selected.fromRoomId !== activeRoom?.id ? '참여 중인 방이 바뀌었어요. 닫고 다시 선택해 주세요.' : roomEntryError(current, selected.profile.tier, activeRoom?.id)} onClose={() => setSelected(null)} onJoin={async role => {
         if (selected.criteria && !quickConnectCandidates(rooms, selected.criteria).some(room => room.id === current.id)) {

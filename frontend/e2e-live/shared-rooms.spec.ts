@@ -36,11 +36,12 @@ test('실제 5인 방의 자동 마감·재모집, 강퇴 확인과 채팅 복�
     await page.getByRole('textbox', { name: '이메일', exact: true }).fill(email);
     await page.getByRole('textbox', { name: '비밀번호', exact: true }).fill(password);
     await page.getByRole('button', { name: '로그인', exact: true }).click();
-    await expect(page.getByRole('region', { name: '빠른 연결', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '매칭 조건 열기', exact: true })).toBeVisible();
   }
   try {
     await login(a, accounts[0].email);
     await login(b, accounts[1].email);
+    await a.getByRole('button', { name: '매칭 조건 열기', exact: true }).click();
     const composer = a.getByRole('region', { name: '빠른 연결', exact: true });
     await composer.getByRole('group', { name: '모집 인원', exact: true }).getByRole('button', { name: '5명', exact: true }).click();
     await composer.getByRole('radio', { name: '탑', exact: true }).check();
@@ -135,10 +136,12 @@ test('실제 5인 방의 자동 마감·재모집, 강퇴 확인과 채팅 복�
 
     for (const game of ['발로란트 매칭', '배틀그라운드 매칭']) {
       await b.getByRole('button', { name: game, exact: true }).click();
+      await b.getByRole('button', { name: '매칭 조건 열기', exact: true }).click();
       const fields = b.getByRole('region', { name: '자기소개', exact: true });
       await expect(fields.getByRole('textbox')).toHaveCount(1);
       await expect(fields.getByRole('textbox', { name: '한마디' })).toBeVisible();
       await expect(fields).not.toContainText(/내 티어|선호 요원|승률|KDA|최근 20/);
+      await b.getByRole('button', { name: '매칭 조건 닫기', exact: true }).click();
     }
   } finally {
     for (const token of tokens) {
