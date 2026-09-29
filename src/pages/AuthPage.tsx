@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { DevLoginPanel } from '../components/DevLoginPanel'; // TEMP-DEV-LOGIN
 import { Logo } from '../components/Logo';
 import { SocialProviderIcon } from '../components/SocialProviderIcon';
 import { oauthStartPath } from '../api/client';
@@ -86,6 +87,8 @@ export function AuthPage() {
               );
             })}
           </div>
+          {/* TEMP-DEV-LOGIN — 개발 서버에서만 그린다. 운영 빌드에서는 `import.meta.env.DEV` 가 `false` 로 바뀌어 이 줄과 DevLoginPanel 모듈이 빠진다. */}
+          {import.meta.env.DEV ? <DevLoginPanel /> : null}
         </div>
       </main>
     </div>

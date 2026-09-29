@@ -28,6 +28,14 @@ export const getSocialSignupPending = () => request<SocialSignupPending>('/auth/
 /** 닉네임 하나로 가입 — 201 `{userId, nickname}` + 로그인 쿠키. 409 `NICKNAME_TAKEN` · 400 `VALIDATION_FAILED`. */
 export const socialSignup = (body: SocialSignupRequest) =>
   request<SessionUser>('/auth/social/signup', { method: 'POST', body, noRetry: true });
+/**
+ * TEMP-DEV-LOGIN — 개발용 로그인(2026-09-29 소유자 결정). 소셜 앱 키 없이 로컬에서 로그인 상태를 만든다.
+ * `POST /auth/dev-login {nickname}` → 200 `{userId, nickname}` + 로그인 쿠키. 백엔드의 `DEV_LOGIN_ENABLED` 가 꺼져 있으면 404, 닉네임이 틀리면 400 `VALIDATION_FAILED`.
+ * 부르는 곳은 `components/DevLoginPanel.tsx` 하나이고 로그인 화면이 `import.meta.env.DEV` 일 때만 그린다 — 운영 빌드에서는 번들에서 빠진다.
+ * 걷어낼 때는 `grep -rn TEMP-DEV-LOGIN src` 로 찾아 통째로 지운다.
+ */
+export const devLogin = (nickname: string) =>
+  request<SessionUser>('/auth/dev-login', { method: 'POST', body: { nickname }, noRetry: true });
 
 /* ---------- user ---------- */
 export const getMe = () => request<UserProfile>('/users/me');
