@@ -6,6 +6,7 @@ import { SocialProviderIcon } from '../components/SocialProviderIcon';
 import { oauthStartPath } from '../api/client';
 import type { SocialProvider } from '../api/types';
 import { useAuth } from '../state/AuthContext';
+import { landingPath } from '../state/onboarding';
 
 /**
  * 로그인 — 소셜만이다(카카오 · Discord · Google — D-35 · Google 은 2026-09-29 소유자 결정). 이메일 · 비밀번호 · 직접 가입은 백엔드에 없다.
@@ -46,14 +47,14 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 export function AuthPage() {
-  const { status } = useAuth();
+  const { status, user } = useAuth();
   const [params] = useSearchParams();
   const [lastProvider] = useState(readLastProvider);
   const failure = params.get('error');
   const message = failure ? ERROR_MESSAGES[failure] ?? `소셜 로그인에 실패했습니다 (${failure})` : null;
 
-  // 이미 로그인돼 있으면 홈이다 — 콜백이 로그인 성공을 `/` 로 돌려보내므로 랜딩도 같은 판정을 한다.
-  if (status === 'authenticated') return <Navigate to="/app/home" replace />;
+  // 이미 로그인돼 있으면 홈이다 — 콜백이 로그인 성공을 `/` 로 돌려보내므로 랜딩도 같은 판정을 한다(목적지는 `state/onboarding.ts` `landingPath`).
+  if (status === 'authenticated') return <Navigate to={landingPath(user)} replace />;
 
   const start = (provider: SocialProvider) => {
     rememberProvider(provider);

@@ -23,23 +23,38 @@ export const NO_KEY_CONDITION = 'NONE';
 
 const hasNoKeyCondition = (value: string) => value === 'ANY' || value === NO_KEY_CONDITION || value === '';
 
-/** 보내기 전에 막을 것 — 서버가 400 을 낼 본문을 만들지 않는다. 문제가 없으면 `null`. */
-export function matchRequestError(condition: MatchCondition, gameAccounts: readonly GameProfile[]): string | null {
+/**
+ * 보내기 전에 막을 것 — 서버가 400 을 낼 본문을 만들지 않는다.
+ * `account` 는 **내 정보의 게임 계정에서 풀 수 있는 문제**다 — `MISSING`(그 게임의 계정이 없다) · `NO_TIER`(그 모드의 사다리 티어가 없다 — 언랭).
+ * 폼(`rooms/RoomQuickConnect.tsx`)이 그때 내 정보의 게임 계정(`/app/me#games`)으로 가는 링크를 붙인다(2026-09-29 소유자 결정 — 게임 계정이 선택이 되어 길을 알려 준다).
+ * 티어를 안 보는 모드(`tierRule=NONE` — 일반 · 칼바람 · 언레이티드)는 게임 계정 없이 그대로 된다.
+ */
+export interface MatchRequestProblem {
+  message: string;
+  account?: 'MISSING' | 'NO_TIER';
+}
+
+export function matchRequestProblem(condition: MatchCondition, gameAccounts: readonly GameProfile[]): MatchRequestProblem | null {
   const mode = modeSeed(condition.game, condition.modeKey);
-  if (!mode) return '게임 모드를 선택해 주세요';
+  if (!mode) return { message: '게임 모드를 선택해 주세요' };
   const positionMode = mode.positionUniqueness !== false;
   if (positionMode && hasNoKeyCondition(condition.keyCondition.value)) {
-    return condition.game === 'LOL' ? `${modeLabel(condition.game, condition.modeKey)}는 포지션을 하나 골라야 합니다`
-      : condition.game === 'VALORANT' ? '역할군을 하나 골라야 합니다' : '플랫폼(스팀 · 카카오)을 골라야 합니다';
+    return { message: condition.game === 'LOL' ? `${modeLabel(condition.game, condition.modeKey)}는 포지션을 하나 골라야 합니다`
+      : condition.game === 'VALORANT' ? '역할군을 하나 골라야 합니다' : '플랫폼(스팀 · 카카오)을 골라야 합니다' };
   }
   if (mode.tierRule === 'EXIST') {
     const account = gameAccounts.find((a) => a.game === condition.game);
-    if (!account) return '이 모드는 티어가 필요합니다. 먼저 게임 계정을 연결해 주세요';
-    if (!profileTier(account, mode.tierLadder)) return `${TIER_LADDER_LABEL[mode.tierLadder]} 티어가 없습니다 — ${condition.game === 'VALORANT'
+    if (!account) return { message: '이 모드는 티어가 필요합니다. 먼저 게임 계정을 연결해 주세요', account: 'MISSING' };
+    if (!profileTier(account, mode.tierLadder)) return { message: `${TIER_LADDER_LABEL[mode.tierLadder]} 티어가 없습니다 — ${condition.game === 'VALORANT'
       ? '내 정보에서 게임 계정의 티어를 적어 주세요'
-      : '배치를 마친 뒤 내 정보에서 전적을 갱신해 주세요'}`;
+      : '배치를 마친 뒤 내 정보에서 전적을 갱신해 주세요'}`, account: 'NO_TIER' };
   }
   return null;
+}
+
+/** `matchRequestProblem` 의 문구만 — 문제가 없으면 `null`. */
+export function matchRequestError(condition: MatchCondition, gameAccounts: readonly GameProfile[]): string | null {
+  return matchRequestProblem(condition, gameAccounts)?.message ?? null;
 }
 
 /** `matchRequestError` 가 `null` 일 때만 부른다 — 아니면 서버가 400 을 낼 본문이다. */

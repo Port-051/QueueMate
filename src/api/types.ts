@@ -54,7 +54,7 @@ export interface UserProfile {
   createdAt: string;
   /** 연결된 소셜 제공자. 화면은 이것으로 제공자마다 "연결됨 / 연결하기" 를 그린다(P-27). */
   socialProviders: SocialProvider[];
-  /** 게임 계정(게임마다 하나) — 게임 프로필 그대로. 목록을 따로 받는 요청은 없다(`GET …/game-accounts` 없음). `RequireOnboarding` 은 개수만 본다. */
+  /** 게임 계정(게임마다 하나) — 게임 프로필 그대로. 목록을 따로 받는 요청은 없다(`GET …/game-accounts` 없음). **빈 배열일 수 있다** — 게임 계정은 선택이다(2026-09-29 소유자 결정 · 로그인 직후 한 번 온보딩을 권하는 판정 `state/onboarding.ts` 가 개수를 본다). */
   gameAccounts: GameProfile[];
 }
 

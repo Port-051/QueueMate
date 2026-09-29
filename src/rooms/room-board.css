@@ -171,6 +171,10 @@
 .room-create-hint,.room-create-error { margin:12px 0 0; font-size:12px; line-height:1.5; }
 .room-create-hint { color:var(--muted); }
 .room-create-error { color:var(--danger); }
+/* 막는 이유가 게임 계정에서 풀리는 것일 때 붙는 길(2026-09-29 — 게임 계정이 선택이 됐다). 문구 아래 한 줄 · 보라 글자 · 밑줄은 hover 에서. */
+.room-create-fix { display:inline-flex; align-items:center; gap:4px; margin-top:6px; font-size:12px; font-weight:700; color:var(--accent-2); }
+.room-create-fix:hover { text-decoration:underline; text-underline-offset:3px; }
+.room-create-fix:focus-visible { outline:2px solid #bda4ff; outline-offset:2px; border-radius:4px; }
 
 .compact-room-header { display:flex; align-items:center; gap:10px 14px; min-height:32px; margin-bottom:14px; }
 .compact-room-header h3 { flex:1; min-width:0; margin:0; font-size:17px; line-height:1.5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }

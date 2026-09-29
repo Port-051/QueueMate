@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { RequireAuth } from './components/RequireAuth';
-import { RequireOnboarding } from './components/RequireOnboarding';
 import { AuthPage } from './pages/AuthPage';
 import { HomePage } from './pages/HomePage';
 import { MatchConditionPage } from './pages/MatchConditionPage';
@@ -42,9 +41,11 @@ export function App() {
       <Route path="/settings" element={<SettingsRedirectPage />} />
       <Route path="/signup" element={<Navigate to="/login" replace />} />
       <Route path="/auth/callback" element={<Navigate to="/" replace />} />
+      {/* 온보딩(게임 계정 연결)은 로그인 직후에 한 번 권할 뿐이다 — 건너뛸 수 있고 앱(`/app/**`)을 막지 않는다(2026-09-29 소유자 결정 — 3단계의 문지기 `RequireOnboarding` 을 지웠다).
+          로그인 직후의 목적지는 `state/onboarding.ts` `landingPath` 가 고른다. */}
       <Route path="/onboarding" element={<RequireAuth><OnboardingPage /></RequireAuth>} />
 
-      <Route path="/app" element={<RequireAuth><RequireOnboarding><AppShell /></RequireOnboarding></RequireAuth>}>
+      <Route path="/app" element={<RequireAuth><AppShell /></RequireAuth>}>
         <Route index element={<Navigate to="home" replace />} />
         <Route path="home" element={<HomePage />} />
         <Route path="match" element={<MatchConditionPage />} />

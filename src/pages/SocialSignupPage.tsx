@@ -6,15 +6,17 @@ import type { SocialSignupPending } from '../api/types';
 import { Logo } from '../components/Logo';
 import { Button, Field } from '../components/ui';
 import { useAuth } from '../state/AuthContext';
+import { landingPath } from '../state/onboarding';
 import { PROVIDER_LABEL } from '../state/settingsNotice';
 
 /**
  * `/signup/social` — 소셜로 **처음** 온 사람이 닉네임 하나를 정하는 화면(platform-api.md "소셜 로그인" · D-35).
  * 백엔드 콜백이 쿠키 `qm_social_signup`(10분)을 주고 여기로 302 한다. `GET /auth/social/pending` 이 401 이면 그 쿠키가 없는 것이라 `/login` 으로.
- * `POST /auth/social/signup {nickname}` 은 201 과 함께 로그인 쿠키를 주므로 `refreshSession()`(= `GET /users/me`)으로 세션을 맞춘 뒤 홈으로 간다.
+ * `POST /auth/social/signup {nickname}` 은 201 과 함께 로그인 쿠키를 주므로 `refreshSession()`(= `GET /users/me`)으로 세션을 맞춘 뒤 홈으로 간다 —
+ * 처음 온 사람은 게임 계정이 없으니 온보딩(`/onboarding`)을 한 번 거친다. 건너뛸 수 있다(`state/onboarding.ts` `landingPath` — 2026-09-29 소유자 결정).
  */
 export function SocialSignupPage() {
-  const { status, refreshSession } = useAuth();
+  const { status, user, refreshSession } = useAuth();
   const navigate = useNavigate();
   const [pending, setPending] = useState<SocialSignupPending | null>(null);
   const [nickname, setNickname] = useState('');
@@ -36,7 +38,7 @@ export function SocialSignupPage() {
   }, [navigate]);
 
   // 이미 로그인된 사람은 가입 화면이 아니다(콜백은 로그인한 채 오면 "잇기" 라 여기로 보내지 않는다).
-  if (status === 'authenticated') return <Navigate to="/app/home" replace />;
+  if (status === 'authenticated') return <Navigate to={landingPath(user)} replace />;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,8 +48,7 @@ export function SocialSignupPage() {
     setError(null);
     try {
       await api.socialSignup({ nickname: trimmed });
-      await refreshSession();
-      navigate('/app/home', { replace: true });
+      navigate(landingPath(await refreshSession()), { replace: true });
     } catch (err) {
       if (hasErrorCode(err, 'NICKNAME_TAKEN')) setError('이미 사용 중인 닉네임입니다');
       else if (hasErrorCode(err, 'VALIDATION_FAILED')) setError(isApiError(err) ? err.details[0] ?? err.message : '입력을 확인해주세요');

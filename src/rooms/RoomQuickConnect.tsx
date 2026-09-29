@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { CreatePostRequest, GameKey, MatchCondition } from '../api/types';
 import { Button, useToast } from '../components/ui';
 import { IconMatch } from '../components/icons';
@@ -12,7 +12,7 @@ import { SelfIntroductionFields } from '../components/SelfIntroductionFields';
 import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
 import { GAME_CATALOG } from '../domain/gameCatalog';
 import { conditionSummary, gameFullLabel, modeLabel } from '../domain/labels';
-import { matchErrorMessage, matchRequestError } from '../domain/matchRequest';
+import { matchErrorMessage, matchRequestProblem } from '../domain/matchRequest';
 import { formatDuration } from '../domain/time';
 import { emptyIntroduction, introductionInputError, readIntroduction, saveIntroduction, type SelfIntroduction } from '../domain/introduction';
 import { perspectiveFromMode } from './boardRoom';
@@ -99,7 +99,11 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, onCreate
     playPurpose: value.playPurpose ?? readPreferences().defaultPurpose,
   });
   const startCondition = conditionFromForm();
-  const startBlocked = error || (hasRoles && !ownRoles.length ? (game === 'PUBG' ? '플랫폼을 골라 주세요' : '포지션을 골라 주세요') : '') || matchRequestError(startCondition, gameAccounts) || '';
+  const startProblem = matchRequestProblem(startCondition, gameAccounts);
+  const startBlocked = error || (hasRoles && !ownRoles.length ? (game === 'PUBG' ? '플랫폼을 골라 주세요' : '포지션을 골라 주세요') : '') || startProblem?.message || '';
+  // 막는 이유가 게임 계정에서 풀리는 것이면(티어를 보는 모드인데 그 게임의 계정이 없다 · 그 사다리의 티어가 없다) 내 정보의 게임 계정으로 가는 길을 붙인다
+  // (2026-09-29 소유자 결정 — 게임 계정이 선택이 됐다). 티어를 안 보는 모드는 계정 없이 그대로 된다 — 막지 않는다.
+  const accountFix = startProblem?.account && startBlocked === startProblem.message ? startProblem.account : null;
 
   const startMatching = async () => {
     if (startBlocked) { setCreateError(startBlocked); return; }
@@ -168,6 +172,7 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, onCreate
         {error ? <div className="banner warn" role="alert">{error}</div> : null}
         <SelfIntroductionFields binaryVoice compact singleRole showPurpose hideDesiredRoles={!positionsForPost} game={game} value={value} onChange={update} />
         {createError ? <p className="room-create-error" role="alert">{createError}</p> : startBlocked ? <p className="room-create-hint">{startBlocked}</p> : null}
+        {!createError && accountFix ? <Link className="room-create-fix" to="/app/me#games">{accountFix === 'MISSING' ? '게임 계정 연결하기' : '내 정보에서 게임 계정 보기'}<span aria-hidden="true">→</span></Link> : null}
       </fieldset>
       <div className={`matching-rail-footer room-rail-actions${activeRoomId ? ' is-search-only' : ''}`}>
         {!activeRoomId ? <Button block disabled={Boolean(error) || waiting} onClick={startRoom}><CreateRoomIcon />방 만들기</Button> : null}

@@ -4,13 +4,14 @@ import { useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
 import { useAuth } from '../state/AuthContext';
+import { landingPath } from '../state/onboarding';
 
 /**
  * TEMP-DEV-LOGIN — 개발용 로그인(2026-09-29 소유자 결정). 카카오 · Discord · Google 앱 키 없이 로컬에서 로그인 상태를 만든다.
  * 로그인 화면(`AuthPage`)이 `import.meta.env.DEV` 일 때만 그린다 — 운영 빌드에서는 그 조건이 `false` 로 접혀 이 모듈째 번들에서 빠진다.
  * 백엔드(platform)를 `DEV_LOGIN_ENABLED=true` 로 띄워야 한다 — 꺼져 있으면 `POST /auth/dev-login` 이 404 다.
  * 성공 뒤 흐름은 소셜 가입(`SocialSignupPage`)과 같다 — 쿠키가 바뀌었으니 `refreshSession()`(= `GET /users/me`)으로 세션을 맞추고 `/app/home`.
- * 게임 계정이 없으면 `RequireOnboarding` 이 `/onboarding` 으로 보낸다.
+ * 게임 계정이 없고 온보딩을 지나간 적이 없으면 한 번 `/onboarding`(건너뛸 수 있다 — `state/onboarding.ts` `landingPath`).
  */
 export function DevLoginPanel() {
   const { refreshSession } = useAuth();
@@ -27,8 +28,7 @@ export function DevLoginPanel() {
     setError(null);
     try {
       await api.devLogin(trimmed);
-      await refreshSession();
-      navigate('/app/home', { replace: true });
+      navigate(landingPath(await refreshSession()), { replace: true });
     } catch (err) {
       if (isApiError(err) && err.status === 404) setError('백엔드의 DEV_LOGIN_ENABLED 가 꺼져 있습니다');
       else if (isApiError(err) && err.status === 400) setError(err.details[0] ?? err.message);

@@ -239,10 +239,11 @@ export function MyInfoPage() {
       </header>
 
       <div className="profile-sections">
-        <section className="profile-section" aria-labelledby="profile-games-heading">
+        {/* `#games` — 매칭 폼의 "게임 계정 연결하기" 가 여기로 온다(2026-09-29 — 게임 계정은 선택이다. 없는 게임은 카드에 "계정 연결" 버튼이 뜬다). */}
+        <section id="games" className="profile-section" aria-labelledby="profile-games-heading">
           <div className="profile-section-heading">
             <h2 id="profile-games-heading">게임 계정</h2>
-            <p>게임마다 하나. 파티원과 게시판 카드에 표시됩니다. 티어는 랭크 큐마다 따로입니다. LOL 은 Riot, PUBG 는 PUBG 에서 티어 · 전적을 가져오고 VALORANT 는 직접 적습니다.</p>
+            <p>게임마다 하나 · 선택입니다. 연결하면 티어 · 전적이 파티원과 게시판 카드에 표시되고 랭크 모드로 매칭할 수 있습니다. 티어는 랭크 큐마다 따로입니다. LOL 은 Riot, PUBG 는 PUBG 에서 티어 · 전적을 가져오고 VALORANT 는 직접 적습니다.</p>
           </div>
           <div className="profile-game-accounts">
             {GAMES.map((item) => <GameProfileCard key={item.key} game={item.key} profile={gameAccounts.find((a) => a.game === item.key) ?? null}

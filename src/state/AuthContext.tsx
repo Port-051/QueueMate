@@ -22,14 +22,17 @@ interface AuthValue {
   userId: string | null;
   /** `user.gameAccounts` 와 같다 — 게임 프로필(게임마다 하나). 매칭 요청의 `tier` 가 여기서 온다 — 모드의 사다리 티어 `tiers[ladder]`(`domain/matchRequest.ts`). */
   gameAccounts: GameProfile[];
-  /** 쿠키가 바뀐 뒤(소셜 가입 · 재발급) `GET /users/me` 를 다시 불러 세션을 맞춘다. 실패하면 익명이다. */
-  refreshSession(): Promise<void>;
+  /**
+   * 쿠키가 바뀐 뒤(소셜 가입 · 재발급) `GET /users/me` 를 다시 불러 세션을 맞춘다. 실패하면 익명이다.
+   * 읽은 사용자(실패면 `null`)를 돌려준다 — 로그인 직후의 목적지(`state/onboarding.ts` `landingPath`)를 그 값으로 고른다(상태는 아직 다시 그려지기 전이라).
+   */
+  refreshSession(): Promise<UserProfile | null>;
   logout(): Promise<void>;
   updateProfile(patch: UpdateUserRequest): Promise<void>;
   /** 우리 백엔드에 아바타가 없다 — 부르면 404 다(client.ts 주석). 화면이 컴파일되게 남겼다. */
   uploadAvatar(file: File): Promise<void>;
   /** 게임 계정 목록은 `users/me` 안에 있다 — 다시 읽는 것은 `refreshSession` 과 같다. */
-  refreshGameAccounts(): Promise<void>;
+  refreshGameAccounts(): Promise<UserProfile | null>;
   /**
    * `PUT …/game-accounts/{game}` · `POST …/refresh` 의 응답(게임 프로필)을 그 자리에서 목록에 끼운다 — `GET /users/me` 를 다시 부르지 않는다
    * (응답이 곧 저장된 값이다). `game` 이 같은 항목을 갈아 끼우고 없으면 더한다.
@@ -61,17 +64,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * 401 은 `http.ts` 가 재발급을 한 번 시도한 뒤의 것이라 여기서는 더 하지 않는다. 네트워크 오류 · 5xx 도 익명으로 본다 —
    * 로그인 화면에서 다시 시도하면 된다(세션 자체는 쿠키에 남아 있다).
    */
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<UserProfile | null> => {
     const attempt = ++authAttempt.current;
     try {
       const me = await api.getMe();
-      if (attempt !== authAttempt.current) return;
+      if (attempt !== authAttempt.current) return me;
       setUser(me);
       setStatus('authenticated');
+      return me;
     } catch {
-      if (attempt !== authAttempt.current) return;
+      if (attempt !== authAttempt.current) return null;
       setUser(null);
       setStatus('anonymous');
+      return null;
     }
   }, []);
 

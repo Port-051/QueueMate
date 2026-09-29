@@ -4,6 +4,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { IconBolt, IconMic, IconShield, IconTarget } from '../components/icons';
 import { GAMES } from '../domain/gameConfig';
 import { useAuth } from '../state/AuthContext';
+import { landingPath } from '../state/onboarding';
 
 const FEATURES = [
   { icon: <IconBolt />, title: '팀원 찾기', desc: '매칭에 직접 신청하거나 자동으로 찾아요.' },
@@ -13,9 +14,9 @@ const FEATURES = [
 ];
 
 export function LandingPage() {
-  const { status } = useAuth();
-  // 소셜 로그인의 콜백이 성공을 `/` 로 돌려보낸다 — 로그인돼 있으면 곧장 홈이다.
-  if (status === 'authenticated') return <Navigate to="/app/home" replace />;
+  const { status, user } = useAuth();
+  // 소셜 로그인의 콜백이 성공을 `/` 로 돌려보낸다 — 로그인돼 있으면 곧장 홈이다(게임 계정이 없고 온보딩을 지나간 적이 없으면 한 번 온보딩 — `state/onboarding.ts`).
+  if (status === 'authenticated') return <Navigate to={landingPath(user)} replace />;
   return (
     <main className="landing">
       <header className="landing-header">

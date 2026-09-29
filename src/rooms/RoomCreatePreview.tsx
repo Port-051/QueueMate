@@ -5,6 +5,7 @@ import { FilterModeIcon } from '../components/FilterSymbols';
 import { IconDirectMessage } from '../components/NotificationPanel';
 import { gameConfig } from '../domain/gameConfig';
 import { modeChoice, modeChoiceLabel } from '../domain/modeChoice';
+import { useAuth } from '../state/AuthContext';
 import { roomErrorMessage } from './errors';
 import { RoomRoles } from './RoomDeck';
 import { RoomVoice } from './RoomVoice';
@@ -17,6 +18,9 @@ export function RoomCreatePreview({ draft, onClose, onConfirm }: {
   onClose: () => void;
   onConfirm: (body: CreatePostRequest) => void | Promise<void>;
 }) {
+  const { gameAccounts } = useAuth();
+  // 게임 계정은 선택이다(2026-09-29) — 이 게임의 계정이 없으면 내 카드는 닉네임뿐이다(서버의 `profile` 이 `null`). 글은 그대로 올라간다.
+  const hasAccount = gameAccounts.some((account) => account.game === draft.game);
   const submitting = useRef(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -39,7 +43,9 @@ export function RoomCreatePreview({ draft, onClose, onConfirm }: {
       <div><dt>음성</dt><dd><RoomVoice value={draft.voice} />{draft.voice === 'REQUIRED' ? '사용' : '미사용'}</dd></div>
       {draft.description ? <div><dt>소개</dt><dd>{draft.description}</dd></div> : null}
     </dl>
-    <p className="room-move-notice">글을 올리면 그 번호의 방이 같이 생기고 내가 방장으로 들어가요. 내 카드의 포지션 · 티어는 프로필의 게임 계정에서 와요.</p>
+    <p className="room-move-notice">글을 올리면 그 번호의 방이 같이 생기고 내가 방장으로 들어가요. {hasAccount
+      ? '내 카드의 티어 · 전적은 프로필의 게임 계정에서 와요.'
+      : '이 게임의 계정을 연결하지 않아 내 카드에는 닉네임만 보여요 — 내 정보에서 연결할 수 있어요.'}</p>
     {error ? <p className="room-preview-error" role="alert">{error}</p> : null}
   </Modal>;
 }
