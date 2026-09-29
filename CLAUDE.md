@@ -86,7 +86,7 @@
 
 > **2026-09-29 소유자 결정 — 게임 계정의 주 포지션(`mainPosition` · `main_position`)을 없앤다**(`contracts/platform-api.md` **P-35**). 소유자의 말 — "주 포지션, 주 역할군은 게시판에 글 쓸 때 하는 거니까 계정 연동에서 할 이유가 없다."
 > `PUT …/game-accounts/{game}` 이 받지 않고(LoL `{gameNickname}` · VALORANT `{gameNickname, tier?}` · PUBG `{gameNickname, tier?, server}`) **게임 프로필에서 그 칸이 빠졌다 — 게시판 카드에 사람별 포지션이 없다**(docs/11 D-20 ② 의 주 포지션 절반을 개정한다). 컬럼은 마이그레이션 **V4** 가 지웠다(§3.5). 글의 `wantedPositions` 는 그대로다.
-> **P-26(주 포지션은 자기신고 그대로) · P-8 · D-37 을 개정한다 — docs/11 에는 아직 없다**(`matching` 폴더에서 남긴다). **Claude 가 정한 세부**(검토 항목) — `mainPosition` 이 오면 조용히 버리지 않고 **400 `VALIDATION_FAILED`**(`@Null` — 어느 게임이든 서비스 · Riot 전 · `null` 은 통과) · 그 칸만 검증하던 `Game#allowsPosition` 을 지웠다. **글을 쓸 때 방장이 자기 포지션을 고르는 칸은 미정이다 — 지어내지 마라**(§7.1).
+> **P-26(주 포지션은 자기신고 그대로) · P-8 · D-37 을 개정한다 — docs/11 **D-47** 로 남겼다**(`matching` 브랜치 `4d95602`). **Claude 가 정한 세부**(검토 항목) — `mainPosition` 이 오면 조용히 버리지 않고 **400 `VALIDATION_FAILED`**(`@Null` — 어느 게임이든 서비스 · Riot 전 · `null` 은 통과) · 그 칸만 검증하던 `Game#allowsPosition` 을 지웠다. **글을 쓸 때 방장이 자기 포지션을 고르는 칸은 미정이다 — 지어내지 마라**(§7.1).
 
 ---
 
