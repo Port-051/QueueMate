@@ -12,7 +12,7 @@ import { GameAccountForm, gameAccountErrorMessage } from '../components/GameAcco
 import { IconCheck, IconLogout, IconPencil, IconPlus, IconShield } from '../components/icons';
 import { AVATAR_CHOICES, avatarImageSrc, Avatar, Button, ConfirmDialog, Field, Modal, Tag, useToast } from '../components/ui';
 import { GAMES } from '../domain/gameConfig';
-import { gameFullLabel, positionLabel, rankLabel } from '../domain/labels';
+import { gameFullLabel, rankLabel } from '../domain/labels';
 import { championName } from '../domain/champions';
 import { accountRank } from '../rooms/accountRank';
 import { useAuth } from '../state/AuthContext';
@@ -59,7 +59,6 @@ function GameProfileCard({ game, profile, onEdit, onUnlink, onRefresh, refreshin
     {profile ? <div className="profile-game-body">
       <div className="profile-game-facts">
         <span className="row-tier"><FilterTierIcon game={game} tier={rank.tier} size={22} /><span>{rankLabel(profile.tier) ?? (game === 'LOL' ? '언랭크 · 배치 전' : '티어 미입력')}</span></span>
-        {profile.mainPosition ? <span>{game === 'LOL' ? '주 포지션' : '주 역할군'} · {positionLabel(game, profile.mainPosition)}</span> : null}
         {profile.server ? <span>서버 · {SERVER_LABEL[profile.server]}</span> : null}
         {profile.verified ? <Tag tone="ok">인증됨</Tag> : <Tag>{game === 'LOL' ? 'Riot 조회' : '자기신고'}</Tag>}
       </div>

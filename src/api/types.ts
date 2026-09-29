@@ -63,15 +63,15 @@ export interface UpdateUserRequest { nickname: string; }
 
 /**
  * 게임 프로필 — 게임 계정 하나를 밖에 보여 주는 모양(`users/me.gameAccounts[]` · 게시판 카드의 `profile`). 세 게임이 같은 모양이다(platform-api.md "게임 프로필").
- * `tier` 는 gameconfig 사다리의 이름(`GOLD_4` 꼴 · LoL 은 Riot 이 채우고 언랭이면 `null`), `mainPosition` 은 LOL `TOP|JUNGLE|MID|ADC|SUPPORT` · VALORANT 4역할군 · PUBG `null`,
- * `server` 는 PUBG 만(`STEAM` · `KAKAO`). `verified` · `stats` 는 읽기 전용이다. 언제 긁은 것인지는 `stats.syncedAt` 이다.
+ * `tier` 는 gameconfig 사다리의 이름(`GOLD_4` 꼴 · LoL 은 Riot 이 채우고 언랭이면 `null`), `server` 는 PUBG 만(`STEAM` · `KAKAO`).
+ * `verified` · `stats` 는 읽기 전용이다. 언제 긁은 것인지는 `stats.syncedAt` 이다.
+ * **주 포지션 · 주 역할군(`mainPosition`)은 없다**(2026-09-29 소유자 결정 — 포지션은 글을 쓸 때(`wantedPositions`) · 매칭을 시작할 때(`keyCondition`) 고르는 것이다).
  */
 export interface GameProfile {
   game: GameKey;
   gameNickname: string;
   verified: boolean;
   tier: string | null;
-  mainPosition: string | null;
   server: PubgServer | null;
   stats: GameStats | null;
 }
@@ -109,12 +109,12 @@ export interface GameStatsDetail {
 
 /**
  * `PUT /api/v1/users/me/game-accounts/{game}` 의 본문 — **게임마다 다르다**(P-26).
- * LOL 은 `gameNickname`(`이름#태그`) + `mainPosition`(선택) — `tier` · `server` 를 보내면 400(티어는 Riot 이 채운다) ·
- * VALORANT 는 `gameNickname` + `tier`(선택) + `mainPosition`(선택) · PUBG 는 `gameNickname` + `tier`(선택) + `server`.
+ * LOL 은 `gameNickname`(`이름#태그`) 하나 — `tier` · `server` 를 보내면 400(티어는 Riot 이 채운다) ·
+ * VALORANT 는 `gameNickname` + `tier`(선택) · PUBG 는 `gameNickname` + `tier`(선택) + `server`. **`mainPosition` 을 보내면 400 이다**(2026-09-29 소유자 결정).
  * `tier` 는 그 게임의 사다리 이름이어야 하고(400 `VALIDATION_FAILED`), 없으면 보내지 않는다(`undefined` — JSON 에서 빠진다).
  */
-export interface LolGameAccountRequest { gameNickname: string; mainPosition?: string; }
-export interface ValorantGameAccountRequest { gameNickname: string; tier?: string; mainPosition?: string; }
+export interface LolGameAccountRequest { gameNickname: string; }
+export interface ValorantGameAccountRequest { gameNickname: string; tier?: string; }
 export interface PubgGameAccountRequest { gameNickname: string; tier?: string; server: PubgServer; }
 export type GameAccountRequest = LolGameAccountRequest | ValorantGameAccountRequest | PubgGameAccountRequest;
 

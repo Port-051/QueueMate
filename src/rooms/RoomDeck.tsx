@@ -49,17 +49,16 @@ export function RoomMemberAvatar({ member, size }: { member: BoardMember; size: 
   </span>;
 }
 
-/** 카드의 사실 넷 — 티어 · 포지션(PUBG 는 서버) · 승률 · KDA. 전부 게임 프로필(`profile`)에서 온다 — VALORANT · PUBG 의 전적은 아직 없어 `—` 다. */
+/**
+ * 카드의 사실 — 티어 · 승률 · KDA, PUBG 는 서버까지 넷. 전부 게임 프로필(`profile`)에서 온다 — VALORANT · PUBG 의 전적은 아직 없어 `—` 다.
+ * **사람별 포지션 칸은 없다**(2026-09-29 소유자 결정 — 게임 계정에서 주 포지션 · 주 역할군을 없앴다). 그래서 LoL · VALORANT 는 티어가 한 줄을 다 쓴다(`is-wide`).
+ */
 export function RoomMemberFacts({ room, member, iconSize = 22 }: { room: BoardRoom; member: BoardMember; iconSize?: number }) {
-  const positions = hasPositions(room.game, room.modeKey);
+  const pubg = room.game === 'PUBG';
   const server = member.profile?.server;
   return <dl className="room-member-facts">
-    <div><dt className="sr-only">티어</dt><dd><RoomRank game={room.game} tier={member.tier} division={member.division} size={iconSize} /></dd></div>
-    <div><dt className="sr-only">{room.game === 'PUBG' ? '서버' : '포지션'}</dt><dd>{room.game === 'PUBG'
-      ? <span className="room-random-role">{server === 'STEAM' ? '스팀' : server === 'KAKAO' ? '카카오' : '서버 미정'}</span>
-      : positions
-        ? member.roles.length ? <RoomRoles game={room.game} roles={member.roles} labels /> : <span className="room-random-role">포지션 미정</span>
-        : <span className="room-random-role">무작위</span>}</dd></div>
+    <div className={pubg ? undefined : 'is-wide'}><dt className="sr-only">티어</dt><dd><RoomRank game={room.game} tier={member.tier} division={member.division} size={iconSize} /></dd></div>
+    {pubg ? <div><dt className="sr-only">서버</dt><dd><span className="room-random-role">{server === 'STEAM' ? '스팀' : server === 'KAKAO' ? '카카오' : '서버 미정'}</span></dd></div> : null}
     <div><dt>승률</dt><dd><Stat kind="winRate" value={member.winRate} /></dd></div>
     <div><dt>KDA</dt><dd><Stat kind="kda" value={member.kda} /></dd></div>
   </dl>;

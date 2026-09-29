@@ -3,7 +3,6 @@ import * as api from '../api/client';
 import { isApiError } from '../api/error';
 import type { GameAccountRequest, GameKey, GameProfile, PubgServer } from '../api/types';
 import { GAME_CATALOG } from '../domain/gameCatalog';
-import { keyConditionOptions } from '../domain/gameConfig';
 import { rankLabel } from '../domain/labels';
 import { useAuth } from '../state/AuthContext';
 import { Button, Field } from './ui';
@@ -11,9 +10,10 @@ import { Button, Field } from './ui';
 /**
  * 게임 계정 연결 · 수정 폼 — `PUT /api/v1/users/me/game-accounts/{game}`(platform-api.md "계정" · "게임 프로필" · P-26). 온보딩과 내 정보가 같이 쓴다.
  *
- * **받는 칸이 게임마다 다르다** — LOL: 이름#태그 + 주 포지션(선택. 티어는 Riot 이 채운다 — `tier` · `server` 를 보내면 400) ·
- * VALORANT: 게임 닉네임 + 티어(선택) + 주 역할(선택) · PUBG: 게임 닉네임 + 티어(선택) + 서버(STEAM · KAKAO).
+ * **받는 칸이 게임마다 다르다** — LOL: 이름#태그 하나(티어는 Riot 이 채운다 — `tier` · `server` 를 보내면 400) ·
+ * VALORANT: 게임 닉네임 + 티어(선택) · PUBG: 게임 닉네임 + 티어(선택) + 서버(STEAM · KAKAO).
  * 티어의 선택지는 `domain/gameCatalog.ts` 의 사다리(seed 의 사본)다 — 없는 이름을 보내면 400 이다.
+ * **주 포지션 · 주 역할군 칸은 없다**(2026-09-29 소유자 결정 — 포지션은 글을 쓸 때 · 매칭을 시작할 때 고른다. 서버도 `mainPosition` 을 받으면 400 이다).
  *
  * LOL 은 저장하기 전에 서버가 Riot 을 **동기로** 긁는다(상한 30초) — 그동안 로딩을 보여 준다. `#` 이 없는 닉네임은 서버가 400 을 내지만 Riot 을 부르기 전이라도
  * 프런트가 먼저 막는다(형식이 정해져 있다).
@@ -61,12 +61,10 @@ export function GameAccountForm({ game, initial = null, onSaved, onCancel, align
   const { applyGameAccount } = useAuth();
   const [gameNickname, setGameNickname] = useState(initial?.gameNickname ?? '');
   const [tier, setTier] = useState(initial?.tier ?? '');
-  const [mainPosition, setMainPosition] = useState(initial?.mainPosition ?? '');
   const [server, setServer] = useState<PubgServer>(initial?.server ?? 'STEAM');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const positions = keyConditionOptions(game);
   const ladder = GAME_CATALOG[game].tierLadder;
 
   const submit = async () => {
@@ -75,9 +73,9 @@ export function GameAccountForm({ game, initial = null, onSaved, onCancel, align
     if (nickname.length > 40) { setError('게임 닉네임은 40자까지입니다'); return; }
     if (game === 'LOL' && !isRiotId(nickname)) { setError('LOL 은 이름#태그 형식이어야 합니다 (예: QueueMaster#KR1)'); return; }
     const body: GameAccountRequest = game === 'LOL'
-      ? { gameNickname: nickname, ...(mainPosition ? { mainPosition } : {}) }
+      ? { gameNickname: nickname }
       : game === 'VALORANT'
-        ? { gameNickname: nickname, ...(tier ? { tier } : {}), ...(mainPosition ? { mainPosition } : {}) }
+        ? { gameNickname: nickname, ...(tier ? { tier } : {}) }
         : { gameNickname: nickname, ...(tier ? { tier } : {}), server };
     setBusy(true);
     setError(null);
@@ -108,17 +106,7 @@ export function GameAccountForm({ game, initial = null, onSaved, onCancel, align
         </Field>
       ) : null}
 
-      {game !== 'PUBG' ? (
-        <div className="field">
-          <label>{game === 'LOL' ? '주 포지션' : '주 역할군'}<span className="hint" style={{ marginLeft: 8 }}>이번에 같이 할 때 맡을 자리 · 선택</span></label>
-          <div className="opt-choices" role="group" aria-label={game === 'LOL' ? '주 포지션' : '주 역할군'}>
-            {positions.map((option) => (
-              <button key={option.value} type="button" className={option.value === mainPosition ? 'opt on' : 'opt'} aria-pressed={option.value === mainPosition} disabled={busy}
-                onClick={() => setMainPosition(option.value === mainPosition ? '' : option.value)}>{option.label}</button>
-            ))}
-          </div>
-        </div>
-      ) : (
+      {game === 'PUBG' ? (
         <div className="field">
           <label>서버</label>
           <div className="opt-choices" role="group" aria-label="서버">
@@ -129,7 +117,7 @@ export function GameAccountForm({ game, initial = null, onSaved, onCancel, align
           </div>
           <div className="hint">스팀과 카카오는 서버가 달라 서로 파티를 맺을 수 없습니다</div>
         </div>
-      )}
+      ) : null}
 
       {error ? <p className="banner danger" role="alert">{error}</p> : null}
       {busy && game === 'LOL' ? <p className="hint" role="status">Riot 에서 티어와 전적을 가져오는 중입니다… 최대 30초 걸릴 수 있어요.</p> : null}

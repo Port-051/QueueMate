@@ -90,9 +90,3 @@ export function rankLabel(tier: string | null | undefined): string | null {
   const label = TIER_LABEL[name] ?? name;
   return division ? `${label} ${division}` : label;
 }
-
-/** 게임 프로필의 `mainPosition`(LOL 포지션 · VALORANT 역할군) 한글 라벨. PUBG 는 `null`. */
-export function positionLabel(game: GameKey, position: string | null | undefined): string | null {
-  if (!position) return null;
-  return gameConfig(game).keyCondition.options.find((o) => o.value === position)?.label ?? position;
-}

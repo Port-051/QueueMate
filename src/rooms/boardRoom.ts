@@ -17,7 +17,6 @@ export function toBoardMember(card: MemberCard): BoardMember {
     division: rank.division,
     winRate: profile?.stats?.winRate ?? null,
     kda: profile?.stats?.kda ?? null,
-    roles: profile?.mainPosition ? [profile.mainPosition] : [],
     champions: Array.isArray(champions) ? champions.slice(0, 3).map(c => c.championId) : [],
     profile,
     card,

@@ -7,6 +7,7 @@ import type { GameKey, GameProfile, MemberCard, PostResponse, PostStatus, PubgPe
  * - `id` 는 `String(postId)` — 방 요청(`/rooms/{roomId}/…`) · 방 화면 경로(`/app/party/{roomId}`)에 그대로 쓴다.
  * - 사람의 id 도 십진 문자열이다(방 응답 · 알림 `payload` 와 같은 글자) — `AuthContext.userId` 와 바로 비교한다.
  * - 티어 · 승률 · KDA · 챔피언은 `profile`(그 글의 게임에 연결한 게임 프로필)에서 온다. VALORANT · PUBG 의 `stats` 는 아직 늘 `null` 이라 `—` 로 그린다.
+ * - **사람별 포지션은 없다**(2026-09-29 소유자 결정 — 게임 계정에서 주 포지션 · 주 역할군을 없앴다). 포지션은 글의 `wantedPositions`(찾는 포지션) 하나다.
  */
 export interface BoardMember {
   id: string;
@@ -17,8 +18,6 @@ export interface BoardMember {
   division: number | null;
   winRate: number | null;
   kda: number | null;
-  /** 프로필의 주 포지션 하나(LoL 포지션 · VALORANT 역할군). PUBG 는 빈 배열이고 대신 `profile.server` 를 본다. */
-  roles: string[];
   /** LoL `stats.detail.mostChampions[].championId`(Riot 의 영문 이름). 셋까지. */
   champions: string[];
   profile: GameProfile | null;
