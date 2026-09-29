@@ -88,6 +88,8 @@ QueueMate 실시간 매칭 MVP는 DB 없이 Redis만 쓴다. 설정은 **LoL과 
   `EXIST` 모드에만 있다. **매칭 엔진은 읽지 않는다** — 요청의 `tier`가 이미 그 사다리의 티어로 들어온다.
   읽는 쪽은 `app:platform`(게임 계정이 사다리마다 저장한 티어)과 frontend(보낼 `tier`를 고른다)다.
   "사다리"라는 말이 아래 "티어 사다리 (ZSET)"과 겹친다 — 그쪽은 티어 **이름의 순서**이고 한 게임의 사다리들이 같이 쓴다.
+  frontend 사본은 둘을 이름으로 가른다 — 게임 단위 이름 배열은 `tierNames`, 모드 단위 사다리 키는 `tierLadder`다(2026-09-29 — 처음에는
+  이름 배열도 `tierLadder`라 불렀다가 프런트가 바꿨다).
 
 ## LoL 티어 사다리 (32개)
 
@@ -240,10 +242,10 @@ LoL과 같은 구조(모드 HASH / 티어 사다리 ZSET / 티어 허용 범위 
 | `NORMAL_DUO_FPP` | 일반 듀오 1인칭 | 2 | `NONE` | — |
 | `NORMAL_SQUAD_TPP` | 일반 스쿼드 3인칭 | 4 | `NONE` | — |
 | `NORMAL_SQUAD_FPP` | 일반 스쿼드 1인칭 | 4 | `NONE` | — |
-| `RANKED_DUO_TPP` | 랭크 듀오 3인칭 | 2 | `EXIST` | `DUO_TPP` |
-| `RANKED_DUO_FPP` | 랭크 듀오 1인칭 | 2 | `EXIST` | `DUO_FPP` |
-| `RANKED_SQUAD_TPP` | 랭크 스쿼드 3인칭 | 4 | `EXIST` | `SQUAD_TPP` |
-| `RANKED_SQUAD_FPP` | 랭크 스쿼드 1인칭 | 4 | `EXIST` | `SQUAD_FPP` |
+| `RANKED_DUO_TPP` | 랭크 듀오 3인칭 | 2 | `EXIST` | `RANKED` |
+| `RANKED_DUO_FPP` | 랭크 듀오 1인칭 | 2 | `EXIST` | `RANKED` |
+| `RANKED_SQUAD_TPP` | 랭크 스쿼드 3인칭 | 4 | `EXIST` | `RANKED` |
+| `RANKED_SQUAD_FPP` | 랭크 스쿼드 1인칭 | 4 | `EXIST` | `RANKED` |
 
 **각주 — 왜 이런 값인가**
 
@@ -254,9 +256,9 @@ LoL과 같은 구조(모드 HASH / 티어 사다리 ZSET / 티어 허용 범위 
 - **시점(TPP/FPP)은 조건이 아니라 modeKey에 접었다.** 파티 구성을 막지 않는 큐 선택이기 때문이다.
 - **TPP/FPP가 같은 티어 표를 쓴다.** 티어/RP는 시즌 36부터 듀오/스쿼드와 TPP/FPP에 걸쳐
   통합돼 있어 시점별 티어가 따로 없다.
-- **그래도 `tierLadder`는 랭크 모드 넷이 따로 갖는다 (2026-09-29, docs/11 D-48).** 소유자 결정이 "모드별 티어를
-  저장한다"이고, 바로 위 줄(2026-09-14 조사)과 어긋난다 — **어느 쪽이 맞는지는 다시 확인하지 않았다.** 통합이 맞다면
-  `app:platform`이 네 사다리에 같은 티어를 채울 뿐 틀리지는 않는다. 허용 범위 표(아래)는 그대로 TPP/FPP가 같다.
+- **그래서 PUBG 사다리는 하나다 — 랭크 모드 넷의 `tierLadder`가 전부 `RANKED`다 (2026-09-29, docs/11 D-48).**
+  같은 날 처음에는 넷(`DUO_TPP` · `DUO_FPP` · `SQUAD_TPP` · `SQUAD_FPP`)으로 적었다가 바로 위 줄(2026-09-14 조사 · 확인됨)로
+  하나로 바로잡았다. 허용 범위 표(아래)는 사다리와 별개로 모드마다 있다(듀오 ±11 · 스쿼드 ±5).
 - PUBG validator는 모드 HASH의 `tierRule` 하나로 모드 존재를 판단한다. `tierRule`이 없으면 그
   모드 요청은 전부 거부된다 (fail-closed). `NONE` 모드는 `tier`가 **null**이어야 통과한다(LoL과 같은 규약).
 
@@ -355,7 +357,7 @@ LoL과 같은 구조(모드 HASH / 티어 사다리 ZSET / 티어 허용 범위 
 | `targetPartySize` | 파티 정원 | 2 ~ 5 | 매칭 엔진 · `app:platform`(게시판 방 먼저 합류의 정원 — D-40) |
 | `positionUniqueness` | 파티 안에서 핵심 조건 값이 겹칠 수 없는가 | `true` / `false`. LoL · VALORANT만 — PUBG에는 없다 | 매칭 엔진 |
 | `tierRule` | 그 모드가 티어를 보는가 | `NONE` / `EXIST` | 매칭 엔진 · `app:platform`(게시판 방 먼저 합류 — D-40) |
-| `tierLadder` | **`EXIST` 모드의 티어가 어느 랭크 사다리의 것인가 (2026-09-29, docs/11 D-48)** | 사다리 키 — LoL `SOLO` · `FLEX` / VALORANT `COMPETITIVE` / PUBG `DUO_TPP` · `DUO_FPP` · `SQUAD_TPP` · `SQUAD_FPP`. `NONE` 모드에는 없다 | `app:platform`(모드 HASH `HMGET` — 게임 계정의 사다리별 티어) · frontend(정적 사본 `../frontend/src/domain/gameCatalog.ts` — 보낼 `tier`를 고른다). **매칭 엔진은 읽지 않는다** |
+| `tierLadder` | **`EXIST` 모드의 티어가 어느 랭크 사다리의 것인가 (2026-09-29, docs/11 D-48)** | 사다리 키 — LoL `SOLO` · `FLEX` / VALORANT `COMPETITIVE` / PUBG `RANKED`(시즌 36 통합이라 하나). `NONE` 모드에는 없다 | `app:platform`(모드 HASH `HMGET` — 게임 계정의 사다리별 티어) · frontend(정적 사본 `../frontend/src/domain/gameCatalog.ts` — 보낼 `tier`를 고른다). **매칭 엔진은 읽지 않는다** |
 
 > `tierLadder`를 두는 이유는 **모드 이름으로 사다리를 가르지 않으려는 것**이다(`RANKED_FLEX_*` → 자유랭크 같은 규칙을
 > 읽는 쪽마다 코드로 갖지 않는다). 사다리 키는 사다리가 몇 개인지를 정할 뿐 티어 이름은 늘리지 않는다 — 티어 이름과 순서는

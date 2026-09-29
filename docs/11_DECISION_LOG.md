@@ -3802,12 +3802,12 @@ D-37 이 LoL 의 `PUT` 본문을 `{gameNickname, mainPosition}` 으로 정하며
 
 > **프로젝트 소유자가 정했다.** `app:platform` 쪽 사실의 원본은 `../platform/contracts/platform-api.md` 의
 > P-36(이 항목을 적는 2026-09-29 시점에 그 파일에는 아직 올라 있지 않다) · `../platform/CLAUDE.md` 다. gameconfig 쪽 원본은 이 저장소의 `seed/gameconfig.redis` 다.
-> **이 저장소에 걸리는 것 — seed 에 필드 하나.** `tierRule EXIST` 모드 HASH 10개에 `tierLadder` 를 더했다(`f18336d`). **엔진 코드는 바뀌지 않는다** — 이 앱은 그 필드를 읽지 않는다.
+> **이 저장소에 걸리는 것 — seed 에 필드 하나.** `tierRule EXIST` 모드 HASH 10개에 `tierLadder` 를 더했다(`f18336d` · PUBG 를 하나로 바로잡은 것 `cab584d`). **엔진 코드는 바뀌지 않는다** — 이 앱은 그 필드를 읽지 않는다.
 
 **소유자의 말.** "모드별 티어를 저장해야지. 무조건 모드별 티어 저장."
 
 **원안.** `app:platform` 의 게임 계정은 티어를 **하나** 저장했다 — LoL 은 `league-v4` 의 솔로랭크 줄(D-37 결정 2), VALORANT · PUBG 는 자기신고 하나(D-27 · D-37 결정 5).
-프런트는 그 하나를 매칭 요청의 `tier` 로 실었다. 그런데 LoL 솔로랭크와 자유랭크, PUBG 랭크 듀오/스쿼드 × TPP/FPP 는 **서로 다른 사다리**라 같은 사람도 티어가 다르다 —
+프런트는 그 하나를 매칭 요청의 `tier` 로 실었다. 그런데 LoL 솔로랭크와 자유랭크는 **서로 다른 사다리**라 같은 사람도 티어가 다르다(PUBG 는 아니다 — 아래 "PUBG 는 하나다") —
 **LoL 자유랭크 매칭이 솔로랭크 티어로 돌았다.** 이 앱은 이미 모드별로 파티를 만들고 `tier-range:{MODE}` 도 모드별인데, 들어오는 `tier` 가 그 모드의 사다리 것이 아니었다.
 (`dto/CreateMatchRequestCommand` 의 `tier` 주석은 처음부터 "어느 사다리의 티어인지는 modeKey가 정한다 … 둘은 완전히 별개의 사다리라 같은 사람도 값이 다르다 … 그래서 필드는 하나이고, 무엇을 담을지는 모드가 결정한다" 고 적었다. 담는 쪽이 그렇게 하지 못했던 것이다.)
 
@@ -3828,9 +3828,9 @@ D-37 이 LoL 의 `PUT` 본문을 `{gameNickname, mainPosition}` 으로 정하며
 | LoL | `SOLO` | `RANKED_SOLO` |
 | LoL | `FLEX` | `RANKED_FLEX_2` · `RANKED_FLEX_3` · `RANKED_FLEX_5` |
 | VALORANT | `COMPETITIVE` | `COMPETITIVE_DUO` · `COMPETITIVE_TRIO` |
-| PUBG | `DUO_TPP` · `DUO_FPP` · `SQUAD_TPP` · `SQUAD_FPP` | 같은 이름의 `RANKED_DUO_TPP` · `RANKED_DUO_FPP` · `RANKED_SQUAD_TPP` · `RANKED_SQUAD_FPP` |
+| PUBG | `RANKED` | `RANKED_DUO_TPP` · `RANKED_DUO_FPP` · `RANKED_SQUAD_TPP` · `RANKED_SQUAD_FPP` |
 
-`tierRule NONE` 모드(LoL `ARAM_*` · `NORMAL_*` · VALORANT `UNRATED_*` · PUBG `NORMAL_*`)에는 필드가 없다. **모드 10개 · 사다리 키 7개**다.
+`tierRule NONE` 모드(LoL `ARAM_*` · `NORMAL_*` · VALORANT `UNRATED_*` · PUBG `NORMAL_*`)에는 필드가 없다. **모드 10개 · 사다리 키 4개**다.
 
 **왜 모드 HASH 의 필드인가.** 모드 이름으로 사다리를 가르지 않으려는 것이다 — `RANKED_FLEX_*` 를 보고 "자유랭크" 라고 읽는 규칙을 platform 과 frontend 가 각자 코드로 가지면
 모드를 더하거나 고칠 때 어긋난다. `dto/CreateMatchRequestCommand` 주석의 "모드 이름으로 가르지 마라"(어느 모드가 티어를 보는지는 gameconfig 가 안다)와 같은 원칙이다.
@@ -3845,25 +3845,25 @@ LoL 은 솔로랭크 · 자유랭크 둘 다. 모드 HASH 의 `tierLadder` 를 `
 쓰지도 심지도 않는 것은 그대로다(D-29 결정 1 의 나머지).
 
 **frontend 쪽.** 매칭할 모드의 `tierLadder` 로 보낼 `tier` 를 고른다. seed 의 정적 사본(`../frontend/src/domain/gameCatalog.ts` — "값은 seed 그대로다")의 모드마다 `tierLadder` 가 붙어야 한다.
-**그 파일은 이미 게임 단위의 `tierLadder`(티어 이름 배열 — ZSET 의 사본)라는 이름을 쓴다** — 같은 이름이 게임 단위(이름의 순서)와 모드 단위(사다리 키)에 다른 뜻으로 놓이게 된다(2026-09-29 확인). 프런트에서 정리할 일이다.
+**그 파일은 게임 단위의 티어 이름 배열(ZSET 의 사본)도 `tierLadder` 라고 불렀다** — 같은 날 프런트가 그것을 **`tierNames`** 로 바꿔 이름이 겹치지 않는다(게임 단위 `tierNames` = 이름의 순서, 모드 단위 `tierLadder` = 사다리 키).
 
-**어긋나는 것 — PUBG.** 이 저장소의 2026-09-14 조사(`WORKLOG_2026-09-14.md` §1 · `docs/GAME_CONFIG.md` PUBG 각주 · seed 의 PUBG 주석)는 "티어/RP 는 시즌 36 부터 듀오/스쿼드와 TPP/FPP 에 걸쳐
-통합돼 시점별 티어가 따로 없다" 고 적었다. 이 결정은 PUBG 에 사다리 넷을 둔다 — **어느 쪽이 맞는지는 다시 확인하지 않았다.** 소유자 결정이 "무조건 모드별" 이라 넷을 두었고,
-통합이 맞다면 `app:platform` 이 네 사다리에 같은 티어를 채울 뿐 틀리지는 않는다(합치려면 seed 의 네 값을 하나로 바꾸면 된다 — 재배포 없음). seed · `docs/GAME_CONFIG.md` 의 그 자리에 같은 말을 적었다.
+**PUBG 는 하나다.** 이 저장소의 2026-09-14 조사(`WORKLOG_2026-09-14.md` §1 — 확인됨)대로 "티어/RP 는 시즌 36 부터 듀오/스쿼드와 TPP/FPP 에 걸쳐 통합돼 시점별 티어가 따로 없다".
+그래서 PUBG 랭크 모드 넷의 `tierLadder` 는 전부 `RANKED` 다. 허용 범위 표는 사다리와 별개로 모드마다 있다(듀오 ±11 · 스쿼드 ±5 — `docs/GAME_CONFIG.md`).
+**처음에 PUBG 를 넷(`DUO_TPP` · `DUO_FPP` · `SQUAD_TPP` · `SQUAD_FPP`)으로 적었다가 같은 날 `WORKLOG_2026-09-14.md` §1(시즌 36 통합)로 하나로 바로잡았다**(`cab584d`).
 
 **감수하는 것.** 이 앱은 여전히 요청의 `tier` 를 믿는다 — 클라이언트가 다른 사다리의 티어(또는 아무 티어)를 실어도 사다리 ZSET 과 `tier-range` 에 있는 이름이면 받는다.
 서명된 값이 아니고 `app:platform` 을 부르지도 않는다(앱 사이 동기 호출 금지). 자기신고이던 때와 같은 신뢰 수준이다.
 
 **아직 미정(이 저장소에서 확인하지 못한 것).** 게시판 방 먼저 합류(D-40)가 보는 "방장의 티어" 가 이제 어느 사다리의 것인지 — `app:platform`(P-36)의 세부다. 지어내지 않는다.
 
-**Claude 가 정한 세부(소유자 검토).** 사다리 키의 이름(`SOLO` · `FLEX` · `COMPETITIVE` · PUBG 넷) · 필드 이름 `tierLadder` · `tierRule NONE` 모드에는 필드를 두지 않는 것.
+**Claude 가 정한 세부(소유자 검토).** 사다리 키의 이름(`SOLO` · `FLEX` · `COMPETITIVE` · `RANKED`) · 필드 이름 `tierLadder` · `tierRule NONE` 모드에는 필드를 두지 않는 것.
 
 **개정하는 옛 항목.** 그 자리에 "→ D-48" 만 달았다 — 본문은 고치지 않았다.
 
 - **D-37** 결정 2 — "`tier` 는 `league-v4` 솔로랭크에서" → 솔로랭크 · 자유랭크 둘 다. 결정 5 — "VALORANT · PUBG 는 API 가 없어 자기신고" · "다른 둘은 긁을 것이 없다" → PUBG 는 API 로 채운다.
 - **D-29** 결정 1 — "모드별 설정 HASH — `EXISTS` 만. 내용은 읽지 않는다" → `tierLadder` 도 읽는다(D-40 에 이어).
 
-**영향.** `seed/gameconfig.redis`(필드 10개 · 주석) · `docs/GAME_CONFIG.md`(모드 표의 `tierLadder` 열 · "모드 HASH 의 필드" 표 · 모드 추가 절차 · PUBG 각주) ·
+**영향.** `seed/gameconfig.redis`(필드 10개 · 주석 — `f18336d` · `cab584d`) · `docs/GAME_CONFIG.md`(모드 표의 `tierLadder` 열 · "모드 HASH 의 필드" 표 · 모드 추가 절차 · PUBG 각주) ·
 `contracts/openapi.yaml`(`CreateMatchRequest.tier` 설명) · `contracts/README.md` A-18(과 A-13 · #13 의 "→ A-18"). 엔진 코드(`backend/src/main/**`) 변경 없음 —
 동시성 테스트 둘(PUBG · VALORANT)의 javadoc 에 "`tierLadder` 는 넣지 않는다" 한 줄씩(동작 변경 없음 · 전체 98건 통과, 2026-09-29).
 아직 "연동이 붙으면 `tier` 가 바디에서 사라진다" 로 적힌 곳 — `CLAUDE.md` §2 · `dto/CreateMatchRequestCommand` 의 `tier` 주석 — 은 이번에 고치지 않았다.

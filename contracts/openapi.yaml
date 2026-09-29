@@ -330,7 +330,7 @@ components:
                 `GRANDMASTER` / `CHALLENGER`)는 이름 그대로다. 허용되는 이름의 원본은 자바 enum 이 아니라 Redis ZSET
                 `qm:gameconfig:{GAME}:tier` 다 (LoL 은 32개). 어느 사다리의 티어인지는 modeKey 가 정한다(솔랭과 자랭은 별개다).
                 그 답은 gameconfig 모드 HASH 의 `tierLadder`(사다리 키 — LoL `SOLO` · `FLEX` / VALORANT `COMPETITIVE` /
-                PUBG `DUO_TPP` · `DUO_FPP` · `SQUAD_TPP` · `SQUAD_FPP`)다 — **클라이언트는 그 사다리의 티어를 보낸다**
+                PUBG `RANKED` — 시즌 36 통합이라 하나)다 — **클라이언트는 그 사다리의 티어를 보낸다**
                 (2026-09-29, docs/11 D-48). 이 앱은 `tierLadder` 를 읽지 않고 받은 `tier` 를 그 모드의 티어로 쓴다.
 
                 **임시 필드다.** 지금은 사용자 자기신고이고, 게임 계정 연동이 붙으면 요청 바디에서 사라진다 —
