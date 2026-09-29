@@ -233,7 +233,7 @@ payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약
 > | `game` | `LOL` / `VALORANT` / `PUBG` |
 > | `modeKey` | 예 `RANKED_SOLO` — gameconfig `qm:gameconfig:{GAME}:{MODE}` 의 `{MODE}` |
 > | `voicePreference` | `REQUIRED` / `NO_VOICE` |
-> | `playPurpose` | `RANK_UP` / `NORMAL` / `FUN` |
+> | `playPurpose` | `RANK_UP` / `TRYHARD` / `FUN` — `TRYHARD`(빡겜)는 옛 `NORMAL`(일반 플레이)이다(2026-09-29, docs/11 D-49 · A-19. 필드 이름은 그대로 · 값만 바뀌었다) |
 > | `target` | 정원 |
 > | `member:{userId}` | 값은 그 사람의 keyValue(LoL 포지션 · VALORANT 역할군 · PUBG 플랫폼). `{userId}` 는 사용자 번호의 십진 문자열. 인원 수 필드는 없다 — 이 필드를 센다 |
 > | `tierLo` / `tierHi` | 티어를 보는 모드의 파티 허용 범위 — 티어 사다리 `qm:gameconfig:{GAME}:tier` 의 `ZRANK` 순번(0부터). 티어를 안 보는 모드는 `0/0` |

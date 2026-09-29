@@ -277,7 +277,12 @@ components:
 
     PlayPurpose:
       type: string
-      enum: [RANK_UP, NORMAL, FUN]
+      # > 개정 이력: 2026-09-29 — 원본은 [RANK_UP, NORMAL, FUN] 이다. NORMAL(일반 플레이)을 TRYHARD(빡겜)로 바꿨다
+      #   (contracts/README.md A-19 · docs/11 D-49 — 소유자 결정. 값 이름은 Claude 가 정했다). 뜻도 바뀌었다 —
+      #   "평범하게" 가 아니라 "진지하게(빡세게)" 다. 옛 이름 NORMAL 을 보내면 400 이다.
+      description: |
+        RANK_UP = 랭크 상승 · TRYHARD = 빡겜(진지하게 한다) · FUN = 즐겜.
+      enum: [RANK_UP, TRYHARD, FUN]
 
     KeyCondition:
       description: |
