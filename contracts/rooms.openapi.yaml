@@ -177,6 +177,16 @@ components:
             tier: {type: string, nullable: true}
             division: {type: integer, nullable: true}
             winRate: {type: number, nullable: true}
+            wins:
+              type: integer
+              minimum: 0
+              nullable: true
+              description: 표시 승률과 같은 게임 모드·집계 기간의 승리 수. 미연동 시 생략 또는 null이며 승률로 역산하지 않는다.
+            losses:
+              type: integer
+              minimum: 0
+              nullable: true
+              description: wins와 같은 집계의 패배 수. 승패가 모두 제공될 때 해당 합계로 승률을 표시한다. 합계 0은 기록 없음이다.
             kda: {type: number, nullable: true}
             champions: {type: array, items: {type: string}}
             voice: {type: string}
