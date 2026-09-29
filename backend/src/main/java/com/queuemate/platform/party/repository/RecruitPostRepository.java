@@ -2,6 +2,7 @@ package com.queuemate.platform.party.repository;
 
 import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.party.domain.RecruitPost;
+import com.queuemate.platform.party.domain.VoicePreference;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -75,8 +76,11 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
 
     /**
      * <b>게시판 방 먼저 합류의 후보</b>(2026-09-28 소유자 결정 · P-28) — 그 게임 · 그 모드의 <b>모집 중인</b> 글을 <b>오래된 순({@code id} 오름차순)</b>으로 많아야 {@code limit} 개.
-     * "여럿이면 가장 오래된 방부터" 다. {@code game} 이 등호 조건이라 {@code (game, id DESC)} 인덱스를 거꾸로 훑고, {@code mode} · {@code status} 는 그 위에서 거른다
-     * (모집 중인 글은 게임마다 많지 않다 — 부분 UNIQUE 인덱스가 사람마다 하나로 묶는다). 나머지 조건(음성 · 시점 · 포지션 · 티어 · 방 안 인원)은 자바가 본다.
+     * "여럿이면 가장 오래된 방부터" 다. {@code game} 이 등호 조건이라 {@code (game, id DESC)} 인덱스를 거꾸로 훑고, {@code mode} · {@code status} · {@code voice} · 내 글 제외는
+     * 그 위에서 거른다(모집 중인 글은 게임마다 많지 않다 — 부분 UNIQUE 인덱스가 사람마다 하나로 묶는다).
+     * <b>음성과 내 글 제외를 여기서 보는 이유</b>(2026-09-29 — 그 전에는 자바가 봤다) — 컬럼 등호 조건이라 DB 가 보는 것이 싸고, 무엇보다 {@code limit} 이 <b>쓸 만한 글</b>을 세게 된다.
+     * 자바에서 거르면 음성이 안 맞는 글이 상한 {@code limit} 을 잡아먹어 뒤에 맞는 글이 있어도 404 가 났다.
+     * 나머지 조건(PUBG 시점 — jsonb 안 · 포지션 — 별도 표 · 방장 티어 · 방 안 인원 — Redis)은 여전히 자바가 본다.
      */
     @Query("""
             select p
@@ -84,9 +88,12 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
              where p.game = :game
                and p.mode = :mode
                and p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING
+               and p.voice = :voice
+               and p.hostId <> :me
              order by p.id asc
             """)
-    List<RecruitPost> findAutoJoinCandidates(@Param("game") Game game, @Param("mode") String mode, Limit limit);
+    List<RecruitPost> findAutoJoinCandidates(@Param("game") Game game, @Param("mode") String mode, @Param("voice") VoicePreference voice,
+                                             @Param("me") Long me, Limit limit);
 
     /**
      * 글을 고칠 때 — 줄을 잠그고 읽는다({@code SELECT … FOR UPDATE}). 읽고 판단하는 사이에 만료 · 확정이 끼어들지 못한다

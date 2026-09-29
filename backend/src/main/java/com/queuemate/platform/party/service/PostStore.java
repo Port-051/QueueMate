@@ -7,6 +7,7 @@ import com.queuemate.platform.party.board.BoardSignalPublisher;
 import com.queuemate.platform.party.domain.PartyMember;
 import com.queuemate.platform.party.domain.PostStatus;
 import com.queuemate.platform.party.domain.RecruitPost;
+import com.queuemate.platform.party.domain.VoicePreference;
 import com.queuemate.platform.party.dto.PostCreateRequest;
 import com.queuemate.platform.party.dto.PostUpdateRequest;
 import com.queuemate.platform.party.repository.PartyRecordRepository;
@@ -264,13 +265,14 @@ public class PostStore {
     }
 
     /**
-     * 게시판 방 먼저 합류의 후보 글 — 그 게임 · 그 모드의 모집 중인 글을 오래된 순으로 많아야 {@code limit} 개({@link RecruitPostRepository#findAutoJoinCandidates}.
-     * 2026-09-28 · P-28). 찾는 포지션까지 쿼리 둘이다. 부르는 쪽({@code AutoJoinService})은 트랜잭션 밖에서 방 키를 읽고 스크립트를 부른다
+     * 게시판 방 먼저 합류의 후보 글 — 그 게임 · 그 모드 · 그 음성의 모집 중인 글에서 <b>내 글을 뺀 것</b>을 오래된 순으로 많아야 {@code limit} 개
+     * ({@link RecruitPostRepository#findAutoJoinCandidates}. 2026-09-28 · P-28. 음성 · 내 글 제외는 2026-09-29 에 자바에서 쿼리로 옮겼다 — 그 이유는 리포지토리 주석).
+     * 찾는 포지션까지 쿼리 둘이다. 부르는 쪽({@code AutoJoinService})은 트랜잭션 밖에서 방 키를 읽고 스크립트를 부른다
      */
     @Transactional(readOnly = true)
-    public List<RecruitPost> findAutoJoinCandidates(Game game, String mode, int limit)
+    public List<RecruitPost> findAutoJoinCandidates(Game game, String mode, VoicePreference voice, Long me, int limit)
     {
-        return postRepository.findAutoJoinCandidates(game, mode, Limit.of(limit));
+        return postRepository.findAutoJoinCandidates(game, mode, voice, me, Limit.of(limit));
     }
 
     /**

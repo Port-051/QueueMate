@@ -37,7 +37,7 @@ import java.util.regex.Pattern;
  * <b>서버가 {@code matching} 을 부르지 않고 활성 요청 키를 만들지 않는다</b>(누른 순간 한 번만 게시판을 본다 — D-19 그대로).
  *
  * <p><b>흐름</b> — ① 본문 검증(게임 · 음성 · 조건의 종류와 값 — 400) → ② gameconfig 로 모드 · 티어 규칙 검증({@code matching} 의 validator 와 같은 순서 — 400) →
- * ③ 후보 글 조회(그 게임 · 그 모드 · 모집 중 · 오래된 순 · 많아야 {@code platform.board.auto-join-scan} 개) → ④ 자바 필터(내 글 제외 · 음성 · PUBG 시점 · 포지션 · 방장 티어) →
+ * ③ 후보 글 조회(그 게임 · 그 모드 · 그 음성 · 모집 중 · 내 글 제외 · 오래된 순 · 많아야 {@code platform.board.auto-join-scan} 개) → ④ 자바 필터(PUBG 시점 · 포지션 · 방장 티어) →
  * ⑤ 방 키를 파이프라인 한 번으로 읽어 사라진 방 · 확정된 방 · 모드 정원이 찬 방 제외 → ⑥ 남은 순서대로 입장({@link RoomMemberService#enter} — 안에서 {@link PostEntryGate} 가
  * 차단 · 상태를 본다). 들어갔으면 200, 다음 방으로 넘어갈 수 없는 거절({@code IN_OTHER_ROOM} · {@code ALREADY_QUEUED})은 그 코드로 409, 다 돌아도 없으면 404.
  *
@@ -93,8 +93,8 @@ public class AutoJoinService {
         try
         {
             gate = gate(game, modeKey, request.tier());
-            candidates = postStore.findAutoJoinCandidates(game, modeKey, boardProperties.autoJoinScan());
-            candidates = filter(me, game, modeKey, voice, myPosition, gate, candidates);
+            candidates = postStore.findAutoJoinCandidates(game, modeKey, voice, me, boardProperties.autoJoinScan());
+            candidates = filter(game, modeKey, myPosition, gate, candidates);
             states = roomService.states(candidates.stream().map(RecruitPost::getId).toList());
         }
         catch(GameConfigUnavailableException | RoomStateUnavailableException e)
@@ -228,18 +228,16 @@ public class AutoJoinService {
 
     // ---- 글 거르기 ----
 
-    /** 내 글 제외 · 음성 · PUBG 시점 · 포지션 · 방장 티어. 순서는 그대로다(오래된 순) */
-    private List<RecruitPost> filter(Long me, Game game, String modeKey, VoicePreference voice, String myPosition, Gate gate,
-                                     List<RecruitPost> candidates)
+    /**
+     * PUBG 시점 · 포지션 · 방장 티어. 순서는 그대로다(오래된 순). 내 글 제외 · 음성은 쿼리가 본다({@link PostStore#findAutoJoinCandidates} — 2026-09-29 에 옮겼다.
+     * 여기 남은 셋은 SQL 로 못 보거나 어색한 것이다 — 시점은 jsonb 안, 포지션은 별도 표에 "비어 있으면 누구든", 티어는 Redis)
+     */
+    private List<RecruitPost> filter(Game game, String modeKey, String myPosition, Gate gate, List<RecruitPost> candidates)
     {
         String perspective = perspectiveOf(game, modeKey);
         List<RecruitPost> matched = new ArrayList<>();
         for(RecruitPost post : candidates)
         {
-            if(post.isHost(me) || post.getVoice() != voice)
-            {
-                continue;
-            }
             if(perspective != null && !perspective.equals(perspectiveOf(post)))
             {
                 continue;
