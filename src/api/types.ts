@@ -111,11 +111,13 @@ export interface GameStats {
   syncedAt: string;
 }
 
-/** LoL `stats.detail.mostChampions[]` — 판 수 많은 순 셋까지. `championId` 는 Riot 의 `championName`(`"Samira"`). 숙련도 둘은 못 받으면 `null`. */
+/**
+ * LoL `stats.detail.mostChampions[]` — **숙련도 점수 높은 순 셋까지**(서버가 계정 전체 숙련도 `champion-mastery-v4` 에서 고른다 — 2026-09-30 소유자 결정).
+ * 판 수 · 승률(`games` · `winRate`)은 그날 칸째 없어졌다 — 옛 응답이 아직 싣고 와도 읽지 않는다. `championId` 는 Riot 의 `championName`(`"Samira"`).
+ * 숙련도 둘은 못 받으면 `null` 이다(jsonb 그대로라 화면은 숫자인지 보고 읽는다).
+ */
 export interface LolMostChampion {
   championId: string;
-  games: number;
-  winRate: number | null;
   masteryLevel: number | null;
   masteryPoints: number | null;
 }

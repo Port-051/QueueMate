@@ -23,7 +23,7 @@ export interface BoardMember {
   winRate: number | null;
   /** LoL · VALORANT 는 `stats.kda`, PUBG 는 K/D(`stats.detail.kd`). */
   kda: number | null;
-  /** LoL `stats.detail.mostChampions[].championId`(Riot 의 영문 이름). 셋까지. */
+  /** LoL `stats.detail.mostChampions[].championId`(Riot 의 영문 이름). 숙련도 높은 순 셋까지(서버가 고른 순서 그대로 — 2026-09-30). */
   champions: string[];
   profile: GameProfile | null;
   /** 원본 카드 그대로. */

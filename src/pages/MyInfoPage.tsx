@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
-import type { GameKey, GameProfile, SocialProvider } from '../api/types';
+import type { GameKey, GameProfile, LolMostChampion, SocialProvider } from '../api/types';
 import { GameAccountForm, gameAccountErrorMessage, STATS_SOURCE, statsFromApi } from '../components/GameAccountForm';
 import { IconCheck, IconLogout, IconPencil, IconPlus, IconShield } from '../components/icons';
 import { AVATAR_CHOICES, avatarImageSrc, Avatar, Button, ConfirmDialog, Field, Modal, Tag, useToast } from '../components/ui';
@@ -34,6 +34,13 @@ const number = (value: number | null, digits = 1) => value === null ? '—' : Nu
 const finite = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) ? value : null;
 /** PUBG `detail.seasonMode` — 값 목록이 계약에 없어 아는 둘만 옮기고 나머지는 받은 그대로(Claude 가 정한 세부). */
 const SEASON_MODE_LABEL: Record<string, string> = { RANKED: '랭크 시즌 합산', NORMAL: '일반 시즌 합산' };
+/** 챔피언 한 줄의 뒤쪽 — `숙련도 29 (292,707)`. 판 수 · 승률은 싣지 않는다(2026-09-30 소유자 결정). 둘 다 없으면 `null`(이름만 그린다). */
+const masteryLabel = ({ masteryLevel, masteryPoints }: LolMostChampion): string | null => {
+  const level = finite(masteryLevel);
+  const points = finite(masteryPoints);
+  const parts = [level !== null ? `숙련도 ${level}` : null, points !== null ? `(${points.toLocaleString('ko-KR')})` : null].filter(Boolean);
+  return parts.length ? parts.join(' ') : null;
+};
 
 /** 사다리마다 한 줄 — `솔로랭크 · 골드 4`. 값이 없으면 "언랭"(2026-09-29 — 티어가 사다리마다 따로다). */
 function LadderTiers({ game, profile }: { game: GameKey; profile: GameProfile }) {
@@ -47,6 +54,7 @@ function LadderTiers({ game, profile }: { game: GameKey; profile: GameProfile })
  * 게임 프로필 카드 하나(platform-api.md "게임 프로필"). 세 게임이 같은 모양이고 게임마다 비는 칸이 다르다 — `null` 은 "정보 없음"으로.
  * **티어는 사다리마다 한 줄이다**(LoL 솔로 · 자유 / VALORANT 경쟁전 / PUBG 랭크 — `tiers`). LoL · PUBG 는 `tiers` · `stats` 가 게임사 API 에서 오고(연결 · 전적 갱신 때 — 2026-09-29 PUBG 도),
  * VALORANT 는 자기신고라 `stats` 가 늘 `null` 이다. PUBG 의 전적은 판 수 · 치킨률 · K/D · 평균 딜량이다(`stats.detail` — `wins` · `kda` 들은 늘 `null`).
+ * LoL 의 챔피언 줄은 **숙련도 높은 챔피언 셋**이고 숙련도 레벨 · 점수만 보여 준다(`stats.detail.mostChampions` — 2026-09-30 소유자 결정. 전에는 최근 경기의 판 수 · 승률도 실었다).
  */
 function GameProfileCard({ game, profile, onEdit, onUnlink, onRefresh, refreshing }: {
   game: GameKey; profile: GameProfile | null; onEdit: () => void; onUnlink: () => void; onRefresh: () => void; refreshing: boolean;
@@ -91,11 +99,14 @@ function GameProfileCard({ game, profile, onEdit, onUnlink, onRefresh, refreshin
           <div><dt>KDA</dt><dd>{stats.kda !== null ? stats.kda.toFixed(2) : `${number(stats.avgKills)} / ${number(stats.avgDeaths)}`}</dd></div>
           <div><dt>연승</dt><dd>{stats.winStreak !== null ? `${stats.winStreak}연승` : '—'}</dd></div>
         </dl>}
-        {champions.length ? <div className="profile-game-champions" aria-label="최근 선호 챔피언">
-          {champions.map((champion) => <span className="profile-game-champion" key={champion.championId}>
-            <b>{championName(champion.championId) ?? champion.championId}</b>
-            <span>{champion.games}판{champion.winRate !== null ? ` · ${champion.winRate}%` : ''}{champion.masteryLevel !== null ? ` · 숙련도 ${champion.masteryLevel}` : ''}{champion.masteryPoints !== null ? ` (${champion.masteryPoints.toLocaleString('ko-KR')})` : ''}</span>
-          </span>)}
+        {champions.length ? <div className="profile-game-champions" aria-label="숙련도 높은 챔피언">
+          {champions.map((champion) => {
+            const mastery = masteryLabel(champion);
+            return <span className="profile-game-champion" key={champion.championId}>
+              <b>{championName(champion.championId) ?? champion.championId}</b>
+              {mastery ? <span>{mastery}</span> : null}
+            </span>;
+          })}
         </div> : null}
         <p className="profile-game-synced">{syncedLabel(stats.syncedAt)} 기준{seasonMode ? ` · ${SEASON_MODE_LABEL[seasonMode] ?? seasonMode}` : ''}{fromApi ? ' · 전적 갱신은 2분에 한 번' : ''}</p>
       </> : <p className="profile-game-synced">{fromApi ? '전적 정보가 없습니다. 전적 갱신을 눌러 보세요.' : '전적 정보 없음 — 이 게임의 전적 연동은 아직 없습니다.'}</p>}
