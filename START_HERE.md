@@ -346,7 +346,7 @@
 2. **VALORANT 의 전적** — 구현이 없어 `stats` 는 늘 `null` 이다(게임별 구현은 `account.stats.GameStatsProvider` 뒤에 있어 구현 하나를 더하면 된다 — PUBG 가 그렇게 붙었다). **VALORANT 의 전적 API 는 Riot 의 별도 승인이다.** 무엇을 채우는가(그 테이블의 비는 칸 · `detail`)도 같이 정해야 한다.
    **PUBG 에 남은 미확인**(계약 P-36) — 일반 시즌 전적(`gameModeStats`)의 실제 응답 · 모드마다 티어가 다른 경우 · `Unranked` 라는 이름 · `kakao` shard 의 실제 응답. 첫 실제 응답으로 확인한다. **시즌 캐시가 30일이라 시즌이 바뀐 뒤 최대 30일은 지난 시즌을 긁는다**(문서의 "한 달에 한 번보다 자주 부르지 마라" 에 맞췄다 — 급하면 `qm:pubg:season:{shard}` 를 지운다).
 3. **`verified` 를 켜는 법** — Riot(RSO) 인증. **지금은 켜는 길이 없다**(`puuid` 를 알아낸 것은 본인 확인이 아니다). 인증하지 않은 자기신고 계정을 목록에 어떻게 보여 주는가. **지금은 자기신고를 믿는다(소유자 결정 2026-09-25)** — RSO 를 붙일지는 미정 그대로다.
-4. **전적을 주기적으로(사용자가 누르지 않아도) 갱신할지와 그 주기**(2026-09-24 에 생긴 미정이다). 같은 날 붙은 **전적 갱신은 사용자가 누르는 것이라 이 미정을 닫지 않는다** — 아무도 누르지 않으면 `stats` 는 낡은 채로 남는다(언제 긁은 것인지는 `syncedAt`). **감수하기로 한 것이고, 주기를 지어내서 만들지 않는다.**
+4. ~~**전적을 주기적으로(사용자가 누르지 않아도) 갱신할지와 그 주기**~~ — **2026-09-30 소유자 결정으로 닫혔다(P-42)**: 전적 갱신 버튼(`POST …/refresh`)을 없애고 **로그인 · 재발급 때 마지막으로 받은 뒤 1시간이 지난 LoL · PUBG 계정을 뒤에서 다시 받는다**(응답은 기다리지 않는다 · 설정 `platform.riot.stale-after` = `GAME_STATS_STALE_AFTER` 기본 `PT1H` · `CLAUDE.md` §7 "게임 계정 연동" · 계약 "로그인 때 다시 받기"). (옛 글 — 2026-09-24 에 생긴 미정이었다.) 같은 날 붙은 **전적 갱신은 사용자가 누르는 것이라 이 미정을 닫지 않는다** — 아무도 누르지 않으면 `stats` 는 낡은 채로 남는다(언제 긁은 것인지는 `syncedAt`). **감수하기로 한 것이고, 주기를 지어내서 만들지 않는다.**
 5. OP.GG 의 "MVP · Ace" 배지와 평점은 Riot API 에 없어 넣지 않았다 — **평점은 소유자가 2026-09-23 에 넣지 않는 것으로 다시 확인했다.** 배지를 그대로 둘지.
 
 **D. 운영의 DB 롤** (`CLAUDE.md` §3.5 · §7)
@@ -521,7 +521,7 @@ HOST=<위 응답의 userId — 숫자다>                               # 차단
 # 주 포지션(mainPosition)은 어느 게임도 받지 않는다 — 보내면 400 이다(2026-09-29 — P-35).
 # 저장하기 전에 Riot 을 긁는다(동기 · 상한 30초) — 응답에 tiers(솔로 · 자유) · stats 가 바로 들어 있다.
 # 이름#태그가 Riot 에 없으면 404 RIOT_ID_NOT_FOUND, RIOT_API_KEY 가 없거나 Riot 이 실패하면 503 GAME_STATS_UNAVAILABLE 이고 둘 다 저장하지 않는다.
-# 글을 써도 긁지 않으므로(2026-09-24), 전적을 다시 받으려면 이 요청을 다시 보내거나 바로 아래의 전적 갱신을 부른다
+# 글을 써도 긁지 않는다(2026-09-24). 전적은 로그인 · 재발급(POST /api/v1/auth/refresh) 때 1시간이 지났으면 뒤에서 다시 받는다(2026-09-30 — P-42)
 curl -s -X PUT $B/api/v1/users/me/game-accounts/LOL -H "$J" -b host.cookie \
      -d '{"gameNickname":"달콤한 인생#KR7"}'
 
@@ -536,11 +536,10 @@ curl -s -X PUT $B/api/v1/users/me/game-accounts/PUBG -H "$J" -b host.cookie \
 curl -s -X PUT $B/api/v1/users/me/game-accounts/VALORANT -H "$J" -b host.cookie \
      -d '{"gameNickname":"달콤한 인생#KR7","tier":"GOLD_2"}'
 
-# 전적 갱신(2026-09-24) — 이쪽은 동기다. 다 긁을 때까지 기다렸다가 갱신된 게임 프로필을 준다(위 PUT 과 같은 모양이다). 2026-09-27 부터 LoL 의 tier 도 갱신한다.
-# 같은 게임 계정은 2분에 한 번이다 — 곧바로 또 부르면 429 TOO_MANY_STATS_REFRESHES 이고 Retry-After 헤더에 남은 초가 온다(-i 로 본다).
-# 키가 없거나 · Riot 이 실패하거나 · 30초를 넘기면 503 GAME_STATS_UNAVAILABLE 이고 전적은 옛 값 그대로다.
-# PUBG 도 된다(2026-09-29). VALORANT 는 긁는 구현이 없어 409 GAME_STATS_NOT_SUPPORTED, 연결하지 않은 게임은 404 GAME_ACCOUNT_NOT_FOUND 다
-curl -si -X POST $B/api/v1/users/me/game-accounts/LOL/refresh -b host.cookie
+# (전적 갱신 POST …/game-accounts/{game}/refresh 는 2026-09-30 에 없어졌다 — P-42. 이제 없는 경로와 같은 404 NOT_FOUND 다.)
+# 전적을 다시 받게 하려면 재발급을 부른다 — 1시간이 지난 LoL · PUBG 계정만 뒤에서 긁는다(응답은 기다리지 않는다 · 끝나면 users/me 에 보인다).
+# 1시간을 기다리지 않고 보려면 DB 의 game_account_stats.synced_at 을 한 시간 전으로 돌리거나 GAME_STATS_STALE_AFTER=PT1M 으로 띄운다
+curl -si -X POST $B/api/v1/auth/refresh -b host.cookie -c host.cookie
 
 # 글 쓰기 — 응답의 postId(숫자)가 곧 roomId 다. LOL · VALORANT 의 conditions 는 {} 다 (PUBG 는 {"perspective":"TPP"})
 # mode 는 필수이고 그 게임의 gameconfig 에 있는 이름이어야 한다(2026-09-24) — LoL 은 RANKED_SOLO · RANKED_FLEX_5 · ARAM_2 …,
