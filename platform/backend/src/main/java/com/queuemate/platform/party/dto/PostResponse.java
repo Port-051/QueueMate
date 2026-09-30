@@ -1,0 +1,43 @@
+package com.queuemate.platform.party.dto;
+
+import com.fasterxml.jackson.annotation.JsonRawValue;
+
+import java.time.Instant;
+import java.util.List;
+
+/**
+ * <b>글 한 줄</b> — 목록 · 단건 · 쓰기 · 고치기 · 확정이 전부 이 모양을 내려 준다 ({@code contracts/platform-api.md} "글 한 줄").
+ *
+ * @param postId      글의 id(숫자)이자 {@code roomId} — {@code room} 에는 이 숫자를 문자열로 준다
+ * @param hostId      글을 쓴 사람의 사용자 번호
+ * @param conditions  jsonb 의 글자 그대로({@link JsonRawValue})
+ * @param hostPosition 방장 자신의 포지션(2026-09-30 소유자 결정 — P-38). 포지션이 없는 모드 · 그 전에 쓴 글은 {@code null} 이다.
+ *                    카드({@link MemberCard})가 아니라 글의 칸이다 — 방장의 카드에 붙여 그리는 것은 화면이다
+ * @param memberCount {@code members} 의 수 — 모집 중이면 방 안 인원(방 키를 못 읽었으면 0), <b>확정이면 파티원 수</b>(2026-09-30 — P-40), 만료면 0 이다
+ * @param capacity    그 방의 정원(방장 포함) — <b>그 모드의 인원</b>이다(2026-09-30 소유자 결정 — P-41. gameconfig 의 {@code targetPartySize} · 솔로 랭크는 2).
+ *                    글을 쓸 때 · 모드를 고칠 때 정해진다. 그 전에 쓴 글과 gameconfig 를 못 읽은 채 쓴 글은 5 다. 입장({@code POST /rooms/{roomId}/members})이 이 값으로 만석을 가른다
+ * @param full        <b>모집 중인</b> 글의 방이 정원({@code capacity})에 찼는가. 확정 · 만료된 글은 늘 {@code false} 다(들어갈 수 없는 까닭은 {@code status} 가 말한다 — P-40)
+ * @param host        글을 쓴 사람의 카드. <b>방이 없거나 만료 · 확정이어도 채운다</b>
+ * @param members     모집 중이면 방 안에 <b>지금</b> 있는 사람 전원(방장이 방 안에 있으면 여기에도 있다). <b>확정이면 확정 순간의 파티원 전원</b> —
+ *                    방에서 나간 뒤에도 남는다(2026-09-30 소유자 결정 — P-40). 만료면 비어 있다. 방장 먼저, 나머지는 닉네임순
+ */
+public record PostResponse(
+        Long postId,
+        Long hostId,
+        String game,
+        String mode,
+        String title,
+        String description,
+        String voice,
+        @JsonRawValue String conditions,
+        List<String> wantedPositions,
+        String hostPosition,
+        String status,
+        Instant createdAt,
+        int memberCount,
+        int capacity,
+        boolean full,
+        MemberCard host,
+        List<MemberCard> members
+) {
+}

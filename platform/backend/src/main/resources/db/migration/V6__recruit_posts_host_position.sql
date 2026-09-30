@@ -1,0 +1,13 @@
+-- 모집 글에 방장 자신의 포지션을 담는다 — 2026-09-30 소유자 결정(contracts/platform-api.md P-38).
+-- 2026-09-29 에 게임 계정의 주 포지션을 없애며(V4 · P-35) "포지션은 글을 쓸 때 하는 것" 이라 했고, 그 자리가 여기다.
+-- 게시판에서 방장의 카드에 붙여 보여 준다(응답은 글의 hostPosition 칸 — 카드의 모양은 그대로다).
+--
+-- host_position : 그 게임의 포지션 이름 하나(LOL TOP · JUNGLE · MID · ADC · SUPPORT / VALORANT DUELIST · INITIATOR · CONTROLLER · SENTINEL).
+--                 포지션이 있는 모드(gameconfig 모드 HASH 의 positionUniqueness = true)면 앱이 필수로 받고, 없는 모드 · PUBG 는 비어 있다.
+--                 찾는 포지션(recruit_post_positions)과 겹치지 않는다 — 이것도 앱이 본다(테이블이 달라 CHECK 로 걸 수 없다).
+--                 값의 목록은 CHECK 로 걸지 않는다 — 이름은 앱(account.domain.Game#positions)에, "그 모드에 포지션이 있는가" 는 gameconfig(Redis)에 있다.
+--                 wanted_positions 의 칸(recruit_post_positions.position)도 CHECK 없이 varchar(20) 이다 — 같은 모양이다.
+-- 그 전에 쓴 글은 NULL 로 남는다(옮겨 채울 값이 없다).
+--
+-- V1 ~ V5 는 고치지 않는다 — 이미 적용된 파일은 체크섬이 달라져 기동이 막힌다(V1 머리의 약속).
+ALTER TABLE recruit_posts ADD COLUMN host_position varchar(20);

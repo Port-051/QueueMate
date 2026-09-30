@@ -1,0 +1,59 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.1.1'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.queuemate'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	// Redis 의 용도 — 알림 발행 · 로그인 실패 제한(refresh 토큰도 여기 온다) · 방 안의 일(방 키 — Lua 스크립트. 2026-09-25 에 room 을 합쳤다) ·
+	// 전적 동기화 락 · gameconfig 읽기 (CLAUDE.md §4 · contracts/platform-api.md "전적을 긁는 것" · contracts/room-api.md)
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	// 스키마는 Flyway 가 만든다 (docs/11 #17). Hibernate 는 검증만 한다 (application.yaml 의 ddl-auto: validate)
+	implementation 'org.springframework.boot:spring-boot-starter-flyway'
+	// 인증 — access 토큰(JWT · RS256)을 NimbusJwtEncoder 로 서명하고 NimbusJwtDecoder 로 검증한다 (CLAUDE.md §5.1 (가)).
+	// jjwt 등 다른 JWT 라이브러리를 들이지 않는다. Boot 4 에서 스타터 이름이 바뀌었다 (옛 이름: spring-boot-starter-oauth2-resource-server)
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	// Flyway 의 PostgreSQL 지원 모듈. Flyway 10 부터 DB 별 지원이 코어에서 따로 떨어져 나왔다
+	implementation 'org.flywaydb:flyway-database-postgresql'
+	compileOnly 'org.projectlombok:lombok'
+	// PostgreSQL 만 쓴다. H2 를 넣지 않는다 — 스키마별 롤/GRANT 와 제약을 재현하지 못한다 (CLAUDE.md §5 · docs/11 D-3)
+	runtimeOnly 'org.postgresql:postgresql'
+	annotationProcessor 'org.projectlombok:lombok'
+
+	// ---- 아직 넣지 않은 것 — 미정 사항이 정해지면 그때 넣는다 (CLAUDE.md §7) ----
+	// AWS SDK (SQS)   : 들이지 않는다 — 확정된 자동 매칭 파티는 matching 의 Redis 파티 HASH 를 직접 읽는다 (docs/11 D-42, 2026-09-27)
+
+	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-data-redis-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-flyway-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testCompileOnly 'org.projectlombok:lombok'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testAnnotationProcessor 'org.projectlombok:lombok'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
