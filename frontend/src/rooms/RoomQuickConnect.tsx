@@ -185,7 +185,7 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, roomPane
       </>}
     </Modal> : null}
     {createSlot && !activeRoomId ? createPortal(<>
-      <Button variant="primary" className="board-action-button" disabled={waiting} onClick={startRoom}><CreateRoomIcon />방 만들기</Button>
+      <Button variant="primary" className="board-action-button board-create-button" disabled={waiting} onClick={startRoom}><CreateRoomIcon />방 만들기</Button>
       {!roomPanelOpen ? <Button variant="primary" className="board-action-button" aria-label={waiting ? '빠른매치 현황 열기' : '빠른매치 조건 열기'} aria-haspopup="dialog" aria-expanded={opened} onClick={openMatching}>
         <IconMatch size={22} />{request?.status === 'PROPOSED' ? '제안 확인' : '빠른매치'}{waiting ? <span className="room-match-clock">{elapsed}</span> : null}
       </Button> : null}
