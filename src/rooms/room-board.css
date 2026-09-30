@@ -357,7 +357,7 @@
   .room-home .room-filters .board-create-button { width:100%; }
 }
 
-/* 좌석 줄(2026-09-30 소유자 승인 — `RoomDeck.tsx` 머리 주석). 머리 한 줄(제목 · 상태 · 시각) → 조건 한 줄(한 번만) → 좌석 줄(채워진 좌석 · 빈 점선 원 · n/정원 · [참가]).
+/* 좌석 줄(2026-09-30 소유자 승인 — `RoomDeck.tsx` 머리 주석). 머리 한 줄(제목 · 상태 · 시각) → 조건 한 줄(한 번만) → 좌석 줄(채워진 좌석 · 빈 점선 상자(폰 폭은 원) · n/정원 · [참가]).
    카드가 460px 보다 좁으면(폰 폭) 좌석이 원 다섯 칸으로 바뀐다 — 뷰포트가 아니라 카드의 폭을 본다(컨테이너 질의 `room-card`). 좌석 하나하나도 제 폭을 보고
    두 줄째의 숫자(승률 · KDA)와 방장 포지션 글자를 빼고, 더 좁으면 얼굴 위 · 닉네임 아래로 선다(`room-seat`) — 숫자는 마우스를 올린 작은 창 · 프로필 창에 남는다. */
 .room-deck.room-row { --room-bubble-bg:color-mix(in srgb, var(--app-background) 92%, white); container:room-card / inline-size; padding:14px 18px 16px; border:1px solid transparent; border-radius:24px; background:var(--room-bubble-bg); overflow:visible; }
@@ -439,6 +439,13 @@
 .room-seat-hole { display:block; width:30px; height:30px; box-sizing:border-box; border:1.5px dashed #8c76b0; border-radius:50%; }
 .room-seat-hole.is-open { cursor:pointer; transition:background .16s ease, border-color .16s ease; }
 .room-seat-hole.is-open:hover { border-color:#c9aaff; background:#9b78e91a; }
+/* 빈 자리 — 넓은 카드(460px 이상 — 채워진 좌석이 틀 있는 좌석인 폭, 아래 폰 폭 질의의 반대)는 채워진 좌석과 같은 크기 · 모양의 빈 점선 상자다(2026-09-30 소유자 지시 —
+   "home 에서 [작은 점선 원] 대신 [좌석] 크기의 빈 칸 박스로"). 폭은 채워진 좌석과 같은 몫(228px 에서 같이 줄어든다), 높이는 줄의 좌석 높이(54px · 좌석이 얼굴 위 · 닉네임 아래로 서면 그 높이)다.
+   폰 폭 카드 · 방 패널 옆의 좁은 게시판(카드가 460px 아래)은 채워진 좌석이 얼굴 원이라 빈 자리도 작은 점선 원 그대로다. 방 화면 음성 칸의 좌석(`room-voice` 컨테이너)은 이 질의에 걸리지 않는다. */
+@container room-card (min-width:460px) {
+  .room-seat.is-empty { flex:0 1 228px; align-self:stretch; align-items:stretch; min-width:0; }
+  .room-seat-hole { flex:1 1 auto; width:auto; height:auto; min-height:54px; border-radius:16px; }
+}
 .room-seats-tail { display:flex; flex:none; align-items:center; gap:12px; margin-left:auto; }
 .room-seat-count { color:#c9c3d6; font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; }
 .room-home .room-join-button { min-height:36px; padding:0 20px; border:1px solid #9d7aea; border-radius:999px; background:#7955d9; color:#fff; font:inherit; font-size:14px; font-weight:650; cursor:pointer; }
