@@ -1,0 +1,148 @@
+spring:
+  application:
+    name: matching
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+
+      # [실험용] Sentinel 설정은 여기 두지 않는다. application-sentinel.yaml 에 있다.
+      #
+      # Spring Boot 는 spring.data.redis.sentinel 프로퍼티가 존재하기만 하면
+      # nodes 가 비어 있어도 Sentinel 모드로 확정한다
+      # (DataRedisConnectionConfiguration#determineMode). 그래서 여기에 두면
+      # Sentinel 없이 앱이 뜨지 않는다 - "Cannot build a RedisURI" 로 죽는다.
+      #
+      #   ./gradlew bootRun --args='--spring.profiles.active=sentinel'
+
+  # 이 앱이 DB를 치는 곳은 INV-6 검증(blocks 조회) 하나뿐이다 (docs/11 D-1 · D-34 — 스키마는 public 하나다).
+  # 진행 중인 매칭 상태는 여전히 Redis가 원본이고 DB로 옮기지 않는다 (CLAUDE.md §3).
+  #
+  # 기본값은 H2 인메모리다. 외부 DB 없이 앱이 뜬다.
+  #   MODE=PostgreSQL     운영 대상이 Postgres 라 SQL 방언을 최대한 맞춘다
+  #   DB_CLOSE_DELAY=-1   커넥션이 전부 닫혀도 DB 를 유지한다. 없으면 유휴 시 통째로 사라진다
+  #   DATABASE_TO_LOWER   Postgres 처럼 식별자를 소문자로 다룬다
+  #
+  # 기본 실행(H2)에는 blocks 테이블을 src/main/resources/schema.sql 이 흉내 낸다 — 아래 sql.init 참고.
+  #
+  # 진짜 테이블(platform 의 Flyway 가 만든 public.blocks)로 붙을 때는 DB_URL 을 통째로 바꾼다.
+  # platform 의 로컬 Postgres 는 5433 이다 (../platform 의 docker compose).
+  #   DB_URL=jdbc:postgresql://localhost:5433/queuemate DB_USER=postgres DB_PASSWORD=postgres
+  #   (스키마별 롤 · GRANT 는 없다 — D-34. 앱 하나가 계정 하나로 붙는다. 운영 계정은 미정이다)
+  datasource:
+    url: ${DB_URL:jdbc:h2:mem:queuemate;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE}
+    username: ${DB_USER:sa}
+    password: ${DB_PASSWORD:}
+    hikari:
+      # 커넥션을 기다리는 시간. 기본 30초는 매칭에 쓸 수 없는 값이다 —
+      # 사용자는 대기 화면을 보고 있고, 풀이 마르면 30초 동안 요청 스레드가 통째로 묶인다.
+      # 확인을 못 한 요청은 붙잡고 있는 것보다 빨리 거절하는 편이 낫다 (INV-10 fail-closed).
+      connection-timeout: 300
+  # schema.sql 을 임베디드(H2 인메모리) 데이터소스에서만 실행한다. embedded 가 Spring Boot 기본값이지만
+  # 여기 못 박아 두는 이유가 있다 — always 로 바꾸면 Postgres 에 붙었을 때 이 앱이 blocks 를 만들어 버린다.
+  # 그 테이블은 app:platform 의 것이고 그쪽 Flyway 가 만든다. 이 앱은 Flyway 도 스키마도 두지 않는다 (CLAUDE.md §3).
+  sql:
+    init:
+      mode: embedded
+  jpa:
+    # 스키마는 platform 의 Flyway 가 만든다(H2 는 위 schema.sql). Hibernate가 테이블을 건드리지 않게 한다.
+    hibernate:
+      ddl-auto: none
+    # 컨트롤러까지 커넥션을 붙잡고 있지 않게 한다. 매칭은 커넥션을 오래 쥐면 안 된다.
+    open-in-view: false
+    properties:
+      jakarta:
+        persistence:
+          query:
+            # 쿼리 하나가 매달릴 수 있는 시간. 기본값은 상한이 아예 없다.
+            # 차단 조회는 후보 풀 락 밖에서 하지만, 그래도 응답이 늦으면 배정 자체가 늦어진다.
+            # 인덱스를 탄 단건 조회라 정상이면 한 자릿수 ms 다. 500ms 면 장애로 본다.
+            timeout: 500
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+queuemate:
+  # access 토큰 검증 (2026-09-27 — 임시 식별 ?userId= 를 대신했다. docs/11 D-24 의 적용).
+  # 쿠키 qm_access 의 RS256 JWT 를 platform 의 공개 키로 검증만 한다 — 개인 키 · 서명 · refresh 는 platform 의 것이다.
+  # JWT_PUBLIC_KEY(X.509 PEM)가 있으면 그것을, 없으면 JWT_PUBLIC_KEY_FILE 의 파일을 읽는다. 둘 다 없으면 기동하지 않는다.
+  # 파일 기본값은 backend/ 에서 띄운다는 전제의 로컬 개발용이다 — platform 이 처음 뜰 때 만든다. 운영은 JWT_PUBLIC_KEY(Secrets Manager)
+  jwt:
+    public-key: ${JWT_PUBLIC_KEY:}
+    public-key-file: ${JWT_PUBLIC_KEY_FILE:../../platform/backend/.dev-keys/public.pem}
+  web:
+    # 상태를 바꾸는 요청(POST/PUT/PATCH/DELETE)에 허용하는 Origin. 쉼표로 구분한다. platform 과 같은 값이어야 한다.
+    # CORS 설정이 아니다 — CORS 는 넣지 않는다(프런트 개발 서버의 프록시가 같은 출처로 만든다)
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+  proposal:
+    ttl-seconds: ${PROPOSAL_TTL_SECONDS:20}
+    # 확정된 제안의 수락자 집합 **과 파티원의 활성 요청(status=PARTY)** 을 남겨 두는 시간 (docs/11 D-42).
+    # 수락자 집합은 확정 판정에 다 쓰인 값이라 바로 지워도 되지만, 재전송된 수락이 도착하는 창만큼은 남긴다.
+    # 활성 요청은 이 동안 INV-1 선점이 그대로라 새 매칭을 못 걸고 조회는 MATCHED 다. 지나면 그 사용자는
+    # 다시 큐에 들어올 수 있다 — "한 번에 하나"는 platform 의 입장 표시 키(qm:user:active-room:)가 잇는다.
+    # platform 이 이 시간 안에 방을 세우지 못하면 그 사람은 큐에 다시 들어올 수 있다(받아들인 절충)
+    confirmed-retention-seconds: ${PROPOSAL_CONFIRMED_RETENTION_SECONDS:60}
+    # 확정된 파티 HASH(qm:party:{partyId})를 남겨 두는 시간 (docs/11 D-42). app:platform 이 이 안에 Redis 에서
+    # 직접 읽어 파티 · 방을 만든다 — outbox → SQS 대신이다. 지나면 파티가 증발한다(받아들인 절충).
+    # 상태 조회 · 수락 재전송도 이 안에서만 답한다
+    confirmed-party-ttl-seconds: ${PROPOSAL_CONFIRMED_PARTY_TTL_SECONDS:600}
+    # 제안을 거절한 사람과 그 제안에 있던 상대들이 서로 다시 매칭되지 않는 시간. 거절한 사람이 바로 다시 큐에 들어와
+    # 방금 거절한 사람들과 같은 파티가 되는 것을 막는다. 거절 때 양쪽의 qm:user:declined:{userId} 에 적고(score = 풀리는 시각)
+    # 키 TTL 도 이 값으로 다시 건다 — 마지막 거절 기준이다
+    decline-avoid-seconds: ${PROPOSAL_DECLINE_AVOID_SECONDS:600}
+  scan:
+    interval-ms: ${SCAN_INTERVAL_MS:1000}
+  sweep:
+    interval-ms: ${SWEEP_INTERVAL_MS:1000}
+  # 대기 요청의 접속 확인(heartbeat) — docs/11 D-43. 클라이언트가 대기 화면에서 주기적으로 POST /match-requests/heartbeat 를 보내고,
+  # grace-ms 동안 신호가 없으면 RequestAliveSweeper 가 그 요청을 취소한다(창을 닫거나 브라우저가 죽은 사람이 파티 자리를 붙들지 않게).
+  # 30초 주기에 90초 유예 = 신호 세 번을 놓치면 빠진다. 너무 짧으면 새로고침 · 잠깐의 끊김에 억울하게 빠진다
+  alive:
+    grace-ms: ${ALIVE_GRACE_MS:90000}
+    sweep-interval-ms: ${ALIVE_SWEEP_INTERVAL_MS:5000}
+
+  # ------------------------------------------------------------------
+  # [실험용] Redis 페일오버 재시도 - 제거 시 이 failover 블록만 통째로 삭제
+  #
+  # 코드는 com.queuemate.matching.failover 패키지 하나에 전부 들어 있고,
+  # 켜고 끄고 지우는 절차는 redis-ha-lab/docs/failover-retry-guide.md 에 있다.
+  # 모든 값에 자바 기본값이 있으므로 이 블록을 지워도 기동이 깨지지 않는다.
+  # ------------------------------------------------------------------
+  failover:
+    retry:
+      # 이 기능 전체의 on/off. 기본 꺼짐 - 꺼져 있으면 failover 패키지의 빈이
+      # 하나도 안 만들어져 기존 동작과 100% 같다.
+      enabled: ${FAILOVER_RETRY_ENABLED:false}
+      # 재시도 큐 상한. OOM 방지용이라 반드시 유한해야 한다. 넘치면 버린다
+      queue-capacity: ${FAILOVER_QUEUE_CAPACITY:5000}
+      # 한 요청의 재시도 상한. 무한 재시도로 큐가 안 비는 것을 막는다
+      max-attempts: ${FAILOVER_MAX_ATTEMPTS:5}
+      # 연속 실패가 이 횟수면 서킷을 연다 (CLOSED -> OPEN)
+      failure-threshold: ${FAILOVER_FAILURE_THRESHOLD:3}
+      # 한 번에 배출할 건수. 승격 직후 새 master 에 몰리는 것을 막는다
+      drain-batch-size: ${FAILOVER_DRAIN_BATCH_SIZE:20}
+      # 배출 배치 사이 간격(ms). 스케줄러 tick 주기이기도 하다
+      drain-interval-ms: ${FAILOVER_DRAIN_INTERVAL_MS:200}
+      # OPEN 이 이 시간을 넘으면 복구 신호가 없어도 프로브를 던진다 (시간 폴백).
+      # 0 이하면 폴백을 끄고 이벤트만 기다린다 -> EXPERIMENTS.md 실험 6 의 대조군
+      open-timeout-ms: ${FAILOVER_OPEN_TIMEOUT_MS:10000}
+
+    # Lettuce 클라이언트 옵션. 위 retry 와 독립된 축이다 (실험 2 에서 따로 잰다)
+    lettuce:
+      enabled: ${FAILOVER_LETTUCE_ENABLED:false}
+      connect-timeout-ms: ${FAILOVER_LETTUCE_CONNECT_TIMEOUT_MS:500}
+      reject-when-disconnected: ${FAILOVER_LETTUCE_REJECT:true}
+
+logging:
+  level:
+    com.queuemate: INFO
