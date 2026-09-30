@@ -48,7 +48,7 @@ export function ProposalPage() {
     return (
       <section className="page proposal-page">
         <EmptyState
-          title="확인할 매칭 제안이 없습니다"
+          title="확인할 빠른매치 제안이 없습니다"
           desc="제안은 제한 시간이 지나면 사라지고, 수락했던 사람은 자동으로 다시 대기열로 돌아갑니다."
           action={<Button variant="primary" onClick={() => navigate('/app/home')}>홈으로</Button>}
         />
@@ -133,7 +133,7 @@ export function ProposalPage() {
         </div>
 
         <div className="rail">
-          {condition ? <ConditionSummary condition={condition} title="매칭 조건" /> : null}
+          {condition ? <ConditionSummary condition={condition} title="빠른매치 조건" /> : null}
           <Card>
             <CardHead title="파티가 확정되면" />
             <ul style={{ display: 'grid', gap: 10, fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>
