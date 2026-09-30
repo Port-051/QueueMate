@@ -38,3 +38,30 @@
   .room-home .room-match-start:is(:hover,:focus-visible):not(:disabled),
   .room-match-start:is(:hover,:focus-visible):not(:disabled)>svg { transform:none; }
 }
+
+/* 게시판을 둘러보는 동안 같은 위치에서 조건과 진행 상황을 연다. */
+.room-match-floating { position:fixed; right:28px; bottom:28px; z-index:35; }
+.room-match-floating .room-match-fab { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; width:76px; height:76px; padding:0; border:1px solid #ba95ff; border-radius:50%; background:#8658dc; color:#fff; box-shadow:0 6px 28px #0008,0 0 22px #8b5cdb30; cursor:pointer; font-family:inherit; font-size:13px; font-weight:650; font-variant-numeric:tabular-nums; }
+.room-match-floating .room-match-fab:hover { background:#996ced; }
+.room-match-fab:focus-visible { outline:3px solid #e0ceff; outline-offset:4px; }
+.room-match-floating .room-match-fab.is-searching { background:#292038; border:2px solid #ac83f2; }
+.room-match-found { position:absolute; top:-12px; left:50%; transform:translateX(-50%); padding:3px 9px; border-radius:999px; background:#b99aec; color:#20162f; font-size:11px; white-space:nowrap; }
+.modal-scrim:has(.room-match-dialog) { padding:16px; }
+.room-match-dialog.modal { width:min(760px,100%); max-width:calc(100vw - 32px); }
+.room-match-description { color:var(--muted); margin:0 0 18px; font-size:14px; }
+.room-match-dialog .room-home.board-home.room-match-settings { padding:0; margin:0; --room-control-height:56px; --room-option-height:44px; }
+.room-match-settings .home-profile-stack { position:static; max-height:none; overflow:visible; padding:0; margin:0; }
+.room-match-settings.board-home .home-profile-content { padding:0; background:transparent; border:0; }
+.room-match-settings .home-profile-account { margin-bottom:20px; }
+.room-match-settings .home-profile .room-matching-form { max-width:none; margin:0; }
+.room-match-settings .self-introduction .introduction-fields { grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px 24px; align-items:start; }
+.room-match-settings.room-home .room-settings-pair { grid-template-columns:minmax(0,1fr); gap:12px; }
+.room-match-settings .matching-rail-footer.room-rail-actions { position:static; background:transparent; }
+.room-match-dialog .quick-connect-result { margin:0; }
+.room-home.board-home:not(.room-match-settings) { padding-bottom:120px; }
+@media(max-width:600px) {
+  .room-match-floating { right:16px; bottom:max(16px,env(safe-area-inset-bottom)); }
+  .room-match-floating .room-match-fab { width:64px; height:64px; font-size:12px; }
+  .room-match-dialog.modal { padding:20px 16px; }
+  .room-match-settings .self-introduction .introduction-fields { grid-template-columns:minmax(0,1fr); gap:16px; }
+}
