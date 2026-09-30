@@ -1,4 +1,4 @@
-name: Release approved product landing and attach domain
+name: Release SEO metadata without changing landing design
 on:
   push:
     branches: [feat/seo-landing]
@@ -15,52 +15,67 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 22
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Check out reviewed SEO metadata change
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 9ed059501d2689e0eddc2856f07fde956918afb4
+          persist-credentials: false
+      - name: Read pinned previously successful release template
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: af1201484256ac2feb5c6339cf29447c7ff4b5bc
+          path: .release-template
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - name: Verify approved product copy and interaction example
+      - name: Verify tests, build and unchanged approved design
         working-directory: landing
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm test
           npm run build
-      - name: Prepare pinned release implementation and test scope guards
+          diff -rq src ../.release-template/landing/src
+          diff -rq public ../.release-template/landing/public
+          cmp vercel.json ../.release-template/landing/vercel.json
+      - name: Prepare pinned release with identity and metadata checks
         run: |
           python3 - <<'PY'
           import hashlib, os
           from pathlib import Path
-          # The reviewed checkout still contains the complete previous implementation.
-          # Pin its bytes; do not download scripts or execute the moving branch HEAD.
-          source = Path('.github/workflows/seo-benefits-release.yml').read_bytes()
+          source = Path('.release-template/.github/workflows/seo-benefits-release.yml').read_bytes()
           blob = hashlib.sha1(f'blob {len(source)}\0'.encode() + source).hexdigest()
           assert blob == '14d6f81d9da074b124720a80768b3fe729f032f9', 'Release template changed'
           lines = source.decode().splitlines()
           start = next(i for i, line in enumerate(lines) if 'cat > "$RUNNER_TEMP/qmate-benefits-release.mjs"' in line) + 1
           end = next(i for i in range(start, len(lines)) if lines[i] == '          NODE')
           script = '\n'.join(line[10:] for line in lines[start:end]) + '\n'
-          old = "source:'58910db2278096a43c251185b724c0be59679f14'"
-          new = "source:'af1201484256ac2feb5c6339cf29447c7ff4b5bc'"
-          assert script.count(old) == 1
-          script = script.replace(old, new)
-          old = "text.includes('왜 아직')&&text.includes('여러 곳을 오가던 방식')"
-          new = "text.includes('조건에 맞는')&&text.includes('바로 대화하세요.')&&text.includes('class=\"join-demo\"')&&text.includes('팀원을 자동으로 찾습니다.')"
-          assert script.count(old) == 1
-          script = script.replace(old, new)
-          script = script.replace('SEO benefits release and domain', 'SEO product release and domain')
-          script = script.replace('benefits-first landing', 'approved product-first landing')
-          script = script.replace('BENEFITS_UI', 'PRODUCT_UI')
-          script = script.replace('Approve port-52 to update landing and add queue-mate.com + www', 'Approve port-52: approved product landing and queue-mate.com + www')
+          def replace_once(old, new):
+              global script
+              assert script.count(old) == 1, f'Expected one release fragment: {old}'
+              script = script.replace(old, new)
+          replace_once("source:'58910db2278096a43c251185b724c0be59679f14'", "source:'9ed059501d2689e0eddc2856f07fde956918afb4'")
+          replace_once("previous:'c736008ff4e00de7627f5cc774486474b985858a'", "previous:'af1201484256ac2feb5c6339cf29447c7ff4b5bc'")
+          # Pin the successful production deployment recorded by run 36740052814.
+          replace_once("previousDeployment:'dpl_AEeHZz6u2sssbUZYGLzs46hacLMZ'", "previousDeployment:'dpl_ZQsfXJN1Jb3zYLBBra9dfVNVgAHg'")
+          replace_once("text.includes('왜 아직')&&text.includes('여러 곳을 오가던 방식')", "text.includes('바로 대화하세요.')&&text.includes('class=\"join-demo\"')&&text.includes('<title>롤 듀오 찾기·파티 구하기 | 큐메이트</title>')&&text.includes('롤 같이 할 사람을 찾고 있나요?')")
+          replace_once("phase='deployment';await status", "assert.equal((await api(`/v13/deployments/${T.host}`)).id,previous.id,'Live deployment changed during preparation');\n phase='deployment';await status")
+          replace_once("assert.equal(config.origin,`https://${T.domain}`);", "assert.equal(config.title,'롤 듀오 찾기·파티 구하기 | 큐메이트');assert.ok(config.description.startsWith('롤 같이 할 사람을 찾고 있나요?'));assert.equal(config.origin,`https://${T.domain}`);")
+          replace_once("published=true;notice=status", "published=true;console.log('VERCEL_APPROVAL_URL='+url);notice=status")
+          replace_once("await writeFile(`${audit}/report.json`,JSON.stringify(report,null,2)+'\\n');", "await writeFile(`${audit}/report.json`,JSON.stringify(report,null,2)+'\\n');console.log('SEO_RELEASE_RESULT='+JSON.stringify({sourceSha:T.source,uiVerified:report.uiVerified,connected:report.connected,publicUrl:report.publicUrl,domain:report.domain,error:report.error??null,rolledBack:report.rolledBack??null,domains:report.domains.map(d=>({name:d.name,verified:d.verified,configuration:d.configuration}))}));")
+          script = script.replace('SEO benefits release and domain', 'SEO metadata release and domain')
+          script = script.replace('benefits-first landing', 'reviewed metadata-only landing')
+          script = script.replace('BENEFITS_UI', 'SEO_METADATA')
+          script = script.replace('QueueMate benefits release + domain', 'QueueMate SEO metadata release + domain')
+          script = script.replace('Authorize port-52: benefits landing update and queue-mate.com attachment', 'Authorize port-52: reviewed SEO metadata deployment')
+          script = script.replace('Approve port-52 to update landing and add queue-mate.com + www', 'Approve port-52: publish reviewed SEO metadata, preserve design')
           Path(os.environ['RUNNER_TEMP'], 'qmate-benefits-release.mjs').write_text(script)
           PY
           node --check "$RUNNER_TEMP/qmate-benefits-release.mjs"
           QMATE_TEST_ONLY=1 node "$RUNNER_TEMP/qmate-benefits-release.mjs"
       - name: Install official Vercel CLI
         run: npm install --prefix "$RUNNER_TEMP/qmate-benefits-cli" --no-audit --no-fund vercel@latest
-      - name: Authorize once, update only the known landing and attach its domains
+      - name: Request approval and deploy only the known landing project
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node "$RUNNER_TEMP/qmate-benefits-release.mjs"
@@ -73,11 +88,11 @@ jobs:
             timeout 20 "$CLI" logout --global-config "$AUTH_DIR" --no-color >/dev/null 2>&1 || true
           fi
           rm -rf "$AUTH_DIR"
-      - name: Save nonsecret release and DNS evidence
+      - name: Save nonsecret deployment and DNS results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: seo-product-release
+          name: seo-metadata-release
           path: ${{ runner.temp }}/qmate-benefits-audit/
           if-no-files-found: ignore
           retention-days: 7
