@@ -1,4 +1,4 @@
-name: Verify existing SEO preview URL
+name: Verify current SEO landing and domain
 on:
   push:
     branches: [feat/seo-landing]
@@ -6,67 +6,89 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-  statuses: write
 jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - name: Inspect anonymous response without changing the deployment
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Inspect current SEO copy, public responses and DNS without writes
         run: |
           node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
           import {writeFile} from 'node:fs/promises';
-          const url = 'https://q-mate-landing-36418820590-cerit5nsr-port-051.vercel.app/';
-          const report = {checkedAt: new Date().toISOString(), deploymentUrl: url, authenticated: false};
-          const safeUrl = value => {const u = new URL(value);return u.origin + u.pathname;};
-          try {
-            const first = await fetch(url, {redirect:'manual', signal:AbortSignal.timeout(15000)});
-            report.initialStatus = first.status;
-            const location = first.headers.get('location');
-            report.redirectTo = location ? safeUrl(new URL(location, url)) : null;
-            await first.body?.cancel();
-            const res = await fetch(url, {redirect:'follow', signal:AbortSignal.timeout(20000)});
-            const html = await res.text();
-            report.finalStatus = res.status;
-            report.finalUrl = safeUrl(res.url);
-            report.contentType = res.headers.get('content-type');
-            report.title = html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.slice(0,200) || null;
-            report.robotTags = [...html.matchAll(/<meta\b[^>]*>/gi)].map(m=>m[0]).filter(t=>/name\s*=\s*["']robots["']/i.test(t)).map(t=>t.match(/content\s*=\s*["']([^"']*)["']/i)?.[1]);
-            report.xRobotsTag = res.headers.get('x-robots-tag');
-            report.hasQueueMateContent = /롤 듀오/.test(html) && /QueueMate/.test(html);
-            const sameOrigin = new URL(res.url).origin === new URL(url).origin;
-            const loginHost = new URL(res.url).hostname === 'vercel.com';
-            const protectedPage = [401,403].includes(report.initialStatus) || (loginHost && /login|sso|auth/.test(new URL(res.url).pathname));
-            report.classification = sameOrigin && res.status===200 && report.hasQueueMateContent && report.robotTags.some(x=>/noindex/i.test(x||''))
-              ? 'PUBLIC_PREVIEW_VERIFIED' : protectedPage ? 'DEPLOYED_LOGIN_REQUIRED' : 'UNEXPECTED_RESPONSE';
-            if (report.classification==='PUBLIC_PREVIEW_VERIFIED') {
-              report.assets=[];
-              for(const path of ['/assets/site.css','/assets/queuemate-wordmark.svg','/assets/og-cover.webp','/robots.txt','/__qmate_expected_missing__']) {
-                const asset=await fetch(new URL(path,url),{redirect:'manual',signal:AbortSignal.timeout(10000)});
-                report.assets.push({path,status:asset.status,contentType:asset.headers.get('content-type')});await asset.body?.cancel();
-              }
-              if(report.assets.some(a=>a.status!==(a.path==='/__qmate_expected_missing__'?404:200)))report.classification='ASSET_CHECK_FAILED';
-            }
-          } catch(error) {report.classification='CHECK_FAILED';report.error=error.message;}
-          console.log(JSON.stringify(report,null,2));
-          await writeFile('live-audit.json',JSON.stringify(report,null,2)+'\n');
-          await writeFile(process.env.GITHUB_STEP_SUMMARY,`## Existing Vercel deployment\n\n${url}\n\nResult: **${report.classification}**\n\nThis check is anonymous and read-only. It does not deploy, authenticate, change access controls, or change DNS.\n`);
-          const description = `${report.classification}; HTTP ${report.initialStatus ?? '?'} -> ${report.finalStatus ?? '?'}`;
-          const result = await fetch(`https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/statuses/${process.env.GITHUB_SHA}`,{
-            method:'POST',signal:AbortSignal.timeout(15000),headers:{Authorization:`Bearer ${process.env.GITHUB_TOKEN}`,Accept:'application/vnd.github+json','Content-Type':'application/json'},
-            body:JSON.stringify({state:report.classification==='PUBLIC_PREVIEW_VERIFIED'?'success':'failure',context:'SEO preview public access',description,target_url:url})
-          });
-          if(!result.ok)throw Error(`Could not publish audit status: ${result.status}`);
-          if(report.classification!=='PUBLIC_PREVIEW_VERIFIED')process.exitCode=1;
+          import {Resolver} from 'node:dns/promises';
+          const canonical = 'https://queue-mate.com/';
+          const preview = 'https://queue-mate-landing.vercel.app/';
+          const expectedTitle = '롤 듀오 찾기·파티 구하기 | 큐메이트';
+          const attrs = tag => Object.fromEntries([...tag.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)].map(m => [m[1].toLowerCase(),m[2] ?? m[3]]));
+          function metadata(html) {
+            const meta = [...html.matchAll(/<meta\b[^>]*>/gi)].map(m => attrs(m[0]));
+            const links = [...html.matchAll(/<link\b[^>]*>/gi)].map(m => attrs(m[0]));
+            return {
+              title: html.match(/<title\b[^>]*>([^<]*)<\/title>/i)?.[1] ?? null,
+              robots: meta.filter(m => /^(robots|googlebot|bingbot)$/i.test(m.name ?? '')).map(m => m.content ?? ''),
+              canonicals: links.filter(m => (m.rel ?? '').toLowerCase()==='canonical').map(m => m.href),
+              description: meta.find(m => (m.name ?? '').toLowerCase()==='description')?.content ?? null,
+              productContent: html.includes('바로 대화하세요.') && html.includes('class="join-demo"'),
+            };
+          }
+          const blocks = value => /(?:^|[\s,:;])(noindex|none)(?:$|[\s,;])/i.test(value ?? '');
+          const safeLocation = (value,base) => value ? (()=>{const u=new URL(value,base);return u.origin+u.pathname;})() : null;
+          const example = metadata(`<title>${expectedTitle}</title><meta content='noindex, nofollow' name='robots'><link href='${canonical}' rel='canonical'><meta name="description" content="소개">`);
+          assert.equal(example.title,expectedTitle);assert.deepEqual(example.robots,['noindex, nofollow']);assert.deepEqual(example.canonicals,[canonical]);
+          assert.equal(example.description,'소개');assert.equal(example.productContent,false);
+          assert.equal(blocks('googlebot: noindex'),true);assert.equal(blocks('NONE'),true);assert.equal(blocks('index, follow'),false);
+          assert.equal(safeLocation('/login?secret=test',canonical),'https://queue-mate.com/login');
+          if(process.env.QMATE_TEST_ONLY==='1') {console.log('Metadata and URL-redaction checks passed; no network requests made.');process.exit(0);}
+          async function inspect(url) {
+            try {
+              const response=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(15000)});
+              const result={url,status:response.status,contentType:response.headers.get('content-type'),location:safeLocation(response.headers.get('location'),url),xRobotsTag:response.headers.get('x-robots-tag')};
+              if(response.status!==200 || !/^text\/html\b/i.test(result.contentType??'')) {await response.body?.cancel();return result;}
+              const html=await response.text();Object.assign(result,metadata(html));
+              result.latestSeo=result.title===expectedTitle;
+              result.noindex=blocks(result.xRobotsTag)||result.robots.some(blocks);
+              return result;
+            } catch(error) {return {url,error:error.cause?.code??error.code??error.name};}
+          }
+          async function textFile(url) {
+            try {
+              const r=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(10000)});
+              const value={url,status:r.status,contentType:r.headers.get('content-type')};
+              if(r.status===200)value.text=(await r.text()).slice(0,20000);else await r.body?.cancel();
+              return value;
+            } catch(error) {return {url,error:error.cause?.code??error.code??error.name};}
+          }
+          const resolver=new Resolver({timeout:3000,tries:1});
+          const queries=[['queue-mate.com','NS'],['queue-mate.com','A'],['queue-mate.com','AAAA'],['www.queue-mate.com','CNAME']];
+          const dns=await Promise.all(queries.map(async([name,type])=>{try{return {name,type,answers:await resolver.resolve(name,type)};}catch(e){return {name,type,error:e.code??e.name};}}));
+          const [previewPage,domainPage,wwwPage]=await Promise.all([inspect(preview),inspect(canonical),inspect('https://www.queue-mate.com/')]);
+          const report={checkedAt:new Date().toISOString(),expectedTitle,readOnly:true,dns,preview:previewPage,domain:domainPage,www:wwwPage,blockers:[]};
+          if(!previewPage.productContent)report.blockers.push('PREVIEW_UNAVAILABLE_OR_UNEXPECTED');
+          else if(!previewPage.latestSeo)report.blockers.push('LATEST_SEO_NOT_DEPLOYED');
+          if(domainPage.status!==200||!domainPage.productContent)report.blockers.push('DOMAIN_NOT_SERVING_LANDING');
+          else {
+            if(!domainPage.latestSeo)report.blockers.push('DOMAIN_SEO_OUTDATED');
+            if(domainPage.noindex)report.blockers.push('DOMAIN_NOINDEX');
+            if(domainPage.canonicals.length!==1||domainPage.canonicals[0]!==canonical)report.blockers.push('CANONICAL_MISMATCH');
+            const [robots,sitemap]=await Promise.all([textFile(canonical+'robots.txt'),textFile(canonical+'sitemap.xml')]);
+            report.robots=robots;report.sitemap=sitemap;
+            if(robots.status!==200||!/^text\/plain\b/i.test(robots.contentType??'')||!/^Allow:\s*\/\s*$/m.test(robots.text??'')||/^Disallow:\s*\/\s*$/m.test(robots.text??''))report.blockers.push('ROBOTS_NEEDS_REVIEW');
+            if(sitemap.status!==200||!(sitemap.text??'').includes(`<loc>${canonical}</loc>`))report.blockers.push('SITEMAP_NOT_READY');
+          }
+          if(![301,308].includes(wwwPage.status)||wwwPage.location!==canonical)report.blockers.push('WWW_REDIRECT_NOT_CONFIRMED');
+          report.readyForSearchSubmission=report.blockers.length===0;
+          console.log('SEO_LIVE_AUDIT_JSON='+JSON.stringify(report));
+          await writeFile('seo-live-audit.json',JSON.stringify(report,null,2)+'\n');
+          const summary=`## SEO 공개 준비 검사\n\n- 확인 시각: ${report.checkedAt}\n- 최신 검색 문구: ${previewPage.latestSeo===true?'반영 확인':'반영 미확인'}\n- 검색 제출 전 기술 검사: ${report.readyForSearchSubmission?'통과':'미완료'}\n- 남은 항목: ${report.blockers.join(', ')||'없음'}\n\n이 작업은 읽기 전용 검사입니다. 배포·DNS·색인 설정·계정 권한을 변경하지 않았으며 검색엔진 등록이나 실제 색인을 뜻하지 않습니다.\n`;
+          if(process.env.GITHUB_STEP_SUMMARY)await writeFile(process.env.GITHUB_STEP_SUMMARY,summary);
           NODE
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: seo-live-audit
-          path: live-audit.json
+          path: seo-live-audit.json
           retention-days: 7
