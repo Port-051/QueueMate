@@ -21,6 +21,10 @@ export interface WebRtcPartyOptions {
  * 시그널만 서버가 우체부로 나른다 — 보내기는 REST `POST /rooms/{roomId}/signals {toUserId, signal}`(202), 받기는 SSE `WEBRTC_SIGNAL {roomId, fromUserId, signal}`.
  * `signal` 의 모양은 platform-api.md "`signal` 의 권장 모양" — `{kind: 'description', description}` · `{kind: 'candidate', candidate}`.
  * 순서가 보장되지 않아(후보가 offer 보다 먼저 올 수 있다) 후보를 모아 두고, 놓친 시그널은 재협상으로 복구한다(events.md "WEBRTC_SIGNAL 의 전달").
+ *
+ * **음성 transceiver 는 peer 연결마다 하나다** — 제안하는 쪽만 offer 직전에 `addTransceiver` 로 만들고, 답하는 쪽은 `setRemoteDescription(offer)` 가
+ * offer 의 m-line 에 만들어 준 것을 받아 sendrecv 로 바꿔 쓴다({@link adoptAudio}). 답하는 쪽이 offer 전에 `addTransceiver` 를 해 두면 그것은 m-line 에
+ * 붙지 못해(JSEP — `addTrack` 으로 만든 것만 재사용한다) transceiver 가 둘이 되고, answer 가 recvonly 라 소리가 한쪽으로만 갔다(2026-09-30 e2e 시나리오 10 으로 찾았다).
  */
 export class WebRtcPartyClient implements PartyClient {
   private peers = new Map<string, RTCPeerConnection>();
@@ -53,10 +57,9 @@ export class WebRtcPartyClient implements PartyClient {
       if (this.closed) { local.getTracks().forEach((track) => track.stop()); return; }
       this.local = local;
       this.applyMute();
-      await Promise.all([...this.peers.values()].map((pc) => {
-        const sender = pc.getTransceivers().find((t) => t.receiver.track.kind === 'audio')?.sender;
-        return sender?.replaceTrack(local.getAudioTracks()[0]);
-      }));
+      // 이미 있는 연결은 음성 transceiver 가 처음부터 sendrecv 라 재협상 없이 트랙만 바꿔 끼운다. 아직 offer 를 못 받은 연결(transceiver 가 없다)은
+      // offer 를 받을 때 adoptAudio 가, 아직 offer 를 안 보낸 연결은 offer 가 this.local 을 싣는다.
+      await Promise.all([...this.peers.values()].map((pc) => this.audioTransceiver(pc)?.sender.replaceTrack(local.getAudioTracks()[0])));
       if (!this.closed) this.opts.handlers.onStatus('connected');
     } catch (err) {
       if (this.closed) return;
@@ -134,10 +137,7 @@ export class WebRtcPartyClient implements PartyClient {
 
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     this.peers.set(peerId, pc);
-
-    // 음성 권한 없이도 채팅을 연결한다. 나중에 마이크를 켜면 같은 sender의 track만 교체한다.
-    const track = this.local?.getAudioTracks()[0];
-    pc.addTransceiver(track ?? 'audio', { direction: 'sendrecv', ...(this.local ? { streams: [this.local] } : {}) });
+    // 음성 transceiver 는 여기서 만들지 않는다 — 누가 제안할지 아직 모른다(offer · adoptAudio 가 만든다 · 클래스 머리 주석).
 
     pc.onicecandidate = (e) => {
       if (!e.candidate) return;
@@ -146,7 +146,10 @@ export class WebRtcPartyClient implements PartyClient {
     pc.ontrack = (e) => this.attachRemoteAudio(peerId, e.streams[0] ?? new MediaStream([e.track]));
     pc.onconnectionstatechange = () => {
       if (this.closed || this.peers.get(peerId) !== pc) return;
-      if (pc.connectionState !== 'connected') this.opts.handlers.onPeer({ userId: peerId, connected: false });
+      // 'connecting' 이 채팅 채널의 open 보다 늦게 올 수 있다(제안한 쪽이 answer 를 받는 순간 ICE · DTLS · SCTP 가 한꺼번에 선다 — 2026-09-30 확인).
+      // 그래서 connected 가 되면 채널이 열려 있는지로 다시 알린다 — 안 그러면 열린 채널이 "연결 안 됨" 으로 남는다.
+      if (pc.connectionState === 'connected') { if (this.channels.get(peerId)?.readyState === 'open') this.opts.handlers.onPeer({ userId: peerId, connected: true }); }
+      else this.opts.handlers.onPeer({ userId: peerId, connected: false });
       if (pc.connectionState === 'failed') this.dropPeer(peerId);
     };
     pc.ondatachannel = (e) => this.bindChannel(peerId, e.channel);
@@ -159,11 +162,41 @@ export class WebRtcPartyClient implements PartyClient {
     try {
       this.makingOffers.add(peerId);
       if (!this.channels.has(peerId)) this.bindChannel(peerId, pc.createDataChannel(CHAT_CHANNEL));
+      // 음성 권한 없이도 채팅을 연결한다 — 마이크가 없으면 트랙 없는 sendrecv 로 m-line 을 열어 두고, 나중에 켜면 이 sender 의 트랙만 바꾼다.
+      if (!this.audioTransceiver(pc)) {
+        const track = this.local?.getAudioTracks()[0];
+        pc.addTransceiver(track ?? 'audio', { direction: 'sendrecv', ...(this.local ? { streams: [this.local] } : {}) });
+      }
       const offer = await pc.createOffer();
       if (this.closed || pc.remoteDescription || pc.signalingState !== 'stable') return;
       await pc.setLocalDescription(offer);
       this.signal(peerId, { kind: 'description', description: { type: offer.type, sdp: offer.sdp } });
     } finally { this.makingOffers.delete(peerId); }
+  }
+
+  /**
+   * 이 연결에서 마이크를 싣는 음성 transceiver — 협상된 것(mid 가 있다 = m-line 에 붙었다)이 먼저이고, 없으면 offer 하려고 막 만든(아직 mid 가 없는) 것.
+   * 답하는 쪽이 offer 를 받기 전이면 없다.
+   */
+  private audioTransceiver(pc: RTCPeerConnection): RTCRtpTransceiver | undefined {
+    const audio = pc.getTransceivers().filter((t) => t.direction !== 'stopped' && t.receiver.track.kind === 'audio');
+    return audio.find((t) => t.mid !== null) ?? audio[0];
+  }
+
+  /**
+   * 받은 offer 의 음성 m-line 에 붙은 transceiver 를 내 것으로 삼는다 — `setRemoteDescription(offer)` 가 만든 것이라 recvonly · 트랙 없음으로 온다.
+   * `createAnswer` 전에 sendrecv 로 바꾸고 마이크(켜져 있으면)를 싣는다 — answer 가 sendrecv 라 나중에 마이크를 켜도 재협상 없이 트랙만 바꾼다.
+   * m-line 에 붙지 못한 음성 transceiver(glare 로 내 offer 가 접힌 경우 — `addTransceiver` 로 만든 것은 offer 가 재사용하지 않는다)는 멈춘다.
+   * 남겨 두면 마이크가 그쪽에 실리거나 다음 offer 에 음성 m-line 이 하나 더 생긴다.
+   */
+  private async adoptAudio(pc: RTCPeerConnection): Promise<void> {
+    const audio = pc.getTransceivers().filter((t) => t.direction !== 'stopped' && t.receiver.track.kind === 'audio');
+    const negotiated = audio.find((t) => t.mid !== null);
+    audio.forEach((t) => { if (t !== negotiated && t.mid === null) t.stop(); });
+    if (!negotiated) return;
+    negotiated.direction = 'sendrecv';
+    const track = this.local?.getAudioTracks()[0];
+    if (track && negotiated.sender.track !== track) await negotiated.sender.replaceTrack(track);
   }
 
   private bindChannel(peerId: string, channel: RTCDataChannel): void {
@@ -238,6 +271,7 @@ export class WebRtcPartyClient implements PartyClient {
       if (collision && this.opts.selfUserId < peerId) return;
       // polite peer는 브라우저의 implicit rollback으로 자기 offer를 접고 상대 offer를 수락한다.
       await pc.setRemoteDescription(signal.description);
+      await this.adoptAudio(pc);
       await this.flushIce(peerId, pc);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
