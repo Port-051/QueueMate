@@ -38,9 +38,8 @@ test('AI-readable explanation distinguishes screenshots from live matchmaking',(
   const {llms}=renderSite(config);
   assert.match(llms,/feature\/quick-match-ui/);assert.match(llms,/예시 데이터/);assert.match(llms,/실제 매칭 및 음성 연결 검증이 아닙니다/);
 });
-test('above-fold capture is prioritized and further screen images are lazy',()=>{
-  assert.match(html,/quick-match-board\.webp"[^>]+fetchpriority="high"/);
-  for(const n of ['settings','room'])assert.match(html,new RegExp(`quick-match-${n}\\.webp"[^>]+loading="lazy"`));
+test('screenshots support benefits below the fold and are all lazy',()=>{
+  for(const n of ['board','settings','room'])assert.match(html,new RegExp(`quick-match-${n}\\.webp"[^>]+loading="lazy"`));
 });
 
 test('screen enlargement accessible names include their visible label',()=>{
