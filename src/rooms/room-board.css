@@ -445,11 +445,14 @@
 /* 좌석에 마우스를 올리면 뜨는 작은 창(마우스가 있는 화면만). 숨어 있을 때는 `display:none` 이라 화면 밖으로 삐져도 가로 스크롤을 만들지 않는다. */
 .room-seat-popover { display:none; position:absolute; left:0; top:calc(100% + 8px); z-index:5; width:252px; gap:10px; padding:12px 14px; border:1px solid #ffffff1c; border-radius:14px; background:#1d1b27; box-shadow:0 14px 36px #000a; color:var(--text); font-size:12px; line-height:1.45; text-align:left; pointer-events:none; }
 .room-seat.pop-end .room-seat-popover { left:auto; right:0; }
+/* 아래로 열면 페이지 끝을 넘을 때(맨 아래 줄 · 그 위 줄)는 좌석 위로 — `RoomDeck` `placeSeatPopover` 가 잰다(2026-09-30). 페이지 끝 너머로 열린 창이 스크롤 길이를 늘려
+   휠 한 칸에 화면 전체가 매 프레임 위아래로 흔들렸다(스크롤 당김 ↔ 앵커링 되돌림 — 그 함수의 주석). */
+.room-seat[data-pop-up] .room-seat-popover { top:auto; bottom:calc(100% + 8px); --room-pop-from:4px; }
 @media (hover:hover) and (pointer:fine) {
   .room-seat.is-filled:hover .room-seat-popover,
   .room-seat.is-filled:has(.room-seat-button:focus-visible) .room-seat-popover { display:grid; animation:room-pop-in .14s ease-out .18s both; }
 }
-@keyframes room-pop-in { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+@keyframes room-pop-in { from { opacity:0; transform:translateY(var(--room-pop-from, -4px)); } to { opacity:1; transform:none; } }
 @media (prefers-reduced-motion:reduce) { .room-seat-popover { animation:none !important; } }
 .room-pop-head { display:flex; align-items:baseline; gap:8px; min-width:0; }
 .room-pop-head b { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }

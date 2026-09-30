@@ -169,9 +169,32 @@ function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMember })
 }
 
 /**
+ * 작은 창(`SeatPopover`)이 페이지 끝 너머로 열리면 좌석 위로 연다(`data-pop-up`) — 마우스를 올릴 때 · 키보드로 들어올 때마다 잰다.
+ * **왜(2026-09-30 — "맨 밑줄 · 두 번째 줄의 프로필을 누르면 화면 전체가 흔들린다")** — 아래로 열린 작은 창은 문서의 스크롤 길이를 늘린다(방 패널이 열린 1440×709 에서 맨 아래 줄 1448 → 1699px ·
+ * 그 위 줄 1539px). 맨 아래까지 내린 채 좌석에 마우스가 있을 때 휠 한 칸이 그 늘어난 자리로 내려가면 좌석이 커서에서 벗어나 창이 닫히고 → 길이가 줄어 스크롤이 당겨지고 →
+ * 좌석이 다시 커서 밑에 와 창이 열리면 → Chrome 의 스크롤 앵커링이 당겨진 만큼을 되돌린다. Windows Chrome 에서 잰 값 — **매 프레임 scrollY 가 739 ↔ 859 로 오갔다**(61프레임에 60번).
+ * 문서에 `overflow-anchor: none` 을 걸면 멈췄다(원인 확인용으로만 — 목록이 바뀔 때 화면을 붙잡아 주는 앵커링을 통째로 끌 수는 없다). 위로 열면 창이 문서 끝을 넘지 않아
+ * 마우스를 올려도 스크롤 길이가 그대로다. 위로도 모자라면(아주 낮은 창) 위쪽이 잘린다 — 문서 위쪽 너머는 스크롤 길이를 늘리지 않는다.
+ * 잴 때 창이 숨어 있으면(`display:none`) 보이지 않게 잠깐 펼친다 — 같은 작업 안이라 그려지지 않는다. 높이 · 간격은 CSS 가 정한 그대로 잰다(값을 여기에 베끼지 않는다).
+ * React 상태가 아니라 속성을 바로 건다 — 창이 한 프레임이라도 아래로 그려지기 전에 방향이 정해져야 해서다(스크롤로 hover 가 옮겨 갈 때도 `mouseenter` 가 온다 — 확인했다).
+ */
+function placeSeatPopover(seat: HTMLElement) {
+  const popover = seat.querySelector<HTMLElement>('.room-seat-popover');
+  if (!popover) return;
+  seat.removeAttribute('data-pop-up');
+  const hidden = !popover.offsetHeight;
+  if (hidden) popover.style.cssText = 'display:grid;visibility:hidden';
+  // 레이아웃 값(`offsetTop`)으로 잰다 — 나타나는 움직임(transform)이 끼면 몇 px 모자라게 읽힌다.
+  const bottom = seat.getBoundingClientRect().top + popover.offsetTop + popover.offsetHeight;
+  if (hidden) popover.removeAttribute('style');
+  const page = document.documentElement;
+  seat.toggleAttribute('data-pop-up', bottom > Math.max(page.getBoundingClientRect().bottom, page.clientHeight));
+}
+
+/**
  * 채워진 좌석 하나 — 얼굴(방장이면 왕관) · 닉네임(+ 인증 표시) · 방장이면 글의 방장 포지션 · 두 줄째에 그 글의 사다리 티어와 승률 · KDA.
  * 좌석이 제 폭을 보고 줄인다(CSS 컨테이너 질의 — 분할 화면 · 사람이 많은 방) — 190px 이하면 숫자와 포지션 글자를 빼고(포지션은 닉네임 앞 아이콘), 132px 이하면 얼굴 원 + 티어 배지 위 · 닉네임 아래다.
- * 누르면 프로필 창이다(전파를 끊는다 — 참가로 번지지 않게).
+ * 누르면 프로필 창이다(전파를 끊는다 — 참가로 번지지 않게). 마우스를 올린 작은 창의 위 · 아래는 `placeSeatPopover` 가 정한다.
  */
 function RoomSeat({ room, member, selfId, popEnd, onMember }: { room: BoardRoom; member: BoardMember; selfId: string; popEnd: boolean; onMember: (room: BoardRoom, member: BoardMember) => void }) {
   const hostPosition = seatHostPosition(room, member);
@@ -187,7 +210,8 @@ function RoomSeat({ room, member, selfId, popEnd, onMember }: { room: BoardRoom;
     ladderLabel && member.tier ? `${ladderLabel} ${tier}` : tier,
     ...numbers.map(item => `${item.label} ${item.text}`),
   ].filter(Boolean).join(' · ');
-  return <li className={`room-seat is-filled${member.host ? ' is-host' : ''}${member.id === selfId ? ' is-self' : ''}${popEnd ? ' pop-end' : ''}`}>
+  return <li className={`room-seat is-filled${member.host ? ' is-host' : ''}${member.id === selfId ? ' is-self' : ''}${popEnd ? ' pop-end' : ''}`}
+    onMouseEnter={event => placeSeatPopover(event.currentTarget)} onFocus={event => placeSeatPopover(event.currentTarget)}>
     <button type="button" className="room-seat-button" aria-label={`${label} — 프로필 보기`} onClick={event => { event.stopPropagation(); onMember(room, member); }}>
       <span className="room-seat-face">
         <RoomMemberAvatar member={member} size={34} />
