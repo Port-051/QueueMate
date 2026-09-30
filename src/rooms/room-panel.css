@@ -38,8 +38,11 @@
 .room-panel-back:focus-visible { outline:2px solid #c5a5ff; outline-offset:2px; }
 .room-panel-bar-note { color:#8f8aa0; font-size:12px; }
 
-/* 패널 안의 방 화면 — 좁으면 한 열. 옛 좁은 화면 규칙(`usability.css` ≤1199px)이 파티원 카드를 숨기던 것(`.rail > .card:last-child`)은 패널에서 되살린다 — 강퇴 · 친구 · 차단이 거기 있다. */
-.room-panel .party-page { max-width:none; margin:0; padding:22px 24px 40px; }
+/* 패널 안의 화면(방 `PartyRoomPage` · 자동 매칭의 제안 `ProposalPage`) — 좁으면 한 열. 옛 좁은 화면 규칙(`usability.css` ≤1199px)이 파티원 카드를 숨기던 것(`.rail > .card:last-child`)은 패널에서 되살린다 — 강퇴 · 친구 · 차단이 거기 있다. */
+.room-panel .page { max-width:none; margin:0; padding:22px 24px 40px; }
+.room-panel .proposal-page .page-grid { display:flex; flex-direction:column; gap:16px; }
+.room-panel .proposal-page .page-grid > * { width:100%; }
+.room-panel .proposal-page .rail { position:static; display:grid; grid-template-columns:minmax(0,1fr); }
 .room-panel .page-head { margin-bottom:16px; }
 .room-panel .page-head h1 { font-size:22px; overflow-wrap:anywhere; }
 .room-panel .page > .page-head h1 { min-height:0; padding-right:0; }
@@ -52,7 +55,7 @@
 .room-panel .party-page .chat-card { min-height:320px; }
 /* 넓은 패널(760px 이상 — 1440 이면 884px) — 두 열: 왼쪽 음성 · 채팅, 오른쪽 파티원(옛 넓은 화면의 방 화면과 같은 자리). 채팅이 넓어지고 파티원 목록이 채팅을 밀어내지 않는다. */
 @container room-panel (min-width:760px) {
-  .room-panel .party-page .page-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,300px); align-items:start; gap:20px; }
+  .room-panel :is(.party-page,.proposal-page) .page-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,300px); align-items:start; gap:20px; }
   .room-panel .party-page .page-grid > .rail { order:0; }
   .room-panel .party-page .chat-card { min-height:420px; }
 }
@@ -62,7 +65,7 @@
   .room-panel-inner { width:auto; animation:none; }
   .room-panel.is-closing { animation:room-panel-sheet-out .24s cubic-bezier(.4,0,.6,1) forwards; }
   .room-panel-bar { display:flex; }
-  .room-panel .party-page { padding:18px 16px 36px; }
+  .room-panel .page { padding:18px 16px 36px; }
   /* 게시판에서 방으로 돌아가는 길 — 아래에 떠 있는 한 줄(방 패널이 닫혀 있을 때만 있다 — `RoomBoardHome`). */
   .room-home .room-return-banner { position:fixed; left:16px; right:16px; bottom:16px; z-index:20; justify-content:center; margin:0; padding:12px 16px; border:1px solid #7955d9; border-radius:999px; background:#2d2242; box-shadow:0 10px 30px #000a; }
   .room-home:has(.room-return-banner) { padding-bottom:88px; }

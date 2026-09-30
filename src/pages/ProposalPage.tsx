@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { ConditionSummary } from '../components/ConditionSummary';
 import { IconCheck, IconClock, IconX } from '../components/icons';
 import { Button, Card, CardHead, EmptyState, Tag, useToast } from '../components/ui';
@@ -7,11 +7,14 @@ import { targetPartySize } from '../domain/gameConfig';
 import { matchErrorMessage } from '../domain/matchRequest';
 import { formatDuration } from '../domain/time';
 import { useMatch } from '../state/MatchContext';
+import type { BoardRoomOutletContext } from './HomePage';
 
 /**
  * 제안 화면 — `/app/proposals/:proposalId`(= partyId). 그리는 것은 상태 조회의 `PROPOSED` 갈래(`partyId` · `expiresAt` · `isAccepted`)와
  * `MATCH_PROPOSAL_CREATED` 가 실어 준 정원(`target`)뿐이다 — **팀원 목록 · 누가 수락했는지는 없다**(`GET /proposals/{id}` 가 없고 수락 진행 이벤트가 계약에 없다).
  * 수락 · 거절은 204 → 다시 조회. 확정은 `MATCH_CONFIRMED` 가 말하고 `MatchContext` 가 파티룸으로 옮긴다.
+ * **2026-09-30 부터 게시판 오른쪽 방 패널에 열린다**(소유자 지시 — `pages/HomePage.tsx`). 게시판은 이 매칭의 게임으로 한 번 맞추고(`syncRoomGame` — 대기 때 기억한 조건),
+ * 확정되면 같은 패널이 그 파티의 방으로 바뀐다(id 가 같다 — 패널을 다시 열지 않는다).
  */
 export function ProposalPage() {
   const { proposalId } = useParams<{ proposalId: string }>();
@@ -20,6 +23,10 @@ export function ProposalPage() {
   const toast = useToast();
   const [remaining, setRemaining] = useState(0);
   const [busy, setBusy] = useState(false);
+  // 게시판(왼쪽)을 이 매칭의 게임으로 — 제안마다 한 번(방 패널이 방으로 바뀌어도 같은 id 라 다시 맞추지 않는다).
+  const syncRoomGame = useOutletContext<BoardRoomOutletContext | undefined>()?.syncRoomGame;
+  const game = condition?.game;
+  useEffect(() => { if (proposalId && game && syncRoomGame) syncRoomGame(proposalId, game); }, [proposalId, game, syncRoomGame]);
 
   /** 새로고침으로 context가 비었으면 상태를 다시 받는다 — 제안이 살아 있으면 PROPOSED 로 온다. */
   useEffect(() => {
@@ -39,7 +46,7 @@ export function ProposalPage() {
 
   if (!current) {
     return (
-      <section className="page">
+      <section className="page proposal-page">
         <EmptyState
           title="확인할 매칭 제안이 없습니다"
           desc="제안은 제한 시간이 지나면 사라지고, 수락했던 사람은 자동으로 다시 대기열로 돌아갑니다."
@@ -77,7 +84,7 @@ export function ProposalPage() {
   };
 
   return (
-    <section className="page">
+    <section className="page proposal-page">
       <div className="page-grid">
         <div className="stack">
           <Card className="accent">
@@ -108,7 +115,7 @@ export function ProposalPage() {
 
           {accepted ? (
             <div className="banner">
-              수락했습니다. 팀원이 모두 수락하면 파티룸으로 이동합니다. 시간 안에 모이지 않으면 다시 대기열로 돌아갑니다.
+              수락했습니다. 팀원이 모두 수락하면 이 자리에 파티 방이 열립니다. 시간 안에 모이지 않으면 다시 대기열로 돌아갑니다.
             </div>
           ) : null}
 

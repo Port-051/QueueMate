@@ -48,16 +48,18 @@ export function App() {
       <Route path="/app" element={<RequireAuth><AppShell /></RequireAuth>}>
         <Route index element={<Navigate to="home" replace />} />
         {/* 게시판(`/app/home`)과 방(`/app/party/:roomId`)은 한 레이아웃이다 — 방에 들어가면 게시판이 왼쪽으로 밀리고 방이 오른쪽 패널로 열린다(2026-09-30 소유자 지시 · `pages/HomePage.tsx`).
-            `roomId` 는 게시판 방이면 글 번호, 자동 매칭 방이면 UUID(= partyId). 둘 다 같은 방 화면이다(4단계). 오가도 게시판은 다시 그려지지 않는다. */}
+            `roomId` 는 게시판 방이면 글 번호, 자동 매칭 방이면 UUID(= partyId). 둘 다 같은 방 화면이다(4단계). 오가도 게시판은 다시 그려지지 않는다.
+            **자동 매칭의 제안 화면(`/app/proposals/:proposalId` — proposalId = partyId)도 같은 패널이다**(같은 날 소유자 지시 — "큐에서 매칭이 되었을 때도 새 화면이 아니라 게시판을 옆으로 치우고 방을 띄우는 식으로").
+            확정되면 같은 패널이 그 파티의 방(`/app/party/{partyId}`)으로 바뀐다. */}
         <Route element={<HomePage />}>
           <Route path="home" />
           <Route path="party/:roomId" element={<PartyRoomPage />} />
+          <Route path="proposals/:proposalId" element={<ProposalPage />} />
         </Route>
         <Route path="match" element={<MatchConditionPage />} />
         <Route path="match/waiting/:requestId" element={<MatchWaitingPage />} />
         <Route path="reservations" element={<ReservationsPage />} />
         <Route path="reservations/new" element={<ReservationNewPage />} />
-        <Route path="proposals/:proposalId" element={<ProposalPage />} />
         <Route path="party" element={<MyRoomRedirect />} />
         <Route path="messages" element={<DirectMessagesPage />} />
         <Route path="friends" element={<LegacyFriendsRedirect />} />

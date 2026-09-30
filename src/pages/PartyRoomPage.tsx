@@ -20,6 +20,7 @@ import { canonicalRoomRoles, hasPositions, ROOM_ROLES } from '../rooms/summary';
 import type { BoardMember, BoardRoom } from '../rooms/types';
 import { useAuth } from '../state/AuthContext';
 import { usePartySession } from '../state/PartySessionContext';
+import { useMatch } from '../state/MatchContext';
 import { isMatchRoomId, useRoomSession } from '../state/RoomSessionContext';
 import { useSocial } from '../state/SocialContext';
 import type { VoiceStatus } from '../webrtc/types';
@@ -38,7 +39,9 @@ const VOICE_LABEL: Record<VoiceStatus, string> = {
  * 원본의 Ready/PLAYING 파티 화면(`GET /parties/{id}` · `/ready` · `/leave` · `PARTY_*`)은 대응물이 없어 2026-09-29 에 이것으로 바꿨다.
  *
  * - 방의 상태(방장 · 사람 목록 · 확정 · 접속 확인 · `ROOM_*`)는 `RoomSessionContext` 가 든다 — 이 화면은 경로의 `roomId` 를 `adopt` 하고, 방을 잃으면(`gone`) 홈으로 간다.
- * - 사람 목록은 id 뿐이라(`GET …/members`) **게시판 방이면 `GET /posts/{postId}` 의 카드로** 닉네임 · 프로필을 붙인다. 자동 매칭 방은 글이 없어 id 만 보여 준다(게임 · 정원도 모른다 — 응답에 없다).
+ * - 사람 목록은 id 뿐이라(`GET …/members`) **게시판 방이면 `GET /posts/{postId}` 의 카드로** 닉네임 · 프로필을 붙인다. 자동 매칭 방은 글이 없어 id 만 보여 준다.
+ *   자동 매칭 방의 게임 · 모드 · 음성 · 정원은 서버 응답에 없어(P-30) **이 브라우저가 확정 때 적어 둔 조건**(`MatchContext.activePartyInfo` — 대기 때의 조건 · 제안의 정원)으로 그린다.
+ *   다른 브라우저에서 들어온 방은 그것이 없어 인원만 보인다. 자동 매칭 방은 처음부터 확정이라 "파티 확정" 버튼이 없다.
  * - 나가기 `DELETE …/members/me`(늘 204) · 강퇴 `DELETE …/members/{userId}`(방장) · 확정 `POST …/confirm`(게시판 방 · 방장 · 2명 이상 · **되돌릴 수 없다** — 한 번 더 묻는다).
  *   글 고치기 `PATCH /posts/{postId}`(방장 혼자일 때만 — 409 `ROOM_HAS_OTHER_MEMBERS`) · 지우기 `DELETE /posts/{postId}`(만료로 바꾸고 방도 닫힌다).
  * - 음성 · 채팅은 WebRTC 직결(`PartySessionContext`). 친구 추가 · 차단 · 신고는 `SocialContext` · `ReportModal`(5단계 — 우리 API. 신고의 `contextId` 는 게시판 방이면 글 번호, 자동 매칭 방은 없다).
@@ -51,9 +54,14 @@ export function PartyRoomPage() {
   const session = useRoomSession();
   const { messages, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef, setConnectionAttempt } = usePartySession();
   const { isFriend, addFriend, block } = useSocial();
+  const { activePartyInfo } = useMatch();
   const navigate = useNavigate();
   const toast = useToast();
   const postId = roomId && !isMatchRoomId(roomId) ? Number(roomId) : null;
+  // 자동 매칭 방 — 확정 때 이 브라우저가 적어 둔 조건(게임 · 모드 · 음성 · 정원). 이 방의 것일 때만.
+  const party = postId === null && activePartyInfo?.partyId === roomId ? activePartyInfo : null;
+  const partyGame = party?.game ?? null;
+  const partyMode = party?.game && party.modeKey ? party.modeKey : null;
 
   const [room, setRoom] = useState<BoardRoom | null>(null);
   const [postError, setPostError] = useState(false);
@@ -87,7 +95,7 @@ export function PartyRoomPage() {
 
   // 게시판(왼쪽)을 이 방의 게임으로 — 방마다 한 번(그 뒤 사용자가 게임을 바꾸면 그대로 둔다).
   const syncRoomGame = useOutletContext<BoardRoomOutletContext | undefined>()?.syncRoomGame;
-  const roomGame = room?.game;
+  const roomGame = room?.game ?? partyGame ?? undefined;
   useEffect(() => { if (roomId && roomGame && syncRoomGame) syncRoomGame(roomId, roomGame); }, [roomId, roomGame, syncRoomGame]);
 
   useEffect(() => { if (messages.length) chatEndRef.current?.scrollIntoView({ block: 'nearest' }); }, [messages]);
@@ -104,6 +112,8 @@ export function PartyRoomPage() {
   const needsReconnect = connectedPeers.length < peerCount;
   const connectionHint = needsReconnect ? (canChat ? `${connectedPeers.length}/${peerCount}명 연결됨 · 연결된 팀원에게만 전송됩니다.` : peerCount ? '팀원 연결 대기 중' : '아직 다른 사람이 없어요') : undefined;
   const canEditPost = Boolean(room && isHost && room.status === 'RECRUITING');
+  // 정원 — 게시판 방은 글의 `capacity`(P-41), 자동 매칭 방은 확정 때 적어 둔 파티의 정원. 모르면 인원만.
+  const capacity = room?.capacity ?? party?.target ?? null;
   const nicknameOf = (id: string) => members.find(m => m.id === id)?.nickname ?? `#${id}`;
 
   const leave = async () => {
@@ -150,14 +160,16 @@ export function PartyRoomPage() {
     <section className="page party-page">
       <div className="page-head row-between">
         <div className="row" style={{ gap: 14 }}>
-          {room ? <GameBadge game={room.game} /> : null}
+          {room ? <GameBadge game={room.game} /> : partyGame ? <GameBadge game={partyGame} /> : null}
           <div>
             <h1>{room ? room.title : postId !== null ? `게시판 방 #${roomId}` : '자동 매칭 파티'}</h1>
             <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-              {room ? <Tag>{gameFullLabel(room.game)} · {modeChoiceLabel(room.game, room.modeKey, room.perspective)}</Tag> : null}
+              {room ? <Tag>{gameFullLabel(room.game)} · {modeChoiceLabel(room.game, room.modeKey, room.perspective)}</Tag>
+                : partyGame ? <Tag>{gameFullLabel(partyGame)}{partyMode ? ` · ${modeChoiceLabel(partyGame, partyMode)}` : ''}</Tag> : null}
               <Tag tone={confirmed ? 'ok' : 'accent'}>{confirmed ? '확정된 파티' : '모집 중'}</Tag>
-              <Tag>{members.length}{room ? ` / ${room.capacity}` : ''}명</Tag>
-              {room ? <Tag>{room.voice === 'REQUIRED' ? '음성 사용' : '음성 안 씀'}</Tag> : null}
+              <Tag>{members.length}{capacity ? ` / ${capacity}` : ''}명</Tag>
+              {room ? <Tag>{room.voice === 'REQUIRED' ? '음성 사용' : '음성 안 씀'}</Tag>
+                : party?.voicePreference ? <Tag>{party.voicePreference === 'REQUIRED' ? '음성 사용' : '음성 안 씀'}</Tag> : null}
             </div>
           </div>
         </div>
@@ -172,7 +184,7 @@ export function PartyRoomPage() {
       {room?.description ? <p className="hint" style={{ marginBottom: 16 }}>{room.description}</p> : null}
       {room && hasPositions(room.game, room.modeKey) ? <p className="hint" style={{ marginBottom: 16 }}>찾는 포지션 <RoomRoles game={room.game} roles={room.wantedPositions} labels /></p> : null}
       {postId !== null && postError && !room ? <div className="banner warn" role="alert" style={{ marginBottom: 20 }}>글 정보를 불러오지 못했어요. <Button size="sm" onClick={() => void loadPost()}>다시 불러오기</Button></div> : null}
-      {postId === null ? <div className="banner" role="status" style={{ marginBottom: 20 }}>자동 매칭으로 확정된 파티의 방이에요. 글이 없어 파티원의 닉네임 · 프로필은 보이지 않아요(사용자 번호만).</div> : null}
+      {postId === null ? <div className="banner" role="status" style={{ marginBottom: 20 }}>자동 매칭으로 확정된 파티의 방이에요. 처음부터 확정이라 새 사람은 들어오지 않아요. 글이 없어 파티원의 닉네임 · 프로필은 보이지 않아요(사용자 번호만).</div> : null}
 
       <div className="page-grid">
         <div className="stack">
@@ -234,7 +246,7 @@ export function PartyRoomPage() {
 
         <div className="rail">
           <Card>
-            <CardHead title={`파티원 (${members.length}${room ? `/${room.capacity}` : ''})`} />
+            <CardHead title={`파티원 (${members.length}${capacity ? `/${capacity}` : ''})`} />
             {members.map((m) => (
               <div key={m.id} className="list-item" style={{ alignItems: 'flex-start' }}>
                 <Avatar name={m.nickname} size={36} />

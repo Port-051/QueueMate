@@ -18,8 +18,9 @@ import { ROOM_SPLIT_QUERY } from '../rooms/roomPanel';
 interface NavItem { to: string; label: string; icon: ComponentType<{ size?: number; filled?: boolean }>; }
 export interface AppShellOutletContext { selectedGame: GameKey; setSelectedGame(game: GameKey): void; }
 
-/** 게시판 화면 — 게시판만(`/app/home`)이든 방 패널이 열렸든(`/app/party/{roomId}`) 같은 레이아웃이다(`pages/HomePage.tsx`). */
-const isBoardRoute = (pathname: string) => pathname === '/app/home' || pathname.startsWith('/app/party/');
+/** 게시판 화면 — 게시판만(`/app/home`)이든 방 패널이 열렸든(`/app/party/{roomId}` · 자동 매칭의 제안 `/app/proposals/{partyId}`) 같은 레이아웃이다(`pages/HomePage.tsx`). */
+const isPanelRoute = (pathname: string) => pathname.startsWith('/app/party/') || pathname.startsWith('/app/proposals/');
+const isBoardRoute = (pathname: string) => pathname === '/app/home' || isPanelRoute(pathname);
 
 const NAV: NavItem[] = [
   { to: '/app/home', label: '홈', icon: IconHome },
@@ -63,7 +64,7 @@ export function AppShell() {
     {availableGames().map(game => <button key={game.key} type="button" className={`nav-link game-nav-link${selectedGame === game.key ? ' active' : ''}`} aria-label={`${game.name} 매칭`} aria-pressed={selectedGame === game.key} onClick={() => {
       setSelectedGame(game.key); setMenuOpen(false); setNavigationPicked(true); closeNotifications();
       // 넓은 화면에서 방 패널이 열려 있으면 게시판(왼쪽)만 바꾸고 방은 그대로 둔다. 좁은 화면은 방이 게시판을 덮고 있어 게시판으로 간다(방에서 나가지는 않는다).
-      const keepRoom = location.pathname.startsWith('/app/party/') && window.matchMedia(ROOM_SPLIT_QUERY).matches;
+      const keepRoom = isPanelRoute(location.pathname) && window.matchMedia(ROOM_SPLIT_QUERY).matches;
       if (!keepRoom && (location.pathname !== '/app/home' || location.search)) navigate('/app/home');
     }}><span className="nav-icon"><GameBadge game={game.key} size={28} className="game-nav-logo" /></span><span className="nav-label">{game.shortName}</span></button>)}
   </div>;

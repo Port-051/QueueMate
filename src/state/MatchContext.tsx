@@ -6,12 +6,12 @@ import { hasErrorCode, isApiError } from '../api/error';
 import { createEventStream } from '../api/sse';
 import type { EventStream } from '../api/sse';
 import type {
-  CreateReservationRequest, MatchCondition, MatchConfirmedPayload, MatchProposalCreatedPayload, MatchRequestView, ReservationView, ServerEvent,
+  CreateReservationRequest, GameKey, MatchCondition, MatchConfirmedPayload, MatchProposalCreatedPayload, MatchRequestView, ReservationView, ServerEvent, VoicePreference,
 } from '../api/types';
 import { useToast } from '../components/ui';
 import { buildMatchRequest, matchErrorMessage, matchRequestError } from '../domain/matchRequest';
 import { storedPlayPurpose } from '../domain/gameCatalog';
-import { DEFAULT_PLAY_PURPOSE } from '../domain/gameConfig';
+import { DEFAULT_PLAY_PURPOSE, targetPartySize } from '../domain/gameConfig';
 import { rememberCondition } from './recentConditions';
 import { useAuth } from './AuthContext';
 
@@ -28,10 +28,15 @@ import { useAuth } from './AuthContext';
  *   `MATCH_PROPOSAL_EXPIRED` · `MATCH_CANCELLED` · `MATCH_QUEUE_UPDATED` 는 다시 조회하라는 신호다. 제안의 팀원 목록은 없다(`GET /proposals/{id}` 없음).
  * - **확정** — `MATCH_CONFIRMED {partyId}` → 조작 없이 `POST /match-parties/{partyId}/room` → `{roomId}`(= partyId) → `/app/party/{roomId}`. 503 은 5초 뒤 한 번 더.
  *   알림을 놓쳤으면 상태 조회의 `MATCHED` + `partyId` 가 같은 길을 밟는다(확정 뒤 60초 안 — D-42).
+ *   제안 화면 · 파티 방 둘 다 **게시판 오른쪽 방 패널**로 열린다(2026-09-30 소유자 지시 — `pages/HomePage.tsx`). 제안 화면에서 확정되면 그 자리를 방으로 갈아 끼운다(뒤로 가기에 끝난 제안이 남지 않게).
+ * - **파티의 조건을 기억한다**(`activePartyInfo` — 2026-09-30). 서버의 방 응답에는 게임 · 모드 · 정원이 없어(P-30) 확정하는 순간 이 브라우저가 알던 조건(대기 때 기억한 것)과
+ *   제안의 정원(`MATCH_PROPOSAL_CREATED` 의 `target`)을 `activePartyId` 와 함께 적어 둔다 — 방 패널이 게임 · 모드 · `n/정원` 을 그리고 게시판을 그 게임으로 맞춘다.
+ *   다른 브라우저에서 들어온 방은 모른다(`null` — 그때는 전처럼 사용자 번호 · 인원만).
  * - 옛 원본의 `SESSION_SNAPSHOT` · `PARTY_*` · `RESERVATION_*` 핸들러는 없다 — 그 이벤트는 오지 않는다. 예약은 대응물이 없어 상태만 남겼다(부르면 404).
  */
 
 const ACTIVE_PARTY_KEY = 'qm.activeParty.';
+const ACTIVE_PARTY_INFO_KEY = 'qm.activePartyInfo.';
 const ACTIVE_MATCH_KEY = 'qm.activeMatch.';
 
 /** 대기 · 제안 중 REST 로 다시 확인하는 주기 — SSE 가 끊겨 있어도 제안 · 확정을 놓치지 않게. */
@@ -42,6 +47,18 @@ const HEARTBEAT_MS = 30_000;
 export type StartResult =
   | { kind: 'ROOM'; roomId: string; postId: number }
   | { kind: 'QUEUED'; request: MatchRequestView };
+
+/**
+ * 자동 매칭 파티의 조건 — 확정하는 순간 이 브라우저가 알던 것(대기 때 기억한 조건 · 제안의 정원). 서버는 돌려주지 않는다(방 응답에 게임 · 모드 · 정원이 없다 — P-30).
+ * `target` 은 제안의 정원이고 없으면 그 모드의 `targetPartySize`(정적 상수 — 서버의 파티 HASH `target` 과 같은 값이다). 조건을 몰랐으면 `game` · `modeKey` 가 `null`.
+ */
+export interface MatchPartyInfo {
+  partyId: string;
+  game: GameKey | null;
+  modeKey: string | null;
+  voicePreference: VoicePreference | null;
+  target: number | null;
+}
 
 /** 제안 화면이 그리는 것 — 상태 조회의 `PROPOSED` 갈래 + `MATCH_PROPOSAL_CREATED` 가 실어 준 정원(같은 `partyId` 일 때만). */
 export interface ProposalState {
@@ -61,6 +78,8 @@ interface MatchValue {
   proposal: ProposalState | null;
   /** 자동 매칭 파티의 방 id(= `partyId` · UUID) — `MATCH_CONFIRMED` 뒤 `POST /match-parties/{partyId}/room` 으로 들어간 방. 방 화면(4단계)이 쓴다. */
   activePartyId: string | null;
+  /** `activePartyId` 의 조건(게임 · 모드 · 음성 · 정원) — 이 브라우저가 확정 때 적어 둔 것. 모르면 `null`. */
+  activePartyInfo: MatchPartyInfo | null;
   reservations: ReservationView[];
   reservationsLoaded: boolean;
   reservationsError: string | null;
@@ -94,6 +113,24 @@ const writeActiveParty = (userId: string | undefined, id: string | null) => {
   } catch {
     /* storage 접근 불가여도 세션 안에서는 state로 동작한다 */
   }
+};
+
+const readActivePartyInfo = (userId?: string): MatchPartyInfo | null => {
+  if (!userId) return null;
+  try {
+    const raw = localStorage.getItem(`${ACTIVE_PARTY_INFO_KEY}${userId}`);
+    const info = raw ? JSON.parse(raw) as Partial<MatchPartyInfo> : null;
+    if (!info?.partyId) return null;
+    return { partyId: info.partyId, game: info.game ?? null, modeKey: info.modeKey ?? null, voicePreference: info.voicePreference ?? null, target: typeof info.target === 'number' ? info.target : null };
+  } catch { return null; }
+};
+
+const writeActivePartyInfo = (userId: string | undefined, info: MatchPartyInfo | null) => {
+  if (!userId) return;
+  try {
+    if (info) localStorage.setItem(`${ACTIVE_PARTY_INFO_KEY}${userId}`, JSON.stringify(info));
+    else localStorage.removeItem(`${ACTIVE_PARTY_INFO_KEY}${userId}`);
+  } catch { /* 저장하지 못하면 방 패널이 게임 · 정원을 모를 뿐이다 */ }
 };
 
 interface SavedMatch { requestId: string; condition: MatchCondition; }
@@ -137,6 +174,7 @@ function MatchSession({ children }: { children: ReactNode }) {
   const [condition, setCondition] = useState<MatchCondition | null>(null);
   const [proposalMeta, setProposalMeta] = useState<{ partyId: string; target: number; memberNumber: number } | null>(null);
   const [activePartyId, setActivePartyIdState] = useState<string | null>(() => readActiveParty(userId ?? undefined));
+  const [activePartyInfo, setActivePartyInfo] = useState<MatchPartyInfo | null>(() => readActivePartyInfo(userId ?? undefined));
   const [reservations, setReservations] = useState<ReservationView[]>([]);
   const [reservationsLoaded, setReservationsLoaded] = useState(false);
   const [reservationsError, setReservationsError] = useState<string | null>(null);
@@ -144,8 +182,14 @@ function MatchSession({ children }: { children: ReactNode }) {
 
   const requestRef = useRef<MatchRequestView | null>(null);
   requestRef.current = request;
+  const conditionRef = useRef<MatchCondition | null>(null);
+  conditionRef.current = condition;
+  const proposalMetaRef = useRef(proposalMeta);
+  proposalMetaRef.current = proposalMeta;
   const activePartyRef = useRef<string | null>(null);
   activePartyRef.current = activePartyId;
+  const activePartyInfoRef = useRef<MatchPartyInfo | null>(activePartyInfo);
+  activePartyInfoRef.current = activePartyInfo;
   const gameAccountsRef = useRef(gameAccounts);
   gameAccountsRef.current = gameAccounts;
   const live = useRef(true);
@@ -164,6 +208,20 @@ function MatchSession({ children }: { children: ReactNode }) {
     if (!live.current) return;
     writeActiveParty(userId ?? undefined, id);
     setActivePartyIdState(id);
+    // 다른 파티(또는 없음)면 옛 조건을 버린다 — 조건은 확정 때 `rememberPartyInfo` 가 새로 적는다.
+    // (상태 갱신 함수 안에서 저장소를 지우면 렌더 때 늦게 돌아 방금 적은 조건까지 지웠다 — 부르는 순서대로 바로 쓴다.)
+    if (activePartyInfoRef.current?.partyId !== id) {
+      activePartyInfoRef.current = null;
+      writeActivePartyInfo(userId ?? undefined, null);
+      setActivePartyInfo(null);
+    }
+  }, [userId]);
+
+  const rememberPartyInfo = useCallback((info: MatchPartyInfo) => {
+    if (!live.current) return;
+    activePartyInfoRef.current = info;
+    writeActivePartyInfo(userId ?? undefined, info);
+    setActivePartyInfo(info);
   }, [userId]);
 
   const enterPartyRoom = useCallback(async (partyId: string, retry = true): Promise<string> => {
@@ -186,15 +244,26 @@ function MatchSession({ children }: { children: ReactNode }) {
   const settleConfirmed = useCallback(async (partyId: string) => {
     if (entering.current === partyId || activePartyRef.current === partyId) return;
     entering.current = partyId;
+    // 서버는 파티의 조건을 돌려주지 않는다 — 지우기 전에 이 브라우저가 알던 조건 · 제안의 정원을 적어 둔다(방 패널의 게임 · 모드 · n/정원).
+    const known = conditionRef.current ?? (userId ? readSavedMatch(userId)?.condition ?? null : null);
+    const meta = proposalMetaRef.current?.partyId === partyId ? proposalMetaRef.current : null;
     try {
       const roomId = await enterPartyRoom(partyId);
       if (!live.current) return;
+      rememberPartyInfo({
+        partyId: roomId,
+        game: known?.game ?? null,
+        modeKey: known?.modeKey ?? null,
+        voicePreference: known?.voicePreference ?? null,
+        target: meta?.target ?? (known ? targetPartySize(known.game, known.modeKey) : null),
+      });
       setRequest(null);
       setCondition(null);
       setProposalMeta(null);
       if (userId) writeSavedMatch(userId, null);
       toast('파티가 확정되었습니다', 'ok');
-      navigate(`/app/party/${roomId}`);
+      // 제안 화면(방 패널)에서 왔으면 그 자리를 방으로 갈아 끼운다 — 뒤로 가기에 끝난 제안이 남지 않게.
+      navigate(`/app/party/${roomId}`, { replace: pathnameRef.current.startsWith('/app/proposals/') });
     } catch (err) {
       if (!live.current) return;
       toast(matchErrorMessage(err, '파티룸에 들어가지 못했습니다'), 'error');
@@ -203,7 +272,7 @@ function MatchSession({ children }: { children: ReactNode }) {
     } finally {
       if (entering.current === partyId) entering.current = null;
     }
-  }, [enterPartyRoom, navigate, toast, userId]);
+  }, [enterPartyRoom, navigate, rememberPartyInfo, toast, userId]);
 
   /** 조회 응답 하나를 화면 상태로. `IDLE` 은 `null`, `MATCHED` 는 파티룸 입장까지. */
   const applyView = useCallback((view: MatchRequestView) => {
@@ -442,9 +511,9 @@ function MatchSession({ children }: { children: ReactNode }) {
   }, [request, proposalMeta]);
 
   const value = useMemo<MatchValue>(() => ({
-    request, condition, proposal, activePartyId, reservations, reservationsLoaded, reservationsError, stream,
+    request, condition, proposal, activePartyId, activePartyInfo, reservations, reservationsLoaded, reservationsError, stream,
     start, refresh, cancel, accept, decline, enterPartyRoom, refreshReservations, saveReservation, setActivePartyId,
-  }), [request, condition, proposal, activePartyId, reservations, reservationsLoaded, reservationsError, stream,
+  }), [request, condition, proposal, activePartyId, activePartyInfo, reservations, reservationsLoaded, reservationsError, stream,
     start, refresh, cancel, accept, decline, enterPartyRoom, refreshReservations, saveReservation, setActivePartyId]);
 
   return <MatchCtx.Provider value={value}>{children}</MatchCtx.Provider>;
