@@ -1,0 +1,198 @@
+name: Release benefits landing and attach domain
+on:
+  push:
+    branches: [feat/seo-landing]
+    paths: ['.github/workflows/seo-benefits-release.yml']
+permissions:
+  contents: read
+  statuses: write
+concurrency:
+  group: seo-domain-setup
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.repository == 'Port-051/QueueMate' && github.ref == 'refs/heads/feat/seo-landing' && github.actor == 'shj5771' && github.triggering_actor == 'shj5771'
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 58910db2278096a43c251185b724c0be59679f14
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Verify reviewed benefits landing
+        working-directory: landing
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm test
+          npm run build
+      - name: Prepare and test combined release guards
+        run: |
+          cat > "$RUNNER_TEMP/qmate-benefits-release.mjs" <<'NODE'
+          import assert from 'node:assert/strict';
+          import {spawn} from 'node:child_process';
+          import {mkdir,readFile,writeFile,rm,cp} from 'node:fs/promises';
+          import {createHash} from 'node:crypto';
+          import {stripVTControlCharacters as clean} from 'node:util';
+          import {setTimeout as delay} from 'node:timers/promises';
+          import {Resolver} from 'node:dns/promises';
+          const T=Object.freeze({repo:'Port-051/QueueMate',team:'team_TYonFQEoE1HOMC5bYb5xvQXV',scope:'port-52',project:'prj_twOVEOMaFLLQtgu0n4o5l7pmggiu',name:'queue-mate-landing',host:'queue-mate-landing.vercel.app',domain:'queue-mate.com',source:'58910db2278096a43c251185b724c0be59679f14',previous:'c736008ff4e00de7627f5cc774486474b985858a',previousDeployment:'dpl_AEeHZz6u2sssbUZYGLzs46hacLMZ'});
+          const desired=[{name:T.domain},{name:`www.${T.domain}`,redirect:T.domain,redirectStatusCode:308}];
+          const approval=s=>clean(s).match(/https:\/\/vercel\.com\/oauth\/device\?user_code=[A-Z0-9-]+/)?.[0];
+          function guard(p,d){
+           assert.equal(p.id,T.project);assert.equal(p.name,T.name);assert.equal(p.accountId,T.team);
+           assert.equal(d.projectId,T.project);assert.equal(d.readyState,'READY');
+           assert.ok([T.previous,T.source].includes(d.meta?.githubCommitSha),'Unexpected live source; stop for review');
+           if(d.meta.githubCommitSha===T.previous)assert.equal(d.id,T.previousDeployment);
+          }
+          function validateDomain(d,w){
+           assert.equal(d.name,w.name);assert.equal(d.projectId,T.project);assert.ok(!d.gitBranch&&!d.customEnvironmentId);
+           assert.equal(d.redirect??null,w.redirect??null,'Existing redirect differs');
+           if(w.redirect)assert.equal(Number(d.redirectStatusCode),308);
+          }
+          function validateWrite(path,body){
+           assert.equal(path,`/v10/projects/${T.project}/domains`);
+           const w=desired.find(x=>x.name===body?.name);assert.ok(w,'Unapproved domain');assert.deepEqual(body,w);
+          }
+          const p={id:T.project,name:T.name,accountId:T.team},d={id:T.previousDeployment,projectId:T.project,readyState:'READY',meta:{githubCommitSha:T.previous}};
+          assert.doesNotThrow(()=>guard(p,d));
+          assert.throws(()=>guard({...p,accountId:'other'},d));
+          assert.throws(()=>guard(p,{...d,projectId:'other'}));
+          assert.throws(()=>guard(p,{...d,id:'other'}));
+          assert.throws(()=>guard(p,{...d,meta:{githubCommitSha:'other'}}));
+          for(const w of desired){assert.doesNotThrow(()=>validateWrite(`/v10/projects/${T.project}/domains`,w));assert.doesNotThrow(()=>validateDomain({...w,projectId:T.project},w));}
+          assert.throws(()=>validateWrite(`/v9/projects/${T.project}`,{ssoProtection:null}));
+          assert.throws(()=>validateWrite(`/v10/projects/${T.project}/domains`,{name:'q-mate.com'}));
+          assert.throws(()=>validateWrite(`/v10/projects/${T.project}/domains`,{name:T.domain,gitBranch:'main'}));
+          assert.throws(()=>validateDomain({...desired[1],projectId:T.project,redirect:'other.com'},desired[1]));
+          assert.equal(approval('https://vercel.com/oauth/device?user_code=ABCD-EFGH'),'https://vercel.com/oauth/device?user_code=ABCD-EFGH');
+          assert.equal(approval('https://vercel.com.evil.test/oauth/device?user_code=ABCD-EFGH'),undefined);
+          if(process.env.QMATE_TEST_ONLY==='1'){console.log('Release/domain scope, source and approval guards passed');process.exit(0);}
+          assert.equal(process.env.GITHUB_REPOSITORY,T.repo);assert.equal(process.env.GITHUB_REF,'refs/heads/feat/seo-landing');
+          const temp=process.env.RUNNER_TEMP;assert.ok(temp?.startsWith('/'));
+          const cli=`${temp}/qmate-benefits-cli/node_modules/.bin/vercel`,auth=`${temp}/qmate-benefits-auth`,audit=`${temp}/qmate-benefits-audit`,directory=`${temp}/qmate-benefits-package`;
+          const sha=process.env.GITHUB_SHA,runUrl=`https://github.com/${T.repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          const env=Object.fromEntries(['PATH','HOME','RUNNER_TEMP','TMPDIR','NODE_EXTRA_CA_CERTS'].filter(k=>process.env[k]).map(k=>[k,process.env[k]]));
+          Object.assign(env,{CI:'1',NO_COLOR:'1',VERCEL_TELEMETRY_DISABLED:'1'});
+          const report={workflowSha:sha,sourceSha:T.source,teamSlug:T.scope,projectId:T.project,publicUrl:`https://${T.host}/`,domain:T.domain,startedAt:new Date().toISOString(),uiVerified:false,domainSetupVerified:false,connected:false,added:[],reused:[],domains:[],dnsChanged:false,nameserversChanged:false,indexingChanged:false,protectionChanged:false,appConnected:false};
+          await mkdir(auth,{recursive:true,mode:0o700});await mkdir(audit,{recursive:true});
+          async function status(state,description,target_url=runUrl){
+           const r=await fetch(`https://api.github.com/repos/${T.repo}/statuses/${sha}`,{method:'POST',redirect:'error',signal:AbortSignal.timeout(15000),headers:{Authorization:`Bearer ${process.env.GITHUB_TOKEN}`,Accept:'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify({state,context:'SEO benefits release and domain',description:description.slice(0,140),target_url})});
+           assert.ok(r.ok,`Cannot publish status (${r.status})`);await r.body?.cancel();
+          }
+          function command(executable,args,timeout=60000,onOutput=()=>{}){
+           return new Promise((resolve,reject)=>{
+            const child=spawn(executable,args,{env,stdio:['ignore','pipe','pipe']});let stdout='',stderr='',expired=false;
+            const timer=setTimeout(()=>{expired=true;child.kill('SIGKILL');},timeout);
+            child.stdout.on('data',b=>{stdout+=b;onOutput(clean(stdout+'\n'+stderr));});child.stderr.on('data',b=>{stderr+=b;onOutput(clean(stdout+'\n'+stderr));});
+            child.on('error',()=>{clearTimeout(timer);reject(Error('Command failed to start'));});
+            child.on('close',code=>{clearTimeout(timer);code===0&&!expired?resolve(clean(stdout)):reject(Error(expired?'Command timed out':`Command ${args[0]} failed (${code}); raw output withheld`));});
+           });
+          }
+          const vc=(args,timeout,output)=>command(cli,[...args,'--global-config',auth,'--no-color'],timeout,output);
+          async function api(path,body){
+           const method=body===undefined?'GET':'POST';if(body!==undefined)validateWrite(path,body);
+           const args=['api',`${path}${path.includes('?')?'&':'?'}teamId=${T.team}`,'-X',method,'--scope',T.scope];
+           if(body!==undefined){const f=`${auth}/request.json`;await writeFile(f,JSON.stringify(body),{mode:0o600});args.push('--input',f);}
+           const result=JSON.parse((await vc(args)).trim());assert.ok(!result.error,`Vercel rejected ${method} ${path}`);return result;
+          }
+          async function dnsSnapshot(){
+           const r=new Resolver({timeout:3000,tries:1});
+           return Promise.all([[T.domain,'NS'],[T.domain,'A'],[T.domain,'AAAA'],[`www.${T.domain}`,'CNAME']].map(async([name,type])=>{try{return {name,type,answers:await r.resolve(name,type)};}catch(e){return {name,type,error:e.code??'DNS_ERROR'};}}));
+          }
+          async function inspectUrl(url){
+           try{const r=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(15000)});const text=await r.text();return {url,status:r.status,location:r.headers.get('location'),html:/text\/html/i.test(r.headers.get('content-type')??''),benefits:text.includes('왜 아직')&&text.includes('여러 곳을 오가던 방식'),canonical:text.includes(`rel="canonical" href="https://${T.domain}/"`),noindex:/name="robots" content="[^"]*noindex/.test(text)};}
+           catch{return {url,error:'DNS_TLS_OR_NETWORK_ERROR'};}
+          }
+          let phase='preflight',previous,deployment;
+          try{
+           assert.equal((await command('git',['rev-parse','HEAD'])).trim(),T.source,'Checkout must equal reviewed source');
+           const config=JSON.parse(await readFile('landing/site.config.json','utf8'));
+           assert.equal(config.origin,`https://${T.domain}`);assert.equal(config.allowIndexing,false);assert.equal(config.appReady,false);assert.equal(config.reference.branch,'feature/quick-match-ui');
+           for(const n of ['board','settings','room'])await readFile(`landing/dist/assets/ui/quick-match-${n}.webp`);
+           report.dnsBefore=await dnsSnapshot();
+           phase='authorization';await status('pending','Authorize port-52: benefits landing update and queue-mate.com attachment');
+           let published=false,notice=Promise.resolve();
+           await vc(['login'],600000,out=>{const url=approval(out);if(published||!url)return;published=true;notice=status('pending','Approve port-52 to update landing and add queue-mate.com + www',url);notice.catch(()=>{});});await notice;
+           phase='target verification';await status('pending','Authorized; checking existing project, live source and domains');
+           const project=await api(`/v9/projects/${T.project}`);previous=await api(`/v13/deployments/${T.host}`);guard(project,previous);
+           report.previousDeploymentId=previous.id;report.previousUrl=`https://${previous.url}/`;
+           const before=await api(`/v9/projects/${T.project}/domains?limit=100`);
+           assert.ok(Array.isArray(before.domains)&&!before.pagination?.next,'Complete domain list required');
+           assert.ok(before.domains.every(x=>/^[a-z0-9-]+\.vercel\.app$/i.test(x.name)||desired.some(w=>w.name===x.name)),'Unexpected custom domain; stop for review');
+           for(const w of desired){const existing=before.domains.find(x=>x.name===w.name);if(existing)validateDomain(existing,w);}
+           await mkdir(`${directory}/.vercel`,{recursive:true});await mkdir(`${directory}/scripts`,{recursive:true});
+           for(const f of ['package.json','package-lock.json','site.config.json','vercel.json','src','public'])await cp(`landing/${f}`,`${directory}/${f}`,{recursive:true});
+           await cp('landing/scripts/build.mjs',`${directory}/scripts/build.mjs`);
+           await writeFile(`${directory}/.vercel/project.json`,JSON.stringify({projectId:T.project,orgId:T.team,projectName:T.name}));
+           if(previous.meta.githubCommitSha!==T.source){
+            phase='deployment';await status('pending','Deploying benefits-first landing to existing queue-mate-landing');
+            const output=await vc(['deploy','--cwd',directory,'--yes','--prod','--scope',T.scope,'--meta',`githubCommitSha=${T.source}`,'--meta',`releaseWorkflowSha=${sha}`],300000);
+            const urls=output.match(/https:\/\/[a-z0-9.-]+\.vercel\.app/gi);assert.ok(urls?.length,'No deployment URL');
+            deployment=await api(`/v13/deployments/${new URL(urls.at(-1)).hostname}`);
+           }else{deployment=previous;report.alreadyDeployed=true;}
+           guard(project,deployment);assert.equal(deployment.meta.githubCommitSha,T.source);
+           report.deploymentId=deployment.id;report.deploymentUrl=`https://${deployment.url}/`;
+           phase='live UI verification';
+           let live;for(let i=0;i<8;i++){live=await api(`/v13/deployments/${T.host}`);if(live.id===deployment.id)break;await delay(2000);}assert.equal(live.id,deployment.id,'Alias did not reach new source');
+           const checks=await command(process.execPath,['landing/scripts/check-url.mjs',report.publicUrl,'preview',`${audit}/http-checks.json`],150000);await writeFile(`${audit}/http-checks.txt`,checks);
+           const home=await inspectUrl(report.publicUrl);assert.equal(home.status,200);assert.ok(home.html&&home.benefits&&home.canonical&&home.noindex);report.home=home;
+           report.assets=[];for(const path of ['/assets/site.css','/llms.txt',...['board','settings','room'].map(n=>`/assets/ui/quick-match-${n}.webp`)]){
+            const r=await fetch(new URL(path,report.publicUrl),{redirect:'manual',signal:AbortSignal.timeout(15000)});assert.equal(r.status,200);
+            if(path.endsWith('.webp'))assert.match(r.headers.get('content-type')??'',/^image\/webp/i);
+            const bytes=Buffer.from(await r.arrayBuffer()),local=await readFile(`landing/dist${path}`),hash=b=>createHash('sha256').update(b).digest('hex');
+            assert.equal(hash(bytes),hash(local),`Live asset differs: ${path}`);report.assets.push({path,sha256:hash(bytes),bytes:bytes.length});
+           }
+           report.uiVerified=true;
+           phase='domain attachment';await status('pending','Landing verified; attaching queue-mate.com and www, without Gabia DNS changes');
+           for(const w of desired){const existing=before.domains.find(x=>x.name===w.name);if(existing){report.reused.push(w.name);continue;}const added=await api(`/v10/projects/${T.project}/domains`,w);report.added.push(w.name);validateDomain(added,w);}
+           const after=await api(`/v9/projects/${T.project}/domains?limit=100`);assert.ok(Array.isArray(after.domains)&&!after.pagination?.next);
+           for(const w of desired){
+            const entry=after.domains.find(x=>x.name===w.name);assert.ok(entry);validateDomain(entry,w);
+            const configuration=await api(`/v6/domains/${w.name}/config?projectIdOrName=${T.project}`);
+            report.domains.push({name:entry.name,verified:entry.verified,verification:entry.verification??[],redirect:entry.redirect??null,redirectStatusCode:entry.redirectStatusCode??null,configuration});
+           }
+           report.domainSetupVerified=true;
+           report.dnsAfter=await dnsSnapshot();report.publicChecks=await Promise.all(desired.map(w=>inspectUrl(`https://${w.name}/`)));
+           const [root,www]=report.publicChecks;
+           report.connected=report.domains.every(x=>x.verified===true&&x.configuration.misconfigured===false)&&root.status===200&&root.html&&root.benefits&&root.canonical&&[301,308].includes(www.status)&&www.location===`https://${T.domain}/`;
+           await status('success',report.connected?'BENEFITS_UI_AND_DOMAIN_CONNECTED; indexing still disabled':'BENEFITS_UI_DEPLOYED; domains attached; Gabia DNS or TLS pending',report.connected?`https://${T.domain}/`:report.publicUrl);
+           console.log(`Verified landing: ${report.publicUrl}; domain connected: ${report.connected}`);
+          }catch(error){
+           report.error=`${phase}: ${error.message}`;
+           if(deployment&&previous&&deployment.id!==previous.id&&!report.uiVerified){
+            try{const current=await api(`/v13/deployments/${T.host}`);if(current.id===deployment.id){await vc(['rollback',report.previousUrl,'--yes','--scope',T.scope,'--cwd',directory],120000);report.rolledBack=(await api(`/v13/deployments/${T.host}`)).id===previous.id;}else{report.rollbackSkipped='Another deployment owns alias';}}catch{report.rolledBack=false;}
+           }
+           await status('failure',report.error).catch(()=>{});console.error(report.error);process.exitCode=1;
+          }finally{
+           await vc(['logout'],20000).catch(()=>{});await rm(auth,{recursive:true,force:true});report.finishedAt=new Date().toISOString();
+           await writeFile(`${audit}/report.json`,JSON.stringify(report,null,2)+'\n');
+           await writeFile(process.env.GITHUB_STEP_SUMMARY,`## QueueMate benefits release + domain\n\nUI verified: ${report.uiVerified}\nDomain attachment verified: ${report.domainSetupVerified}\nHTTPS connected: ${report.connected}\nURL: ${report.publicUrl}\nSource: ${T.source}\n\nDNS recommendations and any TXT verification challenge: report.json.\nNo Gabia DNS, nameserver, mail, protection, search-index, app connection, main-branch or Git integration changes.\n`);
+          }
+          NODE
+          QMATE_TEST_ONLY=1 node "$RUNNER_TEMP/qmate-benefits-release.mjs"
+      - name: Install official Vercel CLI
+        run: npm install --prefix "$RUNNER_TEMP/qmate-benefits-cli" --no-audit --no-fund vercel@latest
+      - name: Authorize once, update landing and attach domains
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node "$RUNNER_TEMP/qmate-benefits-release.mjs"
+      - name: Remove temporary authorization
+        if: always()
+        run: |
+          AUTH_DIR="$RUNNER_TEMP/qmate-benefits-auth"
+          CLI="$RUNNER_TEMP/qmate-benefits-cli/node_modules/.bin/vercel"
+          if [ -f "$AUTH_DIR/auth.json" ] && [ -x "$CLI" ]; then
+            timeout 20 "$CLI" logout --global-config "$AUTH_DIR" --no-color >/dev/null 2>&1 || true
+          fi
+          rm -rf "$AUTH_DIR"
+      - name: Save nonsecret release and DNS evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: seo-benefits-release
+          path: ${{ runner.temp }}/qmate-benefits-audit/
+          if-no-files-found: ignore
+          retention-days: 7
