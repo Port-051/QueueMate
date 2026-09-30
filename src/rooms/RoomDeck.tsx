@@ -141,9 +141,19 @@ function ChampionFace({ id }: { id: string }) {
 }
 
 /**
+ * 전적의 판 수(`stats.games`)가 **최근 경기 수**인가 — LoL 이다(2026-09-30 소유자 결정 — "판 수 10" → "최근 10판").
+ * LoL 의 `games` 는 전적을 긁을 때 읽은 최근 경기 수(기본 10 — platform P-13)라 바로 위 승 · 패 막대(솔로랭크 **시즌 누적**)와 헷갈렸다.
+ * PUBG 의 `games` 는 이번 시즌 랭크 모드 합산 판 수(랭크가 0 판이면 일반 — P-12 · P-36)이고 치킨률 · K/D 도 같은 판에서 나와 "판 수" 그대로다. VALORANT 는 `stats` 가 늘 `null` 이다.
+ */
+const gamesAreRecent = (game: GameKey) => game === 'LOL';
+
+/** 프로필 창 한 줄의 판 수 — LoL `최근 10판` · PUBG `364판`(`gamesAreRecent`). */
+export const gamesText = (game: GameKey, games: number) => gamesAreRecent(game) ? `최근 ${games}판` : `${games}판`;
+
+/**
  * 좌석에 마우스를 올리면 뜨는 작은 창(마우스가 있는 화면에서만 — CSS `hover: hover`). 좌석 두 줄에 다 못 싣는 것을 싣는다 —
- * 게임 닉네임 · 인증 · 사다리 · 전적 · 판 수 · **LoL 숙련도 높은 챔피언 셋**(P-39 — 좌석 줄로 바꾸며 카드에서 여기로 옮겼다) · PUBG 서버 · 평균 딜.
- * **전적은 OP.GG 모양이다**(2026-09-30 소유자 지시) — 승 · 패가 있으면 승률 칸 대신 **승 · 패 막대**(`WinLossBar`)가 한 줄을 다 쓰고(티어 · KDA 한 줄 → 막대 → 판 수),
+ * 게임 닉네임 · 인증 · 사다리 · 전적 · 판 수(LoL 은 "최근 10판" — `gamesAreRecent`) · **LoL 숙련도 높은 챔피언 셋**(P-39 — 좌석 줄로 바꾸며 카드에서 여기로 옮겼다) · PUBG 서버 · 평균 딜.
+ * **전적은 OP.GG 모양이다**(2026-09-30 소유자 지시) — 승 · 패가 있으면 승률 칸 대신 **승 · 패 막대**(`WinLossBar`)가 한 줄을 다 쓰고(티어 · KDA 한 줄 → 막대 → 최근 10판),
  * 평균 킬 · 데스 · 어시스트와 KDA 가 다 있으면 KDA 칸이 **두 줄**(`KdaStat` — `7.2 / 7.6 / 5.4` 위 · `1.66` 아래)이다. 값이 모자라면(PUBG · VALORANT · 언랭) 전과 같다.
  * 좌석을 누르면 여는 프로필 창(`RoomMemberProfile`)과 같은 사실이라 읽어 주지 않는다(`aria-hidden`) — 좌석 버튼의 이름이 요약을 싣는다.
  * 방 화면의 음성 칸 좌석(`RoomVoiceSeats`)도 같은 창을 쓴다. 띄울지는 `seatPopoverShown`(VALORANT 는 띄우지 않는다)이 정한다.
@@ -172,7 +182,9 @@ export function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMe
       {record ? null : <span><small>{pubg ? '치킨률' : '승률'}</small><Stat kind="winRate" value={member.winRate} plain={pubg} /></span>}
       <span><small>{pubg ? 'K/D' : 'KDA'}</small>{kdaDetail ? <KdaStat line={kdaDetail} /> : <Stat kind="kda" value={member.kda} />}</span>
       {record ? <span style={{ gridColumn: '1 / -1' }}><small>승률</small><WinLossBar record={record} rate={member.winRate} size="sm" /></span> : null}
-      {stats ? <span><small>판 수</small><strong className="performance-value">{stats.games}</strong></span> : null}
+      {stats ? gamesAreRecent(room.game)
+        ? <span><small>최근</small><strong className="performance-value">{stats.games}판</strong></span>
+        : <span><small>판 수</small><strong className="performance-value">{stats.games}</strong></span> : null}
       {avgDamage !== null ? <span><small>평균 딜</small><strong className="performance-value">{Math.round(avgDamage)}</strong></span> : null}
     </span> : null}
     {champions.length ? <span className="room-pop-champions">

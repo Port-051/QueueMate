@@ -476,10 +476,15 @@
 .room-pop-portrait.is-fallback { display:inline-grid; place-items:center; background:#2c2839; color:#cfc6e6; font-size:12px; }
 .room-pop-note { color:#8f8aa0; }
 
-/* 끝난 글 — 확정은 흐리게, 만료는 더 흐리게. 좌석의 티어 색은 뺀다. */
-.room-row.is-closed { opacity:.68; }
-.room-row.is-closed[data-status=EXPIRED] { opacity:.5; }
-.room-row.is-closed .room-seats { filter:grayscale(1); }
+/* 끝난 글 — 확정은 흐리게, 만료는 더 흐리게. 좌석의 티어 색은 뺀다.
+   흐림은 카드의 `opacity` 가 아니라 카드를 덮는 앱 배경색의 막(`::after`)이다(2026-09-30 — 끝난 카드의 좌석 작은 창에 카드 글자가 비쳐 지저분했다).
+   조상의 `opacity` 는 자식이 되돌릴 수 없어 작은 창(`.room-seat-popover` · z-index 5)까지 흐려졌다. 막은 z-index 4 라 작은 창만 그 위에 또렷이 선다.
+   카드 뒤가 앱 배경(`.app-shell` 의 `--app-background`)이라 세기 a 의 막은 `opacity: 1 - a`(확정 .68 · 만료 .5)와 같은 색이다 — 막은 카드 밖 꼬리(`.room-bubble-tail` · 아래 13px)까지 덮고,
+   카드 밖으로 넓힌 자리는 배경 위의 배경이라 보이지 않는다. 흑백은 좌석 줄(`.room-seats`)이 아니라 좌석 버튼에 건다 — 줄에 걸면 작은 창도 흑백이 되고 줄이 쌓임 맥락이 돼 작은 창이 막 밑에 깔린다. */
+.room-row.is-closed { --room-closed-veil:.32; }
+.room-row.is-closed[data-status=EXPIRED] { --room-closed-veil:.5; }
+.room-row.is-closed::after { content:''; position:absolute; inset:0 -1px -13px; z-index:4; background:var(--app-background); opacity:var(--room-closed-veil); pointer-events:none; }
+.room-row.is-closed .room-seat-button { filter:grayscale(1); }
 
 /* 좁은 카드 — 조건 줄의 찾는 포지션은 아이콘만(글자는 풍선말). */
 @container room-card (max-width:599px) {
