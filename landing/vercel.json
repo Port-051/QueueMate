@@ -24,7 +24,7 @@
       "missing": [
         {
           "type": "host",
-          "value": "^q-mate\\.com$"
+          "value": "^queue-mate\\.com$"
         }
       ],
       "headers": [

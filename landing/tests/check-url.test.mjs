@@ -4,6 +4,8 @@ import {readFile} from 'node:fs/promises';
 import {renderSite, render404} from '../src/render.mjs';
 import {attributes, noindex, validWebP, validateOrigin, checkDeployment} from '../scripts/check-url.mjs';
 const config = JSON.parse(await readFile(new URL('../site.config.json', import.meta.url)));
+// Image-enabled fixture keeps the image integrity cases independent of release settings.
+config.media = {...config.media, ogImage: '/assets/og-cover.webp'};
 const image = await readFile(new URL('../public/assets/og-cover.webp', import.meta.url));
 const origin = 'https://qmate-audit.vercel.app';
 function mock({production = false, edit = () => {}} = {}) {

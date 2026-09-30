@@ -1,8 +1,8 @@
 {
   "name": "큐메이트",
   "alternateName": "QueueMate",
-  "origin": "https://q-mate.com",
-  "appUrl": "https://app.q-mate.com/",
+  "origin": "https://queue-mate.com",
+  "appUrl": "https://app.queue-mate.com/",
   "title": "롤 듀오 구하기·파티 찾기 | 큐메이트 QueueMate",
   "description": "롤 듀오 구하기부터 파티 찾기까지. 티어·포지션·마이크 조건을 확인하고, 모집방에서 대화하며 팀원을 찾는 큐메이트입니다. 현재 서비스를 준비하고 있습니다.",
   "contentApproved": false,
@@ -10,7 +10,7 @@
   "allowIndexing": false,
   "appReady": false,
   "media": {
-    "ogImage": "/assets/og-cover.webp"
+    "ogImage": ""
   },
   "verification": {
     "google": "",
