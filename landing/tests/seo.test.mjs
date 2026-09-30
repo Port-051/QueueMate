@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
-import {renderSite,render404,resolveMode,icon} from '../src/render.mjs';
+import {renderSite,render404,resolveMode,icon,escapeHtml} from '../src/render.mjs';
 const base=JSON.parse(await readFile(new URL('../site.config.json',import.meta.url),'utf8'));
 const draft=()=>({...structuredClone(base),contentApproved:false,uiApproved:false,allowIndexing:false,appReady:false});
 const approved=()=>({...draft(),contentApproved:true,uiApproved:true,allowIndexing:true});
@@ -19,7 +19,7 @@ test('preview CTA navigates to the example, not an unlaunched app',()=>{const h=
 test('approved app uses the configured destination',()=>{assert.match(renderSite(live()).html,/href="https:\/\/app.queue-mate.com\/" data-cta="start-matching"/);});
 test('app activation requires copy review',()=>{assert.throws(()=>renderSite({...draft(),appReady:true}),/문구 검토/);});
 test('app activation rejects stale preparing metadata',()=>{assert.throws(()=>renderSite({...approved(),appReady:true}),/description/);});
-test('initial HTML contains one H1, Korean language, title and description',()=>{const h=renderSite(draft()).html;assert.match(h,/<html lang="ko">/);assert.equal((h.match(/<h1\b/g)||[]).length,1);assert.match(h,/<title>롤 듀오 구하기/);assert.match(h,/name="description"/);});
+test('initial HTML contains one H1, Korean language, title and description',()=>{const h=renderSite(draft()).html;assert.match(h,/<html lang="ko">/);assert.equal((h.match(/<h1\b/g)||[]).length,1);assert.ok(h.includes(`<title>${escapeHtml(base.title)}</title>`));assert.match(h,/name="description"/);});
 test('all core sections and 6 native HTML FAQs exist without executable JS',()=>{const h=renderSite(draft()).html;for(const id of ['main','preview','features','how-it-works','faq'])assert.match(h,new RegExp(`id="${id}"`));assert.equal((h.match(/<details>/g)||[]).length,6);const scripts=[...h.matchAll(/<script\b([^>]*)>/g)];assert.equal(scripts.length,1);assert.match(scripts[0][1],/application\/ld\+json/);});
 test('Website structured data has no fictional rating, price or search action',()=>{const h=renderSite(draft()).html;const s=JSON.parse(h.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);assert.equal(s['@type'],'WebSite');assert.equal(s.url,'https://queue-mate.com/');for(const k of ['aggregateRating','offers','potentialAction'])assert.equal(s[k],undefined);});
 test('real UI captures are labelled with synthetic data and not connected service',()=>{const h=renderSite(draft()).html;assert.match(h,/실제 UI를 실행해 촬영한 화면/);assert.match(h,/예시 데이터/);assert.match(h,/실제 매칭·음성 연결은 실행되지 않습니다/);assert.doesNotMatch(h,/class="room-bubble|테스트 서포터|예약 모집 예시|전적 연동 대기/);});
@@ -65,4 +65,42 @@ test('primary button endpoints meet 4.5 to 1 white text contrast',async()=>{
   const css=await readFile(new URL('../src/site.css',import.meta.url),'utf8');
   function luminance(hex){const rgb=[0,2,4].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(c=>c<=0.04045?c/12.92:((c+0.055)/1.055)**2.4);return .2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2];}
   for(const hex of ['6f2cff','8241db','7b3bff','8946e3']){assert.ok(css.includes('#'+hex));assert.ok(1.05/(luminance(hex)+.05)>=4.5);}
+});
+
+test('keyword metadata focuses on team finding without a keyword list',()=>{
+  assert.equal(base.title,'롤 듀오 찾기·파티 구하기 | 큐메이트');
+  assert.match(base.description,/롤 같이 할 사람/);
+  assert.match(base.description,/서비스 준비 중/);
+  assert.doesNotMatch(renderSite(draft()).html,/<meta\s+name="keywords"/i);
+});
+test('search and sharing metadata use the same escaped title and description',()=>{
+  const h=renderSite(draft()).html;
+  assert.ok(h.includes(`<title>${escapeHtml(base.title)}</title>`));
+  for(const [attribute,key,value] of [
+    ['name','description',base.description],
+    ['property','og:title',base.title],
+    ['property','og:description',base.description],
+    ['name','twitter:title',base.title],
+    ['name','twitter:description',base.description],
+  ]) assert.ok(h.includes(`<meta ${attribute}="${key}" content="${escapeHtml(value)}">`),key);
+});
+test('metadata-only edits preserve the entire approved body byte for byte',()=>{
+  const current=draft();
+  const previous={...current,
+    title:'롤 듀오 구하기·자동 매칭·파티 음성 채팅 | 큐메이트',
+    description:'조건에 맞는 게임 팀원을 자동 매칭하거나 모집방의 멤버와 빈자리를 보고 참여하세요. 모집부터 같은 방에서의 음성·텍스트 대화까지, 큐메이트 한 화면에서 이어집니다. 현재 서비스를 준비하고 있습니다.',
+  };
+  const body=h=>{const match=h.match(/<body>[\s\S]*<\/body>/);assert.ok(match);return match[0];};
+  for(const env of [{VERCEL_ENV:'preview'},{VERCEL_ENV:'production'}]) {
+    assert.equal(body(renderSite(current,env).html),body(renderSite(previous,env).html));
+  }
+});
+test('keyword copy preserves canonical, publication guards and prelaunch CTA',()=>{
+  const r=renderSite(base,{VERCEL_ENV:'production'});
+  assert.ok(r.html.includes('<link rel="canonical" href="https://queue-mate.com/">'));
+  assert.equal(base.appUrl,'https://app.queue-mate.com/');
+  assert.match(r.html,/name="robots" content="noindex, nofollow"/);
+  assert.equal(r.sitemap,null);
+  assert.match(r.html,/href="#preview" data-cta="explore-preview"/);
+  assert.doesNotMatch(r.html,/name="google-site-verification"|name="naver-site-verification"|name="msvalidate.01"/);
 });
