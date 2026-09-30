@@ -146,7 +146,10 @@ final class FakeRiotApi {
                 + ",\"veteran\":false,\"inactive\":false,\"freshBlood\":false,\"hotStreak\":false}";
     }
 
-    /** 최근 경기. <b>적은 순서가 곧 새 경기부터의 순서다</b> — 연승을 그 순서로 센다 */
+    /**
+     * 최근 경기. <b>적은 순서가 곧 새 경기부터의 순서다</b> — 연승 · {@code recentResults} 를 그 순서로 센다.
+     * <b>{@code null} 원소는 "그 사람이 참가자에 없는 경기"</b>다(앱이 읽지 못해 건너뛰어야 한다 — {@code List.of} 는 {@code null} 을 못 담으니 {@code Arrays.asList} 로 넣는다)
+     */
     void stubMatches(String puuid, List<Play> plays)
     {
         List<String> ids = new ArrayList<>();
@@ -204,6 +207,14 @@ final class FakeRiotApi {
 
     private static String matchJson(String matchId, String puuid, Play play)
     {
+        if(play == null)
+        {
+            // 그 사람이 없는 경기 — 참가자는 엉뚱한 사람 하나뿐이다
+            return "{\"metadata\":{\"matchId\":\"" + matchId + "\",\"participants\":[\"other-puuid\"]},"
+                    + "\"info\":{\"gameId\":1,\"queueId\":420,\"participants\":["
+                    + participant("other-puuid", new Play("Teemo", 99, 0, 99, true, "TOP"))
+                    + "]}}";
+        }
         return "{\"metadata\":{\"matchId\":\"" + matchId + "\",\"participants\":[\"" + puuid + "\",\"other-puuid\"]},"
                 + "\"info\":{\"gameId\":1,\"queueId\":420,\"participants\":["
                 + participant("other-puuid", new Play("Teemo", 99, 0, 99, !play.win(), "TOP")) + ","

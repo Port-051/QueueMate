@@ -184,7 +184,11 @@ class GameStatsSyncTest extends ApiTestSupport {
         assertMostChampion(champions.get(1), "Samira", 7, 123_456);
         assertMostChampion(champions.get(2), "Teemo", 3, 12_345);
         assertThat(FAKE.lastMasteryRequest()).isEqualTo("/top?count=3");
-        // 계정 · 리그 · 경기 id · 경기 7 · 숙련도 1 — 숙련도는 챔피언마다 부르지 않고 상위 셋을 한 번에 받는다. 소환사(summoner-v4)는 부르지 않는다 —
+        // 최근 경기의 승 · 패(2026-09-30 — P-43) — games · 평균 · 연승과 같은 7판, 새 경기가 먼저. detail 의 칸은 이 둘뿐이다
+        assertThat(stats.get("detail").propertyNames()).containsExactly("mostChampions", "recentResults");
+        assertThat(recentResults(stats)).containsExactly("W", "W", "L", "W", "L", "L", "W")
+                .hasSize(stats.get("games").asInt());
+        // 계정 · 리그 · 경기 id · 경기 7 · 숙련도 1 — 승 · 패 줄을 위해 더 부르지 않는다 — 숙련도는 챔피언마다 부르지 않고 상위 셋을 한 번에 받는다. 소환사(summoner-v4)는 부르지 않는다 —
         // 실제 응답에 id 가 없어 리그를 puuid 로 부른다(2026-09-29)
         assertThat(FAKE.calls() - callsBefore).isEqualTo(11);
         assertThat(FAKE.summonerCalls()).isZero();
@@ -331,7 +335,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("연승은 가장 최근 경기부터 센다 — 최근 경기가 패면 0 이다. 경기를 하나도 못 읽으면 games 0 · 평균 · 연승이 null 이다")
+    @DisplayName("연승은 가장 최근 경기부터 센다 — 최근 경기가 패면 0 이다. 경기를 하나도 못 읽으면 games 0 · 평균 · 연승이 null 이고 recentResults 는 빈 배열이다")
     void winStreakAndNoMatches() throws Exception
     {
         Cookie cookie = login(newNickname());
@@ -339,9 +343,11 @@ class GameStatsSyncTest extends ApiTestSupport {
                 play("Ahri", 1, 1, 1, false),
                 play("Ahri", 1, 1, 1, true),
                 play("Ahri", 1, 1, 1, true)));
-        putGameAccount(cookie, "LOL", json("gameNickname", "연승#KR1"))
+        JsonNode first = readBody(putGameAccount(cookie, "LOL", json("gameNickname", "연승#KR1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.stats.winStreak").value(0));
+                .andExpect(jsonPath("$.stats.winStreak").value(0))).get("stats");
+        // 최근 경기가 패라 연승 0 — 승 · 패 줄의 첫 칸도 L 이다(같은 순서)
+        assertThat(recentResults(first)).containsExactly("L", "W", "W");
 
         // 경기가 하나도 없는 계정으로 바꿔 다시 연결한다(연결은 무조건 긁는다)
         FAKE.stubAccount("무경기#KR1", puuid);
@@ -356,6 +362,34 @@ class GameStatsSyncTest extends ApiTestSupport {
         assertThat(stats.get("winStreak").isNull()).isTrue();
         assertThat(stats.get("kda").isNull()).isTrue();
         assertThat(stats.get("detail").get("mostChampions")).isEmpty();
+        // 경기가 없으면 칸을 빼지 않고 빈 배열이다(P-43 — mostChampions 와 같은 규칙)
+        assertThat(stats.get("detail").has("recentResults")).isTrue();
+        assertThat(stats.get("detail").get("recentResults").isArray()).isTrue();
+        assertThat(stats.get("detail").get("recentResults")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("참가자에서 그 사람을 못 찾은 경기는 games · 평균 · 연승과 함께 recentResults 에서도 빠진다 — 나머지 경기의 순서는 그대로다 (P-43)")
+    void unreadableMatchIsSkippedInRecentResults() throws Exception
+    {
+        Cookie cookie = login(newNickname());
+        // 둘째 경기(null)는 그 사람이 참가자에 없다 — 앱이 읽지 못해 건너뛴다. Riot 은 그 경기도 불렀다(경기 4번)
+        stubLol("빠진경기#KR1", 5, 5, java.util.Arrays.asList(
+                play("Ahri", 3, 1, 3, true),
+                null,
+                play("Ahri", 1, 3, 1, false),
+                play("Ahri", 2, 2, 2, true)));
+        int callsBefore = FAKE.calls();
+
+        JsonNode stats = readBody(putGameAccount(cookie, "LOL", json("gameNickname", "빠진경기#KR1"))
+                .andExpect(status().isOk())).get("stats");
+
+        assertThat(stats.get("games").asInt()).isEqualTo(3);
+        assertThat(recentResults(stats)).containsExactly("W", "L", "W");
+        assertThat(stats.get("winStreak").asInt()).isEqualTo(1);
+        assertThat(number(stats, "avgKills")).isEqualTo(2.0);
+        // 계정 · 리그 · 경기 id · 경기 4 · 숙련도 1 — 못 읽은 경기도 부르기는 했다. 승 · 패 줄이 호출을 늘리지 않는다
+        assertThat(FAKE.calls() - callsBefore).isEqualTo(8);
     }
 
     @Test
@@ -424,6 +458,8 @@ class GameStatsSyncTest extends ApiTestSupport {
         assertThat(FAKE.calls() - callsBefore).isEqualTo(14);
         assertThat(stats.get("games").asInt()).isEqualTo(10);
         assertThat(number(stats, "avgKills")).isEqualTo(4.0);
+        // 승 · 패 줄도 읽은 10판만이다(P-43) — 짝수 번째가 이긴 판
+        assertThat(recentResults(stats)).containsExactly("W", "L", "W", "L", "W", "L", "W", "L", "W", "L");
         // 승/패는 읽은 경기 수와 무관한 솔로랭크 시즌 누적이다
         assertThat(stats.get("wins").asInt()).isEqualTo(30);
         assertThat(stats.get("losses").asInt()).isEqualTo(20);
@@ -851,6 +887,17 @@ class GameStatsSyncTest extends ApiTestSupport {
         assertThat(champion.get("championId").asString()).isEqualTo(championId);
         assertThat(champion.get("masteryLevel").asInt()).isEqualTo(level);
         assertThat(champion.get("masteryPoints").asLong()).isEqualTo(points);
+    }
+
+    /** {@code stats.detail.recentResults} 를 글자 목록으로(P-43). 칸이 없거나 배열이 아니면 테스트를 깬다 */
+    private static List<String> recentResults(JsonNode stats)
+    {
+        JsonNode results = stats.get("detail").get("recentResults");
+        assertThat(results).as("detail.recentResults").isNotNull();
+        assertThat(results.isArray()).as("detail.recentResults 는 배열이다").isTrue();
+        List<String> values = new java.util.ArrayList<>();
+        results.forEach(one -> values.add(one.asString()));
+        return values;
     }
 
     /** 미드로 한 판 */

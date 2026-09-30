@@ -26,7 +26,8 @@ import java.util.function.ToIntFunction;
  *
  * <p>순서는 여섯 걸음이다 — Riot 호출은 경기 10판(기본 — {@code match-count}, 2026-09-29 소유자 결정으로 20판에서 줄였다)이면
  * <b>14번</b>(계정 · 리그 · 경기 id · 경기 10 · 숙련도 — 대륙 주소 12 · 플랫폼 주소 2). 경기가 하나도 없으면 4번이다(숙련도는 경기와 무관하게 부른다).
- * 평균 K/D/A · 연승은 그 경기들로 내고, 승/패는 경기 수와 무관한 솔로랭크 시즌 누적, 모스트 챔피언은 경기와 무관한 통산 숙련도 상위 셋이다.
+ * 평균 K/D/A · 연승 · 최근 경기의 승 · 패 줄({@code detail.recentResults} — 2026-09-30, P-43)은 그 경기들로 내고, 승/패는 경기 수와 무관한 솔로랭크 시즌 누적,
+ * 모스트 챔피언은 경기와 무관한 통산 숙련도 상위 셋이다.
  * <ol>
  *   <li>게임 닉네임을 {@code 이름#태그} 로 가른다 — <b>태그가 없으면 긁지 않는다</b>({@code null} 을 돌려준다)</li>
  *   <li>{@code account-v1} → {@code puuid}</li>
@@ -34,7 +35,8 @@ import java.util.function.ToIntFunction;
  *       (2026-09-29 까지는 {@code summoner-v4} 로 소환사 {@code id} 를 받아 {@code entries/by-summoner} 를 불렀다 — 실제 소환사 응답에 {@code id} 가 없어 늘 비었다.
  *       그 호출을 없애 25번이 24번이 됐다 — 경기 20판일 때의 수다)</li>
  *   <li>{@code match-v5} → 최근 경기 id 목록(새 경기가 먼저)</li>
- *   <li>경기마다 참가자 가운데 <b>그 {@code puuid} 인 사람</b>의 K/D/A · 승패. 참가자 전원의 챔피언 번호 → 이름도 모아 둔다(6걸음의 이름표에 없는 새 챔피언을 메운다)</li>
+ *   <li>경기마다 참가자 가운데 <b>그 {@code puuid} 인 사람</b>의 K/D/A · 승패. 참가자 전원의 챔피언 번호 → 이름도 모아 둔다(6걸음의 이름표에 없는 새 챔피언을 메운다).
+ *       승패는 경기마다 {@code detail.recentResults} 에도 한 칸씩 싣는다 — <b>Riot 을 더 부르지 않는다</b>(이미 읽은 경기다 · {@link #detail})</li>
  *   <li>{@code champion-mastery-v4} {@code top?count=3} → <b>모스트 챔피언 = 숙련도 점수 상위 셋</b>(2026-09-30 소유자 결정 — P-39).
  *       칸은 챔피언 · 레벨 · 점수 셋뿐이다 — 최근 경기의 판 수 · 승률을 섞지 않는다({@link #detail}).
  *       <b>이 걸음만은 실패해도 전적을 살린다</b>(WARN 하고 모스트 챔피언을 빈 배열로 — 전적의 본체가 아니다)</li>
@@ -95,6 +97,14 @@ public class LolStatsProvider implements GameStatsProvider {
 
     /** {@code detail} 의 모스트 챔피언은 셋까지다 ({@code contracts/platform-api.md} "게임 프로필") — 숙련도 {@code top?count=} 에 그대로 싣는다 */
     static final int MOST_CHAMPIONS = 3;
+
+    /**
+     * {@code detail} 의 최근 경기 승 · 패 줄의 칸 이름과 두 값(2026-09-30 소유자 요청 — duo.gg 식 "15승 5패 (20 게임)" + 승/패 칸 줄 · P-43).
+     * 칸 이름 · 글자 둘 · 순서(새 경기가 먼저)는 Claude 가 정한 세부다({@link #detail})
+     */
+    static final String RECENT_RESULTS = "recentResults";
+    static final String RESULT_WIN = "W";
+    static final String RESULT_LOSS = "L";
 
     /**
      * 모스트 챔피언의 순서 — 점수 내림차순 → 같으면 레벨 내림차순 → 같으면 {@code championId}(이름의 글자) 오름차순(Claude 가 정한 세부 — P-39).
@@ -166,7 +176,7 @@ public class LolStatsProvider implements GameStatsProvider {
                 ranks.solo() == null ? null : ranks.solo().wins(),
                 ranks.solo() == null ? null : ranks.solo().losses(),
                 games == 0 ? null : winStreak(played),
-                detail(puuid, matches.championNames()),
+                detail(puuid, matches.championNames(), played),
                 tiers);
     }
 
@@ -384,7 +394,8 @@ public class LolStatsProvider implements GameStatsProvider {
     }
 
     /**
-     * {@code {"mostChampions": [{"championId", "masteryLevel", "masteryPoints"}]}} — <b>숙련도 점수 상위 셋</b>(2026-09-30 소유자 결정 — P-39).
+     * {@code {"mostChampions": [{"championId", "masteryLevel", "masteryPoints"}], "recentResults": ["W", "L", …]}}.
+     * {@code mostChampions} 는 <b>숙련도 점수 상위 셋</b>(2026-09-30 소유자 결정 — P-39).
      * 순서는 {@link #MOST_CHAMPION_ORDER}. <b>최근 경기의 판 수 · 승률은 싣지 않는다</b>(그 둘이 통산 숙련도와 한 줄에 섞였던 것을 걷어냈다).
      *
      * <p>{@code championId} 의 값은 챔피언 <b>이름</b>({@code "Kaisa"} — Data Dragon ID)이다. 숙련도 응답에는 숫자만 있어 {@link LolChampionNames} 로 옮긴다.
@@ -393,8 +404,13 @@ public class LolStatsProvider implements GameStatsProvider {
      *
      * <p>{@code masteryLevel} · {@code masteryPoints} 는 늘 값이 있다 — 번호 · 레벨 · 점수 가운데 하나라도 못 읽은 줄은 건너뛴다.
      * 숙련도를 못 받았거나 하나도 없으면 빈 배열이다 — {@code detail} 은 {@code null} 이 될 수 없다(컬럼이 {@code NOT NULL}).
+     *
+     * <p><b>{@code recentResults}</b>(2026-09-30 — P-43) — 읽은 최근 경기의 승 · 패를 <b>새 경기가 먼저</b>인 순서로 {@code "W"} · {@code "L"} 한 칸씩.
+     * {@code games} · 평균 K/D/A · 연승과 <b>같은 경기 목록</b>이다 — 그래서 길이가 늘 {@code games} 이고, 참가자를 못 찾은 경기는 여기서도 빠진다.
+     * 경기가 하나도 없으면 빈 배열이다(칸을 빼지 않는다 — {@code mostChampions} 와 같다). 승패를 못 읽은 경기({@code win} 이 불린이 아니다)는
+     * 연승과 같이 {@code "L"} 이다. 다시하기(remake)를 따로 가르지 않는다 — 연승 · 평균도 가르지 않는다.
      */
-    private String detail(String puuid, Map<Long, String> namesFromMatches)
+    private String detail(String puuid, Map<Long, String> namesFromMatches, List<Played> played)
     {
         List<MostChampion> most = new ArrayList<>();
         for(JsonNode mastery : topMasteries(puuid))
@@ -420,6 +436,11 @@ public class LolStatsProvider implements GameStatsProvider {
             champion.put("championId", one.championId());
             champion.put("masteryLevel", one.masteryLevel());
             champion.put("masteryPoints", one.masteryPoints());
+        }
+        ArrayNode results = root.putArray(RECENT_RESULTS);
+        for(Played one : played)
+        {
+            results.add(one.win() ? RESULT_WIN : RESULT_LOSS);
         }
         return root.toString();
     }
@@ -535,7 +556,7 @@ public class LolStatsProvider implements GameStatsProvider {
         static final Ranks NONE = new Ranks(null, null);
     }
 
-    /** 경기 하나에서 이 사람의 기록. 챔피언은 담지 않는다 — 모스트 챔피언은 경기가 아니라 숙련도에서 온다(2026-09-30 — P-39) */
+    /** 경기 하나에서 이 사람의 기록. 챔피언은 담지 않는다 — 모스트 챔피언은 경기가 아니라 숙련도에서 온다(2026-09-30 — P-39). {@code win} 은 연승과 {@code recentResults}(P-43)가 쓴다 */
     record Played(int kills, int deaths, int assists, boolean win) {
     }
 
