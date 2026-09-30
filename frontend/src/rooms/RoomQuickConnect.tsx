@@ -24,7 +24,7 @@ function CreateRoomIcon() {
 }
 
 /**
- * 게시판 상단에 붙는 빠른매치 버튼. 조건은 모달에서 고르고 대기 시간은 버튼에 남긴다.
+ * 게시판 필터 줄의 방 만들기 · 빠른매치 버튼. 조건은 모달에서 고르고 대기 시간은 버튼에 남긴다.
  * 시작 · 취소 · 제안 · 방 입장은 실제 MatchContext 흐름을 사용한다.
  * 글 쓰기 버튼은 필터 줄(createSlot)에 두고 별도 RoomCreatePreview에서 입력받는다.
  * 자동 매칭 조건은 브라우저에 게임별로 저장하며 티어는 연결한 게임 계정에서 읽는다.
@@ -34,7 +34,7 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, roomPane
   /** 내가 지금 들어가 있는 방(`GET /rooms/me`). 있으면 방을 만들거나 매칭을 시작할 수 없다(서버도 409 다). */
   activeRoomId: string | null;
   roomPanelOpen: boolean;
-  /** "글 쓰고 파티 찾기" 버튼이 설 자리 — 보드의 필터 한 줄 오른쪽 끝. 아직 없으면(`null`) 그리지 않는다. */
+  /** 방 만들기 · 빠른매치 버튼이 설 자리 — 보드의 필터 한 줄 오른쪽 끝. */
   createSlot: HTMLElement | null;
   onCreate: (body: CreatePostRequest) => void | Promise<void>;
 }) {
@@ -131,7 +131,7 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, roomPane
   };
 
   /**
-   * "글 쓰고 파티 찾기" — 여는 것을 막는 것(방에 있음 · 자동 매칭 대기 중)만 보고 팝업을 연다. 글의 칸은 전부 팝업이 받고 본문도 거기서 만든다(`RoomCreatePreview`).
+   * "방 만들기" — 여는 것을 막는 것(방에 있음 · 자동 매칭 대기 중)만 보고 팝업을 연다. 글의 칸은 전부 팝업이 받고 본문도 거기서 만든다(`RoomCreatePreview`).
    * 이 판의 입력 오류는 보지 않는다 — 팝업은 판의 값을 쓰지 않는다(2026-09-30 소유자 지시).
    */
   const startRoom = () => {
@@ -163,23 +163,16 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, roomPane
   };
 
   return <>
-    {!roomPanelOpen && !activeRoomId ? <div className="room-match-sticky">
-      <button type="button" className={`room-match-trigger${waiting ? ' is-searching' : ''}`} aria-label={waiting ? '빠른매치 현황 열기' : '빠른매치 조건 열기'} aria-haspopup="dialog" aria-expanded={opened} onClick={openMatching}>
-        <span className="room-match-trigger-icon"><IconMatch size={24} /></span>
-        <span className="room-match-trigger-copy"><strong>빠른매치</strong><span>{waiting ? '함께할 팀원을 찾고 있어요' : '조건을 고르면 함께할 팀원을 찾아드려요'}</span></span>
-        <span className="room-match-trigger-action">{request?.status === 'PROPOSED' ? '제안 확인' : waiting ? <><span className="room-match-clock">{elapsed}</span><span>현황 보기</span></> : '조건 설정'}<span aria-hidden="true">→</span></span>
-      </button>
-    </div> : null}
     {opened && !roomPanelOpen && !activeRoomId ? <Modal title={waiting ? '빠른매치 현황' : '빠른매치 조건 설정'} closeLabel="빠른매치 창 닫기" className="room-match-dialog" onClose={() => { if (!starting && !cancelling) setOpened(false); }}>
       {waiting ? status : <>
-      <p className="room-match-description">{gameFullLabel(game)} · 함께할 팀원의 조건을 골라주세요.</p>
+      <p className="room-match-description">{gameFullLabel(game)} · 조건을 고르면 함께할 팀원을 찾아드려요.</p>
       <div className="room-home board-home room-match-settings"><HomeProfileRail user={user} game={game} gameAccount={gameAccount}><section className="matching-rail-panel room-matching-form" aria-label="빠른매치">
     <form noValidate onSubmit={event => { event.preventDefault(); if (!starting && !waiting) void startMatching(); }}>
       <fieldset className="recruitment-composer" disabled={starting}>
         {error ? <div className="banner warn" role="alert">{error}</div> : null}
         <SelfIntroductionFields binaryVoice compact singleRole showPurpose hidePostFields game={game} value={value} onChange={update} />
       </fieldset>
-      {/* 막는 문구 · 링크는 "자동 매칭 시작" 옆(넓은 화면) · 위(좁은 화면)에 선다. "글 쓰고 파티 찾기" 를 막은 문구(매칭 대기 중 등)도 여기다 — 한마디의 문구는 팝업에 있다. */}
+      {/* 막는 문구 · 링크는 "자동 매칭 시작" 옆(넓은 화면) · 위(좁은 화면)에 선다. "방 만들기" 를 막은 문구(매칭 대기 중 등)도 여기다 — 한마디의 문구는 팝업에 있다. */}
       <div className="matching-rail-footer room-rail-actions room-match-actions">
         <div className="room-match-message">
           {createError ? <p className="room-create-error" role="alert">{createError}</p> : startBlocked ? <p className="room-create-hint">{startBlocked}</p> : null}
@@ -191,7 +184,12 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, roomPane
   </section></HomeProfileRail></div>
       </>}
     </Modal> : null}
-    {createSlot && !activeRoomId ? createPortal(<Button variant="primary" className="board-create-button" disabled={waiting} onClick={startRoom}><CreateRoomIcon />글 쓰고 파티 찾기</Button>, createSlot) : null}
+    {createSlot && !activeRoomId ? createPortal(<>
+      <Button variant="primary" className="board-action-button" disabled={waiting} onClick={startRoom}><CreateRoomIcon />방 만들기</Button>
+      {!roomPanelOpen ? <Button variant="primary" className="board-action-button" aria-label={waiting ? '빠른매치 현황 열기' : '빠른매치 조건 열기'} aria-haspopup="dialog" aria-expanded={opened} onClick={openMatching}>
+        <IconMatch size={22} />{request?.status === 'PROPOSED' ? '제안 확인' : '빠른매치'}{waiting ? <span className="room-match-clock">{elapsed}</span> : null}
+      </Button> : null}
+    </>, createSlot) : null}
     {writing ? <RoomCreatePreview game={game} onClose={() => setWriting(false)} onConfirm={async body => { await onCreate(body); setWriting(false); }} /> : null}
   </>;
 }
