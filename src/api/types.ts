@@ -127,6 +127,12 @@ export interface LolMostChampion {
  */
 export interface GameStatsDetail {
   mostChampions?: LolMostChampion[] | null;
+  /**
+   * LoL 최근 경기마다의 승 · 패 — `"W"` · `"L"` 한 칸씩 · **새 경기가 먼저** · 길이 = `games` · 경기가 없으면 빈 배열(platform P-43 · 2026-09-30).
+   * **그날 전에 적힌 스냅숏에는 칸이 없다** — 화면은 전처럼 판 수(`최근 10판`)를 그린다. `wins` · `losses`(솔로랭크 시즌 누적)와 다른 숫자다.
+   * jsonb 그대로라 화면은 배열인지 · 값이 두 글자인지 보고 읽는다(`components/RecentResults.tsx` `recentRecord`).
+   */
+  recentResults?: unknown;
   seasonMode?: string | null;
   avgDamage?: number | null;
   kd?: number | null;

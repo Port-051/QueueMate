@@ -5,6 +5,7 @@ import { Avatar } from '../components/ui';
 import { FilterModeIcon, FilterRoleIcon, FilterTierIcon, VoiceIcon } from '../components/FilterSymbols';
 import { PerformanceValue } from '../components/IntroductionVisuals';
 import { KdaStat, kdaLine, KdStat, kdLine } from '../components/KdaStat';
+import { RecentResults, recentRecord } from '../components/RecentResults';
 import { WinLossBar, winLossRecord } from '../components/WinLossBar';
 import { championName, championPortrait } from '../domain/champions';
 import { keyConditionOptions } from '../domain/gameConfig';
@@ -93,6 +94,8 @@ export function RoomMemberAvatar({ member, size, color }: { member: BoardMember;
  * (KDA 는 티어 옆 반으로 올라가고 · 방장 포지션이 그 자리를 쓰면 막대 밑 한 줄 · 승률 숫자는 막대 뒤 하나뿐), 평균 킬 · 데스 · 어시스트와 KDA 가 다 있으면 KDA 칸이 **두 줄**(`KdaStat`)이다.
  * 값이 모자라면(VALORANT · 언랭 · 데스 0) 그 칸은 전과 같다. **PUBG 는 K/D 칸이 두 줄**(`KdStat` — 평균 킬 / 데스 위 · K/D 아래 — 같은 날 소유자)이고 막대는 없다(승 · 패가 없다).
  * PUBG 의 서버 칸은 게임 계정이 있을 때만이다(계정이 없는 사람에게 "서버 미정" 을 그리던 것을 걷었다 — 같은 날 소유자). 치킨 칸의 이름은 좌석 · 작은 창과 같은 "치킨률" 이다.
+ * **LoL 은 `opgg` 일 때 맨 아래 한 줄에 최근 경기의 승 · 패 칸**(`RecentResults` — duo.gg 의 `7승 3패 (10 게임)` + 칸 줄 · platform P-43 · 같은 날 소유자)이다.
+ * 그날 전의 스냅숏(칸이 없다)이면 그리지 않고 프로필 창 한 줄의 `최근 10판` 이 전처럼 남는다(`RoomMemberProfile`).
  */
 export function RoomMemberFacts({ room, member, iconSize = 22, opgg = false }: { room: BoardRoom; member: BoardMember; iconSize?: number; opgg?: boolean }) {
   const pubg = room.game === 'PUBG';
@@ -102,6 +105,7 @@ export function RoomMemberFacts({ room, member, iconSize = 22, opgg = false }: {
   const record = opgg && !pubg ? winLossRecord(member.profile?.stats) : null;
   const kdaDetail = opgg && !pubg ? kdaLine(member.profile?.stats) : null;
   const kdDetail = opgg && pubg ? kdLine(member.profile?.stats) : null;
+  const recent = opgg && room.game === 'LOL' ? recentRecord(member.profile?.stats) : null;
   const kda = <div className={record && hostPosition ? 'is-wide' : undefined}><dt>{pubg ? 'K/D' : 'KDA'}</dt><dd>{kdaDetail ? <KdaStat line={kdaDetail} size="lg" /> : kdDetail ? <KdStat line={kdDetail} size="lg" /> : <Stat kind="kda" value={member.kda} />}</dd></div>;
   const bar = record ? <div className="is-wide"><dt>승률</dt><dd><WinLossBar record={record} rate={member.winRate} size="lg" /></dd></div> : null;
   return <dl className="room-member-facts">
@@ -111,6 +115,7 @@ export function RoomMemberFacts({ room, member, iconSize = 22, opgg = false }: {
     {record
       ? hostPosition ? <>{bar}{kda}</> : <>{kda}{bar}</>
       : <><div><dt>{pubg ? '치킨률' : '승률'}</dt><dd><Stat kind="winRate" value={member.winRate} plain={pubg} /></dd></div>{kda}</>}
+    {recent ? <div className="is-wide"><dt>최근 경기</dt><dd><RecentResults record={recent} size="lg" /></dd></div> : null}
   </dl>;
 }
 
@@ -153,6 +158,7 @@ const PUBG_SEASON_MODE_LABEL: Record<string, string> = { RANKED: '랭크', NORMA
  *   바로 위 승 · 패 막대(솔로랭크 **시즌 누적**)와 헷갈렸다.
  * - **PUBG `이번 시즌` · `랭크 10판`**(랭크가 0 판이면 서버가 일반 모드를 합산한다 → `일반 10판` — P-12 · P-36). 치킨률 · K/D · 평균 딜이 같은 판에서 나온다. 이름은 Claude 가 정한 세부다.
  * - 그 밖(VALORANT — `stats` 가 늘 `null` 이다) `판 수` · `10판`.
+ * **LoL 은 최근 경기의 승 · 패(`recentResults` — P-43)가 있으면 이 칸 대신 승 · 패 칸 줄이다**(`RecentResults`) — 이 칸은 그날 전의 스냅숏에만 남는다.
  */
 function gamesFact(game: GameKey, stats: GameStats): { label: string; value: string } {
   if (game === 'LOL') return { label: '최근', value: `${stats.games}판` };
@@ -175,6 +181,8 @@ export function gamesText(game: GameKey, stats: GameStats): string {
  * 게임 닉네임 · 인증 · 사다리 · 전적 · 판 수(뜻에 맞는 이름 — `gamesFact`) · **LoL 숙련도 높은 챔피언 셋**(P-39 — 좌석 줄로 바꾸며 카드에서 여기로 옮겼다) · PUBG 서버 · 평균 딜.
  * **전적은 OP.GG 모양이다**(2026-09-30 소유자 지시) — LoL 은 승 · 패가 있으면 승률 칸 대신 **승 · 패 막대**(`WinLossBar`)가 한 줄을 다 쓰고(티어 · KDA 한 줄 → 막대 → 최근 10판),
  * 평균 킬 · 데스 · 어시스트와 KDA 가 다 있으면 KDA 칸이 **두 줄**(`KdaStat` — `7.2 / 7.6 / 5.4` 위 · `1.66` 아래)이다. 값이 모자라면(VALORANT · 언랭) 전과 같다.
+ * **LoL 의 `최근 10판` 칸은 최근 경기의 승 · 패 칸 줄이 됐다**(같은 날 소유자 — duo.gg 처럼 `최근 경기 7승 3패 (10 게임)` + 경기마다 `승` · `패` 칸 · 왼쪽이 가장 최근 · 막대처럼 한 줄을 다 쓴다 — `RecentResults` · platform P-43).
+ * 승 · 패 수는 그 배열에서 세고(막대의 시즌 누적 `wins` · `losses` 가 아니다) 그날 전의 스냅숏(칸이 없다)이면 전처럼 `최근` · `10판` 이다.
  * **PUBG 도 같은 모양이다**(같은 날 소유자) — 사다리 티어 | **K/D 두 줄**(`KdStat` — 평균 킬 / 데스 `1.8 / 1.1` 위 · K/D `1.64` 아래) → 치킨률 | 평균 딜 → 이번 시즌 판 수. 승 · 패가 없어 막대는 없다.
  * 좌석을 누르면 여는 프로필 창(`RoomMemberProfile`)과 같은 사실이라 읽어 주지 않는다(`aria-hidden`) — 좌석 버튼의 이름이 요약을 싣는다.
  * 방 화면의 음성 칸 좌석(`RoomVoiceSeats`)도 같은 창을 쓴다. 띄울지는 `seatPopoverShown`(VALORANT 는 띄우지 않는다)이 정한다.
@@ -191,7 +199,8 @@ export function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMe
   const record = pubg ? null : winLossRecord(stats);
   const kdaDetail = pubg ? null : kdaLine(stats);
   const kdDetail = pubg ? kdLine(stats) : null;
-  const games = stats ? gamesFact(room.game, stats) : null;
+  const recent = room.game === 'LOL' ? recentRecord(stats) : null;
+  const games = stats && !recent ? gamesFact(room.game, stats) : null;
   return <span className="room-seat-popover" aria-hidden="true">
     <span className="room-pop-head">
       <b>{member.nickname}</b>
@@ -211,6 +220,7 @@ export function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMe
       {record ? null : <span><small>승률</small><Stat kind="winRate" value={member.winRate} /></span>}
       <span><small>KDA</small>{kdaDetail ? <KdaStat line={kdaDetail} /> : <Stat kind="kda" value={member.kda} />}</span>
       {record ? <span style={{ gridColumn: '1 / -1' }}><small>승률</small><WinLossBar record={record} rate={member.winRate} size="sm" /></span> : null}
+      {recent ? <span className="room-pop-recent" style={{ gridColumn: '1 / -1' }}><RecentResults record={recent} label="최근 경기" /></span> : null}
       {games ? <span><small>{games.label}</small><strong className="performance-value">{games.value}</strong></span> : null}
     </span> : null}
     {champions.length ? <span className="room-pop-champions">
