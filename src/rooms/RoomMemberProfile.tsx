@@ -3,6 +3,7 @@ import { PreferredChampions } from '../components/IntroductionVisuals';
 import { gameConfig } from '../domain/gameConfig';
 import { modeChoiceLabel } from '../domain/modeChoice';
 import { gamesText, RoomMemberAvatar, RoomMemberFacts } from './RoomDeck';
+import { boardRoomColors } from './roomColors';
 import type { BoardMember, BoardRoom } from './types';
 import './room-member-profile.css';
 
@@ -11,9 +12,11 @@ export function RoomMemberProfile({ room, member, onClose }: {
   room: BoardRoom; member: BoardMember; onClose: () => void;
 }) {
   const stats = member.profile?.stats;
+  // 얼굴 색은 눌렀던 카드의 좌석과 같다(그 방의 색 — `boardRoomColors`).
+  const color = boardRoomColors(room).get(member.id);
   return <Modal title={`${member.nickname} 프로필`} titleContent="프로필" closeLabel="프로필 닫기" className="room-member-profile" onClose={onClose}>
     <div className="room-profile-identity">
-      <RoomMemberAvatar member={member} size={72} />
+      <RoomMemberAvatar member={member} size={72} color={color} />
       <h3>{member.nickname}</h3>
       <p>{gameConfig(room.game).name} · {modeChoiceLabel(room.game, room.modeKey, room.perspective)}</p>
     </div>

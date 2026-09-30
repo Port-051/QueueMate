@@ -15,6 +15,7 @@ import { relativeTime } from '../domain/time';
 import { hasLolRankDivision } from '../domain/lolRank';
 import { canonicalRoomRoles, hasPositions, ROOM_ROLES } from './summary';
 import { roomVoice } from './voice';
+import { boardRoomColors } from './roomColors';
 import type { BoardMember, BoardRoom } from './types';
 
 function RoomBubbleTail() {
@@ -72,9 +73,10 @@ export function RoomHostCrown() {
   </span>;
 }
 
-export function RoomMemberAvatar({ member, size }: { member: BoardMember; size: number }) {
+/** 좌석 · 프로필 창의 얼굴(+ 방장 왕관). `color` 는 그 방의 색(`boardRoomColors` — 한 방은 모두 다른 색) · 없으면 그 사람의 집 색이다. */
+export function RoomMemberAvatar({ member, size, color }: { member: BoardMember; size: number; color?: number }) {
   return <span className="room-member-avatar">
-    <Avatar name={member.nickname} size={size} />
+    <Avatar userId={member.id} name={member.nickname} color={color} size={size} />
     {member.host ? <RoomHostCrown /> : null}
   </span>;
 }
@@ -290,12 +292,12 @@ export function seatSummary(room: BoardRoom, member: BoardMember, selfId: string
  * 게시판 좌석(`RoomSeat`)과 방 화면의 음성 칸 좌석(`RoomVoiceSeats` — `me` 로 닉네임 뒤 "(나)")이 같이 쓴다 — 두 곳의 좌석이 같은 모양이게.
  * 두 줄째 숫자에는 풍선말(`title`)을 달지 않는다 — 마우스를 올리면 뜨는 작은 창 위에 브라우저 풍선말 "KDA" 가 겹쳐 떴다(2026-09-30 소유자 스크린숏). 이름은 작은 창의 칸 · 좌석 버튼의 이름(`seatSummary`)에 있다.
  */
-export function RoomSeatBody({ room, member, me = false }: { room: BoardRoom; member: BoardMember; me?: boolean }) {
+export function RoomSeatBody({ room, member, me = false, color }: { room: BoardRoom; member: BoardMember; me?: boolean; color?: number }) {
   const hostPosition = seatHostPosition(room, member);
   const numbers = seatNumbers(room.game, member);
   return <>
     <span className="room-seat-face">
-      <RoomMemberAvatar member={member} size={34} />
+      <RoomMemberAvatar member={member} size={34} color={color} />
       <span className="room-seat-tier-badge"><FilterTierIcon game={room.game} tier={member.tier} size={16} /></span>
     </span>
     <span className="room-seat-text">
@@ -319,12 +321,12 @@ export function RoomSeatBody({ room, member, me = false }: { room: BoardRoom; me
  * 좌석이 제 폭을 보고 줄인다(CSS 컨테이너 질의 — 분할 화면 · 사람이 많은 방) — 190px 이하면 숫자와 포지션 글자를 빼고(포지션은 닉네임 앞 아이콘), 132px 이하면 얼굴 원 + 티어 배지 위 · 닉네임 아래다.
  * 누르면 프로필 창이다(전파를 끊는다 — 참가로 번지지 않게). 마우스를 올린 작은 창의 위 · 아래는 `placeSeatPopover` 가 정하고, VALORANT 글이면 창이 없다(`seatPopoverShown`).
  */
-function RoomSeat({ room, member, selfId, popEnd, onMember }: { room: BoardRoom; member: BoardMember; selfId: string; popEnd: boolean; onMember: (room: BoardRoom, member: BoardMember) => void }) {
+function RoomSeat({ room, member, color, selfId, popEnd, onMember }: { room: BoardRoom; member: BoardMember; color?: number; selfId: string; popEnd: boolean; onMember: (room: BoardRoom, member: BoardMember) => void }) {
   const popover = seatPopoverShown(room.game);
   return <li className={`room-seat is-filled${member.host ? ' is-host' : ''}${member.id === selfId ? ' is-self' : ''}${popEnd ? ' pop-end' : ''}`}
     onMouseEnter={popover ? event => placeSeatPopover(event.currentTarget) : undefined} onFocus={popover ? event => placeSeatPopover(event.currentTarget) : undefined}>
     <button type="button" className="room-seat-button" aria-label={`${seatSummary(room, member, selfId)} — 프로필 보기`} onClick={event => { event.stopPropagation(); onMember(room, member); }}>
-      <RoomSeatBody room={room} member={member} />
+      <RoomSeatBody room={room} member={member} color={color} />
     </button>
     {popover ? <SeatPopover room={room} member={member} /> : null}
   </li>;
@@ -368,6 +370,8 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, reveal = f
   const positions = hasPositions(room.game, room.modeKey);
   // 확정된 글은 파티원 전원(P-40), 만료된 글은 방장만 — 서버가 만료된 글의 `members` 를 비워 보낸다.
   const members = room.members.length ? room.members : [room.host];
+  // 얼굴 색 — 한 방(카드 한 장)의 사람은 모두 다른 색이다(2026-09-30 소유자). 방장 먼저 · 나머지는 사용자 번호 순으로 집 색을 잡고 겹치면 다음 빈 색(`roomColors.ts`).
+  const colors = boardRoomColors(room);
   const vacancies = recruiting ? Math.max(0, room.capacity - room.memberCount) : 0;
   const voice = roomVoice(room.voice);
   const group = modeChoice(room.game, room.modeKey)?.group ?? room.modeKey;
@@ -390,7 +394,7 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, reveal = f
     </p>
     <div className="room-seat-row">
       <ul className="room-seats" aria-label={recruiting ? `자리 ${room.memberCount} / ${room.capacity}` : `파티원 ${members.length}명`}>
-        {members.map((member, index) => <RoomSeat key={member.id} room={room} member={member} selfId={selfId} popEnd={index >= 3} onMember={onMember} />)}
+        {members.map((member, index) => <RoomSeat key={member.id} room={room} member={member} color={colors.get(member.id)} selfId={selfId} popEnd={index >= 3} onMember={onMember} />)}
         {Array.from({ length: vacancies }, (_, index) => <li className="room-seat is-empty" key={`seat-${index}`}>
           <span className={`room-seat-hole${openSeat ? ' is-open' : ''}`} title="빈자리" aria-hidden="true" onClick={openSeat} />
           <span className="sr-only">빈자리</span>

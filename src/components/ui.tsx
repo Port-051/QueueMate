@@ -5,6 +5,8 @@ import emptyNoMatch from '../assets/empty-no-match.webp';
 import emptyNoSocial from '../assets/empty-no-social.webp';
 import emptyNoReservation from '../assets/empty-no-reservation.webp';
 import { isApiError } from '../api/error';
+import { AVATAR_PALETTE, homeColor, nameColor } from '../domain/avatarColor';
+import { LogoGlyph } from './Logo';
 
 export function Card({ children, className = '', ...rest }: { children: ReactNode; className?: string } & HTMLAttributes<HTMLDivElement>) {
   return <div className={`card ${className}`} {...rest}>{children}</div>;
@@ -43,42 +45,31 @@ export function Tag({ children, tone = 'default' }: { children: ReactNode; tone?
   return <span className={`tag${tone === 'default' ? '' : ` ${tone}`}`}>{children}</span>;
 }
 
-/** 글자 하나가 넓어 한 글자만으로 이니셜이 되는 문자 — 한글 · 한자 · 가나. */
-const WIDE_INITIAL = /^[\p{Script=Hangul}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
-
 /**
- * 닉네임의 이니셜 — 라틴 문자 · 숫자로 시작하면 앞 두 글자를 대문자로("demo-10" → "DE"),
- * 한글 · 한자 · 가나로 시작하면 앞 한 글자("김철수" → "김"). 같은 닉네임이면 늘 같다.
- * 코드 포인트로 자른다(이모지 같은 서로게이트 쌍을 반으로 쪼개지 않는다).
+ * 사람의 얼굴 자리 — **Discord 식 기본 아바타**: 모두 같은 흰 로고 실루엣(`LogoGlyph`)이 색 원 가운데에 있고 **배경색만 사람마다 다르다**
+ * (2026-09-30 소유자 결정 — 안 A. 그 전에는 닉네임 이니셜 원이었다 — 데모 계정이 전부 "DE" · 거의 같은 보라라 구별이 안 됐다).
+ *
+ * - 색은 팔레트 10색(`domain/avatarColor.ts`) 가운데 하나다. **`color`(방 색 — 팔레트 번호)를 주면 그것**, 아니면 **`userId` 의 집 색**(번호 mod 10),
+ *   번호도 모르면 마지막 수단으로 `name` 의 해시다(지금은 로그인 정보가 아직 없는 자리뿐).
+ * - **한 방 · 한 파티의 사람을 같이 그리는 곳은 `roomColors` 로 구한 `color` 를 넘긴다** — 같은 방 안의 색은 모두 다르다(소유자 — "색깔이 다 달라야지 구별이 가능하니까").
+ *   게시판 카드 · 프로필 창(`rooms/RoomDeck.tsx` · `RoomMemberProfile`) · 방 화면의 음성 칸 좌석 · 방 채팅(`pages/PartyRoomPage.tsx` · `RoomVoiceSeats`)이 그렇다.
+ * - 스크린 리더에는 숨긴다 — 이름은 옆 닉네임 · 버튼 이름이 말한다.
  */
-function avatarInitials(label: string): { text: string; wide: boolean } {
-  const chars = [...label];
-  if (!chars.length) return { text: '?', wide: false };
-  const wide = WIDE_INITIAL.test(label);
-  return { text: chars.slice(0, wide ? 1 : 2).join('').toUpperCase(), wide };
-}
-
-/**
- * 사람의 얼굴 자리 — 닉네임 이니셜을 보라 원에 그린다(2026-09-30 소유자 지시 — 캐릭터 그림 대신).
- * 색은 닉네임으로 ±30° 돌린다(같은 닉네임이면 늘 같은 색 — 그림 시절의 폴백 그대로).
- * 스크린 리더에는 숨긴다 — 이름은 옆 닉네임 · 버튼 이름이 말한다(그림도 `alt=""` 였다).
- */
-export function Avatar({ name, size = 38, status }: {
+export function Avatar({ userId, name, color, size = 38, status }: {
+  /** 사용자 번호 — 방 밖의 색(집 색)을 정한다. */
+  userId?: string | number | null;
+  /** 번호를 모를 때만 색의 열쇠가 된다(그리지는 않는다). */
   name?: string | null;
+  /** 방 색 — `roomColors` 가 준 팔레트 번호. 주면 이것이 이긴다. */
+  color?: number;
   size?: number;
   status?: 'online' | 'away' | 'offline';
 }) {
-  // 서버가 이름을 빼먹어도 화면 전체가 죽지는 않게 한다. 빈 칸 하나가 흰 화면보다 낫다.
-  const label = (name ?? '').trim();
-  const initials = avatarInitials(label);
-  const hue = [...label].reduce((a, c) => a + c.charCodeAt(0), 0) % 60;
+  const index = color ?? (userId !== null && userId !== undefined && String(userId).trim() ? homeColor(userId) : nameColor((name ?? '').trim()));
   return (
     <span className="avatar-wrap" style={{ width: size, height: size }} aria-hidden="true">
-      <span
-        className="avatar"
-        style={{ width: size, height: size, fontSize: size * (initials.wide ? 0.42 : 0.36), filter: `hue-rotate(${hue - 30}deg)` }}
-      >
-        {initials.text}
+      <span className="avatar" style={{ width: size, height: size, backgroundColor: AVATAR_PALETTE[index] ?? AVATAR_PALETTE[0] }}>
+        <LogoGlyph className="avatar-glyph" />
       </span>
       {status ? <i className={`avatar-status ${status}`} /> : null}
     </span>

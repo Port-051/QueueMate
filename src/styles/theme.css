@@ -150,8 +150,10 @@ ul { margin: 0; padding: 0; list-style: none; }
 .tag.warn { background: rgba(255, 180, 84, 0.1); border-color: rgba(255, 180, 84, 0.35); color: var(--warn); }
 .tag.danger { background: rgba(255, 93, 108, 0.1); border-color: rgba(255, 93, 108, 0.35); color: var(--danger); }
 
-/* 닉네임 이니셜 원(2026-09-30 — 캐릭터 그림을 걷었다). 옆 닉네임을 끌어 고를 때 이니셜이 같이 잡히지 않게 한다. */
-.avatar { flex: none; display: grid; place-items: center; border-radius: 50%; font-weight: 800; line-height: 1; white-space: nowrap; user-select: none; color: #fff; background: linear-gradient(140deg, var(--accent-2), var(--accent-3)); }
+/* 얼굴 — 색 원 가운데 흰 로고 실루엣(2026-09-30 — Discord 식 기본 아바타). 배경색은 `Avatar` 가 팔레트에서 골라 인라인으로 준다(`domain/avatarColor.ts`) — 여기 색은 그 전의 대비책이다.
+   아이콘은 지름의 60% 높이 — 크기를 CSS 가 덮어써도(`.profile-photo` 폰 폭) 비율이 따라간다. */
+.avatar { flex: none; display: grid; place-items: center; border-radius: 50%; line-height: 1; user-select: none; color: #fff; background: #535c69; }
+.avatar-glyph { display: block; width: auto; height: 60%; pointer-events: none; }
 /* span은 기본이 inline이라 width/height가 먹지 않는다. flex 자식일 때는 blockify돼서
    우연히 맞았고, 버튼 안(.avatar-edit)처럼 block 컨테이너에 놓이면 inline으로 남아
    .avatar-status의 containing block이 무너진다. 배치를 부모에 기대지 않는다. */

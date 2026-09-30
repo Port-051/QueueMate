@@ -7,6 +7,7 @@ import { GameBadge } from '../components/GameSymbol';
 import { ReportModal } from '../components/ReportModal';
 import { IconLogout, IconMic, IconMicOff, IconSend, IconShield } from '../components/icons';
 import { Avatar, Button, Card, CardHead, ConfirmDialog, EmptyState, Field, Modal, Tag, useToast } from '../components/ui';
+import { roomColors } from '../domain/avatarColor';
 import { PERSPECTIVE_LABEL } from '../domain/gameCatalog';
 import { keyConditionOptions } from '../domain/gameConfig';
 import { gameFullLabel } from '../domain/labels';
@@ -16,6 +17,7 @@ import { formatTime } from '../domain/time';
 import { perspectiveFromMode, toBoardRoom } from '../rooms/boardRoom';
 import { roomErrorMessage } from '../rooms/errors';
 import { RoomRoles } from '../rooms/RoomDeck';
+import { boardRoomColors } from '../rooms/roomColors';
 import { RoomVoiceSeats, type SeatMenuAction, type VoiceSeatMember } from '../rooms/RoomVoiceSeats';
 import { canonicalRoomRoles, hasPositions, ROOM_ROLES } from '../rooms/summary';
 import type { BoardMember, BoardRoom } from '../rooms/types';
@@ -119,6 +121,9 @@ export function PartyRoomPage() {
   // 정원 — 게시판 방은 글의 `capacity`(P-41), 자동 매칭 방은 확정 때 적어 둔 파티의 정원. 모르면 인원만.
   const capacity = room?.capacity ?? party?.target ?? null;
   const nicknameOf = (id: string) => members.find(m => m.id === id)?.nickname ?? `#${id}`;
+  // 얼굴 색 — 한 방의 사람은 모두 다른 색이다(2026-09-30 소유자). 음성 칸 좌석과 채팅이 이 표 하나를 쓴다.
+  // 게시판 방은 왼쪽 게시판 카드와 같은 표(글쓴이가 방장 · 카드의 사람 먼저 — 카드에 아직 없는 지금의 방 안 사람은 남은 색), 자동 매칭 방은 지금의 방장 · 방 안 사람으로 정한다.
+  const faceColors = room ? boardRoomColors(room, session.members) : roomColors(session.members, session.hostId);
 
   const leave = async () => {
     setBusy(true);
@@ -214,7 +219,7 @@ export function PartyRoomPage() {
         <Card className="voice-card">
           <CardHead title="음성 채널" right={<Tag tone={voice === 'connected' ? 'ok' : 'default'}>{VOICE_LABEL[voice]}</Tag>} />
           {voiceDetail ? <div className="banner warn" style={{ marginBottom: 14 }}>{voiceDetail}</div> : null}
-          <RoomVoiceSeats room={room} members={members} hostId={session.hostId} selfId={userId} capacity={capacity}
+          <RoomVoiceSeats room={room} members={members} colors={faceColors} hostId={session.hostId} selfId={userId} capacity={capacity}
             voice={voice} muted={muted} connectedPeers={connectedPeers} menuFor={menuFor} />
           <div className="room-voice-foot">
             {guide.length ? <p className="hint">{guide.map(line => <span key={line}>{line}</span>)}</p> : null}
@@ -234,7 +239,7 @@ export function PartyRoomPage() {
                 <p key={m.id} className="chat-system">{m.text}</p>
               ) : (
                 <div key={m.id} className="chat-line">
-                  <Avatar name={m.nickname} size={30} />
+                  <Avatar userId={m.userId} name={m.nickname} color={faceColors.get(m.userId)} size={30} />
                   <div>
                     <div className="chat-meta">
                       <b>{m.nickname}</b>

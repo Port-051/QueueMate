@@ -38,7 +38,7 @@ export function RecentPlayersPage() {
           <EmptyState title="아직 함께한 사람이 없습니다" desc="확정된 파티가 끝나면 기록됩니다." />
         ) : recentPlayers.map((p) => (
           <div key={p.userId} className="list-item">
-            <Avatar name={p.nickname} size={38} />
+            <Avatar userId={p.userId} name={p.nickname} size={38} />
             <div className="li-main">
               <b>{p.nickname}</b>
               <p>#{p.userId} · {relativeTime(p.lastPlayedAt)} 함께 플레이</p>

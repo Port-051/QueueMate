@@ -92,7 +92,7 @@ export function AppShell() {
         else { setNotificationAnchor(mobile ? mobileMenuButton.current : event.currentTarget); setMenuOpen(false); }
       }}><span className="nav-icon"><IconNotification size={24} filled={Boolean(notificationAnchor)} />{notifications.unreadCount > 0 ? <span className={`nav-badge${notifications.unreadCount > 99 ? ' nav-badge-long' : ''}`} aria-label={`안 읽은 알림 ${notifications.unreadCount}개`}>{notifications.unreadCount > 99 ? '99+' : notifications.unreadCount}</span> : null}</span><span className="nav-label">알림</span></button>
       {user ? <NavLink to="/app/me" className="nav-link nav-profile" aria-label="프로필" title="프로필" onClick={() => { setMenuOpen(false); setNavigationPicked(true); closeNotifications(); }}>
-        <span className="nav-icon"><Avatar name={user.nickname} size={24} /></span>
+        <span className="nav-icon"><Avatar userId={user.userId} name={user.nickname} size={24} /></span>
         <span className="nav-label">프로필</span>
       </NavLink> : null}
     </nav>

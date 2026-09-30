@@ -216,7 +216,7 @@ export function MyInfoPage() {
     <section className="page profile-page" aria-label="프로필">
       <header className="profile-identity">
         <button type="button" className="profile-photo" aria-label="프로필 사진 변경" onClick={openAvatarPicker}>
-          <Avatar name={user?.nickname ?? '?'} size={88} />
+          <Avatar userId={user?.userId} name={user?.nickname ?? '?'} size={88} />
           <span className="profile-photo-edit" aria-hidden="true"><IconPencil size={14} /></span>
         </button>
         <div className="profile-identity-info">
@@ -312,9 +312,9 @@ export function MyInfoPage() {
               <span>{savingAvatar ? '저장 중…' : '내 사진 올리기'}</span>
             </button>
             <input ref={fileInput} type="file" accept={AVATAR_TYPES.join(',')} aria-label="프로필 사진 파일" hidden disabled={savingAvatar} onChange={event => void pickFile(event.target.files?.[0])} />
-            {/* 고를 수 있던 캐릭터 그림 8종은 2026-09-30 에 걷었다(소유자 지시 — 얼굴은 닉네임 이니셜이다). 남은 것은 "기본" 하나다. */}
+            {/* 고를 수 있던 캐릭터 그림 8종은 2026-09-30 에 걷었다(소유자 지시). 남은 것은 "기본"(로고 아이콘 + 내 색 — 같은 날 소유자 결정) 하나다. */}
             <button type="button" className="avatar-opt" aria-pressed="true" disabled={savingAvatar}>
-              <Avatar name={user?.nickname ?? '?'} size={64} />
+              <Avatar userId={user?.userId} name={user?.nickname ?? '?'} size={64} />
               <span>기본</span>
               <span className="ap-check" aria-hidden="true"><IconCheck size={12} /></span>
             </button>

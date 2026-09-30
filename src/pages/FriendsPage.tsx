@@ -74,7 +74,7 @@ export function FriendsPage() {
             ? <EmptyState title={query.trim() ? '검색 결과가 없습니다' : '친구가 없습니다'} desc={query.trim() ? '다른 닉네임으로 검색해보세요.' : '파티룸이나 최근 함께한 사람에서 친구 요청을 보낼 수 있습니다.'} action={query.trim() ? <Button onClick={() => setQuery('')}>검색 지우기</Button> : <Link className="btn" to="/app/recent">최근 함께한 사람 보기</Link>} />
             : shownFriends.map((f) => (
               <div key={f.userId} className="list-item">
-                <Avatar name={f.nickname} size={38} />
+                <Avatar userId={f.userId} name={f.nickname} size={38} />
                 <div className="li-main">
                   <b>{f.nickname}</b>
                   <p>#{f.userId} · {relativeTime(f.since)}</p>
@@ -97,7 +97,7 @@ export function FriendsPage() {
             ? <EmptyState title="받은 친구 요청이 없습니다" />
             : receivedRequests.map((r) => (
               <div key={r.requestId} className="list-item">
-                <Avatar name={r.requester.nickname} size={38} />
+                <Avatar userId={r.requester.userId} name={r.requester.nickname} size={38} />
                 <div className="li-main">
                   <b>{r.requester.nickname}</b>
                   <p>#{r.requester.userId} · {relativeTime(r.createdAt)}</p>
@@ -113,7 +113,7 @@ export function FriendsPage() {
             ? <EmptyState title="보낸 친구 요청이 없습니다" />
             : sentRequests.map((r) => (
               <div key={r.requestId} className="list-item">
-                <Avatar name={r.receiver.nickname} size={38} />
+                <Avatar userId={r.receiver.userId} name={r.receiver.nickname} size={38} />
                 <div className="li-main">
                   <b>{r.receiver.nickname}</b>
                   <p>#{r.receiver.userId} · {relativeTime(r.createdAt)}</p>
@@ -128,7 +128,7 @@ export function FriendsPage() {
             ? <EmptyState title="차단한 사용자가 없습니다" desc="차단하면 그 사람이 있는 방은 보이지 않고 이후 어떤 매칭에서도 같은 파티가 되지 않습니다." />
             : blocks.map((b) => (
               <div key={b.userId} className="list-item">
-                <Avatar name={b.nickname} size={38} />
+                <Avatar userId={b.userId} name={b.nickname} size={38} />
                 <div className="li-main">
                   <b>{b.nickname}</b>
                   <p>#{b.userId} · {relativeTime(b.createdAt)}</p>

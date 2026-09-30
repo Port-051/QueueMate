@@ -4,7 +4,7 @@ import { Avatar, Button } from './ui';
 import { IconMic, IconX } from './icons';
 
 // Frontend preview only: never imply that a remote peer or microphone is connected.
-export function DirectVoiceStage({ contact, ownerName, onClose }: { contact: MessageContact; ownerName: string; onClose: () => void }) {
+export function DirectVoiceStage({ contact, ownerId, ownerName, onClose }: { contact: MessageContact; ownerId: string; ownerName: string; onClose: () => void }) {
   const [startedAt, setStartedAt] = useState<number | null>(() => Date.now());
   const [elapsed, setElapsed] = useState(0);
   const [unanswered, setUnanswered] = useState(false);
@@ -21,8 +21,8 @@ export function DirectVoiceStage({ contact, ownerName, onClose }: { contact: Mes
   return <section className={`dm-voice-stage${calling ? ' is-calling' : ''}`} aria-label="음성 대화">
     <div className="dm-voice-heading"><h3><IconMic size={18} />음성 대화</h3><span>미리보기</span><button className="dm-icon-btn" aria-label="통화 닫기" onClick={onClose}><IconX size={18} /></button></div>
     <div className="dm-voice-members">
-      <div className="dm-voice-member"><Avatar name={ownerName} size={56} /><b>{ownerName}</b><small>나</small></div>
-      <div className="dm-voice-member"><Avatar name={contact.nickname} size={56} /><b>{contact.nickname}</b><small>{calling ? '응답 대기' : '참여 전'}</small></div>
+      <div className="dm-voice-member"><Avatar userId={ownerId} name={ownerName} size={56} /><b>{ownerName}</b><small>나</small></div>
+      <div className="dm-voice-member"><Avatar userId={contact.userId} name={contact.nickname} size={56} /><b>{contact.nickname}</b><small>{calling ? '응답 대기' : '참여 전'}</small></div>
     </div>
     <div className="dm-voice-footer">
       <p role="status">{calling ? `통화 요청 중 · 00:${String(elapsed).padStart(2, '0')}` : unanswered ? '응답이 없습니다' : '음성으로 함께하기'}</p>

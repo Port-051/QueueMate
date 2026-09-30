@@ -73,7 +73,7 @@ export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]
       const introduction = introductionForRow(row);
       const hasRoles = usesKeyCondition(row.condition.game, row.condition.modeKey);
       return <button type="button" key={row.id} data-recruitment-id={row.id} className={`recruitment-row ${selected === row.id ? 'selected' : ''} ${row.status !== 'OPEN' ? 'unavailable' : ''}${hasRoles ? '' : ' without-roles'}`} aria-label={`${row.nickname} 매칭 글 상세`} aria-pressed={selected === row.id} onClick={() => onSelect(row)}>
-      <div className="row-player"><Avatar name={row.nickname} size={40} /><div><div className="row-player-heading"><b>{row.nickname}</b>{introduction.champions.length ? <PreferredChampions game={row.condition.game} names={introduction.champions} /> : null}</div><IntroductionStats game={row.condition.game} introduction={introduction} showChampions={false} />{row.description ? <p>{row.description}</p> : null}</div></div>
+      <div className="row-player"><Avatar userId={row.userId} name={row.nickname} size={40} /><div><div className="row-player-heading"><b>{row.nickname}</b>{introduction.champions.length ? <PreferredChampions game={row.condition.game} names={introduction.champions} /> : null}</div><IntroductionStats game={row.condition.game} introduction={introduction} showChampions={false} />{row.description ? <p>{row.description}</p> : null}</div></div>
       <div className="row-meta row-rank"><RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /></div>
       {!withoutRoles ? <div className="row-meta row-roles">{hasRoles ? <RecruitmentRoleIcons row={row} /> : <span className="row-role-unavailable" role="img" aria-label="포지션 지정 없음">—</span>}</div> : null}
       <div className="row-meta row-voice"><RecruitmentVoice row={row} /></div>
@@ -85,7 +85,7 @@ export function RecruitmentList({ rows, selected, onSelect }: { rows: BoardRow[]
 export function RecruitmentDetail({ row, busy, hasSource, disabled, disabledReason, joinLabel, onClose, onJoin }: { joinLabel?: string; row: BoardRow; busy: boolean; hasSource: boolean; disabled: boolean; disabledReason?: string; onClose: () => void; onJoin: () => void }) {
   const introduction = introductionForRow(row);
   return <MatchingRailPanel className="recruitment-detail" title="매칭 글 상세" busy={busy} onClose={onClose}>
-    <div className="row"><Avatar name={row.nickname} /><div><div className="row-player-heading"><b>{row.nickname}</b><RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /></div><p>{BOARD_STATUS[row.status]}{row.targetSize > 2 ? ` · ${row.members.length}/${row.targetSize}명` : ''}</p></div></div>
+    <div className="row"><Avatar userId={row.userId} name={row.nickname} /><div><div className="row-player-heading"><b>{row.nickname}</b><RankBadge game={row.condition.game} tier={row.preferences.ownTier} division={introduction.rankDivision} /></div><p>{BOARD_STATUS[row.status]}{row.targetSize > 2 ? ` · ${row.members.length}/${row.targetSize}명` : ''}</p></div></div>
     <RecruitmentIntroduction row={row} />
     {row.type === 'RESERVATION' && row.availableFrom ? <p>{timeLabel(row.availableFrom)} ~ {row.availableTo ? timeLabel(row.availableTo) : ''}</p> : null}
     {disabledReason || row.status !== 'OPEN' ? <p className="hint">{disabledReason ?? '현재 참여 신청을 받지 않는 매칭이에요.'}</p> : null}

@@ -82,9 +82,12 @@ function SeatMenu({ nickname, note, actions, onClose }: { nickname: string; note
  * - 마우스를 올리면 게시판과 같은 작은 창(`SeatPopover` — 카드가 있을 때만)이고 페이지 끝 너머면 위로 연다(`placeSeatPopover` — 흔들림, `CLAUDE.md` §7).
  *   **VALORANT 방은 작은 창이 없다**(2026-09-30 소유자 결정 — 게시판 좌석과 같은 규칙 `seatPopoverShown`). 누르면 뜨는 메뉴는 VALORANT 에서도 그대로다.
  * - **좌석을 누르면 작은 메뉴**(`SeatMenu` — 방 화면이 준 `menuFor`). **내 좌석은 누를 수 없다**(나에게 할 일이 없다). 메뉴가 열린 좌석은 작은 창을 숨긴다.
+ * - **얼굴 색은 방 안에서 모두 다르다**(2026-09-30 소유자 — `colors`). 게시판 방이면 왼쪽 게시판 카드의 좌석과 같은 색이다(`rooms/roomColors.ts`).
  */
-export function RoomVoiceSeats({ room, members, hostId, selfId, capacity, voice, muted, connectedPeers, menuFor }: {
+export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity, voice, muted, connectedPeers, menuFor }: {
   room: BoardRoom | null;
+  /** 얼굴 색(사람 번호 → 팔레트 번호) — 방 화면이 구한 그 방의 색이다(한 방은 모두 다른 색 · 채팅의 얼굴과 같은 표 — `PartyRoomPage`). */
+  colors: Map<string, number>;
   members: VoiceSeatMember[];
   hostId: string | null;
   selfId: string | null;
@@ -127,10 +130,11 @@ export function RoomVoiceSeats({ room, members, hostId, selfId, capacity, voice,
         const label = [card && seatRoom ? seatSummary(seatRoom, card, selfId ?? '') : [member.nickname, self ? '나' : null, host ? '방장' : null].filter(Boolean).join(' · '), SEAT_VOICE_LABEL[state]].join(' · ');
         const menuOpen = open === member.id;
         const popover = Boolean(card && seatRoom && seatPopoverShown(seatRoom.game));
+        const color = colors.get(member.id);
         const body = card && seatRoom
-          ? <RoomSeatBody room={seatRoom} member={card} me={self} />
+          ? <RoomSeatBody room={seatRoom} member={card} me={self} color={color} />
           : <>
-            <span className="room-seat-face"><span className="room-member-avatar"><Avatar name={member.nickname} size={34} />{host ? <RoomHostCrown /> : null}</span></span>
+            <span className="room-seat-face"><span className="room-member-avatar"><Avatar userId={member.id} name={member.nickname} color={color} size={34} />{host ? <RoomHostCrown /> : null}</span></span>
             <span className="room-seat-text"><span className="room-seat-name"><strong>{member.nickname}</strong>{self ? <span className="room-seat-me">(나)</span> : null}</span></span>
           </>;
         return <li key={member.id} data-seat-id={member.id} data-voice={state}
