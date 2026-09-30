@@ -423,6 +423,10 @@
   .room-seat-numbers,.room-seat-position { display:none; }
   .room-seat-position-icon { display:inline-flex; flex:none; color:#d7c7f7; }
 }
+/* 아주 좁은 좌석(64px 이하 — 방 패널이 열린 1100 ~ 1300 의 게시판 · 폰)은 닉네임 앞 방장 포지션 아이콘도 뺀다 — 닉네임이 두 글자만 남았다. 포지션은 작은 창 · 프로필 창에 있다. */
+@container room-seat (max-width:64px) {
+  .room-seat-position-icon { display:none; }
+}
 @container room-seat (max-width:132px) {
   .room-seat-button { flex-direction:column; justify-content:center; gap:5px; height:auto; min-height:54px; padding:7px 4px 5px; text-align:center; }
   .room-seat-tier-badge { position:absolute; right:-6px; bottom:-4px; display:grid; place-items:center; width:20px; height:20px; border-radius:50%; background:#12131c; }
