@@ -24,7 +24,7 @@ function CreateRoomIcon() {
 }
 
 /**
- * 게시판의 우측 하단 매칭 버튼. 조건은 모달에서 고르고 대기 시간은 버튼에 남긴다.
+ * 게시판 상단에 붙는 빠른매치 버튼. 조건은 모달에서 고르고 대기 시간은 버튼에 남긴다.
  * 시작 · 취소 · 제안 · 방 입장은 실제 MatchContext 흐름을 사용한다.
  * 글 쓰기 버튼은 필터 줄(createSlot)에 두고 별도 RoomCreatePreview에서 입력받는다.
  * 자동 매칭 조건은 브라우저에 게임별로 저장하며 티어는 연결한 게임 계정에서 읽는다.
@@ -163,12 +163,13 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, roomPane
   };
 
   return <>
-    {!roomPanelOpen && !activeRoomId ? createPortal(<div className="room-match-floating">
-      <button type="button" className={`room-match-fab${waiting ? ' is-searching' : ''}`} aria-label={waiting ? '빠른매치 현황 열기' : '빠른매치 조건 열기'} aria-haspopup="dialog" aria-expanded={opened} onClick={openMatching}>
-        {request?.status === 'PROPOSED' ? <span className="room-match-found">제안 도착</span> : null}
-        <IconMatch size={25} /><span>{waiting ? elapsed : '빠른매치'}</span>
+    {!roomPanelOpen && !activeRoomId ? <div className="room-match-sticky">
+      <button type="button" className={`room-match-trigger${waiting ? ' is-searching' : ''}`} aria-label={waiting ? '빠른매치 현황 열기' : '빠른매치 조건 열기'} aria-haspopup="dialog" aria-expanded={opened} onClick={openMatching}>
+        <span className="room-match-trigger-icon"><IconMatch size={24} /></span>
+        <span className="room-match-trigger-copy"><strong>빠른매치</strong><span>{waiting ? '함께할 팀원을 찾고 있어요' : '조건을 고르면 함께할 팀원을 찾아드려요'}</span></span>
+        <span className="room-match-trigger-action">{request?.status === 'PROPOSED' ? '제안 확인' : waiting ? <><span className="room-match-clock">{elapsed}</span><span>현황 보기</span></> : '조건 설정'}<span aria-hidden="true">→</span></span>
       </button>
-    </div>, document.body) : null}
+    </div> : null}
     {opened && !roomPanelOpen && !activeRoomId ? <Modal title={waiting ? '빠른매치 현황' : '빠른매치 조건 설정'} closeLabel="빠른매치 창 닫기" className="room-match-dialog" onClose={() => { if (!starting && !cancelling) setOpened(false); }}>
       {waiting ? status : <>
       <p className="room-match-description">{gameFullLabel(game)} · 함께할 팀원의 조건을 골라주세요.</p>

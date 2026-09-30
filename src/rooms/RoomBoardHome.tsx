@@ -28,7 +28,7 @@ import './room-board.css';
 
 /**
  * 게임별 모집 게시판. 필터와 글 쓰기 버튼 아래에 방 카드를 보여준다.
- * 자동 매칭은 RoomQuickConnect의 우측 하단 버튼과 설정 모달에서 진행한다.
+ * 빠른매치는 RoomQuickConnect의 상단 고정 버튼과 설정 모달에서 진행한다.
  * 방이나 제안에 들어가면 HomePage의 오른쪽 패널이 열리고 게시판은 그대로 남는다.
  */
 type Filters = { group: string; size: number; perspective: '' | PubgPerspective; roles: string[]; voice: '' | 'REQUIRED' | 'NO_VOICE'; openOnly: boolean };
