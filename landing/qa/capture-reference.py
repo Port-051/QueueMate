@@ -88,9 +88,10 @@ with sync_playwright() as p:
             page.goto(BASE+'/app/home',wait_until='networkidle')
             expect(page.locator('.room-deck')).to_have_count(6)
             def capture(name):
-                page.evaluate('document.fonts.ready');page.wait_for_timeout(350)
-                imgs=page.locator('img').evaluate_all('(xs)=>xs.filter(x=>!x.complete||!x.naturalWidth).map(x=>x.src)')
-                assert not imgs,f'Broken images: {imgs}'
+                page.evaluate('document.fonts.ready')
+                # Load lazy hover-card images before checking their decoding; UI markup and styles stay unchanged.
+                page.locator('img').evaluate_all('(xs)=>xs.forEach(x=>x.loading="eager")')
+                page.wait_for_function('Array.from(document.images).every(x=>x.complete && x.naturalWidth>0)',timeout=15000)
                 assert not errors,errors
                 png=out/(name+'.png');page.screenshot(path=str(png),animations='disabled')
                 Image.open(png).convert('RGB').save(out/(name+'.webp'),quality=88,method=6)
@@ -98,7 +99,7 @@ with sync_playwright() as p:
             capture('quick-match-board')
             page.get_by_role('button',name='빠른매치 조건 열기').click()
             expect(page.get_by_role('dialog')).to_be_visible()
-            role=page.get_by_role('button',name='미드',exact=True)
+            role=page.get_by_role('dialog').get_by_role('button',name='미드',exact=True)
             if role.count():role.first.click()
             capture('quick-match-settings')
             page.get_by_role('button',name='빠른매치 창 닫기').click()
