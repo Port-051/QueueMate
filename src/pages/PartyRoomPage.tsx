@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import * as api from '../api/client';
 import { hasErrorCode } from '../api/error';
 import type { UpdatePostRequest, VoicePreference } from '../api/types';
@@ -23,6 +23,7 @@ import { usePartySession } from '../state/PartySessionContext';
 import { isMatchRoomId, useRoomSession } from '../state/RoomSessionContext';
 import { useSocial } from '../state/SocialContext';
 import type { VoiceStatus } from '../webrtc/types';
+import type { BoardRoomOutletContext } from './HomePage';
 
 const VOICE_LABEL: Record<VoiceStatus, string> = {
   idle: '마이크 꺼짐',
@@ -41,6 +42,8 @@ const VOICE_LABEL: Record<VoiceStatus, string> = {
  * - 나가기 `DELETE …/members/me`(늘 204) · 강퇴 `DELETE …/members/{userId}`(방장) · 확정 `POST …/confirm`(게시판 방 · 방장 · 2명 이상 · **되돌릴 수 없다** — 한 번 더 묻는다).
  *   글 고치기 `PATCH /posts/{postId}`(방장 혼자일 때만 — 409 `ROOM_HAS_OTHER_MEMBERS`) · 지우기 `DELETE /posts/{postId}`(만료로 바꾸고 방도 닫힌다).
  * - 음성 · 채팅은 WebRTC 직결(`PartySessionContext`). 친구 추가 · 차단 · 신고는 `SocialContext` · `ReportModal`(5단계 — 우리 API. 신고의 `contextId` 는 게시판 방이면 글 번호, 자동 매칭 방은 없다).
+ * - **2026-09-30 부터 이 화면은 게시판 오른쪽 패널이다**(`pages/HomePage.tsx` — 넓은 화면은 게시판을 왼쪽으로 밀고, 좁은 화면은 게시판을 덮는다). 경로 · 하는 일은 그대로이고,
+ *   게시판 방의 글을 처음 읽으면 게시판의 게임을 이 방의 게임으로 한 번 맞춘다(`syncRoomGame` — 딥 링크 · 새로 고침).
  */
 export function PartyRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -81,6 +84,11 @@ export function PartyRoomPage() {
     }
   }, [postId]);
   useEffect(() => { void loadPost(); }, [loadPost, session.version]);
+
+  // 게시판(왼쪽)을 이 방의 게임으로 — 방마다 한 번(그 뒤 사용자가 게임을 바꾸면 그대로 둔다).
+  const syncRoomGame = useOutletContext<BoardRoomOutletContext | undefined>()?.syncRoomGame;
+  const roomGame = room?.game;
+  useEffect(() => { if (roomId && roomGame && syncRoomGame) syncRoomGame(roomId, roomGame); }, [roomId, roomGame, syncRoomGame]);
 
   useEffect(() => { if (messages.length) chatEndRef.current?.scrollIntoView({ block: 'nearest' }); }, [messages]);
 

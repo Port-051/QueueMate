@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { tierColor } from '../domain/rankAssets';
 import type { GameKey, LolMostChampion } from '../api/types';
 import { Avatar } from '../components/ui';
@@ -221,8 +221,9 @@ function RoomSeat({ room, member, selfId, popEnd, onMember }: { room: BoardRoom;
  * - 카드가 600px 보다 좁으면(폰 폭 · 좁은 분할 화면) 좌석이 원 다섯 칸(얼굴 원 + 티어 배지 + 아래 닉네임)이 되고 `n/정원` · [참가] 는 그 아래 줄로 간다 —
  *   숫자 · 챔피언은 프로필 창(눌러서)에만 있다(CSS 컨테이너 질의 — `room-board.css` "좌석 줄").
  */
-export function RoomDeck({ room, selfId, entering = false, onEntered, entryError, onSeat, onMember }: { room: BoardRoom; selfId: string; entering?: boolean; onEntered?: () => void; entryError: string | null; onSeat: (room: BoardRoom) => void; onMember: (room: BoardRoom, member: BoardMember) => void }) {
+export function RoomDeck({ room, selfId, entering = false, onEntered, reveal = false, onRevealed, entryError, onSeat, onMember }: { room: BoardRoom; selfId: string; entering?: boolean; onEntered?: () => void; reveal?: boolean; onRevealed?: () => void; entryError: string | null; onSeat: (room: BoardRoom) => void; onMember: (room: BoardRoom, member: BoardMember) => void }) {
   const heading = useRef<HTMLHeadingElement>(null);
+  const card = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     if (!entering) return;
     heading.current?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
@@ -230,6 +231,16 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, entryError
     const timer = window.setTimeout(() => onEntered?.(), 650);
     return () => window.clearTimeout(timer);
   }, [entering, onEntered]);
+  // 들어간 방의 카드 — 방 패널이 밀려 들어오며(0.32초) 게시판이 좁아진 뒤에 화면 안으로(`RoomBoardHome` `enter`).
+  useEffect(() => {
+    if (!reveal) return;
+    const timer = window.setTimeout(() => {
+      const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      card.current?.scrollIntoView({ block: 'nearest', behavior: still ? 'auto' : 'smooth' });
+      onRevealed?.();
+    }, 380);
+    return () => window.clearTimeout(timer);
+  }, [reveal, onRevealed]);
   const recruiting = room.status === 'RECRUITING';
   const positions = hasPositions(room.game, room.modeKey);
   // 확정된 글은 파티원 전원(P-40), 만료된 글은 방장만 — 서버가 만료된 글의 `members` 를 비워 보낸다.
@@ -241,7 +252,7 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, entryError
   const openSeat = entryError ? undefined : () => onSeat(room);
   // 내가 이미 들어가 있는 방이면 잠긴 버튼의 글자를 "참여 중" 으로(이유는 `boardRoom.ts` `roomEntryError`).
   const inside = recruiting && members.some(member => member.id === selfId);
-  return <article className={`room-deck room-row${room.hostId === selfId ? ' is-own' : ''}${recruiting ? '' : ' is-closed'}${entering ? ' is-entering' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`}>
+  return <article ref={card} className={`room-deck room-row${room.hostId === selfId ? ' is-own' : ''}${recruiting ? '' : ' is-closed'}${entering ? ' is-entering' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`}>
     <RoomBubbleTail />
     <div className="room-row-head">
       <h3 ref={heading} tabIndex={-1} title={room.title}>{room.title}</h3>

@@ -155,12 +155,13 @@ test('시나리오 9 — 실제 LoL 계정 연결 · 솔로 랭크 듀오(UI)', 
     for (const page of [pageA, pageB]) await page.getByRole('button', { name: '수락하고 파티룸 입장' }).click();
   });
 
-  await test.step('확정 → 앱이 스스로 파티 방에 들어간다(`/app/party/{partyId}`) · 방 안에 둘', async () => {
+  await test.step('확정 → 앱이 스스로 파티 방에 들어간다(`/app/party/{partyId}` — 게시판 오른쪽 패널) · 방 안에 둘', async () => {
     for (const page of [pageA, pageB]) await page.waitForURL(new RegExp(`/app/party/${partyId}$`), { timeout: 30_000 });
     expect(await myRoom(a)).toBe(partyId);
     expect(await myRoom(b)).toBe(partyId);
     const members = await roomMembers(a, partyId);
     expect(members.members?.sort()).toEqual([a.userId, b.userId].sort());
-    await expect(pageA.getByRole('heading', { level: 1, name: '자동 매칭 파티' })).toBeVisible();
+    // 파티 방도 게시판 오른쪽 패널로 열린다(2026-09-30).
+    await expect(pageA.getByRole('region', { name: '방', exact: true }).getByRole('heading', { level: 1, name: '자동 매칭 파티' })).toBeVisible();
   });
 });

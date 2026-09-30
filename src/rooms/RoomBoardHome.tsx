@@ -33,12 +33,14 @@ import './room-board.css';
  * 필터는 프런트가 받은 목록을 거르는 것뿐이다 — 모드 · 찾는 포지션 · 음성 · 모집 중인 방만. 모드는 묶음 · 인원 · (PUBG) 시점 셋으로 나눠 거르고 셋 다 `''`/`0` 이 "전체" 다
  * (2026-09-29 소유자 지시 — `domain/modeChoice.ts`). 인원 · 시점 줄은 묶음을 고른 뒤에만 서고, 인원이 하나뿐인 묶음(솔로 랭크)은 인원 줄이 없다. 원본의 시작 시각(지금/나중) · 티어 범위 필터는 글에 그 칸이 없어 2026-09-29 에 뺐다
  * (자동 합류의 티어 판정은 서버가 gameconfig `tier-range` 로 한다 — 프런트가 범위를 고르게 하면 그 판정과 어긋난 것을 보여 주게 된다).
- * 방 안의 일(채팅 · 나가기 · 강퇴 · 확정)은 방 화면(`/app/party/{roomId}`)이다 — 원본의 오른쪽 "방 채팅" 레일은 4단계에서 없어졌다.
+ * 방 안의 일(채팅 · 나가기 · 강퇴 · 확정)은 방 화면(`/app/party/{roomId}` — `PartyRoomPage`)이다 — 원본의 오른쪽 "방 채팅" 레일은 4단계에서 없어졌다.
+ * 2026-09-30 부터 방 화면은 이 게시판을 밀어낸 오른쪽 패널로 열린다(`pages/HomePage.tsx` — 게시판은 그대로 남아 쓸 수 있다). `roomPanelOpen` 이면 패널이 열려 있다 —
+ * "방으로 돌아가기" 줄을 숨기고, 넓은 화면에서는 맨 위 자동 매칭 판을 접는다(방에 있는 동안은 자동 매칭을 시작할 수 없다 — CSS `room-panel.css`).
  */
 type Filters = { group: string; size: number; perspective: '' | PubgPerspective; roles: string[]; voice: '' | 'REQUIRED' | 'NO_VOICE'; openOnly: boolean };
 const defaults = (): Filters => ({ group: '', size: 0, perspective: '', roles: [], voice: '', openOnly: false });
 
-export function RoomBoardHome() {
+export function RoomBoardHome({ roomPanelOpen = false }: { roomPanelOpen?: boolean }) {
   const { userId } = useAuth();
   const selfId = userId ?? '';
   const { selectedGame } = useOutletContext<AppShellOutletContext>();
@@ -53,12 +55,23 @@ export function RoomBoardHome() {
   // 필터 줄 오른쪽 끝 — "글 쓰고 파티 찾기" 가 설 자리. 버튼은 RoomQuickConnect 가 그린다(머리 주석).
   const [createSlot, setCreateSlot] = useState<HTMLDivElement | null>(null);
   const finishEntrance = useCallback(() => setJustCreatedId(null), []);
+  // 방에 들어가면 게시판이 좁아지고(넓은 화면 — 맨 위 자동 매칭 판도 접힌다) 줄이 밀린다 — 들어간 방의 카드를 패널이 다 열린 뒤 화면 안으로 데려온다.
+  const [revealId, setRevealId] = useState<string | null>(null);
+  const finishReveal = useCallback(() => setRevealId(null), []);
+  useEffect(() => { if (!revealId) return; const timer = window.setTimeout(finishReveal, 1000); return () => window.clearTimeout(timer); }, [revealId, finishReveal]);
   const previousGame = useRef<GameKey>(selectedGame);
   useEffect(() => {
     if (previousGame.current === selectedGame) return;
     previousGame.current = selectedGame;
     setFilters(defaults()); setSelectedId(null);
   }, [selectedGame]);
+  // 방에 들어가거나 나오면 목록을 곧바로 다시 받는다 — 게시판이 방 패널 옆에 남아 있어(2026-09-30) 옛 목록("참여 중" 등)이 신호가 올 때까지(2.5초) 남지 않게.
+  const previousActiveRoom = useRef(activeRoomId);
+  useEffect(() => {
+    if (previousActiveRoom.current === activeRoomId) return;
+    previousActiveRoom.current = activeRoomId;
+    void refresh();
+  }, [activeRoomId, refresh]);
   // "몇 분 전" 이 굳지 않게.
   const [, tick] = useState(0);
   useEffect(() => { const timer = window.setInterval(() => tick(value => value + 1), 30_000); return () => clearInterval(timer); }, []);
@@ -91,7 +104,7 @@ export function RoomBoardHome() {
   const selected = rooms.find(room => room.id === selectedId) ?? null;
   const canReset = filters.group || filters.roles.length || filters.voice !== '' || filters.openOnly;
   const resetFilters = () => setFilters(defaults());
-  const enter = (room: BoardRoom) => { session.adopt(room.id); navigate(`/app/party/${room.id}`); };
+  const enter = (room: BoardRoom) => { session.adopt(room.id); setRevealId(room.id); navigate(`/app/party/${room.id}`); };
 
   return <div className={`room-home board-home${activeRoomId ? ' has-active-room' : ''} is-exploring`}>
     <div className="room-home-layout">
@@ -117,10 +130,11 @@ export function RoomBoardHome() {
         {canReset ? <button className="filter-reset" type="button" aria-label="초기화" onClick={resetFilters}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg></button> : null}
         <div className="board-create-slot" ref={setCreateSlot} />
       </div>
-      {activeRoomId ? <div className="banner room-session-banner" role="status">지금 방에 들어가 있어요. <Link className="room-session-link" to={`/app/party/${activeRoomId}`}>방으로 가기</Link></div> : null}
+      {/* 방 패널이 닫혀 있을 때만(좁은 화면의 "게시판으로" · 홈 · 다른 화면에서 온 경우) — 누르면 방 패널이 다시 열린다. 좁은 화면에서는 아래에 떠 있다(`room-panel.css`). */}
+      {activeRoomId && !roomPanelOpen ? <div className="banner room-session-banner room-return-banner" role="status">지금 방에 들어가 있어요. <Link className="room-session-link" to={`/app/party/${activeRoomId}`}>방으로 돌아가기</Link></div> : null}
       {connectionError ? <div className="banner warn" role="alert">{connectionError} <button onClick={() => void refresh()}>다시 불러오기</button></div> : null}
       {loading ? <p role="status">방 목록을 불러오는 중이에요.</p> : null}
-      <div className="room-deck-grid">{filtered.map(room => <RoomDeck room={room} selfId={selfId} key={room.id} entering={justCreatedId === room.id} onEntered={finishEntrance} onMember={(room, member) => setProfileTarget({ room, member })} entryError={roomEntryError(room, selfId, activeRoomId)} onSeat={room => setSelectedId(room.id)} />)}</div>
+      <div className="room-deck-grid">{filtered.map(room => <RoomDeck room={room} selfId={selfId} key={room.id} entering={justCreatedId === room.id} onEntered={finishEntrance} reveal={revealId === room.id} onRevealed={finishReveal} onMember={(room, member) => setProfileTarget({ room, member })} entryError={roomEntryError(room, selfId, activeRoomId)} onSeat={room => setSelectedId(room.id)} />)}</div>
       {!loading && !connectionError && !filtered.length ? <div className="room-board-empty"><p>{rooms.length ? '이 조건에 맞는 방이 없어요.' : '아직 올라온 방이 없어요. 첫 방을 만들어 보세요.'}</p>{canReset ? <button className="room-secondary-button" onClick={resetFilters}>필터 초기화</button> : null}</div> : null}
       {hasMore ? <div className="room-board-more"><Button block disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? '불러오는 중…' : '더 보기'}</Button></div> : null}
     </section>

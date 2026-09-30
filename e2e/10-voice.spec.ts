@@ -76,6 +76,7 @@ interface Side { name: string; page: Page }
  * (시그널은 `POST /rooms/{roomId}/signals` ↔ `WEBRTC_SIGNAL`) 가짜 마이크의 소리가 **양쪽으로** 흘러야 한다 — 양쪽 `connectionState === 'connected'` ·
  * `inbound-rtp` 음성의 `bytesReceived` 가 몇 초 사이에 는다 · 연결마다 음성 transceiver 가 하나(mid 있음 · sendrecv · 보내는 트랙).
  * 그다음 음소거 → 해제(양쪽 — 듣는 쪽의 `totalAudioEnergy` 가 멈췄다가 다시 는다), 셋째 사람이 들어와 마이크를 켜면 셋이 서로 듣는다(mesh).
+ * 방에 들어가면 게시판이 왼쪽에 남고 방이 오른쪽 패널로 열린다(2026-09-30 — 경로는 그대로 `/app/party/{roomId}`).
  * 방은 A 가 게시판의 "글 쓰고 파티 찾기" 팝업(P-38 칸 — 게임 모드 · 내 포지션 · 찾는 포지션 · 음성 · 한마디)으로 만들고 B · C 가 카드 좌석 줄의 [참가] → "참여하기" 로 들어온다(2026-09-30 좌석 줄 — 빈 자리는 글자 없는 점선 원이다).
  *
  * 2026-09-30 이 시나리오가 찾은 제품 버그 — 답하는 쪽도 offer 전에 `addTransceiver` 를 해 두어 transceiver 가 둘이 되고 answer 가 recvonly 라
@@ -109,7 +110,9 @@ test('시나리오 10 — 두 사람이 화면으로 같은 방 · 마이크 켜
     expect(body).toMatchObject({ game: 'LOL', mode: 'NORMAL_5', title, voice: 'REQUIRED', wantedPositions: ['TOP'], hostPosition: 'MID' });
     await pageA.waitForURL(/\/app\/party\/\d+$/);
     roomId = pageA.url().split('/').pop()!;
-    await expect(pageA.getByRole('heading', { level: 1, name: title })).toBeVisible();
+    // 방은 오른쪽 패널로 열리고 게시판(그 글의 카드)은 왼쪽에 남는다(2026-09-30 — 1440px 은 나란히 보이는 폭이다).
+    await expect(pageA.getByRole('region', { name: '방', exact: true }).getByRole('heading', { level: 1, name: title })).toBeVisible();
+    await expect(pageA.locator(`article[aria-label="${title} 방 정보"]`)).toBeVisible();
   });
 
   /** 게시판 카드의 [참가] → "참여하기" → 같은 방 화면. */
@@ -121,7 +124,8 @@ test('시나리오 10 — 두 사람이 화면으로 같은 방 · 마이크 켜
     const dialog = page.getByRole('dialog', { name: '이 방에 참여할까요?' });
     await dialog.getByRole('button', { name: '참여하기' }).click();
     await page.waitForURL(new RegExp(`/app/party/${roomId}$`));
-    await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
+    await expect(page.getByRole('region', { name: '방', exact: true }).getByRole('heading', { level: 1, name: title })).toBeVisible();
+    await expect(card).toBeVisible();
     return page;
   };
   const pressMic = async (page: Page) => {

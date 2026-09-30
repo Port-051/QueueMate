@@ -47,15 +47,18 @@ export function App() {
 
       <Route path="/app" element={<RequireAuth><AppShell /></RequireAuth>}>
         <Route index element={<Navigate to="home" replace />} />
-        <Route path="home" element={<HomePage />} />
+        {/* 게시판(`/app/home`)과 방(`/app/party/:roomId`)은 한 레이아웃이다 — 방에 들어가면 게시판이 왼쪽으로 밀리고 방이 오른쪽 패널로 열린다(2026-09-30 소유자 지시 · `pages/HomePage.tsx`).
+            `roomId` 는 게시판 방이면 글 번호, 자동 매칭 방이면 UUID(= partyId). 둘 다 같은 방 화면이다(4단계). 오가도 게시판은 다시 그려지지 않는다. */}
+        <Route element={<HomePage />}>
+          <Route path="home" />
+          <Route path="party/:roomId" element={<PartyRoomPage />} />
+        </Route>
         <Route path="match" element={<MatchConditionPage />} />
         <Route path="match/waiting/:requestId" element={<MatchWaitingPage />} />
         <Route path="reservations" element={<ReservationsPage />} />
         <Route path="reservations/new" element={<ReservationNewPage />} />
         <Route path="proposals/:proposalId" element={<ProposalPage />} />
-        {/* 방 화면 — `roomId` 는 게시판 방이면 글 번호, 자동 매칭 방이면 UUID(= partyId). 둘 다 같은 화면이다(4단계). */}
         <Route path="party" element={<MyRoomRedirect />} />
-        <Route path="party/:roomId" element={<PartyRoomPage />} />
         <Route path="messages" element={<DirectMessagesPage />} />
         <Route path="friends" element={<LegacyFriendsRedirect />} />
         {/* 친구 · 차단 · 최근 함께한 사람은 메시지 화면의 친구 관리 패널(`?manage=`)이다(5단계). `pages/FriendsPage` · `RecentPlayersPage` 는 라우트 밖이다. */}
