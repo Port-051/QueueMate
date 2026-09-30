@@ -1,0 +1,56 @@
+name: Build pinned UI reference for landing
+on:
+  push:
+    branches: [feat/seo-landing]
+    paths: ['.github/workflows/seo-ui-reference.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: seo-ui-reference
+  cancel-in-progress: true
+jobs:
+  reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: work
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 904cce415181aeb8a8802fc398f9be9e0835b1fe
+          path: reference
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build the unmodified reference frontend
+        working-directory: reference/frontend
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build
+      - name: Export code and compiled UI without credentials or font files
+        run: |
+          python3 - <<'PY'
+          import pathlib, zipfile, json
+          out = pathlib.Path('export'); out.mkdir()
+          forbidden = {'.woff', '.woff2', '.ttf', '.otf', '.eot'}
+          with zipfile.ZipFile(out/'reference-and-landing.zip', 'w', zipfile.ZIP_DEFLATED) as z:
+              for base, prefix in [(pathlib.Path('reference/frontend'), 'reference/frontend'), (pathlib.Path('work/landing'), 'landing')]:
+                  for p in base.rglob('*'):
+                      rel = p.relative_to(base)
+                      if not p.is_file() or any(x in {'node_modules','.git','.vercel','test-results','playwright-report'} for x in rel.parts): continue
+                      if p.name.startswith('.env') or p.suffix.lower() in forbidden: continue
+                      z.write(p, str(pathlib.Path(prefix)/rel))
+              for name in ['AGENTS.md','CLAUDE.md']:
+                  p = pathlib.Path('reference')/name
+                  if p.is_file(): z.write(p, 'reference/'+name)
+              z.writestr('reference-source.json', json.dumps({'repository':'Port-051/QueueMate','branch':'feature/quick-match-ui','commit':'904cce415181aeb8a8802fc398f9be9e0835b1fe','purpose':'Unmodified frontend build for local screenshot capture. No backend connection or publication.'}, indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: seo-pinned-ui-reference
+          path: export/reference-and-landing.zip
+          retention-days: 3
