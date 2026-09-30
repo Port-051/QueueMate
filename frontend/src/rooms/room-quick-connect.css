@@ -1,0 +1,40 @@
+.quick-connect-result { margin-top:18px; padding:17px; border:1px solid #5a4378; border-radius:12px; background:#251c33; }
+.quick-result-top { display:flex; justify-content:space-between; gap:8px; color:#c2a7f4; font-size:12px; }
+.quick-result-top strong { color:#b6dec8; font-weight:500; }
+.quick-connect-result h3 { font-size:18px; line-height:1.4; margin:10px 0; overflow-wrap:anywhere; }
+.quick-result-reasons { color:#cbbce0; font-size:12px; line-height:1.7; margin:8px 0; }
+.quick-result-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
+.quick-result-actions button { flex:1; white-space:nowrap; padding:10px; font-size:12px; }
+.quick-connect-hint { font-size:13px; line-height:1.6; color:var(--muted); margin:8px 0 14px; }
+
+.room-home .room-match-start {
+  position:relative;
+  overflow:hidden;
+  isolation:isolate;
+  transition:box-shadow .25s ease,border-color .25s ease,transform .25s ease;
+}
+.room-match-start::before {
+  content:'';
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  pointer-events:none;
+  background:linear-gradient(110deg,transparent 20%,#ffffff40 50%,transparent 80%);
+  transform:translateX(-120%);
+}
+.room-home .room-match-start:is(:hover,:focus-visible):not(:disabled) {
+  border-color:#c3a0ff;
+  box-shadow:0 0 0 1px #b58aff3d,0 6px 24px #8855ff59;
+  transform:translateY(-1px);
+}
+.room-match-start:is(:hover,:focus-visible):not(:disabled)::before { animation:room-match-sheen .85s ease-out; }
+.room-match-start>svg { transition:transform .3s ease; }
+.room-match-start:is(:hover,:focus-visible):not(:disabled)>svg { transform:rotate(20deg) scale(1.08); }
+.room-home .room-match-start:active:not(:disabled) { transform:translateY(0); }
+@keyframes room-match-sheen { to { transform:translateX(120%); } }
+@media(prefers-reduced-motion:reduce) {
+  .room-home .room-match-start,.room-match-start>svg { transition:none; }
+  .room-match-start:is(:hover,:focus-visible):not(:disabled)::before { animation:none; }
+  .room-home .room-match-start:is(:hover,:focus-visible):not(:disabled),
+  .room-match-start:is(:hover,:focus-visible):not(:disabled)>svg { transform:none; }
+}

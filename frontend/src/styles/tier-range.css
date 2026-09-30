@@ -1,0 +1,25 @@
+.tier-range-picker{min-width:0}
+.tier-range-trigger{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:42px;max-width:100%;padding:8px 12px;border:1px solid #494454;border-radius:10px;background:#201e28;color:#ded8e9;font:inherit;font-size:14px;cursor:pointer}
+.tier-range-trigger:hover,.tier-range-trigger[aria-expanded=true]{border-color:#a18bc7;background:#2b2639}
+.tier-range-trigger-content{display:flex;align-items:center;justify-content:space-between;gap:inherit;width:100%;min-width:0}
+.tier-range-trigger-content>svg{flex:none}
+.tier-range-label,.tier-range-endpoint{display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
+.tier-range-label{font-size:13px;line-height:1.5;color:#c1b9d1;font-weight:500}
+.tier-range-popover{z-index:1600;box-sizing:border-box;padding:12px;border:1px solid #615373;border-radius:12px;background:#24212d;color:#f1ecf7;box-shadow:0 16px 64px #0009;overflow:auto;animation:tier-range-enter .14s ease-out}
+.tier-range-popover header{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:30px}
+.tier-range-popover header strong{font-size:14px}
+.tier-range-popover button{font-family:inherit;cursor:pointer}
+.tier-range-reset{display:inline-flex;align-items:center;justify-content:center;gap:4px;flex:none;height:30px;border:0;border-radius:999px;background:#35303f;color:#ddd6e8;padding:0 10px;font-size:12px;white-space:nowrap}
+.tier-range-reset:hover{background:#494054;color:#fff}
+.tier-range-track{--tier-option-gap:3px;display:flex;flex-wrap:nowrap;gap:var(--tier-option-gap);overflow-x:auto;padding:8px 3px;margin:0 -3px;scrollbar-width:thin;scrollbar-color:#8062ad #ffffff08}
+.tier-range-option{position:relative;isolation:isolate;flex:1 0 64px;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0;border:1px solid transparent;border-radius:9px;background:none;font-size:11px;font-weight:600;letter-spacing:-.025em;white-space:nowrap}
+/* A continuous band sits behind the rounded endpoint boxes, including their inner corners. */
+.tier-range-option.is-in-range::before{content:'';position:absolute;z-index:-2;inset:-1px calc(-1px - var(--tier-option-gap)) -1px -1px;background:#a885f51a;border-block:1px solid #8062ad55;pointer-events:none}
+.tier-range-option.is-range-start::before{border-top-left-radius:9px;border-bottom-left-radius:9px}
+.tier-range-option.is-range-end::before{right:-1px;border-top-right-radius:9px;border-bottom-right-radius:9px}
+.tier-range-option.is-endpoint::after{content:'';position:absolute;z-index:-1;inset:-1px;border:1px solid #b090e8;border-radius:inherit;background:#a885f51a;pointer-events:none}
+.tier-range-option:hover{background:#a885f533}
+.tier-range-popover button:focus-visible,.tier-range-trigger:focus-visible{outline:2px solid #c9a7ff;outline-offset:2px}
+.tier-range-hint{margin:2px 0 0;font-size:12px;line-height:1.5;color:#aba1bb}
+@keyframes tier-range-enter{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.tier-range-popover{animation:none}}

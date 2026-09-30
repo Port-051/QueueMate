@@ -1,0 +1,84 @@
+/* 방 패널(2026-09-30 소유자 지시 — `pages/HomePage.tsx`). 넓은 화면(1100px 이상 — `rooms/roomPanel.ts` `ROOM_SPLIT_QUERY` 와 같은 값)은 게시판이 왼쪽으로 좁아지고
+   (본문의 25% · 적어도 340px) 방이 나머지 폭으로 오른쪽에서 밀려 들어온다 — 패널은 화면 높이에 붙고(sticky) 게시판만 스크롤된다. 좁은 화면은 방이 오른쪽에서 밀려 들어와 본문을 덮고 맨 위 "게시판으로" 로 숨긴다.
+   (처음에는 55 : 45 → 같은 날 소유자 지시 "게시판을 아예 왼쪽으로 밀어버리고 방을 좀 더 크게" 로 35 : 65 → 또 같은 날 "좀 더 왼쪽으로 댕겨서 더 크게" 로 게시판 max(340px, 25%).)
+   패널 안의 방 화면(`PartyRoomPage`)은 한 열(음성 · 채팅)이다 — 파티원은 음성 칸의 좌석 줄이다(같은 날 소유자 지시 — `RoomVoiceSeats.tsx`. 그 전에는 패널이 넓으면(760px 이상) 두 열(음성 · 채팅 | 파티원 300px)이었다).
+   자동 매칭의 제안 화면(`ProposalPage`)은 그대로 넓으면 두 열이다. */
+.board-split { display:flex; align-items:flex-start; min-width:0; }
+.board-split-board { flex:1 1 0; min-width:0; }
+.room-panel {
+  /* 패널 = 본문(사이드바 80px 을 뺀 폭)에서 게시판 max(340px, 25%) 를 뺀 것 — 1100 에서 680px(게시판 340) · 1440 에서 1020(340) · 1920 에서 1380(460).
+     게시판(`.board-split-board` — 남는 폭을 다 받는다)이 그 나머지다. 스크롤 막대는 앱 전체가 숨겨(`theme.css`) 100vw 가 본문 + 사이드바 그대로다.
+     안쪽을 같은 폭으로 고정해 두어야 밀려 들어오는 동안 내용이 찌그러지지 않는다. */
+  --room-panel-w:min(calc((100vw - 80px) * .75), calc(100vw - 80px - 340px));
+  position:sticky; top:0; flex:0 0 var(--room-panel-w); min-width:0; height:100vh; height:100dvh; overflow:hidden;
+  border-left:1px solid #ffffff14; background:#0d0f19; box-shadow:-18px 0 40px #0005;
+  animation:room-panel-open .32s cubic-bezier(.22,.8,.25,1);
+}
+.room-panel-inner { container:room-panel / inline-size; width:var(--room-panel-w); height:100%; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#3b3f52 transparent; animation:room-panel-slide .32s cubic-bezier(.22,.8,.25,1); }
+.room-panel.is-closing { animation:room-panel-close .26s cubic-bezier(.4,0,.6,1) forwards; }
+@keyframes room-panel-open { from { flex-basis:0; } }
+@keyframes room-panel-close { from { flex-basis:var(--room-panel-w); } to { flex-basis:0; } }
+@keyframes room-panel-slide { from { transform:translateX(40px); opacity:0; } }
+@keyframes room-panel-sheet-in { from { transform:translateX(100%); } }
+@keyframes room-panel-sheet-out { to { transform:translateX(100%); } }
+/* 방에 있는 동안은 자동 매칭을 시작할 수 없다 — 넓은 화면에서 게시판이 좁아지면 맨 위 자동 매칭 판을 접는다(판의 상태는 남는다 — 가리기만).
+   게시판은 340 ~ 480px 이라 카드가 폰 폭 모양(좌석 원 다섯 칸 — `room-board.css` "좌석 줄")이 된다 — 여백을 줄여 카드에 폭을 준다. */
+@media (min-width:1100px) {
+  .board-split.has-room .room-match-top { display:none; }
+  .board-split.has-room .room-home.board-home { padding-inline:16px; }
+  /* 게시판 폭을 보는 질의(`board`) — 넓은 화면의 방 패널이 열렸을 때만 건다(컨테이너는 고정 위치 자식의 기준이 돼 좁은 화면의 떠 있는 "방으로 돌아가기" 를 붙잡는다).
+     게시판이 420px 이하(1760 아래 전부)면 폰 폭과 같이 모드 필터의 그림을 뺀다 — 그림이 있으면 "일반" 이 잘려 옆으로 밀어야 보였다. */
+  .board-split.has-room .board-split-board { container:board / inline-size; }
+}
+@container board (max-width:420px) {
+  .room-home .room-filters .board-mode-options .filter-mode-symbol { display:none; }
+}
+/* 좁은 게시판(340 ~ 480px)의 카드는 늘 폰 폭 모양(좌석 원 다섯 칸)이다 — 카드 · 좌석의 옆 여백을 줄여 칸에 폭을 준다(카드 18 → 12px · 폰 폭 카드와 같은 값 · 좌석 4 → 0px(틀은 투명한 1px 뿐이다).
+   340 에서 닉네임 칸 41 → 52px — 일곱 글자 "demo-10" 까지 잘리지 않는다. 그보다 긴 닉네임은 전처럼 말줄임). 좁은 화면(1100 아래 · 폰)의 카드는 이 질의가 없어 그대로다. */
+@container board (max-width:480px) {
+  .board-split .room-deck.room-row { padding-inline:12px; }
+  .board-split .room-seat-button { padding-inline:0; }
+}
+
+/* "게시판으로" — 좁은 화면에서만(넓은 화면은 게시판이 옆에 보인다). 패널 맨 위에 붙어 있다. */
+.room-panel-bar { position:sticky; top:0; z-index:2; display:none; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid #ffffff10; background:#0d0f19f0; backdrop-filter:blur(6px); }
+.room-panel-back { display:inline-flex; align-items:center; gap:6px; min-height:40px; padding:0 16px 0 10px; border:1px solid #ffffff24; border-radius:999px; background:#1b1d29; color:#ece8f6; font:inherit; font-size:14px; font-weight:650; cursor:pointer; }
+.room-panel-back:hover { background:#252838; }
+.room-panel-back:focus-visible { outline:2px solid #c5a5ff; outline-offset:2px; }
+.room-panel-bar-note { color:#8f8aa0; font-size:12px; }
+
+/* 패널 안의 화면(방 `PartyRoomPage` · 자동 매칭의 제안 `ProposalPage`). 방은 늘 한 열(음성 칸 — 좌석 줄 · 채팅)이고 제안은 좁으면 한 열이다. */
+.room-panel .page { max-width:none; margin:0; padding:22px 24px 40px; }
+.room-panel .proposal-page .page-grid { display:flex; flex-direction:column; gap:16px; }
+.room-panel .proposal-page .page-grid > * { width:100%; }
+.room-panel .proposal-page .rail { position:static; display:grid; grid-template-columns:minmax(0,1fr); }
+.room-panel .page-head { margin-bottom:16px; }
+.room-panel .page-head h1 { font-size:22px; overflow-wrap:anywhere; }
+.room-panel .page > .page-head h1 { min-height:0; padding-right:0; }
+.room-panel .page-head.row-between { flex-wrap:wrap; align-items:flex-start; }
+.room-panel .party-page .chat-card { min-height:320px; }
+/* 넓은 패널(760px 이상 — 1440 이면 1020px) — 제안은 두 열(왼쪽 제안 · 오른쪽 조건), 방은 채팅을 높인다. */
+@container room-panel (min-width:760px) {
+  .room-panel .proposal-page .page-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,300px); align-items:start; gap:20px; }
+  .room-panel .party-page .chat-card { min-height:420px; }
+}
+
+@media (max-width:1099.98px) {
+  .room-panel { position:fixed; inset:0; z-index:25; flex:none; width:auto; height:auto; border-left:0; box-shadow:none; animation:room-panel-sheet-in .3s cubic-bezier(.22,.8,.25,1); }
+  .room-panel-inner { width:auto; animation:none; }
+  .room-panel.is-closing { animation:room-panel-sheet-out .24s cubic-bezier(.4,0,.6,1) forwards; }
+  .room-panel-bar { display:flex; }
+  .room-panel .page { padding:18px 16px 36px; }
+  /* 게시판에서 방으로 돌아가는 길 — 아래에 떠 있는 한 줄(방 패널이 닫혀 있을 때만 있다 — `RoomBoardHome`). */
+  .room-home .room-return-banner { position:fixed; left:16px; right:16px; bottom:16px; z-index:20; justify-content:center; margin:0; padding:12px 16px; border:1px solid #7955d9; border-radius:999px; background:#2d2242; box-shadow:0 10px 30px #000a; }
+  .room-home:has(.room-return-banner) { padding-bottom:88px; }
+}
+/* 사이드바(80px)가 보이는 폭 — 덮는 패널 · 떠 있는 줄은 사이드바를 비켜 선다(사이드바를 펼치면 그 위로 온다). */
+@media (min-width:768px) and (max-width:1099.98px) {
+  .room-panel { left:80px; }
+  .room-home .room-return-banner { left:96px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .room-panel,.room-panel-inner { animation:none; }
+  .room-panel.is-closing { display:none; }
+}

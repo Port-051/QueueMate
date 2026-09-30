@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /$
+Allow: /login
+Allow: /signup
+Disallow: /app/
+
+# TODO: 배포 도메인 확정 시 Sitemap 줄 추가
