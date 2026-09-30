@@ -10,7 +10,7 @@
 
 > **지위 — 누가 정했나.** 소유자가 "네가 platform 을 만들어 봐라"고 맡겨 Claude 가 정해 구현한 것이 많고, 그 원본은 `contracts/platform-api.md` 의 **P-항목**(맨 아래 "원본에 올려야 할 것")이다.
 > - **Claude 가 정했고 소유자가 항목별로 검토하지 않았다** — P-1 ~ P-10(P-3 · P-5 · P-6 · P-10 은 걷어냈다), **P-30**(자동 매칭 파티의 방 — D-42 위의 세부), 그리고 소유자 결정 안의 "Claude 가 정한 세부" — **P-14 · P-15 · P-16 · P-17 · P-19 · P-22 · P-23 · P-28 · P-32 ~ P-36 · P-38 ~ P-42** 의 세부가 그렇다(계약의 그 P-행에 가려 적었다. 이 파일은 "(Claude 세부)"로 표시한다 — 표시가 빠졌더라도 계약의 행이 원본이다).
-> - **소유자가 직접 정했다** — P-11 ~ P-29 · P-31 ~ P-36 · P-38 ~ P-42. docs/11 D-항목 대응: P-2 → D-24 · P-11 → D-25 · P-15 → D-26 · P-12 · P-13 → D-27 · P-14 · P-20 · P-21 → D-28 · P-16 → D-29 · P-17 → D-30 · P-18 → D-31 · P-19 → D-32 · P-22 → D-33 · P-23 → D-34 · P-24 → D-35 · P-25 → D-36 · P-26 → D-37 · P-27 → D-38 · P-29 → D-39 · P-28 → D-40 · P-31 → D-44 · P-32 → D-46 · P-35 → D-47 · P-36 → D-48 · P-38 → D-50 · P-39 → D-51 · P-40 → D-52 · P-41 → D-53. **아직 D-항목이 없다 — P-33 · P-34 · P-42**(docs/11 에 올리는 것은 `matching` 폴더의 일이다).
+> - **소유자가 직접 정했다** — P-11 ~ P-29 · P-31 ~ P-36 · P-38 ~ P-42. docs/11 D-항목 대응: P-2 → D-24 · P-11 → D-25 · P-15 → D-26 · P-12 · P-13 → D-27 · P-14 · P-20 · P-21 → D-28 · P-16 → D-29 · P-17 → D-30 · P-18 → D-31 · P-19 → D-32 · P-22 → D-33 · P-23 → D-34 · P-24 → D-35 · P-25 → D-36 · P-26 → D-37 · P-27 → D-38 · P-29 → D-39 · P-28 → D-40 · P-31 → D-44 · P-32 → D-46 · P-35 → D-47 · P-36 → D-48 · P-38 → D-50 · P-39 → D-51 · P-40 → D-52 · P-41 → D-53 · P-42 → D-54. **아직 D-항목이 없다 — P-33 · P-34**(docs/11 에 올리는 것은 `matching` 폴더의 일이다).
 > - 이 파일에서 출처가 `contracts/platform-api.md` 인 것은 **소유자가 검토하며 뒤집을 수 있다.** 뒤집으면 코드 · 계약 · 이 파일을 같이 고친다.
 > - **"미정이니 묻고 정하라"는 남은 미정(§7 · §7.1)에 그대로 유효하다** — 한 번 맡긴 것이 다음에도 임의로 정해도 된다는 뜻이 아니다.
 
@@ -387,7 +387,7 @@ queuemate/
 | 매칭 엔진 규칙 | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/CLAUDE.md` |
 | 알림 배달 규칙 | `…/queuemate/notification/CLAUDE.md` |
 | 옛 `room` 앱의 규칙 · 계약 · 결정(참고만 — 근거로 쓰지 마라) | `git show origin/room:CLAUDE.md` · `origin/room:contracts/room-api.md` · `origin/room:docs/DECISIONS.md` |
-| 결정 로그 — #13 ~ #27 · D-1 ~ D-53(D-16 · D-19 ~ D-23 은 두 앱 전제 — D-33 이 개정. D-42 가 #18 · #21 · D-13 을 개정) | `…/queuemate/matching/docs/11_DECISION_LOG.md` |
+| 결정 로그 — #13 ~ #27 · D-1 ~ D-54(D-16 · D-19 ~ D-23 은 두 앱 전제 — D-33 이 개정. D-42 가 #18 · #21 · D-13 을 개정) | `…/queuemate/matching/docs/11_DECISION_LOG.md` |
 | 알림 계약(SQS 절은 기록) | `…/queuemate/matching/contracts/events.md` |
 | 계약 사본의 지위 · 자원 목록 | `…/queuemate/matching/contracts/README.md` · `openapi.yaml` |
 | 봉투 · 채널 접두사 원본 | `…/matching/backend/src/main/java/com/queuemate/matching/notification/PushPublisher.java` · `…/redisKeys/SharedKeys.java` |
