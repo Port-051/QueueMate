@@ -26,14 +26,6 @@
 .profile-game-account .btn { font-size: 12px; padding-inline: 12px; }
 .profile-game-account .profile-unlink { border-color: transparent; color: var(--muted); }
 .profile-game-account .profile-unlink:hover { color: var(--danger); background: rgba(255,93,108,.06); border-color: transparent; }
-.profile-preferences { min-width: 0; }
-.profile-preferences .opt-row { grid-template-columns: 100px minmax(0, 1fr); align-items: center; gap: 20px; padding: 0 0 18px; border: 0; }
-.profile-preferences .opt-row + .opt-row { padding-top: 4px; }
-.profile-preferences .opt-label b { font-size: 14px; font-weight: 500; }
-.profile-preferences .opt-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 12px; background: rgba(255,255,255,.035); }
-.profile-preferences .opt { min-width: 0; padding: 10px 8px; border: 1px solid transparent; border-radius: 9px; background: none; font-size: 13px; }
-.profile-preferences .opt.on { background: var(--accent-soft); border-color: var(--accent-line); box-shadow: none; color: var(--text); }
-.profile-auto-save { display: block; text-align: right; color: var(--muted); font-size: 12px; }
 .profile-privacy { min-width: 0; }
 .profile-blocks { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 12px 16px; border-radius: 12px; background: rgba(255,255,255,.025); font-size: 14px; transition: background .15s; }
 .profile-blocks:hover { background: rgba(255,255,255,.06); }
@@ -56,7 +48,6 @@
 .tier-split .select:disabled { opacity: .5; cursor: not-allowed; }
 @media (max-width: 1100px) {
   .profile-section { grid-template-columns: 160px minmax(0, 1fr); gap: 24px; }
-  .profile-preferences .opt-row { grid-template-columns: minmax(0, 1fr); gap: 10px; }
 }
 @media (max-width: 900px) {
   .profile-section { grid-template-columns: minmax(0, 1fr); gap: 18px; }

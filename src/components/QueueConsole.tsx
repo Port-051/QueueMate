@@ -9,7 +9,6 @@ import {
 import { conditionSummary, gameFullLabel, modeLabel } from '../domain/labels';
 import { formatDuration } from '../domain/time';
 import { useMatch } from '../state/MatchContext';
-import { readPreferences } from '../state/preferences';
 import { readRecentConditions } from '../state/recentConditions';
 import { IconBolt, IconCalendar } from './icons';
 import { Button, Tag, useToast } from './ui';
@@ -43,12 +42,9 @@ function ChipRow<T extends string>({
   );
 }
 
-/** 마지막에 쓴 조건이 있으면 그대로, 없으면 설정의 기본값으로 연다. */
+/** 마지막에 쓴 조건이 있으면 그대로, 없으면 기본 조건(음성 사용 안 함 · 빡겜)으로 연다. */
 function initialCondition(): MatchCondition {
-  const recent = readRecentConditions()[0];
-  if (recent) return recent;
-  const prefs = readPreferences();
-  return { ...defaultCondition('LOL'), voicePreference: prefs.defaultVoice, playPurpose: prefs.defaultPurpose };
+  return readRecentConditions()[0] ?? defaultCondition('LOL');
 }
 
 export function QueueConsole() {

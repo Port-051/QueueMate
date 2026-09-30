@@ -8,9 +8,8 @@ import { IconDirectMessage } from '../components/NotificationPanel';
 import { HomeProfileRail } from '../components/HomeProfileRail';
 import { useAuth } from '../state/AuthContext';
 import { useMatch } from '../state/MatchContext';
-import { readPreferences } from '../state/preferences';
 import { SelfIntroductionFields } from '../components/SelfIntroductionFields';
-import { keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
+import { DEFAULT_PLAY_PURPOSE, keyConditionOptions, usesKeyCondition, visibleModes } from '../domain/gameConfig';
 import { GAME_CATALOG } from '../domain/gameCatalog';
 import { conditionSummary, gameFullLabel, modeLabel } from '../domain/labels';
 import { matchErrorMessage, matchRequestProblem } from '../domain/matchRequest';
@@ -39,7 +38,7 @@ function CreateRoomIcon() {
  * 조건은 이 폼의 값에서 만든다 — 모드 `queueType` · 내 포지션(자동 매칭 시작의 핵심 조건 · **글에는 실리지 않는다** — 글의 내 포지션 `hostPosition` 은 팝업에서 따로 고른다, 2026-09-30) ·
  * 음성 · **플레이 목적**(`playPurpose` — 자동 매칭 시작에만 · 글에는 목적이 없다, platform P-29). 티어는 폼이 아니라 내 게임 계정에서 온다(`buildMatchRequest`).
  * 폼의 값은 이 브라우저에 게임마다 기억한다(`saveIntroduction`) — 글에만 쓰이는 두 칸(`bio` · `desiredRoles`)은 옛 저장값을 읽지 않고 빈 값으로 둔다.
- * - **플레이 목적**(2026-09-29 소유자 결정) — 전에는 폼에 칸이 없어 프로필 설정의 기본값이 보이지 않게 실려 갔다. 이제 칸이 있고, 처음 값이 그 기본값이며
+ * - **플레이 목적**(2026-09-29 소유자 결정) — 전에는 폼에 칸이 없어 프로필 설정의 기본값이 보이지 않게 실려 갔다. 이제 칸이 있고, 처음 값은 빡겜(`DEFAULT_PLAY_PURPOSE`)이며
  *   고르면 다른 칸처럼 이 브라우저에 게임마다 기억한다(`saveIntroduction`). 자동 합류(`POST /posts/auto-join`)는 같은 본문을 받되 목적을 보지 않는다.
  * - **PUBG 플랫폼의 처음 값**(2026-09-29) — 폼이 비어 있으면(저장한 값이 없거나 고른 적이 없으면) **연결한 PUBG 게임 계정의 `server`**(`STEAM` · `KAKAO`)로 채운다.
  *   스팀 · 카카오는 서로 파티를 맺을 수 없어 대개 그 값이다. 바꿀 수는 있다(막지 않는다). 계정이 없으면 비워 둔다("플랫폼을 골라 주세요").
@@ -57,7 +56,8 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, createSl
   const { user, gameAccounts } = useAuth();
   const { request, condition: queuedCondition, proposal, start: startMatch, cancel } = useMatch();
   const [value, setValue] = useState<SelfIntroduction>(() => {
-    const saved = readIntroduction(selfId, game) ?? { ...emptyIntroduction(), primaryRole: 'ANY', voice: readPreferences().defaultVoice };
+    // 처음 여는 폼(저장한 값이 없다)은 빈 소개 그대로 — 포지션 "전체" · 음성 사용 안 함.
+    const saved = readIntroduction(selfId, game) ?? emptyIntroduction();
     const roles = keyConditionOptions(game).filter(role => role.value !== 'ANY').map(role => role.value);
     const allRoles = keyConditionOptions(game).some(role => role.value === 'ANY') && roles.every(role => saved.primaryRoles?.includes(role));
     let primaryRole = allRoles ? 'ANY' : saved.primaryRoles?.[0] ?? saved.primaryRole;
@@ -68,7 +68,7 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, createSl
       ...saved, primaryRole, primaryRoles: allRoles ? roles : primaryRole === 'ANY' ? [] : [primaryRole], voice: roomVoice(saved.voice),
       // 한마디 · 찾는 포지션은 글 쓰기 팝업의 칸이고 기억하지 않는다(2026-09-29 소유자 지시) — 옛 저장값을 읽지 않는다.
       bio: '', desiredRoles: [],
-      playPurpose: saved.playPurpose ?? readPreferences().defaultPurpose,
+      playPurpose: saved.playPurpose ?? DEFAULT_PLAY_PURPOSE,
       queueType: visibleModes(game).some(mode => mode.key === saved.queueType) ? saved.queueType : modeKey,
     };
   });
@@ -101,7 +101,7 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, createSl
     modeKey: value.queueType,
     keyCondition: { type: GAME_CATALOG[game].keyConditionType, value: hasRoles ? ownRoles.length === 1 ? ownRoles[0] : 'ANY' : 'ANY' },
     voicePreference: value.voice,
-    playPurpose: value.playPurpose ?? readPreferences().defaultPurpose,
+    playPurpose: value.playPurpose ?? DEFAULT_PLAY_PURPOSE,
   });
   const startCondition = conditionFromForm();
   const startProblem = matchRequestProblem(startCondition, gameAccounts);

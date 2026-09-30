@@ -23,7 +23,7 @@ export interface SelfIntroduction {
   voice: VoicePreference;
   /**
    * 플레이 목적 — 빠른 연결 폼의 "매칭 시작" 에만 쓴다(2026-09-29 소유자 결정 · 글에는 목적이 없다 — platform P-29).
-   * 없으면(옛 저장값 · 고른 적 없음) 부르는 쪽이 프로필 설정의 기본값(`readPreferences().defaultPurpose`)으로 채운다.
+   * 없으면(옛 저장값 · 고른 적 없음) 부르는 쪽이 기본값 빡겜(`gameConfig.ts` `DEFAULT_PLAY_PURPOSE`)으로 채운다.
    */
   playPurpose?: PlayPurpose;
   bio: string;

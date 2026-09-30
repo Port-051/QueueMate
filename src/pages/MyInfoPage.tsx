@@ -1,7 +1,6 @@
 import { FilterTierIcon } from '../components/FilterSymbols';
 import '../styles/introduction.css';
 import { GameBadge } from '../components/GameSymbol';
-import { ProfileSettings } from '../components/ProfileSettings';
 import { SocialProviderIcon } from '../components/SocialProviderIcon';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -262,7 +261,9 @@ export function MyInfoPage() {
               onRefresh={() => void refreshStats(item.key)} refreshing={refreshingGame === item.key} />)}
           </div>
         </section>
-        <section className="profile-section" aria-labelledby="profile-social-heading">
+        {/* `#settings` — 소셜 계정 잇기의 결과(`/settings?linked=|error=` → `SettingsRedirectPage`)가 여기로 온다. 그 자리는 바로 아래 "매칭 기본값" 절이었는데
+            2026-09-30 소유자 지시로 그 절을 뺐다 — 잇기의 결과가 닿는 이 절로 옮겼다. */}
+        <section id="settings" className="profile-section" aria-labelledby="profile-social-heading">
           <div className="profile-section-heading">
             <h2 id="profile-social-heading">소셜 계정</h2>
             <p>로그인에 쓰는 계정입니다. 하나는 남겨야 합니다.</p>
@@ -280,7 +281,6 @@ export function MyInfoPage() {
             })}
           </div>
         </section>
-        <ProfileSettings />
         <section className="profile-section" aria-labelledby="profile-privacy-heading">
           <div className="profile-section-heading"><h2 id="profile-privacy-heading">개인정보와 안전</h2></div>
           <div className="profile-privacy">

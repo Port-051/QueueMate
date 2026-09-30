@@ -114,6 +114,12 @@ export const PURPOSE_OPTIONS: { value: PlayPurpose; label: string }[] = PLAY_PUR
   value, label: value === 'RANK_UP' ? '랭크 상승' : value === 'TRYHARD' ? '빡겜' : '즐겜',
 }));
 
+/**
+ * 폼이 처음 여는 플레이 목적 — 빡겜. 조건의 기본값(`defaultCondition`)이고, 저장해 둔 조건에 목적이 없거나 모르는 값일 때도 이것으로 채운다.
+ * (2026-09-30 소유자 지시로 프로필 설정의 "매칭 기본값"(음성 · 플레이 목적)을 뺐다 — 그 설정의 기본값이던 음성 사용 안 함 · 빡겜으로 늘 시작한다.)
+ */
+export const DEFAULT_PLAY_PURPOSE: PlayPurpose = 'TRYHARD';
+
 export function modeConfig(game: GameKey, modeKey: string): ModeConfig | undefined {
   return toModeConfig(game, modeKey);
 }
@@ -149,7 +155,7 @@ export function defaultCondition(game: GameKey): MatchCondition {
     modeKey: visibleModes(game)[0]?.key ?? '',
     keyCondition: { type: cfg.keyCondition.type, value: keyConditionOptions(game)[0]?.value ?? '' },
     voicePreference: 'NO_VOICE',
-    playPurpose: 'TRYHARD',
+    playPurpose: DEFAULT_PLAY_PURPOSE,
   };
 }
 

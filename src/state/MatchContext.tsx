@@ -11,7 +11,7 @@ import type {
 import { useToast } from '../components/ui';
 import { buildMatchRequest, matchErrorMessage, matchRequestError } from '../domain/matchRequest';
 import { storedPlayPurpose } from '../domain/gameCatalog';
-import { readPreferences } from './preferences';
+import { DEFAULT_PLAY_PURPOSE } from '../domain/gameConfig';
 import { rememberCondition } from './recentConditions';
 import { useAuth } from './AuthContext';
 
@@ -104,7 +104,7 @@ const readSavedMatch = (userId: string): SavedMatch | null => {
     const saved = raw ? JSON.parse(raw) as Partial<SavedMatch> : null;
     if (!saved?.requestId || !saved.condition) return null;
     // 옛 저장값의 목적 `NORMAL` 은 `TRYHARD`(빡겜)로 옮겨 읽는다(2026-09-29 — matching D-49 · 라벨이 비지 않게).
-    const playPurpose = storedPlayPurpose(saved.condition.playPurpose) ?? readPreferences().defaultPurpose;
+    const playPurpose = storedPlayPurpose(saved.condition.playPurpose) ?? DEFAULT_PLAY_PURPOSE;
     return { requestId: saved.requestId, condition: { ...saved.condition, playPurpose } };
   } catch { return null; }
 };
