@@ -1,87 +1,85 @@
 # 공개 순서와 완료 기준
 
-## 1. 코드 검토
+갱신: 2026-09-30. 사용자가 구매 완료를 알린 주소는 **queue-mate.com**입니다. 이전 q-mate.com 계획과 과거 날짜 문서의 주소를 그대로 사용하지 않습니다.
 
-`feat/seo-landing` PR을 팀원이 검토합니다. 기존 앱은 변경하지 않고 `landing/`만 별도 프로젝트로 배포합니다.
-Vercel에는 최초 배포가 존재하지만 로그인 보호 때문에 익명 접속 검증은 미완료입니다. 도메인 구매·DNS 연결·검색엔진 소유 확인·검색 유입 성과도 완료한 상태가 아닙니다. 최신 검사 기록은 [AUDIT_2026-09-28.md](AUDIT_2026-09-28.md)를 참고합니다.
+## 1. 현재 상태와 코드 검토
 
-## 2. 이미 만든 랜딩 프로젝트의 공개·갱신
+`feat/seo-landing`의 PR #6를 검토합니다. `main`, 기존 앱과 UI 브랜치는 이 작업에서 변경하지 않았습니다.
+코드 변경 `7a7926f9ed601fcdb865669ef2e403b62576c708`은 대표 주소·앱 예정 주소·푸터·공유 URL·검색 파일 생성 기준·Vercel 호스트 규칙을 새 도메인으로 변경합니다.
+로컬 Node 테스트 96개, 빌드, 단일 검토 HTML 생성, 현재 설정의 HTTP 검사 16개가 통과했습니다. 공유 이미지를 사용하는 별도 테스트에서는 기존 이미지 검증도 유지합니다.
+이 수치는 새 도메인이나 Vercel 실서버 검사 결과가 아닙니다. 이번 도메인 수정 작업에서는 재배포·DNS 변경·공개 권한 변경·검색 등록을 실행하지 않았습니다.
 
-기존 프로젝트는 `port-051 / q-mate-landing-36418820590`입니다. 새 프로젝트를 반복해서 만들지 않습니다.
-배포 주소는 `https://q-mate-landing-36418820590-cerit5nsr-port-051.vercel.app/`이며, 공개 전환은 이 랜딩 프로젝트에만 적용합니다. 기존 매칭 앱을 선택하지 않습니다.
+기존 공유 이미지에는 q-mate.com이 적혀 있어 `media.ogImage`를 비워 공유 메타정보에서 임시 제외했습니다. 새 도메인에 맞는 이미지를 검토한 후 복원합니다. 디자인은 여전히 재검토 대상이며 도메인 구매가 디자인 승인을 의미하지 않습니다.
 
-Vercel Authentication을 해제할 때에는 해당 프로젝트의 모든 배포가 영향을 받는다는 점을 확인합니다. 준비된 공개 스크립트는 알려진 팀·프로젝트·소스·단일 배포·도메인 범위를 검증하고, 실제 HTTP 검사에 실패하면 기존 보호 설정을 복구하도록 구성되어 있습니다. 실행 전에 현재 상태를 다시 읽어야 합니다.
+## 2. 기존 랜딩 프로젝트의 공개·갱신
 
-**CLI 업로드 위치와 Git 저장소의 Root Directory를 혼동하지 않습니다.** 최초 배포는 `landing/` 내용이 프로젝트 루트에 오도록 별도 디렉터리에서 CLI로 업로드했습니다. 이 방식에서 코드 위치는 `./`입니다. 향후 전체 저장소를 Git 통합으로 연결하면 그때 Root Directory를 `landing`으로 설정합니다. 브랜치 선택과 배포 설정을 확인하기 전에는 통합을 변경하지 않습니다.
+기존 프로젝트는 `port-051 / q-mate-landing-36418820590`입니다. 도메인이 바뀌어도 이 내부 프로젝트 이름을 바꾸거나 새 프로젝트를 반복 생성할 필요는 없습니다.
+최초 배포 주소는 `https://q-mate-landing-36418820590-cerit5nsr-port-051.vercel.app/`, 당시 배포 소스는 `f63b93e96d7e8982157268ad674a2ae4fec21a91`입니다. 과거 실제 점검에서는 로그인 보호로 익명 접속이 막혔습니다. 최신 상태는 다시 확인해야 합니다.
 
 | 설정 | 값 |
 |---|---|
 | 기존 프로젝트 | q-mate-landing-36418820590 |
-| 저장소 전체를 Git으로 연결할 때 Root Directory | landing |
-| landing 내용만 CLI로 업로드할 때 코드 위치 | ./ |
+| 전체 저장소를 Git으로 연결할 때 Root Directory | landing |
+| landing 내용만 CLI로 올릴 때 코드 위치 | ./ |
 | Framework Preset | Other |
 | Node.js | 22.x |
 | Install Command | npm ci --ignore-scripts --no-audit --no-fund |
 | Build Command | npm run build |
 | Output Directory | dist |
 
-`main`에는 아직 랜딩 PR을 병합하지 않았으므로 Git 통합에서 main을 선택하면 현재 작업본이 없을 수 있습니다. 팀 검토 후 병합하거나, 검증된 작업 브랜치의 코드를 사용합니다. 기존 앱 설정을 덮어쓰거나 이를 이유로 강제 병합하지 않습니다.
+기존 매칭 앱 프로젝트를 선택하지 않습니다. PR 병합 전에는 main에 최신 랜딩이 없을 수 있으므로 검증된 작업 브랜치를 사용합니다. Git 통합이나 운영 병합은 별도 확인 후 진행합니다.
+Vercel Authentication을 해제하면 해당 프로젝트의 배포들이 영향을 받습니다. 공개 대상과 소유 범위를 확인한 뒤 이 랜딩 프로젝트만 변경합니다.
+`publish-existing-preview.mjs`는 최초 배포의 소스 해시·주소·단일 배포·도메인을 고정 검증하는 일회성 스크립트입니다. 새 배포나 도메인을 추가한 뒤 그대로 실행하지 말고 실제 대상과 검증 조건을 다시 검토합니다.
 
-현재 설정은 Production 빌드라도 noindex입니다. 새 소스의 파비콘 및 검증 보완은 기존 배포에 자동 반영된 것이 아닙니다. 재배포 후 실제 주소에서 확인합니다.
-
-```sh
-npm run check:url -- https://q-mate-landing-36418820590-cerit5nsr-port-051.vercel.app preview live-check.json
-```
-
-검사는 GET 조회만 수행합니다. 종료 코드 0은 통과, 2는 로그인 보호, 1은 그 외 실패입니다. 검색 등록·도메인 변경·앱 연결·보호 우회는 하지 않습니다. URL이 재배포로 바뀌면 실제 반환된 최신 주소를 사용합니다.
-
-## 3. q-mate.com 구매·연결
-
-구매 완료 후 위 랜딩 프로젝트에만 도메인을 추가합니다. DNS 값은 그 프로젝트의 안내 값을 그대로 사용합니다.
-다른 서비스의 MX/TXT 등 기존 레코드는 지우지 않습니다. www는 대표 주소로 리다이렉트합니다.
-app.q-mate.com은 앱 담당자가 준비한 실제 배포 대상으로 별도 연결하며 도메인을 다시 구매하는 작업은 아닙니다.
-HTTPS, 대표 주소, www 이동, 404 응답을 실제 주소에서 확인합니다. Vercel 배포 주소는 위에 기록되어 있지만 q-mate.com용 DNS 값과 연결 완료는 아직 확인하지 않았습니다.
-
-## 4. 승인된 소개 페이지의 검색 공개
-
-문구가 출시 준비 상태를 정확히 설명하는지 팀원이 확인한 후 공개 전용 PR을 만듭니다.
-`contentApproved`, `uiApproved`, `allowIndexing`을 true로 설정하고 Production으로 새로 빌드합니다.
-현재 테스트에는 출시 전 설정을 고정하는 검사가 있으므로, 공개 PR에서 그 검사도 의도한 공개 상태에 맞게 갱신하고 나머지 안전장치 테스트는 유지합니다.
-`appReady`는 앱이 준비될 때까지 false로 둡니다. 소개 페이지 색인을 위해 앱 출시를 기다릴 필요는 없습니다.
-미리보기 빌드를 단순 승격하지 않고 재빌드합니다. `VERCEL_ENV=preview`는 로컬의 production 덮어쓰기를 무시합니다.
+재배포로 받은 실제 주소에서 다음 검사를 수행합니다.
 
 ```sh
-npm run check:url -- https://q-mate.com production
+npm run check:url -- https://실제-배포-호스트 preview live-check.json
 ```
 
-홈은 200, robots는 Allow, 사이트맵은 대표 주소 1개, 알 수 없는 경로는 404여야 합니다.
-robots.txt의 Disallow로 noindex 페이지 수집까지 막지 않습니다. 검색로봇이 noindex를 읽을 수 있어야 합니다.
-임시 호스트의 HTTP noindex 규칙은 코드 수준에서 검사했으며, Vercel의 실제 응답 헤더는 배포 후 추가 확인해야 합니다.
+GET 전용 검사이며 종료 코드 0은 통과, 2는 로그인 보호, 1은 그 외 실패입니다. 로그인 화면의 최종 200을 랜딩 성공으로 세지 않습니다. 기존 공개 기록이나 로컬 검사 결과를 최신 배포 증거로 사용하지 않습니다.
 
-## 5. 검색엔진 등록과 확인
+## 3. queue-mate.com 연결
 
-구글 Search Console과 네이버 서치어드바이저에서 소유권 확인을 진행합니다.
-실제 발급받은 값을 `verification.google` / `verification.naver`에 넣거나 해당 서비스가 안내한 DNS 검증을 사용합니다. 빈 값은 출력하지 않습니다.
-검색 공개가 확인된 뒤 `https://q-mate.com/sitemap.xml`을 제출하고 수집·색인 상태를 확인합니다.
-Bing·Daum의 공식 절차와 ZUM의 신청 경로 확인 결과, 입력 정보 및 문구 초안은 [SEARCH_PLAN_2026-09-28.md](SEARCH_PLAN_2026-09-28.md)에 정리했습니다. 등록은 아직 수행하지 않았습니다.
+도메인 구매 업체와 현재 DNS 관리 업체를 확인합니다. 이 문서 작성 시 업체명·기존 레코드·DNS 변경 권한은 미확인입니다.
+위의 기존 랜딩 프로젝트에 `queue-mate.com`을 추가하고, Vercel이 해당 프로젝트에 안내한 정확한 DNS 값을 적용합니다. 일반 예시 IP/CNAME을 확정값처럼 넣지 않습니다.[1]
+`www.queue-mate.com`을 추가한다면 대표 주소 `https://queue-mate.com/`으로 리다이렉트합니다. 기존 MX/TXT 등 다른 레코드는 삭제하지 않습니다. 네임서버를 무작정 교체하지 않습니다.
+`app.queue-mate.com`은 별도 앱 구조를 유지할 경우의 예정 주소이며, 실제 서비스의 배포 위치와 동작을 확인하기 전에는 연결하지 않습니다.
+HTTPS·대표 주소·www 이동·404 응답을 실제 URL에서 검사합니다. 구매 완료와 DNS 연결 완료는 구분합니다.
 
-## 6. 공개 이후 측정
+## 4. 문구와 검색 공개
 
-실제 공개 주소의 PageSpeed Insights 측정은 남아 있습니다. GitHub 실행 서버에서 측정한 모바일·PC Lighthouse 실험실 결과는 [AUDIT_2026-09-28.md](AUDIT_2026-09-28.md)에 별도로 기록했습니다. 이를 실제 배포 성능이나 검색 성과와 혼동하지 않습니다.
-검색 노출수·클릭수·클릭률·실제 유입 검색어를 기준으로 제목과 본문을 개선합니다. 지금 키워드는 후보이지 검색량 검증 결과가 아닙니다.
-우선 후보: 롤 듀오 구하기, 롤 듀오 찾기, 롤 파티 찾기, 큐메이트, QueueMate.
-발로란트·배그 전용 페이지는 실제 공개 범위와 고유 콘텐츠가 준비된 뒤 검토합니다. 검색어만 바꾼 중복 페이지를 늘리지 않습니다.
-GA4·광고 픽셀·사전 신청 수집 폼은 구현하지 않았습니다. 필요하다면 측정 목적과 수집 범위를 먼저 정합니다.
+`allowIndexing=false`, `appReady=false`를 유지합니다. 도메인 변경만으로 검색 공개를 켜지 않습니다.
+디자인과 문구·출시 범위를 확정하고 별도의 공개 변경에서 `contentApproved`, `uiApproved`, `allowIndexing`을 true로 설정합니다. 기본값을 확인하는 테스트도 의도한 공개 정책에 맞추고, 미리보기 안전장치·검증 테스트를 유지합니다.
+Production으로 새로 빌드합니다. Preview 산출물을 단순 승격하지 않습니다. 소개 페이지 색인을 위해 실제 앱 출시를 기다릴 필요는 없으며 `appReady`는 앱 검증 전까지 false입니다.
 
-## 7. 앱 연결과 복구
+```sh
+npm run check:url -- https://queue-mate.com production launch-check.json
+```
 
-앱 담당자가 최종 주소와 실제 동작을 확인한 뒤 `appReady=true`로 변경하고 준비 중 설명과 FAQ를 함께 검토합니다.
-오류 시 이전 검증된 배포로 되돌리거나 문제 변경을 되돌린 커밋을 재배포합니다. 기존 앱·DNS를 함께 수정하지 않습니다.
+홈은 로그인 없이 200 HTML, 올바른 대표 주소, 공개 가능한 robots 지시문이어야 합니다. 사이트맵에는 대표 홈페이지 한 개만 넣고 없는 앱 경로나 임의 lastmod를 만들지 않습니다.
+`robots.txt`의 Disallow로 noindex까지 읽지 못하게 막지 않습니다. `llms.txt`도 텍스트로 열리는지 확인합니다. 임시 호스트의 noindex 헤더를 실제 배포에서 확인합니다.
+
+## 5. 검색엔진 등록
+
+정식 등록 대상은 `queue-mate.com`입니다. Google Search Console, 네이버 서치어드바이저, Bing의 실제 소유확인 값을 발급받아 DNS 또는 `verification.google` / `verification.naver` / `verification.bing`에 적용합니다. 빈 값을 임의 인증 문자열로 채우지 않습니다.
+공개가 확인된 뒤 `https://queue-mate.com/sitemap.xml`을 제출하고 수집·색인·검색 유입을 각각 확인합니다.
+Daum은 공개 주소·신청 정보·담당 연락처·동의를 확인한 뒤 신청합니다. ZUM 신규 신청 경로는 최신 공식 접수 여부부터 확인합니다. 과거 [검색 계획](SEARCH_PLAN_2026-09-28.md)의 절차를 참고하되 옛 도메인으로 제출하지 않습니다.
+이 문서 작성 시 실제 사이트 추가·소유확인·사이트맵 제출은 수행하지 않았습니다.
+
+## 6. 품질 측정과 앱 연결
+
+실제 공개 URL에서 PageSpeed Insights를 PC·모바일로 측정합니다. [과거 감사 결과](AUDIT_2026-09-28.md)는 실행 서버의 로컬 빌드 측정이며 실서비스 성능이나 검색 성과가 아닙니다.
+검색 노출수·클릭수·클릭률·유입 검색어를 기준으로 본문을 개선합니다. 현재 검색어 후보는 검색량·광고 단가 실측 순위가 아닙니다. 발로란트·배그 페이지는 실제 기능과 고유 콘텐츠가 있을 때 검토합니다.
+GA4·광고 픽셀·사전 신청 수집은 추가하지 않았습니다. 필요 시 수집 목적과 범위를 먼저 정합니다.
+앱 담당자가 최종 주소와 동작을 확인한 뒤 `appReady=true`로 변경하고 준비 중 설명과 FAQ를 함께 수정합니다. 오류 시 이전 검증 배포 또는 되돌린 커밋을 사용하며 기존 앱과 DNS까지 한꺼번에 변경하지 않습니다.
 
 ## 공식 참고
 
-- Google noindex: https://developers.google.com/search/docs/crawling-indexing/block-indexing
-- Google 페이지 경험: https://developers.google.com/search/docs/appearance/page-experience
-- Google AI 검색 안내: https://developers.google.com/search/docs/appearance/ai-features
+[1] https://vercel.com/docs/domains/set-up-custom-domain
 
-좋은 성능 점수는 검색 상위 노출을 보장하지 않습니다. llms.txt는 보조 설명으로 유지하며 Google AI 노출의 필수 파일로 취급하지 않습니다.
+- https://developers.google.com/search/docs/crawling-indexing/block-indexing
+- https://developers.google.com/search/docs/appearance/page-experience
+- https://developers.google.com/search/docs/appearance/ai-features
+
+좋은 성능 점수나 llms.txt가 검색·AI 노출을 보장하지 않습니다. llms.txt는 보조 설명이며 필수 등록 파일로 취급하지 않습니다.
