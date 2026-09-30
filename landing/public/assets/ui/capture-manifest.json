@@ -1,0 +1,170 @@
+{
+  "reference": {
+    "repository": "Port-051/QueueMate",
+    "branch": "feature/quick-match-ui",
+    "commit": "904cce415181aeb8a8802fc398f9be9e0835b1fe"
+  },
+  "kind": "actual frontend screenshots with synthetic API display fixtures",
+  "backendConnected": false,
+  "sourceUiModified": false,
+  "screens": [
+    {
+      "name": "quick-match-board",
+      "width": 1440,
+      "height": 900,
+      "sha256": "9de6897cceb497f566a275931fc63dd0f40c98d6422fe88866fa8d06c7f11aa2"
+    },
+    {
+      "name": "quick-match-settings",
+      "width": 1440,
+      "height": 900,
+      "sha256": "902f54a455b6a1822d895c904622c524d28958eebc5e2a9711d4a921c8b6e5fc"
+    },
+    {
+      "name": "quick-match-room",
+      "width": 1440,
+      "height": 900,
+      "sha256": "0299ecbf9bd091e301c2e69a11e79f2bebc50bc2341f00d03c681bcb09bc064a"
+    }
+  ],
+  "apiRequests": [
+    {
+      "path": "/api/v1/users/me",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/posts",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/rooms/me",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/friends",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/friend-requests",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/friend-requests",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/blocks",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/recent-players",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/match-requests",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/posts",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/users/me",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/posts",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/posts/600",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/rooms/me",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/friends",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/friend-requests",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/friend-requests",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/blocks",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/recent-players",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/match-requests",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/rooms/600/members",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/rooms/600/heartbeat",
+      "method": "POST"
+    },
+    {
+      "path": "/api/v1/posts",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/posts/600",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/rooms/600/signals",
+      "method": "POST"
+    },
+    {
+      "path": "/api/v1/rooms/600/signals",
+      "method": "POST"
+    },
+    {
+      "path": "/api/v1/rooms/600/signals",
+      "method": "POST"
+    },
+    {
+      "path": "/api/v1/rooms/600/signals",
+      "method": "POST"
+    },
+    {
+      "path": "/api/v1/rooms/600/signals",
+      "method": "POST"
+    },
+    {
+      "path": "/api/v1/rooms/600/signals",
+      "method": "POST"
+    },
+    {
+      "path": "/api/v1/rooms/600/signals",
+      "method": "POST"
+    },
+    {
+      "path": "/api/v1/rooms/600/signals",
+      "method": "POST"
+    },
+    {
+      "path": "/api/v1/rooms/600/signals",
+      "method": "POST"
+    },
+    {
+      "path": "/api/v1/rooms/600/signals",
+      "method": "POST"
+    }
+  ],
+  "unexpectedRequests": [],
+  "pageErrors": []
+}
