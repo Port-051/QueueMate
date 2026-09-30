@@ -42,14 +42,18 @@ const PUBG_SERVERS: { value: PubgServer; label: string }[] = [
 /** `이름#태그` — Riot ID. 태그는 3~5자가 보통이지만 형식만 본다(둘 다 비어 있지 않은가). */
 export const isRiotId = (value: string) => /^[^#]+#[^#]+$/.test(value.trim());
 
-/** 전적 · 티어를 게임사 API 에서 가져오는 게임(연결 · 수정이 동기 · 전적 갱신이 된다). VALORANT 는 자기신고다(전적 갱신은 409). */
+/**
+ * 전적 · 티어를 게임사 API 에서 가져오는 게임 — 연결 · 수정이 동기이고, 로그인 · 재발급 때 1시간이 지난 전적을 서버가 뒤에서 다시 받는다(P-42).
+ * VALORANT 는 자기신고다.
+ */
 export const statsFromApi = (game: GameKey) => game === 'LOL' || game === 'PUBG';
 /** 가져오는 곳의 이름 — 문구에 쓴다. */
 export const STATS_SOURCE: Record<GameKey, string> = { LOL: 'Riot', VALORANT: 'Riot', PUBG: 'PUBG' };
 
 /**
  * 게임 계정 요청의 실패를 사용자 문구로. 400 은 `details[0]`(`"필드: 사유"`)이 가장 정확하다.
- * `RIOT_ID_NOT_FOUND`(LOL) · `PUBG_PLAYER_NOT_FOUND`(PUBG) · `GAME_STATS_UNAVAILABLE`(503 — LOL · PUBG) 는 저장되지 않은 것이다. 전적 갱신의 429 · 409 · 404 도 여기서 같이 다룬다.
+ * `RIOT_ID_NOT_FOUND`(LOL) · `PUBG_PLAYER_NOT_FOUND`(PUBG) · `GAME_STATS_UNAVAILABLE`(503 — LOL · PUBG) 는 저장되지 않은 것이다.
+ * 429 `TOO_MANY_STATS_REFRESHES` 는 서버가 지금 그 계정의 전적을 가져오는 중이라는 뜻이다(로그인 직후의 다시 받기와 겹칠 때 — `Retry-After: 60` · P-42).
  */
 export function gameAccountErrorMessage(err: unknown, game: GameKey, fallback = '게임 계정을 저장하지 못했습니다'): string {
   if (!isApiError(err)) return fallback;
@@ -59,10 +63,8 @@ export function gameAccountErrorMessage(err: unknown, game: GameKey, fallback = 
     case 'PUBG_PLAYER_NOT_FOUND': return '그 서버에 이 닉네임의 PUBG 플레이어가 없습니다. 서버를 확인하고 닉네임을 대소문자까지 정확히 입력해 주세요.';
     case 'GAME_STATS_UNAVAILABLE': return `지금은 ${STATS_SOURCE[game]} 에서 전적을 가져올 수 없습니다. 잠시 뒤 다시 시도해 주세요.`;
     case 'TOO_MANY_STATS_REFRESHES': return err.retryAfterSeconds !== null
-      ? `전적은 2분에 한 번 갱신할 수 있습니다. ${err.retryAfterSeconds}초 뒤 다시 시도해 주세요.`
-      : '전적은 2분에 한 번 갱신할 수 있습니다. 잠시 뒤 다시 시도해 주세요.';
-    case 'GAME_STATS_NOT_SUPPORTED': return '이 게임은 전적 갱신을 지원하지 않습니다.';
-    case 'GAME_ACCOUNT_NOT_FOUND': return '연결된 게임 계정이 없습니다.';
+      ? `지금 이 계정의 전적을 가져오는 중입니다. ${err.retryAfterSeconds}초 뒤 다시 시도해 주세요.`
+      : '지금 이 계정의 전적을 가져오는 중입니다. 잠시 뒤 다시 시도해 주세요.';
     default: return err.message || fallback;
   }
 }

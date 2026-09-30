@@ -47,7 +47,7 @@ export function matchRequestProblem(condition: MatchCondition, gameAccounts: rea
     if (!account) return { message: '이 모드는 티어가 필요합니다. 먼저 게임 계정을 연결해 주세요', account: 'MISSING' };
     if (!profileTier(account, mode.tierLadder)) return { message: `${TIER_LADDER_LABEL[mode.tierLadder]} 티어가 없습니다 — ${condition.game === 'VALORANT'
       ? '내 정보에서 게임 계정의 티어를 적어 주세요'
-      : '배치를 마친 뒤 내 정보에서 전적을 갱신해 주세요'}`, account: 'NO_TIER' };
+      : '배치를 마친 뒤 내 정보에서 게임 계정을 다시 저장해 주세요'}`, account: 'NO_TIER' };
   }
   return null;
 }

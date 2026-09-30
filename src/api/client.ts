@@ -55,18 +55,17 @@ export const uploadAvatar = (file: File) =>
  * **LOL · PUBG 는 저장하기 전에 게임사 API 를 동기로 긁는다 — 상한 30초**(PUBG 는 2026-09-29). 응답에 `tiers` · `stats` 가 바로 들어 있다.
  * 못 찾으면 404(LOL `RIOT_ID_NOT_FOUND` — 이름#태그 · PUBG `PUBG_PLAYER_NOT_FOUND` — 그 서버에 그 닉네임, 대소문자까지), API 장애 · 한도 초과 · 시간 초과 · 키 없음은
  * 503 `GAME_STATS_UNAVAILABLE` — 둘 다 저장하지 않는다. 400 `VALIDATION_FAILED` 는 `details[0]` 이 `"필드: 사유"` 다(PUBG 에 `tier` 를 보내도 400).
+ * 429 `TOO_MANY_STATS_REFRESHES` + `Retry-After: 60` — 서버가 **지금 그 계정의 전적을 가져오는 중**이다(로그인 직후의 다시 받기와 겹칠 수 있다 · 아무것도 바뀌지 않았다).
  */
 export const putGameAccount = (game: GameKey, body: GameAccountRequest) =>
   request<GameProfile>(`/users/me/game-accounts/${game}`, { method: 'PUT', body });
 /** 연결 해제. 없어도 204. */
 export const deleteGameAccount = (game: GameKey) =>
   request<void>(`/users/me/game-accounts/${game}`, { method: 'DELETE' });
-/**
- * 전적 갱신 — **LOL · PUBG**(동기 · 상한 30초 · 같은 계정은 2분에 한 번 — PUBG 는 2026-09-29). 200 갱신된 게임 프로필(`PUT` 과 같은 모양 — 그대로 갈아 끼운다). LoL 은 솔로 · 자유 사다리를 둘 다 갱신한다.
- * 429 `TOO_MANY_STATS_REFRESHES` + `Retry-After`(초) · 404 `GAME_ACCOUNT_NOT_FOUND` · 409 `GAME_STATS_NOT_SUPPORTED`(이제 VALORANT 만) · 503 `GAME_STATS_UNAVAILABLE`.
+/*
+ * 전적 갱신 요청(`POST …/game-accounts/{game}/refresh`)은 **없다**(2026-09-30 소유자 결정 · P-42 — 부르면 404). 서버가 로그인 · 재발급 때
+ * 마지막으로 받은 지 1시간이 지난 LoL · PUBG 전적을 뒤에서 다시 받고, 그 값은 다음 `GET /users/me` · 게시판 목록에 실린다(알림은 없다).
  */
-export const refreshGameStats = (game: GameKey) =>
-  request<GameProfile>(`/users/me/game-accounts/${game}/refresh`, { method: 'POST' });
 
 /* ---------- game config — 없다. 게임 · 모드 · 티어는 정적 상수 `domain/gameCatalog.ts`(seed 의 사본 · 2026-09-28 소유자 결정) ---------- */
 

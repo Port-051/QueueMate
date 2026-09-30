@@ -34,7 +34,7 @@ interface AuthValue {
   /** 게임 계정 목록은 `users/me` 안에 있다 — 다시 읽는 것은 `refreshSession` 과 같다. */
   refreshGameAccounts(): Promise<UserProfile | null>;
   /**
-   * `PUT …/game-accounts/{game}` · `POST …/refresh` 의 응답(게임 프로필)을 그 자리에서 목록에 끼운다 — `GET /users/me` 를 다시 부르지 않는다
+   * `PUT …/game-accounts/{game}` 의 응답(게임 프로필)을 그 자리에서 목록에 끼운다 — `GET /users/me` 를 다시 부르지 않는다
    * (응답이 곧 저장된 값이다). `game` 이 같은 항목을 갈아 끼우고 없으면 더한다.
    */
   applyGameAccount(profile: GameProfile): void;

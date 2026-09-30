@@ -7,7 +7,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
 import type { GameKey, GameProfile, LolMostChampion, SocialProvider } from '../api/types';
-import { GameAccountForm, gameAccountErrorMessage, STATS_SOURCE, statsFromApi } from '../components/GameAccountForm';
+import { GameAccountForm, STATS_SOURCE, statsFromApi } from '../components/GameAccountForm';
 import { IconCheck, IconLogout, IconPencil, IconPlus, IconShield } from '../components/icons';
 import { AVATAR_CHOICES, avatarImageSrc, Avatar, Button, ConfirmDialog, Field, Modal, Tag, useToast } from '../components/ui';
 import { GAMES } from '../domain/gameConfig';
@@ -51,12 +51,13 @@ function LadderTiers({ game, profile }: { game: GameKey; profile: GameProfile })
 
 /**
  * 게임 프로필 카드 하나(platform-api.md "게임 프로필"). 세 게임이 같은 모양이고 게임마다 비는 칸이 다르다 — `null` 은 "정보 없음"으로.
- * **티어는 사다리마다 한 줄이다**(LoL 솔로 · 자유 / VALORANT 경쟁전 / PUBG 랭크 — `tiers`). LoL · PUBG 는 `tiers` · `stats` 가 게임사 API 에서 오고(연결 · 전적 갱신 때 — 2026-09-29 PUBG 도),
+ * **티어는 사다리마다 한 줄이다**(LoL 솔로 · 자유 / VALORANT 경쟁전 / PUBG 랭크 — `tiers`). LoL · PUBG 는 `tiers` · `stats` 가 게임사 API 에서 오고(연결 · 수정 때, 그리고
+ * 로그인 · 재발급 때 1시간이 지났으면 서버가 뒤에서 — P-42. 전적 갱신 버튼은 2026-09-30 에 없어졌다. PUBG 는 2026-09-29 부터),
  * VALORANT 는 자기신고라 `stats` 가 늘 `null` 이다. PUBG 의 전적은 판 수 · 치킨률 · K/D · 평균 딜량이다(`stats.detail` — `wins` · `kda` 들은 늘 `null`).
  * LoL 의 챔피언 줄은 **숙련도 높은 챔피언 셋**이고 숙련도 레벨 · 점수만 보여 준다(`stats.detail.mostChampions` — 2026-09-30 소유자 결정. 전에는 최근 경기의 판 수 · 승률도 실었다).
  */
-function GameProfileCard({ game, profile, onEdit, onUnlink, onRefresh, refreshing }: {
-  game: GameKey; profile: GameProfile | null; onEdit: () => void; onUnlink: () => void; onRefresh: () => void; refreshing: boolean;
+function GameProfileCard({ game, profile, onEdit, onUnlink }: {
+  game: GameKey; profile: GameProfile | null; onEdit: () => void; onUnlink: () => void;
 }) {
   const name = gameFullLabel(game);
   const stats = profile?.stats ?? null;
@@ -74,7 +75,6 @@ function GameProfileCard({ game, profile, onEdit, onUnlink, onRefresh, refreshin
       </div>
       <div className="profile-game-head-actions">
         {profile ? <>
-          {fromApi ? <Button size="sm" variant="ghost" disabled={refreshing} aria-label={`${name} 전적 갱신`} onClick={onRefresh}>{refreshing ? '갱신 중…' : '전적 갱신'}</Button> : null}
           <Button size="sm" variant="ghost" aria-label={`${name} 계정 수정`} onClick={onEdit}><IconPencil size={14} />수정</Button>
           <Button size="sm" variant="ghost" className="profile-unlink" aria-label={`${name} 연결 해제`} onClick={onUnlink}>연결 해제</Button>
         </> : <Button size="sm" variant="ghost" aria-label={`${name} 계정 연결`} onClick={onEdit}><IconPlus size={15} />계정 연결</Button>}
@@ -107,14 +107,14 @@ function GameProfileCard({ game, profile, onEdit, onUnlink, onRefresh, refreshin
             </span>;
           })}
         </div> : null}
-        <p className="profile-game-synced">{syncedLabel(stats.syncedAt)} 기준{seasonMode ? ` · ${SEASON_MODE_LABEL[seasonMode] ?? seasonMode}` : ''}{fromApi ? ' · 전적 갱신은 2분에 한 번' : ''}</p>
-      </> : <p className="profile-game-synced">{fromApi ? '전적 정보가 없습니다. 전적 갱신을 눌러 보세요.' : '전적 정보 없음 — 이 게임의 전적 연동은 아직 없습니다.'}</p>}
+        <p className="profile-game-synced">{syncedLabel(stats.syncedAt)} 기준{seasonMode ? ` · ${SEASON_MODE_LABEL[seasonMode] ?? seasonMode}` : ''}{fromApi ? ' · 1시간이 지나면 다음 접속 때 새로 가져옵니다' : ''}</p>
+      </> : <p className="profile-game-synced">{fromApi ? '전적 정보가 없습니다. 다음 접속 때 가져오고, 수정에서 다시 저장하면 바로 가져옵니다.' : '전적 정보 없음 — 이 게임의 전적 연동은 아직 없습니다.'}</p>}
     </div> : null}
   </div>;
 }
 
 export function MyInfoPage() {
-  const { user, gameAccounts, updateProfile, uploadAvatar, applyGameAccount, removeGameAccount, refreshSession, logout } = useAuth();
+  const { user, gameAccounts, updateProfile, uploadAvatar, removeGameAccount, refreshSession, logout } = useAuth();
   const { blocks } = useSocial();
   const toast = useToast();
   const navigate = useNavigate();
@@ -122,7 +122,6 @@ export function MyInfoPage() {
   const [nickname, setNickname] = useState(user?.nickname ?? '');
   const [linkGame, setLinkGame] = useState<GameKey | null>(null);
   const [busy, setBusy] = useState(false);
-  const [refreshingGame, setRefreshingGame] = useState<GameKey | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [nicknameOpen, setNicknameOpen] = useState(false);
@@ -207,19 +206,6 @@ export function MyInfoPage() {
     toast('게임 계정 연결을 해제했습니다');
   };
 
-  /** 전적 갱신 — LOL · PUBG(2026-09-29) · 동기(상한 30초) · 2분에 한 번(429 + `Retry-After`). 응답의 게임 프로필(사다리별 티어 포함)을 그대로 갈아 끼운다. */
-  const refreshStats = async (game: GameKey) => {
-    setRefreshingGame(game);
-    try {
-      applyGameAccount(await api.refreshGameStats(game));
-      toast('전적을 갱신했습니다', 'ok');
-    } catch (err) {
-      toast(gameAccountErrorMessage(err, game, '전적을 갱신하지 못했습니다'), 'error');
-    } finally {
-      setRefreshingGame(null);
-    }
-  };
-
   const handleLogout = async () => {
     setLoggingOut(true);
     try {
@@ -257,8 +243,7 @@ export function MyInfoPage() {
           </div>
           <div className="profile-game-accounts">
             {GAMES.map((item) => <GameProfileCard key={item.key} game={item.key} profile={gameAccounts.find((a) => a.game === item.key) ?? null}
-              onEdit={() => setLinkGame(item.key)} onUnlink={() => setUnlinkTarget(item.key)}
-              onRefresh={() => void refreshStats(item.key)} refreshing={refreshingGame === item.key} />)}
+              onEdit={() => setLinkGame(item.key)} onUnlink={() => setUnlinkTarget(item.key)} />)}
           </div>
         </section>
         {/* `#settings` — 소셜 계정 잇기의 결과(`/settings?linked=|error=` → `SettingsRedirectPage`)가 여기로 온다. 그 자리는 바로 아래 "매칭 기본값" 절이었는데
