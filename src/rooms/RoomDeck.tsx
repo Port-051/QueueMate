@@ -202,27 +202,40 @@ export function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMe
   </span>;
 }
 
+/** 작은 창이 보이는 화면(뷰포트)의 위 · 아래 끝에서 띄울 여백(px). */
+const SEAT_POP_SCREEN_MARGIN = 8;
+
 /**
- * 작은 창(`SeatPopover`)이 페이지 끝 너머로 열리면 좌석 위로 연다(`data-pop-up`) — 마우스를 올릴 때 · 키보드로 들어올 때마다 잰다.
- * **왜(2026-09-30 — "맨 밑줄 · 두 번째 줄의 프로필을 누르면 화면 전체가 흔들린다")** — 아래로 열린 작은 창은 문서의 스크롤 길이를 늘린다(방 패널이 열린 1440×709 에서 맨 아래 줄 1448 → 1699px ·
+ * 작은 창(`SeatPopover`)을 좌석 아래로 열지 위로 열지(`data-pop-up`) — 마우스를 올릴 때 · 키보드로 들어올 때 한 번 잰다(열려 있는 동안 스크롤 · 창 크기로 다시 뒤집지 않는다).
+ * ① **아래로 열면 페이지 끝을 넘으면 늘 위로**(2026-09-30 — "맨 밑줄 · 두 번째 줄의 프로필을 누르면 화면 전체가 흔들린다"). 아래로 열린 작은 창은 문서의 스크롤 길이를 늘린다(방 패널이 열린 1440×709 에서 맨 아래 줄 1448 → 1699px ·
  * 그 위 줄 1539px). 맨 아래까지 내린 채 좌석에 마우스가 있을 때 휠 한 칸이 그 늘어난 자리로 내려가면 좌석이 커서에서 벗어나 창이 닫히고 → 길이가 줄어 스크롤이 당겨지고 →
  * 좌석이 다시 커서 밑에 와 창이 열리면 → Chrome 의 스크롤 앵커링이 당겨진 만큼을 되돌린다. Windows Chrome 에서 잰 값 — **매 프레임 scrollY 가 739 ↔ 859 로 오갔다**(61프레임에 60번).
  * 문서에 `overflow-anchor: none` 을 걸면 멈췄다(원인 확인용으로만 — 목록이 바뀔 때 화면을 붙잡아 주는 앵커링을 통째로 끌 수는 없다). 위로 열면 창이 문서 끝을 넘지 않아
  * 마우스를 올려도 스크롤 길이가 그대로다. 위로도 모자라면(아주 낮은 창) 위쪽이 잘린다 — 문서 위쪽 너머는 스크롤 길이를 늘리지 않는다.
+ * ② **아래로 열면 보이는 화면 아래 끝을 넘고 위로 열면 들어가면 위로**(같은 날 소유자 — 페이지가 아래로 더 이어지는 만료 카드에서 창이 화면 아래로 잘려 숙련도 챔피언 셋째가 안 보였다).
+ * 위로도 화면 위 끝을 넘으면 덜 넘는 쪽(공간이 큰 쪽)이다. 아래로 열어도 페이지 끝 안이면 문서 길이가 그대로라 ①의 흔들림은 생기지 않는다.
  * 잴 때 창이 숨어 있으면(`display:none`) 보이지 않게 잠깐 펼친다 — 같은 작업 안이라 그려지지 않는다. 높이 · 간격은 CSS 가 정한 그대로 잰다(값을 여기에 베끼지 않는다).
- * React 상태가 아니라 속성을 바로 건다 — 창이 한 프레임이라도 아래로 그려지기 전에 방향이 정해져야 해서다(스크롤로 hover 가 옮겨 갈 때도 `mouseenter` 가 온다 — 확인했다).
+ * React 상태가 아니라 속성을 바로 건다 — 창이 한 프레임이라도 반대쪽으로 그려지기 전에 방향이 정해져야 해서다(스크롤로 hover 가 옮겨 갈 때도 `mouseenter` 가 온다 — 확인했다).
  */
 export function placeSeatPopover(seat: HTMLElement) {
   const popover = seat.querySelector<HTMLElement>('.room-seat-popover');
   if (!popover) return;
-  seat.removeAttribute('data-pop-up');
   const hidden = !popover.offsetHeight;
   if (hidden) popover.style.cssText = 'display:grid;visibility:hidden';
-  // 레이아웃 값(`offsetTop`)으로 잰다 — 나타나는 움직임(transform)이 끼면 몇 px 모자라게 읽힌다.
-  const bottom = seat.getBoundingClientRect().top + popover.offsetTop + popover.offsetHeight;
+  // 레이아웃 값(`offsetTop` — 좌석 기준)으로 잰다 — 나타나는 움직임(transform)이 끼면 몇 px 모자라게 읽힌다.
+  const seatTop = seat.getBoundingClientRect().top;
+  seat.removeAttribute('data-pop-up');
+  const downBottom = seatTop + popover.offsetTop + popover.offsetHeight;
+  seat.setAttribute('data-pop-up', '');
+  const upTop = seatTop + popover.offsetTop;
   if (hidden) popover.removeAttribute('style');
   const page = document.documentElement;
-  seat.toggleAttribute('data-pop-up', bottom > Math.max(page.getBoundingClientRect().bottom, page.clientHeight));
+  const pageEnd = Math.max(page.getBoundingClientRect().bottom, page.clientHeight);
+  const screenTop = SEAT_POP_SCREEN_MARGIN;
+  const screenBottom = window.innerHeight - SEAT_POP_SCREEN_MARGIN;
+  const up = downBottom > pageEnd
+    || (downBottom > screenBottom && (upTop >= screenTop || screenTop - upTop < downBottom - screenBottom));
+  seat.toggleAttribute('data-pop-up', up);
 }
 
 /**
@@ -251,6 +264,7 @@ export function seatSummary(room: BoardRoom, member: BoardMember, selfId: string
 /**
  * 채워진 좌석의 몸통 — 얼굴(방장이면 왕관 · 좁으면 티어 배지) · 닉네임(+ 인증 표시) · 방장이면 글의 방장 포지션 · 두 줄째에 그 글의 사다리 티어와 승률 · KDA.
  * 게시판 좌석(`RoomSeat`)과 방 화면의 음성 칸 좌석(`RoomVoiceSeats` — `me` 로 닉네임 뒤 "(나)")이 같이 쓴다 — 두 곳의 좌석이 같은 모양이게.
+ * 두 줄째 숫자에는 풍선말(`title`)을 달지 않는다 — 마우스를 올리면 뜨는 작은 창 위에 브라우저 풍선말 "KDA" 가 겹쳐 떴다(2026-09-30 소유자 스크린숏). 이름은 작은 창의 칸 · 좌석 버튼의 이름(`seatSummary`)에 있다.
  */
 export function RoomSeatBody({ room, member, me = false }: { room: BoardRoom; member: BoardMember; me?: boolean }) {
   const hostPosition = seatHostPosition(room, member);
@@ -270,7 +284,7 @@ export function RoomSeatBody({ room, member, me = false }: { room: BoardRoom; me
       </span>
       <span className="room-seat-line">
         <span className="room-seat-rank"><FilterTierIcon game={room.game} tier={member.tier} size={16} /><span style={member.tier ? { color: tierColor(member.tier) } : undefined}>{member.profile ? rankText(room.game, member.tier, member.division, true) : '—'}</span></span>
-        {numbers.length ? <span className="room-seat-numbers">{numbers.map(item => <span key={item.label} title={item.label}>{item.text}</span>)}</span> : null}
+        {numbers.length ? <span className="room-seat-numbers">{numbers.map(item => <span key={item.label}>{item.text}</span>)}</span> : null}
       </span>
     </span>
   </>;
