@@ -210,8 +210,11 @@ function placeSeatPopover(seat: HTMLElement) {
  * 채워진 좌석 하나 — 얼굴(방장이면 왕관) · 닉네임(+ 인증 표시) · 방장이면 글의 방장 포지션 · 두 줄째에 그 글의 사다리 티어와 승률 · KDA.
  * 좌석이 제 폭을 보고 줄인다(CSS 컨테이너 질의 — 분할 화면 · 사람이 많은 방) — 190px 이하면 숫자와 포지션 글자를 빼고(포지션은 닉네임 앞 아이콘), 132px 이하면 얼굴 원 + 티어 배지 위 · 닉네임 아래다.
  * 누르면 프로필 창이다(전파를 끊는다 — 참가로 번지지 않게). 마우스를 올린 작은 창의 위 · 아래는 `placeSeatPopover` 가 정한다.
+ * **VALORANT 글의 좌석에는 작은 창이 없다**(2026-09-30 소유자 결정 — "발로란트 그거는 일단 작은 창 안 뜨게 해"). 운영 키가 없어 VALORANT 의 `stats` 가 늘 `null` 이라
+ * 창에 실을 것이 게임 닉네임 · 티어뿐이었다. 창을 그리지 않아 마우스 · 키보드 포커스 어느 쪽으로도 열리지 않는다(좌석 · 닉네임 · 눌러서 여는 프로필 창은 그대로).
  */
 function RoomSeat({ room, member, selfId, popEnd, onMember }: { room: BoardRoom; member: BoardMember; selfId: string; popEnd: boolean; onMember: (room: BoardRoom, member: BoardMember) => void }) {
+  const popover = room.game !== 'VALORANT';
   const hostPosition = seatHostPosition(room, member);
   const numbers = seatNumbers(room.game, member);
   const ladderLabel = member.tierLadder ? TIER_LADDER_LABEL[member.tierLadder] : undefined;
@@ -226,7 +229,7 @@ function RoomSeat({ room, member, selfId, popEnd, onMember }: { room: BoardRoom;
     ...numbers.map(item => `${item.label} ${item.text}`),
   ].filter(Boolean).join(' · ');
   return <li className={`room-seat is-filled${member.host ? ' is-host' : ''}${member.id === selfId ? ' is-self' : ''}${popEnd ? ' pop-end' : ''}`}
-    onMouseEnter={event => placeSeatPopover(event.currentTarget)} onFocus={event => placeSeatPopover(event.currentTarget)}>
+    onMouseEnter={popover ? event => placeSeatPopover(event.currentTarget) : undefined} onFocus={popover ? event => placeSeatPopover(event.currentTarget) : undefined}>
     <button type="button" className="room-seat-button" aria-label={`${label} — 프로필 보기`} onClick={event => { event.stopPropagation(); onMember(room, member); }}>
       <span className="room-seat-face">
         <RoomMemberAvatar member={member} size={34} />
@@ -245,7 +248,7 @@ function RoomSeat({ room, member, selfId, popEnd, onMember }: { room: BoardRoom;
         </span>
       </span>
     </button>
-    <SeatPopover room={room} member={member} />
+    {popover ? <SeatPopover room={room} member={member} /> : null}
   </li>;
 }
 
