@@ -17,7 +17,7 @@ import './room-create-preview.css';
 const TITLE_MAX = 60;
 
 /**
- * "글 쓰고 파티 찾기" 의 팝업 — **글 쓰기(`POST /posts`) 폼 전부**다(2026-09-30 소유자 지시 — "너무 빈약하다. 내 포지션을 넣고 게임 모드도 여기서 고르게").
+ * "방 만들기" 의 팝업 — **글 쓰기(`POST /posts`) 폼 전부**다(2026-09-30 소유자 지시 — "너무 빈약하다. 내 포지션을 넣고 게임 모드도 여기서 고르게").
  * 위에서 아래로 게임(게시판의 지금 게임 — 바꿀 수 없다 · 글자로만) · **게임 모드**(묶음 → 인원 → PUBG 시점 — 판과 같은 `ModePicker`) ·
  * **내 포지션**(하나 — 판의 "내 포지션" 과 같은 `SingleRolePicker`) · **찾는 포지션**(여럿 — `DesiredRolesField`) · **음성**(`VoiceOptions`) · **한마디**(글 제목) · 안내.
  *
@@ -26,7 +26,7 @@ const TITLE_MAX = 60;
  * - **내 포지션**은 포지션이 있는 모드(`hasPositions` — PUBG · 칼바람은 없다)에서 **필수**이고 글의 `hostPosition` 이 되어 게시판의 방장 카드에 붙는다.
  *   내 포지션으로 고른 것은 찾는 포지션에서 고를 수 없다(누를 수 없고, 이미 골라 두었으면 빠진다). 포지션이 없는 모드로 바꾸면 두 칸의 값을 다 비운다 —
  *   그때는 두 칸이 없고 본문은 `wantedPositions: []` · `hostPosition` 없음이다.
- * - **"방 올리기" 는 다 채워야 눌린다** — 모드 · 음성 · (포지션이 있는 모드면) 내 포지션 · **찾는 포지션 정원 − 1 개 이상** · 한마디(앞뒤 공백을 뗀 1~60자). 빈 칸은 빨간 오류가 아니라
+ * - **"방 만들기" 는 다 채워야 눌린다** — 모드 · 음성 · (포지션이 있는 모드면) 내 포지션 · **찾는 포지션 정원 − 1 개 이상** · 한마디(앞뒤 공백을 뗀 1~60자). 빈 칸은 빨간 오류가 아니라
  *   버튼 위의 흐린 한 줄("채워야 할 칸 — …")로 알린다. 한마디가 60자를 넘을 때만 칸 아래가 빨갛다. 찾는 포지션을 비우는 글("누구든")은 같은 날 소유자 결정으로 없어졌다
  *   (서버도 400 `wantedPositions: …` — 옛 글은 빈 채로 남아 있어 게시판 필터의 "빈 글은 누구든" 은 그대로다).
  *   **2026-10-01 부터 찾는 포지션은 정원 − 1 개 이상이다**(2026-09-30 소유자 결정 — platform P-44 "찾는 포지션 수" — 참가하는 사람마다 남은 포지션 하나를 고르니 나를 뺀 자리마다 포지션이 있어야 한다 · 서버도 400
@@ -36,7 +36,7 @@ const TITLE_MAX = 60;
  *   소개(`description`)는 보내지 않는다. 서버의 400 은 창 안의 빨간 문구다 — `hostPosition: …` 같은 줄은 칸 이름으로 바꿔 보여 준다(`roomErrorMessage`).
  * - 창은 `body` 로 포털되어 판의 CSS(`.room-home …` — `room-board.css`)가 닿지 않는다. 그래서 칸들을 **`room-home room-preview-scope`** 로 감싸 판의 규칙을 그대로 받고
  *   `.room-home` 자신의 폭 · 여백만 `room-create-preview.css` 에서 되돌린다(모양이 판과 늘 같게 — 판을 바꾸면 여기도 바뀐다).
- * - Enter 로 올리지 않는다(한글 입력기의 Enter 가 글자를 확정하며 글까지 올릴 수 있다) — "방 올리기" 를 눌러야 한다.
+ * - Enter 로 올리지 않는다(한글 입력기의 Enter 가 글자를 확정하며 글까지 올릴 수 있다) — "방 만들기" 를 눌러야 한다.
  */
 export function RoomCreatePreview({ game, onClose, onConfirm }: {
   /** 게시판의 지금 게임(왼쪽 레일에서 고른 것). 창 안에서는 바꿀 수 없다. */
@@ -105,8 +105,8 @@ export function RoomCreatePreview({ game, onClose, onConfirm }: {
       setError(roomErrorMessage(cause, '방을 올리지 못했어요. 다시 시도해 주세요.'));
     }
   };
-  return <Modal title="글 쓰고 파티 찾기" className="room-create-preview" closeLabel="글 쓰기 닫기" onClose={onClose}
-    foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || !ready} onClick={confirm}><span className="room-create-icon"><IconDirectMessage size={21} /></span>{busy ? '올리는 중…' : '방 올리기'}</Button></>}>
+  return <Modal title="방 만들기" className="room-create-preview" closeLabel="방 만들기 닫기" onClose={onClose}
+    foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || !ready} onClick={confirm}><span className="room-create-icon"><IconDirectMessage size={21} /></span>{busy ? '만드는 중…' : '방 만들기'}</Button></>}>
     <dl className="room-preview-conditions room-preview-game">
       <div><dt>게임</dt><dd><GameBadge game={game} size={22} />{gameConfig(game).name}</dd></div>
     </dl>

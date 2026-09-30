@@ -28,7 +28,7 @@ import './room-board.css';
 
 /**
  * 게임별 모집 게시판. 필터와 글 쓰기 버튼 아래에 방 카드를 보여준다.
- * 빠른매치는 RoomQuickConnect의 상단 고정 버튼과 설정 모달에서 진행한다.
+ * 빠른매치는 방 만들기 오른쪽 버튼과 RoomQuickConnect의 설정 모달에서 진행한다.
  * 방이나 제안에 들어가면 HomePage의 오른쪽 패널이 열리고 게시판은 그대로 남는다.
  */
 type Filters = { group: string; size: number; perspective: '' | PubgPerspective; roles: string[]; voice: '' | 'REQUIRED' | 'NO_VOICE'; openOnly: boolean };
@@ -47,7 +47,7 @@ export function RoomBoardHome({ roomPanelOpen = false }: { roomPanelOpen?: boole
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [profileTarget, setProfileTarget] = useState<{ room: BoardRoom; member: BoardMember } | null>(null);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
-  // 필터 줄 오른쪽 끝 — "글 쓰고 파티 찾기" 가 설 자리. 버튼은 RoomQuickConnect 가 그린다(머리 주석).
+  // 필터 줄 오른쪽 끝 — 방 만들기 · 빠른매치 버튼은 RoomQuickConnect 가 그린다.
   const [createSlot, setCreateSlot] = useState<HTMLDivElement | null>(null);
   const finishEntrance = useCallback(() => setJustCreatedId(null), []);
   // 방에 들어가면 게시판이 좁아지고(넓은 화면 — 맨 위 자동 매칭 판도 접힌다) 줄이 밀린다 — 들어간 방의 카드를 패널이 다 열린 뒤 화면 안으로 데려온다.

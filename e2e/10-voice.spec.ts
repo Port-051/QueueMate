@@ -77,7 +77,7 @@ interface Side { name: string; page: Page }
  * `inbound-rtp` 음성의 `bytesReceived` 가 몇 초 사이에 는다 · 연결마다 음성 transceiver 가 하나(mid 있음 · sendrecv · 보내는 트랙).
  * 그다음 음소거 → 해제(양쪽 — 듣는 쪽의 `totalAudioEnergy` 가 멈췄다가 다시 는다), 셋째 사람이 들어와 마이크를 켜면 셋이 서로 듣는다(mesh).
  * 방에 들어가면 게시판이 왼쪽에 남고 방이 오른쪽 패널로 열린다(2026-09-30 — 경로는 그대로 `/app/party/{roomId}`).
- * 방은 A 가 게시판의 "글 쓰고 파티 찾기" 팝업(P-38 칸 — 게임 모드 · 내 포지션 · 찾는 포지션 · 음성 · 한마디)으로 만들고 B · C 가 카드 좌석 줄의 [참가] → "참여하기" 로 들어온다(2026-09-30 좌석 줄 — 빈 자리는 글자 없는 점선 원이다).
+ * 방은 A 가 게시판의 "방 만들기" 팝업(P-38 칸 — 게임 모드 · 내 포지션 · 찾는 포지션 · 음성 · 한마디)으로 만들고 B · C 가 카드 좌석 줄의 [참가] → "참여하기" 로 들어온다(2026-09-30 좌석 줄 — 빈 자리는 글자 없는 점선 원이다).
  * 2026-10-01 부터 — 찾는 포지션은 정원 − 1 개 이상이라 일반 5인은 넷(탑 · 정글 · 원딜 · 서포터)을 골라야 올라가고, 참가하는 사람은 참여 창에서 **남은 포지션 하나**를 골라야 들어간다
  * (B 는 탑 · C 는 정글 — C 의 창에는 탑이 없다). 고른 포지션은 방 안 사람 목록(`GET …/members`)과 음성 칸 좌석에 붙는다.
  *
@@ -93,10 +93,10 @@ test('시나리오 10 — 두 사람이 화면으로 같은 방 · 마이크 켜
 
   const pageA = await crew.appPage('a', '/app/home');
   let roomId = '';
-  await test.step('A — "글 쓰고 파티 찾기" 팝업으로 글 쓰기(일반 5인 · 미드 · 탑 정글 원딜 서포터 찾음 · 마이크 사용) → 방 화면', async () => {
-    await pageA.getByRole('button', { name: '글 쓰고 파티 찾기' }).click();
-    const dialog = pageA.getByRole('dialog', { name: '글 쓰고 파티 찾기' });
-    await expect(dialog.getByRole('button', { name: '방 올리기' })).toBeDisabled();
+  await test.step('A — "방 만들기" 팝업으로 글 쓰기(일반 5인 · 미드 · 탑 정글 원딜 서포터 찾음 · 마이크 사용) → 방 화면', async () => {
+    await pageA.getByRole('button', { name: '방 만들기', exact: true }).click();
+    const dialog = pageA.getByRole('dialog', { name: '방 만들기', exact: true });
+    await expect(dialog.getByRole('button', { name: '방 만들기', exact: true })).toBeDisabled();
     await dialog.getByRole('group', { name: '게임 모드' }).getByRole('button', { name: '일반' }).click();
     await dialog.getByRole('group', { name: '인원' }).getByRole('button', { name: '5인' }).click();
     await dialog.getByRole('radiogroup', { name: '내 포지션' }).getByRole('radio', { name: '미드' }).check({ force: true });
@@ -107,12 +107,12 @@ test('시나리오 10 — 두 사람이 화면으로 같은 방 · 마이크 켜
     await dialog.getByRole('group', { name: '음성' }).getByRole('button', { name: '마이크 사용' }).click();
     await dialog.getByRole('textbox', { name: '한마디' }).fill(title);
     // 찾는 포지션은 정원 − 1 개 이상(2026-10-01) — 5인에 하나뿐이면 올릴 수 없고 빈 칸 줄이 그 수를 말한다.
-    await expect(dialog.getByRole('button', { name: '방 올리기' })).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: '방 만들기', exact: true })).toBeDisabled();
     await expect(dialog.getByText('채워야 할 칸 — 찾는 포지션(4개 이상)')).toBeVisible();
     for (const role of ['정글', '원딜', '서포터']) await wanted.getByRole('button', { name: role }).click();
 
     const request = pageA.waitForRequest((r) => r.url().endsWith('/api/v1/posts') && r.method() === 'POST');
-    await dialog.getByRole('button', { name: '방 올리기' }).click();
+    await dialog.getByRole('button', { name: '방 만들기', exact: true }).click();
     const body = (await request).postDataJSON();
     expect(body).toMatchObject({ game: 'LOL', mode: 'NORMAL_5', title, voice: 'REQUIRED', wantedPositions: ['TOP', 'JUNGLE', 'ADC', 'SUPPORT'], hostPosition: 'MID' });
     await pageA.waitForURL(/\/app\/party\/\d+$/);

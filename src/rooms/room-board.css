@@ -334,9 +334,9 @@
 .room-match-top .matching-rail-footer { position:static; padding-bottom:0; background:none; }
 .room-match-message:empty { display:none; }
 .room-match-message .room-create-hint,.room-match-message .room-create-error { margin:0; }
-.room-home .room-filters .board-create-slot { display:flex; margin-left:auto; }
+.room-home .room-filters .board-create-slot { display:flex; gap:8px; margin-left:auto; }
 .room-home .room-filters .board-create-slot:empty { display:none; }
-.room-home .room-filters .board-create-button { min-height:44px; padding:0 20px; gap:8px; font-size:var(--room-label-font-size); white-space:nowrap; }
+.room-home .room-filters .board-action-button { min-height:44px; padding:0 20px; gap:8px; font-size:var(--room-label-font-size); white-space:nowrap; }
 @media(min-width:700px) {
   .room-match-top .self-introduction .introduction-fields { grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 24px; align-items:start; }
   .room-match-top .self-introduction .introduction-fields>:first-child { grid-row:span 2; }
@@ -354,7 +354,7 @@
 }
 @media(max-width:580px) {
   .room-home .room-filters .board-create-slot { flex:1 1 100%; }
-  .room-home .room-filters .board-create-button { width:100%; }
+  .room-home .room-filters .board-action-button { flex:1; min-width:0; padding:0 12px; }
 }
 
 /* 좌석 줄(2026-09-30 소유자 승인 — `RoomDeck.tsx` 머리 주석). 머리 한 줄(제목 · 상태 · 시각) → 조건 한 줄(한 번만) → 좌석 줄(채워진 좌석 · 빈 점선 상자(폰 폭은 원) · n/정원 · [참가]).

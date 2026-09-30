@@ -39,18 +39,7 @@
   .room-match-start:is(:hover,:focus-visible):not(:disabled)>svg { transform:none; }
 }
 
-/* 게시판 맨 위에서 시작하고 목록을 내리면 화면 상단에 붙는다. */
-.room-match-sticky { position:sticky; top:max(12px,env(safe-area-inset-top)); z-index:10; min-width:0; }
-.room-home .room-match-sticky .room-match-trigger { display:flex; align-items:center; gap:12px; width:100%; min-height:68px; padding:12px 16px; border:1px solid #7652af; border-radius:18px; background:#21192ff5; color:#f3edff; box-shadow:0 6px 24px #0005; backdrop-filter:blur(12px); text-align:left; font:inherit; cursor:pointer; }
-.room-home .room-match-sticky .room-match-trigger:hover { background:#30203f; border-color:#b18de7; }
-.room-match-trigger:focus-visible { outline:3px solid #d5bbff; outline-offset:3px; }
-.room-match-trigger-icon { display:grid; place-items:center; flex:none; width:40px; height:40px; border-radius:50%; background:#8a5bdc; }
-.room-match-trigger-copy { display:flex; flex:1; min-width:0; flex-direction:column; gap:4px; }
-.room-match-trigger-copy strong { font-size:15px; }
-.room-match-trigger-copy>span { color:#b7a9c9; font-size:12px; }
-.room-match-trigger-action { display:flex; flex:none; align-items:center; gap:10px; color:#dcc4ff; font-size:13px; font-weight:600; }
-.room-match-clock { font-variant-numeric:tabular-nums; color:#c6eed9; }
-.room-match-trigger.is-searching .room-match-trigger-icon { background:#42315d; color:#d5bbff; }
+.room-match-clock { font-variant-numeric:tabular-nums; }
 .modal-scrim:has(.room-match-dialog) { padding:16px; }
 .room-match-dialog.modal { width:min(760px,100%); max-width:calc(100vw - 32px); }
 .room-match-description { color:var(--muted); margin:0 0 18px; font-size:14px; }
@@ -63,15 +52,7 @@
 .room-match-settings.room-home .room-settings-pair { grid-template-columns:minmax(0,1fr); gap:12px; }
 .room-match-settings .matching-rail-footer.room-rail-actions { position:static; background:transparent; }
 .room-match-dialog .quick-connect-result { margin:0; }
-@media(max-width:767px) {
-  .room-home.board-home:has(.room-match-sticky) { padding-top:80px; }
-  .room-match-sticky { top:max(8px,env(safe-area-inset-top)); }
-}
 @media(max-width:600px) {
-  .room-home .room-match-sticky .room-match-trigger { min-height:60px; padding:10px 12px; gap:10px; border-radius:16px; }
-  .room-match-trigger-copy>span { display:none; }
-  .room-match-trigger-icon { width:34px; height:34px; }
-  .room-match-trigger-action { gap:6px; font-size:12px; }
   .room-match-dialog.modal { padding:20px 16px; }
   .room-match-settings .self-introduction .introduction-fields { grid-template-columns:minmax(0,1fr); gap:16px; }
 }
