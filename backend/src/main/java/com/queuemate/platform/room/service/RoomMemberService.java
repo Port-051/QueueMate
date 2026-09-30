@@ -42,9 +42,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class RoomMemberService {
 
-    /** 한 방의 정원. 방장을 포함하고 둘러보는 사람도 센다 (docs/11 D-11 10번) */
-    private static final int CAPACITY = 5;
-
     private final StringRedisTemplate redis;
     @SuppressWarnings("rawtypes")
     private final RedisScript<List> enterRoomScript;
@@ -69,11 +66,14 @@ public class RoomMemberService {
      * {@code ALREADY_QUEUED} · {@code IN_OTHER_ROOM} · 이미 들어와 있음). 두 앱이던 때 입장권 발급이 하던 ① 을 같은 요청 안에서 한다.
      * ① 과 ② 사이는 원자적이지 않다 — 그 사이에 나와 차단 관계인 사람이 먼저 들어오는 경쟁이 남는다(입장권 60초였던 창이 밀리초로 줄었을 뿐이다).
      *
+     * <p><b>정원은 글의 것이다</b>(2026-09-30 소유자 결정 — P-41. 그 모드의 인원 — 솔로 랭크는 2). ① 이 글을 읽으며 돌려주고 스크립트가 그 값으로 만석을 가른다 —
+     * 방장을 포함하고 둘러보는 사람도 센다(docs/11 D-11 10번). 그 전에는 모드와 상관없이 5였다(이 클래스의 상수). 옛 글(정원이 적히지 않았다)은 여전히 5다.
+     *
      * @throws com.queuemate.platform.common.error.ApiException ① 의 거절. 스크립트의 거절은 결과 enum 으로 돌려준다
      */
     public EnterResult enter(String roomId, String userId)
     {
-        postEntryGate.check(roomId, Long.parseLong(userId));
+        int capacity = postEntryGate.check(roomId, Long.parseLong(userId));
         List<String> keys = new ArrayList<String>();
         keys.add(SharedKeys.activeRequestKey(userId));
         keys.add(RoomKeys.activeRoomKey(userId));
@@ -82,7 +82,7 @@ public class RoomMemberService {
         keys.add(RoomKeys.roomConfirmedKey(roomId));
         keys.add(RoomKeys.noEntryKey(userId));
         // StringRedisTemplate 이라 인자는 전부 문자열로 넘긴다. 순서는 스크립트 머리의 ARGV 와 같다
-        List<?> reply = RoomRedis.call("enter", () -> redis.execute(enterRoomScript, keys, userId, roomId, String.valueOf(CAPACITY),
+        List<?> reply = RoomRedis.call("enter", () -> redis.execute(enterRoomScript, keys, userId, roomId, String.valueOf(capacity),
                 String.valueOf(roomProperties.ttlSeconds()), String.valueOf(System.currentTimeMillis())));
         EnterResult result = EnterResult.fromCode(codeOf(reply));
 

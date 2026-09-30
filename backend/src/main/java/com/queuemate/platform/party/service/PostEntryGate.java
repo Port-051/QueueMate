@@ -39,7 +39,8 @@ public class PostEntryGate {
     private final BlockReader blockReader;
 
     /**
-     * 통과하면 아무것도 돌려주지 않는다. 거절은 {@link com.queuemate.platform.common.error.ApiException} 이다.
+     * 통과하면 <b>그 방의 정원</b>을 돌려준다(2026-09-30 — P-41. 글에 적힌 모드의 인원 · 옛 글은 5) — 입장 스크립트가 그 값으로 만석을 가른다.
+     * 글을 이미 여기서 읽으므로 정원을 따로 읽지 않는다. 거절은 {@link com.queuemate.platform.common.error.ApiException} 이다.
      *
      * <p><b>이미 그 방에 들어와 있는 사람은 통과시킨다</b>(Claude 가 정한 세부) — 스크립트가 "이미 들어와 있다"(200)로 답하게 둔다. 확정된 방의 파티원이
      * 새로고침하면 글은 {@code CONFIRMED} 라 409 가 되고, 방 안에서 나중에 차단이 생긴 두 사람은 404 가 된다 — 새 사람을 막으려는 검사가
@@ -49,7 +50,7 @@ public class PostEntryGate {
      * @throws com.queuemate.platform.common.error.ApiException 404 {@code POST_NOT_FOUND} · 409 {@code POST_NOT_RECRUITING} ·
      *                                                          503 {@code ROOM_STATE_UNAVAILABLE}(방 안을 못 읽었다 — 차단 대조를 못 했는데 들여보낼 수 없다)
      */
-    public void check(String roomId, Long me)
+    public int check(String roomId, Long me)
     {
         Long postId = postIdOf(roomId);
         RecruitPost post = postStore.find(postId).orElseThrow(PostStore::postNotFound);
@@ -64,7 +65,7 @@ public class PostEntryGate {
         }
         if(state.members().contains(me))
         {
-            return;
+            return post.getCapacity();
         }
         Set<Long> shown = new HashSet<>(state.members());
         if(post.getStatus() == PostStatus.CONFIRMED)
@@ -88,6 +89,7 @@ public class PostEntryGate {
         {
             throw PostStore.postNotRecruiting();
         }
+        return post.getCapacity();
     }
 
     private static Long postIdOf(String roomId)

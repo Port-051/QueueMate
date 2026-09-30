@@ -3,7 +3,7 @@
 -- KEYS[1] = qm:user:active-request:{userId}   matching 의 활성 요청 키. 있는지만 본다 — 쓰지도 지우지도 않는다
 -- KEYS[2] = qm:user:active-room:{userId}      입장 표시 키. STRING, 값은 roomId
 -- KEYS[3] = qm:room:{roomId}:host             방장 키. STRING, 값은 방장의 userId. 이 키가 있다 = 방이 있다
--- KEYS[4] = qm:room:{roomId}:members          방에 있는 사람들. SET. 방장도 여기에 든다 (정원 5명에 방장이 포함된다)
+-- KEYS[4] = qm:room:{roomId}:members          방에 있는 사람들. SET. 방장도 여기에 든다 (정원에 방장이 포함된다 — 정원은 입장이 글에서 받아 온다, enter-room.lua)
 --
 -- ARGV[1] = userId
 -- ARGV[2] = roomId

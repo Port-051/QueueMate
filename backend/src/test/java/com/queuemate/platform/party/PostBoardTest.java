@@ -61,7 +61,8 @@ class PostBoardTest extends PostTestSupport {
         Long stranger = unknownUserId();
         Cookie viewer = login(newNickname());
 
-        Long postId = createLolPost(hostCookie, "TOP", "MID", "SUPPORT");
+        // 5인 모드의 글이다 — 정원은 그 모드의 인원이다(2026-09-30 — P-41). 네 사람을 넣고 한 명 더로 만석을 본다
+        Long postId = createFivePersonLolPost(hostCookie, "TOP", "MID", "SUPPORT");
         openRoom(postId, hostId, supportId, noAccountId, stranger);
 
         JsonNode line = find(list(viewer, "LOL"), postId);
@@ -302,7 +303,8 @@ class PostBoardTest extends PostTestSupport {
         Cookie bystanderCookie = login(bystander);
         Long hostId = userIdOf(host);
         Long memberId = userIdOf(member);
-        Long postId = createLolPost(hostCookie);
+        // 세 번째 사람이 들어가는 테스트라 5인 모드의 글이다(정원은 모드의 인원 — P-41)
+        Long postId = createFivePersonLolPost(hostCookie);
         openRoom(postId, hostId, memberId);
 
         block(iBlockMemberCookie, memberId);
@@ -494,7 +496,8 @@ class PostBoardTest extends PostTestSupport {
         // b 는 LOL 계정이 없다 — 이 글(LOL)의 카드에서는 profile 이 null 이다(방 안 카드와 같다)
         Cookie viewer = login(newNickname());
 
-        Long postId = createLolPost(hostCookie);
+        // 셋이 들어가는 방이라 5인 모드의 글이다(정원은 모드의 인원 — P-41)
+        Long postId = createFivePersonLolPost(hostCookie);
         track(postId, aId, bId);
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(aCookie)).andExpect(status().isCreated());
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(bCookie)).andExpect(status().isCreated());

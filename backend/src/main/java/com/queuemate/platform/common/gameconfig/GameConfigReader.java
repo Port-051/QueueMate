@@ -12,13 +12,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * {@code mode} · {@code tier} 가 <b>있는 값인지</b> gameconfig 에서 확인한다(2026-09-24 소유자 결정 — {@code contracts/platform-api.md} "gameconfig 를 읽는 것").
  * 모드는 {@code party}(모집 글), 티어는 {@code account}(게임 계정)가 쓴다 — 도메인 둘이 같이 쓰므로 {@code common} 에 있다.
- * <b>2026-09-28 부터는 게시판 방 먼저 합류(P-28 · docs/11 D-40)가 모드 HASH 의 내용({@code tierRule} · {@code targetPartySize} · 2026-09-29 부터 {@code tierLadder}) · 티어의 단계 번호 ·
+ * <b>2026-09-28 부터는 게시판 방 먼저 합류(P-28 · docs/11 D-40)가 모드 HASH 의 내용({@code tierRule} · 2026-09-29 부터 {@code tierLadder}) · 티어의 단계 번호 ·
  * 티어별 허용 범위도 읽는다</b>({@link #modeConfig} · {@link #tierScores} · {@link #tierRanges} — {@code party.service.AutoJoinService}).
- * <b>2026-09-30 부터는 모집 글의 방장 포지션이 모드 HASH 의 {@code positionUniqueness} 를 읽는다</b>({@link #modePositions} — P-38).
+ * <b>2026-09-30 부터는 모집 글의 방장 포지션이 모드 HASH 의 {@code positionUniqueness} 를</b>({@link #modePositions} — P-38),
+ * <b>게시판 방의 정원이 {@code targetPartySize} 를 읽는다</b>({@link #partySize} — P-41. 그 전에는 게시판 방 먼저 합류가 {@link #modeConfig} 로 읽었다 —
+ * 이제 그 요청도 글에 적힌 정원을 본다).
  *
  * <p><b>왜 남의 앱 키를 읽어도 되는가</b> — gameconfig 는 {@code matching} 이 쓰는 상태가 아니다. 원본이 {@code matching/seed/gameconfig.redis} 파일이고
  * 그 머리가 "앱은 부팅 시 설정을 밀어넣지 않고 Redis 에서 읽기만 한다"고 적었다 — <b>쓰는 앱이 없고 {@code matching} 도 읽는 쪽이다.</b>
@@ -29,14 +32,14 @@ import java.util.Optional;
  *
  * <p><b>정책이 둘이다 — 부르는 쪽이 다르다.</b>
  * <ul>
- *   <li><b>fail-open</b>({@link #hasMode} · {@link #hasTier} — 소유자 결정. 2026-09-30 의 {@link #modePositions} 도 이쪽이다) — Redis 를 못 읽으면 <b>검증만 건너뛰고 통과시킨다.</b> 글 쓰기 · 게임 계정 연결이 gameconfig 에
+ *   <li><b>fail-open</b>({@link #hasMode} · {@link #hasTier} — 소유자 결정. 2026-09-30 의 {@link #modePositions} · {@link #partySize} 도 이쪽이다) — Redis 를 못 읽으면 <b>검증만 건너뛰고 통과시킨다.</b> 글 쓰기 · 게임 계정 연결이 gameconfig 에
  *       묶여 같이 죽는 것보다 이상한 모드가 들어오는 것이 낫다는 판단이고, 목록 조회가 이미 "Redis 를 못 읽으면 방 정보를 비운 채 글만 내려 준다"는 fail-open 인 것과
  *       결을 맞춘 것이다. 대가로 <b>Redis 가 죽은 동안에는 이상한 값이 들어올 수 있다</b> — WARN 한 줄을 남긴다. <b>gameconfig 가 아예 안 심긴 Redis 도 통과시킨다</b>
  *       (검증할 원본이 없는 것과 값이 틀린 것은 다르다 — 가르는 열쇠는 티어 사다리 키다, {@link #seeded}).</li>
  *   <li><b>fail-closed</b>({@link #seeded} · {@link #modeConfig} · {@link #tierScores} · {@link #tierRanges} — 2026-09-28, 게시판 방 먼저 합류) — Redis 를 못 읽으면
  *       {@link GameConfigUnavailableException} 을 던지고 부르는 쪽이 503 {@code ROOM_STATE_UNAVAILABLE} 로 옮긴다. 그 요청은 곧이어 방 키(Redis)를 읽고 방에 넣어야
  *       하므로 어차피 Redis 없이는 끝낼 수 없다 — 검증을 건너뛰고 통과시켜도 얻는 것이 없다. <b>안 심긴 Redis 는 여기서도 통과다</b> — 부르는 쪽이 {@link #seeded} 로
- *       갈라 티어 검사와 모드 정원 검사를 건너뛴다(정원은 방 정원 5). 심긴 것과 못 읽은 것을 가르는 것은 같은 열쇠(티어 사다리 키)다.</li>
+ *       갈라 티어 검사를 건너뛴다. 심긴 것과 못 읽은 것을 가르는 것은 같은 열쇠(티어 사다리 키)다.</li>
  * </ul>
  * 두 정책이 <b>이 클래스 한 곳에만</b> 있다 — 부르는 쪽은 "있는 값인가" · "값이 무엇인가" 만 묻는다.
  */
@@ -130,6 +133,35 @@ public class GameConfigReader {
         }
     }
 
+    /**
+     * 그 모드의 <b>인원</b> — 모드별 설정 HASH 의 {@code targetPartySize} 한 필드다(2026-09-30 소유자 결정 — 게시판 방의 정원은 모드의 인원, P-41).
+     * 모집 글을 쓸 때 · 모드를 고칠 때 {@code party.service.PostService} 가 읽어 글에 적는다.
+     *
+     * <p><b>fail-open 이다</b>({@link #hasMode} 와 같은 쪽) — Redis 를 못 읽거나 · 그 필드가 없거나(gameconfig 가 안 심겼다 — 모드 검증을 지난 뒤라 그것 말고는 없다) ·
+     * 숫자가 아니면 <b>비어 있고</b> WARN 한 줄을 남긴다. 부르는 쪽이 그때 방 정원의 상한 5 를 적는다 — 글 쓰기가 gameconfig 에 묶여 같이 죽지 않게 한다.
+     * 값의 범위(2 ~ 5)는 여기서 보지 않는다 — 방의 규칙이라 부르는 쪽이 본다.
+     */
+    public OptionalInt partySize(Game game, String modeKey)
+    {
+        String size;
+        try
+        {
+            size = redis.<String, String>opsForHash().get(GameConfigKeys.mode(game, modeKey), FIELD_TARGET_PARTY_SIZE);
+        }
+        catch(DataAccessException e)
+        {
+            log.warn("gameconfig 를 읽지 못해 모드의 인원을 모른다 — 방 정원의 상한을 쓴다 game={}: {}", game, e.toString());
+            return OptionalInt.empty();
+        }
+        if(size == null)
+        {
+            log.warn("gameconfig 에 그 모드의 인원이 없다 — 방 정원의 상한을 쓴다 game={} — matching/seed/gameconfig.redis 를 심어라", game);
+            return OptionalInt.empty();
+        }
+        Integer parsed = parseSize(size);
+        return parsed == null ? OptionalInt.empty() : OptionalInt.of(parsed);
+    }
+
     /** 값 자체는 로그에 남기지 않는다 — 사용자가 적은 문자열이다 */
     private static boolean failOpen(Game game, DataAccessException e)
     {
@@ -162,7 +194,8 @@ public class GameConfigReader {
     }
 
     /**
-     * 모드별 설정 HASH 의 {@code tierRule} · {@code targetPartySize} · {@code tierLadder} — {@code HMGET} 한 번이다. <b>HASH 가 없으면 비어 있다</b>(필드가 다 {@code null} 로 온다 —
+     * 모드별 설정 HASH 의 {@code tierRule} · {@code tierLadder} — {@code HMGET} 한 번이다(2026-09-30 까지는 {@code targetPartySize} 도 읽었다 — 게시판 방 먼저 합류의 정원.
+     * 이제 그 요청도 글에 적힌 정원을 본다 — P-41). <b>HASH 가 없으면 비어 있다</b>(필드가 다 {@code null} 로 온다 —
      * {@code matching} 의 validator 가 없는 모드를 아는 법과 같다). 필드 하나만 빠진 모드는 그 칸이 {@code null} 인 채로 돌려준다 — 판단은 부르는 쪽이 한다
      * ({@code tierLadder} 가 없는 옛 seed 도 그렇다 — 2026-09-29).
      *
@@ -173,15 +206,14 @@ public class GameConfigReader {
         try
         {
             List<String> values = redis.<String, String>opsForHash()
-                    .multiGet(GameConfigKeys.mode(game, modeKey), List.of(FIELD_TIER_RULE, FIELD_TARGET_PARTY_SIZE, FIELD_TIER_LADDER));
+                    .multiGet(GameConfigKeys.mode(game, modeKey), List.of(FIELD_TIER_RULE, FIELD_TIER_LADDER));
             String tierRule = field(values, 0);
-            String size = field(values, 1);
-            String tierLadder = field(values, 2);
-            if(tierRule == null && size == null && tierLadder == null)
+            String tierLadder = field(values, 1);
+            if(tierRule == null && tierLadder == null)
             {
                 return Optional.empty();
             }
-            return Optional.of(new ModeConfig(tierRule, parseSize(size), tierLadder));
+            return Optional.of(new ModeConfig(tierRule, tierLadder));
         }
         catch(DataAccessException e)
         {
@@ -262,10 +294,6 @@ public class GameConfigReader {
 
     private static Integer parseSize(String size)
     {
-        if(size == null)
-        {
-            return null;
-        }
         try
         {
             return Integer.valueOf(size.trim());

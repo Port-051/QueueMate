@@ -63,7 +63,8 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(jsonPath("$.status").value("RECRUITING"))
                 .andExpect(jsonPath("$.createdAt").isString())
                 .andExpect(jsonPath("$.memberCount").value(1))
-                .andExpect(jsonPath("$.capacity").value(5))
+                // 정원은 그 모드의 인원이다 — RANKED_SOLO 는 2(2026-09-30 소유자 결정 — P-41. 그 전에는 늘 5). 규칙은 PostCapacityTest 가 본다
+                .andExpect(jsonPath("$.capacity").value(2))
                 .andExpect(jsonPath("$.full").value(false))
                 .andExpect(jsonPath("$.host.userId").value(equalTo(hostId), Long.class))
                 .andExpect(jsonPath("$.host.nickname").value(host))

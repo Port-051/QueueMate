@@ -26,7 +26,4 @@ public record BoardProperties(
 
     /** 목록의 페이지 크기 상한. 넘으면 400 {@code VALIDATION_FAILED} 다 — 잘라 주지 않는다(클라이언트가 받은 줄 알면 안 된다) */
     public static final int MAX_PAGE_LIMIT = 100;
-
-    /** 정원 — 방장 포함 5명. 방 안의 일({@code room.service.RoomMemberService})이 지키는 값이고(D-11 10번) 게시판은 {@code capacity} · {@code full} 을 그릴 때만 쓴다 */
-    public static final int ROOM_CAPACITY = 5;
 }

@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -86,6 +87,8 @@ public class PostService {
      *
      * <p><b>방장 포지션</b>(2026-09-30 소유자 결정 — P-38)의 규칙은 그 모드에 포지션이 있는가(gameconfig 의 {@code positionUniqueness})로 정해진다 —
      * 그것도 여기서 읽고, 검증은 찾는 포지션을 본 뒤에 {@link PostStore#create} 가 한다(둘이 겹치면 안 된다).
+     *
+     * <p><b>방의 정원 = 그 모드의 인원</b>(2026-09-30 소유자 결정 — P-41. gameconfig 의 {@code targetPartySize}) — 여기서 읽어 글에 적는다({@link #capacityOf}).
      */
     public PostResponse create(Long me, PostCreateRequest request)
     {
@@ -93,7 +96,8 @@ public class PostService {
         Game game = PostValidation.game(request.game());
         PostValidation.mode(gameConfig, game, request.mode());
         ModePositions modePositions = PostValidation.modePositions(gameConfig, game, request.mode());
-        RecruitPost post = postStore.create(me, request, modePositions, now());
+        int capacity = capacityOf(game, request.mode(), RecruitPost.MAX_CAPACITY);
+        RecruitPost post = postStore.create(me, request, modePositions, capacity, now());
         // 방금 만든 방이다 — 방장 혼자 들어 있는 것을 안다. 방 키를 다시 읽지 않는다
         return renderAll(me, List.of(post), Map.of(post.getId(), List.of(new Seat(me, true))), false).getFirst();
     }
@@ -132,9 +136,46 @@ public class PostService {
         // 고친 뒤의 모드에 포지션이 있는가(2026-09-30 — P-38). 방장 포지션은 PostStore#edit 이 잠금 안에서 고친 뒤의 모양으로 본다
         ModePositions modePositions = PostValidation.modePositions(gameConfig, post.getGame(),
                 request.mode() != null ? request.mode() : post.getMode());
-        postStore.edit(me, postId, request, modePositions, now());
+        // 모드를 줬으면 정원을 다시 정한다(2026-09-30 — P-41). 방장 혼자일 때만 여기 온다(위) — 정원이 줄어도 방 안 인원을 넘지 않는다.
+        // 모드의 인원을 모르면(Redis 장애) 같은 모드면 적혀 있던 정원을, 다른 모드면 상한을 쓴다 — 멀쩡한 정원을 모른다는 이유로 덮지 않는다
+        Integer capacity = null;
+        if(request.mode() != null)
+        {
+            capacity = capacityOf(post.getGame(), request.mode(),
+                    request.mode().equals(post.getMode()) ? post.getCapacity() : RecruitPost.MAX_CAPACITY);
+        }
+        postStore.edit(me, postId, request, modePositions, capacity, now());
         // 고친 글은 방이 떠 있는 글이다 — 방 안 사람까지 채운 한 줄을 돌려준다. 방장의 글이라 차단으로 걸러지지 않는다
         return get(me, postId);
+    }
+
+    /**
+     * 그 모드의 방 정원 — gameconfig 모드 HASH 의 {@code targetPartySize}(2026-09-30 소유자 결정 — "게시판 방의 정원 = 모드의 인원", P-41).
+     * 값의 목록은 gameconfig 가 원본이다 — 이 앱에 베껴 두지 않는다.
+     *
+     * <p><b>모르면 {@code fallback}</b> 이다(fail-open — 글 쓰기의 모드 검증과 같은 쪽, P-16): Redis 를 못 읽었거나 · 안 심겼거나 · 숫자가 아니거나
+     * ({@link GameConfigReader#partySize} 가 WARN 을 남긴다), 방의 범위({@value RecruitPost#MIN_CAPACITY} ~ {@value RecruitPost#MAX_CAPACITY})를 벗어난 값이다
+     * (여기서 WARN — 5 를 넘으면 방 정원의 상한 5 로 자른다. 게시판 방 먼저 합류가 전부터 그렇게 잘랐다). 글 쓰기는 상한 5, 고치기는 같은 모드면 적혀 있던 정원이다(Claude 가 정한 세부).
+     */
+    private int capacityOf(Game game, String mode, int fallback)
+    {
+        OptionalInt size = gameConfig.partySize(game, mode);
+        if(size.isEmpty())
+        {
+            return fallback;
+        }
+        int value = size.getAsInt();
+        if(value > RecruitPost.MAX_CAPACITY)
+        {
+            log.warn("gameconfig 의 모드 인원이 방 정원의 상한을 넘는다 — {} 로 자른다 game={} mode={} size={}", RecruitPost.MAX_CAPACITY, game, mode, value);
+            return RecruitPost.MAX_CAPACITY;
+        }
+        if(value < RecruitPost.MIN_CAPACITY)
+        {
+            log.warn("gameconfig 의 모드 인원이 파티가 될 수 없는 값이다 — 모르는 값으로 친다 game={} mode={} size={}", game, mode, value);
+            return fallback;
+        }
+        return value;
     }
 
     /**
@@ -577,7 +618,8 @@ public class PostService {
 
     /**
      * 글 한 줄. <b>{@code memberCount} 는 카드의 수</b>다 — 모집 중이면 방 안 인원, 확정이면 <b>파티원 수</b>(2026-09-30 — P-40), 만료면 0.
-     * <b>{@code full} 은 모집 중인 글에서만 참이 될 수 있다</b>(Claude 가 정한 세부) — "빈자리가 없어 못 들어간다" 는 뜻이라 확정된 글은 5명 파티여도 {@code false} 다
+     * <b>{@code capacity} 는 그 글의 방 정원</b>(2026-09-30 — P-41. 그 모드의 인원 — 옛 글은 5)이다.
+     * <b>{@code full} 은 모집 중인 글에서만 참이 될 수 있다</b>(Claude 가 정한 세부) — "빈자리가 없어 못 들어간다" 는 뜻이라 확정된 글은 정원이 찬 파티여도 {@code false} 다
      * (들어갈 수 없는 까닭은 {@code status} 가 말한다). 만료된 글은 전부터 카드가 없어 {@code false} 였다.
      */
     private static PostResponse render(RecruitPost post, List<Seat> seats, Map<Long, UserGameProfile> profiles)
@@ -588,12 +630,12 @@ public class PostService {
                 .toList();
         // DB 의 줄에는 순서가 없다 — 그 게임의 포지션 순서로 세운다
         List<String> wanted = post.getGame().positions().stream().filter(post.getWantedPositions()::contains).toList();
-        boolean full = post.getStatus() == PostStatus.RECRUITING && cards.size() >= BoardProperties.ROOM_CAPACITY;
+        boolean full = post.getStatus() == PostStatus.RECRUITING && cards.size() >= post.getCapacity();
 
         return new PostResponse(post.getId(), post.getHostId(), post.getGame().name(), post.getMode(), post.getTitle(),
                 post.getDescription(), post.getVoice().name(), post.getConditions(),
                 wanted, post.getHostPosition(), post.getStatus().name(), post.getCreatedAt(),
-                cards.size(), BoardProperties.ROOM_CAPACITY, full,
+                cards.size(), post.getCapacity(), full,
                 card(post.getHostId(), true, profiles), cards);
     }
 

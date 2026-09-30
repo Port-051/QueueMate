@@ -88,9 +88,10 @@ public class PostStore {
      * (입장은 글부터 본다 — {@link PostEntryGate}).
      *
      * @param modePositions 그 모드에 포지션이 있는가 — 방장 포지션의 규칙이다(2026-09-30 — P-38). gameconfig(Redis)를 읽어야 해서 부르는 쪽이 트랜잭션 밖에서 읽었다
+     * @param capacity      방의 정원 — 그 모드의 인원(2026-09-30 — P-41). 같은 까닭으로 부르는 쪽이 트랜잭션 밖에서 읽었다(모르면 5)
      */
     @Transactional
-    public RecruitPost create(Long hostId, PostCreateRequest request, ModePositions modePositions, Instant now)
+    public RecruitPost create(Long hostId, PostCreateRequest request, ModePositions modePositions, int capacity, Instant now)
     {
         Game game = PostValidation.game(request.game());
         // mode 는 부르는 쪽이 이미 검증했다 — gameconfig(Redis)를 읽어야 해서 트랜잭션 밖에서 본다 (PostService#create)
@@ -104,7 +105,7 @@ public class PostStore {
         // 방장 포지션은 찾는 포지션과 겹치면 안 된다 — 찾는 포지션을 검증한 뒤에 본다
         String hostPosition = PostValidation.hostPosition(game, modePositions, request.hostPosition(), wanted);
         RecruitPost post = new RecruitPost(hostId, game, request.mode(), title, description, voice, conditions, wanted,
-                hostPosition, now);
+                hostPosition, capacity, now);
         try
         {
             // id 가 null 인 새 엔티티라 persist 다 — 반드시 INSERT 가 나가고 그때 id(= roomId)를 받는다. flush 로 위반을 지금 드러낸다
@@ -126,7 +127,7 @@ public class PostStore {
         }
         openRoom(post.getId(), hostId);
         boardSignal.changed();
-        log.info("모집 글 작성 postId={} hostId={} game={}", post.getId(), hostId, game);
+        log.info("모집 글 작성 postId={} hostId={} game={} capacity={}", post.getId(), hostId, game, capacity);
         return post;
     }
 
@@ -154,9 +155,11 @@ public class PostStore {
      *
      * <p><b>"방에 방장 말고 누가 있으면 고칠 수 없다"는 검사는 여기 없다</b>(2026-09-24 소유자 결정) — 방 키(Redis)를 읽어야 해서
      * {@link PostService#edit} 이 트랜잭션 밖에서 한다. 여기 있는 방장 · 상태 검사는 그쪽에서도 한 번 하지만 <b>잠금 안의 이 판정이 최종</b>이다.
+     *
+     * @param capacity 고친 뒤의 방 정원 — 모드를 줬을 때만 값이 있다(2026-09-30 — P-41. {@link PostService#edit} 이 트랜잭션 밖에서 읽었다). {@code null} 이면 그대로다
      */
     @Transactional
-    public RecruitPost edit(Long me, Long postId, PostUpdateRequest request, ModePositions modePositions, Instant now)
+    public RecruitPost edit(Long me, Long postId, PostUpdateRequest request, ModePositions modePositions, Integer capacity, Instant now)
     {
         RecruitPost post = postRepository.findByIdForUpdate(postId).orElseThrow(PostStore::postNotFound);
         if(!post.isHost(me))
@@ -180,7 +183,7 @@ public class PostStore {
         wanted = PostValidation.editedWantedPositions(game, modePositions, request, wanted);
         String hostPosition = PostValidation.editedHostPosition(game, modePositions, request, post.getHostPosition(), wanted);
         // 준 mode 는 부르는 쪽이 이미 검증했다(트랜잭션 밖 — PostService#edit). 빈 문자열로 비우는 길은 없어졌다
-        post.edit(mode, title, description, voice, conditions, wanted, hostPosition, now);
+        post.edit(mode, title, description, voice, conditions, wanted, hostPosition, capacity, now);
         postRepository.saveAndFlush(post);
         boardSignal.changed();
         log.info("모집 글 수정 postId={}", postId);

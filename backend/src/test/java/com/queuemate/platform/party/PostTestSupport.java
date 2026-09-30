@@ -162,6 +162,18 @@ abstract class PostTestSupport extends ApiTestSupport {
         return createdId(createPost(cookie, lolPostBody("같이 하실 분", wantedPositions)).andExpect(status().isCreated()));
     }
 
+    /**
+     * <b>5인 모드</b>({@code RANKED_FLEX_5} — 정원 5)의 LOL 글을 하나 쓰고 그 id 를 돌려준다. <b>방에 세 사람 이상이 들어가야 하는 테스트가 쓴다</b> —
+     * 테스트의 기본 모드({@code RANKED_SOLO})는 게시판 방의 정원이 그 모드의 인원 2 다(2026-09-30 — P-41. 세 번째 입장은 409 {@code ROOM_FULL}).
+     * 찾는 포지션을 안 주면 {@link #defaultWantedPositions} 이고 방장 포지션은 {@link #defaultHostPosition} 이 고른다({@link #postBody} 와 같다)
+     */
+    protected Long createFivePersonLolPost(Cookie cookie, String... wantedPositions) throws Exception
+    {
+        String[] wanted = wantedPositions.length == 0 ? defaultWantedPositions("LOL") : wantedPositions;
+        return createdId(createPost(cookie, postBodyWithHostPosition("LOL", LOL_MODE_2, "같이 하실 분", "{}",
+                defaultHostPosition("LOL", wanted), wanted)).andExpect(status().isCreated()));
+    }
+
     protected static String lolPostBody(String title, String... wantedPositions)
     {
         return postBody("LOL", title, "{}", wantedPositions);

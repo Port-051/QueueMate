@@ -34,10 +34,10 @@ class PartyCloseTest extends PostTestSupport {
     @Autowired
     private PostLifecycle postLifecycle;
 
-    /** 방장과 멤버들로 방을 채우고 확정한다. 돌려주는 것은 글 번호 = 방 번호 */
+    /** 방장과 멤버들로 방을 채우고 확정한다. 돌려주는 것은 글 번호 = 방 번호. 셋이 들어가는 테스트가 있어 5인 모드의 글이다(정원은 모드의 인원 — P-41) */
     private Long confirmedRoom(Cookie hostCookie, Cookie... memberCookies) throws Exception
     {
-        Long postId = createLolPost(hostCookie);
+        Long postId = createFivePersonLolPost(hostCookie);
         track(postId);
         for(Cookie memberCookie : memberCookies)
         {

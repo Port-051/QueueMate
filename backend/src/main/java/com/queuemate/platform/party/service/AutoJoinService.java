@@ -39,12 +39,16 @@ import java.util.regex.Pattern;
  * <p><b>흐름</b> — ① 본문 검증(게임 · 음성 · 조건의 종류와 값 — 400) → ② gameconfig 로 모드 · 티어 규칙 검증({@code matching} 의 validator 와 같은 순서 — 400) →
  * ③ 후보 글 조회(그 게임 · 그 모드 · 그 음성 · 모집 중 · 내 글 제외 · 오래된 순 · 많아야 {@code platform.board.auto-join-scan} 개) →
  * ④ 자바 필터(10분 안에 나갔거나 강퇴당한 방 — {@code RoomService#noAutoJoinRooms} · PUBG 시점 · 포지션 · 방장 티어) →
- * ⑤ 방 키를 파이프라인 한 번으로 읽어 사라진 방 · 확정된 방 · 모드 정원이 찬 방 제외 → ⑥ 남은 순서대로 입장({@link RoomMemberService#enter} — 안에서 {@link PostEntryGate} 가
+ * ⑤ 방 키를 파이프라인 한 번으로 읽어 사라진 방 · 확정된 방 · 정원이 찬 방 제외 → ⑥ 남은 순서대로 입장({@link RoomMemberService#enter} — 안에서 {@link PostEntryGate} 가
  * 차단 · 상태를 본다). 들어갔으면 200, 다음 방으로 넘어갈 수 없는 거절({@code IN_OTHER_ROOM} · {@code ALREADY_QUEUED})은 그 코드로 409, 다 돌아도 없으면 404.
  *
  * <p><b>트랜잭션이 없다</b> — {@code PostService} 와 같은 자리다. DB 는 {@link PostStore} · {@link GameProfileReader} 가 짧게 끝내고, Redis(gameconfig · 방 키 · 스크립트)는 그 밖에서 읽는다.
  * <b>Redis 를 못 읽으면 503 {@code ROOM_STATE_UNAVAILABLE}(fail-closed)</b> — 방에 넣는 일이라 gameconfig 의 fail-open 과 다르다(어차피 방 키 없이는 끝낼 수 없다).
- * <b>gameconfig 가 안 심긴 Redis</b> 면 티어 검사와 모드 정원 검사를 건너뛴다(정원은 방 정원 5 — {@link GameConfigReader}).
+ * <b>gameconfig 가 안 심긴 Redis</b> 면 티어 검사를 건너뛴다({@link GameConfigReader}).
+ *
+ * <p><b>정원은 글에 적힌 방의 정원이다</b>(2026-09-30 소유자 결정 — P-41: 게시판 방의 정원 = 그 모드의 인원 · {@link RecruitPost#getCapacity()}). 그 전에는 이 요청만
+ * 모드의 {@code targetPartySize} 를 읽어 거르고 방 자체의 정원은 5 였다. 이제 글을 쓸 때 그 값이 글에 적히고 직접 입장 · 응답의 {@code full} · 이 요청이 같은 값 하나를 본다
+ * (후보는 요청과 같은 모드의 글이라 결과는 전과 같다. 다른 것은 V8 전에 쓴 옛 글 — 정원이 적히지 않아 5 다 — 과 gameconfig 를 못 읽은 채 쓴 글(5)뿐이다).
  *
  * <p><b>빈 순환이 없다</b> — 이 클래스는 {@link RoomMemberService} · {@link RoomService} 를 물고 그 둘은 {@code party} 의 {@code PostService} 를 물지 않는다
  * ({@code RoomMemberService → PostEntryGate → PostStore → RoomService}). 이 클래스를 무는 것은 컨트롤러뿐이다.
@@ -53,8 +57,8 @@ import java.util.regex.Pattern;
  * 그 티어는 <b>그 모드의 {@code tierLadder} 사다리 값</b>이다 — 2026-09-29 P-36. 모드 HASH 에 {@code tierLadder} 가 없으면(옛 seed) 티어를 보는 글을 전부 건너뛴다 + WARN) ·
  * 내 글은 후보에서 뺀다 · PUBG 의 {@code PLATFORM} 값은 방장의 {@code server} 와 대조하지 않는다(결정에 없다 — 미정) · {@code positionUniqueness} 는 읽지 않는다
  * (포지션 개념이 없는 모드에 포지션을 주면 {@code matching} 은 400 인데 여기는 그 포지션으로 글을 거른다) · 사라진 방 · 확정된 방은 스크립트에 가기 전에 뺀다 ·
- * 이미 내가 들어 있는 방은 정원을 보지 않고 200 이다(재시도) · 필터와 입장 사이의 경쟁(그 사이에 만석 · 확정 · 차단이 생긴다)은 스크립트 · {@link PostEntryGate} 의 거절로 다음 방에 간다 —
- * 그 창에서는 모드 정원을 한 명 넘길 수 있다(스크립트의 정원은 방 정원 5 다).
+ * 이미 내가 들어 있는 방은 정원을 보지 않고 200 이다(재시도) · 필터와 입장 사이의 경쟁(그 사이에 만석 · 확정 · 차단이 생긴다)은 스크립트 · {@link PostEntryGate} 의 거절로 다음 방에 간다
+ * (2026-09-30 부터 스크립트의 정원도 글의 정원이라 그 창에서 정원을 넘기지 않는다 — 전에는 스크립트의 정원이 5 라 모드 정원을 한 명 넘길 수 있었다).
  */
 @Slf4j
 @Service
@@ -109,13 +113,14 @@ public class AutoJoinService {
         for(RecruitPost post : candidates)
         {
             RoomState state = states.get(post.getId());
-            // 사라진 방 · 확정된 방 · 모드 정원이 찬 방은 스크립트에 가지 않는다 — 어차피 거절될 것이고 입장 검사(DB · Redis)를 아낀다.
+            // 사라진 방 · 확정된 방 · 정원이 찬 방은 스크립트에 가지 않는다 — 어차피 거절될 것이고 입장 검사(DB · Redis)를 아낀다.
+            // 정원은 글에 적힌 방의 정원이다(2026-09-30 — P-41) — 스크립트도 같은 값으로 가른다.
             // 이미 내가 들어 있는 방은 정원과 무관하다 — 재시도 · 새로고침이 "이미 들어와 있다"(200)로 답하게 스크립트에 보낸다(입장 요청과 같다)
             if(state == null || !state.hostKeyExists() || state.confirmed())
             {
                 continue;
             }
-            if(!state.members().contains(me) && state.members().size() >= gate.capacity())
+            if(!state.members().contains(me) && state.members().size() >= post.getCapacity())
             {
                 continue;
             }
@@ -180,22 +185,21 @@ public class AutoJoinService {
      *
      * @param seesTier 방장 티어를 봐야 하는가(심긴 Redis 이고 그 모드의 {@code tierRule} 이 {@code EXIST})
      * @param myScore  내 티어의 사다리 단계 번호({@code seesTier} 일 때만)
-     * @param capacity 그 모드의 정원({@code targetPartySize}). 안 심긴 Redis · 필드가 없으면 방 정원 5
      * @param ladder   그 모드가 보는 티어 사다리({@code tierLadder} — 2026-09-29 P-36). 방장의 게임 계정에서 <b>이 사다리의 티어</b>를 본다.
      *                 {@code seesTier} 인데 {@code null} 이면(옛 seed) 방장 티어를 알 수 없다 — 티어를 보는 글을 전부 건너뛴다
      */
-    private record Gate(boolean seesTier, double myScore, int capacity, String ladder) {
+    private record Gate(boolean seesTier, double myScore, String ladder) {
     }
 
     /**
      * {@code matching} 의 validator 와 같은 순서로 거른다 — 모드가 없으면 400 · {@code tierRule=NONE} 인데 티어가 있으면 400 · {@code EXIST} 인데 티어가 없거나 · 사다리에 없거나 ·
-     * 허용 범위 표에 줄이 없거나 {@code SOLO_ONLY} 면 400. <b>안 심긴 Redis 면 아무것도 보지 않는다</b>(정원은 5).
+     * 허용 범위 표에 줄이 없거나 {@code SOLO_ONLY} 면 400. <b>안 심긴 Redis 면 아무것도 보지 않는다</b>.
      */
     private Gate gate(Game game, String modeKey, String tier)
     {
         if(!gameConfig.seeded(game))
         {
-            return new Gate(false, 0, BoardProperties.ROOM_CAPACITY, null);
+            return new Gate(false, 0, null);
         }
         ModeConfig mode = gameConfig.modeConfig(game, modeKey).orElseThrow(
                 () -> ApiException.validationFailed("modeKey", game.name() + " 에 없는 모드입니다"));
@@ -204,15 +208,13 @@ public class AutoJoinService {
             // 필드 하나만 빠진 모드 — matching 도 매칭하지 않는다(설정이 불완전하면 조용히 다른 규칙이 적용되는 것보다 낫다)
             throw ApiException.validationFailed("modeKey", modeKey + " 의 설정이 불완전합니다(tierRule)");
         }
-        int capacity = (mode.targetPartySize() == null) ? BoardProperties.ROOM_CAPACITY
-                : Math.min(mode.targetPartySize(), BoardProperties.ROOM_CAPACITY);
         if(!mode.seesTier())
         {
             if(tier != null)
             {
                 throw ApiException.validationFailed("tier", modeKey + " 는 티어를 보지 않는 모드입니다");
             }
-            return new Gate(false, 0, capacity, null);
+            return new Gate(false, 0, null);
         }
         if(tier == null)
         {
@@ -228,7 +230,7 @@ public class AutoJoinService {
         {
             throw ApiException.validationFailed("tier", modeKey + " 에서 파티를 맺을 수 없는 티어입니다");
         }
-        return new Gate(true, myScore, capacity, mode.tierLadder());
+        return new Gate(true, myScore, mode.tierLadder());
     }
 
     // ---- 글 거르기 ----

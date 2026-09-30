@@ -45,7 +45,9 @@ class GameConfigReaderTest {
         assertThat(reader.hasTier(Game.LOL, "무엇이든")).isTrue();
         // 모드에 포지션이 있는가(2026-09-30 — P-38) — 모른다. 방장 포지션을 요구하지도 거절하지도 않는다
         assertThat(reader.modePositions(Game.LOL, "RANKED_SOLO")).isEqualTo(ModePositions.UNKNOWN);
-        assertThat(attempts).hasValue(3);
+        // 모드의 인원(2026-09-30 — P-41) — 모른다. 글 쓰기는 방 정원의 상한 5 를 적는다
+        assertThat(reader.partySize(Game.LOL, "RANKED_SOLO")).isEmpty();
+        assertThat(attempts).hasValue(4);
     }
 
     @Test
@@ -56,6 +58,7 @@ class GameConfigReaderTest {
         assertThat(reader.hasMode(Game.PUBG, "NORMAL_SQUAD_TPP")).isTrue();
         assertThat(reader.hasTier(Game.PUBG, "GOLD_1")).isTrue();
         assertThat(reader.modePositions(Game.LOL, "RANKED_SOLO")).isEqualTo(ModePositions.UNKNOWN);
+        assertThat(reader.partySize(Game.LOL, "RANKED_SOLO")).isEmpty();
     }
 
     // ---- fail-closed (2026-09-28 — 게시판 방 먼저 합류) ----
@@ -106,7 +109,7 @@ class GameConfigReaderTest {
     @Test
     @DisabledIf(value = "com.queuemate.platform.ApiTestSupport#pointsAtForeignPorts",
             disabledReason = "REDIS_PORT=6379 다 — 다른 프로젝트의 것이다. 테스트용을 6380 으로 띄워라")
-    @DisplayName("모드 HASH 의 tierRule · targetPartySize · tierLadder · positionUniqueness, 사다리의 score, tier-range 의 줄을 seed 의 모양 그대로 읽는다 — 없는 것은 없다고 답한다")
+    @DisplayName("모드 HASH 의 tierRule · tierLadder · positionUniqueness · targetPartySize, 사다리의 score, tier-range 의 줄을 seed 의 모양 그대로 읽는다 — 없는 것은 없다고 답한다")
     void readsSeededGameConfigFromRedis()
     {
         StringRedisTemplate redis = realRedis();
@@ -128,6 +131,10 @@ class GameConfigReaderTest {
         String aramKey = modeKey + "_ARAM";
         seededKeys.add(aramKey);
         redis.opsForHash().putAll(aramKey, Map.of("targetPartySize", "5", "positionUniqueness", "false", "tierRule", "NONE"));
+        // 인원이 숫자가 아닌 모드 — 손으로 잘못 심은 seed 다. 모르는 값으로 읽는다
+        String badKey = modeKey + "_BAD";
+        seededKeys.add(badKey);
+        redis.opsForHash().putAll(badKey, Map.of("targetPartySize", "둘", "tierRule", "NONE"));
         redis.opsForHash().putAll(rangeKey, Map.of("GOLD_4", "SILVER_4:PLATINUM_1", "UNRANKED", "SOLO_ONLY"));
         if(!Boolean.TRUE.equals(redis.hasKey(ladderKey)))
         {
@@ -139,8 +146,8 @@ class GameConfigReaderTest {
         redis.opsForZSet().add(ladderKey, "PLATINUM_1", 20);
 
         assertThat(reader.seeded(Game.LOL)).isTrue();
-        assertThat(reader.modeConfig(Game.LOL, mode)).contains(new ModeConfig("EXIST", 3, "FLEX"));
-        assertThat(reader.modeConfig(Game.LOL, mode + "_OLD")).contains(new ModeConfig("EXIST", 2, null));
+        assertThat(reader.modeConfig(Game.LOL, mode)).contains(new ModeConfig("EXIST", "FLEX"));
+        assertThat(reader.modeConfig(Game.LOL, mode + "_OLD")).contains(new ModeConfig("EXIST", null));
         assertThat(reader.modeConfig(Game.LOL, mode + "_NOPE")).isEmpty();
         assertThat(reader.tierScores(Game.LOL, List.of("GOLD_4", "SILVER_4", "PLATINUM_1", "NO_SUCH_TIER")))
                 .containsEntry("GOLD_4", 13.0).containsEntry("SILVER_4", 9.0).containsEntry("PLATINUM_1", 20.0)
@@ -153,6 +160,12 @@ class GameConfigReaderTest {
         assertThat(reader.modePositions(Game.LOL, mode + "_ARAM")).isEqualTo(ModePositions.NO);
         assertThat(reader.modePositions(Game.LOL, mode + "_OLD")).isEqualTo(ModePositions.NO);
         assertThat(reader.modePositions(Game.LOL, mode + "_NOPE")).isEqualTo(ModePositions.UNKNOWN);
+        // 모드의 인원 = 게시판 방의 정원(2026-09-30 — P-41). HASH 가 없거나 숫자가 아니면 모른다(fail-open — 부르는 쪽이 5 를 쓴다)
+        assertThat(reader.partySize(Game.LOL, mode)).hasValue(3);
+        assertThat(reader.partySize(Game.LOL, mode + "_OLD")).hasValue(2);
+        assertThat(reader.partySize(Game.LOL, mode + "_ARAM")).hasValue(5);
+        assertThat(reader.partySize(Game.LOL, mode + "_BAD")).isEmpty();
+        assertThat(reader.partySize(Game.LOL, mode + "_NOPE")).isEmpty();
         // 읽기만 했다 — 심은 모양 그대로다
         assertThat(redis.opsForHash().entries(modeKey)).hasSize(4);
         assertThat(Boolean.TRUE.equals(redis.hasKey(modeKey + "_NOPE"))).isFalse();

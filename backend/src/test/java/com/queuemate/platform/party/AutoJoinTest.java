@@ -120,15 +120,36 @@ class AutoJoinTest extends PostTestSupport {
     /**
      * 모집 중인 글을 SQL 로 넣고 방을 연다(방장 + {@code others}). 글 번호를 돌려준다. 방장은 {@link #insertUser()} 로 만든 사람이어야 한다(FK).
      * <b>찾는 포지션이 빈 글은 이제 글 쓰기로는 만들 수 없다</b>(2026-09-30 — 포지션이 있는 모드는 하나 이상 필수, P-38) — 여기서 빈 배열로 넣는 글은 <b>그 전에 쓴 옛 글</b>이다.
-     * 방장 포지션({@code host_position})은 넣지 않는다 — 자동 합류는 그것을 보지 않는다
+     * 방장 포지션({@code host_position})은 넣지 않는다 — 자동 합류는 그것을 보지 않는다.
+     * <b>정원({@code capacity})은 글 쓰기가 적는 것과 같이 그 모드의 {@code targetPartySize} 를 gameconfig 에서 읽어 넣는다</b>(2026-09-30 — P-41. 자동 합류는 글의 정원을 본다).
+     * 정원이 비어 있는 V8 전의 글은 {@link #insertLegacyPost} 다
      */
     private Long insertPost(Long hostId, String game, String mode, String voice, String conditionsJson, String[] wanted, Long... others)
     {
+        return insertPost(hostId, game, mode, voice, conditionsJson, partySizeOf(game, mode), wanted, others);
+    }
+
+    /** V8 전에 쓴 글 — 정원 칸이 비어 있어 5 로 읽힌다(2026-09-30 — P-41) */
+    private Long insertLegacyPost(Long hostId, String mode, String[] wanted, Long... others)
+    {
+        return insertPost(hostId, "LOL", mode, "REQUIRED", "{}", null, wanted, others);
+    }
+
+    /** 그 모드의 인원 — 글 쓰기({@code PostService})가 읽는 것과 같은 필드다. 없으면 {@code null}(정원 칸을 비운다) */
+    private Integer partySizeOf(String game, String mode)
+    {
+        String size = redisTemplate.<String, String>opsForHash().get("qm:gameconfig:" + game + ":" + mode, "targetPartySize");
+        return size == null ? null : Integer.valueOf(size);
+    }
+
+    private Long insertPost(Long hostId, String game, String mode, String voice, String conditionsJson, Integer capacity, String[] wanted,
+                            Long... others)
+    {
         java.sql.Timestamp at = java.sql.Timestamp.from(Instant.now());
         Long postId = jdbcTemplate.queryForObject("insert into recruit_posts "
-                + "(host_id, game, mode, title, voice, conditions, status, created_at, updated_at) "
-                + "values (?, ?, ?, ?, ?, ?::jsonb, 'RECRUITING', ?, ?) returning id",
-                Long.class, hostId, game, mode, "같이 하실 분", voice, conditionsJson, at, at);
+                + "(host_id, game, mode, title, voice, conditions, status, created_at, updated_at, capacity) "
+                + "values (?, ?, ?, ?, ?, ?::jsonb, 'RECRUITING', ?, ?, ?) returning id",
+                Long.class, hostId, game, mode, "같이 하실 분", voice, conditionsJson, at, at, capacity);
         for(String position : wanted)
         {
             jdbcTemplate.update("insert into recruit_post_positions (post_id, position) values (?, ?)", postId, position);
@@ -382,7 +403,7 @@ class AutoJoinTest extends PostTestSupport {
     // ---- ⑦ 정원 · ⑧ 차단 · ⑨ 다른 방 · ⑩ 확정 ----
 
     @Test
-    @DisplayName("방 안 인원이 그 모드의 targetPartySize(RANKED_SOLO 는 2) 이상이면 건너뛴다 — 방 정원 5 가 아니다")
+    @DisplayName("방 안 인원이 글의 정원(= 그 모드의 targetPartySize — RANKED_SOLO 는 2) 이상이면 건너뛴다 — 방 정원 5 가 아니다")
     void skipsRoomAtModeCapacity() throws Exception
     {
         String nickname = newNickname();
@@ -392,6 +413,39 @@ class AutoJoinTest extends PostTestSupport {
 
         Long open = insertRankedPost(hostWithTier("GOLD_1"), "MID");
         assertJoined(autoJoin(me, rankedBody("GOLD_4", "MID")), open, userIdOf(nickname));
+    }
+
+    @Test
+    @DisplayName("글 쓰기로 만든 솔로 랭크 글(정원 2)에 한 사람이 들어와 있으면 건너뛴다 — 글에 적힌 정원을 본다(2026-09-30 — P-41)")
+    void skipsFullPostCreatedByTheApp() throws Exception
+    {
+        String host = newNickname();
+        String guest = newNickname();
+        String nickname = newNickname();
+        Cookie hostCookie = login(host);
+        insertGameAccount(userIdOf(host), "LOL", "host#KR1", "GOLD_1");
+        Long postId = createdId(createPost(hostCookie, postBodyWithHostPosition("LOL", LOL_MODE, "솔랭 듀오", "{}", "JUNGLE", "MID"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.capacity").value(2)));
+        Cookie guestCookie = login(guest);
+        track(postId, userIdOf(guest));
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(guestCookie)).andExpect(status().isCreated());
+
+        Cookie me = login(nickname);
+        track(postId, userIdOf(nickname));
+        expectNoMatchingPost(autoJoin(me, rankedBody("GOLD_4", "MID")));
+        assertThat(redisTemplate.opsForSet().members(membersKey(postId))).doesNotContain(String.valueOf(userIdOf(nickname)));
+    }
+
+    @Test
+    @DisplayName("V8 전에 쓴 글(정원 칸이 비었다)은 정원 5 로 본다 — 모드가 솔로 랭크여도 두 사람이 있는 방에 들어간다(직접 입장 · 응답과 같은 값 하나)")
+    void legacyPostIsFive() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie me = login(nickname);
+        Long legacy = insertLegacyPost(hostWithTier("GOLD_1"), LOL_MODE, new String[]{ "MID" }, insertUser());
+        assertJoined(autoJoin(me, rankedBody("GOLD_4", "MID")), legacy, userIdOf(nickname));
+        assertThat(redisTemplate.opsForSet().size(membersKey(legacy))).isEqualTo(3);
     }
 
     @Test

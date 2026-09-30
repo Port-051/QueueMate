@@ -44,6 +44,13 @@ import java.util.Set;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RecruitPost {
 
+    /** 방 정원의 상한이자 <b>정원을 모르는 글의 정원</b> — 방장 포함 5명(docs/11 D-11 10번). V8 전에 쓴 글({@code capacity} 가 {@code NULL})과
+     *  gameconfig 를 못 읽은 채 쓴 글이 이 값이다(2026-09-30 — P-41) */
+    public static final int MAX_CAPACITY = 5;
+
+    /** 방 정원의 하한 — 방장 + 한 명. 모드의 인원이 이보다 작으면 모르는 값으로 친다(DB 의 CHECK 도 2 ~ 5 다 — V8) */
+    public static final int MIN_CAPACITY = 2;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
@@ -112,9 +119,17 @@ public class RecruitPost {
     @Column(name = "host_position", length = 20)
     private String hostPosition;
 
+    /**
+     * 방의 정원(2026-09-30 소유자 결정 — P-41) — 그 모드의 인원(gameconfig 모드 HASH 의 {@code targetPartySize})이고 방장을 포함한다.
+     * 글을 쓸 때 · 모드를 고칠 때 {@code PostService} 가 트랜잭션 밖에서 읽어 넘긴다. <b>V8 전에 쓴 글은 {@code NULL}</b> 이고 {@link #getCapacity()} 가 5 로 읽는다
+     */
+    @JdbcTypeCode(SqlTypes.SMALLINT)
+    @Column(name = "capacity")
+    private Integer capacity;
+
     public RecruitPost(Long hostId, Game game, String mode, String title, String description,
                        VoicePreference voice, String conditions, Set<String> wantedPositions,
-                       String hostPosition, Instant now)
+                       String hostPosition, int capacity, Instant now)
     {
         this.hostId = hostId;
         this.game = game;
@@ -125,14 +140,18 @@ public class RecruitPost {
         this.conditions = conditions;
         this.wantedPositions = new LinkedHashSet<>(wantedPositions);
         this.hostPosition = hostPosition;
+        this.capacity = capacity;
         this.status = PostStatus.RECRUITING;
         this.createdAt = now;
         this.updatedAt = now;
     }
 
-    /** 글의 내용을 고친다. 상태 · 방장 · 게임은 바뀌지 않는다. 부르는 쪽이 "준 것만" 골라 넘긴다 — 여기는 받은 대로 적는다 */
+    /**
+     * 글의 내용을 고친다. 상태 · 방장 · 게임은 바뀌지 않는다. 부르는 쪽이 "준 것만" 골라 넘긴다 — 여기는 받은 대로 적는다.
+     * {@code capacity} 는 모드를 줬을 때만 다시 정해진다({@code PostService#edit} — 2026-09-30, P-41). {@code null} 이면 그대로다(옛 글의 {@code NULL} 도 그대로 남는다)
+     */
     public void edit(String mode, String title, String description, VoicePreference voice,
-                     String conditions, Set<String> wantedPositions, String hostPosition, Instant now)
+                     String conditions, Set<String> wantedPositions, String hostPosition, Integer capacity, Instant now)
     {
         this.mode = mode;
         this.title = title;
@@ -146,7 +165,20 @@ public class RecruitPost {
             this.wantedPositions.addAll(wantedPositions);
         }
         this.hostPosition = hostPosition;
+        if(capacity != null)
+        {
+            this.capacity = capacity;
+        }
         this.updatedAt = now;
+    }
+
+    /**
+     * 방의 정원 — 적힌 값이고, <b>V8 전에 쓴 글({@code NULL})은 {@value #MAX_CAPACITY}</b> 다(그날까지의 정원). 입장 스크립트 · 응답의 {@code capacity} · {@code full} ·
+     * 게시판 방 먼저 합류가 전부 이 값 하나를 본다(2026-09-30 — P-41)
+     */
+    public int getCapacity()
+    {
+        return capacity == null ? MAX_CAPACITY : capacity;
     }
 
     public boolean isHost(Long userId)
