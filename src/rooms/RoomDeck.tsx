@@ -240,6 +240,7 @@ function RoomSeat({ room, member, selfId, popEnd, onMember }: { room: BoardRoom;
  * - **머리 한 줄** — 제목 · 상태 점과 글자(모집 중 / 확정 · n명 / 만료) · 몇 분 전. **조건은 그 아래 한 줄에 한 번만** — 모드 · 인원 · 마이크 · 찾는 포지션(포지션이 있는 모드만).
  * - **좌석 줄** — 채워진 좌석(`RoomSeat` — 서버 순서 그대로 · 방장 먼저)이 같은 폭으로 서서 카드끼리 줄이 맞고, 빈 자리는 글자 없는 작은 점선 원(`빈자리` 풍선말)이다.
  *   그 뒤 `n/정원` 한 번과 **[참가]** — 누르면 참여 확인 창(`RoomJoinConfirm`)이다. 들어갈 수 없으면(`entryError` — 정원 · 이미 참여 · 다른 방 등) 버튼이 잠기고 이유가 풍선말 · 이름에 붙는다.
+ *   **좌석 수 = 그 글의 정원**(`capacity` — 그 모드의 인원: 솔로 랭크 2 · 자유 랭크 2/3/5 · 일반 · 칼바람 2~5, 그 전에 쓴 글 5 — P-41, 2026-09-30). 찬 방은 버튼이 **"가득 참"** 이다.
  *   빈 원을 눌러도 같은 창이 뜬다(마우스 지름길 — 키보드 · 화면 읽기는 [참가] 하나다).
  * - **확정된 글**은 확정 순간의 파티원 전원(P-40 — `members` = 파티원 · `memberCount` = 파티 인원)이 좌석이고 빈 원 · [참가] 가 없다(머리는 `확정 · n명`).
  *   **만료된 글**은 방장 좌석만(서버가 `members` 를 비워 보낸다). 둘 다 흐리게 그린다.
@@ -275,8 +276,10 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, reveal = f
   const group = modeChoice(room.game, room.modeKey)?.group ?? room.modeKey;
   const status = room.status === 'CONFIRMED' ? `${POST_STATUS_LABEL.CONFIRMED} · ${room.memberCount || members.length}명` : POST_STATUS_LABEL[room.status];
   const openSeat = entryError ? undefined : () => onSeat(room);
-  // 내가 이미 들어가 있는 방이면 잠긴 버튼의 글자를 "참여 중" 으로(이유는 `boardRoom.ts` `roomEntryError`).
+  // 내가 이미 들어가 있는 방이면 잠긴 버튼의 글자를 "참여 중" 으로, 정원이 찼으면 "가득 참" 으로(이유는 `boardRoom.ts` `roomEntryError`).
   const inside = recruiting && members.some(member => member.id === selfId);
+  const full = recruiting && (room.full || room.memberCount >= room.capacity);
+  const joinText = inside ? '참여 중' : full ? '가득 참' : '참가';
   return <article ref={card} className={`room-deck room-row${room.hostId === selfId ? ' is-own' : ''}${recruiting ? '' : ' is-closed'}${entering ? ' is-entering' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`}>
     <RoomBubbleTail />
     <div className="room-row-head">
@@ -299,7 +302,7 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, reveal = f
       {recruiting ? <div className="room-seats-tail">
         <span className="room-seat-count" aria-hidden="true">{room.memberCount}/{room.capacity}</span>
         <button type="button" className="room-join-button" disabled={Boolean(entryError)} title={entryError ?? undefined}
-          aria-label={inside ? '참여 중' : `참가${entryError ? ` · ${entryError}` : ''}`} onClick={() => onSeat(room)}>{inside ? '참여 중' : '참가'}</button>
+          aria-label={inside || full ? joinText : `참가${entryError ? ` · ${entryError}` : ''}`} onClick={() => onSeat(room)}>{joinText}</button>
       </div> : null}
     </div>
   </article>;

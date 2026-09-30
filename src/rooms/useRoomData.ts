@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from '../api/client';
+import { hasErrorCode } from '../api/error';
 import type { CreatePostRequest, GameKey, ServerEvent, UpdatePostRequest } from '../api/types';
 import { useMatch } from '../state/MatchContext';
 import { roomErrorMessage } from './errors';
@@ -113,8 +114,11 @@ export function useRoomData(game: GameKey) {
       setRooms(current => [room, ...current.filter(item => item.postId !== room.postId)]);
       return room;
     },
-    /** 입장 — 201/200. 실패는 그대로 던진다(문구는 `roomErrorMessage`). */
-    join: (roomId: string) => api.enterRoom(roomId),
+    /** 입장 — 201/200. 실패는 그대로 던진다(문구는 `roomErrorMessage`). 가득 찼으면(409 `ROOM_FULL`) 목록을 곧바로 다시 받아 카드가 "가득 참" 이 되게 한다. */
+    join: async (roomId: string) => {
+      try { await api.enterRoom(roomId); }
+      catch (err) { if (hasErrorCode(err, 'ROOM_FULL')) void refresh(); throw err; }
+    },
     update: async (postId: number, body: UpdatePostRequest): Promise<BoardRoom> => {
       const room = toBoardRoom(await api.updatePost(postId, body));
       setRooms(current => current.map(item => item.postId === postId ? room : item));

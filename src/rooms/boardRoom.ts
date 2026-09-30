@@ -80,7 +80,7 @@ export function perspectiveFromMode(game: GameKey, modeKey: string): PubgPerspec
 export function roomEntryError(room: BoardRoom, selfId: string, activeRoomId: string | null): string | null {
   if (room.status === 'CONFIRMED') return '확정된 방이에요';
   if (room.status === 'EXPIRED') return '모집이 끝났어요';
-  if (room.full || room.memberCount >= room.capacity) return '정원이 가득 찼어요';
+  if (room.full || room.memberCount >= room.capacity) return `가득 찬 방이에요(정원 ${room.capacity}명)`;
   if (activeRoomId === room.id || room.members.some(member => member.id === selfId)) return '이미 참여 중인 방이에요';
   if (activeRoomId) return '다른 방에 참여 중이에요. 나온 뒤 참여할 수 있어요';
   return null;

@@ -40,6 +40,7 @@ export interface BoardRoom {
   title: string;
   description: string;
   hostId: string;
+  /** 방의 정원 = 좌석 수 — 그 글의 모드의 인원(솔로 랭크 2 · 많아야 5 · 그 전에 쓴 글은 5 — P-41, 2026-09-30). */
   capacity: number;
   memberCount: number;
   full: boolean;

@@ -225,7 +225,7 @@ export interface MemberCard { userId: number; nickname: string | null; host: boo
 
 /**
  * 모집 글 한 줄 — `GET /posts?game=` 의 `posts[]` · `GET /posts/{postId}` · `POST /posts` 201 · `PATCH` 200 이 같은 모양이다.
- * **`postId` 가 곧 `roomId` 다**(방 키에는 십진 문자열로 — 방 요청의 경로에는 `String(postId)`). `capacity` 는 늘 5, `memberCount` 는 끝난 글이면 0, `members` 는 방장 먼저다.
+ * **`postId` 가 곧 `roomId` 다**(방 키에는 십진 문자열로 — 방 요청의 경로에는 `String(postId)`). `capacity` 는 그 글의 모드의 인원(솔로 랭크 2 · 많아야 5 · 그 전에 쓴 글은 5 — P-41, 2026-09-30), `full` 은 모집 중이고 `memberCount >= capacity`, `memberCount` 는 만료된 글이면 0, `members` 는 방장 먼저다.
  * 시각은 ISO-8601 문자열. `mode` 는 옛 글이면 `null` 일 수 있다(P-16 미정).
  */
 export interface PostResponse {

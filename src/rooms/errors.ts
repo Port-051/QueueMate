@@ -16,7 +16,7 @@ const ROOM_ERROR_MESSAGES: Record<string, string> = {
   NOT_POST_HOST: '방장만 할 수 있어요',
   ROOM_HAS_OTHER_MEMBERS: '방에 다른 사람이 있어 글을 고칠 수 없어요',
   ROOM_NOT_FOUND: '방이 없어요. 이미 닫혔을 수 있어요',
-  ROOM_FULL: '정원이 가득 찼어요',
+  ROOM_FULL: '방이 가득 찼어요. 정원만큼 사람이 모였어요',
   ROOM_CONFIRMED: '이미 확정된 방이라 들어갈 수 없어요',
   NOT_IN_ROOM: '이 방에 들어와 있지 않아요',
   TARGET_NOT_IN_ROOM: '그 사람은 이미 방에 없어요',

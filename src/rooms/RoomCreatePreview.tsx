@@ -6,7 +6,7 @@ import { ModePicker } from '../components/ModePicker';
 import { IconDirectMessage } from '../components/NotificationPanel';
 import { DesiredRolesField, IntroductionBioField, VoiceOptions } from '../components/SelfIntroductionFields';
 import { SingleRolePicker } from '../components/SingleRolePicker';
-import { gameConfig } from '../domain/gameConfig';
+import { gameConfig, targetPartySize } from '../domain/gameConfig';
 import { useAuth } from '../state/AuthContext';
 import { perspectiveFromMode } from './boardRoom';
 import { roomErrorMessage } from './errors';
@@ -30,7 +30,7 @@ const TITLE_MAX = 60;
  *   버튼 위의 흐린 한 줄("채워야 할 칸 — …")로 알린다. 한마디가 60자를 넘을 때만 칸 아래가 빨갛다. 찾는 포지션을 비우는 글("누구든")은 같은 날 소유자 결정으로 없어졌다
  *   (서버도 400 `wantedPositions: …` — 옛 글은 빈 채로 남아 있어 게시판 필터의 "빈 글은 누구든" 은 그대로다).
  * - 본문은 계약의 요청 그대로 `{game, mode, title, voice, conditions, wantedPositions, hostPosition}` 이다 — PUBG 의 `conditions.perspective` 는 고른 모드의 시점
- *   (`perspectiveFromMode`), 포지션이 없는 모드면 찾는 포지션은 빈 배열(`[]` — 값을 싣지 않는다)이고 `hostPosition` 은 **칸째 싣지 않는다**(서버는 없는 칸을 `null` 로 읽는다). 정원(늘 5) · 시작 시각 · 티어 범위는 우리 글에 칸이 없고
+ *   (`perspectiveFromMode`), 포지션이 없는 모드면 찾는 포지션은 빈 배열(`[]` — 값을 싣지 않는다)이고 `hostPosition` 은 **칸째 싣지 않는다**(서버는 없는 칸을 `null` 로 읽는다). 정원은 보내지 않는다(서버가 고른 모드의 인원으로 정한다 — P-41 · 안내 글에 그 수를 보여 준다) · 시작 시각 · 티어 범위는 우리 글에 칸이 없고
  *   소개(`description`)는 보내지 않는다. 서버의 400 은 창 안의 빨간 문구다 — `hostPosition: …` 같은 줄은 칸 이름으로 바꿔 보여 준다(`roomErrorMessage`).
  * - 창은 `body` 로 포털되어 판의 CSS(`.room-home …` — `room-board.css`)가 닿지 않는다. 그래서 칸들을 **`room-home room-preview-scope`** 로 감싸 판의 규칙을 그대로 받고
  *   `.room-home` 자신의 폭 · 여백만 `room-create-preview.css` 에서 되돌린다(모양이 판과 늘 같게 — 판을 바꾸면 여기도 바뀐다).
@@ -124,7 +124,7 @@ export function RoomCreatePreview({ game, onClose, onConfirm }: {
         </section>
       </fieldset>
     </div>
-    <p className="room-move-notice">글을 올리면 그 번호의 방(최대 5명)이 같이 생기고 내가 방장으로 들어가요. {positions ? `${positionTitle}은 게시판의 내 카드에 보여요. ` : ''}{hasAccount
+    <p className="room-move-notice">글을 올리면 그 번호의 방({mode ? `정원 ${targetPartySize(game, mode)}명` : '정원은 고른 모드의 인원'})이 같이 생기고 내가 방장으로 들어가요. {positions ? `${positionTitle}은 게시판의 내 카드에 보여요. ` : ''}{hasAccount
       ? '내 카드의 티어 · 전적은 프로필의 게임 계정에서 와요.'
       : '이 게임의 계정을 연결하지 않아 내 카드에는 닉네임만 보여요 — 내 정보에서 연결할 수 있어요.'}</p>
     {/* 늘 두고 비우기만 한다(비면 숨는다) — 읽어 주는 영역이 처음부터 있어야 바뀐 글이 읽힌다. */}
