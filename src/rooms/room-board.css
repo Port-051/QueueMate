@@ -358,8 +358,8 @@
 }
 
 /* 좌석 줄(2026-09-30 소유자 승인 — `RoomDeck.tsx` 머리 주석). 머리 한 줄(제목 · 상태 · 시각) → 조건 한 줄(한 번만) → 좌석 줄(채워진 좌석 · 빈 점선 원 · n/정원 · [참가]).
-   카드가 600px 보다 좁으면(폰 폭 · 좁은 분할 화면) 좌석이 원 다섯 칸으로 바뀐다 — 뷰포트가 아니라 카드의 폭을 본다(컨테이너 질의 `room-card`). 좌석 하나하나도 제 폭을 보고
-   두 줄째의 숫자(승률 · KDA)와 방장 포지션 글자를 뺀다(`room-seat`) — 좌석 폭이 줄면 숫자는 마우스를 올린 작은 창 · 프로필 창에만 남는다. */
+   카드가 460px 보다 좁으면(폰 폭) 좌석이 원 다섯 칸으로 바뀐다 — 뷰포트가 아니라 카드의 폭을 본다(컨테이너 질의 `room-card`). 좌석 하나하나도 제 폭을 보고
+   두 줄째의 숫자(승률 · KDA)와 방장 포지션 글자를 빼고, 더 좁으면 얼굴 위 · 닉네임 아래로 선다(`room-seat`) — 숫자는 마우스를 올린 작은 창 · 프로필 창에 남는다. */
 .room-deck.room-row { --room-bubble-bg:color-mix(in srgb, var(--app-background) 92%, white); container:room-card / inline-size; padding:14px 18px 16px; border:1px solid transparent; border-radius:24px; background:var(--room-bubble-bg); overflow:visible; }
 .room-deck.room-row.is-own { --room-bubble-bg:#2d2242; }
 /* 마우스를 올린 카드를 위로 — 좌석의 작은 창이 아래 카드에 가리지 않게(카드마다 `isolation` 이 있다). */
@@ -418,8 +418,19 @@
 .room-seat-rank>span:last-child { overflow:hidden; text-overflow:ellipsis; font-weight:600; }
 .room-seat-numbers { display:inline-flex; flex:none; gap:6px; font-variant-numeric:tabular-nums; }
 .room-seat-numbers>span::before { content:'·'; margin-right:6px; color:#5f5a70; }
-@container room-seat (max-width:190px) { .room-seat-numbers { display:none; } }
-@container room-seat (max-width:132px) { .room-seat-position b,.room-seat-position::before { display:none; } }
+/* 좌석이 좁아지면(분할 화면 · 사람이 많은 방) 스스로 줄인다 — 190px 이하: 숫자와 방장 포지션 글자를 빼고(포지션은 닉네임 앞 아이콘) · 132px 이하: 얼굴 원 위 · 닉네임 아래(티어는 얼굴의 배지). */
+@container room-seat (max-width:190px) {
+  .room-seat-numbers,.room-seat-position { display:none; }
+  .room-seat-position-icon { display:inline-flex; flex:none; color:#d7c7f7; }
+}
+@container room-seat (max-width:132px) {
+  .room-seat-button { flex-direction:column; justify-content:center; gap:5px; height:auto; min-height:54px; padding:7px 4px 5px; text-align:center; }
+  .room-seat-tier-badge { position:absolute; right:-6px; bottom:-4px; display:grid; place-items:center; width:20px; height:20px; border-radius:50%; background:#12131c; }
+  .room-seat-text { align-items:center; width:100%; }
+  .room-seat-name { justify-content:center; gap:2px; width:100%; font-size:11.5px; line-height:1.3; }
+  .room-seat-name strong { font-weight:600; }
+  .room-seat-verified,.room-seat-line { display:none; }
+}
 .room-seat.is-empty { display:flex; flex:none; align-items:center; justify-content:center; }
 .room-seat-hole { display:block; width:30px; height:30px; box-sizing:border-box; border:1.5px dashed #8c76b0; border-radius:50%; }
 .room-seat-hole.is-open { cursor:pointer; transition:background .16s ease, border-color .16s ease; }
@@ -463,25 +474,21 @@
 .room-row.is-closed[data-status=EXPIRED] { opacity:.5; }
 .room-row.is-closed .room-seats { filter:grayscale(1); }
 
-/* 좁은 카드 — 좌석이 원 다섯 칸(얼굴 + 티어 배지 + 아래 닉네임). 빈 자리는 같은 크기의 점선 원 · n/정원 · [참가] 는 아래 줄 오른쪽. 찾는 포지션은 아이콘만. */
+/* 좁은 카드 — 조건 줄의 찾는 포지션은 아이콘만(글자는 풍선말). */
 @container room-card (max-width:599px) {
   .room-row-meta { column-gap:14px; }
   .room-row-meta>span+span::before { display:none; }
   .room-row-meta .room-role-icons b,.room-row-wanted-label { display:none; }
   .room-row-meta .room-role-icons.has-labels>span { padding:2px; background:none; }
+}
+/* 폰 폭 카드 — 좌석이 다섯 칸 격자(칸마다 얼굴 원 + 티어 배지 + 아래 닉네임 — 위 좌석 질의가 칸 폭을 보고 그렇게 바꾼다)가 되고 좌석 틀은 뺀다.
+   빈 자리는 얼굴과 같은 크기의 점선 원 · n/정원 · [참가] 는 아래 줄 오른쪽. 그보다 넓으면(분할 화면 등) 좌석 줄 한 줄에 좌석이 스스로 줄어든다. */
+@container room-card (max-width:459px) {
   .room-seat-row { flex-wrap:wrap; }
   .room-seats { display:grid; flex:1 1 100%; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; width:100%; }
-  .room-seat.is-filled { container-type:normal; }
-  .room-seat-button { flex-direction:column; justify-content:flex-start; gap:5px; height:auto; padding:8px 2px 4px; border:0; border-radius:12px; background:none; text-align:center; }
+  .room-seat-button,.room-seat.is-host .room-seat-button { border-color:transparent; border-radius:12px; background:none; }
   .room-seat-button:hover { background:#ffffff0a; }
-  .room-seat.is-host .room-seat-button { border:0; }
-  .room-seat-tier-badge { position:absolute; right:-6px; bottom:-4px; display:grid; place-items:center; width:20px; height:20px; border-radius:50%; background:#12131c; }
-  .room-seat-text { align-items:center; width:100%; }
-  .room-seat-name { justify-content:center; gap:2px; width:100%; font-size:11.5px; line-height:1.3; }
-  .room-seat-name strong { font-weight:600; }
-  .room-seat-verified,.room-seat-position,.room-seat-line { display:none; }
-  .room-seat-position-icon { display:inline-flex; flex:none; color:#d7c7f7; }
-  .room-seat.is-empty { align-self:start; padding-top:8px; }
+  .room-seat.is-empty { align-self:start; padding-top:7px; }
   .room-seat-hole { width:34px; height:34px; }
   .room-seats-tail { justify-content:flex-end; width:100%; }
 }

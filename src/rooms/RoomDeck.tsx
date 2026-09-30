@@ -169,8 +169,9 @@ function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMember })
 }
 
 /**
- * 채워진 좌석 하나 — 얼굴(방장이면 왕관) · 닉네임(+ 인증 표시) · 방장이면 글의 방장 포지션 · 두 줄째에 그 글의 사다리 티어와 승률 · KDA(좌석이 좁으면 티어만 — 좌석이 제 폭을 보고 고른다, CSS).
- * 누르면 프로필 창이다(전파를 끊는다 — 참가로 번지지 않게). 카드가 좁으면(폰 폭) 원 + 티어 배지 + 아래 닉네임 한 줄로 바뀐다(CSS 컨테이너 질의).
+ * 채워진 좌석 하나 — 얼굴(방장이면 왕관) · 닉네임(+ 인증 표시) · 방장이면 글의 방장 포지션 · 두 줄째에 그 글의 사다리 티어와 승률 · KDA.
+ * 좌석이 제 폭을 보고 줄인다(CSS 컨테이너 질의 — 분할 화면 · 사람이 많은 방) — 190px 이하면 숫자와 포지션 글자를 빼고(포지션은 닉네임 앞 아이콘), 132px 이하면 얼굴 원 + 티어 배지 위 · 닉네임 아래다.
+ * 누르면 프로필 창이다(전파를 끊는다 — 참가로 번지지 않게).
  */
 function RoomSeat({ room, member, selfId, popEnd, onMember }: { room: BoardRoom; member: BoardMember; selfId: string; popEnd: boolean; onMember: (room: BoardRoom, member: BoardMember) => void }) {
   const hostPosition = seatHostPosition(room, member);
@@ -218,8 +219,8 @@ function RoomSeat({ room, member, selfId, popEnd, onMember }: { room: BoardRoom;
  *   빈 원을 눌러도 같은 창이 뜬다(마우스 지름길 — 키보드 · 화면 읽기는 [참가] 하나다).
  * - **확정된 글**은 확정 순간의 파티원 전원(P-40 — `members` = 파티원 · `memberCount` = 파티 인원)이 좌석이고 빈 원 · [참가] 가 없다(머리는 `확정 · n명`).
  *   **만료된 글**은 방장 좌석만(서버가 `members` 를 비워 보낸다). 둘 다 흐리게 그린다.
- * - 카드가 600px 보다 좁으면(폰 폭 · 좁은 분할 화면) 좌석이 원 다섯 칸(얼굴 원 + 티어 배지 + 아래 닉네임)이 되고 `n/정원` · [참가] 는 그 아래 줄로 간다 —
- *   숫자 · 챔피언은 프로필 창(눌러서)에만 있다(CSS 컨테이너 질의 — `room-board.css` "좌석 줄").
+ * - 카드가 460px 보다 좁으면(폰 폭) 좌석이 원 다섯 칸(얼굴 원 + 티어 배지 + 아래 닉네임)이 되고 `n/정원` · [참가] 는 그 아래 줄로 간다 —
+ *   숫자 · 챔피언은 프로필 창(눌러서)에만 있다. 그보다 넓은데 좌석이 좁으면(분할 화면 · 사람이 많은 방) 좌석이 스스로 줄인다(`RoomSeat` · CSS 컨테이너 질의 — `room-board.css` "좌석 줄").
  */
 export function RoomDeck({ room, selfId, entering = false, onEntered, reveal = false, onRevealed, entryError, onSeat, onMember }: { room: BoardRoom; selfId: string; entering?: boolean; onEntered?: () => void; reveal?: boolean; onRevealed?: () => void; entryError: string | null; onSeat: (room: BoardRoom) => void; onMember: (room: BoardRoom, member: BoardMember) => void }) {
   const heading = useRef<HTMLHeadingElement>(null);
