@@ -108,7 +108,7 @@
 | ~~`BOARD_CHANGED` 재요청 묶기 간격~~ | **소유자가 정했다(2026-09-30)** — 처음 온 신호부터 **1.5초 ± 0.3초**(창마다 무작위 — 모든 브라우저가 한꺼번에 다시 받지 않게) 창에 최대 1번 · 뒤에 온 신호로 창을 늘리지 않는다 · 보이는 탭만 · 숨은 탭의 신호는 보일 때 한 번(`rooms/useRoomData.ts` · 전에는 프런트가 정한 2.5초) |
 | 재발급 흐름 | **401 뒤 한 번 재발급 → 재시도, SSE 401 → 재발급 → `EventSource` 새로 — 2단계에서 구현했다**(`api/http.ts` `refreshSession()` · `api/sse.ts`). **남은 것** — access 가 15분이라 **만료 전 선제 재발급**을 둘지(서버 장치 없음 · 지금은 401 을 맞고 나서 한 번). **모든 기기 로그아웃은 백엔드에도 없다** |
 | 라우트 이름 | `/signup/social` · `/login` · `/settings` 는 백엔드가 정한 경로다(따른다). 그 밖(`/app/home` …)은 프런트 마음이고 **방 화면은 `/app/party/:roomId`**(2026-09-30 부터 게시판 오른쪽 패널 — §3-23 · 게시판은 글 번호 · 자동 매칭은 UUID = `partyId` — 4단계 ✅ · `/app/party` 는 내 방 또는 홈으로) · **자동 매칭의 제안 화면 `/app/proposals/:proposalId` 도 같은 패널**(§3-26) |
-| WebRTC `signal` 의 모양 | 서버는 열어 보지 않는다 — `platform-api.md` "`signal` 의 권장 모양"(`kind: description \| candidate`)을 따른다. 원본의 `WebRtcSignalMessage{signalType: OFFER\|ANSWER\|ICE}` 를 옮길 때 그 모양으로 |
+| WebRTC `signal` 의 모양 | 서버는 열어 보지 않는다 — `platform-api.md` "`signal` 의 권장 모양"(`kind: description \| candidate`)을 따른다. 원본의 `WebRtcSignalMessage{signalType: OFFER\|ANSWER\|ICE}` 를 옮길 때 그 모양으로. **2026-09-30 — 선택 칸 넷을 더했다**: `from` · `to`(연결 번호 — 상대의 새로 고침 · 버린 연결을 가른다) · `id` · `re`(offer 번호 · answer 가 답하는 offer). 계약이 "재협상을 구분할 번호가 필요해지면 `signal` 안에 칸을 더한다 · 서버는 고칠 것이 없다" 고 적은 자리다. 협상 규칙(polite = 번호가 숫자로 큰 쪽 · 잃은 offer 다시 보내기 · 다시 하기 · 채팅 채널로 살아 있나 묻기)은 `src/webrtc/WebRtcPartyClient.ts` 머리 주석 · `START_HERE.md` §1 |
 
 ## 6. 작업 방식 · 커밋
 
