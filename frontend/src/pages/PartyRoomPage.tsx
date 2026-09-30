@@ -186,7 +186,7 @@ export function PartyRoomPage() {
         <div className="row" style={{ gap: 14 }}>
           {room ? <GameBadge game={room.game} /> : partyGame ? <GameBadge game={partyGame} /> : null}
           <div>
-            <h1>{room ? room.title : postId !== null ? `게시판 방 #${roomId}` : '자동 매칭 파티'}</h1>
+            <h1>{room ? room.title : postId !== null ? `게시판 방 #${roomId}` : '빠른매치 파티'}</h1>
             <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
               {room ? <Tag>{gameFullLabel(room.game)} · {modeChoiceLabel(room.game, room.modeKey, room.perspective)}</Tag>
                 : partyGame ? <Tag>{gameFullLabel(partyGame)}{partyMode ? ` · ${modeChoiceLabel(partyGame, partyMode)}` : ''}</Tag> : null}
@@ -208,7 +208,7 @@ export function PartyRoomPage() {
       {room?.description ? <p className="hint" style={{ marginBottom: 16 }}>{room.description}</p> : null}
       {room && hasPositions(room.game, room.modeKey) ? <p className="hint" style={{ marginBottom: 16 }}>찾는 포지션 <RoomRoles game={room.game} roles={room.wantedPositions} labels /></p> : null}
       {postId !== null && postError && !room ? <div className="banner warn" role="alert" style={{ marginBottom: 20 }}>글 정보를 불러오지 못했어요. <Button size="sm" onClick={() => void loadPost()}>다시 불러오기</Button></div> : null}
-      {postId === null ? <div className="banner" role="status" style={{ marginBottom: 20 }}>자동 매칭으로 확정된 파티의 방이에요. 처음부터 확정이라 새 사람은 들어오지 않아요. 글이 없어 파티원의 닉네임 · 프로필은 보이지 않아요(사용자 번호만).</div> : null}
+      {postId === null ? <div className="banner" role="status" style={{ marginBottom: 20 }}>빠른매치로 확정된 파티의 방이에요. 처음부터 확정이라 새 사람은 들어오지 않아요. 글이 없어 파티원의 닉네임 · 프로필은 보이지 않아요(사용자 번호만).</div> : null}
 
       <div className="stack">
         <Card className="voice-card">

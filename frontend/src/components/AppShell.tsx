@@ -83,7 +83,7 @@ export function AppShell() {
             <span className="nav-icon"><MenuIcon size={24} filled={isActive || alsoActive} />
               {item.to === '/app/messages' && messages.unreadCount > 0 ? <span className={`nav-badge${messages.unreadCount > 99 ? ' nav-badge-long' : ''}`} aria-label={`안 읽은 메시지 ${messages.unreadCount}개`}>{messages.unreadCount > 99 ? '99+' : messages.unreadCount}</span> : null}
             </span><span className="nav-label">{item.label}</span>
-            {item.to === '/app/home' && (request || roomId) ? <span className="nav-dot" role="img" aria-label={request ? '매칭 중' : '방에 참여 중'} /> : null}
+            {item.to === '/app/home' && (request || roomId) ? <span className="nav-dot" role="img" aria-label={request ? '빠른매치 중' : '방에 참여 중'} /> : null}
           </>}
         </NavLink>;
       })}
