@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -39,8 +40,18 @@ public class GameStatsStore {
     }
 
     /**
+     * 그 사람의 게임 계정 <b>전부</b>와 지금 적혀 있는 전적 — <b>쿼리 한 번이다</b>(LEFT JOIN · 게임 이름순). 로그인 · 재발급 때 다시 받을 계정을
+     * 고르는 데 쓴다({@link GameStatsLoginRefresher} — P-42). 없으면 빈 목록이다.
+     */
+    @Transactional(readOnly = true)
+    public List<GameAccountWithStats> findAll(Long userId)
+    {
+        return gameAccountRepository.findWithStatsByUserId(userId);
+    }
+
+    /**
      * 긁어 온 것을 적는다 — 전적 스냅숏 upsert 와 게임 계정 줄의 {@code external_id} · 사다리별 티어를 <b>한 트랜잭션</b>으로.
-     * 스냅숏이 바뀌었는데 식별자만 남는(또는 그 반대) 일이 없게 한다. 전적 갱신({@link GameStatsRefresher#refresh})의 길이다 —
+     * 스냅숏이 바뀌었는데 식별자만 남는(또는 그 반대) 일이 없게 한다. 로그인 · 재발급 때 뒤에서 다시 받기({@link GameStatsSyncWorker#syncIfStale} — P-42)의 길이다 —
      * {@code game_nickname} 은 건드리지 않는다(사용자가 적은 값이다).
      */
     @Transactional

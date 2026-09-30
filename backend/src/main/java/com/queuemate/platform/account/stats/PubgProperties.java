@@ -9,11 +9,11 @@ import java.time.Duration;
  * PUBG 전적 동기화의 설정값(2026-09-29 소유자 결정 — P-36). {@code application.yaml} 의 {@code platform.pubg.*} 이고 키 · 주소는 환경변수로 바꾼다.
  * 환경변수의 이름은 {@code contracts/platform-api.md} "전적을 긁는 것" 의 PUBG 절이 원본이다. {@link RiotProperties} 를 본떴다.
  *
- * <p><b>쿨타임 · 상한(30초)은 여기 없다</b> — LoL 과 같은 장치를 쓴다({@link RiotProperties#refreshCooldown()} · {@link RiotProperties#refreshTimeout()}).
- * 전적 갱신 요청 · 게임 계정 연결의 수치라 게임마다 두지 않았다(자물쇠 · 쿨타임 키도 게임 계정 번호 하나로 같이 쓴다).
+ * <p><b>연결의 상한(30초) · 로그인 때 다시 받는 기준(1시간)은 여기 없다</b> — LoL 과 같은 값을 쓴다({@link RiotProperties#refreshTimeout()} ·
+ * {@link RiotProperties#staleAfter()} — P-42). 게임마다 두지 않았다(자물쇠 키도 게임 계정 번호 하나로 같이 쓴다).
  *
  * @param apiKey         PUBG 개발자 키(환경변수 {@code PUBG_API_KEY}). <b>비어 있으면 긁는 일 자체를 하지 않는다</b> — 기동은 정상이고
- *                       PUBG 게임 계정 연결 · 전적 갱신이 503 이다. <b>로그에 찍지 않는다</b>({@link #toString()})
+ *                       PUBG 게임 계정 연결이 503 이고 로그인 때 다시 받지도 않는다. <b>로그에 찍지 않는다</b>({@link #toString()})
  * @param baseUrl        PUBG API 주소(환경변수 {@code PUBG_BASE_URL}). 테스트는 가짜 서버로 돌린다
  * @param connectTimeout PUBG 를 부를 때의 연결 타임아웃
  * @param readTimeout    PUBG 를 부를 때의 읽기 타임아웃. 긁는 것은 전용 풀이라 요청 스레드를 붙잡지는 않지만, 느린 응답에 전용 풀이 묶이면 안 된다

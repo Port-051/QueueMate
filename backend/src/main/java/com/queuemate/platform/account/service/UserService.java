@@ -199,18 +199,8 @@ public class UserService {
         return tiers;
     }
 
-    /**
-     * <b>전적 갱신</b> — 지금 게임사 API 에서 다시 받아 적고 <b>갱신된 게임 프로필</b>을 준다(2026-09-24 소유자 결정 ·
-     * {@code contracts/platform-api.md} "전적을 긁는 것"). 게임 계정을 저장할 때만 갱신되던 것을 사용자가 원할 때 하는 길이다.
-     *
-     * <p><b>{@code @Transactional} 이 없다 — 붙이면 안 된다.</b> 최대 30초를 기다리므로 그동안 DB 커넥션을 붙잡으면 커넥션 풀이 마른다.
-     * 읽고 쓰는 것은 {@code stats} 쪽이 각자 짧은 트랜잭션으로 한다({@code stats.GameStatsStore}).
-     * 거절과 상한은 {@link GameStatsRefresher} 가 정한다 — 이 메서드는 게임 이름만 보고 넘긴다.
-     */
-    public GameProfileResponse refreshGameStats(Long userId, Game game)
-    {
-        return GameProfileResponse.from(gameStatsRefresher.refresh(userId, game));
-    }
+    // (전적 갱신 refreshGameStats 는 2026-09-30 소유자 결정으로 없앴다 — 전적은 로그인 · 재발급 때 뒤에서 다시 받는다.
+    //  stats.GameStatsLoginRefresher · contracts/platform-api.md P-42)
 
     /** 게임 계정 연결을 끊는다. 없어도 성공이다 — 두 번 눌러도 결과가 같다 */
     @Transactional

@@ -65,7 +65,7 @@ public final class RoomErrors {
     /**
      * 503 {@code ROOM_STATE_UNAVAILABLE} + {@code Retry-After: 5}. 방의 상태는 Redis 에만 있어서 확인이 안 되면 통과시킬 수 없다 —
      * 정원을 못 세는데 입장시키거나, 방 안에 누가 있는지 모르는데 글을 고치게 하지 않는다. 헤더는 {@link ApiException#retryAfter} 로 싣는다
-     * (전적 갱신의 429 와 같은 길이다 — {@code GlobalExceptionHandler#handleApi}).
+     * (게임 계정 연결의 429 {@code TOO_MANY_STATS_REFRESHES} 와 같은 길이다 — {@code GlobalExceptionHandler#handleApi}).
      */
     public static ApiException stateUnavailable()
     {

@@ -17,7 +17,7 @@ public interface GameStatsProvider {
     Game game();
 
     /**
-     * 그 게임사 API 의 키가 있는가 — 없으면 긁지 않는다(게임 계정 연결 · 전적 갱신이 503 이다). 기동은 정상이다.
+     * 그 게임사 API 의 키가 있는가 — 없으면 긁지 않는다(게임 계정 연결이 503 이고 로그인 때 다시 받지도 않는다). 기동은 정상이다.
      * 키는 게임마다 따로다({@code RIOT_API_KEY} · {@code PUBG_API_KEY}).
      */
     boolean configured();
@@ -31,7 +31,8 @@ public interface GameStatsProvider {
      * @throws RiotIdNotFoundException     그 Riot ID 가 Riot 에 없다(LoL)
      * @throws PubgPlayerNotFoundException 그 shard 에 그 닉네임의 플레이어가 없다(PUBG)
      * @throws RiotApiException            Riot API 가 거절했거나 · 응답이 없다
-     * @throws PubgApiException            PUBG API 가 거절했거나 · 응답이 없다. 부른 쪽({@link GameStatsRefresher})이 둘 다 503 으로 옮긴다
+     * @throws PubgApiException            PUBG API 가 거절했거나 · 응답이 없다. 연결({@link GameStatsRefresher})은 둘 다 503 으로 옮기고,
+     *                                     로그인 때 다시 받기({@link GameStatsLoginRefresher})는 WARN 으로 끝낸다
      */
     StatsSnapshot fetch(String gameNickname, String server);
 }

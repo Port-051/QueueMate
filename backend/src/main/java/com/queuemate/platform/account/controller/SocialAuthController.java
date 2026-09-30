@@ -10,6 +10,7 @@ import com.queuemate.platform.account.oauth.OAuthStateCookie;
 import com.queuemate.platform.account.oauth.OAuthUser;
 import com.queuemate.platform.account.oauth.SocialSignupTokens;
 import com.queuemate.platform.account.service.SocialLoginService;
+import com.queuemate.platform.account.stats.GameStatsLoginRefresher;
 import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.security.SessionCookies;
 import com.queuemate.platform.common.security.TokenClaims;
@@ -41,6 +42,9 @@ import java.util.Optional;
  * <p>흐름 — {@code start}(동의 화면으로 302) → 제공자 → {@code callback}(302 세 갈래) → 처음 온 사람만 {@code pending} · {@code signup}.
  * <b>로그인된 채(유효한 {@code qm_access}) 콜백에 오면 잇기다</b> — 그 소셜 계정을 나에게 잇고 {@code /settings} 로 보낸다(2026-09-27 소유자 결정 · P-27).
  * <b>서버가 기억하는 것이 없다</b> — {@code state} 도 "가입을 기다리는 소셜 계정"도 쿠키에 있다(CLAUDE.md §5 "stateless").
+ *
+ * <p><b>로그인시킬 때(이미 가입한 사람의 콜백 · 소셜 가입) 낡은 전적을 뒤에서 다시 받게 한다</b>(2026-09-30 소유자 결정 · P-42 — {@link GameStatsLoginRefresher}).
+ * 잇기는 로그인이 아니라 부르지 않는다. 응답은 기다리지 않는다.
  */
 @Slf4j
 @RestController
@@ -61,6 +65,7 @@ public class SocialAuthController {
     private final SocialLoginService socialLoginService;
     private final SessionCookies sessionCookies;
     private final JwtDecoder jwtDecoder;
+    private final GameStatsLoginRefresher gameStatsLoginRefresher;
 
     /**
      * {@code state} 를 쿠키에 넣고 제공자의 동의 화면으로 보낸다. 브라우저가 링크로 직접 오는 요청이다(fetch 가 아니다).
@@ -129,7 +134,10 @@ public class SocialAuthController {
             {
                 log.info("소셜 로그인 userId={} provider={}", linkedUserId.get(), provider);
                 // 쿠키 둘이다 — access 와 refresh
-                return redirect(FRONT_HOME, sessionCookies.login(linkedUserId.get()));
+                List<String> cookies = sessionCookies.login(linkedUserId.get());
+                // 낡은 전적을 뒤에서 — 곧바로 돌아오고 예외를 내지 않는다(P-42)
+                gameStatsLoginRefresher.refreshStale(linkedUserId.get());
+                return redirect(FRONT_HOME, cookies);
             }
             String signupToken = socialSignupTokens.issue(provider, user);
             return redirect(FRONT_SOCIAL_SIGNUP, List.of(socialSignupTokens.cookie(signupToken).toString()));
@@ -164,6 +172,8 @@ public class SocialAuthController {
         AuthResponse response = socialLoginService.signup(pending.provider(), pending.providerUserId(), request);
         List<String> cookies = new ArrayList<>(sessionCookies.login(response.userId()));
         cookies.add(socialSignupTokens.expiredCookie().toString());
+        // 새 사용자라 받을 게임 계정이 아직 없다 — 진짜 로그인의 한 길이라 같이 부른다(P-42)
+        gameStatsLoginRefresher.refreshStale(response.userId());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .header(HttpHeaders.SET_COOKIE, SessionCookies.array(cookies))
                 .body(response);

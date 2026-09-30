@@ -8,10 +8,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MvcResult;
@@ -19,13 +22,16 @@ import org.springframework.test.web.servlet.ResultActions;
 import tools.jackson.databind.JsonNode;
 
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,6 +51,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PubgStatsSyncTest extends ApiTestSupport {
 
     static final FakePubgApi FAKE = new FakePubgApi();
+
+    @Autowired
+    @Qualifier(GameStatsAsyncConfig.LOGIN_EXECUTOR)
+    Executor gameStatsLoginExecutor;
 
     @DynamicPropertySource
     static void pubgProperties(DynamicPropertyRegistry registry)
@@ -74,13 +84,23 @@ class PubgStatsSyncTest extends ApiTestSupport {
         redisTemplate.opsForZSet().add(ladder, "SURVIVOR", 26);
     }
 
-    /** 이 앱의 키만 지운다 — 시즌 캐시 · 자물쇠 · 쿨타임({@code FLUSHDB} 금지) */
+    /**
+     * 로그인 때 다시 받기가 돌고 있으면 먼저 기다린다(하위 클래스의 {@code @AfterEach} 가 상위의 계정 삭제보다 먼저 돈다).
+     * 그 다음 이 앱의 키만 지운다 — 시즌 캐시 · 자물쇠({@code FLUSHDB} 금지. 쿨타임 키는 2026-09-30 에 전적 갱신과 함께 없어졌다 — P-42)
+     */
     @AfterEach
     void cleanKeys()
     {
+        try
+        {
+            awaitLoginRefreshIdle();
+        }
+        catch(AssertionError ignored)
+        {
+            // 기다려 주는 것이 목적이다 — 여기서 테스트를 깨지 않는다
+        }
         redisTemplate.delete(List.of(PubgSeasonCache.key("steam"), PubgSeasonCache.key("kakao")));
         deleteKeys(GameStatsSyncLock.SYNC_LOCK_PREFIX + "*");
-        deleteKeys(GameStatsRefreshCooldown.REFRESH_KEY_PREFIX + "*");
         FAKE.reset();
     }
 
@@ -148,8 +168,6 @@ class PubgStatsSyncTest extends ApiTestSupport {
         // 현재 시즌이 Redis 에 30일짜리로 남는다
         assertThat(redisTemplate.opsForValue().get(PubgSeasonCache.key("steam"))).isEqualTo(FakePubgApi.CURRENT_SEASON);
         assertThat(redisTemplate.getExpire(PubgSeasonCache.key("steam"), TimeUnit.DAYS)).isBetween(29L, 30L);
-        // 연결은 쿨타임을 찍지 않는다 — 전적 갱신 요청의 것이다
-        assertThat(redisTemplate.hasKey(GameStatsRefreshCooldown.REFRESH_KEY_PREFIX + gameAccountId)).isFalse();
 
         // users/me 도 같은 값이다
         mockMvc.perform(get("/api/v1/users/me").cookie(cookie))
@@ -399,49 +417,48 @@ class PubgStatsSyncTest extends ApiTestSupport {
         assertThat(output.getAll()).contains("사다리에 없다 tier=GOLD_5").contains("원문 tier=Gold subTier=5");
     }
 
-    // ---- 전적 갱신 ----
+    // ---- 로그인 때 다시 받기 (2026-09-30 소유자 결정 · P-42 — 사용자가 누르던 전적 갱신을 바꿨다) ----
 
     @Test
-    @DisplayName("PUBG 도 전적 갱신이 된다 — 200 이고 티어 · 전적을 새로 긁는다. 곧바로 또 누르면 429 TOO_MANY_STATS_REFRESHES")
-    void refreshWorksForPubg() throws Exception
+    @DisplayName("PUBG 도 재발급 때 1시간 넘게 지난 전적 · 티어를 뒤에서 다시 받는다 — 게임 닉네임 · 서버는 그대로다")
+    void reissueRefetchesStalePubg() throws Exception
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
         String accountId = stubSurvivor("steam", "fakeTaco");
         putPubg(cookie, "fakeTaco", "STEAM").andExpect(status().isOk());
         Long gameAccountId = gameAccountId(userIdOf(nickname));
+        Instant old = Instant.now().minus(Duration.ofHours(2)).truncatedTo(ChronoUnit.MILLIS);
+        touchSyncedAt(gameAccountId, old);
 
         // 그 사이에 다이아 3 으로 떨어졌고 스쿼드만 했다
         FAKE.stubRankedFixture("steam", accountId, "ranked-diamond-squad-only.json");
-        refresh(cookie)
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.gameNickname").value("fakeTaco"))
-                .andExpect(jsonPath("$.server").value("STEAM"))
-                .andExpect(jsonPath("$.tiers.RANKED").value("DIAMOND_3"))
-                .andExpect(jsonPath("$.stats.games").value(184));
-        assertThat(redisTemplate.hasKey(GameStatsRefreshCooldown.REFRESH_KEY_PREFIX + gameAccountId)).isTrue();
-
         int before = FAKE.calls();
-        MvcResult again = refresh(cookie)
-                .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.code").value("TOO_MANY_STATS_REFRESHES"))
-                .andReturn();
-        assertThat(again.getResponse().getHeader(HttpHeaders.RETRY_AFTER)).isNotNull();
-        assertThat(FAKE.calls()).isEqualTo(before);
+        reissue(nickname);
+        awaitLoginRefreshIdle();
+
+        assertThat(FAKE.calls()).isGreaterThan(before);
+        assertThat(syncedAt(gameAccountId)).isAfter(old);
+        mockMvc.perform(get("/api/v1/users/me").cookie(cookie))
+                .andExpect(jsonPath("$.gameAccounts[0].gameNickname").value("fakeTaco"))
+                .andExpect(jsonPath("$.gameAccounts[0].server").value("STEAM"))
+                .andExpect(jsonPath("$.gameAccounts[0].tiers.RANKED").value("DIAMOND_3"))
+                .andExpect(jsonPath("$.gameAccounts[0].stats.games").value(184));
     }
 
     @Test
-    @DisplayName("서버 없이 저장된 옛 PUBG 계정(자기신고이던 때)의 전적 갱신은 503 이다 — PUBG 를 부르지 않는다")
-    void refreshWithoutServerIs503() throws Exception
+    @DisplayName("서버 없이 저장된 옛 PUBG 계정(자기신고이던 때)은 로그인 때 다시 받지 않는다 — 물어볼 shard 가 없어 PUBG 를 부르지 않고 재발급은 200 이다")
+    void reissueSkipsPubgWithoutServer() throws Exception
     {
         String nickname = newNickname();
-        Cookie cookie = login(nickname);
-        insertGameAccount(userIdOf(nickname), "PUBG", "oldTaco", null);
+        login(nickname);
+        Long gameAccountId = insertGameAccount(userIdOf(nickname), "PUBG", "oldTaco", null);
 
-        refresh(cookie)
-                .andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.code").value("GAME_STATS_UNAVAILABLE"));
+        reissue(nickname);
+        awaitLoginRefreshIdle();
+
         assertThat(FAKE.calls()).isZero();
+        assertThat(jdbcTemplate.queryForList("select 1 from game_account_stats where game_account_id = ?", gameAccountId)).isEmpty();
     }
 
     // ---- 바탕 ----
@@ -471,9 +488,48 @@ class PubgStatsSyncTest extends ApiTestSupport {
                 .contentType(MediaType.APPLICATION_JSON).content(body));
     }
 
-    private ResultActions refresh(Cookie cookie) throws Exception
+    /** 재발급 — 그 사람의 refresh 쿠키로 {@code POST /api/v1/auth/refresh}. 새로 받은 refresh 는 끝나고 지워지게 적어 둔다 */
+    private void reissue(String nickname) throws Exception
     {
-        return mockMvc.perform(post("/api/v1/users/me/game-accounts/PUBG/refresh").cookie(cookie));
+        refreshCookieOf(mockMvc.perform(post("/api/v1/auth/refresh").cookie(refreshCookieFor(nickname)))
+                .andExpect(status().isOk())
+                .andReturn());
+    }
+
+    /** 로그인 때 다시 받기의 풀이 비기를 기다린다 — 요청 스레드가 응답 전에 던지므로 응답을 받은 뒤에 부르면 "받지 않는다"도 확인할 수 있다 */
+    private void awaitLoginRefreshIdle()
+    {
+        ThreadPoolTaskExecutor pool = (ThreadPoolTaskExecutor) gameStatsLoginExecutor;
+        long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
+        while(System.nanoTime() < deadline)
+        {
+            if(pool.getActiveCount() == 0 && pool.getThreadPoolExecutor().getQueue().isEmpty())
+            {
+                return;
+            }
+            try
+            {
+                Thread.sleep(50);
+            }
+            catch(InterruptedException e)
+            {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+        }
+        throw new AssertionError("로그인 뒤 전적 다시 받기가 끝나기를 기다렸지만 끝나지 않았다");
+    }
+
+    private Instant syncedAt(Long gameAccountId)
+    {
+        return ((Timestamp) jdbcTemplate.queryForMap("select synced_at from game_account_stats where game_account_id = ?", gameAccountId)
+                .get("synced_at")).toInstant();
+    }
+
+    private void touchSyncedAt(Long gameAccountId, Instant syncedAt)
+    {
+        jdbcTemplate.update("update game_account_stats set synced_at = ? where game_account_id = ?",
+                Timestamp.from(syncedAt), gameAccountId);
     }
 
     private JsonNode readBody(ResultActions actions) throws Exception

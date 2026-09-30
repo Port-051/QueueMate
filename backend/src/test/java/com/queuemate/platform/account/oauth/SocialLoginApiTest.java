@@ -1,6 +1,7 @@
 package com.queuemate.platform.account.oauth;
 
 import com.queuemate.platform.ApiTestSupport;
+import com.queuemate.platform.account.stats.GameStatsLoginRefresher;
 import com.queuemate.platform.common.security.TokenClaims;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterAll;
@@ -16,6 +17,7 @@ import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.web.util.UriComponents;
@@ -36,6 +38,10 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -80,6 +86,13 @@ class SocialLoginApiTest extends ApiTestSupport {
 
     @Autowired
     JwtEncoder jwtEncoder;
+
+    /**
+     * 로그인 때 전적 다시 받기(P-42)를 거는지만 본다 — 이 컨텍스트에는 게임사 키가 없어 진짜로는 아무것도 긁지 않는다(긁는 쪽은 {@code stats.GameStatsSyncTest}).
+     * 스파이는 테스트마다 초기화된다.
+     */
+    @MockitoSpyBean
+    GameStatsLoginRefresher gameStatsLoginRefresher;
 
     @AfterAll
     static void stopFakeProvider()
@@ -242,6 +255,43 @@ class SocialLoginApiTest extends ApiTestSupport {
         mockMvc.perform(get("/api/v1/users/me").cookie(accessAgain))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(equalTo(userId), Long.class));
+    }
+
+    @Test
+    @DisplayName("로그인시킬 때(소셜 가입 · 이미 가입한 사람의 콜백) 낡은 전적을 뒤에서 다시 받게 한다 — 가입 대기 콜백 · 잇기는 걸지 않는다 (P-42)")
+    void loginsTriggerStatsRefreshButLinkDoesNot() throws Exception
+    {
+        long kakaoId = randomKakaoId();
+        String code = newCode();
+        FAKE.stubUser("kakao", code, "{\"id\":" + kakaoId + "}");
+        Cookie state = startAndGetState("kakao");
+        Cookie signupCookie = callback("kakao", code, state.getValue(), state)
+                .andExpect(status().isFound())
+                .andReturn().getResponse().getCookie("qm_social_signup");
+        // 처음 온 사람의 콜백은 로그인이 아니다 — 아직 사용자가 없다
+        verify(gameStatsLoginRefresher, never()).refreshStale(anyLong());
+
+        String nickname = newNickname();
+        MvcResult signup = socialSignup(signupCookie, nickname).andExpect(status().isCreated()).andReturn();
+        refreshCookieOf(signup);
+        Long userId = userIdOf(nickname);
+        verify(gameStatsLoginRefresher, times(1)).refreshStale(userId);
+
+        // 이미 가입한 사람의 콜백 — 로그인이다
+        String secondCode = newCode();
+        FAKE.stubUser("kakao", secondCode, "{\"id\":" + kakaoId + "}");
+        Cookie secondState = startAndGetState("kakao");
+        MvcResult again = callback("kakao", secondCode, secondState.getValue(), secondState)
+                .andExpect(status().isFound())
+                .andReturn();
+        refreshCookieOf(again);
+        assertThat(again.getResponse().getHeader(HttpHeaders.LOCATION)).isEqualTo(FRONT + "/");
+        verify(gameStatsLoginRefresher, times(2)).refreshStale(userId);
+
+        // 로그인된 채 온 콜백은 잇기다 — 로그인이 아니라 걸지 않는다
+        MvcResult linked = discordCallback(randomDiscordId(), again.getResponse().getCookie("qm_access"));
+        assertThat(linked.getResponse().getHeader(HttpHeaders.LOCATION)).isEqualTo(FRONT + "/settings?linked=DISCORD");
+        verify(gameStatsLoginRefresher, times(2)).refreshStale(anyLong());
     }
 
     @Test

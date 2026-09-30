@@ -2,6 +2,7 @@ package com.queuemate.platform.account.controller;
 
 import com.queuemate.platform.account.dto.AuthResponse;
 import com.queuemate.platform.account.service.AuthService;
+import com.queuemate.platform.account.stats.GameStatsLoginRefresher;
 import com.queuemate.platform.common.error.ErrorResponse;
 import com.queuemate.platform.common.security.RefreshTokens;
 import com.queuemate.platform.common.security.SessionCookies;
@@ -22,6 +23,8 @@ import java.util.Optional;
  *
  * <p>로그인시키는 쿠키는 <b>둘</b>이다 — access({@code qm_access})와 refresh({@code qm_refresh}). 무엇을 싣는지는
  * {@link SessionCookies} 가 정한다(2026-09-23 소유자 결정 — Redis 가 죽으면 access 하나만 나간다).
+ *
+ * <p><b>재발급이 성공하면 낡은 전적을 뒤에서 다시 받게 한다</b>(2026-09-30 소유자 결정 · P-42 — {@link GameStatsLoginRefresher}). 응답은 기다리지 않는다.
  */
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -34,6 +37,7 @@ public class AuthController {
     private final AuthService authService;
     private final SessionCookies sessionCookies;
     private final RefreshTokens refreshTokens;
+    private final GameStatsLoginRefresher gameStatsLoginRefresher;
 
     /**
      * <b>재발급</b> — access 가 만료되기 전에 프런트가 부른다. 본문이 없고 <b>{@code qm_refresh} 쿠키로만</b> 받는다.
@@ -42,6 +46,9 @@ public class AuthController {
      * <p>거절은 <b>전부 같은 401 {@code INVALID_REFRESH_TOKEN}</b> 이다(쿠키가 없든 · 아무 문자열이든 · 이미 쓴 값이든 · 사용자가 사라졌든 ·
      * Redis 를 못 읽었든). 그때도 <b>refresh 쿠키를 지워 준다</b> — 못 쓰는 값을 브라우저가 계속 들고 있게 두지 않는다.
      * access 쿠키는 건드리지 않는다 — 아직 살아 있을 수 있고, 여기서 지우면 재발급 실패가 곧 로그아웃이 된다.
+     *
+     * <p><b>성공하면 그 사람의 낡은 전적(1시간 넘게 지난 LoL · PUBG)을 뒤에서 다시 받게 한다</b>(P-42). access 15분 · refresh 7일이고 refresh 가
+     * 쓸 때마다 새 7일이라 자주 여는 사람은 진짜 로그인을 거의 하지 않아서다. 풀에 던지고 곧바로 돌아온다 — 이 응답을 늦추지도 실패시키지도 않는다.
      */
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(
@@ -55,8 +62,10 @@ public class AuthController {
                     .body(ErrorResponse.of(INVALID_REFRESH_TOKEN, "다시 로그인해 주세요"));
         }
         AuthResponse response = user.orElseThrow();
+        String[] cookies = SessionCookies.array(sessionCookies.login(response.userId()));
+        gameStatsLoginRefresher.refreshStale(response.userId());
         return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, SessionCookies.array(sessionCookies.login(response.userId())))
+                .header(HttpHeaders.SET_COOKIE, cookies)
                 .body(response);
     }
 

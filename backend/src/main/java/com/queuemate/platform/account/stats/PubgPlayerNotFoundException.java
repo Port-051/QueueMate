@@ -6,7 +6,7 @@ package com.queuemate.platform.account.stats;
  *
  * <p><b>PUBG 게임 계정 연결</b>({@code PUT …/game-accounts/PUBG} — 2026-09-29 소유자 결정 · P-36)이 이것을 받아 <b>404 {@code PUBG_PLAYER_NOT_FOUND}</b> 로 옮기고
  * 저장하지 않는다. {@link PubgApiException} 과 가르는 이유는 {@link RiotIdNotFoundException} 과 같다 — 사용자가 고칠 수 있는 실패다(닉네임 · 서버를 잘못 골랐다).
- * 전적 갱신에서 이것이 나면 LoL 과 같이 503 이다.
+ * 로그인 · 재발급 때 뒤에서 다시 받다가 나면 다른 실패와 같이 WARN 한 줄로 끝내고 기존 전적 줄을 지우지 않는다(P-42).
  */
 public class PubgPlayerNotFoundException extends RuntimeException {
 

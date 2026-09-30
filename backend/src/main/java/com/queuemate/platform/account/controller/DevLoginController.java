@@ -3,6 +3,7 @@ package com.queuemate.platform.account.controller;
 import com.queuemate.platform.account.dto.AuthResponse;
 import com.queuemate.platform.account.dto.DevLoginRequest;
 import com.queuemate.platform.account.service.DevLoginService;
+import com.queuemate.platform.account.stats.GameStatsLoginRefresher;
 import com.queuemate.platform.common.security.SessionCookies;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -40,11 +41,14 @@ public class DevLoginController {
 
     private final DevLoginService devLoginService;
     private final SessionCookies sessionCookies;
+    private final GameStatsLoginRefresher gameStatsLoginRefresher;
 
-    public DevLoginController(DevLoginService devLoginService, SessionCookies sessionCookies)
+    public DevLoginController(DevLoginService devLoginService, SessionCookies sessionCookies,
+                              GameStatsLoginRefresher gameStatsLoginRefresher)
     {
         this.devLoginService = devLoginService;
         this.sessionCookies = sessionCookies;
+        this.gameStatsLoginRefresher = gameStatsLoginRefresher;
         // 뜰 때 한 줄 — 운영 로그에 이것이 보이면 DEV_LOGIN_ENABLED 가 잘못 들어간 것이다
         log.warn("개발용 로그인(POST /api/v1/auth/dev-login)이 켜져 있다 — 운영에서는 DEV_LOGIN_ENABLED 를 두지 마라");
     }
@@ -52,14 +56,17 @@ public class DevLoginController {
     /**
      * 그 닉네임의 사용자가 있으면 그 사람으로, 없으면 만들어서 <b>로그인시킨다</b> — 200 {@code {userId, nickname}} + {@code Set-Cookie} 둘
      * ({@code qm_access} · {@code qm_refresh}. Redis 가 죽었으면 access 하나 — {@link SessionCookies#login}). 닉네임 규칙을 어기면 400 {@code VALIDATION_FAILED}.
+     * 진짜 로그인과 같이 <b>낡은 전적을 뒤에서 다시 받게 한다</b>(P-42 — {@link GameStatsLoginRefresher}. 응답은 기다리지 않는다).
      */
     @PostMapping("/dev-login")
     public ResponseEntity<AuthResponse> devLogin(@Valid @RequestBody(required = false) DevLoginRequest request)
     {
         String nickname = (request == null || request.nickname() == null) ? DEFAULT_NICKNAME : request.nickname();
         AuthResponse response = devLoginService.login(nickname);
+        String[] cookies = SessionCookies.array(sessionCookies.login(response.userId()));
+        gameStatsLoginRefresher.refreshStale(response.userId());
         return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, SessionCookies.array(sessionCookies.login(response.userId())))
+                .header(HttpHeaders.SET_COOKIE, cookies)
                 .body(response);
     }
 }

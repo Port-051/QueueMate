@@ -77,7 +77,7 @@ public class PubgApiClient {
         else
         {
             // 키를 찍지 않는다. 환경변수의 이름만 남긴다
-            log.info("PUBG_API_KEY 가 없어 PUBG 전적을 긁지 않는다 — PUBG 게임 계정 연결 · 전적 갱신이 503 이다");
+            log.info("PUBG_API_KEY 가 없어 PUBG 전적을 긁지 않는다 — PUBG 게임 계정 연결이 503 이고 로그인 때 다시 받지도 않는다");
         }
     }
 
