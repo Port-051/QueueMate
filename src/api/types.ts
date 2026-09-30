@@ -391,9 +391,22 @@ export type BoardChangedPayload = Record<string, never>;
  * WebRTC 시그널 — 받기는 SSE `WEBRTC_SIGNAL`, 보내기는 `POST /rooms/{roomId}/signals {toUserId, signal}`(202). 서버는 `signal` 을 열어 보지 않는다.
  * 모양은 클라이언트끼리의 약속이고 platform-api.md "`signal` 의 권장 모양" 을 따른다 — 브라우저의 WebRTC API 가 내주는 객체 그대로에 `kind` 만 씌운다.
  * 자동 매칭 파티의 방은 `roomId = partyId`(UUID), 게시판 방은 글 번호의 십진 문자열이다.
+ *
+ * 2026-09-30 — 협상을 가르는 칸을 더했다(계약이 "재협상을 구분할 번호가 필요해지면 `signal` 안에 칸을 더한다 · 서버는 고칠 것이 없다" 고 적은 자리 —
+ * `webrtc/WebRtcPartyClient.ts` 머리 주석). 전부 선택 칸이라 옛 모양도 그대로 받는다.
  */
+export interface RoomSignalRouting {
+  /** 보낸 쪽 `RTCPeerConnection` 의 번호(연결마다 새 UUID) — 상대가 새로 고쳤는지 · 연결을 새로 만들었는지를 이것으로 안다. */
+  from?: string;
+  /** 받을 쪽 연결의 번호(보낸 쪽이 아는 경우) — 버린 연결 · 닫힌 탭에 가던 시그널을 받는 쪽이 버린다. */
+  to?: string;
+}
 export type RoomSignal =
-  | { kind: 'description'; description: RTCSessionDescriptionInit }
-  | { kind: 'candidate'; candidate: RTCIceCandidateInit };
+  | ({ kind: 'description'; description: RTCSessionDescriptionInit;
+      /** offer 의 번호 — 같은 offer 를 다시 보내도 같다(받는 쪽이 되풀이를 알아본다). */
+      id?: string;
+      /** answer 가 답하는 offer 의 번호. */
+      re?: string } & RoomSignalRouting)
+  | ({ kind: 'candidate'; candidate: RTCIceCandidateInit } & RoomSignalRouting);
 export interface SendRoomSignalRequest { toUserId: string; signal: RoomSignal; }
 export interface WebRtcSignalPayload { roomId: string; fromUserId: string; signal: RoomSignal; }

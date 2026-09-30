@@ -179,8 +179,9 @@ test('시나리오 10 — 두 사람이 화면으로 같은 방 · 마이크 켜
     }
   };
 
-  // 시그널을 먼저 제안하는 쪽(offer)은 사용자 번호의 문자열이 작은 쪽이다(`WebRtcPartyClient#syncMembers`).
-  const [offerer, answerer] = a.userId < b.userId ? [sideA, sideB] : [sideB, sideA];
+  // 곧바로 제안하는 쪽(offer · impolite)은 사용자 번호가 **숫자로** 작은 쪽이다 — 큰 쪽도 0.8초 뒤 제안할 수 있고 glare 는 perfect negotiation 이 가른다
+  // (2026-09-30 — `WebRtcPartyClient` 머리 주석 · `compareUserIds`). 누가 제안했든 검사는 양쪽을 다 본다 — 이름은 단계 제목에만 쓴다.
+  const [offerer, answerer] = Number(a.userId) < Number(b.userId) ? [sideA, sideB] : [sideB, sideA];
 
   await test.step(`peer 연결 connected · 제안한 쪽(${offerer.name}) → 답한 쪽(${answerer.name}) 음성이 흐른다`, async () => {
     await expectInboundAudio(answerer, 1);
