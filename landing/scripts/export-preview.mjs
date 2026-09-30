@@ -4,9 +4,16 @@ import {renderSite} from '../src/render.mjs';
 const root=new URL('../',import.meta.url);
 const config=JSON.parse(await readFile(new URL('site.config.json',root),'utf8'));
 const css=await readFile(new URL('src/site.css',root),'utf8');
-const svg=await readFile(new URL('public/assets/queuemate-wordmark.svg',root));
+
 let html=renderSite(config,{}).html;
 html=html.replace('<link rel="stylesheet" href="/assets/site.css">',`<style>${css}</style>`);
-html=html.replaceAll('src="/assets/queuemate-wordmark.svg"',`src="data:image/svg+xml;base64,${svg.toString('base64')}"`);
+const images = [...new Set([...html.matchAll(/src="(\/assets\/[a-zA-Z0-9_./-]+\.(?:svg|webp|png))"/g)].map(m=>m[1]))];
+for (const file of images) {
+  if (file.includes('..')) throw new Error('Unsafe review image path');
+  const bytes=await readFile(new URL('public'+file,root));
+  const type=file.endsWith('.svg')?'image/svg+xml':file.endsWith('.png')?'image/png':'image/webp';
+  const uri=`data:${type};base64,${bytes.toString('base64')}`;
+  html=html.replaceAll(`src="${file}"`,`src="${uri}"`).replaceAll(`href="${file}"`,`href="${uri}"`);
+}
 await writeFile(new URL('preview.html',root),html);
 console.log('Single-file preview → preview.html (always noindex; do not deploy this review copy)');

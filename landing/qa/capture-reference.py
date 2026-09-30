@@ -62,7 +62,7 @@ with sync_playwright() as p:
                 api_requests.append({'path':path,'method':r.request.method})
                 data=None
                 if path=='/api/v1/users/me':data=me
-                elif path=='/api/v1/posts':data={'posts':posts,'nextCursor':None}
+                elif path=='/api/v1/posts':data={'posts':[{**posts[0],'memberCount':3,'members':posts[0]['members']+[member(900001,'예시 플레이어')]}]+posts[1:] if state['room'] else posts,'nextCursor':None}
                 elif path=='/api/v1/posts/600':data={**posts[0],'memberCount':3,'members':posts[0]['members']+[member(900001,'예시 플레이어')]} if state['room'] else posts[0]
                 elif path=='/api/v1/rooms/me':data={'roomId':'600' if state['room'] else None}
                 elif path=='/api/v1/rooms/600/members':data={'roomId':'600','hostId':str(posts[0]['hostId']),'members':[str(x['userId']) for x in posts[0]['members']]+['900001']}
@@ -99,8 +99,7 @@ with sync_playwright() as p:
             capture('quick-match-board')
             page.get_by_role('button',name='빠른매치 조건 열기').click()
             expect(page.get_by_role('dialog')).to_be_visible()
-            role=page.get_by_role('dialog').get_by_role('button',name='미드',exact=True)
-            if role.count():role.first.click()
+            page.get_by_role('dialog').locator('label.single-role-option').filter(has_text='미드').click()
             capture('quick-match-settings')
             page.get_by_role('button',name='빠른매치 창 닫기').click()
             state['room']=True

@@ -6,7 +6,7 @@
   "title": "롤 듀오 구하기·파티 찾기 | 큐메이트 QueueMate",
   "description": "롤 듀오 구하기부터 파티 찾기까지. 티어·포지션·마이크 조건을 확인하고, 모집방에서 대화하며 팀원을 찾는 큐메이트입니다. 현재 서비스를 준비하고 있습니다.",
   "contentApproved": false,
-  "uiApproved": true,
+  "uiApproved": false,
   "allowIndexing": false,
   "appReady": false,
   "media": {
@@ -19,7 +19,7 @@
   },
   "reference": {
     "repository": "Port-051/QueueMate",
-    "branch": "codex/room-card-board",
-    "commit": "7ee7177294b064d01ecda6934a7ba6d5d65e8172"
+    "branch": "feature/quick-match-ui",
+    "commit": "904cce415181aeb8a8802fc398f9be9e0835b1fe"
   }
 }

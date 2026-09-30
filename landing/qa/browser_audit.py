@@ -37,6 +37,12 @@ try:
                 page.on('requestfailed', lambda r: failed.append(r.url))
                 page.on('request', lambda r: external.append(r.url) if not r.url.startswith(a.url) else None)
                 response = page.goto(a.url, wait_until='networkidle')
+                # Scroll real lazy images into view and wait for decoding before full-page capture.
+                for image in page.locator('img').all():
+                    image.scroll_into_view_if_needed()
+                    image.evaluate('(image) => image.decode()')
+                page.evaluate('window.scrollTo(0,0)')
+                page.wait_for_timeout(150)
                 check(f'{width}px: homepage loads', response.status == 200 and page.locator('h1').count() == 1)
                 check(f'{width}px: no horizontal page overflow', page.evaluate('document.documentElement.scrollWidth <= innerWidth'))
                 check(f'{width}px: no broken images', page.locator('img').evaluate_all('(els) => els.every(i => i.complete && i.naturalWidth > 0)'))
