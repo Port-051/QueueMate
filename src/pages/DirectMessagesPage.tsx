@@ -174,7 +174,7 @@ export function DirectMessagesPage() {
     return <li className={`dm-contact${isSelected ? ' is-selected' : ''}${unread ? ' is-unread' : ''}`} key={contact.userId}>
       <button type="button" className="dm-contact-select" aria-label={`${contact.nickname} 대화${unread ? `, 읽지 않은 메시지 ${unread}개` : ''}`}
         aria-current={isSelected ? 'true' : undefined} ref={isSelected ? selectedButtonRef : undefined} onClick={() => choose(contact)}>
-        <Avatar name={contact.nickname} avatarUrl={contact.avatarUrl} size={44} />
+        <Avatar name={contact.nickname} size={44} />
         <span className="dm-contact-text"><span className="dm-contact-top"><b>{contact.nickname}</b>{isPinned ? <span className="dm-pinned-mark" role="img" aria-label="상단 고정"><ConversationPin /></span> : null}</span>
           <span className="dm-contact-preview">
             <span>{thread?.draft ? <><em>임시저장</em> {thread.draft}</> : last ? `${last.senderId === userId ? '나: ' : ''}${last.text}` : relationship(contact)}</span>
@@ -205,7 +205,7 @@ export function DirectMessagesPage() {
         {management ? <FriendManagementPanel tab={management} setTab={setManagement} onClose={closeManagement} onChoose={choose} /> : selected && userId ? <>
           <header className="dm-thread-header">
             <button type="button" className="dm-icon-btn dm-back" aria-label="대화 목록으로" onClick={backToList}><BackArrow /></button>
-            <Avatar name={selected.nickname} avatarUrl={selected.avatarUrl} size={40} />
+            <Avatar name={selected.nickname} size={40} />
             <div className="dm-thread-person"><h2 ref={headingRef} tabIndex={-1}>{selected.nickname}</h2><span>{relationship(selected)}</span></div>
             <div className="dm-thread-actions">
               <button type="button" className="dm-icon-btn dm-call-button" aria-label="통화 시작" title="음성 연결 준비 중" disabled onClick={() => setVoiceContact(selected.userId)}><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 2.5 9 7.7a1.5 1.5 0 0 1-.4 1.7l-1.5 1.2a15 15 0 0 0 6.3 6.3l1.2-1.5a1.5 1.5 0 0 1 1.7-.4l5.2 2.4c.5.2.8.8.6 1.4l-.6 2c-.2.7-.9 1.2-1.6 1.2C10.1 22 2 13.9 2 4.1c0-.7.5-1.4 1.2-1.6l2-.6c.6-.2 1.2.1 1.4.6Z" /></svg></button>
@@ -233,7 +233,7 @@ export function DirectMessagesPage() {
 
     {newConversation ? <Modal title="새 대화" closeLabel="새 대화 닫기" className="dm-new-modal" onClose={() => setNewConversation(false)}>
       <div className="dm-search"><IconSearch size={17} /><input type="search" autoFocus placeholder="이름 검색" aria-label="대화 상대 검색" value={newQuery} onChange={event => setNewQuery(event.target.value)} /></div>
-      <ul className="dm-new-contacts">{contacts.filter(contact => contact.nickname.toLocaleLowerCase().includes(newQuery.trim().toLocaleLowerCase())).map(contact => <li key={contact.userId}><button type="button" onClick={() => choose(contact)}><Avatar name={contact.nickname} avatarUrl={contact.avatarUrl} size={40} /><span><b>{contact.nickname}</b><small>{relationship(contact)}</small></span><span aria-hidden="true">›</span></button></li>)}</ul>
+      <ul className="dm-new-contacts">{contacts.filter(contact => contact.nickname.toLocaleLowerCase().includes(newQuery.trim().toLocaleLowerCase())).map(contact => <li key={contact.userId}><button type="button" onClick={() => choose(contact)}><Avatar name={contact.nickname} size={40} /><span><b>{contact.nickname}</b><small>{relationship(contact)}</small></span><span aria-hidden="true">›</span></button></li>)}</ul>
       {!contacts.some(contact => contact.nickname.toLocaleLowerCase().includes(newQuery.trim().toLocaleLowerCase())) ? <p className="dm-list-empty">{newQuery ? '검색 결과가 없습니다' : '함께한 팀원이 여기에 표시됩니다.'}</p> : null}
     </Modal> : null}
 
@@ -299,7 +299,7 @@ function Conversation({ ownerId, ownerName, voiceOpen, closeVoice, contact, conv
         return <div className={`dm-message-entry${grouped ? ' is-grouped' : ''}`} key={message.id}>
           {showDay ? <div className="dm-date"><span>{messageDay(message.createdAt)}</span></div> : null}
           <div className={`dm-message${own ? ' is-own' : ''}`}>
-            <Avatar name={own ? ownerName : contact.nickname} avatarUrl={own ? undefined : contact.avatarUrl} size={34} />
+            <Avatar name={own ? ownerName : contact.nickname} size={34} />
             <div className="dm-message-body"><div className="dm-message-meta"><b>{own ? ownerName : contact.nickname}</b>
             <time dateTime={message.createdAt} aria-label={`${own ? '내 메시지' : contact.nickname}, ${messageTime(message.createdAt)}`}>{messageTime(message.createdAt)}</time></div>
             <p title={message.example ? '예시 대화' : '이 브라우저에 저장된 메시지'}>{message.text}</p>

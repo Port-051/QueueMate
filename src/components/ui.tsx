@@ -43,78 +43,43 @@ export function Tag({ children, tone = 'default' }: { children: ReactNode; tone?
   return <span className={`tag${tone === 'default' ? '' : ` ${tone}`}`}>{children}</span>;
 }
 
-/**
- * 고를 수 있는 아바타 8종. `public/avatars/`에 두고 루트 상대 경로로 가리킨다.
- * `src/assets`에서 import하면 Vite가 콘텐츠 해시를 붙이는데(`avatar-03-Dxyz.webp`),
- * 그 URL을 사용자 프로필로 저장하면 다음 빌드에서 404가 된다. 경로가 곧 저장값이므로 고정한다.
- */
-export const AVATAR_CHOICES: readonly string[] = [
-  '/avatars/avatar-01.webp',
-  '/avatars/avatar-02.webp',
-  '/avatars/avatar-03.webp',
-  '/avatars/avatar-04.webp',
-  '/avatars/avatar-05.webp',
-  '/avatars/avatar-06.webp',
-  '/avatars/avatar-07.webp',
-  '/avatars/avatar-08.webp',
-];
+/** 글자 하나가 넓어 한 글자만으로 이니셜이 되는 문자 — 한글 · 한자 · 가나. */
+const WIDE_INITIAL = /^[\p{Script=Hangul}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
 
 /**
- * 닉네임 → 0..n-1 결정론적 배정.
- * 서버가 프로필 이미지를 주기 전까지 쓰는 플레이스홀더라서, 같은 닉네임이면
- * 새로고침하거나 다른 화면으로 옮겨도 항상 같은 얼굴이 나와야 한다.
- * djb2로 섞고 xorshift-multiply로 한 번 더 흩는다.
- * djb2만 쓰면 하위 비트가 약해서 buckets가 8일 때 특정 얼굴로 쏠린다.
+ * 닉네임의 이니셜 — 라틴 문자 · 숫자로 시작하면 앞 두 글자를 대문자로("demo-10" → "DE"),
+ * 한글 · 한자 · 가나로 시작하면 앞 한 글자("김철수" → "김"). 같은 닉네임이면 늘 같다.
+ * 코드 포인트로 자른다(이모지 같은 서로게이트 쌍을 반으로 쪼개지 않는다).
  */
-function stableIndex(seed: string, buckets: number): number {
-  let h = 5381;
-  for (let i = 0; i < seed.length; i += 1) h = (Math.imul(h, 33) ^ seed.charCodeAt(i)) >>> 0;
-  h ^= h >>> 16;
-  h = Math.imul(h, 0x45d9f3b) >>> 0;
-  h ^= h >>> 16;
-  return h % buckets;
+function avatarInitials(label: string): { text: string; wide: boolean } {
+  const chars = [...label];
+  if (!chars.length) return { text: '?', wide: false };
+  const wide = WIDE_INITIAL.test(label);
+  return { text: chars.slice(0, wide ? 1 : 2).join('').toUpperCase(), wide };
 }
 
-/** API에 저장하는 프리셋 경로는 유지하고 화면에서만 배포 하위 경로를 붙인다. */
-export function avatarImageSrc(src: string): string {
-  return src.startsWith('/avatars/') ? `${import.meta.env.BASE_URL}${src.slice(1)}` : src;
-}
-
-export function Avatar({ name, size = 38, status, avatarUrl }: {
+/**
+ * 사람의 얼굴 자리 — 닉네임 이니셜을 보라 원에 그린다(2026-09-30 소유자 지시 — 캐릭터 그림 대신).
+ * 색은 닉네임으로 ±30° 돌린다(같은 닉네임이면 늘 같은 색 — 그림 시절의 폴백 그대로).
+ * 스크린 리더에는 숨긴다 — 이름은 옆 닉네임 · 버튼 이름이 말한다(그림도 `alt=""` 였다).
+ */
+export function Avatar({ name, size = 38, status }: {
   name?: string | null;
   size?: number;
   status?: 'online' | 'away' | 'offline';
-  /** 서버가 준 프로필 이미지. 없으면 닉네임으로 배정한 플레이스홀더를 쓴다. */
-  avatarUrl?: string | null;
 }) {
   // 서버가 이름을 빼먹어도 화면 전체가 죽지는 않게 한다. 빈 칸 하나가 흰 화면보다 낫다.
   const label = (name ?? '').trim();
-  const initial = label.slice(0, 2).toUpperCase() || '?';
+  const initials = avatarInitials(label);
   const hue = [...label].reduce((a, c) => a + c.charCodeAt(0), 0) % 60;
-  const [failed, setFailed] = useState<string[]>([]);
-  // 이름이 없으면 플레이스홀더를 배정할 시드가 없다. 이니셜 폴백만 그린다.
-  const placeholder = label ? AVATAR_CHOICES[stableIndex(label, AVATAR_CHOICES.length)] : null;
-  // 서버 이미지 → 플레이스홀더 → 이니셜. 깨진 src는 다시 고르지 않는다.
-  const src = [avatarUrl, placeholder].find((s): s is string => Boolean(s) && !failed.includes(s as string)) ?? null;
   return (
-    <span className="avatar-wrap" style={{ width: size, height: size }}>
+    <span className="avatar-wrap" style={{ width: size, height: size }} aria-hidden="true">
       <span
         className="avatar"
-        style={{ width: size, height: size, fontSize: size * 0.36, filter: `hue-rotate(${hue - 30}deg)` }}
+        style={{ width: size, height: size, fontSize: size * (initials.wide ? 0.42 : 0.36), filter: `hue-rotate(${hue - 30}deg)` }}
       >
-        {/* 이미지는 알파가 있어서 이니셜을 같이 그리면 뒤로 비친다. 폴백일 때만 그린다. */}
-        {src ? null : initial}
+        {initials.text}
       </span>
-      {src ? (
-        <img
-          className="avatar-img"
-          src={avatarImageSrc(src)}
-          alt=""
-          aria-hidden="true"
-          draggable={false}
-          onError={() => setFailed((prev) => (prev.includes(src) ? prev : [...prev, src]))}
-        />
-      ) : null}
       {status ? <i className={`avatar-status ${status}`} /> : null}
     </span>
   );

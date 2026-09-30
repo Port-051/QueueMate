@@ -9,7 +9,7 @@ import { isApiError } from '../api/error';
 import type { GameKey, GameProfile, LolMostChampion, SocialProvider } from '../api/types';
 import { GameAccountForm, STATS_SOURCE, statsFromApi } from '../components/GameAccountForm';
 import { IconCheck, IconLogout, IconPencil, IconPlus, IconShield } from '../components/icons';
-import { AVATAR_CHOICES, avatarImageSrc, Avatar, Button, ConfirmDialog, Field, Modal, Tag, useToast } from '../components/ui';
+import { Avatar, Button, ConfirmDialog, Field, Modal, Tag, useToast } from '../components/ui';
 import { GAMES } from '../domain/gameConfig';
 import { GAME_CATALOG, TIER_LADDER_LABEL } from '../domain/gameCatalog';
 import { gameFullLabel, rankLabel } from '../domain/labels';
@@ -126,8 +126,6 @@ export function MyInfoPage() {
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [nicknameOpen, setNicknameOpen] = useState(false);
   const [unlinkTarget, setUnlinkTarget] = useState<GameKey | null>(null);
-  // 모달 안에서만 쓰는 임시 선택이다. 저장 전까지 실제 프로필은 건드리지 않는다.
-  const [picked, setPicked] = useState<string | null>(null);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const [unlinkSocialTarget, setUnlinkSocialTarget] = useState<SocialProvider | null>(null);
@@ -169,10 +167,7 @@ export function MyInfoPage() {
     }
   };
 
-  const openAvatarPicker = () => {
-    setPicked(null);
-    setAvatarOpen(true);
-  };
+  const openAvatarPicker = () => setAvatarOpen(true);
 
   const pickFile = async (file: File | undefined) => {
     // Clear immediately so the same file can be selected again after a failed upload.
@@ -183,7 +178,6 @@ export function MyInfoPage() {
     setSavingAvatar(true);
     try {
       await uploadAvatar(file);
-      setPicked(null);
       setAvatarOpen(false);
       toast('프로필 사진을 변경했습니다', 'ok');
     } catch (err) {
@@ -318,30 +312,12 @@ export function MyInfoPage() {
               <span>{savingAvatar ? '저장 중…' : '내 사진 올리기'}</span>
             </button>
             <input ref={fileInput} type="file" accept={AVATAR_TYPES.join(',')} aria-label="프로필 사진 파일" hidden disabled={savingAvatar} onChange={event => void pickFile(event.target.files?.[0])} />
-            <button
-              type="button"
-              className="avatar-opt"
-              aria-pressed={picked === null}
-              disabled={savingAvatar}
-              onClick={() => setPicked(null)}
-            >
+            {/* 고를 수 있던 캐릭터 그림 8종은 2026-09-30 에 걷었다(소유자 지시 — 얼굴은 닉네임 이니셜이다). 남은 것은 "기본" 하나다. */}
+            <button type="button" className="avatar-opt" aria-pressed="true" disabled={savingAvatar}>
               <Avatar name={user?.nickname ?? '?'} size={64} />
               <span>기본</span>
-              {picked === null ? <span className="ap-check" aria-hidden="true"><IconCheck size={12} /></span> : null}
+              <span className="ap-check" aria-hidden="true"><IconCheck size={12} /></span>
             </button>
-            {AVATAR_CHOICES.map((src, i) => (
-              <button
-                key={src}
-                type="button"
-                className="avatar-opt"
-                aria-pressed={picked === src}
-                disabled={savingAvatar}
-                onClick={() => setPicked(src)}
-              >
-                <img className="ap-img" src={avatarImageSrc(src)} alt={`아바타 ${i + 1}`} draggable={false} />
-                {picked === src ? <span className="ap-check" aria-hidden="true"><IconCheck size={12} /></span> : null}
-              </button>
-            ))}
           </div>
           <p className="hint" style={{ marginTop: 14 }}>PNG·JPEG·WebP · 최대 5MB · 정사각형으로 저장</p>
         </Modal>

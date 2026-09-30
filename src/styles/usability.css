@@ -201,7 +201,6 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
   .modal h2 { font-size: 20px; }
   .avatar-picker { gap: 8px; }
   .avatar-opt { min-height: 104px; padding: 12px 6px; }
-  .avatar-opt .ap-img { width: 56px; height: 56px; }
   .toast-host { left: 16px; right: 16px; bottom: 16px; }
   .toast { min-width: 0; }
   .banner { flex-wrap: wrap; }
