@@ -7,7 +7,7 @@
   "description": "롤 같이 할 사람을 찾고 있나요? 큐메이트는 조건에 맞는 듀오·파티 자동 매칭, 모집방 참여, 같은 방에서의 음성·채팅을 한 화면에 모았습니다. 현재 서비스 준비 중입니다.",
   "contentApproved": true,
   "uiApproved": true,
-  "allowIndexing": false,
+  "allowIndexing": true,
   "appReady": false,
   "media": {
     "ogImage": ""

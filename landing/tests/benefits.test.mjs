@@ -38,9 +38,9 @@ test('AI text covers both finding methods and conversation during recruitment',(
  for(const phrase of ['자동 매칭','직접 파티 찾기','정원이 다 차기 전','마이크 권한','친구 추가·파티 초대','예시 데이터']) assert.ok(llms.includes(phrase),phrase);
  assert.match(llms,/매칭 완료 시간이나 절약 시간은 보장하지 않습니다/);
 });
-test('copy approval remains separate from service release and indexing',()=>{
+test('search approval keeps the app offline and local preview unindexed',()=>{
  assert.equal(c.contentApproved,true);assert.equal(c.uiApproved,true);
- assert.equal(c.allowIndexing,false);assert.equal(c.appReady,false);
+ assert.equal(c.allowIndexing,true);assert.equal(c.appReady,false);
  assert.match(html,/서비스 준비 중/);assert.match(html,/noindex, nofollow/);
  assert.doesNotMatch(html,/href="https:\/\/app\.queue-mate\.com/);
 });

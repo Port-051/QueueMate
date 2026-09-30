@@ -10,10 +10,10 @@ test('purchased domain and planned app address are exact',()=>{
   assert.equal(config.origin,'https://queue-mate.com');
   assert.equal(config.appUrl,'https://app.queue-mate.com/');
 });
-test('changing domain does not publish the site or connect the app',()=>{
-  assert.equal(config.allowIndexing,false);
-  assert.equal(config.appReady,false);
-  const r=renderSite(config,{VERCEL_ENV:'production'});
+test('domain settings alone never bypass an explicit indexing refusal',()=>{
+  assert.equal(draft.allowIndexing,false);
+  assert.equal(draft.appReady,false);
+  const r=renderSite(draft,{VERCEL_ENV:'production'});
   assert.equal(r.mode.indexable,false);
   assert.equal(r.sitemap,null);
   assert.doesNotMatch(r.html,/href="https:\/\/app\.queue-mate\.com/);

@@ -7,7 +7,7 @@ const base=JSON.parse(await readFile(new URL('../site.config.json',import.meta.u
 const draft=()=>({...structuredClone(base),contentApproved:false,uiApproved:false,allowIndexing:false,appReady:false});
 const approved=()=>({...draft(),contentApproved:true,uiApproved:true,allowIndexing:true});
 const live=()=>({...approved(),appReady:true,description:'원하는 조건의 롤 듀오와 파티를 큐메이트에서 찾아보세요.'});
-test('default configuration keeps publication and app connection off',()=>{assert.equal(base.allowIndexing,false);assert.equal(base.appReady,false);});
+test('approved prelaunch configuration permits search but keeps app connection off',()=>{assert.equal(base.allowIndexing,true);assert.equal(base.appReady,false);});
 test('unapproved production stays noindex with no sitemap',()=>{const r=renderSite(draft(),{VERCEL_ENV:'production'});assert.match(r.html,/content="noindex, nofollow"/);assert.equal(r.sitemap,null);});
 test('approved production has one canonical URL and sitemap entry',()=>{const r=renderSite(approved(),{VERCEL_ENV:'production'});assert.match(r.html,/index, follow, max-image-preview:large/);assert.equal((r.html.match(/rel="canonical"/g)||[]).length,1);assert.match(r.sitemap,/<loc>https:\/\/queue-mate.com\/<\/loc>/);});
 test('VERCEL preview cannot be changed to production by local override',()=>{assert.equal(resolveMode(approved(),{VERCEL_ENV:'preview',BUILD_TARGET:'production'}).indexable,false);});
@@ -95,8 +95,8 @@ test('metadata-only edits preserve the entire approved body byte for byte',()=>{
     assert.equal(body(renderSite(current,env).html),body(renderSite(previous,env).html));
   }
 });
-test('keyword copy preserves canonical, publication guards and prelaunch CTA',()=>{
-  const r=renderSite(base,{VERCEL_ENV:'production'});
+test('keyword copy preserves canonical, preview exclusion and prelaunch CTA',()=>{
+  const r=renderSite(base,{VERCEL_ENV:'preview'});
   assert.ok(r.html.includes('<link rel="canonical" href="https://queue-mate.com/">'));
   assert.equal(base.appUrl,'https://app.queue-mate.com/');
   assert.match(r.html,/name="robots" content="noindex, nofollow"/);
