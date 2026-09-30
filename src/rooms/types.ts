@@ -56,7 +56,7 @@ export interface BoardRoom {
   /** ISO-8601. */
   createdAt: string;
   host: BoardMember;
-  /** 지금 방 안에 있는 사람(방장 먼저). 끝난 글은 비어 있다. */
+  /** 모집 중인 글은 지금 방 안에 있는 사람(방장 먼저), **확정된 글은 확정 순간의 파티원 전원**(P-40 — 방이 없어져도 남는다), 만료된 글은 비어 있다. */
   members: BoardMember[];
   /** 원본 응답 — 고치기 폼이 기본값으로 쓴다. */
   post: PostResponse;
