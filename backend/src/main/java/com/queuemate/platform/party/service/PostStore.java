@@ -30,9 +30,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -288,18 +292,40 @@ public class PostStore {
     }
 
     /**
-     * 확정된 글 가운데 <b>파티가 아직 열려 있는</b> 글 — 목록 · 단건이 그 글들의 방 키만 읽어 "방이 없어졌나" 를 본다({@code PostService#observe}).
-     * 파티가 이미 닫힌 글의 방 키는 다시 읽지 않는다.
+     * 확정된 글들의 <b>파티</b> — 열려 있는가와 <b>확정 순간의 파티원</b>. <b>쿼리 한 번이다</b>(글 수만큼 되풀이하지 않는다 — {@link PartyRecordRepository#findBoardParties}).
+     * 목록 · 단건이 ① 파티가 열려 있는 글만 방 키를 읽어 "방이 없어졌나" 를 보고(파티 닫힘 — P-25) ② 확정된 글의 카드를 파티원으로 그린다
+     * (2026-09-30 소유자 결정 — P-40. {@code PostService#observe}).
+     *
+     * @return 글 번호 → 그 글의 파티. <b>파티 기록이 없는 글은 결과에 없다</b>(확정 기록은 글의 확정과 같은 트랜잭션이라 정상이면 없을 수 없다 — SQL 로 손으로 넣은 글 등)
      */
     @Transactional(readOnly = true)
-    public Set<Long> findActivePartyPostIds(Collection<Long> postIds)
+    public Map<Long, BoardParty> findBoardParties(Collection<Long> postIds)
     {
-        return postIds.isEmpty() ? Set.of() : new LinkedHashSet<>(partyRecordRepository.findActivePartyPostIds(postIds));
+        if(postIds.isEmpty())
+        {
+            return Map.of();
+        }
+        Map<Long, Boolean> active = new LinkedHashMap<>();
+        Map<Long, List<BoardParty.Seat>> seats = new HashMap<>();
+        for(Object[] row : partyRecordRepository.findBoardParties(postIds))
+        {
+            Long postId = ((Number) row[0]).longValue();
+            active.put(postId, "ACTIVE".equals(row[1]));
+            List<BoardParty.Seat> of = seats.computeIfAbsent(postId, id -> new ArrayList<>());
+            // 파티원이 한 명도 없는 파티는 LEFT JOIN 의 빈 줄 하나다(탈퇴로 전원이 지워졌다 등)
+            if(row[2] != null)
+            {
+                of.add(new BoardParty.Seat(((Number) row[2]).longValue(), Boolean.TRUE.equals(row[3])));
+            }
+        }
+        Map<Long, BoardParty> parties = new LinkedHashMap<>();
+        active.forEach((postId, open) -> parties.put(postId, new BoardParty(open, List.copyOf(seats.get(postId)))));
+        return parties;
     }
 
     /**
      * 그 게임의 <b>아직 열려 있는 자동 매칭 파티</b>의 {@code match_party_id}(= 방의 {@code roomId}, UUID) — 목록이 그 방 키를 같이 읽어 "방이 없어졌나" 를
-     * 본다({@code PostService#closeVanishedMatchParties} — 2026-09-28 소유자 결정). 자동 매칭 파티는 글이 없어 {@link #findActivePartyPostIds} 에 잡히지 않는다.
+     * 본다({@code PostService#closeVanishedMatchParties} — 2026-09-28 소유자 결정). 자동 매칭 파티는 글이 없어 {@link #findBoardParties} 에 잡히지 않는다.
      * 많아야 200개다({@link PartyRecordRepository#findActiveMatchPartyIds}).
      */
     @Transactional(readOnly = true)

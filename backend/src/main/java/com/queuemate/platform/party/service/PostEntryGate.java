@@ -21,6 +21,7 @@ import java.util.Set;
  * <p>두 앱이던 때 입장권 발급({@code POST /api/v1/posts/{postId}/ticket})이 서명하기 전에 하던 검사 그대로다 — 글을 읽고,
  * <b>차단으로 숨겨진 글이면 404 {@code POST_NOT_FOUND}</b>(없는 글과 똑같이. <b>상태보다 먼저</b> 본다 — 차단 관계인 사람에게는 "모집이 끝났다"도 알려 주지 않는다),
  * <b>모집 중이 아니면 409 {@code POST_NOT_RECRUITING}</b>. 차단은 <b>방장 + 그 순간 방 안 전원</b>과 본다(D-20 — 목록에서만 숨기고 입장은 되면 의미가 없다).
+ * <b>확정된 글은 확정 순간의 파티원 전원도 같이 본다</b>(2026-09-30 — P-40. 목록 · 단건이 그들을 카드로 보여 주고 그들과 차단을 보므로 같은 범위다 — Claude 가 정한 세부).
  *
  * <p><b>{@code PostService} 를 물지 않는 따로 선 빈이다</b> — {@code PostService} 가 {@code RoomService} 를 부르고 {@code RoomMemberService} 가 이것을 부른다.
  * 이것이 {@code PostService} 를 물면 생성자 주입끼리 고리가 생길 수 있어 필요한 것({@link PostStore} · {@link RoomService} · {@link BlockReader})만 문다.
@@ -65,10 +66,21 @@ public class PostEntryGate {
         {
             return;
         }
-        Set<Long> others = new HashSet<>(state.members());
+        Set<Long> shown = new HashSet<>(state.members());
+        if(post.getStatus() == PostStatus.CONFIRMED)
+        {
+            // 확정된 글은 목록 · 단건이 확정 순간의 파티원 전원을 카드로 보여 주고 그들과 차단을 본다(2026-09-30 — P-40). 단건이 404 인 글에
+            // 입장이 409 로 "모집이 끝났다" 를 알려 주지 않게 같은 범위로 본다 — 확정된 글에 들어오려는 드문 요청에만 쿼리 하나가 더 나간다
+            BoardParty party = postStore.findBoardParties(List.of(postId)).get(postId);
+            if(party != null)
+            {
+                party.seats().forEach(seat -> shown.add(seat.userId()));
+            }
+        }
+        Set<Long> others = new HashSet<>(shown);
         others.add(post.getHostId());
         others.remove(me);
-        if(PostService.isHidden(me, post, state.members(), blockReader.findBlockedEitherWay(me, others)))
+        if(PostService.isHidden(me, post, shown, blockReader.findBlockedEitherWay(me, others)))
         {
             throw PostStore.postNotFound();
         }

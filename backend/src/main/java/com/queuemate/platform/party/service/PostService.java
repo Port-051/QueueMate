@@ -13,6 +13,7 @@ import com.queuemate.platform.party.dto.PostCreateRequest;
 import com.queuemate.platform.party.dto.PostListResponse;
 import com.queuemate.platform.party.dto.PostResponse;
 import com.queuemate.platform.party.dto.PostUpdateRequest;
+import com.queuemate.platform.party.service.BoardParty.Seat;
 import com.queuemate.platform.room.RoomErrors;
 import com.queuemate.platform.room.domain.ConfirmResult;
 import com.queuemate.platform.room.domain.RoomState;
@@ -48,8 +49,11 @@ import java.util.stream.Collectors;
  * 거꾸로 방의 입장이 글을 보는 것은 이 클래스가 아니라 따로 선 창구 {@link PostEntryGate} 다 — 이 클래스가 {@link RoomService} 를 물므로
  * 방 쪽이 이 클래스를 물면 빈 순환이 된다.
  *
- * <p><b>글이 몇 개든 왕복 수가 같다</b> — 글 쿼리 하나(+ 찾는 포지션 하나), Redis 파이프라인 한 번, 프로필은 게임마다 한 번(많아야 세 번),
- * 차단은 한 번. 이 목록은 게시판 신호가 올 때마다 다시 불린다 — 글 수나 사람 수만큼 되풀이하지 마라.
+ * <p><b>글이 몇 개든 왕복 수가 같다</b> — 글 쿼리 하나(+ 찾는 포지션 하나), 확정된 글의 파티와 파티원 하나(확정된 글이 있을 때 — {@link PostStore#findBoardParties}),
+ * Redis 파이프라인 한 번, 프로필은 게임마다 한 번(많아야 세 번), 차단은 한 번. 이 목록은 게시판 신호가 올 때마다 다시 불린다 — 글 수나 사람 수만큼 되풀이하지 마라.
+ *
+ * <p><b>카드({@code members})는 글의 상태에 따라 다르다</b>(2026-09-30 소유자 결정 — P-40) — 모집 중이면 <b>방 안에 지금 있는 사람</b>, 확정이면 <b>확정 순간의 파티원 전원</b>
+ * (방에서 나간 뒤에도 — DB 의 {@code party_members}), 만료면 비어 있다({@code host} 는 늘 채운다).
  *
  * <p><b>이 클래스에는 트랜잭션이 없다</b> — DB 에 닿는 토막은 {@link PostStore} 가 짧게 끝낸다. Redis 를 기다리는 동안 DB 커넥션을 붙잡지 않는다.
  *
@@ -91,7 +95,7 @@ public class PostService {
         ModePositions modePositions = PostValidation.modePositions(gameConfig, game, request.mode());
         RecruitPost post = postStore.create(me, request, modePositions, now());
         // 방금 만든 방이다 — 방장 혼자 들어 있는 것을 안다. 방 키를 다시 읽지 않는다
-        return renderAll(me, List.of(post), Map.of(post.getId(), Set.of(me)), false).getFirst();
+        return renderAll(me, List.of(post), Map.of(post.getId(), List.of(new Seat(me, true))), false).getFirst();
     }
 
     /**
@@ -219,7 +223,7 @@ public class PostService {
             // 마지막으로 "읽은" 줄이다 — 보여 준 줄이 아니다(차단으로 숨겨진 글을 다음 페이지에서 또 읽지 않게)
             cursor = page.getLast().getId();
             Observed observed = observe(page, now, false);
-            visible.addAll(renderAll(me, observed.posts(), observed.members(), true));
+            visible.addAll(renderAll(me, observed.posts(), observed.seats(), true));
             if(!more)
             {
                 break;
@@ -235,7 +239,7 @@ public class PostService {
     {
         RecruitPost post = postStore.find(postId).orElseThrow(PostStore::postNotFound);
         Observed observed = observe(List.of(post), now(), false);
-        return renderAll(me, observed.posts(), observed.members(), true).stream()
+        return renderAll(me, observed.posts(), observed.seats(), true).stream()
                 .findFirst().orElseThrow(PostStore::postNotFound);
     }
 
@@ -250,19 +254,26 @@ public class PostService {
 
     // ---- 방 키 읽기와 옮겨 적기 ----
 
-    /** 방 키를 읽은 뒤의 글과, 글마다 방 안에 지금 있는 사람. 모집 중이 아닌 글은 {@code members} 에 없다(멤버를 비운다) */
-    private record Observed(List<RecruitPost> posts, Map<Long, Set<Long>> members) {
+    /**
+     * 방 키를 읽은 뒤의 글과, 글마다 카드로 보여 줄 사람 — <b>모집 중인 글은 방 안에 지금 있는 사람, 확정된 글은 확정 순간의 파티원 전원</b>
+     * (2026-09-30 소유자 결정 — P-40). 만료된 글은 {@code seats} 에 없다(멤버를 비운다 — P-20 그대로)
+     */
+    private record Observed(List<RecruitPost> posts, Map<Long, List<Seat>> seats) {
     }
 
     /**
-     * 모집 중인 글들의 방 키를 <b>한 번에</b> 읽고, 알게 된 것을 글에 옮겨 적은 뒤, 지금의 글과 방 안 사람을 돌려준다.
+     * 모집 중인 글들의 방 키를 <b>한 번에</b> 읽고, 알게 된 것을 글에 옮겨 적은 뒤, 지금의 글과 카드로 보여 줄 사람을 돌려준다.
      *
      * <p><b>확정된 글 가운데 파티가 아직 열려 있는 것도 읽는다</b>(2026-09-26 소유자 결정 — 확정된 방이 없어질 때 파티가 닫힌다). 전원이 말없이 사라져
-     * 키가 수명으로 없어진 방은 그 순간 돌아가는 코드가 없어, 글의 만료와 같은 방식으로 여기서 발견한다. 파티가 이미 닫힌 글은 읽지 않는다(쿼리 한 번으로 거른다).
-     * 확정된 글의 방 안 사람은 여전히 내려 주지 않는다(멤버를 비운다 — 응답은 바뀌지 않았다).
+     * 키가 수명으로 없어진 방은 그 순간 돌아가는 코드가 없어, 글의 만료와 같은 방식으로 여기서 발견한다. 파티가 이미 닫힌 글은 읽지 않는다.
+     *
+     * <p><b>확정된 글의 카드는 방이 아니라 파티다</b>(2026-09-30 소유자 결정 — "확정 순간의 파티원 전원". P-40) — {@code parties} · {@code party_members} 에서 읽고,
+     * 방에서 나간 사람도 · 방이 없어진 뒤에도 · 파티가 닫힌 뒤에도 그대로 보여 준다. 그 전에는 확정된 글도 멤버를 비워 방장 카드만 나갔다(나간 뒤에는 볼 방이 없어서).
+     * 파티를 읽는 쿼리는 "열린 파티" 를 가리는 쿼리와 <b>같은 한 번</b>이다({@link PostStore#findBoardParties}) — 목록의 SQL 문장 수가 늘지 않는다.
+     * 이 조회가 방금 확정으로 옮겨 적은 글(자가 치유)만 옮겨 적은 뒤에 한 번 더 읽는다.
      *
      * <p><b>방 키를 읽지 못하면</b>({@code failClosed} 가 아닐 때) 방 정보를 비운 채 글만 돌려주고 <b>아무것도 옮겨 적지 않는다</b> —
-     * 못 읽은 것을 "방이 없다"로 읽으면 멀쩡한 글이 전부 만료된다.
+     * 못 읽은 것을 "방이 없다"로 읽으면 멀쩡한 글이 전부 만료된다. 확정된 글의 파티원은 DB 에서 오므로 그때도 나간다.
      */
     private Observed observe(List<RecruitPost> posts, Instant now, boolean failClosed)
     {
@@ -274,17 +285,21 @@ public class PostService {
                 .filter(post -> post.getStatus() == PostStatus.CONFIRMED)
                 .map(RecruitPost::getId)
                 .toList();
-        Set<Long> openParties = postStore.findActivePartyPostIds(confirmedIds);
+        Map<Long, BoardParty> parties = new HashMap<>(postStore.findBoardParties(confirmedIds));
+        Set<Long> openParties = parties.entrySet().stream()
+                .filter(entry -> entry.getValue().active())
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
         List<Long> toRead = new ArrayList<>(recruitingIds);
         toRead.addAll(openParties);
         if(toRead.isEmpty())
         {
-            return new Observed(posts, Map.of());
+            return new Observed(posts, seatsOf(posts, Map.of(), parties));
         }
         Map<Long, RoomState> states = readRoomStates(toRead, failClosed);
         if(states == null)
         {
-            return new Observed(posts, Map.of());
+            return new Observed(posts, seatsOf(posts, Map.of(), parties));
         }
 
         RoomObservations observations = new RoomObservations();
@@ -306,18 +321,43 @@ public class PostService {
         {
             postStore.applyObservations(observations, now);
             current = reread(posts, observations.statusTouched());
+            // 방금 확정으로 옮겨 적은 글(자가 치유 — 또는 옮겨 적으려는 사이 다른 요청이 확정한 글)의 파티는 위에서 읽지 않았다 — 그것만 한 번 더 읽는다
+            List<Long> newlyConfirmed = current.stream()
+                    .filter(post -> post.getStatus() == PostStatus.CONFIRMED && !parties.containsKey(post.getId()))
+                    .map(RecruitPost::getId)
+                    .toList();
+            parties.putAll(postStore.findBoardParties(newlyConfirmed));
         }
+        return new Observed(current, seatsOf(current, states, parties));
+    }
 
-        Map<Long, Set<Long>> members = new HashMap<>();
-        for(RecruitPost post : current)
+    /**
+     * 글마다 카드로 보여 줄 사람 — 모집 중인 글은 <b>방 안에 지금 있는 사람</b>(방 키를 못 읽었으면 없다), 확정된 글은 <b>확정 순간의 파티원 전원</b>
+     * (2026-09-30 — P-40. 파티 기록이 없으면 없다), 만료된 글은 없다(P-20 그대로).
+     */
+    private static Map<Long, List<Seat>> seatsOf(List<RecruitPost> posts, Map<Long, RoomState> states, Map<Long, BoardParty> parties)
+    {
+        Map<Long, List<Seat>> seats = new HashMap<>();
+        for(RecruitPost post : posts)
         {
-            RoomState state = states.get(post.getId());
-            if(post.getStatus() == PostStatus.RECRUITING && state != null)
+            if(post.getStatus() == PostStatus.RECRUITING)
             {
-                members.put(post.getId(), state.members());
+                RoomState state = states.get(post.getId());
+                if(state != null)
+                {
+                    seats.put(post.getId(), state.members().stream().map(userId -> new Seat(userId, post.isHost(userId))).toList());
+                }
+            }
+            else if(post.getStatus() == PostStatus.CONFIRMED)
+            {
+                BoardParty party = parties.get(post.getId());
+                if(party != null)
+                {
+                    seats.put(post.getId(), party.seats());
+                }
             }
         }
-        return new Observed(current, members);
+        return seats;
     }
 
     /**
@@ -448,25 +488,25 @@ public class PostService {
     /**
      * 글들을 응답의 모양으로 만든다. 프로필은 게임마다 한 번, 차단은 전부 합쳐 한 번 읽는다.
      *
-     * @param members      글마다 카드로 보여 줄 사람들. 없는 글은 멤버가 비어 있다
+     * @param seats        글마다 카드로 보여 줄 사람들(모집 중이면 방 안 사람, 확정이면 확정 순간의 파티원 — {@link #observe}). 없는 글은 멤버가 비어 있다
      * @param filterBlocked 차단 관계로 숨겨진 글을 뺄지. 방금 내가 쓴 글처럼 걸러질 수 없는 경우에만 끈다
      */
-    private List<PostResponse> renderAll(Long me, List<RecruitPost> posts, Map<Long, Set<Long>> members,
+    private List<PostResponse> renderAll(Long me, List<RecruitPost> posts, Map<Long, List<Seat>> seats,
                                          boolean filterBlocked)
     {
-        Set<Long> blocked = filterBlocked ? blockedAmong(me, posts, members) : Set.of();
+        Set<Long> blocked = filterBlocked ? blockedAmong(me, posts, seats) : Set.of();
         List<RecruitPost> visible = posts.stream()
-                .filter(post -> !isHidden(me, post, members.getOrDefault(post.getId(), Set.of()), blocked))
+                .filter(post -> !isHidden(me, post, idsOf(seats.get(post.getId())), blocked))
                 .sorted(BOARD_ORDER)
                 .toList();
 
-        // 게임마다 한 번 — 카드의 profile 은 "그 글의 게임"에 연결한 게임 계정이다
+        // 게임마다 한 번 — 카드의 profile 은 "그 글의 게임"에 연결한 게임 계정이다. 확정된 글의 파티원도 여기에 같이 싣는다(따로 읽지 않는다)
         Map<Game, Set<Long>> idsByGame = new EnumMap<>(Game.class);
         for(RecruitPost post : visible)
         {
             Set<Long> ids = idsByGame.computeIfAbsent(post.getGame(), game -> new HashSet<>());
             ids.add(post.getHostId());
-            ids.addAll(members.getOrDefault(post.getId(), Set.of()));
+            ids.addAll(idsOf(seats.get(post.getId())));
         }
         Map<Game, Map<Long, UserGameProfile>> profiles = new EnumMap<>(Game.class);
         idsByGame.forEach((game, ids) -> profiles.put(game, gameProfileReader.findProfiles(ids, game)));
@@ -474,9 +514,20 @@ public class PostService {
         List<PostResponse> responses = new ArrayList<>();
         for(RecruitPost post : visible)
         {
-            responses.add(render(post, members.getOrDefault(post.getId(), Set.of()), profiles.get(post.getGame())));
+            responses.add(render(post, seats.getOrDefault(post.getId(), List.of()), profiles.get(post.getGame())));
         }
         return responses;
+    }
+
+    private static Set<Long> idsOf(List<Seat> seats)
+    {
+        if(seats == null || seats.isEmpty())
+        {
+            return Set.of();
+        }
+        Set<Long> ids = new HashSet<>();
+        seats.forEach(seat -> ids.add(seat.userId()));
+        return ids;
     }
 
     /**
@@ -491,16 +542,16 @@ public class PostService {
             Comparator.comparing(RecruitPost::getId, Comparator.reverseOrder());
 
     /**
-     * 글들의 방장과 방 안 사람 가운데 나와 <b>어느 방향으로든</b> 차단 관계인 사람 — <b>쿼리 한 번이다</b>(글마다 묻지 않는다).
+     * 글들의 방장과 카드에 오를 사람(방 안 사람 · 확정된 글의 파티원) 가운데 나와 <b>어느 방향으로든</b> 차단 관계인 사람 — <b>쿼리 한 번이다</b>(글마다 묻지 않는다).
      * 결과를 응답에 싣지 마라 — 누가 나를 차단했는지가 새어 나간다.
      */
-    private Set<Long> blockedAmong(Long me, List<RecruitPost> posts, Map<Long, Set<Long>> members)
+    private Set<Long> blockedAmong(Long me, List<RecruitPost> posts, Map<Long, List<Seat>> seats)
     {
         Set<Long> others = new HashSet<>();
         for(RecruitPost post : posts)
         {
             others.add(post.getHostId());
-            others.addAll(members.getOrDefault(post.getId(), Set.of()));
+            others.addAll(idsOf(seats.get(post.getId())));
         }
         others.remove(me);
         return blockReader.findBlockedEitherWay(me, others);
@@ -508,8 +559,12 @@ public class PostService {
 
     /**
      * 나에게 숨겨야 하는 글인가 — <b>방 안의 누구든, 또는 방장</b>과 나 사이에 차단이 있으면 그렇다(D-20). 들어가면 음성으로 바로 마주치기 때문이다.
+     * <b>확정된 글은 방 안 사람 대신 확정 순간의 파티원 전원과 본다</b>(2026-09-30 — P-40. Claude 가 정한 세부) — 카드로 보여 주는 사람과 같은 범위다.
+     * 차단 관계인 사람의 카드가 나에게 보이는 일이 없게 하려는 것이다(방에서 나간 파티원이라도 카드에는 남는다).
      * <b>내가 쓴 글은 숨기지 않는다</b> — 내 방에 나와 차단 관계인 사람이 들어와 있어도 내 글은 내 것이다(내보내는 것은 강퇴다).
      * 입장 검사({@link PostEntryGate})도 이 판정을 쓴다 — 목록에서 숨긴 글에 들어갈 수 있으면 의미가 없다.
+     *
+     * @param members 카드에 오를 사람 — 모집 중이면 방 안 사람, 확정이면 파티원(입장 검사는 둘을 합친 것)
      */
     static boolean isHidden(Long me, RecruitPost post, Set<Long> members, Set<Long> blocked)
     {
@@ -520,34 +575,43 @@ public class PostService {
         return blocked.contains(post.getHostId()) || members.stream().anyMatch(blocked::contains);
     }
 
-    private static PostResponse render(RecruitPost post, Set<Long> memberIds, Map<Long, UserGameProfile> profiles)
+    /**
+     * 글 한 줄. <b>{@code memberCount} 는 카드의 수</b>다 — 모집 중이면 방 안 인원, 확정이면 <b>파티원 수</b>(2026-09-30 — P-40), 만료면 0.
+     * <b>{@code full} 은 모집 중인 글에서만 참이 될 수 있다</b>(Claude 가 정한 세부) — "빈자리가 없어 못 들어간다" 는 뜻이라 확정된 글은 5명 파티여도 {@code false} 다
+     * (들어갈 수 없는 까닭은 {@code status} 가 말한다). 만료된 글은 전부터 카드가 없어 {@code false} 였다.
+     */
+    private static PostResponse render(RecruitPost post, List<Seat> seats, Map<Long, UserGameProfile> profiles)
     {
-        List<MemberCard> cards = memberIds.stream()
-                .map(userId -> card(userId, post, profiles))
+        List<MemberCard> cards = seats.stream()
+                .map(seat -> card(seat.userId(), seat.host(), profiles))
                 .sorted(CARD_ORDER)
                 .toList();
         // DB 의 줄에는 순서가 없다 — 그 게임의 포지션 순서로 세운다
         List<String> wanted = post.getGame().positions().stream().filter(post.getWantedPositions()::contains).toList();
+        boolean full = post.getStatus() == PostStatus.RECRUITING && cards.size() >= BoardProperties.ROOM_CAPACITY;
 
         return new PostResponse(post.getId(), post.getHostId(), post.getGame().name(), post.getMode(), post.getTitle(),
                 post.getDescription(), post.getVoice().name(), post.getConditions(),
                 wanted, post.getHostPosition(), post.getStatus().name(), post.getCreatedAt(),
-                cards.size(), BoardProperties.ROOM_CAPACITY, cards.size() >= BoardProperties.ROOM_CAPACITY,
-                card(post.getHostId(), post, profiles), cards);
+                cards.size(), BoardProperties.ROOM_CAPACITY, full,
+                card(post.getHostId(), true, profiles), cards);
     }
 
     /**
      * 프로필을 못 찾은 사람(이 앱에 가입하지 않은 사용자 번호)도 <b>카드에서 빼지 않는다</b> — {@code nickname} · {@code profile} 이 {@code null} 이다.
-     * 빼면 {@code memberCount} 가 방의 실제 인원과 어긋난다.
+     * 빼면 {@code memberCount} 가 방의 실제 인원과 어긋난다. (확정된 글의 파티원은 가입한 사람만 적혀 있어 이런 카드가 없다 — FK.)
      */
-    private static MemberCard card(Long userId, RecruitPost post, Map<Long, UserGameProfile> profiles)
+    private static MemberCard card(Long userId, boolean host, Map<Long, UserGameProfile> profiles)
     {
         UserGameProfile found = profiles.get(userId);
-        return new MemberCard(userId, found == null ? null : found.nickname(), post.isHost(userId),
+        return new MemberCard(userId, found == null ? null : found.nickname(), host,
                 found == null ? null : found.profile());
     }
 
-    /** 방장 먼저, 나머지는 닉네임순(닉네임이 없는 사람은 뒤로, 그 안에서는 사용자 번호순). SET 은 순서가 없다 — 응답이 매번 흔들리지 않게 */
+    /**
+     * 방장 먼저, 나머지는 닉네임순(닉네임이 없는 사람은 뒤로, 그 안에서는 사용자 번호순). SET 은 순서가 없다 — 응답이 매번 흔들리지 않게.
+     * <b>확정된 글의 파티원도 같은 순서다</b>(2026-09-30 — P-40) — {@code party_members.joined_at} 은 확정 순간 한 값이라 들어온 순서를 가를 수 없다
+     */
     private static final Comparator<MemberCard> CARD_ORDER = Comparator
             .comparing((MemberCard card) -> card.host() ? 0 : 1)
             .thenComparing(MemberCard::nickname, Comparator.nullsLast(Comparator.naturalOrder()))

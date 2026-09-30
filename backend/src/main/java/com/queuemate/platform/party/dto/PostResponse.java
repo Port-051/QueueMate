@@ -13,10 +13,12 @@ import java.util.List;
  * @param conditions  jsonb 의 글자 그대로({@link JsonRawValue})
  * @param hostPosition 방장 자신의 포지션(2026-09-30 소유자 결정 — P-38). 포지션이 없는 모드 · 그 전에 쓴 글은 {@code null} 이다.
  *                    카드({@link MemberCard})가 아니라 글의 칸이다 — 방장의 카드에 붙여 그리는 것은 화면이다
- * @param memberCount {@code members} 의 수. 방이 없거나 글이 만료 · 확정됐으면 0 이다(확정 요청의 응답만 파티원 수다)
+ * @param memberCount {@code members} 의 수 — 모집 중이면 방 안 인원(방 키를 못 읽었으면 0), <b>확정이면 파티원 수</b>(2026-09-30 — P-40), 만료면 0 이다
  * @param capacity    늘 5 — {@code room} 의 정원이다
+ * @param full        <b>모집 중인</b> 글의 방이 정원에 찼는가. 확정 · 만료된 글은 늘 {@code false} 다(들어갈 수 없는 까닭은 {@code status} 가 말한다 — P-40)
  * @param host        글을 쓴 사람의 카드. <b>방이 없거나 만료 · 확정이어도 채운다</b>
- * @param members     방 안에 <b>지금</b> 있는 사람 전원. 방장이 방 안에 있으면 여기에도 있다. 방장 먼저, 나머지는 닉네임순
+ * @param members     모집 중이면 방 안에 <b>지금</b> 있는 사람 전원(방장이 방 안에 있으면 여기에도 있다). <b>확정이면 확정 순간의 파티원 전원</b> —
+ *                    방에서 나간 뒤에도 남는다(2026-09-30 소유자 결정 — P-40). 만료면 비어 있다. 방장 먼저, 나머지는 닉네임순
  */
 public record PostResponse(
         Long postId,

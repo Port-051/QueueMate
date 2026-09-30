@@ -49,7 +49,7 @@ public class PostLifecycle {
      *
      * @param roomId 방 번호 = 글 번호. 그런 글이 없으면 둘 다 0줄이다
      * @return 이 호출이 <b>글을 만료시켜</b> 게시판 신호를 예약했으면 {@code true}(커밋 뒤에 나간다). 부르는 쪽은 방의 신호를 따로 내지 않는다.
-     *         파티를 닫은 것은 신호를 내지 않는다 — 글 한 줄에 달라지는 것이 없다(글은 {@code CONFIRMED} 그대로이고 확정된 글은 멤버를 비워 내려 준다)
+     *         파티를 닫은 것은 신호를 내지 않는다 — 글 한 줄에 달라지는 것이 없다(글은 {@code CONFIRMED} 그대로이고 확정된 글의 카드는 방이 아니라 확정 순간의 파티원이다 — 2026-09-30 · P-40)
      */
     @Transactional
     public boolean endByRoomClosed(Long roomId)

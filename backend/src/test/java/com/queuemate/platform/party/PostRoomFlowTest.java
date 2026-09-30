@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.function.UnaryOperator;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -236,11 +237,17 @@ class PostRoomFlowTest extends PostTestSupport {
         // 확정된 글은 지울 수 없다 — 되돌릴 수 없다
         mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(hostCookie))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("POST_CONFIRMED"));
-        // 목록 · 단건은 확정된 글의 멤버를 비운다
+        // 목록 · 단건은 확정된 글의 카드로 확정 순간의 파티원을 내려 준다(2026-09-30 소유자 결정 — P-40. 그 전에는 멤버를 비웠다).
+        // 사용자 번호일 수 없는 값은 파티원이 아니라 카드에도 없다
         mockMvc.perform(get("/api/v1/posts/" + postId).cookie(memberCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CONFIRMED"))
-                .andExpect(jsonPath("$.memberCount").value(0));
+                .andExpect(jsonPath("$.memberCount").value(2))
+                .andExpect(jsonPath("$.full").value(false))
+                .andExpect(jsonPath("$.members[0].userId", equalTo(hostId), Long.class))
+                .andExpect(jsonPath("$.members[0].host").value(true))
+                .andExpect(jsonPath("$.members[1].userId", equalTo(memberId), Long.class))
+                .andExpect(jsonPath("$.members[1].host").value(false));
     }
 
     @Test

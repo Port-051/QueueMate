@@ -4,6 +4,7 @@ import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.account.service.GameProfileReader;
 import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.gameconfig.GameConfigReader;
+import com.queuemate.platform.party.dto.MemberCard;
 import com.queuemate.platform.party.dto.PostResponse;
 import com.queuemate.platform.party.dto.PostUpdateRequest;
 import com.queuemate.platform.party.service.BoardProperties;
@@ -25,6 +26,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * <b>방 키를 못 읽을 때</b> — 방의 상태를 읽는 창구({@link RoomService#states})만 실패하게 만든 {@link RoomService} 를 끼운 {@link PostService} ·
@@ -106,6 +109,35 @@ class PostServiceRedisDownTest extends PostTestSupport {
 
         assertThat(statusOf(seen)).isEqualTo("RECRUITING");
         assertThat(statusOf(vanished)).isEqualTo("RECRUITING");
+    }
+
+    @Test
+    @DisplayName("확정된 글의 카드는 DB 의 파티원이라 방 키를 못 읽어도 그대로 나간다 — 파티를 닫지도 않는다(2026-09-30 — P-40)")
+    void confirmedCardsSurviveRedisDown() throws Exception
+    {
+        String host = newNickname();
+        String member = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie memberCookie = login(member);
+        Long hostId = userIdOf(host);
+        Long memberId = userIdOf(member);
+        Long postId = createLolPost(hostCookie);
+        track(postId, memberId);
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(memberCookie)).andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
+        // 방이 통째로 없어졌다 — 멀쩡한 앱이라면 다음 목록이 파티를 닫는다. 못 읽으면 닫지 않아야 한다
+        closeRoom(postId);
+
+        PostService service = withBrokenRedis();
+        PostResponse line = service.list(hostId, Game.LOL, null, null).posts().stream()
+                .filter(post -> post.postId().equals(postId)).findFirst().orElseThrow();
+
+        assertThat(line.status()).isEqualTo("CONFIRMED");
+        assertThat(line.members()).extracting(MemberCard::userId).containsExactly(hostId, memberId);
+        assertThat(line.memberCount()).isEqualTo(2);
+        assertThat(line.full()).isFalse();
+        assertThat(service.get(memberId, postId).members()).extracting(MemberCard::userId).containsExactly(hostId, memberId);
+        assertThat(jdbcTemplate.queryForObject("select status from parties where post_id = ?", String.class, postId)).isEqualTo("ACTIVE");
     }
 
     @Test

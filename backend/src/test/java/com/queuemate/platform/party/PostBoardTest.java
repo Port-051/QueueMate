@@ -211,9 +211,10 @@ class PostBoardTest extends PostTestSupport {
         JsonNode board = list(viewer, "LOL");
         assertThat(find(board, expired).get("status").asString()).isEqualTo("EXPIRED");
         assertThat(find(board, confirmed).get("status").asString()).isEqualTo("CONFIRMED");
-        // 끝난 글은 멤버를 비운다 — 그대로다
+        // 만료된 글은 멤버를 비운다 — 그대로다. 확정된 글은 확정 순간의 파티원 전원이다(2026-09-30 소유자 결정 — P-40)
         assertThat(find(board, expired).get("members").isEmpty()).isTrue();
         assertThat(find(board, expired).get("host").get("userId").asLong()).isEqualTo(hostId);
+        assertThat(longs(find(board, confirmed).get("members"), "userId")).containsExactly(userIdOf(otherHost), hostId);
         mockMvc.perform(get("/api/v1/posts/" + expired).cookie(viewer))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("EXPIRED"));
@@ -373,19 +374,23 @@ class PostBoardTest extends PostTestSupport {
 
         JsonNode line = find(list(viewer, "LOL"), postId);
         assertThat(line.get("status").asString()).isEqualTo("CONFIRMED");
-        // 확정된 글은 목록에서 멤버를 비운다. 방장의 카드는 남는다
-        assertThat(line.get("members").isEmpty()).isTrue();
+        // 옮겨 적은 그 응답부터 카드는 방금 적은 파티원이다(2026-09-30 — P-40. 그 전에는 확정된 글의 멤버를 비웠다). 방장의 카드는 따로도 남는다
+        assertThat(longs(line.get("members"), "userId")).containsExactly(hostId, memberId);
+        assertThat(line.get("memberCount").asInt()).isEqualTo(2);
         assertThat(line.get("host").get("userId").asLong()).isEqualTo(hostId);
         assertThat(statusOf(postId)).isEqualTo("CONFIRMED");
         assertThat(partyMembers(postId)).containsExactlyInAnyOrder(hostId, memberId);
 
-        // 확정한 방은 방장 키만 잠깐 없을 수 있고(D-23), 방이 통째로 없어져도 확정된 글은 끝까지 CONFIRMED 다
+        // 확정한 방은 방장 키만 잠깐 없을 수 있고(D-23), 방이 통째로 없어져도 확정된 글은 끝까지 CONFIRMED 다 — 카드도 파티원 그대로다
         redisTemplate.delete(hostKey(postId));
         assertThat(find(list(viewer, "LOL"), postId).get("status").asString()).isEqualTo("CONFIRMED");
         closeRoom(postId);
-        assertThat(find(list(viewer, "LOL"), postId).get("status").asString()).isEqualTo("CONFIRMED");
+        JsonNode gone = find(list(viewer, "LOL"), postId);
+        assertThat(gone.get("status").asString()).isEqualTo("CONFIRMED");
+        assertThat(longs(gone.get("members"), "userId")).containsExactly(hostId, memberId);
         mockMvc.perform(get("/api/v1/posts/" + postId).cookie(viewer))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CONFIRMED"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.memberCount").value(2));
         assertThat(statusOf(postId)).isEqualTo("CONFIRMED");
 
         // 확정된 방장은 (방에서 나온 뒤에) 새 글을 쓸 수 있다 — "모집 중인 글은 하나"에 걸리지 않는다. closeRoom 이 입장 표시 키도 지웠다
@@ -405,7 +410,11 @@ class PostBoardTest extends PostTestSupport {
 
         mockMvc.perform(get("/api/v1/posts/" + postId).cookie(hostCookie))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("CONFIRMED"));
+                .andExpect(jsonPath("$.status").value("CONFIRMED"))
+                // 카드는 적힌 파티원 — 방장 하나다(2026-09-30 — P-40)
+                .andExpect(jsonPath("$.memberCount").value(1))
+                .andExpect(jsonPath("$.members[0].userId").value(equalTo(hostId), Long.class))
+                .andExpect(jsonPath("$.members[0].host").value(true));
         assertThat(partyMembers(postId)).containsExactly(hostId);
     }
 
@@ -464,6 +473,143 @@ class PostBoardTest extends PostTestSupport {
         assertThat(partyMembers(postId)).containsExactlyInAnyOrder(hostId, memberId);
     }
 
+    // ---- 확정된 글의 카드 — 확정 순간의 파티원 전원 (2026-09-30 소유자 결정 — P-40) ----
+
+    @Test
+    @DisplayName("확정된 글은 확정 순간의 파티원 전원을 카드로 보여 준다 — 방장 먼저 · 닉네임순, is_host, 그 게임의 프로필. 전원이 방에서 나가 파티가 닫힌 뒤에도 그대로다. memberCount 는 파티원 수 · full 은 false")
+    void confirmedPostShowsPartyMembers() throws Exception
+    {
+        String host = newNickname();
+        String a = newNickname();
+        String b = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie aCookie = login(a);
+        Cookie bCookie = login(b);
+        Long hostId = userIdOf(host);
+        Long aId = userIdOf(a);
+        Long bId = userIdOf(b);
+        insertGameAccount(hostId, "LOL", "host#KR1", "EMERALD_4");
+        insertStats(hostId, "LOL", 12, 8, "{\"mostChampions\":[]}");
+        insertGameAccount(aId, "LOL", "a#KR1", "GOLD_1");
+        // b 는 LOL 계정이 없다 — 이 글(LOL)의 카드에서는 profile 이 null 이다(방 안 카드와 같다)
+        Cookie viewer = login(newNickname());
+
+        Long postId = createLolPost(hostCookie);
+        track(postId, aId, bId);
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(aCookie)).andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(bCookie)).andExpect(status().isCreated());
+        // 가입하지 않은 번호가 멤버 SET 에 있었다 — 파티원으로 적히지 않으니(FK) 확정된 글의 카드에도 없다
+        redisTemplate.opsForSet().add(membersKey(postId), String.valueOf(unknownUserId()));
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
+
+        List<String> others = new ArrayList<>(List.of(a, b));
+        others.sort(String::compareTo);
+        List<Long> expectedOrder = List.of(hostId, userIdOf(others.get(0)), userIdOf(others.get(1)));
+
+        JsonNode line = find(list(viewer, "LOL"), postId);
+        assertConfirmedCards(line, expectedOrder, hostId, aId, bId);
+
+        // 전원이 방에서 나간다 — 손님 둘, 마지막으로 방장(넘겨받을 사람이 없어 방이 없어지고 파티가 닫힌다 — P-25)
+        mockMvc.perform(delete("/api/v1/rooms/" + postId + "/members/me").cookie(aCookie)).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/v1/rooms/" + postId + "/members/me").cookie(bCookie)).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/v1/rooms/" + postId + "/members/me").cookie(hostCookie)).andExpect(status().isNoContent());
+        assertThat(redisTemplate.hasKey(membersKey(postId))).isFalse();
+        assertThat(jdbcTemplate.queryForObject("select status from parties where post_id = ?", String.class, postId)).isEqualTo("CLOSED");
+
+        // 방에는 아무도 없지만 카드는 확정 순간의 파티원 그대로다 — 목록도 단건도
+        assertConfirmedCards(find(list(viewer, "LOL"), postId), expectedOrder, hostId, aId, bId);
+        assertConfirmedCards(body(mockMvc.perform(get("/api/v1/posts/" + postId).cookie(viewer)).andExpect(status().isOk())),
+                expectedOrder, hostId, aId, bId);
+    }
+
+    private void assertConfirmedCards(JsonNode line, List<Long> expectedOrder, Long hostId, Long aId, Long bId)
+    {
+        assertThat(line.get("status").asString()).isEqualTo("CONFIRMED");
+        assertThat(line.get("memberCount").asInt()).isEqualTo(3);
+        assertThat(line.get("capacity").asInt()).isEqualTo(5);
+        assertThat(line.get("full").asBoolean()).isFalse();
+        JsonNode members = line.get("members");
+        assertThat(longs(members, "userId")).containsExactlyElementsOf(expectedOrder);
+        assertThat(find(members, "userId", hostId).get("host").asBoolean()).isTrue();
+        assertThat(find(members, "userId", aId).get("host").asBoolean()).isFalse();
+        assertThat(find(members, "userId", bId).get("host").asBoolean()).isFalse();
+        JsonNode hostProfile = find(members, "userId", hostId).get("profile");
+        assertThat(hostProfile.get("gameNickname").asString()).isEqualTo("host#KR1");
+        assertThat(hostProfile.get("tiers").get("SOLO").asString()).isEqualTo("EMERALD_4");
+        assertThat(hostProfile.get("stats").get("games").asInt()).isEqualTo(20);
+        assertThat(find(members, "userId", aId).get("profile").get("tiers").get("SOLO").asString()).isEqualTo("GOLD_1");
+        assertThat(find(members, "userId", bId).get("nickname").isNull()).isFalse();
+        assertThat(find(members, "userId", bId).get("profile").isNull()).isTrue();
+        assertThat(line.get("host").get("userId").asLong()).isEqualTo(hostId);
+    }
+
+    @Test
+    @DisplayName("만료된 글은 그대로 방장 카드만이다 — 지울 때 방에 누가 있었어도 members 는 비고 memberCount 는 0 이다")
+    void expiredPostStaysHostOnly() throws Exception
+    {
+        String host = newNickname();
+        String guest = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie guestCookie = login(guest);
+        Long hostId = userIdOf(host);
+        Cookie viewer = login(newNickname());
+        Long postId = createLolPost(hostCookie);
+        track(postId, userIdOf(guest));
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(guestCookie)).andExpect(status().isCreated());
+        mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(hostCookie)).andExpect(status().isNoContent());
+
+        JsonNode line = find(list(viewer, "LOL"), postId);
+        assertThat(line.get("status").asString()).isEqualTo("EXPIRED");
+        assertThat(line.get("members").isEmpty()).isTrue();
+        assertThat(line.get("memberCount").asInt()).isZero();
+        assertThat(line.get("full").asBoolean()).isFalse();
+        assertThat(line.get("host").get("userId").asLong()).isEqualTo(hostId);
+    }
+
+    @Test
+    @DisplayName("차단 — 확정된 글은 방에서 나간 파티원과도 본다: 어느 방향이든 걸리면 목록에서 빠지고 단건 · 입장이 404 다(409 POST_NOT_RECRUITING 이 아니다). 남에게는 보이고, 방장에게는 자기 글이다")
+    void blockHidesConfirmedPostByPartyMember() throws Exception
+    {
+        String host = newNickname();
+        String member = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie memberCookie = login(member);
+        Cookie blocksMember = login(newNickname());
+        String blockedByMemberName = newNickname();
+        Cookie blockedByMember = login(blockedByMemberName);
+        Cookie bystander = login(newNickname());
+        Long hostId = userIdOf(host);
+        Long memberId = userIdOf(member);
+        Long postId = createLolPost(hostCookie);
+        track(postId, memberId);
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(memberCookie)).andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
+        // 멤버가 방에서 나갔다 — 방에는 방장만 남았지만 그 사람은 파티원이라 카드에 남는다
+        mockMvc.perform(delete("/api/v1/rooms/" + postId + "/members/me").cookie(memberCookie)).andExpect(status().isNoContent());
+        assertThat(redisTemplate.opsForSet().members(membersKey(postId))).containsExactly(String.valueOf(hostId));
+
+        block(blocksMember, memberId);
+        block(memberCookie, userIdOf(blockedByMemberName));
+
+        for(Cookie hidden : List.of(blocksMember, blockedByMember))
+        {
+            assertThat(find(list(hidden, "LOL"), postId)).isNull();
+            mockMvc.perform(get("/api/v1/posts/" + postId).cookie(hidden))
+                    .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
+            mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(hidden))
+                    .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
+        }
+        // 차단과 무관한 사람에게는 파티원 둘이 보인다 — 들어오려 하면 "모집이 끝났다" 다
+        assertThat(longs(find(list(bystander, "LOL"), postId).get("members"), "userId")).containsExactly(hostId, memberId);
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(bystander))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("POST_NOT_RECRUITING"));
+        // 방장이 파티원을 차단해도 자기 글은 보인다 — 내가 쓴 글은 숨기지 않는다
+        block(hostCookie, memberId);
+        assertThat(longs(find(list(hostCookie, "LOL"), postId).get("members"), "userId")).containsExactly(hostId, memberId);
+        // 파티원 자신에게는 방장과 차단 관계라 숨겨진다 — 방 안의 멤버에게 하던 것과 같은 규칙이다(D-20)
+        assertThat(find(list(memberCookie, "LOL"), postId)).isNull();
+    }
+
     // ---- 읽기만 한다 · N+1 ----
 
     @Test
@@ -500,11 +646,12 @@ class PostBoardTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("목록의 SQL 문장 수는 글 수 · 사람 수에 비례해 늘지 않는다 — 글 · 찾는 포지션 · 프로필(게임마다) · 차단")
+    @DisplayName("목록의 SQL 문장 수는 글 수 · 사람 수에 비례해 늘지 않는다 — 글 · 찾는 포지션 · 확정된 글의 파티원(한 번) · 프로필(게임마다) · 차단 · 열린 자동 매칭 파티(한 번)")
     void listDoesNotIssueQueriesPerPost() throws Exception
     {
         Cookie viewer = login(newNickname());
         List<Long> posts = new ArrayList<>();
+        List<Cookie> hosts = new ArrayList<>();
         for(int i = 0; i < 5; i++)
         {
             String host = newNickname();
@@ -516,8 +663,17 @@ class PostBoardTest extends PostTestSupport {
             Long postId = createLolPost(hostCookie, "TOP", "MID");
             openRoom(postId, userIdOf(host), userIdOf(member), unknownUserId());
             posts.add(postId);
+            hosts.add(hostCookie);
         }
-        // 한 번 그려 둔다 — 다음 조회는 옮겨 적을 것이 없는 평소의 목록이다(이 DB 에 남은 다른 테스트의 글이 이번에 만료로 옮겨질 수 있다)
+        // 둘은 확정한다(2026-09-30 — P-40: 확정된 글의 카드는 DB 의 파티원이다). 하나는 방이 통째로 없어져 파티가 닫히고, 하나는 방이 살아 있다.
+        // 파티원은 방장 + 멤버 둘이다 — 가입하지 않은 번호는 파티원으로 적히지 않는다(FK)
+        for(int i = 3; i < 5; i++)
+        {
+            mockMvc.perform(post("/api/v1/rooms/" + posts.get(i) + "/confirm").cookie(hosts.get(i))).andExpect(status().isNoContent());
+        }
+        closeRoom(posts.get(4));
+        // 한 번 그려 둔다 — 다음 조회는 옮겨 적을 것이 없는 평소의 목록이다(이 DB 에 남은 다른 테스트의 글이 이번에 만료로 옮겨질 수 있다.
+        // 위에서 방이 없어진 확정된 글의 파티도 이번에 닫힌다)
         list(viewer, "LOL");
 
         Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
@@ -528,14 +684,19 @@ class PostBoardTest extends PostTestSupport {
             JsonNode lines = list(viewer, "LOL");
             long statements = statistics.getPrepareStatementCount();
 
-            for(Long postId : posts)
+            for(int i = 0; i < posts.size(); i++)
             {
-                assertThat(find(lines, postId).get("memberCount").asInt()).isEqualTo(3);
-                assertThat(texts(find(lines, postId).get("wantedPositions"), null)).containsExactly("TOP", "MID");
+                JsonNode line = find(lines, posts.get(i));
+                boolean confirmed = i >= 3;
+                assertThat(line.get("status").asString()).isEqualTo(confirmed ? "CONFIRMED" : "RECRUITING");
+                assertThat(line.get("memberCount").asInt()).isEqualTo(confirmed ? 2 : 3);
+                assertThat(line.get("members").get(1).get("profile").get("gameNickname").asString()).isEqualTo("m" + i);
+                assertThat(texts(line.get("wantedPositions"), null)).containsExactly("TOP", "MID");
             }
-            // 글 1 + 찾는 포지션 1 + LOL 프로필 1 + 차단 1. 이 DB 에는 다른 테스트의 글도 섞여 있지만 문장 수는 같다.
-            // 넉넉히 잡아도 글 5개 · 사람 15명에 비례했다면(글마다 1문장만 더해도 9) 넘는 값이다
-            assertThat(statements).isLessThanOrEqualTo(5);
+            // 글 1 + 찾는 포지션 1 + 확정된 글의 파티 · 파티원 1(열린 파티를 가리는 것과 같은 한 번이다 — 2026-09-30, P-40) + LOL 프로필 1 + 차단 1
+            // + 그 게임의 열린 자동 매칭 파티 1(2026-09-28 — 목록마다 한 번이다. 이 주석이 그것을 빠뜨리고 5 로 잡았었는데 페이지에 확정된 글이 없으면 파티 쿼리가 없어 통과했다).
+            // 이 DB 에는 다른 테스트의 글도 섞여 있지만 문장 수는 같다. 글 5개 · 사람 15명에 비례했다면(글마다 1문장만 더해도 11) 넘는 값이다
+            assertThat(statements).isLessThanOrEqualTo(6);
         }
         finally
         {

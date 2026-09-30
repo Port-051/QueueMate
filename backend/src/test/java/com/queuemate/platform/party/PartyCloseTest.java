@@ -245,7 +245,8 @@ class PartyCloseTest extends PostTestSupport {
         mockMvc.perform(get("/api/v1/posts/" + postId).cookie(hostCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CONFIRMED"))
-                .andExpect(jsonPath("$.memberCount").value(0));
+                // 카드는 방이 아니라 확정 순간의 파티원이다(2026-09-30 — P-40) — 방이 없어지고 파티가 닫혀도 그대로다
+                .andExpect(jsonPath("$.memberCount").value(2));
 
         Map<String, Object> party = partyOf(postId);
         assertThat(party).containsEntry("status", "CLOSED");

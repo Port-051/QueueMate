@@ -96,16 +96,26 @@ public interface PartyRecordRepository extends JpaRepository<PartyMember, PartyM
     int closeIfActiveByMatchPartyId(@Param("matchPartyId") String matchPartyId, @Param("now") Instant now);
 
     /**
-     * 주어진 글 가운데 <b>파티가 아직 열려 있는</b> 글의 번호 — 목록 · 단건이 확정된 글의 방 키를 읽을지 가른다({@code PostService#observe}).
-     * 이미 닫힌 파티의 글은 방 키를 다시 읽지 않는다(Redis 부담을 늘리지 않게). 쿼리 한 번이다.
+     * 주어진 글들의 <b>게시판 파티와 그 파티원</b> — 한 줄이 {@code [post_id, status, user_id, is_host]} 다(파티원이 없는 파티는 {@code user_id} · {@code is_host} 가
+     * {@code NULL} 인 한 줄). <b>쿼리 한 번이다</b> — 목록 · 단건이 한 페이지의 확정된 글 전부에 대해 한 번 부른다({@code PostService#observe}).
+     *
+     * <p>두 가지를 한 번에 안다 — ① <b>파티가 아직 열려 있는 글</b>(방 키를 읽어 "방이 없어졌나" 를 볼 글 — 파티 닫힘 P-25. 이미 닫힌 파티의 글은 방 키를 다시 읽지 않는다)
+     * ② <b>확정 순간의 파티원</b>(확정된 글의 카드 — 2026-09-30 소유자 결정 · P-40. 방에서 나간 뒤에도 보여 준다). 2026-09-30 전에는 ① 만 읽었다
+     * ({@code findActivePartyPostIds}) — 둘을 합쳐 목록의 SQL 문장 수가 늘지 않게 했다.
      */
-    @Query(nativeQuery = true, value = "SELECT p.post_id FROM parties p WHERE p.post_id IN (:postIds) AND p.status = 'ACTIVE'")
-    List<Long> findActivePartyPostIds(@Param("postIds") Collection<Long> postIds);
+    @Query(nativeQuery = true, value = """
+            SELECT p.post_id, p.status, m.user_id, m.is_host
+              FROM parties p
+              LEFT JOIN party_members m ON m.party_id = p.id
+             WHERE p.post_id IN (:postIds)
+             ORDER BY p.post_id, m.user_id
+            """)
+    List<Object[]> findBoardParties(@Param("postIds") Collection<Long> postIds);
 
     /**
      * 그 게임의 <b>아직 열려 있는 자동 매칭 파티</b>의 {@code match_party_id}(= 그 방의 {@code roomId}, UUID) — 게시판 목록이 그 방 키를 같이 읽어
      * "방이 없어졌나" 를 본다({@code PostService#closeVanishedMatchParties} — 2026-09-28 소유자 결정. 게시판 파티의 길 ② 의 자동 매칭 판이다).
-     * 자동 매칭 파티는 글이 없어 {@link #findActivePartyPostIds} 로는 잡히지 않는다.
+     * 자동 매칭 파티는 글이 없어 {@link #findBoardParties} 로는 잡히지 않는다.
      *
      * <p><b>{@code LIMIT 200} 인 이유</b> — 목록 조회 한 번이 열린 파티를 끝없이 훑지 않게 한다(방 키 읽기가 파티 수만큼 파이프라인에 실린다).
      * 넘치는 것은 다음 목록 조회가 이어서 본다 — 닫힌 파티는 {@code ACTIVE} 가 아니라 다시 나오지 않으므로 앞에서부터 줄어든다.
