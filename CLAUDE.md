@@ -120,6 +120,7 @@
 - **e2e 를 돌리는 동안 e2e 사람(`e2e-a` 등)으로 로그인한 앱 화면을 다른 브라우저에 열어 두지 않는다**(2026-09-30 겪었다) — 그 앱이 `MATCH_CONFIRMED` 를 받아 스스로 `POST /match-parties/{partyId}/room` 을 불러, 시나리오 5 의 A 가 201 대신 200 을 받았다(화면 확인용 headless 브라우저를 내리고 다시 돌려 통과).
 - **전역 CSS(`main.tsx` 의 `theme.css` · `usability.css` …)가 화면의 CSS 보다 뒤에 실린다**(2026-09-30 — 개발 서버의 `<style>` 순서로 확인) — 같은 무게의 선택자면 전역이 이긴다. 화면 CSS 로 덮으려면 무게를 올린다(`rooms/room-panel.css` 의 `.rail > .card:last-child`).
 - **headless Chromium 은 `hover: none` · `pointer: none` 이다**(2026-09-30 확인) — 마우스를 올린 작은 창(`@media (hover: hover)`)을 찍으려면 `--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4` 로 띄운다(CDP `Emulation.setEmulatedMedia` 로는 hover 가 바뀌지 않았다). **Windows 에서만 띄운다 — WSL 에서는 안 된다**(§4 첫 줄).
+- **마우스를 올리면 뜨는 것을 페이지 끝 너머로 열지 않는다**(2026-09-30 — 소유자가 본 "맨 밑줄 · 두 번째 줄에서 화면 전체가 흔들린다"). 아래로 삐진 좌석 작은 창이 문서의 스크롤 길이를 늘려, 맨 아래에서 휠 한 칸이 그 늘어난 자리로 내려가면 창 닫힘(스크롤 당김)과 열림(Chrome 스크롤 앵커링의 되돌림)이 **매 프레임** 번갈았다(Windows Chrome — scrollY 739 ↔ 859, 61프레임에 60번). 그래서 좌석 작은 창은 페이지 끝을 넘으면 위로 연다(`rooms/RoomDeck.tsx` `placeSeatPopover` · `data-pop-up`). 문서의 `overflow-anchor` 를 끄는 것으로 덮지 않는다 — 목록이 바뀔 때 화면을 붙잡아 주는 것이 앵커링이다.
 - `dev` 서버는 `ss -ltnp | grep :5173` 로 PID 를 찾아 `kill <PID>`. 백엔드 셋을 띄우는 법과 6379 · 5432 · `queuemate-v2-*` 금지는 루트 `START_HERE.md` §6 · §8.
 
 ## 8. 함께 봐야 할 곳
