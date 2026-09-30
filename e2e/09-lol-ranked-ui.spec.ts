@@ -63,15 +63,16 @@ async function lolProfile(user: QmUser): Promise<LolProfile> {
   return lol!;
 }
 
-/** 게시판 맨 위 퀵 매칭 판에서 솔로 랭크 · 내 포지션 · 빡겜 · 마이크 미사용으로 "퀵 매칭 시작"(화면 이름 — 2026-10-01 에 "자동 매칭" 에서 바뀌었다). 보낸 매칭 요청 본문을 돌려준다. */
+/** 우측 하단 매칭 버튼으로 설정을 열고 솔로 랭크 · 내 포지션 · 친목 · 마이크 미사용으로 "자동 매칭 시작". 보낸 매칭 요청 본문을 돌려준다. */
 async function startSoloRankThroughUi(page: Page, position: string): Promise<Record<string, unknown>> {
-  const panel = page.getByRole('region', { name: '퀵 매칭' });
+  await page.getByRole('button', { name: '빠른매치 조건 열기' }).click();
+  const panel = page.getByRole('region', { name: '빠른매치' });
   await panel.getByRole('group', { name: '게임 모드' }).getByRole('button', { name: '솔로 랭크' }).click();
   await panel.getByRole('radiogroup', { name: '내 포지션' }).getByRole('radio', { name: position }).check({ force: true });
-  await panel.getByRole('radiogroup', { name: '플레이 목적' }).getByRole('radio', { name: '빡겜' }).check({ force: true });
+  await panel.getByRole('radiogroup', { name: '플레이 목적' }).getByRole('radio', { name: '친목' }).check({ force: true });
   await panel.getByRole('group', { name: '음성' }).getByRole('button', { name: '마이크 미사용' }).click();
   const request = page.waitForRequest((r) => r.url().endsWith('/api/v1/match-requests') && r.method() === 'POST');
-  await panel.getByRole('button', { name: '퀵 매칭 시작' }).click();
+  await panel.getByRole('button', { name: '빠른매치 시작' }).click();
   return (await request).postDataJSON();
 }
 
@@ -136,7 +137,7 @@ test('시나리오 9 — 실제 LoL 계정 연결 · 솔로 랭크 듀오(UI)', 
   await test.step('두 사람 — 게시판 퀵 매칭 판에서 솔로 랭크 시작(A 미드 · B 탑) → 요청 본문의 티어는 연결한 솔로랭크 티어', async () => {
     const bodyA = await startSoloRankThroughUi(pageA, '미드');
     expect(bodyA).toMatchObject({ game: 'LOL', modeKey: 'RANKED_SOLO', tier: tierA, keyCondition: { type: 'POSITION', value: 'MID' }, voicePreference: 'NO_VOICE', playPurpose: 'TRYHARD' });
-    await expect(pageA.getByText('팀원을 찾는 중')).toBeVisible();
+    await expect(pageA.getByRole('button', { name: '빠른매치 현황 열기' })).toBeVisible();
     const bodyB = await startSoloRankThroughUi(pageB, '탑');
     expect(bodyB).toMatchObject({ game: 'LOL', modeKey: 'RANKED_SOLO', tier: tierB, keyCondition: { type: 'POSITION', value: 'TOP' }, voicePreference: 'NO_VOICE', playPurpose: 'TRYHARD' });
   });

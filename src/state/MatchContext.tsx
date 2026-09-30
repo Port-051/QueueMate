@@ -365,7 +365,7 @@ function MatchSession({ children }: { children: ReactNode }) {
     const previous = requestRef.current;
     if (view.status === 'IDLE') {
       if (previous && isActive(previous) && !cancelling.current && !entering.current) {
-        toast(previous.status === 'PROPOSED' ? '제안이 끝나 대기열에서 빠졌습니다' : '매칭 대기가 끝났습니다. 다시 시작할 수 있어요', 'info');
+        toast(previous.status === 'PROPOSED' ? '제안이 끝나 대기열에서 빠졌습니다' : '빠른매치 대기가 끝났습니다. 다시 시작할 수 있어요', 'info');
       }
       cancelling.current = false;
       setRequest(null);

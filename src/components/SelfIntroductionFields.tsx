@@ -69,7 +69,7 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
   const purposeNote = useId();
   const purposeField = showPurpose ? <fieldset className="introduction-choice introduction-purpose" aria-describedby={purposeNote}><legend>플레이 목적</legend>
     <PurposePicker value={value.playPurpose ?? null} onChange={playPurpose => patch({ playPurpose })} />
-    <p className="introduction-field-note" id={purposeNote}>퀵 매칭 시작에만 쓰여요</p>
+    <p className="introduction-field-note" id={purposeNote}>빠른매치에만 쓰여요</p>
   </fieldset> : null;
   // PUBG 의 핵심 조건은 플랫폼(STEAM · KAKAO)이다 — 원본 프런트의 "플레이 스타일"(PLAY_STYLE) 이 아니다(2026-09-29 소유자 지시).
   const roleTitle = game === 'LOL' ? compact ? '내 포지션' : '포지션' : game === 'VALORANT' ? '주 역할' : '플랫폼';

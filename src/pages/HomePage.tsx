@@ -67,7 +67,7 @@ export function HomePage() {
     <div className="board-split-board" aria-hidden={covered || undefined} {...{ inert: covered ? '' : undefined }}>
       <RoomBoardHome roomPanelOpen={Boolean(panelId)} />
     </div>
-    {panelId ? <section className="room-panel" aria-label={roomId ? '방' : '매칭 제안'} key={panelId}>
+    {panelId ? <section className="room-panel" aria-label={roomId ? '방' : '빠른매치 제안'} key={panelId}>
       <div className="room-panel-inner">
         <div className="room-panel-bar">
           <button type="button" className="room-panel-back" onClick={() => navigate('/app/home')}>
