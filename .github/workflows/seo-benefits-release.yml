@@ -1,4 +1,4 @@
-name: Release SEO metadata without changing landing design
+name: Publish introduction landing to search after DNS setup
 on:
   push:
     branches: [feat/seo-landing]
@@ -13,86 +13,188 @@ jobs:
   release:
     if: github.repository == 'Port-051/QueueMate' && github.ref == 'refs/heads/feat/seo-landing' && github.actor == 'shj5771' && github.triggering_actor == 'shj5771'
     runs-on: ubuntu-latest
-    timeout-minutes: 22
+    timeout-minutes: 25
     steps:
-      - name: Check out reviewed SEO metadata change
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 86000b47d6d76ae3aebdb16cc94bfa636b6b1b54
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: 9ed059501d2689e0eddc2856f07fde956918afb4
-          persist-credentials: false
-      - name: Read pinned previously successful release template
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          ref: af1201484256ac2feb5c6339cf29447c7ff4b5bc
-          path: .release-template
+          path: .release-baseline
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - name: Verify tests, build and unchanged approved design
+      - name: Test approved publication and unchanged design
         working-directory: landing
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm test
-          npm run build
-          diff -rq src ../.release-template/landing/src
-          diff -rq public ../.release-template/landing/public
-          cmp vercel.json ../.release-template/landing/vercel.json
-      - name: Prepare pinned release with identity and metadata checks
+          BUILD_TARGET=production npm run build
+          diff -rq src ../.release-baseline/landing/src
+          diff -rq public ../.release-baseline/landing/public
+          cmp vercel.json ../.release-baseline/landing/vercel.json
+      - name: Prepare scoped publication and test guards
         run: |
-          python3 - <<'PY'
-          import hashlib, os
-          from pathlib import Path
-          source = Path('.release-template/.github/workflows/seo-benefits-release.yml').read_bytes()
-          blob = hashlib.sha1(f'blob {len(source)}\0'.encode() + source).hexdigest()
-          assert blob == '14d6f81d9da074b124720a80768b3fe729f032f9', 'Release template changed'
-          lines = source.decode().splitlines()
-          start = next(i for i, line in enumerate(lines) if 'cat > "$RUNNER_TEMP/qmate-benefits-release.mjs"' in line) + 1
-          end = next(i for i in range(start, len(lines)) if lines[i] == '          NODE')
-          script = '\n'.join(line[10:] for line in lines[start:end]) + '\n'
-          def replace_once(old, new):
-              global script
-              assert script.count(old) == 1, f'Expected one release fragment: {old}'
-              script = script.replace(old, new)
-          replace_once("source:'58910db2278096a43c251185b724c0be59679f14'", "source:'9ed059501d2689e0eddc2856f07fde956918afb4'")
-          replace_once("previous:'c736008ff4e00de7627f5cc774486474b985858a'", "previous:'af1201484256ac2feb5c6339cf29447c7ff4b5bc'")
-          # Pin the successful production deployment recorded by run 36740052814.
-          replace_once("previousDeployment:'dpl_AEeHZz6u2sssbUZYGLzs46hacLMZ'", "previousDeployment:'dpl_ZQsfXJN1Jb3zYLBBra9dfVNVgAHg'")
-          replace_once("text.includes('왜 아직')&&text.includes('여러 곳을 오가던 방식')", "text.includes('바로 대화하세요.')&&text.includes('class=\"join-demo\"')&&text.includes('<title>롤 듀오 찾기·파티 구하기 | 큐메이트</title>')&&text.includes('롤 같이 할 사람을 찾고 있나요?')")
-          replace_once("phase='deployment';await status", "assert.equal((await api(`/v13/deployments/${T.host}`)).id,previous.id,'Live deployment changed during preparation');\n phase='deployment';await status")
-          replace_once("assert.equal(config.origin,`https://${T.domain}`);", "assert.equal(config.title,'롤 듀오 찾기·파티 구하기 | 큐메이트');assert.ok(config.description.startsWith('롤 같이 할 사람을 찾고 있나요?'));assert.equal(config.origin,`https://${T.domain}`);")
-          replace_once("published=true;notice=status", "published=true;console.log('VERCEL_APPROVAL_URL='+url);notice=status")
-          replace_once("await writeFile(`${audit}/report.json`,JSON.stringify(report,null,2)+'\\n');", "await writeFile(`${audit}/report.json`,JSON.stringify(report,null,2)+'\\n');console.log('SEO_RELEASE_RESULT='+JSON.stringify({sourceSha:T.source,uiVerified:report.uiVerified,connected:report.connected,publicUrl:report.publicUrl,domain:report.domain,error:report.error??null,rolledBack:report.rolledBack??null,domains:report.domains.map(d=>({name:d.name,verified:d.verified,configuration:d.configuration}))}));")
-          script = script.replace('SEO benefits release and domain', 'SEO metadata release and domain')
-          script = script.replace('benefits-first landing', 'reviewed metadata-only landing')
-          script = script.replace('BENEFITS_UI', 'SEO_METADATA')
-          script = script.replace('QueueMate benefits release + domain', 'QueueMate SEO metadata release + domain')
-          script = script.replace('Authorize port-52: benefits landing update and queue-mate.com attachment', 'Authorize port-52: reviewed SEO metadata deployment')
-          script = script.replace('Approve port-52 to update landing and add queue-mate.com + www', 'Approve port-52: publish reviewed SEO metadata, preserve design')
-          Path(os.environ['RUNNER_TEMP'], 'qmate-benefits-release.mjs').write_text(script)
-          PY
-          node --check "$RUNNER_TEMP/qmate-benefits-release.mjs"
-          QMATE_TEST_ONLY=1 node "$RUNNER_TEMP/qmate-benefits-release.mjs"
+          cat > "$RUNNER_TEMP/qmate-search-publish.mjs" <<'NODE'
+          import assert from 'node:assert/strict';
+          import {spawn} from 'node:child_process';
+          import {mkdir,readFile,writeFile,rm,cp} from 'node:fs/promises';
+          import {stripVTControlCharacters as clean} from 'node:util';
+          import {setTimeout as delay} from 'node:timers/promises';
+          const T=Object.freeze({repo:'Port-051/QueueMate',team:'team_TYonFQEoE1HOMC5bYb5xvQXV',scope:'port-52',project:'prj_twOVEOMaFLLQtgu0n4o5l7pmggiu',name:'queue-mate-landing',host:'queue-mate-landing.vercel.app',domain:'queue-mate.com',source:'86000b47d6d76ae3aebdb16cc94bfa636b6b1b54',previous:'9ed059501d2689e0eddc2856f07fde956918afb4',previousDeployment:'dpl_4ieDbpMAWf5PhxUex6sEc8nZXGT6'});
+          const origin=`https://${T.domain}/`,alias=`https://${T.host}/`;
+          const approval=s=>clean(s).match(/https:\/\/vercel\.com\/oauth\/device\?user_code=[A-Z0-9-]+/)?.[0];
+          const blocked=s=>/(?:^|[\s,:;])(?:noindex|none)(?:$|[\s,;])/i.test(s??'');
+          const body=h=>{const m=h.match(/<body>[\s\S]*<\/body>/);assert.ok(m,'Body missing');return m[0];};
+          function guard(p,d){
+           assert.equal(p.id,T.project,'Unexpected project');assert.equal(p.name,T.name,'Unexpected project name');assert.equal(p.accountId,T.team,'Unexpected team');
+           assert.equal(d.projectId,T.project,'Unexpected deployment project');assert.equal(d.readyState,'READY','Deployment not ready');
+           assert.ok([T.previous,T.source].includes(d.meta?.githubCommitSha),'Live source changed; stop');
+           if(d.meta.githubCommitSha===T.previous)assert.equal(d.id,T.previousDeployment,'Previous deployment changed');
+          }
+          function guardDomains(result){
+           assert.ok(Array.isArray(result.domains)&&!result.pagination?.next,'Complete domain list required');
+           for(const domain of [T.domain,`www.${T.domain}`]){
+            const d=result.domains.find(x=>x.name===domain);assert.ok(d,'Required existing domain is missing');
+            assert.equal(d.projectId,T.project,'Domain belongs to another project');assert.equal(d.verified,true,'Domain ownership unverified');
+            assert.ok(!d.gitBranch&&!d.customEnvironmentId,'Unexpected custom environment');
+            assert.equal(d.redirect??null,domain===T.domain?null:T.domain,'Unexpected domain redirect');
+            if(domain!==T.domain)assert.equal(Number(d.redirectStatusCode),308,'Unexpected redirect status');
+           }
+           assert.ok(result.domains.every(d=>d.name===T.domain||d.name===`www.${T.domain}`||/^[a-z0-9-]+\.vercel\.app$/i.test(d.name)),'Unexpected additional domain');
+          }
+          const p={id:T.project,name:T.name,accountId:T.team},d={id:T.previousDeployment,projectId:T.project,readyState:'READY',meta:{githubCommitSha:T.previous}};
+          assert.doesNotThrow(()=>guard(p,d));
+          for(const [pp,dd] of [[{...p,id:'other'},d],[{...p,accountId:'other'},d],[p,{...d,id:'other'}],[p,{...d,meta:{githubCommitSha:'other'}}],[p,{...d,projectId:'other'}]])assert.throws(()=>guard(pp,dd));
+          const domains={domains:[{name:T.domain,projectId:T.project,verified:true},{name:`www.${T.domain}`,projectId:T.project,verified:true,redirect:T.domain,redirectStatusCode:308}]};
+          assert.doesNotThrow(()=>guardDomains(domains));assert.throws(()=>guardDomains({domains:[]}));assert.throws(()=>guardDomains({...domains,pagination:{next:1}}));
+          assert.throws(()=>guardDomains({domains:domains.domains.map(x=>({...x,verified:false}))}));
+          assert.equal(approval('https://vercel.com/oauth/device?user_code=ABCD-EFGH'),'https://vercel.com/oauth/device?user_code=ABCD-EFGH');
+          assert.equal(approval('https://vercel.com.evil.test/oauth/device?user_code=ABCD-EFGH'),undefined);
+          assert.ok(blocked('googlebot: noindex'));assert.ok(blocked('NONE'));assert.ok(!blocked('index, follow'));
+          if(process.env.QMATE_TEST_ONLY==='1'){console.log('Release target, domain, approval URL and indexing guards passed');process.exit(0);}
+          assert.equal(process.env.GITHUB_REPOSITORY,T.repo);assert.equal(process.env.GITHUB_REF,'refs/heads/feat/seo-landing');
+          const tmp=process.env.RUNNER_TEMP;assert.ok(tmp?.startsWith('/'));
+          const cli=`${tmp}/qmate-search-cli/node_modules/.bin/vercel`,auth=`${tmp}/qmate-search-auth`,audit=`${tmp}/qmate-search-audit`,directory=`${tmp}/qmate-search-package`;
+          const workflowSha=process.env.GITHUB_SHA,runUrl=`https://github.com/${T.repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          const env=Object.fromEntries(['PATH','HOME','RUNNER_TEMP','TMPDIR','NODE_EXTRA_CA_CERTS'].filter(k=>process.env[k]).map(k=>[k,process.env[k]]));
+          Object.assign(env,{CI:'1',NO_COLOR:'1',VERCEL_TELEMETRY_DISABLED:'1'});
+          await mkdir(auth,{recursive:true,mode:0o700});await mkdir(audit,{recursive:true});
+          const report={workflowSha,sourceSha:T.source,domain:T.domain,projectId:T.project,startedAt:new Date().toISOString(),dnsChanged:false,designChanged:false,appConnected:false,searchEnginesRegistered:false,indexingVerified:false};
+          async function status(state,description,target_url=runUrl){
+           const r=await fetch(`https://api.github.com/repos/${T.repo}/statuses/${workflowSha}`,{method:'POST',redirect:'error',signal:AbortSignal.timeout(15000),headers:{Authorization:`Bearer ${process.env.GITHUB_TOKEN}`,Accept:'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify({state,context:'SEO search publication',description:description.slice(0,140),target_url})});
+           assert.ok(r.ok,`Cannot post workflow status (${r.status})`);await r.body?.cancel();
+          }
+          function command(executable,args,timeout=60000,onOutput=()=>{}){
+           return new Promise((resolve,reject)=>{
+            const child=spawn(executable,args,{env,stdio:['ignore','pipe','pipe']});let out='',err='',expired=false;
+            const timer=setTimeout(()=>{expired=true;child.kill('SIGKILL');},timeout);
+            child.stdout.on('data',b=>{out+=b;onOutput(clean(out+'\n'+err));});child.stderr.on('data',b=>{err+=b;onOutput(clean(out+'\n'+err));});
+            child.on('error',()=>{clearTimeout(timer);reject(Error('Command failed to start'));});
+            child.on('close',code=>{clearTimeout(timer);code===0&&!expired?resolve(clean(out)):reject(Error(expired?'Command timed out':`Command ${args[0]} failed (${code}); raw output withheld`));});
+           });
+          }
+          const vc=(args,timeout,output)=>command(cli,[...args,'--global-config',auth,'--no-color'],timeout,output);
+          async function api(path){
+           assert.ok(path===`/v9/projects/${T.project}`||path===`/v9/projects/${T.project}/domains?limit=100`||path.startsWith('/v13/deployments/')||[T.domain,`www.${T.domain}`].some(d=>path===`/v6/domains/${d}/config?projectIdOrName=${T.project}`),'API read outside approved target');
+           const value=JSON.parse((await vc(['api',`${path}${path.includes('?')?'&':'?'}teamId=${T.team}`,'-X','GET','--scope',T.scope])).trim());assert.ok(!value.error,'Vercel rejected read');return value;
+          }
+          async function page(url){
+           try{const r=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(15000)});const html=await r.text();return {url,status:r.status,location:r.headers.get('location'),headerNoindex:blocked(r.headers.get('x-robots-tag')),html};}
+           catch(e){return {url,error:e.cause?.code??e.code??e.name};}
+          }
+          let phase='preflight',previous,deployment;
+          try{
+           assert.equal((await command('git',['rev-parse','HEAD'])).trim(),T.source,'Wrong checkout');
+           const config=JSON.parse(await readFile('landing/site.config.json','utf8')),baseline=JSON.parse(await readFile('.release-baseline/landing/site.config.json','utf8'));
+           assert.equal(config.origin,origin.slice(0,-1));assert.equal(config.allowIndexing,true);assert.equal(config.appReady,false);
+           assert.deepEqual({...config,allowIndexing:false},baseline,'Unreviewed settings change');
+           const local=await readFile('landing/dist/index.html','utf8');
+           assert.match(local,/<meta name="robots" content="index, follow, max-image-preview:large">/);
+           assert.doesNotMatch(local,/href="https:\/\/app\.queue-mate\.com/);
+           await status('pending','Approve port-52: verify HTTPS and publish the approved introduction page');
+           phase='authorization';let announced=false,notice=Promise.resolve();
+           await vc(['login'],600000,s=>{const url=approval(s);if(!url||announced)return;announced=true;console.log('VERCEL_APPROVAL_URL='+url);notice=status('pending','Approve port-52: HTTPS verification and search publication; design unchanged',url);notice.catch(()=>{});});await notice;
+           phase='target verification';await status('pending','Authorized; checking known project, deployment and configured domains');
+           const project=await api(`/v9/projects/${T.project}`);previous=await api(`/v13/deployments/${T.host}`);guard(project,previous);
+           report.previousDeploymentId=previous.id;report.previousUrl=`https://${previous.url}/`;
+           guardDomains(await api(`/v9/projects/${T.project}/domains?limit=100`));
+           report.domains=[];
+           for(const name of [T.domain,`www.${T.domain}`]){
+            const c=await api(`/v6/domains/${name}/config?projectIdOrName=${T.project}`);
+            report.domains.push({name,configuration:c});assert.equal(c.misconfigured,false,'DNS not yet accepted by Vercel');
+           }
+           phase='HTTPS verification';let root=await page(origin);
+           if(root.status!==200){
+            await status('pending','DNS accepted; requesting HTTPS certificate for queue-mate.com and www');
+            report.certificateRequested=true;
+            try{await vc(['certs','issue',T.domain,`www.${T.domain}`,'--scope',T.scope],120000);report.certificateRequestSucceeded=true;}
+            catch{report.certificateRequestSucceeded=false;}
+            for(let i=0;i<6;i++){root=await page(origin);if(root.status===200)break;await delay(5000);}
+           }
+           assert.equal(root.status,200,'Canonical HTTPS is not ready; no deployment performed');
+           assert.equal(body(root.html),body(local),'Existing visible landing differs from approved source');
+           let www=await page(`https://www.${T.domain}/`);
+           assert.ok([301,308].includes(www.status)&&www.location===origin,'WWW HTTPS redirect not ready');
+           report.httpsVerified=true;
+           await mkdir(`${directory}/.vercel`,{recursive:true});await mkdir(`${directory}/scripts`,{recursive:true});
+           for(const file of ['package.json','package-lock.json','site.config.json','vercel.json','src','public'])await cp(`landing/${file}`,`${directory}/${file}`,{recursive:true});
+           await cp('landing/scripts/build.mjs',`${directory}/scripts/build.mjs`);
+           await writeFile(`${directory}/.vercel/project.json`,JSON.stringify({projectId:T.project,orgId:T.team,projectName:T.name}));
+           assert.equal((await api(`/v13/deployments/${T.host}`)).id,previous.id,'Another release changed the live deployment');
+           phase='deployment';
+           if(previous.meta.githubCommitSha!==T.source){
+            await status('pending','Deploying search-enabled introduction page; app stays offline');
+            const out=await vc(['deploy','--cwd',directory,'--yes','--prod','--scope',T.scope,'--meta',`githubCommitSha=${T.source}`,'--meta',`releaseWorkflowSha=${workflowSha}`],300000);
+            const urls=out.match(/https:\/\/[a-z0-9.-]+\.vercel\.app/gi);assert.ok(urls?.length,'No deployment URL');
+            deployment=await api(`/v13/deployments/${new URL(urls.at(-1)).hostname}`);
+           }else{deployment=previous;report.alreadyDeployed=true;}
+           guard(project,deployment);assert.equal(deployment.meta.githubCommitSha,T.source);report.deploymentId=deployment.id;
+           phase='public verification';
+           let current;for(let i=0;i<8;i++){current=await api(`/v13/deployments/${T.host}`);if(current.id===deployment.id)break;await delay(2000);}assert.equal(current.id,deployment.id,'Alias not updated');
+           const checks=await command(process.execPath,['landing/scripts/check-url.mjs',origin,'production',`${audit}/http-checks.json`],150000);await writeFile(`${audit}/http-checks.txt`,checks);
+           root=await page(origin);assert.equal(root.status,200);assert.equal(root.headerNoindex,false);assert.equal(root.html,local,'Published HTML does not match reviewed production build');
+           const preview=await page(alias);assert.equal(preview.status,200);assert.equal(preview.headerNoindex,true,'Vercel alias must remain excluded');
+           www=await page(`https://www.${T.domain}/`);assert.ok([301,308].includes(www.status)&&www.location===origin);
+           report.indexingVerified=true;report.publicUrl=origin;report.previewExcluded=true;report.sitemapUrl=origin+'sitemap.xml';
+           await status('success','SEARCH_PUBLICATION_VERIFIED; canonical HTTPS and sitemap ready; app offline',origin);
+          }catch(e){
+           report.error=`${phase}: ${e.message}`;
+           if(deployment&&previous&&deployment.id!==previous.id&&!report.indexingVerified){
+            try{const current=await api(`/v13/deployments/${T.host}`);if(current.id===deployment.id){await vc(['rollback',report.previousUrl,'--yes','--scope',T.scope,'--cwd',directory],120000);report.rolledBack=(await api(`/v13/deployments/${T.host}`)).id===previous.id;}else report.rollbackSkipped='Another deployment owns the alias';}catch{report.rolledBack=false;}
+           }
+           await status('failure',report.error).catch(()=>{});console.error(report.error);process.exitCode=1;
+          }finally{
+           await vc(['logout'],20000).catch(()=>{});await rm(auth,{recursive:true,force:true});report.finishedAt=new Date().toISOString();
+           await writeFile(`${audit}/report.json`,JSON.stringify(report,null,2)+'\n');console.log('SEARCH_PUBLICATION_RESULT='+JSON.stringify(report));
+           await writeFile(process.env.GITHUB_STEP_SUMMARY,`## Search publication\n\nHTTPS verified: ${report.httpsVerified??false}\nIndexing configuration verified: ${report.indexingVerified}\nSource: ${T.source}\n\nNo layout, DNS, nameserver, email, app-launch or account-access changes. Google/Naver ownership and sitemap submission are separate and were not performed.\n`);
+          }
+          NODE
+          node --check "$RUNNER_TEMP/qmate-search-publish.mjs"
+          QMATE_TEST_ONLY=1 node "$RUNNER_TEMP/qmate-search-publish.mjs"
       - name: Install official Vercel CLI
-        run: npm install --prefix "$RUNNER_TEMP/qmate-benefits-cli" --no-audit --no-fund vercel@latest
-      - name: Request approval and deploy only the known landing project
+        run: npm install --prefix "$RUNNER_TEMP/qmate-search-cli" --no-audit --no-fund vercel@latest
+      - name: Authorize, verify HTTPS and publish approved introduction page
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node "$RUNNER_TEMP/qmate-benefits-release.mjs"
+        run: node "$RUNNER_TEMP/qmate-search-publish.mjs"
       - name: Remove temporary authorization
         if: always()
         run: |
-          AUTH_DIR="$RUNNER_TEMP/qmate-benefits-auth"
-          CLI="$RUNNER_TEMP/qmate-benefits-cli/node_modules/.bin/vercel"
+          AUTH_DIR="$RUNNER_TEMP/qmate-search-auth"
+          CLI="$RUNNER_TEMP/qmate-search-cli/node_modules/.bin/vercel"
           if [ -f "$AUTH_DIR/auth.json" ] && [ -x "$CLI" ]; then
             timeout 20 "$CLI" logout --global-config "$AUTH_DIR" --no-color >/dev/null 2>&1 || true
           fi
           rm -rf "$AUTH_DIR"
-      - name: Save nonsecret deployment and DNS results
+      - name: Save nonsecret publication results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: seo-metadata-release
-          path: ${{ runner.temp }}/qmate-benefits-audit/
+          name: seo-search-publication
+          path: ${{ runner.temp }}/qmate-search-audit/
           if-no-files-found: ignore
           retention-days: 7
