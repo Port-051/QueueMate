@@ -244,7 +244,7 @@ export function PartyRoomPage() {
         <div className="row" style={{ gap: 14 }}>
           {room ? <GameBadge game={room.game} /> : knownGame ? <GameBadge game={knownGame} /> : null}
           <div>
-            <h1>{room ? room.title : postId !== null ? `게시판 방 #${roomId}` : '빠른매치 파티'}</h1>
+            <h1>{room ? room.title : postId !== null ? `게시판 방 #${roomId}` : '퀵 매칭 파티'}</h1>
             <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
               {room ? <Tag>{gameFullLabel(room.game)} · {modeChoiceLabel(room.game, room.modeKey, room.perspective)}</Tag>
                 : knownGame ? <Tag>{gameFullLabel(knownGame)}{partyMode ? ` · ${modeChoiceLabel(knownGame, partyMode)}` : ''}</Tag> : null}

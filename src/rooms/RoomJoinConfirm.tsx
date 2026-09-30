@@ -22,8 +22,8 @@ import './room-create-preview.css';
  * - **포지션이 없는 방**(칼바람 · PUBG · 찾는 포지션이 빈 옛 글)은 전처럼 고를 것 없이 "참여하기" 하나다 — `position` 을 싣지 않는다(서버가 400).
  * - 고르는 칸은 글 쓰기 팝업의 "내 포지션" 과 같은 부품 · 같은 이름이다(`SingleRolePicker` — 남은 것만 `only`. VALORANT 는 "내 역할"). 판의 CSS 를 받으려고 글 쓰기 팝업처럼 `room-home room-preview-scope` 로 감쌌다.
  */
-export function RoomJoinConfirm({ room, entryError, cancelsMatch = false, onClose, onJoin }: {
-  room: BoardRoom; entryError: string | null; cancelsMatch?: boolean; onClose: () => void; onJoin: (position?: string) => void | Promise<void>;
+export function RoomJoinConfirm({ room, entryError, onClose, onJoin }: {
+  room: BoardRoom; entryError: string | null; onClose: () => void; onJoin: (position?: string) => void | Promise<void>;
 }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -45,9 +45,8 @@ export function RoomJoinConfirm({ room, entryError, cancelsMatch = false, onClos
       else setError(roomErrorMessage(cause, '참여하지 못했어요. 다시 시도해 주세요.'));
     }
   };
-  return <Modal title="이 방에 참여할까요?" closeLabel="참여 창 닫기" className="room-create-preview room-join-preview" onClose={() => { if (!submitting.current) onClose(); }}
-    foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || Boolean(entryError) || needsPick} onClick={confirm}>{busy ? '참여 중…' : cancelsMatch ? '빠른매치 취소 후 참여하기' : '참여하기'}</Button></>}>
-    {cancelsMatch ? <p className="banner warn" role="status">이 방에 입장하면 현재 진행 중인 빠른매치가 취소됩니다.</p> : null}
+  return <Modal title="이 방에 참여할까요?" closeLabel="참여 창 닫기" className="room-create-preview room-join-preview" onClose={onClose}
+    foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || Boolean(entryError) || needsPick} onClick={confirm}>{busy ? '참여 중…' : '참여하기'}</Button></>}>
     <div className="room-preview-title"><h3>{room.title}</h3></div>
     <dl className="room-preview-conditions">
       <div><dt>게임 모드</dt><dd><FilterModeIcon mode={modeChoice(room.game, room.modeKey)?.group ?? room.modeKey} size={22} />{modeChoiceLabel(room.game, room.modeKey, room.perspective)}</dd></div>

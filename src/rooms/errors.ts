@@ -6,7 +6,7 @@ import { errorMessage, isApiError } from '../api/error';
  */
 const ROOM_ERROR_MESSAGES: Record<string, string> = {
   ALREADY_RECRUITING: '모집 중인 내 글이 이미 있어요. 그 방을 닫거나 확정한 뒤 새 글을 올릴 수 있어요',
-  ALREADY_QUEUED: '빠른매치를 기다리는 중이에요. 빠른매치를 취소한 뒤 다시 시도해 주세요',
+  ALREADY_QUEUED: '퀵 매칭을 기다리는 중이에요. 매칭을 취소한 뒤 다시 시도해 주세요',
   IN_OTHER_ROOM: '이미 다른 방에 들어가 있어요. 그 방에서 나온 뒤 다시 시도해 주세요',
   ROOM_ALREADY_EXISTS: '같은 번호의 방이 이미 있어요. 잠시 뒤 다시 시도해 주세요',
   ROOM_STATE_UNAVAILABLE: '방 상태를 잠시 확인할 수 없어요. 몇 초 뒤 다시 시도해 주세요',
