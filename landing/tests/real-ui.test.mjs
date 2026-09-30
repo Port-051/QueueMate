@@ -14,8 +14,8 @@ test('UI reference is the requested exact source, not the old illustration',()=>
   assert.equal(manifest.sourceUiModified,false);assert.equal(manifest.backendConnected,false);
   assert.deepEqual(manifest.pageErrors,[]);assert.deepEqual(manifest.unexpectedRequests,[]);
 });
-test('revised UI awaits review without changing indexing or app connection',()=>{
-  assert.equal(config.uiApproved,false);assert.equal(config.allowIndexing,false);assert.equal(config.appReady,false);
+test('approved product copy does not enable indexing or app connection',()=>{
+  assert.equal(config.uiApproved,true);assert.equal(config.contentApproved,true);assert.equal(config.allowIndexing,false);assert.equal(config.appReady,false);
 });
 test('three real screen captures have descriptive labels and native enlargement links',()=>{
   assert.equal(manifest.screens.length,3);

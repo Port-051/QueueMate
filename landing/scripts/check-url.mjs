@@ -65,7 +65,7 @@ export async function checkDeployment(input, mode, config, fetcher = fetch) {
     check('No duplicate IDs', new Set(ids).size === ids.length);
     check('Anchor destinations exist', 
       [...html.matchAll(/href=["']#([^"']+)["']/g)].every(m => ids.includes(m[1])));
-    check('Six native FAQs', (html.match(/<details\b/gi) || []).length === 6);
+    check('Six native FAQs', tags(html, 'details').filter(t => t.class !== 'join-demo').length === 6);
     const data = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
       .filter(m => attributes(m[1]).type?.toLowerCase() === 'application/ld+json');
     let schemaOK = false;
