@@ -9,7 +9,10 @@ import { keyConditionOptions, visibleModes } from '../domain/gameConfig';
 import { PERSPECTIVE_LABEL } from '../domain/gameCatalog';
 import { groupModes, groupPerspectives, groupSizes, modeChoice, modeGroups, pickMode } from '../domain/modeChoice';
 import { useAuth } from '../state/AuthContext';
+import { useMatch } from '../state/MatchContext';
 import { useRoomSession } from '../state/RoomSessionContext';
+import { matchErrorMessage } from '../domain/matchRequest';
+import { isPositionError, roomErrorMessage } from './errors';
 import { roomEntryError } from './boardRoom';
 import { RoomDeck } from './RoomDeck';
 import { RoomMemberProfile } from './RoomMemberProfile';
@@ -37,6 +40,7 @@ export function RoomBoardHome({ roomPanelOpen = false }: { roomPanelOpen?: boole
   const { selectedGame } = useOutletContext<AppShellOutletContext>();
   const navigate = useNavigate();
   const session = useRoomSession();
+  const { request: matchRequest, cancel: cancelMatch } = useMatch();
   const activeRoomId = session.roomId;
   const { rooms, loading, loadingMore, hasMore, loadMore, error: connectionError, refresh, create, join } = useRoomData(selectedGame);
   const [filters, setFilters] = useState<Filters>(defaults);
@@ -130,8 +134,22 @@ export function RoomBoardHome({ roomPanelOpen = false }: { roomPanelOpen?: boole
       {hasMore ? <div className="room-board-more"><Button block disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? '불러오는 중…' : '더 보기'}</Button></div> : null}
     </section>
     </div>
-    {selected ? <RoomJoinConfirm key={selected.id} room={selected} entryError={roomEntryError(selected, selfId, activeRoomId)} onClose={() => setSelectedId(null)}
-      onJoin={async position => { await join(selected.id, position); setSelectedId(null); enter(selected); }} /> : null}
+    {selected ? <RoomJoinConfirm key={selected.id} room={selected} entryError={roomEntryError(selected, selfId, activeRoomId)} cancelsMatch={Boolean(matchRequest)} onClose={() => setSelectedId(null)}
+      onJoin={async position => {
+        // 방 입장은 활성 매칭이 있으면 거절된다. 확인받은 뒤 취소가 끝나야 입장한다.
+        const wasMatching = Boolean(matchRequest);
+        if (wasMatching) {
+          try { await cancelMatch(); }
+          catch (cause) { throw new Error(`빠른매치를 취소하지 못해 방에 입장하지 않았어요. ${matchErrorMessage(cause)}`); }
+        }
+        try { await join(selected.id, position); }
+        catch (cause) {
+          // 포지션 400 은 그대로 던진다 — 참여 창이 남은 포지션을 다시 고르게 한다(빠른매치는 이미 취소돼 다시 고르면 바로 입장한다).
+          if (wasMatching && !isPositionError(cause)) throw new Error(`빠른매치는 취소됐지만 방에 입장하지 못했어요. ${roomErrorMessage(cause)}`);
+          throw cause;
+        }
+        setSelectedId(null); enter(selected);
+      }} /> : null}
     {profileTarget ? <RoomMemberProfile room={profileTarget.room} member={profileTarget.member} onClose={() => setProfileTarget(null)} /> : null}
   </div>;
 }
