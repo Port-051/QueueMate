@@ -57,12 +57,12 @@ const wordmark = (small = false) => `<img class="brand-wordmark${small ? ' small
 export function renderProductPreview() {
   return `<figure class="product-figure actual-ui" aria-labelledby="preview-caption">
 <div class="capture-bar"><span>QueueMate · 파티 찾기</span><span class="capture-label">실제 UI 캡처</span></div>
-<a class="capture-link" href="/assets/ui/quick-match-board.webp" aria-label="파티 찾기 실제 UI 캡처 크게 보기"><img class="ui-capture" src="/assets/ui/quick-match-board.webp" width="1440" height="900" alt="빠른매치 버튼과 게임 모드·포지션 필터, 구성원과 빈자리를 보여주는 파티 모집방 목록" fetchpriority="high" decoding="async"><span class="capture-zoom">화면 크게 보기 ↗</span></a>
+<a class="capture-link" href="/assets/ui/quick-match-board.webp" aria-label="화면 크게 보기 — 파티 찾기 실제 UI 캡처"><img class="ui-capture" src="/assets/ui/quick-match-board.webp" width="1440" height="900" alt="빠른매치 버튼과 게임 모드·포지션 필터, 구성원과 빈자리를 보여주는 파티 모집방 목록" fetchpriority="high" decoding="async"><span class="capture-zoom">화면 크게 보기 ↗</span></a>
 <figcaption id="preview-caption">실제 UI를 실행해 촬영한 화면입니다. 닉네임·전적·모집방은 예시 데이터이며, 이 페이지에서 실제 매칭·음성 연결은 실행되지 않습니다.</figcaption></figure>`;
 }
 function detailCapture(name, alt, label) {
   const url = `/assets/ui/quick-match-${name}.webp`;
-  return `<figure class="detail-capture"><a class="capture-link" href="${url}" aria-label="${e(label)} 실제 UI 캡처 크게 보기"><img src="${url}" width="1440" height="900" alt="${e(alt)}" loading="lazy" decoding="async"><span class="capture-zoom">화면 크게 보기 ↗</span></a><figcaption>실제 UI 캡처 · 예시 데이터</figcaption></figure>`;
+  return `<figure class="detail-capture"><a class="capture-link" href="${url}" aria-label="화면 크게 보기 — ${e(label)} 실제 UI 캡처"><img src="${url}" width="1440" height="900" alt="${e(alt)}" loading="lazy" decoding="async"><span class="capture-zoom">화면 크게 보기 ↗</span></a><figcaption>실제 UI 캡처 · 예시 데이터</figcaption></figure>`;
 }
 
 export function renderSite(c, env = {}) {

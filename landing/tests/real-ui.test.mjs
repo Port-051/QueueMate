@@ -42,3 +42,9 @@ test('above-fold capture is prioritized and further screen images are lazy',()=>
   assert.match(html,/quick-match-board\.webp"[^>]+fetchpriority="high"/);
   for(const n of ['settings','room'])assert.match(html,new RegExp(`quick-match-${n}\\.webp"[^>]+loading="lazy"`));
 });
+
+test('screen enlargement accessible names include their visible label',()=>{
+  const links=[...html.matchAll(/<a class="capture-link"[^>]*aria-label="([^"]+)"/g)];
+  assert.equal(links.length,3);
+  for(const [,label] of links) assert.ok(label.includes('화면 크게 보기'));
+});
