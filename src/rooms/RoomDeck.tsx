@@ -4,6 +4,8 @@ import type { GameKey, LolMostChampion } from '../api/types';
 import { Avatar } from '../components/ui';
 import { FilterModeIcon, FilterRoleIcon, FilterTierIcon, VoiceIcon } from '../components/FilterSymbols';
 import { PerformanceValue } from '../components/IntroductionVisuals';
+import { KdaStat, kdaLine } from '../components/KdaStat';
+import { WinLossBar, winLossRecord } from '../components/WinLossBar';
 import { championName, championPortrait } from '../domain/champions';
 import { keyConditionOptions } from '../domain/gameConfig';
 import { TIER_LADDER_LABEL } from '../domain/gameCatalog';
@@ -79,18 +81,26 @@ export function RoomMemberAvatar({ member, size }: { member: BoardMember; size: 
  * **사람별 포지션 칸은 없다**(2026-09-29 소유자 결정 — 게임 계정에서 주 포지션 · 주 역할군을 없앴다). 그래서 LoL · VALORANT 는 티어가 한 줄을 다 쓴다(`is-wide`).
  * **방장만 예외다 — 글의 `hostPosition`(방장이 글을 쓸 때 고른 자기 포지션 · 2026-09-30 소유자 결정)이 있으면 티어 옆에 그 포지션 아이콘 + 이름**이 붙는다
  * (티어 칸이 반으로 줄고 옆 반에 선다 — PUBG 의 티어 · 서버와 같은 모양). 게임 계정의 값이 아니라 글의 값이라 방장 한 사람만이다.
+ * **`opgg` 를 켜면(프로필 창만 — 2026-09-30 소유자 지시) 전적을 OP.GG 모양으로** — 승 · 패가 있으면(LoL 솔로랭크 시즌 누적) 승률 칸 대신 **승 · 패 막대**(`WinLossBar`)가 한 줄을 다 쓰고
+ * (KDA 는 티어 옆 반으로 올라가고 · 방장 포지션이 그 자리를 쓰면 막대 밑 한 줄 · 승률 숫자는 막대 뒤 하나뿐), 평균 킬 · 데스 · 어시스트와 KDA 가 다 있으면 KDA 칸이 **두 줄**(`KdaStat`)이다.
+ * 값이 모자라면(PUBG · VALORANT · 언랭 · 데스 0) 그 칸은 전과 같다. 방 화면의 파티원 목록은 `opgg` 없이 전과 같다(곧 좌석 줄로 바뀐다).
  */
-export function RoomMemberFacts({ room, member, iconSize = 22 }: { room: BoardRoom; member: BoardMember; iconSize?: number }) {
+export function RoomMemberFacts({ room, member, iconSize = 22, opgg = false }: { room: BoardRoom; member: BoardMember; iconSize?: number; opgg?: boolean }) {
   const pubg = room.game === 'PUBG';
   const server = member.profile?.server;
   const ladderLabel = member.tierLadder ? TIER_LADDER_LABEL[member.tierLadder] : undefined;
   const hostPosition = member.host && !pubg && hasPositions(room.game, room.modeKey) ? room.hostPosition : null;
+  const record = opgg && !pubg ? winLossRecord(member.profile?.stats) : null;
+  const kdaDetail = opgg && !pubg ? kdaLine(member.profile?.stats) : null;
+  const kda = <div className={record && hostPosition ? 'is-wide' : undefined}><dt>{pubg ? 'K/D' : 'KDA'}</dt><dd>{kdaDetail ? <KdaStat line={kdaDetail} size="lg" /> : <Stat kind="kda" value={member.kda} />}</dd></div>;
+  const bar = record ? <div className="is-wide"><dt>승률</dt><dd><WinLossBar record={record} rate={member.winRate} size="lg" /></dd></div> : null;
   return <dl className="room-member-facts">
-    <div className={pubg || hostPosition ? undefined : 'is-wide'}><dt className="sr-only">{ladderLabel ? `${ladderLabel} 티어` : '티어'}</dt><dd><RoomRank game={room.game} tier={member.tier} division={member.division} size={iconSize} ladderLabel={ladderLabel} /></dd></div>
+    <div className={pubg || hostPosition || record ? undefined : 'is-wide'}><dt className="sr-only">{ladderLabel ? `${ladderLabel} 티어` : '티어'}</dt><dd><RoomRank game={room.game} tier={member.tier} division={member.division} size={iconSize} ladderLabel={ladderLabel} /></dd></div>
     {hostPosition ? <div className="room-host-position"><dt className="sr-only">{room.game === 'VALORANT' ? '방장의 역할' : '방장의 포지션'}</dt><dd><RoomRoles game={room.game} roles={[hostPosition]} labels /></dd></div> : null}
     {pubg ? <div><dt className="sr-only">서버</dt><dd><span className="room-random-role">{server === 'STEAM' ? '스팀' : server === 'KAKAO' ? '카카오' : '서버 미정'}</span></dd></div> : null}
-    <div><dt>{pubg ? '치킨' : '승률'}</dt><dd><Stat kind="winRate" value={member.winRate} plain={pubg} /></dd></div>
-    <div><dt>{pubg ? 'K/D' : 'KDA'}</dt><dd><Stat kind="kda" value={member.kda} /></dd></div>
+    {record
+      ? hostPosition ? <>{bar}{kda}</> : <>{kda}{bar}</>
+      : <><div><dt>{pubg ? '치킨' : '승률'}</dt><dd><Stat kind="winRate" value={member.winRate} plain={pubg} /></dd></div>{kda}</>}
   </dl>;
 }
 
@@ -127,6 +137,8 @@ function ChampionFace({ id }: { id: string }) {
 /**
  * 좌석에 마우스를 올리면 뜨는 작은 창(마우스가 있는 화면에서만 — CSS `hover: hover`). 좌석 두 줄에 다 못 싣는 것을 싣는다 —
  * 게임 닉네임 · 인증 · 사다리 · 전적 · 판 수 · **LoL 숙련도 높은 챔피언 셋**(P-39 — 좌석 줄로 바꾸며 카드에서 여기로 옮겼다) · PUBG 서버 · 평균 딜.
+ * **전적은 OP.GG 모양이다**(2026-09-30 소유자 지시) — 승 · 패가 있으면 승률 칸 대신 **승 · 패 막대**(`WinLossBar`)가 한 줄을 다 쓰고(티어 · KDA 한 줄 → 막대 → 판 수),
+ * 평균 킬 · 데스 · 어시스트와 KDA 가 다 있으면 KDA 칸이 **두 줄**(`KdaStat` — `7.2 / 7.6 / 5.4` 위 · `1.66` 아래)이다. 값이 모자라면(PUBG · VALORANT · 언랭) 전과 같다.
  * 좌석을 누르면 여는 프로필 창(`RoomMemberProfile`)과 같은 사실이라 읽어 주지 않는다(`aria-hidden`) — 좌석 버튼의 이름이 요약을 싣는다.
  */
 function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMember }) {
@@ -138,6 +150,8 @@ function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMember })
   const champions: LolMostChampion[] = Array.isArray(mostChampions) ? mostChampions.slice(0, 3) : [];
   const avgDamage = pubg ? finite(stats?.detail?.avgDamage) : null;
   const hostPosition = seatHostPosition(room, member);
+  const record = pubg ? null : winLossRecord(stats);
+  const kdaDetail = pubg ? null : kdaLine(stats);
   return <span className="room-seat-popover" aria-hidden="true">
     <span className="room-pop-head">
       <b>{member.nickname}</b>
@@ -148,8 +162,9 @@ function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMember })
       : '이 게임의 계정을 아직 연결하지 않았어요'}</span>
     {profile ? <span className="room-pop-facts">
       <span><small>{ladderLabel}</small><RoomRank game={room.game} tier={member.tier} division={member.division} size={18} /></span>
-      <span><small>{pubg ? '치킨률' : '승률'}</small><Stat kind="winRate" value={member.winRate} plain={pubg} /></span>
-      <span><small>{pubg ? 'K/D' : 'KDA'}</small><Stat kind="kda" value={member.kda} /></span>
+      {record ? null : <span><small>{pubg ? '치킨률' : '승률'}</small><Stat kind="winRate" value={member.winRate} plain={pubg} /></span>}
+      <span><small>{pubg ? 'K/D' : 'KDA'}</small>{kdaDetail ? <KdaStat line={kdaDetail} /> : <Stat kind="kda" value={member.kda} />}</span>
+      {record ? <span style={{ gridColumn: '1 / -1' }}><small>승률</small><WinLossBar record={record} rate={member.winRate} size="sm" /></span> : null}
       {stats ? <span><small>판 수</small><strong className="performance-value">{stats.games}</strong></span> : null}
       {avgDamage !== null ? <span><small>평균 딜</small><strong className="performance-value">{Math.round(avgDamage)}</strong></span> : null}
     </span> : null}

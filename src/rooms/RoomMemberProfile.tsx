@@ -17,7 +17,7 @@ export function RoomMemberProfile({ room, member, onClose }: {
       <h3>{member.nickname}</h3>
       <p>{gameConfig(room.game).name} · {modeChoiceLabel(room.game, room.modeKey, room.perspective)}</p>
     </div>
-    <RoomMemberFacts room={room} member={member} iconSize={32} />
+    <RoomMemberFacts room={room} member={member} iconSize={32} opgg />
     {member.champions.length ? <section className="room-profile-champions" aria-label={room.game === 'LOL' ? '주 챔피언' : '선호 캐릭터와 장비'}><PreferredChampions game={room.game} names={member.champions} /></section> : null}
     <p className="room-profile-bio">{member.profile
       ? `${member.profile.gameNickname}${member.profile.verified ? ' · 인증됨' : ''}${stats ? ` · ${stats.games}판` : ' · 전적 정보 없음'}`
