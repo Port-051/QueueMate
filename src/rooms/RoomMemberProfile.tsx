@@ -20,7 +20,7 @@ export function RoomMemberProfile({ room, member, onClose }: {
     <RoomMemberFacts room={room} member={member} iconSize={32} opgg />
     {member.champions.length ? <section className="room-profile-champions" aria-label={room.game === 'LOL' ? '주 챔피언' : '선호 캐릭터와 장비'}><PreferredChampions game={room.game} names={member.champions} /></section> : null}
     <p className="room-profile-bio">{member.profile
-      ? `${member.profile.gameNickname}${member.profile.verified ? ' · 인증됨' : ''}${stats ? ` · ${gamesText(room.game, stats.games)}` : ' · 전적 정보 없음'}`
+      ? `${member.profile.gameNickname}${member.profile.verified ? ' · 인증됨' : ''}${stats ? ` · ${gamesText(room.game, stats)}` : ' · 전적 정보 없음'}`
       : '이 게임의 계정을 아직 연결하지 않았어요'}</p>
   </Modal>;
 }

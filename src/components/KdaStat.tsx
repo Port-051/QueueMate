@@ -33,3 +33,29 @@ export function KdaStat({ line, size = 'sm' }: { line: KdaLine; size?: KdaStatSi
     <b className="kda-stat-ratio" data-tone={kdaTone(kda)} aria-hidden="true">{ratio}</b>
   </span>;
 }
+
+export interface KdLine { kills: number; deaths: number; kd: number; }
+
+/**
+ * PUBG 의 K/D 두 줄 — 판당 평균 킬 · 데스(`avgKills` · `avgDeaths`)와 K/D(`detail.kd`) 셋이 다 숫자일 때만(아니면 `null` — 부르는 쪽이 K/D 한 칸을 그린다).
+ * PUBG 는 어시스트가 없다(`avgAssists` 늘 `null`). 서버가 데스 0 이면 `kd` 를 `null` 로 준다(platform-api.md "전적을 긁는 것" 의 PUBG).
+ */
+export function kdLine(stats: GameStats | null | undefined): KdLine | null {
+  const kills = finite(stats?.avgKills);
+  const deaths = finite(stats?.avgDeaths);
+  const kd = finite(stats?.detail?.kd);
+  return kills !== null && deaths !== null && kd !== null ? { kills, deaths, kd } : null;
+}
+
+/**
+ * `KdaStat` 의 PUBG 판 — 위 줄에 평균 `킬 / 데스`, 아래 줄에 K/D 를 크게(2026-09-30 소유자 — PUBG 작은 창에도 LoL 처럼). 모양 · 색 구간은 `KdaStat` 그대로다
+ * (K/D 에 따로 구간을 정하지 않았다 — Claude 가 정한 세부). 좌석 작은 창과 프로필 창이 쓴다.
+ */
+export function KdStat({ line, size = 'sm' }: { line: KdLine; size?: KdaStatSize }) {
+  const { kills, deaths, kd } = line;
+  const k = kills.toFixed(1), d = deaths.toFixed(1), ratio = kd.toFixed(2);
+  return <span className="kda-stat" data-size={size} role="img" aria-label={`평균 킬 ${k} · 데스 ${d} · K/D ${ratio}`}>
+    <span className="kda-stat-avg" aria-hidden="true">{k}<i>/</i>{d}</span>
+    <b className="kda-stat-ratio" data-tone={kdaTone(kd)} aria-hidden="true">{ratio}</b>
+  </span>;
+}
