@@ -6,7 +6,7 @@ import type { UpdatePostRequest, VoicePreference } from '../api/types';
 import { GameBadge } from '../components/GameSymbol';
 import { ReportModal } from '../components/ReportModal';
 import { IconLogout, IconMic, IconMicOff, IconSend, IconShield } from '../components/icons';
-import { ActionMenu, Avatar, Button, Card, CardHead, ConfirmDialog, EmptyState, Field, Modal, Tag, useToast } from '../components/ui';
+import { Avatar, Button, Card, CardHead, ConfirmDialog, EmptyState, Field, Modal, Tag, useToast } from '../components/ui';
 import { PERSPECTIVE_LABEL } from '../domain/gameCatalog';
 import { keyConditionOptions } from '../domain/gameConfig';
 import { gameFullLabel } from '../domain/labels';
@@ -15,7 +15,8 @@ import { socialErrorMessage } from '../domain/socialErrors';
 import { formatTime } from '../domain/time';
 import { perspectiveFromMode, toBoardRoom } from '../rooms/boardRoom';
 import { roomErrorMessage } from '../rooms/errors';
-import { RoomMemberFacts, RoomRoles } from '../rooms/RoomDeck';
+import { RoomRoles } from '../rooms/RoomDeck';
+import { RoomVoiceSeats, type SeatMenuAction, type VoiceSeatMember } from '../rooms/RoomVoiceSeats';
 import { canonicalRoomRoles, hasPositions, ROOM_ROLES } from '../rooms/summary';
 import type { BoardMember, BoardRoom } from '../rooms/types';
 import { useAuth } from '../state/AuthContext';
@@ -45,15 +46,17 @@ const VOICE_LABEL: Record<VoiceStatus, string> = {
  * - 나가기 `DELETE …/members/me`(늘 204) · 강퇴 `DELETE …/members/{userId}`(방장) · 확정 `POST …/confirm`(게시판 방 · 방장 · 2명 이상 · **되돌릴 수 없다** — 한 번 더 묻는다).
  *   글 고치기 `PATCH /posts/{postId}`(방장 혼자일 때만 — 409 `ROOM_HAS_OTHER_MEMBERS`) · 지우기 `DELETE /posts/{postId}`(만료로 바꾸고 방도 닫힌다).
  * - 음성 · 채팅은 WebRTC 직결(`PartySessionContext`). 친구 추가 · 차단 · 신고는 `SocialContext` · `ReportModal`(5단계 — 우리 API. 신고의 `contextId` 는 게시판 방이면 글 번호, 자동 매칭 방은 없다).
+ * - **파티원은 음성 칸의 좌석 줄이다**(2026-09-30 소유자 지시 — `rooms/RoomVoiceSeats.tsx`). 옛 오른쪽 "파티원 (n/정원)" 카드와 사람마다의 큰 프로필(티어 · 승률 · KDA 칸)을 걷었다 —
+ *   좌석은 게시판 카드의 좌석과 같고(정원만큼 · 빈 자리는 점선 원) 음성 상태가 붙는다. 친구 추가 · 방장의 내보내기 · 차단 · 신고는 **좌석을 누르면 뜨는 작은 메뉴**(`menuFor`)로 옮겼다(내 좌석은 누를 수 없다).
  * - **2026-09-30 부터 이 화면은 게시판 오른쪽 패널이다**(`pages/HomePage.tsx` — 넓은 화면은 게시판을 왼쪽으로 밀고, 좁은 화면은 게시판을 덮는다). 경로 · 하는 일은 그대로이고,
  *   게시판 방의 글을 처음 읽으면 게시판의 게임을 이 방의 게임으로 한 번 맞춘다(`syncRoomGame` — 딥 링크 · 새로 고침).
  */
 export function PartyRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
-  const { userId } = useAuth();
+  const { user, userId } = useAuth();
   const session = useRoomSession();
   const { messages, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef, setConnectionAttempt } = usePartySession();
-  const { isFriend, addFriend, block } = useSocial();
+  const { isFriend, requestTo, addFriend, block } = useSocial();
   const { activePartyInfo } = useMatch();
   const navigate = useNavigate();
   const toast = useToast();
@@ -106,7 +109,8 @@ export function PartyRoomPage() {
   const isHost = session.hostId === userId;
   const confirmed = session.confirmed || room?.status === 'CONFIRMED';
   const cards = new Map<string, BoardMember>((room?.members ?? []).map(member => [member.id, member]));
-  const members = session.members.map(id => ({ id, card: cards.get(id) ?? null, nickname: cards.get(id)?.nickname ?? (id === userId ? '나' : `#${id}`) }));
+  // 닉네임 — 게시판 방은 글의 카드, 나는 내 닉네임, 그 밖(자동 매칭 방)은 사용자 번호(조회할 API 가 없다).
+  const members: VoiceSeatMember[] = session.members.map(id => ({ id, card: cards.get(id) ?? null, nickname: cards.get(id)?.nickname ?? (id === userId ? user?.nickname ?? '나' : `#${id}`) }));
   const peerCount = members.filter(m => m.id !== userId).length;
   const canChat = connectedPeers.length > 0;
   const needsReconnect = connectedPeers.length < peerCount;
@@ -156,6 +160,26 @@ export function PartyRoomPage() {
     catch (err) { toast(socialErrorMessage(err, '차단하지 못했습니다'), 'error'); }
   };
 
+  // 좌석을 누르면 뜨는 작은 메뉴 — 옛 파티원 카드의 버튼 줄(친구 추가 · 방장의 내보내기 · "···" 의 차단 · 신고)과 같은 일이다. 내 좌석은 메뉴가 없다(`RoomVoiceSeats`).
+  // 이미 보낸 친구 요청이면 누를 수 없는 "친구 요청 보냄", 친구면 줄 대신 머리에 "친구"(Claude 가 정한 세부).
+  const menuFor = (member: VoiceSeatMember): { note?: string; actions: SeatMenuAction[] } => {
+    const friend = isFriend(member.id);
+    const actions: SeatMenuAction[] = [];
+    if (!friend) actions.push(requestTo(member.id)
+      ? { key: 'friend', label: '친구 요청 보냄', disabled: true, onSelect: () => {} }
+      : { key: 'friend', label: '친구 추가', onSelect: () => void onFriendRequest(member.id, member.nickname) });
+    if (isHost) actions.push({ key: 'kick', label: '내보내기', tone: 'danger', onSelect: () => setDialog({ kind: 'kick', userId: member.id, nickname: member.nickname }) });
+    actions.push({ key: 'block', label: '차단', onSelect: () => void onBlock(member.id, member.nickname) });
+    actions.push({ key: 'report', label: <><IconShield size={13} /> 신고</>, onSelect: () => setReportTarget({ userId: member.id, nickname: member.nickname }) });
+    const note = [member.id === session.hostId ? '방장' : null, friend ? '친구' : null].filter(Boolean).join(' · ');
+    return { note: note || undefined, actions };
+  };
+  // 좌석 아래 안내(한 줄씩) — 게시판 방의 확정 안내(옛 파티원 카드 밑에 있던 것) · 다른 사람이 있으면 좌석을 누르면 무엇을 할 수 있는지.
+  const guide = [
+    !confirmed && room ? isHost ? '원하는 사람이 다 모이면 파티를 확정하세요. 확정하면 새 사람이 들어올 수 없어요.' : '방장이 확정하면 파티가 완성돼요.' : null,
+    peerCount ? `파티원을 누르면 친구 추가${isHost ? ' · 내보내기' : ''} · 차단 · 신고를 할 수 있어요.` : null,
+  ].filter((line): line is string => Boolean(line));
+
   return (
     <section className="page party-page">
       <div className="page-head row-between">
@@ -186,91 +210,55 @@ export function PartyRoomPage() {
       {postId !== null && postError && !room ? <div className="banner warn" role="alert" style={{ marginBottom: 20 }}>글 정보를 불러오지 못했어요. <Button size="sm" onClick={() => void loadPost()}>다시 불러오기</Button></div> : null}
       {postId === null ? <div className="banner" role="status" style={{ marginBottom: 20 }}>자동 매칭으로 확정된 파티의 방이에요. 처음부터 확정이라 새 사람은 들어오지 않아요. 글이 없어 파티원의 닉네임 · 프로필은 보이지 않아요(사용자 번호만).</div> : null}
 
-      <div className="page-grid">
-        <div className="stack">
-          <Card>
-            <CardHead title="음성 채널" right={<Tag tone={voice === 'connected' ? 'ok' : 'default'}>{VOICE_LABEL[voice]}</Tag>} />
-            {voiceDetail ? <div className="banner warn" style={{ marginBottom: 14 }}>{voiceDetail}</div> : null}
-            <div className="voice-row">
-              <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
-                {members.map(m => (
-                  <div key={m.id} className={connectedPeers.includes(m.id) || (m.id === userId && voice === 'connected') ? 'voice-chip on' : 'voice-chip'}>
-                    <Avatar name={m.nickname} size={28} />
-                    <span>{m.nickname}</span>
-                    {m.id === userId && muted ? <IconMicOff size={14} /> : <IconMic size={14} />}
-                  </div>
-                ))}
-              </div>
-              {voice !== 'connected' ? <Button disabled={!clientRef.current || voice === 'connecting'} onClick={() => void clientRef.current?.startVoice()}>{voice === 'denied' || voice === 'error' ? '마이크 다시 시도' : '마이크 켜기'}</Button> : <Button onClick={toggleMute}>
-                {muted ? <><IconMicOff size={15} /> 음소거 해제</> : <><IconMic size={15} /> 음소거</>}
-              </Button>}
-            </div>
-          </Card>
+      <div className="stack">
+        <Card className="voice-card">
+          <CardHead title="음성 채널" right={<Tag tone={voice === 'connected' ? 'ok' : 'default'}>{VOICE_LABEL[voice]}</Tag>} />
+          {voiceDetail ? <div className="banner warn" style={{ marginBottom: 14 }}>{voiceDetail}</div> : null}
+          <RoomVoiceSeats room={room} members={members} hostId={session.hostId} selfId={userId} capacity={capacity}
+            voice={voice} muted={muted} connectedPeers={connectedPeers} menuFor={menuFor} />
+          <div className="room-voice-foot">
+            {guide.length ? <p className="hint">{guide.map(line => <span key={line}>{line}</span>)}</p> : null}
+            {voice !== 'connected' ? <Button disabled={!clientRef.current || voice === 'connecting'} onClick={() => void clientRef.current?.startVoice()}>{voice === 'denied' || voice === 'error' ? '마이크 다시 시도' : '마이크 켜기'}</Button> : <Button onClick={toggleMute}>
+              {muted ? <><IconMicOff size={15} /> 음소거 해제</> : <><IconMic size={15} /> 음소거</>}
+            </Button>}
+          </div>
+        </Card>
 
-          <Card className="chat-card">
-            <CardHead title="채팅" sub={connectionHint} right={needsReconnect && peerCount ? <Button size="sm" onClick={() => setConnectionAttempt((n) => n + 1)}>연결 다시 시도</Button> : undefined} />
-            <div className="chat-log" role="log" aria-label="방 메시지" aria-live="polite">
-              {messages.length === 0 ? (
-                <p style={{ color: 'var(--muted)', fontSize: 13 }}>메시지가 없습니다. 채팅은 브라우저끼리 직접 오가고 서버에 남지 않아요.</p>
-              ) : messages.map((m) => (
-                m.system ? (
-                  <p key={m.id} className="chat-system">{m.text}</p>
-                ) : (
-                  <div key={m.id} className="chat-line">
-                    <Avatar name={m.nickname} size={30} />
-                    <div>
-                      <div className="chat-meta">
-                        <b>{m.nickname}</b>
-                        <span>{formatTime(m.at)}</span>
-                      </div>
-                      <p>{m.text}</p>
+        <Card className="chat-card">
+          <CardHead title="채팅" sub={connectionHint} right={needsReconnect && peerCount ? <Button size="sm" onClick={() => setConnectionAttempt((n) => n + 1)}>연결 다시 시도</Button> : undefined} />
+          <div className="chat-log" role="log" aria-label="방 메시지" aria-live="polite">
+            {messages.length === 0 ? (
+              <p style={{ color: 'var(--muted)', fontSize: 13 }}>메시지가 없습니다. 채팅은 브라우저끼리 직접 오가고 서버에 남지 않아요.</p>
+            ) : messages.map((m) => (
+              m.system ? (
+                <p key={m.id} className="chat-system">{m.text}</p>
+              ) : (
+                <div key={m.id} className="chat-line">
+                  <Avatar name={m.nickname} size={30} />
+                  <div>
+                    <div className="chat-meta">
+                      <b>{m.nickname}</b>
+                      <span>{formatTime(m.at)}</span>
                     </div>
+                    <p>{m.text}</p>
                   </div>
-                )
-              ))}
-              <div ref={chatEndRef} />
-            </div>
-            <div className="chat-input">
-              <input
-                className="input"
-                placeholder="메시지를 입력하세요"
-                value={draft}
-                aria-label="방 메시지"
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) send(); }}
-              />
-              <Button variant="primary" disabled={!canChat || !draft.trim()} onClick={send} aria-label="보내기"><IconSend size={16} /></Button>
-            </div>
-          </Card>
-        </div>
-
-        <div className="rail">
-          <Card>
-            <CardHead title={`파티원 (${members.length}${capacity ? `/${capacity}` : ''})`} />
-            {members.map((m) => (
-              <div key={m.id} className="list-item" style={{ alignItems: 'flex-start' }}>
-                <Avatar name={m.nickname} size={36} />
-                <div className="li-main">
-                  <b>{m.nickname}{m.id === userId ? ' (나)' : ''}{m.id === session.hostId ? <Tag tone="accent">방장</Tag> : null}</b>
-                  {room && m.card ? <RoomMemberFacts room={room} member={m.card} /> : <p className="hint">{postId === null ? `사용자 번호 ${m.id}` : '프로필 정보 없음'}</p>}
-                  {m.id !== userId ? (
-                    <div className="row" style={{ gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                      {isFriend(m.id)
-                        ? <Tag tone="accent">친구</Tag>
-                        : <Button size="sm" onClick={() => void onFriendRequest(m.id, m.nickname)}>친구 추가</Button>}
-                      {isHost ? <Button size="sm" variant="ghost" onClick={() => setDialog({ kind: 'kick', userId: m.id, nickname: m.nickname })}>내보내기</Button> : null}
-                      <ActionMenu label={`${m.nickname} 관리`}>
-                        <Button size="sm" onClick={() => void onBlock(m.id, m.nickname)}>차단</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setReportTarget({ userId: m.id, nickname: m.nickname })}><IconShield size={13} /> 신고</Button>
-                      </ActionMenu>
-                    </div>
-                  ) : null}
                 </div>
-              </div>
+              )
             ))}
-            {!confirmed && room ? <p className="hint" style={{ marginTop: 8 }}>{isHost ? '원하는 사람이 다 모이면 파티를 확정하세요. 확정하면 새 사람이 들어올 수 없어요.' : '방장이 확정하면 파티가 완성돼요.'}</p> : null}
-          </Card>
-        </div>
+            <div ref={chatEndRef} />
+          </div>
+          <div className="chat-input">
+            <input
+              className="input"
+              placeholder="메시지를 입력하세요"
+              value={draft}
+              aria-label="방 메시지"
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) send(); }}
+            />
+            <Button variant="primary" disabled={!canChat || !draft.trim()} onClick={send} aria-label="보내기"><IconSend size={16} /></Button>
+          </div>
+        </Card>
       </div>
 
       {dialog?.kind === 'leave' ? <ConfirmDialog title="방에서 나갈까요?" confirmLabel="나가기" onClose={() => setDialog(null)} onConfirm={leave}

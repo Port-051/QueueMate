@@ -1,7 +1,8 @@
 /* 방 패널(2026-09-30 소유자 지시 — `pages/HomePage.tsx`). 넓은 화면(1100px 이상 — `rooms/roomPanel.ts` `ROOM_SPLIT_QUERY` 와 같은 값)은 게시판이 왼쪽으로 좁아지고
    (본문의 25% · 적어도 340px) 방이 나머지 폭으로 오른쪽에서 밀려 들어온다 — 패널은 화면 높이에 붙고(sticky) 게시판만 스크롤된다. 좁은 화면은 방이 오른쪽에서 밀려 들어와 본문을 덮고 맨 위 "게시판으로" 로 숨긴다.
    (처음에는 55 : 45 → 같은 날 소유자 지시 "게시판을 아예 왼쪽으로 밀어버리고 방을 좀 더 크게" 로 35 : 65 → 또 같은 날 "좀 더 왼쪽으로 댕겨서 더 크게" 로 게시판 max(340px, 25%).)
-   패널 안의 방 화면(`PartyRoomPage`)은 패널이 넓으면(760px 이상 — 컨테이너 질의 `room-panel`) 두 열(음성 · 채팅 | 파티원), 좁으면 한 열(파티원 · 음성 · 채팅 — 좁은 화면의 옛 방 화면과 같은 순서)이다. */
+   패널 안의 방 화면(`PartyRoomPage`)은 한 열(음성 · 채팅)이다 — 파티원은 음성 칸의 좌석 줄이다(같은 날 소유자 지시 — `RoomVoiceSeats.tsx`. 그 전에는 패널이 넓으면(760px 이상) 두 열(음성 · 채팅 | 파티원 300px)이었다).
+   자동 매칭의 제안 화면(`ProposalPage`)은 그대로 넓으면 두 열이다. */
 .board-split { display:flex; align-items:flex-start; min-width:0; }
 .board-split-board { flex:1 1 0; min-width:0; }
 .room-panel {
@@ -46,7 +47,7 @@
 .room-panel-back:focus-visible { outline:2px solid #c5a5ff; outline-offset:2px; }
 .room-panel-bar-note { color:#8f8aa0; font-size:12px; }
 
-/* 패널 안의 화면(방 `PartyRoomPage` · 자동 매칭의 제안 `ProposalPage`) — 좁으면 한 열. 옛 좁은 화면 규칙(`usability.css` ≤1199px)이 파티원 카드를 숨기던 것(`.rail > .card:last-child`)은 패널에서 되살린다 — 강퇴 · 친구 · 차단이 거기 있다. */
+/* 패널 안의 화면(방 `PartyRoomPage` · 자동 매칭의 제안 `ProposalPage`). 방은 늘 한 열(음성 칸 — 좌석 줄 · 채팅)이고 제안은 좁으면 한 열이다. */
 .room-panel .page { max-width:none; margin:0; padding:22px 24px 40px; }
 .room-panel .proposal-page .page-grid { display:flex; flex-direction:column; gap:16px; }
 .room-panel .proposal-page .page-grid > * { width:100%; }
@@ -55,16 +56,10 @@
 .room-panel .page-head h1 { font-size:22px; overflow-wrap:anywhere; }
 .room-panel .page > .page-head h1 { min-height:0; padding-right:0; }
 .room-panel .page-head.row-between { flex-wrap:wrap; align-items:flex-start; }
-.room-panel .party-page .page-grid { display:flex; flex-direction:column; gap:16px; }
-.room-panel .party-page .page-grid > * { width:100%; }
-.room-panel .party-page .rail { order:-1; position:static; display:grid; grid-template-columns:minmax(0,1fr); }
-/* `usability.css` 가 이 파일보다 뒤에 실려(전역 CSS 는 `main.tsx` 에서 앱 뒤에 온다) 같은 무게로는 진다 — `:last-child` 까지 적어 무게를 올린다. */
-.room-panel .party-page .rail > .card:last-child { display:block; }
 .room-panel .party-page .chat-card { min-height:320px; }
-/* 넓은 패널(760px 이상 — 1440 이면 884px) — 두 열: 왼쪽 음성 · 채팅, 오른쪽 파티원(옛 넓은 화면의 방 화면과 같은 자리). 채팅이 넓어지고 파티원 목록이 채팅을 밀어내지 않는다. */
+/* 넓은 패널(760px 이상 — 1440 이면 1020px) — 제안은 두 열(왼쪽 제안 · 오른쪽 조건), 방은 채팅을 높인다. */
 @container room-panel (min-width:760px) {
-  .room-panel :is(.party-page,.proposal-page) .page-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,300px); align-items:start; gap:20px; }
-  .room-panel .party-page .page-grid > .rail { order:0; }
+  .room-panel .proposal-page .page-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,300px); align-items:start; gap:20px; }
   .room-panel .party-page .chat-card { min-height:420px; }
 }
 

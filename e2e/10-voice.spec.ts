@@ -142,6 +142,15 @@ test('시나리오 10 — 두 사람이 화면으로 같은 방 · 마이크 켜
     for (const page of [pageA, pageB!]) await pressMic(page);
   });
 
+  await test.step('파티원은 음성 칸의 좌석 줄 — 정원 다섯 자리에 둘(빈자리 셋) · B 의 좌석은 "음성 연결됨" 이고 누르면 메뉴 · 내 좌석은 누를 수 없다', async () => {
+    // 2026-09-30 — 옛 오른쪽 "파티원 (n/정원)" 카드 대신(`rooms/RoomVoiceSeats.tsx`). 좌석 이름은 그 좌석의 요약 + 음성 상태다.
+    const seats = pageA.getByRole('region', { name: '방', exact: true }).getByRole('list', { name: '파티원 2 / 5' });
+    await expect(seats).toBeVisible();
+    await expect(seats.getByText('빈자리')).toHaveCount(3);
+    await expect(seats.getByRole('button', { name: new RegExp(`^${b.nickname} · .*음성 연결됨 — 메뉴$`) })).toBeVisible({ timeout: 20_000 });
+    await expect(seats.getByRole('button', { name: new RegExp(`^${a.nickname} · `) })).toHaveCount(0);
+  });
+
   const sideA: Side = { name: 'A', page: pageA };
   const sideB: Side = { name: 'B', page: pageB! };
   const sides: Side[] = [sideA, sideB];

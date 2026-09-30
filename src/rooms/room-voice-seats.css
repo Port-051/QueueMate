@@ -1,0 +1,57 @@
+/* 방 화면 음성 칸의 좌석 줄(2026-09-30 소유자 지시 — `RoomVoiceSeats.tsx`). 좌석 · 빈 점선 원 · 마우스를 올린 작은 창 · n/정원은 게시판 카드의 것(`room-board.css` "좌석 줄")을
+   그대로 쓴다(그 파일을 먼저 싣는다 — `RoomVoiceSeats.tsx` 의 import 순서). 여기에는 방 화면에만 있는 것 — 음성 표시 · (나) · 누를 수 없는 내 좌석 · 좌석 메뉴 ·
+   음성 칸 폭에 맞춘 좁은 모양(컨테이너 질의 `room-voice` — 게시판의 `room-card` 와 같은 460px) — 만 둔다. 좌석 하나하나가 제 폭을 보고 줄어드는 것(190 · 132 · 64px)은 게시판 그대로다. */
+.room-voice-seats-wrap { container:room-voice / inline-size; margin-bottom:14px; }
+.room-voice-seats-row { position:relative; display:flex; align-items:center; gap:10px 14px; min-width:0; }
+.room-voice-seats-row > .room-seat-count { flex:none; margin-left:auto; }
+/* 방 화면은 게시판 카드보다 넓다 — 좌석을 조금 넓혀(228 → 264px) "(나)" · 방장 포지션 · 음성 표시가 닉네임을 자르지 않게 한다. 좁으면 게시판처럼 스스로 줄어든다. */
+.room-voice-seats .room-seat.is-filled { flex-basis:264px; }
+.room-voice-seat .room-seat-button { position:relative; }
+.room-voice-seats .room-seat-button.is-static { cursor:default; }
+.room-voice-seats .room-seat-button.is-static:hover { background:color-mix(in srgb, var(--app-background) 82%, white); }
+.room-voice-seats .room-seat:not(.is-host) .room-seat-button.is-static:hover { border-color:#ffffff0f; }
+.room-seat-me { flex:none; color:#b9a6e6; font-size:12px; font-weight:600; }
+/* 음성 표시 — 좌석 오른쪽 끝의 작은 마이크. 나: 켜짐(초록) · 음소거(빨강) · 꺼짐(회색) / 다른 사람: 이어짐(초록) · 기다림(회색). 뜻은 `title` · 좌석 이름에 있다. */
+.room-voice-mark { flex:none; display:grid; place-items:center; width:24px; height:24px; margin-left:auto; border-radius:50%; background:#ffffff0d; color:#8f8aa0; }
+.room-voice-mark:is([data-voice=on],[data-voice=linked]) { background:#3ddc9724; color:#5fe3a8; }
+.room-voice-mark[data-voice=muted] { background:#f2677524; color:#f19aa3; }
+.room-voice-mark[data-voice=waiting] { opacity:.7; }
+/* 메뉴가 열린 좌석은 마우스를 올린 작은 창을 숨긴다(메뉴와 겹친다). */
+.room-voice-seat.is-menu-open .room-seat-popover { display:none !important; }
+/* 좌석이 얼굴 위 · 닉네임 아래로 설 만큼 좁으면(132px 이하 — 게시판 좌석 질의와 같은 값) 음성 표시는 좌석 오른쪽 위 모서리의 작은 원이다. */
+@container room-seat (max-width:132px) {
+  .room-voice-mark { position:absolute; top:4px; right:4px; width:18px; height:18px; margin:0; }
+  .room-voice-mark svg { width:11px; height:11px; }
+}
+@container room-seat (max-width:64px) {
+  .room-seat-me { display:none; }
+}
+
+/* 좌석을 누르면 뜨는 작은 메뉴 — 좌석 밑 · 음성 칸 밖으로 삐지면 좌석 오른쪽 끝에 맞춘다(`is-end` — 재서). */
+.room-seat-menu { position:absolute; left:0; top:calc(100% + 6px); z-index:30; display:grid; gap:2px; min-width:176px; padding:6px; border:1px solid #ffffff1c; border-radius:14px; background:#1d1b27; box-shadow:0 14px 36px #000a; }
+.room-seat-menu.is-end { left:auto; right:0; }
+.room-seat-menu-head { display:flex; align-items:baseline; gap:8px; min-width:0; margin:0 0 2px; padding:6px 10px 8px; border-bottom:1px solid #ffffff12; font-size:13px; }
+.room-seat-menu-head b { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:650; }
+.room-seat-menu-head em { flex:none; color:#b9a6e6; font-size:12px; font-style:normal; }
+.room-seat-menu [role=menuitem] { display:flex; align-items:center; gap:8px; width:100%; min-height:36px; padding:0 10px; border:0; border-radius:9px; background:none; color:var(--text); font:inherit; font-size:13.5px; text-align:left; cursor:pointer; }
+.room-seat-menu [role=menuitem]:hover:not(:disabled) { background:#ffffff0f; }
+.room-seat-menu [role=menuitem]:focus-visible { outline:2px solid #c5a5ff; outline-offset:-2px; }
+.room-seat-menu [role=menuitem]:disabled { color:#8f8aa0; cursor:default; }
+.room-seat-menu [role=menuitem].is-danger { color:#f19aa3; }
+
+/* 음성 칸이 좁으면(폰 폭 — 460px 아래) 게시판의 폰 폭 카드처럼 좌석이 다섯 칸 격자(얼굴 원 + 티어 배지 + 아래 닉네임)가 되고 좌석 틀은 뺀다 · n/정원은 아래 줄 오른쪽. */
+@container room-voice (max-width:459px) {
+  .room-voice-seats-row { flex-wrap:wrap; }
+  .room-voice-seats { display:grid; flex:1 1 100%; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; width:100%; }
+  .room-voice-seats .room-seat-button,.room-voice-seats .room-seat.is-host .room-seat-button { border-color:transparent; border-radius:12px; background:none; }
+  .room-voice-seats .room-seat-button:not(.is-static):hover { background:#ffffff0a; }
+  .room-voice-seats .room-seat.is-empty { align-self:start; padding-top:7px; }
+  .room-voice-seats .room-seat-hole { width:34px; height:34px; }
+  .room-voice-seats-row > .room-seat-count { width:100%; text-align:right; }
+}
+
+/* 좌석 아래 — 안내 한 줄(왼쪽)과 마이크 버튼(오른쪽). */
+.room-voice-foot { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 16px; }
+.room-voice-foot .hint { flex:1 1 240px; margin:0; }
+.room-voice-foot .hint > span { display:block; }
+.room-voice-foot > .btn { margin-left:auto; }

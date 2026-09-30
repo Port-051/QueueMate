@@ -65,25 +65,31 @@ function Stat({ kind, value, plain = false }: { kind: 'winRate' | 'kda'; value: 
 
 export const POST_STATUS_LABEL: Record<BoardRoom['status'], string> = { RECRUITING: '모집 중', CONFIRMED: '확정', EXPIRED: '만료' };
 
+/** 얼굴 위 방장 왕관 — 게시판 좌석 · 프로필 창 · 방 화면의 음성 칸 좌석(`RoomVoiceSeats` — 글의 카드가 없는 자동 매칭 방도)이 같이 쓴다. */
+export function RoomHostCrown() {
+  return <span className="room-host-crown" role="img" aria-label="방장" title="방장">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m3 6 5 4 4-7 4 7 5-4-2 12H5L3 6Zm2 14h14v2H5v-2Z" /></svg>
+  </span>;
+}
+
 export function RoomMemberAvatar({ member, size }: { member: BoardMember; size: number }) {
   return <span className="room-member-avatar">
     <Avatar name={member.nickname} size={size} />
-    {member.host ? <span className="room-host-crown" role="img" aria-label="방장" title="방장">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m3 6 5 4 4-7 4 7 5-4-2 12H5L3 6Zm2 14h14v2H5v-2Z" /></svg>
-    </span> : null}
+    {member.host ? <RoomHostCrown /> : null}
   </span>;
 }
 
 /**
  * 사람의 사실 — 티어 · 승률 · KDA, PUBG 는 티어 · 서버 · 치킨률 · K/D 넷. 전부 게임 프로필(`profile`)에서 온다 — VALORANT 의 전적은 아직 없어 `—` 다.
- * **게시판 카드에는 더 쓰지 않는다**(2026-09-30 좌석 줄 — 카드는 `RoomSeat` 의 두 줄이다). 좌석을 눌렀을 때의 프로필 창(`RoomMemberProfile`)과 방 화면의 파티원 목록이 쓴다.
+ * **게시판 카드에는 더 쓰지 않는다**(2026-09-30 좌석 줄 — 카드는 `RoomSeat` 의 두 줄이다). 좌석을 눌렀을 때의 프로필 창(`RoomMemberProfile`)만 쓴다
+ * (방 화면의 파티원 목록도 쓰다가 같은 날 음성 칸의 좌석 줄이 됐다 — `RoomVoiceSeats`).
  * **티어는 그 글의 모드의 사다리 티어**이고 사다리가 없는 모드면 그 사람의 가장 높은 티어다(2026-09-29 — `rooms/boardRoom.ts` `toBoardMember`). 어느 사다리인지는 풍선말로.
  * **사람별 포지션 칸은 없다**(2026-09-29 소유자 결정 — 게임 계정에서 주 포지션 · 주 역할군을 없앴다). 그래서 LoL · VALORANT 는 티어가 한 줄을 다 쓴다(`is-wide`).
  * **방장만 예외다 — 글의 `hostPosition`(방장이 글을 쓸 때 고른 자기 포지션 · 2026-09-30 소유자 결정)이 있으면 티어 옆에 그 포지션 아이콘 + 이름**이 붙는다
  * (티어 칸이 반으로 줄고 옆 반에 선다 — PUBG 의 티어 · 서버와 같은 모양). 게임 계정의 값이 아니라 글의 값이라 방장 한 사람만이다.
  * **`opgg` 를 켜면(프로필 창만 — 2026-09-30 소유자 지시) 전적을 OP.GG 모양으로** — 승 · 패가 있으면(LoL 솔로랭크 시즌 누적) 승률 칸 대신 **승 · 패 막대**(`WinLossBar`)가 한 줄을 다 쓰고
  * (KDA 는 티어 옆 반으로 올라가고 · 방장 포지션이 그 자리를 쓰면 막대 밑 한 줄 · 승률 숫자는 막대 뒤 하나뿐), 평균 킬 · 데스 · 어시스트와 KDA 가 다 있으면 KDA 칸이 **두 줄**(`KdaStat`)이다.
- * 값이 모자라면(PUBG · VALORANT · 언랭 · 데스 0) 그 칸은 전과 같다. 방 화면의 파티원 목록은 `opgg` 없이 전과 같다(곧 좌석 줄로 바뀐다).
+ * 값이 모자라면(PUBG · VALORANT · 언랭 · 데스 0) 그 칸은 전과 같다.
  */
 export function RoomMemberFacts({ room, member, iconSize = 22, opgg = false }: { room: BoardRoom; member: BoardMember; iconSize?: number; opgg?: boolean }) {
   const pubg = room.game === 'PUBG';
@@ -140,8 +146,9 @@ function ChampionFace({ id }: { id: string }) {
  * **전적은 OP.GG 모양이다**(2026-09-30 소유자 지시) — 승 · 패가 있으면 승률 칸 대신 **승 · 패 막대**(`WinLossBar`)가 한 줄을 다 쓰고(티어 · KDA 한 줄 → 막대 → 판 수),
  * 평균 킬 · 데스 · 어시스트와 KDA 가 다 있으면 KDA 칸이 **두 줄**(`KdaStat` — `7.2 / 7.6 / 5.4` 위 · `1.66` 아래)이다. 값이 모자라면(PUBG · VALORANT · 언랭) 전과 같다.
  * 좌석을 누르면 여는 프로필 창(`RoomMemberProfile`)과 같은 사실이라 읽어 주지 않는다(`aria-hidden`) — 좌석 버튼의 이름이 요약을 싣는다.
+ * 방 화면의 음성 칸 좌석(`RoomVoiceSeats`)도 같은 창을 쓴다. 띄울지는 `seatPopoverShown`(VALORANT 는 띄우지 않는다)이 정한다.
  */
-function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMember }) {
+export function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMember }) {
   const profile = member.profile;
   const stats = profile?.stats ?? null;
   const pubg = room.game === 'PUBG';
@@ -193,7 +200,7 @@ function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMember })
  * 잴 때 창이 숨어 있으면(`display:none`) 보이지 않게 잠깐 펼친다 — 같은 작업 안이라 그려지지 않는다. 높이 · 간격은 CSS 가 정한 그대로 잰다(값을 여기에 베끼지 않는다).
  * React 상태가 아니라 속성을 바로 건다 — 창이 한 프레임이라도 아래로 그려지기 전에 방향이 정해져야 해서다(스크롤로 hover 가 옮겨 갈 때도 `mouseenter` 가 온다 — 확인했다).
  */
-function placeSeatPopover(seat: HTMLElement) {
+export function placeSeatPopover(seat: HTMLElement) {
   const popover = seat.querySelector<HTMLElement>('.room-seat-popover');
   if (!popover) return;
   seat.removeAttribute('data-pop-up');
@@ -207,46 +214,67 @@ function placeSeatPopover(seat: HTMLElement) {
 }
 
 /**
- * 채워진 좌석 하나 — 얼굴(방장이면 왕관) · 닉네임(+ 인증 표시) · 방장이면 글의 방장 포지션 · 두 줄째에 그 글의 사다리 티어와 승률 · KDA.
- * 좌석이 제 폭을 보고 줄인다(CSS 컨테이너 질의 — 분할 화면 · 사람이 많은 방) — 190px 이하면 숫자와 포지션 글자를 빼고(포지션은 닉네임 앞 아이콘), 132px 이하면 얼굴 원 + 티어 배지 위 · 닉네임 아래다.
- * 누르면 프로필 창이다(전파를 끊는다 — 참가로 번지지 않게). 마우스를 올린 작은 창의 위 · 아래는 `placeSeatPopover` 가 정한다.
- * **VALORANT 글의 좌석에는 작은 창이 없다**(2026-09-30 소유자 결정 — "발로란트 그거는 일단 작은 창 안 뜨게 해"). 운영 키가 없어 VALORANT 의 `stats` 가 늘 `null` 이라
- * 창에 실을 것이 게임 닉네임 · 티어뿐이었다. 창을 그리지 않아 마우스 · 키보드 포커스 어느 쪽으로도 열리지 않는다(좌석 · 닉네임 · 눌러서 여는 프로필 창은 그대로).
+ * 좌석에 마우스를 올린 작은 창을 띄우는가 — **VALORANT 글의 좌석에는 띄우지 않는다**(2026-09-30 소유자 결정 — "발로란트 그거는 일단 작은 창 안 뜨게 해"). 운영 키가 없어 VALORANT 의 `stats` 가 늘 `null` 이라
+ * 창에 실을 것이 게임 닉네임 · 티어뿐이었다. 창을 그리지 않아 마우스 · 키보드 포커스 어느 쪽으로도 열리지 않는다(좌석 · 닉네임 · 누르면 여는 것은 그대로).
+ * 게시판 좌석(`RoomSeat`)과 방 화면의 음성 칸 좌석(`RoomVoiceSeats`)이 같은 규칙을 쓴다.
  */
-function RoomSeat({ room, member, selfId, popEnd, onMember }: { room: BoardRoom; member: BoardMember; selfId: string; popEnd: boolean; onMember: (room: BoardRoom, member: BoardMember) => void }) {
-  const popover = room.game !== 'VALORANT';
+export const seatPopoverShown = (game: GameKey) => game !== 'VALORANT';
+
+/** 좌석 버튼의 이름(읽어 주는 요약) — 닉네임 · 나 · 방장 · 방장 포지션 · 인증 · 사다리 티어 · 숫자. 작은 창은 읽어 주지 않아 이것이 요약을 싣는다. */
+export function seatSummary(room: BoardRoom, member: BoardMember, selfId: string): string {
   const hostPosition = seatHostPosition(room, member);
-  const numbers = seatNumbers(room.game, member);
   const ladderLabel = member.tierLadder ? TIER_LADDER_LABEL[member.tierLadder] : undefined;
   const tier = member.profile ? member.tier ? rankText(room.game, member.tier, member.division) : '언랭' : '게임 계정 미연결';
-  const label = [
+  return [
     member.nickname,
     member.id === selfId ? '나' : null,
     member.host ? '방장' : null,
     hostPosition ? roleLabel(room.game, hostPosition) : null,
     member.profile?.verified ? '인증됨' : null,
     ladderLabel && member.tier ? `${ladderLabel} ${tier}` : tier,
-    ...numbers.map(item => `${item.label} ${item.text}`),
+    ...seatNumbers(room.game, member).map(item => `${item.label} ${item.text}`),
   ].filter(Boolean).join(' · ');
+}
+
+/**
+ * 채워진 좌석의 몸통 — 얼굴(방장이면 왕관 · 좁으면 티어 배지) · 닉네임(+ 인증 표시) · 방장이면 글의 방장 포지션 · 두 줄째에 그 글의 사다리 티어와 승률 · KDA.
+ * 게시판 좌석(`RoomSeat`)과 방 화면의 음성 칸 좌석(`RoomVoiceSeats` — `me` 로 닉네임 뒤 "(나)")이 같이 쓴다 — 두 곳의 좌석이 같은 모양이게.
+ */
+export function RoomSeatBody({ room, member, me = false }: { room: BoardRoom; member: BoardMember; me?: boolean }) {
+  const hostPosition = seatHostPosition(room, member);
+  const numbers = seatNumbers(room.game, member);
+  return <>
+    <span className="room-seat-face">
+      <RoomMemberAvatar member={member} size={34} />
+      <span className="room-seat-tier-badge"><FilterTierIcon game={room.game} tier={member.tier} size={16} /></span>
+    </span>
+    <span className="room-seat-text">
+      <span className="room-seat-name">
+        {hostPosition ? <span className="room-seat-position-icon"><FilterRoleIcon game={room.game} value={hostPosition} size={12} /></span> : null}
+        <strong>{member.nickname}</strong>
+        {me ? <span className="room-seat-me">(나)</span> : null}
+        {member.profile?.verified ? <VerifiedMark /> : null}
+        {hostPosition ? <span className="room-seat-position"><FilterRoleIcon game={room.game} value={hostPosition} size={15} /><b>{roleLabel(room.game, hostPosition)}</b></span> : null}
+      </span>
+      <span className="room-seat-line">
+        <span className="room-seat-rank"><FilterTierIcon game={room.game} tier={member.tier} size={16} /><span style={member.tier ? { color: tierColor(member.tier) } : undefined}>{member.profile ? rankText(room.game, member.tier, member.division, true) : '—'}</span></span>
+        {numbers.length ? <span className="room-seat-numbers">{numbers.map(item => <span key={item.label} title={item.label}>{item.text}</span>)}</span> : null}
+      </span>
+    </span>
+  </>;
+}
+
+/**
+ * 채워진 좌석 하나(게시판 카드) — 몸통은 `RoomSeatBody` 다.
+ * 좌석이 제 폭을 보고 줄인다(CSS 컨테이너 질의 — 분할 화면 · 사람이 많은 방) — 190px 이하면 숫자와 포지션 글자를 빼고(포지션은 닉네임 앞 아이콘), 132px 이하면 얼굴 원 + 티어 배지 위 · 닉네임 아래다.
+ * 누르면 프로필 창이다(전파를 끊는다 — 참가로 번지지 않게). 마우스를 올린 작은 창의 위 · 아래는 `placeSeatPopover` 가 정하고, VALORANT 글이면 창이 없다(`seatPopoverShown`).
+ */
+function RoomSeat({ room, member, selfId, popEnd, onMember }: { room: BoardRoom; member: BoardMember; selfId: string; popEnd: boolean; onMember: (room: BoardRoom, member: BoardMember) => void }) {
+  const popover = seatPopoverShown(room.game);
   return <li className={`room-seat is-filled${member.host ? ' is-host' : ''}${member.id === selfId ? ' is-self' : ''}${popEnd ? ' pop-end' : ''}`}
     onMouseEnter={popover ? event => placeSeatPopover(event.currentTarget) : undefined} onFocus={popover ? event => placeSeatPopover(event.currentTarget) : undefined}>
-    <button type="button" className="room-seat-button" aria-label={`${label} — 프로필 보기`} onClick={event => { event.stopPropagation(); onMember(room, member); }}>
-      <span className="room-seat-face">
-        <RoomMemberAvatar member={member} size={34} />
-        <span className="room-seat-tier-badge"><FilterTierIcon game={room.game} tier={member.tier} size={16} /></span>
-      </span>
-      <span className="room-seat-text">
-        <span className="room-seat-name">
-          {hostPosition ? <span className="room-seat-position-icon"><FilterRoleIcon game={room.game} value={hostPosition} size={12} /></span> : null}
-          <strong>{member.nickname}</strong>
-          {member.profile?.verified ? <VerifiedMark /> : null}
-          {hostPosition ? <span className="room-seat-position"><FilterRoleIcon game={room.game} value={hostPosition} size={15} /><b>{roleLabel(room.game, hostPosition)}</b></span> : null}
-        </span>
-        <span className="room-seat-line">
-          <span className="room-seat-rank"><FilterTierIcon game={room.game} tier={member.tier} size={16} /><span style={member.tier ? { color: tierColor(member.tier) } : undefined}>{member.profile ? rankText(room.game, member.tier, member.division, true) : '—'}</span></span>
-          {numbers.length ? <span className="room-seat-numbers">{numbers.map(item => <span key={item.label} title={item.label}>{item.text}</span>)}</span> : null}
-        </span>
-      </span>
+    <button type="button" className="room-seat-button" aria-label={`${seatSummary(room, member, selfId)} — 프로필 보기`} onClick={event => { event.stopPropagation(); onMember(room, member); }}>
+      <RoomSeatBody room={room} member={member} />
     </button>
     {popover ? <SeatPopover room={room} member={member} /> : null}
   </li>;
