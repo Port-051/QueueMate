@@ -59,6 +59,7 @@
 
 ## 4. 하지 말 것
 
+- **WSL 에서 Chromium · Playwright · CDP 를 띄우기** — `npm run e2e` · `npx playwright …` · 헤드리스 스크린숏 · CDP 스크립트 전부(2026-09-30 GPU 먹통 · 강제 재부팅 — 루트 `CLAUDE.md` §0). e2e · 스크린숏 · 화면 확인은 Windows 터미널의 Claude 가 Windows 사본에서 한다(루트 `START_HERE.md` §10.4 · 이 폴더 `START_HERE.md` §6).
 - **`matching/` · `platform/` · `notification/` 의 파일을 고치기.** 읽기만 한다. 계약이 안 맞으면 **묻는다**(그 폴더에서 따로 작업이 열린다). 프런트 사정으로 백엔드 경로 · 응답 · 에러 코드를 바꿔 달라는 요청은 소유자에게 근거와 함께 올린다.
 - **경로 · 스키마 · 에러 코드 · 알림 `payload` 를 지어내기.** 계약에 없는 것은 미정이다 — `START_HERE.md` §5 로 보낸다.
 - **토큰을 `localStorage` · 메모리에 두거나 `Authorization: Bearer` 로 보내기.** 쿠키가 전부다. `?userId=` · 본문 `userId` 를 되살리기(백엔드가 받지 않는다).
@@ -117,7 +118,7 @@
 - **e2e 의 함정 둘(2026-09-30 확인)** — ① Playwright 의 Node 쪽 요청(`context.request`)은 `localhost` 를 `::1` 부터 두드리는데 Vite 가 `127.0.0.1` 에만 떠 있고, `::1` 이 곧바로 거절돼도(4ms) 다음 주소로 넘어가기 전에 300ms 를 채워 기다려 **요청마다 300ms 가 늘었다**(playwright-core happy eyeballs 의 `connectionAttemptDelayMs`) — 그래서 e2e 는 REST 를 **브라우저 페이지의 `fetch`** 로 부른다(`e2e/support/api.ts` · 쿠키 · `Origin` 도 앱과 같아진다). ② 헤드리스의 처음 마우스 자리(0, 0)가 사이드바 위라 **`:hover` 로 사이드바가 232px 로 펼쳐져** 본문 왼쪽 버튼(자동 매칭 판의 "솔로 랭크")을 덮었다 — 앱 화면을 연 뒤 마우스를 가운데로 옮긴다(`Crew#appPage`).
 - **e2e 를 돌리는 동안 e2e 사람(`e2e-a` 등)으로 로그인한 앱 화면을 다른 브라우저에 열어 두지 않는다**(2026-09-30 겪었다) — 그 앱이 `MATCH_CONFIRMED` 를 받아 스스로 `POST /match-parties/{partyId}/room` 을 불러, 시나리오 5 의 A 가 201 대신 200 을 받았다(화면 확인용 headless 브라우저를 내리고 다시 돌려 통과).
 - **전역 CSS(`main.tsx` 의 `theme.css` · `usability.css` …)가 화면의 CSS 보다 뒤에 실린다**(2026-09-30 — 개발 서버의 `<style>` 순서로 확인) — 같은 무게의 선택자면 전역이 이긴다. 화면 CSS 로 덮으려면 무게를 올린다(`rooms/room-panel.css` 의 `.rail > .card:last-child`).
-- **headless Chromium 은 `hover: none` · `pointer: none` 이다**(2026-09-30 확인) — 마우스를 올린 작은 창(`@media (hover: hover)`)을 찍으려면 `--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4` 로 띄운다(CDP `Emulation.setEmulatedMedia` 로는 hover 가 바뀌지 않았다).
+- **headless Chromium 은 `hover: none` · `pointer: none` 이다**(2026-09-30 확인) — 마우스를 올린 작은 창(`@media (hover: hover)`)을 찍으려면 `--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4` 로 띄운다(CDP `Emulation.setEmulatedMedia` 로는 hover 가 바뀌지 않았다). **Windows 에서만 띄운다 — WSL 에서는 안 된다**(§4 첫 줄).
 - `dev` 서버는 `ss -ltnp | grep :5173` 로 PID 를 찾아 `kill <PID>`. 백엔드 셋을 띄우는 법과 6379 · 5432 · `queuemate-v2-*` 금지는 루트 `START_HERE.md` §6 · §8.
 
 ## 8. 함께 봐야 할 곳

@@ -379,11 +379,13 @@ ss -ltnp | grep :5173   # → kill <PID>. pkill -f 금지
 
 "API를 보내고 이제 동작이 우리가 원하는 기능대로 흘러가는지 검증" — 요청을 보내고(필요한 곳은 화면을 눌러) **그 동작이 일으켜야 하는 것을 전부** 본다: 뒤따르는 조회 · 맞는 사람에게만 가는 SSE 알림 · 설계대로 거절 · 허용되는 뒤의 요청.
 
+**WSL 에서 돌리지 않는다**(2026-09-30 소유자 지시 — WSL 의 헤드리스 Chromium 이 Windows GPU 드라이버를 멈춰 노트북이 먹통 · 강제 재부팅됐다). **Windows 터미널의 Claude 가 Windows 사본(`C:\Users\kimye\qm-e2e\frontend` — 이 폴더를 `robocopy` 한 것 · 따로 `npm ci`)에서 돌린다 — 처음 설정 · 복사 · 명령 · 함정은 루트 `START_HERE.md` §10.4.** 아래 명령은 그 사본의 Git Bash 에서다.
+
 **돌리기 전에 떠 있어야 하는 것 — e2e 는 아무것도 띄우지도 내리지도 않는다**(`webServer` 없음):
-platform 8082(**`DEV_LOGIN_ENABLED=true`** — 개발용 로그인으로 사람을 만든다 · LoL 을 돌리려면 `RIOT_API_KEY`) · notification 8081 · matching 8080 · Vite 5173(`npm run dev` — 프록시 셋) · PostgreSQL 5433 · Redis 6380(gameconfig seed 가 심겨 있어야 한다). 브라우저는 `~/.cache/ms-playwright` 의 chromium 1234(`@playwright/test` 1.62.1 이 쓰는 리비전 — 없으면 `npx playwright install chromium`).
+platform 8082(**`DEV_LOGIN_ENABLED=true`** — 개발용 로그인으로 사람을 만든다 · LoL 을 돌리려면 `RIOT_API_KEY`) · notification 8081 · matching 8080 · Vite 5173(`npm run dev` — 프록시 셋) · PostgreSQL 5433 · Redis 6380(gameconfig seed 가 심겨 있어야 한다) — 전부 WSL 에서 돌고 Windows 의 `localhost` 로 닿는다(mirrored). 브라우저는 Windows 의 Chromium 1234(`@playwright/test` 1.62.1 이 쓰는 리비전 — 사본에서 `npx playwright install chromium`).
 
 ```bash
-cd "/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/frontend"
+cd /c/Users/kimye/qm-e2e/frontend             # Windows 사본(Git Bash) — WSL 에서 돌리지 않는다
 npm run e2e                                   # 시나리오 1 ~ 10 (9 는 아래 환경변수가 없으면 건너뛴다)
 E2E_LOL_A='이름#태그' E2E_LOL_B='이름#태그' npm run e2e   # 9 까지 — 실제 Riot ID 는 명령줄에만(저장소에 적지 않는다)
 npx playwright test 05-                       # 하나만
