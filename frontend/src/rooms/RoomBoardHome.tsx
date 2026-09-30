@@ -9,10 +9,7 @@ import { keyConditionOptions, visibleModes } from '../domain/gameConfig';
 import { PERSPECTIVE_LABEL } from '../domain/gameCatalog';
 import { groupModes, groupPerspectives, groupSizes, modeChoice, modeGroups, pickMode } from '../domain/modeChoice';
 import { useAuth } from '../state/AuthContext';
-import { useMatch } from '../state/MatchContext';
 import { useRoomSession } from '../state/RoomSessionContext';
-import { matchErrorMessage } from '../domain/matchRequest';
-import { roomErrorMessage } from './errors';
 import { roomEntryError } from './boardRoom';
 import { RoomDeck } from './RoomDeck';
 import { RoomMemberProfile } from './RoomMemberProfile';
@@ -27,9 +24,18 @@ import '../styles/matching-rail.css';
 import './room-board.css';
 
 /**
- * 게임별 모집 게시판. 필터와 글 쓰기 버튼 아래에 방 카드를 보여준다.
- * 빠른매치는 RoomQuickConnect의 상단 고정 버튼과 설정 모달에서 진행한다.
- * 방이나 제안에 들어가면 HomePage의 오른쪽 패널이 열리고 게시판은 그대로 남는다.
+ * 홈 = 방 카드 보드(2026-09-28 소유자 결정). 목록은 `GET /posts?game=`(게임은 왼쪽 레일에서 고른 것 — `AppShell` 의 `selectedGame` · 게시판은 게임별 페이지다, P-21. 필터 줄의 게임 칸은 2026-09-30 소유자 지시로 뺐다).
+ * **배치는 위에서 아래로 한 줄기다**(2026-09-29 소유자 지시 — OP.GG 듀오 찾기처럼): ① 맨 위 **자동 매칭 판**(`RoomQuickConnect` — 매칭 시작 폼 · 대기/제안/내 방 카드)
+ * ② **필터 한 줄**(모드 · 찾는 포지션 · 음성 · 모집 중인 방만 · 초기화 · 오른쪽 끝 **"글 쓰고 파티 찾기"**) ③ 글 카드(`RoomDeck` — 방 카드 한 장이 글 하나다. 2026-09-30 소유자 승인으로 **좌석 줄**이 됐다 — 조건은 머리에 한 번 · 빈자리는 점선 원 · [참가]. 사람마다 한 줄인 OP.GG 표는 소유자가 거절했다).
+ * 오른쪽 레일은 없어졌다 — 카드 목록이 폭을 다 쓴다. "글 쓰고 파티 찾기" 는 옛 "방 만들기" 자리이고 판의 매칭 상태(대기 중이면 막는다)를 가진 `RoomQuickConnect` 가
+ * 그려서 이 줄 끝의 자리(`createSlot`)에 옮겨 놓는다 — 누르면 뜨는 팝업(`RoomCreatePreview`)이 글의 칸을 전부 받는다(게임 모드 · 내 포지션 · 찾는 포지션 · 음성 · 한마디 —
+ * 2026-09-30 소유자 지시. 처음에는 아무것도 고르지 않은 채이고 판의 값을 가져오지 않는다).
+ * 필터는 프런트가 받은 목록을 거르는 것뿐이다 — 모드 · 찾는 포지션 · 음성 · 모집 중인 방만. 모드는 묶음 · 인원 · (PUBG) 시점 셋으로 나눠 거르고 셋 다 `''`/`0` 이 "전체" 다
+ * (2026-09-29 소유자 지시 — `domain/modeChoice.ts`). 인원 · 시점 줄은 묶음을 고른 뒤에만 서고, 인원이 하나뿐인 묶음(솔로 랭크)은 인원 줄이 없다. 원본의 시작 시각(지금/나중) · 티어 범위 필터는 글에 그 칸이 없어 2026-09-29 에 뺐다
+ * (자동 합류의 티어 판정은 서버가 gameconfig `tier-range` 로 한다 — 프런트가 범위를 고르게 하면 그 판정과 어긋난 것을 보여 주게 된다).
+ * 방 안의 일(채팅 · 나가기 · 강퇴 · 확정)은 방 화면(`/app/party/{roomId}` — `PartyRoomPage`)이다 — 원본의 오른쪽 "방 채팅" 레일은 4단계에서 없어졌다.
+ * 2026-09-30 부터 방 화면은 이 게시판을 밀어낸 오른쪽 패널로 열린다(`pages/HomePage.tsx` — 게시판은 그대로 남아 쓸 수 있다). `roomPanelOpen` 이면 패널이 열려 있다 —
+ * "방으로 돌아가기" 줄을 숨기고, 넓은 화면에서는 맨 위 자동 매칭 판을 접는다(방에 있는 동안은 자동 매칭을 시작할 수 없다 — CSS `room-panel.css`).
  */
 type Filters = { group: string; size: number; perspective: '' | PubgPerspective; roles: string[]; voice: '' | 'REQUIRED' | 'NO_VOICE'; openOnly: boolean };
 const defaults = (): Filters => ({ group: '', size: 0, perspective: '', roles: [], voice: '', openOnly: false });
@@ -40,7 +46,6 @@ export function RoomBoardHome({ roomPanelOpen = false }: { roomPanelOpen?: boole
   const { selectedGame } = useOutletContext<AppShellOutletContext>();
   const navigate = useNavigate();
   const session = useRoomSession();
-  const { request: matchRequest, cancel: cancelMatch } = useMatch();
   const activeRoomId = session.roomId;
   const { rooms, loading, loadingMore, hasMore, loadMore, error: connectionError, refresh, create, join } = useRoomData(selectedGame);
   const [filters, setFilters] = useState<Filters>(defaults);
@@ -103,8 +108,8 @@ export function RoomBoardHome({ roomPanelOpen = false }: { roomPanelOpen?: boole
 
   return <div className={`room-home board-home${activeRoomId ? ' has-active-room' : ''} is-exploring`}>
     <div className="room-home-layout">
-    <RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.group ? pickMode(selectedGame, filters.group, filters.size || null, filters.perspective || null) : visibleModes(selectedGame)[0].key} selfId={selfId} activeRoomId={activeRoomId} roomPanelOpen={roomPanelOpen}
-      createSlot={createSlot} onCreate={async body => { const room = await create(body); setJustCreatedId(room.id); enter(room); }} />
+    <div className="room-match-top"><RoomQuickConnect key={selectedGame} game={selectedGame} modeKey={filters.group ? pickMode(selectedGame, filters.group, filters.size || null, filters.perspective || null) : visibleModes(selectedGame)[0].key} selfId={selfId} activeRoomId={activeRoomId}
+      createSlot={createSlot} onCreate={async body => { const room = await create(body); setJustCreatedId(room.id); enter(room); }} /></div>
     <section className="room-board" aria-label="방 목록">
       <div className="board-filter-bar room-filters" role="group" aria-label="방 필터">
         <SlidingSelector className="intro-mode-options room-mode-options board-mode-options" role="group" aria-label="찾는 게임 모드">
@@ -134,21 +139,8 @@ export function RoomBoardHome({ roomPanelOpen = false }: { roomPanelOpen?: boole
       {hasMore ? <div className="room-board-more"><Button block disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? '불러오는 중…' : '더 보기'}</Button></div> : null}
     </section>
     </div>
-    {selected ? <RoomJoinConfirm key={selected.id} room={selected} entryError={roomEntryError(selected, selfId, activeRoomId)} cancelsMatch={Boolean(matchRequest)} onClose={() => setSelectedId(null)}
-      onJoin={async () => {
-        // 방 입장은 활성 매칭이 있으면 거절된다. 확인받은 뒤 취소가 끝나야 입장한다.
-        const wasMatching = Boolean(matchRequest);
-        if (wasMatching) {
-          try { await cancelMatch(); }
-          catch (cause) { throw new Error(`빠른매치를 취소하지 못해 방에 입장하지 않았어요. ${matchErrorMessage(cause)}`); }
-        }
-        try { await join(selected.id); }
-        catch (cause) {
-          if (wasMatching) throw new Error(`빠른매치는 취소됐지만 방에 입장하지 못했어요. ${roomErrorMessage(cause)}`);
-          throw cause;
-        }
-        setSelectedId(null); enter(selected);
-      }} /> : null}
+    {selected ? <RoomJoinConfirm key={selected.id} room={selected} entryError={roomEntryError(selected, selfId, activeRoomId)} onClose={() => setSelectedId(null)}
+      onJoin={async () => { await join(selected.id); setSelectedId(null); enter(selected); }} /> : null}
     {profileTarget ? <RoomMemberProfile room={profileTarget.room} member={profileTarget.member} onClose={() => setProfileTarget(null)} /> : null}
   </div>;
 }

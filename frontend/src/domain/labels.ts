@@ -26,7 +26,7 @@ export const VOICE_LABEL: Record<VoicePreference, string> = {
 
 export const PURPOSE_LABEL: Record<PlayPurpose, string> = {
   RANK_UP: '랭크 상승',
-  TRYHARD: '친목',
+  TRYHARD: '빡겜',
   FUN: '즐겜',
 };
 

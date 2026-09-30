@@ -79,14 +79,14 @@ export function matchErrorMessage(err: unknown, fallback = '요청을 처리하�
   switch (err.code) {
     case 'VALIDATION_FAILED': case 'INVALID_REQUEST': case 'INVALID_MATCH_CONDITION': case 'BAD_REQUEST':
       return err.details[0] ?? err.message;
-    case 'ALREADY_QUEUED': return '이미 빠른매치 중입니다. 먼저 취소해 주세요';
+    case 'ALREADY_QUEUED': return '이미 매칭 중입니다. 먼저 취소해 주세요';
     case 'IN_OTHER_ROOM': case 'IN_ROOM': return '이미 방에 들어가 있습니다. 방에서 나온 뒤 다시 시도해 주세요';
     case 'MATCHING_UNAVAILABLE': case 'ROOM_STATE_UNAVAILABLE':
-      return `지금은 빠른매치 서버에 닿지 못했습니다. ${err.retryAfterSeconds ?? 5}초 뒤 다시 시도해 주세요`;
+      return `지금은 매칭 서버에 닿지 못했습니다. ${err.retryAfterSeconds ?? 5}초 뒤 다시 시도해 주세요`;
     case 'PROPOSAL_NOT_FOUND': return '이미 끝난 제안입니다';
     case 'PROPOSAL_CONFLICT': return '제안의 상태가 바뀌었습니다. 다시 확인해 주세요';
     case 'NOT_PROPOSAL_MEMBER': return '이 제안의 참가자가 아닙니다';
-    case 'MATCH_PARTY_NOT_FOUND': return '파티를 찾지 못했습니다. 빠른매치를 다시 시작해 주세요';
+    case 'MATCH_PARTY_NOT_FOUND': return '파티를 찾지 못했습니다. 매칭을 다시 시작해 주세요';
     case 'NOT_PARTY_MEMBER': return '이 파티의 파티원이 아닙니다';
     case 'ROOM_FULL': return '파티룸이 가득 찼습니다';
     default: return err.message || fallback;

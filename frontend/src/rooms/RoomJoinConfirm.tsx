@@ -13,21 +13,20 @@ import './room-create-preview.css';
  * "참여" 를 누른 뒤의 확인 창. 원본의 `RoomSeatJoin`(자리 = 포지션 선택 · 다른 방에서 옮겨 오기)은 우리 계약에 없어 2026-09-29 에 이것으로 줄였다 —
  * 입장(`POST /rooms/{roomId}/members`)은 본문이 없고 포지션을 고르지 않는다(D-20 · P-18 · 게임 계정의 주 포지션도 2026-09-29 에 없어졌다). 다른 방에 있으면 서버가 409 `IN_OTHER_ROOM` 이라 먼저 나와야 한다.
  */
-export function RoomJoinConfirm({ room, entryError, cancelsMatch = false, onClose, onJoin }: {
-  room: BoardRoom; entryError: string | null; cancelsMatch?: boolean; onClose: () => void; onJoin: () => void | Promise<void>;
+export function RoomJoinConfirm({ room, entryError, onClose, onJoin }: {
+  room: BoardRoom; entryError: string | null; onClose: () => void; onJoin: () => void | Promise<void>;
 }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
   const confirm = async () => {
     if (entryError || submitting.current) return;
-    submitting.current = true; setBusy(true); setError('');
+    submitting.current = true; setBusy(true);
     try { await onJoin(); }
     catch (cause) { submitting.current = false; setBusy(false); setError(roomErrorMessage(cause, '참여하지 못했어요. 다시 시도해 주세요.')); }
   };
-  return <Modal title="이 방에 참여할까요?" closeLabel="참여 창 닫기" className="room-create-preview room-join-preview" onClose={() => { if (!submitting.current) onClose(); }}
-    foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || Boolean(entryError)} onClick={confirm}>{busy ? '참여 중…' : cancelsMatch ? '빠른매치 취소 후 참여하기' : '참여하기'}</Button></>}>
-    {cancelsMatch ? <p className="banner warn" role="status">이 방에 입장하면 현재 진행 중인 빠른매치가 취소됩니다.</p> : null}
+  return <Modal title="이 방에 참여할까요?" closeLabel="참여 창 닫기" className="room-create-preview room-join-preview" onClose={onClose}
+    foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || Boolean(entryError)} onClick={confirm}>{busy ? '참여 중…' : '참여하기'}</Button></>}>
     <div className="room-preview-title"><h3>{room.title}</h3></div>
     <dl className="room-preview-conditions">
       <div><dt>게임 모드</dt><dd><FilterModeIcon mode={modeChoice(room.game, room.modeKey)?.group ?? room.modeKey} size={22} />{modeChoiceLabel(room.game, room.modeKey, room.perspective)}</dd></div>
