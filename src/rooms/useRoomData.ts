@@ -14,13 +14,18 @@ import type { BoardRoom } from './types';
  * - 목록은 서버가 `id` 내림차순으로 준다 — 여기서 다시 세우지 않는다. 끝난 글(`CONFIRMED` · `EXPIRED`)도 섞여 온다(P-20) — 화면이 흐리게 그린다.
  * - **"더 보기"** 는 `nextCursor` 로 이어 받는다(`loadMore`). 커서는 "더 보기" 에만 쓴다.
  * - **`BOARD_CHANGED`** 는 데이터가 없는 "다시 받아라" 신호다 — 모든 연결에 오고 게임을 가리지 않는다. 이 훅은 게시판 페이지에서만 살아 있으므로
- *   **보이는 탭일 때만 · `BOARD_CHANGED_WINDOW_MS` 안의 신호를 하나로 묶어서 · 커서 없이 맨 위부터 지금 펼친 만큼(`limit`)** 다시 받는다(계약이 정한 방식).
- *   묶는 간격은 백엔드도 미정이라(platform CLAUDE.md §3.2) 프런트가 2.5초로 정했다(START_HERE.md §5). 숨은 탭에서 온 신호는 보일 때 한 번으로 갚는다.
+ *   **보이는 탭일 때만 · 창 안의 신호를 하나로 묶어서 · 커서 없이 맨 위부터 지금 펼친 만큼(`limit`)** 다시 받는다(계약이 정한 방식).
+ *   창은 **처음 온 신호부터** 잰다 — 뒤에 온 신호가 창을 늘리지 않는다(늘리면 신호가 끊이지 않는 동안 목록이 영영 안 바뀐다).
+ *   길이는 **1.5초 ± 0.3초**(2026-09-30 소유자 결정 — 전에는 2.5초). 창마다 무작위로 뽑아, 같은 신호를 받은 모든 브라우저가 한꺼번에 다시 받지 않게 흩는다.
+ *   숨은 탭에서 온 신호는 보일 때 한 번으로 갚는다.
  * - SSE 가 끊겨 있을 때를 위해 보이는 탭에서 30초마다 · 다시 보일 때 · SSE 재연결 직후에도 다시 받는다(원본의 5초 폴링은 신호가 있으니 늦췄다).
  */
 export const BOARD_PAGE = 20;
 const BOARD_MAX = 100;
-const BOARD_CHANGED_WINDOW_MS = 2500;
+const BOARD_CHANGED_WINDOW_MS = 1500;
+const BOARD_CHANGED_JITTER_MS = 300;
+/** 이번 창의 길이 — 1.2 ~ 1.8초에서 고르게. */
+const boardChangedWindow = () => BOARD_CHANGED_WINDOW_MS + Math.round((Math.random() * 2 - 1) * BOARD_CHANGED_JITTER_MS);
 const BOARD_POLL_MS = 30_000;
 
 export function useRoomData(game: GameKey) {
@@ -88,7 +93,7 @@ export function useRoomData(game: GameKey) {
     let timer: number | null = null;
     let dirty = false;
     const flush = () => { timer = null; if (document.visibilityState === 'visible') { dirty = false; void refresh(); } else dirty = true; };
-    const schedule = () => { if (timer === null) timer = window.setTimeout(flush, BOARD_CHANGED_WINDOW_MS); };
+    const schedule = () => { if (timer === null) timer = window.setTimeout(flush, boardChangedWindow()); };
     const off = stream?.subscribe((event: ServerEvent) => { if (event.type === 'BOARD_CHANGED') schedule(); });
     // 재연결 직후 — 끊긴 동안의 신호는 다시 오지 않는다.
     const offStatus = stream?.subscribeStatus(status => { if (status === 'connected') void refresh(); });

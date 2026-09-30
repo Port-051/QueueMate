@@ -65,7 +65,7 @@ export function RoomBoardHome({ roomPanelOpen = false }: { roomPanelOpen?: boole
     previousGame.current = selectedGame;
     setFilters(defaults()); setSelectedId(null);
   }, [selectedGame]);
-  // 방에 들어가거나 나오면 목록을 곧바로 다시 받는다 — 게시판이 방 패널 옆에 남아 있어(2026-09-30) 옛 목록("참여 중" 등)이 신호가 올 때까지(2.5초) 남지 않게.
+  // 방에 들어가거나 나오면 목록을 곧바로 다시 받는다 — 게시판이 방 패널 옆에 남아 있어(2026-09-30) 옛 목록("참여 중" 등)이 신호를 묶는 창(1.5초 안팎)만큼 남지 않게.
   const previousActiveRoom = useRef(activeRoomId);
   useEffect(() => {
     if (previousActiveRoom.current === activeRoomId) return;
