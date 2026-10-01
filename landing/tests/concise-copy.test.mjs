@@ -1,4 +1,4 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';import {renderSite} from '../src/render.mjs';const c=JSON.parse(await readFile(new URL('../site.config.json',import.meta.url),'utf8'));const html=renderSite(c,{VERCEL_ENV:'production'}).html;
 test('hero is concise with one CTA',()=>{const hero=html.slice(html.indexOf('<section class="hero'),html.indexOf('<section id="features"'));assert.equal((hero.match(/class="hero-description"/g)||[]).length,1);assert.equal((hero.match(/data-cta=/g)||[]).length,1);});
 test('no repeated feature-card system remains',()=>{assert.doesNotMatch(html,/benefit-grid|benefit-card|product-feature-row|screen-details|actual-state-switch/);assert.equal((html.match(/class="value-points"/g)||[]).length,1);});
-test('three real product captures only',()=>{for(const n of ['board','room','settings'])assert.equal((html.match(new RegExp(`quick-match-${n}\\.webp`,'g'))||[]).length,1);});
+test('three real product captures only',()=>{for(const n of ['board','room','settings'])assert.equal((html.match(new RegExp(`src="/assets/ui/quick-match-${n}\\.webp`,'g'))||[]).length,1);});
