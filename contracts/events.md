@@ -67,7 +67,7 @@
 | `MATCH_QUEUE_UPDATED` | `rule/{lol,pubg,valorant}/*Assigner.java` (새 파티 생성 / 정원 미달 합류) | **발행됨.** payload `{memberNumber}` |
 | `MATCH_PROPOSAL_CREATED` | 같은 클래스들의 `JOINED_AND_FULL` 분기 | **발행됨.** payload `{memberNumber, target, partyId}` |
 | `MATCH_CANCELLED` | `rule/{lol,pubg,valorant}/*PartyLeaver.java` (남은 파티원에게만, 취소한 본인 제외) | **발행됨.** payload `{memberNumber}` |
-| `MATCH_PROPOSAL_EXPIRED` | `service/ProposalExpiryService.java#expire()` | **발행됨.** payload `{partyId}`. 시한이 지난 제안을 `service/ProposalSweeper.java`(`@Scheduled`, `queuemate.sweep.interval-ms`, 기본 1초)가 `qm:proposal:pending` ZSET 에서 꺼내 `redis/proposal/expiry-proposal.lua` 로 깬다. **받는 사람은 그 제안에 있던 전원**이다 — 수락하지 않은 사람(큐에서도 빠진다)과 수락한 사람(파티에 남아 다시 기다린다)을 가리지 않는다. 수락자도 받아야 제안 화면에 갇히지 않기 때문이다. **거절**로 제안이 깨졌을 때 남은 사람에게 알리는 것은 여전히 없다(계약에 그 type 이 없다 — 아래 "미해결 계약 구멍") |
+| `MATCH_PROPOSAL_EXPIRED` | `service/ProposalExpiryService.java#expire()` | **발행됨.** payload `{partyId}`. 시한(정원이 찬 시각 + `queuemate.proposal.ttl-seconds`, 기본 300초(5분) — 2026-10-01 에 20초에서 늘렸다, docs/11 D-55. 클라이언트는 상태 조회의 `expiresAt` 으로 남은 시간을 센다)이 지난 제안을 `service/ProposalSweeper.java`(`@Scheduled`, `queuemate.sweep.interval-ms`, 기본 1초)가 `qm:proposal:pending` ZSET 에서 꺼내 `redis/proposal/expiry-proposal.lua` 로 깬다. **받는 사람은 그 제안에 있던 전원**이다 — 수락하지 않은 사람(큐에서도 빠진다)과 수락한 사람(파티에 남아 다시 기다린다)을 가리지 않는다. 수락자도 받아야 제안 화면에 갇히지 않기 때문이다. **거절**로 제안이 깨졌을 때 남은 사람에게 알리는 것은 여전히 없다(계약에 그 type 이 없다 — 아래 "미해결 계약 구멍") |
 | `MATCH_CONFIRMED` | `service/ProposalService.java#accept()` | **발행됨.** payload `{partyId}`. `redis/proposal/accept-proposal.lua` 가 수락자 SET 을 `SCARD` 로 세어 `target` 에 닿으면 `status = CONFIRMED` 를 찍고(INV-4), 이어서 `redis/proposal/cleanup-confirmed.lua` 가 돌려준 파티원 전원에게 나간다. **확정을 만든 그 한 번의 호출에서만 나간다** — 이미 확정된 제안에 수락이 또 오면 스크립트가 `CONFIRMED` 가 아니라 `ALREADY_RESPONDED` 를 돌려주므로 같은 알림이 두 번 나가지 않는다. **이 알림이 파티 생성의 신호다**(docs/11 D-42) — `cleanup-confirmed.lua` 가 파티 HASH `qm:party:{partyId}` 에 `game` / `modeKey` / `voicePreference` / `playPurpose` / `confirmedAt` 을 채워 두고 TTL 600초를 걸며, 받은 클라이언트가 `app:platform` 의 `POST /api/v1/match-parties/{partyId}/room`(그쪽 계약 P-30, 2026-09-27)을 부르면 platform 이 그 HASH 를 읽어 파티와 방을 만든다(파티원 다섯이 다 눌러도 `partyId` 로 한 번만). 알림을 놓쳤으면 60초 안(`confirmed-retention-seconds`)에는 `GET /match-requests` 가 `MATCHED` + `partyId` 를 답해 복구된다. `ProposalConfirmed.fifo` 는 두지 않는다 — 아래 "서버 간 이벤트" 절 |
 
 payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약 구멍"이 지적한 그대로
@@ -134,7 +134,7 @@ payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약
   **종료 신호 없이 길만 사라진** 연결(공유기 재부팅, 와이파이는 잡혀 있는데 인터넷만 끊김, 절전 복귀,
   서버가 있는 기계가 통째로 죽음, 중간 프록시가 말없이 버림)을 알아챌 재료가 없었다. 서버는 주기마다
   **쓰기** 때문에 실패로 곧 알지만, 브라우저는 **읽기만** 해서 실패할 일이 없고 운영체제가 알아챌
-  때까지 환경에 따라 1분 안쪽~수 분이 걸린다. 매칭 제안 수명이 20초라 그 시간이 길다.
+  때까지 환경에 따라 1분 안쪽~수 분이 걸린다. 매칭 제안 수명이 20초였을 때는(2026-10-01 에 5분이 됐다 — docs/11 D-55) 그 시간이 길었다. 5분이 된 뒤에도 끊긴 줄 모르는 사이에 제안을 놓칠 수 있다.
 
   > 개정 이력: 예전 판은 "heartbeat(코멘트 라인)를 보낸다"고 적었다. 2026-09-19 에 위와 같이
   > 바꿨다 (docs/11 D-10) — 주석 줄은 자바스크립트에 닿지 않아 클라이언트가 죽은 연결을 감시할 수 없다.
@@ -228,15 +228,22 @@ payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약
 >
 > | 필드 | 뜻 |
 > |---|---|
-> | `status` | `CONFIRMED` 일 때만 읽어도 된다(`PENDING` 은 아직 제안 중, 없으면 아직 안 찬 파티) |
+> | `status` | `CONFIRMED` = 확정 · `PENDING` = 제안 중(정원이 찼다) · 없으면 아직 안 찬 파티. 파티를 만드는 것은 `CONFIRMED` 일 때만이다. **제안 중의 팀원 카드는 `PENDING` 에도 읽는다**(아래 "제안 중에도 읽는다" — docs/11 D-56) |
 > | `confirmedAt` | 확정 시각, epoch millis. `HSETNX` 라 재실행이 옮기지 않는다 |
 > | `game` | `LOL` / `VALORANT` / `PUBG` |
 > | `modeKey` | 예 `RANKED_SOLO` — gameconfig `qm:gameconfig:{GAME}:{MODE}` 의 `{MODE}` |
 > | `voicePreference` | `REQUIRED` / `NO_VOICE` |
 > | `playPurpose` | `RANK_UP` / `TRYHARD` / `FUN` — `TRYHARD`(빡겜)는 옛 `NORMAL`(일반 플레이)이다(2026-09-29, docs/11 D-49 · A-19. 필드 이름은 그대로 · 값만 바뀌었다) |
 > | `target` | 정원 |
-> | `member:{userId}` | 값은 그 사람의 keyValue(LoL 포지션 · VALORANT 역할군 · PUBG 플랫폼). `{userId}` 는 사용자 번호의 십진 문자열. 인원 수 필드는 없다 — 이 필드를 센다 |
+> | `member:{userId}` | 값은 LoL 이면 포지션 · VALORANT 면 역할군(그 사람의 keyValue)이고 **PUBG 는 `'EXIST'`**(자리 채움 — 플랫폼은 색인 키에만 있다. 2026-10-01 에 바로잡았다 — 예전 판은 "PUBG 플랫폼" 이라 적었다). `{userId}` 는 사용자 번호의 십진 문자열. 인원 수 필드는 없다 — 이 필드를 센다 |
 > | `tierLo` / `tierHi` | 티어를 보는 모드의 파티 허용 범위 — 티어 사다리 `qm:gameconfig:{GAME}:tier` 의 `ZRANK` 순번(0부터). 티어를 안 보는 모드는 `0/0` |
+>
+> **제안 중에도 읽는다**(2026-10-01 소유자 결정 — docs/11 D-56 · `../platform/contracts/platform-api.md` P-47). platform 이 퀵 매칭 파티의 팀원 카드
+> `GET /api/v1/match-parties/{partyId}/members?game=` 를 주려고 **제안 중(`status=PENDING`)인 HASH 도 `HGETALL` 로 읽는다** — 부른 사람의 `member:{나}` 가
+> 있는가(같은 파티원만 본다)와 `status` 를 본다. 그래서 **배정 스크립트가 쓰는 `status` · `member:{userId}` 의 이름과 값**은 확정 전에도 계약이다(대조 테스트는 없다).
+> 제안 중에는 `game` · `modeKey` 등이 아직 없어(확정 때 `cleanup-confirmed.lua` 가 채운다) 프런트가 `?game=` 을 넘긴다. 그 밖의 필드(`expiresAt` ·
+> `createdAt` · VALORANT 의 `tier:{userId}` · `minTier` / `maxTier` 등)는 계약이 아니다. 확정 전 HASH 에는 수명이 없고 마지막 사람이 나가면 지워진다 —
+> 거절 · 만료 · 취소로 제안이 깨지면 `status` 가 지워지고 빠진 사람의 `member:` 필드도 지워진다. 쓰기 · 지우기 · `EXPIRE` 금지는 그대로다.
 >
 > **수명** — 파티 HASH 는 확정 뒤 **TTL 600초**(`queuemate.proposal.confirmed-party-ttl-seconds`). 그 안에 아무도 platform 을 부르지 않으면
 > 파티가 증발한다(확정하고 아무도 안 들어온 파티라 잃어도 된다). 파티원의 활성 요청(`status=PARTY`)과 수락자 SET 은 **60초**
