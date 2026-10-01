@@ -4,6 +4,8 @@ import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {renderSite,render404,resolveMode,icon,escapeHtml} from '../src/render.mjs';
 const base=JSON.parse(await readFile(new URL('../site.config.json',import.meta.url),'utf8'));
+// Generic fixtures use no account tokens; ownership.test.mjs validates the real configuration.
+base.verification={google:'',naver:'',bing:''};
 const draft=()=>({...structuredClone(base),contentApproved:false,uiApproved:false,allowIndexing:false,appReady:false});
 const approved=()=>({...draft(),contentApproved:true,uiApproved:true,allowIndexing:true});
 const live=()=>({...approved(),appReady:true,description:'원하는 조건의 롤 듀오와 파티를 큐메이트에서 찾아보세요.'});
