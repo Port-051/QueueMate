@@ -21,13 +21,19 @@ import { useAuth } from './AuthContext';
  *
  * - **"매칭 시작"** — ① `POST /posts/auto-join`(같은 본문) → 200 이면 그 방으로(`{kind: 'ROOM'}`) · 404 `NO_MATCHING_POST` 면 ② `POST /match-requests` → `QUEUED`.
  *   ① 의 409(`IN_OTHER_ROOM` · `ALREADY_QUEUED`) · 400 은 멈춘다. ① 의 503(`ROOM_STATE_UNAVAILABLE`)은 계약이 "바로 `matching` 을 부른다" 를 허용해 ② 로 간다.
- * - **상태의 원본은 `GET /match-requests`** — 늘 200 · `IDLE` 이면 활성 요청이 없다. 접수 응답 · 알림 · 3초 폴링 · SSE 재연결 직후 · 새로고침이 전부 이것으로 맞춘다.
+ * - **상태의 원본은 `GET /match-requests`** — 늘 200 · `IDLE` 이면 활성 요청이 없다. 접수 응답 · 알림 · SSE 재연결 직후 · 탭이 다시 보일 때 · 새로고침이 전부 이것으로 맞춘다.
+ *   **주기적으로 묻지 않는다**(2026-10-01 소유자 — 대기 · 제안 중의 3초 폴링을 걷었다). SSE 가 받쳐서다 — `EventSource` 가 스스로 다시 붙고 · `api/sse.ts` 가 60초 침묵이면 새로 열고 ·
+ *   다시 붙은 직후 한 번 묻는다(끊긴 동안의 알림은 다시 오지 않는다). 숨은 탭에서 돌아왔을 때도 한 번 묻는다(`visibilitychange`).
  *   서버는 조건을 돌려주지 않으므로 이 브라우저가 `{requestId, condition}` 을 localStorage 에 기억한다(`requestId` 가 같을 때만 쓴다).
  * - **heartbeat** — `QUEUED` · `PROPOSED` 동안 30초마다 `POST /match-requests/heartbeat`. 404 면 이미 빠진 것이라 다시 조회한다(D-43 — 90초 끊기면 서버가 취소).
  * - **제안** — `MATCH_PROPOSAL_CREATED {memberNumber, target, partyId}` → 다시 조회 → `PROPOSED` 면 제안 화면(`/app/proposals/{partyId}`). 수락 · 거절은 204 → 다시 조회.
+ *   **제안 화면으로 옮기는 것은 상태가 새 `partyId` 로 `PROPOSED` 가 되는 순간 한 번이다**(`applyView` — 어느 조회가 적었든. 2026-10-01 — 알림이 부른 조회의 답이 순번 가드에 버려지면
+ *   제안 화면이 안 열리던 버그). 같은 제안으로는 두 번 옮기지 않는다(`proposalShown` — "게시판으로" 돌아간 사람을 다시 끌고 오지 않게 · 새로 고쳐도 sessionStorage 로 기억한다).
+ *   **"같은 제안" 은 `partyId` + 만료 시각이다**(`proposalKey`) — 다시 모인 제안은 같은 `partyId` 로 온다(2026-10-01 실제 서버 검증 — `partyId` 만 보던 때는 두 번째 제안부터 옮기지 않았다).
  *   `MATCH_PROPOSAL_EXPIRED` · `MATCH_CANCELLED` · `MATCH_QUEUE_UPDATED` 는 다시 조회하라는 신호다. 제안의 팀원 목록은 없다(`GET /proposals/{id}` 없음).
  * - **확정** — `MATCH_CONFIRMED {partyId}` → 조작 없이 `POST /match-parties/{partyId}/room` → `{roomId}`(= partyId) → `/app/party/{roomId}`. 503 은 5초 뒤 한 번 더.
  *   알림을 놓쳤으면 상태 조회의 `MATCHED` + `partyId` 가 같은 길을 밟는다(확정 뒤 60초 안 — D-42).
+ *   **내가 나간 · 강퇴당한 파티로는 저절로 다시 들어가지 않는다**(2026-10-01 소유자 — 버그 ① · `rememberLeftParty` · localStorage `qm.leftParties.{userId}` — 다른 탭도 본다 · 10분).
  *   제안 화면 · 파티 방 둘 다 **게시판 오른쪽 방 패널**로 열린다(2026-09-30 소유자 지시 — `pages/HomePage.tsx`). 제안 화면에서 확정되면 그 자리를 방으로 갈아 끼운다(뒤로 가기에 끝난 제안이 남지 않게).
  * - **파티의 조건을 기억한다**(`activePartyInfo` — 2026-09-30). 서버의 방 응답에는 게임 · 모드 · 정원이 없어(P-30) 확정하는 순간 이 브라우저가 알던 조건(대기 때 기억한 것)과
  *   제안의 정원(`MATCH_PROPOSAL_CREATED` 의 `target`)을 `activePartyId` 와 함께 적어 둔다 — 방 패널이 게임 · 모드 · `n/정원` 을 그리고 게시판을 그 게임으로 맞춘다.
@@ -38,9 +44,16 @@ import { useAuth } from './AuthContext';
 const ACTIVE_PARTY_KEY = 'qm.activeParty.';
 const ACTIVE_PARTY_INFO_KEY = 'qm.activePartyInfo.';
 const ACTIVE_MATCH_KEY = 'qm.activeMatch.';
+const PROPOSAL_SHOWN_KEY = 'qm.proposalShown.';
+const LEFT_PARTIES_KEY = 'qm.leftParties.';
 
-/** 대기 · 제안 중 REST 로 다시 확인하는 주기 — SSE 가 끊겨 있어도 제안 · 확정을 놓치지 않게. */
-const MATCH_POLL_MS = 3000;
+/**
+ * 내가 나간 · 강퇴당한 퀵 매칭 파티를 기억하는 시간 — matching 이 확정 뒤 `MATCHED + partyId` 를 답하는 60초(`confirmed-retention-seconds`)보다 넉넉히,
+ * 파티 HASH 의 수명(600초 — 그동안은 `POST /match-parties/{partyId}/room` 이 다시 들여보낸다)과 같게.
+ */
+const LEFT_PARTY_TTL_MS = 10 * 60_000;
+/** 로그인 직후 · 새로 고침의 첫 조회가 실패했을 때(잠시 서버가 없다) 다시 해 보는 간격 — 대기 중의 폴링이 아니다(그것은 2026-10-01 에 걷었다). */
+const RESTORE_RETRY_MS = 3000;
 /** 계약의 규약 — 30초마다. 서버는 90초 안에 다음 신호가 없으면 취소한다. */
 const HEARTBEAT_MS = 30_000;
 
@@ -96,6 +109,11 @@ interface MatchValue {
   refreshReservations(): Promise<void>;
   saveReservation(body: CreateReservationRequest, id?: string): Promise<void>;
   setActivePartyId(id: string | null): void;
+  /**
+   * 내가 나간 · 강퇴당한 퀵 매칭 파티를 적는다 — 그 `partyId` 로는 10분 동안 저절로 다시 들어가지 않는다(버그 ① — 2026-10-01 소유자 · `settleConfirmed`).
+   * 방 세션(`RoomSessionContext`)이 퀵 매칭 방을 `LEFT` · `KICKED` 로 잃을 때 부른다. 게시판 방은 부르지 않는다.
+   */
+  rememberLeftParty(partyId: string): void;
 }
 
 const MatchCtx = createContext<MatchValue | null>(null);
@@ -131,6 +149,50 @@ const writeActivePartyInfo = (userId: string | undefined, info: MatchPartyInfo |
     if (info) localStorage.setItem(`${ACTIVE_PARTY_INFO_KEY}${userId}`, JSON.stringify(info));
     else localStorage.removeItem(`${ACTIVE_PARTY_INFO_KEY}${userId}`);
   } catch { /* 저장하지 못하면 방 패널이 게임 · 정원을 모를 뿐이다 */ }
+};
+
+/**
+ * 제안 한 건의 열쇠 — **`partyId` + 만료 시각(`expiresAt`)**. matching 은 만료 · 거절 · 취소 뒤 정원이 다시 차 새로 열린 제안에도 **같은 `partyId`** 를 쓴다
+ * (2026-10-01 실제 서버로 확인 — 다섯 번 다시 모인 제안이 전부 같은 id). 새로 열린 제안은 만료 시각이 바뀌고 같은 제안의 조회는 같은 값을 답한다.
+ * 제안 화면으로 옮긴 기록(`proposalShown`)과 제안 화면의 팀원 카드(`ProposalPage`)가 이것으로 "다른 제안" 을 가른다.
+ */
+export const proposalKey = (partyId: string, expiresAt: number | undefined | null): string => `${partyId}@${expiresAt ?? ''}`;
+
+/** 제안 화면으로 이미 옮긴 제안(`proposalKey`) — 이 탭에서만(sessionStorage). 못 읽으면 `null`(그때는 이 세션의 ref 만으로 막는다). */
+const readProposalShown = (userId?: string): string | null => {
+  if (!userId) return null;
+  try { return sessionStorage.getItem(`${PROPOSAL_SHOWN_KEY}${userId}`); } catch { return null; }
+};
+
+const writeProposalShown = (userId: string | undefined, key: string) => {
+  if (!userId) return;
+  try { sessionStorage.setItem(`${PROPOSAL_SHOWN_KEY}${userId}`, key); } catch { /* 저장하지 못하면 새로 고친 뒤 한 번 더 옮길 뿐이다 */ }
+};
+
+/** 아직 잊지 않은 것만 — `partyId` → 잊는 시각(epoch ms). 숫자가 아니거나 지난 것은 버린다. */
+const unexpired = (parties: Record<string, unknown>): Record<string, number> => {
+  const now = Date.now();
+  return Object.fromEntries(Object.entries(parties).filter((entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] > now));
+};
+
+/**
+ * 내가 나간 · 강퇴당한 퀵 매칭 파티 — `partyId` → 잊는 시각(epoch ms). **localStorage** 라 같은 브라우저의 다른 탭도 본다(2026-10-01 — 한 탭에서 나가면 다른 탭도
+ * 그 파티로 다시 들어가지 않게. 다른 탭이 그 방에 있었으면 "이 방에 없음" 으로 방을 잃고, 그 뒤의 조회가 이 기록에 막힌다) · 새로 고쳐도 남는다. 지난 것은 읽을 때 버린다.
+ */
+const readLeftParties = (userId?: string): Record<string, number> => {
+  if (!userId) return {};
+  try {
+    const raw = localStorage.getItem(`${LEFT_PARTIES_KEY}${userId}`);
+    return unexpired(raw ? JSON.parse(raw) as Record<string, unknown> : {});
+  } catch { return {}; }
+};
+
+const writeLeftParties = (userId: string | undefined, parties: Record<string, number>) => {
+  if (!userId) return;
+  try {
+    if (Object.keys(parties).length) localStorage.setItem(`${LEFT_PARTIES_KEY}${userId}`, JSON.stringify(parties));
+    else localStorage.removeItem(`${LEFT_PARTIES_KEY}${userId}`);
+  } catch { /* 저장하지 못하면 이 세션의 ref 만으로 막는다 — 새로 고친 뒤 · 다른 탭은 60초 안이면 한 번 더 들어갈 수 있다 */ }
 };
 
 interface SavedMatch { requestId: string; condition: MatchCondition; }
@@ -199,10 +261,29 @@ function MatchSession({ children }: { children: ReactNode }) {
   }, []);
   /** 내가 취소를 눌러 IDLE 이 된 것인지 — 아니면 서버가 거둔 것이라(heartbeat 끊김 등) 알려 준다. */
   const cancelling = useRef(false);
-  /** 같은 파티의 방에 두 번 들어가지 않게(알림 + 폴링이 겹친다). */
+  /** 같은 파티의 방에 두 번 들어가지 않게(알림과 조회 — 재연결 · 탭 복귀 — 가 겹친다). */
   const entering = useRef<string | null>(null);
-  /** 늦게 도착한 조회 응답이 최신 상태를 덮지 않게. */
+  /** 조회의 차례 — 늦게 도착한 옛 조회의 답이 이미 적은 새 답을 덮지 않게(`refresh`). */
   const refreshSeq = useRef(0);
+  /** 마지막으로 화면에 적은 조회의 차례와 그 답 — 더 새 답이 이미 적혔으면 옛 답은 버리고 이것을 돌려준다. */
+  const appliedSeq = useRef(0);
+  const appliedView = useRef<MatchRequestView | null>(null);
+  /** 제안 화면으로 이미 옮긴 제안(`proposalKey` — `partyId` + 만료 시각) — 같은 제안으로 두 번 옮기지 않는다(`applyView`). 새로 고쳐도 이 탭에서는 기억한다. */
+  const proposalShown = useRef<string | null>(readProposalShown(userId ?? undefined));
+  /** 내가 나간 · 강퇴당한 퀵 매칭 파티(`rememberLeftParty`) — 그 `partyId` 로는 저절로 다시 들어가지 않는다(`settleConfirmed`). 저장소를 못 쓰는 때의 받침이다. */
+  const leftParties = useRef<Record<string, number>>(readLeftParties(userId ?? undefined));
+
+  const rememberLeftParty = useCallback((partyId: string) => {
+    // 적을 때 지난 것을 함께 버린다(localStorage 라 브라우저를 다시 열어도 남는다 — 쌓이지 않게).
+    const parties = { ...unexpired(leftParties.current), ...readLeftParties(userId ?? undefined), [partyId]: Date.now() + LEFT_PARTY_TTL_MS };
+    leftParties.current = parties;
+    writeLeftParties(userId ?? undefined, parties);
+  }, [userId]);
+
+  const isLeftParty = useCallback((partyId: string) => {
+    const until = readLeftParties(userId ?? undefined)[partyId] ?? leftParties.current[partyId];
+    return until !== undefined && until > Date.now();
+  }, [userId]);
 
   const setActivePartyId = useCallback((id: string | null) => {
     if (!live.current) return;
@@ -240,9 +321,14 @@ function MatchSession({ children }: { children: ReactNode }) {
     }
   }, [setActivePartyId]);
 
-  /** 확정된 파티 — 방을 만들거나 들어가고 방 화면으로. 알림(`MATCH_CONFIRMED`)과 상태 조회(`MATCHED`)가 같은 길을 밟는다. */
+  /**
+   * 확정된 파티 — 방을 만들거나 들어가고 방 화면으로. 알림(`MATCH_CONFIRMED`)과 상태 조회(`MATCHED`)가 같은 길을 밟는다.
+   * **내가 나간 · 강퇴당한 파티로는 들어가지 않는다**(2026-10-01 소유자 — 버그 ①). matching 은 확정 뒤 60초 동안 `GET /match-requests` 에 `MATCHED + partyId` 를 답하고
+   * `POST /match-parties/{partyId}/room` 은 파티원을 다시 들여보내서, 방에서 나온 뒤의 조회(재연결 · 탭 복귀 · 새로 고침)마다 같은 방에 다시 넣었다. 서버는 바꾸지 않는다 —
+   * 방 세션이 그 방을 잃을 때 적은 목록(`rememberLeftParty`)을 여기서 본다. 다른 `partyId`(다시 퀵 매칭해서 확정된 파티)는 그대로 들어간다.
+   */
   const settleConfirmed = useCallback(async (partyId: string) => {
-    if (entering.current === partyId || activePartyRef.current === partyId) return;
+    if (entering.current === partyId || activePartyRef.current === partyId || isLeftParty(partyId)) return;
     entering.current = partyId;
     // 서버는 파티의 조건을 돌려주지 않는다 — 지우기 전에 이 브라우저가 알던 조건 · 제안의 정원을 적어 둔다(방 패널의 게임 · 모드 · n/정원).
     const known = conditionRef.current ?? (userId ? readSavedMatch(userId)?.condition ?? null : null);
@@ -272,7 +358,7 @@ function MatchSession({ children }: { children: ReactNode }) {
     } finally {
       if (entering.current === partyId) entering.current = null;
     }
-  }, [enterPartyRoom, navigate, rememberPartyInfo, toast, userId]);
+  }, [enterPartyRoom, isLeftParty, navigate, rememberPartyInfo, toast, userId]);
 
   /** 조회 응답 하나를 화면 상태로. `IDLE` 은 `null`, `MATCHED` 는 파티룸 입장까지. */
   const applyView = useCallback((view: MatchRequestView) => {
@@ -299,12 +385,29 @@ function MatchSession({ children }: { children: ReactNode }) {
       const saved = readSavedMatch(userId);
       setCondition(saved?.requestId === view.requestId ? saved.condition : null);
     }
-  }, [settleConfirmed, toast, userId]);
+    // 새 제안 — 상태가 처음 보는 제안(`proposalKey` — `partyId` + 만료 시각)으로 `PROPOSED` 가 된 순간 한 번만 알리고 제안 화면(방 패널)으로 옮긴다. 어느 조회가 적었든 여기다
+    // (알림이 부른 조회의 답이 버려져도 나중 조회가 적으면 옮긴다 — 2026-10-01 버그 ②). 같은 제안으로는 다시 옮기지 않는다("게시판으로" 돌아간 사람을 끌고 오지 않게).
+    // 열쇠에 만료 시각을 넣은 까닭 — 다시 모인 제안이 같은 `partyId` 라 `partyId` 만 보면 두 번째 제안부터 옮기지 않았다(2026-10-01 실제 서버 검증).
+    const key = view.status === 'PROPOSED' && view.partyId ? proposalKey(view.partyId, view.expiresAt) : null;
+    if (key && view.partyId && proposalShown.current !== key) {
+      proposalShown.current = key;
+      writeProposalShown(userId ?? undefined, key);
+      toast('조건에 맞는 팀원을 찾았습니다', 'ok');
+      if (!pathnameRef.current.startsWith('/app/proposals/')) navigate(`/app/proposals/${view.partyId}`);
+    }
+  }, [navigate, settleConfirmed, toast, userId]);
 
+  /**
+   * `GET /match-requests` 로 상태를 맞춘다. 조회가 겹치면 **더 새 조회의 답이 이미 적혔을 때만** 옛 답을 버린다(그때는 적힌 답을 돌려준다 — 부르는 쪽이 지금 상태를 본다).
+   * 전에는 더 새 조회가 시작되기만 해도 옛 답을 버려, 새 조회가 실패하면 아무 답도 적히지 않았다 — 3초 폴링이 없어진 뒤에는 다음 알림 · 탭 복귀까지 옛 상태가 남는다(2026-10-01).
+   */
   const refresh = useCallback(async () => {
     const seq = ++refreshSeq.current;
     const view = await api.getMatchRequest();
-    if (!live.current || seq !== refreshSeq.current) return null;
+    if (!live.current) return null;
+    if (seq < appliedSeq.current) return appliedView.current;
+    appliedSeq.current = seq;
+    appliedView.current = view;
     applyView(view);
     return view;
   }, [applyView]);
@@ -344,14 +447,14 @@ function MatchSession({ children }: { children: ReactNode }) {
     return () => created.close();
   }, [status]);
 
-  // 로그인 직후 · 새로고침 — 상태의 원본으로 맞춘다. 실패하면(잠시 서버가 없다) 폴링 주기로 다시.
+  // 로그인 직후 · 새로고침 — 상태의 원본으로 맞춘다. 실패하면(잠시 서버가 없다) 조금 뒤 다시(성공하면 멈춘다).
   useEffect(() => {
     if (status !== 'authenticated') return;
     let disposed = false;
     let timer: number | undefined;
     const restore = async () => {
       try { await refresh(); }
-      catch { if (!disposed) timer = window.setTimeout(() => void restore(), MATCH_POLL_MS); }
+      catch { if (!disposed) timer = window.setTimeout(() => void restore(), RESTORE_RETRY_MS); }
     };
     void restore();
     return () => { disposed = true; window.clearTimeout(timer); };
@@ -368,6 +471,14 @@ function MatchSession({ children }: { children: ReactNode }) {
     });
   }, [stream, refresh]);
 
+  // 숨은 탭에서 돌아왔을 때 — 한 번 묻는다. 숨은 동안 브라우저가 연결 · 타이머를 늦추거나 멈춰 알림을 놓쳤을 수 있다(대기 중이 아니어도 — 다른 탭에서 시작한 매칭도 맞춘다).
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh().catch(() => {}); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [status, refresh]);
+
   useEffect(() => {
     if (!stream) return;
     return stream.subscribe((event: ServerEvent) => {
@@ -377,21 +488,19 @@ function MatchSession({ children }: { children: ReactNode }) {
         case 'MATCH_QUEUE_UPDATED':
           void refresh().catch(() => {});
           break;
+        // 정원을 기억하고 다시 조회 — 알림 · 제안 화면으로 옮기는 것은 `applyView` 가 상태가 `PROPOSED` 가 되는 순간에 한다(이 조회의 답이 버려져도 다음 조회가 옮긴다).
         case 'MATCH_PROPOSAL_CREATED': {
           const p = event.payload as unknown as MatchProposalCreatedPayload;
           if (p.partyId) setProposalMeta({ partyId: p.partyId, target: p.target, memberNumber: p.memberNumber });
-          void refresh().then((view) => {
-            if (!live.current || view?.status !== 'PROPOSED' || !view.partyId) return;
-            toast('조건에 맞는 팀원을 찾았습니다', 'ok');
-            if (!pathnameRef.current.startsWith('/app/proposals/')) navigate(`/app/proposals/${view.partyId}`);
-          }).catch(() => {});
+          void refresh().catch(() => {});
           break;
         }
         // 시한 만료 — 그 제안에 있던 전원이 받는다. 수락한 사람은 파티에 남아 다시 기다리고(QUEUED) 안 한 사람은 빠진다(IDLE) — 조회가 가른다.
+        // 다시 모인 제안은 같은 `partyId` 라(2026-10-01 실제 서버) 조회가 벌써 새 제안(`PROPOSED`)을 답하면 "시간이 지났다" 고 하지 않고 제안 화면에서 내보내지 않는다 — 새 제안은 `applyView` 가 알린다.
         case 'MATCH_PROPOSAL_EXPIRED':
           setProposalMeta(null);
           void refresh().then((view) => {
-            if (!live.current) return;
+            if (!live.current || view?.status === 'PROPOSED') return;
             toast(view?.status === 'QUEUED' ? '제안 시간이 지나 다시 팀원을 찾습니다' : '제안 시간이 지났습니다', view?.status === 'QUEUED' ? 'info' : 'error');
             if (pathnameRef.current.startsWith('/app/proposals/')) navigate('/app/home');
           }).catch(() => {});
@@ -414,18 +523,13 @@ function MatchSession({ children }: { children: ReactNode }) {
     });
   }, [stream, navigate, toast, refresh, settleConfirmed]);
 
-  const polling = isActive(request);
+  const waiting = isActive(request);
 
-  // 대기 · 제안 중에는 REST 로도 확인한다 — SSE 가 살아 있으면 알림이 먼저 오고 이 폴링은 같은 상태를 다시 적을 뿐이다.
-  useEffect(() => {
-    if (status !== 'authenticated' || !polling) return;
-    const timer = window.setInterval(() => { void refresh().catch(() => { /* 다음 주기에 */ }); }, MATCH_POLL_MS);
-    return () => window.clearInterval(timer);
-  }, [status, polling, refresh]);
+  // 대기 · 제안 중의 3초 폴링은 없다(2026-10-01 소유자 — 알림 · SSE 재연결 직후 · 탭 복귀의 조회로 맞춘다. 머리 주석).
 
-  // heartbeat — 대기 화면이 열려 있는 동안 30초마다. 404 면 이미 빠진 것이라 조회로 맞춘다.
+  // heartbeat — 대기 · 제안 중 30초마다. 404 면 이미 빠진 것이라 조회로 맞춘다.
   useEffect(() => {
-    if (status !== 'authenticated' || !polling) return;
+    if (status !== 'authenticated' || !waiting) return;
     let cancelled = false;
     const beat = async () => {
       try { await api.heartbeatMatchRequest(); }
@@ -438,7 +542,7 @@ function MatchSession({ children }: { children: ReactNode }) {
     void beat();
     const timer = window.setInterval(() => { void beat(); }, HEARTBEAT_MS);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [status, polling, refresh]);
+  }, [status, waiting, refresh]);
 
   const start = useCallback(async (next: MatchCondition): Promise<StartResult> => {
     const problem = matchRequestError(next, gameAccountsRef.current);
@@ -512,9 +616,9 @@ function MatchSession({ children }: { children: ReactNode }) {
 
   const value = useMemo<MatchValue>(() => ({
     request, condition, proposal, activePartyId, activePartyInfo, reservations, reservationsLoaded, reservationsError, stream,
-    start, refresh, cancel, accept, decline, enterPartyRoom, refreshReservations, saveReservation, setActivePartyId,
+    start, refresh, cancel, accept, decline, enterPartyRoom, refreshReservations, saveReservation, setActivePartyId, rememberLeftParty,
   }), [request, condition, proposal, activePartyId, activePartyInfo, reservations, reservationsLoaded, reservationsError, stream,
-    start, refresh, cancel, accept, decline, enterPartyRoom, refreshReservations, saveReservation, setActivePartyId]);
+    start, refresh, cancel, accept, decline, enterPartyRoom, refreshReservations, saveReservation, setActivePartyId, rememberLeftParty]);
 
   return <MatchCtx.Provider value={value}>{children}</MatchCtx.Provider>;
 }

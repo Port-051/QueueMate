@@ -2,24 +2,23 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import * as api from '../api/client';
 import { hasErrorCode } from '../api/error';
-import type { UpdatePostRequest, VoicePreference } from '../api/types';
+import type { MatchPartyMember } from '../api/types';
 import { GameBadge } from '../components/GameSymbol';
 import { ReportModal } from '../components/ReportModal';
 import { IconLogout, IconMic, IconMicOff, IconSend, IconShield } from '../components/icons';
-import { Avatar, Button, Card, CardHead, ConfirmDialog, EmptyState, Field, Modal, Tag, useToast } from '../components/ui';
+import { Avatar, Button, Card, CardHead, ConfirmDialog, EmptyState, Tag, useToast } from '../components/ui';
 import { roomColors } from '../domain/avatarColor';
-import { PERSPECTIVE_LABEL } from '../domain/gameCatalog';
-import { keyConditionOptions } from '../domain/gameConfig';
 import { gameFullLabel } from '../domain/labels';
-import { groupPerspectives, groupSizes, modeChoice, modeChoiceLabel, modeGroups, pickMode } from '../domain/modeChoice';
+import { modeChoiceLabel } from '../domain/modeChoice';
 import { socialErrorMessage } from '../domain/socialErrors';
 import { formatTime } from '../domain/time';
-import { perspectiveFromMode, toBoardRoom } from '../rooms/boardRoom';
+import { knownPosition, toBoardRoom, toMatchPartyRoom, UNKNOWN_NICKNAME } from '../rooms/boardRoom';
 import { roomErrorMessage } from '../rooms/errors';
 import { RoomRoles } from '../rooms/RoomDeck';
+import { RoomMemberProfile } from '../rooms/RoomMemberProfile';
 import { boardRoomColors } from '../rooms/roomColors';
-import { RoomVoiceSeats, type SeatMenuAction, type VoiceSeatMember } from '../rooms/RoomVoiceSeats';
-import { canonicalRoomRoles, hasPositions, ROOM_ROLES } from '../rooms/summary';
+import { RoomVoiceSeats, seatName, type SeatMenuAction, type VoiceSeatMember } from '../rooms/RoomVoiceSeats';
+import { hasPositions } from '../rooms/summary';
 import type { BoardMember, BoardRoom } from '../rooms/types';
 import { useAuth } from '../state/AuthContext';
 import { usePartySession } from '../state/PartySessionContext';
@@ -42,14 +41,18 @@ const VOICE_LABEL: Record<VoiceStatus, string> = {
  * 원본의 Ready/PLAYING 파티 화면(`GET /parties/{id}` · `/ready` · `/leave` · `PARTY_*`)은 대응물이 없어 2026-09-29 에 이것으로 바꿨다.
  *
  * - 방의 상태(방장 · 사람 목록 · 확정 · 접속 확인 · `ROOM_*`)는 `RoomSessionContext` 가 든다 — 이 화면은 경로의 `roomId` 를 `adopt` 하고, 방을 잃으면(`gone`) 홈으로 간다.
- * - 사람 목록은 id 뿐이라(`GET …/members`) **게시판 방이면 `GET /posts/{postId}` 의 카드로** 닉네임 · 프로필을 붙인다. 자동 매칭 방은 글이 없어 id 만 보여 준다.
+ * - 사람 목록은 id 뿐이라(`GET …/members`) **게시판 방이면 `GET /posts/{postId}` 의 카드로** 닉네임 · 프로필을 붙인다.
+ *   **퀵 매칭 방은 팀원 카드 `GET /match-parties/{partyId}/members`(2026-10-01 소유자 결정 — platform P-47)로** 닉네임 · 게임 프로필 · 고른 포지션을 붙인다
+ *   (방 안 사람이 바뀔 때마다 다시 받는다 · 좌석 · 작은 창은 게시판 방과 같다 — `toMatchPartyRoom`). 그 전에는 사용자 번호(`#42`)만 보였다.
+ *   채팅의 이름도 좌석과 같은 출처(서버가 아는 닉네임)가 먼저다 — 보낸 브라우저가 실어 온 이름은 모를 때만.
  *   자동 매칭 방의 게임 · 모드 · 음성 · 정원은 서버 응답에 없어(P-30) **이 브라우저가 확정 때 적어 둔 조건**(`MatchContext.activePartyInfo` — 대기 때의 조건 · 제안의 정원)으로 그린다.
- *   다른 브라우저에서 들어온 방은 그것이 없어 인원만 보인다. 자동 매칭 방은 처음부터 확정이라 "파티 확정" 버튼이 없다.
+ *   다른 브라우저에서 들어온 방은 그것이 없어 인원만 보인다(게임은 팀원 카드의 게임 프로필로 안다 · 모드 · 정원은 모른다). 자동 매칭 방은 처음부터 확정이라 "파티 확정" 버튼이 없다.
  * - 나가기 `DELETE …/members/me`(늘 204) · 강퇴 `DELETE …/members/{userId}`(방장) · 확정 `POST …/confirm`(게시판 방 · 방장 · 2명 이상 · **되돌릴 수 없다** — 한 번 더 묻는다).
- *   글 고치기 `PATCH /posts/{postId}`(방장 혼자일 때만 — 409 `ROOM_HAS_OTHER_MEMBERS`) · 지우기 `DELETE /posts/{postId}`(만료로 바꾸고 방도 닫힌다).
+ *   글 지우기 `DELETE /posts/{postId}`(방장 · 모집 중 — 만료로 바꾸고 방도 닫힌다). 글 고치기(`PATCH /posts/{postId}`)는 없다(2026-10-01 소유자 결정 — platform P-45).
  * - 음성 · 채팅은 WebRTC 직결(`PartySessionContext`). 친구 추가 · 차단 · 신고는 `SocialContext` · `ReportModal`(5단계 — 우리 API. 신고의 `contextId` 는 게시판 방이면 글 번호, 자동 매칭 방은 없다).
  * - **파티원은 음성 칸의 좌석 줄이다**(2026-09-30 소유자 지시 — `rooms/RoomVoiceSeats.tsx`). 옛 오른쪽 "파티원 (n/정원)" 카드와 사람마다의 큰 프로필(티어 · 승률 · KDA 칸)을 걷었다 —
- *   좌석은 게시판 카드의 좌석과 같고(정원만큼 · 빈 자리는 점선 원) 음성 상태가 붙는다. 친구 추가 · 방장의 내보내기 · 차단 · 신고는 **좌석을 누르면 뜨는 작은 메뉴**(`menuFor`)로 옮겼다(내 좌석은 누를 수 없다).
+ *   좌석은 게시판 카드의 좌석과 같고(정원만큼 · 빈 자리는 점선 원) 음성 상태가 붙는다. 2026-10-01 부터 사람마다 고른 포지션도 붙는다(게시판 방은 `session.positions` — 확정 전만 · 퀵 매칭 방은 팀원 카드의 것 — 늘). 친구 추가 · 방장의 내보내기 · 차단 · 신고는 **좌석을 누르면 뜨는 작은 메뉴**(`menuFor`)로 옮겼다(내 좌석은 누를 수 없다).
+ *   2026-10-01 부터 그 메뉴 맨 위에 **"프로필 보기"**(게시판 좌석을 눌렀을 때와 같은 큰 프로필 창 `RoomMemberProfile` — 소유자 · 휴대폰은 마우스를 올린 작은 창이 없다)가 있다.
  * - **2026-09-30 부터 이 화면은 게시판 오른쪽 패널이다**(`pages/HomePage.tsx` — 넓은 화면은 게시판을 왼쪽으로 밀고, 좁은 화면은 게시판을 덮는다). 경로 · 하는 일은 그대로이고,
  *   게시판 방의 글을 처음 읽으면 게시판의 게임을 이 방의 게임으로 한 번 맞춘다(`syncRoomGame` — 딥 링크 · 새로 고침).
  */
@@ -72,8 +75,10 @@ export function PartyRoomPage() {
   const [postError, setPostError] = useState(false);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
-  const [dialog, setDialog] = useState<{ kind: 'leave' } | { kind: 'kick'; userId: string; nickname: string } | { kind: 'confirm' } | { kind: 'delete' } | { kind: 'edit' } | null>(null);
+  const [dialog, setDialog] = useState<{ kind: 'leave' } | { kind: 'kick'; userId: string; nickname: string } | { kind: 'confirm' } | { kind: 'delete' } | null>(null);
   const [reportTarget, setReportTarget] = useState<{ userId: string; nickname: string } | null>(null);
+  /** 좌석 메뉴의 "프로필 보기" 로 연 사람(사용자 번호) — 그 사람이 방에서 나가면 창도 닫힌다. */
+  const [profileId, setProfileId] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   // 경로의 방을 내 방으로. 이미 그 방이면 아무것도 안 한다(입장 · 글 쓰기 뒤에 이미 adopt 했다).
@@ -98,9 +103,34 @@ export function PartyRoomPage() {
   }, [postId]);
   useEffect(() => { void loadPost(); }, [loadPost, session.version]);
 
+  // 퀵 매칭 방 — 팀원 카드(2026-10-01 소유자 결정 — platform P-47 `GET /match-parties/{partyId}/members`): 닉네임 · 게임 프로필 · 고른 포지션.
+  // 방 안 사람이 바뀔 때(들어오고 나감)마다 다시 받는다(파티원 밖의 사람은 이 방에 못 들어온다). 게임은 확정 때 적어 둔 것이 있으면 싣고 없으면 뺀다(서버가 확정된 파티의 게임을 안다).
+  // 늦게 온 응답이 새 응답을 덮지 않게 차례(`teamSeq`)를 본다. 실패하면 받아 둔 것을 그대로 쓴다.
+  const matchRoomId = roomId && postId === null ? roomId : null;
+  const memberKey = session.roomId === roomId ? [...session.members].sort().join(',') : '';
+  const [team, setTeam] = useState<{ roomId: string; members: MatchPartyMember[] } | null>(null);
+  const [teamErrorRoom, setTeamErrorRoom] = useState<string | null>(null);
+  const teamSeq = useRef(0);
+  const loadTeam = useCallback(async () => {
+    if (!matchRoomId) return;
+    const seq = ++teamSeq.current;
+    try {
+      const view = await api.getMatchPartyMembers(matchRoomId, partyGame ?? undefined);
+      if (seq !== teamSeq.current) return;
+      setTeam({ roomId: matchRoomId, members: view.members });
+      setTeamErrorRoom(null);
+    } catch {
+      if (seq === teamSeq.current) setTeamErrorRoom(matchRoomId);
+    }
+  }, [matchRoomId, partyGame]);
+  useEffect(() => { if (matchRoomId && memberKey) void loadTeam(); }, [loadTeam, matchRoomId, memberKey]);
+  const teamMembers = team && team.roomId === roomId ? team.members : null;
+  // 퀵 매칭 방의 게임 — 확정 때 적어 둔 것, 없으면(다른 브라우저에서 들어온 방) 팀원 카드의 게임 프로필(그 파티의 게임에 연결한 것이다).
+  const knownGame = partyGame ?? teamMembers?.find(member => member.profile)?.profile?.game ?? null;
+
   // 게시판(왼쪽)을 이 방의 게임으로 — 방마다 한 번(그 뒤 사용자가 게임을 바꾸면 그대로 둔다).
   const syncRoomGame = useOutletContext<BoardRoomOutletContext | undefined>()?.syncRoomGame;
-  const roomGame = room?.game ?? partyGame ?? undefined;
+  const roomGame = room?.game ?? knownGame ?? undefined;
   useEffect(() => { if (roomId && roomGame && syncRoomGame) syncRoomGame(roomId, roomGame); }, [roomId, roomGame, syncRoomGame]);
 
   useEffect(() => { if (messages.length) chatEndRef.current?.scrollIntoView({ block: 'nearest' }); }, [messages]);
@@ -110,17 +140,32 @@ export function PartyRoomPage() {
 
   const isHost = session.hostId === userId;
   const confirmed = session.confirmed || room?.status === 'CONFIRMED';
-  const cards = new Map<string, BoardMember>((room?.members ?? []).map(member => [member.id, member]));
-  // 닉네임 — 게시판 방은 글의 카드, 나는 내 닉네임, 그 밖(자동 매칭 방)은 사용자 번호(조회할 API 가 없다).
-  const members: VoiceSeatMember[] = session.members.map(id => ({ id, card: cards.get(id) ?? null, nickname: cards.get(id)?.nickname ?? (id === userId ? user?.nickname ?? '나' : `#${id}`) }));
+  // 정원 — 게시판 방은 글의 `capacity`(P-41), 자동 매칭 방은 확정 때 적어 둔 파티의 정원. 모르면 인원만.
+  const capacity = room?.capacity ?? party?.target ?? null;
+  // 좌석이 그리는 방 — 게시판 방은 글, 퀵 매칭 방은 팀원 카드를 편 것(`toMatchPartyRoom` — 게임을 알 때만 · 방장은 지금의 방장 · 고른 포지션을 늘 붙인다).
+  const partyRoom = !room && teamMembers && knownGame
+    ? toMatchPartyRoom({ partyId: roomId, game: knownGame, modeKey: partyMode, voice: party?.voicePreference ?? null, capacity, hostId: session.hostId, members: teamMembers })
+    : null;
+  const seatRoom = room ?? partyRoom;
+  const cards = new Map<string, BoardMember>((seatRoom?.members ?? []).map(member => [member.id, member]));
+  // 서버가 아는 닉네임 — 게시판 방은 글의 카드, 퀵 매칭 방은 팀원 카드(게임을 몰라 카드를 못 펴도 닉네임은 있다 · 가입하지 않은 번호는 게시판 카드처럼 "알 수 없음").
+  // 좌석 · 채팅 · 신고 창이 이것을 같이 쓴다(같은 출처 — 2026-10-01).
+  const teamNames = new Map((teamMembers ?? []).map(member => [String(member.userId), member.nickname ?? UNKNOWN_NICKNAME] as const));
+  const serverName = (id: string) => cards.get(id)?.nickname ?? teamNames.get(id) ?? null;
+  // 포지션 — 게시판 방은 방 안 사람 목록의 값(2026-10-01 — platform P-44 ⑩)이고 확정된 방에서는 그리지 않는다(소유자 — 서버는 확정 뒤에도 줄 수 있어 여기서 가린다).
+  // 퀵 매칭 방은 팀원 카드의 고른 포지션이다(P-47 — 처음부터 확정인 방이지만 그린다 · `RoomDeck` `seatPosition` 의 `quickMatch`).
+  const positionOf = (id: string) => room ? confirmed ? null : knownPosition(room.game, session.positions[id]) : cards.get(id)?.position ?? null;
+  // 좌석의 이름 — 서버가 아는 닉네임, 나는 내 닉네임. 그 밖은 아직 모른다(`null` — 막 들어와 카드를 다시 받는 사이 · 좌석이 자리표시를 그린다).
+  // 사용자 번호(`#27`)를 이름 자리에 그리지 않는다(2026-10-01 소유자 — 번호가 잠깐 보였다가 닉네임으로 바뀌었다).
+  const members: VoiceSeatMember[] = session.members.map(id => ({ id, card: cards.get(id) ?? null, nickname: serverName(id) ?? (id === userId ? user?.nickname ?? null : null), position: positionOf(id) }));
   const peerCount = members.filter(m => m.id !== userId).length;
   const canChat = connectedPeers.length > 0;
   const needsReconnect = connectedPeers.length < peerCount;
   const connectionHint = needsReconnect ? (canChat ? `${connectedPeers.length}/${peerCount}명 연결됨 · 연결된 팀원에게만 전송됩니다.` : peerCount ? '팀원 연결 대기 중' : '아직 다른 사람이 없어요') : undefined;
-  const canEditPost = Boolean(room && isHost && room.status === 'RECRUITING');
-  // 정원 — 게시판 방은 글의 `capacity`(P-41), 자동 매칭 방은 확정 때 적어 둔 파티의 정원. 모르면 인원만.
-  const capacity = room?.capacity ?? party?.target ?? null;
-  const nicknameOf = (id: string) => members.find(m => m.id === id)?.nickname ?? `#${id}`;
+  const canDeletePost = Boolean(room && isHost && room.status === 'RECRUITING');
+  const nicknameOf = (id: string) => seatName(members.find(m => m.id === id) ?? { nickname: null });
+  // 채팅의 이름 — 서버가 아는 닉네임이 먼저다(좌석과 같은 출처 — 전에는 좌석은 번호 · 채팅은 보낸 브라우저가 실어 온 닉네임이라 어긋났다). 모르면 실어 온 이름.
+  const chatName = (id: string, sent: string) => serverName(id) ?? sent;
   // 얼굴 색 — 한 방의 사람은 모두 다른 색이다(2026-09-30 소유자). 음성 칸 좌석과 채팅이 이 표 하나를 쓴다.
   // 게시판 방은 왼쪽 게시판 카드와 같은 표(글쓴이가 방장 · 카드의 사람 먼저 — 카드에 아직 없는 지금의 방 안 사람은 남은 색), 자동 매칭 방은 지금의 방장 · 방 안 사람으로 정한다.
   const faceColors = room ? boardRoomColors(room, session.members) : roomColors(session.members, session.hostId);
@@ -169,32 +214,40 @@ export function PartyRoomPage() {
   // 이미 보낸 친구 요청이면 누를 수 없는 "친구 요청 보냄", 친구면 줄 대신 머리에 "친구"(Claude 가 정한 세부).
   const menuFor = (member: VoiceSeatMember): { note?: string; actions: SeatMenuAction[] } => {
     const friend = isFriend(member.id);
+    const name = seatName(member);
     const actions: SeatMenuAction[] = [];
+    // 프로필 보기 — 게시판 좌석을 눌렀을 때와 같은 큰 프로필 창(2026-10-01 소유자 — 휴대폰은 마우스를 올린 작은 창이 없다 · 게시판 방 · 퀵 매칭 방 둘 다).
+    // 카드가 없으면(이름을 아직 모른다 · 퀵 매칭 방인데 게임을 모른다) 줄이 없다. 그 게임 계정이 없는 사람도 연다 — 창에 닉네임과 "이 게임의 계정을 아직 연결하지 않았어요" 가 보인다
+    // (제안 화면 팀원 좌석 · 게시판 좌석과 같다 — 2026-10-01 검증 뒤 맞췄다. 처음엔 누를 수 없는 "프로필 없음 · 게임 계정 미연결" 이었다).
+    if (member.card && seatRoom) actions.push({ key: 'profile', label: '프로필 보기', onSelect: () => setProfileId(member.id) });
     if (!friend) actions.push(requestTo(member.id)
       ? { key: 'friend', label: '친구 요청 보냄', disabled: true, onSelect: () => {} }
-      : { key: 'friend', label: '친구 추가', onSelect: () => void onFriendRequest(member.id, member.nickname) });
-    if (isHost) actions.push({ key: 'kick', label: '내보내기', tone: 'danger', onSelect: () => setDialog({ kind: 'kick', userId: member.id, nickname: member.nickname }) });
-    actions.push({ key: 'block', label: '차단', onSelect: () => void onBlock(member.id, member.nickname) });
-    actions.push({ key: 'report', label: <><IconShield size={13} /> 신고</>, onSelect: () => setReportTarget({ userId: member.id, nickname: member.nickname }) });
+      : { key: 'friend', label: '친구 추가', onSelect: () => void onFriendRequest(member.id, name) });
+    if (isHost) actions.push({ key: 'kick', label: '내보내기', tone: 'danger', onSelect: () => setDialog({ kind: 'kick', userId: member.id, nickname: name }) });
+    actions.push({ key: 'block', label: '차단', onSelect: () => void onBlock(member.id, name) });
+    actions.push({ key: 'report', label: <><IconShield size={13} /> 신고</>, onSelect: () => setReportTarget({ userId: member.id, nickname: name }) });
     const note = [member.id === session.hostId ? '방장' : null, friend ? '친구' : null].filter(Boolean).join(' · ');
     return { note: note || undefined, actions };
   };
   // 좌석 아래 안내(한 줄씩) — 게시판 방의 확정 안내(옛 파티원 카드 밑에 있던 것) · 다른 사람이 있으면 좌석을 누르면 무엇을 할 수 있는지.
   const guide = [
     !confirmed && room ? isHost ? '원하는 사람이 다 모이면 파티를 확정하세요. 확정하면 새 사람이 들어올 수 없어요.' : '방장이 확정하면 파티가 완성돼요.' : null,
-    peerCount ? `파티원을 누르면 친구 추가${isHost ? ' · 내보내기' : ''} · 차단 · 신고를 할 수 있어요.` : null,
+    peerCount ? `파티원을 누르면 프로필 보기 · 친구 추가${isHost ? ' · 내보내기' : ''} · 차단 · 신고를 할 수 있어요.` : null,
   ].filter((line): line is string => Boolean(line));
+  // "프로필 보기" 로 연 사람 — 좌석과 같은 카드(방장 왕관은 지금의 방장 · 포지션은 좌석에 붙인 값). 방에서 나갔거나 카드가 없어졌으면 창이 닫힌다.
+  const profileSeat = profileId ? members.find(member => member.id === profileId) : undefined;
+  const profileMember = profileSeat?.card ? { ...profileSeat.card, host: profileSeat.id === session.hostId, position: profileSeat.position } : null;
 
   return (
     <section className="page party-page">
       <div className="page-head row-between">
         <div className="row" style={{ gap: 14 }}>
-          {room ? <GameBadge game={room.game} /> : partyGame ? <GameBadge game={partyGame} /> : null}
+          {room ? <GameBadge game={room.game} /> : knownGame ? <GameBadge game={knownGame} /> : null}
           <div>
-            <h1>{room ? room.title : postId !== null ? `게시판 방 #${roomId}` : '자동 매칭 파티'}</h1>
+            <h1>{room ? room.title : postId !== null ? `게시판 방 #${roomId}` : '퀵 매칭 파티'}</h1>
             <div className="row" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
               {room ? <Tag>{gameFullLabel(room.game)} · {modeChoiceLabel(room.game, room.modeKey, room.perspective)}</Tag>
-                : partyGame ? <Tag>{gameFullLabel(partyGame)}{partyMode ? ` · ${modeChoiceLabel(partyGame, partyMode)}` : ''}</Tag> : null}
+                : knownGame ? <Tag>{gameFullLabel(knownGame)}{partyMode ? ` · ${modeChoiceLabel(knownGame, partyMode)}` : ''}</Tag> : null}
               <Tag tone={confirmed ? 'ok' : 'accent'}>{confirmed ? '확정된 파티' : '모집 중'}</Tag>
               <Tag>{members.length}{capacity ? ` / ${capacity}` : ''}명</Tag>
               {room ? <Tag>{room.voice === 'REQUIRED' ? '음성 사용' : '음성 안 씀'}</Tag>
@@ -204,8 +257,7 @@ export function PartyRoomPage() {
         </div>
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
           {room && isHost && !confirmed ? <Button variant="primary" disabled={busy || session.members.length < 2} title={session.members.length < 2 ? '2명 이상일 때 확정할 수 있어요' : undefined} onClick={() => setDialog({ kind: 'confirm' })}>파티 확정</Button> : null}
-          {canEditPost ? <Button disabled={busy} onClick={() => setDialog({ kind: 'edit' })}>글 고치기</Button> : null}
-          {canEditPost ? <Button variant="ghost" disabled={busy} onClick={() => setDialog({ kind: 'delete' })}>글 지우기</Button> : null}
+          {canDeletePost ? <Button variant="ghost" disabled={busy} onClick={() => setDialog({ kind: 'delete' })}>글 지우기</Button> : null}
           <Button variant="danger" disabled={busy} onClick={() => setDialog({ kind: 'leave' })}><IconLogout size={15} /> 나가기</Button>
         </div>
       </div>
@@ -213,13 +265,13 @@ export function PartyRoomPage() {
       {room?.description ? <p className="hint" style={{ marginBottom: 16 }}>{room.description}</p> : null}
       {room && hasPositions(room.game, room.modeKey) ? <p className="hint" style={{ marginBottom: 16 }}>찾는 포지션 <RoomRoles game={room.game} roles={room.wantedPositions} labels /></p> : null}
       {postId !== null && postError && !room ? <div className="banner warn" role="alert" style={{ marginBottom: 20 }}>글 정보를 불러오지 못했어요. <Button size="sm" onClick={() => void loadPost()}>다시 불러오기</Button></div> : null}
-      {postId === null ? <div className="banner" role="status" style={{ marginBottom: 20 }}>자동 매칭으로 확정된 파티의 방이에요. 처음부터 확정이라 새 사람은 들어오지 않아요. 글이 없어 파티원의 닉네임 · 프로필은 보이지 않아요(사용자 번호만).</div> : null}
+      {matchRoomId && teamErrorRoom === matchRoomId && !teamMembers ? <div className="banner warn" role="alert" style={{ marginBottom: 20 }}>파티원 정보를 불러오지 못했어요. <Button size="sm" onClick={() => void loadTeam()}>다시 불러오기</Button></div> : null}
 
       <div className="stack">
         <Card className="voice-card">
           <CardHead title="음성 채널" right={<Tag tone={voice === 'connected' ? 'ok' : 'default'}>{VOICE_LABEL[voice]}</Tag>} />
           {voiceDetail ? <div className="banner warn" style={{ marginBottom: 14 }}>{voiceDetail}</div> : null}
-          <RoomVoiceSeats room={room} members={members} colors={faceColors} hostId={session.hostId} selfId={userId} capacity={capacity}
+          <RoomVoiceSeats room={seatRoom} members={members} colors={faceColors} hostId={session.hostId} selfId={userId} capacity={capacity}
             voice={voice} muted={muted} connectedPeers={connectedPeers} menuFor={menuFor} />
           <div className="room-voice-foot">
             {guide.length ? <p className="hint">{guide.map(line => <span key={line}>{line}</span>)}</p> : null}
@@ -239,10 +291,10 @@ export function PartyRoomPage() {
                 <p key={m.id} className="chat-system">{m.text}</p>
               ) : (
                 <div key={m.id} className="chat-line">
-                  <Avatar userId={m.userId} name={m.nickname} color={faceColors.get(m.userId)} size={30} />
+                  <Avatar userId={m.userId} name={chatName(m.userId, m.nickname)} color={faceColors.get(m.userId)} size={30} />
                   <div>
                     <div className="chat-meta">
-                      <b>{m.nickname}</b>
+                      <b>{chatName(m.userId, m.nickname)}</b>
                       <span>{formatTime(m.at)}</span>
                     </div>
                     <p>{m.text}</p>
@@ -275,77 +327,8 @@ export function PartyRoomPage() {
         description={<>지금 방에 있는 {session.members.length}명 전원이 파티원이 돼요. <b>확정은 되돌릴 수 없어요</b> — 그 뒤로는 새 사람이 들어올 수 없고, 빈자리가 생겨도 다시 모집할 수 없어요.</>} /> : null}
       {dialog?.kind === 'delete' ? <ConfirmDialog title="글을 지우고 방을 닫을까요?" confirmLabel="지우기" onClose={() => setDialog(null)} onConfirm={deletePost}
         description="글은 만료로 바뀌어 게시판에 남고, 방은 닫혀 안에 있던 사람이 모두 나가게 돼요." /> : null}
-      {dialog?.kind === 'edit' && room ? <EditPostModal room={room} onClose={() => setDialog(null)} onSaved={next => { setRoom(next); setDialog(null); toast('글을 고쳤어요', 'ok'); }} /> : null}
+      {profileMember && seatRoom ? <RoomMemberProfile room={seatRoom} member={profileMember} color={faceColors.get(profileMember.id)} onClose={() => setProfileId(null)} /> : null}
       {reportTarget ? <ReportModal targetUserId={reportTarget.userId} targetNickname={nicknameOf(reportTarget.userId)} contextId={postId !== null ? roomId : null} onClose={() => setReportTarget(null)} /> : null}
     </section>
   );
-}
-
-/**
- * 글 고치기 — `PATCH /posts/{postId}`(준 것만 바꾼다). 방에 방장 말고 누가 있으면 서버가 409 `ROOM_HAS_OTHER_MEMBERS` 로 막는다(P-19 — 방 안 사람에게 알릴 길이 없어서다).
- * `game` 은 바꿀 수 없고 PUBG 의 `conditions.perspective` 는 고른 모드의 시점을 따라간다. 모드는 묶음 · 인원 · (PUBG) 시점으로 나눠 고른다(2026-09-29 — `domain/modeChoice.ts`).
- * **내 포지션(`hostPosition`) · 찾는 포지션은 글 쓰기 팝업과 같은 규칙이다**(2026-09-30 소유자 결정) — 포지션이 있는 모드에서만 칸이 있고, **둘 다 차야 저장이 눌린다**
- * (내 포지션 하나 · 찾는 포지션 하나 이상 — 빈 칸은 저장 위 흐린 한 줄로 알린다), 내 포지션은 찾는 포지션에서 고를 수 없다(고르면 거기서 빠진다).
- * 고치기는 기존 글의 값이라 **글의 `hostPosition` · `wantedPositions` 로 미리 채운다**(글 쓰기 팝업은 빈 채로 연다 — 다르다). 그 전에 쓴 글(방장 포지션이 없거나 찾는 포지션이 빈 글)은
- * 포지션이 있는 모드면 두 칸을 채워야 저장된다. 서버 규칙(platform-api.md "방장 포지션"): `hostPosition` 을 안 주면 그대로이고 비우는 길이 없다 ·
- * `mode` · `hostPosition` · `wantedPositions` 가운데 하나라도 주면 고친 뒤의 모양을 글 쓰기 규칙으로 다시 본다(포지션 없는 모드로 바꾸면 서버가 방장 포지션을 비운다).
- * 그래서 **세 칸은 바뀐 것만 싣는다**(바뀌지 않았으면 서버가 다시 볼 것이 없다). 포지션이 없는 모드면 찾는 포지션은 빈 배열이다.
- */
-function EditPostModal({ room, onClose, onSaved }: { room: BoardRoom; onClose: () => void; onSaved: (room: BoardRoom) => void }) {
-  const [mode, setMode] = useState(room.modeKey);
-  const [title, setTitle] = useState(room.title);
-  const [description, setDescription] = useState(room.description);
-  const [voice, setVoice] = useState<VoicePreference>(room.voice);
-  const [wanted, setWanted] = useState<string[]>(room.wantedPositions);
-  const [hostPosition, setHostPosition] = useState<string | null>(room.hostPosition);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const positions = hasPositions(room.game, mode);
-  const positionTitle = room.game === 'VALORANT' ? '내 역할' : '내 포지션';
-  const roleLabel = (role: string) => keyConditionOptions(room.game).find(option => option.value === role)?.label ?? role;
-  const choice = modeChoice(room.game, mode);
-  const sizes = choice ? groupSizes(room.game, choice.group) : [];
-  const perspectives = choice ? groupPerspectives(room.game, choice.group) : [];
-  const groups = modeGroups(room.game);
-  const fixedSize = sizes.length < 2;
-  const chooseHostPosition = (role: string) => { setHostPosition(role); setWanted(current => current.filter(item => item !== role)); };
-  const nextWanted = positions ? canonicalRoomRoles(room.game, wanted) : [];
-  // 포지션이 있는 모드에서 비면 저장을 막는 칸(2026-09-30 소유자 결정 — 글 쓰기와 같다).
-  const missing = positions ? [hostPosition ? '' : positionTitle, nextWanted.length ? '' : '찾는 포지션(하나 이상)'].filter(Boolean) : [];
-  const save = async () => {
-    const trimmed = title.trim();
-    if (missing.length) return;
-    if (!trimmed) { setError('제목을 입력해 주세요.'); return; }
-    if (trimmed.length > 60) { setError('제목은 60자까지예요.'); return; }
-    if (description.length > 300) { setError('소개는 300자까지예요.'); return; }
-    const modeChanged = mode !== room.modeKey;
-    const wantedChanged = nextWanted.join() !== canonicalRoomRoles(room.game, room.wantedPositions).join();
-    const hostChanged = positions && hostPosition !== null && hostPosition !== room.hostPosition;
-    const body: UpdatePostRequest = { title: trimmed, description, voice };
-    if (wantedChanged) body.wantedPositions = nextWanted;
-    if (hostChanged && hostPosition) body.hostPosition = hostPosition;
-    if (modeChanged) {
-      body.mode = mode;
-      if (room.game === 'PUBG') { const perspective = perspectiveFromMode(room.game, mode); body.conditions = perspective ? { perspective } : {}; }
-    }
-    setBusy(true); setError('');
-    try { onSaved(toBoardRoom(await api.updatePost(room.postId, body))); }
-    catch (err) { setError(roomErrorMessage(err, '글을 고치지 못했어요')); }
-    finally { setBusy(false); }
-  };
-  return <Modal title="글 고치기" onClose={() => { if (!busy) onClose(); }} foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || missing.length > 0} onClick={() => void save()}>{busy ? '저장 중…' : '저장'}</Button></>}>
-    {/* 묶음은 한 줄에 같은 폭으로 — 폰 폭(360px)에서도 줄바꿈하지 않는다. */}
-    <Field label="게임 모드"><div role="group" aria-label="게임 모드" style={{ display: 'grid', gridTemplateColumns: `repeat(${groups.length}, minmax(0, 1fr))`, gap: 6, maxWidth: groups.length * 120 }}>{groups.map(group => <Button key={group.key} size="sm" variant={choice?.group === group.key ? 'primary' : 'default'} aria-pressed={choice?.group === group.key} style={{ minWidth: 0, paddingInline: 4, whiteSpace: 'nowrap' }} onClick={() => setMode(pickMode(room.game, group.key, choice?.size, choice?.perspective))}>{group.label}</Button>)}</div></Field>
-    {choice ? <Field label="인원"><div role="group" aria-label="인원" className="row" style={{ gap: 6 }}>{sizes.map(size => <Button key={size} size="sm" variant={choice.size === size ? 'primary' : 'default'} aria-pressed={choice.size === size} disabled={fixedSize} title={fixedSize ? `이 모드는 ${size}인만 있어요` : undefined} style={fixedSize ? { opacity: 1, cursor: 'default' } : undefined} onClick={() => setMode(pickMode(room.game, choice.group, size, choice.perspective))}>{size}인</Button>)}</div></Field> : null}
-    {choice && perspectives.length ? <Field label="시점"><div role="group" aria-label="시점" className="row" style={{ gap: 6 }}>{perspectives.map(view => <Button key={view} size="sm" variant={choice.perspective === view ? 'primary' : 'default'} aria-pressed={choice.perspective === view} onClick={() => setMode(pickMode(room.game, choice.group, choice.size, view))}>{PERSPECTIVE_LABEL[view]}</Button>)}</div></Field> : null}
-    <Field label="제목" hint="60자까지"><input className="input" maxLength={60} value={title} onChange={e => setTitle(e.target.value)} /></Field>
-    <Field label="소개" hint="300자까지 · 비우면 지워져요"><textarea className="input" rows={3} maxLength={300} value={description} onChange={e => setDescription(e.target.value)} /></Field>
-    <Field label="음성"><div className="row" style={{ gap: 8 }}>{(['REQUIRED', 'NO_VOICE'] as const).map(v => <Button key={v} size="sm" variant={voice === v ? 'primary' : 'default'} onClick={() => setVoice(v)}>{v === 'REQUIRED' ? '사용' : '안 씀'}</Button>)}</div></Field>
-    {positions ? <Field label={positionTitle} hint="게시판의 내 카드에 보여요 · 찾는 포지션에서는 고를 수 없어요"><div role="radiogroup" aria-label={positionTitle} className="row" style={{ gap: 6, flexWrap: 'wrap' }}>{ROOM_ROLES[room.game].map(role => <Button key={role} size="sm" role="radio" aria-checked={hostPosition === role} variant={hostPosition === role ? 'primary' : 'default'} onClick={() => chooseHostPosition(role)}>{roleLabel(role)}</Button>)}</div></Field> : null}
-    {positions ? <Field label="찾는 포지션" hint={`하나 이상 골라 주세요 · ${positionTitle}은 고를 수 없어요`}><div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>{ROOM_ROLES[room.game].map(role => <Button key={role} size="sm" variant={wanted.includes(role) ? 'primary' : 'default'} aria-pressed={wanted.includes(role)} disabled={role === hostPosition} title={role === hostPosition ? `${positionTitle}이라 고를 수 없어요` : undefined} onClick={() => setWanted(current => current.includes(role) ? current.filter(r => r !== role) : [...current, role])}>{roleLabel(role)}</Button>)}</div></Field> : null}
-    <p className="hint">방에 다른 사람이 들어와 있으면 고칠 수 없어요(방 안 사람에게 바뀐 조건을 알릴 길이 없어서예요).</p>
-    {/* 늘 두고 비우기만 한다 — 읽어 주는 영역이 처음부터 있어야 바뀐 글이 읽힌다. */}
-    <p className="hint edit-post-missing" aria-live="polite">{missing.length ? `채워야 할 칸 — ${missing.join(' · ')}` : ''}</p>
-    {error ? <p className="banner warn" role="alert">{error}</p> : null}
-  </Modal>;
 }

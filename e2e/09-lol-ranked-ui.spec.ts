@@ -63,15 +63,15 @@ async function lolProfile(user: QmUser): Promise<LolProfile> {
   return lol!;
 }
 
-/** 게시판 맨 위 자동 매칭 판에서 솔로 랭크 · 내 포지션 · 빡겜 · 마이크 미사용으로 "자동 매칭 시작". 보낸 매칭 요청 본문을 돌려준다. */
+/** 게시판 맨 위 퀵 매칭 판에서 솔로 랭크 · 내 포지션 · 빡겜 · 마이크 미사용으로 "퀵 매칭 시작"(화면 이름 — 2026-10-01 에 "자동 매칭" 에서 바뀌었다). 보낸 매칭 요청 본문을 돌려준다. */
 async function startSoloRankThroughUi(page: Page, position: string): Promise<Record<string, unknown>> {
-  const panel = page.getByRole('region', { name: '자동 매칭' });
+  const panel = page.getByRole('region', { name: '퀵 매칭' });
   await panel.getByRole('group', { name: '게임 모드' }).getByRole('button', { name: '솔로 랭크' }).click();
   await panel.getByRole('radiogroup', { name: '내 포지션' }).getByRole('radio', { name: position }).check({ force: true });
   await panel.getByRole('radiogroup', { name: '플레이 목적' }).getByRole('radio', { name: '빡겜' }).check({ force: true });
   await panel.getByRole('group', { name: '음성' }).getByRole('button', { name: '마이크 미사용' }).click();
   const request = page.waitForRequest((r) => r.url().endsWith('/api/v1/match-requests') && r.method() === 'POST');
-  await panel.getByRole('button', { name: '자동 매칭 시작' }).click();
+  await panel.getByRole('button', { name: '퀵 매칭 시작' }).click();
   return (await request).postDataJSON();
 }
 
@@ -80,7 +80,7 @@ async function startSoloRankThroughUi(page: Page, position: string): Promise<Rec
  * **실제 Riot ID 를 저장소 파일에 적지 않는다.** 연결 한 번에 Riot 호출 14번(개발용 키 2분에 100번) — 한 번 돌 때 계정마다 한 번만 잇는다(`retries: 0`).
  *
  * 내 정보 화면으로 두 계정을 이으면 티어(`tiers.SOLO`)와 모스트 챔피언(P-39 — 숙련도 상위 셋 `{championId, masteryLevel, masteryPoints}`)이 Riot 에서 채워지고,
- * 게시판의 자동 매칭 판에서 솔로 랭크를 시작하면 프런트가 **연결한 솔로랭크 티어**로 요청을 만든다 → 제안 → 수락 → 파티 방.
+ * 게시판의 퀵 매칭 판에서 솔로 랭크를 시작하면 프런트가 **연결한 솔로랭크 티어**로 요청을 만든다 → 제안 → 수락 → 파티 방.
  */
 test('시나리오 9 — 실제 LoL 계정 연결 · 솔로 랭크 듀오(UI)', async ({ crew }) => {
   const riotA = process.env.E2E_LOL_A;
@@ -133,7 +133,7 @@ test('시나리오 9 — 실제 LoL 계정 연결 · 솔로 랭크 듀오(UI)', 
 
   const pageA = await crew.appPage('a', '/app/home');
   const pageB = await crew.appPage('b', '/app/home');
-  await test.step('두 사람 — 게시판 자동 매칭 판에서 솔로 랭크 시작(A 미드 · B 탑) → 요청 본문의 티어는 연결한 솔로랭크 티어', async () => {
+  await test.step('두 사람 — 게시판 퀵 매칭 판에서 솔로 랭크 시작(A 미드 · B 탑) → 요청 본문의 티어는 연결한 솔로랭크 티어', async () => {
     const bodyA = await startSoloRankThroughUi(pageA, '미드');
     expect(bodyA).toMatchObject({ game: 'LOL', modeKey: 'RANKED_SOLO', tier: tierA, keyCondition: { type: 'POSITION', value: 'MID' }, voicePreference: 'NO_VOICE', playPurpose: 'TRYHARD' });
     await expect(pageA.getByText('팀원을 찾는 중')).toBeVisible();
@@ -166,7 +166,7 @@ test('시나리오 9 — 실제 LoL 계정 연결 · 솔로 랭크 듀오(UI)', 
     expect(members.members?.sort()).toEqual([a.userId, b.userId].sort());
     // 파티 방도 게시판 오른쪽 패널로 열린다(2026-09-30) — 대기 때의 조건으로 게임 · 모드 · 정원(n/2)을 그린다.
     const room = pageA.getByRole('region', { name: '방', exact: true });
-    await expect(room.getByRole('heading', { level: 1, name: '자동 매칭 파티' })).toBeVisible();
+    await expect(room.getByRole('heading', { level: 1, name: '퀵 매칭 파티' })).toBeVisible();
     await expect(room.getByText('리그 오브 레전드 · 솔로 랭크 · 2인', { exact: true })).toBeVisible();
     await expect(room.getByText('2 / 2명', { exact: true })).toBeVisible();
     await expect(pageA.getByRole('region', { name: '방 목록', exact: true })).toBeVisible();

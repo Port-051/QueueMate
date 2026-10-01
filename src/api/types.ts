@@ -171,6 +171,15 @@ export interface AutoJoinResponse { postId: number; roomId: number; }
 /** `POST /match-parties/{partyId}/room` 201/200 — `roomId` 는 `partyId` 와 같은 UUID 문자열이다(P-30). */
 export interface MatchRoomResponse { roomId: string; }
 
+/**
+ * `GET /match-parties/{partyId}/members?game=` 200 — 퀵 매칭 파티의 팀원 카드(2026-10-01 소유자 결정 — platform P-47). **파티원 전원(나 포함)**이고 내가 그 파티원일 때만 준다.
+ * 제안(`PROPOSED`) 중에도 확정 뒤에도 같은 모양이다. `userId` 는 JSON 숫자 · `nickname` 은 가입하지 않은 번호면 `null` · `profile` 은 게시판 카드(`MemberCard.profile`)와 같은 모양(그 파티의 게임 · 없으면 `null`).
+ * `position` 은 퀵 매칭에서 고른 포지션(LoL) · 역할(VALORANT) — 그 밖(PUBG · 포지션 없는 모드 · 확정 600초 뒤 서버가 DB 로 답할 때)은 `null`.
+ * 방장(`host`) 칸은 없다(퀵 매칭에는 방장이 없다 — 방의 방장은 `GET /rooms/{roomId}/members` 의 `hostId`) · 차단은 거르지 않는다 · 순서는 닉네임순.
+ */
+export interface MatchPartyMember { userId: number; nickname: string | null; position: string | null; profile: GameProfile | null }
+export interface MatchPartyMembersResponse { partyId: string; members: MatchPartyMember[] }
+
 export type MatchRequestStatus = 'IDLE' | 'QUEUED' | 'PROPOSED' | 'MATCHED';
 
 /**
@@ -226,11 +235,13 @@ export interface PostConditions { perspective?: PubgPerspective; [key: string]: 
 /**
  * 목록 · 단건의 사람 카드(`host` · `members[]`). `userId` 는 JSON **숫자**(방 응답의 문자열 id 와 비교할 때는 `String()`).
  * `nickname` · `profile` 은 가입하지 않은 번호면 `null` 이다(방 키에 손으로 넣은 값). `profile` 은 그 글의 게임에 연결한 게임 프로필 전체다 — 없으면 `null`.
+ * `position`(2026-10-01 소유자 결정 — platform P-44 ⑨) — 모집 중인 글이면 그 사람의 포지션(방장은 글의 `hostPosition`, 멤버는 참가할 때 고른 것), 안 골랐으면 `null`.
+ * **확정된 글의 카드는 늘 `null`** 이다. 그날 platform 이 붙이는 중이라 옛 서버는 칸을 안 보낼 수 있다 — 읽는 쪽(`toBoardMember`)이 없는 값을 받는다.
  */
-export interface MemberCard { userId: number; nickname: string | null; host: boolean; profile: GameProfile | null }
+export interface MemberCard { userId: number; nickname: string | null; host: boolean; position: string | null; profile: GameProfile | null }
 
 /**
- * 모집 글 한 줄 — `GET /posts?game=` 의 `posts[]` · `GET /posts/{postId}` · `POST /posts` 201 · `PATCH` 200 이 같은 모양이다.
+ * 모집 글 한 줄 — `GET /posts?game=` 의 `posts[]` · `GET /posts/{postId}` · `POST /posts` 201 이 같은 모양이다.
  * **`postId` 가 곧 `roomId` 다**(방 키에는 십진 문자열로 — 방 요청의 경로에는 `String(postId)`). `capacity` 는 그 글의 모드의 인원(솔로 랭크 2 · 많아야 5 · 그 전에 쓴 글은 5 — P-41, 2026-09-30), `full` 은 모집 중이고 `memberCount >= capacity`, `memberCount` 는 만료된 글이면 0, `members` 는 방장 먼저다.
  * 시각은 ISO-8601 문자열. `mode` 는 옛 글이면 `null` 일 수 있다(P-16 미정).
  */
@@ -254,6 +265,11 @@ export interface PostResponse {
   memberCount: number;
   capacity: number;
   full: boolean;
+  /**
+   * 확정된 파티가 끝났는가(2026-10-01 소유자 결정 — platform P-46). **확정된 글(`CONFIRMED`)이고 그 파티가 닫혔을(방이 완전히 비었다) 때만 `true`** —
+   * 모집 중 · 만료 · 진행 중인 확정은 `false`. 칸이 없는 옛 서버면 `false` 로 본다(`toBoardRoom`). 게시판 카드가 "확정" 대신 "끝남" 으로 그린다.
+   */
+  closed: boolean;
   host: MemberCard;
   members: MemberCard[];
 }
@@ -263,6 +279,7 @@ export interface PostListResponse { posts: PostResponse[]; nextCursor: number | 
  * `POST /posts`. `mode` 는 그 게임의 gameconfig 모드(필수 · ≤30) · `title` 1~60 · `description` ≤300(없으면 보내지 않는다) ·
  * `conditions` 는 PUBG 만 `{perspective}` · `wantedPositions` 는 그 게임의 포지션 이름(PUBG 는 빈 배열). 방이 같이 생기고 응답의 `members` 에 방장이 있다.
  * 포지션이 있는 모드면 `wantedPositions` 는 **하나 이상**이다(2026-09-30 소유자 결정 — 빈 글 "누구든" 은 없어졌다 · 400 `wantedPositions: …`. 옛 글은 빈 채로 남아 있다).
+ * 2026-10-01 부터는 **정원 − 1 개 이상**이다(2026-09-30 소유자 결정 — platform P-44 "찾는 포지션 수" — 참가하는 사람마다 남은 포지션 하나를 고르니 자리마다 포지션이 있어야 한다 · 아니면 400 `"wantedPositions: 정원이 N명이면 M개 이상 필요합니다"`).
  * `hostPosition`(내 포지션 — 2026-09-30 소유자 결정)은 포지션이 있는 모드에서 **필수**이고 `wantedPositions` 에 들 수 없다. 포지션이 없는 모드(PUBG · 칼바람)면
  * **싣지 않는다**(`description` 처럼 — 서버는 없는 칸을 `null` 로 읽는다). 맞지 않으면 400 `VALIDATION_FAILED` 의 `details` 가 `"hostPosition: …"` 이다.
  */
@@ -276,26 +293,15 @@ export interface CreatePostRequest {
   wantedPositions: string[];
   hostPosition?: string;
 }
-/**
- * `PATCH /posts/{postId}` — 준 것만 바꾼다(`null` · 없음 = 그대로). `description` 은 빈 문자열이면 비운다 · `title` · `mode` 의 빈 문자열은 400.
- * `hostPosition`(2026-09-30)은 비우는 길이 없다. **`mode` · `hostPosition` · `wantedPositions` 가운데 하나라도 주면 고친 뒤의 모양을 글 쓰기 규칙으로 다시 본다** —
- * 포지션 없는 모드로 바꾸면 서버가 방장 포지션을 비우고, 포지션 있는 모드인데 없으면 400 `hostPosition: 필요합니다`, 찾는 포지션과 겹치면 400. 셋을 안 주면 보지 않는다.
- */
-export interface UpdatePostRequest {
-  mode?: string;
-  title?: string;
-  description?: string;
-  voice?: VoicePreference;
-  conditions?: PostConditions;
-  wantedPositions?: string[];
-  hostPosition?: string;
-}
 
 /**
  * `GET /rooms/{roomId}/members` — 방 안의 사람만 볼 수 있다(밖이면 403 `NOT_IN_ROOM`). id 는 전부 **십진 문자열**(방 키의 글자 그대로) · `members` 에 방장이 들어 있고 순서는 없다.
  * 확정한 방은 `hostId` 가 바뀔 수 있다(승계 — D-23). 닉네임 · 프로필은 여기 없다 — 게시판 방이면 `GET /posts/{postId}` 의 카드로 붙인다.
+ * 2026-10-01 부터 `members` 가 id 문자열이 아니라 **`{userId, position}`** 이다(소유자 결정 — platform P-44 ⑩ · 참가할 때 고른 포지션 · 방장은 글의 `hostPosition` · 안 골랐으면 `null`).
+ * 확정한 방에도 포지션이 올 수 있다 — **확정된 방에서는 화면이 그리지 않는다**(소유자: "확정 뒤 굳이 보여줄 필요 없다").
  */
-export interface RoomMembersResponse { roomId: string; hostId: string; members: string[] }
+export interface RoomMembersResponse { roomId: string; hostId: string; members: RoomMemberEntry[] }
+export interface RoomMemberEntry { userId: string; position: string | null }
 /** `GET /rooms/me` — 내 입장 표시 키. 없으면 `{roomId: null}`(404 가 아니다). 게시판 방은 글 번호 문자열 · 자동 매칭 방은 UUID. */
 export interface MyRoomResponse { roomId: string | null }
 

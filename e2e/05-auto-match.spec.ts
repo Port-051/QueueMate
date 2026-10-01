@@ -5,13 +5,13 @@ import type { MatchView } from './support/reset';
 import { expectNoEvent, waitForEvent } from './support/sse';
 
 /**
- * 시나리오 5 — 자동 매칭(두 사람). 대기열 → 제안(`MATCH_PROPOSAL_CREATED`) → 둘 다 수락 → 확정(`MATCH_CONFIRMED {partyId}`) →
+ * 시나리오 5 — 퀵 매칭(두 사람 — 화면 이름은 2026-10-01 에 "자동 매칭" 에서 바뀌었다). 대기열 → 제안(`MATCH_PROPOSAL_CREATED`) → 둘 다 수락 → 확정(`MATCH_CONFIRMED {partyId}`) →
  * `POST /match-parties/{partyId}/room`(처음 201 · 다음 200 — P-30) → 같은 방(`roomId = partyId`) → 시그널이 상대에게 `WEBRTC_SIGNAL` 로 → 나가기.
  * 플레이 목적의 옛 이름 `NORMAL` 은 400 이다(matching D-49 — `TRYHARD` 로 바뀌었다).
  *
  * 확정된 요청(`status=PARTY`)은 60초 동안 풀리지 않는다(D-42) — 뒤 시나리오의 준비가 그만큼 기다린다.
  */
-test('시나리오 5 — 자동 매칭 두 사람 · 제안 · 확정 · 파티 방 · 시그널', async ({ crew }) => {
+test('시나리오 5 — 퀵 매칭 두 사람 · 제안 · 확정 · 파티 방 · 시그널', async ({ crew }) => {
   const a = await crew.user('a', { sse: true });
   const b = await crew.user('b', { sse: true });
   const [sseA, sseB] = [await crew.sse('a'), await crew.sse('b')];

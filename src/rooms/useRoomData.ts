@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from '../api/client';
 import { hasErrorCode } from '../api/error';
-import type { CreatePostRequest, GameKey, ServerEvent, UpdatePostRequest } from '../api/types';
+import type { CreatePostRequest, GameKey, ServerEvent } from '../api/types';
 import { useMatch } from '../state/MatchContext';
-import { roomErrorMessage } from './errors';
+import { isPositionError, roomErrorMessage } from './errors';
 import { toBoardRoom } from './boardRoom';
 import type { BoardRoom } from './types';
 
@@ -119,15 +119,18 @@ export function useRoomData(game: GameKey) {
       setRooms(current => [room, ...current.filter(item => item.postId !== room.postId)]);
       return room;
     },
-    /** 입장 — 201/200. 실패는 그대로 던진다(문구는 `roomErrorMessage`). 가득 찼으면(409 `ROOM_FULL`) 목록을 곧바로 다시 받아 카드가 "가득 참" 이 되게 한다. */
-    join: async (roomId: string) => {
-      try { await api.enterRoom(roomId); }
-      catch (err) { if (hasErrorCode(err, 'ROOM_FULL')) void refresh(); throw err; }
-    },
-    update: async (postId: number, body: UpdatePostRequest): Promise<BoardRoom> => {
-      const room = toBoardRoom(await api.updatePost(postId, body));
-      setRooms(current => current.map(item => item.postId === postId ? room : item));
-      return room;
+    /**
+     * 입장 — 201/200. 포지션 방이면 고른 `position` 을 싣는다(2026-10-01 — `api.enterRoom`). 실패는 그대로 던진다(문구는 `roomErrorMessage`).
+     * 가득 찼으면(409 `ROOM_FULL`) 목록을 곧바로 다시 받아 카드가 "가득 참" 이 되게 한다. **포지션 거절**(400 `position: …` — 남이 먼저 골랐다 등)이면
+     * 목록을 다시 받은 **뒤에** 던진다 — 참여 창이 새 목록의 남은 포지션으로 다시 고르게 한다(`RoomJoinConfirm`).
+     */
+    join: async (roomId: string, position?: string) => {
+      try { await api.enterRoom(roomId, position); }
+      catch (err) {
+        if (isPositionError(err)) await refresh();
+        else if (hasErrorCode(err, 'ROOM_FULL')) void refresh();
+        throw err;
+      }
     },
     remove: async (postId: number) => {
       await api.deletePost(postId);

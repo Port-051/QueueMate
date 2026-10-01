@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './support/fixtures';
-import { uniqueTitle } from './support/domain';
+import { roomPositions, uniqueTitle } from './support/domain';
 
 /** 앱이 만드는 `RTCPeerConnection` 을 전부 모아 둔다 — 페이지의 스크립트보다 먼저 돈다(`addInitScript`). */
 function collectPeerConnections() {
@@ -78,6 +78,8 @@ interface Side { name: string; page: Page }
  * 그다음 음소거 → 해제(양쪽 — 듣는 쪽의 `totalAudioEnergy` 가 멈췄다가 다시 는다), 셋째 사람이 들어와 마이크를 켜면 셋이 서로 듣는다(mesh).
  * 방에 들어가면 게시판이 왼쪽에 남고 방이 오른쪽 패널로 열린다(2026-09-30 — 경로는 그대로 `/app/party/{roomId}`).
  * 방은 A 가 게시판의 "글 쓰고 파티 찾기" 팝업(P-38 칸 — 게임 모드 · 내 포지션 · 찾는 포지션 · 음성 · 한마디)으로 만들고 B · C 가 카드 좌석 줄의 [참가] → "참여하기" 로 들어온다(2026-09-30 좌석 줄 — 빈 자리는 글자 없는 점선 원이다).
+ * 2026-10-01 부터 — 찾는 포지션은 정원 − 1 개 이상이라 일반 5인은 넷(탑 · 정글 · 원딜 · 서포터)을 골라야 올라가고, 참가하는 사람은 참여 창에서 **남은 포지션 하나**를 골라야 들어간다
+ * (B 는 탑 · C 는 정글 — C 의 창에는 탑이 없다). 고른 포지션은 방 안 사람 목록(`GET …/members`)과 음성 칸 좌석에 붙는다.
  *
  * 2026-09-30 이 시나리오가 찾은 제품 버그 — 답하는 쪽도 offer 전에 `addTransceiver` 를 해 두어 transceiver 가 둘이 되고 answer 가 recvonly 라
  * 답한 쪽의 소리가 제안한 쪽에 가지 않았다(`src/webrtc/WebRtcPartyClient.ts` — 같은 날 고쳤다. 클래스 머리 주석).
@@ -91,23 +93,28 @@ test('시나리오 10 — 두 사람이 화면으로 같은 방 · 마이크 켜
 
   const pageA = await crew.appPage('a', '/app/home');
   let roomId = '';
-  await test.step('A — "글 쓰고 파티 찾기" 팝업으로 글 쓰기(일반 5인 · 미드 · 탑 찾음 · 마이크 사용) → 방 화면', async () => {
+  await test.step('A — "글 쓰고 파티 찾기" 팝업으로 글 쓰기(일반 5인 · 미드 · 탑 정글 원딜 서포터 찾음 · 마이크 사용) → 방 화면', async () => {
     await pageA.getByRole('button', { name: '글 쓰고 파티 찾기' }).click();
     const dialog = pageA.getByRole('dialog', { name: '글 쓰고 파티 찾기' });
     await expect(dialog.getByRole('button', { name: '방 올리기' })).toBeDisabled();
     await dialog.getByRole('group', { name: '게임 모드' }).getByRole('button', { name: '일반' }).click();
     await dialog.getByRole('group', { name: '인원' }).getByRole('button', { name: '5인' }).click();
     await dialog.getByRole('radiogroup', { name: '내 포지션' }).getByRole('radio', { name: '미드' }).check({ force: true });
-    await dialog.getByRole('group', { name: '찾는 포지션' }).getByRole('button', { name: '탑' }).click();
+    const wanted = dialog.getByRole('group', { name: '찾는 포지션' });
+    await wanted.getByRole('button', { name: '탑' }).click();
     // 내 포지션(미드)은 찾는 포지션에서 고를 수 없다(P-38 ③)
-    await expect(dialog.getByRole('group', { name: '찾는 포지션' }).getByRole('button', { name: '미드' })).toBeDisabled();
+    await expect(wanted.getByRole('button', { name: '미드' })).toBeDisabled();
     await dialog.getByRole('group', { name: '음성' }).getByRole('button', { name: '마이크 사용' }).click();
     await dialog.getByRole('textbox', { name: '한마디' }).fill(title);
+    // 찾는 포지션은 정원 − 1 개 이상(2026-10-01) — 5인에 하나뿐이면 올릴 수 없고 빈 칸 줄이 그 수를 말한다.
+    await expect(dialog.getByRole('button', { name: '방 올리기' })).toBeDisabled();
+    await expect(dialog.getByText('채워야 할 칸 — 찾는 포지션(4개 이상)')).toBeVisible();
+    for (const role of ['정글', '원딜', '서포터']) await wanted.getByRole('button', { name: role }).click();
 
     const request = pageA.waitForRequest((r) => r.url().endsWith('/api/v1/posts') && r.method() === 'POST');
     await dialog.getByRole('button', { name: '방 올리기' }).click();
     const body = (await request).postDataJSON();
-    expect(body).toMatchObject({ game: 'LOL', mode: 'NORMAL_5', title, voice: 'REQUIRED', wantedPositions: ['TOP'], hostPosition: 'MID' });
+    expect(body).toMatchObject({ game: 'LOL', mode: 'NORMAL_5', title, voice: 'REQUIRED', wantedPositions: ['TOP', 'JUNGLE', 'ADC', 'SUPPORT'], hostPosition: 'MID' });
     await pageA.waitForURL(/\/app\/party\/\d+$/);
     roomId = pageA.url().split('/').pop()!;
     // 방은 오른쪽 패널로 열리고 게시판(그 글의 카드)은 왼쪽에 남는다(2026-09-30 — 1440px 은 나란히 보이는 폭이다).
@@ -115,14 +122,24 @@ test('시나리오 10 — 두 사람이 화면으로 같은 방 · 마이크 켜
     await expect(pageA.locator(`article[aria-label="${title} 방 정보"]`)).toBeVisible();
   });
 
-  /** 게시판 카드의 [참가] → "참여하기" → 같은 방 화면. */
-  const joinByCard = async (key: 'b' | 'c'): Promise<Page> => {
+  /**
+   * 게시판 카드의 [참가] → 참여 창에서 남은 포지션 하나(`position`)를 골라 "참여하기" → 같은 방 화면. 고르기 전에는 "참여하기" 가 눌리지 않고,
+   * 이미 누가 고른 포지션(`taken`)은 창에 없다(2026-10-01).
+   */
+  const joinByCard = async (key: 'b' | 'c', position: string, taken: string[] = []): Promise<Page> => {
     const page = await crew.appPage(key, '/app/home');
     const card = page.locator(`article[aria-label="${title} 방 정보"]`);
     await expect(card).toBeVisible({ timeout: 20_000 });
     await card.getByRole('button', { name: '참가', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: '이 방에 참여할까요?' });
+    const pick = dialog.getByRole('radiogroup', { name: '내 포지션' });
+    await expect(dialog.getByRole('button', { name: '참여하기' })).toBeDisabled();
+    await expect(pick.getByRole('radio', { name: '미드' })).toHaveCount(0);
+    for (const role of taken) await expect(pick.getByRole('radio', { name: role })).toHaveCount(0);
+    const request = page.waitForRequest((r) => /\/api\/v1\/rooms\/[^/]+\/members/.test(r.url()) && r.method() === 'POST');
+    await pick.getByRole('radio', { name: position }).check({ force: true });
     await dialog.getByRole('button', { name: '참여하기' }).click();
+    expect(new URL((await request).url()).searchParams.get('position')).toBe(({ 탑: 'TOP', 정글: 'JUNGLE', 원딜: 'ADC', 서포터: 'SUPPORT' } as Record<string, string>)[position]);
     await page.waitForURL(new RegExp(`/app/party/${roomId}$`));
     await expect(page.getByRole('region', { name: '방', exact: true }).getByRole('heading', { level: 1, name: title })).toBeVisible();
     await expect(card).toBeVisible();
@@ -134,8 +151,10 @@ test('시나리오 10 — 두 사람이 화면으로 같은 방 · 마이크 켜
   };
 
   let pageB: Page | undefined;
-  await test.step('B — 게시판 카드의 [참가] → "참여하기" → 같은 방 화면', async () => {
-    pageB = await joinByCard('b');
+  await test.step('B — 게시판 카드의 [참가] → 참여 창에서 탑 → "참여하기" → 같은 방 화면 · 방 안 사람 목록에 고른 포지션', async () => {
+    pageB = await joinByCard('b', '탑');
+    // 방장은 글의 방장 포지션, B 는 고른 것(2026-10-01 — `GET …/members` 의 `{userId, position}`).
+    expect(await roomPositions(a, roomId)).toEqual({ [a.userId]: 'MID', [b.userId]: 'TOP' });
   });
 
   await test.step('양쪽 "마이크 켜기" → 마이크 켜짐(이미 이어진 연결에 마이크를 싣는다)', async () => {
@@ -147,7 +166,8 @@ test('시나리오 10 — 두 사람이 화면으로 같은 방 · 마이크 켜
     const seats = pageA.getByRole('region', { name: '방', exact: true }).getByRole('list', { name: '파티원 2 / 5' });
     await expect(seats).toBeVisible();
     await expect(seats.getByText('빈자리')).toHaveCount(3);
-    await expect(seats.getByRole('button', { name: new RegExp(`^${b.nickname} · .*음성 연결됨 — 메뉴$`) })).toBeVisible({ timeout: 20_000 });
+    // 좌석 이름에 B 가 고른 포지션(탑)이 실린다(2026-10-01 — `seatSummary`: 닉네임 · 포지션 · …).
+    await expect(seats.getByRole('button', { name: new RegExp(`^${b.nickname} · 탑 · .*음성 연결됨 — 메뉴$`) })).toBeVisible({ timeout: 20_000 });
     await expect(seats.getByRole('button', { name: new RegExp(`^${a.nickname} · `) })).toHaveCount(0);
   });
 
@@ -218,7 +238,7 @@ test('시나리오 10 — 두 사람이 화면으로 같은 방 · 마이크 켜
   }
 
   await test.step('C — 마이크가 켜진 방에 들어와 마이크 켜기 → 셋이 서로 듣는다(mesh — 연결마다 transceiver 하나)', async () => {
-    const pageC = await joinByCard('c');
+    const pageC = await joinByCard('c', '정글', ['탑']);
     sides.push({ name: 'C', page: pageC });
     await pressMic(pageC);
     for (const side of sides) await expectInboundAudio(side, 2);

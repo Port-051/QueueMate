@@ -143,7 +143,7 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, createSl
    */
   const startRoom = () => {
     if (activeRoomId) { toast('이미 방에 들어가 있어요. 방에서 나온 뒤 새 방을 만들 수 있어요.', 'info'); return; }
-    if (request) { setCreateError('자동 매칭을 기다리는 중이에요. 매칭을 취소한 뒤 방을 만들 수 있어요.'); return; }
+    if (request) { setCreateError('퀵 매칭을 기다리는 중이에요. 매칭을 취소한 뒤 방을 만들 수 있어요.'); return; }
     setCreateError('');
     setWriting(true);
   };
@@ -162,23 +162,23 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, createSl
       </div>
     </article></section> : activeRoomId ? <section className="duo-offers" aria-label="내 방"><article className="duo-offer quick-connect-result">
       <div className="quick-result-top"><span>방에 들어가 있어요</span></div>
-      <h3>{/^\d+$/.test(activeRoomId) ? `게시판 방 #${activeRoomId}` : '자동 매칭 파티의 방'}</h3>
+      <h3>{/^\d+$/.test(activeRoomId) ? `게시판 방 #${activeRoomId}` : '퀵 매칭 파티의 방'}</h3>
       <div className="quick-result-actions"><Button variant="primary" onClick={() => navigate(`/app/party/${activeRoomId}`)}>방으로</Button></div>
     </article></section> : null;
 
-  return <><HomeProfileRail user={user} game={game} gameAccount={gameAccount} below={status}><section className="matching-rail-panel room-matching-form" aria-label="자동 매칭">
+  return <><HomeProfileRail user={user} game={game} gameAccount={gameAccount} below={status}><section className="matching-rail-panel room-matching-form" aria-label="퀵 매칭">
     <form noValidate onSubmit={event => { event.preventDefault(); if (!starting && !waiting) void startMatching(); }}>
       <fieldset className="recruitment-composer" disabled={starting}>
         {error ? <div className="banner warn" role="alert">{error}</div> : null}
         <SelfIntroductionFields binaryVoice compact singleRole showPurpose hidePostFields game={game} value={value} onChange={update} />
       </fieldset>
-      {/* 막는 문구 · 링크는 "자동 매칭 시작" 옆(넓은 화면) · 위(좁은 화면)에 선다. "글 쓰고 파티 찾기" 를 막은 문구(매칭 대기 중 등)도 여기다 — 한마디의 문구는 팝업에 있다. */}
+      {/* 막는 문구 · 링크는 "퀵 매칭 시작" 옆(넓은 화면) · 위(좁은 화면)에 선다. "글 쓰고 파티 찾기" 를 막은 문구(매칭 대기 중 등)도 여기다 — 한마디의 문구는 팝업에 있다. */}
       <div className="matching-rail-footer room-rail-actions room-match-actions">
         <div className="room-match-message">
           {createError ? <p className="room-create-error" role="alert">{createError}</p> : startBlocked ? <p className="room-create-hint">{startBlocked}</p> : null}
           {!createError && accountFix ? <Link className="room-create-fix" to="/app/me#games">{accountFix === 'MISSING' ? '게임 계정 연결하기' : '내 정보에서 게임 계정 보기'}<span aria-hidden="true">→</span></Link> : null}
         </div>
-        <Button block type="submit" variant="primary" className="room-match-start" disabled={starting || waiting || Boolean(startBlocked) || Boolean(activeRoomId)}><IconMatch size={22}/>{starting ? '찾는 중…' : waiting ? '매칭 진행 중' : '자동 매칭 시작'}</Button>
+        <Button block type="submit" variant="primary" className="room-match-start" disabled={starting || waiting || Boolean(startBlocked) || Boolean(activeRoomId)}><IconMatch size={22}/>{starting ? '찾는 중…' : waiting ? '매칭 진행 중' : '퀵 매칭 시작'}</Button>
       </div>
     </form>
   </section></HomeProfileRail>

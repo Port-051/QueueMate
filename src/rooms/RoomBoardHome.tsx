@@ -140,7 +140,7 @@ export function RoomBoardHome({ roomPanelOpen = false }: { roomPanelOpen?: boole
     </section>
     </div>
     {selected ? <RoomJoinConfirm key={selected.id} room={selected} entryError={roomEntryError(selected, selfId, activeRoomId)} onClose={() => setSelectedId(null)}
-      onJoin={async () => { await join(selected.id); setSelectedId(null); enter(selected); }} /> : null}
+      onJoin={async position => { await join(selected.id, position); setSelectedId(null); enter(selected); }} /> : null}
     {profileTarget ? <RoomMemberProfile room={profileTarget.room} member={profileTarget.member} onClose={() => setProfileTarget(null)} /> : null}
   </div>;
 }

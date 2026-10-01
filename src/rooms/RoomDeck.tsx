@@ -66,6 +66,8 @@ function Stat({ kind, value, plain = false }: { kind: 'winRate' | 'kda'; value: 
 }
 
 export const POST_STATUS_LABEL: Record<BoardRoom['status'], string> = { RECRUITING: '모집 중', CONFIRMED: '확정', EXPIRED: '만료' };
+/** 확정된 글의 파티가 닫혔을 때(platform P-46 `closed`) "확정" 대신 쓰는 글자(2026-10-01 소유자 결정). 흐림 · 참가 없음은 확정과 같다. */
+export const POST_ENDED_LABEL = '끝남';
 
 /** 얼굴 위 방장 왕관 — 게시판 좌석 · 프로필 창 · 방 화면의 음성 칸 좌석(`RoomVoiceSeats` — 글의 카드가 없는 자동 매칭 방도)이 같이 쓴다. */
 export function RoomHostCrown() {
@@ -87,11 +89,11 @@ export function RoomMemberAvatar({ member, size, color }: { member: BoardMember;
  * **게시판 카드에는 더 쓰지 않는다**(2026-09-30 좌석 줄 — 카드는 `RoomSeat` 의 두 줄이다). 좌석을 눌렀을 때의 프로필 창(`RoomMemberProfile`)만 쓴다
  * (방 화면의 파티원 목록도 쓰다가 같은 날 음성 칸의 좌석 줄이 됐다 — `RoomVoiceSeats`).
  * **티어는 그 글의 모드의 사다리 티어**이고 사다리가 없는 모드면 그 사람의 가장 높은 티어다(2026-09-29 — `rooms/boardRoom.ts` `toBoardMember`). 어느 사다리인지는 풍선말로.
- * **사람별 포지션 칸은 없다**(2026-09-29 소유자 결정 — 게임 계정에서 주 포지션 · 주 역할군을 없앴다). 그래서 LoL · VALORANT 는 티어가 한 줄을 다 쓴다(`is-wide`).
- * **방장만 예외다 — 글의 `hostPosition`(방장이 글을 쓸 때 고른 자기 포지션 · 2026-09-30 소유자 결정)이 있으면 티어 옆에 그 포지션 아이콘 + 이름**이 붙는다
- * (티어 칸이 반으로 줄고 옆 반에 선다 — PUBG 의 티어 · 서버와 같은 모양). 게임 계정의 값이 아니라 글의 값이라 방장 한 사람만이다.
+ * **게임 계정의 포지션 칸은 없다**(2026-09-29 소유자 결정 — 게임 계정에서 주 포지션 · 주 역할군을 없앴다). 그래서 포지션이 없으면 LoL · VALORANT 는 티어가 한 줄을 다 쓴다(`is-wide`).
+ * **이 방에서의 포지션(`seatPosition` — 방장은 글의 `hostPosition`, 멤버는 참가할 때 고른 것 · 2026-10-01 소유자 결정 — platform P-44 ⑨. 그 전에는 방장만 — 2026-09-30)이 있으면 티어 옆에 그 포지션 아이콘 + 이름**이 붙는다
+ * (티어 칸이 반으로 줄고 옆 반에 선다 — PUBG 의 티어 · 서버와 같은 모양). 확정된 방에서는 붙이지 않는다.
  * **`opgg` 를 켜면(프로필 창만 — 2026-09-30 소유자 지시) 전적을 OP.GG 모양으로** — 승 · 패가 있으면(LoL 솔로랭크 시즌 누적) 승률 칸 대신 **승 · 패 막대**(`WinLossBar`)가 한 줄을 다 쓰고
- * (KDA 는 티어 옆 반으로 올라가고 · 방장 포지션이 그 자리를 쓰면 막대 밑 한 줄 · 승률 숫자는 막대 뒤 하나뿐), 평균 킬 · 데스 · 어시스트와 KDA 가 다 있으면 KDA 칸이 **두 줄**(`KdaStat`)이다.
+ * (KDA 는 티어 옆 반으로 올라가고 · 포지션이 그 자리를 쓰면 막대 밑 한 줄 · 승률 숫자는 막대 뒤 하나뿐), 평균 킬 · 데스 · 어시스트와 KDA 가 다 있으면 KDA 칸이 **두 줄**(`KdaStat`)이다.
  * 값이 모자라면(VALORANT · 언랭 · 데스 0) 그 칸은 전과 같다. **PUBG 는 K/D 칸이 두 줄**(`KdStat` — 평균 킬 / 데스 위 · K/D 아래 — 같은 날 소유자)이고 막대는 없다(승 · 패가 없다).
  * PUBG 의 서버 칸은 게임 계정이 있을 때만이다(계정이 없는 사람에게 "서버 미정" 을 그리던 것을 걷었다 — 같은 날 소유자). 치킨 칸의 이름은 좌석 · 작은 창과 같은 "치킨률" 이다.
  * **LoL 은 `opgg` 일 때 맨 아래 한 줄에 최근 경기의 승 · 패 칸**(`RecentResults` — duo.gg 의 `7승 3패 (10 게임)` + 칸 줄 · platform P-43 · 같은 날 소유자)이다.
@@ -101,19 +103,19 @@ export function RoomMemberFacts({ room, member, iconSize = 22, opgg = false }: {
   const pubg = room.game === 'PUBG';
   const server = pubg ? member.profile?.server : null;
   const ladderLabel = member.tierLadder ? TIER_LADDER_LABEL[member.tierLadder] : undefined;
-  const hostPosition = member.host && !pubg && hasPositions(room.game, room.modeKey) ? room.hostPosition : null;
+  const position = pubg ? null : seatPosition(room, member);
   const record = opgg && !pubg ? winLossRecord(member.profile?.stats) : null;
   const kdaDetail = opgg && !pubg ? kdaLine(member.profile?.stats) : null;
   const kdDetail = opgg && pubg ? kdLine(member.profile?.stats) : null;
   const recent = opgg && room.game === 'LOL' ? recentRecord(member.profile?.stats) : null;
-  const kda = <div className={record && hostPosition ? 'is-wide' : undefined}><dt>{pubg ? 'K/D' : 'KDA'}</dt><dd>{kdaDetail ? <KdaStat line={kdaDetail} size="lg" /> : kdDetail ? <KdStat line={kdDetail} size="lg" /> : <Stat kind="kda" value={member.kda} />}</dd></div>;
+  const kda = <div className={record && position ? 'is-wide' : undefined}><dt>{pubg ? 'K/D' : 'KDA'}</dt><dd>{kdaDetail ? <KdaStat line={kdaDetail} size="lg" /> : kdDetail ? <KdStat line={kdDetail} size="lg" /> : <Stat kind="kda" value={member.kda} />}</dd></div>;
   const bar = record ? <div className="is-wide"><dt>승률</dt><dd><WinLossBar record={record} rate={member.winRate} size="lg" /></dd></div> : null;
   return <dl className="room-member-facts">
-    <div className={server || hostPosition || record ? undefined : 'is-wide'}><dt className="sr-only">{ladderLabel ? `${ladderLabel} 티어` : '티어'}</dt><dd><RoomRank game={room.game} tier={member.tier} division={member.division} size={iconSize} ladderLabel={ladderLabel} /></dd></div>
-    {hostPosition ? <div className="room-host-position"><dt className="sr-only">{room.game === 'VALORANT' ? '방장의 역할' : '방장의 포지션'}</dt><dd><RoomRoles game={room.game} roles={[hostPosition]} labels /></dd></div> : null}
+    <div className={server || position || record ? undefined : 'is-wide'}><dt className="sr-only">{ladderLabel ? `${ladderLabel} 티어` : '티어'}</dt><dd><RoomRank game={room.game} tier={member.tier} division={member.division} size={iconSize} ladderLabel={ladderLabel} /></dd></div>
+    {position ? <div className="room-member-position"><dt className="sr-only">{room.game === 'VALORANT' ? '역할' : '포지션'}</dt><dd><RoomRoles game={room.game} roles={[position]} labels /></dd></div> : null}
     {server ? <div><dt className="sr-only">서버</dt><dd><span className="room-random-role">{SERVER_LABEL[server]}</span></dd></div> : null}
     {record
-      ? hostPosition ? <>{bar}{kda}</> : <>{kda}{bar}</>
+      ? position ? <>{bar}{kda}</> : <>{kda}{bar}</>
       : <><div><dt>{pubg ? '치킨률' : '승률'}</dt><dd><Stat kind="winRate" value={member.winRate} plain={pubg} /></dd></div>{kda}</>}
     {recent ? <div className="is-wide"><dt>최근 경기</dt><dd><RecentResults record={recent} size="lg" /></dd></div> : null}
   </dl>;
@@ -131,8 +133,16 @@ function seatNumbers(game: GameKey, member: BoardMember): { label: string; text:
   ].filter((item): item is { label: string; text: string } => item !== null);
 }
 
-/** 글의 방장 포지션 — 방장 좌석에만, 포지션이 있는 모드에서만(2026-09-30 소유자 결정 — 게임 계정이 아니라 글의 값이다). */
-const seatHostPosition = (room: BoardRoom, member: BoardMember) => member.host && hasPositions(room.game, room.modeKey) ? room.hostPosition : null;
+/**
+ * 좌석 · 작은 창 · 프로필 창에 붙이는 그 사람의 포지션 — 이 방에서의 값이다(`BoardMember.position` — 방장은 글의 방장 포지션, 멤버는 참가할 때 고른 것 · 2026-10-01 소유자 결정 — platform P-44 ⑨ · 방 안 목록은 ⑩.
+ * 그 전에는 방장 좌석에만 글의 `hostPosition` 을 붙였다 — 2026-09-30). 게임 계정의 값이 아니다. 포지션이 있는 모드에서만 · 안 골랐으면 붙이지 않는다.
+ * **확정된 방에서는 붙이지 않는다**(소유자 — "확정 뒤 굳이 보여줄 필요 없다" · 서버도 확정된 글의 카드에는 `null` 을 보낸다).
+ * 방 화면의 음성 칸 좌석은 방 안 사람 목록(`GET …/members`)의 포지션을 넣고, 확정이면 방 화면이 `null` 로 넣는다(`PartyRoomPage` — 글의 `status` 가 늦게 바뀔 수 있어서).
+ * **퀵 매칭 파티(`quickMatch` — 제안 화면 · 퀵 매칭 방)는 늘 붙인다**(2026-10-01 소유자 결정 — platform P-47 "닉네임 · 게임 프로필 · 고른 포지션"). 처음부터 확정인 파티지만
+ * 그 포지션은 퀵 매칭에서 고른 조건이고 파티가 그것으로 짜였다.
+ */
+export const seatPosition = (room: BoardRoom, member: BoardMember): string | null =>
+  (room.quickMatch || room.status !== 'CONFIRMED') && hasPositions(room.game, room.modeKey) ? member.position : null;
 
 function VerifiedMark() {
   return <span className="room-seat-verified" role="img" aria-label="인증됨" title="인증됨">
@@ -195,7 +205,8 @@ export function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMe
   const mostChampions = room.game === 'LOL' ? stats?.detail?.mostChampions : null;
   const champions: LolMostChampion[] = Array.isArray(mostChampions) ? mostChampions.slice(0, 3) : [];
   const avgDamage = pubg ? finite(stats?.detail?.avgDamage) : null;
-  const hostPosition = seatHostPosition(room, member);
+  const position = seatPosition(room, member);
+  const role = [member.host ? '방장' : null, position ? roleLabel(room.game, position) : null].filter(Boolean).join(' · ');
   const record = pubg ? null : winLossRecord(stats);
   const kdaDetail = pubg ? null : kdaLine(stats);
   const kdDetail = pubg ? kdLine(stats) : null;
@@ -204,7 +215,7 @@ export function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMe
   return <span className="room-seat-popover" aria-hidden="true">
     <span className="room-pop-head">
       <b>{member.nickname}</b>
-      {member.host ? <em>방장{hostPosition ? ` · ${roleLabel(room.game, hostPosition)}` : ''}</em> : null}
+      {role ? <em>{role}</em> : null}
     </span>
     <span className="room-pop-sub">{profile
       ? [profile.gameNickname, profile.verified ? '인증됨' : null, pubg && profile.server ? SERVER_LABEL[profile.server] : null].filter(Boolean).join(' · ')
@@ -281,16 +292,16 @@ export function placeSeatPopover(seat: HTMLElement) {
  */
 export const seatPopoverShown = (game: GameKey) => game !== 'VALORANT';
 
-/** 좌석 버튼의 이름(읽어 주는 요약) — 닉네임 · 나 · 방장 · 방장 포지션 · 인증 · 사다리 티어 · 숫자. 작은 창은 읽어 주지 않아 이것이 요약을 싣는다. */
+/** 좌석 버튼의 이름(읽어 주는 요약) — 닉네임 · 나 · 방장 · 포지션 · 인증 · 사다리 티어 · 숫자. 작은 창은 읽어 주지 않아 이것이 요약을 싣는다. */
 export function seatSummary(room: BoardRoom, member: BoardMember, selfId: string): string {
-  const hostPosition = seatHostPosition(room, member);
+  const position = seatPosition(room, member);
   const ladderLabel = member.tierLadder ? TIER_LADDER_LABEL[member.tierLadder] : undefined;
   const tier = member.profile ? member.tier ? rankText(room.game, member.tier, member.division) : '언랭' : '게임 계정 미연결';
   return [
     member.nickname,
     member.id === selfId ? '나' : null,
     member.host ? '방장' : null,
-    hostPosition ? roleLabel(room.game, hostPosition) : null,
+    position ? roleLabel(room.game, position) : null,
     member.profile?.verified ? '인증됨' : null,
     ladderLabel && member.tier ? `${ladderLabel} ${tier}` : tier,
     ...seatNumbers(room.game, member).map(item => `${item.label} ${item.text}`),
@@ -298,12 +309,12 @@ export function seatSummary(room: BoardRoom, member: BoardMember, selfId: string
 }
 
 /**
- * 채워진 좌석의 몸통 — 얼굴(방장이면 왕관 · 좁으면 티어 배지) · 닉네임(+ 인증 표시) · 방장이면 글의 방장 포지션 · 두 줄째에 그 글의 사다리 티어와 승률 · KDA.
+ * 채워진 좌석의 몸통 — 얼굴(방장이면 왕관 · 좁으면 티어 배지) · 닉네임(+ 인증 표시) · 그 사람의 포지션(`seatPosition` — 2026-10-01 부터 멤버도 · 확정된 방은 없음) · 두 줄째에 그 글의 사다리 티어와 승률 · KDA.
  * 게시판 좌석(`RoomSeat`)과 방 화면의 음성 칸 좌석(`RoomVoiceSeats` — `me` 로 닉네임 뒤 "(나)")이 같이 쓴다 — 두 곳의 좌석이 같은 모양이게.
  * 두 줄째 숫자에는 풍선말(`title`)을 달지 않는다 — 마우스를 올리면 뜨는 작은 창 위에 브라우저 풍선말 "KDA" 가 겹쳐 떴다(2026-09-30 소유자 스크린숏). 이름은 작은 창의 칸 · 좌석 버튼의 이름(`seatSummary`)에 있다.
  */
 export function RoomSeatBody({ room, member, me = false, color }: { room: BoardRoom; member: BoardMember; me?: boolean; color?: number }) {
-  const hostPosition = seatHostPosition(room, member);
+  const position = seatPosition(room, member);
   const numbers = seatNumbers(room.game, member);
   return <>
     <span className="room-seat-face">
@@ -312,11 +323,11 @@ export function RoomSeatBody({ room, member, me = false, color }: { room: BoardR
     </span>
     <span className="room-seat-text">
       <span className="room-seat-name">
-        {hostPosition ? <span className="room-seat-position-icon"><FilterRoleIcon game={room.game} value={hostPosition} size={12} /></span> : null}
+        {position ? <span className="room-seat-position-icon"><FilterRoleIcon game={room.game} value={position} size={12} /></span> : null}
         <strong>{member.nickname}</strong>
         {me ? <span className="room-seat-me">(나)</span> : null}
         {member.profile?.verified ? <VerifiedMark /> : null}
-        {hostPosition ? <span className="room-seat-position"><FilterRoleIcon game={room.game} value={hostPosition} size={15} /><b>{roleLabel(room.game, hostPosition)}</b></span> : null}
+        {position ? <span className="room-seat-position"><FilterRoleIcon game={room.game} value={position} size={15} /><b>{roleLabel(room.game, position)}</b></span> : null}
       </span>
       <span className="room-seat-line">
         <span className="room-seat-rank"><FilterTierIcon game={room.game} tier={member.tier} size={16} /><span style={member.tier ? { color: tierColor(member.tier) } : undefined}>{member.profile ? rankText(room.game, member.tier, member.division, true) : '—'}</span></span>
@@ -348,10 +359,11 @@ function RoomSeat({ room, member, color, selfId, popEnd, onMember }: { room: Boa
  * - **머리 한 줄** — 제목 · 상태 점과 글자(모집 중 / 확정 · n명 / 만료) · 몇 분 전. **조건은 그 아래 한 줄에 한 번만** — 모드 · 인원 · 마이크 · 찾는 포지션(포지션이 있는 모드만).
  * - **좌석 줄** — 채워진 좌석(`RoomSeat` — 서버 순서 그대로 · 방장 먼저)이 같은 폭으로 서서 카드끼리 줄이 맞고, 빈 자리는 글자 없는 점선 칸(`빈자리` 풍선말)이다 —
  *   넓은 카드는 채워진 좌석과 같은 크기 · 모양의 빈 상자, 폰 폭 카드(방 패널 옆의 좁은 게시판도)는 작은 원(2026-09-30 소유자 지시 — `room-board.css` "빈 자리").
- *   그 뒤 `n/정원` 한 번과 **[참가]** — 누르면 참여 확인 창(`RoomJoinConfirm`)이다. 들어갈 수 없으면(`entryError` — 정원 · 이미 참여 · 다른 방 등) 버튼이 잠기고 이유가 풍선말 · 이름에 붙는다.
+ *   그 뒤 `n/정원` 한 번과 **[참가]** — 누르면 참여 확인 창(`RoomJoinConfirm` — 포지션 방이면 거기서 남은 포지션 하나를 고른다, 2026-10-01)이다. 들어갈 수 없으면(`entryError` — 정원 · 이미 참여 · 다른 방 · 남은 포지션 없음 등) 버튼이 잠기고 이유가 풍선말 · 이름에 붙는다.
+ *   채워진 좌석에는 그 사람이 고른 포지션이 붙는다(`seatPosition` — 확정된 글에는 없다).
  *   **좌석 수 = 그 글의 정원**(`capacity` — 그 모드의 인원: 솔로 랭크 2 · 자유 랭크 2/3/5 · 일반 · 칼바람 2~5, 그 전에 쓴 글 5 — P-41, 2026-09-30). 찬 방은 버튼이 **"가득 참"** 이다.
  *   빈 원을 눌러도 같은 창이 뜬다(마우스 지름길 — 키보드 · 화면 읽기는 [참가] 하나다).
- * - **확정된 글**은 확정 순간의 파티원 전원(P-40 — `members` = 파티원 · `memberCount` = 파티 인원)이 좌석이고 빈 원 · [참가] 가 없다(머리는 `확정 · n명`).
+ * - **확정된 글**은 확정 순간의 파티원 전원(P-40 — `members` = 파티원 · `memberCount` = 파티 인원)이 좌석이고 빈 원 · [참가] 가 없다(머리는 `확정 · n명` — **그 파티가 닫혔으면 `끝남 · n명`**, platform P-46 `closed` · 2026-10-01 소유자 결정. 흐림 · 참가 없음은 같다).
  *   **만료된 글**은 방장 좌석만(서버가 `members` 를 비워 보낸다). 둘 다 흐리게 그린다.
  * - 카드가 460px 보다 좁으면(폰 폭) 좌석이 원 다섯 칸(얼굴 원 + 티어 배지 + 아래 닉네임)이 되고 `n/정원` · [참가] 는 그 아래 줄로 간다 —
  *   숫자 · 챔피언은 프로필 창(눌러서)에만 있다. 그보다 넓은데 좌석이 좁으면(분할 화면 · 사람이 많은 방) 좌석이 스스로 줄인다(`RoomSeat` · CSS 컨테이너 질의 — `room-board.css` "좌석 줄").
@@ -385,7 +397,7 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, reveal = f
   const vacancies = recruiting ? Math.max(0, room.capacity - room.memberCount) : 0;
   const voice = roomVoice(room.voice);
   const group = modeChoice(room.game, room.modeKey)?.group ?? room.modeKey;
-  const status = room.status === 'CONFIRMED' ? `${POST_STATUS_LABEL.CONFIRMED} · ${room.memberCount || members.length}명` : POST_STATUS_LABEL[room.status];
+  const status = room.status === 'CONFIRMED' ? `${room.closed ? POST_ENDED_LABEL : POST_STATUS_LABEL.CONFIRMED} · ${room.memberCount || members.length}명` : POST_STATUS_LABEL[room.status];
   const openSeat = entryError ? undefined : () => onSeat(room);
   // 내가 이미 들어가 있는 방이면 잠긴 버튼의 글자를 "참여 중" 으로, 정원이 찼으면 "가득 참" 으로(이유는 `boardRoom.ts` `roomEntryError`).
   const inside = recruiting && members.some(member => member.id === selfId);

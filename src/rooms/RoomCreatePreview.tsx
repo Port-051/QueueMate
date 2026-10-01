@@ -26,9 +26,11 @@ const TITLE_MAX = 60;
  * - **내 포지션**은 포지션이 있는 모드(`hasPositions` — PUBG · 칼바람은 없다)에서 **필수**이고 글의 `hostPosition` 이 되어 게시판의 방장 카드에 붙는다.
  *   내 포지션으로 고른 것은 찾는 포지션에서 고를 수 없다(누를 수 없고, 이미 골라 두었으면 빠진다). 포지션이 없는 모드로 바꾸면 두 칸의 값을 다 비운다 —
  *   그때는 두 칸이 없고 본문은 `wantedPositions: []` · `hostPosition` 없음이다.
- * - **"방 올리기" 는 다 채워야 눌린다** — 모드 · 음성 · (포지션이 있는 모드면) 내 포지션 · **찾는 포지션 하나 이상** · 한마디(앞뒤 공백을 뗀 1~60자). 빈 칸은 빨간 오류가 아니라
+ * - **"방 올리기" 는 다 채워야 눌린다** — 모드 · 음성 · (포지션이 있는 모드면) 내 포지션 · **찾는 포지션 정원 − 1 개 이상** · 한마디(앞뒤 공백을 뗀 1~60자). 빈 칸은 빨간 오류가 아니라
  *   버튼 위의 흐린 한 줄("채워야 할 칸 — …")로 알린다. 한마디가 60자를 넘을 때만 칸 아래가 빨갛다. 찾는 포지션을 비우는 글("누구든")은 같은 날 소유자 결정으로 없어졌다
  *   (서버도 400 `wantedPositions: …` — 옛 글은 빈 채로 남아 있어 게시판 필터의 "빈 글은 누구든" 은 그대로다).
+ *   **2026-10-01 부터 찾는 포지션은 정원 − 1 개 이상이다**(2026-09-30 소유자 결정 — platform P-44 "찾는 포지션 수" — 참가하는 사람마다 남은 포지션 하나를 고르니 나를 뺀 자리마다 포지션이 있어야 한다 · 서버도 400
+ *   `"wantedPositions: 정원이 N명이면 M개 이상 필요합니다"`). 정원은 프런트의 gameconfig 사본(`targetPartySize`)이다 — 솔로 랭크 · 2인이면 하나, 5인이면 넷(LoL 은 내 포지션을 뺀 전부).
  * - 본문은 계약의 요청 그대로 `{game, mode, title, voice, conditions, wantedPositions, hostPosition}` 이다 — PUBG 의 `conditions.perspective` 는 고른 모드의 시점
  *   (`perspectiveFromMode`), 포지션이 없는 모드면 찾는 포지션은 빈 배열(`[]` — 값을 싣지 않는다)이고 `hostPosition` 은 **칸째 싣지 않는다**(서버는 없는 칸을 `null` 로 읽는다). 정원은 보내지 않는다(서버가 고른 모드의 인원으로 정한다 — P-41 · 안내 글에 그 수를 보여 준다) · 시작 시각 · 티어 범위는 우리 글에 칸이 없고
  *   소개(`description`)는 보내지 않는다. 서버의 400 은 창 안의 빨간 문구다 — `hostPosition: …` 같은 줄은 칸 이름으로 바꿔 보여 준다(`roomErrorMessage`).
@@ -60,10 +62,13 @@ export function RoomCreatePreview({ game, onClose, onConfirm }: {
   const wantedTitle = game === 'VALORANT' ? '찾는 상대 역할' : '찾는 포지션';
   const trimmed = title.trim();
   const tooLong = trimmed.length > TITLE_MAX;
+  // 찾는 포지션의 하한 — 정원 − 1(나를 뺀 자리 수 · 2026-09-30 소유자 결정 — platform P-44 "찾는 포지션 수"). 정원은 gameconfig 사본의 그 모드 인원이다.
+  const capacity = mode ? targetPartySize(game, mode) : 0;
+  const neededWanted = positions ? Math.max(1, capacity - 1) : 0;
   const missing = [
     mode ? '' : '게임 모드',
     positions && !hostPosition ? positionTitle : '',
-    positions && !wantedPositions.length ? `${wantedTitle}(하나 이상)` : '',
+    positions && wantedPositions.length < neededWanted ? `${wantedTitle}(${neededWanted === 1 ? '하나' : `${neededWanted}개`} 이상)` : '',
     voice ? '' : '음성',
     trimmed ? '' : '한마디',
   ].filter(Boolean);
@@ -124,7 +129,7 @@ export function RoomCreatePreview({ game, onClose, onConfirm }: {
         </section>
       </fieldset>
     </div>
-    <p className="room-move-notice">글을 올리면 그 번호의 방({mode ? `정원 ${targetPartySize(game, mode)}명` : '정원은 고른 모드의 인원'})이 같이 생기고 내가 방장으로 들어가요. {positions ? `${positionTitle}은 게시판의 내 카드에 보여요. ` : ''}{hasAccount
+    <p className="room-move-notice">글을 올리면 그 번호의 방({mode ? `정원 ${capacity}명` : '정원은 고른 모드의 인원'})이 같이 생기고 내가 방장으로 들어가요. {positions ? `${positionTitle}은 게시판의 내 카드에 보여요. 들어오는 사람마다 남은 ${wantedTitle} 가운데 하나를 골라 들어오니 ${wantedTitle}은 나를 뺀 자리 수(${neededWanted}개) 이상 골라 주세요. ` : ''}{hasAccount
       ? '내 카드의 티어 · 전적은 프로필의 게임 계정에서 와요.'
       : '이 게임의 계정을 연결하지 않아 내 카드에는 닉네임만 보여요 — 내 정보에서 연결할 수 있어요.'}</p>
     {/* 늘 두고 비우기만 한다(비면 숨는다) — 읽어 주는 영역이 처음부터 있어야 바뀐 글이 읽힌다. */}

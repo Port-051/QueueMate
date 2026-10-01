@@ -1,12 +1,12 @@
 import { expect, test } from './support/fixtures';
 import { show } from './support/api';
-import { createPost, findOnBoard, lolMatch, lolPost, uniqueTitle } from './support/domain';
+import { createPost, enter, findOnBoard, lolMatch, lolPost, uniqueTitle } from './support/domain';
 import type { MatchView } from './support/reset';
 import { expectNoEvent } from './support/sse';
 
 /**
  * 시나리오 7 — 차단(D-20 · INV-6). 차단 관계(어느 쪽이 했든)면 그 방은 목록에서 아예 보이지 않고 단건 · 입장도 없는 글과 같은 404 다.
- * 자동 매칭은 차단 관계인 두 사람을 같은 파티에 넣지 않는다 — 조건이 맞아도 제안이 나오지 않는다.
+ * 퀵 매칭(대기열 매칭)은 차단 관계인 두 사람을 같은 파티에 넣지 않는다 — 조건이 맞아도 제안이 나오지 않는다.
  * (같은 두 사람이 차단이 없을 때 매칭되는 것은 시나리오 5 가 보여 준다. 여기서 거절로 대조하면 matching D-45 의 거절 기록이 남아 뒤 시나리오가 깨진다.)
  */
 test('시나리오 7 — 차단 · 목록에서 숨김 · 입장 404 · 매칭 안 됨', async ({ crew }) => {
@@ -30,7 +30,8 @@ test('시나리오 7 — 차단 · 목록에서 숨김 · 입장 404 · 매칭 �
     const single = await b.get(`/posts/${post.postId}`);
     expect(single.status, show(single)).toBe(404);
     expect(single.body.code).toBe('POST_NOT_FOUND');
-    const entered = await b.post(`/rooms/${post.postId}/members`);
+    // 남은 포지션(탑)을 줘도 404 다 — 글 검사(PostEntryGate · 차단 대조)가 방의 Lua(포지션)보다 먼저다(P-44 이후에도 순서는 그대로)
+    const entered = await enter(b, String(post.postId), 'TOP');
     expect(entered.status, show(entered)).toBe(404);
     expect(entered.body.code).toBe('POST_NOT_FOUND');
     expect(await findOnBoard(c, 'LOL', post.postId), '차단과 무관한 C 의 목록에는 보여야 한다').toBeTruthy();
