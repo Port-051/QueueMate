@@ -1,4 +1,4 @@
-name: Deploy GA4 without changing landing design
+name: Deploy GA4 on the existing lobby landing
 on:
   push:
     branches: [feat/seo-landing]
@@ -17,90 +17,37 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: a59a427f5618f1de0a02a91ec610daf90b4480cd
+          ref: b9f49db14b875ef58f8cabe39adfa6a6a6242bf8
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - name: Test GA4 and build canonical production HTML
+      - name: Test analytics with the preserved lobby design
         working-directory: landing
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm test
           BUILD_TARGET=production npm run build
-      - name: Prepare scoped deployment
+      - name: Prepare reviewed deployment with live HTML and CSS guards
         run: |
-          cat > "$RUNNER_TEMP/ga4-release.mjs" <<'NODE'
-          import assert from 'node:assert/strict';
-          import {spawn} from 'node:child_process';
-          import {readFile,writeFile,mkdir,rm,cp} from 'node:fs/promises';
-          import {stripVTControlCharacters as clean} from 'node:util';
-          import {setTimeout as delay} from 'node:timers/promises';
-          const T={repo:'Port-051/QueueMate',team:'team_TYonFQEoE1HOMC5bYb5xvQXV',scope:'port-52',project:'prj_twOVEOMaFLLQtgu0n4o5l7pmggiu',name:'queue-mate-landing',host:'queue-mate-landing.vercel.app',origin:'https://queue-mate.com/',source:'a59a427f5618f1de0a02a91ec610daf90b4480cd',id:'G-89S881436M'};
-          const approval=s=>clean(s).match(/https:\/\/vercel\.com\/oauth\/device\?user_code=[A-Z0-9-]+/)?.[0];
-          const body=html=>{const m=html.match(/<body>[\s\S]*<\/body>/);assert.ok(m,'No body');return m[0];};
-          const noindex=s=>/(?:^|[\s,:;])(?:noindex|none)(?:$|[\s,;])/i.test(s??'');
-          function target(p,d){assert.equal(p.id,T.project);assert.equal(p.name,T.name);assert.equal(p.accountId,T.team);assert.equal(d.projectId,T.project);assert.equal(d.readyState,'READY');}
-          const p={id:T.project,name:T.name,accountId:T.team},d={projectId:T.project,readyState:'READY'};
-          assert.doesNotThrow(()=>target(p,d));assert.throws(()=>target({...p,accountId:'other'},d));assert.throws(()=>target(p,{...d,projectId:'other'}));
-          assert.ok(noindex('googlebot: noindex'));assert.ok(!noindex('index, follow'));
-          assert.equal(approval('https://vercel.com/oauth/device?user_code=ABCD-EFGH'),'https://vercel.com/oauth/device?user_code=ABCD-EFGH');
-          assert.equal(approval('https://vercel.com.evil.test/oauth/device?user_code=ABCD-EFGH'),undefined);
-          if(process.env.QMATE_TEST_ONLY==='1'){console.log('Deployment scope and approval guards passed');process.exit(0);}
-          assert.equal(process.env.GITHUB_REPOSITORY,T.repo);assert.equal(process.env.GITHUB_REF,'refs/heads/feat/seo-landing');
-          const tmp=process.env.RUNNER_TEMP;assert.ok(tmp?.startsWith('/'));
-          const auth=tmp+'/ga4-auth',dir=tmp+'/ga4-package',audit=tmp+'/ga4-audit',cli=tmp+'/ga4-cli/node_modules/.bin/vercel';
-          const sha=process.env.GITHUB_SHA,runUrl=`https://github.com/${T.repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
-          const report={sourceSha:T.source,measurementId:T.id,designChanged:false,dnsChanged:false,accountPermissionsChanged:false,ga4ReportVerified:false,startedAt:new Date().toISOString()};
-          await mkdir(auth,{recursive:true,mode:0o700});await mkdir(audit,{recursive:true});
-          const env=Object.fromEntries(['PATH','HOME','RUNNER_TEMP','TMPDIR','NODE_EXTRA_CA_CERTS'].filter(k=>process.env[k]).map(k=>[k,process.env[k]]));Object.assign(env,{CI:'1',NO_COLOR:'1',VERCEL_TELEMETRY_DISABLED:'1'});
-          async function status(state,description,url=runUrl){const r=await fetch(`https://api.github.com/repos/${T.repo}/statuses/${sha}`,{method:'POST',redirect:'error',signal:AbortSignal.timeout(15000),headers:{Authorization:`Bearer ${process.env.GITHUB_TOKEN}`,Accept:'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify({state,description:description.slice(0,140),context:'SEO GA4 deployment',target_url:url})});assert.ok(r.ok,`Status write failed (${r.status})`);await r.body?.cancel();}
-          function command(executable,args,timeout=60000,output=()=>{}){return new Promise((resolve,reject)=>{const child=spawn(executable,args,{env,stdio:['ignore','pipe','pipe']});let out='',err='',expired=false;const timer=setTimeout(()=>{expired=true;child.kill('SIGKILL');},timeout);child.stdout.on('data',b=>{out+=b;output(clean(out+'\n'+err));});child.stderr.on('data',b=>{err+=b;output(clean(out+'\n'+err));});child.on('error',()=>{clearTimeout(timer);reject(Error('Command start failed'));});child.on('close',code=>{clearTimeout(timer);code===0&&!expired?resolve(clean(out)):reject(Error(`Command ${args[0]} failed; credentials withheld`));});});}
-          const vc=(args,timeout,output)=>command(cli,[...args,'--global-config',auth,'--no-color'],timeout,output);
-          async function api(path){assert.ok(path===`/v9/projects/${T.project}`||path===`/v9/projects/${T.project}/domains`||path.startsWith('/v13/deployments/'));const result=JSON.parse(await vc(['api',path+'?teamId='+T.team,'-X','GET','--scope',T.scope]));assert.ok(!result.error,'Vercel read failed');return result;}
-          async function page(url){const r=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(20000)});return {status:r.status,type:r.headers.get('content-type'),location:r.headers.get('location'),noindex:noindex(r.headers.get('x-robots-tag')),text:await r.text()};}
-          let previous,deployment,phase='preflight';
-          try {
-           assert.equal((await command('git',['rev-parse','HEAD'])).trim(),T.source);
-           const c=JSON.parse(await readFile('landing/site.config.json','utf8'));
-           assert.deepEqual(c.analytics,{enabled:true,measurementId:T.id});assert.equal(c.allowIndexing,true);assert.equal(c.appReady,false);
-           const local=await readFile('landing/dist/index.html','utf8');assert.ok(local.includes('id="qmate-analytics"'));assert.ok(local.includes(T.id));
-           for(const [name,value] of Object.entries(c.verification).filter(([k,v])=>v))assert.ok(local.includes(`<meta name="${name}-site-verification" content="${value}">`));
-           let root=await page(T.origin);assert.equal(root.status,200,'Homepage unavailable');assert.equal(root.noindex,false,'Canonical is excluded');
-           assert.equal(body(root.text),body(local),'LIVE_BODY_DIFFERS: preserve live design; no deployment');
-           await status('pending','GA4 preflight passed; requesting Vercel approval');
-           phase='authorization';let announced=false,notice=Promise.resolve();
-           await vc(['login'],600000,out=>{const url=approval(out);if(!url||announced)return;announced=true;console.log('VERCEL_APPROVAL_URL='+url);notice=status('pending','Approve port-52: GA4 visits and demo clicks; visible design preserved',url);notice.catch(()=>{});});await notice;
-           phase='target verification';const project=await api(`/v9/projects/${T.project}`);previous=await api(`/v13/deployments/${T.host}`);target(project,previous);
-           report.previousDeploymentId=previous.id;report.previousUrl=`https://${previous.url}/`;
-           const domains=await api(`/v9/projects/${T.project}/domains`);assert.ok(!domains.pagination?.next,'Incomplete domain list');
-           for(const name of ['queue-mate.com','www.queue-mate.com']){const row=domains.domains.find(d=>d.name===name);assert.ok(row&&row.verified&&row.projectId===T.project);assert.ok(!row.gitBranch&&!row.customEnvironmentId);}
-           await mkdir(dir+'/.vercel',{recursive:true});await mkdir(dir+'/scripts',{recursive:true});
-           for(const f of ['package.json','package-lock.json','site.config.json','vercel.json','src','public'])await cp('landing/'+f,dir+'/'+f,{recursive:true});
-           await cp('landing/scripts/build.mjs',dir+'/scripts/build.mjs');await writeFile(dir+'/.vercel/project.json',JSON.stringify({projectId:T.project,orgId:T.team,projectName:T.name}));
-           assert.equal((await api(`/v13/deployments/${T.host}`)).id,previous.id,'Another release changed production');
-           root=await page(T.origin);assert.equal(body(root.text),body(local),'Live design changed before deploy');
-           phase='deployment';await status('pending','Deploying GA4 to the existing canonical landing');
-           const out=await vc(['deploy','--cwd',dir,'--yes','--prod','--scope',T.scope,'--meta',`githubCommitSha=${T.source}`,'--meta',`releaseWorkflowSha=${sha}`],300000);
-           const urls=out.match(/https:\/\/[a-z0-9.-]+\.vercel\.app/gi);assert.ok(urls?.length);
-           deployment=await api(`/v13/deployments/${new URL(urls.at(-1)).hostname}`);target(project,deployment);assert.equal(deployment.meta.githubCommitSha,T.source);report.deploymentId=deployment.id;
-           phase='verification';let current;for(let i=0;i<8;i++){current=await api(`/v13/deployments/${T.host}`);if(current.id===deployment.id)break;await delay(2000);}assert.equal(current.id,deployment.id);
-           root=await page(T.origin);assert.equal(root.status,200);assert.equal(root.noindex,false);assert.equal(root.text,local,'Production HTML differs from tested build');
-           const alias=await page(`https://${T.host}/`);assert.equal(alias.status,200);assert.equal(alias.noindex,true);
-           const www=await page('https://www.queue-mate.com/');assert.ok([301,308].includes(www.status)&&www.location===T.origin);
-           for(const f of ['robots.txt','sitemap.xml','assets/site.css','assets/concise.css']){const r=await page(T.origin+f);assert.equal(r.status,200);assert.equal(r.text,await readFile('landing/dist/'+f,'utf8'));}
-           await command(process.execPath,['landing/scripts/check-url.mjs',T.origin,'production',audit+'/http-checks.json'],150000);
-           report.deploymentVerified=true;report.publicUrl=T.origin;
-           await status('success','GA4_TAG_DEPLOYED; unchanged UI and SEO verified; check GA4 Realtime for collection',T.origin);
-          } catch(e) {
-           report.error=phase+': '+e.message;
-           if(deployment&&previous&&deployment.id!==previous.id&&!report.deploymentVerified){try{if((await api(`/v13/deployments/${T.host}`)).id===deployment.id){await vc(['rollback',report.previousUrl,'--yes','--scope',T.scope,'--cwd',dir],120000);report.rolledBack=(await api(`/v13/deployments/${T.host}`)).id===previous.id;}}catch{report.rolledBack=false;}}
-           await status('failure',phase+': '+e.message).catch(()=>{});console.error(report.error);process.exitCode=1;
-          } finally {
-           await vc(['logout'],20000).catch(()=>{});await rm(auth,{recursive:true,force:true});report.finishedAt=new Date().toISOString();
-           await writeFile(audit+'/report.json',JSON.stringify(report,null,2)+'\n');console.log('GA4_DEPLOYMENT_RESULT='+JSON.stringify(report));
-          }
-          NODE
+          python3 - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          source = Path('.github/workflows/seo-ga4-release.yml').read_bytes()
+          assert hashlib.sha1(f'blob {len(source)}\0'.encode() + source).hexdigest() == 'b089dea410ab6104cf19275b38a7c28b38596bfd', 'Release template changed'
+          lines = source.decode().splitlines()
+          start = next(i for i,l in enumerate(lines) if 'cat > "$RUNNER_TEMP/ga4-release.mjs"' in l) + 1
+          end = next(i for i in range(start,len(lines)) if lines[i] == '          NODE')
+          script = '\n'.join(l[10:] for l in lines[start:end]) + '\n'
+          old = "source:'a59a427f5618f1de0a02a91ec610daf90b4480cd'"
+          assert script.count(old) == 1
+          script = script.replace(old, "source:'b9f49db14b875ef58f8cabe39adfa6a6a6242bf8'")
+          old = "assert.equal(body(root.text),body(local),'LIVE_BODY_DIFFERS: preserve live design; no deployment');"
+          new = "assert.ok(body(root.text)===body(local),'LIVE_BODY_DIFFERS: preserve live design; no deployment');\nfor(const file of ['assets/site.css','assets/concise.css']){const live=await page(T.origin+file);assert.equal(live.status,200);assert.ok(live.text===await readFile('landing/dist/'+file,'utf8'),'LIVE_CSS_DIFFERS: preserve live design; no deployment');}"
+          assert script.count(old) == 1
+          script = script.replace(old,new)
+          Path(os.environ['RUNNER_TEMP'],'ga4-release.mjs').write_text(script)
+          PY
           node --check "$RUNNER_TEMP/ga4-release.mjs"
           QMATE_TEST_ONLY=1 node "$RUNNER_TEMP/ga4-release.mjs"
       - name: Install official Vercel CLI
