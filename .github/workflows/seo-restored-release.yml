@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: b2e2dac36e7f941198180b3088c3e4e4423ed7bf
+          ref: b448487735778b507de90b493affbb627151a9b8
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -37,7 +37,7 @@ jobs:
           import {createHash} from 'node:crypto';
           import {stripVTControlCharacters as clean} from 'node:util';
           import {setTimeout as delay} from 'node:timers/promises';
-          const T=Object.freeze({repo:'Port-051/QueueMate',source:'b2e2dac36e7f941198180b3088c3e4e4423ed7bf',tree:'e8c7ad595b5688f3bc7f2e239a4810e5d4dbcfd1',team:'team_TYonFQEoE1HOMC5bYb5xvQXV',scope:'port-52',project:'prj_twOVEOMaFLLQtgu0n4o5l7pmggiu',name:'queue-mate-landing',host:'queue-mate-landing.vercel.app',domain:'queue-mate.com'});
+          const T=Object.freeze({repo:'Port-051/QueueMate',source:'b448487735778b507de90b493affbb627151a9b8',tree:'0c58acb67109a7d4a2f029fa69fbfbb64725b1e0',team:'team_TYonFQEoE1HOMC5bYb5xvQXV',scope:'port-52',project:'prj_twOVEOMaFLLQtgu0n4o5l7pmggiu',name:'queue-mate-landing',host:'queue-mate-landing.vercel.app',domain:'queue-mate.com'});
           const origin=`https://${T.domain}/`;
           const digest=b=>createHash('sha256').update(b).digest('hex');
           const noindex=s=>/(?:^|[\s,:;])(?:noindex|none)(?:$|[\s,;])/i.test(s??'');
@@ -100,7 +100,7 @@ jobs:
            assert.equal(c.origin,origin.slice(0,-1));assert.equal(c.allowIndexing,true);assert.equal(c.appReady,false);
            assert.deepEqual(c.analytics,{enabled:true,measurementId:'G-89S881436M'});
            const local=await readFile('landing/dist/index.html','utf8');
-           for(const phrase of ['팀원 찾으러','여기저기 다니지 마세요.','id="features-title">보고. 들어가고.','id="quick-match"','class="hero-screen"','G-89S881436M','id="qmate-analytics"'])assert.ok(local.includes(phrase),'Approved content missing: '+phrase);
+           for(const phrase of ['팀원 찾기부터 대화까지,','한곳에서.','id="features-title">보고. 들어가고.','id="quick-match"','class="hero-screen"','G-89S881436M','id="qmate-analytics"'])assert.ok(local.includes(phrase),'Approved content missing: '+phrase);
            assert.equal((local.match(/src="\/assets\/ui\/quick-match-/g)||[]).length,3,'Exactly three product screenshots required');
            assert.ok(local.indexOf('id="features"')<local.indexOf('id="quick-match"'),'Section order changed');
            for(const engine of ['google','naver'])assert.ok(local.includes(`<meta name="${engine}-site-verification" content="${c.verification[engine]}">`),'Ownership tag missing');
