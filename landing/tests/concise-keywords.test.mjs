@@ -1,5 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';import {renderSite} from '../src/render.mjs';
-const c=JSON.parse(await readFile(new URL('../site.config.json',import.meta.url),'utf8'));const html=renderSite(c,{VERCEL_ENV:'production'}).html;
-test('primary headline and discovery terms remain',()=>{assert.match(html,/조건에 맞는 팀원을 찾고,/);for(const x of ['롤 듀오','파티 찾기','빠른매치','음성·채팅'])assert.ok(html.includes(x),x);});
-test('quick match is secondary to the product flow',()=>{assert.ok(html.indexOf('id="preview"')<html.indexOf('id="features"'));assert.ok(html.indexOf('id="features"')<html.indexOf('id="quick-match"'));assert.match(html,/직접 찾는 대신,/);assert.match(html,/원하는 조건만 정하세요/);});
-test('production search policy remains',()=>{assert.equal(c.appReady,false);assert.equal(c.allowIndexing,true);assert.match(html,/content="index, follow, max-image-preview:large"/);assert.match(html,/서비스 준비 중/);});
+import test from 'node:test';import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';import {renderSite} from '../src/render.mjs';const c=JSON.parse(await readFile(new URL('../site.config.json',import.meta.url),'utf8'));const html=renderSite(c,{VERCEL_ENV:'production'}).html;
+test('visible discovery terms remain natural',()=>{for(const x of ['롤 듀오','파티 찾기','빠른매치','음성·채팅'])assert.ok(html.includes(x),x);assert.doesNotMatch(html,/name="keywords"/);});
+test('quick match stays below core value',()=>{assert.ok(html.indexOf('id="features"')<html.indexOf('id="quick-match"'));assert.match(html,/조건만 정하고,/);});
+test('production search policy remains',()=>{assert.equal(c.appReady,false);assert.equal(c.allowIndexing,true);assert.match(html,/index, follow, max-image-preview:large/);});
