@@ -81,7 +81,7 @@ async function startSoloRankThroughUi(page: Page, position: string): Promise<Rec
  * **실제 Riot ID 를 저장소 파일에 적지 않는다.** 연결 한 번에 Riot 호출 14번(개발용 키 2분에 100번) — 한 번 돌 때 계정마다 한 번만 잇는다(`retries: 0`).
  *
  * 내 정보 화면으로 두 계정을 이으면 티어(`tiers.SOLO`)와 모스트 챔피언(P-39 — 숙련도 상위 셋 `{championId, masteryLevel, masteryPoints}`)이 Riot 에서 채워지고,
- * 게시판의 퀵 매칭 판에서 솔로 랭크를 시작하면 프런트가 **연결한 솔로랭크 티어**로 요청을 만든다 → 제안 → 수락 → 파티 방.
+ * 게시판 필터 줄의 빠른매치 창에서 솔로 랭크를 시작하면 프런트가 **연결한 솔로랭크 티어**로 요청을 만든다 → 제안 → 수락 → 파티 방.
  */
 test('시나리오 9 — 실제 LoL 계정 연결 · 솔로 랭크 듀오(UI)', async ({ crew }) => {
   const riotA = process.env.E2E_LOL_A;
@@ -134,7 +134,7 @@ test('시나리오 9 — 실제 LoL 계정 연결 · 솔로 랭크 듀오(UI)', 
 
   const pageA = await crew.appPage('a', '/app/home');
   const pageB = await crew.appPage('b', '/app/home');
-  await test.step('두 사람 — 게시판 퀵 매칭 판에서 솔로 랭크 시작(A 미드 · B 탑) → 요청 본문의 티어는 연결한 솔로랭크 티어', async () => {
+  await test.step('두 사람 — 게시판 빠른매치 창에서 솔로 랭크 시작(A 미드 · B 탑) → 요청 본문의 티어는 연결한 솔로랭크 티어', async () => {
     const bodyA = await startSoloRankThroughUi(pageA, '미드');
     expect(bodyA).toMatchObject({ game: 'LOL', modeKey: 'RANKED_SOLO', tier: tierA, keyCondition: { type: 'POSITION', value: 'MID' }, voicePreference: 'NO_VOICE', playPurpose: 'TRYHARD' });
     await expect(pageA.getByRole('button', { name: '빠른매치 현황 열기' })).toBeVisible();
@@ -154,9 +154,9 @@ test('시나리오 9 — 실제 LoL 계정 연결 · 솔로 랭크 듀오(UI)', 
     partyId = pageA.url().match(proposal)![1];
     expect(pageB.url()).toContain(partyId);
     // 제안 화면도 새 화면이 아니라 게시판 오른쪽 패널이다(2026-09-30 소유자 지시) — 게시판이 옆에 남는다.
-    await expect(pageA.getByRole('region', { name: '매칭 제안', exact: true })).toBeVisible();
+    await expect(pageA.getByRole('region', { name: '빠른매치 제안', exact: true })).toBeVisible();
     await expect(pageA.getByRole('region', { name: '방 목록', exact: true })).toBeVisible();
-    for (const page of [pageA, pageB]) await page.getByRole('region', { name: '매칭 제안', exact: true }).getByRole('button', { name: '수락하고 파티룸 입장' }).click();
+    for (const page of [pageA, pageB]) await page.getByRole('region', { name: '빠른매치 제안', exact: true }).getByRole('button', { name: '수락하고 파티룸 입장' }).click();
   });
 
   await test.step('확정 → 앱이 스스로 파티 방에 들어간다(`/app/party/{partyId}` — 게시판 오른쪽 패널) · 방 안에 둘', async () => {
@@ -167,7 +167,7 @@ test('시나리오 9 — 실제 LoL 계정 연결 · 솔로 랭크 듀오(UI)', 
     expect(members.members?.sort()).toEqual([a.userId, b.userId].sort());
     // 파티 방도 게시판 오른쪽 패널로 열린다(2026-09-30) — 대기 때의 조건으로 게임 · 모드 · 정원(n/2)을 그린다.
     const room = pageA.getByRole('region', { name: '방', exact: true });
-    await expect(room.getByRole('heading', { level: 1, name: '퀵 매칭 파티' })).toBeVisible();
+    await expect(room.getByRole('heading', { level: 1, name: '빠른매치 파티' })).toBeVisible();
     await expect(room.getByText('리그 오브 레전드 · 솔로 랭크 · 2인', { exact: true })).toBeVisible();
     await expect(room.getByText('2 / 2명', { exact: true })).toBeVisible();
     await expect(pageA.getByRole('region', { name: '방 목록', exact: true })).toBeVisible();

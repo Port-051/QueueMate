@@ -1,11 +1,16 @@
 import { expect, test } from './support/fixtures';
-import { createPost, lolMatch, lolPost, myRoom, uniqueTitle } from './support/domain';
+import { aramPost, createPost, lolMatch, myRoom, uniqueTitle } from './support/domain';
+
+/*
+ * 방은 포지션 없는 방(칼바람 — `aramPost`)이다(2026-10-02 가져오며 바꿨다). 포지션 방이면 참여 창에서 남은 포지션을 먼저 골라야 "참여하기" 가 눌리고
+ * 입장 요청에 `?position=` 이 붙어(platform P-44) 아래의 요청 맞추기(`…/members` 로 끝나는가)가 어긋난다. 취소-후-입장의 순서는 방의 종류와 상관이 없다.
+ */
 
 /** 빠른매치 중 수동 입장은 확인 → 취소 성공 → 입장 순서다. 확인을 닫거나 취소가 실패하면 큐를 유지한다. */
 test('빠른매치 중 방 참여 — 확인 취소 · 서버 오류 · 취소 완료 후 입장', async ({ crew }) => {
   const host = await crew.user('a');
   const guest = await crew.user('b');
-  const post = await createPost(host, lolPost(uniqueTitle('quick-entry')));
+  const post = await createPost(host, aramPost(uniqueTitle('quick-entry')));
   const queued = await guest.post('/match-requests', lolMatch('MID'));
   expect(queued.status).toBe(201);
   const page = await crew.appPage('b', '/app/home');
@@ -58,7 +63,7 @@ test('빠른매치 중 방 참여 — 확인 취소 · 서버 오류 · 취소 �
 test('빠른매치 취소 뒤 입장 실패 — 취소 상태 안내와 입장 재시도', async ({ crew }) => {
   const host = await crew.user('a');
   const guest = await crew.user('b');
-  const post = await createPost(host, lolPost(uniqueTitle('entry-retry')));
+  const post = await createPost(host, aramPost(uniqueTitle('entry-retry')));
   expect((await guest.post('/match-requests', lolMatch('MID'))).status).toBe(201);
   const page = await crew.appPage('b', '/app/home');
   await expect(page.getByRole('button', { name: '빠른매치 현황 열기' })).toBeVisible();

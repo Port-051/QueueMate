@@ -11,7 +11,7 @@ import { SlidingSelector } from './SlidingSelector';
  * 묶음을 바꾸면 인원 · 시점은 그 묶음에 있으면 그대로, 없으면 가장 작은 인원 · 3인칭이다.
  * `compact` 는 방 카드 보드 맨 위 자동 매칭 판의 모양(미끄러지는 선택 표시)이다(2026-09-29 까지는 오른쪽 레일이었다).
  * `allowNone` 이면 **아무것도 고르지 않은 상태**가 있다 — 값이 모르는 키(`''`)면 어느 묶음도 눌리지 않고 인원 · 시점 줄이 없다. 묶음을 누르면 그 묶음의
- * 가장 작은 인원 · 3인칭 모드가 된다. "글 쓰고 파티 찾기" 팝업이 쓴다(2026-09-30 소유자 지시 — 창을 열 때 아무것도 고르지 않은 채로).
+ * 가장 작은 인원 · 3인칭 모드가 된다. "방 만들기" 팝업이 쓴다(2026-09-30 소유자 지시 — 창을 열 때 아무것도 고르지 않은 채로).
  */
 export function ModePicker({ game, value, onChange, disabled = false, compact = false, allowNone = false }: {
   game: GameKey; value: string; onChange: (modeKey: string) => void; disabled?: boolean; compact?: boolean; allowNone?: boolean;

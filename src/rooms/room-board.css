@@ -337,7 +337,7 @@
 
 /* 게시판 맨 위의 자동 매칭 판 · 필터 한 줄(2026-09-29 소유자 지시 — OP.GG 듀오 찾기처럼 위에서 아래로 한 줄기). 오른쪽 레일은 없어졌고 카드 목록이 폭을 다 쓴다.
    판은 넓은 화면(>1100px)에서 칸이 세 열(모드가 두 줄을 차지) · 막는 문구와 "매칭 시작" 이 한 줄, 700~1100px 에서 두 열, 그보다 좁으면 옛 레일처럼 한 열이다.
-   대기 · 제안 · 내 방 카드는 판 바로 아래에 가로로 선다. "글 쓰고 파티 찾기" 는 필터 줄의 오른쪽 끝(좁으면 줄을 바꿔 오른쪽 · 폰 폭에서는 한 줄 전부). */
+   대기 · 제안 · 내 방 카드는 판 바로 아래에 가로로 선다. "방 만들기" 는 필터 줄의 오른쪽 끝(좁으면 줄을 바꿔 오른쪽 · 폰 폭에서는 한 줄 전부). */
 .room-match-top .home-profile .matching-rail-panel { max-width:none; margin-inline:0; }
 .room-match-top .matching-rail-footer { position:static; padding-bottom:0; background:none; }
 .room-match-message:empty { display:none; }

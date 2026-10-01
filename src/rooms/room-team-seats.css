@@ -1,4 +1,4 @@
-/* 퀵 매칭 제안 화면의 팀원 좌석 줄(2026-10-01 — `RoomTeamSeats.tsx` · platform P-47). 좌석 · 작은 창은 게시판 카드의 것(`room-board.css` "좌석 줄"), "(나)" 는 방 화면 좌석의 것
+/* 빠른매치 제안 화면의 팀원 좌석 줄(2026-10-01 — `RoomTeamSeats.tsx` · platform P-47). 좌석 · 작은 창은 게시판 카드의 것(`room-board.css` "좌석 줄"), "(나)" 는 방 화면 좌석의 것
    (`room-voice-seats.css`)을 그대로 쓴다(그 둘을 먼저 싣는다 — `RoomTeamSeats.tsx` 의 import 순서). 여기에는 제안 카드 폭에 맞춘 좁은 모양(컨테이너 질의 `room-team` —
    게시판의 `room-card` · 방 화면의 `room-voice` 와 같은 460px)만 둔다. 좌석 하나하나가 제 폭을 보고 줄어드는 것(190 · 132 · 64px)은 게시판 그대로다. */
 .room-team-seats-wrap { container:room-team / inline-size; margin-top:14px; }

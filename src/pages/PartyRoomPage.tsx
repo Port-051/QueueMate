@@ -42,7 +42,7 @@ const VOICE_LABEL: Record<VoiceStatus, string> = {
  *
  * - 방의 상태(방장 · 사람 목록 · 확정 · 접속 확인 · `ROOM_*`)는 `RoomSessionContext` 가 든다 — 이 화면은 경로의 `roomId` 를 `adopt` 하고, 방을 잃으면(`gone`) 홈으로 간다.
  * - 사람 목록은 id 뿐이라(`GET …/members`) **게시판 방이면 `GET /posts/{postId}` 의 카드로** 닉네임 · 프로필을 붙인다.
- *   **퀵 매칭 방은 팀원 카드 `GET /match-parties/{partyId}/members`(2026-10-01 소유자 결정 — platform P-47)로** 닉네임 · 게임 프로필 · 고른 포지션을 붙인다
+ *   **빠른매치 방은 팀원 카드 `GET /match-parties/{partyId}/members`(2026-10-01 소유자 결정 — platform P-47)로** 닉네임 · 게임 프로필 · 고른 포지션을 붙인다
  *   (방 안 사람이 바뀔 때마다 다시 받는다 · 좌석 · 작은 창은 게시판 방과 같다 — `toMatchPartyRoom`). 그 전에는 사용자 번호(`#42`)만 보였다.
  *   채팅의 이름도 좌석과 같은 출처(서버가 아는 닉네임)가 먼저다 — 보낸 브라우저가 실어 온 이름은 모를 때만.
  *   자동 매칭 방의 게임 · 모드 · 음성 · 정원은 서버 응답에 없어(P-30) **이 브라우저가 확정 때 적어 둔 조건**(`MatchContext.activePartyInfo` — 대기 때의 조건 · 제안의 정원)으로 그린다.
@@ -51,7 +51,7 @@ const VOICE_LABEL: Record<VoiceStatus, string> = {
  *   글 지우기 `DELETE /posts/{postId}`(방장 · 모집 중 — 만료로 바꾸고 방도 닫힌다). 글 고치기(`PATCH /posts/{postId}`)는 없다(2026-10-01 소유자 결정 — platform P-45).
  * - 음성 · 채팅은 WebRTC 직결(`PartySessionContext`). 친구 추가 · 차단 · 신고는 `SocialContext` · `ReportModal`(5단계 — 우리 API. 신고의 `contextId` 는 게시판 방이면 글 번호, 자동 매칭 방은 없다).
  * - **파티원은 음성 칸의 좌석 줄이다**(2026-09-30 소유자 지시 — `rooms/RoomVoiceSeats.tsx`). 옛 오른쪽 "파티원 (n/정원)" 카드와 사람마다의 큰 프로필(티어 · 승률 · KDA 칸)을 걷었다 —
- *   좌석은 게시판 카드의 좌석과 같고(정원만큼 · 빈 자리는 점선 원) 음성 상태가 붙는다. 2026-10-01 부터 사람마다 고른 포지션도 붙는다(게시판 방은 `session.positions` — 확정 전만 · 퀵 매칭 방은 팀원 카드의 것 — 늘). 친구 추가 · 방장의 내보내기 · 차단 · 신고는 **좌석을 누르면 뜨는 작은 메뉴**(`menuFor`)로 옮겼다(내 좌석은 누를 수 없다).
+ *   좌석은 게시판 카드의 좌석과 같고(정원만큼 · 빈 자리는 점선 원) 음성 상태가 붙는다. 2026-10-01 부터 사람마다 고른 포지션도 붙는다(게시판 방은 `session.positions` — 확정 전만 · 빠른매치 방은 팀원 카드의 것 — 늘). 친구 추가 · 방장의 내보내기 · 차단 · 신고는 **좌석을 누르면 뜨는 작은 메뉴**(`menuFor`)로 옮겼다(내 좌석은 누를 수 없다).
  *   2026-10-01 부터 그 메뉴 맨 위에 **"프로필 보기"**(게시판 좌석을 눌렀을 때와 같은 큰 프로필 창 `RoomMemberProfile` — 소유자 · 휴대폰은 마우스를 올린 작은 창이 없다)가 있다.
  * - **2026-09-30 부터 이 화면은 게시판 오른쪽 패널이다**(`pages/HomePage.tsx` — 넓은 화면은 게시판을 왼쪽으로 밀고, 좁은 화면은 게시판을 덮는다). 경로 · 하는 일은 그대로이고,
  *   게시판 방의 글을 처음 읽으면 게시판의 게임을 이 방의 게임으로 한 번 맞춘다(`syncRoomGame` — 딥 링크 · 새로 고침).
@@ -103,7 +103,7 @@ export function PartyRoomPage() {
   }, [postId]);
   useEffect(() => { void loadPost(); }, [loadPost, session.version]);
 
-  // 퀵 매칭 방 — 팀원 카드(2026-10-01 소유자 결정 — platform P-47 `GET /match-parties/{partyId}/members`): 닉네임 · 게임 프로필 · 고른 포지션.
+  // 빠른매치 방 — 팀원 카드(2026-10-01 소유자 결정 — platform P-47 `GET /match-parties/{partyId}/members`): 닉네임 · 게임 프로필 · 고른 포지션.
   // 방 안 사람이 바뀔 때(들어오고 나감)마다 다시 받는다(파티원 밖의 사람은 이 방에 못 들어온다). 게임은 확정 때 적어 둔 것이 있으면 싣고 없으면 뺀다(서버가 확정된 파티의 게임을 안다).
   // 늦게 온 응답이 새 응답을 덮지 않게 차례(`teamSeq`)를 본다. 실패하면 받아 둔 것을 그대로 쓴다.
   const matchRoomId = roomId && postId === null ? roomId : null;
@@ -125,7 +125,7 @@ export function PartyRoomPage() {
   }, [matchRoomId, partyGame]);
   useEffect(() => { if (matchRoomId && memberKey) void loadTeam(); }, [loadTeam, matchRoomId, memberKey]);
   const teamMembers = team && team.roomId === roomId ? team.members : null;
-  // 퀵 매칭 방의 게임 — 확정 때 적어 둔 것, 없으면(다른 브라우저에서 들어온 방) 팀원 카드의 게임 프로필(그 파티의 게임에 연결한 것이다).
+  // 빠른매치 방의 게임 — 확정 때 적어 둔 것, 없으면(다른 브라우저에서 들어온 방) 팀원 카드의 게임 프로필(그 파티의 게임에 연결한 것이다).
   const knownGame = partyGame ?? teamMembers?.find(member => member.profile)?.profile?.game ?? null;
 
   // 게시판(왼쪽)을 이 방의 게임으로 — 방마다 한 번(그 뒤 사용자가 게임을 바꾸면 그대로 둔다).
@@ -142,18 +142,18 @@ export function PartyRoomPage() {
   const confirmed = session.confirmed || room?.status === 'CONFIRMED';
   // 정원 — 게시판 방은 글의 `capacity`(P-41), 자동 매칭 방은 확정 때 적어 둔 파티의 정원. 모르면 인원만.
   const capacity = room?.capacity ?? party?.target ?? null;
-  // 좌석이 그리는 방 — 게시판 방은 글, 퀵 매칭 방은 팀원 카드를 편 것(`toMatchPartyRoom` — 게임을 알 때만 · 방장은 지금의 방장 · 고른 포지션을 늘 붙인다).
+  // 좌석이 그리는 방 — 게시판 방은 글, 빠른매치 방은 팀원 카드를 편 것(`toMatchPartyRoom` — 게임을 알 때만 · 방장은 지금의 방장 · 고른 포지션을 늘 붙인다).
   const partyRoom = !room && teamMembers && knownGame
     ? toMatchPartyRoom({ partyId: roomId, game: knownGame, modeKey: partyMode, voice: party?.voicePreference ?? null, capacity, hostId: session.hostId, members: teamMembers })
     : null;
   const seatRoom = room ?? partyRoom;
   const cards = new Map<string, BoardMember>((seatRoom?.members ?? []).map(member => [member.id, member]));
-  // 서버가 아는 닉네임 — 게시판 방은 글의 카드, 퀵 매칭 방은 팀원 카드(게임을 몰라 카드를 못 펴도 닉네임은 있다 · 가입하지 않은 번호는 게시판 카드처럼 "알 수 없음").
+  // 서버가 아는 닉네임 — 게시판 방은 글의 카드, 빠른매치 방은 팀원 카드(게임을 몰라 카드를 못 펴도 닉네임은 있다 · 가입하지 않은 번호는 게시판 카드처럼 "알 수 없음").
   // 좌석 · 채팅 · 신고 창이 이것을 같이 쓴다(같은 출처 — 2026-10-01).
   const teamNames = new Map((teamMembers ?? []).map(member => [String(member.userId), member.nickname ?? UNKNOWN_NICKNAME] as const));
   const serverName = (id: string) => cards.get(id)?.nickname ?? teamNames.get(id) ?? null;
   // 포지션 — 게시판 방은 방 안 사람 목록의 값(2026-10-01 — platform P-44 ⑩)이고 확정된 방에서는 그리지 않는다(소유자 — 서버는 확정 뒤에도 줄 수 있어 여기서 가린다).
-  // 퀵 매칭 방은 팀원 카드의 고른 포지션이다(P-47 — 처음부터 확정인 방이지만 그린다 · `RoomDeck` `seatPosition` 의 `quickMatch`).
+  // 빠른매치 방은 팀원 카드의 고른 포지션이다(P-47 — 처음부터 확정인 방이지만 그린다 · `RoomDeck` `seatPosition` 의 `quickMatch`).
   const positionOf = (id: string) => room ? confirmed ? null : knownPosition(room.game, session.positions[id]) : cards.get(id)?.position ?? null;
   // 좌석의 이름 — 서버가 아는 닉네임, 나는 내 닉네임. 그 밖은 아직 모른다(`null` — 막 들어와 카드를 다시 받는 사이 · 좌석이 자리표시를 그린다).
   // 사용자 번호(`#27`)를 이름 자리에 그리지 않는다(2026-10-01 소유자 — 번호가 잠깐 보였다가 닉네임으로 바뀌었다).
@@ -216,8 +216,8 @@ export function PartyRoomPage() {
     const friend = isFriend(member.id);
     const name = seatName(member);
     const actions: SeatMenuAction[] = [];
-    // 프로필 보기 — 게시판 좌석을 눌렀을 때와 같은 큰 프로필 창(2026-10-01 소유자 — 휴대폰은 마우스를 올린 작은 창이 없다 · 게시판 방 · 퀵 매칭 방 둘 다).
-    // 카드가 없으면(이름을 아직 모른다 · 퀵 매칭 방인데 게임을 모른다) 줄이 없다. 그 게임 계정이 없는 사람도 연다 — 창에 닉네임과 "이 게임의 계정을 아직 연결하지 않았어요" 가 보인다
+    // 프로필 보기 — 게시판 좌석을 눌렀을 때와 같은 큰 프로필 창(2026-10-01 소유자 — 휴대폰은 마우스를 올린 작은 창이 없다 · 게시판 방 · 빠른매치 방 둘 다).
+    // 카드가 없으면(이름을 아직 모른다 · 빠른매치 방인데 게임을 모른다) 줄이 없다. 그 게임 계정이 없는 사람도 연다 — 창에 닉네임과 "이 게임의 계정을 아직 연결하지 않았어요" 가 보인다
     // (제안 화면 팀원 좌석 · 게시판 좌석과 같다 — 2026-10-01 검증 뒤 맞췄다. 처음엔 누를 수 없는 "프로필 없음 · 게임 계정 미연결" 이었다).
     if (member.card && seatRoom) actions.push({ key: 'profile', label: '프로필 보기', onSelect: () => setProfileId(member.id) });
     if (!friend) actions.push(requestTo(member.id)

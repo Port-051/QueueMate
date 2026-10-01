@@ -105,7 +105,7 @@ export const declineProposal = (partyId: string) => request<void>(`/proposals/${
 export const enterMatchPartyRoom = (partyId: string) =>
   request<MatchRoomResponse>(`/match-parties/${encodeURIComponent(partyId)}/room`, { method: 'POST' });
 /**
- * 퀵 매칭 파티의 팀원 카드(2026-10-01 소유자 결정 — platform P-47) — 닉네임 · 고른 포지션 · 그 게임의 게임 프로필. 제안 화면과 퀵 매칭 방이 같은 요청을 쓴다. 읽기만 한다.
+ * 빠른매치 파티의 팀원 카드(2026-10-01 소유자 결정 — platform P-47) — 닉네임 · 고른 포지션 · 그 게임의 게임 프로필. 제안 화면과 빠른매치 방이 같은 요청을 쓴다. 읽기만 한다.
  * **`game` — 제안 중에는 필수다**(서버가 아직 게임을 모른다 · 없으면 400 `VALIDATION_FAILED` `"game: …"`). 확정된 파티는 서버가 게임을 알아 쿼리를 보지 않는다 — 모르면 싣지 않는다.
  * 403 `NOT_PARTY_MEMBER`(내가 그 파티원이 아니다) · 404 `MATCH_PARTY_NOT_FOUND` · 503 `ROOM_STATE_UNAVAILABLE`.
  */

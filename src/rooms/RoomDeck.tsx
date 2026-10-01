@@ -138,8 +138,8 @@ function seatNumbers(game: GameKey, member: BoardMember): { label: string; text:
  * 그 전에는 방장 좌석에만 글의 `hostPosition` 을 붙였다 — 2026-09-30). 게임 계정의 값이 아니다. 포지션이 있는 모드에서만 · 안 골랐으면 붙이지 않는다.
  * **확정된 방에서는 붙이지 않는다**(소유자 — "확정 뒤 굳이 보여줄 필요 없다" · 서버도 확정된 글의 카드에는 `null` 을 보낸다).
  * 방 화면의 음성 칸 좌석은 방 안 사람 목록(`GET …/members`)의 포지션을 넣고, 확정이면 방 화면이 `null` 로 넣는다(`PartyRoomPage` — 글의 `status` 가 늦게 바뀔 수 있어서).
- * **퀵 매칭 파티(`quickMatch` — 제안 화면 · 퀵 매칭 방)는 늘 붙인다**(2026-10-01 소유자 결정 — platform P-47 "닉네임 · 게임 프로필 · 고른 포지션"). 처음부터 확정인 파티지만
- * 그 포지션은 퀵 매칭에서 고른 조건이고 파티가 그것으로 짜였다.
+ * **빠른매치 파티(`quickMatch` — 제안 화면 · 빠른매치 방)는 늘 붙인다**(2026-10-01 소유자 결정 — platform P-47 "닉네임 · 게임 프로필 · 고른 포지션"). 처음부터 확정인 파티지만
+ * 그 포지션은 빠른매치에서 고른 조건이고 파티가 그것으로 짜였다.
  */
 export const seatPosition = (room: BoardRoom, member: BoardMember): string | null =>
   (room.quickMatch || room.status !== 'CONFIRMED') && hasPositions(room.game, room.modeKey) ? member.position : null;

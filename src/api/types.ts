@@ -172,10 +172,10 @@ export interface AutoJoinResponse { postId: number; roomId: number; }
 export interface MatchRoomResponse { roomId: string; }
 
 /**
- * `GET /match-parties/{partyId}/members?game=` 200 — 퀵 매칭 파티의 팀원 카드(2026-10-01 소유자 결정 — platform P-47). **파티원 전원(나 포함)**이고 내가 그 파티원일 때만 준다.
+ * `GET /match-parties/{partyId}/members?game=` 200 — 빠른매치 파티의 팀원 카드(2026-10-01 소유자 결정 — platform P-47). **파티원 전원(나 포함)**이고 내가 그 파티원일 때만 준다.
  * 제안(`PROPOSED`) 중에도 확정 뒤에도 같은 모양이다. `userId` 는 JSON 숫자 · `nickname` 은 가입하지 않은 번호면 `null` · `profile` 은 게시판 카드(`MemberCard.profile`)와 같은 모양(그 파티의 게임 · 없으면 `null`).
- * `position` 은 퀵 매칭에서 고른 포지션(LoL) · 역할(VALORANT) — 그 밖(PUBG · 포지션 없는 모드 · 확정 600초 뒤 서버가 DB 로 답할 때)은 `null`.
- * 방장(`host`) 칸은 없다(퀵 매칭에는 방장이 없다 — 방의 방장은 `GET /rooms/{roomId}/members` 의 `hostId`) · 차단은 거르지 않는다 · 순서는 닉네임순.
+ * `position` 은 빠른매치에서 고른 포지션(LoL) · 역할(VALORANT) — 그 밖(PUBG · 포지션 없는 모드 · 확정 600초 뒤 서버가 DB 로 답할 때)은 `null`.
+ * 방장(`host`) 칸은 없다(빠른매치에는 방장이 없다 — 방의 방장은 `GET /rooms/{roomId}/members` 의 `hostId`) · 차단은 거르지 않는다 · 순서는 닉네임순.
  */
 export interface MatchPartyMember { userId: number; nickname: string | null; position: string | null; profile: GameProfile | null }
 export interface MatchPartyMembersResponse { partyId: string; members: MatchPartyMember[] }

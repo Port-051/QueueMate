@@ -102,7 +102,7 @@ export function RoomSessionProvider({ children }: { children: ReactNode }) {
 
   const lose = useCallback((lostRoomId: string, reason: RoomGoneReason) => {
     if (roomRef.current !== lostRoomId) return;
-    // 내가 나가거나 강퇴당한 퀵 매칭 방 — 그 파티로 저절로 다시 들어가지 않게 먼저 적는다(버그 ① — 2026-10-01 소유자. 확정 뒤 60초 동안 상태 조회가 `MATCHED + partyId` 를 답해
+    // 내가 나가거나 강퇴당한 빠른매치 방 — 그 파티로 저절로 다시 들어가지 않게 먼저 적는다(버그 ① — 2026-10-01 소유자. 확정 뒤 60초 동안 상태 조회가 `MATCHED + partyId` 를 답해
     // `MatchContext` 가 같은 방에 다시 넣었다). `activePartyId` 를 비우기 전에 적어야 그 사이의 조회도 막힌다. 게시판 방 · 닫힘 · "이 방에 없음" 은 적지 않는다.
     if (isMatchRoomId(lostRoomId) && (reason === 'LEFT' || reason === 'KICKED')) rememberLeftParty(lostRoomId);
     clear();

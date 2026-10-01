@@ -48,7 +48,7 @@ const PROPOSAL_SHOWN_KEY = 'qm.proposalShown.';
 const LEFT_PARTIES_KEY = 'qm.leftParties.';
 
 /**
- * 내가 나간 · 강퇴당한 퀵 매칭 파티를 기억하는 시간 — matching 이 확정 뒤 `MATCHED + partyId` 를 답하는 60초(`confirmed-retention-seconds`)보다 넉넉히,
+ * 내가 나간 · 강퇴당한 빠른매치 파티를 기억하는 시간 — matching 이 확정 뒤 `MATCHED + partyId` 를 답하는 60초(`confirmed-retention-seconds`)보다 넉넉히,
  * 파티 HASH 의 수명(600초 — 그동안은 `POST /match-parties/{partyId}/room` 이 다시 들여보낸다)과 같게.
  */
 const LEFT_PARTY_TTL_MS = 10 * 60_000;
@@ -110,8 +110,8 @@ interface MatchValue {
   saveReservation(body: CreateReservationRequest, id?: string): Promise<void>;
   setActivePartyId(id: string | null): void;
   /**
-   * 내가 나간 · 강퇴당한 퀵 매칭 파티를 적는다 — 그 `partyId` 로는 10분 동안 저절로 다시 들어가지 않는다(버그 ① — 2026-10-01 소유자 · `settleConfirmed`).
-   * 방 세션(`RoomSessionContext`)이 퀵 매칭 방을 `LEFT` · `KICKED` 로 잃을 때 부른다. 게시판 방은 부르지 않는다.
+   * 내가 나간 · 강퇴당한 빠른매치 파티를 적는다 — 그 `partyId` 로는 10분 동안 저절로 다시 들어가지 않는다(버그 ① — 2026-10-01 소유자 · `settleConfirmed`).
+   * 방 세션(`RoomSessionContext`)이 빠른매치 방을 `LEFT` · `KICKED` 로 잃을 때 부른다. 게시판 방은 부르지 않는다.
    */
   rememberLeftParty(partyId: string): void;
 }
@@ -176,7 +176,7 @@ const unexpired = (parties: Record<string, unknown>): Record<string, number> => 
 };
 
 /**
- * 내가 나간 · 강퇴당한 퀵 매칭 파티 — `partyId` → 잊는 시각(epoch ms). **localStorage** 라 같은 브라우저의 다른 탭도 본다(2026-10-01 — 한 탭에서 나가면 다른 탭도
+ * 내가 나간 · 강퇴당한 빠른매치 파티 — `partyId` → 잊는 시각(epoch ms). **localStorage** 라 같은 브라우저의 다른 탭도 본다(2026-10-01 — 한 탭에서 나가면 다른 탭도
  * 그 파티로 다시 들어가지 않게. 다른 탭이 그 방에 있었으면 "이 방에 없음" 으로 방을 잃고, 그 뒤의 조회가 이 기록에 막힌다) · 새로 고쳐도 남는다. 지난 것은 읽을 때 버린다.
  */
 const readLeftParties = (userId?: string): Record<string, number> => {
@@ -270,7 +270,7 @@ function MatchSession({ children }: { children: ReactNode }) {
   const appliedView = useRef<MatchRequestView | null>(null);
   /** 제안 화면으로 이미 옮긴 제안(`proposalKey` — `partyId` + 만료 시각) — 같은 제안으로 두 번 옮기지 않는다(`applyView`). 새로 고쳐도 이 탭에서는 기억한다. */
   const proposalShown = useRef<string | null>(readProposalShown(userId ?? undefined));
-  /** 내가 나간 · 강퇴당한 퀵 매칭 파티(`rememberLeftParty`) — 그 `partyId` 로는 저절로 다시 들어가지 않는다(`settleConfirmed`). 저장소를 못 쓰는 때의 받침이다. */
+  /** 내가 나간 · 강퇴당한 빠른매치 파티(`rememberLeftParty`) — 그 `partyId` 로는 저절로 다시 들어가지 않는다(`settleConfirmed`). 저장소를 못 쓰는 때의 받침이다. */
   const leftParties = useRef<Record<string, number>>(readLeftParties(userId ?? undefined));
 
   const rememberLeftParty = useCallback((partyId: string) => {
@@ -325,7 +325,7 @@ function MatchSession({ children }: { children: ReactNode }) {
    * 확정된 파티 — 방을 만들거나 들어가고 방 화면으로. 알림(`MATCH_CONFIRMED`)과 상태 조회(`MATCHED`)가 같은 길을 밟는다.
    * **내가 나간 · 강퇴당한 파티로는 들어가지 않는다**(2026-10-01 소유자 — 버그 ①). matching 은 확정 뒤 60초 동안 `GET /match-requests` 에 `MATCHED + partyId` 를 답하고
    * `POST /match-parties/{partyId}/room` 은 파티원을 다시 들여보내서, 방에서 나온 뒤의 조회(재연결 · 탭 복귀 · 새로 고침)마다 같은 방에 다시 넣었다. 서버는 바꾸지 않는다 —
-   * 방 세션이 그 방을 잃을 때 적은 목록(`rememberLeftParty`)을 여기서 본다. 다른 `partyId`(다시 퀵 매칭해서 확정된 파티)는 그대로 들어간다.
+   * 방 세션이 그 방을 잃을 때 적은 목록(`rememberLeftParty`)을 여기서 본다. 다른 `partyId`(다시 빠른매치를 해서 확정된 파티)는 그대로 들어간다.
    */
   const settleConfirmed = useCallback(async (partyId: string) => {
     if (entering.current === partyId || activePartyRef.current === partyId || isLeftParty(partyId)) return;

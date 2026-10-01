@@ -9,7 +9,7 @@ import './room-voice-seats.css';
 import './room-team-seats.css';
 
 /**
- * 퀵 매칭 제안 화면의 **팀원 좌석 줄**(2026-10-01 소유자 결정 — platform P-47 `GET /match-parties/{partyId}/members`). 그 전에는 제안 화면에 팀원이 없었다(`GET /proposals/{id}` 가 없다).
+ * 빠른매치 제안 화면의 **팀원 좌석 줄**(2026-10-01 소유자 결정 — platform P-47 `GET /match-parties/{partyId}/members`). 그 전에는 제안 화면에 팀원이 없었다(`GET /proposals/{id}` 가 없다).
  *
  * - 좌석은 게시판 카드의 좌석과 같은 몸통(`RoomSeatBody` — 얼굴 · 닉네임 · 인증 · **고른 포지션** / 사다리 티어 · 승률 · KDA)이고 내 좌석은 닉네임 뒤 **"(나)"** 다(방 화면 좌석처럼).
  *   포지션은 `room.quickMatch` 라 늘 붙는다(`seatPosition`). 마우스를 올리면 게시판과 같은 작은 창(`SeatPopover` — VALORANT 는 없다 · `seatPopoverShown`).

@@ -68,7 +68,7 @@ export interface BoardRoom {
   /** 모집 중인 글은 지금 방 안에 있는 사람(방장 먼저), **확정된 글은 확정 순간의 파티원 전원**(P-40 — 방이 없어져도 남는다), 만료된 글은 비어 있다. */
   members: BoardMember[];
   /**
-   * 퀵 매칭 파티를 좌석이 그리게 편 것이다(2026-10-01 — `boardRoom.ts` `toMatchPartyRoom` · platform P-47). 글이 아니라 제목 · 글 번호 · 상태 같은 글의 칸은 뜻이 없다.
+   * 빠른매치 파티를 좌석이 그리게 편 것이다(2026-10-01 — `boardRoom.ts` `toMatchPartyRoom` · platform P-47). 글이 아니라 제목 · 글 번호 · 상태 같은 글의 칸은 뜻이 없다.
    * 참이면 좌석 · 작은 창 · 프로필 창이 **고른 포지션을 늘 붙인다**(파티는 처음부터 확정이지만 고른 포지션이 곧 그 파티를 짠 조건이다 — `RoomDeck` `seatPosition`). 게시판 글은 칸이 없다.
    */
   quickMatch?: boolean;

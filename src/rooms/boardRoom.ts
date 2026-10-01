@@ -5,7 +5,7 @@ import { accountRank } from './accountRank';
 import { canonicalRoomRoles, ROOM_ROLES } from './summary';
 import type { BoardMember, BoardRoom } from './types';
 
-/** 가입하지 않은 번호(닉네임 `null`)의 이름 — 게시판 카드 · 퀵 매칭 팀원 카드 · 방 화면 좌석이 같이 쓴다. 번호(`#42`)를 이름 자리에 그리지 않는다. */
+/** 가입하지 않은 번호(닉네임 `null`)의 이름 — 게시판 카드 · 빠른매치 팀원 카드 · 방 화면 좌석이 같이 쓴다. 번호(`#42`)를 이름 자리에 그리지 않는다. */
 export const UNKNOWN_NICKNAME = '알 수 없음';
 
 const finite = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -77,7 +77,7 @@ export function toBoardRoom(post: PostResponse): BoardRoom {
 }
 
 /**
- * 퀵 매칭 파티 → 좌석이 그리는 방(2026-10-01 소유자 결정 — platform P-47 `GET /match-parties/{partyId}/members`). **글이 아니다** — 좌석 몸통 · 작은 창 · 프로필 창
+ * 빠른매치 파티 → 좌석이 그리는 방(2026-10-01 소유자 결정 — platform P-47 `GET /match-parties/{partyId}/members`). **글이 아니다** — 좌석 몸통 · 작은 창 · 프로필 창
  * (`RoomSeatBody` · `SeatPopover` · `RoomMemberProfile`)이 `BoardRoom` 을 받아서 그 모양으로 편다(`quickMatch` — 고른 포지션을 늘 붙인다). 제목 · 글 번호 · 상태는 뜻이 없다.
  * 팀원 카드는 게시판 카드와 같은 `toBoardMember` 를 거친다 — 티어는 그 모드의 사다리 티어(모드를 모르면 가장 높은 티어) · 포지션은 고른 것(이 게임의 이름만).
  * 방장은 방 화면이 아는 지금의 방장(`hostId` — 승계 D-23)이고 제안에는 없다(`null`). 정원은 모르면 팀원 수다. 팀원이 없으면(올 일이 없다 — 나도 팀원이다) `null`.
@@ -95,7 +95,7 @@ export function toMatchPartyRoom({ partyId, game, modeKey, voice, capacity, host
     postId: 0,
     game,
     modeKey: mode,
-    title: '퀵 매칭 파티',
+    title: '빠른매치 파티',
     description: '',
     hostId: host,
     capacity: capacity ?? people.length,

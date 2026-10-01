@@ -172,7 +172,7 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, roomPane
         {error ? <div className="banner warn" role="alert">{error}</div> : null}
         <SelfIntroductionFields binaryVoice compact singleRole showPurpose hidePostFields game={game} value={value} onChange={update} />
       </fieldset>
-      {/* 막는 문구 · 링크는 "자동 매칭 시작" 옆(넓은 화면) · 위(좁은 화면)에 선다. "방 만들기" 를 막은 문구(매칭 대기 중 등)도 여기다 — 한마디의 문구는 팝업에 있다. */}
+      {/* 막는 문구 · 링크는 "빠른매치 시작" 옆(넓은 화면) · 위(좁은 화면)에 선다. "방 만들기" 를 막은 문구(매칭 대기 중 등)도 여기다 — 한마디의 문구는 팝업에 있다. */}
       <div className="matching-rail-footer room-rail-actions room-match-actions">
         <div className="room-match-message">
           {createError ? <p className="room-create-error" role="alert">{createError}</p> : startBlocked ? <p className="room-create-hint">{startBlocked}</p> : null}
