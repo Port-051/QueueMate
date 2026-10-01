@@ -29,7 +29,15 @@
   --room-control-height:44px;
   --room-filter-height:44px;
   --room-option-height:calc(var(--room-control-height) - var(--room-selector-inset) * 2 - 2px);
-  display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:0 0 16px; padding:0; border:none; background:none;
+  /* 카드 위에 머물되 방 패널(25) · 사이드바(30) · 모달(60)은 가리지 않는다. */
+  position:sticky; top:0; z-index:10;
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:0 0 16px; padding:12px 0;
+  border:none; border-bottom:1px solid #ffffff0d; background:var(--app-background, #0b0d18);
+  box-shadow:0 8px 18px -12px #0009;
+}
+/* 휴대폰의 메뉴 버튼은 처음 화면 상단에 따로 둔다. 스크롤하면 필터만 붙는다. */
+@media(max-width:767px) {
+  .board-split .room-home.board-home { padding-top:72px; }
 }
 .room-home .room-filters .board-mode-options { width:fit-content; max-width:100%; flex:none; overflow-x:auto; scrollbar-width:none; }
 .room-home .room-time-filter { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); flex:none; }
