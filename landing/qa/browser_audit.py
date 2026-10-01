@@ -44,10 +44,18 @@ try:
                 page.on('requestfailed', lambda r: failed.append(r.url))
                 page.on('request', lambda r: external.append(r.url) if not r.url.startswith(a.url) else None)
                 response = load(page)
+                # Open user-facing screenshot disclosures before decoding their lazy assets.
+                for item in page.locator('.screen-details').all():
+                    item.locator('summary').click()
+                    check(f'{width}px: screenshot disclosure opens', item.get_attribute('open') is not None)
                 # Scroll real lazy images into view and wait for decoding before full-page capture.
                 for image in page.locator('img').all():
                     image.scroll_into_view_if_needed()
                     image.evaluate('(image) => image.decode()')
+                for item in page.locator('.screen-details').all():
+                    check(f'{width}px: disclosed image visible', item.locator('img').is_visible())
+                    item.locator('summary').click()
+                check(f'{width}px: screenshots return to collapsed state', page.locator('.screen-details[open]').count() == 0)
                 page.evaluate('window.scrollTo(0,0)')
                 page.wait_for_timeout(150)
                 check(f'{width}px: homepage loads', (a.html is not None or response.status == 200) and page.locator('h1').count() == 1)
@@ -55,7 +63,7 @@ try:
                 check(f'{width}px: no broken images', page.locator('img').evaluate_all('(els) => els.every(i => i.complete && i.naturalWidth > 0)'))
                 check(f'{width}px: no console or network errors', not errors and not failed and not bad_responses)
                 check(f'{width}px: no external page requests', not external)
-                check(f'{width}px: six FAQs', page.locator('.faq-list details').count() == 6)
+                check(f'{width}px: three essential FAQs', page.locator('.faq-list details').count() == 3)
                 toggle = page.locator('.join-demo > summary')
                 check(f'{width}px: starts with 2 of 5 members', page.locator('.count-row .before-join').inner_text() == '2' and not page.locator('.voice-panel').is_visible())
                 toggle.click()
@@ -66,7 +74,7 @@ try:
                 page.keyboard.press('Enter')
                 check(f'{width}px: keyboard returns to before state', not page.locator('.voice-panel').is_visible() and page.locator('.count-row .before-join').is_visible())
                 page.screenshot(path=str(out / f'page-{width}.png'), full_page=True)
-                for i in range(6):
+                for i in range(3):
                     item = page.locator('.faq-list details').nth(i)
                     item.locator('summary').click()
                     check(f'{width}px: FAQ {i + 1} opens', item.get_attribute('open') is not None and item.locator('p').is_visible())
@@ -89,6 +97,9 @@ try:
             check('JavaScript disabled: headline visible', page.locator('h1').is_visible())
             page.locator('.join-demo > summary').click()
             check('JavaScript disabled: participation example works', page.locator('.voice-panel').is_visible())
+            screen = page.locator('.screen-details').first
+            screen.locator('summary').click()
+            check('JavaScript disabled: actual screenshot disclosure works', screen.locator('img').is_visible())
             item = page.locator('.faq-list details').first
             item.locator('summary').click()
             check('JavaScript disabled: native FAQ works', item.locator('p').is_visible())

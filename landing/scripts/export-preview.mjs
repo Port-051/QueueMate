@@ -4,8 +4,10 @@ import {renderSite} from '../src/render.mjs';
 const root=new URL('../',import.meta.url);
 const config=JSON.parse(await readFile(new URL('site.config.json',root),'utf8'));
 const css=await readFile(new URL('src/site.css',root),'utf8');
+const conciseCss=await readFile(new URL('public/assets/concise.css',root),'utf8');
 
 let html=renderSite(config,{}).html;
+html=html.replace('<link rel="stylesheet" href="/assets/concise.css">',`<style>${conciseCss}</style>`);
 html=html.replace('<link rel="stylesheet" href="/assets/site.css">',`<style>${css}</style>`);
 const images = [...new Set([...html.matchAll(/src="(\/assets\/[a-zA-Z0-9_./-]+\.(?:svg|webp|png))"/g)].map(m=>m[1]))];
 for (const file of images) {

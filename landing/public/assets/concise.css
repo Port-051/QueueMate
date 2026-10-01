@@ -1,0 +1,26 @@
+.demo-toolbar>h2{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:650;letter-spacing:0}
+.before-panel,.voice-panel{min-height:298px}
+.before-panel .panel-hint:after{content:none}
+/* Concise landing: actual copy was deleted, not hidden or made smaller. */
+.hero{min-height:650px;padding-block:54px 64px}
+.hero-description{font-size:16px;line-height:1.85;max-width:32em}
+.release-status{font-size:12px}
+.demo-disclaimer{font-size:11px;margin-top:18px}
+.benefit-card{padding:0 16px 4px 0;border-top:0}
+.benefit-card .feature-icon{margin:0 0 18px}
+.benefit-card>p{min-height:0;font-size:14px;line-height:1.8;margin-top:12px}
+.benefit-card h3{font-size:23px;line-height:1.5}
+.screen-details{margin-top:20px;scroll-margin-top:32px}
+.screen-details>summary{list-style:none;cursor:pointer;min-height:44px;display:flex;align-items:center;gap:12px;color:var(--accent);font-size:12px;font-weight:600}
+.screen-details>summary::-webkit-details-marker{display:none}
+.screen-details>summary>span{font-size:20px}
+.screen-details[open]>summary>span{transform:rotate(45deg)}
+.screen-details .product-figure,.screen-details .detail-capture{margin-top:8px}
+.screen-details figcaption{display:block;font-size:11px}
+.faq-list summary{min-height:64px}
+.faq-layout{padding-block:55px 70px}
+@media(max-width:1100px){.hero{gap:25px}.hero-description{font-size:15px}.benefit-card h3{font-size:20px}}
+@media(max-width:860px){.hero{min-height:0;gap:30px}.hero-description{font-size:16px}.benefit-card h3{font-size:18px}}
+@media(max-width:600px){.hero{padding-block:32px 42px;gap:25px}.hero-kicker{margin-bottom:14px}.hero-description{font-size:15px;margin-top:18px}.hero-actions{margin-top:20px}.hero-actions>.button{font-size:14px}.release-status{margin-top:10px;font-size:11px}.before-panel{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:10px;padding:13px 14px}.before-panel .panel-hint{font-size:11px;border-top:0;margin:0;padding:0}.demo-disclaimer{font-size:10px}.benefit-grid{gap:30px}.benefit-card{padding:0}.benefit-card h3{font-size:23px}.benefit-card>p{font-size:14px}.screen-details{margin-top:10px}.section{padding-block:44px}.faq-layout{padding-block:38px 50px}.section-heading h2{font-size:25px}.voice-panel{min-height:0}}
+
+@media(max-width:600px){.hero-description br{display:initial}}

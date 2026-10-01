@@ -65,7 +65,7 @@ export async function checkDeployment(input, mode, config, fetcher = fetch) {
     check('No duplicate IDs', new Set(ids).size === ids.length);
     check('Anchor destinations exist', 
       [...html.matchAll(/href=["']#([^"']+)["']/g)].every(m => ids.includes(m[1])));
-    check('Six native FAQs', tags(html, 'details').filter(t => t.class !== 'join-demo').length === 6);
+    check('Three native FAQs (excluding screenshot disclosures)', tags(html, 'details').filter(t => (t.class || '').split(/\s+/).includes('faq-item')).length === 3);
     const data = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
       .filter(m => attributes(m[1]).type?.toLowerCase() === 'application/ld+json');
     let schemaOK = false;
@@ -81,7 +81,7 @@ export async function checkDeployment(input, mode, config, fetcher = fetch) {
       ? sitemapResponse.status === 200 && /xml/i.test(sitemapResponse.headers.get('content-type') || '') &&
         sitemap.includes(`<loc>${canonical}</loc>`) && robotsText.includes(`Sitemap: ${canonical}sitemap.xml`)
       : sitemapResponse.status === 404);
-    const paths = [['/assets/site.css', 'text/css'], ['/assets/queuemate-wordmark.svg', 'image/svg+xml'],
+    const paths = [['/assets/site.css', 'text/css'], ['/assets/concise.css', 'text/css'], ['/assets/queuemate-wordmark.svg', 'image/svg+xml'],
       ...(config.media?.ogImage ? [[config.media.ogImage, 'image/']] : [])];
     for (const [p, type] of paths) {
       const response = await get(p), bytes = Buffer.from(await response.arrayBuffer());

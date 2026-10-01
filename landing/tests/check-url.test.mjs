@@ -15,6 +15,7 @@ function mock({production = false, edit = () => {}} = {}) {
     ['/', [r.html, 200, 'text/html']], ['/robots.txt', [r.robots, 200, 'text/plain']],
     ['/sitemap.xml', [r.sitemap || render404(), r.sitemap ? 200 : 404, r.sitemap ? 'application/xml' : 'text/html']],
     ['/assets/site.css', ['body{margin:0}', 200, 'text/css']],
+    ['/assets/concise.css', ['.hero{min-height:650px}', 200, 'text/css']],
     ['/assets/queuemate-wordmark.svg', ['<svg xmlns="http://www.w3.org/2000/svg"></svg>', 200, 'image/svg+xml']],
     ['/assets/og-cover.webp', [image, 200, 'image/webp']],
     ['/__qmate_expected_missing__', [render404(), 404, 'text/html']],
@@ -29,7 +30,7 @@ function mock({production = false, edit = () => {}} = {}) {
 }
 test('audit passes an anonymous unindexed preview', async () => {
   const r = await checkDeployment(origin, 'preview', config, mock());
-  assert.equal(r.classification, 'PASS'); assert.equal(r.checks.length, 17);
+  assert.equal(r.classification, 'PASS'); assert.equal(r.checks.length, 18);
 });
 test('audit passes a deliberately approved canonical release', async () => {
   assert.equal((await checkDeployment(config.origin, 'production', config, mock({production: true}))).classification, 'PASS');
@@ -46,6 +47,8 @@ for (const [name, edit] of [
   ['truncated WebP', m => m.get('/assets/og-cover.webp')[0] = image.subarray(0, image.length - 1)],
   ['fake successful 404 page', m => m.get('/__qmate_expected_missing__')[1] = 200],
   ['missing CSS', m => m.get('/assets/site.css')[1] = 404],
+  ['missing concise CSS', m => m.get('/assets/concise.css')[1] = 404],
+  ['screenshot disclosures mistaken for FAQs', m => m.get('/')[0] = m.get('/')[0].replaceAll('class="faq-item"', 'class="screen-details"')],
   ['duplicate canonical', m => m.get('/')[0] += `<link rel="canonical" href="${config.origin}/">`],
   ['invalid JSON-LD', m => m.get('/')[0] = m.get('/')[0].replace('"@context"', 'INVALID')],
 ]) test(`audit rejects ${name}`, async () => {
