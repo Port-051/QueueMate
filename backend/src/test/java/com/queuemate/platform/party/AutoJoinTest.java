@@ -23,8 +23,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <b>자동 매칭 전에 조건 맞는 게시판 방에 먼저 합류</b> — {@code POST /api/v1/posts/auto-join}(2026-09-28 소유자 결정 · {@code contracts/platform-api.md}
  * "자동 매칭이 게시판 방에 먼저 합류하는 길" · P-28 · docs/11 D-40). 본문은 {@code matching} 의 매칭 요청과 같은 모양이다.
  *
- * <p>글은 SQL 로 넣고 방은 손으로 연다({@link PostTestSupport#openRoom}) — 여러 방장의 글이 여럿 필요해서다. 입장은 <b>진짜로</b> 거친다(HTTP → 스크립트) — 들어간 사람의
- * 입장 표시 키와 멤버 SET 을 단언하고 끝나면 지운다({@link #track}).
+ * <p>글은 SQL 로 넣고 방은 손으로 연다({@link PostTestSupport#openRoom}) — 여러 방장의 글이 여럿 필요해서다. 찾는 포지션이 있는 글은 방의 찾는 포지션 SET 도 손으로 쓴다
+ * ({@link PostTestSupport#setNeeds} — 글 쓰기가 방을 만들 때 넣는 것과 같다, P-44). 입장은 <b>진짜로</b> 거친다(HTTP → 스크립트) — 들어간 사람의
+ * 입장 표시 키와 멤버 HASH 를 단언하고 끝나면 지운다({@link #track}).
  *
  * <p><b>gameconfig 는 seed 의 모양대로 심는다</b> — {@code ApiTestSupport} 가 모드 HASH 에 {@code targetPartySize} 만 심으므로 여기서 {@code tierRule} 을 보태고, 티어를 안 보는 모드
  * ({@code NORMAL_5} · PUBG {@code NORMAL_DUO_TPP})와 tier-range 표 · 사다리의 나머지 단계를 더 심는다. 있던 키는 건드리지 않고 없어서 심은 것만 끝나고 지운다.
@@ -122,7 +123,8 @@ class AutoJoinTest extends PostTestSupport {
      * <b>찾는 포지션이 빈 글은 이제 글 쓰기로는 만들 수 없다</b>(2026-09-30 — 포지션이 있는 모드는 하나 이상 필수, P-38) — 여기서 빈 배열로 넣는 글은 <b>그 전에 쓴 옛 글</b>이다.
      * 방장 포지션({@code host_position})은 넣지 않는다 — 자동 합류는 그것을 보지 않는다.
      * <b>정원({@code capacity})은 글 쓰기가 적는 것과 같이 그 모드의 {@code targetPartySize} 를 gameconfig 에서 읽어 넣는다</b>(2026-09-30 — P-41. 자동 합류는 글의 정원을 본다).
-     * 정원이 비어 있는 V8 전의 글은 {@link #insertLegacyPost} 다
+     * 정원이 비어 있는 V8 전의 글은 {@link #insertLegacyPost} 다.
+     * <b>찾는 포지션이 있으면 방의 찾는 포지션 SET 도 쓴다</b>(2026-09-30 — P-44. 글 쓰기가 방을 만들 때 그렇게 한다) — 자동 합류가 그 포지션으로 들어간다
      */
     private Long insertPost(Long hostId, String game, String mode, String voice, String conditionsJson, String[] wanted, Long... others)
     {
@@ -155,6 +157,7 @@ class AutoJoinTest extends PostTestSupport {
             jdbcTemplate.update("insert into recruit_post_positions (post_id, position) values (?, ?)", postId, position);
         }
         openRoom(postId, hostId, (Object[]) others);
+        setNeeds(postId, wanted);
         return postId;
     }
 
@@ -183,7 +186,7 @@ class AutoJoinTest extends PostTestSupport {
                 .andExpect(jsonPath("$.postId").value(postId))
                 .andExpect(jsonPath("$.roomId").value(postId));
         track(postId, me);
-        assertThat(redisTemplate.opsForSet().members(membersKey(postId))).contains(String.valueOf(me));
+        assertThat(memberIds(postId)).contains(String.valueOf(me));
         assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + me)).isEqualTo(String.valueOf(postId));
     }
 
@@ -195,7 +198,7 @@ class AutoJoinTest extends PostTestSupport {
     // ---- ① · ② · ③ ----
 
     @Test
-    @DisplayName("조건 맞는 글이 있으면 200 {postId, roomId}(같은 숫자) 이고 멤버 SET 과 입장 표시 키에 들어가 있다 — 활성 요청 키는 만들지 않는다")
+    @DisplayName("조건 맞는 글이 있으면 200 {postId, roomId}(같은 숫자) 이고 멤버 HASH 와 입장 표시 키에 들어가 있다 — 활성 요청 키는 만들지 않는다")
     void joinsMatchingPost() throws Exception
     {
         String nickname = newNickname();
@@ -290,12 +293,14 @@ class AutoJoinTest extends PostTestSupport {
     void hostPositionIsNeverWanted() throws Exception
     {
         Cookie host = login(newNickname());
-        Long postId = createdId(createPost(host, postBodyWithHostPosition("LOL", LOL_NORMAL_MODE, "일반 5인", "{}", "MID", "TOP"))
+        // 5인 모드라 찾는 포지션은 정원 − 1 개(넷) 이상이다(2026-09-30 소유자 결정) — 방장의 미드를 뺀 나머지 넷을 전부 찾는다
+        Long postId = createdId(createPost(host, postBodyWithHostPosition("LOL", LOL_NORMAL_MODE, "일반 5인", "{}", "MID",
+                "TOP", "JUNGLE", "ADC", "SUPPORT"))
                 .andExpect(status().isCreated()));
         String nickname = newNickname();
         Cookie me = login(nickname);
 
-        // 방장이 미드다 — 미드는 찾는 포지션에 들 수 없으니 미드인 나는 이 글에 맞지 않는다. 찾는 포지션(탑)이면 들어간다
+        // 방장이 미드다 — 미드는 찾는 포지션에 들 수 없으니(나머지 넷을 다 찾아도) 미드인 나는 이 글에 맞지 않는다. 찾는 포지션(탑)이면 들어간다
         expectNoMatchingPost(autoJoin(me, normalBody("MID", "REQUIRED")));
         assertJoined(autoJoin(me, normalBody("TOP", "REQUIRED")), postId, userIdOf(nickname));
     }
@@ -429,12 +434,12 @@ class AutoJoinTest extends PostTestSupport {
                 .andExpect(jsonPath("$.capacity").value(2)));
         Cookie guestCookie = login(guest);
         track(postId, userIdOf(guest));
-        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(guestCookie)).andExpect(status().isCreated());
+        enterRoom(guestCookie, postId, "MID").andExpect(status().isCreated());
 
         Cookie me = login(nickname);
         track(postId, userIdOf(nickname));
         expectNoMatchingPost(autoJoin(me, rankedBody("GOLD_4", "MID")));
-        assertThat(redisTemplate.opsForSet().members(membersKey(postId))).doesNotContain(String.valueOf(userIdOf(nickname)));
+        assertThat(memberIds(postId)).doesNotContain(String.valueOf(userIdOf(nickname)));
     }
 
     @Test
@@ -445,7 +450,7 @@ class AutoJoinTest extends PostTestSupport {
         Cookie me = login(nickname);
         Long legacy = insertLegacyPost(hostWithTier("GOLD_1"), LOL_MODE, new String[]{ "MID" }, insertUser());
         assertJoined(autoJoin(me, rankedBody("GOLD_4", "MID")), legacy, userIdOf(nickname));
-        assertThat(redisTemplate.opsForSet().size(membersKey(legacy))).isEqualTo(3);
+        assertThat(memberIds(legacy)).hasSize(3);
     }
 
     @Test
@@ -516,7 +521,7 @@ class AutoJoinTest extends PostTestSupport {
         assertThat(redisTemplate.opsForZSet().score("qm:room:no-auto-join:" + meId, String.valueOf(left))).isNotNull();
 
         expectNoMatchingPost(autoJoin(me, rankedBody("GOLD_4", "MID")));
-        assertThat(redisTemplate.opsForSet().members(membersKey(left))).doesNotContain(String.valueOf(meId));
+        assertThat(memberIds(left)).doesNotContain(String.valueOf(meId));
 
         // 더 새 글(id 가 큰 방)이라도 나간 방 대신 그리로 간다 — "가장 오래된 방부터" 는 건너뛴 다음의 순서다
         Long other = insertRankedPost(hostWithTier("GOLD_1"), "MID");
@@ -554,6 +559,48 @@ class AutoJoinTest extends PostTestSupport {
 
         assertJoined(autoJoin(me, body("LOL", LOL_MODE, "GOLD_4", "POSITION", "MID", "REQUIRED", null)), postId, meId);
         assertJoined(autoJoin(me, body("LOL", LOL_MODE, "GOLD_4", "POSITION", "MID", "REQUIRED", "FUN")), postId, meId);
-        assertThat(redisTemplate.opsForSet().size(membersKey(postId))).isEqualTo(2);
+        assertThat(memberIds(postId)).hasSize(2);
+    }
+
+    // ---- ⑭ 포지션을 골라 들어간다 (2026-09-30 소유자 결정 — P-44) ----
+
+    @Test
+    @DisplayName("찾는 포지션이 있는 글에는 요청의 포지션으로 들어간다 — 멤버 HASH 에 그 포지션이 적힌다. 찾는 포지션이 빈 글(옛 글 · PUBG)에는 포지션 없이(\"\") 들어간다")
+    void joinsWithTheRequestedPosition() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie me = login(nickname);
+        Long meId = userIdOf(nickname);
+        Long postId = insertNormalPost(insertUser(), "REQUIRED", "MID", "ADC");
+
+        assertJoined(autoJoin(me, normalBody("ADC", "REQUIRED")), postId, meId);
+        assertThat(positionOf(postId, meId)).isEqualTo("ADC");
+        mockMvc.perform(delete("/api/v1/rooms/{roomId}/members/me", postId).cookie(me)).andExpect(status().isNoContent());
+
+        String pubgName = newNickname();
+        Cookie pubgMe = login(pubgName);
+        Long tpp = insertPost(insertUser(), "PUBG", PUBG_NORMAL_MODE, "REQUIRED", "{\"perspective\":\"TPP\"}", new String[0]);
+        assertJoined(autoJoin(pubgMe, body("PUBG", PUBG_NORMAL_MODE, null, "PLATFORM", "STEAM", "REQUIRED", null)), tpp, userIdOf(pubgName));
+        assertThat(positionOf(tpp, userIdOf(pubgName))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("내 포지션을 이미 방 안의 누가 골랐으면 그 방은 맞지 않는 방이다 — 건너뛰고 다음 방으로 간다(그 방뿐이면 404)")
+    void skipsRoomWhosePositionIsTaken() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie me = login(nickname);
+        Long meId = userIdOf(nickname);
+        // 5인 일반 — 미드는 이미 누가 골랐다(탑은 비었지만 나는 미드다)
+        Long taken = insertNormalPost(insertUser(), "REQUIRED", "TOP", "MID");
+        addMember(taken, insertUser(), "MID");
+        expectNoMatchingPost(autoJoin(me, normalBody("MID", "REQUIRED")));
+        assertThat(memberIds(taken)).doesNotContain(String.valueOf(meId));
+
+        // 더 새 글이라도 미드가 빈 방으로 간다
+        Long free = insertNormalPost(insertUser(), "REQUIRED", "TOP", "MID");
+        addMember(free, insertUser(), "TOP");
+        assertJoined(autoJoin(me, normalBody("MID", "REQUIRED")), free, meId);
+        assertThat(positionOf(free, meId)).isEqualTo("MID");
     }
 }

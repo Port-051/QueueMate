@@ -15,6 +15,7 @@ import org.springframework.test.context.TestPropertySource;
 import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,7 +46,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
      */
     private void warmUp()
     {
-        roomService.create(r("warm-up"), u("warm-up-host"));
+        roomService.create(r("warm-up"), u("warm-up-host"), Set.of());
         roomMemberService.enter(r("warm-up"), u("warm-up-member"));
         roomMemberService.heartbeat(r("warm-up"), u("warm-up-host"));
         roomMemberService.leave(r("warm-up"), u("warm-up-host"));
@@ -57,7 +58,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     @DisplayName("확정은 그 순간의 멤버를 돌려준다 — 게시판이 파티원을 따로 읽지 않고 이것으로 적는다(2026-09-25 2단계). 거절이면 비어 있다")
     void confirmReturnsTheMembers()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
 
         assertThat(roomService.confirm(r("r1"), u("u1")).members()).isEmpty();
@@ -71,7 +72,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     @DisplayName("방장이 확정하면 확정 표시 키가 수명과 함께 쓰인다. 값은 roomId 다 — 방장의 입장 표시를 덮어쓰지 않는다")
     void confirmWritesTheMarker()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
 
         assertThat(roomService.confirm(r("r1"), u("host")).result()).isEqualTo(ConfirmResult.CONFIRMED);
@@ -88,7 +89,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     @DisplayName("다시 확정하면 ALREADY_CONFIRMED 이고 아무것도 바뀌지 않는다. 확정 뒤 혼자 남은 방장이 눌러도 마찬가지다")
     void confirmAgain()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomService.confirm(r("r1"), u("host"));
 
@@ -102,7 +103,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     @DisplayName("혼자서는 확정할 수 없고, 거절된 뒤에 확정 표시가 남지 않는다 — 남으면 아무도 못 들어오는 방이 된다")
     void notEnoughMembers()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
 
         assertThat(roomService.confirm(r("r1"), u("host")).result()).isEqualTo(ConfirmResult.NOT_ENOUGH_MEMBERS);
 
@@ -115,9 +116,9 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     @DisplayName("방장만 확정할 수 있다 — 멤버, 방 밖의 사람, roomId 를 남의 방으로 바꿔 부른 다른 방의 방장은 NOT_HOST 다")
     void onlyTheHostConfirms()
     {
-        roomService.create(r("r1"), u("host1"));
+        roomService.create(r("r1"), u("host1"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
-        roomService.create(r("r2"), u("host2"));
+        roomService.create(r("r2"), u("host2"), Set.of());
         roomMemberService.enter(r("r2"), u("u2"));
 
         for (String caller : new String[]{"u1", "stranger", "host2"})
@@ -144,7 +145,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     @DisplayName("확정된 방에는 새 사람이 못 들어온다 — 멤버가 나가 자리가 비어도 마찬가지다")
     void nobodyNewEntersAConfirmedRoom()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
         roomService.confirm(r("r1"), u("host"));
@@ -164,7 +165,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     @DisplayName("확정된 방에 이미 있는 사람의 재입장(새로고침)은 그대로 ALREADY_ENTERED 다")
     void membersOfAConfirmedRoomCanRefresh()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomService.confirm(r("r1"), u("host"));
 
@@ -176,7 +177,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     @DisplayName("확정은 저절로 풀리지 않는다 — 방장의 접속 확인이 확정 표시의 수명도 늘린다")
     void confirmationSurvivesTheTtl() throws InterruptedException
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomService.confirm(r("r1"), u("host"));
 
@@ -196,7 +197,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     @DisplayName("확정하지 않은 방에서 방장의 접속 확인이 확정 표시 키를 만들지 않는다")
     void heartbeatDoesNotCreateTheMarker()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
 
         roomMemberService.heartbeat(r("r1"), u("host"));
@@ -209,7 +210,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     @DisplayName("확정한 방은 방장이 나가도 없어지지 않는다 — 남은 사람이 방장을 넘겨받고 확정 표시도 그대로다")
     void hostLeavingAConfirmedRoomHandsOverTheHostRole()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomService.confirm(r("r1"), u("host"));
 
@@ -231,7 +232,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     @DisplayName("방장을 넘겨받는 사람은 남은 멤버 가운데 한 명이고, 넘겨받은 사람은 방장으로서 강퇴할 수 있다")
     void theNewHostIsOneOfTheRemainingMembers()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
         roomService.confirm(r("r1"), u("host"));
@@ -249,7 +250,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     @DisplayName("확정한 방이라도 넘겨받을 사람이 없으면 방장이 나갈 때 방이 통째로 없어진다 — 같은 roomId 로 다시 만든 방은 확정돼 있지 않다")
     void hostLeavingAConfirmedRoomAloneRemovesEverything()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomService.confirm(r("r1"), u("host"));
         roomMemberService.leave(r("r1"), u("u1"));
@@ -261,7 +262,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
         // 이 테스트는 확정을 방에만 했다(글의 기록 없이) — 그래서 방이 닫힐 때 글이 모집 중이었고 나가기가 그 글을 만료시켰다(2026-09-25 — 확정 전에는 방과 글이 같이 끝난다).
         // 여기서 보려는 것은 "다시 만든 방이 확정돼 있지 않다" 하나라 글을 되살려 입장이 글에서 막히지 않게 한다
         jdbcTemplate.update("update recruit_posts set status = 'RECRUITING', expired_at = null where id = ?", Long.parseLong(r("r1")));
-        assertThat(roomService.create(r("r1"), u("u1"))).isEqualTo(CreateResult.CREATED);
+        assertThat(roomService.create(r("r1"), u("u1"), Set.of())).isEqualTo(CreateResult.CREATED);
         assertThat(roomMemberService.enter(r("r1"), u("host"))).isEqualTo(EnterResult.ENTERED);
     }
 
@@ -269,7 +270,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     @DisplayName("확정하지 않은 방은 예전 그대로다 — 방장이 나가면 남은 사람이 있어도 방이 통째로 없어진다")
     void hostLeavingAnUnconfirmedRoomStillClosesIt()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
 
         assertThat(roomMemberService.leave(r("r1"), u("host"))).isEqualTo(LeaveResult.ROOM_CLOSED);
@@ -281,7 +282,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     @DisplayName("확정한 방의 방장이 말없이 사라지면, 계속 신호를 보내던 멤버가 방장을 넘겨받고 옛 방장은 멤버에서 빠진다")
     void aMemberTakesOverWhenTheHostOfAConfirmedRoomVanishes() throws InterruptedException
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomService.confirm(r("r1"), u("host"));
 
@@ -302,7 +303,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
     @DisplayName("방장이 말없이 사라지면 확정된 방도 수명이 다해 확정 표시까지 전부 사라진다")
     void confirmedRoomExpiresWithoutTheHost() throws InterruptedException
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomService.confirm(r("r1"), u("host"));
 
@@ -320,7 +321,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
         // 구독자를 먼저 만든다. 이 클래스는 수명이 2초라, 방을 만든 뒤에 구독을 걸면 그 사이에 방이 만료될 수 있다
         try (PushSubscriber subscriber = new PushSubscriber(connectionFactory, objectMapper, this::labelOf))
         {
-            roomService.create(r("r1"), u("host"));
+            roomService.create(r("r1"), u("host"), Set.of());
             roomMemberService.enter(r("r1"), u("u1"));
             roomMemberService.enter(r("r1"), u("u2"));
             // 입장 알림 셋(u1 입장 → host, u2 입장 → host · u1)을 먼저 비운다
@@ -364,7 +365,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
         for (int round = 0; round < 20; round++)
         {
             deleteOwnKeys();
-            roomService.create(r("r1"), u("host"));
+            roomService.create(r("r1"), u("host"), Set.of());
             roomMemberService.enter(r("r1"), u("u0"));
             Map<EnterResult, AtomicInteger> entered = new ConcurrentHashMap<>();
 

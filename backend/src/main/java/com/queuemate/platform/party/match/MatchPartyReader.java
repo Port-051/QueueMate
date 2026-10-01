@@ -2,6 +2,7 @@ package com.queuemate.platform.party.match;
 
 import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.room.RoomErrors;
+import com.queuemate.platform.room.domain.RoomStateUnavailableException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -9,10 +10,10 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * {@code matching} 의 <b>확정된 파티 HASH</b>({@code qm:party:{partyId}})를 읽는다(2026-09-27 소유자 결정 — docs/11 D-42.
@@ -28,6 +29,9 @@ import java.util.Set;
  * "없는 파티"(404)라고 답하면 파티원이 방을 못 만든 채 확정된 파티가 증발한다. 그래서 {@code DataAccessException} 은 삼키지 않고 방의 Redis 장애와 같은
  * 503 {@code ROOM_STATE_UNAVAILABLE}({@code Retry-After: 5})로 옮긴다 — {@code room.service.RoomRedis} 와 같은 처리다(그 클래스는 패키지 안에서만 보여 여기서 따라 적었다).
  * 프런트는 잠시 뒤 다시 부른다 — HASH 는 600초 남아 있다.
+ *
+ * <p><b>팀원 카드용 읽기는 따로다</b>({@link #findRoster} — 2026-10-01). 제안 중인 파티도 읽고, 못 읽으면 503 대신 예외로 알려 부르는 쪽이 DB 를 한 번 더 본다.
+ * 위의 규칙(확정만 · fail-closed 503)은 방 만들기의 것({@link #findConfirmed})이고 그대로다.
  */
 @Slf4j
 @Component
@@ -67,22 +71,56 @@ public class MatchPartyReader {
             return Optional.empty();
         }
         return Optional.of(new MatchParty(partyId, game.get(), text(fields, "modeKey"), text(fields, "voicePreference"),
-                text(fields, "playPurpose"), target, memberIds(partyId, fields), confirmedAt(fields)));
+                text(fields, "playPurpose"), target, new LinkedHashSet<>(members(partyId, fields).keySet()), confirmedAt(fields)));
     }
 
-    private static Set<Long> memberIds(String partyId, Map<Object, Object> fields)
+    /**
+     * <b>제안 중({@code PENDING})이거나 확정된({@code CONFIRMED}) 파티의 파티원</b> — 퀵 매칭 파티의 팀원 카드가 쓴다(2026-10-01 소유자 결정 —
+     * {@code MatchPartyService#members}). {@link #findConfirmed} 와 같은 {@code HGETALL} 한 번이고 역시 읽기만 한다.
+     *
+     * <p>{@code status} 가 둘 중 하나가 아니면 비어 있다 — 아직 사람을 모으는 파티(정원이 차기 전에는 {@code status} 가 없다)와 제안이 거절 · 만료돼
+     * 다시 모으는 파티는 "매칭된 파티" 가 아니다(Claude 가 정한 세부). 확정 뒤에만 적히는 {@code game} 은 없을 수 있다({@link MatchPartyRoster#game}).
+     *
+     * <p><b>못 읽으면 503 으로 바꾸지 않고 {@link RoomStateUnavailableException} 을 던진다</b> — {@link #findConfirmed} 와 다르다. 이 조회는 HASH 가 없을 때
+     * DB 의 파티 기록으로 한 번 더 볼 수 있어서, fail-closed 로 끝낼지는 부르는 쪽이 DB 까지 본 뒤에 정한다({@code room.service.RoomService#states} 와 같은 짜임).
+     *
+     * @throws RoomStateUnavailableException Redis 에 닿지 못했다
+     */
+    public Optional<MatchPartyRoster> findRoster(String partyId)
     {
-        Set<Long> members = new LinkedHashSet<>();
-        for(Object field : fields.keySet())
+        Map<Object, Object> fields;
+        try
         {
-            String name = String.valueOf(field);
+            fields = redis.opsForHash().entries(MatchPartyKeys.partyKey(partyId));
+        }
+        catch(DataAccessException e)
+        {
+            log.warn("Redis 에 닿지 못해 자동 매칭 파티의 파티원을 읽지 못했다 partyId={}: {}", partyId, e.toString());
+            throw new RoomStateUnavailableException(e);
+        }
+        Object status = (fields == null) ? null : fields.get("status");
+        if(!"PENDING".equals(status) && !"CONFIRMED".equals(status))
+        {
+            return Optional.empty();
+        }
+        return Optional.of(new MatchPartyRoster(partyId, Game.fromName(text(fields, "game")).orElse(null), members(partyId, fields)));
+    }
+
+    /** {@code member:{userId}} 필드 — 사용자 번호 → 값. 사용자 번호가 아닌 필드는 건너뛴다({@code room.domain.RoomMemberIds} 와 같은 정책 · WARN) */
+    private static Map<Long, String> members(String partyId, Map<Object, Object> fields)
+    {
+        Map<Long, String> members = new LinkedHashMap<>();
+        for(Map.Entry<Object, Object> field : fields.entrySet())
+        {
+            String name = String.valueOf(field.getKey());
             if(!name.startsWith(MatchPartyKeys.MEMBER_FIELD_PREFIX))
             {
                 continue;
             }
             try
             {
-                members.add(Long.parseLong(name.substring(MatchPartyKeys.MEMBER_FIELD_PREFIX.length())));
+                members.put(Long.parseLong(name.substring(MatchPartyKeys.MEMBER_FIELD_PREFIX.length())),
+                        field.getValue() == null ? null : String.valueOf(field.getValue()));
             }
             catch(NumberFormatException e)
             {

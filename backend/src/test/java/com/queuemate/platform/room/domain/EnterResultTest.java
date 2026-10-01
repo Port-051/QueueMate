@@ -18,7 +18,10 @@ class EnterResultTest {
         assertThat(EnterResult.fromCode(-2L)).isEqualTo(EnterResult.FULL);
         assertThat(EnterResult.fromCode(-3L)).isEqualTo(EnterResult.IN_OTHER_ROOM);
         assertThat(EnterResult.fromCode(-4L)).isEqualTo(EnterResult.ROOM_NOT_FOUND);
+        assertThat(EnterResult.fromCode(-5L)).isEqualTo(EnterResult.KICKED_RECENTLY);
+        assertThat(EnterResult.fromCode(-6L)).isEqualTo(EnterResult.INVALID_POSITION);
         assertThat(EnterResult.fromCode(-7L)).isEqualTo(EnterResult.ROOM_CONFIRMED);
+        assertThat(EnterResult.fromCode(-8L)).isEqualTo(EnterResult.POSITION_TAKEN);
     }
 
     @Test

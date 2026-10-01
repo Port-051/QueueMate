@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -30,7 +31,7 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
     @DisplayName("입장은 스크립트보다 글을 먼저 본다 — 끝난 글이면 방이 살아 있어도 409 POST_NOT_RECRUITING 이고 아무 키도 쓰지 않는다")
     void gateRunsBeforeTheScript()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         jdbcTemplate.update("update recruit_posts set status = 'EXPIRED', expired_at = now() where id = ?", Long.parseLong(r("r1")));
 
         assertThatThrownBy(() -> roomMemberService.enter(r("r1"), u("u1")))
@@ -58,7 +59,7 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
     @DisplayName("입장하면 방 멤버와 입장 표시 키가 함께 쓰인다. 입장 표시 키의 값은 roomId 다")
     void enterWritesMemberAndMarker()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
 
         assertThat(roomMemberService.enter(r("r1"), u("u1"))).isEqualTo(EnterResult.ENTERED);
 
@@ -70,7 +71,7 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
     @DisplayName("입장 표시 키에 수명이 걸린다. 방의 수명은 입장이 건드리지 않는다 — 그것은 방장의 접속 확인만 늘린다")
     void markerHasATtl() throws InterruptedException
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         Thread.sleep(1100);
         long hostTtlBefore = redisTemplate.getExpire(key("qm:room:r1:host"), TimeUnit.SECONDS);
 
@@ -94,7 +95,7 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
     @DisplayName("같은 방에 다시 입장하면 ALREADY_ENTERED 이고 아무것도 바뀌지 않는다")
     void reenterSameRoom()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
 
         assertThat(roomMemberService.enter(r("r1"), u("u1"))).isEqualTo(EnterResult.ALREADY_ENTERED);
@@ -109,8 +110,8 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
     @DisplayName("다른 방에 들어가 있으면 IN_OTHER_ROOM 이고 새 방에도 입장 표시 키에도 쓰지 않는다")
     void inOtherRoom()
     {
-        roomService.create(r("r1"), u("host1"));
-        roomService.create(r("r2"), u("host2"));
+        roomService.create(r("r1"), u("host1"), Set.of());
+        roomService.create(r("r2"), u("host2"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
 
         assertThat(roomMemberService.enter(r("r2"), u("u1"))).isEqualTo(EnterResult.IN_OTHER_ROOM);
@@ -127,7 +128,7 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
         String activeRequestKey = key("qm:user:active-request:u1");
         redisTemplate.opsForHash().putAll(activeRequestKey, Map.of("requestId", "req-1", "game", "LOL"));
         redisTemplate.expire(activeRequestKey, Duration.ofSeconds(60));
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
 
         assertThat(roomMemberService.enter(r("r1"), u("u1"))).isEqualTo(EnterResult.ACTIVE_REQUEST_EXISTS);
 
@@ -143,7 +144,7 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
     @DisplayName("D-11 10번: 정원 5명에 방장이 포함된다. 여섯 번째는 FULL 이고, 거절된 사용자에게 입장 표시 키가 남지 않는다")
     void sixthIsFull()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         for (int i = 1; i <= 4; i++)
         {
             assertThat(roomMemberService.enter(r("r1"), u("u" + i))).isEqualTo(EnterResult.ENTERED);
@@ -160,7 +161,7 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
     @DisplayName("가득 찬 방에 이미 있는 사람이 다시 입장하면 FULL 이 아니라 ALREADY_ENTERED 다")
     void memberOfFullRoomReenters()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         for (int i = 1; i <= 4; i++)
         {
             roomMemberService.enter(r("r1"), u("u" + i));
@@ -175,7 +176,7 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
     @DisplayName("D-11 10번: 서로 다른 100명이 동시에 눌러도 방장을 뺀 4명만 들어온다")
     void capacityHoldsUnderContention() throws InterruptedException
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         Map<EnterResult, AtomicInteger> counts = new ConcurrentHashMap<>();
         users("u", 100);
 
@@ -196,7 +197,7 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
     @DisplayName("같은 사람이 같은 방을 동시에 100번 눌러도 한 번만 들어오고 나머지는 ALREADY_ENTERED 다")
     void sameUserSameRoom() throws InterruptedException
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         Map<EnterResult, AtomicInteger> counts = new ConcurrentHashMap<>();
         u("u1");
 
@@ -213,7 +214,7 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
     {
         for (int i = 0; i < 50; i++)
         {
-            roomService.create(r("r" + i), u("host" + i));
+            roomService.create(r("r" + i), u("host" + i), Set.of());
         }
         Map<EnterResult, AtomicInteger> counts = new ConcurrentHashMap<>();
         u("u1");
@@ -226,7 +227,7 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
         assertThat(members(marker("u1"))).contains("u1").hasSize(2);
         long roomsWithU1 = ownKeys("qm:room:").stream()
                 .filter(k -> k.endsWith(":members"))
-                .filter(k -> Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(key(k), u("u1"))))
+                .filter(k -> Boolean.TRUE.equals(redisTemplate.opsForHash().hasKey(key(k), u("u1"))))
                 .count();
         assertThat(roomsWithU1).isEqualTo(1);
     }

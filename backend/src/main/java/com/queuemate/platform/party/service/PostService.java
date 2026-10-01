@@ -3,7 +3,6 @@ package com.queuemate.platform.party.service;
 import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.account.dto.UserGameProfile;
 import com.queuemate.platform.account.service.GameProfileReader;
-import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.gameconfig.GameConfigReader;
 import com.queuemate.platform.common.gameconfig.ModePositions;
 import com.queuemate.platform.party.domain.PostStatus;
@@ -12,9 +11,7 @@ import com.queuemate.platform.party.dto.MemberCard;
 import com.queuemate.platform.party.dto.PostCreateRequest;
 import com.queuemate.platform.party.dto.PostListResponse;
 import com.queuemate.platform.party.dto.PostResponse;
-import com.queuemate.platform.party.dto.PostUpdateRequest;
 import com.queuemate.platform.party.service.BoardParty.Seat;
-import com.queuemate.platform.room.RoomErrors;
 import com.queuemate.platform.room.domain.ConfirmResult;
 import com.queuemate.platform.room.domain.RoomState;
 import com.queuemate.platform.room.domain.RoomStateUnavailableException;
@@ -23,7 +20,6 @@ import com.queuemate.platform.social.service.BlockReader;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -35,12 +31,16 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
  * 파티 모집 게시판 — 글 · 실시간 목록 · 방장 확정 ({@code contracts/platform-api.md} "모집 글 · 목록").
+ *
+ * <p><b>글은 고칠 수 없다</b>(2026-10-01 소유자 결정 — {@code PATCH /api/v1/posts/{postId}} 를 없앴다). 조건을 바꾸려면 지우고 다시 쓴다 —
+ * 그래서 글 쓰기가 방에 적은 방장 포지션 · 찾는 포지션이 글과 어긋날 일이 없다.
  *
  * <p><b>글 한 줄은 여기서 전부 조립한다</b>(docs/11 D-20) — 글(DB) + 방 안에 누가 있나({@code room} 의 창구 {@link RoomService#states}) +
  * 그 사람들의 게임 프로필({@code account} 의 창구) + 차단 거르기({@code social} 의 창구).
@@ -96,57 +96,25 @@ public class PostService {
         Game game = PostValidation.game(request.game());
         PostValidation.mode(gameConfig, game, request.mode());
         ModePositions modePositions = PostValidation.modePositions(gameConfig, game, request.mode());
-        int capacity = capacityOf(game, request.mode(), RecruitPost.MAX_CAPACITY);
+        OptionalInt knownCapacity = knownCapacityOf(game, request.mode());
+        // 찾는 포지션 수 ≥ 정원 − 1(2026-09-30 소유자 결정) — 정원을 실제로 알 때만 본다. 나머지 찾는 포지션 · 방장 포지션 규칙은 PostStore#create 가 본다
+        PostValidation.enoughWantedPositions(game, modePositions,
+                PostValidation.wantedPositions(game, request.wantedPositions()), knownCapacity);
+        int capacity = knownCapacity.orElse(RecruitPost.MAX_CAPACITY);
         RecruitPost post = postStore.create(me, request, modePositions, capacity, now());
-        // 방금 만든 방이다 — 방장 혼자 들어 있는 것을 안다. 방 키를 다시 읽지 않는다
-        return renderAll(me, List.of(post), Map.of(post.getId(), List.of(new Seat(me, true))), false).getFirst();
+        // 방금 만든 방이다 — 방장 혼자 들어 있고 멤버 HASH 의 방장 값이 글의 방장 포지션인 것을 안다(create-room.lua). 방 키를 다시 읽지 않는다
+        return renderAll(me, List.of(post), Map.of(post.getId(), List.of(new Seat(me, true, post.getHostPosition()))), Set.of(), false)
+                .getFirst();
     }
 
     /**
-     * 글을 고친다. <b>방에 방장 말고 누가 있으면 고칠 수 없다</b>(2026-09-24 <b>소유자 결정</b> — {@code contracts/platform-api.md} "모집 글 · 목록" · P-19).
-     *
-     * <p><b>왜</b> — 고칠 수 있는 칸에 {@code mode} · {@code voice} · {@code conditions} 가 있다. {@code NO_VOICE} 를 보고 들어와 앉아 있는
-     * 사람 앞에서 {@code REQUIRED} 로 바꿀 수 있고, <b>그 사람에게 바뀌었다고 알려 줄 길이 없다</b> — 게시판 신호는 목록을 보는 사람에게 가고,
-     * 방 안 알림({@code ROOM_*})에는 "글이 바뀌었다" 가 없다(그 알림의 이름과 {@code payload} 가 미정이다 — CLAUDE.md §7.1). 그래서 칸을 가리지 않고 아예 막는다.
-     *
-     * <p><b>방 키와 gameconfig 는 트랜잭션 밖에서 읽는다</b> — {@link PostStore#edit} 은 글의 줄을 잠근 채 돌아서, 그 안에서 Redis 를 기다리면 DB 커넥션을
-     * 붙잡는다(두 클래스를 나눈 이유가 그것이다 — 이 클래스의 머리 주석). 대가로 <b>읽은 뒤 저장하기 전에 누가 들어오는 창이 남는다</b> — 그 창은 짧고,
-     * 막으려는 것이 "사람이 있는데 조건이 바뀌는 것" 이라 감수한다({@code contracts/platform-api.md}).
+     * 그 모드의 인원을 <b>실제로 읽었을 때만</b> 돌려준다 — 모르면 비어 있다({@link #capacityOf} 가 대신 채우는 값을 믿지 않는다).
+     * 찾는 포지션 수 검사({@link PostValidation#enoughWantedPositions})가 5 로 채운 정원으로 거절하지 않게 하려는 것이다(2026-09-30).
      */
-    public PostResponse edit(Long me, Long postId, PostUpdateRequest request)
+    private OptionalInt knownCapacityOf(Game game, String mode)
     {
-        // 잠금 밖에서 글을 한 번만 읽는다 — 모드 검증(글의 게임)과 방 안 사람 검사가 같이 쓴다. 없는 글이면 여기서 이미 404 다(PostStore#edit 과 같다)
-        RecruitPost post = postStore.find(postId).orElseThrow(PostStore::postNotFound);
-        if(request.mode() != null)
-        {
-            // 글의 game 은 바뀌지 않으므로 잠금 밖에서 읽어도 뒤에 달라질 수 없다
-            PostValidation.mode(gameConfig, post.getGame(), request.mode());
-        }
-        // 방 안을 보기 전에 방장 · 상태를 본다 — 남의 글이나 끝난 글에 "방에 사람이 있다"를 알려 주면 그 자체가 새는 정보다.
-        // 최종 판정은 줄을 잠그는 PostStore#edit 이 다시 한다(그 사이에 만료 · 확정이 끼어들 수 있다)
-        if(!post.isHost(me))
-        {
-            throw PostStore.notPostHost();
-        }
-        if(post.getStatus() != PostStatus.RECRUITING)
-        {
-            throw PostStore.postNotRecruiting();
-        }
-        requireHostAlone(post);
-        // 고친 뒤의 모드에 포지션이 있는가(2026-09-30 — P-38). 방장 포지션은 PostStore#edit 이 잠금 안에서 고친 뒤의 모양으로 본다
-        ModePositions modePositions = PostValidation.modePositions(gameConfig, post.getGame(),
-                request.mode() != null ? request.mode() : post.getMode());
-        // 모드를 줬으면 정원을 다시 정한다(2026-09-30 — P-41). 방장 혼자일 때만 여기 온다(위) — 정원이 줄어도 방 안 인원을 넘지 않는다.
-        // 모드의 인원을 모르면(Redis 장애) 같은 모드면 적혀 있던 정원을, 다른 모드면 상한을 쓴다 — 멀쩡한 정원을 모른다는 이유로 덮지 않는다
-        Integer capacity = null;
-        if(request.mode() != null)
-        {
-            capacity = capacityOf(post.getGame(), request.mode(),
-                    request.mode().equals(post.getMode()) ? post.getCapacity() : RecruitPost.MAX_CAPACITY);
-        }
-        postStore.edit(me, postId, request, modePositions, capacity, now());
-        // 고친 글은 방이 떠 있는 글이다 — 방 안 사람까지 채운 한 줄을 돌려준다. 방장의 글이라 차단으로 걸러지지 않는다
-        return get(me, postId);
+        int capacity = capacityOf(game, mode, -1);
+        return capacity < 0 ? OptionalInt.empty() : OptionalInt.of(capacity);
     }
 
     /**
@@ -155,7 +123,7 @@ public class PostService {
      *
      * <p><b>모르면 {@code fallback}</b> 이다(fail-open — 글 쓰기의 모드 검증과 같은 쪽, P-16): Redis 를 못 읽었거나 · 안 심겼거나 · 숫자가 아니거나
      * ({@link GameConfigReader#partySize} 가 WARN 을 남긴다), 방의 범위({@value RecruitPost#MIN_CAPACITY} ~ {@value RecruitPost#MAX_CAPACITY})를 벗어난 값이다
-     * (여기서 WARN — 5 를 넘으면 방 정원의 상한 5 로 자른다. 게시판 방 먼저 합류가 전부터 그렇게 잘랐다). 글 쓰기는 상한 5, 고치기는 같은 모드면 적혀 있던 정원이다(Claude 가 정한 세부).
+     * (여기서 WARN — 5 를 넘으면 방 정원의 상한 5 로 자른다. 게시판 방 먼저 합류가 전부터 그렇게 잘랐다). 글 쓰기는 모르면 상한 5 를 적는다(Claude 가 정한 세부).
      */
     private int capacityOf(Game game, String mode, int fallback)
     {
@@ -176,28 +144,6 @@ public class PostService {
             return fallback;
         }
         return value;
-    }
-
-    /**
-     * 방에 <b>방장 말고</b> 누가 있으면 고치지 못하게 막는다(위 {@link #edit}). 방장 혼자면(또는 방이 사라졌으면) 고칠 수 있다 —
-     * 바뀐 조건을 보고 들어온 사람이 없다.
-     *
-     * <p><b>방 키를 못 읽으면 막는다</b> — 입장 검사와 <b>같은 503 {@code ROOM_STATE_UNAVAILABLE}</b> 이다(fail-closed). 누가 방에 있는지 확인이 안 되는데
-     * 고치게 하면 이 규칙이 없는 것과 같다.
-     */
-    private void requireHostAlone(RecruitPost post)
-    {
-        RoomState state = readRoomStates(List.of(post.getId()), true).get(post.getId());
-        if(state == null)
-        {
-            return;
-        }
-        // 사용자 번호로 팔 수 없는 값은 방 키를 읽는 자리에서 이미 걸러졌다(RoomService#states) — 그런 값 때문에 막히지는 않는다
-        if(state.members().stream().anyMatch(member -> !post.isHost(member)))
-        {
-            throw new ApiException(HttpStatus.CONFLICT, "ROOM_HAS_OTHER_MEMBERS",
-                    "방에 다른 사람이 있으면 글을 고칠 수 없습니다");
-        }
     }
 
     public void delete(Long me, Long postId)
@@ -263,8 +209,8 @@ public class PostService {
             List<RecruitPost> page = more ? rows.subList(0, want) : rows;
             // 마지막으로 "읽은" 줄이다 — 보여 준 줄이 아니다(차단으로 숨겨진 글을 다음 페이지에서 또 읽지 않게)
             cursor = page.getLast().getId();
-            Observed observed = observe(page, now, false);
-            visible.addAll(renderAll(me, observed.posts(), observed.seats(), true));
+            Observed observed = observe(page, now);
+            visible.addAll(renderAll(me, observed.posts(), observed.seats(), observed.closed(), true));
             if(!more)
             {
                 break;
@@ -279,8 +225,8 @@ public class PostService {
     public PostResponse get(Long me, Long postId)
     {
         RecruitPost post = postStore.find(postId).orElseThrow(PostStore::postNotFound);
-        Observed observed = observe(List.of(post), now(), false);
-        return renderAll(me, observed.posts(), observed.seats(), true).stream()
+        Observed observed = observe(List.of(post), now());
+        return renderAll(me, observed.posts(), observed.seats(), observed.closed(), true).stream()
                 .findFirst().orElseThrow(PostStore::postNotFound);
     }
 
@@ -298,8 +244,10 @@ public class PostService {
     /**
      * 방 키를 읽은 뒤의 글과, 글마다 카드로 보여 줄 사람 — <b>모집 중인 글은 방 안에 지금 있는 사람, 확정된 글은 확정 순간의 파티원 전원</b>
      * (2026-09-30 소유자 결정 — P-40). 만료된 글은 {@code seats} 에 없다(멤버를 비운다 — P-20 그대로)
+     *
+     * @param closed 파티가 닫힌 확정된 글의 번호(2026-10-01 소유자 결정 — 응답의 {@code closed}). 이 조회가 방금 닫은 파티도 들어 있다
      */
-    private record Observed(List<RecruitPost> posts, Map<Long, List<Seat>> seats) {
+    private record Observed(List<RecruitPost> posts, Map<Long, List<Seat>> seats, Set<Long> closed) {
     }
 
     /**
@@ -313,10 +261,10 @@ public class PostService {
      * 파티를 읽는 쿼리는 "열린 파티" 를 가리는 쿼리와 <b>같은 한 번</b>이다({@link PostStore#findBoardParties}) — 목록의 SQL 문장 수가 늘지 않는다.
      * 이 조회가 방금 확정으로 옮겨 적은 글(자가 치유)만 옮겨 적은 뒤에 한 번 더 읽는다.
      *
-     * <p><b>방 키를 읽지 못하면</b>({@code failClosed} 가 아닐 때) 방 정보를 비운 채 글만 돌려주고 <b>아무것도 옮겨 적지 않는다</b> —
+     * <p><b>방 키를 읽지 못하면</b> 방 정보를 비운 채 글만 돌려주고 <b>아무것도 옮겨 적지 않는다</b>(fail-open) —
      * 못 읽은 것을 "방이 없다"로 읽으면 멀쩡한 글이 전부 만료된다. 확정된 글의 파티원은 DB 에서 오므로 그때도 나간다.
      */
-    private Observed observe(List<RecruitPost> posts, Instant now, boolean failClosed)
+    private Observed observe(List<RecruitPost> posts, Instant now)
     {
         List<Long> recruitingIds = posts.stream()
                 .filter(post -> post.getStatus() == PostStatus.RECRUITING)
@@ -335,12 +283,12 @@ public class PostService {
         toRead.addAll(openParties);
         if(toRead.isEmpty())
         {
-            return new Observed(posts, seatsOf(posts, Map.of(), parties));
+            return new Observed(posts, seatsOf(posts, Map.of(), parties), closedOf(posts, parties));
         }
-        Map<Long, RoomState> states = readRoomStates(toRead, failClosed);
+        Map<Long, RoomState> states = readRoomStates(toRead);
         if(states == null)
         {
-            return new Observed(posts, seatsOf(posts, Map.of(), parties));
+            return new Observed(posts, seatsOf(posts, Map.of(), parties), closedOf(posts, parties));
         }
 
         RoomObservations observations = new RoomObservations();
@@ -368,13 +316,34 @@ public class PostService {
                     .map(RecruitPost::getId)
                     .toList();
             parties.putAll(postStore.findBoardParties(newlyConfirmed));
+            // 방금 닫은 파티는 위에서 ACTIVE 로 읽었다 — 다시 읽지 않고 닫힌 것으로 바꿔 이 응답부터 closed 가 참이게 한다(2026-10-01).
+            // 닫기는 ACTIVE 만 바꾸는 조건부 UPDATE 라 다른 요청이 먼저 닫았어도 결과는 닫힘이다
+            observations.partyGone().forEach(postId -> parties.computeIfPresent(postId, (id, party) -> party.closedNow()));
         }
-        return new Observed(current, seatsOf(current, states, parties));
+        return new Observed(current, seatsOf(current, states, parties), closedOf(current, parties));
+    }
+
+    /** 파티가 닫힌 확정된 글의 번호 — 응답의 {@code closed}(2026-10-01 소유자 결정). 파티 기록이 없는 확정된 글은 닫히지 않은 것으로 친다 */
+    private static Set<Long> closedOf(List<RecruitPost> posts, Map<Long, BoardParty> parties)
+    {
+        Set<Long> closed = new HashSet<>();
+        for(RecruitPost post : posts)
+        {
+            BoardParty party = parties.get(post.getId());
+            if(post.getStatus() == PostStatus.CONFIRMED && party != null && !party.active())
+            {
+                closed.add(post.getId());
+            }
+        }
+        return closed;
     }
 
     /**
      * 글마다 카드로 보여 줄 사람 — 모집 중인 글은 <b>방 안에 지금 있는 사람</b>(방 키를 못 읽었으면 없다), 확정된 글은 <b>확정 순간의 파티원 전원</b>
      * (2026-09-30 — P-40. 파티 기록이 없으면 없다), 만료된 글은 없다(P-20 그대로).
+     *
+     * <p><b>포지션은 모집 중인 글에만 싣는다</b>(2026-10-01 소유자 결정) — 방 키를 읽을 때 같이 온 멤버 HASH 의 값({@link RoomState#positions})이라 Redis 를 더 부르지 않는다.
+     * 방장의 값은 방장 포지션이다. {@code ""}(고르지 않았다)는 {@code null} 로 내보낸다. 확정된 글의 파티원은 포지션이 없다({@link Seat#partyMember}).
      */
     private static Map<Long, List<Seat>> seatsOf(List<RecruitPost> posts, Map<Long, RoomState> states, Map<Long, BoardParty> parties)
     {
@@ -386,7 +355,9 @@ public class PostService {
                 RoomState state = states.get(post.getId());
                 if(state != null)
                 {
-                    seats.put(post.getId(), state.members().stream().map(userId -> new Seat(userId, post.isHost(userId))).toList());
+                    seats.put(post.getId(), state.members().stream()
+                            .map(userId -> new Seat(userId, post.isHost(userId), chosenPosition(state, userId)))
+                            .toList());
                 }
             }
             else if(post.getStatus() == PostStatus.CONFIRMED)
@@ -399,6 +370,13 @@ public class PostService {
             }
         }
         return seats;
+    }
+
+    /** 멤버 HASH 에 적힌 그 사람의 포지션 — 고르지 않았으면({@code ""}) {@code null} 이다 */
+    private static String chosenPosition(RoomState state, Long userId)
+    {
+        String position = state.positions().get(userId);
+        return (position == null || position.isEmpty()) ? null : position;
     }
 
     /**
@@ -423,8 +401,8 @@ public class PostService {
     }
 
     /**
-     * 확정한 방이 <b>없어졌는가</b> — 방장 키 · 멤버 SET · 확정 표시 키가 <b>셋 다</b> 없을 때만이다. 확정한 방은 <b>방장 키만 잠깐 없을 수 있다</b>
-     * (방장이 말없이 사라져 승계를 기다리는 중 — D-23. 멤버의 접속 확인이 곧 넘겨받는다). 멤버 SET 이나 확정 표시 키가 남아 있으면 아직 방이다.
+     * 확정한 방이 <b>없어졌는가</b> — 방장 키 · 멤버 HASH · 확정 표시 키가 <b>셋 다</b> 없을 때만이다. 확정한 방은 <b>방장 키만 잠깐 없을 수 있다</b>
+     * (방장이 말없이 사라져 승계를 기다리는 중 — D-23. 멤버의 접속 확인이 곧 넘겨받는다). 멤버 HASH 나 확정 표시 키가 남아 있으면 아직 방이다.
      * 방 번호는 글 번호라 다시 쓰이지 않는다 — 셋 다 없어진 방이 되살아나는 일은 없다.
      */
     private static boolean isGone(RoomState state)
@@ -432,8 +410,13 @@ public class PostService {
         return !state.hostKeyExists() && state.members().isEmpty() && !state.confirmed();
     }
 
-    /** @return 읽지 못했고 {@code failClosed} 가 아니면 {@code null} */
-    private Map<Long, RoomState> readRoomStates(List<Long> postIds, boolean failClosed)
+    /**
+     * 목록 · 단건이 방 안을 읽는다 — <b>fail-open 만</b>이다(못 읽어도 글은 내려 준다). fail-closed 로 읽던 고치기의 "방장만 있나" 검사는
+     * 글 고치기와 함께 없어졌다(2026-10-01). 입장의 fail-closed 는 {@link PostEntryGate} 가 따로 한다.
+     *
+     * @return 읽지 못했으면 {@code null}
+     */
+    private Map<Long, RoomState> readRoomStates(List<Long> postIds)
     {
         try
         {
@@ -441,10 +424,6 @@ public class PostService {
         }
         catch(RoomStateUnavailableException e)
         {
-            if(failClosed)
-            {
-                throw RoomErrors.stateUnavailable();
-            }
             log.warn("방 키를 읽지 못해 방 정보를 비운 채 내려 준다 — 만료 판정도 하지 않는다 posts={}", postIds.size());
             return null;
         }
@@ -460,7 +439,7 @@ public class PostService {
      * 말없이 사라지면 그 파티는 {@code ACTIVE} 로 영원히 남고 최근 함께한 사람도 적히지 않았다. 목록 GET 이 글을 만료 · 확정 · 닫힘으로 옮겨 적는 것은
      * 허용된 부수 효과다(CLAUDE.md §3.3) — 이것도 그 하나다. 방 키에서 읽은 사실을 옮기는 것이고 누가 불러도 결과가 같다.
      *
-     * <p>규칙은 게시판 파티와 같다 — <b>방장 키 · 멤버 SET · 확정 표시 키가 셋 다 없을 때만</b>({@link #isGone}) 닫는다(방장 키만 없는 것은 승계 중이다 — D-23).
+     * <p>규칙은 게시판 파티와 같다 — <b>방장 키 · 멤버 HASH · 확정 표시 키가 셋 다 없을 때만</b>({@link #isGone}) 닫는다(방장 키만 없는 것은 승계 중이다 — D-23).
      * 닫는 것은 {@link MatchPartyStore#closeByRoomClosed} 다 — 나가기 · 접속 확인이 쓰는 것과 같은 조건부 UPDATE 라 몇 길이 겹쳐도 한 번이고, 그 호출이
      * 최근 함께한 사람을 적는다. <b>그 게임의 파티만</b> 본다(게시판은 게임별 페이지다 — P-21). 한 번에 많아야 200개다(넘치면 다음 목록이 이어서 본다).
      * <b>방 키를 못 읽으면 아무것도 닫지 않는다</b>(목록과 같은 fail-open — 못 읽은 것을 "방이 없다"로 읽으면 멀쩡한 파티가 닫힌다).
@@ -530,9 +509,10 @@ public class PostService {
      * 글들을 응답의 모양으로 만든다. 프로필은 게임마다 한 번, 차단은 전부 합쳐 한 번 읽는다.
      *
      * @param seats        글마다 카드로 보여 줄 사람들(모집 중이면 방 안 사람, 확정이면 확정 순간의 파티원 — {@link #observe}). 없는 글은 멤버가 비어 있다
+     * @param closed       파티가 닫힌 확정된 글의 번호({@link Observed#closed}) — 응답의 {@code closed}
      * @param filterBlocked 차단 관계로 숨겨진 글을 뺄지. 방금 내가 쓴 글처럼 걸러질 수 없는 경우에만 끈다
      */
-    private List<PostResponse> renderAll(Long me, List<RecruitPost> posts, Map<Long, List<Seat>> seats,
+    private List<PostResponse> renderAll(Long me, List<RecruitPost> posts, Map<Long, List<Seat>> seats, Set<Long> closed,
                                          boolean filterBlocked)
     {
         Set<Long> blocked = filterBlocked ? blockedAmong(me, posts, seats) : Set.of();
@@ -555,7 +535,8 @@ public class PostService {
         List<PostResponse> responses = new ArrayList<>();
         for(RecruitPost post : visible)
         {
-            responses.add(render(post, seats.getOrDefault(post.getId(), List.of()), profiles.get(post.getGame())));
+            responses.add(render(post, seats.getOrDefault(post.getId(), List.of()), closed.contains(post.getId()),
+                    profiles.get(post.getGame())));
         }
         return responses;
     }
@@ -621,13 +602,20 @@ public class PostService {
      * <b>{@code capacity} 는 그 글의 방 정원</b>(2026-09-30 — P-41. 그 모드의 인원 — 옛 글은 5)이다.
      * <b>{@code full} 은 모집 중인 글에서만 참이 될 수 있다</b>(Claude 가 정한 세부) — "빈자리가 없어 못 들어간다" 는 뜻이라 확정된 글은 정원이 찬 파티여도 {@code false} 다
      * (들어갈 수 없는 까닭은 {@code status} 가 말한다). 만료된 글은 전부터 카드가 없어 {@code false} 였다.
+     * <b>{@code host} 카드의 {@code position}</b> 은 {@code members} 에 있는 방장 카드의 것과 같다(Claude 가 정한 세부) — 모집 중이면 방장 포지션, 확정 · 만료면 {@code null}.
+     * <b>{@code closed} 는 확정된 글의 파티가 닫혔는가</b>(2026-10-01 소유자 결정) — 부르는 쪽이 파티 기록을 읽어 넘긴다({@link Observed#closed}).
      */
-    private static PostResponse render(RecruitPost post, List<Seat> seats, Map<Long, UserGameProfile> profiles)
+    private static PostResponse render(RecruitPost post, List<Seat> seats, boolean closed, Map<Long, UserGameProfile> profiles)
     {
         List<MemberCard> cards = seats.stream()
-                .map(seat -> card(seat.userId(), seat.host(), profiles))
+                .map(seat -> card(seat.userId(), seat.host(), seat.position(), profiles))
                 .sorted(CARD_ORDER)
                 .toList();
+        String hostCardPosition = seats.stream()
+                .filter(seat -> seat.userId().equals(post.getHostId()))
+                .map(Seat::position)
+                .filter(Objects::nonNull)
+                .findFirst().orElse(null);
         // DB 의 줄에는 순서가 없다 — 그 게임의 포지션 순서로 세운다
         List<String> wanted = post.getGame().positions().stream().filter(post.getWantedPositions()::contains).toList();
         boolean full = post.getStatus() == PostStatus.RECRUITING && cards.size() >= post.getCapacity();
@@ -635,18 +623,18 @@ public class PostService {
         return new PostResponse(post.getId(), post.getHostId(), post.getGame().name(), post.getMode(), post.getTitle(),
                 post.getDescription(), post.getVoice().name(), post.getConditions(),
                 wanted, post.getHostPosition(), post.getStatus().name(), post.getCreatedAt(),
-                cards.size(), post.getCapacity(), full,
-                card(post.getHostId(), true, profiles), cards);
+                cards.size(), post.getCapacity(), full, closed,
+                card(post.getHostId(), true, hostCardPosition, profiles), cards);
     }
 
     /**
      * 프로필을 못 찾은 사람(이 앱에 가입하지 않은 사용자 번호)도 <b>카드에서 빼지 않는다</b> — {@code nickname} · {@code profile} 이 {@code null} 이다.
      * 빼면 {@code memberCount} 가 방의 실제 인원과 어긋난다. (확정된 글의 파티원은 가입한 사람만 적혀 있어 이런 카드가 없다 — FK.)
      */
-    private static MemberCard card(Long userId, boolean host, Map<Long, UserGameProfile> profiles)
+    private static MemberCard card(Long userId, boolean host, String position, Map<Long, UserGameProfile> profiles)
     {
         UserGameProfile found = profiles.get(userId);
-        return new MemberCard(userId, found == null ? null : found.nickname(), host,
+        return new MemberCard(userId, found == null ? null : found.nickname(), host, position,
                 found == null ? null : found.profile());
     }
 

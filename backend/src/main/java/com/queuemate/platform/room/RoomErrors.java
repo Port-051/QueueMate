@@ -25,7 +25,7 @@ public final class RoomErrors {
     public static final String ROOM_FULL = "ROOM_FULL";
 
     /**
-     * 방의 상태(Redis)를 확인할 수 없다. <b>게시판의 fail-closed 거절(글 고치기)과 방 안의 일의 Redis 장애가 같은 코드다</b> —
+     * 방의 상태(Redis)를 확인할 수 없다. <b>게시판의 fail-closed 거절(입장 검사 · 게시판 방 먼저 합류)과 방 안의 일의 Redis 장애가 같은 코드다</b> —
      * 2026-09-25 2단계로 {@code room} 앱이던 때의 {@code ROOM_UNAVAILABLE} 을 이 이름으로 합쳤다(Claude 가 정한 세부. 뜻이 같은 코드가 둘일 이유가 없다).
      */
     public static final String ROOM_STATE_UNAVAILABLE = "ROOM_STATE_UNAVAILABLE";
@@ -64,7 +64,7 @@ public final class RoomErrors {
 
     /**
      * 503 {@code ROOM_STATE_UNAVAILABLE} + {@code Retry-After: 5}. 방의 상태는 Redis 에만 있어서 확인이 안 되면 통과시킬 수 없다 —
-     * 정원을 못 세는데 입장시키거나, 방 안에 누가 있는지 모르는데 글을 고치게 하지 않는다. 헤더는 {@link ApiException#retryAfter} 로 싣는다
+     * 정원을 못 세는데 입장시키거나, 방 안에 누가 있는지 모르는데 차단 대조를 건너뛰지 않는다. 헤더는 {@link ApiException#retryAfter} 로 싣는다
      * (게임 계정 연결의 429 {@code TOO_MANY_STATS_REFRESHES} 와 같은 길이다 — {@code GlobalExceptionHandler#handleApi}).
      */
     public static ApiException stateUnavailable()

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -34,7 +35,7 @@ class RoomMemberServiceKickTest extends RoomTestSupport {
     @DisplayName("D-11 8번: 방장이 멤버를 강퇴하면 그 사람만 빠지고 입장 표시가 지워진다. 방과 나머지 사람은 그대로다")
     void hostKicksAMember()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
 
@@ -51,8 +52,8 @@ class RoomMemberServiceKickTest extends RoomTestSupport {
     @DisplayName("강퇴된 사람은 곧바로 다른 방에 들어가거나 새 방을 만들 수 있다")
     void kickedUserIsFree()
     {
-        roomService.create(r("r1"), u("host"));
-        roomService.create(r("r2"), u("host2"));
+        roomService.create(r("r1"), u("host"), Set.of());
+        roomService.create(r("r2"), u("host2"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
 
@@ -60,14 +61,14 @@ class RoomMemberServiceKickTest extends RoomTestSupport {
         roomMemberService.kick(r("r1"), u("host"), u("u2"));
 
         assertThat(roomMemberService.enter(r("r2"), u("u1"))).isEqualTo(EnterResult.ENTERED);
-        assertThat(roomService.create(r("r3"), u("u2"))).isEqualTo(CreateResult.CREATED);
+        assertThat(roomService.create(r("r3"), u("u2"), Set.of())).isEqualTo(CreateResult.CREATED);
     }
 
     @Test
-    @DisplayName("강퇴된 자리에 다른 사람이 들어올 수 있다 — 정원은 멤버 SET 의 크기다")
+    @DisplayName("강퇴된 자리에 다른 사람이 들어올 수 있다 — 정원은 멤버 HASH 의 크기다")
     void kickFreesASeat()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         for (int i = 1; i <= 4; i++)
         {
             roomMemberService.enter(r("r1"), u("u" + i));
@@ -85,7 +86,7 @@ class RoomMemberServiceKickTest extends RoomTestSupport {
     void kickedUserCannotEnterAgainForTenMinutes()
     {
         long before = System.currentTimeMillis();
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.kick(r("r1"), u("host"), u("u1"));
 
@@ -109,7 +110,7 @@ class RoomMemberServiceKickTest extends RoomTestSupport {
     @DisplayName("거절된 강퇴(방장 아님 · 방에 없는 사람)는 금지 목록에 아무것도 적지 않는다")
     void rejectedKickWritesNoBan()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
 
         assertThat(roomMemberService.kick(r("r1"), u("u1"), u("host"))).isEqualTo(KickResult.NOT_HOST);
@@ -126,8 +127,8 @@ class RoomMemberServiceKickTest extends RoomTestSupport {
     @DisplayName("방장이 아닌 멤버 · 방 밖의 사람 · 다른 방의 방장이 부른 강퇴는 NOT_HOST 이고 아무것도 바뀌지 않는다")
     void onlyTheHostCanKick()
     {
-        roomService.create(r("r1"), u("host"));
-        roomService.create(r("r2"), u("host2"));
+        roomService.create(r("r1"), u("host"), Set.of());
+        roomService.create(r("r2"), u("host2"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
         Map<String, Object> before = snapshot();
@@ -146,7 +147,7 @@ class RoomMemberServiceKickTest extends RoomTestSupport {
     @DisplayName("방장이 자기 자신을 강퇴하려 하면 CANNOT_KICK_SELF 이고 방이 그대로다 — 방장이 나가려면 나가기를 쓴다")
     void hostCannotKickSelf()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         Map<String, Object> before = snapshot();
 
@@ -161,8 +162,8 @@ class RoomMemberServiceKickTest extends RoomTestSupport {
     @DisplayName("방에 없는 대상 · 이미 나간 대상 · 이미 강퇴된 대상은 TARGET_NOT_IN_ROOM 이고 아무것도 바뀌지 않는다")
     void targetNotInRoom()
     {
-        roomService.create(r("r1"), u("host"));
-        roomService.create(r("r2"), u("host2"));
+        roomService.create(r("r1"), u("host"), Set.of());
+        roomService.create(r("r2"), u("host2"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
         roomMemberService.enter(r("r2"), u("u3"));
@@ -187,7 +188,7 @@ class RoomMemberServiceKickTest extends RoomTestSupport {
         assertThat(roomMemberService.kick(r("r9"), u("host"), u("u1"))).isEqualTo(KickResult.ROOM_NOT_FOUND);
         assertThat(ownKeys()).isEmpty();
 
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.leave(r("r1"), u("host"));
 
@@ -197,13 +198,13 @@ class RoomMemberServiceKickTest extends RoomTestSupport {
     }
 
     @Test
-    @DisplayName("대상의 입장 표시가 다른 방을 가리키면 지우지 않는다 — 멤버 SET 에서만 뺀다")
+    @DisplayName("대상의 입장 표시가 다른 방을 가리키면 지우지 않는다 — 멤버 HASH 에서만 뺀다")
     void kickDoesNotTouchAMarkerThatPointsToAnotherRoom()
     {
-        roomService.create(r("r1"), u("host"));
-        // 정상 흐름에서는 생기지 않는 어긋남이다(멤버 SET 에 이름만 남았고 본인은 다른 방에 가 있다).
+        roomService.create(r("r1"), u("host"), Set.of());
+        // 정상 흐름에서는 생기지 않는 어긋남이다(멤버 HASH 에 이름만 남았고 본인은 다른 방에 가 있다).
         // 생겼다고 해도 남의 방 표시를 지우면 안 된다
-        redisTemplate.opsForSet().add(key("qm:room:r1:members"), u("ghost"));
+        addMember("r1", "ghost");
         redisTemplate.opsForValue().set(key("qm:user:active-room:ghost"), r("r2"));
 
         assertThat(roomMemberService.kick(r("r1"), u("host"), u("ghost"))).isEqualTo(KickResult.KICKED);
@@ -213,10 +214,10 @@ class RoomMemberServiceKickTest extends RoomTestSupport {
     }
 
     @Test
-    @DisplayName("강퇴는 수명을 늘리지 않는다 — 방장 키 · 멤버 SET · 남은 사람의 입장 표시의 TTL 을 다시 걸지 않는다")
+    @DisplayName("강퇴는 수명을 늘리지 않는다 — 방장 키 · 멤버 HASH · 남은 사람의 입장 표시의 TTL 을 다시 걸지 않는다")
     void kickDoesNotExtendTtl()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
         redisTemplate.expire(key("qm:room:r1:host"), Duration.ofSeconds(100));
@@ -236,7 +237,7 @@ class RoomMemberServiceKickTest extends RoomTestSupport {
     @DisplayName("방장이 같은 사람을 동시에 100번 강퇴해도 한 번만 강퇴되고 나머지는 TARGET_NOT_IN_ROOM 이다")
     void sameTargetIsKickedOnce() throws InterruptedException
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
         Map<KickResult, AtomicInteger> counts = new ConcurrentHashMap<>();
@@ -250,13 +251,13 @@ class RoomMemberServiceKickTest extends RoomTestSupport {
     }
 
     @Test
-    @DisplayName("방장이 강퇴하는 순간 그 사람이 나가기를 눌러도, 끝난 뒤 그 사람은 멤버 SET 에도 없고 입장 표시도 없다")
+    @DisplayName("방장이 강퇴하는 순간 그 사람이 나가기를 눌러도, 끝난 뒤 그 사람은 멤버 HASH 에도 없고 입장 표시도 없다")
     void kickAndLeaveAtTheSameTime() throws InterruptedException
     {
         for (int round = 0; round < 50; round++)
         {
             deleteOwnKeys();
-            roomService.create(r("r1"), u("host"));
+            roomService.create(r("r1"), u("host"), Set.of());
             roomMemberService.enter(r("r1"), u("u1"));
             roomMemberService.enter(r("r1"), u("u2"));
             AtomicReference<KickResult> kicked = new AtomicReference<>();

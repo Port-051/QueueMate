@@ -6,7 +6,6 @@ import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.gameconfig.GameConfigReader;
 import com.queuemate.platform.party.dto.MemberCard;
 import com.queuemate.platform.party.dto.PostResponse;
-import com.queuemate.platform.party.dto.PostUpdateRequest;
 import com.queuemate.platform.party.service.BoardProperties;
 import com.queuemate.platform.party.service.MatchPartyStore;
 import com.queuemate.platform.party.service.PostEntryGate;
@@ -34,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@link PostEntryGate} 로 본다. 나머지(DB · 프로필 · 차단 · gameconfig)는 앱의 진짜 빈이다. 두 클래스에는 트랜잭션이 없어 손으로 만들어도 똑같이 돈다.
  *
  * <p>가장 중요한 것 — <b>방장 키를 "못 읽은 것"을 "방이 없다"로 읽지 않는다.</b> 그러면 Redis 가 흔들릴 때 멀쩡한 글이 전부 만료된다.
- * 그리고 <b>fail-open 인지 fail-closed 인지는 부르는 쪽이 정한다</b> — 목록 · 단건은 open, 고치기 · 입장 검사는 closed 다.
+ * 그리고 <b>fail-open 인지 fail-closed 인지는 부르는 쪽이 정한다</b> — 목록 · 단건은 open, 입장 검사는 closed 다(fail-closed 이던 글 고치기는 2026-10-01 에 없어졌다).
  */
 class PostServiceRedisDownTest extends PostTestSupport {
 
@@ -123,7 +122,7 @@ class PostServiceRedisDownTest extends PostTestSupport {
         Long memberId = userIdOf(member);
         Long postId = createLolPost(hostCookie);
         track(postId, memberId);
-        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(memberCookie)).andExpect(status().isCreated());
+        enterRoom(memberCookie, postId, "SUPPORT").andExpect(status().isCreated());
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
         // 방이 통째로 없어졌다 — 멀쩡한 앱이라면 다음 목록이 파티를 닫는다. 못 읽으면 닫지 않아야 한다
         closeRoom(postId);
@@ -162,27 +161,6 @@ class PostServiceRedisDownTest extends PostTestSupport {
         assertThatThrownBy(() -> gate.check(String.valueOf(NO_SUCH_POST), guestId))
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo("POST_NOT_FOUND"));
         assertThat(statusOf(postId)).isEqualTo("RECRUITING");
-    }
-
-    @Test
-    @DisplayName("고치기도 503 ROOM_STATE_UNAVAILABLE 이다 — 방에 누가 있는지 모르는데 고치게 하면 '사람이 있으면 못 고친다'가 뚫린다(fail-closed)")
-    void editFailsClosed() throws Exception
-    {
-        String host = newNickname();
-        Cookie hostCookie = login(host);
-        Long hostId = userIdOf(host);
-        Long postId = createLolPost(hostCookie);
-
-        PostService service = withBrokenRedis();
-
-        assertThatThrownBy(() -> service.edit(hostId, postId,
-                new PostUpdateRequest(null, "고쳐 보자", null, null, null, null, null)))
-                .isInstanceOfSatisfying(ApiException.class, e -> {
-                    assertThat(e.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-                    assertThat(e.getCode()).isEqualTo("ROOM_STATE_UNAVAILABLE");
-                });
-        assertThat(jdbcTemplate.queryForObject("select title from recruit_posts where id = ?", String.class, postId))
-                .isEqualTo("같이 하실 분");
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.queuemate.platform.room;
 
 import com.queuemate.platform.ApiTestSupport;
+import com.queuemate.platform.room.domain.CreateResult;
 import com.queuemate.platform.room.service.RoomMemberService;
 import com.queuemate.platform.room.service.RoomService;
 import org.junit.jupiter.api.AfterEach;
@@ -27,7 +28,7 @@ import java.util.stream.Collectors;
  *
  * <p><b>이름표로 쓰고 진짜 번호로 돈다.</b> 옮겨 온 테스트는 {@code "host"} · {@code "u1"} · {@code "r1"} 같은 이름으로 적혀 있다 — 읽기 쉬워서 그대로 뒀다.
  * 그 이름을 {@link #u(String)} 가 <b>가입한 사용자의 번호</b>로, {@link #r(String)} 가 <b>겹치지 않는 방 번호</b>로 바꾼다(테스트마다 새로 짓는다).
- * 방 키에는 진짜 사용자 번호가 들어간다 — 게시판이 멤버 SET 을 사용자 번호로 읽기 때문이다. 거꾸로 Redis 에서 읽은 번호는 {@link #labelOf(String)} 가
+ * 방 키에는 진짜 사용자 번호가 들어간다 — 게시판이 멤버 HASH 의 필드를 사용자 번호로 읽기 때문이다. 거꾸로 Redis 에서 읽은 번호는 {@link #labelOf(String)} 가
  * 이름표로 되돌려 준다 — 그래서 {@code members("r1")} 이 {@code ["host", "u1"]} 로 비교된다.
  *
  * <p><b>{@code FLUSHDB} 를 쓰지 않는다</b>(이 앱의 테스트 규칙 — 같은 Redis 를 다른 테스트 · 앱이 쓴다). 합치기 전의 {@code room} 테스트는 DB 15 번을
@@ -39,7 +40,7 @@ import java.util.stream.Collectors;
  */
 public abstract class RoomTestSupport extends ApiTestSupport {
 
-    private static final Pattern ROOM_KEY = Pattern.compile("^qm:room:([^:]+):(host|members|confirmed)$");
+    private static final Pattern ROOM_KEY = Pattern.compile("^qm:room:([^:]+):(host|members|confirmed|needs)$");
     /** 강퇴 · 나가기의 금지 목록 — 사용자별 키다({@code qm:room:no-entry:u1}. 2026-09-29) */
     private static final Pattern BAN_KEY = Pattern.compile("^qm:room:(no-entry|no-auto-join):(.+)$");
     private static final Pattern USER_KEY = Pattern.compile("^qm:user:(active-room|active-request):(.+)$");
@@ -99,7 +100,8 @@ public abstract class RoomTestSupport extends ApiTestSupport {
      * {@code POST_NOT_FOUND}). 방의 테스트는 방을 {@code roomService.create} 로 직접 만들므로(글 쓰기를 거치지 않는다) 글은 여기서 SQL 로 넣는다 —
      * <b>모집 중 · 방장은 이 방만을 위해 새로 넣은 사용자</b>({@link #insertUser()} — {@code host_id} 에 {@code users(id)} 로 FK 가 있다)다.
      * 방의 멤버 누구와도 다른 사람이라 차단에 걸리지 않고, 입장의 갈래는 전부 스크립트가 가른다.
-     * 번호를 앱이 아니라 테스트가 정하므로 {@code OVERRIDING SYSTEM VALUE} 로 넣는다(identity 의 순번은 건드리지 않는다). 끝나면 지운다
+     * 번호를 앱이 아니라 테스트가 정하므로 {@code OVERRIDING SYSTEM VALUE} 로 넣는다(identity 의 순번은 건드리지 않는다). 끝나면 지운다.
+     * <b>찾는 포지션은 없다</b> — 그래서 포지션이 없는 방으로 검사받는다. 포지션을 골라 들어오는 방은 {@link #createPositionRoom} 으로 만든다
      */
     protected String r(String label)
     {
@@ -113,6 +115,30 @@ public abstract class RoomTestSupport extends ApiTestSupport {
             labels.put(roomId, l);
             return roomId;
         });
+    }
+
+    /** 방장 포지션 없이 {@link #createPositionRoom(String, String, Set, String)} */
+    protected CreateResult createPositionRoom(String roomLabel, String hostLabel, Set<String> wanted)
+    {
+        return createPositionRoom(roomLabel, hostLabel, wanted, null);
+    }
+
+    /**
+     * <b>포지션을 골라 들어오는 방</b>을 만든다 — 그 번호의 글({@link #r})에 찾는 포지션을 적고({@code recruit_post_positions}) 방을 만든다.
+     * 입장의 글 검사가 <b>글에 찾는 포지션이 있나</b>로 포지션 방인지 가르기 때문이다(2026-10-01 소유자 결정 — {@code PostEntryGate.Entry#positionRoom} →
+     * {@code enter-room.lua} 의 {@code ARGV[7]}). {@code roomService.create} 로 방 키만 만들면 글에는 찾는 포지션이 없어 포지션이 없는 방으로 검사받는다
+     * (포지션을 주면 거절된다). 글 쓰기({@code PostStore#create})가 글과 방에 같은 목록을 적는 것을 SQL 로 흉내 낸다
+     *
+     * @param hostPosition 방장 포지션 — 멤버 HASH 의 방장 값이 된다. 없으면 {@code null}
+     */
+    protected CreateResult createPositionRoom(String roomLabel, String hostLabel, Set<String> wanted, String hostPosition)
+    {
+        String roomId = r(roomLabel);
+        for(String position : wanted)
+        {
+            jdbcTemplate.update("insert into recruit_post_positions (post_id, position) values (?, ?)", Long.parseLong(roomId), position);
+        }
+        return roomService.create(roomId, u(hostLabel), wanted, hostPosition);
     }
 
     /** Redis 에서 읽은 번호를 이름표로 되돌린다. 모르는 값이면 그대로다 */
@@ -142,11 +168,24 @@ public abstract class RoomTestSupport extends ApiTestSupport {
         throw new IllegalArgumentException("이름표로 적은 방 · 사용자 키가 아니다: " + labelled);
     }
 
-    /** 방의 멤버를 이름표로 */
+    /** 방의 멤버(멤버 HASH 의 필드 — 2026-09-30 부터 HASH 다, P-44)를 이름표로 */
     protected Set<String> members(String roomLabel)
     {
-        return redisTemplate.opsForSet().members(key("qm:room:" + roomLabel + ":members")).stream()
-                .map(this::labelOf).collect(Collectors.toCollection(TreeSet::new));
+        return redisTemplate.opsForHash().keys(key("qm:room:" + roomLabel + ":members")).stream()
+                .map(String::valueOf).map(this::labelOf).collect(Collectors.toCollection(TreeSet::new));
+    }
+
+    /** 그 사람이 참가할 때 고른 포지션(멤버 HASH 의 값). 방에 없으면 {@code null}, 고르지 않았으면 {@code ""} */
+    protected String position(String roomLabel, String userLabel)
+    {
+        Object value = redisTemplate.opsForHash().get(key("qm:room:" + roomLabel + ":members"), u(userLabel));
+        return value == null ? null : value.toString();
+    }
+
+    /** 멤버 HASH 에 손으로 넣는다 — 스크립트를 거치지 않는 어긋남(유령 등)을 만들 때 쓴다. 포지션은 {@code ""} */
+    protected void addMember(String roomLabel, String userLabel)
+    {
+        redisTemplate.opsForHash().put(key("qm:room:" + roomLabel + ":members"), u(userLabel), "");
     }
 
     /** 사용자의 입장 표시(가리키는 방)를 이름표로. 없으면 {@code null} */
@@ -213,6 +252,7 @@ public abstract class RoomTestSupport extends ApiTestSupport {
             all.add("qm:room:" + room + ":host");
             all.add("qm:room:" + room + ":members");
             all.add("qm:room:" + room + ":confirmed");
+            all.add("qm:room:" + room + ":needs");
         }
         for(String user : userIds.keySet())
         {

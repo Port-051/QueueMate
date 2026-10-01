@@ -5,11 +5,11 @@ import com.queuemate.platform.common.error.ApiException;
 import com.queuemate.platform.common.gameconfig.GameConfigReader;
 import com.queuemate.platform.common.gameconfig.ModePositions;
 import com.queuemate.platform.party.domain.VoicePreference;
-import com.queuemate.platform.party.dto.PostUpdateRequest;
 
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.Set;
 
 /**
@@ -70,10 +70,10 @@ final class PostValidation {
 
     /**
      * <b>gameconfig 에 있는 모드여야 한다</b>(2026-09-24 소유자 결정 — {@code contracts/platform-api.md} "gameconfig 를 읽는 것").
-     * 이제 모든 글이 모드 하나를 갖는다 — 빈 문자열은 400 이고, 고치기에서 모드를 비우는 길은 없어졌다.
+     * 이제 모든 글이 모드 하나를 갖는다 — 빈 문자열은 400 이다. 글은 고칠 수 없어(2026-10-01 소유자 결정) 모드는 글을 쓸 때 한 번만 본다.
      *
      * <p><b>Redis 를 읽으므로 트랜잭션 밖에서 부른다</b>({@code PostService}) — {@code PostStore} 의 짧은 트랜잭션이 Redis 를 기다리며 DB 커넥션을 붙잡지 않게 한다.
-     * {@code game} 은 글이 정해진 뒤 바뀌지 않으므로 잠금 밖에서 읽은 게임으로 검증해도 안전하다. 값의 목록이 Redis 에 있어 <b>DB 로는 강제할 수 없는 종류</b>다(CLAUDE.md §5).
+     * 값의 목록이 Redis 에 있어 <b>DB 로는 강제할 수 없는 종류</b>다(CLAUDE.md §5).
      */
     static String mode(GameConfigReader gameConfig, Game game, String mode)
     {
@@ -88,7 +88,7 @@ final class PostValidation {
         return mode;
     }
 
-    /** 빈 문자열은 "없다"로 친다 — 고치기에서 {@code description} 을 비우는 길이다({@code PostUpdateRequest}) */
+    /** 빈 문자열은 "없다"로 친다 — 글을 쓸 때 소개({@code description})를 빈 문자열로 보내면 소개가 없는 글이다 */
     static String blankToNull(String value)
     {
         return (value == null || value.isBlank()) ? null : value;
@@ -168,29 +168,27 @@ final class PostValidation {
     }
 
     /**
-     * 고치기({@code PATCH})의 찾는 포지션 — <b>고친 뒤의 모양</b>을 {@link #wantedPositionsForMode} 로 본다(방장 포지션의 {@link #editedHostPosition} 과 같은 짜임이다).
-     * {@code mode} · {@code hostPosition} · {@code wantedPositions} 를 하나도 주지 않았으면 보지 않고, {@code wantedPositions} 를 주지 않았는데 고친 뒤의 모드에
-     * 포지션이 없으면 <b>적혀 있던 것을 비운다</b>(포지션이 있는 모드 → 없는 모드).
+     * <b>찾는 포지션 수 ≥ 정원 − 1</b>(방장 본인을 뺀 자리 수 — 2026-09-30 소유자 결정). 참가할 때 남은 찾는 포지션 가운데 하나를 골라 들어오므로,
+     * 자리가 남아 있는 한 고를 포지션이 하나는 남게 한다 — 3인이면 2개 이상, 5인이면 4개. 자리보다 많이 적는 것은 된다(솔랭 듀오에 "정글 또는 서포터").
      *
-     * @param wanted 고친 뒤의 찾는 포지션 — 준 값(이름을 검증했다) 또는 적혀 있던 값
+     * <p><b>포지션이 있다고 확인된 모드이고 정원을 알 때만</b> 본다 — gameconfig 를 못 읽었으면({@link ModePositions#UNKNOWN} · 정원 모름) 보지 않는다(fail-open).
+     * 모드의 인원을 모를 때 정원은 5 로 채워지므로 그 값으로 거절하면 솔랭 듀오에도 4개를 요구하게 된다. <b>비어 있으면 보지 않는다</b> —
+     * {@link #wantedPositionsForMode} 의 {@code "하나 이상 필요합니다"} 가 먼저다.
+     *
+     * @param capacity 그 모드의 인원 — gameconfig 에서 <b>실제로 읽었을 때만</b> 값이 있다({@code PostService#knownCapacityOf})
      */
-    static Set<String> editedWantedPositions(Game game, ModePositions modePositions, PostUpdateRequest request, Set<String> wanted)
+    static void enoughWantedPositions(Game game, ModePositions modePositions, Set<String> wanted, OptionalInt capacity)
     {
-        if(!touchesPositions(request))
+        if(capacity.isEmpty() || wanted.isEmpty() || !hasPositions(game, modePositions))
         {
-            return wanted;
+            return;
         }
-        if(request.wantedPositions() == null && noPositions(game, modePositions))
+        int need = capacity.getAsInt() - 1;
+        if(wanted.size() < need)
         {
-            return new LinkedHashSet<>();
+            throw ApiException.validationFailed("wantedPositions",
+                    "정원이 " + capacity.getAsInt() + "명이면 " + need + "개 이상 필요합니다");
         }
-        return wantedPositionsForMode(game, modePositions, wanted);
-    }
-
-    /** 포지션에 닿는 고치기인가 — {@code mode} · {@code hostPosition} · {@code wantedPositions} 가운데 하나라도 줬다 */
-    private static boolean touchesPositions(PostUpdateRequest request)
-    {
-        return request.mode() != null || request.hostPosition() != null || request.wantedPositions() != null;
     }
 
     /**
@@ -228,35 +226,6 @@ final class PostValidation {
             throw ApiException.validationFailed("hostPosition", "찾는 포지션(wantedPositions)과 겹칠 수 없습니다");
         }
         return hostPosition;
-    }
-
-    /**
-     * 고치기({@code PATCH})의 방장 포지션 — <b>고친 뒤의 모양</b>을 {@link #hostPosition} 의 규칙으로 본다(Claude 가 정한 세부 — P-38).
-     * <ul>
-     *   <li>{@code mode} · {@code hostPosition} · {@code wantedPositions} 를 <b>하나도 주지 않았으면 보지 않는다</b> — 제목 · 소개 · 음성만 고치는 요청이
-     *       그 전에 쓴 글(방장 포지션이 없다)에서도 된다</li>
-     *   <li>{@code hostPosition} 을 주지 않았는데 고친 뒤의 모드에 포지션이 없으면 <b>적혀 있던 값을 비운다</b>(포지션이 있는 모드 → 없는 모드)</li>
-     *   <li>그 밖에는 준 값(없으면 적혀 있던 값)을 고친 뒤의 모드 · 찾는 포지션으로 검증한다 — 포지션이 있는 모드로 바꾸며 방장 포지션을 안 주면
-     *       (적혀 있던 것도 없으면) 400 {@code "hostPosition: 필요합니다"} 다</li>
-     * </ul>
-     * 비우는 길은 따로 없다({@code null} 은 "그대로" 다 — 다른 칸과 같다). 빈 문자열은 포지션 이름이 아니라 400 이다.
-     *
-     * @param modePositions 고친 뒤의 모드에 포지션이 있는가({@link #modePositions})
-     * @param stored        지금 글에 적힌 방장 포지션
-     * @param wanted        고친 뒤의 찾는 포지션
-     */
-    static String editedHostPosition(Game game, ModePositions modePositions, PostUpdateRequest request, String stored,
-                                     Set<String> wanted)
-    {
-        if(!touchesPositions(request))
-        {
-            return stored;
-        }
-        if(request.hostPosition() == null && noPositions(game, modePositions))
-        {
-            return null;
-        }
-        return hostPosition(game, modePositions, request.hostPosition() != null ? request.hostPosition() : stored, wanted);
     }
 
     /**

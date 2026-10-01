@@ -39,8 +39,24 @@ public class PostEntryGate {
     private final BlockReader blockReader;
 
     /**
-     * 통과하면 <b>그 방의 정원</b>을 돌려준다(2026-09-30 — P-41. 글에 적힌 모드의 인원 · 옛 글은 5) — 입장 스크립트가 그 값으로 만석을 가른다.
-     * 글을 이미 여기서 읽으므로 정원을 따로 읽지 않는다. 거절은 {@link com.queuemate.platform.common.error.ApiException} 이다.
+     * 입장 스크립트에 넘길 글의 값 — 방 키에는 적지 않고 입장마다 글에서 읽어 넘긴다.
+     *
+     * @param capacity     그 방의 정원(2026-09-30 — P-41. 글에 적힌 모드의 인원 · 옛 글은 5). 스크립트가 만석을 가른다({@code ARGV[3]})
+     * @param positionRoom 포지션을 골라 들어오는 방인가 — 글의 {@code wantedPositions} 가 비지 않았다(글 쓰기가 찾는 포지션 SET 을 만드는 기준과 같다).
+     *                     스크립트가 포지션 검사를 이것으로 가른다({@code ARGV[7]}). 찾는 포지션 SET 이 있는지로 가르지 않는 것은 다 고르면 Redis 가 빈 SET 을 지워
+     *                     "포지션이 없는 방" 과 구별이 안 되어서다(2026-10-01 소유자 결정)
+     */
+    public record Entry(int capacity, boolean positionRoom)
+    {
+        static Entry of(RecruitPost post)
+        {
+            return new Entry(post.getCapacity(), !post.getWantedPositions().isEmpty());
+        }
+    }
+
+    /**
+     * 통과하면 <b>그 방의 정원과 포지션 방인가</b>를 돌려준다({@link Entry}) — 입장 스크립트가 그 값으로 만석과 포지션을 가른다.
+     * 글을 이미 여기서 읽으므로 따로 읽지 않는다. 거절은 {@link com.queuemate.platform.common.error.ApiException} 이다.
      *
      * <p><b>이미 그 방에 들어와 있는 사람은 통과시킨다</b>(Claude 가 정한 세부) — 스크립트가 "이미 들어와 있다"(200)로 답하게 둔다. 확정된 방의 파티원이
      * 새로고침하면 글은 {@code CONFIRMED} 라 409 가 되고, 방 안에서 나중에 차단이 생긴 두 사람은 404 가 된다 — 새 사람을 막으려는 검사가
@@ -50,7 +66,7 @@ public class PostEntryGate {
      * @throws com.queuemate.platform.common.error.ApiException 404 {@code POST_NOT_FOUND} · 409 {@code POST_NOT_RECRUITING} ·
      *                                                          503 {@code ROOM_STATE_UNAVAILABLE}(방 안을 못 읽었다 — 차단 대조를 못 했는데 들여보낼 수 없다)
      */
-    public int check(String roomId, Long me)
+    public Entry check(String roomId, Long me)
     {
         Long postId = postIdOf(roomId);
         RecruitPost post = postStore.find(postId).orElseThrow(PostStore::postNotFound);
@@ -65,7 +81,7 @@ public class PostEntryGate {
         }
         if(state.members().contains(me))
         {
-            return post.getCapacity();
+            return Entry.of(post);
         }
         Set<Long> shown = new HashSet<>(state.members());
         if(post.getStatus() == PostStatus.CONFIRMED)
@@ -89,7 +105,7 @@ public class PostEntryGate {
         {
             throw PostStore.postNotRecruiting();
         }
-        return post.getCapacity();
+        return Entry.of(post);
     }
 
     private static Long postIdOf(String roomId)

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,18 +25,32 @@ class RoomServiceCreateTest extends RoomTestSupport {
     @DisplayName("방을 만들면 방장 키가 쓰이고, 방장은 곧바로 그 방에 들어와 있다")
     void createWritesHostAndEntersTheHost()
     {
-        assertThat(roomService.create(r("r1"), u("host"))).isEqualTo(CreateResult.CREATED);
+        assertThat(roomService.create(r("r1"), u("host"), Set.of())).isEqualTo(CreateResult.CREATED);
 
         assertThat(host("r1")).isEqualTo("host");
         assertThat(members("r1")).containsExactly("host");
         assertThat(marker("host")).isEqualTo("r1");
+        // 멤버 키는 HASH 이고 방장의 값은 방장 포지션이다 — 주지 않았으니 "" 다(2026-09-30 — P-44). 찾는 포지션이 없으면 찾는 포지션 SET 을 만들지 않는다
+        assertThat(position("r1", "host")).isEmpty();
+        assertThat(redisTemplate.hasKey(key("qm:room:r1:needs"))).isFalse();
+    }
+
+    @Test
+    @DisplayName("찾는 포지션을 주면 찾는 포지션 SET 에 그대로 들어가고 방의 다른 키와 같은 수명이 걸린다(2026-09-30 — P-44)")
+    void createWritesTheWantedPositions()
+    {
+        assertThat(roomService.create(r("r1"), u("host"), Set.of("TOP", "MID", "SUPPORT"))).isEqualTo(CreateResult.CREATED);
+
+        assertThat(redisTemplate.opsForSet().members(key("qm:room:r1:needs"))).containsExactlyInAnyOrder("TOP", "MID", "SUPPORT");
+        assertThat(redisTemplate.getExpire(key("qm:room:r1:needs"), TimeUnit.SECONDS)).isBetween(1L, 600L);
+        assertThat(position("r1", "host")).isEmpty();
     }
 
     @Test
     @DisplayName("세 키 모두 수명이 걸린다 — 수명 없는 키는 앱이 죽었을 때 그 사용자를 영원히 가둔다")
     void everyKeyHasATtl()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
 
         for (String key : new String[]{key("qm:room:r1:host"), key("qm:room:r1:members"), key("qm:user:active-room:host")})
         {
@@ -51,7 +66,7 @@ class RoomServiceCreateTest extends RoomTestSupport {
     @DisplayName("userId 와 roomId 가 숫자여도 값과 수명이 뒤바뀌지 않는다")
     void numericIdsAreNotMistakenForTtl()
     {
-        assertThat(roomService.create(r("42"), u("123"))).isEqualTo(CreateResult.CREATED);
+        assertThat(roomService.create(r("42"), u("123"), Set.of())).isEqualTo(CreateResult.CREATED);
 
         assertThat(host("42")).isEqualTo("123");
         assertThat(marker("123")).isEqualTo("42");
@@ -62,10 +77,10 @@ class RoomServiceCreateTest extends RoomTestSupport {
     @DisplayName("내가 만든 방을 다시 만들면 ALREADY_CREATED 이고 아무것도 바뀌지 않는다")
     void createAgainByTheHost()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
 
-        assertThat(roomService.create(r("r1"), u("host"))).isEqualTo(CreateResult.ALREADY_CREATED);
+        assertThat(roomService.create(r("r1"), u("host"), Set.of())).isEqualTo(CreateResult.ALREADY_CREATED);
 
         assertThat(host("r1")).isEqualTo("host");
         assertThat(members("r1")).containsExactlyInAnyOrder("host", "u1");
@@ -75,11 +90,11 @@ class RoomServiceCreateTest extends RoomTestSupport {
     @DisplayName("남이 만든 방은 ROOM_EXISTS 다. 방장이 바뀌지 않고, 그 방에 들어와 있던 사람이 불러도 마찬가지다")
     void roomExists()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
 
-        assertThat(roomService.create(r("r1"), u("other"))).isEqualTo(CreateResult.ROOM_EXISTS);
-        assertThat(roomService.create(r("r1"), u("u1"))).isEqualTo(CreateResult.ROOM_EXISTS);
+        assertThat(roomService.create(r("r1"), u("other"), Set.of())).isEqualTo(CreateResult.ROOM_EXISTS);
+        assertThat(roomService.create(r("r1"), u("u1"), Set.of())).isEqualTo(CreateResult.ROOM_EXISTS);
 
         assertThat(host("r1")).isEqualTo("host");
         assertThat(marker("other")).isNull();
@@ -89,12 +104,12 @@ class RoomServiceCreateTest extends RoomTestSupport {
     @DisplayName("다른 방에 들어가 있으면 IN_OTHER_ROOM 이고 새 방은 생기지 않는다")
     void inOtherRoom()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
 
-        assertThat(roomService.create(r("r2"), u("u1"))).isEqualTo(CreateResult.IN_OTHER_ROOM);
+        assertThat(roomService.create(r("r2"), u("u1"), Set.of())).isEqualTo(CreateResult.IN_OTHER_ROOM);
         // 방장도 자기 방에 들어가 있는 사람이다
-        assertThat(roomService.create(r("r2"), u("host"))).isEqualTo(CreateResult.IN_OTHER_ROOM);
+        assertThat(roomService.create(r("r2"), u("host"), Set.of())).isEqualTo(CreateResult.IN_OTHER_ROOM);
 
         assertThat(host("r2")).isNull();
         assertThat(members("r2")).isEmpty();
@@ -108,7 +123,7 @@ class RoomServiceCreateTest extends RoomTestSupport {
         // matching 이 쓰는 키다. 이 앱은 있는지만 본다 (docs/11 D-19)
         redisTemplate.opsForHash().putAll(key("qm:user:active-request:host"), Map.of("requestId", "req-1"));
 
-        assertThat(roomService.create(r("r1"), u("host"))).isEqualTo(CreateResult.ACTIVE_REQUEST_EXISTS);
+        assertThat(roomService.create(r("r1"), u("host"), Set.of())).isEqualTo(CreateResult.ACTIVE_REQUEST_EXISTS);
 
         assertThat(ownKeys("qm:room:")).isEmpty();
         assertThat(marker("host")).isNull();
@@ -123,7 +138,7 @@ class RoomServiceCreateTest extends RoomTestSupport {
         Map<CreateResult, AtomicInteger> counts = new ConcurrentHashMap<>();
         users("u", 100);
 
-        runConcurrently(100, i -> count(counts, roomService.create(r("r1"), u("u" + i))));
+        runConcurrently(100, i -> count(counts, roomService.create(r("r1"), u("u" + i), Set.of())));
 
         assertThat(counts.get(CreateResult.CREATED)).hasValue(1);
         assertThat(counts.get(CreateResult.ROOM_EXISTS)).hasValue(99);
@@ -142,7 +157,7 @@ class RoomServiceCreateTest extends RoomTestSupport {
             r("r" + i);
         }
 
-        runConcurrently(50, i -> count(counts, roomService.create(r("r" + i), u("host"))));
+        runConcurrently(50, i -> count(counts, roomService.create(r("r" + i), u("host"), Set.of())));
 
         assertThat(counts.get(CreateResult.CREATED)).hasValue(1);
         assertThat(counts.get(CreateResult.IN_OTHER_ROOM)).hasValue(49);

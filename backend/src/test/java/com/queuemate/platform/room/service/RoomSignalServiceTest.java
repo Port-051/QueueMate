@@ -32,7 +32,7 @@ class RoomSignalServiceTest extends RoomTestSupport {
     @DisplayName("같은 방의 상대에게 WEBRTC_SIGNAL 이 가고, 보낸 내용이 글자 그대로 실려 있다. 받는 사람 한 명에게만 간다")
     void deliversTheSignalVerbatim() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
         JsonNode signal = objectMapper.readTree(SIGNAL);
@@ -60,7 +60,7 @@ class RoomSignalServiceTest extends RoomTestSupport {
     @DisplayName("방장과 멤버 사이에도, 양방향으로 간다")
     void betweenHostAndMember() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         JsonNode signal = objectMapper.readTree("{\"kind\":\"answer\"}");
 
@@ -78,8 +78,8 @@ class RoomSignalServiceTest extends RoomTestSupport {
     @DisplayName("보낸 사람이 이 방에 없으면 NOT_IN_ROOM 이고 아무것도 발행하지 않는다 — 아무 방에도 없든, 다른 방에 있든, 이미 나갔든")
     void senderNotInRoom() throws Exception
     {
-        roomService.create(r("r1"), u("host1"));
-        roomService.create(r("r2"), u("host2"));
+        roomService.create(r("r1"), u("host1"), Set.of());
+        roomService.create(r("r2"), u("host2"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("gone"));
         roomMemberService.leave(r("r1"), u("gone"));
@@ -101,8 +101,8 @@ class RoomSignalServiceTest extends RoomTestSupport {
     @DisplayName("받는 사람이 이 방에 없으면 TARGET_NOT_IN_ROOM 이고 아무것도 발행하지 않는다 — 다른 방에 있는 사람에게 시그널을 쏠 수 없다")
     void targetNotInRoom() throws Exception
     {
-        roomService.create(r("r1"), u("host1"));
-        roomService.create(r("r2"), u("host2"));
+        roomService.create(r("r1"), u("host1"), Set.of());
+        roomService.create(r("r2"), u("host2"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         JsonNode signal = objectMapper.readTree("{}");
 
@@ -130,7 +130,7 @@ class RoomSignalServiceTest extends RoomTestSupport {
     @DisplayName("시그널은 Redis 에 남지 않는다 — 전달하고 나면 키가 하나도 늘지 않는다")
     void signalsAreNotStored() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         Set<String> before = ownKeys();
 

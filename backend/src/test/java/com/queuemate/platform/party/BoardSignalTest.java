@@ -99,7 +99,7 @@ class BoardSignalTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("글 쓰기(방까지 만든다) · 고치기 · 방장 확정 · 방장이 지우기에 신호가 한 번씩 온다. 거절된 요청 · 그냥 읽기에는 오지 않는다")
+    @DisplayName("글 쓰기(방까지 만든다) · 방장 확정 · 방장이 지우기에 신호가 한 번씩 온다. 거절된 요청(없어진 고치기의 405 포함) · 그냥 읽기에는 오지 않는다")
     void signalsOnChangesOnly() throws Exception
     {
         String host = newNickname();
@@ -111,11 +111,9 @@ class BoardSignalTest extends PostTestSupport {
         // 글과 방이 한 트랜잭션에서 생긴다 — 방 만들기의 신호와 글의 신호가 합쳐져 커밋 뒤에 한 번이다
         assertThat(drain()).isEqualTo(1);
 
+        // 거절 — 롤백된 것도, 아무것도 안 바뀐 것도 알리지 않는다. 글은 고칠 수 없다(2026-10-01 소유자 결정 — PATCH 는 405)
         mockMvc.perform(patch("/api/v1/posts/" + postId).cookie(cookie)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"바꿨다\"}")).andExpect(status().isOk());
-        assertThat(drain()).isEqualTo(1);
-
-        // 거절 — 롤백된 것도, 아무것도 안 바뀐 것도 알리지 않는다
+                .contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"바꿨다\"}")).andExpect(status().isMethodNotAllowed());
         createPost(cookie, lolPostBody("또 쓴다")).andExpect(status().isConflict());
         mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(other)).andExpect(status().isForbidden());
         mockMvc.perform(get("/api/v1/posts/" + postId).cookie(other)).andExpect(status().isOk());

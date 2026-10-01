@@ -8,7 +8,7 @@ package com.queuemate.platform.room.domain;
  */
 public enum KickResult {
 
-    /** 강퇴했다. 대상이 멤버 SET 에서 빠지고, 대상의 입장 표시 키가 이 방을 가리키고 있었다면 지워졌다 */
+    /** 강퇴했다. 대상이 멤버 HASH 에서 빠지고, 대상의 입장 표시 키가 이 방을 가리키고 있었다면 지워졌다 */
     KICKED(1),
 
     /** 대상이 이 방의 멤버가 아니다. 이미 나갔거나 들어온 적이 없다 — 아무것도 지우지 않았다 */

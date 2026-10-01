@@ -15,7 +15,6 @@ import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -25,12 +24,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p><b>글을 쓰면 방이 같이 생긴다</b>(2026-09-25 2단계 — {@code POST /api/v1/posts} 가 방 만들기 스크립트를 부른다). 방장이 혼자 들어 있는 방이다.
  * 그 밖의 상태(남이 들어와 있다 · 방이 사라졌다 · 확정 표시 키만 있다)는 <b>테스트가 Redis 에 직접 써서 만든다</b>
- * ({@code SET qm:room:{id}:host} · {@code SADD …:members} · {@code SET …:confirmed}) — 방의 스크립트가 쓰는 것과 같은 키 · 같은 자료형이다.
+ * ({@code SET qm:room:{id}:host} · {@code HSET …:members} · {@code SET …:confirmed}) — 방의 스크립트가 쓰는 것과 같은 키 · 같은 자료형이다
+ * (멤버 키는 2026-09-30 부터 HASH 다 — 필드 = 사용자 번호 · 값 = 참가할 때 고른 포지션, 고르지 않았으면 {@code ""}. P-44).
  * 입장 · 확정을 진짜로 거치는 테스트는 HTTP 로 부른다({@code PostRoomFlowTest}). 손으로 쓰는 쪽은 "스크립트가 만들 수 없는 모양"(가입하지 않은 번호 ·
  * 숫자가 아닌 값 · 커밋이 실패해 확정 표시 키만 남은 방)을 만들 때 쓴다.
  * 키 이름을 main 의 상수에서 가져오지 않고 <b>글자로 적었다</b> — 상수에 오타가 나면 이 테스트들이 깨져야 한다({@code room.redisKeys.RoomKeys} 가 원본이다).
  *
- * <p>끝나면 자기가 쓴 키만 지운다 — 방 키 셋과, 그 방에 들어 있던 사람들의 입장 표시 키. <b>{@code FLUSHDB} 금지</b> — 같은 Redis 를 다른 테스트 · 앱이 쓴다.
+ * <p>끝나면 자기가 쓴 키만 지운다 — 방 키 넷(찾는 포지션 SET 포함)과, 그 방에 들어 있던 사람들의 입장 표시 키. <b>{@code FLUSHDB} 금지</b> — 같은 Redis 를 다른 테스트 · 앱이 쓴다.
  */
 abstract class PostTestSupport extends ApiTestSupport {
 
@@ -40,7 +40,7 @@ abstract class PostTestSupport extends ApiTestSupport {
     /** 이 테스트가 방 키를 쓴 방. 끝나면 그 방의 키 셋을 지운다 */
     private final List<Long> touchedRooms = new CopyOnWriteArrayList<>();
 
-    /** 이 테스트에서 방에 들어갔던 사람 — 끝나면 입장 표시 키를 지운다(방이 먼저 사라지면 멤버 SET 으로는 알 수 없다) */
+    /** 이 테스트에서 방에 들어갔던 사람 — 끝나면 입장 표시 키를 지운다(방이 먼저 사라지면 멤버 HASH 로는 알 수 없다) */
     private final List<Long> touchedUsers = new CopyOnWriteArrayList<>();
 
     @AfterEach
@@ -48,12 +48,8 @@ abstract class PostTestSupport extends ApiTestSupport {
     {
         for(Long roomId : touchedRooms)
         {
-            Set<String> members = redisTemplate.opsForSet().members(membersKey(roomId));
-            if(members != null)
-            {
-                members.forEach(member -> redisTemplate.delete("qm:user:active-room:" + member));
-            }
-            redisTemplate.delete(List.of(hostKey(roomId), membersKey(roomId), confirmedKey(roomId)));
+            memberIds(roomId).forEach(member -> redisTemplate.delete("qm:user:active-room:" + member));
+            redisTemplate.delete(List.of(hostKey(roomId), membersKey(roomId), confirmedKey(roomId), needsKey(roomId)));
         }
         touchedUsers.forEach(userId -> redisTemplate.delete(List.of("qm:user:active-room:" + userId,
                 // 나가기 · 강퇴가 남기는 10분 금지 목록(2026-09-29) — 방이 아니라 사람의 키라 방 키와 같이 안 지워진다
@@ -86,18 +82,77 @@ abstract class PostTestSupport extends ApiTestSupport {
         return "qm:room:" + roomId + ":confirmed";
     }
 
+    /** 찾는 포지션 SET(2026-09-30 — P-44). 글 쓰기가 방을 만들 때 글의 찾는 포지션을 넣는다 */
+    protected static String needsKey(Long roomId)
+    {
+        return "qm:room:" + roomId + ":needs";
+    }
+
+    /** 멤버 HASH 의 필드(방에 있는 사람의 사용자 번호 — 문자열). 방이 없으면 비어 있다 */
+    protected Set<String> memberIds(Long roomId)
+    {
+        Set<String> members = new TreeSet<>();
+        redisTemplate.opsForHash().keys(membersKey(roomId)).forEach(field -> members.add(String.valueOf(field)));
+        return members;
+    }
+
+    /** 그 사람이 참가할 때 고른 포지션(멤버 HASH 의 값). 방에 없으면 {@code null}, 고르지 않았으면 {@code ""} */
+    protected String positionOf(Long roomId, Object userId)
+    {
+        Object value = redisTemplate.opsForHash().get(membersKey(roomId), String.valueOf(userId));
+        return value == null ? null : value.toString();
+    }
+
+    /** 멤버 HASH 에 손으로 넣는다 — 포지션은 {@code ""}(고르지 않았다) */
+    protected void addMember(Long roomId, Object userId)
+    {
+        addMember(roomId, userId, "");
+    }
+
+    /** 멤버 HASH 에 손으로 넣는다 — 그 사람이 참가할 때 {@code position} 을 골랐던 것처럼 */
+    protected void addMember(Long roomId, Object userId, String position)
+    {
+        redisTemplate.opsForHash().put(membersKey(roomId), String.valueOf(userId), position);
+    }
+
     /**
-     * 방장 키를 (다시) 쓰고 멤버 SET 에 방장과 나머지를 넣는다 — 손으로 만드는 입장이다(입장 표시 키 · 차단 검사를 거치지 않는다). 수명은 방과 같은 600초다.
+     * 찾는 포지션 SET 을 손으로 쓴다 — 글 쓰기가 방을 만들 때 글의 찾는 포지션을 넣는 것({@code create-room.lua})과 같다(P-44). 수명은 방과 같은 600초다.
+     * 비어 있으면 쓰지 않는다(포지션이 없는 모드 · 옛 글의 방에는 이 키가 없다)
+     */
+    protected void setNeeds(Long roomId, String... positions)
+    {
+        if(positions.length == 0)
+        {
+            return;
+        }
+        touchedRooms.add(roomId);
+        redisTemplate.opsForSet().add(needsKey(roomId), positions);
+        redisTemplate.expire(needsKey(roomId), java.time.Duration.ofSeconds(600));
+    }
+
+    /** 방에 들어온다({@code POST /api/v1/rooms/{roomId}/members}). {@code position} 이 {@code null} 이면 쿼리를 싣지 않는다 */
+    protected ResultActions enterRoom(Cookie cookie, Long roomId, String position) throws Exception
+    {
+        MockHttpServletRequestBuilder request = post("/api/v1/rooms/" + roomId + "/members").cookie(cookie);
+        if(position != null)
+        {
+            request.param("position", position);
+        }
+        return mockMvc.perform(request);
+    }
+
+    /**
+     * 방장 키를 (다시) 쓰고 멤버 HASH 에 방장과 나머지를 넣는다(포지션은 {@code ""}) — 손으로 만드는 입장이다(입장 표시 키 · 차단 · 포지션 검사를 거치지 않는다). 수명은 방과 같은 600초다.
      * {@code others} 는 보통 사용자 번호({@code Long})지만, 누가 Redis 에 손으로 넣었을 아무 문자열도 그대로 넣을 수 있다
      */
     protected void openRoom(Long roomId, Long hostId, Object... others)
     {
         touchedRooms.add(roomId);
         redisTemplate.opsForValue().set(hostKey(roomId), String.valueOf(hostId), java.time.Duration.ofSeconds(600));
-        redisTemplate.opsForSet().add(membersKey(roomId), String.valueOf(hostId));
+        addMember(roomId, hostId);
         for(Object other : others)
         {
-            redisTemplate.opsForSet().add(membersKey(roomId), String.valueOf(other));
+            addMember(roomId, other);
         }
         redisTemplate.expire(membersKey(roomId), java.time.Duration.ofSeconds(600));
     }
@@ -113,17 +168,13 @@ abstract class PostTestSupport extends ApiTestSupport {
     }
 
     /**
-     * 방이 사라졌다 — 방장 키 · 멤버 SET · 확정 표시 키와 <b>그 방 사람들의 입장 표시 키</b>가 함께 사라진다(방장이 나가면 나가기 스크립트가 그렇게 한다).
+     * 방이 사라졌다 — 방장 키 · 멤버 HASH · 찾는 포지션 SET · 확정 표시 키와 <b>그 방 사람들의 입장 표시 키</b>가 함께 사라진다(방장이 나가면 나가기 스크립트가 그렇게 한다).
      * 입장 표시 키까지 지우는 것은 그 사람들이 다음 글을 쓸 수 있게 하려는 것이다 — 남아 있으면 409 {@code IN_OTHER_ROOM} 이다
      */
     protected void closeRoom(Long roomId)
     {
-        Set<String> members = redisTemplate.opsForSet().members(membersKey(roomId));
-        if(members != null)
-        {
-            members.forEach(member -> redisTemplate.delete("qm:user:active-room:" + member));
-        }
-        redisTemplate.delete(List.of(hostKey(roomId), membersKey(roomId), confirmedKey(roomId)));
+        memberIds(roomId).forEach(member -> redisTemplate.delete("qm:user:active-room:" + member));
+        redisTemplate.delete(List.of(hostKey(roomId), membersKey(roomId), confirmedKey(roomId), needsKey(roomId)));
     }
 
     /** 지금 Redis 에 있는 {@code qm:room:*} · {@code qm:user:*} · {@code qm:party:*} 키 — 읽기만 하는 요청이 키를 만들거나 지우지 않았는지 볼 때 쓴다 */
@@ -150,12 +201,6 @@ abstract class PostTestSupport extends ApiTestSupport {
         return created;
     }
 
-    protected ResultActions editPost(Cookie cookie, long postId, String body) throws Exception
-    {
-        return mockMvc.perform(patch("/api/v1/posts/" + postId).cookie(cookie)
-                .contentType(MediaType.APPLICATION_JSON).content(body));
-    }
-
     /** LOL 글을 하나 쓰고 그 id 를 돌려준다 */
     protected Long createLolPost(Cookie cookie, String... wantedPositions) throws Exception
     {
@@ -165,14 +210,21 @@ abstract class PostTestSupport extends ApiTestSupport {
     /**
      * <b>5인 모드</b>({@code RANKED_FLEX_5} — 정원 5)의 LOL 글을 하나 쓰고 그 id 를 돌려준다. <b>방에 세 사람 이상이 들어가야 하는 테스트가 쓴다</b> —
      * 테스트의 기본 모드({@code RANKED_SOLO})는 게시판 방의 정원이 그 모드의 인원 2 다(2026-09-30 — P-41. 세 번째 입장은 409 {@code ROOM_FULL}).
-     * 찾는 포지션을 안 주면 {@link #defaultWantedPositions} 이고 방장 포지션은 {@link #defaultHostPosition} 이 고른다({@link #postBody} 와 같다)
+     * 찾는 포지션을 안 주면 {@link #FIVE_PERSON_LOL_WANTED}(방장 {@code JUNGLE} 을 뺀 넷)이고 방장 포지션은 {@link #defaultHostPosition} 이 고른다({@link #postBody} 와 같다).
+     * <b>찾는 포지션은 정원 − 1 개 이상이어야 한다</b>(2026-09-30 소유자 결정 — 5인이면 넷) — 직접 줄 때도 넷 이상이어야 201 이다
      */
     protected Long createFivePersonLolPost(Cookie cookie, String... wantedPositions) throws Exception
     {
-        String[] wanted = wantedPositions.length == 0 ? defaultWantedPositions("LOL") : wantedPositions;
+        String[] wanted = wantedPositions.length == 0 ? FIVE_PERSON_LOL_WANTED.clone() : wantedPositions;
         return createdId(createPost(cookie, postBodyWithHostPosition("LOL", LOL_MODE_2, "같이 하실 분", "{}",
                 defaultHostPosition("LOL", wanted), wanted)).andExpect(status().isCreated()));
     }
+
+    /**
+     * 5인 LoL 글({@link #createFivePersonLolPost})의 기본 찾는 포지션 — 방장 포지션의 첫 후보({@code JUNGLE} — {@link #defaultHostPosition})를 뺀 넷.
+     * 찾는 포지션 수가 정원 − 1 이상이어야 해서다(2026-09-30 소유자 결정 — 5인이면 넷). 게임의 포지션 순서로 적었다 — 응답도 그 순서로 나간다
+     */
+    protected static final String[] FIVE_PERSON_LOL_WANTED = {"TOP", "MID", "ADC", "SUPPORT"};
 
     protected static String lolPostBody(String title, String... wantedPositions)
     {

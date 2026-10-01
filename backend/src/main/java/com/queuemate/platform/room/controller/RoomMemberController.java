@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -37,11 +38,17 @@ public class RoomMemberController {
      * 방에 들어온다. <b>입장권이 없다</b>(2026-09-25 2단계 — 소유자 결정 ①: 경로는 그대로다). 두 앱이던 때 입장권 발급이 보던 것(글이 모집 중인가 ·
      * 방 안의 누구와도 차단 관계가 아닌가)을 이 요청 안에서 먼저 본다 — 404 {@code POST_NOT_FOUND} · 409 {@code POST_NOT_RECRUITING}
      * ({@link RoomMemberService#enter} 의 순서). 그 거절은 서비스가 {@code ApiException} 으로 던지므로 아래 {@code switch} 에 없다.
+     *
+     * <p><b>참가할 때 포지션을 고른다</b>(2026-09-30 소유자 결정 — P-44) — 쿼리 {@code ?position=JUNGLE}(본문이 아니다 — 소유자가 정했다). 포지션을 골라 들어오는 방
+     * (그 글에 찾는 포지션이 있다)이면 남은 찾는 포지션 하나가 필수이고, 포지션이 없는 방이면 주지 않는다(주면 400). 이미 들어와 있는 사람의 재입장(200)은
+     * {@code position} 을 보지 않는다 — 들어온 뒤에는 바꿀 수 없다. 빈 값({@code ?position=})은 안 준 것과 같다.
      */
     @PostMapping("members")
-    public ResponseEntity<Void> enter(@CurrentUserId Long userId, @PathVariable String roomId)
+    public ResponseEntity<Void> enter(@CurrentUserId Long userId, @PathVariable String roomId,
+                                      @RequestParam(required = false) String position)
     {
-        EnterResult result = roomMemberService.enter(roomId, String.valueOf(userId));
+        EnterResult result = roomMemberService.enter(roomId, String.valueOf(userId), position);
+        boolean chosen = position != null && !position.isBlank();
 
         return switch (result) {
             case ENTERED -> ResponseEntity.status(HttpStatus.CREATED).build();
@@ -56,6 +63,14 @@ public class RoomMemberController {
             // 다른 방에는 그대로 들어갈 수 있고, 시간이 지나면 풀린다(Claude 가 정한 세부 — 계약에 적어야 한다)
             case KICKED_RECENTLY -> throw new ApiException(HttpStatus.FORBIDDEN, "KICKED_RECENTLY",
                     "강퇴당한 파티방에는 10분 동안 다시 들어갈 수 없습니다");
+            // 포지션(2026-09-30 소유자 결정 — P-44). 스크립트는 -6 하나로 돌려준다 — 포지션 방인데 안 골랐거나 남은 찾는 포지션에 없다(남이 이미 고른 것도 SET 에서 빠져 있어 여기다) ·
+            // 포지션이 없는 방인데 골랐다.
+            // 글귀는 Claude 가 정한 세부다(계약 P-44)
+            case INVALID_POSITION -> throw ApiException.validationFailed("position",
+                    chosen ? "이 파티방에서 고를 수 없는 포지션입니다" : "필요합니다");
+            // 지금 스크립트는 -8 을 돌려주지 않는다(2026-09-30 — 고른 포지션을 SET 에서 빼는 방식으로 바꿨다). switch 가 enum 을 다 덮어야 해서 남겨 둔다
+            case POSITION_TAKEN -> throw new ApiException(HttpStatus.CONFLICT, "POSITION_TAKEN",
+                    "이미 다른 사람이 고른 포지션입니다");
         };
     }
 
@@ -68,7 +83,9 @@ public class RoomMemberController {
         RoomMembersResult result = roomMemberService.members(roomId, String.valueOf(userId));
 
         return switch (result.status()) {
-            case FOUND -> new RoomMembersResponse(roomId, result.hostId(), result.members());
+            case FOUND -> new RoomMembersResponse(roomId, result.hostId(), result.members().stream()
+                    .map(member -> new RoomMembersResponse.Member(member.userId(), member.position()))
+                    .toList());
             // 방 밖의 사람에게는 목록을 보여 주지 않는다. 이미 나갔거나 방이 없어진 경우도 여기로 온다 —
             // 방이 없어질 때 그 방 사람들의 입장 표시가 같이 지워지므로 스크립트의 첫 검사에서 걸린다
             case NOT_IN_ROOM -> throw RoomErrors.notInRoom();
@@ -97,7 +114,7 @@ public class RoomMemberController {
      * 권한 애너테이션을 쓰지 않는다: 방장은 계정의 role 이 아니라 방마다 다른 Redis 의 상태다.
      *
      * <p>나가기의 {@code members/me} 와 경로 모양이 겹치지만 글자 그대로의 경로가 패턴보다 먼저 잡힌다 — {@code me} 는 언제나 나가기다.
-     * {@code targetUserId} 는 글자 그대로 받는다 — 숫자가 아니어도 400 이 아니라 멤버 SET 에 없으니 404 {@code TARGET_NOT_IN_ROOM} 이다(합치기 전과 같다).
+     * {@code targetUserId} 는 글자 그대로 받는다 — 숫자가 아니어도 400 이 아니라 멤버 HASH 에 없으니 404 {@code TARGET_NOT_IN_ROOM} 이다(합치기 전과 같다).
      */
     @DeleteMapping("members/{targetUserId}")
     public ResponseEntity<Void> kick(@CurrentUserId Long userId, @PathVariable String roomId,

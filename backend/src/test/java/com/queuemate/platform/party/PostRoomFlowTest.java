@@ -7,6 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import tools.jackson.databind.JsonNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,7 +41,7 @@ class PostRoomFlowTest extends PostTestSupport {
     // ---- 글 쓰기 = 방 만들기 ----
 
     @Test
-    @DisplayName("글을 쓰면 방이 같이 생긴다 — 방장 키 · 멤버 SET · 입장 표시 키에 쓴 사람이 들어가고, 내 방 찾기가 그 글의 번호를 준다")
+    @DisplayName("글을 쓰면 방이 같이 생긴다 — 방장 키 · 멤버 HASH · 입장 표시 키에 쓴 사람이 들어가고, 내 방 찾기가 그 글의 번호를 준다")
     void createMakesTheRoom() throws Exception
     {
         String host = newNickname();
@@ -50,7 +51,10 @@ class PostRoomFlowTest extends PostTestSupport {
         Long postId = createLolPost(cookie);
 
         assertThat(redisTemplate.opsForValue().get(hostKey(postId))).isEqualTo(Long.toString(hostId));
-        assertThat(redisTemplate.opsForSet().members(membersKey(postId))).containsExactly(Long.toString(hostId));
+        assertThat(memberIds(postId)).containsExactly(Long.toString(hostId));
+        // 방장의 값은 글의 방장 포지션이다(createLolPost 는 정글). 찾는 포지션 SET 에 글의 찾는 포지션이 남은 찾는 포지션으로 들어 있다(P-44)
+        assertThat(positionOf(postId, hostId)).isEqualTo("JUNGLE");
+        assertThat(redisTemplate.opsForSet().members(needsKey(postId))).containsExactly("SUPPORT");
         assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + hostId)).isEqualTo(Long.toString(postId));
         assertThat(redisTemplate.getExpire(hostKey(postId))).isBetween(1L, 600L);
         mockMvc.perform(get("/api/v1/rooms/me").cookie(cookie))
@@ -67,7 +71,7 @@ class PostRoomFlowTest extends PostTestSupport {
         Long postId = createLolPost(login(host));
         Cookie guestCookie = login(guest);
         Long guestId = userIdOf(guest);
-        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(guestCookie)).andExpect(status().isCreated());
+        enterRoom(guestCookie, postId, "SUPPORT").andExpect(status().isCreated());
 
         createPost(guestCookie, lolPostBody("내 방도 열자"))
                 .andExpect(status().isConflict())
@@ -132,7 +136,7 @@ class PostRoomFlowTest extends PostTestSupport {
         mockMvc.perform(delete("/api/v1/posts/" + expired).cookie(expiredHostCookie)).andExpect(status().isNoContent());
         mockMvc.perform(post("/api/v1/rooms/" + expired + "/members").cookie(guestCookie))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("POST_NOT_RECRUITING"));
-        assertThat(redisTemplate.opsForSet().members(membersKey(expired))).doesNotContain(Long.toString(guestId));
+        assertThat(memberIds(expired)).doesNotContain(Long.toString(guestId));
 
         // 글은 아직 모집 중인데 방이 사라졌다(아무도 목록을 안 봐서 만료로 옮겨 적히기 전이다) — 스크립트가 답한다
         closeRoom(vanished);
@@ -168,13 +172,13 @@ class PostRoomFlowTest extends PostTestSupport {
         Long postId = createLolPost(login(host));
         Cookie firstCookie = login(first);
         Cookie secondCookie = login(second);
-        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(firstCookie)).andExpect(status().isCreated());
+        enterRoom(firstCookie, postId, "SUPPORT").andExpect(status().isCreated());
         // second 가 방 안의 first 를 차단했다 — 방장과는 아무 사이도 아니다
         block(secondCookie, userIdOf(first));
 
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(secondCookie))
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
-        assertThat(redisTemplate.opsForSet().members(membersKey(postId))).hasSize(2);
+        assertThat(memberIds(postId)).hasSize(2);
     }
 
     @Test
@@ -187,7 +191,7 @@ class PostRoomFlowTest extends PostTestSupport {
         Cookie memberCookie = login(member);
         Cookie latecomer = login(newNickname());
         Long postId = createLolPost(hostCookie);
-        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(memberCookie)).andExpect(status().isCreated());
+        enterRoom(memberCookie, postId, "SUPPORT").andExpect(status().isCreated());
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
         assertThat(statusOf(postId)).isEqualTo("CONFIRMED");
 
@@ -196,6 +200,162 @@ class PostRoomFlowTest extends PostTestSupport {
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(hostCookie)).andExpect(status().isOk());
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(latecomer))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("POST_NOT_RECRUITING"));
+    }
+
+    // ---- 참가할 때 포지션을 고른다 (2026-09-30 소유자 결정 — P-44) ----
+
+    @Test
+    @DisplayName("포지션을 골라 들어온다(?position=) — 안 고르면 400 · 찾는 포지션이 아니면 400 · 남이 고른 것도 400(남은 찾는 포지션에서 빠졌다) · 고르면 201 이고 멤버 HASH 에 적힌다. 재입장은 포지션 없이 200 이다")
+    void choosePositionWhenEntering() throws Exception
+    {
+        String host = newNickname();
+        Cookie hostCookie = login(host);
+        String a = newNickname();
+        String b = newNickname();
+        Cookie aCookie = login(a);
+        Cookie bCookie = login(b);
+        Long aId = userIdOf(a);
+        Long bId = userIdOf(b);
+        // 5인 모드 · 찾는 포지션은 TOP · MID · ADC · SUPPORT, 방장은 JUNGLE 이다
+        Long postId = createFivePersonLolPost(hostCookie);
+        track(postId, aId, bId);
+        assertThat(positionOf(postId, userIdOf(host))).isEqualTo("JUNGLE");
+
+        enterRoom(aCookie, postId, null)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.details[0]").value("position: 필요합니다"));
+        enterRoom(aCookie, postId, "")
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.details[0]").value("position: 필요합니다"));
+        // 방장의 포지션(찾는 포지션이 아니다) · 다른 게임의 포지션
+        for(String unwanted : new String[]{"JUNGLE", "DUELIST"})
+        {
+            enterRoom(aCookie, postId, unwanted)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                    .andExpect(jsonPath("$.details[0]").value("position: 이 파티방에서 고를 수 없는 포지션입니다"));
+        }
+        assertThat(memberIds(postId)).doesNotContain(Long.toString(aId));
+        assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + aId)).isNull();
+
+        enterRoom(aCookie, postId, "MID").andExpect(status().isCreated());
+        assertThat(positionOf(postId, aId)).isEqualTo("MID");
+
+        // 남이 고른 포지션은 남은 찾는 포지션에서 빠져 있다 — 스크립트가 -6 하나로 답하므로 "고를 수 없는 포지션" 과 같은 400 이다(409 POSITION_TAKEN 이 아니다)
+        enterRoom(bCookie, postId, "MID")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.details[0]").value("position: 이 파티방에서 고를 수 없는 포지션입니다"));
+        assertThat(memberIds(postId)).doesNotContain(Long.toString(bId));
+
+        // 새로고침 — 포지션을 안 줘도 · 다른 것을 줘도 200 이고 고른 포지션은 그대로다(들어온 뒤에는 못 바꾼다)
+        enterRoom(aCookie, postId, null).andExpect(status().isOk());
+        enterRoom(aCookie, postId, "TOP").andExpect(status().isOk());
+        assertThat(positionOf(postId, aId)).isEqualTo("MID");
+
+        enterRoom(bCookie, postId, "TOP").andExpect(status().isCreated());
+        assertThat(positionOf(postId, bId)).isEqualTo("TOP");
+        // 고른 둘(미드 · 탑)이 빠졌다
+        assertThat(redisTemplate.opsForSet().members(needsKey(postId))).containsExactlyInAnyOrder("ADC", "SUPPORT");
+    }
+
+    @Test
+    @DisplayName("나가거나 강퇴되면 고른 포지션이 남은 찾는 포지션에 돌아온다 — 다른 사람이 그 포지션으로 201 이다")
+    void leavingOrKickFreesThePosition() throws Exception
+    {
+        Cookie hostCookie = login(newNickname());
+        String a = newNickname();
+        String b = newNickname();
+        String c = newNickname();
+        Cookie aCookie = login(a);
+        Cookie bCookie = login(b);
+        Cookie cCookie = login(c);
+        Long aId = userIdOf(a);
+        Long bId = userIdOf(b);
+        Long cId = userIdOf(c);
+        Long postId = createFivePersonLolPost(hostCookie);
+        track(postId, aId, bId, cId);
+
+        enterRoom(aCookie, postId, "MID").andExpect(status().isCreated());
+        mockMvc.perform(delete("/api/v1/rooms/" + postId + "/members/me").cookie(aCookie)).andExpect(status().isNoContent());
+        assertThat(redisTemplate.opsForSet().members(needsKey(postId))).containsExactlyInAnyOrder(FIVE_PERSON_LOL_WANTED);
+        enterRoom(bCookie, postId, "MID").andExpect(status().isCreated());
+
+        mockMvc.perform(delete("/api/v1/rooms/" + postId + "/members/" + bId).cookie(hostCookie)).andExpect(status().isNoContent());
+        assertThat(redisTemplate.opsForSet().members(needsKey(postId))).containsExactlyInAnyOrder(FIVE_PERSON_LOL_WANTED);
+        enterRoom(cCookie, postId, "MID").andExpect(status().isCreated());
+        assertThat(positionOf(postId, cId)).isEqualTo("MID");
+        assertThat(positionOf(postId, bId)).isNull();
+    }
+
+    @Test
+    @DisplayName("포지션이 없는 모드(PUBG)의 방은 포지션 없이 201 이고 값은 \"\" 다 — 포지션을 주면 400 이다(조용히 버리지 않는다)")
+    void noPositionRoomTakesNoPosition() throws Exception
+    {
+        Cookie hostCookie = login(newNickname());
+        String guest = newNickname();
+        Cookie guestCookie = login(guest);
+        Long guestId = userIdOf(guest);
+        Long postId = createdId(createPost(hostCookie, postBody("PUBG", "치킨 먹자", "{\"perspective\":\"TPP\"}"))
+                .andExpect(status().isCreated()));
+        track(postId, guestId);
+        assertThat(redisTemplate.hasKey(needsKey(postId))).isFalse();
+
+        enterRoom(guestCookie, postId, "MID")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.details[0]").value("position: 이 파티방에서 고를 수 없는 포지션입니다"));
+        // 거절은 아무것도 쓰지 않는다 — 멤버 HASH · 입장 표시 키 · 찾는 포지션 SET 전부
+        assertThat(memberIds(postId)).doesNotContain(Long.toString(guestId));
+        assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + guestId)).isNull();
+        assertThat(redisTemplate.hasKey(needsKey(postId))).isFalse();
+        enterRoom(guestCookie, postId, null).andExpect(status().isCreated());
+        assertThat(positionOf(postId, guestId)).isEmpty();
+        // 게시판 카드에도 포지션이 없다 — 멤버 HASH 의 "" 는 null 로 나간다(2026-10-01)
+        JsonNode line = body(mockMvc.perform(get("/api/v1/posts/" + postId).cookie(guestCookie)).andExpect(status().isOk()));
+        assertThat(line.get("members").size()).isEqualTo(2);
+        line.get("members").forEach(card -> assertThat(card.get("position").isNull()).isTrue());
+        assertThat(line.get("host").get("position").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("게시판 카드에 참가할 때 고른 포지션이 실린다 — 모집 중이면 방장은 방장 포지션 · 멤버는 고른 포지션(글 쓰기의 응답 · 목록 · 단건), 확정한 뒤에는 전부 null 이다(2026-10-01 소유자 결정)")
+    void cardsCarryChosenPositions() throws Exception
+    {
+        String host = newNickname();
+        Cookie hostCookie = login(host);
+        Long hostId = userIdOf(host);
+        String guest = newNickname();
+        Cookie guestCookie = login(guest);
+        Long guestId = userIdOf(guest);
+        Cookie viewer = login(newNickname());
+
+        // 글 쓰기의 응답 — 방장 혼자이고 방장 포지션(정글)이 실린다
+        JsonNode created = body(createPost(hostCookie, postBodyWithHostPosition("LOL", LOL_MODE_2, "포지션 카드", "{}", "JUNGLE",
+                FIVE_PERSON_LOL_WANTED)).andExpect(status().isCreated()));
+        Long postId = created.get("postId").asLong();
+        track(postId, guestId);
+        assertThat(created.get("members").get(0).get("position").asString()).isEqualTo("JUNGLE");
+        assertThat(created.get("host").get("position").asString()).isEqualTo("JUNGLE");
+
+        enterRoom(guestCookie, postId, "MID").andExpect(status().isCreated());
+
+        // 목록과 단건이 같은 카드다 — 방 키를 읽을 때 같이 온 멤버 HASH 의 값이다
+        for(JsonNode line : List.of(find(list(viewer, "LOL"), postId),
+                body(mockMvc.perform(get("/api/v1/posts/" + postId).cookie(viewer)).andExpect(status().isOk()))))
+        {
+            assertThat(cardOf(line, hostId).get("position").asString()).isEqualTo("JUNGLE");
+            assertThat(cardOf(line, guestId).get("position").asString()).isEqualTo("MID");
+            assertThat(line.get("host").get("position").asString()).isEqualTo("JUNGLE");
+        }
+
+        // 확정한 뒤에는 카드가 파티 기록에서 오고 포지션을 싣지 않는다 — 소유자: "확정한 이후에 굳이 보여 줄 필요가 없다"
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
+        JsonNode confirmed = body(mockMvc.perform(get("/api/v1/posts/" + postId).cookie(viewer)).andExpect(status().isOk()));
+        assertThat(confirmed.get("status").asString()).isEqualTo("CONFIRMED");
+        assertThat(confirmed.get("members").size()).isEqualTo(2);
+        confirmed.get("members").forEach(card -> assertThat(card.get("position").isNull()).isTrue());
+        assertThat(confirmed.get("host").get("position").isNull()).isTrue();
     }
 
     // ---- 방장 확정 한 길 ----
@@ -211,9 +371,9 @@ class PostRoomFlowTest extends PostTestSupport {
         Long hostId = userIdOf(host);
         Long memberId = userIdOf(member);
         Long postId = createLolPost(hostCookie);
-        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(memberCookie)).andExpect(status().isCreated());
+        enterRoom(memberCookie, postId, "SUPPORT").andExpect(status().isCreated());
         // 사용자 번호일 수 없는 값 — 누가 손으로 넣었다. 파티원으로 적지 않는다
-        redisTemplate.opsForSet().add(membersKey(postId), "NOT-A-NUMBER-" + "x".repeat(30));
+        redisTemplate.opsForHash().put(membersKey(postId), "NOT-A-NUMBER-" + "x".repeat(30), "");
 
         // 방장이 아니면 방의 스크립트가 거절한다 — 글은 그대로다
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(memberCookie))
@@ -266,7 +426,7 @@ class PostRoomFlowTest extends PostTestSupport {
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("ROOM_NOT_FOUND"));
         assertThat(statusOf(postId)).isEqualTo("RECRUITING");
 
-        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(memberCookie)).andExpect(status().isCreated());
+        enterRoom(memberCookie, postId, "SUPPORT").andExpect(status().isCreated());
         mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(hostCookie)).andExpect(status().isNoContent());
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("POST_NOT_RECRUITING"));
@@ -307,7 +467,7 @@ class PostRoomFlowTest extends PostTestSupport {
         Long hostId = userIdOf(host);
         Long guestId = userIdOf(guest);
         Long postId = createLolPost(hostCookie);
-        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(guestCookie)).andExpect(status().isCreated());
+        enterRoom(guestCookie, postId, "SUPPORT").andExpect(status().isCreated());
         track(postId, guestId);
 
         try(BoardSubscriber board = new BoardSubscriber(connectionFactory, objectMapper);
@@ -329,6 +489,8 @@ class PostRoomFlowTest extends PostTestSupport {
         assertThat(redisTemplate.hasKey(hostKey(postId))).isFalse();
         assertThat(redisTemplate.hasKey(membersKey(postId))).isFalse();
         assertThat(redisTemplate.hasKey(confirmedKey(postId))).isFalse();
+        // 찾는 포지션 SET 도 방과 같이 지워진다(P-44)
+        assertThat(redisTemplate.hasKey(needsKey(postId))).isFalse();
         assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + hostId)).isNull();
         assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + guestId)).isNull();
         // 전에는 방이 남아 409 IN_OTHER_ROOM 이었다
@@ -346,7 +508,7 @@ class PostRoomFlowTest extends PostTestSupport {
         Cookie guestCookie = login(guest);
         Long guestId = userIdOf(guest);
         Long postId = createLolPost(hostCookie);
-        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(guestCookie)).andExpect(status().isCreated());
+        enterRoom(guestCookie, postId, "SUPPORT").andExpect(status().isCreated());
         track(postId, guestId);
 
         try(BoardSubscriber board = new BoardSubscriber(connectionFactory, objectMapper))
@@ -361,6 +523,7 @@ class PostRoomFlowTest extends PostTestSupport {
         // 목록을 아무도 보지 않았다 — 옮겨 적기가 아니라 나가기가 만료시켰다
         assertThat(statusOf(postId)).isEqualTo("EXPIRED");
         assertThat(redisTemplate.hasKey(hostKey(postId))).isFalse();
+        assertThat(redisTemplate.hasKey(needsKey(postId))).isFalse();
         assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + guestId)).isNull();
         createLolPost(hostCookie);
     }
@@ -375,7 +538,7 @@ class PostRoomFlowTest extends PostTestSupport {
         Cookie memberCookie = login(member);
         Long memberId = userIdOf(member);
         Long postId = createLolPost(hostCookie);
-        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(memberCookie)).andExpect(status().isCreated());
+        enterRoom(memberCookie, postId, "SUPPORT").andExpect(status().isCreated());
         track(postId, memberId);
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
 
@@ -383,7 +546,7 @@ class PostRoomFlowTest extends PostTestSupport {
 
         assertThat(statusOf(postId)).isEqualTo("CONFIRMED");
         assertThat(redisTemplate.opsForValue().get(hostKey(postId))).isEqualTo(Long.toString(memberId));
-        assertThat(redisTemplate.opsForSet().members(membersKey(postId))).containsExactly(Long.toString(memberId));
+        assertThat(memberIds(postId)).containsExactly(Long.toString(memberId));
         assertThat(redisTemplate.hasKey(confirmedKey(postId))).isTrue();
         assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + memberId)).isEqualTo(Long.toString(postId));
     }
@@ -399,7 +562,7 @@ class PostRoomFlowTest extends PostTestSupport {
         Long hostId = userIdOf(host);
         Long memberId = userIdOf(member);
         Long postId = createLolPost(hostCookie);
-        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(memberCookie)).andExpect(status().isCreated());
+        enterRoom(memberCookie, postId, "SUPPORT").andExpect(status().isCreated());
         track(postId, memberId);
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
 
@@ -408,7 +571,7 @@ class PostRoomFlowTest extends PostTestSupport {
 
         assertThat(statusOf(postId)).isEqualTo("CONFIRMED");
         assertThat(redisTemplate.opsForValue().get(hostKey(postId))).isEqualTo(Long.toString(hostId));
-        assertThat(redisTemplate.opsForSet().members(membersKey(postId)))
+        assertThat(memberIds(postId))
                 .containsExactlyInAnyOrder(Long.toString(hostId), Long.toString(memberId));
         assertThat(redisTemplate.hasKey(confirmedKey(postId))).isTrue();
         assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + hostId)).isEqualTo(Long.toString(postId));
@@ -438,9 +601,9 @@ class PostRoomFlowTest extends PostTestSupport {
         Cookie hostCookie = login(host);
         Long hostId = userIdOf(host);
         Long postId = createLolPost(hostCookie);
-        // 멤버 SET 자리에 문자열을 넣어 나가기 스크립트가 SMEMBERS 에서 WRONGTYPE 으로 죽게 한다 — 스크립트는 아무것도 쓰기 전에 멈춘다
+        // 멤버 HASH 자리에 문자열을 넣어 나가기 스크립트가 HKEYS 에서 WRONGTYPE 으로 죽게 한다 — 스크립트는 아무것도 쓰기 전에 멈춘다
         redisTemplate.delete(membersKey(postId));
-        redisTemplate.opsForValue().set(membersKey(postId), "not-a-set");
+        redisTemplate.opsForValue().set(membersKey(postId), "not-a-hash");
         try
         {
             mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(hostCookie)).andExpect(status().isNoContent());
@@ -450,7 +613,7 @@ class PostRoomFlowTest extends PostTestSupport {
         }
         finally
         {
-            // 뒷정리(deleteRoomKeys)가 멤버 SET 을 SMEMBERS 로 읽는다 — 문자열이면 거기서 터진다
+            // 뒷정리(deleteRoomKeys)가 멤버 HASH 를 HKEYS 로 읽는다 — 문자열이면 거기서 터진다
             redisTemplate.delete(membersKey(postId));
         }
     }
@@ -471,6 +634,19 @@ class PostRoomFlowTest extends PostTestSupport {
             }
         }
         return received;
+    }
+
+    /** 글 한 줄의 카드 가운데 그 사람의 것. 없으면 단언이 실패한다 */
+    private static JsonNode cardOf(JsonNode line, Long userId)
+    {
+        for(JsonNode card : line.get("members"))
+        {
+            if(card.get("userId").asLong() == userId)
+            {
+                return card;
+            }
+        }
+        throw new AssertionError("카드가 없다 userId=" + userId);
     }
 
     private int postCountOf(Long hostId)

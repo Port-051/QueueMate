@@ -121,7 +121,7 @@ public class RecruitPost {
 
     /**
      * 방의 정원(2026-09-30 소유자 결정 — P-41) — 그 모드의 인원(gameconfig 모드 HASH 의 {@code targetPartySize})이고 방장을 포함한다.
-     * 글을 쓸 때 · 모드를 고칠 때 {@code PostService} 가 트랜잭션 밖에서 읽어 넘긴다. <b>V8 전에 쓴 글은 {@code NULL}</b> 이고 {@link #getCapacity()} 가 5 로 읽는다
+     * 글을 쓸 때 {@code PostService} 가 트랜잭션 밖에서 읽어 넘긴다(글은 고칠 수 없다 — 2026-10-01 소유자 결정). <b>V8 전에 쓴 글은 {@code NULL}</b> 이고 {@link #getCapacity()} 가 5 로 읽는다
      */
     @JdbcTypeCode(SqlTypes.SMALLINT)
     @Column(name = "capacity")
@@ -143,32 +143,6 @@ public class RecruitPost {
         this.capacity = capacity;
         this.status = PostStatus.RECRUITING;
         this.createdAt = now;
-        this.updatedAt = now;
-    }
-
-    /**
-     * 글의 내용을 고친다. 상태 · 방장 · 게임은 바뀌지 않는다. 부르는 쪽이 "준 것만" 골라 넘긴다 — 여기는 받은 대로 적는다.
-     * {@code capacity} 는 모드를 줬을 때만 다시 정해진다({@code PostService#edit} — 2026-09-30, P-41). {@code null} 이면 그대로다(옛 글의 {@code NULL} 도 그대로 남는다)
-     */
-    public void edit(String mode, String title, String description, VoicePreference voice,
-                     String conditions, Set<String> wantedPositions, String hostPosition, Integer capacity, Instant now)
-    {
-        this.mode = mode;
-        this.title = title;
-        this.description = description;
-        this.voice = voice;
-        this.conditions = conditions;
-        if(!this.wantedPositions.equals(wantedPositions))
-        {
-            // 같은 컬렉션을 비우고 다시 채운다 — 새 컬렉션으로 갈아 끼우면 Hibernate 가 줄을 전부 지우고 다시 넣는다
-            this.wantedPositions.retainAll(wantedPositions);
-            this.wantedPositions.addAll(wantedPositions);
-        }
-        this.hostPosition = hostPosition;
-        if(capacity != null)
-        {
-            this.capacity = capacity;
-        }
         this.updatedAt = now;
     }
 

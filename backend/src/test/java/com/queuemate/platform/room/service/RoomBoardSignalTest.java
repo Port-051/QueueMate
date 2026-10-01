@@ -16,6 +16,7 @@ import org.springframework.test.context.TestPropertySource;
 import tools.jackson.databind.JsonNode;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import java.util.Set;
 
 /**
  * 게시판 채널 신호({@code BOARD_CHANGED}). 방의 인원이 <b>실제로 바뀌었을 때만</b> {@code qm:pubsub:board} 에 나가는지를
@@ -36,7 +37,7 @@ class RoomBoardSignalTest extends RoomTestSupport {
     /** 수명이 2초라 JVM 이 막 떴을 때의 첫 실행이 방의 수명을 넘긴다 — 한 바퀴 돌려 데운다 ({@link RoomServiceConfirmTest} 와 같다) */
     private void warmUp()
     {
-        roomService.create(r("warm-up"), u("warm-up-host"));
+        roomService.create(r("warm-up"), u("warm-up-host"), Set.of());
         roomMemberService.enter(r("warm-up"), u("warm-up-member"));
         roomMemberService.heartbeat(r("warm-up"), u("warm-up-host"));
         roomMemberService.leave(r("warm-up"), u("warm-up-host"));
@@ -55,7 +56,7 @@ class RoomBoardSignalTest extends RoomTestSupport {
     {
         try (BoardSubscriber board = new BoardSubscriber(connectionFactory, objectMapper))
         {
-            assertThat(roomService.create(r("r1"), u("host"))).isEqualTo(CreateResult.CREATED);
+            assertThat(roomService.create(r("r1"), u("host"), Set.of())).isEqualTo(CreateResult.CREATED);
 
             JsonNode envelope = board.next();
             assertThat(envelope).isNotNull();
@@ -74,10 +75,10 @@ class RoomBoardSignalTest extends RoomTestSupport {
     @DisplayName("이미 있는 방을 또 만들려 하면 신호가 나가지 않는다")
     void rejectedCreateSendsNothing() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         try (BoardSubscriber board = new BoardSubscriber(connectionFactory, objectMapper))
         {
-            assertThat(roomService.create(r("r1"), u("u1"))).isEqualTo(CreateResult.ROOM_EXISTS);
+            assertThat(roomService.create(r("r1"), u("u1"), Set.of())).isEqualTo(CreateResult.ROOM_EXISTS);
 
             assertThat(board.nothingMore()).isTrue();
         }
@@ -87,7 +88,7 @@ class RoomBoardSignalTest extends RoomTestSupport {
     @DisplayName("입장하면 한 번 나간다. 재입장(이미 들어와 있다)과 거절(없는 방)에는 나가지 않는다")
     void enter() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         try (BoardSubscriber board = new BoardSubscriber(connectionFactory, objectMapper))
         {
             assertThat(roomMemberService.enter(r("r1"), u("u1"))).isEqualTo(EnterResult.ENTERED);
@@ -104,7 +105,7 @@ class RoomBoardSignalTest extends RoomTestSupport {
     @DisplayName("멤버가 나가면 한 번 나간다. 방에 없는 사람의 나가기에는 나가지 않는다")
     void memberLeaves() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         try (BoardSubscriber board = new BoardSubscriber(connectionFactory, objectMapper))
         {
@@ -121,7 +122,7 @@ class RoomBoardSignalTest extends RoomTestSupport {
     @DisplayName("방장이 나가 방이 없어지면 한 번 나간다")
     void roomClosed() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         try (BoardSubscriber board = new BoardSubscriber(connectionFactory, objectMapper))
         {
@@ -136,7 +137,7 @@ class RoomBoardSignalTest extends RoomTestSupport {
     @DisplayName("확정한 방의 방장이 나가 방장이 넘어가도 한 번 나간다 — 인원이 줄었다")
     void hostHandover() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomService.confirm(r("r1"), u("host"));
         try (BoardSubscriber board = new BoardSubscriber(connectionFactory, objectMapper))
@@ -152,7 +153,7 @@ class RoomBoardSignalTest extends RoomTestSupport {
     @DisplayName("강퇴하면 한 번 나간다. 방장이 아닌 사람의 강퇴 시도에는 나가지 않는다")
     void kick() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
         try (BoardSubscriber board = new BoardSubscriber(connectionFactory, objectMapper))
@@ -170,8 +171,8 @@ class RoomBoardSignalTest extends RoomTestSupport {
     @DisplayName("확정하면 한 번 나간다. 이미 확정된 방의 확정과 혼자서의 확정 시도에는 나가지 않는다")
     void confirm() throws Exception
     {
-        roomService.create(r("alone"), u("solo"));
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("alone"), u("solo"), Set.of());
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         try (BoardSubscriber board = new BoardSubscriber(connectionFactory, objectMapper))
         {
@@ -191,7 +192,7 @@ class RoomBoardSignalTest extends RoomTestSupport {
     @DisplayName("접속 확인은 아무도 빠지지 않았으면 신호를 내지 않는다 — 1분마다 오는 요청이다")
     void plainHeartbeatSendsNothing() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         try (BoardSubscriber board = new BoardSubscriber(connectionFactory, objectMapper))
         {
@@ -206,7 +207,7 @@ class RoomBoardSignalTest extends RoomTestSupport {
     @DisplayName("방장의 접속 확인이 유령을 빼면 한 번 나간다 — 몇 명을 뺐든 한 번이다")
     void ghostRemoval() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
         try (BoardSubscriber board = new BoardSubscriber(connectionFactory, objectMapper))
@@ -228,7 +229,7 @@ class RoomBoardSignalTest extends RoomTestSupport {
     @DisplayName("방장이 말없이 사라져 수명이 다한 방은, 남아 있던 멤버의 접속 확인이 '방이 없어졌다'를 받을 때 신호를 낸다")
     void expiredRoomIsSignalledByTheNextMemberHeartbeat() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         try (BoardSubscriber board = new BoardSubscriber(connectionFactory, objectMapper))
         {

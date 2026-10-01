@@ -23,9 +23,12 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -98,14 +101,14 @@ class RoomApiTest extends RoomTestSupport {
     }
 
     @Test
-    @DisplayName("멤버 SET · 입장 표시 키에 쿠키의 사용자 번호가 들어간다. ?userId= 는 없다 — 붙여 보내도 무시된다")
+    @DisplayName("멤버 HASH · 입장 표시 키에 쿠키의 사용자 번호가 들어간다. ?userId= 는 없다 — 붙여 보내도 무시된다")
     void userComesFromTheCookie() throws Exception
     {
         String member = newNickname();
         Cookie memberCookie = login(member);
         String hostId = u("host");
         String memberId = adopt("member", userIdOf(member));
-        roomService.create(r("r1"), hostId);
+        roomService.create(r("r1"), hostId, Set.of());
 
         // 남의 번호(방장)를 파라미터로 적어도 들어오는 사람은 쿠키의 사용자다
         mockMvc.perform(post("/api/v1/rooms/{roomId}/members", r("r1")).param("userId", hostId).cookie(memberCookie))
@@ -114,7 +117,7 @@ class RoomApiTest extends RoomTestSupport {
                 .andExpect(status().isOk());
 
         assertThat(redisTemplate.opsForValue().get(key("qm:room:r1:host"))).isEqualTo(hostId);
-        assertThat(redisTemplate.opsForSet().members(key("qm:room:r1:members"))).containsExactlyInAnyOrder(hostId, memberId);
+        assertThat(redisTemplate.opsForHash().keys(key("qm:room:r1:members"))).containsExactlyInAnyOrder(hostId, memberId);
         assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + memberId)).isEqualTo(r("r1"));
         assertThat(ownKeys()).containsExactlyInAnyOrder("qm:room:r1:host", "qm:room:r1:members",
                 "qm:user:active-room:host", "qm:user:active-room:member");
@@ -123,10 +126,33 @@ class RoomApiTest extends RoomTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.roomId").value(r("r1")))
                 .andExpect(jsonPath("$.hostId").value(hostId))
-                .andExpect(jsonPath("$.members", containsInAnyOrder(hostId, memberId)));
+                // 사람마다 {userId, position} 이다(2026-10-01) — 포지션이 없는 방이라 position 은 null 이다
+                .andExpect(jsonPath("$.members[*].userId", containsInAnyOrder(hostId, memberId)))
+                .andExpect(jsonPath("$.members[*].position", contains(nullValue(), nullValue())));
         mockMvc.perform(get("/api/v1/rooms/me").cookie(memberCookie))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.roomId").value(r("r1")));
+    }
+
+    @Test
+    @DisplayName("방 안 사람 목록은 사람마다 참가할 때 고른 포지션을 같이 준다 — {userId, position}, 방장은 방장 포지션이다(2026-10-01 소유자 결정)")
+    void membersCarryPositions() throws Exception
+    {
+        String member = newNickname();
+        Cookie memberCookie = login(member);
+        String hostId = u("host");
+        String memberId = adopt("member", userIdOf(member));
+        createPositionRoom("r1", "host", Set.of("TOP", "MID"), "JUNGLE");
+
+        mockMvc.perform(post("/api/v1/rooms/{roomId}/members", r("r1")).param("position", "MID").cookie(memberCookie))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/v1/rooms/{roomId}/members", r("r1")).cookie(memberCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hostId").value(hostId))
+                .andExpect(jsonPath("$.members.length()").value(2))
+                .andExpect(jsonPath("$.members[?(@.userId == '" + hostId + "')].position", contains("JUNGLE")))
+                .andExpect(jsonPath("$.members[?(@.userId == '" + memberId + "')].position", contains("MID")));
     }
 
     @Test
@@ -143,7 +169,7 @@ class RoomApiTest extends RoomTestSupport {
         String memberId = adopt("member", userIdOf(member));
         adopt("stranger", userIdOf(stranger));
 
-        roomService.create(r("r1"), hostId);
+        roomService.create(r("r1"), hostId, Set.of());
         mockMvc.perform(post("/api/v1/rooms/{roomId}/members", r("r1")).cookie(memberCookie)).andExpect(status().isCreated());
 
         mockMvc.perform(delete("/api/v1/rooms/{roomId}/members/{target}", r("r1"), hostId).cookie(memberCookie))
@@ -197,7 +223,7 @@ class RoomApiTest extends RoomTestSupport {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
         adopt("member", userIdOf(nickname));
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
 
         mockMvc.perform(post("/api/v1/rooms/{roomId}/members", r("r1")).cookie(cookie).header(HttpHeaders.ORIGIN, "https://evil.example"))
                 .andExpect(status().isForbidden())

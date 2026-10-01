@@ -1,6 +1,7 @@
 package com.queuemate.platform.party.controller;
 
 import com.queuemate.platform.common.security.CurrentUserId;
+import com.queuemate.platform.party.dto.MatchPartyMembersResponse;
 import com.queuemate.platform.party.dto.MatchRoomResponse;
 import com.queuemate.platform.party.service.MatchPartyService;
 import com.queuemate.platform.room.RoomErrors;
@@ -8,9 +9,11 @@ import com.queuemate.platform.room.domain.MatchRoomResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.regex.Pattern;
@@ -60,5 +63,22 @@ public class MatchPartyController {
             case PARTY_NOT_FOUND -> throw MatchPartyService.matchPartyNotFound();
             case NOT_PARTY_MEMBER -> throw MatchPartyService.notPartyMember();
         };
+    }
+
+    /**
+     * <b>퀵 매칭 파티의 팀원 카드</b>(2026-10-01 소유자 결정) — 제안 중(수락 창)이든 확정 뒤든 파티원만 볼 수 있다. 자격 · 게임 · 거절은 {@link MatchPartyService#members}.
+     *
+     * <p>{@code game} 은 글자 그대로 받는다 — 서버가 게임을 아는 파티(확정 · DB 의 기록)는 쿼리를 보지 않으므로 형 변환에서 미리 400 을 내지 않는다.
+     * 거절 — 404 {@code MATCH_PARTY_NOT_FOUND}(UUID 가 아닌 경로도) · 403 {@code NOT_PARTY_MEMBER} · 400 {@code VALIDATION_FAILED}({@code game}) · 503 {@code ROOM_STATE_UNAVAILABLE}.
+     */
+    @GetMapping("/{partyId}/members")
+    public MatchPartyMembersResponse members(@CurrentUserId Long userId, @PathVariable String partyId,
+                                             @RequestParam(name = "game", required = false) String game)
+    {
+        if(!PARTY_ID.matcher(partyId).matches())
+        {
+            throw MatchPartyService.matchPartyNotFound();
+        }
+        return matchPartyService.members(userId, partyId, game);
     }
 }

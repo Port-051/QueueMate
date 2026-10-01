@@ -63,7 +63,8 @@ public class RoomMemberService {
      *
      * <p><b>순서</b>(2026-09-25 2단계) — ① 게시판의 검사({@link PostEntryGate#check}: 없는 글 · 차단으로 숨겨진 글 404 {@code POST_NOT_FOUND},
      * 모집 중이 아닌 글 409 {@code POST_NOT_RECRUITING}) → ② 스크립트({@code ROOM_NOT_FOUND} · {@code ROOM_FULL} · {@code ROOM_CONFIRMED} ·
-     * {@code ALREADY_QUEUED} · {@code IN_OTHER_ROOM} · 이미 들어와 있음). 두 앱이던 때 입장권 발급이 하던 ① 을 같은 요청 안에서 한다.
+     * {@code ALREADY_QUEUED} · {@code IN_OTHER_ROOM} · 이미 들어와 있음 · 포지션 — 2026-09-30 P-44). 두 앱이던 때 입장권 발급이 하던 ① 을 같은 요청 안에서 한다.
+     * <b>포지션 없이 들어온다</b> — 포지션을 골라 들어오는 방(찾는 포지션이 있는 글)이면 {@link EnterResult#INVALID_POSITION} 이다(재입장은 그대로 {@link EnterResult#ALREADY_ENTERED}).
      * ① 과 ② 사이는 원자적이지 않다 — 그 사이에 나와 차단 관계인 사람이 먼저 들어오는 경쟁이 남는다(입장권 60초였던 창이 밀리초로 줄었을 뿐이다).
      *
      * <p><b>정원은 글의 것이다</b>(2026-09-30 소유자 결정 — P-41. 그 모드의 인원 — 솔로 랭크는 2). ① 이 글을 읽으며 돌려주고 스크립트가 그 값으로 만석을 가른다 —
@@ -73,7 +74,28 @@ public class RoomMemberService {
      */
     public EnterResult enter(String roomId, String userId)
     {
-        int capacity = postEntryGate.check(roomId, Long.parseLong(userId));
+        return enter(roomId, userId, null);
+    }
+
+    /**
+     * 참가할 때 고른 포지션과 함께 들어온다(2026-09-30 소유자 결정 — P-44: 참가 확인 창에서 남은 찾는 포지션 가운데 하나를 고른다).
+     * 입장 요청의 쿼리 {@code ?position=} 이 여기로 오고({@code RoomMemberController#enter}), 게시판 방 먼저 합류가 요청의 포지션을 넘긴다({@code AutoJoinService}).
+     *
+     * <p><b>포지션의 검사는 스크립트가 한다</b>({@code lua/enter-room.lua}). 포지션 방인가는 ① 이 글을 읽어 정원과 함께 돌려주고({@link PostEntryGate.Entry#positionRoom()} —
+     * 글의 찾는 포지션이 비지 않았다) 스크립트에 넘긴다. 찾는 포지션 SET 이 있는지로 가르지 않는다 — 다 고르면 Redis 가 빈 SET 을 지워 "포지션이 없는 방" 과 구별이 안 된다(2026-10-01 소유자 결정).
+     * 포지션 방이면 남은 찾는 포지션 SET({@code RoomKeys#roomNeedsKey}) 안의 것을 골라야 하고(안 골랐거나 없으면 · 다 골라 SET 이 없으면 {@link EnterResult#INVALID_POSITION}),
+     * 들어오면 고른 것을 SET 에서 뺀다. 남이 이미 고른 포지션은 SET 에 없으므로 이것도 {@link EnterResult#INVALID_POSITION} 이다.
+     * 포지션이 없는 방(포지션이 없는 모드 · 옛 글)에 포지션을 주면 {@link EnterResult#INVALID_POSITION} 이다 — 조용히 버리지 않는다.
+     * 자바가 먼저 읽어 보고 판단하지 않는다 — "남았나 보고 빼기" 가 한 스크립트 안이어야 같은 포지션을 동시에 고른 두 사람 가운데 한 명만 들어온다.
+     * 글은 고칠 수 없어(2026-10-01 소유자 결정) ① 에서 읽은 정원 · 포지션 방인가가 ② 에서 달라질 일이 없다.
+     * 순서는 정원(-2) 뒤다 — 재입장(이미 들어와 있다 — 200)은 포지션을 보지 않는다(들어온 뒤에는 바꿀 수 없다).
+     *
+     * @param position 고른 포지션. 없으면 {@code null} — 빈 문자열 · 공백도 없는 것으로 본다(스크립트에는 {@code ""} 로 넘긴다. {@code StringRedisTemplate} 은 {@code null} 을 넘기지 못한다)
+     */
+    public EnterResult enter(String roomId, String userId, String position)
+    {
+        String chosen = (position == null || position.isBlank()) ? "" : position;
+        PostEntryGate.Entry entry = postEntryGate.check(roomId, Long.parseLong(userId));
         List<String> keys = new ArrayList<String>();
         keys.add(SharedKeys.activeRequestKey(userId));
         keys.add(RoomKeys.activeRoomKey(userId));
@@ -81,9 +103,10 @@ public class RoomMemberService {
         keys.add(RoomKeys.roomHostKey(roomId));
         keys.add(RoomKeys.roomConfirmedKey(roomId));
         keys.add(RoomKeys.noEntryKey(userId));
+        keys.add(RoomKeys.roomNeedsKey(roomId));
         // StringRedisTemplate 이라 인자는 전부 문자열로 넘긴다. 순서는 스크립트 머리의 ARGV 와 같다
-        List<?> reply = RoomRedis.call("enter", () -> redis.execute(enterRoomScript, keys, userId, roomId, String.valueOf(capacity),
-                String.valueOf(roomProperties.ttlSeconds()), String.valueOf(System.currentTimeMillis())));
+        List<?> reply = RoomRedis.call("enter", () -> redis.execute(enterRoomScript, keys, userId, roomId, String.valueOf(entry.capacity()),
+                String.valueOf(roomProperties.ttlSeconds()), String.valueOf(System.currentTimeMillis()), chosen, entry.positionRoom() ? "1" : "0"));
         EnterResult result = EnterResult.fromCode(codeOf(reply));
 
         // 발행은 예외를 밖으로 내보내지 않는다 — 알림이 실패해도 이미 성립한 입장은 그대로다 (CLAUDE.md §3.2)
@@ -162,6 +185,7 @@ public class RoomMemberService {
         keys.add(RoomKeys.activeRoomKey(targetUserId));
         keys.add(RoomKeys.noAutoJoinKey(targetUserId));
         keys.add(RoomKeys.noEntryKey(targetUserId));
+        keys.add(RoomKeys.roomNeedsKey(roomId));
         long expireTime = System.currentTimeMillis() + 600000;
         List<?> reply = RoomRedis.call("kick", () -> redis.execute(kickRoomScript, keys, hostUserId, targetUserId,
                                                                         roomId, String.valueOf(expireTime)));
@@ -182,7 +206,8 @@ public class RoomMemberService {
 
     /**
      * 방 안 사람 목록. 알림을 놓친 클라이언트가 지금 상태를 다시 맞추는 조회다(새로고침 · SSE 재연결 직후).
-     * 읽기만 한다 — Lua 가 필요 없다.
+     * 읽기만 한다 — "묻는 사람이 방에 있나" 와 방장 · 멤버를 한 순간에 읽으려고 스크립트 하나로 읽는다.
+     * 사람마다 참가할 때 고른 포지션도 같이 준다(2026-10-01 소유자 결정 — 멤버 HASH 의 값, {@code ""} 는 {@code null}).
      */
     public RoomMembersResult members(String roomId, String userId)
     {
@@ -203,10 +228,15 @@ public class RoomMemberService {
         }
         else if(Long.valueOf(1).equals(code))
         {
-            // { 1, 방장, 멤버들… } — 멤버들에는 방장도 들어 있다. 방에 있는 사람 전부이고 인원수는 이 목록의 크기다
+            // { 1, 방장, 멤버1, 포지션1, 멤버2, 포지션2, … } — 셋째 칸부터 HGETALL 그대로(필드 · 값이 번갈아 온다). 멤버들에는 방장도 들어 있다.
+            // 방에 있는 사람 전부이고 인원수는 멤버의 수다
             String hostId = reply.get(1).toString();
-            List<String> members = reply.stream().skip(2).map(String::valueOf).toList();
-            return RoomMembersResult.found(hostId, members);
+            List<RoomMembersResult.Member> members = new ArrayList<>();
+            for(int i = 2; i + 1 < reply.size(); i += 2)
+            {
+                members.add(new RoomMembersResult.Member(String.valueOf(reply.get(i)), String.valueOf(reply.get(i + 1))));
+            }
+            return RoomMembersResult.found(hostId, List.copyOf(members));
         }
         // 모르는 값을 성공으로 읽지 않는다
         throw new IllegalStateException("members-room.lua 가 모르는 값을 돌려줬다: " + code);
@@ -224,7 +254,8 @@ public class RoomMemberService {
 
     /**
      * 접속 확인. 브라우저가 1분마다 부른다 — 키의 수명을 다시 걸어 늘린다. 신호가 끊기면 수명이 다해 저절로 사라진다.
-     * 방의 수명은 방장의 신호만 늘리고, 방장의 신호는 멤버 SET 에 이름만 남은 유령도 뺀다.
+     * 방의 수명은 방장의 신호만 늘리고, 방장의 신호는 멤버 HASH 에 이름만 남은 유령도 뺀다 — 뺀 사람이 고른 포지션은 남은 찾는 포지션에 돌아간다
+     * (2026-10-01 — 나가기 · 강퇴와 같다. 확정한 방은 돌려놓지 않는다 — {@code lua/heartbeat-room.lua}).
      */
     public HeartbeatResult heartbeat(String roomId, String userId)
     {
@@ -233,12 +264,14 @@ public class RoomMemberService {
         keys.add(RoomKeys.roomMemberKey(roomId));
         keys.add(RoomKeys.roomHostKey(roomId));
         keys.add(RoomKeys.roomConfirmedKey(roomId));
-        List<?> reply = RoomRedis.call("heartbeat", () -> redis.execute(heartbeatRoomScript, keys, userId, roomId, RoomKeys.ACTIVE_ROOM_PREFIX,
+        // 찾는 포지션 SET 의 수명도 멤버 HASH 와 같이 늘린다(P-44) — 방은 살아 있는데 그것만 먼저 사라지면 아무도 포지션을 고를 수 없는 방이 된다
+        keys.add(RoomKeys.roomNeedsKey(roomId));
+        List<?> reply = RoomRedis.call("heartbeat",() -> redis.execute(heartbeatRoomScript, keys, userId, roomId, RoomKeys.ACTIVE_ROOM_PREFIX,
                                                         String.valueOf(roomProperties.ttlSeconds())));
         HeartbeatResult result = HeartbeatResult.fromCode(codeOf(reply));
 
         // 방장의 신호는 { 1, 뺀 사람 수 N, 뺀 사람 N명…, 남은 사람들… } 로 온다. 일반 멤버의 신호는 { 1 } 뿐이다.
-        // 뺀 사람(멤버 SET 에 이름만 남아 있던 유령)마다, 남은 사람들에게 그 사람의 퇴장을 알린다 —
+        // 뺀 사람(멤버 HASH 에 이름만 남아 있던 유령)마다, 남은 사람들에게 그 사람의 퇴장을 알린다 —
         // 받는 쪽은 userId 를 보고 목록에서 지우고 그 사람과의 음성 연결을 끊는다
         if(result == HeartbeatResult.ALIVE && reply.size() > 2)
         {
@@ -258,7 +291,7 @@ public class RoomMemberService {
             }
         }
         // 방이 없어졌을 때(-2) 방 안의 사람에게는 알리지 않는다. 본인은 이 응답으로 알고, 다른 사람은 누구였는지 알 길이 없다 —
-        // 멤버 SET 이 이미 만료돼 사라졌다. 그 사람들도 자기 다음 신호에서 같은 답을 받는다.
+        // 멤버 HASH 가 이미 만료돼 사라졌다. 그 사람들도 자기 다음 신호에서 같은 답을 받는다.
         // 게시판에는 알린다. 방장이 말없이 사라져 수명이 다한 방은 없어지는 순간에 이 앱의 코드가 돌지 않아 신호를 못 낸다 —
         // 남아 있던 사람의 신호가 -2 를 받는 지금이 이 앱이 그것을 아는 첫 순간이다(늦어도 1분 뒤). 남은 사람이 여럿이면
         // 각자 한 번씩 보내게 되지만 해가 없다. 방장 혼자 있던 방은 신호를 보낼 사람이 없어 여전히 못 낸다

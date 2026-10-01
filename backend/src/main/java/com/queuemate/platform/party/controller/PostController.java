@@ -7,7 +7,6 @@ import com.queuemate.platform.party.dto.AutoJoinResponse;
 import com.queuemate.platform.party.dto.PostCreateRequest;
 import com.queuemate.platform.party.dto.PostListResponse;
 import com.queuemate.platform.party.dto.PostResponse;
-import com.queuemate.platform.party.dto.PostUpdateRequest;
 import com.queuemate.platform.party.service.AutoJoinService;
 import com.queuemate.platform.party.service.PostService;
 import jakarta.validation.Valid;
@@ -16,7 +15,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -36,6 +34,9 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p><b>{@code POST /api/v1/posts/auto-join}</b>(2026-09-28)은 {@code /{postId}} 와 겹치지 않는다 — {@code POST} 가 걸린 경로 변수 매핑이 없고, 있더라도 스프링은
  * 글자 그대로의 경로를 경로 변수보다 먼저 고른다.
+ *
+ * <p><b>글은 고칠 수 없다</b>(2026-10-01 소유자 결정 — {@code PATCH /api/v1/posts/{postId}} 를 없앴다). 그 경로는 {@code GET} · {@code DELETE} 만 매핑돼 있어
+ * {@code PATCH} 는 405 {@code METHOD_NOT_ALLOWED} 다({@code GlobalExceptionHandler#handleMvcClientError}).
  */
 @RestController
 @RequestMapping("/api/v1/posts")
@@ -65,17 +66,6 @@ public class PostController {
     public AutoJoinResponse autoJoin(@CurrentUserId Long userId, @Valid @RequestBody AutoJoinRequest request)
     {
         return autoJoinService.join(userId, request);
-    }
-
-    /**
-     * 준 것만 바꾼다. <b>방에 방장 말고 누가 있으면 409 {@code ROOM_HAS_OTHER_MEMBERS} 다</b>(2026-09-24 소유자 결정 — 조건이 바뀌는 것을
-     * 방 안 사람에게 알릴 길이 없다. {@link PostService#edit}). 방 키를 못 읽으면 503 이다.
-     */
-    @PatchMapping("/{postId}")
-    public PostResponse edit(@CurrentUserId Long userId, @PathVariable("postId") Long postId,
-                             @Valid @RequestBody PostUpdateRequest request)
-    {
-        return postService.edit(userId, postId, request);
     }
 
     /** 지우지 않고 만료로 바꾼다. 이미 만료면 그대로 204 다 — 두 번 눌러도 결과가 같다 */
