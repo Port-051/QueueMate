@@ -2,6 +2,7 @@ import {readFile,writeFile,mkdir,cp,rm,access} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {renderSite,render404} from '../src/render.mjs';
+import {addAnalytics} from '../src/analytics.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 try {
   const c = JSON.parse(await readFile(path.join(root,'site.config.json'),'utf8'));
@@ -12,7 +13,7 @@ try {
   await rm(out,{recursive:true,force:true}); await mkdir(out,{recursive:true});
   await cp(path.join(root,'public'),out,{recursive:true});
   await cp(path.join(root,'src/site.css'),path.join(out,'assets/site.css'));
-  await writeFile(path.join(out,'index.html'),rendered.html);
+  await writeFile(path.join(out,'index.html'),addAnalytics(rendered.html,c,rendered.mode));
   await writeFile(path.join(out,'404.html'),render404());
   await writeFile(path.join(out,'robots.txt'),rendered.robots);
   await writeFile(path.join(out,'llms.txt'),rendered.llms);
