@@ -150,8 +150,10 @@ ul { margin: 0; padding: 0; list-style: none; }
 .tag.warn { background: rgba(255, 180, 84, 0.1); border-color: rgba(255, 180, 84, 0.35); color: var(--warn); }
 .tag.danger { background: rgba(255, 93, 108, 0.1); border-color: rgba(255, 93, 108, 0.35); color: var(--danger); }
 
-/* 닉네임 이니셜 원(2026-09-30 — 캐릭터 그림을 걷었다). 옆 닉네임을 끌어 고를 때 이니셜이 같이 잡히지 않게 한다. */
-.avatar { flex: none; display: grid; place-items: center; border-radius: 50%; font-weight: 800; line-height: 1; white-space: nowrap; user-select: none; color: #fff; background: linear-gradient(140deg, var(--accent-2), var(--accent-3)); }
+/* QueueMate 기본 프로필. 옆 닉네임을 끌어 고를 때 로고가 같이 선택되지 않게 한다. */
+.avatar { flex: none; display: grid; place-items: center; border-radius: 50%; isolation: isolate; user-select: none; background: radial-gradient(circle at 30% 20%, #34264e, #191322 80%); box-shadow: inset 0 0 0 1px #b58aff26; }
+/* 사이드바의 공통 로고 크기와 분리한다. 검정 바탕은 기존 screen 합성으로 지운다. */
+.avatar-wrap .avatar > .logo-mark { width: 78%; height: 78%; }
 /* span은 기본이 inline이라 width/height가 먹지 않는다. flex 자식일 때는 blockify돼서
    우연히 맞았고, 버튼 안(.avatar-edit)처럼 block 컨테이너에 놓이면 inline으로 남아
    .avatar-status의 containing block이 무너진다. 배치를 부모에 기대지 않는다. */
