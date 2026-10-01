@@ -68,29 +68,18 @@ function detailCapture(name, alt, label) {
   return `<figure class="detail-capture"><a class="capture-link" href="${url}" aria-label="화면 크게 보기 — ${e(label)} 실제 UI 캡처"><img src="${url}" width="1440" height="900" alt="${e(alt)}" loading="lazy" decoding="async"><span class="capture-zoom">화면 크게 보기 ↗</span></a><figcaption>실제 UI 캡처 · 예시 데이터</figcaption></figure>`;
 }
 
-/** Original feature/quick-match-ui screenshots. Native toggle changes the shown capture, not room membership. */
+/** Original feature/quick-match-ui screenshots. The tabs only switch explanatory captures. */
 export function renderUseFlow() {
-  return `<div class="actual-showcase" aria-label="실제 모집방 참여 전후 화면">
-<div class="showcase-toolbar"><h2>${icon('people')} 모집방에서 만나고, 같은 방에서 대화</h2><span>실제 UI · 예시 데이터</span></div>
-<details class="join-demo" open>
-<summary class="actual-state-switch"><span class="show-before">${icon('arrow')} 참여 후 화면 보기</span><span class="show-after">← 참여 전 화면 보기</span></summary>
-<figure class="joined-screen">
-<div class="actual-image-scroll" tabindex="0" role="region" aria-label="참여 후 모집방과 음성 채팅 화면. 좁은 화면에서는 좌우로 스크롤할 수 있습니다."><a class="capture-link" href="/assets/ui/quick-match-room.webp" aria-label="화면 크게 보기 — 참여 후 실제 모집방과 음성·채팅"><img src="/assets/ui/quick-match-room.webp" width="1440" height="900" alt="3명이 참여한 실제 모집방과 오른쪽의 음성 채널·채팅 패널. 아직 2개의 빈자리가 남아 있습니다." fetchpriority="high" decoding="async"><span class="capture-zoom">화면 크게 보기 ↗</span></a></div>
-<figcaption><span>참여 후 · 3/5명</span><strong>모집 중에도 같은 방에서 음성·채팅.</strong></figcaption></figure>
+  return `<div class="product-walkthrough" aria-label="큐메이트 실제 사용 흐름">
+<div class="walkthrough-head"><div><span class="walkthrough-label">실제 서비스 화면</span><h2>방을 보고, 참여하고, 바로 대화합니다.</h2></div><span class="example-label">예시 데이터</span></div>
+<div class="walkthrough-steps" role="list" aria-label="이용 흐름"><span class="is-active" role="listitem"><b>1</b> 모집방 확인</span><span role="listitem"><b>2</b> 참여</span><span role="listitem"><b>3</b> 음성·채팅</span></div>
+<details class="walkthrough-toggle" open>
+<summary><span class="when-open">참여 전 화면 보기</span><span class="when-closed">참여 후 화면 보기</span></summary>
+<figure class="walkthrough-after"><div class="actual-image-scroll" tabindex="0" role="region" aria-label="참여 후 모집방과 음성 채팅 화면"><a class="capture-link" href="/assets/ui/quick-match-room.webp" aria-label="화면 크게 보기 — 참여 후 모집방과 음성·채팅"><img src="/assets/ui/quick-match-room.webp" width="1440" height="900" alt="3명이 참여한 모집방과 오른쪽 음성·채팅 패널. 아직 두 자리가 비어 있는 실제 서비스 화면" fetchpriority="high" decoding="async"></a></div><figcaption><strong>참여하면 같은 화면에서 대화를 시작합니다.</strong><span>3/5명 · 모집 중</span></figcaption></figure>
 </details>
-<figure class="unjoined-screen">
-<div class="actual-image-scroll" tabindex="0" role="region" aria-label="참여 전 모집방 목록. 좁은 화면에서는 좌우로 스크롤할 수 있습니다."><a class="capture-link" href="/assets/ui/quick-match-board.webp" aria-label="화면 크게 보기 — 참여 전 실제 모집방 목록"><img src="/assets/ui/quick-match-board.webp" width="1440" height="900" alt="실제 모집방 목록에서 현재 멤버, 티어, 포지션과 빈자리를 확인하는 화면" loading="lazy" decoding="async"><span class="capture-zoom">화면 크게 보기 ↗</span></a></div>
-<figcaption><span>참여 전 · 2/5명</span><strong>멤버와 빈자리를 확인하고 참여하세요.</strong></figcaption></figure>
-<p class="swipe-hint">좌우로 밀어 자세히 보세요.</p>
-<p class="demo-disclaimer">서비스 화면 예시 · 실제 참가·음성 연결은 되지 않습니다.</p>
+<figure class="walkthrough-before"><div class="actual-image-scroll" tabindex="0" role="region" aria-label="참여 전 모집방 목록"><a class="capture-link" href="/assets/ui/quick-match-board.webp" aria-label="화면 크게 보기 — 참여 전 모집방 목록"><img src="/assets/ui/quick-match-board.webp" width="1440" height="900" alt="현재 멤버와 빈자리를 확인할 수 있는 실제 모집방 목록 화면" loading="lazy" decoding="async"></a></div><figcaption><strong>들어가기 전에 멤버와 빈자리를 확인합니다.</strong><span>참여 전</span></figcaption></figure>
+<p class="walkthrough-note">실제 UI · 화면의 닉네임과 전적은 예시입니다. 이 랜딩에서는 실제 참가나 음성 연결이 실행되지 않습니다.</p>
 </div>`;
-}
-
-/** Decorative miniatures illustrate the product, not live metrics or clickable controls. */
-function featureVisual(name) {
-  if (name === 'matching') return `<div class="feature-visual match-art" aria-hidden="true"><div class="match-input"><span>${icon('filters')} 내 조건</span><b>미드</b><b>음성 사용</b><b>즐겜</b></div><div class="match-connection"><span></span>${icon('bolt')}<span></span></div><div class="match-result"><i class="avatar">나</i><span>+</span><i class="avatar avatar-alt">팀원</i></div></div>`;
-  if (name === 'seats') return `<div class="feature-visual seats-art" aria-hidden="true"><span class="mini-seat filled">${icon('bow')}</span><span class="mini-seat filled">${icon('jungle')}</span><span class="mini-seat chosen">${icon('plus')}</span><span class="mini-seat">${icon('plus')}</span><span class="mini-seat">${icon('plus')}</span></div>`;
-  return `<div class="feature-visual sound-art" aria-hidden="true"><div class="sound-orbit"><span class="avatar">A</span><span class="avatar avatar-alt">B</span><span class="avatar avatar-self">나</span><div class="sound-center">${icon('mic')}</div></div><div class="waveform">${[9,15,25,36,23,47,65,39,21,35,55,78,57,29,17,41,62,33,20,39,53,26,15,9].map(h=>`<i style="--bar:${h}px"></i>`).join('')}</div><span class="sound-note">방을 옮길 필요 없이.</span></div>`;
 }
 
 export function renderSite(c, env = {}) {
@@ -118,24 +107,32 @@ export function renderSite(c, env = {}) {
 <header class="site-header"><div class="wrap header-inner"><a href="#main" class="brand-link" aria-label="큐메이트 홈">${wordmark()}</a><nav aria-label="주요 메뉴"><a href="#preview">서비스 화면</a><a href="#features">기능</a><a href="#faq">FAQ</a></nav><a class="header-cta" href="${c.appReady ? e(c.appUrl) : '#preview'}">${c.appReady ? '시작하기' : '화면 보기'} ${icon('arrow')}</a></div></header>
 <main id="main" tabindex="-1">
 <section class="hero wrap" aria-labelledby="hero-title">
-<div class="hero-copy"><p class="hero-kicker"><span aria-hidden="true"></span> 롤 듀오 · 파티 찾기</p>
+<div class="hero-copy"><p class="hero-kicker">롤 듀오 · 파티 찾기</p>
 <h1 id="hero-title">조건에 맞는 팀원을 찾고,<br><em>같은 방에서 바로 대화하세요.</em></h1>
-<p class="hero-description">롤 듀오·파티를 자동으로 찾거나, 모집방에 직접 참여하세요.<br>음성 채팅까지 한곳에서.</p>
+<p class="hero-description">모집방에서 멤버와 빈자리를 확인하고 바로 참여하세요.<br>참여한 방에서 음성·채팅까지 이어집니다.</p>
 <div class="hero-actions">${cta()}</div>
 <p class="release-status">${c.appReady ? '게임 내 친구 추가·초대는 별도' : '서비스 준비 중'}</p>
 </div>
 <div id="preview" class="hero-product" aria-label="실제 모집방과 파티 대화 화면">${renderUseFlow()}</div>
 </section>
-<section id="features" class="section wrap" aria-labelledby="features-title">
-<div id="how-it-works" class="section-heading"><p class="eyebrow">FIND. JOIN. TALK.</p><h2 id="features-title">팀원 찾기부터<br><em>음성 대화까지.</em></h2></div>
-<div class="benefit-grid">
-<article id="auto-match" class="benefit-card"><span class="feature-number" aria-hidden="true">01 / MATCH</span><div class="feature-icon">${icon('filters')}</div><h3>조건에 맞는 롤 듀오 찾기</h3><p>모드·포지션·음성 조건으로 팀원을 자동 매칭합니다.</p>${featureVisual('matching')}<details id="evidence-settings" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${detailCapture('settings','게임 모드, 내 포지션, 인원, 플레이 목적, 음성 조건을 고르는 빠른매치 설정','빠른매치 조건 설정')}</details></article>
-<article id="join" class="benefit-card"><span class="feature-number" aria-hidden="true">02 / JOIN</span><div class="feature-icon">${icon('people')}</div><h3>멤버와 빈자리 확인</h3><p>티어·포지션을 보고 원하는 모집방에 직접 참여하세요.</p>${featureVisual('seats')}<details id="evidence-board" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${renderProductPreview()}</details></article>
-<article class="benefit-card"><span class="feature-number" aria-hidden="true">03 / TALK</span><div class="feature-icon">${icon('mic')}</div><h3>같은 방에서 음성 채팅</h3><p>디스코드 이동 없이, 모집 중에도 같은 방에서 대화하세요.</p>${featureVisual('voice')}<details id="evidence-room" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${detailCapture('room','모집방 목록 옆에 열린 파티 패널의 참여 인원, 마이크 켜기, 채팅 영역','파티 음성·채팅')}</details></article>
-</div></section>
+<section id="features" class="section wrap product-features" aria-labelledby="features-title">
+<div class="section-heading product-heading"><p class="section-kicker">큐메이트에서 이렇게 이어집니다</p><h2 id="features-title">팀원 찾기부터<br><em>음성 대화까지.</em></h2><p>설명보다 실제 화면으로 보여드릴게요.</p></div>
+<div class="product-feature-row">
+<div class="product-feature-copy"><span class="step-index">01</span><h3>조건에 맞는 팀원을 찾습니다.</h3><p>모드·포지션·음성 조건을 정하면 빠른매치가 맞는 팀원을 찾습니다.</p></div>
+<figure class="product-feature-screen"><a class="capture-link feature-crop settings-crop" href="/assets/ui/quick-match-settings.webp" aria-label="빠른매치 설정 실제 화면 크게 보기"><img src="/assets/ui/quick-match-settings.webp" width="1440" height="900" alt="게임 모드, 포지션, 인원, 플레이 목적과 음성 조건을 고르는 빠른매치 실제 화면" loading="lazy" decoding="async"></a><figcaption>빠른매치 설정 · 실제 UI</figcaption></figure>
+</div>
+<div class="product-feature-row reverse">
+<div class="product-feature-copy"><span class="step-index">02</span><h3>누가 있는지 보고 참여합니다.</h3><p>현재 멤버와 빈자리를 확인하고 원하는 모집방에 들어갑니다.</p></div>
+<figure class="product-feature-screen"><a class="capture-link feature-crop board-crop" href="/assets/ui/quick-match-board.webp" aria-label="모집방 목록 실제 화면 크게 보기"><img src="/assets/ui/quick-match-board.webp" width="1440" height="900" alt="멤버와 빈자리가 보이는 모집방 목록 실제 화면" loading="lazy" decoding="async"></a><figcaption>모집방 찾기 · 실제 UI</figcaption></figure>
+</div>
+<div class="product-feature-row">
+<div class="product-feature-copy"><span class="step-index">03</span><h3>방을 옮기지 않고 대화합니다.</h3><p>참여한 방에서 바로 음성·채팅을 시작합니다. 모집 중에도 함께 이야기할 수 있습니다.</p></div>
+<figure class="product-feature-screen"><a class="capture-link feature-crop room-crop" href="/assets/ui/quick-match-room.webp" aria-label="파티 음성 채팅 실제 화면 크게 보기"><img src="/assets/ui/quick-match-room.webp" width="1440" height="900" alt="모집방 옆에 음성 채널과 채팅 패널이 열린 실제 화면" loading="lazy" decoding="async"></a><figcaption>파티 음성·채팅 · 실제 UI</figcaption></figure>
+</div>
+</section>
 <section id="quick-match" class="quick-match-section wrap" aria-labelledby="quick-match-title">
-<div class="quick-match-copy"><p class="eyebrow">QUICK MATCH</p><h2 id="quick-match-title">직접 찾는 대신,<br><em>빠른매치.</em></h2><p>조건을 정하면 맞는 팀원을 자동으로 찾아드립니다.</p><a class="text-link" href="/assets/ui/quick-match-settings.webp">빠른매치 화면 크게 보기 ${icon('arrow')}</a></div>
-<figure class="quick-match-figure"><a class="capture-link quick-match-crop" href="/assets/ui/quick-match-settings.webp" aria-label="화면 크게 보기 — 실제 빠른매치 조건 설정"><img src="/assets/ui/quick-match-settings.webp" width="1440" height="900" alt="실제 빠른매치 조건 설정: 게임 모드, 내 포지션, 인원, 플레이 목적과 음성을 선택하는 화면" loading="lazy" decoding="async"></a><figcaption>빠른매치 조건 설정 · 실제 UI, 예시 데이터</figcaption></figure>
+<div class="quick-match-copy"><span class="section-kicker">빠르게 찾고 싶다면</span><h2 id="quick-match-title">직접 찾는 대신,<br><em>빠른매치.</em></h2><p>원하는 조건만 정하세요. 맞는 팀원을 자동으로 찾습니다.</p></div>
+<figure class="quick-match-figure"><a class="capture-link quick-match-crop" href="/assets/ui/quick-match-settings.webp" aria-label="빠른매치 조건 설정 실제 화면 크게 보기"><img src="/assets/ui/quick-match-settings.webp" width="1440" height="900" alt="실제 빠른매치 조건 설정 화면" loading="lazy" decoding="async"></a><figcaption>빠른매치 조건 설정 · 실제 UI, 예시 데이터</figcaption></figure>
 </section>
 <section id="faq" class="section wrap faq-layout" aria-labelledby="faq-title"><div class="section-heading"><h2 id="faq-title">궁금한 점</h2></div><div class="faq-list">${faqs.map(([q,a])=>`<details class="faq-item"><summary>${e(q)}<span class="faq-plus" aria-hidden="true">+</span></summary><p>${e(a)}</p></details>`).join('')}</div></section>
 </main><footer class="site-footer wrap"><a class="brand-link" href="#main" aria-label="큐메이트 홈">${wordmark()}</a><div class="footer-meta"><span>${e(new URL(c.origin).hostname)}</span><small>© 2026 QueueMate</small></div></footer></body></html>`;
