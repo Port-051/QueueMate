@@ -78,7 +78,7 @@ export function renderUseFlow() {
 <figure class="walkthrough-after"><div class="actual-image-scroll" tabindex="0" role="region" aria-label="참여 후 모집방과 음성 채팅 화면"><a class="capture-link" href="/assets/ui/quick-match-room.webp" aria-label="화면 크게 보기 — 참여 후 모집방과 음성·채팅"><img src="/assets/ui/quick-match-room.webp" width="1440" height="900" alt="3명이 참여한 모집방과 오른쪽 음성·채팅 패널. 아직 두 자리가 비어 있는 실제 서비스 화면" fetchpriority="high" decoding="async"></a></div><figcaption><strong>참여하면 같은 화면에서 대화를 시작합니다.</strong><span>3/5명 · 모집 중</span></figcaption></figure>
 </details>
 <figure class="walkthrough-before"><div class="actual-image-scroll" tabindex="0" role="region" aria-label="참여 전 모집방 목록"><a class="capture-link" href="/assets/ui/quick-match-board.webp" aria-label="화면 크게 보기 — 참여 전 모집방 목록"><img src="/assets/ui/quick-match-board.webp" width="1440" height="900" alt="현재 멤버와 빈자리를 확인할 수 있는 실제 모집방 목록 화면" loading="lazy" decoding="async"></a></div><figcaption><strong>들어가기 전에 멤버와 빈자리를 확인합니다.</strong><span>참여 전</span></figcaption></figure>
-<p class="walkthrough-note">실제 UI · 화면의 닉네임과 전적은 예시입니다. 이 랜딩에서는 실제 참가나 음성 연결이 실행되지 않습니다.</p>
+<p class="walkthrough-note">실제 UI · 화면의 닉네임과 전적은 예시입니다. 이 랜딩에서는 실제 참가·음성 연결은 되지 않습니다.</p>
 </div>`;
 }
 
