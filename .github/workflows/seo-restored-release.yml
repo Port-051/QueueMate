@@ -1,4 +1,4 @@
-name: Deploy restored sections and actual UI
+name: Deploy product-led actual UI landing
 on:
   push:
     branches: [feat/seo-landing]
@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: b8882470b65a565bb63e8efba98531a9285b878d
+          ref: 0ffc3c400f1785a1f7fef1465a97e056fcece38b
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -37,7 +37,7 @@ jobs:
           import {createHash} from 'node:crypto';
           import {stripVTControlCharacters as clean} from 'node:util';
           import {setTimeout as delay} from 'node:timers/promises';
-          const T=Object.freeze({repo:'Port-051/QueueMate',source:'b8882470b65a565bb63e8efba98531a9285b878d',tree:'fe802d427bd58e01774861faec5d72e7946dc7f6',team:'team_TYonFQEoE1HOMC5bYb5xvQXV',scope:'port-52',project:'prj_twOVEOMaFLLQtgu0n4o5l7pmggiu',name:'queue-mate-landing',host:'queue-mate-landing.vercel.app',domain:'queue-mate.com'});
+          const T=Object.freeze({repo:'Port-051/QueueMate',source:'0ffc3c400f1785a1f7fef1465a97e056fcece38b',tree:'b1c4392f0989f11fc7614b4a44b719a7235adfec',team:'team_TYonFQEoE1HOMC5bYb5xvQXV',scope:'port-52',project:'prj_twOVEOMaFLLQtgu0n4o5l7pmggiu',name:'queue-mate-landing',host:'queue-mate-landing.vercel.app',domain:'queue-mate.com'});
           const origin=`https://${T.domain}/`;
           const digest=b=>createHash('sha256').update(b).digest('hex');
           const noindex=s=>/(?:^|[\s,:;])(?:noindex|none)(?:$|[\s,;])/i.test(s??'');
@@ -100,16 +100,16 @@ jobs:
            assert.equal(c.origin,origin.slice(0,-1));assert.equal(c.allowIndexing,true);assert.equal(c.appReady,false);
            assert.deepEqual(c.analytics,{enabled:true,measurementId:'G-89S881436M'});
            const local=await readFile('landing/dist/index.html','utf8');
-           for(const phrase of ['조건에 맞는 팀원을 찾고,','같은 방에서 바로 대화하세요.','id="features-title">팀원 찾기부터','id="quick-match"','class="actual-showcase"','G-89S881436M','id="qmate-analytics"'])assert.ok(local.includes(phrase),'Approved content missing: '+phrase);
-           assert.equal((local.match(/class="benefit-card"/g)||[]).length,3,'Three restored feature cards required');
+           for(const phrase of ['조건에 맞는 팀원을 찾고,','같은 방에서 바로 대화하세요.','id="features-title">팀원 찾기부터','id="quick-match"','class="product-walkthrough"','G-89S881436M','id="qmate-analytics"'])assert.ok(local.includes(phrase),'Approved content missing: '+phrase);
+           assert.equal((local.match(/class="product-feature-row/g)||[]).length,3,'Three product feature rows required');
            assert.ok(local.indexOf('id="features"')<local.indexOf('id="quick-match"'),'Section order changed');
            for(const engine of ['google','naver'])assert.ok(local.includes(`<meta name="${engine}-site-verification" content="${c.verification[engine]}">`),'Ownership tag missing');
            assert.match(local,/<meta name="robots" content="index, follow, max-image-preview:large">/);
            let root=await page(origin);assert.equal(root.status,200,'Existing homepage unavailable');assert.equal(root.blocked,false,'Canonical is excluded');
            report.beforeHtmlSha256=digest(root.bytes);
-           await status('pending','Approved restored sections ready; awaiting port-52 authorization');
+           await status('pending','Product-led actual UI landing ready; awaiting port-52 authorization');
            phase='authorization';let announced=false,notice=Promise.resolve();
-           await vc(['login'],600000,out=>{const url=approval(out);if(!url||announced)return;announced=true;console.log('VERCEL_APPROVAL_URL='+url);notice=status('pending','Approve port-52: restored feature section, real UI and quick-match landing',url);notice.catch(()=>{});});await notice;
+           await vc(['login'],600000,out=>{const url=approval(out);if(!url||announced)return;announced=true;console.log('VERCEL_APPROVAL_URL='+url);notice=status('pending','Approve port-52: product-led real UI flow and quick-match landing',url);notice.catch(()=>{});});await notice;
            phase='target verification';await status('pending','Authorized; checking existing project and domain');
            guardProject(await api(`/v9/projects/${T.project}`));previous=await api(`/v13/deployments/${T.host}`);guardDeployment(previous);
            report.previousDeploymentId=previous.id;report.previousUrl=`https://${previous.url}/`;
@@ -120,7 +120,7 @@ jobs:
            await cp('landing/scripts/build.mjs',dir+'/scripts/build.mjs');
            await writeFile(dir+'/.vercel/project.json',JSON.stringify({projectId:T.project,orgId:T.team,projectName:T.name}));
            assert.equal((await api(`/v13/deployments/${T.host}`)).id,previous.id,'Concurrent production deployment detected');
-           phase='deployment';await status('pending','Deploying approved real UI with restored feature section to queue-mate.com');attempted=true;
+           phase='deployment';await status('pending','Deploying approved product-led real UI landing to queue-mate.com');attempted=true;
            const out=await vc(['deploy','--cwd',dir,'--yes','--prod','--scope',T.scope,'--meta',`githubCommitSha=${T.source}`,'--meta',`releaseWorkflowSha=${workflowSha}`],300000);
            const urls=out.match(/https:\/\/[a-z0-9.-]+\.vercel\.app/gi);assert.ok(urls?.length,'No deployment URL returned');
            deployment=await api(`/v13/deployments/${new URL(urls.at(-1)).hostname}`);guardDeployment(deployment);
@@ -136,7 +136,7 @@ jobs:
            for(const file of files){const live=await page(origin+file),expected=await readFile('landing/dist/'+file);assert.equal(live.status,200,'Missing asset: '+file);assert.equal(digest(live.bytes),digest(expected),'Asset differs: '+file);report.assets.push({path:file,sha256:digest(live.bytes)});}
            await command(process.execPath,['landing/scripts/check-url.mjs',origin,'production',audit+'/http-checks.json'],180000);
            report.verified=true;report.htmlSha256=digest(root.bytes);
-           await status('success','RESTORED_UI_DEPLOYED; real UI, 3 feature cards, quick-match, SEO and GA4 verified',origin);
+           await status('success','PRODUCT_UI_DEPLOYED; real UI flow, 3 feature rows, quick-match, SEO and GA4 verified',origin);
           }catch(error){
            report.error=phase+': '+error.message;
            if(attempted&&previous&&!report.verified){try{const current=await api(`/v13/deployments/${T.host}`);if(current.id!==previous.id&&current.meta?.githubCommitSha===T.source&&current.meta?.releaseWorkflowSha===workflowSha){await vc(['rollback',report.previousUrl,'--yes','--scope',T.scope,'--cwd',dir],120000);report.rolledBack=(await api(`/v13/deployments/${T.host}`)).id===previous.id;}}catch{report.rolledBack=false;}}
