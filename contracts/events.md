@@ -238,7 +238,7 @@ payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약
 > | `member:{userId}` | 값은 LoL 이면 포지션 · VALORANT 면 역할군(그 사람의 keyValue)이고 **PUBG 는 `'EXIST'`**(자리 채움 — 플랫폼은 색인 키에만 있다. 2026-10-01 에 바로잡았다 — 예전 판은 "PUBG 플랫폼" 이라 적었다). `{userId}` 는 사용자 번호의 십진 문자열. 인원 수 필드는 없다 — 이 필드를 센다 |
 > | `tierLo` / `tierHi` | 티어를 보는 모드의 파티 허용 범위 — 티어 사다리 `qm:gameconfig:{GAME}:tier` 의 `ZRANK` 순번(0부터). 티어를 안 보는 모드는 `0/0` |
 >
-> **제안 중에도 읽는다**(2026-10-01 소유자 결정 — docs/11 D-56 · `../platform/contracts/platform-api.md` P-47). platform 이 퀵 매칭 파티의 팀원 카드
+> **제안 중에도 읽는다**(2026-10-01 소유자 결정 — docs/11 D-56 · `../platform/contracts/platform-api.md` P-47). platform 이 빠른매치 파티의 팀원 카드
 > `GET /api/v1/match-parties/{partyId}/members?game=` 를 주려고 **제안 중(`status=PENDING`)인 HASH 도 `HGETALL` 로 읽는다** — 부른 사람의 `member:{나}` 가
 > 있는가(같은 파티원만 본다)와 `status` 를 본다. 그래서 **배정 스크립트가 쓰는 `status` · `member:{userId}` 의 이름과 값**은 확정 전에도 계약이다(대조 테스트는 없다).
 > 제안 중에는 `game` · `modeKey` 등이 아직 없어(확정 때 `cleanup-confirmed.lua` 가 채운다) 프런트가 `?game=` 을 넘긴다. 그 밖의 필드(`expiresAt` ·
