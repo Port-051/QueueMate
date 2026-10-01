@@ -86,6 +86,13 @@ export function renderUseFlow() {
 </div>`;
 }
 
+/** Decorative miniatures illustrate the product, not live metrics or clickable controls. */
+function featureVisual(name) {
+  if (name === 'matching') return `<div class="feature-visual match-art" aria-hidden="true"><div class="match-input"><span>${icon('filters')} 내 조건</span><b>미드</b><b>음성 사용</b><b>즐겜</b></div><div class="match-connection"><span></span>${icon('bolt')}<span></span></div><div class="match-result"><i class="avatar">나</i><span>+</span><i class="avatar avatar-alt">팀원</i></div></div>`;
+  if (name === 'seats') return `<div class="feature-visual seats-art" aria-hidden="true"><span class="mini-seat filled">${icon('bow')}</span><span class="mini-seat filled">${icon('jungle')}</span><span class="mini-seat chosen">${icon('plus')}</span><span class="mini-seat">${icon('plus')}</span><span class="mini-seat">${icon('plus')}</span></div>`;
+  return `<div class="feature-visual sound-art" aria-hidden="true"><div class="sound-orbit"><span class="avatar">A</span><span class="avatar avatar-alt">B</span><span class="avatar avatar-self">나</span><div class="sound-center">${icon('mic')}</div></div><div class="waveform">${[9,15,25,36,23,47,65,39,21,35,55,78,57,29,17,41,62,33,20,39,53,26,15,9].map(h=>`<i style="--bar:${h}px"></i>`).join('')}</div><span class="sound-note">방을 옮길 필요 없이.</span></div>`;
+}
+
 export function renderSite(c, env = {}) {
   const mode = resolveMode(c, env);
   const origin = new URL(c.origin).origin, canonical = `${origin}/`;
@@ -108,19 +115,26 @@ export function renderSite(c, env = {}) {
 <meta name="twitter:card" content="${c.media?.ogImage ? 'summary_large_image' : 'summary'}"><meta name="twitter:title" content="${e(c.title)}"><meta name="twitter:description" content="${e(c.description)}">${imageMeta}${verification}
 <script type="application/ld+json">${jsonForHtml(schema)}</script><link rel="stylesheet" href="/assets/site.css"><link rel="stylesheet" href="/assets/concise.css"><link rel="stylesheet" href="/assets/product-ui.css"></head>
 <body><a class="skip-link" href="#main">본문으로 바로가기</a>
-<header class="site-header"><div class="wrap header-inner"><a href="#main" class="brand-link" aria-label="큐메이트 홈">${wordmark()}</a><nav aria-label="주요 메뉴"><a href="#preview">서비스 화면</a><a href="#quick-match">빠른매치</a><a href="#faq">FAQ</a></nav><a class="header-cta" href="${c.appReady ? e(c.appUrl) : '#preview'}">${c.appReady ? '시작하기' : '화면 보기'} ${icon('arrow')}</a></div></header>
+<header class="site-header"><div class="wrap header-inner"><a href="#main" class="brand-link" aria-label="큐메이트 홈">${wordmark()}</a><nav aria-label="주요 메뉴"><a href="#preview">서비스 화면</a><a href="#features">기능</a><a href="#faq">FAQ</a></nav><a class="header-cta" href="${c.appReady ? e(c.appUrl) : '#preview'}">${c.appReady ? '시작하기' : '화면 보기'} ${icon('arrow')}</a></div></header>
 <main id="main" tabindex="-1">
 <section class="hero wrap" aria-labelledby="hero-title">
 <div class="hero-copy"><p class="hero-kicker"><span aria-hidden="true"></span> 롤 듀오 · 파티 찾기</p>
 <h1 id="hero-title">조건에 맞는 팀원을 찾고,<br><em>같은 방에서 바로 대화하세요.</em></h1>
-<p class="hero-description">롤 듀오·파티, 멤버와 빈자리를 보고 참여하세요.<br>디스코드 이동 없이 음성 채팅까지.</p>
+<p class="hero-description">롤 듀오·파티를 자동으로 찾거나, 모집방에 직접 참여하세요.<br>음성 채팅까지 한곳에서.</p>
 <div class="hero-actions">${cta()}</div>
 <p class="release-status">${c.appReady ? '게임 내 친구 추가·초대는 별도' : '서비스 준비 중'}</p>
 </div>
 <div id="preview" class="hero-product" aria-label="실제 모집방과 파티 대화 화면">${renderUseFlow()}</div>
 </section>
+<section id="features" class="section wrap" aria-labelledby="features-title">
+<div id="how-it-works" class="section-heading"><p class="eyebrow">FIND. JOIN. TALK.</p><h2 id="features-title">팀원 찾기부터<br><em>음성 대화까지.</em></h2></div>
+<div class="benefit-grid">
+<article id="auto-match" class="benefit-card"><span class="feature-number" aria-hidden="true">01 / MATCH</span><div class="feature-icon">${icon('filters')}</div><h3>조건에 맞는 롤 듀오 찾기</h3><p>모드·포지션·음성 조건으로 팀원을 자동 매칭합니다.</p>${featureVisual('matching')}<details id="evidence-settings" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${detailCapture('settings','게임 모드, 내 포지션, 인원, 플레이 목적, 음성 조건을 고르는 빠른매치 설정','빠른매치 조건 설정')}</details></article>
+<article id="join" class="benefit-card"><span class="feature-number" aria-hidden="true">02 / JOIN</span><div class="feature-icon">${icon('people')}</div><h3>멤버와 빈자리 확인</h3><p>티어·포지션을 보고 원하는 모집방에 직접 참여하세요.</p>${featureVisual('seats')}<details id="evidence-board" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${renderProductPreview()}</details></article>
+<article class="benefit-card"><span class="feature-number" aria-hidden="true">03 / TALK</span><div class="feature-icon">${icon('mic')}</div><h3>같은 방에서 음성 채팅</h3><p>디스코드 이동 없이, 모집 중에도 같은 방에서 대화하세요.</p>${featureVisual('voice')}<details id="evidence-room" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${detailCapture('room','모집방 목록 옆에 열린 파티 패널의 참여 인원, 마이크 켜기, 채팅 영역','파티 음성·채팅')}</details></article>
+</div></section>
 <section id="quick-match" class="quick-match-section wrap" aria-labelledby="quick-match-title">
-<div id="features" class="quick-match-copy"><p class="eyebrow">QUICK MATCH</p><h2 id="quick-match-title">직접 찾는 대신,<br><em>빠른매치.</em></h2><p>조건을 정하면 맞는 팀원을 자동으로 찾아드립니다.</p><a class="text-link" href="/assets/ui/quick-match-settings.webp">빠른매치 화면 크게 보기 ${icon('arrow')}</a></div>
+<div class="quick-match-copy"><p class="eyebrow">QUICK MATCH</p><h2 id="quick-match-title">직접 찾는 대신,<br><em>빠른매치.</em></h2><p>조건을 정하면 맞는 팀원을 자동으로 찾아드립니다.</p><a class="text-link" href="/assets/ui/quick-match-settings.webp">빠른매치 화면 크게 보기 ${icon('arrow')}</a></div>
 <figure class="quick-match-figure"><a class="capture-link quick-match-crop" href="/assets/ui/quick-match-settings.webp" aria-label="화면 크게 보기 — 실제 빠른매치 조건 설정"><img src="/assets/ui/quick-match-settings.webp" width="1440" height="900" alt="실제 빠른매치 조건 설정: 게임 모드, 내 포지션, 인원, 플레이 목적과 음성을 선택하는 화면" loading="lazy" decoding="async"></a><figcaption>빠른매치 조건 설정 · 실제 UI, 예시 데이터</figcaption></figure>
 </section>
 <section id="faq" class="section wrap faq-layout" aria-labelledby="faq-title"><div class="section-heading"><h2 id="faq-title">궁금한 점</h2></div><div class="faq-list">${faqs.map(([q,a])=>`<details class="faq-item"><summary>${e(q)}<span class="faq-plus" aria-hidden="true">+</span></summary><p>${e(a)}</p></details>`).join('')}</div></section>

@@ -42,8 +42,8 @@ test('primary actual room screenshot is eager and lower quick-match screenshot i
  assert.match(html,/quick-match-room\.webp"[^>]+fetchpriority="high"/);
  assert.match(html,/quick-match-settings\.webp"[^>]+loading="lazy"/);
 });
-test('all three original capture links have descriptive enlargement names',()=>{
+test('all primary and restored-card capture links have descriptive enlargement names',()=>{
  const labels=[...html.matchAll(/<a class="capture-link[^"]*"[^>]*aria-label="([^"]+)"/g)];
- assert.equal(labels.length,3);
+ assert.equal(labels.length,6);
  for(const [,name]of labels)assert.ok(name.includes('화면 크게 보기'));
 });

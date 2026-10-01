@@ -26,7 +26,8 @@ def paint(page):
 
 def geometry(page,width):
  check(f'{width}px: no page-wide overflow',page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
- check(f'{width}px: quick match follows main product screenshot',page.locator('#quick-match').bounding_box()['y']>=page.locator('#preview').bounding_box()['y']+page.locator('#preview').bounding_box()['height']-1)
+ check(f'{width}px: feature overview follows main screenshot',page.locator('#features').bounding_box()['y']>=page.locator('#preview').bounding_box()['y']+page.locator('#preview').bounding_box()['height']-1)
+ check(f'{width}px: quick match is separate below overview',page.locator('#quick-match').bounding_box()['y']>=page.locator('#features').bounding_box()['y']+page.locator('#features').bounding_box()['height']-1)
  if width<=700:
   sc=page.locator('.joined-screen .actual-image-scroll')
   check(f'{width}px: app screenshot has its own labelled scroll area',sc.is_visible() and sc.get_attribute('aria-label') is not None)
@@ -54,6 +55,12 @@ try:
     check(f'{width}px: quick match follows the product, not a competing CTA',page.locator('.hero-actions a').count()==1 and page.locator('.quick-match-copy .button-primary').count()==0)
     check(f'{width}px: three short FAQs',page.locator('.faq-item').count()==3)
     check(f'{width}px: no runtime errors or external traffic',not errors and not external)
+    check(f'{width}px: restored overview heading',page.locator('#features-title').inner_text().replace('\n','')=='팀원 찾기부터음성 대화까지.')
+    check(f'{width}px: three original feature cards',page.locator('#features .benefit-card').count()==3)
+    for i,item in enumerate(page.locator('#features .screen-details').all()):
+     item.locator('summary').click();item.locator('img').evaluate('(i)=>i.decode()')
+     check(f'{width}px: feature screenshot {i+1} opens',item.locator('img').is_visible())
+     item.locator('summary').click()
     geometry(page,width)
     toggle=page.locator('.actual-state-switch');toggle.click()
     check(f'{width}px: native toggle reveals participation-before screenshot',page.locator('.unjoined-screen').is_visible() and not page.locator('.joined-screen').is_visible())
@@ -80,6 +87,8 @@ try:
    page.locator('.actual-state-switch').click();check('No JS: before screen shown',page.locator('.unjoined-screen').is_visible())
    page.locator('.actual-state-switch').click();check('No JS: after screen restored',page.locator('.joined-screen').is_visible())
    page.locator('.faq-item summary').first.click();check('No JS: FAQ opens',page.locator('.faq-item p').first.is_visible())
+   page.locator('#features .screen-details summary').first.click();check('No JS: restored feature screenshot opens',page.locator('#features .screen-details img').first.is_visible())
+   check('No JS: original feature heading remains',page.locator('#features-title').inner_text().replace('\n','')=='팀원 찾기부터음성 대화까지.')
    check('No JS: quick match section present',page.locator('#quick-match-title').is_visible());context.close()
   finally:browser.close()
 except Exception as e:report['error']=str(e);check('Browser audit completed',False)

@@ -13,7 +13,7 @@ test('actual captures replace fabricated seats without changing the headline',()
  assert.match(html,/<h1 id="hero-title">조건에 맞는 팀원을 찾고,/);
 });
 test('review controls never become live matchmaking, microphone or endorsement claims',()=>{
- assert.doesNotMatch(html,/<iframe|<video|getUserMedia|실시간 접속자|누적 매칭|class="feature-visual /);
+ assert.doesNotMatch(html,/<iframe|<video|getUserMedia|실시간 접속자|누적 매칭/);
  assert.doesNotMatch(css,/@import|@font-face|url\(https|infinite/);
  assert.match(html,/실제 참가·음성 연결은 되지 않습니다/);
 });
