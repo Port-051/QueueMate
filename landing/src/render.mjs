@@ -68,17 +68,20 @@ function detailCapture(name, alt, label) {
   return `<figure class="detail-capture"><a class="capture-link" href="${url}" aria-label="화면 크게 보기 — ${e(label)} 실제 UI 캡처"><img src="${url}" width="1440" height="900" alt="${e(alt)}" loading="lazy" decoding="async"><span class="capture-zoom">화면 크게 보기 ↗</span></a><figcaption>실제 UI 캡처 · 예시 데이터</figcaption></figure>`;
 }
 
-/** Original feature/quick-match-ui screenshots. The tabs only switch explanatory captures. */
+/** Original feature/quick-match-ui screenshots. Both states stay visible; no hidden demo state. */
 export function renderUseFlow() {
-  return `<div class="product-walkthrough" aria-label="큐메이트 실제 사용 흐름">
-<div class="walkthrough-head"><div><span class="walkthrough-label">실제 서비스 화면</span><h2>방을 보고, 참여하고, 바로 대화합니다.</h2></div><span class="example-label">예시 데이터</span></div>
-<div class="walkthrough-steps" role="list" aria-label="이용 흐름"><span class="is-active" role="listitem"><b>1</b> 모집방 확인</span><span role="listitem"><b>2</b> 참여</span><span role="listitem"><b>3</b> 음성·채팅</span></div>
-<details class="walkthrough-toggle" open>
-<summary><span class="when-open">참여 전 화면 보기</span><span class="when-closed">참여 후 화면 보기</span></summary>
-<figure class="walkthrough-after"><div class="actual-image-scroll" tabindex="0" role="region" aria-label="참여 후 모집방과 음성 채팅 화면"><a class="capture-link" href="/assets/ui/quick-match-room.webp" aria-label="화면 크게 보기 — 참여 후 모집방과 음성·채팅"><img src="/assets/ui/quick-match-room.webp" width="1440" height="900" alt="3명이 참여한 모집방과 오른쪽 음성·채팅 패널. 아직 두 자리가 비어 있는 실제 서비스 화면" fetchpriority="high" decoding="async"></a></div><figcaption><strong>참여하면 같은 화면에서 대화를 시작합니다.</strong><span>3/5명 · 모집 중</span></figcaption></figure>
-</details>
-<figure class="walkthrough-before"><div class="actual-image-scroll" tabindex="0" role="region" aria-label="참여 전 모집방 목록"><a class="capture-link" href="/assets/ui/quick-match-board.webp" aria-label="화면 크게 보기 — 참여 전 모집방 목록"><img src="/assets/ui/quick-match-board.webp" width="1440" height="900" alt="현재 멤버와 빈자리를 확인할 수 있는 실제 모집방 목록 화면" loading="lazy" decoding="async"></a></div><figcaption><strong>들어가기 전에 멤버와 빈자리를 확인합니다.</strong><span>참여 전</span></figcaption></figure>
-<p class="walkthrough-note">실제 UI · 화면의 닉네임과 전적은 예시입니다. 이 랜딩에서는 실제 참가·음성 연결은 되지 않습니다.</p>
+  return `<div class="product-journey" aria-label="큐메이트 실제 사용 흐름">
+<div class="journey-head"><span>실제 서비스 화면 · 예시 데이터</span><h2>들어가기 전부터,<br>참여한 뒤까지.</h2><p>화면을 눌러 바꾸지 않아도 실제 흐름을 한 번에 볼 수 있습니다.</p></div>
+<div class="journey-stage journey-before">
+<div class="journey-copy"><span class="journey-step">01</span><h3>먼저, 들어갈 방을 봅니다.</h3><p>현재 멤버와 빈자리를 확인하고 원하는 모집방을 고릅니다.</p></div>
+<figure><a class="capture-link journey-screen" href="/assets/ui/quick-match-board.webp" aria-label="모집방 목록 실제 화면 크게 보기"><img src="/assets/ui/quick-match-board.webp" width="1440" height="900" alt="현재 멤버와 빈자리를 확인할 수 있는 실제 모집방 목록 화면" fetchpriority="high" decoding="async"></a><figcaption>참여 전 · 모집방 찾기</figcaption></figure>
+</div>
+<div class="journey-connector" aria-hidden="true"><span></span>${icon('arrow')}</div>
+<div class="journey-stage journey-after">
+<div class="journey-copy"><span class="journey-step">02</span><h3>참여하면, 바로 같은 방입니다.</h3><p>별도 음성 채널로 이동하지 않고 모집 중인 멤버와 음성·채팅을 시작합니다.</p></div>
+<figure><a class="capture-link journey-screen" href="/assets/ui/quick-match-room.webp" aria-label="참여 후 파티 음성 채팅 실제 화면 크게 보기"><img src="/assets/ui/quick-match-room.webp" width="1440" height="900" alt="3명이 참여한 모집방과 오른쪽 음성·채팅 패널이 함께 보이는 실제 서비스 화면" loading="lazy" decoding="async"></a><figcaption>참여 후 · 3/5명, 모집 중에도 대화</figcaption></figure>
+</div>
+<p class="journey-note">실제 UI · 닉네임과 전적은 예시입니다. 이 랜딩에서는 실제 참가·음성 연결은 되지 않습니다.</p>
 </div>`;
 }
 
