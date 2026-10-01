@@ -122,7 +122,7 @@ export function renderSite(c, env = {}) {
 <section class="hero wrap" aria-labelledby="hero-title">
 <div class="hero-copy"><p class="hero-kicker">롤 듀오 · 파티 찾기</p>
 <h1 id="hero-title">조건에 맞는<br>팀원을 찾고,<br><em>같은 방에서<br>바로 대화하세요.</em></h1>
-<p class="hero-description">자동 매칭 또는 직접 참여.<br>음성 대화까지 한곳에서.</p>
+<p class="hero-description">롤 듀오·파티를 자동으로 찾거나, 모집방에 직접 참여하세요.<br>음성 채팅까지 한곳에서.</p>
 <div class="hero-actions">${cta()}</div>
 <p class="release-status">${c.appReady ? '게임 내 친구 추가·초대는 별도' : '서비스 준비 중'}</p>
 </div>
@@ -131,9 +131,9 @@ export function renderSite(c, env = {}) {
 <section id="features" class="section wrap" aria-labelledby="features-title">
 <div id="how-it-works" class="section-heading"><h2 id="features-title">팀원 찾기부터 음성 대화까지.</h2></div>
 <div class="benefit-grid">
-<article id="auto-match" class="benefit-card"><div class="feature-icon">${icon('filters')}</div><h3>조건으로 자동 매칭</h3><p>모드·포지션·음성 조건을 선택하세요.</p><details id="evidence-settings" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${detailCapture('settings','게임 모드, 내 포지션, 인원, 플레이 목적, 음성 조건을 고르는 빠른매치 설정','빠른매치 조건 설정')}</details></article>
-<article id="join" class="benefit-card"><div class="feature-icon">${icon('people')}</div><h3>멤버 보고 직접 참여</h3><p>티어·포지션·빈자리를 먼저 확인하세요.</p><details id="evidence-board" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${renderProductPreview()}</details></article>
-<article class="benefit-card"><div class="feature-icon">${icon('mic')}</div><h3>디스코드 없이 대화</h3><p>모집 중에도 같은 방에서 음성·채팅하세요.</p><details id="evidence-room" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${detailCapture('room','모집방 목록 옆에 열린 파티 패널의 참여 인원, 마이크 켜기, 채팅 영역','파티 음성·채팅')}</details></article>
+<article id="auto-match" class="benefit-card"><div class="feature-icon">${icon('filters')}</div><h3>조건에 맞는<br>롤 듀오 찾기</h3><p>모드·포지션·음성 조건으로 팀원을 자동 매칭합니다.</p><details id="evidence-settings" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${detailCapture('settings','게임 모드, 내 포지션, 인원, 플레이 목적, 음성 조건을 고르는 빠른매치 설정','빠른매치 조건 설정')}</details></article>
+<article id="join" class="benefit-card"><div class="feature-icon">${icon('people')}</div><h3>멤버와<br>빈자리 확인</h3><p>티어·포지션을 보고 원하는 모집방에 직접 참여하세요.</p><details id="evidence-board" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${renderProductPreview()}</details></article>
+<article class="benefit-card"><div class="feature-icon">${icon('mic')}</div><h3>같은 방에서<br>음성 채팅</h3><p>디스코드 이동 없이, 모집 중에도 같은 방에서 대화하세요.</p><details id="evidence-room" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${detailCapture('room','모집방 목록 옆에 열린 파티 패널의 참여 인원, 마이크 켜기, 채팅 영역','파티 음성·채팅')}</details></article>
 </div></section>
 <section id="faq" class="section wrap faq-layout" aria-labelledby="faq-title"><div class="section-heading"><h2 id="faq-title">궁금한 점</h2></div><div class="faq-list">${faqs.map(([q,a])=>`<details class="faq-item"><summary>${e(q)}<span class="faq-plus" aria-hidden="true">+</span></summary><p>${e(a)}</p></details>`).join('')}</div></section>
 </main><footer class="site-footer wrap"><a class="brand-link" href="#main" aria-label="큐메이트 홈">${wordmark()}</a><div class="footer-meta"><span>${e(new URL(c.origin).hostname)}</span><small>© 2026 QueueMate</small></div></footer></body></html>`;

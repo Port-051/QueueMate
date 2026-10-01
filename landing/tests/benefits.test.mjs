@@ -12,7 +12,7 @@ test('approved product headline leads instead of rhetorical advertising',()=>{
 });
 test('automatic matching and direct room entry stay explicit in the concise page',()=>{
  const opening=html.slice(html.indexOf('<main'),html.indexOf('id="faq"'));
- for(const phrase of ['자동 매칭 또는 직접 참여.','조건으로 자동 매칭','멤버 보고 직접 참여','티어·포지션·빈자리','디스코드 없이 대화']) assert.ok(opening.includes(phrase),phrase);
+ for(const phrase of ['롤 듀오·파티를 자동으로 찾거나,','모집방에 직접 참여하세요.','조건에 맞는<br>롤 듀오 찾기','멤버와<br>빈자리 확인','같은 방에서<br>음성 채팅','디스코드 이동 없이']) assert.ok(opening.includes(phrase),phrase);
 });
 test('shows a 2-of-5 to 3-of-5 transition without filling the whole party',()=>{
  assert.match(html,/<span class="before-join">2<\/span><span class="after-join">3<\/span>/);
