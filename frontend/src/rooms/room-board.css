@@ -337,8 +337,8 @@
 .room-home .room-filters .board-create-slot { display:flex; gap:8px; margin-left:auto; }
 .room-home .room-filters .board-create-slot:empty { display:none; }
 .room-home .room-filters .board-action-button { min-height:44px; padding:0 20px; gap:8px; font-size:var(--room-label-font-size); white-space:nowrap; }
-.room-home .room-filters .board-create-button { background:linear-gradient(135deg,#0f766e,#0d7b72); box-shadow:0 4px 12px #0f766e29; }
-.room-home .room-filters .board-create-button:hover:not(:disabled) { border-color:#62dbca; background:linear-gradient(135deg,#0c6b63,#13786e); }
+.room-home .room-filters .board-create-button { border-color:#555560; background:linear-gradient(135deg,#35353e,#454550); color:var(--text); box-shadow:0 4px 12px #0003; }
+.room-home .room-filters .board-create-button:hover:not(:disabled) { border-color:#747480; background:linear-gradient(135deg,#40404a,#50505c); }
 @media(min-width:700px) {
   .room-match-top .self-introduction .introduction-fields { grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 24px; align-items:start; }
   .room-match-top .self-introduction .introduction-fields>:first-child { grid-row:span 2; }
