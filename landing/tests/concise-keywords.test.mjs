@@ -1,48 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {renderSite} from '../src/render.mjs';
+import {renderSite,renderUseFlow} from '../src/render.mjs';
+const config=JSON.parse(await readFile(new URL('../site.config.json',import.meta.url),'utf8'));
+const html=renderSite(config,{VERCEL_ENV:'production'}).html;
 
-const config = JSON.parse(await readFile(new URL('../site.config.json', import.meta.url), 'utf8'));
-const html = renderSite(config, {VERCEL_ENV: 'production'}).html;
-const hero = html.match(/<p class="hero-description">([\s\S]*?)<\/p>/)?.[1];
-const cards = [...html.matchAll(/<article[^>]*class="benefit-card">([\s\S]*?)<\/article>/g)];
-const text = value => value.replace(/<br\s*\/?\s*>/gi, ' ').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-
-test('brief hero names the game, both finding methods and voice chat in visible HTML', () => {
-  assert.equal(hero, '롤 듀오·파티를 자동으로 찾거나, 모집방에 직접 참여하세요.<br>음성 채팅까지 한곳에서.');
-  assert.equal((hero.match(/<br>/g) || []).length, 1);
-  assert.ok(text(hero).replace(/\s/g, '').length <= 40);
-  assert.match(html, /<h1 id="hero-title">조건에 맞는 팀원을 찾고,<br><em>같은 방에서 바로 대화하세요\.<\/em><\/h1>/);
+test('primary copy keeps the approved headline and leads with direct room participation',()=>{
+ assert.match(html,/<h1 id="hero-title">조건에 맞는 팀원을 찾고,<br><em>같은 방에서 바로 대화하세요\.<\/em><\/h1>/);
+ const hero=html.match(/<p class="hero-description">(.*?)<\/p>/s)[1];
+ assert.equal(hero,'롤 듀오·파티, 멤버와 빈자리를 보고 참여하세요.<br>디스코드 이동 없이 음성 채팅까지.');
+ assert.ok(hero.replace(/<[^>]*>|\s/g,'').length<=45);
 });
-
-test('three short headings describe matching, member selection and same-room voice', () => {
-  assert.equal(cards.length, 3);
-  assert.deepEqual(cards.map(([, card]) => text(card.match(/<h3>([\s\S]*?)<\/h3>/)[1])), [
-    '조건에 맞는 롤 듀오 찾기', '멤버와 빈자리 확인', '같은 방에서 음성 채팅',
-  ]);
-  const descriptions = cards.map(([, card]) => text(card.match(/<p>([\s\S]*?)<\/p>/)[1]));
-  assert.match(descriptions[0], /모드·포지션·음성 조건.*자동 매칭/);
-  assert.match(descriptions[1], /티어·포지션.*모집방에 직접 참여/);
-  assert.match(descriptions[2], /디스코드 이동 없이.*모집 중에도 같은 방에서/);
-  for (const description of descriptions) assert.ok(description.replace(/\s/g, '').length <= 40);
+test('quick match is one secondary section after the actual room, not two competing choices',()=>{
+ assert.ok(html.indexOf('id="preview"')<html.indexOf('id="quick-match"'));
+ assert.ok(html.indexOf('id="quick-match"')<html.indexOf('id="faq"'));
+ assert.equal((html.match(/id="quick-match"/g)||[]).length,1);
+ assert.match(html,/직접 찾는 대신,<br><em>빠른매치\./);
+ assert.match(html,/조건을 정하면 맞는 팀원을 자동으로 찾아드립니다\./);
+ assert.doesNotMatch(html,/팀원을 찾는 두 가지 방법|조건으로 자동 매칭|class="benefit-card"/);
 });
-
-test('keyword refinement does not restore long sections or hide terms in SEO-only markup', () => {
-  assert.equal((html.match(/class="hero-description"/g) || []).length, 1);
-  assert.equal((html.match(/class="faq-item"/g) || []).length, 3);
-  assert.doesNotMatch(html, /hero-description-secondary|continuity-section|final-section|name="keywords"/);
-  const heroTag = html.match(/<p class="hero-description"[^>]*>/)?.[0];
-  assert.equal(heroTag, '<p class="hero-description">');
-  assert.equal((html.match(/class="screen-details"/g) || []).length, 3);
+test('copy stays brief and contains visible discovery terms rather than keyword stuffing',()=>{
+ assert.equal((html.match(/class="hero-description"/g)||[]).length,1);
+ assert.equal((html.match(/class="faq-item"/g)||[]).length,3);
+ assert.doesNotMatch(html,/name="keywords"|hero-description-secondary|continuity-section|final-section/);
+ for(const term of ['롤 듀오','파티 찾기','빠른매치','음성 채팅'])assert.ok(html.includes(term));
 });
-
-test('prelaunch disclosure and production search policy survive the copy edit', () => {
-  assert.equal(config.appReady, false);
-  assert.equal(config.allowIndexing, true);
-  assert.match(html, /<title>롤 듀오 찾기·파티 구하기 \| 큐메이트<\/title>/);
-  assert.match(html, /서비스 준비 중/);
-  assert.match(html, /실제 참가·음성 연결은 되지 않습니다/);
-  assert.match(html, /content="index, follow, max-image-preview:large"/);
-  assert.match(html, /class="join-demo"/);
+test('prelaunch and production search policy remain separate',()=>{
+ assert.equal(config.appReady,false);assert.equal(config.allowIndexing,true);
+ assert.match(html,/<title>롤 듀오 찾기·파티 구하기 \| 큐메이트<\/title>/);
+ assert.match(html,/서비스 준비 중/);assert.match(html,/실제 참가·음성 연결은 되지 않습니다/);
+ assert.match(html,/content="index, follow, max-image-preview:large"/);
 });

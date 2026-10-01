@@ -8,23 +8,23 @@ const text=html.replace(/<[^>]+>/g,'');
 test('approved product headline leads instead of rhetorical advertising',()=>{
  assert.match(text,/조건에 맞는\s*팀원을 찾고,같은 방에서\s*바로 대화하세요/);
  assert.doesNotMatch(html,/왜 아직|몇 명 모였어요|디코 어디로|지금 만들고 있는 화면, 그대로/);
- assert.ok(html.indexOf('id="features"')<html.indexOf('class="product-figure'));
+ assert.ok(html.indexOf('id="preview"')<html.indexOf('id="quick-match"'));
 });
 test('automatic matching and direct room entry stay explicit in the concise page',()=>{
  const opening=html.slice(html.indexOf('<main'),html.indexOf('id="faq"'));
- for(const phrase of ['롤 듀오·파티를 자동으로 찾거나,','모집방에 직접 참여하세요.','조건에 맞는 롤 듀오 찾기','멤버와 빈자리 확인','같은 방에서 음성 채팅','디스코드 이동 없이']) assert.ok(opening.includes(phrase),phrase);
+ for(const phrase of ['롤 듀오·파티, 멤버와 빈자리를 보고 참여하세요.','직접 찾는 대신,','빠른매치.','조건을 정하면 맞는 팀원을 자동으로 찾아드립니다.','모집 중에도 같은 방에서 음성·채팅.','디스코드 이동 없이']) assert.ok(opening.includes(phrase),phrase);
 });
 test('shows a 2-of-5 to 3-of-5 transition without filling the whole party',()=>{
- assert.match(html,/<span class="before-join">2<\/span><span class="after-join">3<\/span>/);
- assert.match(html,/class="after-join self-member"/);
+ assert.match(html,/참여 전 · 2\/5명/);assert.match(html,/참여 후 · 3\/5명/);
+ assert.match(html,/class="unjoined-screen"/);
  assert.match(html,/class="join-demo"/);
- assert.match(html,/class="voice-panel"/);
+ assert.match(html,/class="joined-screen"/);
  assert.match(html,/모집 중에도 같은 방에서/);
 });
 test('native participation example never requests microphone or calls real APIs',()=>{
- assert.match(html,/이용 예시/);
+ assert.match(html,/서비스 화면 예시/);
  assert.match(html,/실제 참가·음성 연결은 되지 않습니다/);
- assert.match(html,/데모 체험하기/);
+ assert.match(html,/서비스 화면 보기/);
  assert.doesNotMatch(html,/getUserMedia|autoplay|실시간 접속자|<script src=/);
 });
 test('voice benefit keeps browser permission and game invitation caveats',()=>{

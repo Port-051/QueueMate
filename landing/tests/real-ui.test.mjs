@@ -23,7 +23,7 @@ test('three real screen captures have descriptive labels and native enlargement 
     const src=`/assets/ui/quick-match-${name}.webp`;
     assert.ok(html.includes(`href="${src}"`));assert.ok(html.includes(`src="${src}"`));
   }
-  assert.match(html,/실제 UI 캡처/);assert.match(html,/예시 데이터/);
+  assert.match(html,/실제 UI/);assert.match(html,/예시 데이터/);
   assert.doesNotMatch(html,/class="app-preview"|class="room-bubble"|테스트 서포터|예약 모집 예시/);
 });
 for(const screen of manifest.screens)test(`${screen.name}: capture bytes match recorded source evidence`,async()=>{
@@ -38,12 +38,12 @@ test('AI-readable explanation distinguishes screenshots from live matchmaking',(
   const {llms}=renderSite(config);
   assert.match(llms,/feature\/quick-match-ui/);assert.match(llms,/예시 데이터/);assert.match(llms,/실제 매칭 및 음성 연결 검증이 아닙니다/);
 });
-test('screenshots support benefits below the fold and are all lazy',()=>{
-  for(const n of ['board','settings','room'])assert.match(html,new RegExp(`quick-match-${n}\\.webp"[^>]+loading="lazy"`));
+test('primary actual room screenshot is eager and lower quick-match screenshot is lazy',()=>{
+ assert.match(html,/quick-match-room\.webp"[^>]+fetchpriority="high"/);
+ assert.match(html,/quick-match-settings\.webp"[^>]+loading="lazy"/);
 });
-
-test('screen enlargement accessible names include their visible label',()=>{
-  const links=[...html.matchAll(/<a class="capture-link"[^>]*aria-label="([^"]+)"/g)];
-  assert.equal(links.length,3);
-  for(const [,label] of links) assert.ok(label.includes('화면 크게 보기'));
+test('all three original capture links have descriptive enlargement names',()=>{
+ const labels=[...html.matchAll(/<a class="capture-link[^"]*"[^>]*aria-label="([^"]+)"/g)];
+ assert.equal(labels.length,3);
+ for(const [,name]of labels)assert.ok(name.includes('화면 크게 보기'));
 });

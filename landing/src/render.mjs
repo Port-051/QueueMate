@@ -1,4 +1,4 @@
-/** Static SEO landing: no frontend app imports, trackers, network calls, or client JS. */
+/** Static product presentation. Optional production analytics are installed separately by the build. */
 export const escapeHtml = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const e = escapeHtml;
 const jsonForHtml = value => JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
@@ -68,41 +68,22 @@ function detailCapture(name, alt, label) {
   return `<figure class="detail-capture"><a class="capture-link" href="${url}" aria-label="화면 크게 보기 — ${e(label)} 실제 UI 캡처"><img src="${url}" width="1440" height="900" alt="${e(alt)}" loading="lazy" decoding="async"><span class="capture-zoom">화면 크게 보기 ↗</span></a><figcaption>실제 UI 캡처 · 예시 데이터</figcaption></figure>`;
 }
 
-/** A compact interaction example, not a live room or a screenshot. No API or microphone access. */
+/** Original feature/quick-match-ui screenshots. Native toggle changes the shown capture, not room membership. */
 export function renderUseFlow() {
-  return `<div class="flow-demo" aria-label="모집방 참가와 대화 이용 예시">
-<div class="demo-toolbar"><h2>${icon('people')} 파티 참여 체험</h2><span class="demo-label">데모 · 예시 데이터</span></div>
-<div class="demo-steps"><span>01 멤버 확인</span><i aria-hidden="true">→</i><span>02 참여</span><i aria-hidden="true">→</i><span>03 음성·채팅</span></div>
-<div class="room-preview">
-<div class="room-heading"><span class="game-label">롤 · 자유 랭크</span><span class="recruiting"><i aria-hidden="true"></i>모집 중</span></div>
-<h3>자유 랭크 함께해요</h3>
-<div class="condition-tags"><span>골드–플래티넘</span><span>${icon('mic')} 음성 사용</span></div>
-<div class="count-row"><span>참여 인원</span><strong><span class="before-join">2</span><span class="after-join">3</span><span class="count-total"> / 5명</span></strong></div>
-<ul class="member-list" aria-label="모집방 구성원 예시">
-<li><span class="seat-label">원딜</span><span class="role-art role-bow" aria-hidden="true">${icon('bow')}</span><span class="avatar">A</span><span class="member-info"><strong>팀원 A <small>방장</small></strong><span>골드 II · 원딜</span></span></li>
-<li><span class="seat-label">정글</span><span class="role-art role-jungle" aria-hidden="true">${icon('jungle')}</span><span class="avatar avatar-alt">B</span><span class="member-info"><strong>팀원 B</strong><span>플래티넘 IV · 정글</span></span></li>
-<li class="after-join self-member"><span class="seat-label">미드</span><span class="role-art role-mid" aria-hidden="true">${icon('lane')}</span><span class="avatar avatar-self">나</span><span class="member-info"><strong>내 자리</strong><span>미드</span></span><span class="seat-status">${icon('check')} 참여 완료</span></li>
-</ul>
-<details class="join-demo">
-<summary class="join-example"><span class="before-join"><span class="seat-label">미드</span><span class="join-plus">${icon('plus')}</span><strong>참여하기</strong><small>이 자리에 들어가 볼까요?</small></span><span class="after-join">${icon('arrow')} 참여 전으로</span></summary>
-<div class="voice-panel">
-<div class="voice-panel-top"><h4>${icon('mic')} 음성·채팅</h4><span>3 / 5명</span></div>
-<div class="voice-members"><span><i class="avatar">A</i>팀원 A</span><span><i class="avatar avatar-alt">B</i>팀원 B</span><span><i class="avatar avatar-self">나</i>나</span></div>
-<div class="chat-preview"><p><strong>팀원 A</strong> 미드로 오셨네요!</p><p><strong>나</strong> 네, 반가워요.</p></div>
-<p class="recruit-note">모집 중에도 함께 대화</p>
-</div></details>
-<div class="remaining-seats" aria-label="남은 빈자리"><span><small>탑</small>${icon('plus')}<span>빈자리</span></span><span><small>서포터</small>${icon('plus')}<span>빈자리</span></span></div>
-</div>
-<div class="before-panel"><span class="panel-orbit" aria-hidden="true"><i></i><i></i><i></i><span>${icon('mic')}</span></span><h4>같은 방에서,<br>음성·채팅까지.</h4><span class="panel-hint">보라색 자리를 눌러보세요.</span></div>
-<p class="demo-disclaimer">이용 예시 · 실제 참가·음성 연결은 되지 않습니다.</p>
+  return `<div class="actual-showcase" aria-label="실제 모집방 참여 전후 화면">
+<div class="showcase-toolbar"><h2>${icon('people')} 모집방에서 만나고, 같은 방에서 대화</h2><span>실제 UI · 예시 데이터</span></div>
+<details class="join-demo" open>
+<summary class="actual-state-switch"><span class="show-before">${icon('arrow')} 참여 후 화면 보기</span><span class="show-after">← 참여 전 화면 보기</span></summary>
+<figure class="joined-screen">
+<div class="actual-image-scroll" tabindex="0" role="region" aria-label="참여 후 모집방과 음성 채팅 화면. 좁은 화면에서는 좌우로 스크롤할 수 있습니다."><a class="capture-link" href="/assets/ui/quick-match-room.webp" aria-label="화면 크게 보기 — 참여 후 실제 모집방과 음성·채팅"><img src="/assets/ui/quick-match-room.webp" width="1440" height="900" alt="3명이 참여한 실제 모집방과 오른쪽의 음성 채널·채팅 패널. 아직 2개의 빈자리가 남아 있습니다." fetchpriority="high" decoding="async"><span class="capture-zoom">화면 크게 보기 ↗</span></a></div>
+<figcaption><span>참여 후 · 3/5명</span><strong>모집 중에도 같은 방에서 음성·채팅.</strong></figcaption></figure>
+</details>
+<figure class="unjoined-screen">
+<div class="actual-image-scroll" tabindex="0" role="region" aria-label="참여 전 모집방 목록. 좁은 화면에서는 좌우로 스크롤할 수 있습니다."><a class="capture-link" href="/assets/ui/quick-match-board.webp" aria-label="화면 크게 보기 — 참여 전 실제 모집방 목록"><img src="/assets/ui/quick-match-board.webp" width="1440" height="900" alt="실제 모집방 목록에서 현재 멤버, 티어, 포지션과 빈자리를 확인하는 화면" loading="lazy" decoding="async"><span class="capture-zoom">화면 크게 보기 ↗</span></a></div>
+<figcaption><span>참여 전 · 2/5명</span><strong>멤버와 빈자리를 확인하고 참여하세요.</strong></figcaption></figure>
+<p class="swipe-hint">좌우로 밀어 자세히 보세요.</p>
+<p class="demo-disclaimer">서비스 화면 예시 · 실제 참가·음성 연결은 되지 않습니다.</p>
 </div>`;
-}
-
-/** Decorative miniatures illustrate the product, not live metrics or clickable controls. */
-function featureVisual(name) {
-  if (name === 'matching') return `<div class="feature-visual match-art" aria-hidden="true"><div class="match-input"><span>${icon('filters')} 내 조건</span><b>미드</b><b>음성 사용</b><b>즐겜</b></div><div class="match-connection"><span></span>${icon('bolt')}<span></span></div><div class="match-result"><i class="avatar">나</i><span>+</span><i class="avatar avatar-alt">팀원</i></div></div>`;
-  if (name === 'seats') return `<div class="feature-visual seats-art" aria-hidden="true"><span class="mini-seat filled">${icon('bow')}</span><span class="mini-seat filled">${icon('jungle')}</span><span class="mini-seat chosen">${icon('plus')}</span><span class="mini-seat">${icon('plus')}</span><span class="mini-seat">${icon('plus')}</span></div>`;
-  return `<div class="feature-visual sound-art" aria-hidden="true"><div class="sound-orbit"><span class="avatar">A</span><span class="avatar avatar-alt">B</span><span class="avatar avatar-self">나</span><div class="sound-center">${icon('mic')}</div></div><div class="waveform">${[9,15,25,36,23,47,65,39,21,35,55,78,57,29,17,41,62,33,20,39,53,26,15,9].map(h=>`<i style="--bar:${h}px"></i>`).join('')}</div><span class="sound-note">방을 옮길 필요 없이.</span></div>`;
 }
 
 export function renderSite(c, env = {}) {
@@ -110,13 +91,13 @@ export function renderSite(c, env = {}) {
   const origin = new URL(c.origin).origin, canonical = `${origin}/`;
   const cta = (extra = '') => c.appReady
     ? `<a class="button button-primary ${extra}" href="${e(c.appUrl)}" data-cta="start-matching">팀원 찾기 시작하기 ${icon('arrow')}</a>`
-    : `<a class="button button-primary ${extra}" href="#preview" data-cta="explore-preview">데모 체험하기 ${icon('arrow')}</a>`;
+    : `<a class="button button-primary ${extra}" href="#preview" data-cta="explore-preview">서비스 화면 보기 ${icon('arrow')}</a>`;
   const verification = Object.entries({google:'google-site-verification',naver:'naver-site-verification',bing:'msvalidate.01'})
     .filter(([key]) => c.verification?.[key]?.trim()).map(([key,name])=>`<meta name="${name}" content="${e(c.verification[key])}">`).join('\n');
   const imageMeta = c.media?.ogImage ? `<meta property="og:image" content="${e(origin + c.media.ogImage)}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="큐메이트 — 롤 듀오와 파티 찾기"><meta name="twitter:image" content="${e(origin + c.media.ogImage)}"><meta name="twitter:image:alt" content="큐메이트 — 롤 듀오와 파티 찾기">` : '';
   const schema = {'@context':'https://schema.org','@type':'WebSite',name:c.name,alternateName:c.alternateName,url:canonical,inLanguage:'ko-KR'};
   const faqs = [
-    ['지금 이용할 수 있나요?', c.appReady ? '시작하기를 누르면 매칭 서비스로 이동합니다. 이 페이지의 데모에서는 실제 참가·음성 연결이 실행되지 않습니다.' : '서비스 준비 중입니다. 지금은 참여 흐름만 체험할 수 있습니다.'],
+    ['지금 이용할 수 있나요?', c.appReady ? '시작하기를 누르면 매칭 서비스로 이동합니다. 이 페이지의 데모에서는 실제 참가·음성 연결이 실행되지 않습니다.' : '서비스 준비 중입니다. 지금은 실제 UI의 참여 전후 화면을 살펴볼 수 있습니다.'],
     ['게임과 음성은 어떻게 연결하나요?', '디스코드는 필요 없습니다. 음성 대화에는 브라우저의 마이크 권한을 허용하고 마이크를 켜야 합니다. 게임 내 친구 추가·파티 초대는 별도로 진행합니다.'],
     ['어떤 게임을 지원하나요?', '롤·발로란트·배틀그라운드를 대상으로 준비 중입니다. 출시 시 지원 범위를 안내합니다.'],
   ];
@@ -125,31 +106,28 @@ export function renderSite(c, env = {}) {
 <meta name="description" content="${e(c.description)}"><meta name="robots" content="${mode.indexable ? 'index, follow, max-image-preview:large' : 'noindex, nofollow'}"><meta name="theme-color" content="#05060f"><link rel="canonical" href="${e(canonical)}">
 <meta property="og:type" content="website"><meta property="og:locale" content="ko_KR"><meta property="og:site_name" content="${e(c.name)}"><meta property="og:title" content="${e(c.title)}"><meta property="og:description" content="${e(c.description)}"><meta property="og:url" content="${e(canonical)}">
 <meta name="twitter:card" content="${c.media?.ogImage ? 'summary_large_image' : 'summary'}"><meta name="twitter:title" content="${e(c.title)}"><meta name="twitter:description" content="${e(c.description)}">${imageMeta}${verification}
-<script type="application/ld+json">${jsonForHtml(schema)}</script><link rel="stylesheet" href="/assets/site.css"><link rel="stylesheet" href="/assets/concise.css"></head>
+<script type="application/ld+json">${jsonForHtml(schema)}</script><link rel="stylesheet" href="/assets/site.css"><link rel="stylesheet" href="/assets/concise.css"><link rel="stylesheet" href="/assets/product-ui.css"></head>
 <body><a class="skip-link" href="#main">본문으로 바로가기</a>
-<header class="site-header"><div class="wrap header-inner"><a href="#main" class="brand-link" aria-label="큐메이트 홈">${wordmark()}</a><nav aria-label="주요 메뉴"><a href="#preview">체험</a><a href="#features">기능</a><a href="#faq">FAQ</a></nav><a class="header-cta" href="${c.appReady ? e(c.appUrl) : '#preview'}">${c.appReady ? '시작하기' : '체험하기'} ${icon('arrow')}</a></div></header>
+<header class="site-header"><div class="wrap header-inner"><a href="#main" class="brand-link" aria-label="큐메이트 홈">${wordmark()}</a><nav aria-label="주요 메뉴"><a href="#preview">서비스 화면</a><a href="#quick-match">빠른매치</a><a href="#faq">FAQ</a></nav><a class="header-cta" href="${c.appReady ? e(c.appUrl) : '#preview'}">${c.appReady ? '시작하기' : '화면 보기'} ${icon('arrow')}</a></div></header>
 <main id="main" tabindex="-1">
 <section class="hero wrap" aria-labelledby="hero-title">
 <div class="hero-copy"><p class="hero-kicker"><span aria-hidden="true"></span> 롤 듀오 · 파티 찾기</p>
 <h1 id="hero-title">조건에 맞는 팀원을 찾고,<br><em>같은 방에서 바로 대화하세요.</em></h1>
-<p class="hero-description">롤 듀오·파티를 자동으로 찾거나, 모집방에 직접 참여하세요.<br>음성 채팅까지 한곳에서.</p>
+<p class="hero-description">롤 듀오·파티, 멤버와 빈자리를 보고 참여하세요.<br>디스코드 이동 없이 음성 채팅까지.</p>
 <div class="hero-actions">${cta()}</div>
 <p class="release-status">${c.appReady ? '게임 내 친구 추가·초대는 별도' : '서비스 준비 중'}</p>
 </div>
-<div id="preview" class="hero-product" aria-label="모집방 참여 체험">${renderUseFlow()}</div>
+<div id="preview" class="hero-product" aria-label="실제 모집방과 파티 대화 화면">${renderUseFlow()}</div>
 </section>
-<section id="features" class="section wrap" aria-labelledby="features-title">
-<div id="how-it-works" class="section-heading"><p class="eyebrow">FIND. JOIN. TALK.</p><h2 id="features-title">팀원 찾기부터<br><em>음성 대화까지.</em></h2></div>
-<div class="benefit-grid">
-<article id="auto-match" class="benefit-card"><span class="feature-number" aria-hidden="true">01 / MATCH</span><div class="feature-icon">${icon('filters')}</div><h3>조건에 맞는 롤 듀오 찾기</h3><p>모드·포지션·음성 조건으로 팀원을 자동 매칭합니다.</p>${featureVisual('matching')}<details id="evidence-settings" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${detailCapture('settings','게임 모드, 내 포지션, 인원, 플레이 목적, 음성 조건을 고르는 빠른매치 설정','빠른매치 조건 설정')}</details></article>
-<article id="join" class="benefit-card"><span class="feature-number" aria-hidden="true">02 / JOIN</span><div class="feature-icon">${icon('people')}</div><h3>멤버와 빈자리 확인</h3><p>티어·포지션을 보고 원하는 모집방에 직접 참여하세요.</p>${featureVisual('seats')}<details id="evidence-board" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${renderProductPreview()}</details></article>
-<article class="benefit-card"><span class="feature-number" aria-hidden="true">03 / TALK</span><div class="feature-icon">${icon('mic')}</div><h3>같은 방에서 음성 채팅</h3><p>디스코드 이동 없이, 모집 중에도 같은 방에서 대화하세요.</p>${featureVisual('voice')}<details id="evidence-room" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${detailCapture('room','모집방 목록 옆에 열린 파티 패널의 참여 인원, 마이크 켜기, 채팅 영역','파티 음성·채팅')}</details></article>
-</div></section>
+<section id="quick-match" class="quick-match-section wrap" aria-labelledby="quick-match-title">
+<div id="features" class="quick-match-copy"><p class="eyebrow">QUICK MATCH</p><h2 id="quick-match-title">직접 찾는 대신,<br><em>빠른매치.</em></h2><p>조건을 정하면 맞는 팀원을 자동으로 찾아드립니다.</p><a class="text-link" href="/assets/ui/quick-match-settings.webp">빠른매치 화면 크게 보기 ${icon('arrow')}</a></div>
+<figure class="quick-match-figure"><a class="capture-link quick-match-crop" href="/assets/ui/quick-match-settings.webp" aria-label="화면 크게 보기 — 실제 빠른매치 조건 설정"><img src="/assets/ui/quick-match-settings.webp" width="1440" height="900" alt="실제 빠른매치 조건 설정: 게임 모드, 내 포지션, 인원, 플레이 목적과 음성을 선택하는 화면" loading="lazy" decoding="async"></a><figcaption>빠른매치 조건 설정 · 실제 UI, 예시 데이터</figcaption></figure>
+</section>
 <section id="faq" class="section wrap faq-layout" aria-labelledby="faq-title"><div class="section-heading"><h2 id="faq-title">궁금한 점</h2></div><div class="faq-list">${faqs.map(([q,a])=>`<details class="faq-item"><summary>${e(q)}<span class="faq-plus" aria-hidden="true">+</span></summary><p>${e(a)}</p></details>`).join('')}</div></section>
 </main><footer class="site-footer wrap"><a class="brand-link" href="#main" aria-label="큐메이트 홈">${wordmark()}</a><div class="footer-meta"><span>${e(new URL(c.origin).hostname)}</span><small>© 2026 QueueMate</small></div></footer></body></html>`;
   const robots = `User-agent: *\nAllow: /\n${mode.indexable ? `\nSitemap: ${origin}/sitemap.xml\n` : '\n# Preview pages use an HTML noindex directive.\n'}`;
   const sitemap = mode.indexable ? `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${e(canonical)}</loc></url></urlset>\n` : null;
-  const llms = `# ${c.name} (${c.alternateName})\n\n> ${c.description}\n\n## 공식 소개\n- [큐메이트](${canonical}): 조건에 맞는 게임 팀원을 찾고, 같은 방에서 대화하며 파티를 구성하는 서비스\n\n## 팀원을 찾는 두 가지 방법\n1. 자동 매칭: 게임 모드·포지션·음성 사용 등 원하는 조건으로 팀원을 찾습니다.\n2. 직접 파티 찾기: 모집방의 멤버·티어·포지션·빈자리를 확인하고 참여합니다.\n\n## 참가한 뒤의 대화\n같은 방에서 음성·텍스트 대화를 이어갑니다. 정원이 다 차기 전, 모집이 진행되는 동안에도 대화하는 흐름입니다. 디스코드 친구 추가나 별도 음성 채널로 이동하는 과정은 필요하지 않습니다.\n\n## 별도로 필요한 것\n음성 사용에는 브라우저 마이크 권한 허용과 마이크 켜기가 필요합니다. 게임 실행과 게임 내 친구 추가·파티 초대는 게임에 따라 별도로 필요합니다. 매칭 완료 시간이나 절약 시간은 보장하지 않습니다.\n\n## 공개 상태\n${c.appReady ? '매칭 서비스 링크를 활성화했습니다.' : '서비스 준비 중입니다. 소개 페이지의 예시에서는 실제 참가·매칭·음성 연결을 실행하지 않습니다.'}\n\n## 화면 출처와 예시\n아래 실제 화면 캡처는 feature/quick-match-ui 브랜치 904cce415181aeb8a8802fc398f9be9e0835b1fe에서 촬영했습니다. 첫 화면의 참여 흐름은 실제 UI 구성을 요약한 설명용 예시입니다. 모든 인원·닉네임·전적·대화는 예시 데이터이며 실제 사용자 현황이나 성과 데이터가 아닙니다. 실제 매칭 및 음성 연결 검증이 아닙니다.\n\n## 지원 대상\n리그 오브 레전드, 발로란트, 배틀그라운드. 공개 시 실제 이용 가능한 범위를 확인하세요.\n\n이 파일은 보조 설명이며 검색 또는 AI 노출을 보장하지 않습니다.\n`;
+  const llms = `# ${c.name} (${c.alternateName})\n\n> ${c.description}\n\n## 공식 소개\n- [큐메이트](${canonical}): 조건에 맞는 게임 팀원을 찾고, 같은 방에서 대화하며 파티를 구성하는 서비스\n\n## 팀원을 찾는 두 가지 방법\n1. 자동 매칭: 게임 모드·포지션·음성 사용 등 원하는 조건으로 팀원을 찾습니다.\n2. 직접 파티 찾기: 모집방의 멤버·티어·포지션·빈자리를 확인하고 참여합니다.\n\n## 참가한 뒤의 대화\n같은 방에서 음성·텍스트 대화를 이어갑니다. 정원이 다 차기 전, 모집이 진행되는 동안에도 대화하는 흐름입니다. 디스코드 친구 추가나 별도 음성 채널로 이동하는 과정은 필요하지 않습니다.\n\n## 별도로 필요한 것\n음성 사용에는 브라우저 마이크 권한 허용과 마이크 켜기가 필요합니다. 게임 실행과 게임 내 친구 추가·파티 초대는 게임에 따라 별도로 필요합니다. 매칭 완료 시간이나 절약 시간은 보장하지 않습니다.\n\n## 공개 상태\n${c.appReady ? '매칭 서비스 링크를 활성화했습니다.' : '서비스 준비 중입니다. 소개 페이지의 예시에서는 실제 참가·매칭·음성 연결을 실행하지 않습니다.'}\n\n## 화면 출처와 예시\n아래 실제 화면 캡처는 feature/quick-match-ui 브랜치 904cce415181aeb8a8802fc398f9be9e0835b1fe에서 촬영했습니다. 첫 화면은 실제 모집방의 참여 전·후 캡처를 전환해서 보여줍니다. 빠른매치 설정도 같은 원본 UI 캡처이며 화면 전환은 실제 참가를 실행하지 않습니다. 모든 인원·닉네임·전적·대화는 예시 데이터이며 실제 사용자 현황이나 성과 데이터가 아닙니다. 실제 매칭 및 음성 연결 검증이 아닙니다.\n\n## 지원 대상\n리그 오브 레전드, 발로란트, 배틀그라운드. 공개 시 실제 이용 가능한 범위를 확인하세요.\n\n이 파일은 보조 설명이며 검색 또는 AI 노출을 보장하지 않습니다.\n`;
   return {html,robots,sitemap,llms,mode};
 }
 export function render404() {

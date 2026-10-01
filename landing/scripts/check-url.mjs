@@ -81,7 +81,7 @@ export async function checkDeployment(input, mode, config, fetcher = fetch) {
       ? sitemapResponse.status === 200 && /xml/i.test(sitemapResponse.headers.get('content-type') || '') &&
         sitemap.includes(`<loc>${canonical}</loc>`) && robotsText.includes(`Sitemap: ${canonical}sitemap.xml`)
       : sitemapResponse.status === 404);
-    const paths = [['/assets/site.css', 'text/css'], ['/assets/concise.css', 'text/css'], ['/assets/queuemate-wordmark.svg', 'image/svg+xml'],
+    const paths = [['/assets/site.css', 'text/css'], ['/assets/concise.css', 'text/css'], ['/assets/product-ui.css', 'text/css'], ['/assets/queuemate-wordmark.svg', 'image/svg+xml'],
       ...(config.media?.ogImage ? [[config.media.ogImage, 'image/']] : [])];
     for (const [p, type] of paths) {
       const response = await get(p), bytes = Buffer.from(await response.arrayBuffer());
