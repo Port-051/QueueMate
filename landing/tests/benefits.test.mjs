@@ -3,4 +3,4 @@ test('hero states one problem and outcome',()=>{assert.match(html,/팀원 찾으
 test('persuasion flow has no duplicate feature gallery',()=>{assert.equal((html.match(/quick-match-board\.webp/g)||[]).length,1);assert.equal((html.match(/quick-match-room\.webp/g)||[]).length,1);assert.equal((html.match(/quick-match-settings\.webp/g)||[]).length,1);assert.doesNotMatch(html,/product-feature-row|benefit-card|product-journey|join-demo/);});
 test('three values remain explicit',()=>{for(const x of ['누가 있는지 먼저 봅니다','원하는 방에 바로 참여합니다','모집 중에도 대화합니다'])assert.ok(html.includes(x),x);});
 test('quick match is secondary',()=>{assert.ok(html.indexOf('id="features"')<html.indexOf('id="quick-match"'));assert.match(html,/조건만 정하고,/);});
-test('caveats remain',()=>{assert.match(html,/실제 참가·음성 연결은 되지 않습니다/);assert.match(html,/브라우저 마이크 권한/);assert.match(html,/게임 내 친구 추가·파티 초대/);assert.match(llms,/매칭 완료 시간이나 절약 시간은 보장하지 않습니다/);});
+test('caveats remain',()=>{assert.match(html,/실제 참가·음성 연결은 되지 않습니다/);assert.match(html,/브라우저에서 마이크 권한/);assert.match(html,/게임 내 친구 추가·파티 초대/);assert.match(llms,/매칭 완료 시간이나 절약 시간은 보장하지 않습니다/);});
