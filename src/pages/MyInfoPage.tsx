@@ -222,7 +222,7 @@ export function MyInfoPage() {
         <div className="profile-identity-info">
           <h1>{user?.nickname}</h1>
           <nav className="profile-activity" aria-label="내 활동">
-            <Link to="/app/messages">메시지</Link>
+            <Link to="/app/friends">친구</Link>
           </nav>
         </div>
         <Button className="profile-edit-name" variant="ghost" onClick={() => { setNickname(user?.nickname ?? ''); setNicknameOpen(true); }}><IconPencil size={15} />닉네임 변경</Button>
@@ -263,7 +263,7 @@ export function MyInfoPage() {
         <section className="profile-section" aria-labelledby="profile-privacy-heading">
           <div className="profile-section-heading"><h2 id="profile-privacy-heading">개인정보와 안전</h2></div>
           <div className="profile-privacy">
-            <Link className="profile-blocks" to="/app/messages?manage=blocks"><IconShield size={20} /><span>차단 목록</span><b>{blocks.length}</b><span aria-hidden="true">›</span></Link>
+            <Link className="profile-blocks" to="/app/friends?tab=blocks"><IconShield size={20} /><span>차단 목록</span><b>{blocks.length}</b><span aria-hidden="true">›</span></Link>
             <details className="profile-privacy-details">
               <summary>개인정보 처리 안내</summary>
               <ul>

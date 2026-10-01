@@ -3,8 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import type { CreatePostRequest, GameKey, MatchCondition } from '../api/types';
 import { Button, Modal, useToast } from '../components/ui';
-import { IconMatch } from '../components/icons';
-import { IconDirectMessage } from '../components/NotificationPanel';
+import { IconMatch, IconPaperPlane } from '../components/icons';
 import { HomeProfileRail } from '../components/HomeProfileRail';
 import { useAuth } from '../state/AuthContext';
 import { useMatch } from '../state/MatchContext';
@@ -20,7 +19,7 @@ import { roomVoice } from './voice';
 import './room-quick-connect.css';
 
 function CreateRoomIcon() {
-  return <span className="room-create-icon"><IconDirectMessage size={22} /></span>;
+  return <span className="room-create-icon"><IconPaperPlane size={22} /></span>;
 }
 
 /**

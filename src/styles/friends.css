@@ -1,0 +1,27 @@
+/* 친구 화면 `/app/friends`(2026-10-02 — `pages/FriendsPage.tsx`). 옛 메시지 화면의 "친구 관리" 패널(`styles/messages.css` 의 `dm-friends-*` 등)을
+   한 페이지로 옮긴 것이다 — 메시지 · 알림을 걷으며 그 파일은 지웠고 패널이 쓰던 규칙만 이름을 `friends-*` 로 바꿔 여기 두었다(모양은 그대로). */
+.page.friends-page { width: 100%; max-width: 960px; }
+.friends-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.friends-header h1 { font-size: 24px; letter-spacing: -.03em; font-weight: 700; }
+.friends-header h1:focus { outline: none; }
+.friends-content { display: flex; flex-direction: column; gap: 20px; }
+.friends-tabs { display: flex; flex: none; gap: 8px; overflow-x: auto; }
+.friends-tabs button { display: flex; align-items: center; gap: 7px; flex: none; padding: 9px 12px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: 15px; cursor: pointer; }
+.friends-tabs button[aria-selected="true"] { color: var(--text); background: var(--panel-3); }
+.friends-tabs button span { font-size: 12px; color: var(--accent-2); }
+.friends-search { display: flex; align-items: center; gap: 9px; padding: 0 12px; border: 1px solid transparent; border-radius: 5px; background: rgba(255,255,255,.045); color: var(--muted); }
+.friends-search:focus-within { border-color: var(--accent-line); }
+.friends-search input { width: 100%; min-width: 0; height: 38px; padding: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 15px; }
+.friends-search input::placeholder { color: var(--muted); }
+.friends-list { min-height: 0; }
+.friends-row { display: flex; align-items: center; gap: 12px; padding: 16px 4px; border-bottom: 1px solid var(--line-soft); }
+.friends-row > b { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 16px; font-weight: 600; }
+.friends-row .btn { font-size: 14px; }
+.friends-empty { padding: 28px 12px; color: var(--muted); font-size: 15px; text-align: center; }
+@media (max-width: 767px) {
+  .friends-content { gap: 16px; }
+  .friends-tabs { gap: 4px; }
+  .friends-tabs button { padding: 8px; font-size: 14px; }
+  .friends-row { flex-wrap: wrap; gap: 8px; }
+  .friends-row .btn { font-size: 13px; padding-inline: 8px; }
+}

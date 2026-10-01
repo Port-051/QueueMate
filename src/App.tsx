@@ -5,7 +5,7 @@ import { AuthPage } from './pages/AuthPage';
 import { HomePage } from './pages/HomePage';
 import { MatchConditionPage } from './pages/MatchConditionPage';
 import { MatchWaitingPage } from './pages/MatchWaitingPage';
-import { DirectMessagesPage } from './pages/DirectMessagesPage';
+import { FriendsPage } from './pages/FriendsPage';
 import { MyInfoPage } from './pages/MyInfoPage';
 import { PartyRoomPage } from './pages/PartyRoomPage';
 import { ProposalPage } from './pages/ProposalPage';
@@ -23,11 +23,15 @@ function MyRoomRedirect() {
   return <Navigate to={roomId ? `/app/party/${roomId}` : '/app/home'} replace />;
 }
 
-function LegacyFriendsRedirect() {
+/**
+ * 옛 메시지 화면 `/app/messages` → 친구 화면(2026-10-02 소유자 결정 — 메시지 · 알림을 걷고 "친구" 하나로). 옛 친구 관리 패널의 `?manage=` 탭은 `?tab=` 으로 옮긴다
+ * (`friends` 는 쿼리 없음 · 대화 상대 `?user=` 는 버린다 — 대화 화면이 없다).
+ */
+function LegacyMessagesRedirect() {
   const { search } = useLocation();
-  const tab = new URLSearchParams(search).get('tab');
-  const manage = tab === 'blocks' || tab === 'sent' || tab === 'received' ? tab : 'friends';
-  return <Navigate to={`/app/messages?manage=${manage}`} replace />;
+  const manage = new URLSearchParams(search).get('manage');
+  const tab = manage === 'received' || manage === 'sent' || manage === 'blocks' || manage === 'recent' ? manage : null;
+  return <Navigate to={tab ? `/app/friends?tab=${tab}` : '/app/friends'} replace />;
 }
 
 export function App() {
@@ -61,10 +65,11 @@ export function App() {
         <Route path="reservations" element={<ReservationsPage />} />
         <Route path="reservations/new" element={<ReservationNewPage />} />
         <Route path="party" element={<MyRoomRedirect />} />
-        <Route path="messages" element={<DirectMessagesPage />} />
-        <Route path="friends" element={<LegacyFriendsRedirect />} />
-        {/* 친구 · 차단 · 최근 함께한 사람은 메시지 화면의 친구 관리 패널(`?manage=`)이다(5단계). `pages/FriendsPage` · `RecentPlayersPage` 는 라우트 밖이다. */}
-        <Route path="recent" element={<Navigate to="/app/messages?manage=recent" replace />} />
+        {/* 친구 · 받은/보낸 요청 · 차단 · 최근 함께한 사람은 한 페이지(`?tab=`)다 — 2026-10-02 소유자 결정으로 왼쪽 레일의 "메시지"(DM) · "알림" 을 걷고 "친구" 하나로 합쳤다.
+            옛 메시지 화면 · 옛 최근 함께한 사람 주소는 그 탭으로 돌린다. */}
+        <Route path="friends" element={<FriendsPage />} />
+        <Route path="messages" element={<LegacyMessagesRedirect />} />
+        <Route path="recent" element={<Navigate to="/app/friends?tab=recent" replace />} />
         <Route path="me" element={<MyInfoPage />} />
         <Route path="settings" element={<Navigate to="/app/me#settings" replace />} />
       </Route>

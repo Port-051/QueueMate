@@ -1,7 +1,21 @@
+import { useId } from 'react';
+
 type P = { size?: number };
 type Selectable = P & { filled?: boolean };
 
 const s = (n = 18) => ({ width: n, height: n, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const });
+
+/**
+ * 종이비행기 — 게시판 "방 만들기" 버튼 · 글 쓰기 팝업의 올리는 버튼이 쓴다. 옛 왼쪽 레일 "메시지" 메뉴의 아이콘(`IconDirectMessage` — `NotificationPanel.tsx`)이었고
+ * 메시지 · 알림을 걷으며(2026-10-02 소유자 결정) 이리로 옮겼다. 모양은 그대로다.
+ */
+export function IconPaperPlane({ size = 24, filled = false }: Selectable) {
+  const maskId = useId();
+  const outline = 'M4.6 3.5H19c2.4 0 3.7 2.5 2.3 4.5l-9 12.6c-1.3 1.9-4.2 1.4-4.8-.8L5.4 13 1.9 8.5C.3 6.5 1.8 3.5 4.6 3.5Z';
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {filled ? <><defs><mask id={maskId}><rect width="24" height="24" fill="white" stroke="none" /><path d="m5.4 13 10.3-5.3" stroke="black" strokeWidth="2.2" /></mask></defs><path d={outline} fill="currentColor" mask={`url(#${maskId})`} /></> : <><path d={outline} /><path d="m5.4 13 10.3-5.3" /></>}
+  </svg>;
+}
 
 export const IconHome = ({ size, filled = false }: Selectable) => (
   <svg {...s(size)} viewBox="1.5 1.5 21 21" fill={filled ? 'currentColor' : 'none'} stroke={filled ? 'none' : 'currentColor'} aria-hidden="true">

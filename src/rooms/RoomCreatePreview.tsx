@@ -3,7 +3,7 @@ import type { CreatePostRequest, GameKey, VoicePreference } from '../api/types';
 import { Button, Modal } from '../components/ui';
 import { GameBadge } from '../components/GameSymbol';
 import { ModePicker } from '../components/ModePicker';
-import { IconDirectMessage } from '../components/NotificationPanel';
+import { IconPaperPlane } from '../components/icons';
 import { DesiredRolesField, IntroductionBioField, VoiceOptions } from '../components/SelfIntroductionFields';
 import { SingleRolePicker } from '../components/SingleRolePicker';
 import { gameConfig, targetPartySize } from '../domain/gameConfig';
@@ -106,7 +106,7 @@ export function RoomCreatePreview({ game, onClose, onConfirm }: {
     }
   };
   return <Modal title="방 만들기" className="room-create-preview" closeLabel="방 만들기 닫기" onClose={onClose}
-    foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || !ready} onClick={confirm}><span className="room-create-icon"><IconDirectMessage size={21} /></span>{busy ? '만드는 중…' : '방 만들기'}</Button></>}>
+    foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || !ready} onClick={confirm}><span className="room-create-icon"><IconPaperPlane size={21} /></span>{busy ? '만드는 중…' : '방 만들기'}</Button></>}>
     <dl className="room-preview-conditions room-preview-game">
       <div><dt>게임</dt><dd><GameBadge game={game} size={22} />{gameConfig(game).name}</dd></div>
     </dl>
