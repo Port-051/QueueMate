@@ -1,0 +1,170 @@
+name: Deploy restored sections and actual UI
+on:
+  push:
+    branches: [feat/seo-landing]
+    paths: ['.github/workflows/seo-restored-release.yml']
+permissions:
+  contents: read
+  statuses: write
+concurrency:
+  group: seo-domain-setup
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.repository == 'Port-051/QueueMate' && github.ref == 'refs/heads/feat/seo-landing' && github.actor == 'shj5771' && github.triggering_actor == 'shj5771'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: b8882470b65a565bb63e8efba98531a9285b878d
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Test and build the approved restored landing
+        working-directory: landing
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm test
+          BUILD_TARGET=production npm run build
+      - name: Prepare and test scoped release
+        run: |
+          cat > "$RUNNER_TEMP/restored-release.mjs" <<'NODE'
+          import assert from 'node:assert/strict';
+          import {spawn} from 'node:child_process';
+          import {readFile,writeFile,mkdir,rm,cp} from 'node:fs/promises';
+          import {createHash} from 'node:crypto';
+          import {stripVTControlCharacters as clean} from 'node:util';
+          import {setTimeout as delay} from 'node:timers/promises';
+          const T=Object.freeze({repo:'Port-051/QueueMate',source:'b8882470b65a565bb63e8efba98531a9285b878d',tree:'fe802d427bd58e01774861faec5d72e7946dc7f6',team:'team_TYonFQEoE1HOMC5bYb5xvQXV',scope:'port-52',project:'prj_twOVEOMaFLLQtgu0n4o5l7pmggiu',name:'queue-mate-landing',host:'queue-mate-landing.vercel.app',domain:'queue-mate.com'});
+          const origin=`https://${T.domain}/`;
+          const digest=b=>createHash('sha256').update(b).digest('hex');
+          const noindex=s=>/(?:^|[\s,:;])(?:noindex|none)(?:$|[\s,;])/i.test(s??'');
+          const approval=s=>clean(s).match(/https:\/\/vercel\.com\/oauth\/device\?user_code=[A-Z0-9-]+(?=\s|$)/)?.[0];
+          function guardProject(p){assert.ok(p.id===T.project&&p.name===T.name&&p.accountId===T.team,'Unexpected project or team');}
+          function guardDeployment(d){assert.ok(d.id&&d.projectId===T.project&&d.readyState==='READY','Unexpected or unready deployment');}
+          function guardDomains(result){
+           assert.ok(Array.isArray(result.domains)&&!result.pagination?.next,'Incomplete domain list');
+           for(const name of [T.domain,`www.${T.domain}`]){
+            const d=result.domains.find(x=>x.name===name);
+            assert.ok(d&&d.verified&&d.projectId===T.project&&!d.gitBranch&&!d.customEnvironmentId,'Required domain does not match project');
+            assert.equal(d.redirect??null,name===T.domain?null:T.domain,'Unexpected domain redirect');
+            if(name!==T.domain)assert.equal(Number(d.redirectStatusCode),308,'Unexpected redirect status');
+           }
+          }
+          const p={id:T.project,name:T.name,accountId:T.team};
+          assert.doesNotThrow(()=>guardProject(p));assert.throws(()=>guardProject({...p,accountId:'other'}));
+          assert.throws(()=>guardDeployment({id:'x',projectId:'other',readyState:'READY'}));
+          assert.throws(()=>guardDomains({domains:[]}));assert.throws(()=>guardDomains({domains:[],pagination:{next:1}}));
+          assert.equal(approval('https://vercel.com/oauth/device?user_code=ABCD-EFGH'),'https://vercel.com/oauth/device?user_code=ABCD-EFGH');
+          assert.equal(approval('https://vercel.com.evil.test/oauth/device?user_code=ABCD-EFGH'),undefined);
+          assert.equal(noindex('googlebot: noindex'),true);assert.equal(noindex('index, follow'),false);
+          if(process.env.QMATE_TEST_ONLY==='1'){console.log('Project, deployment, domain and approval guards passed');process.exit(0);}
+          assert.equal(process.env.GITHUB_REPOSITORY,T.repo);assert.equal(process.env.GITHUB_REF,'refs/heads/feat/seo-landing');
+          const tmp=process.env.RUNNER_TEMP;assert.ok(tmp?.startsWith('/'));
+          const auth=tmp+'/restored-auth',cli=tmp+'/restored-cli/node_modules/.bin/vercel',dir=tmp+'/restored-package',audit=tmp+'/restored-audit';
+          const workflowSha=process.env.GITHUB_SHA,runUrl=`https://github.com/${T.repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          const report={sourceSha:T.source,workflowSha,publicUrl:origin,startedAt:new Date().toISOString(),deployed:false,verified:false,dnsChanged:false,projectSettingsChanged:false,appConnected:false};
+          const env=Object.fromEntries(['PATH','HOME','RUNNER_TEMP','TMPDIR','NODE_EXTRA_CA_CERTS'].filter(k=>process.env[k]).map(k=>[k,process.env[k]]));
+          Object.assign(env,{CI:'1',NO_COLOR:'1',VERCEL_TELEMETRY_DISABLED:'1'});
+          await mkdir(auth,{recursive:true,mode:0o700});await mkdir(audit,{recursive:true});
+          async function status(state,description,target_url=runUrl){
+           const r=await fetch(`https://api.github.com/repos/${T.repo}/statuses/${workflowSha}`,{method:'POST',redirect:'error',signal:AbortSignal.timeout(15000),headers:{Authorization:`Bearer ${process.env.GITHUB_TOKEN}`,Accept:'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify({state,context:'SEO restored sections deployment',description:description.slice(0,140),target_url})});
+           assert.ok(r.ok,`Cannot update release status (${r.status})`);await r.body?.cancel();
+          }
+          function command(executable,args,timeout=60000,output=()=>{}){
+           return new Promise((resolve,reject)=>{
+            const child=spawn(executable,args,{env,stdio:['ignore','pipe','pipe']});let out='',err='',expired=false;
+            const timer=setTimeout(()=>{expired=true;child.kill('SIGKILL');},timeout);
+            child.stdout.on('data',b=>{out+=b;output(clean(out+'\n'+err));});child.stderr.on('data',b=>{err+=b;output(clean(out+'\n'+err));});
+            child.on('error',()=>{clearTimeout(timer);reject(Error('Command failed to start'));});
+            child.on('close',code=>{clearTimeout(timer);code===0&&!expired?resolve(clean(out)):reject(Error(expired?'Command timed out':`Command ${args[0]} failed (${code}); raw output withheld`));});
+           });
+          }
+          const vc=(args,timeout,output)=>command(cli,[...args,'--global-config',auth,'--no-color'],timeout,output);
+          async function api(path){
+           assert.ok(path===`/v9/projects/${T.project}`||path===`/v9/projects/${T.project}/domains?limit=100`||/^\/v13\/deployments\/[a-zA-Z0-9._-]+$/.test(path),'Unexpected API path');
+           const result=JSON.parse(await vc(['api',path+(path.includes('?')?'&':'?')+'teamId='+T.team,'-X','GET','--scope',T.scope]));
+           assert.ok(!result.error,'Vercel rejected request');return result;
+          }
+          async function page(url){
+           const r=await fetch(url,{redirect:'manual',credentials:'omit',signal:AbortSignal.timeout(20000)});
+           const bytes=Buffer.from(await r.arrayBuffer());return {status:r.status,type:r.headers.get('content-type'),location:r.headers.get('location'),blocked:noindex(r.headers.get('x-robots-tag')),bytes,text:bytes.toString('utf8')};
+          }
+          let previous,deployment,attempted=false,phase='preflight';
+          try{
+           assert.equal((await command('git',['rev-parse','HEAD'])).trim(),T.source,'Wrong source checkout');
+           assert.equal((await command('git',['rev-parse','HEAD:landing'])).trim(),T.tree,'Unexpected landing source');
+           const c=JSON.parse(await readFile('landing/site.config.json','utf8'));
+           assert.equal(c.origin,origin.slice(0,-1));assert.equal(c.allowIndexing,true);assert.equal(c.appReady,false);
+           assert.deepEqual(c.analytics,{enabled:true,measurementId:'G-89S881436M'});
+           const local=await readFile('landing/dist/index.html','utf8');
+           for(const phrase of ['조건에 맞는 팀원을 찾고,','같은 방에서 바로 대화하세요.','id="features-title">팀원 찾기부터','id="quick-match"','class="actual-showcase"','G-89S881436M','id="qmate-analytics"'])assert.ok(local.includes(phrase),'Approved content missing: '+phrase);
+           assert.equal((local.match(/class="benefit-card"/g)||[]).length,3,'Three restored feature cards required');
+           assert.ok(local.indexOf('id="features"')<local.indexOf('id="quick-match"'),'Section order changed');
+           for(const engine of ['google','naver'])assert.ok(local.includes(`<meta name="${engine}-site-verification" content="${c.verification[engine]}">`),'Ownership tag missing');
+           assert.match(local,/<meta name="robots" content="index, follow, max-image-preview:large">/);
+           let root=await page(origin);assert.equal(root.status,200,'Existing homepage unavailable');assert.equal(root.blocked,false,'Canonical is excluded');
+           report.beforeHtmlSha256=digest(root.bytes);
+           await status('pending','Approved restored sections ready; awaiting port-52 authorization');
+           phase='authorization';let announced=false,notice=Promise.resolve();
+           await vc(['login'],600000,out=>{const url=approval(out);if(!url||announced)return;announced=true;console.log('VERCEL_APPROVAL_URL='+url);notice=status('pending','Approve port-52: restored feature section, real UI and quick-match landing',url);notice.catch(()=>{});});await notice;
+           phase='target verification';await status('pending','Authorized; checking existing project and domain');
+           guardProject(await api(`/v9/projects/${T.project}`));previous=await api(`/v13/deployments/${T.host}`);guardDeployment(previous);
+           report.previousDeploymentId=previous.id;report.previousUrl=`https://${previous.url}/`;
+           guardDomains(await api(`/v9/projects/${T.project}/domains?limit=100`));
+           root=await page(origin);assert.equal(digest(root.bytes),report.beforeHtmlSha256,'Live site changed during authorization; stop');
+           await mkdir(dir+'/.vercel',{recursive:true});await mkdir(dir+'/scripts',{recursive:true});
+           for(const f of ['package.json','package-lock.json','site.config.json','vercel.json','src','public'])await cp('landing/'+f,dir+'/'+f,{recursive:true});
+           await cp('landing/scripts/build.mjs',dir+'/scripts/build.mjs');
+           await writeFile(dir+'/.vercel/project.json',JSON.stringify({projectId:T.project,orgId:T.team,projectName:T.name}));
+           assert.equal((await api(`/v13/deployments/${T.host}`)).id,previous.id,'Concurrent production deployment detected');
+           phase='deployment';await status('pending','Deploying approved real UI with restored feature section to queue-mate.com');attempted=true;
+           const out=await vc(['deploy','--cwd',dir,'--yes','--prod','--scope',T.scope,'--meta',`githubCommitSha=${T.source}`,'--meta',`releaseWorkflowSha=${workflowSha}`],300000);
+           const urls=out.match(/https:\/\/[a-z0-9.-]+\.vercel\.app/gi);assert.ok(urls?.length,'No deployment URL returned');
+           deployment=await api(`/v13/deployments/${new URL(urls.at(-1)).hostname}`);guardDeployment(deployment);
+           assert.equal(deployment.meta?.githubCommitSha,T.source);assert.equal(deployment.meta?.releaseWorkflowSha,workflowSha);
+           report.deployed=true;report.deploymentId=deployment.id;report.deploymentUrl=`https://${deployment.url}/`;
+           phase='verification';let current;
+           for(let i=0;i<8;i++){current=await api(`/v13/deployments/${T.host}`);if(current.id===deployment.id)break;await delay(2000);}assert.equal(current.id,deployment.id,'Alias not updated');
+           root=await page(origin);assert.equal(root.status,200);assert.equal(root.blocked,false);assert.ok(root.text===local,'Canonical HTML differs from tested build');
+           const preview=await page(`https://${T.host}/`);assert.equal(preview.status,200);assert.equal(preview.blocked,true,'Temporary hostname is not excluded');
+           const www=await page(`https://www.${T.domain}/`);assert.ok([301,308].includes(www.status)&&www.location===origin,'WWW redirect incorrect');
+           const files=['robots.txt','sitemap.xml','llms.txt','assets/site.css','assets/concise.css','assets/product-ui.css','assets/queuemate-wordmark.svg','assets/ui/quick-match-board.webp','assets/ui/quick-match-room.webp','assets/ui/quick-match-settings.webp'];
+           report.assets=[];
+           for(const file of files){const live=await page(origin+file),expected=await readFile('landing/dist/'+file);assert.equal(live.status,200,'Missing asset: '+file);assert.equal(digest(live.bytes),digest(expected),'Asset differs: '+file);report.assets.push({path:file,sha256:digest(live.bytes)});}
+           await command(process.execPath,['landing/scripts/check-url.mjs',origin,'production',audit+'/http-checks.json'],180000);
+           report.verified=true;report.htmlSha256=digest(root.bytes);
+           await status('success','RESTORED_UI_DEPLOYED; real UI, 3 feature cards, quick-match, SEO and GA4 verified',origin);
+          }catch(error){
+           report.error=phase+': '+error.message;
+           if(attempted&&previous&&!report.verified){try{const current=await api(`/v13/deployments/${T.host}`);if(current.id!==previous.id&&current.meta?.githubCommitSha===T.source&&current.meta?.releaseWorkflowSha===workflowSha){await vc(['rollback',report.previousUrl,'--yes','--scope',T.scope,'--cwd',dir],120000);report.rolledBack=(await api(`/v13/deployments/${T.host}`)).id===previous.id;}}catch{report.rolledBack=false;}}
+           await status('failure',report.error).catch(()=>{});console.error(report.error);process.exitCode=1;
+          }finally{
+           await vc(['logout'],20000).catch(()=>{});await rm(auth,{recursive:true,force:true});report.finishedAt=new Date().toISOString();
+           await writeFile(audit+'/report.json',JSON.stringify(report,null,2)+'\n');console.log('RESTORED_RELEASE_RESULT='+JSON.stringify(report));
+          }
+          NODE
+          node --check "$RUNNER_TEMP/restored-release.mjs"
+          QMATE_TEST_ONLY=1 node "$RUNNER_TEMP/restored-release.mjs"
+      - name: Install official Vercel CLI
+        run: npm install --prefix "$RUNNER_TEMP/restored-cli" --no-audit --no-fund vercel@62.1.0
+      - name: Authorize and deploy only the approved existing landing
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node "$RUNNER_TEMP/restored-release.mjs"
+      - name: Clear temporary Vercel authorization
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/restored-auth/auth.json" ]; then
+            timeout 20 "$RUNNER_TEMP/restored-cli/node_modules/.bin/vercel" logout --global-config "$RUNNER_TEMP/restored-auth" --no-color >/dev/null 2>&1 || true
+          fi
+          rm -rf "$RUNNER_TEMP/restored-auth"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: seo-restored-release
+          path: ${{ runner.temp }}/restored-audit/
+          if-no-files-found: ignore
+          retention-days: 7
