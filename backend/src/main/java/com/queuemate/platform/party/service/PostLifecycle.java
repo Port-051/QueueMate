@@ -48,8 +48,8 @@ public class PostLifecycle {
      * 확정 표시 키도 없는 것을 봤다({@code ROOM_CLOSED}). 확정한 방은 방장이 나가도 승계라 나가기의 결과가 {@code LEFT} 이고 여기 오지 않는다(D-23).
      *
      * @param roomId 방 번호 = 글 번호. 그런 글이 없으면 둘 다 0줄이다
-     * @return 이 호출이 <b>글을 만료시켜</b> 게시판 신호를 예약했으면 {@code true}(커밋 뒤에 나간다). 부르는 쪽은 방의 신호를 따로 내지 않는다.
-     *         파티를 닫은 것은 신호를 내지 않는다 — 글 한 줄에 달라지는 것이 없다(글은 {@code CONFIRMED} 그대로이고 확정된 글의 카드는 방이 아니라 확정 순간의 파티원이다 — 2026-09-30 · P-40)
+     * @return 이 호출이 <b>글을 만료시켰거나 파티를 닫아</b> 게시판 신호를 예약했으면 {@code true}(커밋 뒤에 나간다). 부르는 쪽은 방의 신호를 따로 내지 않는다 —
+     *         한 요청에서 "방이 닫혔다" 와 "글 한 줄이 바뀌었다" 가 두 번 나가지 않게 한다. 둘 다 0줄이면(이미 정리됐다) {@code false} 다
      */
     @Transactional
     public boolean endByRoomClosed(Long roomId)
@@ -62,8 +62,7 @@ public class PostLifecycle {
             log.info("모집 글 만료 postId={} reason=방장이 나가 방이 닫혔다", roomId);
             return true;
         }
-        closeParty(roomId, now);
-        return false;
+        return closeParty(roomId, now);
     }
 
     /**
@@ -76,7 +75,12 @@ public class PostLifecycle {
      * <p>적는 사람은 <b>확정 순간의 파티원</b>({@code party_members})이다 — 방에 지금 누가 남아 있었는지가 아니다. 방장 확정의 기록과 같은 트랜잭션이 아니어도
      * 된다 — 파티원은 확정할 때 이미 적혔다.
      *
-     * @return 이 호출이 닫았으면 {@code true}
+     * <p><b>닫았으면 게시판 신호를 예약한다</b>(2026-10-02 소유자 결정) — 글 응답의 {@code closed}(2026-10-01 · P-46)가 바뀌어 글 한 줄이 달라진다. 그 전에는 "글 한 줄에
+     * 달라지는 것이 없다" 며 내지 않았고, 그래서 전원이 말없이 사라진 방을 목록 · 단건이 닫으면 처음 본 사람만 "끝남" 을 봤다. <b>1줄을 받은 호출만</b> 낸다 —
+     * 이미 닫혔으면(0줄) 내지 않아야 신호를 받고 다시 받은 목록이 또 신호를 부르는 고리가 생기지 않는다. 트랜잭션 안이라 커밋 뒤 한 번으로 합쳐진다
+     * ({@link BoardSignalPublisher#changed}). 자동 매칭 파티 닫기({@code MatchPartyStore#closeByRoomClosed})는 이 메서드가 아니고 내지 않는다 — 게시판에 글이 없다.
+     *
+     * @return 이 호출이 닫았으면(그래서 신호를 예약했으면) {@code true}
      */
     @Transactional
     public boolean closeParty(Long postId, Instant now)
@@ -88,6 +92,7 @@ public class PostLifecycle {
         Long partyId = partyRecordRepository.findPartyIdByPostId(postId).orElseThrow(
                 () -> new IllegalStateException("방금 닫은 파티가 없다 postId=" + postId));
         int rows = recentPlayerRecorder.recordParty(partyId, now);
+        boardSignal.changed();
         log.info("파티 닫힘 postId={} partyId={} recentPlayerRows={}", postId, partyId, rows);
         return true;
     }

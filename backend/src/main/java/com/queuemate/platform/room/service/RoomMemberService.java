@@ -139,7 +139,8 @@ public class RoomMemberService {
     /**
      * 방이 없어진 글 · 파티를 정리한다 — 글 번호(숫자)의 방이면 확정 전이면 글을 만료시키고 확정한 방이면 파티를 닫는다({@link PostLifecycle#endByRoomClosed}).
      * <b>숫자가 아니면 자동 매칭 파티의 방({@code roomId} = {@code matching} 의 UUID)이다</b> — 글이 없으니 파티만 닫는다({@link MatchPartyStore#closeByRoomClosed}.
-     * 2026-09-27 — docs/11 D-42). 게시판 신호를 냈으면(글이 이 호출로 만료됐으면) {@code true}
+     * 2026-09-27 — docs/11 D-42). 게시판 신호를 냈으면(글이 이 호출로 만료됐거나 게시판 파티가 이 호출로 닫혔으면 — 2026-10-02) {@code true}.
+     * 자동 매칭 파티를 닫은 것은 {@code false} 다 — 신호를 내지 않았다(게시판에 글이 없다)
      *
      * <p>자동 매칭 파티는 <b>"전원이 말없이 사라져 키만 만료"된 경우 닫히지 않는다</b> — 글이 없어 목록 · 단건의 옮겨 적기(길 ②)가 그 방 키를 볼 일이 없다.
      * 남은 사람의 접속 확인(여기 {@code ROOM_CLOSED})이 그 자리를 얼마간 메우지만, 전원이 신호 없이 사라지면 {@code parties} 에 {@code ACTIVE} 로 남는다.

@@ -201,7 +201,7 @@ public class RoomService {
      * <p><b>이 클래스는 {@code party} 를 부르지 않는다</b>(빈 순환) — 방이 닫힌 뒤 글을 어떻게 할지는 부르는 쪽이 {@code whenClosed} 로 넘긴다.
      *
      * @param whenClosed 방장이 나가 <b>방이 없어졌을 때만</b>({@link LeaveResult#ROOM_CLOSED}) 부른다. {@code true} 를 돌려주면 그쪽이 게시판 신호를
-     *                   이미 냈다는 뜻이라 여기서 또 내지 않는다 — 글의 만료가 커밋된 뒤에 나가는 신호 하나가 방의 신호를 겸한다(신호는 "다시 받아라" 한 번이면 된다).
+     *                   이미 냈다는 뜻이라 여기서 또 내지 않는다 — 글의 만료 · 파티 닫기가 커밋된 뒤에 나가는 신호 하나가 방의 신호를 겸한다(신호는 "다시 받아라" 한 번이면 된다).
      *                   예외를 던지지 않아야 한다 — 방은 이미 닫혔고 알림은 나가야 한다
      */
     public LeaveResult leave(String roomId, String userId, BooleanSupplier whenClosed)
