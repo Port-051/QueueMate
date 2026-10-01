@@ -63,13 +63,13 @@ async function lolProfile(user: QmUser): Promise<LolProfile> {
   return lol!;
 }
 
-/** 우측 하단 매칭 버튼으로 설정을 열고 솔로 랭크 · 내 포지션 · 친목 · 마이크 미사용으로 "자동 매칭 시작". 보낸 매칭 요청 본문을 돌려준다. */
+/** 필터 줄의 빠른매치 버튼으로 설정 창을 열고 솔로 랭크 · 내 포지션 · 빡겜 · 마이크 미사용으로 "빠른매치 시작". 보낸 매칭 요청 본문을 돌려준다. */
 async function startSoloRankThroughUi(page: Page, position: string): Promise<Record<string, unknown>> {
   await page.getByRole('button', { name: '빠른매치 조건 열기' }).click();
   const panel = page.getByRole('region', { name: '빠른매치' });
   await panel.getByRole('group', { name: '게임 모드' }).getByRole('button', { name: '솔로 랭크' }).click();
   await panel.getByRole('radiogroup', { name: '내 포지션' }).getByRole('radio', { name: position }).check({ force: true });
-  await panel.getByRole('radiogroup', { name: '플레이 목적' }).getByRole('radio', { name: '친목' }).check({ force: true });
+  await panel.getByRole('radiogroup', { name: '플레이 목적' }).getByRole('radio', { name: '빡겜' }).check({ force: true });
   await panel.getByRole('group', { name: '음성' }).getByRole('button', { name: '마이크 미사용' }).click();
   const request = page.waitForRequest((r) => r.url().endsWith('/api/v1/match-requests') && r.method() === 'POST');
   await panel.getByRole('button', { name: '빠른매치 시작' }).click();
