@@ -6,13 +6,13 @@ const c=JSON.parse(await readFile(new URL('../site.config.json',import.meta.url)
 const {html,llms}=renderSite(c);
 const text=html.replace(/<[^>]+>/g,'');
 test('approved product headline leads instead of rhetorical advertising',()=>{
- assert.match(text,/조건에 맞는팀원을 찾고,같은 방에서바로 대화하세요/);
+ assert.match(text,/조건에 맞는\s*팀원을 찾고,같은 방에서\s*바로 대화하세요/);
  assert.doesNotMatch(html,/왜 아직|몇 명 모였어요|디코 어디로|지금 만들고 있는 화면, 그대로/);
  assert.ok(html.indexOf('id="features"')<html.indexOf('class="product-figure'));
 });
 test('automatic matching and direct room entry stay explicit in the concise page',()=>{
  const opening=html.slice(html.indexOf('<main'),html.indexOf('id="faq"'));
- for(const phrase of ['롤 듀오·파티를 자동으로 찾거나,','모집방에 직접 참여하세요.','조건에 맞는<br>롤 듀오 찾기','멤버와<br>빈자리 확인','같은 방에서<br>음성 채팅','디스코드 이동 없이']) assert.ok(opening.includes(phrase),phrase);
+ for(const phrase of ['롤 듀오·파티를 자동으로 찾거나,','모집방에 직접 참여하세요.','조건에 맞는 롤 듀오 찾기','멤버와 빈자리 확인','같은 방에서 음성 채팅','디스코드 이동 없이']) assert.ok(opening.includes(phrase),phrase);
 });
 test('shows a 2-of-5 to 3-of-5 transition without filling the whole party',()=>{
  assert.match(html,/<span class="before-join">2<\/span><span class="after-join">3<\/span>/);

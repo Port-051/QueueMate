@@ -64,11 +64,20 @@ try:
                 check(f'{width}px: no console or network errors', not errors and not failed and not bad_responses)
                 check(f'{width}px: no external page requests', not external)
                 check(f'{width}px: three essential FAQs', page.locator('.faq-list details').count() == 3)
+                # Native details must occupy one real seat, not an extra anonymous grid slot.
+                seat_boxes = page.locator('.member-list > li:not(.self-member), .join-demo > summary, .remaining-seats > span').evaluate_all('(els) => els.map(e => {const r=e.getBoundingClientRect(); return {x:r.x,y:r.y,right:r.right,bottom:r.bottom}})')
+                check(f'{width}px: five non-overlapping visible seats', len(seat_boxes) == 5 and all(min(a['right'], b['right']) - max(a['x'], b['x']) <= 1 or min(a['bottom'], b['bottom']) - max(a['y'], b['y']) <= 1 for i,a in enumerate(seat_boxes) for b in seat_boxes[i+1:]))
+                if width > 600:
+                    check(f'{width}px: five seats share one row', max(r['y'] for r in seat_boxes) - min(r['y'] for r in seat_boxes) <= 1)
                 toggle = page.locator('.join-demo > summary')
                 check(f'{width}px: starts with 2 of 5 members', page.locator('.count-row .before-join').inner_text() == '2' and not page.locator('.voice-panel').is_visible())
                 toggle.click()
                 check(f'{width}px: example joins as third member', page.locator('.count-row .after-join').is_visible() and page.locator('.count-row .after-join').inner_text() == '3' and page.locator('.self-member').is_visible())
                 check(f'{width}px: same-room voice panel opens', page.locator('.voice-panel').is_visible())
+                panel_box = page.locator('.voice-panel').bounding_box()
+                self_box = page.locator('.self-member').bounding_box()
+                check(f'{width}px: voice panel does not cover my seat', panel_box['x'] >= self_box['x'] + self_box['width'] - 1 or panel_box['y'] >= self_box['y'] + self_box['height'] - 1)
+
                 check(f'{width}px: joined layout has no overflow', page.evaluate('document.documentElement.scrollWidth <= innerWidth'))
                 toggle.focus()
                 page.keyboard.press('Enter')

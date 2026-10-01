@@ -13,7 +13,7 @@ test('brief hero names the game, both finding methods and voice chat in visible 
   assert.equal(hero, '롤 듀오·파티를 자동으로 찾거나, 모집방에 직접 참여하세요.<br>음성 채팅까지 한곳에서.');
   assert.equal((hero.match(/<br>/g) || []).length, 1);
   assert.ok(text(hero).replace(/\s/g, '').length <= 40);
-  assert.match(html, /<h1 id="hero-title">조건에 맞는<br>팀원을 찾고,<br><em>같은 방에서<br>바로 대화하세요\.<\/em><\/h1>/);
+  assert.match(html, /<h1 id="hero-title">조건에 맞는 팀원을 찾고,<br><em>같은 방에서 바로 대화하세요\.<\/em><\/h1>/);
 });
 
 test('three short headings describe matching, member selection and same-room voice', () => {

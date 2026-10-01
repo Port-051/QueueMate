@@ -45,6 +45,9 @@ const shapes = {
   crown: '<path d="m3 6 5 4 4-7 4 7 5-4-2 12H5L3 6Zm2 14h14"/>',
   check: '<path d="m5 12 4 4L19 6"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  bow: '<path d="M5 3c11 1 15 5 16 16M5 3l2 14 14 2M3 21 19 5m-5 0h5v5"/>',
+  jungle: '<path d="m12 3 7 9h-4l5 7H4l5-7H5l7-9Zm0 16v3"/>',
+  lane: '<path d="m9 3 8 8-6 6-8-8 6-6Zm6 4 6 6-8 8-6-6"/>',
   shield: '<path d="m12 3 8 4v6c0 5-8 9-8 9s-8-4-8-9V7l8-4Z"/>',
 };
 export function icon(name) {
@@ -68,31 +71,38 @@ function detailCapture(name, alt, label) {
 /** A compact interaction example, not a live room or a screenshot. No API or microphone access. */
 export function renderUseFlow() {
   return `<div class="flow-demo" aria-label="모집방 참가와 대화 이용 예시">
-<div class="demo-toolbar"><h2>${icon('people')} 파티 참여 체험</h2><span class="demo-label">데모</span></div>
-<div class="demo-steps"><span>멤버 확인</span><i aria-hidden="true">→</i><span>참여</span><i aria-hidden="true">→</i><span>음성·채팅</span></div>
+<div class="demo-toolbar"><h2>${icon('people')} 파티 참여 체험</h2><span class="demo-label">데모 · 예시 데이터</span></div>
+<div class="demo-steps"><span>01 멤버 확인</span><i aria-hidden="true">→</i><span>02 참여</span><i aria-hidden="true">→</i><span>03 음성·채팅</span></div>
 <div class="room-preview">
-<div class="room-heading"><span class="game-label">롤 · 자유 랭크</span><span class="recruiting">모집 중</span></div>
+<div class="room-heading"><span class="game-label">롤 · 자유 랭크</span><span class="recruiting"><i aria-hidden="true"></i>모집 중</span></div>
 <h3>자유 랭크 함께해요</h3>
 <div class="condition-tags"><span>골드–플래티넘</span><span>${icon('mic')} 음성 사용</span></div>
 <div class="count-row"><span>참여 인원</span><strong><span class="before-join">2</span><span class="after-join">3</span><span class="count-total"> / 5명</span></strong></div>
 <ul class="member-list" aria-label="모집방 구성원 예시">
-<li><span class="avatar">A</span><span class="member-info"><strong>팀원 A <small>방장</small></strong><span>골드 II · 원딜</span></span></li>
-<li><span class="avatar avatar-alt">B</span><span class="member-info"><strong>팀원 B</strong><span>플래티넘 IV · 정글</span></span></li>
-<li class="after-join self-member"><span class="avatar avatar-self">나</span><span class="member-info"><strong>내 자리</strong><span>미드</span></span>${icon('check')}</li>
+<li><span class="seat-label">원딜</span><span class="role-art role-bow" aria-hidden="true">${icon('bow')}</span><span class="avatar">A</span><span class="member-info"><strong>팀원 A <small>방장</small></strong><span>골드 II · 원딜</span></span></li>
+<li><span class="seat-label">정글</span><span class="role-art role-jungle" aria-hidden="true">${icon('jungle')}</span><span class="avatar avatar-alt">B</span><span class="member-info"><strong>팀원 B</strong><span>플래티넘 IV · 정글</span></span></li>
+<li class="after-join self-member"><span class="seat-label">미드</span><span class="role-art role-mid" aria-hidden="true">${icon('lane')}</span><span class="avatar avatar-self">나</span><span class="member-info"><strong>내 자리</strong><span>미드</span></span><span class="seat-status">${icon('check')} 참여 완료</span></li>
 </ul>
 <details class="join-demo">
-<summary class="join-example"><span class="before-join">${icon('plus')} 참여하기</span><span class="after-join">${icon('check')} 참여 전으로</span></summary>
+<summary class="join-example"><span class="before-join"><span class="seat-label">미드</span><span class="join-plus">${icon('plus')}</span><strong>참여하기</strong><small>이 자리에 들어가 볼까요?</small></span><span class="after-join">${icon('arrow')} 참여 전으로</span></summary>
 <div class="voice-panel">
 <div class="voice-panel-top"><h4>${icon('mic')} 음성·채팅</h4><span>3 / 5명</span></div>
 <div class="voice-members"><span><i class="avatar">A</i>팀원 A</span><span><i class="avatar avatar-alt">B</i>팀원 B</span><span><i class="avatar avatar-self">나</i>나</span></div>
 <div class="chat-preview"><p><strong>팀원 A</strong> 미드로 오셨네요!</p><p><strong>나</strong> 네, 반가워요.</p></div>
 <p class="recruit-note">모집 중에도 함께 대화</p>
 </div></details>
-<div class="remaining-seats" aria-label="남은 빈자리"><span><i aria-hidden="true">+</i> 빈자리</span><span><i aria-hidden="true">+</i> 빈자리</span></div>
+<div class="remaining-seats" aria-label="남은 빈자리"><span><small>탑</small>${icon('plus')}<span>빈자리</span></span><span><small>서포터</small>${icon('plus')}<span>빈자리</span></span></div>
 </div>
-<div class="before-panel"><span class="panel-icon">${icon('mic')}</span><h4>음성·채팅</h4><span class="panel-hint">참여하기를 눌러보세요.</span></div>
+<div class="before-panel"><span class="panel-orbit" aria-hidden="true"><i></i><i></i><i></i><span>${icon('mic')}</span></span><h4>같은 방에서,<br>음성·채팅까지.</h4><span class="panel-hint">보라색 자리를 눌러보세요.</span></div>
 <p class="demo-disclaimer">이용 예시 · 실제 참가·음성 연결은 되지 않습니다.</p>
 </div>`;
+}
+
+/** Decorative miniatures illustrate the product, not live metrics or clickable controls. */
+function featureVisual(name) {
+  if (name === 'matching') return `<div class="feature-visual match-art" aria-hidden="true"><div class="match-input"><span>${icon('filters')} 내 조건</span><b>미드</b><b>음성 사용</b><b>즐겜</b></div><div class="match-connection"><span></span>${icon('bolt')}<span></span></div><div class="match-result"><i class="avatar">나</i><span>+</span><i class="avatar avatar-alt">팀원</i></div></div>`;
+  if (name === 'seats') return `<div class="feature-visual seats-art" aria-hidden="true"><span class="mini-seat filled">${icon('bow')}</span><span class="mini-seat filled">${icon('jungle')}</span><span class="mini-seat chosen">${icon('plus')}</span><span class="mini-seat">${icon('plus')}</span><span class="mini-seat">${icon('plus')}</span></div>`;
+  return `<div class="feature-visual sound-art" aria-hidden="true"><div class="sound-orbit"><span class="avatar">A</span><span class="avatar avatar-alt">B</span><span class="avatar avatar-self">나</span><div class="sound-center">${icon('mic')}</div></div><div class="waveform">${[9,15,25,36,23,47,65,39,21,35,55,78,57,29,17,41,62,33,20,39,53,26,15,9].map(h=>`<i style="--bar:${h}px"></i>`).join('')}</div><span class="sound-note">방을 옮길 필요 없이.</span></div>`;
 }
 
 export function renderSite(c, env = {}) {
@@ -120,8 +130,8 @@ export function renderSite(c, env = {}) {
 <header class="site-header"><div class="wrap header-inner"><a href="#main" class="brand-link" aria-label="큐메이트 홈">${wordmark()}</a><nav aria-label="주요 메뉴"><a href="#preview">체험</a><a href="#features">기능</a><a href="#faq">FAQ</a></nav><a class="header-cta" href="${c.appReady ? e(c.appUrl) : '#preview'}">${c.appReady ? '시작하기' : '체험하기'} ${icon('arrow')}</a></div></header>
 <main id="main" tabindex="-1">
 <section class="hero wrap" aria-labelledby="hero-title">
-<div class="hero-copy"><p class="hero-kicker">롤 듀오 · 파티 찾기</p>
-<h1 id="hero-title">조건에 맞는<br>팀원을 찾고,<br><em>같은 방에서<br>바로 대화하세요.</em></h1>
+<div class="hero-copy"><p class="hero-kicker"><span aria-hidden="true"></span> 롤 듀오 · 파티 찾기</p>
+<h1 id="hero-title">조건에 맞는 팀원을 찾고,<br><em>같은 방에서 바로 대화하세요.</em></h1>
 <p class="hero-description">롤 듀오·파티를 자동으로 찾거나, 모집방에 직접 참여하세요.<br>음성 채팅까지 한곳에서.</p>
 <div class="hero-actions">${cta()}</div>
 <p class="release-status">${c.appReady ? '게임 내 친구 추가·초대는 별도' : '서비스 준비 중'}</p>
@@ -129,11 +139,11 @@ export function renderSite(c, env = {}) {
 <div id="preview" class="hero-product" aria-label="모집방 참여 체험">${renderUseFlow()}</div>
 </section>
 <section id="features" class="section wrap" aria-labelledby="features-title">
-<div id="how-it-works" class="section-heading"><h2 id="features-title">팀원 찾기부터 음성 대화까지.</h2></div>
+<div id="how-it-works" class="section-heading"><p class="eyebrow">FIND. JOIN. TALK.</p><h2 id="features-title">팀원 찾기부터<br><em>음성 대화까지.</em></h2></div>
 <div class="benefit-grid">
-<article id="auto-match" class="benefit-card"><div class="feature-icon">${icon('filters')}</div><h3>조건에 맞는<br>롤 듀오 찾기</h3><p>모드·포지션·음성 조건으로 팀원을 자동 매칭합니다.</p><details id="evidence-settings" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${detailCapture('settings','게임 모드, 내 포지션, 인원, 플레이 목적, 음성 조건을 고르는 빠른매치 설정','빠른매치 조건 설정')}</details></article>
-<article id="join" class="benefit-card"><div class="feature-icon">${icon('people')}</div><h3>멤버와<br>빈자리 확인</h3><p>티어·포지션을 보고 원하는 모집방에 직접 참여하세요.</p><details id="evidence-board" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${renderProductPreview()}</details></article>
-<article class="benefit-card"><div class="feature-icon">${icon('mic')}</div><h3>같은 방에서<br>음성 채팅</h3><p>디스코드 이동 없이, 모집 중에도 같은 방에서 대화하세요.</p><details id="evidence-room" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${detailCapture('room','모집방 목록 옆에 열린 파티 패널의 참여 인원, 마이크 켜기, 채팅 영역','파티 음성·채팅')}</details></article>
+<article id="auto-match" class="benefit-card"><span class="feature-number" aria-hidden="true">01 / MATCH</span><div class="feature-icon">${icon('filters')}</div><h3>조건에 맞는 롤 듀오 찾기</h3><p>모드·포지션·음성 조건으로 팀원을 자동 매칭합니다.</p>${featureVisual('matching')}<details id="evidence-settings" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${detailCapture('settings','게임 모드, 내 포지션, 인원, 플레이 목적, 음성 조건을 고르는 빠른매치 설정','빠른매치 조건 설정')}</details></article>
+<article id="join" class="benefit-card"><span class="feature-number" aria-hidden="true">02 / JOIN</span><div class="feature-icon">${icon('people')}</div><h3>멤버와 빈자리 확인</h3><p>티어·포지션을 보고 원하는 모집방에 직접 참여하세요.</p>${featureVisual('seats')}<details id="evidence-board" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${renderProductPreview()}</details></article>
+<article class="benefit-card"><span class="feature-number" aria-hidden="true">03 / TALK</span><div class="feature-icon">${icon('mic')}</div><h3>같은 방에서 음성 채팅</h3><p>디스코드 이동 없이, 모집 중에도 같은 방에서 대화하세요.</p>${featureVisual('voice')}<details id="evidence-room" class="screen-details"><summary>실제 화면 보기 <span aria-hidden="true">+</span></summary>${detailCapture('room','모집방 목록 옆에 열린 파티 패널의 참여 인원, 마이크 켜기, 채팅 영역','파티 음성·채팅')}</details></article>
 </div></section>
 <section id="faq" class="section wrap faq-layout" aria-labelledby="faq-title"><div class="section-heading"><h2 id="faq-title">궁금한 점</h2></div><div class="faq-list">${faqs.map(([q,a])=>`<details class="faq-item"><summary>${e(q)}<span class="faq-plus" aria-hidden="true">+</span></summary><p>${e(a)}</p></details>`).join('')}</div></section>
 </main><footer class="site-footer wrap"><a class="brand-link" href="#main" aria-label="큐메이트 홈">${wordmark()}</a><div class="footer-meta"><span>${e(new URL(c.origin).hostname)}</span><small>© 2026 QueueMate</small></div></footer></body></html>`;
