@@ -27,6 +27,9 @@ import java.util.Optional;
  */
 public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> {
 
+    @Query("select p.id from RecruitPost p where p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING and p.id > :cursor order by p.id")
+    List<Long> findRecruitingAfter(@Param("cursor") long cursor, Limit limit);
+
     /**
      * 게시판 목록의 <b>첫 페이지</b> — <b>글을 상태로 가리지 않는다.</b> 모집 중 · 확정 · 만료가 전부 {@code id} 내림차순으로 나온다
      * (2026-09-25 소유자 결정). 찾는 포지션은 쿼리 한 번으로 같이 온다({@code RecruitPost#wantedPositions}).

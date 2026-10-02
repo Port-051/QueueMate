@@ -190,7 +190,7 @@ class PostRoomFlowTest extends PostTestSupport {
         Cookie hostCookie = login(host);
         Cookie memberCookie = login(member);
         Cookie latecomer = login(newNickname());
-        Long postId = createLolPost(hostCookie);
+        Long postId = createFivePersonLolPost(hostCookie);
         enterRoom(memberCookie, postId, "SUPPORT").andExpect(status().isCreated());
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
         assertThat(statusOf(postId)).isEqualTo("CONFIRMED");
@@ -319,7 +319,7 @@ class PostRoomFlowTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("게시판 카드에 참가할 때 고른 포지션이 실린다 — 모집 중이면 방장은 방장 포지션 · 멤버는 고른 포지션(글 쓰기의 응답 · 목록 · 단건), 확정한 뒤에는 전부 null 이다(2026-10-01 소유자 결정)")
+    @DisplayName("게시판 카드에 참가할 때 고른 포지션이 실린다 — 모집 중이면 방장은 방장 포지션 · 멤버는 고른 포지션(글 쓰기의 응답 · 목록 · 단건), 확정한 뒤에도 포지션이 보존된다(P-52)")
     void cardsCarryChosenPositions() throws Exception
     {
         String host = newNickname();
@@ -354,8 +354,8 @@ class PostRoomFlowTest extends PostTestSupport {
         JsonNode confirmed = body(mockMvc.perform(get("/api/v1/posts/" + postId).cookie(viewer)).andExpect(status().isOk()));
         assertThat(confirmed.get("status").asString()).isEqualTo("CONFIRMED");
         assertThat(confirmed.get("members").size()).isEqualTo(2);
-        confirmed.get("members").forEach(card -> assertThat(card.get("position").isNull()).isTrue());
-        assertThat(confirmed.get("host").get("position").isNull()).isTrue();
+        assertThat(texts(confirmed.get("members"), "position")).containsExactlyInAnyOrder("JUNGLE", "MID");
+        assertThat(confirmed.get("host").get("position").asString()).isEqualTo("JUNGLE");
     }
 
     // ---- 방장 확정 한 길 ----
@@ -370,7 +370,7 @@ class PostRoomFlowTest extends PostTestSupport {
         Cookie memberCookie = login(member);
         Long hostId = userIdOf(host);
         Long memberId = userIdOf(member);
-        Long postId = createLolPost(hostCookie);
+        Long postId = createFivePersonLolPost(hostCookie);
         enterRoom(memberCookie, postId, "SUPPORT").andExpect(status().isCreated());
         // 사용자 번호일 수 없는 값 — 누가 손으로 넣었다. 파티원으로 적지 않는다
         redisTemplate.opsForHash().put(membersKey(postId), "NOT-A-NUMBER-" + "x".repeat(30), "");
@@ -418,7 +418,7 @@ class PostRoomFlowTest extends PostTestSupport {
         String member = newNickname();
         Cookie hostCookie = login(host);
         Cookie memberCookie = login(member);
-        Long postId = createLolPost(hostCookie);
+        Long postId = createFivePersonLolPost(hostCookie);
 
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("NOT_ENOUGH_MEMBERS"));
@@ -466,7 +466,7 @@ class PostRoomFlowTest extends PostTestSupport {
         Cookie guestCookie = login(guest);
         Long hostId = userIdOf(host);
         Long guestId = userIdOf(guest);
-        Long postId = createLolPost(hostCookie);
+        Long postId = createFivePersonLolPost(hostCookie);
         enterRoom(guestCookie, postId, "SUPPORT").andExpect(status().isCreated());
         track(postId, guestId);
 
@@ -494,8 +494,8 @@ class PostRoomFlowTest extends PostTestSupport {
         assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + hostId)).isNull();
         assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + guestId)).isNull();
         // 전에는 방이 남아 409 IN_OTHER_ROOM 이었다
-        createLolPost(hostCookie);
-        createLolPost(guestCookie);
+        createFivePersonLolPost(hostCookie);
+        createFivePersonLolPost(guestCookie);
     }
 
     @Test
@@ -507,7 +507,7 @@ class PostRoomFlowTest extends PostTestSupport {
         Cookie hostCookie = login(host);
         Cookie guestCookie = login(guest);
         Long guestId = userIdOf(guest);
-        Long postId = createLolPost(hostCookie);
+        Long postId = createFivePersonLolPost(hostCookie);
         enterRoom(guestCookie, postId, "SUPPORT").andExpect(status().isCreated());
         track(postId, guestId);
 
@@ -525,7 +525,7 @@ class PostRoomFlowTest extends PostTestSupport {
         assertThat(redisTemplate.hasKey(hostKey(postId))).isFalse();
         assertThat(redisTemplate.hasKey(needsKey(postId))).isFalse();
         assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + guestId)).isNull();
-        createLolPost(hostCookie);
+        createFivePersonLolPost(hostCookie);
     }
 
     @Test
@@ -537,7 +537,7 @@ class PostRoomFlowTest extends PostTestSupport {
         Cookie hostCookie = login(host);
         Cookie memberCookie = login(member);
         Long memberId = userIdOf(member);
-        Long postId = createLolPost(hostCookie);
+        Long postId = createFivePersonLolPost(hostCookie);
         enterRoom(memberCookie, postId, "SUPPORT").andExpect(status().isCreated());
         track(postId, memberId);
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
@@ -561,7 +561,7 @@ class PostRoomFlowTest extends PostTestSupport {
         Cookie memberCookie = login(member);
         Long hostId = userIdOf(host);
         Long memberId = userIdOf(member);
-        Long postId = createLolPost(hostCookie);
+        Long postId = createFivePersonLolPost(hostCookie);
         enterRoom(memberCookie, postId, "SUPPORT").andExpect(status().isCreated());
         track(postId, memberId);
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());

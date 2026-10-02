@@ -11,6 +11,9 @@ public enum EnterResult {
     /** 방에 들어왔다 */
     ENTERED(1),
 
+    /** 마지막 자리 입장과 같은 Lua에서 모집을 확정했다. 응답에는 포지션 스냅숏이 온다. */
+    ENTERED_AND_CONFIRMED(3),
+
     /** 이미 이 방에 들어와 있다. 새로고침이나 재시도다 — 아무것도 바뀌지 않았다 */
     ALREADY_ENTERED(2),
 
