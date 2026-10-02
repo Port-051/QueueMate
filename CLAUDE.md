@@ -196,7 +196,10 @@ PUBG 2번은 원래 플레이 스타일이었으나 **플랫폼으로 교체했�
   - 공개 키 — 환경변수 **`JWT_PUBLIC_KEY`**(X.509 PEM, 운영은 Secrets Manager) 또는 **`JWT_PUBLIC_KEY_FILE`**(기본값
     `../../platform/backend/.dev-keys/public.pem` — `backend/` 에서 띄운다는 전제의 로컬 개발용. `platform` 이 처음 뜰 때 만든다).
     **둘 다 없으면 기동하지 않는다.** 개인 키 · 서명 · refresh · JWKS 는 이 앱에 없다.
-  - 인증 없이 열린 것은 `/actuator/**` 뿐이다(노출 목록은 `management.endpoints` 가 정한다). 나머지는 전부 인증이다.
+  - 인증 없이 열린 것은 actuator 의 `/health/**` · `/info` · `/metrics/**` 뿐이다(노출 목록은 `management.endpoints` 가 정한다). 나머지는 전부 인증이다.
+    **actuator 는 루트에 있다 — `/actuator/…` 는 없다**(2026-10-02 — `platform` · `notification` 과 같은 모양, docs/11 D-18 의 "`/health/live` · `/health/ready` 분리").
+    `/health/live` 는 livenessState 만(**ALB 헬스 체크는 여기에 건다** — ready 에 걸면 Redis · RDS 장애 조치 동안 태스크가 전부 교체된다),
+    `/health/ready` 는 readinessState + Redis + DB. 응답은 상태만(`show-details` 기본값 never). `/metrics` 는 load-test 가 읽고, 밖(CloudFront · ALB 는 `/api/**` 만 보낸다)에서는 닿지 않는다.
   - **CSRF — 상태를 바꾸는 요청(POST/PUT/PATCH/DELETE)의 `Origin` 을 허용 목록(`ALLOWED_ORIGINS`, 기본값 `http://localhost:5173,http://localhost:3000`
     — `platform` 과 같다)과 대조한다**(`common/web/OriginCheckFilter` — 403 `ORIGIN_NOT_ALLOWED`). `Origin` 이 없는 요청(curl · 서버 사이)은 통과한다.
     CSRF 토큰 · CORS 설정은 두지 않는다. **전제 — 상태를 바꾸는 GET 을 만들지 않는다.**
