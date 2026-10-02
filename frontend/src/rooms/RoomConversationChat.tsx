@@ -1,4 +1,4 @@
-import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useLayoutEffect, useRef, useState } from 'react';
 import { IconPaperPlane } from '../components/icons';
 import { Avatar } from '../components/ui';
 import { formatTime } from '../domain/time';
@@ -6,9 +6,8 @@ import type { PartyChatMessage } from '../webrtc/types';
 import './room-conversation-chat.css';
 
 /** 7ee7177의 방 채팅 UI. 전송과 연결 상태는 현재 WebRTC 세션을 그대로 사용한다. */
-export function RoomConversationChat({ messages, canSend, connectionHint, nameOf, colorOf, canOpenProfile, onProfile, onSend, leadingControl }: {
+export function RoomConversationChat({ messages, canSend, connectionHint, nameOf, colorOf, canOpenProfile, onProfile, onSend }: {
   messages: PartyChatMessage[];
-  leadingControl: ReactNode;
   canSend: boolean;
   connectionHint?: string;
   nameOf(id: string, sent: string): string;
@@ -69,7 +68,6 @@ export function RoomConversationChat({ messages, canSend, connectionHint, nameOf
       {unread ? <button className="room-conversation-new" type="button" onClick={() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; stickToBottom.current = true; setUnread(false); }}>새 메시지 보기 ↓</button> : null}
     </div>
     <div className="room-conversation-compose-row">
-    {leadingControl}
     <form className="room-conversation-compose" onSubmit={event => { event.preventDefault(); send(); }}>
       <textarea ref={input} rows={1} maxLength={2000} aria-label="방에 메시지 보내기" placeholder="메시지 입력..." value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => {
         if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) { event.preventDefault(); send(); }

@@ -44,10 +44,3 @@
 .room-conversation-compose-row .room-conversation-compose { flex:1; min-width:0; margin:0; }
 .room-profile-avatar-button:disabled,.room-profile-name-button:disabled { cursor:default; }
 .room-conversation-chat button:focus-visible { outline:2px solid var(--accent-2); outline-offset:3px; }
-
-.room-mic-toggle { display:inline-flex; align-items:center; justify-content:center; flex:none; gap:6px; height:50px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:var(--panel-2); color:var(--text-dim); font:inherit; font-size:12px; white-space:nowrap; cursor:pointer; }
-.room-mic-toggle.is-off svg { color:#f36b7b; }
-.room-mic-toggle.is-on svg { color:#5fe3a8; }
-.room-mic-toggle:hover:not(:disabled) { background:#ffffff0c; border-color:#ffffff35; }
-.room-mic-toggle:disabled { opacity:.5; cursor:default; }
-@media(max-width:480px) { .room-mic-toggle { padding-inline:10px; } }
