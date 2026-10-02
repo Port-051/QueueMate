@@ -63,15 +63,15 @@
 .room-voice-seats-row { flex-direction:column; align-items:stretch; gap:4px; }
 .room-voice-seats.room-seats { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); align-items:stretch; width:100%; gap:6px; }
 .room-voice-seats .room-seat { width:auto; min-width:0; flex:none; container-type:normal; }
-.room-voice-seats.room-seats .room-seat-button { flex-direction:column; align-items:center; justify-content:center; gap:5px; height:80px; min-height:80px; padding:8px 3px 5px; border-radius:10px; text-align:center; }
-.room-voice-seats .room-seat-text { display:flex; flex-direction:column; align-items:center; min-width:0; width:100%; gap:0; }
+.room-voice-seats.room-seats .room-seat-button { flex-direction:column; align-items:center; justify-content:center; gap:5px; height:132px; min-height:132px; padding:10px 4px; border-radius:10px; text-align:center; }
+.room-voice-seats .room-seat-text { display:flex; flex-direction:column; align-items:center; min-width:0; width:100%; gap:4px; }
 .room-voice-seats .room-seat-name { display:flex; flex-wrap:nowrap; justify-content:center; gap:3px; width:100%; font-size:12px; line-height:1.3; }
 .room-voice-seats .room-seat-name strong { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .room-voice-seats .room-seat-position-icon { display:inline-flex; flex:none; }
 .room-voice-seats .room-seat-position,.room-voice-seats .room-seat-line,.room-voice-seats .room-seat-champions,.room-voice-seats .room-seat-no-stats,.room-voice-seats .room-seat-verified,.room-voice-seats .room-seat-me { display:none; }
 .room-voice-seats .room-seat-tier-badge { position:absolute; right:-6px; bottom:-4px; display:grid; place-items:center; width:18px; height:18px; border-radius:50%; background:#12131c; }
-.room-voice-seats .room-seat.is-empty { min-height:80px; padding:0; align-self:stretch; }
-.room-voice-seats .room-seat-hole { width:100%; height:80px; border-radius:10px; }
+.room-voice-seats .room-seat.is-empty { min-height:132px; padding:0; align-self:stretch; }
+.room-voice-seats .room-seat-hole { width:100%; height:132px; border-radius:10px; }
 .room-voice-seats .room-voice-mark { position:absolute; right:3px; top:3px; width:17px; height:17px; margin:0; }
 .room-voice-seats .room-voice-mark svg { width:11px; height:11px; }
 .room-voice-seat.is-speaking .room-seat-button { border-color:#64e5ad; box-shadow:0 0 0 2px #64e5ad44; }
@@ -107,7 +107,23 @@
 .room-home.board-home .room-filters .board-action-button { min-height:32px; padding:0 12px; font-size:12px; }
 /* 기존 모바일 원형 좌석 규칙보다 우선해 빈자리도 같은 박스 크기를 유지한다. */
 .party-page .room-voice-seats .room-seat.is-empty { padding:0; align-self:stretch; }
-.party-page .room-voice-seats .room-seat-hole { width:100%; height:80px; border-radius:10px; }
+.party-page .room-voice-seats .room-seat-hole { width:100%; height:132px; border-radius:10px; }
 @container room-voice (max-width:459px) {
-  .party-page .room-voice-seats.room-seats .room-seat-button { border:1px solid #ffffff16; border-radius:10px; background:#ffffff08; }
+  .party-page .room-voice-seats.room-seats .room-seat .room-seat-button { border:1px solid #ffffff16; border-radius:10px; background:#ffffff08; }
+}
+
+/* 포지션·티어는 닉네임 아래에서 아이콘과 이름을 함께 읽는다. */
+.party-page .room-voice-seats .room-seat-position,.party-page .room-voice-seats .room-seat-line { display:flex; align-items:center; justify-content:center; width:100%; font-size:12px; line-height:1.35; }
+.party-page .room-voice-seats .room-seat-position::before { content:none; }
+.party-page .room-voice-seats .room-seat-position b { display:inline; font-weight:500; }
+.party-page .room-voice-seats .room-seat-rank { justify-content:center; gap:3px; max-width:100%; overflow:visible; }
+.party-page .room-voice-seats .room-seat-rank>span:last-child { white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; text-align:left; font-weight:500; }
+.party-page .room-voice-seats .room-seat-numbers { display:none; }
+.party-page .room-voice-seats .room-voice-mark { width:20px; height:20px; top:5px; right:5px; }
+.party-page .room-voice-seats .room-voice-mark svg { width:14px; height:14px; }
+.party-page .room-voice-mark:is([data-voice=off],[data-voice=muted],[data-voice=waiting],[data-voice=linked]) { color:#f36b7b; background:#f36b7b18; opacity:1; }
+
+@container room-voice (max-width:459px) {
+  .party-page .room-voice-seats .room-seat-rank { display:grid; grid-template-columns:minmax(0,1fr); justify-items:center; gap:1px; }
+  .party-page .room-voice-seats .room-seat-rank>span:last-child { text-align:center; }
 }

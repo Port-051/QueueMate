@@ -233,7 +233,6 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
             {room && isHost && !confirmed ? <button type="button" disabled={busy || session.members.length < 2} onClick={() => setDialog({ kind: 'confirm' })}>파티 확정</button> : null}
             {canDeletePost ? <button type="button" disabled={busy} onClick={() => setDialog({ kind: 'delete' })}>글 지우기</button> : null}
           </ActionMenu> : null}
-          <Button className="party-room-leave" variant="danger" disabled={busy} onClick={() => setDialog({ kind: 'leave' })}><IconLogout size={15} /> 방 나가기</Button>
         </div>
       </div>
 
@@ -245,14 +244,17 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
 
       <RoomVoiceSeats room={seatRoom} members={members} colors={faceColors} hostId={session.hostId} selfId={userId} capacity={capacity}
         voice={voice} muted={muted} connectedPeers={connectedPeers} voiceActivity={voiceActivity} menuFor={menuFor} />
-      <RoomConversationChat key={roomId} messages={messages} canSend={canChat} connectionHint={connectionHint} nameOf={chatName}
-        colorOf={id => faceColors.get(id)} canOpenProfile={id => cards.has(id)} onProfile={setProfileId} onSend={send}
-        leadingControl={<button type="button" className={`room-mic-toggle${voice === 'connected' && !muted ? ' is-on' : ' is-off'}`}
+      <div className="party-room-call-controls" role="group" aria-label="방 통화 제어">
+        <button type="button" className={`room-mic-toggle${voice === 'connected' && !muted ? ' is-on' : ' is-off'}`}
           disabled={!clientRef.current || voice === 'connecting'} aria-pressed={voice === 'connected' && !muted}
           title={voiceDetail || (voice === 'connecting' ? '마이크 준비 중' : undefined)}
           onClick={() => voice === 'connected' ? toggleMute() : void clientRef.current?.startVoice()}>
-          {voice === 'connected' && !muted ? <><IconMic size={18} /><span>음소거</span></> : <><IconMicOff size={18} /><span>음소거 해제</span></>}
-        </button>} />
+          {voice === 'connected' && !muted ? <><IconMic size={20} /><span>음소거</span></> : <><IconMicOff size={20} /><span>음소거 해제</span></>}
+        </button>
+        <Button className="party-room-leave" variant="danger" disabled={busy} onClick={() => setDialog({ kind: 'leave' })}><IconLogout size={20} /> 방 나가기</Button>
+      </div>
+      <RoomConversationChat key={roomId} messages={messages} canSend={canChat} connectionHint={connectionHint} nameOf={chatName}
+        colorOf={id => faceColors.get(id)} canOpenProfile={id => cards.has(id)} onProfile={setProfileId} onSend={send} />
 
       {dialog?.kind === 'leave' ? <ConfirmDialog title="방에서 나갈까요?" confirmLabel="나가기" onClose={() => setDialog(null)} onConfirm={leave}
         description={isHost && !confirmed ? '방장이 나가면 방이 닫히고 글은 만료돼요.' : isHost ? '확정된 방은 남은 사람에게 방장이 넘어가요.' : confirmed ? '확정된 파티라 나가면 게시판에서 다시 들어올 수 없어요.' : '언제든 게시판에서 다시 참여할 수 있어요.'} /> : null}

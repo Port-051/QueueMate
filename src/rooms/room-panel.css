@@ -93,4 +93,16 @@
   .room-panel .page.party-page { padding:12px 10px; }
 }
 
-.party-room-controls .party-room-leave { min-height:32px; padding:5px 12px; border-radius:999px; font-size:12px; white-space:nowrap; }
+
+/* 사진의 통화 도구처럼 좌석 아래에 테두리 캡슐 두 개를 가운데 정렬한다. */
+.party-room-call-controls { display:flex; justify-content:center; align-items:center; gap:10px; margin:0 0 16px; }
+.party-room-call-controls .room-mic-toggle,.party-room-call-controls .party-room-leave { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:42px; padding:8px 18px; border:1px solid #777a86; border-radius:999px; background:transparent; color:var(--text); font:inherit; font-size:14px; font-weight:600; white-space:nowrap; box-shadow:none; cursor:pointer; }
+.party-room-call-controls .room-mic-toggle { min-width:146px; }
+.room-mic-toggle.is-off svg { color:#f36b7b; }
+.room-mic-toggle.is-on svg { color:#5fe3a8; }
+.party-room-call-controls .party-room-leave { border-color:#db5364; color:#ff929e; }
+.party-room-call-controls button:hover:not(:disabled) { background:#ffffff0c; border-color:#b3b6c2; }
+.party-room-call-controls .party-room-leave:hover:not(:disabled) { background:#e03c5318; border-color:#ff8190; }
+.party-room-call-controls button:focus-visible { outline:2px solid var(--accent-2); outline-offset:3px; }
+.party-room-call-controls button:disabled { opacity:.5; cursor:default; }
+@media(max-width:480px) { .party-room-call-controls { gap:8px; } .party-room-call-controls .room-mic-toggle,.party-room-call-controls .party-room-leave { padding-inline:14px; } }
