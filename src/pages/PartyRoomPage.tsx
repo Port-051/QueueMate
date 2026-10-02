@@ -5,7 +5,7 @@ import * as api from '../api/client';
 import { hasErrorCode } from '../api/error';
 import type { MatchPartyMember } from '../api/types';
 import { ReportModal } from '../components/ReportModal';
-import { IconLogout, IconMic, IconMicOff, IconShield } from '../components/icons';
+import { IconLogout, IconMic, IconMicOff } from '../components/icons';
 import { Button, ConfirmDialog, EmptyState, useToast } from '../components/ui';
 import { roomColors } from '../domain/avatarColor';
 import { socialErrorMessage } from '../domain/socialErrors';
@@ -50,7 +50,7 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
   const { user, userId } = useAuth();
   const session = useRoomSession();
   const { messages, voiceActivity, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef } = usePartySession();
-  const { isFriend, requestTo, addFriend, block } = useSocial();
+  const { isFriend, requestTo, addFriend, block, unblock, isBlocked } = useSocial();
   const { activePartyInfo, stream } = useMatch();
   const navigate = useNavigate();
   const toast = useToast();
@@ -188,8 +188,11 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
   };
 
   const onBlock = async (targetId: string, nickname: string) => {
-    try { await block(targetId); toast(`${nickname}님을 차단했습니다. 앞으로 같은 파티가 되지 않습니다`, 'ok'); }
-    catch (err) { toast(socialErrorMessage(err, '차단하지 못했습니다'), 'error'); }
+    try {
+      if (isBlocked(targetId)) { await unblock(targetId); toast(`${nickname}님 차단을 해제했습니다`, 'ok'); }
+      else { await block(targetId); toast(`${nickname}님을 차단했습니다. 앞으로 같은 파티가 되지 않습니다`, 'ok'); }
+    }
+    catch (err) { toast(socialErrorMessage(err, '차단 상태를 변경하지 못했습니다'), 'error'); }
   };
 
   // 좌석을 누르면 뜨는 작은 메뉴 — 옛 파티원 카드의 버튼 줄(친구 추가 · 방장의 내보내기 · "···" 의 차단 · 신고)과 같은 일이다. 내 좌석은 메뉴가 없다(`RoomVoiceSeats`).
@@ -200,10 +203,10 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
     const actions: SeatMenuAction[] = [{ key: 'message', label: '메시지 보내기', onSelect: () => navigate(`/app/messages/${member.id}`) }];
     if (!friend) actions.push(requestTo(member.id)
       ? { key: 'friend', label: '친구 요청 보냄', disabled: true, onSelect: () => {} }
-      : { key: 'friend', label: '친구 추가', onSelect: () => void onFriendRequest(member.id, name) });
+      : { key: 'friend', label: '친구 추가', disabled: isBlocked(member.id), onSelect: () => void onFriendRequest(member.id, name) });
     if (isHost) actions.push({ key: 'kick', label: '내보내기', tone: 'danger', onSelect: () => setDialog({ kind: 'kick', userId: member.id, nickname: name }) });
-    actions.push({ key: 'block', label: '차단', onSelect: () => void onBlock(member.id, name) });
-    actions.push({ key: 'report', label: <><IconShield size={13} /> 신고</>, onSelect: () => setReportTarget({ userId: member.id, nickname: name }) });
+    actions.push({ key: isBlocked(member.id) ? 'unblock' : 'block', label: isBlocked(member.id) ? '차단 해제' : '차단', onSelect: () => void onBlock(member.id, name) });
+    actions.push({ key: 'report', label: '신고', onSelect: () => setReportTarget({ userId: member.id, nickname: name }) });
     const note = [member.id === session.hostId ? '방장' : null, friend ? '친구' : null].filter(Boolean).join(' · ');
     return { note: note || undefined, actions };
   };

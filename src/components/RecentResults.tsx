@@ -17,7 +17,7 @@ const TILES_PER_ROW = 10;
 export function recentRecord(stats: GameStats | null | undefined): RecentRecord | null {
   const raw = stats?.detail?.recentResults;
   if (!Array.isArray(raw)) return null;
-  const results = raw.filter((value): value is RecentResult => value === 'W' || value === 'L');
+  const results = raw.filter((value): value is RecentResult => value === 'W' || value === 'L').slice(0, 20);
   const wins = results.filter(result => result === 'W').length;
   return { results, wins, losses: results.length - wins };
 }

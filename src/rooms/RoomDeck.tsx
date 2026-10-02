@@ -199,7 +199,7 @@ export function gamesText(game: GameKey, stats: GameStats): string {
  * 좌석을 누르면 여는 프로필 창(`RoomMemberProfile`)과 같은 사실이라 읽어 주지 않는다(`aria-hidden`) — 좌석 버튼의 이름이 요약을 싣는다.
  * 방 화면의 음성 좌석도 클릭 상세에서 같은 내용을 쓴다.
  */
-export function SeatPopover({ room, member, embedded = false }: { room: BoardRoom; member: BoardMember; embedded?: boolean }) {
+export function SeatPopover({ room, member, embedded = false, color }: { room: BoardRoom; member: BoardMember; embedded?: boolean; color?: number }) {
   const profile = member.profile;
   const stats = profile?.stats ?? null;
   const pubg = room.game === 'PUBG';
@@ -215,10 +215,13 @@ export function SeatPopover({ room, member, embedded = false }: { room: BoardRoo
   const recent = room.game === 'LOL' ? recentRecord(stats) : null;
   const games = stats && !recent ? gamesFact(room.game, stats) : null;
   return <span className="room-seat-popover" aria-hidden={embedded ? undefined : true}>
-    <span className="room-pop-head">
-      <b>{member.nickname}</b>
-      {role ? <em>{role}</em> : null}
-    </span>
+    {embedded ? <span className="room-pop-identity">
+      <RoomMemberAvatar member={member} size={48} color={color} showHost={false} />
+      <span className="room-pop-identity-text">
+        <span className="room-pop-head"><b>{member.nickname}</b>{member.host ? <em>방장</em> : null}</span>
+        {position ? <span className="room-pop-position"><FilterRoleIcon game={room.game} value={position} size={16} /><span>{roleLabel(room.game, position)}</span></span> : null}
+      </span>
+    </span> : <span className="room-pop-head"><b>{member.nickname}</b>{role ? <em>{role}</em> : null}</span>}
     <span className="room-pop-sub">{profile
       ? [profile.gameNickname, profile.verified ? '인증됨' : null, pubg && profile.server ? SERVER_LABEL[profile.server] : null].filter(Boolean).join(' · ')
       : '이 게임의 계정을 아직 연결하지 않았어요'}</span>
