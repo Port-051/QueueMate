@@ -1,0 +1,35 @@
+name: Reconnect landing domain
+on:
+  push:
+    branches: [feat/seo-landing]
+    paths: ['.github/workflows/reconnect-landing-domain.yml']
+permissions:
+  contents: read
+concurrency:
+  group: qmate-domain-reconnect
+  cancel-in-progress: false
+jobs:
+  reconnect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Vercel CLI
+        run: npm install --prefix "$RUNNER_TEMP/vercel-cli" --no-audit --no-fund vercel@62.1.0
+      - name: Authorize and reconnect queue-mate.com
+        run: |
+          set -euo pipefail
+          V="$RUNNER_TEMP/vercel-cli/node_modules/.bin/vercel"
+          A="$RUNNER_TEMP/vercel-auth"
+          mkdir -p "$A"
+          "$V" login --global-config "$A" --no-color
+          P=$("$V" api "/v9/projects/prj_twOVEOMaFLLQtgu0n4o5l7pmggiu?teamId=team_TYonFQEoE1HOMC5bYb5xvQXV" -X GET --scope port-52 --global-config "$A" --no-color)
+          node -e 'const p=JSON.parse(process.argv[1]);if(p.id!=="prj_twOVEOMaFLLQtgu0n4o5l7pmggiu"||p.name!=="queue-mate-landing")process.exit(1)' "$P"
+          "$V" api "/v10/projects/prj_twOVEOMaFLLQtgu0n4o5l7pmggiu/domains?teamId=team_TYonFQEoE1HOMC5bYb5xvQXV" -X POST --input <(printf '%s' '{"name":"queue-mate.com"}') --scope port-52 --global-config "$A" --no-color
+          D=$("$V" api "/v9/projects/prj_twOVEOMaFLLQtgu0n4o5l7pmggiu/domains?teamId=team_TYonFQEoE1HOMC5bYb5xvQXV&limit=100" -X GET --scope port-52 --global-config "$A" --no-color)
+          node -e 'const d=JSON.parse(process.argv[1]);if(!d.domains?.some(x=>x.name==="queue-mate.com"))process.exit(1);console.log("queue-mate.com reconnected to queue-mate-landing")' "$D"
+      - name: Clear authorization
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/vercel-auth"
