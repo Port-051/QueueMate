@@ -1,13 +1,12 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { CreatePostRequest, GameKey, VoicePreference } from '../api/types';
 import { Button, Modal } from '../components/ui';
-import { GameBadge } from '../components/GameSymbol';
 import { SlidingSelector } from '../components/SlidingSelector';
 import { ModePicker } from '../components/ModePicker';
 import { IconCheck, IconPaperPlane } from '../components/icons';
 import { DesiredRolesField, VoiceOptions } from '../components/SelfIntroductionFields';
 import { SingleRolePicker } from '../components/SingleRolePicker';
-import { gameConfig, targetPartySize } from '../domain/gameConfig';
+import { targetPartySize } from '../domain/gameConfig';
 import { useAuth } from '../state/AuthContext';
 import { perspectiveFromMode } from './boardRoom';
 import { roomErrorMessage } from './errors';
@@ -22,7 +21,7 @@ const TITLE_MAX = 60;
 
 /**
  * "방 만들기" 의 팝업 — **글 쓰기(`POST /posts`) 폼 전부**다(2026-09-30 소유자 지시 — "너무 빈약하다. 내 포지션을 넣고 게임 모드도 여기서 고르게").
- * 게임 · 방 제목 · 게임 모드(인원 · PUBG 시점) · 내 포지션 · 찾는 포지션 · 마이크/빠른매치 입장 순서다.
+ * 방 제목 · 게임 모드(인원 · PUBG 시점) · 내 포지션 · 찾는 포지션 · 마이크/빠른매치 입장 순서다.
  * 선택기는 `ModePicker`, `SingleRolePicker`, `DesiredRolesField`, `VoiceOptions`를 재사용한다.
  *
  * - **처음에는 아무것도 고르지 않은 채로 연다**(같은 날 소유자 지시 — "매번 다를 수도 있는데 왜 시작 때 특정한 값으로 고정을 할려는 거지").
@@ -134,7 +133,6 @@ export function RoomCreatePreview({ game, initialRoom, onClose, onConfirm }: {
   };
   return <Modal title={editing ? '방 설정' : '방 만들기'} className="room-action-dialog room-form-dialog room-create-preview" closeLabel={editing ? '방 설정 닫기' : '방 만들기 닫기'} onClose={() => { if (!submitting.current) onClose(); }}
     foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || !ready} onClick={confirm}>{editing ? <IconCheck size={18} /> : <IconPaperPlane size={18} />}{busy ? editing ? '저장 중…' : '만드는 중…' : editing ? '변경사항 저장' : '방 만들기'}</Button></>}>
-    <p className="room-form-caption"><GameBadge game={game} size={20} />{gameConfig(game).name}</p>
     <fieldset className="room-form-fieldset" disabled={busy}>
       <section className="self-introduction room-form-fields" aria-label={editing ? '방 설정 조건' : '방 만들기 조건'}>
         <div className="introduction-fields button-fields">
