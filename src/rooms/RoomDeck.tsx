@@ -319,8 +319,8 @@ export function RoomConditions({ room }: { room: BoardRoom }) {
   const voice = roomVoice(room.voice);
   const group = modeChoice(room.game, room.modeKey)?.group ?? room.modeKey;
   return <>
-    <span className="room-row-mode"><FilterModeIcon mode={group} size={16} />{modeChoiceLabel(room.game, room.modeKey, room.perspective)}</span>
-    {voice === 'REQUIRED' ? <span className="room-row-voice"><VoiceIcon preference={voice} size={16} />마이크 사용</span> : null}
+    <span className="room-condition-chip room-row-mode"><FilterModeIcon mode={group} size={16} />{modeChoiceLabel(room.game, room.modeKey, room.perspective)}</span>
+    {voice === 'REQUIRED' ? <span className="room-condition-chip room-row-voice"><VoiceIcon preference={voice} size={16} />마이크 사용</span> : null}
   </>;
 }
 
