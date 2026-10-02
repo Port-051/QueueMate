@@ -1,16 +1,14 @@
 import { VerificationBadge } from '../components/VerificationBadge';
 import { useRef, useState } from 'react';
 import { Button, Modal } from '../components/ui';
-import { FilterModeIcon } from '../components/FilterSymbols';
 import { SingleRolePicker } from '../components/SingleRolePicker';
-import { modeChoice, modeChoiceLabel } from '../domain/modeChoice';
 import { isPositionRoom, remainingPositions } from './boardRoom';
 import { isPositionError, roomErrorMessage } from './errors';
-import { RoomRoles, RoomWantedPositions } from './RoomDeck';
-import { RoomVoice } from './RoomVoice';
-import { hasPositions } from './summary';
+import { RoomConditions, RoomMemberAvatar } from './RoomDeck';
+import { boardRoomColors } from './roomColors';
 import type { BoardRoom } from './types';
 import './room-create-preview.css';
+import './room-join-confirm.css';
 
 /**
  * 참가 전 포지션 선택과 확인. 다른 방에 있으면 나가기 경고를 보여 주고, 확인한 뒤 기존 방 퇴장 → 새 방 입장을 순서대로 실행한다.
@@ -35,8 +33,9 @@ export function RoomJoinConfirm({ room, entryError, cancelsMatch = false, switch
   const picked = position && remaining.includes(position) ? position : null;
   const pickTitle = room.game === 'VALORANT' ? '내 역할' : '내 포지션';
   const needsPick = positionRoom && !picked;
+  const closed = room.status !== 'RECRUITING' || room.closed || room.full || room.memberCount >= room.capacity;
   const confirm = async () => {
-    if (entryError || submitting.current || needsPick) return;
+    if (closed || entryError || submitting.current || needsPick) return;
     submitting.current = true; setBusy(true); setError('');
     try { await onJoin(picked ?? undefined); }
     catch (cause) {
@@ -45,35 +44,30 @@ export function RoomJoinConfirm({ room, entryError, cancelsMatch = false, switch
       else setError(roomErrorMessage(cause, '참여하지 못했어요. 다시 시도해 주세요.'));
     }
   };
-  return <Modal title={switchesRoom ? '다른 방에 참가할까요?' : '이 방에 참여할까요?'} closeLabel="참여 창 닫기" className="room-create-preview room-join-preview" onClose={() => { if (!submitting.current) onClose(); }}
-    foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || Boolean(entryError) || needsPick} onClick={confirm}>{busy ? '참여 중…' : switchesRoom ? '나가고 참가하기' : cancelsMatch ? '빠른매치 취소 후 참여하기' : '참여하기'}</Button></>}>
-    {switchesRoom ? <div className="banner warn" role="alert">현재 참여 중인 방에서 나가게 됩니다.{closesHostedRoom ? ' 방장으로 모집 중인 방은 닫힙니다.' : ''}<br />그래도 참가하시겠습니까?</div> : null}
-    {cancelsMatch ? <p className="banner warn" role="status">이 방에 입장하면 현재 진행 중인 빠른매치가 취소됩니다.</p> : null}
-    <div className="room-preview-title"><h3>{room.title}</h3></div>
-    <dl className="room-preview-conditions">
-      <div><dt>게임 모드</dt><dd><FilterModeIcon mode={modeChoice(room.game, room.modeKey)?.group ?? room.modeKey} size={22} />{modeChoiceLabel(room.game, room.modeKey, room.perspective)}</dd></div>
-      {/* 방장이 글을 쓸 때 고른 자기 포지션(2026-09-30 소유자 결정) — 카드와 같은 아이콘 + 이름을 닉네임 뒤에.
-          방장이 없는 글(방장이 탈퇴한 확정된 글 — P-48)은 이 줄을 그리지 않는다 — 참여 창은 모집 중인 글만 열지만 타입이 `null` 을 허락한다. */}
-      {room.host ? <div><dt>방장</dt><dd>{room.host.nickname}<VerificationBadge verified={room.host.profile?.verified} />{room.hostPosition && hasPositions(room.game, room.modeKey) ? <RoomRoles game={room.game} roles={[room.hostPosition]} labels /> : null}</dd></div> : null}
-      <div><dt>인원</dt><dd>{room.memberCount} / {room.capacity}명</dd></div>
-      {hasPositions(room.game, room.modeKey) ? <div><dt>찾는 포지션</dt><dd><RoomWantedPositions room={room} /></dd></div> : null}
-      <div><dt>음성</dt><dd><RoomVoice value={room.voice} />{room.voice === 'REQUIRED' ? '사용' : '미사용'}</dd></div>
-      {room.description ? <div><dt>소개</dt><dd>{room.description}</dd></div> : null}
-    </dl>
+  return <Modal title={switchesRoom ? '다른 방에 참가할까요?' : '방에 참가하기'} closeLabel="참여 창 닫기" className="room-create-preview room-join-preview" onClose={() => { if (!submitting.current) onClose(); }}
+    foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || closed || Boolean(entryError) || needsPick} onClick={confirm}>{busy ? '참가 중…' : closed ? '마감' : switchesRoom ? '나가고 참가하기' : cancelsMatch ? '빠른매치 취소 후 참가' : '참가하기'}</Button></>}>
+    <div className="room-join-summary">
+      <h3>{room.title}</h3>
+      <p className="room-row-meta" aria-label="방 조건"><RoomConditions room={room} /></p>
+      <div className="room-join-summary-bottom">
+        {room.host ? <div className="room-join-host">
+          <RoomMemberAvatar member={room.host} size={28} color={boardRoomColors(room).get(room.host.id)} showHost={false} />
+          <span className="room-join-host-label">방장</span><strong title={room.host.nickname}>{room.host.nickname}</strong><VerificationBadge verified={room.host.profile?.verified} />
+        </div> : null}
+        <span className="room-join-vacancies">{closed ? '모집 마감' : <><strong>{room.capacity - room.memberCount}명</strong> 더 모집 중</>}</span>
+      </div>
+      {room.description ? <p className="room-join-description">{room.description}</p> : null}
+    </div>
+    {switchesRoom ? <div className="room-join-warning" role="alert"><strong>현재 방에서 나가게 됩니다</strong><p>{closesHostedRoom ? '방장으로 모집 중인 방도 닫힙니다. ' : ''}그래도 이 방에 참가하시겠습니까?</p></div> : null}
+    {cancelsMatch ? <div className="room-join-warning" role="status"><strong>빠른매치가 취소됩니다</strong><p>진행 중인 매칭을 취소한 뒤 이 방에 참가합니다.</p></div> : null}
     {positionRoom && remaining.length ? <div className="room-home room-preview-scope room-join-position">
       <fieldset className="room-preview-fieldset" disabled={busy}>
-        <section className="self-introduction room-preview-fields" aria-label="참가할 포지션">
-          <div className="introduction-fields button-fields">
-            <fieldset className="introduction-choice"><legend>{pickTitle}</legend>
-              <SingleRolePicker game={room.game} value={picked} label={pickTitle} only={remaining} onChange={next => { setError(''); setPosition(next); }} />
-            </fieldset>
-          </div>
-        </section>
+        <legend>{room.game === 'VALORANT' ? '참가할 역할' : '참가할 포지션'}</legend>
+        <p className="room-join-pick-hint">남은 자리 중 하나를 선택해 주세요.</p>
+        <SingleRolePicker game={room.game} value={picked} label={pickTitle} only={remaining} onChange={next => { setError(''); setPosition(next); }} />
       </fieldset>
+      <p className="room-join-note">참가 후에는 {room.game === 'VALORANT' ? '역할을' : '포지션을'} 변경할 수 없어요.</p>
     </div> : null}
-    <p className="room-move-notice">{positionRoom ? `남은 ${room.game === 'VALORANT' ? '역할' : '포지션'} 가운데 하나를 골라 들어가요 — 들어간 뒤에는 바꿀 수 없어요. ` : ''}내 카드의 티어 · 전적은 프로필의 게임 계정에서 보여요.</p>
-    {/* 늘 두고 비우기만 한다(비면 숨는다) — 글 쓰기 팝업의 "채워야 할 칸" 과 같은 줄. */}
-    <p className="room-create-hint room-preview-missing" aria-live="polite">{needsPick && remaining.length && !entryError ? `채워야 할 칸 — ${pickTitle}` : ''}</p>
     {entryError || error ? <p className="room-preview-error" role="alert">{entryError ?? error}</p> : null}
   </Modal>;
 }
