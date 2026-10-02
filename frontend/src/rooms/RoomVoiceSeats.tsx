@@ -94,7 +94,7 @@ export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity
         const body = card && seatRoom
           ? <RoomSeatBody room={seatRoom} member={card} me={self} color={color} showDetails />
           : <>
-            <span className="room-seat-face"><span className="room-member-avatar"><Avatar userId={member.id} name={member.nickname} color={color} size={36} /></span></span>
+            <span className="room-seat-face"><span className="room-member-avatar"><Avatar userId={member.id} name={member.nickname} color={color} size={48} /></span></span>
             <span className="room-seat-text"><span className="room-seat-name">
               {member.nickname !== null ? <strong>{member.nickname}</strong> : <span className="room-seat-name-pending" aria-hidden="true" />}
               {self ? <span className="room-seat-me">(나)</span> : null}
