@@ -1,0 +1,10 @@
+.room-leave-confirm .confirm-description { font-size:13px; line-height:1.6; }
+.room-leave-notice { margin-top:16px; word-break:keep-all; overflow-wrap:anywhere; }
+.room-leave-notice>strong { display:block; color:#ddd7e8; font-size:14px; font-weight:600; line-height:1.5; }
+.room-leave-notice p { margin:6px 0 0; color:#aaa5b9; font-size:13px; }
+.room-leave-notice.is-warning { padding:12px 14px; border:1px solid #d9b26a30; border-radius:10px; background:#d9b26a09; }
+.room-leave-notice.is-warning>strong { color:#dcc9a4; }
+.room-leave-notice.is-warning p { color:#bcb2a1; }
+.room-leave-confirm .modal-foot>.btn-danger { flex:1; border-color:#a95d6359; background:#a95d631c; color:#f0a4ac; }
+.room-leave-confirm .modal-foot>.btn-danger:hover:not(:disabled) { border-color:#be737a8c; background:#a95d632e; color:#ffc1c7; }
+.room-leave-confirm .modal-foot>.btn-danger:disabled { cursor:wait; }
