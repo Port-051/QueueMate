@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AccountMigrationTest extends ApiTestSupport {
 
     @Test
-    @DisplayName("public 스키마에 테이블 열셋이 있고(Flyway 의 기록 테이블 말고), 옛 스키마 셋은 없다")
+    @DisplayName("public 스키마에 테이블 열넷이 있고(Flyway 의 기록 테이블 말고), 옛 스키마 셋은 없다")
     void schemaAndTablesExist()
     {
         List<String> tables = jdbcTemplate.queryForList(
@@ -39,7 +39,7 @@ class AccountMigrationTest extends ApiTestSupport {
         List<String> oldSchemas = jdbcTemplate.queryForList(
                 "select nspname from pg_namespace where nspname in ('account', 'social', 'party')", String.class);
 
-        assertThat(tables).containsExactly("blocks", "friend_requests", "friendships", "game_account_stats",
+        assertThat(tables).containsExactly("blocks", "direct_messages", "friend_requests", "friendships", "game_account_stats",
                 "game_accounts", "parties", "party_members", "recent_players", "recruit_post_positions", "recruit_posts",
                 "reports", "social_identities", "users");
         assertThat(oldSchemas).isEmpty();
