@@ -27,8 +27,8 @@
 | k6 요약 JSON | 13 + 39 | `out/*.json`, `netpath/out/*.json` |
 
 측정 대상 API는 전부 `POST /api/v1/match-requests` (LOL / `RANKED_SOLO` / `POSITION` 조건)이며,
-예외로 `netpath/netprobe.js`만 `GET /actuator/health/liveness`를 쓴다
-(`netpath/netprobe.js:27`, 주석 `netpath/netprobe.js:1-3`).
+예외로 `netpath/netprobe.js`만 `GET /health/live`를 쓴다 — 측정 당시의 주소는 `/actuator/health/liveness` 였다
+(2026-10-02 에 actuator 를 루트로 옮겼다. 둘 다 livenessState 만 본다) (`netpath/netprobe.js:28`, 주석 `netpath/netprobe.js:1-4`).
 
 ---
 

@@ -106,7 +106,7 @@ cd "/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/backend"
 ### Redis가 필요한 것 (이 환경에서는 실행 못 함) ⚠️
 
 동시성 테스트 4종(LoL 3 + `ValorantPartyJoinConcurrencyTest`), `PushNotificationTest`(6건), `ProposalIdempotencyTest`(16건,
-`backend/src/test/java/com/queuemate/matching/proposal/ProposalIdempotencyTest.java`)는
+`backend/src/test/java/com/queuemate/matching/proposal/ProposalIdempotencyTest.java`), `ProposalExpiryTest`(3건)는
 `localhost:6379`의 Redis **DB 15번**을 쓰고 매 테스트마다 `FLUSHDB` 한다
 (`ConcurrencyTestSupport`. 알림·제안 테스트도 그것을 상속한다).
 이 문서를 처음 쓴 환경에는 `docker`도 `redis-cli`도 없어 실행을 확인하지 못했다.
@@ -154,7 +154,7 @@ docker exec qm-redis redis-cli ZCARD qm:gameconfig:PUBG:tier
 ```bash
 cd backend                 # 스프링 프로젝트는 여기 있다
 ./gradlew bootRun          # 기본 8080. REDIS_HOST/REDIS_PORT/SERVER_PORT 환경변수로 바꾼다
-curl localhost:8080/actuator/health
+curl localhost:8080/health/live    # → {"status":"UP"}. /health/ready 는 Redis · DB 까지 본다 (2026-10-02 까지는 /actuator/health 였다)
 ```
 
 **공개 키가 있어야 뜬다(2026-09-27~).** access 토큰(쿠키 `qm_access`)을 `app:platform` 의 공개 키로 검증하기 때문이다.
@@ -350,8 +350,8 @@ backend/src/main/resources/redis/         ★ 불변식이 실제로 지켜지�
 ├── proposal/accept-proposal.lua        INV-4     수락 집계. 전원이 차면 확정까지.
 │                                                 확정 시 qm:proposal:pending 에서 뺀다
 ├── proposal/decline-proposal.lua       INV-5     거절. 제안 흔적과 수락자 집합을 지운다
-├── proposal/expiry-proposal.lua        INV-5     만료. status 가 PENDING 일 때만 깨고,
-│                                                 무응답자 / 수락자 목록을 돌려준다
+├── proposal/expiry-proposal.lua        INV-5     만료. status 가 PENDING 이고 expiresAt <= now 일 때만 깨고,
+│                                                 무응답자 / 수락자 목록을 돌려준다 (시한 전이면 아무것도 안 함 — 2026-10-02)
 └── proposal/cleanup-confirmed.lua                확정 뒷정리. 파티 HASH 에 game/modeKey/voice/purpose/
                                                   confirmedAt 을 채우고(platform 이 읽는 계약 — D-42), 활성 요청에
                                                   status=PARTY 를 찍은 뒤 TTL — 파티 600초 · 활성 요청 · 수락자 SET 60초
@@ -365,7 +365,8 @@ backend/src/test/java/com/queuemate/matching/
 │   ├── ValorantPartyJoinConcurrencyTest.java  같은 것을 VALORANT 경로로
 │   └── NaiveVsLuaComparisonTest.java     순진한 방식이 깨짐을 대조로 증명
 ├── notification/PushNotificationTest.java  알림 6건. 실제로 구독해서 받아 본다
-└── proposal/ProposalIdempotencyTest.java   수락/거절 멱등성 16건
+├── proposal/ProposalIdempotencyTest.java   수락/거절 멱등성 16건
+└── proposal/ProposalExpiryTest.java        만료 3건 — 시한 전 · 같은 partyId 의 새 제안은 건드리지 않는다 (2026-10-02)
 
 backend/src/test/resources/schema.sql     테스트용 H2 에만 만드는 social.blocks (운영은 public.blocks · bigint — 맞춰야 한다, D-25 · D-34)
 seed/gameconfig.redis                     모드 설정 원본. LoL(12모드 + 티어 사다리 32 + tier-range 표 4모드)
@@ -433,8 +434,9 @@ POST /api/v1/proposals/{partyId}/decline?requestId=   ("나" = 쿠키의 sub)
  └ ProposalSweeper.sweep()  @Scheduled(fixedDelay = queuemate.sweep.interval-ms, 기본 1초)
     ├ ZRANGEBYSCORE qm:proposal:pending 0 now LIMIT 0 100   (한 회차 100건, 파티별 try/catch)
     └ ProposalExpiryService.expire(partyId)
-         ├ expiry-proposal.lua  status 가 PENDING 일 때만 status/expiresAt HDEL +
+         ├ expiry-proposal.lua  status 가 PENDING 이고 expiresAt <= now(ARGV[2]) 일 때만 status/expiresAt HDEL +
          │                      수락자 SET DEL + pending ZREM.
+         │                      시한 전이면(꺼낸 뒤 같은 파티에 새 제안이 열렸다) 아무것도 안 한다 — 2026-10-02.
          │                      PENDING 이 아니면(이미 확정·거절됐다) pending 에서만 빼고
          │                      빈 목록 → 만료가 확정을 뒤집지 못한다 (INV-5)
          ├ 무응답자만 MatchCancelService.cancel()  — 수락한 사람은 파티에 남는다
@@ -572,7 +574,7 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 | **취소·만료의 구분** | 상태 조회는 생겼지만(§4.1) **왜 큐에서 빠졌는지는 답하지 못한다.** 취소도 만료도 활성 요청 키를 지우므로 `IDLE` 과 구분되지 않는다 — `MatchRequestStatus` 에 `CANCELLED`/`EXPIRED` 가 있지만 조회가 그 값을 돌려주는 경로는 없다(그 enum 주석에 "자리만 남겨 둔다"고 적혀 있다). 이유를 알려면 알림을 받았어야 하는데 Pub/Sub 은 at-most-once 다 |
 | ~~**INV-6 차단 검증**~~ | **구현됐다(선필터 한 겹, docs/11 D-41 — §4.1).** 확정 직전 최종 검증은 두지 않기로 했고, 로컬 H2 는 `backend/src/main/resources/schema.sql` 이 `blocks` 를 만든다. 남은 것은 운영에서 `DB_URL` 이 platform 의 Postgres 를 가리키는 것뿐이다 |
 | ~~**SQS outbox**~~ | **두지 않는다(docs/11 D-42).** 2026-09-27 에 Flyway + `matching_outbox` 를 넣었다 같은 날 뺐다. AWS SDK · Flyway 가 `backend/build.gradle` 에 없는 것이 맞다 |
-| **메트릭** | `CLAUDE.md` §6 Definition of done 4번이 요구하는데 `MeterRegistry` / `@Timed` / `Metrics.` 가 `backend/src/main` 에 **0건**이다. `spring-boot-starter-actuator` 는 들어 있고 `/actuator/metrics` 도 열려 있어(`application.yaml`) JVM·HTTP 기본 지표는 나오지만, 매칭 고유 지표(큐 대기 시간, 배정까지 걸린 시간, 제안 수락률, 만료·취소 건수)는 하나도 없다 |
+| **메트릭** | `CLAUDE.md` §6 Definition of done 4번이 요구하는데 `MeterRegistry` / `@Timed` / `Metrics.` 가 `backend/src/main` 에 **0건**이다. `spring-boot-starter-actuator` 는 들어 있고 `/metrics` 도 열려 있어(`application.yaml` — 2026-10-02 까지는 `/actuator/metrics`) JVM·HTTP 기본 지표는 나오지만, 매칭 고유 지표(큐 대기 시간, 배정까지 걸린 시간, 제안 수락률, 만료·취소 건수)는 하나도 없다 |
 | ~~**인증**~~ | **2026-09-27 에 붙었다**(§4.1) — 그 전에는 JWT 가 없고 `userId`를 요청 바디와 쿼리 파라미터로 받는 임시 상태였다. 남은 것 — 조회 경로를 `/match-requests/me` 로 옮길지(계약 #5 와 같이 정한다), `load-test/` 의 스크립트가 아직 바디에 `userId` 를 싣고 쿠키가 없다(6번과 같이 고친다) |
 | **`GET /games`** | 계약에 있으나 컨트롤러가 없다 |
 | **Dockerfile** | 없다 |

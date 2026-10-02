@@ -1,5 +1,6 @@
 // 순수 네트워크 경로 비용만 본다.
-// GET /actuator/health/liveness 는 Redis/DB를 건드리지 않아 앱 작업량이 사실상 0이다.
+// GET /health/live 는 Redis/DB를 건드리지 않아(livenessState 하나 — application.yaml 의 management) 앱 작업량이 사실상 0이다.
+// (2026-10-02 까지는 /actuator/health/liveness 였다 — actuator 를 루트로 옮겼다)
 // 따라서 여기서 나오는 차이는 "부하 생성기 -> 앱" 경로 비용이다.
 import http from 'k6/http';
 import { Trend, Counter } from 'k6/metrics';
@@ -24,7 +25,7 @@ import exec from 'k6/execution';
 
 export default function () {
   const measured = exec.scenario.name === 'main';
-  const r = http.get(`${BASE}/actuator/health/liveness`);
+  const r = http.get(`${BASE}/health/live`);
   if (measured) {
     lat.add(r.timings.duration);
     if (r.status === 200) ok.add(1); else bad.add(1);

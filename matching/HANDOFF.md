@@ -1,6 +1,6 @@
 # HANDOFF — 다음 세션 인계
 
-**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-17 (목) · 2026-09-19 (§0 의 ①·③·④ 에 docs/11 D-11·D-12·D-13 반영, §0-0 · ① 에 D-19 반영) · 2026-09-24 (§0-4 신설 — `platform` 쪽에서 넘어온 일. §0-1 ① 에 참조 한 줄) · 2026-09-24 두 번째 (§0-4 (나) 에 같은 날 늦게 결정된 넷을 더했다 — P-13 의 개정 · P-17 · P-14 의 개정 · P-18) · 2026-09-27 (§0-5 신설 — 임시 식별 `?userId=` 를 쿠키 `qm_access` 검증으로 바꿨다) · 2026-09-27 두 번째 (§0-4 (나) 에 ⑯ ~ ⑱ — D-38 ~ D-40. (다) 가 D-40 으로 세부가 정해졌다) · **2026-09-27 세 번째 (§0-6 신설 — D-41 · D-42 로 오늘 닫힌 것과 남은 것. §0-1 ① · ② · ③ · ⑥ · ⑦ 이 닫혔다)** · 2026-09-29 (§0-7 신설 — 플레이 목적 `NORMAL` → `TRYHARD`, D-49) · 2026-10-01 (§0-8 신설 — 제안 수락 시한 20초 → 5분, D-55) · 2026-10-01 두 번째 (§0-9 신설 — platform 이 제안 중에도 파티 HASH 를 읽는다, D-56)
+**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-17 (목) · 2026-09-19 (§0 의 ①·③·④ 에 docs/11 D-11·D-12·D-13 반영, §0-0 · ① 에 D-19 반영) · 2026-09-24 (§0-4 신설 — `platform` 쪽에서 넘어온 일. §0-1 ① 에 참조 한 줄) · 2026-09-24 두 번째 (§0-4 (나) 에 같은 날 늦게 결정된 넷을 더했다 — P-13 의 개정 · P-17 · P-14 의 개정 · P-18) · 2026-09-27 (§0-5 신설 — 임시 식별 `?userId=` 를 쿠키 `qm_access` 검증으로 바꿨다) · 2026-09-27 두 번째 (§0-4 (나) 에 ⑯ ~ ⑱ — D-38 ~ D-40. (다) 가 D-40 으로 세부가 정해졌다) · **2026-09-27 세 번째 (§0-6 신설 — D-41 · D-42 로 오늘 닫힌 것과 남은 것. §0-1 ① · ② · ③ · ⑥ · ⑦ 이 닫혔다)** · 2026-09-29 (§0-7 신설 — 플레이 목적 `NORMAL` → `TRYHARD`, D-49) · 2026-10-01 (§0-8 신설 — 제안 수락 시한 20초 → 5분, D-55) · 2026-10-01 두 번째 (§0-9 신설 — platform 이 제안 중에도 파티 HASH 를 읽는다, D-56) · 2026-10-02 (§0-10 · §0-11 신설 — 제안 만료 Lua · 헬스 경로 `/health/live` · `/health/ready`)
 **읽는 순서:** `CLAUDE.md` → `START_HERE.md` → **이 파일의 §0 부터**
 
 이 파일은 "지금 어디까지 왔고 무엇이 열려 있는가"만 담는다. 규칙은 `CLAUDE.md`,
@@ -14,6 +14,30 @@
 ## 0. 2026-09-17 — 남은 것 전부 (이 절만 읽고 이어갈 수 있다)
 
 아래 §1~§5 는 그날그날의 기록이라 겹치는 곳이 있다. **겹치면 이 절이 우선한다.**
+
+### 0-11. 2026-10-02 — 헬스 경로를 `/health/live` · `/health/ready` 로 옮겼다 (했다 — `c307840` · `b14cf03` · 소유자 승인)
+
+actuator 를 `/actuator` 아래에서 **루트로** 옮겨 `platform` · `notification` 과 같은 모양이 됐다(docs/11 D-18 의 "`/health/live` · `/health/ready` 분리").
+`application.yaml` 의 `management` — `base-path: /` · `probes.enabled` · 그룹 `live`(livenessState) · `ready`(readinessState · **redis · db**) · `show-details` 는 기본값 never 로(그 전에는 always 라 Redis 버전 · DB 종류가 보였다).
+노출은 그대로 `health,info,metrics` — `/metrics` 는 `load-test/run_final.sh` 가 읽고 밖(CloudFront · ALB 는 `/api/**` 만)에서는 닿지 않는다. **ALB 헬스 체크는 `/health/live` 에 건다**(ready 에 걸면 Redis · RDS 장애 조치 동안 태스크가 전부 교체된다).
+`SecurityConfig` 가 `/health/**` · `/health` · `/info` · `/metrics/**` · `/metrics` 를 연다. **옛 `/actuator/health` 는 이제 401** 이다(인증이 필요한 모르는 경로 — 쿠키가 있어도 같다. 테스트로 확인).
+테스트 `web/AuthenticationApiTest` 24건(헬스 5건 — live 에 세부 없음 · ready UP · `/health` · `/info` · `/metrics` · 옛 주소 401). `concurrency.*` · 제안 · alive · push · `web.*` 89건 통과(`REDIS_PORT=6390`).
+
+### 0-10. 2026-10-02 — 제안 만료 Lua 가 시한을 다시 본다 (했다 — `b617c6f` · 배포 점검에서 찾은 버그)
+
+ECS 배포 점검(태스크 둘이 같이 도는 경우)에서 찾았다. `ProposalSweeper` 는 Redis 를 두 번 부른다 — 목록에서 시한 지난 partyId 를 꺼낼 때와
+`expiry-proposal.lua` 를 돌릴 때. 그 사이에 옛 제안이 깨지고(남은 사람은 파티에 그대로) 빈자리가 다시 차면 같은 partyId 에 **새 제안**이 열리는데,
+Lua 가 `status == 'PENDING'` 만 보고 있어 그 새 제안을 옛 것으로 알고 깼다 — 아직 아무도 수락하지 않았으니 **전원이 무응답자로 나와 통째로 큐에서 빠졌다.**
+스위퍼가 하나여도 거절 · 취소 → 재충원이 그 사이에 끼면 생기고, 둘이면 같은 목록을 둘 다 들고 있어 창이 넓다.
+**고친 것** — `now` 를 ARGV[2] 로 넘기고 `expiresAt > now` 면 빈 결과(목록에서도 안 뺀다 — 새 제안의 점수가 이미 미래다). `ProposalExpiryService#expire` 한 줄.
+회귀 테스트 `proposal/ProposalExpiryTest`(3건). `concurrency.*` 30 · `ProposalIdempotencyTest` 16 · `RequestAliveTest` 6 통과(`REDIS_PORT=6390`).
+**같은 점검에서 남은 것(아직 안 고쳤다 — 소유자가 짠다)** — ① ~~`RequestAliveExpiryService#expire` 가 `ZREM` 결과를 안 봐, A 가 취소한 직후 다시 접수한 새 요청을
+B 가 또 취소할 수 있다~~ → **고치지 않는다(소유자 판단 2026-10-02).** 이 창은 "취소된 사람이 그 ms 안에 다시 접수" 해야 열리는데, 회수된 사람은 90초 동안 heartbeat 가 없던 —
+페이지를 떠난 — 사람이라 그 자리에 없다. 프런트는 `MATCH_CANCELLED` 에 자동 재접수하지 않는다. **클라이언트가 취소 알림에 자동으로 다시 접수하는 날이 오면** 그때 다시 본다
+("score ≤ now 일 때만 ZREM + 그 순간의 requestId 반환" 을 Lua 하나로). ② ~~`AsyncConfig` 의 배정 풀에 종료 대기가 없어 SIGTERM 때 201 받은 요청의 배정이 버려진다~~
+→ **고치지 않는다(소유자 판단 2026-10-02).** ECS 는 ALB 에서 태스크를 뺀 뒤 등록 해제 지연(기본 300초)이 지나야 SIGTERM 을 보내므로, 그때는 새 신청이 끊긴 지 오래라 풀이 비어 있다.
+닿는 경우는 앱이 그냥 죽을 때뿐이고 그건 `claim-request.lua` 의 60초 만료가 처리한다(설계대로). ALB 없이 돌리거나 등록 해제 지연을 0 ~ 3초로 잡으면 다시 본다
+(`setWaitForTasksToCompleteOnShutdown(true)` · `setAwaitTerminationSeconds(20)` 두 줄). ③ 장애 조치 때 비동기 복제로 락이 사라지면 정원 초과 가능(드묾 — `join-party*.lua` 에 `count >= target` 거절 분기 없음 — 감수).
 
 ### 0-9. 2026-10-01 — `app:platform` 이 제안 중에도 파티 HASH 를 읽는다 (문서만 — docs/11 D-56)
 
@@ -108,7 +132,7 @@
   **개발용 `?userId=` 스위치는 두지 않았다.** 엔진 안(Redis 키 · Lua · 알림 채널)의 `userId` 는 문자열 그대로라 바뀐 것이 없다.
 - **CSRF** — 상태를 바꾸는 요청의 `Origin` 을 허용 목록(`ALLOWED_ORIGINS`)과 대조한다(403 `ORIGIN_NOT_ALLOWED`. `Origin` 이 없으면 통과).
 - **새 환경변수** — `JWT_PUBLIC_KEY`(X.509 PEM) · `JWT_PUBLIC_KEY_FILE`(기본값 `../../platform/backend/.dev-keys/public.pem` — `backend/` 기준) ·
-  `ALLOWED_ORIGINS`. **공개 키가 없으면 기동하지 않는다.** 인증 없이 열린 것은 `/actuator/**` 뿐이다.
+  `ALLOWED_ORIGINS`. **공개 키가 없으면 기동하지 않는다.** 인증 없이 열린 것은 actuator 뿐이다(그때는 `/actuator/**` — 2026-10-02 에 루트의 `/health/**` · `/info` · `/metrics/**` 로 옮겼다, §0-11).
 - **테스트** — `web/AuthenticationApiTest`(21건) · `common/security/JwtPublicKeysTest`(5건). 테스트 키 쌍은 JVM 마다 새로 만들고
   (`TestJwt`), 공개 키는 `META-INF/spring.factories` 의 `TestJwtKeyInitializer` 가 모든 테스트 컨텍스트에 넣는다 — 그래서 테스트에는 `platform` 의 키가 필요 없다.
   전체 71건 통과(2026-09-27, `REDIS_PORT=6390`).
@@ -331,7 +355,7 @@ Redis 쪽 뒷정리(`cleanup-confirmed.lua`)와 `MATCH_CONFIRMED` 알림까지�
 
 `CLAUDE.md` §6 Definition of done 4번이 요구하는데 `MeterRegistry` / `@Timed` / `Metrics.` 가
 `backend/src/main` 에 **0건**이다. `spring-boot-starter-actuator` 는 이미 의존성에 있고
-`/actuator/metrics` 도 열려 있어(`application.yaml`) JVM·HTTP 기본 지표는 나온다.
+`/metrics` 도 열려 있어(`application.yaml` — 2026-10-02 까지는 `/actuator/metrics`) JVM·HTTP 기본 지표는 나온다.
 **없는 것은 매칭 고유 지표다** — 큐 대기 시간(이제 `queuedAt` 이 있으니 잴 수 있다), 배정까지
 걸린 시간, 제안 수락률, 만료·취소 건수, 후보 풀 락 대기 시간.
 

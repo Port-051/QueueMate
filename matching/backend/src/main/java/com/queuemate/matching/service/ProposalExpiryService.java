@@ -43,6 +43,12 @@ public class ProposalExpiryService {
     /**
      * 제안 하나를 만료시킨다.
      *
+     * <p>{@code now} 를 같이 넘긴다. 스위퍼가 목록에서 꺼낼 때 시한을 봤어도, 이 스크립트가 돌 때는
+     * 같은 partyId 에 새 제안이 열려 있을 수 있다(옛 제안이 깨지고 빈자리가 다시 찬 경우). 그 판단은
+     * 스크립트 안에서 다시 해야 한다 — 자바가 꺼낸 목록은 그 사이에 낡는다 ({@code expiry-proposal.lua}).
+     * {@code now} 를 자바가 넘기는 것은 다른 스크립트와 같은 이유다 — Lua 의 {@code TIME} 은 복제 · 재실행에서
+     * 값이 달라진다({@link ProposalService} 의 {@code confirmed}).
+     *
      * @param partyId 만료 대기 목록에서 꺼낸 파티 id (= proposalId)
      */
     @SuppressWarnings("unchecked")
@@ -51,7 +57,8 @@ public class ProposalExpiryService {
                 List.of(SharedKeys.partyKey(partyId),
                         SharedKeys.acceptsKey(partyId),
                         SharedKeys.PENDING_KEY),
-                partyId);
+                partyId,
+                String.valueOf(System.currentTimeMillis()));
 
         // 빈 결과는 할 일이 없었다는 뜻이다 — 이미 확정·거절됐거나 시한 전이다 (expiry-proposal.lua)
         if (result == null || result.isEmpty()) {

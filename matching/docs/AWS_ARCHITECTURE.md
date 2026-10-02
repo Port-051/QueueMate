@@ -186,7 +186,7 @@ SQS FIFO 3개.
 | RDS `social.blocks`(**2026-09-26 부터 `public.blocks`** — D-34) | 읽기 | INV-6 검증 | **미구현** — 부르는 코드는 있다 (`LolCandidateRule#canJoin` 의 차단 선필터). 그런데 Flyway 미도입이라 스키마가 없어 기본 실행에서는 그 조회가 실패한다. **운영 DB 에 붙어도 `Block.java` 가 옛 모양(`schema = "social"` · `String`)이라 깨진다 — 고쳐야 한다(D-25 · D-34)** |
 | SQS `ProposalConfirmed.fifo` | 발행 | 확정된 제안 → 파티 생성 | **미구현** — AWS SDK 의존성이 없다. 확정과 Redis 쪽 뒷정리(`proposal/cleanup-confirmed.lua`)·`MATCH_CONFIRMED` 알림까지는 붙었고, `matching.outbox` 기록과 발행만 남았다 |
 | SQS `BlockChanged.fifo` | 소비 | 차단 목록 갱신 | **미구현** |
-| CloudWatch | 송신 | 로그·지표 | 부분 — `/actuator` 노출은 켜져 있다 (`application.yaml`) |
+| CloudWatch | 송신 | 로그·지표 | 부분 — actuator 노출은 켜져 있다 (`application.yaml` — `/health/live` · `/health/ready` · `/info` · `/metrics`. 2026-10-02 에 `/actuator` 아래에서 루트로 옮겼다) |
 | Secrets Manager | 읽기 | DB 자격증명 | 아직 없음 — `application.yaml` 이 `DB_URL`/`DB_USER`/`DB_PASSWORD` 환경변수로 받는다 (기본값은 H2 인메모리) |
 | ECR | — | 태스크 이미지 | 해당 없음 (Dockerfile 없음) |
 
