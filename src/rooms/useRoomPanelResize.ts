@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent, type KeyboardEvent } from 'react';
 
 const STORAGE_KEY = 'qm.roomPanelRatio';
-const HANDLE_WIDTH = 8;
 const MIN_PANEL = 420;
 const MIN_BOARD = 400;
 
@@ -18,7 +17,7 @@ export function useRoomPanelResize() {
   });
   const drag = useRef<{ x: number; width: number } | null>(null);
   const [dragging, setDragging] = useState(false);
-  const max = Math.max(MIN_PANEL, total - MIN_BOARD - HANDLE_WIDTH);
+  const max = Math.max(MIN_PANEL, total - MIN_BOARD);
   const clamp = (value: number) => Math.min(max, Math.max(MIN_PANEL, value));
   const width = clamp(ratio === null ? Math.min(total * .46, 680) : total * ratio);
   useEffect(() => {
