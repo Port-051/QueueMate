@@ -48,7 +48,7 @@ export function VoiceOptions({ value, onChange, binary = false, compact = false 
   </SlidingSelector>;
 }
 
-export function SelfIntroductionFields({ game, value, onChange, modeLocked = false, binaryVoice = false, showTierRange = false, compact = false, singleRole = false, afterMode, disabledDesiredRoles = [], hidePostFields = false, showPurpose = false }: {
+export function SelfIntroductionFields({ game, value, onChange, modeLocked = false, binaryVoice = false, showTierRange = false, compact = false, singleRole = false, afterMode, disabledDesiredRoles = [], hidePostFields = false, showPurpose = false, voiceLabel = '음성' }: {
   game: GameKey; value: SelfIntroduction; onChange: (value: SelfIntroduction) => void; modeLocked?: boolean; binaryVoice?: boolean; showTierRange?: boolean; compact?: boolean; singleRole?: boolean; afterMode?: ReactNode; disabledDesiredRoles?: string[];
   /**
    * 글에만 쓰이는 칸 — "찾는 포지션" · "한마디" 를 그리지 않는다. 게시판 맨 위 자동 매칭 판(`rooms/RoomQuickConnect.tsx`)이 켠다 —
@@ -60,6 +60,7 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
    * 핵심 조건이 없는 모드(칼바람)면 모드 바로 아래다. **"자동 매칭 시작" 에만 쓰인다** — 글(방 만들기)에는 목적이 없어(platform P-29) 칸 아래에 그렇게 적는다(버튼 이름이 2026-09-29 에 "자동 매칭 시작" 이 되어 문구도 맞췄다).
    */
   showPurpose?: boolean;
+  voiceLabel?: string;
 }) {
   const roles = keyConditionOptions(game).filter(role => role.value !== 'ANY');
   const ownRoles = value.primaryRoles ?? (value.primaryRole !== 'ANY' ? [value.primaryRole] : []);
@@ -89,7 +90,7 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
       </> : purposeField}
       <SettingsPair {...(compact ? { className: 'room-settings-pair' } : {})}>
       {showTierRange ? <div className="room-setting-row"><span>찾는 티어</span><TierRangePicker game={game} value={value.desiredTierRange} label="찾는 티어 범위" stacked={compact} onChange={desiredTierRange => patch({ desiredTierRange })} /></div> : null}
-      <VoiceField className={compact ? 'room-setting-row' : 'introduction-choice'}><VoiceLabel>음성</VoiceLabel><VoiceOptions value={value.voice} binary={binaryVoice} compact={compact} onChange={voice => patch({ voice })} /></VoiceField>
+      <VoiceField className={compact ? 'room-setting-row' : 'introduction-choice'}><VoiceLabel>{voiceLabel}</VoiceLabel><VoiceOptions value={value.voice} binary={binaryVoice} compact={compact} onChange={voice => patch({ voice })} /></VoiceField>
       </SettingsPair>
       {hidePostFields ? null : <IntroductionBioField value={value.bio} onChange={bio => patch({ bio })} />}
     </div>
