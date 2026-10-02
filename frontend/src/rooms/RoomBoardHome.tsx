@@ -107,23 +107,27 @@ export function RoomBoardHome({ roomPanelOpen = false }: { roomPanelOpen?: boole
       createSlot={createSlot} onCreate={async body => { const room = await create(body); setJustCreatedId(room.id); enter(room); }} />
     <section className="room-board" aria-label="방 목록">
       <div className="board-filter-bar room-filters" role="group" aria-label="방 필터">
+        <div className="room-filter-primary">
         <SlidingSelector className="intro-mode-options room-mode-options board-mode-options" role="group" aria-label="찾는 게임 모드">
           <button type="button" className="filter-mode" aria-label="전체 모드" aria-pressed={filters.group === ''} onClick={() => chooseGroup('')}><span>전체</span></button>
-          {modeGroups(selectedGame).map(group => <button type="button" className="filter-mode" aria-pressed={filters.group === group.key} key={group.key} onClick={() => chooseGroup(group.key)}><FilterModeIcon mode={group.key} /><span>{group.label.replace(/^(솔로|자유) 랭크$/, '$1랭크')}</span></button>)}
+          {modeGroups(selectedGame).map(group => <button type="button" className="filter-mode" aria-pressed={filters.group === group.key} key={group.key} onClick={() => chooseGroup(group.key)}><FilterModeIcon mode={group.key} /><span>{group.label}</span></button>)}
         </SlidingSelector>
         {sizes.length > 1 ? <SlidingSelector className="intro-mode-options room-mode-options board-mode-options board-sub-options" role="group" aria-label="찾는 인원">
           <button type="button" className="filter-mode" aria-label="전체 인원" aria-pressed={filters.size === 0} onClick={() => setFilters({ ...filters, size: 0 })}><span>전체</span></button>
           {sizes.map(size => <button type="button" className="filter-mode" aria-pressed={filters.size === size} key={size} onClick={() => setFilters({ ...filters, size })}><span>{size}인</span></button>)}
         </SlidingSelector> : null}
+        </div>
+        <div className="room-filter-secondary">
         {perspectives.length ? <SlidingSelector className="intro-mode-options room-mode-options board-mode-options board-sub-options" role="group" aria-label="찾는 시점">
           <button type="button" className="filter-mode" aria-label="전체 시점" aria-pressed={filters.perspective === ''} onClick={() => setFilters({ ...filters, perspective: '' })}><span>전체</span></button>
           {perspectives.map(view => <button type="button" className="filter-mode" aria-pressed={filters.perspective === view} key={view} onClick={() => setFilters({ ...filters, perspective: view })}><span>{PERSPECTIVE_LABEL[view]}</span></button>)}
         </SlidingSelector> : null}
-        <div className="room-setting-row board-setting-filter"><SlidingSelector className="intro-voice-options is-single" role="group" aria-label="마이크 필터"><button type="button" className="filter-mode" aria-label="마이크 사용" title="마이크 사용 방만 보기" aria-pressed={filters.voice === 'REQUIRED'} onClick={() => setFilters({ ...filters, voice: filters.voice === 'REQUIRED' ? '' : 'REQUIRED' })}><VoiceIcon preference="REQUIRED" size={16}/></button></SlidingSelector></div>
+        <div className="room-setting-row board-setting-filter"><div className="intro-voice-options is-single" role="group" aria-label="마이크 필터"><button type="button" className="filter-mode" aria-label="마이크 사용" title="마이크 사용 방만 보기" aria-pressed={filters.voice === 'REQUIRED'} onClick={() => setFilters({ ...filters, voice: filters.voice === 'REQUIRED' ? '' : 'REQUIRED' })}><VoiceIcon preference="REQUIRED" size={16}/></button></div></div>
         {roleFilterVisible ? <div className="intro-role-options board-role-filter" role="group" aria-label="찾는 포지션">{keyConditionOptions(selectedGame).filter(role => role.value !== 'ANY').map(role => <button className="filter-role" type="button" key={role.value} aria-label={role.label} title={role.label} aria-pressed={filters.roles.includes(role.value)} onClick={() => setFilters({ ...filters, roles: filters.roles.includes(role.value) ? filters.roles.filter(value => value !== role.value) : [...filters.roles, role.value] })}><FilterRoleIcon game={selectedGame} value={role.value} /></button>)}</div> : null}
         <label className="room-open-filter"><input type="checkbox" checked={filters.openOnly} onChange={event => setFilters({ ...filters, openOnly: event.target.checked })} />모집 중</label>
         {canReset ? <button className="filter-reset" type="button" aria-label="초기화" onClick={resetFilters}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6" /></svg></button> : null}
         <div className="board-create-slot" ref={setCreateSlot} />
+        </div>
       </div>
       {/* 방 패널이 닫혀 있을 때만(좁은 화면의 "게시판으로" · 홈 · 다른 화면에서 온 경우) — 누르면 방 패널이 다시 열린다. 좁은 화면에서는 아래에 떠 있다(`room-panel.css`). */}
       {activeRoomId && !roomPanelOpen ? <div className="banner room-session-banner room-return-banner" role="status">지금 방에 들어가 있어요. <Link className="room-session-link" to={`/app/party/${activeRoomId}`}>방으로 돌아가기</Link></div> : null}

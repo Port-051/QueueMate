@@ -3,12 +3,12 @@
 .room-home .room-deck.room-row { padding:10px 14px; border-radius:10px; border-color:#ffffff14; }
 .room-deck.room-row .room-row-intro { display:flex; align-items:center; gap:12px; margin-bottom:8px; }
 .room-deck.room-row .room-row-summary { display:flex; flex-direction:column; justify-content:center; flex:1; min-width:0; }
-.room-deck.room-row .room-row-head { flex-wrap:nowrap; }
-.room-deck.room-row .room-row-head h3 { font-size:14px; line-height:1.4; }
+.room-deck.room-row .room-row-head { flex-wrap:nowrap; gap:8px; }
+.room-deck.room-row .room-row-head h3 { flex:0 1 auto; font-size:14px; line-height:1.4; }
 .room-deck.room-row .room-row-state { font-size:12px; }
 .room-deck.room-row .room-row-state time::before { content:none; }
 .room-deck.room-row .room-row-meta { margin:3px 0 0; font-size:12px; }
-.room-deck.room-row .room-row-time { flex:none; margin-left:auto; padding-left:10px; color:#9690a3; font-size:11px; white-space:nowrap; }
+.room-deck.room-row .room-row-time { flex:none; margin-left:0; padding-left:0; color:#9690a3; font-size:11px; white-space:nowrap; }
 .room-deck.room-row .room-seat-row { flex-direction:column; align-items:stretch; gap:6px; }
 .room-deck.room-row .room-seats { display:grid; grid-template-columns:minmax(0,1fr); align-items:stretch; width:100%; gap:2px; }
 .room-deck.room-row .room-seat { width:auto; min-width:0; flex:none; container-type:normal; }
@@ -89,28 +89,38 @@
 
 .room-voice-seats .room-seat-button>.room-host-crown { display:grid; top:7px; left:7px; width:18px; height:20px; transform:none; }
 
-/* 필터는 작은 버튼을 같은 높이의 한 줄에 배치한다. 좁은 화면은 가로로 이동한다. */
+/* 모드·인원과 나머지 조건을 두 줄로 나누고 같은 높이·테두리를 사용한다. */
 .room-home.board-home .room-filters {
   --room-control-height:32px; --room-filter-height:32px; --room-selector-inset:3px;
   --room-choice-icon-size:16px; --room-choice-font-size:12px;
-  flex-wrap:nowrap; gap:6px; padding:8px 0; margin-bottom:12px;
+  display:flex; flex-direction:column; align-items:stretch; gap:8px;
+  padding:8px 0; margin-bottom:12px; min-width:0;
+}
+.room-home.board-home .room-filters :is(.room-filter-primary,.room-filter-secondary) {
+  display:flex; align-items:center; gap:6px; min-width:0; max-width:100%;
   overflow-x:auto; scrollbar-width:none;
 }
-.room-home.board-home .room-filters>* { flex-shrink:0; }
-.room-home.board-home .room-filters .board-mode-options { max-width:none; overflow:visible; }
+.room-home.board-home .room-filters :is(.room-filter-primary,.room-filter-secondary)>* { flex-shrink:0; }
+.room-home.board-home .room-filters .board-mode-options { max-width:none; overflow:visible; height:32px; min-width:32px; border:1px solid var(--line); border-radius:999px; }
 .room-home.board-home .room-filters .filter-mode { gap:4px; padding:2px 6px; font-size:12px; }
 .room-home.board-home .room-filters .filter-mode-symbol { display:block; flex:none; width:16px; height:16px; }
 .room-home.board-home .room-filters .filter-role-symbol { width:16px; height:16px; }
-.room-home.board-home .room-filters .board-role-filter { gap:2px; }
-.room-home.board-home .room-filters .board-role-filter>.filter-role { width:30px; height:32px; }
+.room-home.board-home .room-filters .board-role-filter { gap:4px; }
 .room-home.board-home .room-filters .board-setting-filter { width:32px; }
-.room-home.board-home .room-filters .intro-voice-options.is-single { grid-template-columns:1fr; }
+.room-home.board-home .room-filters .intro-voice-options.is-single { display:flex; padding:0; border:0; background:none; }
+.room-home.board-home .room-filters :is(.board-role-filter>.filter-role,.intro-voice-options.is-single>.filter-mode,.filter-reset) {
+  display:flex; align-items:center; justify-content:center; flex:none; width:32px; min-width:32px; height:32px; min-height:32px;
+  padding:0; border:1px solid var(--line); border-radius:50%; background:transparent; font-size:12px;
+}
+.room-home.board-home .room-filters :is(.filter-role,.intro-voice-options.is-single>.filter-mode)[aria-pressed=true] {
+  border-color:var(--accent); background:#9b78e91c; color:#e3d3ff;
+}
 .room-home.board-home .room-filters .intro-voice-options svg { width:16px; height:16px; }
-.room-home.board-home .room-filters .room-open-filter { gap:5px; padding:0 9px; font-size:12px; }
+.room-home.board-home .room-filters .room-open-filter { height:32px; min-width:32px; gap:5px; padding:0 9px; border:1px solid var(--line); font-size:12px; }
+.room-home.board-home .room-filters .room-open-filter:has(input:checked) { border-color:var(--accent); }
 .room-home.board-home .room-filters .room-open-filter input { width:14px; height:14px; }
-.room-home.board-home .room-filters .filter-reset { width:28px; height:32px; }
-.room-home.board-home .room-filters .board-create-slot { flex:0 0 auto; gap:6px; }
-.room-home.board-home .room-filters .board-action-button { min-height:32px; padding:0 12px; font-size:12px; }
+.room-home.board-home .room-filters .board-create-slot { flex:0 0 auto; gap:6px; margin-left:auto; }
+.room-home.board-home .room-filters .board-action-button { flex:none; height:32px; min-height:32px; min-width:32px; padding:0 12px; border:1px solid var(--line); font-size:12px; }
 /* 기존 모바일 원형 좌석 규칙보다 우선해 빈자리도 같은 박스 크기를 유지한다. */
 .party-page .room-voice-seats .room-seat.is-empty { padding:0; align-self:stretch; }
 .party-page .room-voice-seats .room-seat-hole { width:100%; height:144px; border-radius:10px; }
