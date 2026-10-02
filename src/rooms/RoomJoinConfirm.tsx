@@ -5,7 +5,7 @@ import { SingleRolePicker } from '../components/SingleRolePicker';
 import { modeChoice, modeChoiceLabel } from '../domain/modeChoice';
 import { isPositionRoom, remainingPositions } from './boardRoom';
 import { isPositionError, roomErrorMessage } from './errors';
-import { RoomWantedPositions } from './RoomDeck';
+import { RoomRoles, RoomWantedPositions } from './RoomDeck';
 import { RoomVoice } from './RoomVoice';
 import { hasPositions } from './summary';
 import type { BoardRoom } from './types';

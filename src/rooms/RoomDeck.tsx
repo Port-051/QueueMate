@@ -203,7 +203,7 @@ export function gamesText(game: GameKey, stats: GameStats): string {
  * 승 · 패 수는 그 배열에서 세고(막대의 시즌 누적 `wins` · `losses` 가 아니다) 그날 전의 스냅숏(칸이 없다)이면 전처럼 `최근` · `10판` 이다.
  * **PUBG 도 같은 모양이다**(같은 날 소유자) — 사다리 티어 | **K/D 두 줄**(`KdStat` — 평균 킬 / 데스 `1.8 / 1.1` 위 · K/D `1.64` 아래) → 치킨률 | 평균 딜 → 이번 시즌 판 수. 승 · 패가 없어 막대는 없다.
  * 좌석을 누르면 여는 프로필 창(`RoomMemberProfile`)과 같은 사실이라 읽어 주지 않는다(`aria-hidden`) — 좌석 버튼의 이름이 요약을 싣는다.
- * 방 화면의 음성 칸 좌석(`RoomVoiceSeats`)도 같은 창을 쓴다. 띄울지는 `seatPopoverShown`(VALORANT 는 띄우지 않는다)이 정한다.
+ * 방 화면의 음성 칸 좌석(`RoomVoiceSeats`)도 같은 창을 쓴다. 게시판만 `seatPopoverShown`을 따르고, 방 패널은 모든 게임에서 상세를 호버로 연다.
  */
 export function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMember }) {
   const profile = member.profile;
@@ -296,7 +296,7 @@ export function placeSeatPopover(seat: HTMLElement) {
 /**
  * 좌석에 마우스를 올린 작은 창을 띄우는가 — **VALORANT 글의 좌석에는 띄우지 않는다**(2026-09-30 소유자 결정 — "발로란트 그거는 일단 작은 창 안 뜨게 해"). 운영 키가 없어 VALORANT 의 `stats` 가 늘 `null` 이라
  * 창에 실을 것이 게임 닉네임 · 티어뿐이었다. 창을 그리지 않아 마우스 · 키보드 포커스 어느 쪽으로도 열리지 않는다(좌석 · 닉네임 · 누르면 여는 것은 그대로).
- * 게시판 좌석(`RoomSeat`)과 방 화면의 음성 칸 좌석(`RoomVoiceSeats`)이 같은 규칙을 쓴다.
+ * 게시판 좌석(`RoomSeat`)에만 적용한다. 방 패널은 2026-10-02 사용자 요청에 따라 모든 게임에서 상세 팝오버를 쓴다.
  */
 export const seatPopoverShown = (game: GameKey) => game !== 'VALORANT';
 

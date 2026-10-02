@@ -22,7 +22,7 @@ export function RecruitmentNotice({ room, isHost, onChanged, onConfirm }: { room
     void onChanged();
   }, [deadline, now, room.status, onChanged]);
   if (room.status !== 'RECRUITING') return null;
-  if (!deadline || !warning || now < warning) return <p className="recruitment-hint">정원이 차면 자동으로 모집을 마감해요. 두 명 이상 모인 뒤 오랫동안 인원 변화가 없으면 미리 안내하고 현재 인원으로 확정해요.</p>;
+  if (!deadline || !warning || now < warning) return <details className="recruitment-hint"><summary>정원이 차면 자동 확정 · 모집 마감 안내</summary><p>두 명 이상 모인 뒤 오랫동안 인원 변화가 없으면 미리 안내하고 현재 인원으로 확정해요.</p></details>;
   const remaining = Math.max(0, Math.ceil((deadline - now) / 1000));
   const extend = async () => {
     setBusy(true);
