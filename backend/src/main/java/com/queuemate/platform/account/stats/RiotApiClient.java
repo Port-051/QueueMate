@@ -25,7 +25,8 @@ import java.net.http.HttpClient;
  *   <li>{@code league-v4} — <b>{@code puuid} 로</b> 리그 목록(솔로랭크의 승/패 · 티어, 자유랭크의 티어) <b>(플랫폼 주소)</b>.
  *       (2026-09-29 까지는 {@code summoner-v4} 로 소환사 {@code id} 를 받아 {@code entries/by-summoner} 를 불렀다 — <b>실제 키로 불러 보니 소환사 응답에 {@code id} 가 없었다</b>
  *       ({@code profileIconId} · {@code puuid} · {@code revisionDate} · {@code summonerLevel} 넷뿐). {@code entries/by-puuid} 는 200 으로 동작해 그리로 바꾸고 소환사 호출을 없앴다)</li>
- *   <li>{@code match-v5} — 최근 경기 id 목록 <b>(대륙 주소)</b></li>
+ *   <li>{@code match-v5} — 최근 경기 id 목록 <b>(대륙 주소)</b>. {@code queue} · {@code type} 을 싣지 않는다 — 랭크 · 일반 · 칼바람이 다 들어와야 하는데
+ *       {@code type} 은 값 하나만 받는다. 그래서 <b>토너먼트 코드로 연 커스텀 경기도 섞여 온다</b>(2026-10-02 실제 키로 확인) — 빼는 것은 {@link LolStatsProvider} 다</li>
  *   <li>{@code match-v5} — 경기 하나 <b>(대륙 주소)</b></li>
  *   <li>{@code champion-mastery-v4} — 그 소환사의 숙련도 <b>점수 상위 몇 개</b>({@code top?count=}) <b>(플랫폼 주소)</b>.
  *       (2026-09-30 까지는 {@code by-puuid/{puuid}} 로 숙련도 <b>전부</b>를 받아 최근 경기의 챔피언과 맞췄다 — 모스트 챔피언이 숙련도 상위 셋이 되며
