@@ -11,6 +11,7 @@ import { availableGames } from '../domain/gameConfig';
 import type { GameKey } from '../api/types';
 import { Avatar, Modal } from './ui';
 import { IconHome, IconParty } from './icons';
+import { SiteFooter } from './SiteFooter';
 import { ROOM_SPLIT_QUERY } from '../rooms/roomPanel';
 
 interface NavItem { to: string; label: string; icon: ComponentType<{ size?: number; filled?: boolean }>; }
@@ -117,6 +118,8 @@ export function AppShell() {
         {/* 내 방(입장 표시 키)이 있는데 방 패널이 닫힌 다른 화면이면 — 새로 열었을 때의 복구 · 다른 화면에서의 안내(4단계). 게시판은 제 안내("방으로 돌아가기")가 있다. */}
         {roomId && !boardRoute ? <div className="banner room-session-banner" role="status">방에 들어가 있어요. <Link className="room-session-link" to={`/app/party/${roomId}`}>방으로 돌아가기</Link></div> : null}
         <Outlet context={{ selectedGame, setSelectedGame } satisfies AppShellOutletContext} />
+        {/* 처리방침 · 약관 링크와 Riot 고지문 — 앱 화면에서는 작게, 본문 아래 끝에(2026-10-02 소유자 결정 · Riot 은 "readily visible" 을 요구한다). */}
+        <SiteFooter variant="compact" />
       </main>
       {menuOpen ? <Modal title="메뉴" closeLabel="메뉴 닫기" onClose={() => setMenuOpen(false)}>{gameNavigation(true)}{navigation(true)}</Modal> : null}
     </div>

@@ -1,0 +1,92 @@
+/* 개인정보 처리방침 · 이용약관(`pages/legal/*`)과 모든 화면의 푸터(`components/SiteFooter.tsx`) — 2026-10-02 소유자 결정.
+   토큰은 theme.css 의 것만 쓴다. 전역 CSS 가 이 파일보다 뒤에 실릴 수 있어(CLAUDE.md §7) 이름이 겹치지 않는 클래스만 쓴다. */
+
+/* ---------- 문서 틀 ---------- */
+.legal { min-height: 100vh; padding: 0 5vw 48px; }
+.legal-header { min-height: 76px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; max-width: 960px; margin: 0 auto; padding: 14px 0; }
+.legal-nav { display: flex; gap: 6px; flex-wrap: wrap; }
+.legal-nav a { padding: 8px 12px; border-radius: var(--r-sm); color: var(--text-dim); font-size: 14px; font-weight: 600; }
+.legal-nav a:hover { color: var(--text); background: var(--panel-2); }
+.legal-nav a[aria-current="page"] { color: var(--text); background: var(--panel-3); }
+.legal-lang { margin-left: auto; display: inline-flex; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); }
+.legal-lang a { padding: 6px 12px; border-radius: 999px; color: var(--muted); font-size: 13px; font-weight: 600; }
+.legal-lang a[aria-current="true"] { background: var(--accent-soft); color: var(--accent-2); }
+.legal-nav a:focus-visible, .legal-lang a:focus-visible, .legal-toc a:focus-visible, .legal-doc a:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+
+.legal-main { max-width: 960px; margin: 0 auto; }
+.legal-doc { max-width: 860px; padding: 24px 0 8px; color: var(--text-dim); font-size: 15px; line-height: 1.8; word-break: keep-all; overflow-wrap: anywhere; }
+.legal-doc h1 { color: var(--text); font-size: 32px; line-height: 1.25; letter-spacing: -0.02em; font-weight: 800; }
+.legal-meta { margin-top: 10px; color: var(--muted); font-size: 13.5px; }
+.legal-lead { margin-top: 20px; }
+.legal-doc a { color: var(--accent-2); text-decoration: underline; text-underline-offset: 3px; }
+.legal-doc strong { color: var(--text); font-weight: 700; }
+.legal-doc code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.86em; padding: 1px 5px; border-radius: 5px; background: var(--panel-3); color: var(--text); word-break: break-all; }
+.legal-doc ul, .legal-doc ol.legal-list { margin: 10px 0 0; padding-left: 1.3em; list-style: disc; }
+.legal-doc ol.legal-list { list-style: decimal; }
+.legal-doc li + li { margin-top: 4px; }
+.legal-doc p + p { margin-top: 10px; }
+.legal-note { margin-top: 10px; color: var(--muted); font-size: 13.5px; }
+
+/* 한눈에 보기 */
+.legal-summary { margin-top: 24px; padding: 18px 22px; border: 1px solid var(--accent-line); border-radius: var(--r-lg); background: var(--accent-soft); }
+.legal-summary h2 { color: var(--text); font-size: 16px; font-weight: 700; }
+.legal-summary ul { margin-top: 8px; }
+
+/* 목차 */
+.legal-toc { margin-top: 24px; padding: 16px 22px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel); }
+.legal-toc ol { margin: 0; padding-left: 1.4em; list-style: decimal; columns: 2; column-gap: 32px; font-size: 14px; }
+.legal-toc li { break-inside: avoid; }
+.legal-toc a { color: var(--text-dim); text-decoration: none; }
+.legal-toc a:hover { color: var(--text); text-decoration: underline; }
+
+/* 절 */
+.legal-section { margin-top: 40px; }
+.legal-section h2 { position: relative; color: var(--text); font-size: 20px; line-height: 1.4; font-weight: 700; }
+.legal-section h3 { margin-top: 20px; color: var(--text); font-size: 16px; font-weight: 700; }
+.legal-section > p, .legal-section > ul, .legal-section > ol { margin-top: 10px; }
+.legal-anchor { position: absolute; top: -24px; outline: none; }
+
+/* 표 — 폰 폭에서는 표만 옆으로 민다 */
+.legal-table-wrap { margin-top: 12px; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r-md); }
+.legal-table-wrap:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.legal-table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 14px; line-height: 1.65; }
+.legal-table caption { padding: 10px 14px 0; text-align: left; color: var(--muted); font-size: 13px; }
+.legal-table th, .legal-table td { padding: 10px 14px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
+.legal-table thead th { border-top: 0; background: var(--panel-2); color: var(--text); font-weight: 700; white-space: nowrap; }
+.legal-table tbody th { color: var(--text); font-weight: 600; width: 22%; }
+.legal-table ul { margin-top: 0; }
+
+/* 아직 정해지지 않은 값(`domain/legal.ts` — `[팀 이름]` 등). 배포 전에 모두 채운다. */
+.legal-ph { padding: 0 5px; border-radius: 5px; background: rgba(255, 180, 84, 0.14); color: var(--warn); font-weight: 600; white-space: normal; }
+
+/* ---------- 푸터 ---------- */
+.site-footer { max-width: 1440px; margin: 56px auto 0; padding: 24px 0 8px; border-top: 1px solid var(--line-soft); color: var(--muted); font-size: 12.5px; line-height: 1.7; display: grid; gap: 8px; }
+.legal .site-footer { max-width: 960px; }
+.site-footer-links { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; }
+.site-footer-links a { color: var(--text-dim); text-decoration: none; }
+.site-footer-links a:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.site-footer-links a:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; border-radius: 4px; }
+.site-footer-links .site-footer-privacy { color: var(--text); font-weight: 700; }
+.site-footer-contact a { color: var(--text-dim); }
+.site-footer-riot, .site-footer-riot-ko { max-width: 900px; overflow-wrap: anywhere; }
+.site-footer-riot-ko { word-break: keep-all; }
+
+/* 앱 화면 · 로그인 · 가입 · 온보딩 — 작게. 본문 아래 끝에 붙는다. */
+.site-footer.is-compact { margin: 32px 0 0; padding: 14px 28px 18px; font-size: 11.5px; gap: 4px; }
+.site-footer.is-compact .site-footer-riot { opacity: 0.85; }
+.main > .site-footer.is-compact { margin-top: auto; }
+/* 로그인 · 가입 · 온보딩은 카드를 가운데에 두는 격자다 — 푸터가 둘째 줄로 붙어도 카드가 위로 밀리지 않게 줄을 가운데로 모은다(줄이 하나일 때와 같은 모양). */
+.auth-main, .onboarding { align-content: center; }
+.auth-main .site-footer.is-compact, .onboarding .site-footer.is-compact { width: min(460px, 100%); margin: 20px 0 0; padding: 14px 0 0; }
+.onboarding .site-footer.is-compact { width: min(720px, 100%); }
+
+@media (max-width: 767px) {
+  .legal { padding: 0 16px 40px; }
+  .legal-header { gap: 10px 12px; }
+  .legal-lang { margin-left: 0; }
+  .legal-doc { font-size: 14.5px; }
+  .legal-doc h1 { font-size: 26px; }
+  .legal-toc ol { columns: 1; }
+  .legal-summary, .legal-toc { padding: 14px 16px; }
+  .site-footer.is-compact { padding-inline: 16px; }
+}

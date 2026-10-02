@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { DevLoginPanel } from '../components/DevLoginPanel'; // TEMP-DEV-LOGIN
 import { Logo } from '../components/Logo';
+import { SiteFooter } from '../components/SiteFooter';
 import { SocialProviderIcon } from '../components/SocialProviderIcon';
 import { oauthStartPath } from '../api/client';
 import type { SocialProvider } from '../api/types';
@@ -15,11 +16,15 @@ import { landingPath } from '../state/onboarding';
  *
  * 화면은 원본 프런트의 로그인 카드(어두운 카드 · 제목 · 가운데 글자 구분선 · 점선 박스)에 우리 버튼 셋만 넣은 것이다(2026-09-29 소유자 지시).
  * 원본의 이메일 · 비밀번호 칸 · 로그인 버튼 · 회원가입 링크 · 네이버는 없다. 마지막으로 누른 제공자에 "최근 사용" 배지가 붙는다.
+ *
+ * Google 버튼의 글자는 **"Google로 계속하기"** 다(2026-10-02) — Google 브랜딩 가이드가 허용하는 문구는 "Sign in with Google" · "Sign up with Google" ·
+ * "Continue with Google" 셋(과 그 번역)뿐이라 "시작하기"(Start with) 를 "계속하기"(Continue with) 로 바꿨다(https://developers.google.com/identity/branding-guidelines).
+ * 카카오 · Discord 의 글자는 각자의 가이드로 따로 볼 일이라 그대로다.
  */
 const PROVIDERS: { provider: SocialProvider; label: string }[] = [
   { provider: 'KAKAO', label: '카카오로 시작하기' },
   { provider: 'DISCORD', label: 'Discord로 시작하기' },
-  { provider: 'GOOGLE', label: 'Google로 시작하기' },
+  { provider: 'GOOGLE', label: 'Google로 계속하기' },
 ];
 
 /**
@@ -92,6 +97,7 @@ export function AuthPage() {
           {/* TEMP-DEV-LOGIN — 개발 서버에서만 그린다(원본의 점선 "데모 계정" 박스 자리). 운영 빌드에서는 `import.meta.env.DEV` 가 `false` 로 바뀌어 이 줄과 DevLoginPanel 모듈이 빠진다. */}
           {import.meta.env.DEV ? <DevLoginPanel /> : null}
         </div>
+        <SiteFooter variant="compact" />
       </main>
     </div>
   );

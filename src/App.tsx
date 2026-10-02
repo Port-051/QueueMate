@@ -15,6 +15,8 @@ import { LandingPage } from './pages/LandingPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { SettingsRedirectPage } from './pages/SettingsRedirectPage';
 import { SocialSignupPage } from './pages/SocialSignupPage';
+import { PrivacyPage } from './pages/legal/PrivacyPage';
+import { TermsPage } from './pages/legal/TermsPage';
 import { useRoomSession } from './state/RoomSessionContext';
 
 /** `/app/party` — 내 방(입장 표시 키)이 있으면 그 방으로, 없으면 홈으로. */
@@ -38,6 +40,9 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      {/* 개인정보 처리방침 · 이용약관 — 로그인과 상관없이 열리고 리디렉트하지 않는다(구글 · Riot 심사자가 본다 · 2026-10-02 소유자 결정). 영어판은 `?lang=en`. */}
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
       {/* 소셜 콜백은 백엔드가 받아 이 네 경로로 302 한다 — `/`(로그인됨) · `/signup/social`(처음 온 사람) · `/login?error=` · `/settings?linked=|error=`(잇기).
           경로는 백엔드의 것이고 프런트가 맞춘다(2026-09-28 소유자 결정). 직접 가입 · 원본의 `/auth/callback` 코드 교환은 없다. */}
       <Route path="/login" element={<AuthPage />} />
