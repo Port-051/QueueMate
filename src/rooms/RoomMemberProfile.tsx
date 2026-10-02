@@ -94,7 +94,9 @@ export function RoomMemberProfile({ room, member, color, onClose, actions }: {
     }}><span className="room-detail-action-icon" aria-hidden="true"><MemberActionIcon action={action.key} /></span><span>{action.label}</span></button>;
   if (reporting) return <ReportModal targetUserId={member.id} targetNickname={member.nickname} contextId={room.quickMatch ? null : String(room.postId)} onClose={dismiss} />;
   return createPortal(<div ref={panel} className="room-member-detail" style={position} role="dialog" aria-label={`${member.nickname} 상세 정보`} tabIndex={-1}>
-    <button type="button" className="room-detail-close" aria-label="상세 정보 닫기" onClick={dismiss}>×</button>
+    <button type="button" className="room-detail-close" aria-label="상세 정보 닫기" onClick={dismiss}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+    </button>
     <SeatPopover room={room} member={member} color={color ?? boardRoomColors(room).get(member.id)} embedded />
     {ordinaryActions.length ? <div className="room-detail-actions">{ordinaryActions.map(actionButton)}</div> : null}
     {kickAction ? <div className="room-detail-kick-row">{actionButton(kickAction)}</div> : null}
