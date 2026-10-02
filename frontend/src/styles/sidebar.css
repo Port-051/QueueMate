@@ -20,19 +20,22 @@
 
 @media (min-width: 768px) {
   /* 접힌 메뉴 너비만 확보하고, 펼친 메뉴는 본문을 밀지 않는 레이어로 표시한다. */
-  .app-shell { --sidebar-w: 232px; grid-template-columns: 80px minmax(0, 1fr); }
-  .sidebar { display: block; width: 80px; min-width: 0; height: 100dvh; padding: 0; overflow: hidden; pointer-events: auto; background: none; border: 0; mix-blend-mode: screen; transition: width .26s cubic-bezier(.22, 1, .36, 1); }
-  .sidebar-navigation { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(min-content, 1fr) auto minmax(min-content, 1fr); row-gap: 16px; height: 100%; padding: 24px 12px 20px; opacity: 1; transform: translateX(0); transition: opacity .18s ease, transform .26s cubic-bezier(.22, 1, .36, 1); }
+  .app-shell { --sidebar-w: 208px; grid-template-columns: var(--sidebar-rail-w) minmax(0, 1fr); }
+  .sidebar { display: block; width: var(--sidebar-rail-w); min-width: 0; height: 100dvh; padding: 0; overflow: hidden; pointer-events: auto; background: none; border: 0; mix-blend-mode: screen; transition: width .26s cubic-bezier(.22, 1, .36, 1); }
+  .sidebar-navigation { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(min-content, 1fr) auto minmax(min-content, 1fr); row-gap: 12px; height: 100%; padding: 20px 8px 16px; opacity: 1; transform: translateX(0); transition: opacity .18s ease, transform .26s cubic-bezier(.22, 1, .36, 1); }
   .sidebar:not(.navigation-picked):hover, .sidebar:has(:focus-visible) { width: var(--sidebar-w); z-index: 30; background: #0b0e16; mix-blend-mode: normal; }
   .sidebar-brand-link { display: block; align-self: start; min-width: 0; width: 100%; border-radius: var(--r-md); pointer-events: auto; }
-  .sidebar .brand { width: 208px; max-width: none; padding: 4px 11px 44px; gap: 10px; }
-  .sidebar .logo-mark { width: 34px; height: 34px; }
-  .sidebar .brand-wordmark { flex: none; width: 132px; }
-  .side-nav { pointer-events: auto; min-width: 0; width: 100%; gap: 8px; }
-  .side-nav .nav-link { position: relative; min-height: 48px; padding: 8px 12px; gap: 12px; border: 0; box-shadow: none; }
-  .side-nav .nav-icon { width: 32px; }
-  .side-nav .nav-label, .sidebar-games .nav-label { position: absolute; left: 56px; right: 12px; }
-  .side-nav .nav-dot { position: absolute; left: 39px; top: 7px; }
+  .sidebar .brand { width: 192px; max-width: none; padding: 4px 10px 32px; gap: 10px; }
+  .sidebar .logo-mark { width: 28px; height: 28px; }
+  .sidebar .brand-wordmark { flex: none; width: 120px; }
+  .side-nav { pointer-events: auto; min-width: 0; width: 100%; gap: 6px; }
+  .side-nav .nav-link,.sidebar-games .nav-link { position: relative; min-height: 44px; padding: 8px 10px; gap: 12px; border: 0; box-shadow: none; }
+  .side-nav .nav-icon,.sidebar-games .nav-icon { width: 28px; height:28px; }
+  .sidebar .nav-icon>svg,.sidebar .game-nav-logo { width:24px; height:24px; }
+  .sidebar .nav-label { font-size:14px; }
+  .sidebar .nav-badge { width:20px; min-width:20px; height:20px; left:12px; top:12px; font-size:11px; }
+  .side-nav .nav-label, .sidebar-games .nav-label { position: absolute; left: 48px; right: 10px; }
+  .side-nav .nav-dot { position: absolute; left: 32px; top: 6px; }
   .sidebar .nav-label, .sidebar .brand-wordmark { opacity: 0; visibility: hidden; transform: translateX(-6px); transition: opacity .16s ease, transform .22s ease, visibility .16s; }
   .sidebar:not(.navigation-picked):hover .nav-label, .sidebar:has(:focus-visible) .nav-label,
   .sidebar:not(.navigation-picked):hover .brand-wordmark, .sidebar:has(:focus-visible) .brand-wordmark { opacity: 1; visibility: visible; transform: none; }
