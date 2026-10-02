@@ -4,7 +4,7 @@
 -- create-or-check-party-tiered.lua 가 담당한다 (합류는 join-party-tiered.lua).
 --
 -- 기존 파티에 넣는 일은 이 스크립트가 하지 않는다. 후보를 찾으면 멤버 목록만 돌려주고,
--- 자바가 차단 검증을 마친 뒤 join-party.lua 가 넣는다. 찾기와 넣기 사이의 틈은
+-- 자바가 최근 거절 검증(D-45)을 마친 뒤 join-party.lua 가 넣는다(차단은 join 안에서 — D-57). 찾기와 넣기 사이의 틈은
 -- Lua 가 아니라 자바의 후보 풀 락(redisLock/PoolLock.java)이 막는다.
 --
 -- LoL 과 다른 점: PUBG 의 핵심 조건은 플랫폼(STEAM / KAKAO)이고 포지션이 없다.
@@ -42,7 +42,7 @@
 --
 -- 반환
 --   { 1, newPartyId, 1 }       = 후보가 없어 새 파티를 만들고 들어감
---   { 2, HKEYS 결과, partyId } = start 번째 후보를 찾았다. 차단 검증을 위해 그 파티 HASH 의
+--   { 2, HKEYS 결과, partyId } = start 번째 후보를 찾았다. 최근 거절 검증(자바)을 위해 그 파티 HASH 의
 --                                필드 이름 전부를 돌려준다 (member: 거르기는 자바가 한다).
 --                                이 경우 아무것도 쓰지 않는다
 --   { -2, '', 0 }              = claim 의 TTL 이 먼저 끝나 활성 요청이 사라졌다
@@ -93,7 +93,7 @@ if #found == 0 then
     return { 1, newPartyId, 1 }
 end
 
--- 3. 있으니 그 파티의 필드 이름을 반환한다. 합류는 자바의 차단 검증 뒤 join-party.lua 가 한다.
+-- 3. 있으니 그 파티의 필드 이름을 반환한다. 합류는 자바의 최근 거절 검증 뒤 join-party.lua 가 한다(차단은 그 안에서 — D-57).
 local partyId  = found[1]
 local partyKey = prefix .. partyId
 

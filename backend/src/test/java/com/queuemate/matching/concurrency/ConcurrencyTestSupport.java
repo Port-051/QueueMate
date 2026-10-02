@@ -26,14 +26,7 @@ import java.util.function.IntConsumer;
 @SpringBootTest
 @TestPropertySource(properties = {
         "spring.data.redis.database=15",
-        "logging.level.com.queuemate=WARN",
-        // H2 의 blocks 테이블은 main 의 src/main/resources/schema.sql 이 흉내 낸다(public · bigint — D-34.
-        // 임베디드 데이터소스에서만 실행되므로 테스트 H2 에도 만들어진다). 배정 경로는 락을 잡기 전에
-        // BlockRepository 를 부르므로(LolCandidateRule#canJoin) 테이블이 없으면 모든 join 이 조용히 실패해
-        // 파티가 하나도 안 생긴다. 여기서는 그 위에 엔티티대로 다시 만들어 Block 엔티티와 테이블이
-        // 어긋나면 테스트에서 바로 드러나게 한다 — schema.sql 이 먼저 돌고(if not exists) Hibernate 가
-        // 지우고 다시 만들므로 둘이 충돌하지 않는다
-        "spring.jpa.hibernate.ddl-auto=create-drop"
+        "logging.level.com.queuemate=WARN"
 })
 public abstract class ConcurrencyTestSupport {
 

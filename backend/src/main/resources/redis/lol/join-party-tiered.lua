@@ -2,9 +2,13 @@
 --
 -- 티어를 보지 않는 모드는 join-party.lua 가 맡는다.
 --
--- create-or-check-party-tiered.lua 가 후보 파티를 돌려주고 자바가 차단 검증을 마친 뒤
+-- create-or-check-party-tiered.lua 가 후보 파티를 돌려주고 자바가 최근 거절 검증(docs/11 D-45)을 마친 뒤
 -- 이 스크립트를 부른다. 인원 증가 / 참가자 기록 / 색인 정리가 한 덩어리여야
 -- 정원 초과와 유령 색인이 생기지 않는다.
+--
+-- **차단(INV-6)은 이 스크립트가 본다** (docs/11 D-57, 2026-10-02 — 그 전에는 자바가 DB 의 blocks 를 읽어
+-- 걸렀다). 멤버를 넣기 전에 파티원마다 내 차단 집합을 SISMEMBER 로 보고, 하나라도 있으면 아무것도
+-- 쓰지 않고 -3 을 돌려준다.
 --
 -- **티어 범위는 다시 계산하지 않는다.** 파티가 받아들일 범위는 만든 사람 기준으로
 -- 생성 시 정해졌고 끝까지 그대로다. 그래서 이 스크립트는 색인에서 빼기만 한다.
@@ -28,6 +32,10 @@
 --             격자를 통째로 KEYS 로 받지 않는 이유는 티어에 단(division)이 들어가면
 --             칸이 (포지션 6 x 티어 32) = 192 개가 되어 호출마다 그만큼을 넘겨야 하기
 --             때문이다. 이렇게 조립하면 KEYS 는 4 + 포지션 개수로 고정된다.
+-- KEYS[#KEYS] (마지막) = qm:user:block-rel:{userId}   SET. 들어오려는 사람(나)과 어느 방향으로든 차단
+--             관계인 사용자 번호. **app:platform 이 쓰고 이 앱은 SISMEMBER 로 읽기만 한다**(D-57 · platform P-52).
+--             키가 없으면 "관계 없음" 이다. create 판은 이 키를 받지 않는다 — 자바가 create 판 KEYS 끝에
+--             하나를 더 붙여 이쪽에만 넘긴다(포지션 개수를 #ARGV 로 세므로 끝에 붙여도 자리가 밀리지 않는다)
 -- ── ARGV ─────────────────────────────────────────────────────────────
 -- create-or-check-party-tiered.lua 와 같은 배치다. 두 스크립트가 같은 KEYS 격자를 쓰기 때문이다.
 --
@@ -49,8 +57,12 @@
 --   1 = 들어갔다. 아직 자리가 남았다
 --   2 = 들어갔고 정원이 찼다 (제안을 만들 차례)
 --  -1 = 설정과 맞지 않는 keyValue  { -1, '', 0 }
+--  -2 = claim 의 TTL 이 먼저 끝났다 { -2, '', 0 }
+--  -3 = 파티원 가운데 나와 차단 관계인 사람이 있다 (INV-6)  { -3, '', 0 }
+--       아무것도 쓰지 않았다 — 자바가 다음 후보를 본다
 
-local userKey = KEYS[2]
+local userKey  = KEYS[2]
+local blockKey = KEYS[#KEYS]
 
 local partyId = ARGV[1]
 local myValue = ARGV[3]
@@ -80,6 +92,29 @@ local function memberCount(partyKey)
         end
     end
     return n
+end
+
+-- 이 파티에 나와 차단 관계인 사람이 있나 (INV-6, docs/11 D-57).
+--
+-- 파티 HASH 의 member:{id} 필드마다 내 차단 집합(blockKey)을 SISMEMBER 로 본다. platform 이 차단 때
+-- 양쪽 집합에 같이 넣으므로(대칭) 들어오는 사람의 집합 하나만 보면 된다.
+-- **후보 풀을 도는 루프가 아니다**(CLAUDE.md §4 "Lua 안에 후보 순회 루프 금지") — 이미 고른 파티 하나의
+-- 필드(정원 ≤ 5 명 + 메타 몇 개)만 돈다. 길이가 정원으로 묶여 있어 SCRIPT KILL 이 필요할 만큼 길어지지 않는다.
+--
+-- 내가 이미 이 파티의 멤버면 보지 않는다 — 페일오버 뒤 재시도가 이 스크립트를 처음부터 다시 돌 때
+-- 이미 들어간 나를 "차단" 으로 돌려보내면 자바가 다음 후보에 또 넣어 한 사람이 두 파티에 걸린다.
+local function blockedInParty(partyKey)
+    if redis.call('HEXISTS', partyKey, memberField) == 1 then
+        return false
+    end
+    local fields = redis.call('HKEYS', partyKey)
+    for i = 1, #fields do
+        if string.sub(fields[i], 1, 7) == 'member:'
+                and redis.call('SISMEMBER', blockKey, string.sub(fields[i], 8)) == 1 then
+            return true
+        end
+    end
+    return false
 end
 
 -- 자리가 아직 살아 있나. claim 의 TTL 이 먼저 끝났다면 배정하지 않는다.
@@ -122,6 +157,11 @@ if lo == nil or hi == nil then
     return { -1, '', 0 }
 end
 local range = redis.call('ZRANGE', KEYS[4], lo, hi)
+
+-- 차단 관계면 들어가지 않는다. **쓰기 전이어야 한다** — Lua 는 롤백이 없다
+if blockedInParty(partyKey) then
+    return { -3, '', 0 }
+end
 
 -- 2. 그 파티에 들어간다
 -- 참가자를 먼저 기록하고, 그다음 센다. 순서가 반대면 나를 빼고 세게 된다
