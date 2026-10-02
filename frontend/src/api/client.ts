@@ -141,6 +141,9 @@ export const getPost = (postId: number) => request<PostResponse>(`/posts/${postI
  * 글 쓰기 = 방 만들기 — 201 이면 그 번호의 방이 생겼고 내가 방장으로 들어와 있다(`members = [방장]`). 방을 못 만들면 글도 되돌려진다.
  * 409 `ALREADY_RECRUITING`(모집 중인 내 글이 있다) · `ALREADY_QUEUED`(자동 매칭 중) · `IN_OTHER_ROOM`(이미 방에 있다) · 503 `ROOM_STATE_UNAVAILABLE`(+`Retry-After: 5`) · 400 `VALIDATION_FAILED`(`details[0]` = "필드: 사유").
  */
+/** 현재 방장만 수정한다. 생성 폼과 같은 전체 설정을 보내며 게임은 변경할 수 없다. */
+export const updatePost = (postId: number, body: CreatePostRequest) =>
+  request<PostResponse>(`/posts/${postId}`, { method: 'PATCH', body });
 export const createPost = (body: CreatePostRequest) => request<PostResponse>('/posts', { method: 'POST', body });
 /*
  * 글 고치기(`PATCH /posts/{postId}`)는 **없다** — 보내면 405 `METHOD_NOT_ALLOWED`(2026-10-01 소유자 결정 — platform P-45.

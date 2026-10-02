@@ -5,7 +5,7 @@ import * as api from '../api/client';
 import { hasErrorCode } from '../api/error';
 import type { MatchPartyMember } from '../api/types';
 import { ReportModal } from '../components/ReportModal';
-import { IconLogout, IconMic, IconMicOff } from '../components/icons';
+import { IconLogout, IconMic, IconMicOff, IconSettings } from '../components/icons';
 import { Button, ConfirmDialog, EmptyState, useToast } from '../components/ui';
 import { roomColors } from '../domain/avatarColor';
 import { socialErrorMessage } from '../domain/socialErrors';
@@ -14,6 +14,7 @@ import { roomErrorMessage } from '../rooms/errors';
 import { RoomConditions } from '../rooms/RoomDeck';
 import { RoomConversationChat } from '../rooms/RoomConversationChat';
 import { RoomMemberProfile } from '../rooms/RoomMemberProfile';
+import { RoomCreatePreview } from '../rooms/RoomCreatePreview';
 import { RoomLeaveConfirm } from '../rooms/RoomLeaveConfirm';
 import { boardRoomColors } from '../rooms/roomColors';
 import { RoomVoiceSeats, seatName, type SeatMenuAction, type VoiceSeatMember } from '../rooms/RoomVoiceSeats';
@@ -37,7 +38,7 @@ import type { BoardRoomOutletContext } from './HomePage';
  *   자동 매칭 방의 게임 · 모드 · 음성 · 정원은 서버 응답에 없어(P-30) **이 브라우저가 확정 때 적어 둔 조건**(`MatchContext.activePartyInfo` — 대기 때의 조건 · 제안의 정원)으로 그린다.
  *   다른 브라우저에서 들어온 방은 그것이 없어 인원만 보인다(게임은 팀원 카드의 게임 프로필로 안다 · 모드 · 정원은 모른다). 자동 매칭 방은 처음부터 확정이라 "파티 확정" 버튼이 없다.
  * - 나가기 `DELETE …/members/me`(늘 204) · 강퇴 `DELETE …/members/{userId}`(방장) · 확정 `POST …/confirm`(게시판 방 · 방장 · 2명 이상 · **되돌릴 수 없다** — 한 번 더 묻는다).
- *   글 지우기 `DELETE /posts/{postId}`(방장 · 모집 중 — 만료로 바꾸고 방도 닫힌다). 글 고치기(`PATCH /posts/{postId}`)는 없다(2026-10-01 소유자 결정 — platform P-45).
+ *   글 지우기 `DELETE /posts/{postId}`(방장 · 모집 중 — 만료로 바꾸고 방도 닫힌다). 방 설정은 현재 방장만 `PATCH /posts/{postId}`로 수정한다. 마감 뒤에는 제목·마이크만 수정한다.
  * - 음성 · 채팅은 WebRTC 직결(`PartySessionContext`). 친구 추가 · 차단 · 신고는 `SocialContext` · `ReportModal`(5단계 — 우리 API. 신고의 `contextId` 는 게시판 방이면 글 번호, 자동 매칭 방은 없다).
  * - 파티원은 게시판의 공통 좌석 몸통으로 한 줄에 표시한다. 얼굴·포지션·티어·닉네임·마이크 상태만 남기고,
  *   클릭하면 공통 상세 카드와 메시지·친구·내보내기·차단·신고 동작을 연다. 내 좌석도 상세를 볼 수 있다.
@@ -64,7 +65,7 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
   const [room, setRoom] = useState<BoardRoom | null>(null);
   const [postError, setPostError] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [dialog, setDialog] = useState<{ kind: 'leave' } | { kind: 'kick'; userId: string; nickname: string } | null>(null);
+  const [dialog, setDialog] = useState<{ kind: 'leave' } | { kind: 'settings' } | { kind: 'kick'; userId: string; nickname: string } | null>(null);
   const [reportTarget, setReportTarget] = useState<{ userId: string; nickname: string } | null>(null);
   /** 채팅의 아바타·닉네임으로 연 사람 — 그 사람이 방에서 나가면 창도 닫힌다. */
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -94,7 +95,7 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
     }
   }, [postId]);
   useEffect(() => { void loadPost(); }, [loadPost, session.version]);
-  useEffect(() => stream?.subscribe(event => { if (event.type === 'BOARD_CHANGED') void loadPost(); }), [stream, loadPost]);
+  useEffect(() => stream?.subscribe(event => { if (event.type === 'BOARD_CHANGED') { void loadPost(); void session.refresh(); } }), [stream, loadPost, session.refresh]);
 
   // 빠른매치 방 — 팀원 카드(2026-10-01 소유자 결정 — platform P-47 `GET /match-parties/{partyId}/members`): 닉네임 · 게임 프로필 · 고른 포지션.
   // 방 안 사람이 바뀔 때(들어오고 나감)마다 다시 받는다(파티원 밖의 사람은 이 방에 못 들어온다). 게임은 확정 때 적어 둔 것이 있으면 싣고 없으면 뺀다(서버가 확정된 파티의 게임을 안다).
@@ -242,11 +243,21 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
           onClick={() => voice === 'connected' ? toggleMute() : void clientRef.current?.startVoice()}>
           {voice === 'connected' && !muted ? <><IconMic size={20} /><span>음소거</span></> : <><IconMicOff size={20} /><span>음소거 해제</span></>}
         </button>
+        {isHost && room ? <button type="button" className="room-settings-toggle" aria-haspopup="dialog" onClick={() => setDialog({ kind: 'settings' })}><IconSettings size={18} /><span>방 설정</span></button> : null}
         <Button className="party-room-leave" variant="danger" aria-label="방 나가기" title="방 나가기" disabled={busy} onClick={() => setDialog({ kind: 'leave' })}><IconLogout size={20} /></Button>
       </div>
       <RoomConversationChat key={roomId} messages={messages} canSend={canChat} connectionHint={connectionHint} nameOf={chatName}
         colorOf={id => faceColors.get(id)} canOpenProfile={id => cards.has(id)} isVerified={id => cards.get(id)?.profile?.verified === true} onProfile={id => setProfileId(current => current === id ? null : id)} onSend={send} />
 
+      {dialog?.kind === 'settings' && isHost && room ? <RoomCreatePreview key={`settings:${room.id}`} game={room.game} initialRoom={room}
+        onClose={() => setDialog(null)} onConfirm={async body => {
+          const updated = await api.updatePost(room.postId, body);
+          ++postSeq.current;
+          setRoom(toBoardRoom(updated));
+          setDialog(null);
+          toast('방 설정을 변경했어요', 'ok');
+          void session.refresh();
+        }} /> : null}
       {dialog?.kind === 'leave' ? <RoomLeaveConfirm room={seatRoom} isHost={isHost} confirmed={Boolean(confirmed)} memberCount={session.members.length}
         onClose={() => setDialog(null)} onConfirm={leave} /> : null}
       {/* 강퇴 뒤 10분 동안 그 방에 다시 못 들어온다(P-32 — 게시판 방만. 자동 매칭 방은 서버가 막지 않아 그 말을 하지 않는다 — 미정). 확정된 게시판 방은 애초에 새 입장이 없다. */}

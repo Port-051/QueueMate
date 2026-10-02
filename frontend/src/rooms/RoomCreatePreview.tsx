@@ -1,10 +1,10 @@
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { CreatePostRequest, GameKey, VoicePreference } from '../api/types';
 import { Button, Modal } from '../components/ui';
 import { GameBadge } from '../components/GameSymbol';
 import { SlidingSelector } from '../components/SlidingSelector';
 import { ModePicker } from '../components/ModePicker';
-import { IconPaperPlane } from '../components/icons';
+import { IconCheck, IconPaperPlane } from '../components/icons';
 import { DesiredRolesField, VoiceOptions } from '../components/SelfIntroductionFields';
 import { SingleRolePicker } from '../components/SingleRolePicker';
 import { gameConfig, targetPartySize } from '../domain/gameConfig';
@@ -12,6 +12,7 @@ import { useAuth } from '../state/AuthContext';
 import { perspectiveFromMode } from './boardRoom';
 import { roomErrorMessage } from './errors';
 import { hasPositions } from './summary';
+import type { BoardRoom } from './types';
 import './room-create-preview.css';
 import './room-action-dialog.css';
 import './room-form-dialog.css';
@@ -42,9 +43,11 @@ const TITLE_MAX = 60;
  * - 방 만들기와 빠른매치는 `room-form-dialog.css`의 폼 스타일, 참가·나가기는 같은 `room-action-dialog.css` 틀을 사용한다.
  * - Enter 로 올리지 않는다(한글 입력기의 Enter 가 글자를 확정하며 글까지 올릴 수 있다) — "방 만들기" 를 눌러야 한다.
  */
-export function RoomCreatePreview({ game, onClose, onConfirm }: {
+export function RoomCreatePreview({ game, initialRoom, onClose, onConfirm }: {
   /** 게시판의 지금 게임(왼쪽 레일에서 고른 것). 창 안에서는 바꿀 수 없다. */
   game: GameKey;
+  /** 있으면 현재 방의 조건을 채운 방 설정 창으로 연다. */
+  initialRoom?: BoardRoom;
   onClose: () => void;
   onConfirm: (body: CreatePostRequest) => void | Promise<void>;
 }) {
@@ -53,16 +56,25 @@ export function RoomCreatePreview({ game, onClose, onConfirm }: {
   const hasAccount = gameAccounts.some((account) => account.game === game);
   const submitting = useRef(false);
   const titleNote = useId();
-  const [mode, setMode] = useState('');
-  const [hostPosition, setHostPosition] = useState<string | null>(null);
-  const [wantedPositions, setWantedPositions] = useState<string[]>([]);
-  const [voice, setVoice] = useState<VoicePreference | null>(null);
+  const [mode, setMode] = useState(initialRoom?.modeKey ?? '');
+  const [hostPosition, setHostPosition] = useState<string | null>(initialRoom?.hostPosition ?? null);
+  const [wantedPositions, setWantedPositions] = useState<string[]>(initialRoom?.wantedPositions ?? []);
+  const [voice, setVoice] = useState<VoicePreference | null>(initialRoom?.voice ?? null);
   // 빠른매치 입장 — 기본값이 없다(`null` = 아직 안 골랐다 · 2026-10-02 소유자 결정).
-  const [allowAutoJoin, setAllowAutoJoin] = useState<boolean | null>(null);
+  const [allowAutoJoin, setAllowAutoJoin] = useState<boolean | null>(initialRoom?.allowAutoJoin ?? null);
   const autoJoinNote = useId();
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState(initialRoom?.title ?? '');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const editing = Boolean(initialRoom);
+  const locked = initialRoom?.status === 'CONFIRMED';
+  // Automatic confirmation can arrive while the settings window is open. Keep editable text,
+  // but reset now-locked recruitment conditions to the confirmed server values.
+  useEffect(() => {
+    if (!locked || !initialRoom) return;
+    setMode(initialRoom.modeKey); setHostPosition(initialRoom.hostPosition);
+    setWantedPositions(initialRoom.wantedPositions); setAllowAutoJoin(initialRoom.allowAutoJoin);
+  }, [locked, initialRoom]);
   const positions = Boolean(mode) && hasPositions(game, mode);
   // 판의 핵심 조건 칸과 같은 이름 — VALORANT 는 역할(찾는 쪽 칸 이름 "찾는 상대 역할" 과 짝이다 — `DesiredRolesField` 의 칸 이름).
   const positionTitle = game === 'VALORANT' ? '내 역할' : '내 포지션';
@@ -80,7 +92,13 @@ export function RoomCreatePreview({ game, onClose, onConfirm }: {
     allowAutoJoin === null ? '빠른매치 입장' : '',
     trimmed ? '' : '방 제목',
   ].filter(Boolean);
-  const ready = !missing.length && !tooLong;
+  const others = initialRoom?.members.filter(member => member.id !== initialRoom.hostId) ?? [];
+  const conflict = !locked && initialRoom ? capacity < initialRoom.memberCount
+    ? `현재 ${initialRoom.memberCount}명이 있어요. 인원을 더 작게 설정할 수 없어요.`
+    : others.some(member => positions ? !member.position || member.position === hostPosition || !wantedPositions.includes(member.position) : Boolean(member.position))
+    ? '참여 중인 멤버의 포지션은 유지해 주세요. 빈 포지션과 내 포지션을 변경할 수 있어요.'
+    : '' : '';
+  const ready = !missing.length && !tooLong && !conflict;
 
   /** 칸을 고치면 서버의 옛 오류 문구는 지운다. */
   const edit = <T,>(set: (value: T) => void) => (value: T) => { setError(''); set(value); };
@@ -102,6 +120,7 @@ export function RoomCreatePreview({ game, onClose, onConfirm }: {
     const body: CreatePostRequest = {
       game, mode, title: trimmed, voice, allowAutoJoin,
       conditions: perspective ? { perspective } : {},
+      ...(initialRoom?.description ? { description: initialRoom.description } : {}),
       wantedPositions: positions ? wantedPositions : [],
     };
     if (positions && hostPosition) body.hostPosition = hostPosition;
@@ -110,37 +129,38 @@ export function RoomCreatePreview({ game, onClose, onConfirm }: {
       await onConfirm(body);
     } catch (cause) {
       submitting.current = false; setBusy(false);
-      setError(roomErrorMessage(cause, '방을 올리지 못했어요. 다시 시도해 주세요.'));
+      setError(roomErrorMessage(cause, editing ? '방 설정을 저장하지 못했어요. 다시 시도해 주세요.' : '방을 만들지 못했어요. 다시 시도해 주세요.'));
     }
   };
-  return <Modal title="방 만들기" className="room-action-dialog room-form-dialog room-create-preview" closeLabel="방 만들기 닫기" onClose={() => { if (!submitting.current) onClose(); }}
-    foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || !ready} onClick={confirm}><IconPaperPlane size={18} />{busy ? '만드는 중…' : '방 만들기'}</Button></>}>
+  return <Modal title={editing ? '방 설정' : '방 만들기'} className="room-action-dialog room-form-dialog room-create-preview" closeLabel={editing ? '방 설정 닫기' : '방 만들기 닫기'} onClose={() => { if (!submitting.current) onClose(); }}
+    foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || !ready} onClick={confirm}>{editing ? <IconCheck size={18} /> : <IconPaperPlane size={18} />}{busy ? editing ? '저장 중…' : '만드는 중…' : editing ? '변경사항 저장' : '방 만들기'}</Button></>}>
     <p className="room-form-caption"><GameBadge game={game} size={20} />{gameConfig(game).name}</p>
     <fieldset className="room-form-fieldset" disabled={busy}>
-      <section className="self-introduction room-form-fields" aria-label="방 만들기 조건">
+      <section className="self-introduction room-form-fields" aria-label={editing ? '방 설정 조건' : '방 만들기 조건'}>
         <div className="introduction-fields button-fields">
           <div className="room-form-title-field">
             <label>방 제목<input aria-label="방 제목" value={title} maxLength={120} placeholder="함께할 팀원에게 한마디를 남겨 주세요" aria-describedby={titleNote} aria-invalid={tooLong || undefined} onChange={event => edit(setTitle)(event.target.value)} /></label>
             <p id={titleNote} className={tooLong ? 'room-form-error' : 'room-form-note room-form-counter'} role={tooLong ? 'alert' : undefined}>{tooLong ? `방 제목은 ${TITLE_MAX}자까지 입력할 수 있어요.` : `${trimmed.length} / ${TITLE_MAX}`}</p>
           </div>
-          <fieldset className="introduction-choice"><legend>게임 모드</legend><ModePicker game={game} value={mode} compact allowNone onChange={chooseMode} /></fieldset>
+          <fieldset className="introduction-choice" disabled={locked}><legend>게임 모드</legend><ModePicker game={game} value={mode} compact allowNone onChange={chooseMode} /></fieldset>
           {positions ? <>
-            <fieldset className="introduction-choice"><legend>{positionTitle}</legend><SingleRolePicker game={game} value={hostPosition} label={positionTitle} onChange={chooseHostPosition} /></fieldset>
-            <div className="room-form-role-field">
+            <fieldset className="introduction-choice" disabled={locked}><legend>{positionTitle}</legend><SingleRolePicker game={game} value={hostPosition} label={positionTitle} onChange={chooseHostPosition} /></fieldset>
+            <fieldset className="room-form-fieldset room-form-role-field" disabled={locked}>
               <DesiredRolesField game={game} value={wantedPositions} disabledRoles={hostPosition ? [hostPosition] : []} onChange={edit(setWantedPositions)} />
               <p className="room-form-note">내 포지션을 제외하고 {neededWanted}개 이상 선택해 주세요.</p>
-            </div>
+            </fieldset>
           </> : null}
           <div className="room-form-settings-pair">
             <div className="room-setting-row"><span>마이크</span><VoiceOptions value={voice} binary compact onChange={edit(setVoice)} /></div>
-            <div className="room-setting-row"><span>빠른매치 입장</span><AutoJoinOptions value={allowAutoJoin} describedBy={autoJoinNote} onChange={edit(setAllowAutoJoin)} /></div>
+            <fieldset className="room-form-fieldset room-setting-row" disabled={locked}><span>빠른매치 입장</span><AutoJoinOptions value={allowAutoJoin} describedBy={autoJoinNote} onChange={edit(setAllowAutoJoin)} /></fieldset>
           </div>
           <p id={autoJoinNote} className="room-form-note room-form-auto-join-note">빠른매치 입장을 허용하면 조건이 맞는 팀원이 자동으로 들어와요.</p>
         </div>
       </section>
     </fieldset>
-    <p className="room-form-notice">{mode ? `${capacity}인 방을 만들고 방장으로 입장해요.` : '방을 만들면 방장으로 입장해요.'}{!hasAccount ? ' 게임 계정을 연결하면 티어와 전적도 표시돼요.' : ''}</p>
+    <p className="room-form-notice">{editing ? locked ? '모집이 마감되어 방 제목과 마이크만 수정할 수 있어요.' : '저장하면 방 목록과 멤버에게 변경된 조건이 반영돼요. 인원이 정원과 같아지면 모집이 마감돼요.' : mode ? `${capacity}인 방을 만들고 방장으로 입장해요.` : '방을 만들면 방장으로 입장해요.'}{!editing && !hasAccount ? ' 게임 계정을 연결하면 티어와 전적도 표시돼요.' : ''}</p>
     <p className="room-form-note room-form-missing" aria-live="polite">{missing.length ? `선택·입력해 주세요: ${missing.join(' · ')}` : ''}</p>
+    {conflict ? <p className="room-form-error" role="alert">{conflict}</p> : null}
     {error ? <p className="room-form-error" role="alert">{error}</p> : null}
   </Modal>;
 }
