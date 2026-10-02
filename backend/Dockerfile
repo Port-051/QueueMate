@@ -1,9 +1,10 @@
 # syntax=docker/dockerfile:1
-# app:matching 이미지. backend/ 에서 빌드한다 — docker build -t qm-matching .
-# 운영은 Graviton(ARM)이다. CI 에서는 docker buildx build --platform linux/arm64 -t qm-matching . (두 베이스 이미지 모두 멀티아치)
+# app:matching 이미지. backend/ 에서 빌드한다 — docker build -t qm-matching . (두 베이스 이미지 모두 멀티아치)
 
 # ---- 빌드 ----
-FROM eclipse-temurin:21-jdk AS build
+# 빌드 단계는 빌드하는 쪽 CPU(네이티브)에서 돈다 — Gradle 컴파일을 에뮬레이션으로 돌리면 몇 배 느리다.
+# 결과물(jar · 추출한 계층)은 CPU 를 안 가리므로 실행 단계만 타깃(운영 Graviton — arm64)으로 만들어진다. CI 에서: docker buildx build --platform linux/arm64 -t qm-matching .
+FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk AS build
 WORKDIR /workspace
 
 # 빌드 스크립트를 먼저 넣어 src 가 바뀌어도 의존성 레이어는 그대로 쓴다.
