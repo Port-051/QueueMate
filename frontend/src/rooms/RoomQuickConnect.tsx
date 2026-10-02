@@ -2,9 +2,8 @@ import { useEffect, useId, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import type { CreatePostRequest, GameKey, MatchCondition } from '../api/types';
-import { Avatar, Button, Modal, useToast } from '../components/ui';
+import { Button, Modal, useToast } from '../components/ui';
 import { IconMatch, IconPaperPlane } from '../components/icons';
-import { VerificationBadge } from '../components/VerificationBadge';
 import { useAuth } from '../state/AuthContext';
 import { useMatch } from '../state/MatchContext';
 import { SelfIntroductionFields } from '../components/SelfIntroductionFields';
@@ -42,7 +41,7 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, roomPane
   const toast = useToast();
   const formId = useId();
   const navigate = useNavigate();
-  const { user, gameAccounts } = useAuth();
+  const { gameAccounts } = useAuth();
   const { request, condition: queuedCondition, proposal, start: startMatch, cancel } = useMatch();
   const [value, setValue] = useState<SelfIntroduction>(() => {
     // 처음 여는 폼(저장한 값이 없다)은 빈 소개 그대로 — 포지션 "전체" · 음성 사용 안 함.
@@ -69,7 +68,6 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, roomPane
   const [now, setNow] = useState(Date.now());
   const hasRoles = usesKeyCondition(game, value.queueType);
   const ownRoles = value.primaryRoles ?? (value.primaryRole !== 'ANY' ? [value.primaryRole] : []);
-  const gameAccount = gameAccounts.find(account => account.game === game);
   const error = introductionInputError(value);
   const update = (next: SelfIntroduction) => {
     setCreateError('');
@@ -169,11 +167,6 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, roomPane
         <Button type="submit" form={formId} variant="primary" disabled={starting || Boolean(startBlocked)}><IconMatch size={18} />{starting ? '시작하는 중…' : '빠른매치 시작'}</Button>
       </>}>
       {waiting ? status : <>
-        {user ? <div className="room-match-account">
-          <Avatar userId={user.userId} name={user.nickname} size={36} />
-          <div><strong>{user.nickname}<VerificationBadge verified={gameAccount?.verified} /></strong><span>{gameAccount?.gameNickname ?? '연결된 게임 계정 없음'}</span></div>
-          <Link to="/app/me#games">내 정보</Link>
-        </div> : null}
         <form id={formId} className="room-form-fields" noValidate onSubmit={event => { event.preventDefault(); if (!starting && !waiting) void startMatching(); }}>
           <fieldset className="room-form-fieldset" disabled={starting}>
             <SelfIntroductionFields binaryVoice compact singleRole showPurpose hidePostFields voiceLabel="마이크" game={game} value={value} onChange={update} />
