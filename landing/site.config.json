@@ -2,13 +2,13 @@
   "name": "큐메이트",
   "alternateName": "QueueMate",
   "origin": "https://queue-mate.com",
-  "appUrl": "https://app.queue-mate.com/",
+  "appUrl": "https://app.queue-mate.com/login",
   "title": "롤 듀오 찾기·파티 구하기 | 큐메이트",
-  "description": "롤 같이 할 사람을 찾고 있나요? 큐메이트는 조건에 맞는 듀오·파티 자동 매칭, 모집방 참여, 같은 방에서의 음성·채팅을 한 화면에 모았습니다. 현재 서비스 준비 중입니다.",
+  "description": "롤 같이 할 사람을 찾고 있나요? 큐메이트는 조건에 맞는 듀오·파티 자동 매칭, 모집방 참여, 같은 방에서의 음성·채팅을 한 화면에 모았습니다.",
   "contentApproved": true,
   "uiApproved": true,
   "allowIndexing": true,
-  "appReady": false,
+  "appReady": true,
   "media": {
     "ogImage": ""
   },
