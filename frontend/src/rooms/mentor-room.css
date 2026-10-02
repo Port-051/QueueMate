@@ -17,7 +17,7 @@
 .room-deck.room-row .room-seat-face .room-host-crown { top:-7px; left:-5px; }
 .room-deck.room-row .room-seat-face .room-host-crown svg { width:11px; height:11px; }
 /* 컬럼 제목 없이 각 행의 열 너비는 유지한다. */
-.room-deck.room-row { --member-columns:minmax(72px,1fr) 42px 72px 148px 38px 68px; --member-gap:8px; }
+.room-deck.room-row { --member-columns:minmax(72px,1fr) 42px 72px 148px 66px 68px; --member-gap:8px; }
 .room-deck.room-row .room-seat-text { display:grid; grid-template-columns:var(--member-columns); align-items:center; column-gap:var(--member-gap); min-width:0; }
 .room-deck.room-row .room-seat-text { width:100%; flex:1; }
 .room-deck.room-row .room-seat-name { display:flex; flex-wrap:nowrap; justify-content:flex-start; gap:4px; min-width:0; font-size:12px; }
@@ -41,20 +41,20 @@
 .room-deck.room-row .room-seat-vacancy { display:flex; align-items:center; justify-content:center; gap:4px; width:100%; height:34px; min-height:34px; border:1px dashed #ffffff32; border-radius:8px; background:#ffffff03; color:#bfb8ce; font-size:12px; font-weight:500; }
 .room-deck.room-row .room-seat-vacancy strong { color:#83e8ba; font-size:14px; font-weight:700; }
 .room-home .room-deck.room-row .room-join-button { flex:none; align-self:center; height:40px; min-height:40px; max-height:40px; min-width:72px; padding:0 16px; border:1px solid #5fe3a850; border-radius:999px; background:#5fe3a812; color:#83e8ba; font:inherit; font-size:13px; font-weight:600; box-shadow:none; cursor:pointer; }
-.room-home .room-deck.room-row .room-join-button:hover:not(:disabled) { filter:brightness(1.15); transform:none; }
+.room-home .room-deck.room-row .room-join-button:hover:not(:disabled) { background:#5fe3a820; border-color:#5fe3a870; color:#83e8ba; filter:none; transform:none; }
 .room-home .room-deck.room-row:not(.is-current-room) .room-join-button:disabled { background:#ffffff08; border-color:#ffffff26; color:#ababaf; opacity:1; cursor:not-allowed; }
 .room-home .room-deck.room-row.is-current-room .room-join-button:disabled { cursor:default; opacity:1; }
 .room-deck.room-row .room-row-wanted-label { display:inline; color:#c3bed0; }
 .room-deck.room-row .room-row-meta .room-role-icons b { display:inline; font-size:12px; }
 .room-deck.room-row.is-unavailable { filter:grayscale(1); }
 @container room-card (max-width:560px) {
-  .room-deck.room-row .room-seat-text { grid-template-columns:minmax(64px,1fr) 30px 62px 144px 32px 62px; column-gap:5px; }
+  .room-deck.room-row .room-seat-text { grid-template-columns:minmax(48px,1fr) 24px 58px 130px 62px 62px; column-gap:4px; }
   .room-seat-champions .preferred-champions { gap:2px; }
   .room-seat-record .win-loss { --wl-pad:3px; gap:3px; }
 }
 @container room-card (max-width:470px) {
   .room-deck.room-row .room-seat-button { height:58px; min-height:58px; padding-inline:6px; gap:6px; }
-  .room-deck.room-row .room-seat-text { grid-template-columns:minmax(124px,1fr) 36px 68px; grid-template-areas:"name position rank" "record kda champions"; row-gap:5px; }
+  .room-deck.room-row .room-seat-text { grid-template-columns:minmax(124px,1fr) 68px 68px; grid-template-areas:"name position rank" "record kda champions"; row-gap:5px; }
   .room-deck.room-row .room-seat-name { grid-area:name; }
   .room-deck.room-row .room-seat-position { grid-area:position; }
   .room-deck.room-row .room-seat-rank { grid-area:rank; }
@@ -106,9 +106,9 @@
 .room-home.board-home .room-filters .filter-mode-symbol { display:block; flex:none; width:16px; height:16px; }
 .room-home.board-home .room-filters .filter-role-symbol { width:16px; height:16px; }
 .room-home.board-home .room-filters .board-role-filter { gap:4px; }
-.room-home.board-home .room-filters .board-setting-filter { width:32px; }
+.room-home.board-home .room-filters .board-setting-filter { width:auto; }
 .room-home.board-home .room-filters .intro-voice-options.is-single { display:flex; padding:0; border:0; background:none; }
-.room-home.board-home .room-filters :is(.board-role-filter>.filter-role,.intro-voice-options.is-single>.filter-mode,.filter-reset) {
+.room-home.board-home .room-filters :where(.board-role-filter>.filter-role,.intro-voice-options.is-single>.filter-mode,.filter-reset) {
   display:flex; align-items:center; justify-content:center; flex:none; width:32px; min-width:32px; height:32px; min-height:32px;
   padding:0; border:1px solid var(--line); border-radius:50%; background:transparent; font-size:12px;
 }
@@ -166,3 +166,13 @@
 }
 /* 방의 음성 사용 조건은 실제 사용자의 마이크 상태와 구별하는 중립색이다. */
 .room-row-meta .room-row-voice .voice-symbol { color:inherit; }
+
+/* 필터 선택 배경과 게시판의 호버 색상을 기존 색 계열 안에서 유지한다. */
+.room-home.board-home .room-filters .intro-voice-options.is-single>.filter-mode { width:auto; min-width:32px; gap:5px; padding:0 10px; border-radius:999px; }
+.room-home.board-home .room-filters .intro-voice-options.is-single>.filter-mode[aria-pressed=true] { background:var(--accent); border-color:var(--accent); color:#fff; }
+.room-home.board-home .room-filters .room-filter-secondary button.filter-reset { background:var(--accent); border-color:var(--accent); color:#fff; }
+.room-home.board-home .room-filters .room-filter-secondary button.filter-reset:hover { background:var(--accent-2); border-color:var(--accent-2); }
+.room-home .room-deck.room-row:is(:hover,:focus-within) { background:var(--room-bubble-bg); }
+.room-deck.room-row .room-seat-button:hover { background:color-mix(in srgb, var(--app-background) 82%, white); }
+.room-seat-kda { display:flex; align-items:center; justify-content:center; gap:4px; white-space:nowrap; }
+.room-seat-stat-label { font-size:10px; color:#aaa3b6; }
