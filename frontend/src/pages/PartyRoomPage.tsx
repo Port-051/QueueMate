@@ -270,7 +270,7 @@ export function PartyRoomPage() {
 
       {room && !confirmed ? <RecruitmentNotice room={room} isHost={isHost} onChanged={loadPost} onConfirm={session.confirm} /> : null}
       {room?.description ? <p className="hint" style={{ marginBottom: 16 }}>{room.description}</p> : null}
-      {room && hasPositions(room.game, room.modeKey) ? <p className="hint" style={{ marginBottom: 16 }}>찾는 포지션 <RoomWantedPositions room={room} /></p> : null}
+      {room && hasPositions(room.game, room.modeKey) ? <p className="hint room-open-positions">찾는 포지션 <RoomWantedPositions room={room} /></p> : null}
       {postId !== null && postError && !room ? <div className="banner warn" role="alert" style={{ marginBottom: 20 }}>글 정보를 불러오지 못했어요. <Button size="sm" onClick={() => void loadPost()}>다시 불러오기</Button></div> : null}
       {matchRoomId && teamErrorRoom === matchRoomId && !teamMembers ? <div className="banner warn" role="alert" style={{ marginBottom: 20 }}>파티원 정보를 불러오지 못했어요. <Button size="sm" onClick={() => void loadTeam()}>다시 불러오기</Button></div> : null}
 
@@ -281,7 +281,7 @@ export function PartyRoomPage() {
           <RoomVoiceSeats room={seatRoom} members={members} colors={faceColors} hostId={session.hostId} selfId={userId} capacity={capacity}
             voice={voice} muted={muted} connectedPeers={connectedPeers} voiceActivity={voiceActivity} menuFor={menuFor} />
           <div className="room-voice-foot">
-            {guide.length ? <p className="hint">{guide.map(line => <span key={line}>{line}</span>)}</p> : null}
+            {guide.length ? <details className="room-voice-guide"><summary>파티원 메뉴 · 방 이용 안내</summary><p className="hint">{guide.map(line => <span key={line}>{line}</span>)}</p></details> : null}
             {voice !== 'connected' ? <Button disabled={!clientRef.current || voice === 'connecting'} onClick={() => void clientRef.current?.startVoice()}>{voice === 'denied' || voice === 'error' ? '마이크 다시 시도' : '마이크 켜기'}</Button> : <Button onClick={toggleMute}>
               {muted ? <><IconMicOff size={15} /> 음소거 해제</> : <><IconMic size={15} /> 음소거</>}
             </Button>}

@@ -1,8 +1,5 @@
-/* 방 패널(2026-09-30 소유자 지시 — `pages/HomePage.tsx`). 넓은 화면(1100px 이상 — `rooms/roomPanel.ts` `ROOM_SPLIT_QUERY` 와 같은 값)은 게시판이 왼쪽으로 좁아지고
-   (본문의 25% · 적어도 340px) 방이 나머지 폭으로 오른쪽에서 밀려 들어온다 — 패널은 화면 높이에 붙고(sticky) 게시판만 스크롤된다. 좁은 화면은 방이 오른쪽에서 밀려 들어와 본문을 덮고 맨 위 "게시판으로" 로 숨긴다.
-   (처음에는 55 : 45 → 같은 날 소유자 지시 "게시판을 아예 왼쪽으로 밀어버리고 방을 좀 더 크게" 로 35 : 65 → 또 같은 날 "좀 더 왼쪽으로 댕겨서 더 크게" 로 게시판 max(340px, 25%).)
-   패널 안의 방 화면(`PartyRoomPage`)은 한 열(음성 · 채팅)이다 — 파티원은 음성 칸의 좌석 줄이다(같은 날 소유자 지시 — `RoomVoiceSeats.tsx`. 그 전에는 패널이 넓으면(760px 이상) 두 열(음성 · 채팅 | 파티원 300px)이었다).
-   자동 매칭의 제안 화면(`ProposalPage`)은 그대로 넓으면 두 열이다. */
+/* 데스크톱(1100px 이상)은 게시판과 우측 방 패널을 함께 표시한다.
+   좁은 화면은 방이 본문을 덮고 "게시판으로"로 돌아간다. 방 안의 다섯 좌석과 상세 호버는 mentor-room.css에서 정한다. */
 .board-split { display:flex; align-items:flex-start; min-width:0; }
 .board-split-board { flex:1 1 0; min-width:0; }
 .room-panel {
@@ -79,4 +76,22 @@
 @media (prefers-reduced-motion:reduce) {
   .room-panel,.room-panel-inner { animation:none; }
   .room-panel.is-closing { display:none; }
+}
+
+/* 한 줄 좌석이 채팅을 밀어내지 않도록 방 패널의 여백과 안내를 줄인다. */
+.room-panel .page.party-page { padding:16px 18px 24px; }
+.room-panel .party-page .page-head { gap:10px; margin-bottom:10px; }
+.room-panel .party-page .page-head h1 { font-size:17px; line-height:1.4; }
+.room-panel .party-page .page-head .btn,.room-panel .party-page .room-voice-foot>.btn { min-height:32px; padding:5px 12px; font-size:12px; }
+.room-panel .party-page>.room-open-positions { margin:0 0 10px; font-size:11px; }
+.room-panel .party-page>.stack { gap:12px; }
+.room-panel .party-page .card { padding:12px; border-radius:14px; }
+.room-panel .party-page .card-head { margin-bottom:10px; }
+.room-panel .party-page .card-head .card-title { font-size:14px; }
+.room-panel .party-page .chat-card { min-height:260px; }
+.room-panel .party-page .chat-log { min-height:140px; max-height:38dvh; gap:10px; }
+.room-panel .party-page .chat-input { margin-top:10px; }
+@media(max-width:480px) {
+  .room-panel .page.party-page { padding:12px 10px 20px; }
+  .room-panel .party-page .card { padding:10px; }
 }
