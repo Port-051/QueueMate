@@ -1,0 +1,56 @@
+name: Publish existing SEO landing safely
+on:
+  push:
+    branches: [feat/seo-landing]
+    paths: ['.github/workflows/seo-public-preview.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  statuses: write
+concurrency:
+  group: seo-existing-preview-access
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'Port-051/QueueMate' && github.ref == 'refs/heads/feat/seo-landing' && github.actor == 'shj5771' && github.triggering_actor == 'shj5771'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VERCEL_TELEMETRY_DISABLED: '1'
+      NO_COLOR: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify target guards and build the unchanged landing
+        working-directory: landing
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm test
+          npm run build
+      - name: Install official Vercel CLI
+        run: npm install --prefix "$RUNNER_TEMP/qmate-vercel-cli" --no-audit --no-fund vercel@latest
+      - name: Authorize, publish only the existing landing, and verify
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node landing/scripts/publish-existing-preview.mjs
+      - name: Remove temporary authorization even when interrupted
+        if: always()
+        run: |
+          AUTH_DIR="$RUNNER_TEMP/qmate-public-preview-auth"
+          CLI="$RUNNER_TEMP/qmate-vercel-cli/node_modules/.bin/vercel"
+          if [ -f "$AUTH_DIR/auth.json" ] && [ -x "$CLI" ]; then
+            timeout 20 "$CLI" logout --global-config "$AUTH_DIR" --no-color >/dev/null 2>&1 || true
+          fi
+          rm -rf "$AUTH_DIR"
+      - name: Save only nonsecret publication evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: seo-public-preview-audit
+          path: ${{ runner.temp }}/qmate-public-audit/
+          if-no-files-found: ignore
+          retention-days: 7
