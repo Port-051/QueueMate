@@ -132,16 +132,54 @@ class AuthenticationApiTest extends ConcurrencyTestSupport {
                 .andExpect(jsonPath("$.status").value("IDLE"));
     }
 
+    // ── 헬스 체크 — actuator 를 루트에 뒀다(2026-10-02 · platform · notification 과 같은 모양) ──
+
     @Test
-    void actuator_는_인증_없이_열린다() throws Exception {
-        mockMvc.perform(get("/actuator/health")).andExpect(status().isOk());
-        mockMvc.perform(get("/actuator/info")).andExpect(status().isOk());
+    void health_live_는_인증_없이_UP_이고_세부를_싣지_않는다() throws Exception {
+        mockMvc.perform(get("/health/live"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                // show-details 는 기본값(never)이다 — 상태만 내보내고 기여자 목록(Redis 버전 · DB 종류)은 싣지 않는다
+                .andExpect(jsonPath("$.components").doesNotExist())
+                .andExpect(jsonPath("$.details").doesNotExist());
+    }
+
+    /**
+     * ready 그룹은 readinessState · redis · db 를 본다 — 테스트에는 Redis(DB 15)와 H2 가 있으니 UP 이다.
+     * 그룹에 없는 기여자 이름을 적으면 컨텍스트가 뜨지 않으므로(platform · notification 에서 확인한 것이다) 이 테스트가 뜬다는 것이
+     * redis · db 가 그룹에 들어 있다는 확인이다.
+     */
+    @Test
+    void health_ready_는_Redis_와_DB_가_있으면_UP() throws Exception {
+        mockMvc.perform(get("/health/ready"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.components").doesNotExist());
     }
 
     @Test
-    void actuator_는_깨진_쿠키가_있어도_401_이_아니다() throws Exception {
-        mockMvc.perform(get("/actuator/info").cookie(new Cookie(TokenClaims.ACCESS_COOKIE, "not-a-jwt")))
+    void health_전체와_info_와_metrics_는_인증_없이_열린다() throws Exception {
+        mockMvc.perform(get("/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+        mockMvc.perform(get("/info")).andExpect(status().isOk());
+        // load-test 가 /metrics/executor.queued 를 읽는다
+        mockMvc.perform(get("/metrics")).andExpect(status().isOk());
+    }
+
+    @Test
+    void health_는_깨진_쿠키가_있어도_401_이_아니다() throws Exception {
+        mockMvc.perform(get("/health/live").cookie(new Cookie(TokenClaims.ACCESS_COOKIE, "not-a-jwt")))
                 .andExpect(status().isOk());
+        mockMvc.perform(get("/info").cookie(new Cookie(TokenClaims.ACCESS_COOKIE, "not-a-jwt")))
+                .andExpect(status().isOk());
+    }
+
+    /** 옛 주소는 없다 — 인증이 필요한 모르는 경로라 401 이다(쿠키 리졸버가 /api/v1/ 밖에서는 쿠키를 집지 않아 쿠키가 있어도 같다) */
+    @Test
+    void 옛_actuator_주소는_더_이상_없다() throws Exception {
+        expectUnauthenticated(mockMvc.perform(get("/actuator/health")));
+        expectUnauthenticated(mockMvc.perform(get("/actuator/health").cookie(TestJwt.cookie("42"))));
     }
 
     // ── "나"는 sub 다 ─────────────────────────────────────────────
