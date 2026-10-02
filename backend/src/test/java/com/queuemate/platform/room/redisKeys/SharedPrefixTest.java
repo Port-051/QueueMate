@@ -2,6 +2,7 @@ package com.queuemate.platform.room.redisKeys;
 
 import com.queuemate.platform.common.push.PushChannels;
 import com.queuemate.platform.party.match.MatchPartyKeys;
+import com.queuemate.platform.social.redisKeys.BlockKeys;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -19,6 +20,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  *
  * <p>어긋나도 컴파일과 나머지 테스트는 전부 통과한다 — 이 앱은 늘 "활성 요청 없음"을 보고 매칭 중인 사람을
  * 입장시키고, {@code matching} 은 방에 있는 사람의 매칭 요청을 받는다. 그래서 옆 폴더의 원본을 직접 읽어 비교한다.
+ * 2026-10-02 부터 다섯째 — 차단 관계 SET(이 앱이 원본이고 {@code matching} 이 따라 적었다 · D-57 · P-52)도 본다.
  * <b>옆 폴더가 없는 컴퓨터(이 브랜치만 받은 경우)에서는 건너뛴다.</b>
  */
 class SharedPrefixTest {
@@ -75,6 +77,15 @@ class SharedPrefixTest {
     {
         assertThat(matchingSharedKeys())
                 .contains("PARTY_PREFIX = \"" + MatchPartyKeys.PARTY_PREFIX + "\"");
+    }
+
+    @Test
+    @DisplayName("차단 관계 SET 의 접두사를 matching 이 똑같이 따라 적었다 — 이 앱이 원본이고 쓰는 것도 이 앱뿐이다(D-57 · P-52)")
+    void blockRelPrefixMatchesMatching() throws IOException
+    {
+        // 어긋나면 matching 의 합류 스크립트가 늘 빈 집합을 보고 차단한 사람끼리 파티를 만든다 — 이 앱의 테스트는 전부 통과한 채로
+        assertThat(matchingSharedKeys())
+                .contains("BLOCK_REL_PREFIX = \"" + BlockKeys.BLOCK_REL_PREFIX + "\"");
     }
 
     private static String matchingSharedKeys() throws IOException
