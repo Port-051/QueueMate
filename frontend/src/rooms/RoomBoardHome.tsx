@@ -2,6 +2,7 @@ import { SlidingSelector } from '../components/SlidingSelector';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 import type { GameKey, PubgPerspective } from '../api/types';
+import { getPost } from '../api/client';
 import type { AppShellOutletContext } from '../components/AppShell';
 import { FilterModeIcon, FilterRoleIcon, VoiceIcon } from '../components/FilterSymbols';
 import { Button } from '../components/ui';
@@ -13,7 +14,7 @@ import { useMatch } from '../state/MatchContext';
 import { useRoomSession } from '../state/RoomSessionContext';
 import { matchErrorMessage } from '../domain/matchRequest';
 import { isPositionError, roomErrorMessage } from './errors';
-import { remainingPositions, roomEntryError } from './boardRoom';
+import { remainingPositions, roomEntryError, toBoardRoom } from './boardRoom';
 import { RoomDeck } from './RoomDeck';
 import { RoomMemberProfile } from './RoomMemberProfile';
 import { RoomJoinConfirm } from './RoomJoinConfirm';
@@ -129,13 +130,27 @@ export function RoomBoardHome({ roomPanelOpen = false }: { roomPanelOpen?: boole
       {activeRoomId && !roomPanelOpen ? <div className="banner room-session-banner room-return-banner" role="status">지금 방에 들어가 있어요. <Link className="room-session-link" to={`/app/party/${activeRoomId}`}>방으로 돌아가기</Link></div> : null}
       {connectionError ? <div className="banner warn" role="alert">{connectionError} <button onClick={() => void refresh()}>다시 불러오기</button></div> : null}
       {loading ? <p role="status">방 목록을 불러오는 중이에요.</p> : null}
-      <div className="room-deck-grid">{filtered.map(room => <RoomDeck room={room} selfId={selfId} key={room.id} entering={justCreatedId === room.id} onEntered={finishEntrance} reveal={revealId === room.id} onRevealed={finishReveal} onMember={(room, member) => setProfileTarget({ room, member })} entryError={roomEntryError(room, selfId, activeRoomId)} onSeat={room => setSelectedId(room.id)} />)}</div>
+      <div className="room-deck-grid">{filtered.map(room => <RoomDeck room={room} selfId={selfId} current={activeRoomId === room.id} key={room.id} entering={justCreatedId === room.id} onEntered={finishEntrance} reveal={revealId === room.id} onRevealed={finishReveal} onMember={(room, member) => setProfileTarget({ room, member })} entryError={roomEntryError(room, selfId, activeRoomId)} onSeat={room => setSelectedId(room.id)} />)}</div>
       {!loading && !connectionError && !filtered.length ? <div className="room-board-empty"><p>{rooms.length ? '이 조건에 맞는 방이 없어요.' : '아직 올라온 방이 없어요. 첫 방을 만들어 보세요.'}</p>{canReset ? <button className="room-secondary-button" onClick={resetFilters}>필터 초기화</button> : null}</div> : null}
       {hasMore ? <div className="room-board-more"><Button block disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? '불러오는 중…' : '더 보기'}</Button></div> : null}
     </section>
     </div>
     {selected ? <RoomJoinConfirm key={selected.id} room={selected} entryError={roomEntryError(selected, selfId, activeRoomId)} cancelsMatch={Boolean(matchRequest)} onClose={() => setSelectedId(null)}
+      switchesRoom={Boolean(activeRoomId && activeRoomId !== selected.id)}
+      closesHostedRoom={session.hostId === selfId && rooms.some(room => room.id === activeRoomId && room.status === 'RECRUITING')}
       onJoin={async position => {
+        const switchesRoom = Boolean(activeRoomId && activeRoomId !== selected.id);
+        if (switchesRoom) {
+          // 확인창을 연 뒤 자리가 찼거나 포지션이 선점됐으면 기존 방을 나가지 않는다.
+          const latest = toBoardRoom(await getPost(selected.postId));
+          const unavailable = roomEntryError(latest, selfId, activeRoomId);
+          if (unavailable || (position && !remainingPositions(latest).includes(position))) {
+            await refresh();
+            throw new Error(unavailable ?? '선택한 포지션에 다른 사람이 참가했어요. 남은 포지션을 다시 골라 주세요.');
+          }
+          try { await session.leave(); }
+          catch (cause) { throw new Error(`현재 방에서 나가지 못해 이동하지 않았어요. ${roomErrorMessage(cause)}`); }
+        }
         // 방 입장은 활성 매칭이 있으면 거절된다. 확인받은 뒤 취소가 끝나야 입장한다.
         const wasMatching = Boolean(matchRequest);
         if (wasMatching) {
@@ -144,6 +159,7 @@ export function RoomBoardHome({ roomPanelOpen = false }: { roomPanelOpen?: boole
         }
         try { await join(selected.id, position); }
         catch (cause) {
+          if (switchesRoom) throw new Error(`이전 방에서는 나왔지만 새 방에 참가하지 못했어요. ${roomErrorMessage(cause)} 다시 참가해 주세요.`);
           // 포지션 400 은 그대로 던진다 — 참여 창이 남은 포지션을 다시 고르게 한다(빠른매치는 이미 취소돼 다시 고르면 바로 입장한다).
           if (wasMatching && !isPositionError(cause)) throw new Error(`빠른매치는 취소됐지만 방에 입장하지 못했어요. ${roomErrorMessage(cause)}`);
           throw cause;
