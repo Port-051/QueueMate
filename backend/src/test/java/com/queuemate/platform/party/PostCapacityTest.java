@@ -181,7 +181,7 @@ class PostCapacityTest extends PostTestSupport {
                     new GameConfigReader(gameConfigRedis));
 
             PostResponse created = service.create(hostId, new PostCreateRequest("LOL", LOL_MODE, "모르는 인원", null, "REQUIRED",
-                    Map.of(), List.of("SUPPORT"), "JUNGLE"));
+                    Map.of(), List.of("SUPPORT"), "JUNGLE", true));
             track(created.postId(), hostId);
 
             assertThat(created.capacity()).isEqualTo(5);

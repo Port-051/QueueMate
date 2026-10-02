@@ -214,7 +214,7 @@ class PostHostPositionTest extends PostTestSupport {
                 .andExpect(detail("wantedPositions: 하나 이상 필요합니다"));
         // 칸을 아예 안 보내도 같다(null 은 빈 배열이다)
         createPost(cookie, "{\"game\":\"LOL\",\"mode\":\"" + LOL_MODE + "\",\"title\":\"x\",\"voice\":\"REQUIRED\",\"conditions\":{},"
-                + "\"hostPosition\":\"MID\"}").andExpect(status().isBadRequest()).andExpect(detail("wantedPositions: 하나 이상 필요합니다"));
+                + "\"hostPosition\":\"MID\",\"allowAutoJoin\":true}").andExpect(status().isBadRequest()).andExpect(detail("wantedPositions: 하나 이상 필요합니다"));
         // 둘 다 없으면 찾는 포지션이 먼저다(방장 포지션은 찾는 포지션과 겹치는지를 봐야 해서 그 뒤다)
         create(cookie, "LOL", LOL_MODE, null).andExpect(status().isBadRequest())
                 .andExpect(detail("wantedPositions: 하나 이상 필요합니다")).andExpect(jsonPath("$.details.length()").value(1));
@@ -279,7 +279,7 @@ class PostHostPositionTest extends PostTestSupport {
                     "hostPosition: 찾는 포지션(wantedPositions)과 겹칠 수 없습니다");
             // PUBG 는 gameconfig 없이도 포지션이 없다는 것을 안다
             assertValidationFailed(() -> service.create(me, new PostCreateRequest("PUBG", PUBG_MODE, "치킨", null, "REQUIRED",
-                    Map.of("perspective", "TPP"), List.of(), "MID")), "hostPosition: PUBG 에는 포지션이 없습니다");
+                    Map.of("perspective", "TPP"), List.of(), "MID", true)), "hostPosition: PUBG 에는 포지션이 없습니다");
         }
     }
 
@@ -296,7 +296,7 @@ class PostHostPositionTest extends PostTestSupport {
 
     private static PostCreateRequest request(String mode, String hostPosition, String... wanted)
     {
-        return new PostCreateRequest("LOL", mode, "방장 포지션", null, "REQUIRED", Map.of(), List.of(wanted), hostPosition);
+        return new PostCreateRequest("LOL", mode, "방장 포지션", null, "REQUIRED", Map.of(), List.of(wanted), hostPosition, true);
     }
 
     private static void assertValidationFailed(Runnable call, String detail)

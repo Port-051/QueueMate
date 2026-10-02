@@ -37,7 +37,7 @@ import java.util.regex.Pattern;
  * <b>서버가 {@code matching} 을 부르지 않고 활성 요청 키를 만들지 않는다</b>(누른 순간 한 번만 게시판을 본다 — D-19 그대로).
  *
  * <p><b>흐름</b> — ① 본문 검증(게임 · 음성 · 조건의 종류와 값 — 400) → ② gameconfig 로 모드 · 티어 규칙 검증({@code matching} 의 validator 와 같은 순서 — 400) →
- * ③ 후보 글 조회(그 게임 · 그 모드 · 그 음성 · 모집 중 · 내 글 제외 · 오래된 순 · 많아야 {@code platform.board.auto-join-scan} 개) →
+ * ③ 후보 글 조회(그 게임 · 그 모드 · 그 음성 · 모집 중 · 내 글 제외 · <b>빠른매치 입장을 허용한 글만</b>(2026-10-02 소유자 결정 — P-50) · 오래된 순 · 많아야 {@code platform.board.auto-join-scan} 개) →
  * ④ 자바 필터(10분 안에 나갔거나 강퇴당한 방 — {@code RoomService#noAutoJoinRooms} · PUBG 시점 · 포지션 · 방장 티어) →
  * ⑤ 방 키를 파이프라인 한 번으로 읽어 사라진 방 · 확정된 방 · 정원이 찬 방 · 내 포지션을 이미 누가 고른 방 제외 → ⑥ 남은 순서대로 입장({@link RoomMemberService#enter} — 안에서 {@link PostEntryGate} 가
  * 차단 · 상태를 본다). 들어갔으면 200, 다음 방으로 넘어갈 수 없는 거절({@code IN_OTHER_ROOM} · {@code ALREADY_QUEUED})은 그 코드로 409, 다 돌아도 없으면 404.

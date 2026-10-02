@@ -117,6 +117,23 @@ class PartyMigrationTest extends ApiTestSupport {
     }
 
     @Test
+    @DisplayName("V10 — allow_auto_join 은 boolean NOT NULL 이고 기본값이 true 다(옛 글은 합류 대상이었다 — 2026-10-02 · P-50). NULL 은 받지 않는다")
+    void allowAutoJoinColumn()
+    {
+        Long host = insertUser();
+        // 칸을 모르는 SQL 로 넣은 글 — V10 이 옛 글을 채운 값과 같은 true 다
+        Long postId = insertPost(host, "EXPIRED");
+
+        assertThat(jdbcTemplate.queryForObject("select allow_auto_join from recruit_posts where id = ?", Boolean.class, postId)).isTrue();
+        assertThat(jdbcTemplate.queryForObject("select data_type || ' ' || is_nullable from information_schema.columns "
+                + "where table_schema = 'public' and table_name = 'recruit_posts' and column_name = 'allow_auto_join'", String.class))
+                .isEqualTo("boolean NO");
+        assertThatThrownBy(() -> jdbcTemplate.update("update recruit_posts set allow_auto_join = null where id = ?", postId))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("allow_auto_join");
+    }
+
+    @Test
     @DisplayName("room_seen_at 이 없다 — 글 쓰기가 방을 같이 만들어 '아직 안 만들어진 방' 을 가를 일이 없어졌다(2026-09-25 2단계)")
     void noRoomSeenAt()
     {

@@ -239,7 +239,7 @@ class PostWantedCountTest extends PostTestSupport {
                 login(nickname);
                 Long me = userIdOf(nickname);
                 PostResponse created = service.create(me, new PostCreateRequest("LOL", mode, "모르는 정원", null, "REQUIRED",
-                        Map.of(), List.of("MID"), "JUNGLE"));
+                        Map.of(), List.of("MID"), "JUNGLE", true));
                 track(created.postId(), me);
 
                 assertThat(created.wantedPositions()).containsExactly("MID");

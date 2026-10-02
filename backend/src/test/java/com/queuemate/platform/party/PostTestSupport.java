@@ -255,7 +255,10 @@ public abstract class PostTestSupport extends ApiTestSupport {
         };
     }
 
-    /** {@code hostPosition} 이 {@code null} 이면 그 칸을 보내지 않는다 */
+    /**
+     * {@code hostPosition} 이 {@code null} 이면 그 칸을 보내지 않는다. <b>빠른매치 입장은 허용한다</b>({@code "allowAutoJoin":true} — 2026-10-02 · P-50 필수 칸이다).
+     * 금지한 글이 필요하면 {@link #forbidAutoJoin} 으로 바꾼다
+     */
     protected static String postBodyWithHostPosition(String game, String mode, String title, String conditionsJson, String hostPosition,
                                                      String... wantedPositions)
     {
@@ -267,7 +270,14 @@ public abstract class PostTestSupport extends ApiTestSupport {
         return "{\"game\":\"" + game + "\",\"mode\":\"" + mode + "\",\"title\":\"" + title + "\",\"description\":\"즐겁게\","
                 + "\"voice\":\"REQUIRED\",\"conditions\":" + conditionsJson
                 + ",\"wantedPositions\":[" + String.join(",", quoted) + "]"
-                + (hostPosition == null ? "" : ",\"hostPosition\":\"" + hostPosition + "\"") + "}";
+                + (hostPosition == null ? "" : ",\"hostPosition\":\"" + hostPosition + "\"")
+                + ",\"allowAutoJoin\":true}";
+    }
+
+    /** 글 쓰기 본문의 빠른매치 입장을 금지로 바꾼다(2026-10-02 · P-50) — {@link #postBodyWithHostPosition} 이 만든 본문에 쓴다 */
+    protected static String forbidAutoJoin(String body)
+    {
+        return body.replace("\"allowAutoJoin\":true", "\"allowAutoJoin\":false");
     }
 
     /**

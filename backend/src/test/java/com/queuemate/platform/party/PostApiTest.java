@@ -237,6 +237,43 @@ class PostApiTest extends PostTestSupport {
     }
 
     @Test
+    @DisplayName("빠른매치 입장 허용 / 금지(allowAutoJoin)는 글을 쓸 때 필수다 — 없거나 null 이면 400 \"allowAutoJoin: 필요합니다\" 이고 글도 방도 안 생긴다. "
+            + "고른 값이 쓰기 · 단건 · 목록의 글 한 줄에 실린다(2026-10-02 — P-50)")
+    void allowAutoJoinIsRequiredAndEchoed() throws Exception
+    {
+        String host = newNickname();
+        Cookie cookie = login(host);
+        Long hostId = userIdOf(host);
+        String body = lolPostBody("빠른매치 고르기");
+
+        createPost(cookie, body.replace(",\"allowAutoJoin\":true", ""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.details[0]").value("allowAutoJoin: 필요합니다"))
+                .andExpect(jsonPath("$.details.length()").value(1));
+        createPost(cookie, body.replace("\"allowAutoJoin\":true", "\"allowAutoJoin\":null"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[0]").value("allowAutoJoin: 필요합니다"));
+        assertThat(jdbcTemplate.queryForObject("select count(*) from recruit_posts where host_id = ?", Integer.class, hostId)).isZero();
+        assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + hostId)).isNull();
+
+        Long forbidden = createdId(createPost(cookie, forbidAutoJoin(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.allowAutoJoin").value(false)));
+        mockMvc.perform(get("/api/v1/posts/" + forbidden).cookie(cookie))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.allowAutoJoin").value(false));
+        assertThat(find(list(cookie, "LOL"), forbidden).get("allowAutoJoin").asBoolean()).isFalse();
+        assertThat(jdbcTemplate.queryForObject("select allow_auto_join from recruit_posts where id = ?", Boolean.class, forbidden)).isFalse();
+
+        // 허용한 글 — 지우고 다시 쓴다(모집 중인 글은 한 사람에 하나다)
+        mockMvc.perform(delete("/api/v1/posts/" + forbidden).cookie(cookie)).andExpect(status().isNoContent());
+        Long allowed = createdId(createPost(cookie, body)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.allowAutoJoin").value(true)));
+        assertThat(find(list(cookie, "LOL"), allowed).get("allowAutoJoin").asBoolean()).isTrue();
+    }
+
+    @Test
     @DisplayName("남의 글은 지우지 못한다(403 NOT_POST_HOST). 없는 글은 404 POST_NOT_FOUND 다")
     void onlyHostCanDelete() throws Exception
     {

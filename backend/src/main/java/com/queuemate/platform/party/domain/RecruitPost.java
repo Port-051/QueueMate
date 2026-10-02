@@ -132,9 +132,16 @@ public class RecruitPost {
     @Column(name = "capacity")
     private Integer capacity;
 
+    /**
+     * 빠른매치로 들어오는 것을 허용하는가(2026-10-02 소유자 결정 — P-50). {@code false} 면 게시판 방 먼저 합류의 후보에서 빠진다({@code RecruitPostRepository#findAutoJoinCandidates}) —
+     * 직접 입장은 그대로 된다. 글을 쓸 때 반드시 고르고(요청의 필수 칸) 글은 고칠 수 없어 바뀌지 않는다. V10 전에 쓴 글은 {@code true} 다(그때까지 모두 합류 대상이었다)
+     */
+    @Column(name = "allow_auto_join", nullable = false, updatable = false)
+    private boolean allowAutoJoin;
+
     public RecruitPost(Long hostId, Game game, String mode, String title, String description,
                        VoicePreference voice, String conditions, Set<String> wantedPositions,
-                       String hostPosition, int capacity, Instant now)
+                       String hostPosition, int capacity, boolean allowAutoJoin, Instant now)
     {
         this.hostId = hostId;
         this.game = game;
@@ -146,6 +153,7 @@ public class RecruitPost {
         this.wantedPositions = new LinkedHashSet<>(wantedPositions);
         this.hostPosition = hostPosition;
         this.capacity = capacity;
+        this.allowAutoJoin = allowAutoJoin;
         this.status = PostStatus.RECRUITING;
         this.createdAt = now;
         this.updatedAt = now;

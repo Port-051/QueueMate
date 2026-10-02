@@ -603,4 +603,49 @@ class AutoJoinTest extends PostTestSupport {
         assertJoined(autoJoin(me, normalBody("MID", "REQUIRED")), free, meId);
         assertThat(positionOf(free, meId)).isEqualTo("MID");
     }
+
+    // ---- 빠른매치 입장 허용 / 금지 (2026-10-02 소유자 결정 — P-50) ----
+
+    @Test
+    @DisplayName("빠른매치 입장을 금지한 글(allowAutoJoin=false)의 방은 넣지 않는다 — 맞는 다른 방이 없으면 404 NO_MATCHING_POST. 그 방에도 직접 입장은 된다")
+    void forbiddenPostIsNeverAutoJoined() throws Exception
+    {
+        String host = newNickname();
+        String nickname = newNickname();
+        Cookie hostCookie = login(host);
+        insertGameAccount(userIdOf(host), "LOL", "host#KR1", "GOLD_1");
+        // 글 쓰기로 만든다 — 조건(게임 · 모드 · 음성 · 티어 · 포지션)은 다 맞는다. 금지만 다르다
+        Long forbidden = createdId(createPost(hostCookie,
+                forbidAutoJoin(postBodyWithHostPosition("LOL", LOL_MODE, "빠른매치 금지", "{}", "JUNGLE", "MID")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.allowAutoJoin").value(false)));
+        Cookie me = login(nickname);
+        Long meId = userIdOf(nickname);
+        track(forbidden, meId);
+
+        expectNoMatchingPost(autoJoin(me, rankedBody("GOLD_4", "MID")));
+        assertThat(memberIds(forbidden)).doesNotContain(String.valueOf(meId));
+        assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + meId)).isNull();
+
+        // 직접 입장은 그대로 된다 — 금지하는 것은 빠른매치뿐이다
+        enterRoom(me, forbidden, "MID").andExpect(status().isCreated());
+        assertThat(memberIds(forbidden)).contains(String.valueOf(meId));
+    }
+
+    @Test
+    @DisplayName("금지한 글이 더 오래됐어도 건너뛰고 허용한 다음 방으로 들어간다 — 금지는 후보 SQL 에서 걸러진다(음성 · 내 글과 같은 자리). 옛 글(V10 전 — true)은 그대로 후보다")
+    void forbiddenPostIsSkippedForTheNextOne() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie me = login(nickname);
+        Long meId = userIdOf(nickname);
+        Long olderForbidden = insertRankedPost(hostWithTier("GOLD_1"), "MID");
+        jdbcTemplate.update("update recruit_posts set allow_auto_join = false where id = ?", olderForbidden);
+        // SQL 로 넣은 글은 칸을 몰라 DB 의 기본값(true)이다 — V10 이 옛 글을 채운 값과 같다
+        Long allowed = insertRankedPost(hostWithTier("GOLD_1"), "MID");
+        assertThat(jdbcTemplate.queryForObject("select allow_auto_join from recruit_posts where id = ?", Boolean.class, allowed)).isTrue();
+
+        assertJoined(autoJoin(me, rankedBody("GOLD_4", "MID")), allowed, meId);
+        assertThat(memberIds(olderForbidden)).doesNotContain(String.valueOf(meId));
+    }
 }

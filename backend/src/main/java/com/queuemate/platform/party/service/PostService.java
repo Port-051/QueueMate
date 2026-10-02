@@ -656,7 +656,7 @@ public class PostService {
 
         return new PostResponse(post.getId(), post.getHostId(), post.getGame().name(), post.getMode(), post.getTitle(),
                 post.getDescription(), post.getVoice().name(), post.getConditions(),
-                wanted, post.getHostPosition(), post.getStatus().name(), post.getCreatedAt(),
+                wanted, post.getHostPosition(), post.isAllowAutoJoin(), post.getStatus().name(), post.getCreatedAt(),
                 cards.size(), post.getCapacity(), full, closed,
                 post.getHostId() == null ? null : card(post.getHostId(), true, hostCardPosition, profiles), cards);
     }

@@ -81,6 +81,8 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
      * <b>음성과 내 글 제외를 여기서 보는 이유</b>(2026-09-29 — 그 전에는 자바가 봤다) — 컬럼 등호 조건이라 DB 가 보는 것이 싸고, 무엇보다 {@code limit} 이 <b>쓸 만한 글</b>을 세게 된다.
      * 자바에서 거르면 음성이 안 맞는 글이 상한 {@code limit} 을 잡아먹어 뒤에 맞는 글이 있어도 404 가 났다.
      * 나머지 조건(PUBG 시점 — jsonb 안 · 포지션 — 별도 표 · 방장 티어 · 방 안 인원 — Redis)은 여전히 자바가 본다.
+     * <b>빠른매치 입장을 금지한 글({@code allowAutoJoin = false})도 여기서 뺀다</b>(2026-10-02 소유자 결정 — P-50) — 음성 · 내 글과 같은 까닭으로 SQL 에서 거른다
+     * (자바에서 거르면 금지한 글이 상한을 잡아먹는다).
      */
     @Query("""
             select p
@@ -90,6 +92,7 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
                and p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING
                and p.voice = :voice
                and p.hostId <> :me
+               and p.allowAutoJoin = true
              order by p.id asc
             """)
     List<RecruitPost> findAutoJoinCandidates(@Param("game") Game game, @Param("mode") String mode, @Param("voice") VoicePreference voice,

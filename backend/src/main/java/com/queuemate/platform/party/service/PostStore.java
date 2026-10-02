@@ -104,8 +104,9 @@ public class PostStore {
                 PostValidation.wantedPositions(game, request.wantedPositions()));
         // 방장 포지션은 찾는 포지션과 겹치면 안 된다 — 찾는 포지션을 검증한 뒤에 본다
         String hostPosition = PostValidation.hostPosition(game, modePositions, request.hostPosition(), wanted);
+        // 빠른매치 입장 허용 / 금지는 필수 칸이라(@NotNull — 2026-10-02 · P-50) 여기서는 늘 값이 있다
         RecruitPost post = new RecruitPost(hostId, game, request.mode(), title, description, voice, conditions, wanted,
-                hostPosition, capacity, now);
+                hostPosition, capacity, request.allowAutoJoin(), now);
         try
         {
             // id 가 null 인 새 엔티티라 persist 다 — 반드시 INSERT 가 나가고 그때 id(= roomId)를 받는다. flush 로 위반을 지금 드러낸다
@@ -127,7 +128,8 @@ public class PostStore {
         }
         openRoom(post.getId(), hostId, wanted, request.hostPosition());
         boardSignal.changed();
-        log.info("모집 글 작성 postId={} hostId={} game={} capacity={}", post.getId(), hostId, game, capacity);
+        log.info("모집 글 작성 postId={} hostId={} game={} capacity={} allowAutoJoin={}", post.getId(), hostId, game, capacity,
+                post.isAllowAutoJoin());
         return post;
     }
 
@@ -276,7 +278,7 @@ public class PostStore {
     }
 
     /**
-     * 게시판 방 먼저 합류의 후보 글 — 그 게임 · 그 모드 · 그 음성의 모집 중인 글에서 <b>내 글을 뺀 것</b>을 오래된 순으로 많아야 {@code limit} 개
+     * 게시판 방 먼저 합류의 후보 글 — 그 게임 · 그 모드 · 그 음성의 모집 중인 글에서 <b>내 글과 빠른매치 입장을 금지한 글(P-50)을 뺀 것</b>을 오래된 순으로 많아야 {@code limit} 개
      * ({@link RecruitPostRepository#findAutoJoinCandidates}. 2026-09-28 · P-28. 음성 · 내 글 제외는 2026-09-29 에 자바에서 쿼리로 옮겼다 — 그 이유는 리포지토리 주석).
      * 찾는 포지션까지 쿼리 둘이다. 부르는 쪽({@code AutoJoinService})은 트랜잭션 밖에서 방 키를 읽고 스크립트를 부른다
      */
