@@ -5,7 +5,7 @@ import { SingleRolePicker } from '../components/SingleRolePicker';
 import { modeChoice, modeChoiceLabel } from '../domain/modeChoice';
 import { isPositionRoom, remainingPositions } from './boardRoom';
 import { isPositionError, roomErrorMessage } from './errors';
-import { RoomRoles } from './RoomDeck';
+import { RoomWantedPositions } from './RoomDeck';
 import { RoomVoice } from './RoomVoice';
 import { hasPositions } from './summary';
 import type { BoardRoom } from './types';
@@ -55,7 +55,7 @@ export function RoomJoinConfirm({ room, entryError, cancelsMatch = false, onClos
           방장이 없는 글(방장이 탈퇴한 확정된 글 — P-48)은 이 줄을 그리지 않는다 — 참여 창은 모집 중인 글만 열지만 타입이 `null` 을 허락한다. */}
       {room.host ? <div><dt>방장</dt><dd>{room.host.nickname}{room.hostPosition && hasPositions(room.game, room.modeKey) ? <RoomRoles game={room.game} roles={[room.hostPosition]} labels /> : null}</dd></div> : null}
       <div><dt>인원</dt><dd>{room.memberCount} / {room.capacity}명</dd></div>
-      {hasPositions(room.game, room.modeKey) ? <div><dt>찾는 포지션</dt><dd><RoomRoles game={room.game} roles={room.wantedPositions} labels /></dd></div> : null}
+      {hasPositions(room.game, room.modeKey) ? <div><dt>찾는 포지션</dt><dd><RoomWantedPositions room={room} /></dd></div> : null}
       <div><dt>음성</dt><dd><RoomVoice value={room.voice} />{room.voice === 'REQUIRED' ? '사용' : '미사용'}</dd></div>
       {room.description ? <div><dt>소개</dt><dd>{room.description}</dd></div> : null}
     </dl>

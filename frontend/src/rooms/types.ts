@@ -65,6 +65,8 @@ export interface BoardRoom {
   hostPosition: string | null;
   /** ISO-8601. */
   createdAt: string;
+  autoConfirmAt?: string | null;
+  autoConfirmWarningAt?: string | null;
   /** 방장 카드. **방장이 탈퇴한 확정된 글은 `null`**(P-48) — 방장 표시 없이 `members`(파티원)만 그린다 · 빈 카드를 지어내지 않는다. */
   host: BoardMember | null;
   /** 모집 중인 글은 지금 방 안에 있는 사람(방장 먼저), **확정된 글은 확정 순간의 파티원 전원**(P-40 — 방이 없어져도 남는다), 만료된 글은 비어 있다. */

@@ -2,7 +2,7 @@ import * as api from '../api/client';
 import { isApiError } from '../api/error';
 import type { EventStream } from '../api/sse';
 import type { RoomSignal, ServerEvent, WebRtcSignalPayload } from '../api/types';
-import type { PartyChatMessage, PartyClient, PartyClientHandlers } from './types';
+import type { PartyChatMessage, PartyClient, PartyClientHandlers, VoiceActivity } from './types';
 
 const ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
 const CHAT_CHANNEL = 'party-chat';
@@ -25,6 +25,7 @@ const PROBE_MS = 1_500;
 
 /** 채팅 채널로 오가는 연결 확인 — 채팅 메시지(`PartyChatMessage`)와 `qm` 칸으로 가른다(옛 클라이언트는 `userId` 가 없어 버린다). */
 interface LinkProbeMessage { qm: 'ping' | 'pong'; n: string }
+interface VoiceStateMessage { qm: 'voice'; enabled: boolean; muted: boolean }
 
 export interface WebRtcPartyOptions {
   /** 방 id — 시그널 `POST /rooms/{roomId}/signals` 의 그것. 자동 매칭 파티의 방은 `roomId = partyId`(UUID · P-30). */
@@ -116,10 +117,16 @@ export class WebRtcPartyClient implements PartyClient {
   /** 상대마다 마지막으로 알린 "이어졌다" — 같은 알림을 되풀이하지 않는다. */
   private reported = new Map<string, boolean>();
   private inbox: Promise<void> = Promise.resolve();
+  private voiceTimer: number | null = null;
+  private voiceStates = new Map<string, VoiceActivity>();
+  private remoteMicrophones = new Map<string, VoiceStateMessage>();
+  private energies = new Map<string, { energy: number; duration: number }>();
+  private speakingUntil = new Map<string, number>();
 
   constructor(private readonly opts: WebRtcPartyOptions) {}
 
   async connect(): Promise<void> {
+    void this.sampleVoice();
     this.unsubscribe = this.opts.stream.subscribe((event: ServerEvent) => {
       if (event.type === 'WEBRTC_SIGNAL') this.enqueue(event.payload as unknown as WebRtcSignalPayload);
     });
@@ -140,6 +147,7 @@ export class WebRtcPartyClient implements PartyClient {
       if (this.closed) { local.getTracks().forEach((track) => track.stop()); return; }
       this.local = local;
       this.applyMute();
+      this.broadcastMicrophone();
       // 이미 있는 연결은 음성 transceiver 가 처음부터 sendrecv 라 재협상 없이 트랙만 바꿔 끼운다. 아직 offer 를 못 받은 연결(transceiver 가 없다)은
       // offer 를 받을 때 adoptAudio 가, 아직 offer 를 안 보낸 연결 · 새로 만드는 연결은 offer 가 this.local 을 싣는다.
       await Promise.all([...this.links.values()].map((link) => this.audioTransceiver(link.pc)?.sender.replaceTrack(local.getAudioTracks()[0])));
@@ -148,6 +156,7 @@ export class WebRtcPartyClient implements PartyClient {
       if (this.closed) return;
       this.local?.getTracks().forEach((track) => track.stop());
       this.local = null;
+      this.broadcastMicrophone();
       const denied = err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
       this.opts.handlers.onStatus(denied ? 'denied' : 'error', denied ? '브라우저의 사이트 설정에서 마이크를 허용한 뒤 다시 시도하세요. 채팅은 계속 사용할 수 있습니다.' : '마이크 연결과 시스템 입력 장치를 확인한 뒤 다시 시도하세요. 채팅은 계속 사용할 수 있습니다.');
     }
@@ -184,10 +193,13 @@ export class WebRtcPartyClient implements PartyClient {
   setMuted(muted: boolean): void {
     this.muted = muted;
     this.applyMute();
+    this.broadcastMicrophone();
   }
 
   close(): void {
     this.closed = true;
+    if (this.voiceTimer !== null) window.clearTimeout(this.voiceTimer);
+    this.voiceStates.clear(); this.remoteMicrophones.clear(); this.energies.clear(); this.speakingUntil.clear();
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.unsubscribeStatus?.();
@@ -239,7 +251,7 @@ export class WebRtcPartyClient implements PartyClient {
       if (pc.connectionState === 'failed') this.arm(peerId, 500);
       else if (pc.connectionState === 'disconnected') this.arm(peerId, 5_000); // 잠깐 끊겼다 돌아올 수 있다 — 그대로면 새로 만든다
     };
-    channel.onopen = () => { if (current()) this.report(peerId, link); };
+    channel.onopen = () => { if (current()) { this.report(peerId, link); this.broadcastMicrophone(); } };
     channel.onclose = () => {
       if (!current()) return;
       this.report(peerId, link);
@@ -249,7 +261,14 @@ export class WebRtcPartyClient implements PartyClient {
     channel.onmessage = (e) => {
       if (this.closed) return;
       try {
-        const data = JSON.parse(String(e.data)) as PartyChatMessage | LinkProbeMessage;
+        const data = JSON.parse(String(e.data)) as PartyChatMessage | LinkProbeMessage | VoiceStateMessage;
+        if ('qm' in data && data.qm === 'voice') {
+          if (typeof data.enabled === 'boolean' && typeof data.muted === 'boolean') {
+            this.remoteMicrophones.set(peerId, data);
+            this.voiceActivity(peerId, data.enabled, data.muted, 0);
+          }
+          return;
+        }
         if ('qm' in data) { this.onProbeMessage(peerId, link, data); return; }
         const message = data;
         if (message.userId === peerId && typeof message.text === 'string' && typeof message.at === 'string') this.opts.handlers.onChat(message);
@@ -267,6 +286,9 @@ export class WebRtcPartyClient implements PartyClient {
     const link = this.links.get(peerId);
     if (!link) return;
     this.links.delete(peerId);
+    for (const key of this.energies.keys()) if (key.startsWith(`${link.id}:`)) this.energies.delete(key);
+    this.remoteMicrophones.delete(peerId);
+    this.voiceActivity(peerId, false, false, 0);
     if (link.probe) window.clearTimeout(link.probe.timer);
     link.probe = null;
     link.channel.close();
@@ -426,6 +448,59 @@ export class WebRtcPartyClient implements PartyClient {
     if (this.reported.get(peerId) === up) return;
     this.reported.set(peerId, up);
     this.opts.handlers.onPeer({ userId: peerId, connected: up });
+    if (!up) this.voiceActivity(peerId, false, false, 0);
+  }
+
+  private broadcastMicrophone(): void {
+    const state: VoiceStateMessage = { qm: 'voice', enabled: Boolean(this.local), muted: this.muted };
+    this.voiceActivity(this.opts.selfUserId, state.enabled, state.muted, 0);
+    this.links.forEach(({ channel }) => {
+      if (channel.readyState === 'open') { try { channel.send(JSON.stringify(state)); } catch { /* 재연결 시 다시 전송 */ } }
+    });
+  }
+
+  private voiceActivity(userId: string, enabled: boolean, muted: boolean, level: number): void {
+    if (this.closed) return;
+    if (!enabled || muted) this.speakingUntil.delete(userId);
+    else if (level > 0.015) this.speakingUntil.set(userId, Date.now() + 350);
+    const speaking = enabled && !muted && (this.speakingUntil.get(userId) ?? 0) > Date.now();
+    const prior = this.voiceStates.get(userId);
+    if (prior?.enabled === enabled && prior.muted === muted && prior.speaking === speaking) return;
+    const state = { userId, enabled, muted, speaking };
+    this.voiceStates.set(userId, state);
+    this.opts.handlers.onVoice?.(state);
+  }
+
+  /** 녹음 없이 WebRTC의 음량 통계만 읽는다. 상태가 바뀔 때만 UI에 알린다. */
+  private async sampleVoice(): Promise<void> {
+    if (this.closed) return;
+    let localLevel = 0;
+    await Promise.all([...this.links.entries()].map(async ([peerId, link]) => {
+      let remoteLevel = 0;
+      try {
+        const stats = await link.pc.getStats();
+        if (this.closed || this.links.get(peerId) !== link) return;
+        stats.forEach(report => {
+          if (report.kind !== 'audio' || !['inbound-rtp', 'media-source'].includes(report.type)) return;
+          const key = `${link.id}:${report.id}`;
+          const before = this.energies.get(key);
+          const energy = report.totalAudioEnergy;
+          const duration = report.totalSamplesDuration;
+          let level = typeof report.audioLevel === 'number' ? report.audioLevel : 0;
+          if (typeof energy === 'number' && typeof duration === 'number') {
+            if (before && duration > before.duration) level = Math.sqrt(Math.max(0, energy - before.energy) / (duration - before.duration));
+            this.energies.set(key, { energy, duration });
+          }
+          if (report.type === 'media-source') localLevel = Math.max(localLevel, level);
+          else remoteLevel = Math.max(remoteLevel, level);
+        });
+      } catch { /* 연결을 정리하는 중에는 통계를 읽을 수 없다 */ }
+      if (this.links.get(peerId) !== link) return;
+      const microphone = this.remoteMicrophones.get(peerId);
+      this.voiceActivity(peerId, this.isUp(link) && (microphone?.enabled ?? remoteLevel > 0), microphone?.muted ?? false, remoteLevel);
+    }));
+    this.voiceActivity(this.opts.selfUserId, Boolean(this.local), this.muted, localLevel);
+    if (!this.closed) this.voiceTimer = window.setTimeout(() => void this.sampleVoice(), 250);
   }
 
   // ---------- 음성 ----------

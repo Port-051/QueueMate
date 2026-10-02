@@ -25,3 +25,9 @@
   .friends-row { flex-wrap: wrap; gap: 8px; }
   .friends-row .btn { font-size: 13px; padding-inline: 8px; }
 }
+
+/* 이름과 보조 정보는 줄을 나눠 읽고, 동작은 공간에 맞춰 접는다. */
+.friends-list { display:grid; gap:12px; }
+.friends-row { flex-wrap:wrap; padding:16px; border:1px solid var(--line-soft); border-radius:16px; background:var(--panel); }
+.friends-row>b { flex:1 1 180px; }
+.friends-row>b>small { display:block; margin-top:6px; font-size:12px; font-weight:400; }
