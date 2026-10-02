@@ -1,6 +1,6 @@
 # CLAUDE.md — frontend 규칙 (Non-Negotiable)
 
-> **2026-10-02 멘토 요구사항 반영 브랜치:** 사용자의 최신 요청에 따른 자동 확정·포지션 보존·실제 개인 메시지 계약은 [P-52 · P-53](../platform/contracts/mentor-room-ux.md)을 우선한다. 아래의 상충하는 과거 결정은 이력이다.
+> **2026-10-02 멘토 요구사항 반영 브랜치:** 사용자의 최신 요청에 따른 자동 확정·포지션 보존·개인 메시지·방장 설정 수정 계약은 [P-52 · P-53 · P-54](../platform/contracts/mentor-room-ux.md)을 우선한다. 아래의 상충하는 과거 결정은 이력이다.
 
 작업 전에 루트 `CLAUDE.md` → 루트 `START_HERE.md` → 이 폴더의 `START_HERE.md`(지금 상태 · 통합 계획 · API 대조표 · 미정) → 이 파일 → 계약 순으로 읽어라.
 계약은 **옆 폴더에 있다** — `platform/contracts/platform-api.md`(계정 · 소셜 로그인 · 게임 프로필 · 모집 글 · 방 · 자동 매칭 파티의 방 · 친구 · 차단 · 신고 · 알림) · `matching/contracts/openapi.yaml` · `events.md`(매칭 요청 · 제안 · `MATCH_*` 알림) · `notification/CLAUDE.md`(SSE). 기준일은 2026-09-30 이다.

@@ -1,6 +1,6 @@
 # platform 계약 — 이 폴더에서 정한 것
 
-> **2026-10-02 멘토 요구사항 반영 브랜치:** 사용자의 최신 요청에 따른 자동 확정·포지션 보존·실제 개인 메시지 계약은 [P-52 · P-53](mentor-room-ux.md)을 우선한다. 아래의 상충하는 과거 결정은 이력이다.
+> **2026-10-02 멘토 요구사항 반영 브랜치:** 사용자의 최신 요청에 따른 자동 확정·포지션 보존·개인 메시지·방장 설정 수정 계약은 [P-52 · P-53 · P-54](mentor-room-ux.md)을 우선한다. 아래의 상충하는 과거 결정은 이력이다.
 
 ## 화면 공통 인증 배지 조회 · 2026-10-03
 
@@ -535,7 +535,7 @@ access 가 짧아진 만큼(15분) 그것을 이어 주는 것이 refresh 다. *
 | 요청 | 본문 | 성공 | 실패 |
 |---|---|---|---|
 | `POST /api/v1/posts` | `{game, mode, title, description, voice, conditions, wantedPositions: [], hostPosition, allowAutoJoin}`(`hostPosition` — 2026-09-30 · 아래 "방장 포지션". **`allowAutoJoin`(boolean) 은 필수** — 2026-10-02 · 아래 "빠른매치 입장 허용 / 금지") | 201 글 한 줄(아래) — **방이 같이 생겨 `members` 에 방장이 있고 `memberCount` 는 1 이다** | 409 `ALREADY_RECRUITING`(모집 중인 글은 한 사람에 하나) · **409 `ALREADY_QUEUED`**(자동 매칭 중) · **409 `IN_OTHER_ROOM`**(이미 다른 방에 들어가 있다) · 409 `ROOM_ALREADY_EXISTS`(정상이면 나지 않는다) · **503 `ROOM_STATE_UNAVAILABLE`**(방을 못 만들었다) · 400 |
-| ~~`PATCH /api/v1/posts/{postId}`~~ (글 고치기 — **2026-10-01 에 없어졌다 · P-45**) | — | **405 `METHOD_NOT_ALLOWED`**(`{"code":"METHOD_NOT_ALLOWED"}` — 같은 경로에 `GET` · `DELETE` 가 있어 스프링이 메서드를 거절한다 · `GlobalExceptionHandler#handleMvcClientError` · 2026-10-01 `PostApiTest#editIsGone` 으로 확인). 바꿀 길은 없다 | (옛 — 200 글 한 줄 · 403 `NOT_POST_HOST` · 409 `POST_NOT_RECRUITING` · ~~409 `ROOM_HAS_OTHER_MEMBERS`~~(없어졌다) · 503 · 404) |
+| `PATCH /api/v1/posts/{postId}` | 글 쓰기와 같은 전체 조건 본문(부분 수정 아님, 게임 변경 불가) | 200 최신 글 한 줄. 현재 방장만, 마감 뒤에는 제목·마이크만 수정. 상세 [P-54](mentor-room-ux.md#p-54-방장-설정-수정--2026-10-03) | 400 `VALIDATION_FAILED` · 403 `NOT_HOST` · 404 `POST_NOT_FOUND` / `ROOM_NOT_FOUND` · 409 `POST_NOT_RECRUITING` · 503 `ROOM_STATE_UNAVAILABLE` |
 | `DELETE /api/v1/posts/{postId}` | — | 204. **지우지 않고 "만료"로 바꾸고 방도 닫는다**(아래 "방과 글은 같이 산다"). 이미 만료면 그대로 204 | 403 `NOT_POST_HOST` · 409 `POST_CONFIRMED` · 404 |
 | `GET /api/v1/posts?game=LOL&limit=20&cursor=123` | — | 200 `{posts: [글 한 줄…], nextCursor: 104 또는 null}`(**`nextCursor` 는 숫자다**) | 400 `VALIDATION_FAILED`(**`game` 이 없다** · `game` 이 세 게임의 이름이 아니다 · `limit` 이 1~100 이 아니다 · `limit` · `cursor` 가 숫자가 아니다) |
 | `GET /api/v1/posts/{postId}` | — | 200 글 한 줄 | 404 `POST_NOT_FOUND`(차단 관계로 숨겨진 글도 404 다) |
