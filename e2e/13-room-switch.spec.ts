@@ -16,8 +16,8 @@ test('방 이동 — 현재 방 표시, 컬러 유지, 취소 후 확인하면 �
   await expect(destination.locator('.room-seat-vacancy')).toHaveText('4명 더 모집 중!');
   await destination.getByRole('button', { name: '참가', exact: true }).click();
   let dialog = page.getByRole('dialog', { name: '다른 방에 참가할까요?', exact: true });
-  await expect(dialog.getByRole('alert')).toContainText('그래도 참가하시겠습니까?');
-  await expect(dialog.getByRole('alert')).toContainText('방장으로 모집 중인 방은 닫힙니다.');
+  await expect(dialog.getByRole('alert')).toContainText('그래도 이 방에 참가하시겠습니까?');
+  await expect(dialog.getByRole('alert')).toContainText('방장으로 모집 중인 방도 닫힙니다.');
   await expect(dialog.getByRole('button', { name: '나가고 참가하기', exact: true })).toBeDisabled();
   await dialog.getByRole('button', { name: '취소', exact: true }).click();
   expect((await a.get<{ roomId: string }>('/rooms/me')).body.roomId).toBe(String(original.postId));
@@ -50,7 +50,7 @@ test('방 이동 실패 — 퇴장 실패는 기존 방 유지, 입장 실패는
   await dialog.getByRole('button', { name: '나가고 참가하기', exact: true }).click();
   await expect(dialog.getByText(/이전 방에서는 나왔지만 새 방에 참가하지 못했어요/)).toBeVisible();
   expect((await a.get<{ roomId: string | null }>('/rooms/me')).body.roomId).toBeNull();
-  await dialog.getByRole('button', { name: '참여하기', exact: true }).click();
+  await dialog.getByRole('button', { name: '참가하기', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/app/party/${target.postId}$`));
   expect((await a.get<{ roomId: string }>('/rooms/me')).body.roomId).toBe(String(target.postId));
 });

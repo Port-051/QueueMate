@@ -15,7 +15,7 @@ const NOTIFICATION = 'http://localhost:8081'; // SSE
 const CHAT = 'http://localhost:8083';         // 방 채팅 · 친구 DM — WebSocket(/ws/chat) · REST(/api/v1/chat) (D-58 · 2026-10-10)
 
 export default defineConfig(({ mode }) => {
-  const { QUEUEMATE_PREVIEW_HOST } = loadEnv(mode, process.cwd(), 'QUEUEMATE_');
+  const { QUEUEMATE_PREVIEW_HOST, QUEUEMATE_MATCHING_URL } = loadEnv(mode, process.cwd(), 'QUEUEMATE_');
   return {
     plugins: [react()],
     server: {
@@ -27,8 +27,8 @@ export default defineConfig(({ mode }) => {
         '/api/v1/chat': CHAT,
         '/ws/chat': { target: CHAT.replace('http', 'ws'), ws: true },
         '/api/v1/events': NOTIFICATION,
-        '/api/v1/match-requests': MATCHING,
-        '/api/v1/proposals': MATCHING,
+        '/api/v1/match-requests': QUEUEMATE_MATCHING_URL || MATCHING,
+        '/api/v1/proposals': QUEUEMATE_MATCHING_URL || MATCHING,
         '/api': PLATFORM,
       },
     },

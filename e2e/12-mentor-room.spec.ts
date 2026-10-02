@@ -27,7 +27,7 @@ test('멘토 UI — 남은 포지션 · 3인 자동 확정 · 확정 후 카드�
   await a.del(`/rooms/${room.postId}/members/me`);
   expect((await enter(a, String(room.postId), 'MID')).status).toBe(409);
   await expect(card).toHaveClass(/is-unavailable/);
-  await expect(card.getByRole('button', { name: /^참가/ })).toBeDisabled();
+  await expect(card.getByRole('button', { name: /^마감/ })).toBeDisabled();
 });
 
 test('멘토 개인 메시지 — 파티원 카드에서 전송 · 상대 수신 · 새로고침 후 보존', async ({ crew }) => {
