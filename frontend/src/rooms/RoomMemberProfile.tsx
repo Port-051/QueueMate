@@ -30,14 +30,15 @@ export function RoomMemberProfile({ room, member, color, onClose, actions }: {
   const social = useSocial();
   const [reporting, setReporting] = useState(false);
   const blocked = social.isBlocked(member.id);
+  const friend = social.isFriend(member.id);
   const runSocial = async (action: () => Promise<void>, success: string) => {
     try { await action(); toast(success, 'ok'); }
     catch (error) { toast(socialErrorMessage(error, '요청을 처리하지 못했습니다'), 'error'); }
   };
   const defaultActions: MemberDetailAction[] = member.id === userId ? [] : [
     { key: 'message', label: '메시지 보내기', onSelect: () => navigate(`/app/messages/${member.id}`) },
-    ...(!social.isFriend(member.id) ? [{ key: 'friend', label: social.requestTo(member.id) ? '친구 요청 보냄' : '친구 추가', disabled: blocked || Boolean(social.requestTo(member.id)),
-      onSelect: () => void runSocial(() => social.addFriend(member.id), `${member.nickname}님에게 친구 요청을 보냈습니다`) }] : []),
+    { key: friend ? 'friend-added' : 'friend', label: friend ? '친구' : social.requestTo(member.id) ? '친구 요청 보냄' : '친구 추가', disabled: friend || blocked || Boolean(social.requestTo(member.id)),
+      onSelect: () => void runSocial(() => social.addFriend(member.id), `${member.nickname}님에게 친구 요청을 보냈습니다`) },
     { key: blocked ? 'unblock' : 'block', label: blocked ? '차단 해제' : '차단',
       onSelect: () => void runSocial(() => blocked ? social.unblock(member.id) : social.block(member.id), blocked ? '차단을 해제했습니다' : '차단했습니다') },
     { key: 'report', label: '신고', onSelect: () => setReporting(true) },
@@ -86,7 +87,7 @@ export function RoomMemberProfile({ room, member, color, onClose, actions }: {
     return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); document.removeEventListener('focusin', focusOut); };
   }, [anchor, reporting]);
   const dismiss = () => { onClose(); anchor?.focus({ preventScroll: true }); };
-  const actionButton = (action: MemberDetailAction) => <button key={action.key} type="button" disabled={action.disabled}
+  const actionButton = (action: MemberDetailAction) => <button key={action.key} type="button" disabled={action.disabled} data-action={action.key}
     className={`room-detail-action${action.tone === 'danger' ? ' is-danger' : ''}`} onClick={() => {
       if (!(actions === undefined && action.key === 'report')) onClose();
       action.onSelect();
