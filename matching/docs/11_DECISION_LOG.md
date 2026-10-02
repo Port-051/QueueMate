@@ -1254,7 +1254,7 @@ INV-1 이 깨진다.
   길만 사라진** 연결을 알아챌 재료가 없었다 — 공유기 재부팅, 와이파이는 잡혀 있는데 인터넷만 끊김,
   절전 복귀, 서버가 있는 기계가 통째로 죽음, 중간 프록시가 말없이 버림.
 - 서버는 주기마다 **쓰기** 때문에 실패로 곧 안다. 브라우저는 **읽기만** 해서 실패할 일이 없고,
-  운영체제가 알아챌 때까지 환경에 따라 1분 안쪽~수 분이 걸린다. 매칭 제안 수명이 20초라 그 시간이
+  운영체제가 알아챌 때까지 환경에 따라 1분 안쪽~수 분이 걸린다. 매칭 제안 수명이 20초라(**→ D-55**) 그 시간이
   길다.
 - `retry:` 를 흩는 이유는 재배포 직후 모든 클라이언트가 같은 순간에 재접속하고 각자 상태 조회까지
   하는 몰림을 피하려는 것이다.
@@ -1892,7 +1892,7 @@ D-9 는 시그널 `POST` 를 받는 앱을 `app:platform` 으로 적었다.
   순으로 단계를 밟는가, 실행 시점의 슬롯까지 남은 시간으로 한 번만 정하는가, 완화를 없애는가.
 - **제안 · 수락 — 가장 큰 문제다. D-15 미정의 첫 항목과 이어진다.** `docs/04` §8 은 "예약도 realtime 과
   동일한 proposal acceptance 모델을 사용한다"고 적고, 실시간 제안의 수명은 기본 20초다
-  (`queuemate.proposal.ttl-seconds`). **정해진 시각에 한꺼번에 제안이 나가면 그 순간 사용자가 화면 앞에
+  (`queuemate.proposal.ttl-seconds`)(**→ D-55**). **정해진 시각에 한꺼번에 제안이 나가면 그 순간 사용자가 화면 앞에
   있다는 보장이 없다.** 알림은 SSE 하나라 페이지를 열어 둔 사용자에게만 닿는다(`contracts/events.md`).
   - 수락 시한을 길게 두는가, 수락 없이 자동 확정하는가.
   - 페이지 밖의 사용자에게 어떻게 알리는가. Web Push 는 "나중에 보완으로"로 분류돼 있다
@@ -3535,11 +3535,11 @@ D-25 는 사용자의 식별자를 **사용자 번호(`userId`)와 로그인 아
 → `ScriptSupport#blockedWith`) 한 겹으로 지킨다. `BlockRepository` 에는 그 메서드 하나만 남긴다.
 
 **근거.** ②가 ① 보다 더 잡는 것은 **둘이 같은 파티에 들어온 뒤에 차단한 경우** 하나뿐이다(정원 2 인 파티도 두 번째 사람이
-들어올 때 ①이 첫 사람과의 차단을 본다). 그 창은 제안 시한(`queuemate.proposal.ttl-seconds`, 기본 20초) 안이고, 그동안
+들어올 때 ①이 첫 사람과의 차단을 본다). 그 창은 제안 시한(`queuemate.proposal.ttl-seconds`, 기본 20초)(**→ D-55**) 안이고, 그동안
 차단이 생기는 일은 드물다. 대가는 **수락마다 DB 를 한 번 치는 것**과, 차단이 걸렸을 때 제안을 깨고 양쪽을 빼고 전원에게
 알리는 갈래 하나(코드 · 테스트 · 계약 설명)다. 값이 비용에 못 미친다고 봤다.
 
-**감수하는 것.** 파티가 찬 뒤 20초 안에 서로를 차단한 두 사람이 같은 파티로 확정될 수 있다. 확정 뒤 파티의 수명은
+**감수하는 것.** 파티가 찬 뒤 20초(**→ D-55**) 안에 서로를 차단한 두 사람이 같은 파티로 확정될 수 있다. 확정 뒤 파티의 수명은
 `app:platform` 것이므로, 그 안에서 차단 상대를 만난 사용자는 방을 나가는 것으로 푼다.
 
 **영향.** `CLAUDE.md` §3 · §4 INV-6 행의 "확정 직전 최종 검증(없음)" 은 "두지 않는다(D-41)" 로 읽는다. #30 의 "차단 검증 없이
@@ -3559,11 +3559,11 @@ D-25 는 사용자의 식별자를 **사용자 번호(`userId`)와 로그인 아
 1. **SQS · outbox 를 만들지 않는다.** 이 앱이 생산 · 소비하는 큐는 0 개다. Flyway 도 없다.
 2. **확정 직후 `redis/proposal/cleanup-confirmed.lua` 가 파티 HASH `qm:party:{partyId}` 를 자기완결로 만든다** — `status=CONFIRMED`,
    `confirmedAt`(epoch ms), `game`, `modeKey`, `voicePreference`, `playPurpose` 를 채운다(기존 `target`, `member:{userId}=keyValue`, 티어 모드의
-   `tierLo`/`tierHi` 는 그대로). **이 필드 목록이 `app:platform` 과의 계약이다** — 이름을 바꾸면 platform 이 조용히 깨진다(`SharedKeys` 의 경고와 같다).
+   `tierLo`/`tierHi` 는 그대로). **이 필드 목록이 `app:platform` 과의 계약이다**(**→ D-56** — 제안 중에도 `status` · `member:{userId}` 를 읽는다) — 이름을 바꾸면 platform 이 조용히 깨진다(`SharedKeys` 의 경고와 같다).
 3. **영구 보존 대신 TTL.** 파티 HASH 는 `queuemate.proposal.confirmed-party-ttl-seconds`(기본 600초), 활성 요청(`status=PARTY`)과 수락자 SET 은
    `queuemate.proposal.confirmed-retention-seconds`(기본 60초). **60초 뒤 사용자는 새 매칭을 걸 수 있다.**
 4. **흐름** — 이 앱이 `MATCH_CONFIRMED {partyId}` 를 보낸다 → 프런트가 platform 의 "이 매칭으로 파티 만들기"(경로 · 이름은 platform 이 정한다)를
-   부른다 → platform 이 `qm:party:{partyId}` 를 읽어(`status == CONFIRMED` 확인) 파티와 방을 만들고 파티원 전원에게 입장 표시 키
+   부른다 → platform 이 `qm:party:{partyId}` 를 읽어(`status == CONFIRMED` 확인)(**→ D-56**) 파티와 방을 만들고 파티원 전원에게 입장 표시 키
    `qm:user:active-room:{userId}` 를 찍는다(D-19). 다섯 명이 다 눌러도 `partyId` 유일 키로 **한 번만** 만든다. 알림을 놓친 클라이언트는 60초 안이면
    `GET /match-requests` 가 `MATCHED + partyId` 를 답한다.
 5. **"한 번에 하나만"(D-11 · D-19)의 보호는 확정 60초 뒤부터 platform 의 입장 표시 키가 맡는다** — `claim-request.lua` 가 이미 `KEYS[2]` 로 본다.
@@ -3642,7 +3642,7 @@ platform 이 입장 키를 못 찍으면 그 사이 사용자가 새 매칭을 �
 접속 확인은 그 넷을 다 덮고, 방이 이미 같은 방식으로 살고 있어 사용자와 프런트가 새로 배울 것이 없다. 스위퍼 · 취소 경로 · 알림이 전부
 있어서 새로 만든 것은 엔드포인트 하나 · `ZADD` 둘(접수 Lua · 서비스) · 스위퍼와 만료 서비스 한 쌍이다.
 
-**감수하는 것.** 창을 닫은 사람이 유예 시간(90초)만큼 파티 자리를 차지한다 — 그 사이 정원이 차면 제안이 열리고 그 사람 때문에 만료된다.
+**감수하는 것.** 창을 닫은 사람이 유예 시간(90초)만큼 파티 자리를 차지한다 — 그 사이 정원이 차면 제안이 열리고 그 사람 때문에 만료된다(**→ D-55**: 제안이 길어져 만료가 아니라 회수 때 깨진다).
 유예를 줄이면 네트워크가 잠깐 끊긴 사람이 억울하게 빠진다. 주기 30초 · 유예 90초(신호 세 번 놓치면 빠짐)가 출발점이다.
 게으른 정리의 값 — 끝난 요청의 member 가 최대 유예만큼 ZSET 에 남고, 스위퍼가 그것을 한 번 꺼내 `HGETALL` 한 번을 쓴다.
 
@@ -4316,6 +4316,132 @@ DB 칸 `recruit_posts.capacity smallint`(마이그레이션 **V8** · `NULL` 허
 D-48 은 전적 갱신 · 주기적 갱신을 적지 않아 달지 않았다. D-47 의 관계("전적 갱신이 티어를 같이 갱신하는 것 … 그대로다")와 D-51 의 관계 · 그대로인 것 · 감수에 적힌 "전적 갱신" 은
 그날의 모양을 적은 것이라 달지 않았다 — D-30 · D-37 결정 4 의 표시로 이어진다. D-26 은 고치지 않았다.
 `contracts/events.md` · `contracts/openapi.yaml` · 이 저장소의 코드 · seed 에 걸리는 것은 없다.
+
+### D-55. 제안의 수락 시한을 20초에서 5분으로 늘린다 — 같은 날 60초를 거쳤다 (D-41 근거 · 감수의 "20초" 개정, 2026-10-01)
+
+> **프로젝트 소유자가 정했다** — 처음엔 "20초는 좀 짧은 것 같으니 60초로", 같은 날 다시 **5분(300초)**. 커밋 전에 바뀌어 항목 하나로 적는다.
+> 기본값 하나를 바꾼 것이고 코드 · Lua 의 동작은 그대로다.
+
+**원안.** 정원이 찬 파티(= 제안)의 수락 시한 `queuemate.proposal.ttl-seconds` 의 기본값은 **20초**였다. 복원 시점(O-4)부터 설정에 있던 값이고,
+그 값을 정한 항목은 이 로그에 없다.
+
+**결정.** 기본값을 **300초(5분)** 로 한다 — `backend/src/main/resources/application.yaml` 의 `ttl-seconds: ${PROPOSAL_TTL_SECONDS:300}`.
+환경변수 **`PROPOSAL_TTL_SECONDS`** 로 덮어쓸 수 있는 것은 그대로다.
+
+**왜.**
+
+- **제안 화면에서 팀원 정보를 보고 고를 시간이 필요하다** — 소유자가 같은 날 제안 화면에 팀원 정보를 보이게 하자고 했다(그 화면 작업은 따로 진행 중이다).
+  제안은 "이 사람들과 할지" 를 고르는 자리가 되고, 20초 · 60초는 정보를 읽고 정하기에 짧다. 5분으로 정한 것이 이 이유다.
+- 20초는 알아채기에도 짧았다(60초로 먼저 늘린 이유). 알림은 SSE 하나라 페이지를 열어 둔 사람에게만 닿고(`contracts/events.md`),
+  다른 탭을 보고 있던 사람은 화면으로 돌아오는 사이에 제안이 만료됐다(`docs/WHY_SPRING_BOOT.md` §5-3 이 Web Push 를 "나중에 보완" 으로 미룬 그 문제다).
+
+**그대로인 것 — 시한을 읽는 자리는 전부 이 설정 하나다.**
+
+- **시한 계산** — 세 게임의 `rule/{lol,pubg,valorant}/*Assigner` 가 `now + ttl-seconds × 1000` 을 계산해 `join-party*.lua` 6개에 넘기고,
+  스크립트가 `HSETNX expiresAt` 과 `qm:proposal:pending` 의 score 로 적는다.
+- **만료** — `ProposalSweeper`(1초) → `ProposalExpiryService` → `expiry-proposal.lua`. **수락 시한 검사** — `accept-proposal.lua` 가 `ARGV[3] = now` 로
+  `expiresAt <= now` 면 `NOT_FOUND`(INV-5 expired). 둘 다 `expiresAt` 을 볼 뿐 시한의 길이를 모른다.
+- **클라이언트** — 상태 조회(`GET /match-requests`)의 `PROPOSED` 갈래가 주는 `expiresAt`(epoch ms)으로 남은 시간을 그린다. `../frontend/src` 에 시한의
+  길이를 박아 둔 곳은 없다(`components/InlineProposal.tsx` · `pages/ProposalPage.tsx` 가 `expiresAt - now`). 경로 · 스키마 · 알림 · 파티 HASH 필드는 바뀌지 않았다 —
+  앱 사이의 약속이 아니다(`app:platform` 은 확정 뒤의 파티 HASH 만 읽고 `expiresAt` 을 보지 않는다).
+- **matching 대기 접속 확인(D-43)과 부딪히지 않는다** — 시한(5분)이 유예(`queuemate.alive.grace-ms` 90초)보다 길어졌지만, 제안 중에도 신호가 간다.
+  프런트의 `MatchProvider` 는 앱 맨 바깥(`main.tsx`)에 있고 heartbeat 를 `QUEUED` · `PROPOSED` 동안 어느 화면에서든 30초마다 보낸다
+  (`state/MatchContext.tsx` 의 `isActive`). 서버의 `HeartBeatService#update` 는 활성 요청 키가 있으면 받는다 — `PROPOSED` 도 키가 있다.
+  `RequestAliveExpiryService` 가 건너뛰는 것은 `status=PARTY` 하나라 **신호가 끊긴 사람은 제안 중이어도 거둬진다**(아래 감수).
+- `confirmed-retention-seconds`(60초) · `confirmed-party-ttl-seconds`(600초) · `decline-avoid-seconds`(600초 — D-45) · claim 의 `EXPIRE 60` 과는 무관하다
+  (claim 의 만료는 배정 때 `PERSIST` 로 떨어지고, 파티 HASH 의 TTL 은 확정 뒤에만 걸린다).
+
+**감수하는 것.**
+
+- **D-41 이 감수한 창이 열다섯 배가 된다** — "둘이 같은 파티에 들어온 뒤 제안 시한 안에 서로 차단한 경우" 는 확정 직전 검증 없이 확정될 수 있다(D-41).
+  그 창이 20초에서 5분이 됐다. D-41 의 판단("드물다 · 수락마다 DB 를 치는 값에 못 미친다")을 다시 열지는 않았다 — 팀원 정보를 보고 "같이 하기 싫다" 면
+  차단이 아니라 거절이 길이다(거절하면 D-45 로 10분 동안 다시 안 만난다).
+- 무응답자 한 명이 파티 전원을 기다리게 하는 시간도 최대 5분으로 늘었다(만료되면 수락한 사람은 파티에 남아 다시 기다린다 — INV-5 expired).
+- **제안 중에 matching 대기 접속 확인(`POST /match-requests/heartbeat`)이 90초 끊긴 사람은 이미 수락했더라도 나간 것으로 처리한다**(2026-10-01 **소유자 결정** — "그래도 그냥 나간 거니까 그냥 나간 걸로
+  처리해". 코드는 그대로다).
+  - **무엇이 일어나나** — 창을 닫은 사람만이 아니다. 다른 앱으로 넘어가 브라우저가 멈추거나 탭이 잠들어 `POST /match-requests/heartbeat` 가
+    유예(`queuemate.alive.grace-ms` 90초)만큼 끊기면, **수락한 사람도** `RequestAliveSweeper` → `RequestAliveExpiryService#expire` 가 거둬 간다
+    (건너뛰는 것은 `status=PARTY` 하나다 — D-43). `MatchCancelService#cancel` → `leave-party.lua` 가 그 사람을 빼면서 **그 순간 제안이 깨진다** —
+    `status` · `expiresAt` 과 수락자 SET 이 지워져 **다른 사람의 수락 기록도 사라지고**, 남은 사람은 `MATCH_CANCELLED` 를 받고 다시 기다린다(INV-5 cancelled).
+    제안은 5분을 다 채우지 않고 그때 끝난다. 거둬진 본인에게는 알림이 없다 — 돌아오면 상태 조회가 `IDLE` 이다.
+  - **20초였을 때는 생기지 않던 갈래다.** 제안이 열릴 때 살아 있던 사람은 마지막 신호가 30초 안이라 회수 시한이 적어도 60초 뒤였고, 그 전에 확정이나 만료가
+    먼저 왔다. 시한이 5분이 되며 회수가 확정 · 만료보다 먼저 올 수 있게 됐다.
+  - **고르지 않은 대안** — ① 제안 중(`PENDING`)에는 거두지 않고 만료에 맡기기(수락한 사람이 파티에 남는다) ② 유예를 늘리기(대기 중 창을 닫은 사람도 그만큼 오래 남는다)
+    ③ 화면으로 돌아오는 즉시 신호 보내기(`visibilitychange` — 프런트의 일이고, 멈춘 동안의 회수는 막지 못한다). 소유자가 "나간 것" 으로 정해 셋 다 두지 않았다.
+- 배포하는 순간 이미 열려 있던 제안은 옛 `expiresAt`(20초) 그대로 끝난다. 새로 열리는 제안부터 5분이다. Redis 에 옮길 데이터는 없다.
+
+**아직 미정.** 없다. 예약 매칭의 수락 시한(D-17 "제안 · 수락")은 이 값과 별개로 여전히 미정이다.
+
+**영향.**
+
+- 코드 — `application.yaml`(기본값과 주석) · `ProposalIdempotencyTest.TTL_MILLIS`(기본값을 베낀 상수 — `20_000` → `300_000`) · `block/BlockRepository.java` 의 머리 주석.
+  시한을 짧게 덮어쓰는 테스트는 없다.
+- 문서 — `CLAUDE.md` §4(INV-5 · INV-6) · `START_HERE.md` §3(요청 흐름) · §4.1(제안 만료) · `HANDOFF.md` §0-8 · `contracts/events.md`(`MATCH_PROPOSAL_EXPIRED` 행 ·
+  하트비트 근거의 "제안 수명") · `docs/WHY_SPRING_BOOT.md` §5-3.
+- 이 로그 — D-10(하트비트 근거의 "제안 수명이 20초") · D-17("실시간 제안의 수명은 기본 20초") · D-41(근거 · 감수) · D-43(감수의 "그 사람 때문에 만료된다") 에
+  "→ D-55" 만 달았다 — 본문은 고치지 않았다.
+  O-4 는 2026-09-06 의 관찰이라 달지 않았다. `db-design/` · `redis-ha-lab/` 의 "20초" 는 옛 설계 · 실험의 기록이라 고치지 않았다.
+- 다른 폴더 — `../notification/backend/src/main/resources/application.yaml` 의 재접속 대기 주석이 "제안 수명이 20초다" 라고 적는다(그 폴더의 일 — 값은 맞고 주석만 낡았다).
+  `../frontend/src/components/InlineProposal.tsx` 는 남은 시간을 초 숫자 하나로 그린다(5분이면 `300` 부터 — 모양은 그 폴더의 일이다).
+
+### D-56. `app:platform` 이 제안 중(`PENDING`)인 파티 HASH 도 읽는다 — 퀵 매칭 파티의 팀원 카드를 주려고 (D-42 결정 2 · 4 의 "확정 뒤에만 읽는다" 를 넓힌다, 2026-10-01)
+
+> **이름 — 2026-10-02 소유자 결정으로 화면 이름 "퀵 매칭" 이 "빠른매치" 가 됐다.** 이 항목의 "퀵 매칭" 은 빠른매치로 읽는다 — 결정의 내용은 그대로다
+> (본문은 고치지 않았다). 기록 · 코드의 이름 "자동 매칭" 도 그대로다.
+> **프로젝트 소유자가 정했다.** 사실의 원본은 `../platform/contracts/platform-api.md` 의 P-47 이다(경로 · 응답 · 에러 코드는 그쪽이 정한다).
+> **이 앱의 코드는 바뀌지 않는다** — 배정 스크립트가 이미 쓰고 있는 필드를 platform 이 더 이른 때에 읽는 것이다. 바뀌는 것은 앱 사이의 약속이다.
+
+**원안(D-42).** platform 은 파티 HASH `qm:party:{partyId}` 를 **확정 뒤에만** 읽는다 — `POST /api/v1/match-parties/{partyId}/room` 이 `status == CONFIRMED` 를
+확인하고 필드 전부를 읽어 파티와 방을 만든다(platform 쪽 표현으로 "확정 뒤 `HGETALL` · `HEXISTS` 만"). 계약은 확정된 HASH 의 필드 목록이었다.
+
+**결정**(소유자).
+
+1. **platform 이 퀵 매칭 파티의 팀원 카드를 주는 요청을 만든다** — `GET /api/v1/match-parties/{partyId}/members?game=`(platform P-47). 카드는 닉네임 · 게임 프로필이고
+   게시판 카드와 같은 수준이다.
+2. **그 자격 확인을 위해 platform 이 제안 중(`status=PENDING`)인 HASH 도 `HGETALL` 로 읽는다.** 부른 사람의 `member:{나}` 가 있는가와 `status` 를 본다
+   (어느 `status` 에서 답하는지는 P-47 이 정한다). **쓰기 · 지우기 · `EXPIRE` 금지는 그대로다.**
+3. **제안 중에는 HASH 에 `game` 이 없다**(확정 때 `cleanup-confirmed.lua` 가 채운다) — **프런트가 `?game=` 으로 넘긴다.** 이 앱이 배정 때 `game` 을 HASH 에 적는 안은
+   택하지 않았다(소유자 — 이 앱의 Lua 를 고치지 않는다).
+4. **차단 관계는 거르지 않는다**(소유자). 배정 때 INV-6 선필터가 이미 걸렀고, 남는 것은 같은 파티에 들어온 뒤 생긴 차단뿐이다(D-41 의 창 — D-55 로 5분).
+
+**왜.** 소유자가 제안 화면부터 팀원 정보를 보이게 하자고 했다 — 제안이 "이 사람들과 할지" 를 고르는 자리가 된다. D-55(수락 시한 5분)의 이유와 같다.
+확정 뒤에는 방에 들어가 보면 되지만, 고르는 것은 확정 전이라 확정 전의 HASH 를 읽지 않고는 "누가 같은 파티인가" 를 알 길이 없다(이 앱은 사람의 프로필을 모른다 —
+D-34 로 이 앱이 읽는 테이블은 `blocks` 하나다). 그래서 이 앱이 프로필을 내주는 대신 platform 이 HASH 의 멤버 목록을 읽는다 — 앱 사이 동기 HTTP 를 만들지 않는다.
+
+**공개 조회가 아닌 까닭.** 사람 검색 · 둘러보기 금지(#14 · D-11)를 어기지 않는다 — **같은 파티원끼리만** 본다. 자격은 HASH 의 `member:{나}` 하나이고, 볼 수 있는 사람은
+시스템이 이미 나와 맞춘 사람들뿐이다(`partyId` 는 UUID 라 짐작할 수도 없다). 게시판 방 안 사람 목록(`GET /api/v1/rooms/{roomId}/members` — 방 안 사람만)과 같은 범위의 논리다.
+
+**앱 사이의 약속이 되는 것.**
+
+- **제안 중 HASH 의 `status` 와 `member:{userId}` — 필드 이름과 값.** `status` 는 `PENDING`(정원이 찼다 · `join-party*.lua` 의 `HSETNX`) · `CONFIRMED`
+  (`accept-proposal.lua`) · 없음(아직 안 찼거나, 거절 · 만료 · 취소로 제안이 깨졌다). `member:{userId}` 의 `{userId}` 는 사용자 번호의 십진 문자열이고,
+  **값은 LoL 이면 포지션 · VALORANT 면 역할군(그 사람의 keyValue) · PUBG 면 `'EXIST'`**(자리 채움 — 플랫폼은 색인 키에만 있다). 쓰는 자리는 배정 스크립트
+  (`{lol,pubg,valorant}/create-or-check-party-*.lua` · `join-party*.lua`)이고 지우는 자리는 `leave-party.lua` 다.
+- **대조 테스트가 없다.** platform 의 `SharedPrefixTest` 는 접두사 `qm:party:` 만 대조한다. 이름이나 값 모양을 한쪽만 바꾸면 컴파일도 테스트도 통과한 채로
+  팀원 카드가 403 · 404 만 낸다(D-42 의 확정 뒤 필드와 같은 종류의 위험이다). 그래서 `redisKeys/SharedKeys` 머리 주석 · `CLAUDE.md` §3 에 적었다.
+- 그 밖의 필드(`createdAt` · `expiresAt` · `tierLo` / `tierHi` · VALORANT 의 `tier:{userId}` · `minTier` / `maxTier`)는 이 약속이 아니다 — platform 은 무시한다.
+
+**감수하는 것.**
+
+- **제안 중 HASH 에는 수명이 없고 사람이 들고 난다.** 마지막 사람이 나가면 `leave-party.lua` 가 지우고, 거절 · 만료 · 취소로 제안이 깨지면 `status` 와 빠진 사람의
+  `member:` 필드가 지워진 채 HASH 는 남는다(남은 사람은 다시 기다리고 새 사람이 들어올 수 있다). 카드는 **읽은 순간의** 파티원이다 — 빠진 사람은 자격을 잃는다.
+- **`?game=` 은 프런트가 넘긴 값을 믿는다.** 틀린 게임을 넘기면 같은 파티원의 다른 게임 프로필이 보일 뿐이다(남의 정보가 새지는 않는다 — 자격은 HASH 가 본다).
+- **차단을 거르지 않으므로** 파티에 들어온 뒤 서로 차단한 두 사람(D-41 의 창)은 서로의 카드를 본다. 싫으면 거절이 길이다(D-45 — 10분 동안 다시 안 만난다).
+- 파티원마다 platform 의 요청 하나 · `HGETALL` 한 번이 는다. 제안이 열릴 때 한 번 부르는 정도라 무시할 수준으로 봤다.
+
+**아직 미정.** 없다(이 앱 쪽). 응답의 모양 · 어느 `status` 에서 답하는지 · 에러 코드는 platform 의 P-47 이다.
+
+**영향.**
+
+- 이 앱의 코드 · Lua — **동작 변경 없음.** `redisKeys/SharedKeys` 의 머리 주석("다른 앱이 읽는 키" 의 `PARTY_PREFIX`)에 제안 중에도 읽는다는 것과 PUBG 의 `member:` 값을 적었다.
+  배정 스크립트들의 "파티 HASH 구조" 머리 주석은 고치지 않았다 — 앱 사이의 경고는 `SharedKeys` 한 곳에 모은다(`CLAUDE.md` §3 이 그리로 보낸다).
+- 문서 — `CLAUDE.md` §3(`qm:party:` 도 platform 이 읽는다) · `START_HERE.md` §3 의 Redis 키 표(`qm:party:{partyId}` 행) · `HANDOFF.md` §0-9 ·
+  `contracts/events.md`("서버 간 이벤트" 절의 필드 표 `status` · `member:{userId}` 행과 "제안 중에도 읽는다" 단락) · `contracts/README.md` A-20.
+- **바로잡은 것** — 계약 사본이 `member:` 값을 "PUBG 플랫폼" 이라 적고 있었다. 배정 스크립트는 PUBG 에 `'EXIST'` 를 쓴다(`pubg/*.lua` 의 `HSET … 'EXIST'`).
+  D-42 결정 2 의 "`member:{userId}=keyValue`" 도 PUBG 에는 맞지 않는다 — 본문은 고치지 않았다.
+- 이 로그 — D-42 결정 2 · 4 에 "→ D-56" 만 달았다 — 본문은 고치지 않았다.
+- 다른 폴더 — `../platform/contracts/platform-api.md` "파티 HASH 의 계약" 의 `member:{userId}` 행이 같은 잘못("플랫폼")을 적고 있고, `../platform/CLAUDE.md` §2 · §11 의
+  "`qm:party:{partyId}` 의 `HGETALL` · `HEXISTS` 만" 은 P-47 과 같이 그 폴더에서 고친다.
 
 ---
 

@@ -61,7 +61,7 @@ class ProposalIdempotencyTest extends ConcurrencyTestSupport {
     /** {@code ConcurrencyTestSupport} 가 시드하는 값. 2명이면 정원이 찬다 */
     private static final String MODE = "RANKED_SOLO";
     /** {@code application.yaml} 의 {@code queuemate.proposal.ttl-seconds} 기본값 */
-    private static final long TTL_MILLIS = 20_000;
+    private static final long TTL_MILLIS = 300_000;
     /** {@code queuemate.proposal.confirmed-party-ttl-seconds} 기본값. 파티 HASH 가 남는 상한(초) */
     private static final long PARTY_TTL_SECONDS = 600;
     /** {@code queuemate.proposal.confirmed-retention-seconds} 기본값. 활성 요청 · 수락자 집합이 남는 상한(초) */

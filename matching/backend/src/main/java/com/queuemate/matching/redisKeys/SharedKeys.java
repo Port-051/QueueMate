@@ -57,10 +57,13 @@ import com.queuemate.matching.domain.GameKey;
  *   <li><b>{@link #PARTY_PREFIX} — 확정된 파티 HASH {@code qm:party:{partyId}} 를 확정 뒤에 읽어 파티 · 방을
  *       만든다 (docs/11 D-42, 2026-09-27).</b> outbox → SQS 를 대신한다. 읽는 필드가 앱 사이의 계약이다 —
  *       {@code status}({@code CONFIRMED}) · {@code confirmedAt} · {@code game} · {@code modeKey} ·
- *       {@code voicePreference} · {@code playPurpose} · {@code target} · {@code member:{userId}}(값은 keyValue) ·
+ *       {@code voicePreference} · {@code playPurpose} · {@code target} · {@code member:{userId}}(값은 keyValue — PUBG 는 {@code 'EXIST'}) ·
  *       티어 모드의 {@code tierLo} / {@code tierHi}. 조건 넷과 {@code confirmedAt} 은
  *       {@code proposal/cleanup-confirmed.lua} 가 확정 직후 적고, 나머지는 배정 스크립트가 적는다.
  *       {@code confirmed-party-ttl-seconds}(기본 600 초) 안에만 있다.
+ *       <b>제안 중({@code status=PENDING})에도 읽는다</b> (docs/11 D-56, 2026-10-01) — 팀원 카드
+ *       ({@code GET /api/v1/match-parties/{partyId}/members})의 자격을 보려고 {@code HGETALL} 로 {@code status} ·
+ *       {@code member:{userId}} 를 본다. 그래서 그 둘은 확정 전의 모양(배정 스크립트가 쓰는 이름과 값)도 계약이다.
  *   <li>{@link #ACTIVE_REQUEST_PREFIX} — {@code EXISTS} 로만 본다. 매칭 대기 중이면 방 입장 · 글 쓰기를 거절한다
  *       (docs/11 D-19 · D-33).
  * </ul>
