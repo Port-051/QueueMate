@@ -26,7 +26,7 @@ export function RoomTeamSeats({ room, selfId }: { room: BoardRoom; selfId: strin
         const self = member.id === selfId;
         return <li key={member.id} className={`room-seat is-filled${self ? ' is-self' : ''}${index >= 3 ? ' pop-end' : ''}`}
           >
-          <button type="button" className="room-seat-button" aria-label={`${seatSummary(room, member, selfId ?? '')} — 상세 정보`} aria-haspopup="dialog" onClick={event => { event.currentTarget.focus(); setProfile(member); }}>
+          <button type="button" className="room-seat-button" aria-label={`${seatSummary(room, member, selfId ?? '')} — 상세 정보`} aria-haspopup="dialog" onClick={event => { event.currentTarget.focus(); setProfile(current => current?.id === member.id ? null : member); }}>
             <RoomSeatBody room={room} member={member} me={self} color={colors.get(member.id)} />
           </button>
         </li>;

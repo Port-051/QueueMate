@@ -292,7 +292,7 @@ export function RoomSeatBody({ room, member, me = false, color, table = false, s
         {table ? <><span className="room-seat-record" aria-label={room.game === 'PUBG' ? '치킨율' : '승패와 승률'}>
           {record ? <WinLossBar record={record} rate={member.winRate} size="sm" /> : member.winRate !== null ? <PerformanceValue kind="winRate" value={member.winRate} /> : <span className="room-seat-no-stats">—</span>}
         </span>
-        <span className="room-seat-kda" aria-label={room.game === 'PUBG' ? 'K/D' : 'KDA'}>{member.kda !== null ? <PerformanceValue kind="kda" value={member.kda} /> : <span className="room-seat-no-stats">—</span>}</span></> : <span className="room-seat-numbers">{member.winRate !== null ? <span><PerformanceValue kind="winRate" value={member.winRate} /></span> : null}{member.kda !== null ? <span><PerformanceValue kind="kda" value={member.kda} /></span> : null}</span>}
+        <span className="room-seat-kda" aria-label={room.game === 'PUBG' ? 'K/D' : 'KDA'}><span className="room-seat-stat-label">{room.game === 'PUBG' ? 'K/D' : 'KDA'}</span>{member.kda !== null ? <PerformanceValue kind="kda" value={member.kda} /> : <span className="room-seat-no-stats">—</span>}</span></> : <span className="room-seat-numbers">{member.winRate !== null ? <span><PerformanceValue kind="winRate" value={member.winRate} /></span> : null}{member.kda !== null ? <span><PerformanceValue kind="kda" value={member.kda} /></span> : null}</span>}
       </span>
       {table ? <span className="room-seat-champions" aria-label="선호 챔피언">
         {room.game === 'LOL' && member.champions.length ? <PreferredChampions game={room.game} names={member.champions.slice(0, 3)} /> : <span className="room-seat-no-stats">—</span>}
