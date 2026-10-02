@@ -1,10 +1,4 @@
 .room-match-clock { font-variant-numeric:tabular-nums; }
-.room-match-dialog .room-match-account { display:flex; align-items:center; gap:10px; padding:12px; margin-bottom:20px; border:1px solid #ffffff12; border-radius:12px; background:#ffffff04; }
-.room-match-account>div { min-width:0; }
-.room-match-account strong { display:flex; align-items:center; gap:5px; color:var(--text); font-size:14px; line-height:21px; overflow-wrap:anywhere; }
-.room-match-account>div>span { display:block; margin-top:2px; color:#a49db3; font-size:12px; line-height:18px; overflow-wrap:anywhere; }
-.room-match-account>a { flex:none; margin-left:auto; color:#b8b2c6; font-size:12px; }
-.room-match-account>a:hover { color:var(--text); }
 .room-match-dialog .introduction-purpose .introduction-field-note { display:none; }
 .room-match-dialog .room-match-message .room-create-fix { display:inline-flex; align-items:center; gap:5px; margin-top:6px; color:#bcebd3; font-size:13px; }
 .room-match-dialog .quick-connect-result { margin:0; padding:16px; border:1px solid #ffffff12; border-radius:12px; background:#ffffff04; }
