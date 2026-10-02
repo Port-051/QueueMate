@@ -86,7 +86,6 @@
 .party-room-heading h1 { flex:1; min-width:0; font-size:16px; line-height:1.5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .party-room-heading .room-row-meta { flex:none; justify-content:flex-end; flex-wrap:nowrap; gap:12px; margin:0; font-size:12px; white-space:nowrap; }
 .party-room-heading .room-row-meta>span+span::before { content:none; }
-.party-room-heading .room-row-mode>svg { color:inherit; }
 .party-room-description { margin-bottom:10px; font-size:12px; }
 @media(max-width:480px) {
   .room-panel .page.party-page { padding:12px 10px; }
