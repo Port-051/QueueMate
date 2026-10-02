@@ -247,7 +247,8 @@ export interface MemberCard { userId: number; nickname: string | null; host: boo
  */
 export interface PostResponse {
   postId: number;
-  hostId: number;
+  /** 방장(글쓴이)의 사용자 번호. **방장이 탈퇴한 확정된 글은 `null`**(2026-10-02 — platform P-48 · 그 글의 `host` 도 `null` 이고 `members` 에서 그 사람이 빠진다). */
+  hostId: number | null;
   game: GameKey;
   mode: string | null;
   title: string;
@@ -270,7 +271,8 @@ export interface PostResponse {
    * 모집 중 · 만료 · 진행 중인 확정은 `false`. 칸이 없는 옛 서버면 `false` 로 본다(`toBoardRoom`). 게시판 카드가 "확정" 대신 "끝남" 으로 그린다.
    */
   closed: boolean;
-  host: MemberCard;
+  /** 방장 카드. **방장이 탈퇴한 확정된 글은 `null`**(P-48 — 서버가 빈 카드를 지어내지 않는다 · 화면도 방장 표시 없이 파티원만 그린다). */
+  host: MemberCard | null;
   members: MemberCard[];
 }
 /** `nextCursor` 는 마지막으로 **읽은** 글의 번호(숫자) — 더 볼 것이 없으면 `null`. 다음 페이지는 `?cursor=` 에 그대로 넣는다(P-14). */

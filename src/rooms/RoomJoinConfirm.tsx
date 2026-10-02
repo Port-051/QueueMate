@@ -51,8 +51,9 @@ export function RoomJoinConfirm({ room, entryError, cancelsMatch = false, onClos
     <div className="room-preview-title"><h3>{room.title}</h3></div>
     <dl className="room-preview-conditions">
       <div><dt>게임 모드</dt><dd><FilterModeIcon mode={modeChoice(room.game, room.modeKey)?.group ?? room.modeKey} size={22} />{modeChoiceLabel(room.game, room.modeKey, room.perspective)}</dd></div>
-      {/* 방장이 글을 쓸 때 고른 자기 포지션(2026-09-30 소유자 결정) — 카드와 같은 아이콘 + 이름을 닉네임 뒤에. */}
-      <div><dt>방장</dt><dd>{room.host.nickname}{room.hostPosition && hasPositions(room.game, room.modeKey) ? <RoomRoles game={room.game} roles={[room.hostPosition]} labels /> : null}</dd></div>
+      {/* 방장이 글을 쓸 때 고른 자기 포지션(2026-09-30 소유자 결정) — 카드와 같은 아이콘 + 이름을 닉네임 뒤에.
+          방장이 없는 글(방장이 탈퇴한 확정된 글 — P-48)은 이 줄을 그리지 않는다 — 참여 창은 모집 중인 글만 열지만 타입이 `null` 을 허락한다. */}
+      {room.host ? <div><dt>방장</dt><dd>{room.host.nickname}{room.hostPosition && hasPositions(room.game, room.modeKey) ? <RoomRoles game={room.game} roles={[room.hostPosition]} labels /> : null}</dd></div> : null}
       <div><dt>인원</dt><dd>{room.memberCount} / {room.capacity}명</dd></div>
       {hasPositions(room.game, room.modeKey) ? <div><dt>찾는 포지션</dt><dd><RoomRoles game={room.game} roles={room.wantedPositions} labels /></dd></div> : null}
       <div><dt>음성</dt><dd><RoomVoice value={room.voice} />{room.voice === 'REQUIRED' ? '사용' : '미사용'}</dd></div>

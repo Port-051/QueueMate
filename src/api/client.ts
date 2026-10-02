@@ -40,6 +40,13 @@ export const devLogin = (nickname: string) =>
 /* ---------- user ---------- */
 export const getMe = () => request<UserProfile>('/users/me');
 export const updateMe = (body: UpdateUserRequest) => request<UserProfile>('/users/me', { method: 'PATCH', body });
+/**
+ * 회원 탈퇴(2026-10-02 소유자 결정 — platform P-48 · "계정" 의 "회원 탈퇴"). 본문 없음 · **204 + 로그인 쿠키 둘 제거**(로그아웃과 같은 `Set-Cookie`).
+ * 그 사람의 데이터가 전부 지워지고 **다른 사람과 확정한 글만 작성자 칸이 빈 채 남는다**(글 응답의 `hostId` · `host` 가 `null`). 방 안이면 서버가 평소 나가기처럼 내보낸 뒤 지운다.
+ * **409 `ALREADY_QUEUED`** — 매칭 대기 중(확정 직후 60초의 파티 상태도) · **503 `ROOM_STATE_UNAVAILABLE`** + `Retry-After: 5` — 아무것도 지우지 않았다 ·
+ * 401 `UNAUTHENTICATED` — 이미 없는 사용자(재발급도 실패해 `onAuthLost` 가 먼저 불린다).
+ */
+export const deleteMe = () => request<void>('/users/me', { method: 'DELETE' });
 /** 소셜 계정 끊기. 내 것이 아니어도 204(멱등). 마지막 하나면 409 `LAST_SOCIAL_IDENTITY`. 잇기는 `oauthStartPath` 로의 이동이다. */
 export const unlinkSocial = (provider: SocialProvider) =>
   request<void>(`/users/me/social/${provider}`, { method: 'DELETE' });

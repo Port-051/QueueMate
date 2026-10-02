@@ -391,7 +391,8 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, reveal = f
   const recruiting = room.status === 'RECRUITING';
   const positions = hasPositions(room.game, room.modeKey);
   // 확정된 글은 파티원 전원(P-40), 만료된 글은 방장만 — 서버가 만료된 글의 `members` 를 비워 보낸다.
-  const members = room.members.length ? room.members : [room.host];
+  // 방장이 탈퇴한 확정된 글은 `host` 가 `null` 이고 `members` 에서 그 사람이 빠져 온다(P-48) — 남은 파티원만 그리고 방장 표시 · 빈 카드는 없다.
+  const members = room.members.length ? room.members : room.host ? [room.host] : [];
   // 얼굴 색 — 한 방(카드 한 장)의 사람은 모두 다른 색이다(2026-09-30 소유자). 방장 먼저 · 나머지는 사용자 번호 순으로 집 색을 잡고 겹치면 다음 빈 색(`roomColors.ts`).
   const colors = boardRoomColors(room);
   const vacancies = recruiting ? Math.max(0, room.capacity - room.memberCount) : 0;

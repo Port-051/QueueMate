@@ -45,7 +45,8 @@ export interface BoardRoom {
   modeKey: string;
   title: string;
   description: string;
-  hostId: string;
+  /** 방장의 사용자 번호(십진 문자열). **방장이 탈퇴한 확정된 글은 `null`**(2026-10-02 — platform P-48). 빠른매치 파티는 그 방의 방장이고 모르면 `null`(`toMatchPartyRoom`). */
+  hostId: string | null;
   /** 방의 정원 = 좌석 수 — 그 글의 모드의 인원(솔로 랭크 2 · 많아야 5 · 그 전에 쓴 글은 5 — P-41, 2026-09-30). */
   capacity: number;
   memberCount: number;
@@ -64,7 +65,8 @@ export interface BoardRoom {
   hostPosition: string | null;
   /** ISO-8601. */
   createdAt: string;
-  host: BoardMember;
+  /** 방장 카드. **방장이 탈퇴한 확정된 글은 `null`**(P-48) — 방장 표시 없이 `members`(파티원)만 그린다 · 빈 카드를 지어내지 않는다. */
+  host: BoardMember | null;
   /** 모집 중인 글은 지금 방 안에 있는 사람(방장 먼저), **확정된 글은 확정 순간의 파티원 전원**(P-40 — 방이 없어져도 남는다), 만료된 글은 비어 있다. */
   members: BoardMember[];
   /**

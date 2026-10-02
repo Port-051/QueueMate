@@ -3,7 +3,8 @@ import type { QmUser } from './api';
 /** 글 한 줄(`GET /posts` · `POST /posts` 응답) 가운데 시나리오가 보는 칸 — `platform-api.md` "글 한 줄". */
 export interface Post {
   postId: number;
-  hostId: number;
+  /** 방장이 탈퇴한 확정된 글은 `null`(platform P-48 — 그때 `host` 도 `null`). */
+  hostId: number | null;
   game: string;
   mode: string;
   title: string;
@@ -106,7 +107,7 @@ export async function foreignCandidates(viewer: QmUser, match: MatchBody, ownHos
   const r = await viewer.get<{ posts: Post[] }>(`/posts?game=${match.game}&limit=100`);
   const position = match.keyCondition?.value;
   return (r.body?.posts ?? []).filter((post) => post.status === 'RECRUITING' && !post.full && post.mode === match.modeKey
-    && post.voice === match.voicePreference && post.hostId !== viewer.id && !ownHostIds.includes(post.hostId)
+    && post.voice === match.voicePreference && post.hostId !== null && post.hostId !== viewer.id && !ownHostIds.includes(post.hostId)
     && (!position || !post.wantedPositions.length || post.wantedPositions.includes(position)))
     .map((post) => post.postId);
 }

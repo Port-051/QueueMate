@@ -36,7 +36,7 @@ export async function reset(user: QmUser, options: ResetOptions = {}): Promise<v
 
   // 3. 모집 중인 내 글(방이 먼저 사라진 글이 남았을 때 — 목록 조회가 만료로 옮기기도 한다)
   for (const game of GAMES) {
-    const list = await user.get<{ posts: { postId: number; hostId: number; status: string }[] }>(`/posts?game=${game}&limit=100`);
+    const list = await user.get<{ posts: { postId: number; hostId: number | null; status: string }[] }>(`/posts?game=${game}&limit=100`);
     for (const post of list.body?.posts ?? []) {
       if (post.hostId === user.id && post.status === 'RECRUITING') {
         const r = await user.del(`/posts/${post.postId}`);

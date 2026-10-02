@@ -58,7 +58,8 @@ export function toBoardRoom(post: PostResponse): BoardRoom {
     modeKey: post.mode ?? '',
     title: post.title,
     description: post.description ?? '',
-    hostId: String(post.hostId),
+    // 방장이 탈퇴한 확정된 글은 `hostId` · `host` 가 `null` 이다(2026-10-02 — platform P-48). 방장 표시 없이 `members`(남은 파티원)만 그린다 — 빈 카드를 지어내지 않는다.
+    hostId: post.hostId == null ? null : String(post.hostId),
     capacity: post.capacity,
     memberCount: post.memberCount,
     full: post.full,
@@ -71,7 +72,7 @@ export function toBoardRoom(post: PostResponse): BoardRoom {
     // 옛 서버는 칸을 안 보낸다(`undefined`) — `null` 로. 이 게임의 포지션 이름이 아니면 그리지 않는다(`FilterRoleIcon` 은 모르는 이름을 "전체" 그림으로 그린다).
     hostPosition: knownPosition(post.game, post.hostPosition),
     createdAt: post.createdAt,
-    host: toBoardMember(post.host, post.game, post.mode ?? '', post.hostPosition),
+    host: post.host ? toBoardMember(post.host, post.game, post.mode ?? '', post.hostPosition) : null,
     members: (post.members ?? []).map(card => toBoardMember(card, post.game, post.mode ?? '', card.host ? post.hostPosition : null)),
   };
 }
@@ -80,16 +81,14 @@ export function toBoardRoom(post: PostResponse): BoardRoom {
  * 빠른매치 파티 → 좌석이 그리는 방(2026-10-01 소유자 결정 — platform P-47 `GET /match-parties/{partyId}/members`). **글이 아니다** — 좌석 몸통 · 작은 창 · 프로필 창
  * (`RoomSeatBody` · `SeatPopover` · `RoomMemberProfile`)이 `BoardRoom` 을 받아서 그 모양으로 편다(`quickMatch` — 고른 포지션을 늘 붙인다). 제목 · 글 번호 · 상태는 뜻이 없다.
  * 팀원 카드는 게시판 카드와 같은 `toBoardMember` 를 거친다 — 티어는 그 모드의 사다리 티어(모드를 모르면 가장 높은 티어) · 포지션은 고른 것(이 게임의 이름만).
- * 방장은 방 화면이 아는 지금의 방장(`hostId` — 승계 D-23)이고 제안에는 없다(`null`). 정원은 모르면 팀원 수다. 팀원이 없으면(올 일이 없다 — 나도 팀원이다) `null`.
+ * 방장은 방 화면이 아는 지금의 방장(`hostId` — 승계 D-23)이고 제안에는 없다(`null` — 그때 `host` 도 `null`). 정원은 모르면 팀원 수다. 팀원이 없으면(올 일이 없다 — 나도 팀원이다) `null`.
  */
 export function toMatchPartyRoom({ partyId, game, modeKey, voice, capacity, hostId, members }: {
   partyId: string; game: GameKey; modeKey: string | null; voice: VoicePreference | null; capacity: number | null; hostId: string | null; members: MatchPartyMember[];
 }): BoardRoom | null {
   const mode = modeKey ?? '';
-  const host = hostId ?? '';
-  const people = members.map(member => toBoardMember({ ...member, host: String(member.userId) === host }, game, mode));
-  const first = people.find(member => member.host) ?? people[0];
-  if (!first) return null;
+  const people = members.map(member => toBoardMember({ ...member, host: hostId !== null && String(member.userId) === hostId }, game, mode));
+  if (!people.length) return null;
   return {
     id: partyId,
     postId: 0,
@@ -97,7 +96,7 @@ export function toMatchPartyRoom({ partyId, game, modeKey, voice, capacity, host
     modeKey: mode,
     title: '빠른매치 파티',
     description: '',
-    hostId: host,
+    hostId,
     capacity: capacity ?? people.length,
     memberCount: people.length,
     full: false,
@@ -109,7 +108,8 @@ export function toMatchPartyRoom({ partyId, game, modeKey, voice, capacity, host
     wantedPositions: [],
     hostPosition: null,
     createdAt: '',
-    host: first,
+    // 방장을 모르면(제안 중) `null` — 남의 카드를 방장 자리에 세우지 않는다(게시판 글의 `host` 와 같은 뜻 · P-48 뒤 `null` 을 허락한다).
+    host: people.find(member => member.host) ?? null,
     members: people,
     quickMatch: true,
   };

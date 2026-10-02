@@ -114,7 +114,7 @@ function GameProfileCard({ game, profile, onEdit, onUnlink }: {
 }
 
 export function MyInfoPage() {
-  const { user, gameAccounts, updateProfile, uploadAvatar, removeGameAccount, refreshSession, logout } = useAuth();
+  const { user, gameAccounts, updateProfile, uploadAvatar, removeGameAccount, refreshSession, logout, deleteAccount } = useAuth();
   const { blocks } = useSocial();
   const toast = useToast();
   const navigate = useNavigate();
@@ -129,6 +129,7 @@ export function MyInfoPage() {
   const [savingAvatar, setSavingAvatar] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const [unlinkSocialTarget, setUnlinkSocialTarget] = useState<SocialProvider | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   // 소셜 계정 잇기의 결과(`/settings?linked=|error=` → `SettingsRedirectPage` 가 담은 쪽지)를 한 번만 보여 준다.
   useEffect(() => {
@@ -210,6 +211,23 @@ export function MyInfoPage() {
     navigate('/', { replace: true });
   };
 
+  /**
+   * 회원 탈퇴(2026-10-02 소유자 결정 — platform P-48). 확인 창의 "탈퇴하기" 가 부른다 — 끝나면(204 · 이미 없는 사용자 401) 로그아웃처럼 상태가 비고(`AuthContext#deleteAccount` —
+   * 그 사람의 브라우저 저장 값도 지운다) 공개 홈(`/`)으로 간다. 방 안이면 서버가 평소 나가기처럼 내보내므로 따로 나가지 않는다.
+   * 409 `ALREADY_QUEUED`(빠른매치 대기 중 · 확정 직후 1분쯤) · 503 은 아무것도 지워지지 않았다 — 문구만 보이고 창을 닫는다.
+   */
+  const handleDeleteAccount = async () => {
+    try {
+      const result = await deleteAccount();
+      toast(result === 'deleted' ? '탈퇴했습니다. 그동안 이용해 주셔서 감사합니다' : '이미 탈퇴한 계정입니다', 'info');
+      navigate('/', { replace: true });
+    } catch (err) {
+      if (isApiError(err) && err.code === 'ALREADY_QUEUED') toast('빠른매치 중에는 탈퇴할 수 없어요. 빠른매치를 먼저 취소해 주세요(파티가 막 확정됐다면 1분쯤 뒤에 다시)', 'error');
+      else if (isApiError(err) && err.code === 'ROOM_STATE_UNAVAILABLE') toast(`지금은 탈퇴를 처리하지 못했어요. ${err.retryAfterSeconds ?? 5}초쯤 뒤에 다시 시도해 주세요`, 'error');
+      else toast(isApiError(err) ? err.message : '탈퇴하지 못했어요. 다시 시도해 주세요', 'error');
+    }
+  };
+
   const editing = linkGame ? gameAccounts.find((account) => account.game === linkGame) ?? null : null;
 
   return (
@@ -268,8 +286,10 @@ export function MyInfoPage() {
               <summary>개인정보 처리 안내</summary>
               <ul>
                 <li>파티 음성과 채팅은 파티원끼리 직접 연결되며 서버에 저장되지 않습니다.</li>
-                <li>신고는 사유와 식별자만 접수됩니다.</li>
+                {/* 신고 본문은 사유 · 상세 내용(1000자까지) · 신고 대상 · 글 번호다(platform-api.md "친구 · 신고" — `POST /api/v1/reports`). */}
+                <li>신고는 사유, 상세 내용(1,000자까지), 신고 대상, 관련 글 번호가 접수됩니다. 신고한 사실은 상대에게 알리지 않습니다.</li>
                 <li>차단한 사용자는 이후 매칭에서 같은 파티가 되지 않습니다.</li>
+                <li>자세한 내용은 <Link to="/privacy">개인정보 처리방침</Link>에 있습니다.</li>
               </ul>
             </details>
           </div>
@@ -278,6 +298,8 @@ export function MyInfoPage() {
           <Button variant="ghost" disabled={loggingOut} onClick={() => void handleLogout()}>
             <IconLogout size={16} /> {loggingOut ? '로그아웃 중…' : '로그아웃'}
           </Button>
+          {/* 회원 탈퇴 — 맨 아래 · 빨간 글자(위험 동작). 처리방침의 "설정 > 회원 탈퇴" 가 이것이다(2026-10-02 소유자 결정 — platform P-48 · `CLAUDE.md` §3-41). */}
+          <Button variant="ghost" className="profile-delete-account" disabled={loggingOut} onClick={() => setDeleteOpen(true)}>회원 탈퇴</Button>
         </div>
       </div>
       {nicknameOpen ? <Modal title="닉네임 변경" className="profile-edit-modal" onClose={() => { if (!busy) setNicknameOpen(false); }}>
@@ -292,6 +314,21 @@ export function MyInfoPage() {
         <GameAccountForm game={linkGame} initial={editing} onCancel={() => setLinkGame(null)}
           onSaved={(profile) => { setLinkGame(null); toast(editing ? `${profile.gameNickname} 계정을 수정했습니다` : `${profile.gameNickname} 계정을 연결했습니다`, 'ok'); }} />
       </Modal> : null}
+      {deleteOpen ? (
+        <ConfirmDialog title="회원 탈퇴할까요?" confirmLabel="탈퇴하기" onConfirm={handleDeleteAccount} onClose={() => setDeleteOpen(false)}
+          description={<>
+            <p>탈퇴하면 계정과 아래 정보가 바로 지워지고 <strong>되돌릴 수 없습니다.</strong></p>
+            <ul className="delete-account-list">
+              <li>소셜 로그인 연결 · 닉네임</li>
+              <li>게임 계정 · 티어 · 전적</li>
+              <li>친구 · 친구 요청 · 차단 · 최근 함께한 사람</li>
+              <li>내가 낸 신고와 나에 대한 신고</li>
+              <li>내가 쓴 모집 글과 파티 기록</li>
+            </ul>
+            <p>다만 다른 이용자와 함께 확정한 파티 모집 글은 다른 파티원의 기록이라, 작성자 표시만 지운 채 제목 · 설명 · 파티원 기록이 남습니다(내 파티원 표시는 지워집니다).</p>
+            <p>방에 들어가 있으면 방에서 나간 뒤 탈퇴합니다. 빠른매치 중에는 탈퇴할 수 없으니 먼저 취소해 주세요.</p>
+          </>} />
+      ) : null}
       {unlinkSocialTarget ? <ConfirmDialog title={`${PROVIDER_LABEL[unlinkSocialTarget]} 계정 연결을 끊을까요?`} description="이 계정으로는 더 이상 로그인할 수 없습니다. 마지막 하나는 끊을 수 없습니다." confirmLabel="연결 끊기" onConfirm={() => unlinkSocial(unlinkSocialTarget)} onClose={() => setUnlinkSocialTarget(null)} /> : null}
       {unlinkTarget ? <ConfirmDialog title={`${gameFullLabel(unlinkTarget)} 연결을 해제할까요?`} description="이 게임의 닉네임 · 티어 · 전적이 파티원에게 표시되지 않습니다. 나중에 다시 연결할 수 있습니다." confirmLabel="연결 해제" onConfirm={() => unlink(unlinkTarget)} onClose={() => setUnlinkTarget(null)} /> : null}
 
