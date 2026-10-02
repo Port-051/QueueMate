@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPartyClient } from '../webrtc/createPartyClient';
-import type { PartyChatMessage, PartyClient, VoiceStatus } from '../webrtc/types';
+import type { PartyChatMessage, PartyClient, VoiceStatus, VoiceActivity } from '../webrtc/types';
 import { useAuth } from './AuthContext';
 import { useMatch } from './MatchContext';
 import { useRoomSession } from './RoomSessionContext';
@@ -20,6 +20,7 @@ function usePersistentSession() {
   const [voice, setVoice] = useState<VoiceStatus>('idle');
   const [voiceDetail, setVoiceDetail] = useState<string | null>(null);
   const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
+  const [voiceActivity, setVoiceActivity] = useState<Record<string, VoiceActivity>>({});
   const [muted, setMuted] = useState(false);
   const [connectionAttempt, setConnectionAttempt] = useState(0);
   const clientRef = useRef<PartyClient | null>(null);
@@ -33,9 +34,10 @@ function usePersistentSession() {
   useEffect(() => {
     if (!roomId || !selfId || !stream) return;
     let live = true;
-    setConnectedPeers([]); setMuted(false);
+    setConnectedPeers([]); setMuted(false); setVoiceActivity({});
     const client = createPartyClient({ roomId, selfUserId: selfId, selfNickname: nickname ?? '플레이어', members: membersRef.current.map(id => ({ userId: id, nickname: id })), stream,
       handlers: {
+        onVoice: state => { if (live) setVoiceActivity(prev => ({ ...prev, [state.userId]: state })); },
         onChat: message => { if (live) setMessages(prev => [...prev.slice(-499), message]); },
         onStatus: (status, detail) => { if (live) { setVoice(status); setVoiceDetail(detail ?? null); } },
         onPeer: peer => { if (live) setConnectedPeers(prev => peer.connected ? [...new Set([...prev, peer.userId])] : prev.filter(id => id !== peer.userId)); },
@@ -47,7 +49,7 @@ function usePersistentSession() {
   }, [roomId, selfId, nickname, stream, connectionAttempt]);
   const memberIds = members.join(',');
   useEffect(() => { if (memberIds) clientRef.current?.syncMembers(memberIds.split(',')); }, [memberIds]);
-  return { messages, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef, setConnectionAttempt };
+  return { messages, voiceActivity, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef, setConnectionAttempt };
 }
 const PartySessionContext = createContext<ReturnType<typeof usePersistentSession> | null>(null);
 export function PartySessionProvider({ children }: { children: ReactNode }) {

@@ -1,3 +1,4 @@
+import './mentor-room.css';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { tierColor } from '../domain/rankAssets';
 import type { GameKey, GameStats, LolMostChampion } from '../api/types';
@@ -16,8 +17,15 @@ import { relativeTime } from '../domain/time';
 import { hasLolRankDivision } from '../domain/lolRank';
 import { canonicalRoomRoles, hasPositions, ROOM_ROLES } from './summary';
 import { roomVoice } from './voice';
+import { remainingPositions } from './boardRoom';
 import { boardRoomColors } from './roomColors';
 import type { BoardMember, BoardRoom } from './types';
+
+export function RoomWantedPositions({ room }: { room: BoardRoom }) {
+  if (room.status !== 'RECRUITING') return <span>모집 마감</span>;
+  const remaining = remainingPositions(room);
+  return room.wantedPositions.length && !remaining.length ? <span>빈 포지션 없음</span> : <RoomRoles game={room.game} roles={remaining} labels />;
+}
 
 function RoomBubbleTail() {
   return <svg className="room-bubble-tail" width="48" height="48" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
@@ -142,7 +150,7 @@ function seatNumbers(game: GameKey, member: BoardMember): { label: string; text:
  * 그 포지션은 빠른매치에서 고른 조건이고 파티가 그것으로 짜였다.
  */
 export const seatPosition = (room: BoardRoom, member: BoardMember): string | null =>
-  (room.quickMatch || room.status !== 'CONFIRMED') && hasPositions(room.game, room.modeKey) ? member.position : null;
+  hasPositions(room.game, room.modeKey) ? member.position : null;
 
 function VerifiedMark() {
   return <span className="room-seat-verified" role="img" aria-label="인증됨" title="인증됨">
@@ -331,15 +339,19 @@ export function RoomSeatBody({ room, member, me = false, color }: { room: BoardR
       </span>
       <span className="room-seat-line">
         <span className="room-seat-rank"><FilterTierIcon game={room.game} tier={member.tier} size={16} /><span style={member.tier ? { color: tierColor(member.tier) } : undefined}>{member.profile ? rankText(room.game, member.tier, member.division, true) : '—'}</span></span>
-        {numbers.length ? <span className="room-seat-numbers">{numbers.map(item => <span key={item.label}>{item.text}</span>)}</span> : null}
+        {numbers.length ? <span className="room-seat-numbers">{numbers.map(item => <span key={item.label}><small>{item.label}</small><b>{item.text}</b></span>)}</span> : null}
       </span>
+      {room.game === 'LOL' ? <span className="room-seat-champions" aria-label="주 챔피언">
+        {member.champions.length ? member.champions.map(id => <span key={id}><img src={championPortrait(id) ?? undefined} alt="" width="24" height="24" loading="lazy" /><span>{championName(id)}</span></span>) : <span className="room-seat-no-stats">주 챔피언 정보 없음</span>}
+      </span> : null}
+      {!numbers.length ? <span className="room-seat-no-stats">전적 정보 없음</span> : null}
     </span>
   </>;
 }
 
 /**
  * 채워진 좌석 하나(게시판 카드) — 몸통은 `RoomSeatBody` 다.
- * 좌석이 제 폭을 보고 줄인다(CSS 컨테이너 질의 — 분할 화면 · 사람이 많은 방) — 190px 이하면 숫자와 포지션 글자를 빼고(포지션은 닉네임 앞 아이콘), 132px 이하면 얼굴 원 + 티어 배지 위 · 닉네임 아래다.
+ * 정보를 숨기지 않고 충분한 폭의 카드로 줄바꿈한다(mentor-room.css).
  * 누르면 프로필 창이다(전파를 끊는다 — 참가로 번지지 않게). 마우스를 올린 작은 창의 위 · 아래는 `placeSeatPopover` 가 정하고, VALORANT 글이면 창이 없다(`seatPopoverShown`).
  */
 function RoomSeat({ room, member, color, selfId, popEnd, onMember }: { room: BoardRoom; member: BoardMember; color?: number; selfId: string; popEnd: boolean; onMember: (room: BoardRoom, member: BoardMember) => void }) {
@@ -413,7 +425,7 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, reveal = f
     <p className="room-row-meta" aria-label="방 조건">
       <span className="room-row-mode"><FilterModeIcon mode={group} size={16} />{modeChoiceLabel(room.game, room.modeKey, room.perspective)}</span>
       <span className={`room-row-voice ${voice === 'REQUIRED' ? 'is-on' : 'is-off'}`}><VoiceIcon preference={voice} size={16} />{voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용'}</span>
-      {positions ? <span className="room-row-wanted"><span className="room-row-wanted-label">찾는 포지션</span><RoomRoles game={room.game} roles={room.wantedPositions} labels /></span> : null}
+      {positions ? <span className="room-row-wanted"><span className="room-row-wanted-label">찾는 포지션</span><RoomWantedPositions room={room} /></span> : null}
     </p>
     <div className="room-seat-row">
       <ul className="room-seats" aria-label={recruiting ? `자리 ${room.memberCount} / ${room.capacity}` : `파티원 ${members.length}명`}>

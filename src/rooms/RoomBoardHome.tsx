@@ -13,7 +13,7 @@ import { useMatch } from '../state/MatchContext';
 import { useRoomSession } from '../state/RoomSessionContext';
 import { matchErrorMessage } from '../domain/matchRequest';
 import { isPositionError, roomErrorMessage } from './errors';
-import { roomEntryError } from './boardRoom';
+import { remainingPositions, roomEntryError } from './boardRoom';
 import { RoomDeck } from './RoomDeck';
 import { RoomMemberProfile } from './RoomMemberProfile';
 import { RoomJoinConfirm } from './RoomJoinConfirm';
@@ -93,8 +93,8 @@ export function RoomBoardHome({ roomPanelOpen = false }: { roomPanelOpen?: boole
     if (filters.openOnly && (room.status !== 'RECRUITING' || room.full)) return false;
     if (filters.voice && room.voice !== filters.voice) return false;
     // 찾는 포지션이 비어 있는 글은 누구든 찾는 글이다.
-    return !filters.roles.length || !hasPositions(room.game, room.modeKey) || !room.wantedPositions.length
-      || filters.roles.some(role => room.wantedPositions.includes(role));
+    return !filters.roles.length || (room.status === 'RECRUITING' && !room.full &&
+      (!hasPositions(room.game, room.modeKey) || !room.wantedPositions.length || filters.roles.some(role => remainingPositions(room).includes(role))));
   });
   const selected = rooms.find(room => room.id === selectedId) ?? null;
   const canReset = filters.group || filters.roles.length || filters.voice !== '' || filters.openOnly;

@@ -1,3 +1,4 @@
+import { RecruitmentNotice } from '../rooms/RecruitmentNotice';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import * as api from '../api/client';
@@ -14,7 +15,7 @@ import { socialErrorMessage } from '../domain/socialErrors';
 import { formatTime } from '../domain/time';
 import { knownPosition, toBoardRoom, toMatchPartyRoom, UNKNOWN_NICKNAME } from '../rooms/boardRoom';
 import { roomErrorMessage } from '../rooms/errors';
-import { RoomRoles } from '../rooms/RoomDeck';
+import { RoomWantedPositions } from '../rooms/RoomDeck';
 import { RoomMemberProfile } from '../rooms/RoomMemberProfile';
 import { boardRoomColors } from '../rooms/roomColors';
 import { RoomVoiceSeats, seatName, type SeatMenuAction, type VoiceSeatMember } from '../rooms/RoomVoiceSeats';
@@ -51,7 +52,7 @@ const VOICE_LABEL: Record<VoiceStatus, string> = {
  *   글 지우기 `DELETE /posts/{postId}`(방장 · 모집 중 — 만료로 바꾸고 방도 닫힌다). 글 고치기(`PATCH /posts/{postId}`)는 없다(2026-10-01 소유자 결정 — platform P-45).
  * - 음성 · 채팅은 WebRTC 직결(`PartySessionContext`). 친구 추가 · 차단 · 신고는 `SocialContext` · `ReportModal`(5단계 — 우리 API. 신고의 `contextId` 는 게시판 방이면 글 번호, 자동 매칭 방은 없다).
  * - **파티원은 음성 칸의 좌석 줄이다**(2026-09-30 소유자 지시 — `rooms/RoomVoiceSeats.tsx`). 옛 오른쪽 "파티원 (n/정원)" 카드와 사람마다의 큰 프로필(티어 · 승률 · KDA 칸)을 걷었다 —
- *   좌석은 게시판 카드의 좌석과 같고(정원만큼 · 빈 자리는 점선 원) 음성 상태가 붙는다. 2026-10-01 부터 사람마다 고른 포지션도 붙는다(게시판 방은 `session.positions` — 확정 전만 · 빠른매치 방은 팀원 카드의 것 — 늘). 친구 추가 · 방장의 내보내기 · 차단 · 신고는 **좌석을 누르면 뜨는 작은 메뉴**(`menuFor`)로 옮겼다(내 좌석은 누를 수 없다).
+ *   좌석은 게시판 카드의 좌석과 같고(정원만큼 · 빈 자리는 점선 원) 음성 상태가 붙는다. 2026-10-01 부터 사람마다 고른 포지션도 붙는다(게시판 방은 `session.positions` — 확정 뒤에도 · 빠른매치 방은 팀원 카드의 것 — 늘). 친구 추가 · 방장의 내보내기 · 차단 · 신고는 **좌석을 누르면 뜨는 작은 메뉴**(`menuFor`)로 옮겼다(내 좌석은 누를 수 없다).
  *   2026-10-01 부터 그 메뉴 맨 위에 **"프로필 보기"**(게시판 좌석을 눌렀을 때와 같은 큰 프로필 창 `RoomMemberProfile` — 소유자 · 휴대폰은 마우스를 올린 작은 창이 없다)가 있다.
  * - **2026-09-30 부터 이 화면은 게시판 오른쪽 패널이다**(`pages/HomePage.tsx` — 넓은 화면은 게시판을 왼쪽으로 밀고, 좁은 화면은 게시판을 덮는다). 경로 · 하는 일은 그대로이고,
  *   게시판 방의 글을 처음 읽으면 게시판의 게임을 이 방의 게임으로 한 번 맞춘다(`syncRoomGame` — 딥 링크 · 새로 고침).
@@ -60,9 +61,9 @@ export function PartyRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const { user, userId } = useAuth();
   const session = useRoomSession();
-  const { messages, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef, setConnectionAttempt } = usePartySession();
+  const { messages, voiceActivity, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef, setConnectionAttempt } = usePartySession();
   const { isFriend, requestTo, addFriend, block } = useSocial();
-  const { activePartyInfo } = useMatch();
+  const { activePartyInfo, stream } = useMatch();
   const navigate = useNavigate();
   const toast = useToast();
   const postId = roomId && !isMatchRoomId(roomId) ? Number(roomId) : null;
@@ -90,18 +91,23 @@ export function PartyRoomPage() {
   }, [session.gone, roomId, navigate, session.clearGone]);
 
   // 게시판 방 — 글(카드 · 상태). 사람 목록이 바뀔 때마다(`session.version`) 다시 읽는다.
+  const postSeq = useRef(0);
   const loadPost = useCallback(async () => {
+    const seq = ++postSeq.current;
     if (postId === null) { setRoom(null); return; }
     try {
       const post = await api.getPost(postId);
+      if (seq !== postSeq.current) return;
       setRoom(toBoardRoom(post));
       setPostError(false);
     } catch (err) {
+      if (seq !== postSeq.current) return;
       if (hasErrorCode(err, 'POST_NOT_FOUND')) setRoom(null);
       setPostError(true);
     }
   }, [postId]);
   useEffect(() => { void loadPost(); }, [loadPost, session.version]);
+  useEffect(() => stream?.subscribe(event => { if (event.type === 'BOARD_CHANGED') void loadPost(); }), [stream, loadPost]);
 
   // 빠른매치 방 — 팀원 카드(2026-10-01 소유자 결정 — platform P-47 `GET /match-parties/{partyId}/members`): 닉네임 · 게임 프로필 · 고른 포지션.
   // 방 안 사람이 바뀔 때(들어오고 나감)마다 다시 받는다(파티원 밖의 사람은 이 방에 못 들어온다). 게임은 확정 때 적어 둔 것이 있으면 싣고 없으면 뺀다(서버가 확정된 파티의 게임을 안다).
@@ -152,9 +158,9 @@ export function PartyRoomPage() {
   // 좌석 · 채팅 · 신고 창이 이것을 같이 쓴다(같은 출처 — 2026-10-01).
   const teamNames = new Map((teamMembers ?? []).map(member => [String(member.userId), member.nickname ?? UNKNOWN_NICKNAME] as const));
   const serverName = (id: string) => cards.get(id)?.nickname ?? teamNames.get(id) ?? null;
-  // 포지션 — 게시판 방은 방 안 사람 목록의 값(2026-10-01 — platform P-44 ⑩)이고 확정된 방에서는 그리지 않는다(소유자 — 서버는 확정 뒤에도 줄 수 있어 여기서 가린다).
+  // 포지션 — 게시판 방은 확정 뒤에도 방 안 사람 목록의 값을 표시한다(P-52).
   // 빠른매치 방은 팀원 카드의 고른 포지션이다(P-47 — 처음부터 확정인 방이지만 그린다 · `RoomDeck` `seatPosition` 의 `quickMatch`).
-  const positionOf = (id: string) => room ? confirmed ? null : knownPosition(room.game, session.positions[id]) : cards.get(id)?.position ?? null;
+  const positionOf = (id: string) => room ? knownPosition(room.game, session.positions[id]) : cards.get(id)?.position ?? null;
   // 좌석의 이름 — 서버가 아는 닉네임, 나는 내 닉네임. 그 밖은 아직 모른다(`null` — 막 들어와 카드를 다시 받는 사이 · 좌석이 자리표시를 그린다).
   // 사용자 번호(`#27`)를 이름 자리에 그리지 않는다(2026-10-01 소유자 — 번호가 잠깐 보였다가 닉네임으로 바뀌었다).
   const members: VoiceSeatMember[] = session.members.map(id => ({ id, card: cards.get(id) ?? null, nickname: serverName(id) ?? (id === userId ? user?.nickname ?? null : null), position: positionOf(id) }));
@@ -215,7 +221,7 @@ export function PartyRoomPage() {
   const menuFor = (member: VoiceSeatMember): { note?: string; actions: SeatMenuAction[] } => {
     const friend = isFriend(member.id);
     const name = seatName(member);
-    const actions: SeatMenuAction[] = [];
+    const actions: SeatMenuAction[] = [{ key: 'message', label: '메시지 보내기', onSelect: () => navigate(`/app/messages/${member.id}`) }];
     // 프로필 보기 — 게시판 좌석을 눌렀을 때와 같은 큰 프로필 창(2026-10-01 소유자 — 휴대폰은 마우스를 올린 작은 창이 없다 · 게시판 방 · 빠른매치 방 둘 다).
     // 카드가 없으면(이름을 아직 모른다 · 빠른매치 방인데 게임을 모른다) 줄이 없다. 그 게임 계정이 없는 사람도 연다 — 창에 닉네임과 "이 게임의 계정을 아직 연결하지 않았어요" 가 보인다
     // (제안 화면 팀원 좌석 · 게시판 좌석과 같다 — 2026-10-01 검증 뒤 맞췄다. 처음엔 누를 수 없는 "프로필 없음 · 게임 계정 미연결" 이었다).
@@ -262,8 +268,9 @@ export function PartyRoomPage() {
         </div>
       </div>
 
+      {room && !confirmed ? <RecruitmentNotice room={room} isHost={isHost} onChanged={loadPost} onConfirm={session.confirm} /> : null}
       {room?.description ? <p className="hint" style={{ marginBottom: 16 }}>{room.description}</p> : null}
-      {room && hasPositions(room.game, room.modeKey) ? <p className="hint" style={{ marginBottom: 16 }}>찾는 포지션 <RoomRoles game={room.game} roles={room.wantedPositions} labels /></p> : null}
+      {room && hasPositions(room.game, room.modeKey) ? <p className="hint" style={{ marginBottom: 16 }}>찾는 포지션 <RoomWantedPositions room={room} /></p> : null}
       {postId !== null && postError && !room ? <div className="banner warn" role="alert" style={{ marginBottom: 20 }}>글 정보를 불러오지 못했어요. <Button size="sm" onClick={() => void loadPost()}>다시 불러오기</Button></div> : null}
       {matchRoomId && teamErrorRoom === matchRoomId && !teamMembers ? <div className="banner warn" role="alert" style={{ marginBottom: 20 }}>파티원 정보를 불러오지 못했어요. <Button size="sm" onClick={() => void loadTeam()}>다시 불러오기</Button></div> : null}
 
@@ -272,7 +279,7 @@ export function PartyRoomPage() {
           <CardHead title="음성 채널" right={<Tag tone={voice === 'connected' ? 'ok' : 'default'}>{VOICE_LABEL[voice]}</Tag>} />
           {voiceDetail ? <div className="banner warn" style={{ marginBottom: 14 }}>{voiceDetail}</div> : null}
           <RoomVoiceSeats room={seatRoom} members={members} colors={faceColors} hostId={session.hostId} selfId={userId} capacity={capacity}
-            voice={voice} muted={muted} connectedPeers={connectedPeers} menuFor={menuFor} />
+            voice={voice} muted={muted} connectedPeers={connectedPeers} voiceActivity={voiceActivity} menuFor={menuFor} />
           <div className="room-voice-foot">
             {guide.length ? <p className="hint">{guide.map(line => <span key={line}>{line}</span>)}</p> : null}
             {voice !== 'connected' ? <Button disabled={!clientRef.current || voice === 'connecting'} onClick={() => void clientRef.current?.startVoice()}>{voice === 'denied' || voice === 'error' ? '마이크 다시 시도' : '마이크 켜기'}</Button> : <Button onClick={toggleMute}>

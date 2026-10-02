@@ -16,8 +16,8 @@ import { landingPath } from '../state/onboarding';
 const FEATURES = [
   { icon: <IconBolt />, title: '빠른매치', desc: '게임 · 모드 · 포지션 · 음성 · 플레이 목적을 고르면 조건이 맞는 팀원을 시스템이 찾아 파티를 제안해요.' },
   { icon: <IconTarget />, title: '파티 모집 게시판', desc: '방을 만들어 팀원을 모으거나, 티어 · 전적을 보고 원하는 방에 참가해요.' },
-  { icon: <IconMic />, title: '음성 · 채팅', desc: '파티원끼리 브라우저로 직접 연결돼요. 대화 내용은 서버에 저장되지 않아요.' },
-  { icon: <IconShield />, title: '친구 · 차단 · 신고', desc: '차단한 사용자와는 같은 파티가 되지 않고, 비매너 사용자는 신고할 수 있어요.' },
+  { icon: <IconMic />, title: '음성 · 채팅', desc: '모집 중에도 같은 방에서 바로 대화해요. 방의 음성 · 채팅 내용은 서버에 저장되지 않아요.' },
+  { icon: <IconShield />, title: '친구 · 개인 메시지', desc: '함께한 팀원과 친구가 되고 개인 메시지로 다음 판을 약속해요. 차단과 신고도 할 수 있어요.' },
 ];
 
 export function LandingPage() {
@@ -36,10 +36,10 @@ export function LandingPage() {
 
       <section className="hero">
         <div>
-          <h1>조건이 맞는 팀원과<br /><em>지금, 바로</em> 플레이</h1>
+          <h1>롤 듀오부터 5인 파티까지<br /><em>함께할 팀원</em> 찾기</h1>
           <p className="lede">
             리그 오브 레전드 · 발로란트 · 배틀그라운드 팀원 찾기.
-            조건을 고르면 빠른매치가 팀원을 찾아 주고, 파티 모집 게시판에서는 직접 방을 만들거나 참가할 수 있어요.
+            조건을 고르면 빠른매치가 팀원을 찾아 주고, 파티 모집 게시판에서는 티어 · 포지션 · 전적을 보고 참가해요. 모집 중에도 음성 · 채팅으로 함께 준비할 수 있어요.
           </p>
           <div className="hero-actions">
             <Link className="btn btn-primary btn-lg" to="/login">시작하기</Link>
@@ -66,7 +66,7 @@ export function LandingPage() {
         {FEATURES.map((f) => (
           <div key={f.title} className="feature">
             <span className="fi">{f.icon}</span>
-            <b>{f.title}</b>
+            <h2>{f.title}</h2>
             <p>{f.desc}</p>
           </div>
         ))}

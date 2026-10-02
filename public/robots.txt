@@ -6,4 +6,4 @@ Allow: /privacy
 Allow: /terms
 Disallow: /app/
 
-# sitemap 은 아직 없다 — 만들면 Sitemap: https://queue-mate.com/sitemap.xml
+Sitemap: https://queue-mate.com/sitemap.xml

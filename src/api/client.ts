@@ -1,3 +1,4 @@
+import type { DirectThread, DirectConversation, DirectMessage } from './types';
 import { request } from './http';
 import type {
   AutoJoinResponse, BlockListResponse, BlockView, CreateBlockRequest, CreateFriendRequest, CreateMatchRequest, CreatePostRequest,
@@ -170,6 +171,7 @@ export const kickMember = (roomId: string, targetUserId: string) =>
  * 방장 확정 — 게시판 방만 · 방장만 · 2명 이상 · **되돌릴 수 없다**(REOPEN 없음 — 화면이 한 번 더 묻는다). 204 확정 / 200 이미 확정.
  * 그 순간 방 안의 전원이 파티원이 되고(`ROOM_CONFIRMED {members}`) 글은 `CONFIRMED` 다. 403 `NOT_HOST` · 409 `NOT_ENOUGH_MEMBERS` · 409 `POST_NOT_RECRUITING` · 404.
  */
+export const extendRecruitment = (roomId: string) => request<void>(`${room(roomId)}/recruitment/extend`, { method: 'POST' });
 export const confirmRoom = (roomId: string) => request<void>(`${room(roomId)}/confirm`, { method: 'POST' });
 /**
  * 접속 확인 — 방에 있는 동안 **1분마다**. 204. 방의 수명(600초)을 늘린다(미확정 방은 방장의 것만 방을 살린다).
@@ -221,3 +223,7 @@ export const unblockUser = (userId: string) => request<void>(`/blocks/${encodeUR
 export const listRecentPlayers = () => request<RecentPlayerListResponse>('/recent-players');
 /** 신고 — 201 `{reportId, createdAt}`. 접수만 한다(처리 화면 · 제재 없음). 같은 사람을 여러 번 신고할 수 있다. 400 `CANNOT_REPORT_SELF` · 404 `USER_NOT_FOUND` · 400 `VALIDATION_FAILED`(`details[0]`). */
 export const reportUser = (body: CreateReportRequest) => request<ReportResponse>('/reports', { method: 'POST', body });
+
+export const getDirectThreads = () => request<DirectThread[]>('/messages');
+export const getDirectConversation = (userId: string, before?: number) => request<DirectConversation>(`/messages/${encodeURIComponent(userId)}${before ? `?before=${before}` : ''}`);
+export const sendDirectMessage = (userId: string, text: string, clientMessageId: string) => request<DirectMessage>(`/messages/${encodeURIComponent(userId)}`, { method: 'POST', body: { text, clientMessageId } });

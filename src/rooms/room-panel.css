@@ -6,10 +6,8 @@
 .board-split { display:flex; align-items:flex-start; min-width:0; }
 .board-split-board { flex:1 1 0; min-width:0; }
 .room-panel {
-  /* 패널 = 본문(사이드바 80px 을 뺀 폭)에서 게시판 max(340px, 25%) 를 뺀 것 — 1100 에서 680px(게시판 340) · 1440 에서 1020(340) · 1920 에서 1380(460).
-     게시판(`.board-split-board` — 남는 폭을 다 받는다)이 그 나머지다. 스크롤 막대는 앱 전체가 숨겨(`theme.css`) 100vw 가 본문 + 사이드바 그대로다.
-     안쪽을 같은 폭으로 고정해 두어야 밀려 들어오는 동안 내용이 찌그러지지 않는다. */
-  --room-panel-w:min(calc((100vw - 80px) * .75), calc(100vw - 80px - 340px));
+  /* 1440px에서 게시판 약 734px · 방 약 626px. 양쪽 카드의 정보를 함께 읽을 폭을 확보한다. */
+  --room-panel-w:clamp(480px, calc((100vw - 80px) * .46), 680px);
   position:sticky; top:0; flex:0 0 var(--room-panel-w); min-width:0; height:100vh; height:100dvh; overflow:hidden;
   border-left:1px solid #ffffff14; background:#0d0f19; box-shadow:-18px 0 40px #0005;
   animation:room-panel-open .32s cubic-bezier(.22,.8,.25,1);

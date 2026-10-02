@@ -10,7 +10,7 @@ import { GameBadge } from './GameSymbol';
 import { availableGames } from '../domain/gameConfig';
 import type { GameKey } from '../api/types';
 import { Avatar, Modal } from './ui';
-import { IconHome, IconParty } from './icons';
+import { IconHome, IconParty, IconSend } from './icons';
 import { SiteFooter } from './SiteFooter';
 import { ROOM_SPLIT_QUERY } from '../rooms/roomPanel';
 
@@ -21,14 +21,11 @@ export interface AppShellOutletContext { selectedGame: GameKey; setSelectedGame(
 const isPanelRoute = (pathname: string) => pathname.startsWith('/app/party/') || pathname.startsWith('/app/proposals/');
 const isBoardRoute = (pathname: string) => pathname === '/app/home' || isPanelRoute(pathname);
 
-/**
- * 왼쪽 레일 — 홈 · **친구**(그 아래 프로필). 2026-10-02 소유자 결정으로 "메시지"(DM)와 "알림"(하트 · 알림함)을 없애고 친구 하나로 합쳤다 —
- * 우리 서버에 메시지가 없어 DM 은 이 브라우저에만 쌓이고 상대에게 가지 않았고, 알림함도 브라우저 안에만 쌓였으며 제안 · 파티는 화면이 저절로 열려 겹쳤다.
- * 이벤트가 올 때 잠깐 뜨는 토스트(제안 도착 · 새 친구 요청 등)는 그대로다(각 상태가 띄운다).
- */
+/** 홈 · 친구 관리 · 실제 서버 개인 메시지(P-53). 방의 음성 연결은 화면 이동에도 유지된다. */
 const NAV: NavItem[] = [
   { to: '/app/home', label: '홈', icon: IconHome },
   { to: '/app/friends', label: '친구', icon: IconParty },
+  { to: '/app/messages', label: '메시지', icon: IconSend },
 ];
 
 export function AppShell() {
