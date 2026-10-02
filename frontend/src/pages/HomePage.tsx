@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, type CSSProperties } from 'react';
 import { Outlet, useMatch, useNavigate, useOutletContext } from 'react-router-dom';
 import type { GameKey } from '../api/types';
 import type { AppShellOutletContext } from '../components/AppShell';
@@ -7,6 +7,7 @@ import { ROOM_SPLIT_QUERY, useMediaQuery } from '../rooms/roomPanel';
 import { useRoomSession } from '../state/RoomSessionContext';
 import { PartyRoomPage } from './PartyRoomPage';
 import '../rooms/room-panel.css';
+import { useRoomPanelResize } from '../rooms/useRoomPanelResize';
 
 /** 방 화면(`PartyRoomPage`)이 받는 맥락 — 게임 고르기(`AppShell`) + 방의 게임으로 게시판을 한 번 맞추기. */
 export interface BoardRoomOutletContext extends AppShellOutletContext {
@@ -21,6 +22,7 @@ export interface BoardRoomOutletContext extends AppShellOutletContext {
  * 자동 매칭 제안은 Outlet을 사용하며, 수락 뒤 같은 패널에서 파티룸으로 전환한다.
  */
 export function HomePage() {
+  const resize = useRoomPanelResize();
   const shell = useOutletContext<AppShellOutletContext>();
   const { selectedGame, setSelectedGame } = shell;
   const party = useMatch('/app/party/:roomId');
@@ -51,11 +53,16 @@ export function HomePage() {
 
   const context: BoardRoomOutletContext = { ...shell, syncRoomGame };
   const covered = Boolean(panelId) && !split;
-  return <div className={`board-split${panelId ? ' has-room' : ''}`}>
+  return <div ref={resize.container} className={`board-split${panelId ? ' has-room' : ''}${resize.dragging ? ' is-resizing' : ''}`} style={split ? { '--room-panel-width': `${resize.width}px` } as CSSProperties : undefined}>
     {/* 좁은 화면에서 방이 게시판을 덮는 동안 게시판은 초점 · 읽기에서 뺀다. */}
     <div className="board-split-board" aria-hidden={covered || undefined} {...{ inert: covered ? '' : undefined }}>
       <RoomBoardHome roomPanelOpen={Boolean(panelId)} />
     </div>
+    {panelId && split ? <div className="room-panel-resizer" role="separator" tabIndex={0} aria-label="방 패널 너비 조절" aria-orientation="vertical"
+      aria-valuemin={resize.min} aria-valuemax={Math.round(resize.max)} aria-valuenow={Math.round(resize.width)} aria-valuetext={`${Math.round(resize.width)}픽셀`}
+      title="드래그해서 너비 조절 · 두 번 클릭하면 기본 너비"
+      onPointerDown={resize.onPointerDown} onPointerMove={resize.onPointerMove} onPointerUp={resize.onPointerUp} onPointerCancel={resize.onPointerCancel}
+      onLostPointerCapture={resize.onLostPointerCapture} onKeyDown={resize.onKeyDown} onDoubleClick={resize.reset} /> : null}
     {panelId ? <section className="room-panel" aria-label={roomId ? '방' : '빠른매치 제안'} key={panelId}>
       <div className="room-panel-inner">
         <div className="room-panel-bar">
