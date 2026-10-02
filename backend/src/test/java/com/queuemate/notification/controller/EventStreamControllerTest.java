@@ -36,8 +36,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * SSE 입구를 웹 계층에서 본다. <b>Redis 없이 돈다</b> — {@link UserChannelSubscriber} 를 mock 으로
- * 바꿔 구독 호출이 Redis 까지 가지 않게 막는다.
+ * SSE 입구를 웹 계층에서 본다. <b>Redis 가 있어야 뜬다</b> — 구독 컨테이너가 기동 때 Redis 에 붙어서 Redis 가 없으면
+ * 컨텍스트가 뜨지 않는다(2026-10-02 확인 — {@code Failed to start bean 'redisMessageListenerContainer'}). 포트는 {@code REDIS_PORT}로 넘긴다.
+ * 이 테스트가 Redis 에 무엇을 쓰지는 않는다 — {@link UserChannelSubscriber} 를 mock 으로 바꿔 구독 호출이 Redis 까지 가지 않게 막는다.
  *
  * <p>연결은 쿠키 {@code qm_access}(테스트 키로 서명한 access 토큰 — {@link TestTokens})로 연다. {@code sub} 가 곧 {@code userId} 다.
  * 인증이 거절되는 경우는 {@code security/AuthenticationTest} 가 본다.

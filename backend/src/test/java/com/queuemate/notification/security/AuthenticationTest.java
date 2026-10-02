@@ -33,7 +33,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * SSE 연결의 인증 — 쿠키 {@code qm_access} 에서 꺼내는지, 무엇을 거절하는지. 거절은 전부 같은 401 {@code UNAUTHENTICATED} 이고
- * <b>거절되면 구독이 걸리지 않는다.</b> Redis 없이 돈다({@link UserChannelSubscriber} 를 mock 으로 바꾼다 — {@code EventStreamControllerTest} 와 같은 컨텍스트).
+ * <b>거절되면 구독이 걸리지 않는다.</b> <b>Redis 가 있어야 뜬다</b> — 구독 컨테이너가 기동 때 Redis 에 붙는다(2026-10-02 확인. 포트는 {@code REDIS_PORT}로 넘긴다).
+ * 이 테스트가 Redis 에 무엇을 쓰지는 않는다({@link UserChannelSubscriber} 를 mock 으로 바꾼다 — {@code EventStreamControllerTest} 와 같은 컨텍스트).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
