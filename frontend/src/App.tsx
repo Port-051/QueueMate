@@ -14,7 +14,6 @@ import { PartyRoomPage } from './pages/PartyRoomPage';
 import { ProposalPage } from './pages/ProposalPage';
 import { ReservationNewPage } from './pages/ReservationNewPage';
 import { ReservationsPage } from './pages/ReservationsPage';
-import { LandingPage } from './pages/LandingPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 
 function LegacyFriendsRedirect() {
@@ -27,7 +26,7 @@ function LegacyFriendsRedirect() {
 export function App() {
   return (
     <Routes>
-      <Route path="/" element={<LandingPage />} />
+      <Route path="/" element={<Navigate to="/app/home" replace />} />
       <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/signup" element={<AuthPage mode="signup" />} />
       {/* 소셜 로그인 콜백. 서버가 브라우저를 이 경로로 돌려보낸다. */}
