@@ -1,5 +1,7 @@
 # CLAUDE.md — platform 서비스 규칙 (Non-Negotiable)
 
+> **2026-10-02 멘토 요구사항 반영 브랜치:** 사용자의 최신 요청에 따른 자동 확정·포지션 보존·실제 개인 메시지 계약은 [P-52 · P-53](contracts/mentor-room-ux.md)을 우선한다. 아래의 상충하는 과거 결정은 이력이다.
+
 작업 전에 `START_HERE.md`(지금 상태 · 만드는 순서 · 다음에 물을 것) → 이 파일 → `README.md` → **`contracts/platform-api.md`**(이 폴더의 계약 — 경로 · 스키마 · 에러 코드 · 토큰 · 방 · P-항목) 순으로 읽어라.
 
 이 폴더는 QueueMate 의 **API 서버 배포 단위 하나 — `app:platform`**(docs/11 #15)이다. **계정 · 파티 · 소셜 REST · 모집 게시판 · 방 안의 일(입장 · 강퇴 · 시그널 — 2026-09-25 에 옛 `room` 앱을 합쳤다, P-22)** 을 맡는다. 매칭 엔진은 옆 `matching`, 알림 배달은 `notification`, 예약은 `app:reservation`(D-15)이다.
