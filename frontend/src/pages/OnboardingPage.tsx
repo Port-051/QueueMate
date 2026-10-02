@@ -1,3 +1,4 @@
+import { VerificationBadge } from '../components/VerificationBadge';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { GameKey } from '../api/types';
@@ -61,7 +62,7 @@ export function OnboardingPage() {
             {gameAccounts.map((account) => {
               // 사다리마다 티어가 따로라(2026-09-29) 연결 확인 태그에는 가장 높은 것 하나를 사다리 이름과 같이 — `domain/profileTier.ts`.
               const best = highestTier(account.game, account);
-              return <Tag key={account.game} tone="accent">{account.game} · {account.gameNickname}{best.tier && best.ladder ? ` · ${TIER_LADDER_LABEL[best.ladder]} ${rankLabel(best.tier)}` : ''}</Tag>;
+              return <Tag key={account.game} tone="accent">{account.game} · {account.gameNickname}<VerificationBadge verified={account.verified} />{best.tier && best.ladder ? ` · ${TIER_LADDER_LABEL[best.ladder]} ${rankLabel(best.tier)}` : ''}</Tag>;
             })}
           </div>
         ) : null}

@@ -7,7 +7,6 @@
 .room-member-detail .room-pop-head { align-items:center; gap:5px; min-width:0; }
 .room-member-detail .room-pop-head>b { font-size:14px; line-height:20px; }
 .room-member-detail .room-pop-head>em { font-size:12px; }
-.room-member-detail .room-pop-head .room-seat-verified { display:inline-flex; }
 .room-member-detail .room-pop-meta { display:flex; align-items:center; gap:6px; min-width:0; }
 .room-member-detail .room-pop-position { display:inline-flex; align-items:center; flex:none; gap:4px; height:20px; padding:0 7px 0 4px; border:1px solid #ffffff0e; border-radius:999px; background:#ffffff0b; color:#d9d2e8; font-size:12px; line-height:18px; }
 .room-member-detail .room-pop-position svg { flex:none; width:14px; height:14px; }
@@ -26,7 +25,7 @@
 .room-member-detail .room-pop-champion-name { display:none; }
 .room-member-detail .room-pop-portrait { flex:none; width:22px; height:22px; border-radius:50%; }
 .room-member-detail .room-pop-champion>small { color:var(--muted); }
-.room-detail-close { position:absolute; right:4px; top:4px; display:grid; place-items:center; width:24px; height:24px; border:0; border-radius:50%; background:transparent; color:var(--muted); font:inherit; font-size:18px; cursor:pointer; }
+.room-detail-close { position:absolute; right:5px; top:5px; display:grid; place-items:center; width:24px; height:24px; border:1px solid #ffffff26; border-radius:50%; background:#ffffff07; color:var(--muted); font:inherit; font-size:18px; cursor:pointer; }
 .room-detail-close:hover { background:#ffffff12; color:var(--text); }
 .room-detail-close:focus-visible,.room-detail-action:focus-visible { outline:2px solid var(--accent-2); outline-offset:2px; }
 .room-detail-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; padding-top:8px; margin-top:8px; border-top:1px solid #ffffff15; }
