@@ -4,6 +4,7 @@ import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.account.domain.GameTiers;
 import com.queuemate.platform.common.security.AccessTokenIssuer;
 import com.queuemate.platform.common.security.RefreshTokens;
+import com.queuemate.platform.social.redisKeys.BlockKeys;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -220,6 +221,8 @@ public abstract class ApiTestSupport {
             // 글의 파티 · 파티원은 글의 CASCADE 가, 나머지 딸린 줄(차단 · 친구 · 신고 · 파티원 …)은 사용자의 CASCADE 가 같이 지운다
             jdbcTemplate.update("delete from recruit_posts where host_id = ?", userId);
             jdbcTemplate.update("delete from users where id = ?", userId);
+            // 차단이 적은 사본(2026-10-02 · P-52)도 그 사람의 키만 지운다 — SQL 로 지운 차단은 사본에 남는다(상대도 이 테스트가 만든 사람이라 같이 지워진다)
+            redisTemplate.delete(BlockKeys.key(userId));
         }
         for(String refreshToken : receivedRefreshTokens)
         {

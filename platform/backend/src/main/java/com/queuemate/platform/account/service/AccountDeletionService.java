@@ -7,12 +7,16 @@ import com.queuemate.platform.party.service.PostService;
 import com.queuemate.platform.room.RoomErrors;
 import com.queuemate.platform.room.service.RoomMemberService;
 import com.queuemate.platform.room.service.RoomService;
+import com.queuemate.platform.social.domain.BlockRelationUnavailableException;
+import com.queuemate.platform.social.service.BlockReader;
+import com.queuemate.platform.social.service.BlockRelationRedis;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * <b>회원 탈퇴</b>({@code DELETE /api/v1/auth/account} — 2026-10-02 소유자 결정 · {@code contracts/platform-api.md} P-48. 처음에는 {@code DELETE /api/v1/users/me} 였다 —
@@ -27,7 +31,10 @@ import java.util.List;
  *   <li><b>방 안이면 평소 나가기와 같은 규칙으로 나간다</b>({@link RoomMemberService#leave} — 그 콜백까지 그대로) — 확정 전 방의 방장이면 방이 닫히고 글이 만료되고,
  *       확정한 방이면 승계, 마지막 사람이면 파티가 닫힌다(최근 함께한 사람도 그때 적힌다 — 곧 그 사람의 줄은 지워진다)</li>
  *   <li>모집 중인 글이 남아 있으면 글 지우기와 같은 효과(만료 · 방 닫기 · {@code ROOM_CLOSED}) — {@link PostService#expireRecruitingOf}</li>
- *   <li><b>한 트랜잭션</b> — 사용자 줄을 잠그고({@code FOR UPDATE}) → 확정되지 않은 글을 지우고 → 사용자 줄을 지운다(나머지는 FK 가 정리한다)</li>
+ *   <li><b>한 트랜잭션</b> — 사용자 줄을 잠그고({@code FOR UPDATE}) → <b>차단 관계인 상대 목록을 읽어 두고</b>({@link BlockReader#counterpartsOf} — 2026-10-02 · P-52)
+ *       → 확정되지 않은 글을 지우고 → 사용자 줄을 지운다(나머지는 FK 가 정리한다 — {@code blocks} 의 줄도)</li>
+ *   <li><b>차단 관계 사본(Redis)에서 그 사람을 지운다</b>({@link BlockRelationRedis#removeUser} — 그 사람의 집합을 지우고 상대들의 집합에서 번호를 뺀다).
+ *       Redis 에 닿지 못해도 넘어간다 — 남는 것은 없는 사람(번호는 다시 쓰이지 않는다)을 향한 더 막기뿐이고 재구성이 치운다</li>
  *   <li><b>요청에 실려 온 refresh 를 Redis 에서 지운다</b>(2026-10-02 소유자 지시 "탈퇴 요청에도 refresh 토큰 실어서 버려") — 로그아웃과 같은 코드
  *       ({@link RefreshTokens#revoke(List)}). 쿠키가 없거나 Redis 가 죽었으면 넘어간다 — 탈퇴는 이미 끝났으니 실패시키지 않는다(로그아웃이 Redis 장애에도 204 인 것과 같다)</li>
  * </ol>
@@ -42,7 +49,7 @@ import java.util.List;
  *
  * <p><b>감수하는 것</b>(새 장치를 만들지 않는다 — 소유자 지시) — ① 매칭 대기를 확인한 뒤 · 방을 나간 뒤 탈퇴가 끝나기 전의 밀리초에 같은 사람이 매칭을 걸거나 방에 들어가는 경쟁
  * ② 탈퇴 뒤 남는 access 토큰(최대 15분)으로 Redis 만 쓰는 요청(방 입장 · {@code matching} 의 매칭 요청)은 통한다 — 나를 적는 요청(글 · 친구 요청 · 차단 · 신고 · 게임 계정)은 FK 위반이, 내 정보는 사용자 조회가 401 로 막는다
- * ③ <b>다른 기기</b>의 refresh 의 Redis 줄은 지우지 못한다 — 이 요청에 실려 온 이 브라우저의 값만 지운다(5). 한 사용자의 refresh 를 찾는 길이 없다
+ * ③ <b>다른 기기</b>의 refresh 의 Redis 줄은 지우지 못한다 — 이 요청에 실려 온 이 브라우저의 값만 지운다(마지막 단계). 한 사용자의 refresh 를 찾는 길이 없다
  * ({@code KEYS}/{@code SCAN} 을 쓰지 않는다 · 모든 기기 로그아웃은 미정). 그 값으로 재발급을 부르면 사용자가 없어 401 {@code INVALID_REFRESH_TOKEN} 이고 그때 그 줄도 지워진다.
  * 남은 줄도 수명(7일)이 다하면 사라진다.
  */
@@ -57,6 +64,8 @@ public class AccountDeletionService {
     private final PostService postService;
     private final TransactionTemplate transactionTemplate;
     private final RefreshTokens refreshTokens;
+    private final BlockReader blockReader;
+    private final BlockRelationRedis blockRelationRedis;
 
     /**
      * 탈퇴시킨다. 성공하면 그 사용자 번호의 줄이 DB 에 없다.
@@ -85,17 +94,37 @@ public class AccountDeletionService {
             roomMemberService.leave(roomId, me);
         }
         postService.expireRecruitingOf(userId);
-        transactionTemplate.executeWithoutResult(status -> {
+        Set<Long> blockCounterparts = transactionTemplate.execute(status -> {
             if(userRepository.lockById(userId).isEmpty())
             {
                 // 같은 사람의 탈퇴가 겹쳐 앞의 것이 먼저 지웠다
                 throw ApiException.unauthenticated();
             }
+            // 사용자 줄을 지우면 CASCADE 가 blocks 의 줄을 지운다 — 사본에서 번호를 뺄 상대를 먼저 읽는다(잠근 뒤라 새 차단이 끼지 못한다)
+            Set<Long> counterparts = blockReader.counterpartsOf(userId);
             postService.deleteUnconfirmedOf(userId);
             userRepository.deleteUserRow(userId);
+            return counterparts;
         });
+        forgetBlockRelations(userId, blockCounterparts == null ? Set.of() : blockCounterparts);
         // 탈퇴는 끝났다 — 이 브라우저의 refresh 를 버린다. 예외를 내지 않는다(Redis 가 죽었으면 그 줄은 수명까지 남고, 쓰면 사용자가 없어 401 이다)
         this.refreshTokens.revoke(refreshTokens);
         log.info("회원 탈퇴 userId={}", userId);
+    }
+
+    /**
+     * 차단 관계 사본(Redis)에서 탈퇴자를 지운다 — 커밋 뒤라 <b>예외를 내지 않는다</b>(탈퇴는 이미 끝났다). 못 지우면 WARN 한 줄 — 남는 것은 없는 사람을 향한 더 막기뿐이고
+     * 재구성(기동 때 · 주기 — {@code BlockRelationSync})이 표에 없는 사용자의 키와 번호를 치운다.
+     */
+    private void forgetBlockRelations(Long userId, Set<Long> counterparts)
+    {
+        try
+        {
+            blockRelationRedis.removeUser(userId, counterparts);
+        }
+        catch(BlockRelationUnavailableException e)
+        {
+            log.warn("탈퇴자를 차단 관계 사본에서 지우지 못했다 — 재구성이 치운다 userId={} 상대 {}명: {}", userId, counterparts.size(), e.getCause().toString());
+        }
     }
 }
