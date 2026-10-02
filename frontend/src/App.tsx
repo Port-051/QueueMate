@@ -8,7 +8,6 @@ import { MatchConditionPage } from './pages/MatchConditionPage';
 import { MatchWaitingPage } from './pages/MatchWaitingPage';
 import { FriendsPage } from './pages/FriendsPage';
 import { MyInfoPage } from './pages/MyInfoPage';
-import { PartyRoomPage } from './pages/PartyRoomPage';
 import { ProposalPage } from './pages/ProposalPage';
 import { ReservationNewPage } from './pages/ReservationNewPage';
 import { ReservationsPage } from './pages/ReservationsPage';
@@ -52,7 +51,7 @@ export function App() {
             확정되면 같은 패널이 그 파티의 방(`/app/party/{partyId}`)으로 바뀐다. */}
         <Route element={<HomePage />}>
           <Route path="home" />
-          <Route path="party/:roomId" element={<PartyRoomPage />} />
+          <Route path="party/:roomId" />
           <Route path="proposals/:proposalId" element={<ProposalPage />} />
         </Route>
         <Route path="match" element={<MatchConditionPage />} />

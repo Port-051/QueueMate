@@ -4,7 +4,7 @@ import { tierColor } from '../domain/rankAssets';
 import type { GameKey, GameStats, LolMostChampion } from '../api/types';
 import { Avatar } from '../components/ui';
 import { FilterModeIcon, FilterRoleIcon, FilterTierIcon, VoiceIcon } from '../components/FilterSymbols';
-import { PerformanceValue } from '../components/IntroductionVisuals';
+import { PerformanceValue, PreferredChampions } from '../components/IntroductionVisuals';
 import { KdaStat, kdaLine, KdStat, kdLine } from '../components/KdaStat';
 import { RecentResults, recentRecord } from '../components/RecentResults';
 import { WinLossBar, winLossRecord } from '../components/WinLossBar';
@@ -25,12 +25,6 @@ export function RoomWantedPositions({ room }: { room: BoardRoom }) {
   if (room.status !== 'RECRUITING') return <span>모집 마감</span>;
   const remaining = remainingPositions(room);
   return room.wantedPositions.length && !remaining.length ? <span>빈 포지션 없음</span> : <RoomRoles game={room.game} roles={remaining} labels />;
-}
-
-function RoomBubbleTail() {
-  return <svg className="room-bubble-tail" width="48" height="48" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
-    <path d="M0 4C0 19 4 27 12 32C17 36 17 40 13 44Q11 47 15 46C24 43 26 38 35 36H48V0H0Z" fill="var(--room-bubble-bg)" />
-  </svg>;
 }
 
 const roleLabel = (game: GameKey, role: string) => keyConditionOptions(game).find(item => item.value === role)?.label ?? role;
@@ -316,14 +310,11 @@ export function seatSummary(room: BoardRoom, member: BoardMember, selfId: string
   ].filter(Boolean).join(' · ');
 }
 
-/**
- * 채워진 좌석의 몸통 — 얼굴(방장이면 왕관 · 좁으면 티어 배지) · 닉네임(+ 인증 표시) · 그 사람의 포지션(`seatPosition` — 2026-10-01 부터 멤버도 · 확정된 방은 없음) · 두 줄째에 그 글의 사다리 티어와 승률 · KDA.
- * 게시판 좌석(`RoomSeat`)과 방 화면의 음성 칸 좌석(`RoomVoiceSeats` — `me` 로 닉네임 뒤 "(나)")이 같이 쓴다 — 두 곳의 좌석이 같은 모양이게.
- * 두 줄째 숫자에는 풍선말(`title`)을 달지 않는다 — 마우스를 올리면 뜨는 작은 창 위에 브라우저 풍선말 "KDA" 가 겹쳐 떴다(2026-09-30 소유자 스크린숏). 이름은 작은 창의 칸 · 좌석 버튼의 이름(`seatSummary`)에 있다.
- */
-export function RoomSeatBody({ room, member, me = false, color }: { room: BoardRoom; member: BoardMember; me?: boolean; color?: number }) {
+/** 게시판은 고정 열 표(table), 음성/제안 좌석은 작은 요약을 사용한다. 상세 정보는 공통 팝오버에서 읽는다. */
+export function RoomSeatBody({ room, member, me = false, color, table = false }: { room: BoardRoom; member: BoardMember; me?: boolean; color?: number; table?: boolean }) {
   const position = seatPosition(room, member);
-  const numbers = seatNumbers(room.game, member);
+  const record = room.game === 'LOL' ? winLossRecord(member.profile?.stats) : null;
+  const positionLabel = position ? <span className="room-seat-position" title={roleLabel(room.game, position)}><FilterRoleIcon game={room.game} value={position} size={15} /><b>{roleLabel(room.game, position)}</b></span> : null;
   return <>
     <span className="room-seat-face">
       <RoomMemberAvatar member={member} size={34} color={color} />
@@ -335,16 +326,19 @@ export function RoomSeatBody({ room, member, me = false, color }: { room: BoardR
         <strong>{member.nickname}</strong>
         {me ? <span className="room-seat-me">(나)</span> : null}
         {member.profile?.verified ? <VerifiedMark /> : null}
-        {position ? <span className="room-seat-position"><FilterRoleIcon game={room.game} value={position} size={15} /><b>{roleLabel(room.game, position)}</b></span> : null}
+        {!table ? positionLabel : null}
       </span>
+      {table ? positionLabel ?? <span className="room-seat-position">—</span> : null}
       <span className="room-seat-line">
         <span className="room-seat-rank"><FilterTierIcon game={room.game} tier={member.tier} size={16} /><span style={member.tier ? { color: tierColor(member.tier) } : undefined}>{member.profile ? rankText(room.game, member.tier, member.division, true) : '—'}</span></span>
-        {numbers.length ? <span className="room-seat-numbers">{numbers.map(item => <span key={item.label}><small>{item.label}</small><b>{item.text}</b></span>)}</span> : null}
+        {table ? <><span className="room-seat-record" aria-label={room.game === 'PUBG' ? '치킨율' : '승패와 승률'}>
+          {record ? <WinLossBar record={record} rate={member.winRate} size="sm" /> : member.winRate !== null ? <PerformanceValue kind="winRate" value={member.winRate} /> : <span className="room-seat-no-stats">—</span>}
+        </span>
+        <span className="room-seat-kda" aria-label={room.game === 'PUBG' ? 'K/D' : 'KDA'}>{member.kda !== null ? <PerformanceValue kind="kda" value={member.kda} /> : <span className="room-seat-no-stats">—</span>}</span></> : <span className="room-seat-numbers">{member.winRate !== null ? <span><PerformanceValue kind="winRate" value={member.winRate} /></span> : null}{member.kda !== null ? <span><PerformanceValue kind="kda" value={member.kda} /></span> : null}</span>}
       </span>
-      {room.game === 'LOL' ? <span className="room-seat-champions" aria-label="주 챔피언">
-        {member.champions.length ? member.champions.map(id => <span key={id}><img src={championPortrait(id) ?? undefined} alt="" width="24" height="24" loading="lazy" /><span>{championName(id)}</span></span>) : <span className="room-seat-no-stats">주 챔피언 정보 없음</span>}
+      {table ? <span className="room-seat-champions" aria-label="선호 챔피언">
+        {room.game === 'LOL' && member.champions.length ? <PreferredChampions game={room.game} names={member.champions.slice(0, 3)} /> : <span className="room-seat-no-stats">—</span>}
       </span> : null}
-      {!numbers.length ? <span className="room-seat-no-stats">전적 정보 없음</span> : null}
     </span>
   </>;
 }
@@ -359,7 +353,7 @@ function RoomSeat({ room, member, color, selfId, popEnd, onMember }: { room: Boa
   return <li className={`room-seat is-filled${member.host ? ' is-host' : ''}${member.id === selfId ? ' is-self' : ''}${popEnd ? ' pop-end' : ''}`}
     onMouseEnter={popover ? event => placeSeatPopover(event.currentTarget) : undefined} onFocus={popover ? event => placeSeatPopover(event.currentTarget) : undefined}>
     <button type="button" className="room-seat-button" aria-label={`${seatSummary(room, member, selfId)} — 프로필 보기`} onClick={event => { event.stopPropagation(); onMember(room, member); }}>
-      <RoomSeatBody room={room} member={member} color={color} />
+      <RoomSeatBody room={room} member={member} color={color} table />
     </button>
     {popover ? <SeatPopover room={room} member={member} /> : null}
   </li>;
@@ -417,7 +411,6 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, reveal = f
   const full = recruiting && (room.full || room.memberCount >= room.capacity);
   const joinText = inside ? '참여 중' : full ? '가득 참' : '참가';
   return <article ref={card} className={`room-deck room-row${room.hostId === selfId ? ' is-own' : ''}${recruiting ? '' : ' is-closed'}${entering ? ' is-entering' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`}>
-    <RoomBubbleTail />
     <div className="room-row-head">
       <h3 ref={heading} tabIndex={-1} title={room.title}>{room.title}</h3>
       <p className="room-row-state"><span className="room-row-status" data-status={room.status}><i aria-hidden="true" />{status}</span><time dateTime={room.createdAt}>{relativeTime(room.createdAt)}</time></p>
@@ -427,6 +420,7 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, reveal = f
       <span className={`room-row-voice ${voice === 'REQUIRED' ? 'is-on' : 'is-off'}`}><VoiceIcon preference={voice} size={16} />{voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용'}</span>
       {positions ? <span className="room-row-wanted"><span className="room-row-wanted-label">찾는 포지션</span><RoomWantedPositions room={room} /></span> : null}
     </p>
+    <div className="room-member-columns" aria-hidden="true"><span>닉네임</span><span>포지션</span><span>티어</span><span>{room.game === 'PUBG' ? '치킨율' : '승패 · 승률'}</span><span>{room.game === 'PUBG' ? 'K/D' : 'KDA'}</span><span>{room.game === 'LOL' ? '선호 챔피언' : ''}</span></div>
     <div className="room-seat-row">
       <ul className="room-seats" aria-label={recruiting ? `자리 ${room.memberCount} / ${room.capacity}` : `파티원 ${members.length}명`}>
         {members.map((member, index) => <RoomSeat key={member.id} room={room} member={member} color={colors.get(member.id)} selfId={selfId} popEnd={index >= 3} onMember={onMember} />)}

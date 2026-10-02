@@ -57,8 +57,9 @@ const VOICE_LABEL: Record<VoiceStatus, string> = {
  * - **2026-09-30 부터 이 화면은 게시판 오른쪽 패널이다**(`pages/HomePage.tsx` — 넓은 화면은 게시판을 왼쪽으로 밀고, 좁은 화면은 게시판을 덮는다). 경로 · 하는 일은 그대로이고,
  *   게시판 방의 글을 처음 읽으면 게시판의 게임을 이 방의 게임으로 한 번 맞춘다(`syncRoomGame` — 딥 링크 · 새로 고침).
  */
-export function PartyRoomPage() {
-  const { roomId } = useParams<{ roomId: string }>();
+export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: string; onRoomGame?: BoardRoomOutletContext['syncRoomGame'] } = {}) {
+  const params = useParams<{ roomId: string }>();
+  const roomId = activeRoomId ?? params.roomId;
   const { user, userId } = useAuth();
   const session = useRoomSession();
   const { messages, voiceActivity, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef, setConnectionAttempt } = usePartySession();
@@ -135,7 +136,8 @@ export function PartyRoomPage() {
   const knownGame = partyGame ?? teamMembers?.find(member => member.profile)?.profile?.game ?? null;
 
   // 게시판(왼쪽)을 이 방의 게임으로 — 방마다 한 번(그 뒤 사용자가 게임을 바꾸면 그대로 둔다).
-  const syncRoomGame = useOutletContext<BoardRoomOutletContext | undefined>()?.syncRoomGame;
+  const outlet = useOutletContext<BoardRoomOutletContext | undefined>();
+  const syncRoomGame = onRoomGame ?? outlet?.syncRoomGame;
   const roomGame = room?.game ?? knownGame ?? undefined;
   useEffect(() => { if (roomId && roomGame && syncRoomGame) syncRoomGame(roomId, roomGame); }, [roomId, roomGame, syncRoomGame]);
 

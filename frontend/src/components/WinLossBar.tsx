@@ -1,3 +1,4 @@
+import { PerformanceValue } from './IntroductionVisuals';
 import type { GameStats } from '../api/types';
 import '../styles/win-loss-bar.css';
 
@@ -24,7 +25,7 @@ export const winLossRate = ({ wins, losses }: WinLossRecord, given?: number | nu
 const number = (value: number) => value.toLocaleString('ko-KR');
 
 /**
- * OP.GG 처럼 승 · 패를 한 막대로 — 왼쪽 승(앱 강조색) · 오른쪽 패(위험색), 폭은 승 : 패, 막대 뒤에 승률(50% 밑이면 빨강 · 이상이면 강조색). 2026-09-30 소유자 지시
+ * OP.GG 처럼 승 · 패를 한 막대로 — 왼쪽 승(파랑) · 오른쪽 패(빨강), 폭은 승 : 패, 막대 뒤에 승률(기준 UI의 다섯 색상 구간). 2026-09-30 소유자 지시
  * "몇 판 해서 승률이 어떻게 되는지를 한 눈에". 좌석 작은 창(`SeatPopover`)과 프로필 창 · 방 화면 파티원(`RoomMemberFacts`)이 쓴다.
  * - 한쪽이 아주 적어도(3승 40패) 그 칸은 글자가 들어갈 만큼은 남는다(칸의 최소 폭 = 글자 — 폭이 비율에서 조금 어긋나는 대신 읽힌다).
  * - 한쪽이 0 이면 막대는 한 칸이고 0 쪽 글자는 그 칸 위 반대편 끝에 얹는다(0 에 색 칸을 주지 않는다).
@@ -42,6 +43,6 @@ export function WinLossBar({ record, rate: given, size = 'md' }: { record: WinLo
       {wins === 0 ? <span className="win-loss-zero is-win">{winText}</span> : null}
       {losses === 0 ? <span className="win-loss-zero is-loss">{lossText}</span> : null}
     </span>
-    <b className="win-loss-rate" data-tone={rate < 50 ? 'low' : 'high'} aria-hidden="true">{rate}%</b>
+    <span className="win-loss-rate" aria-hidden="true"><PerformanceValue kind="winRate" value={rate} /></span>
   </span>;
 }
