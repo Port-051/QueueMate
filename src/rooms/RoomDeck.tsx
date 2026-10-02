@@ -79,10 +79,10 @@ export function RoomHostCrown() {
 }
 
 /** 좌석 · 프로필 창의 얼굴(+ 방장 왕관). `color` 는 그 방의 색(`boardRoomColors` — 한 방은 모두 다른 색) · 없으면 그 사람의 집 색이다. */
-export function RoomMemberAvatar({ member, size, color }: { member: BoardMember; size: number; color?: number }) {
+export function RoomMemberAvatar({ member, size, color, showHost = true }: { member: BoardMember; size: number; color?: number; showHost?: boolean }) {
   return <span className="room-member-avatar">
     <Avatar userId={member.id} name={member.nickname} color={color} size={size} />
-    {member.host ? <RoomHostCrown /> : null}
+    {member.host && showHost ? <RoomHostCrown /> : null}
   </span>;
 }
 
@@ -273,8 +273,9 @@ export function RoomSeatBody({ room, member, me = false, color, table = false, s
   const record = room.game === 'LOL' ? winLossRecord(member.profile?.stats) : null;
   const positionLabel = position ? <span className="room-seat-position" title={roleLabel(room.game, position)}><FilterRoleIcon game={room.game} value={position} size={15} /><b>{roleLabel(room.game, position)}</b></span> : null;
   return <>
+    {showDetails && position ? <span className="room-voice-position" role="img" aria-label={roleLabel(room.game, position)} title={roleLabel(room.game, position)}><FilterRoleIcon game={room.game} value={position} size={16} /></span> : null}
     <span className="room-seat-face">
-      <RoomMemberAvatar member={member} size={showDetails ? 36 : 34} color={color} />
+      <RoomMemberAvatar member={member} size={showDetails ? 36 : 34} color={color} showHost={!showDetails} />
       {!showDetails ? <span className="room-seat-tier-badge"><FilterTierIcon game={room.game} tier={member.tier} size={16} /></span> : null}
     </span>
     <span className="room-seat-text">
@@ -285,7 +286,6 @@ export function RoomSeatBody({ room, member, me = false, color, table = false, s
         {member.profile?.verified ? <VerifiedMark /> : null}
         {!table && !showDetails ? positionLabel : null}
       </span>
-      {showDetails ? positionLabel : null}
       {table ? positionLabel ?? <span className="room-seat-position">—</span> : null}
       <span className="room-seat-line">
         <span className="room-seat-rank"><FilterTierIcon game={room.game} tier={member.tier} size={16} /><span style={member.tier ? { color: tierColor(member.tier) } : undefined}>{member.profile ? rankText(room.game, member.tier, member.division, !showDetails) : '—'}</span></span>

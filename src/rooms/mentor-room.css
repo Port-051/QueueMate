@@ -82,7 +82,7 @@
 
 
 
-.room-voice-seats .room-host-crown { display:none; }
+.room-voice-seats .room-seat-button>.room-host-crown { display:grid; top:7px; left:7px; width:18px; height:20px; transform:none; }
 
 /* 필터는 작은 버튼을 같은 높이의 한 줄에 배치한다. 좁은 화면은 가로로 이동한다. */
 .room-home.board-home .room-filters {
@@ -112,10 +112,9 @@
   .party-page .room-voice-seats.room-seats .room-seat .room-seat-button { border:1px solid #ffffff16; border-radius:10px; background:#ffffff08; }
 }
 
-/* 포지션·티어는 닉네임 아래에서 아이콘과 이름을 함께 읽는다. */
-.party-page .room-voice-seats .room-seat-position,.party-page .room-voice-seats .room-seat-line { display:flex; align-items:center; justify-content:center; width:100%; font-size:12px; line-height:1.35; }
-.party-page .room-voice-seats .room-seat-position::before { content:none; }
-.party-page .room-voice-seats .room-seat-position b { display:inline; font-weight:500; }
+/* 닉네임 아래에는 티어, 오른쪽 마이크 아래에는 포지션 아이콘을 배치한다. */
+.party-page .room-voice-seats .room-seat-line { display:flex; align-items:center; justify-content:center; width:100%; font-size:12px; line-height:1.35; }
+.party-page .room-voice-seats .room-voice-position { position:absolute; top:32px; right:7px; display:grid; place-items:center; width:20px; height:20px; color:#c1c7d8; }
 .party-page .room-voice-seats .room-seat-rank { justify-content:center; gap:3px; max-width:100%; overflow:visible; }
 .party-page .room-voice-seats .room-seat-rank>span:last-child { white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; text-align:left; font-weight:500; }
 .party-page .room-voice-seats .room-seat-numbers { display:none; }
@@ -132,21 +131,26 @@
 .party-page .room-voice-seats.room-seats { gap:8px; }
 .party-page .room-voice-seats.room-seats .room-seat .room-seat-button { height:144px; min-height:144px; padding:12px 5px; gap:9px; border:1px solid #ffffff10; border-radius:14px; background:linear-gradient(160deg,#ffffff08,#ffffff03); box-shadow:inset 0 1px #ffffff04; }
 .party-page .room-voice-seats.room-seats .room-seat .room-seat-button:hover { border-color:#ffffff2c; background:linear-gradient(160deg,#ffffff0e,#ffffff06); }
+.party-page .room-voice-seats.room-seats .room-seat.is-self .room-seat-button { border-color:#ae94ed50; background:linear-gradient(160deg,#a887e829,#a887e811); }
+.party-page .room-voice-seats.room-seats .room-seat.is-self .room-seat-button:hover { border-color:#b69cf078; background:linear-gradient(160deg,#a887e835,#a887e81c); }
 .party-page .room-voice-seats .room-seat-text { flex:none; gap:5px; }
 .party-page .room-voice-seats .room-seat-name { font-size:13px; line-height:18px; }
 .party-page .room-voice-seats .room-seat-name strong { font-weight:600; color:#e6e8f0; }
-.party-page .room-voice-seats .room-seat-position { width:auto; max-width:100%; padding:1px 6px; border-radius:5px; background:#ffffff06; color:#c1c7d8; }
 .party-page .room-voice-seats .room-seat-rank>span:last-child { color:#aeb6cb !important; }
 .party-page .room-voice-seats .room-seat-rank { gap:4px; }
 .party-page .room-voice-seats .room-seat.is-self .avatar-wrap { outline:1px solid #b7a1ff80; outline-offset:3px; }
 .party-page .room-voice-seats .room-seat-hole { border:1px dashed #ffffff16; border-radius:14px; background:#ffffff02; }
 .party-page .room-voice-seats .room-voice-mark { top:7px; right:7px; width:20px; height:20px; }
-.party-page .room-voice-seats .is-speaking .room-seat-button { border-color:#5fe3a870; box-shadow:inset 0 0 0 1px #5fe3a814; }
+.party-page .room-voice-seats.room-seats .room-seat.is-speaking .room-seat-button { border-color:#5fe3a870; box-shadow:inset 0 0 0 1px #5fe3a814; }
 @container room-voice (max-width:459px) {
   .party-page .room-voice-seats.room-seats { gap:5px; }
   .party-page .room-voice-seats.room-seats .room-seat .room-seat-button { padding:8px 3px; gap:7px; }
-  .party-page .room-voice-seats .room-seat-position { padding-inline:3px; }
+  .party-page .room-voice-seats .room-seat-face { transform:translateX(-6px); }
+  .party-page .room-voice-seats .room-seat-face .avatar-wrap,.party-page .room-voice-seats .room-seat-face .avatar { width:32px !important; height:32px !important; }
   .party-page .room-voice-seats .room-voice-mark { right:3px; top:4px; }
+  .party-page .room-voice-seats .room-voice-position { top:29px; right:3px; }
+  .party-page .room-voice-seats .room-voice-position .filter-role-symbol { width:14px; height:14px; }
+  .room-voice-seats .room-seat-button>.room-host-crown { top:4px; left:3px; }
 }
 /* 방의 음성 사용 조건은 실제 사용자의 마이크 상태와 구별하는 중립색이다. */
 .room-row-meta .room-row-voice .voice-symbol { color:inherit; }

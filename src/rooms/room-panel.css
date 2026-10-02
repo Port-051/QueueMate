@@ -83,7 +83,7 @@
 .room-panel-bar { flex-shrink:0; }
 .party-room-header { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:14px; }
 .party-room-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; flex:1; min-width:0; }
-.party-room-heading h1 { flex:1; min-width:0; font-size:14px; line-height:1.5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.party-room-heading h1 { flex:1; min-width:0; font-size:16px; line-height:1.5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .party-room-heading .room-row-meta { flex:none; justify-content:flex-end; flex-wrap:nowrap; gap:12px; margin:0; font-size:12px; white-space:nowrap; }
 .party-room-heading .room-row-meta>span+span::before { content:none; }
 .party-room-heading .room-row-mode>svg { color:inherit; }
@@ -99,8 +99,8 @@
 .party-room-call-controls .room-mic-toggle.is-off { color:#ff9daa; border-color:#f36b7b50; background:#f36b7b12; }
 .party-room-call-controls .room-mic-toggle.is-on { color:#83e8ba; border-color:#5fe3a850; background:#5fe3a812; }
 .party-room-call-controls .room-mic-toggle:hover:not(:disabled) { filter:brightness(1.15); }
-.party-room-call-controls .party-room-leave { color:#ff9daa; border-color:#f36b7b50; background:#f36b7b12; }
-.party-room-call-controls .party-room-leave:hover:not(:disabled) { background:#f36b7b20; border-color:#f36b7b80; }
+.party-room-call-controls .party-room-leave { width:40px; padding:0; border-radius:50%; color:#fff; border-color:transparent; background:#df3148; }
+.party-room-call-controls .party-room-leave:hover:not(:disabled) { background:#ed4057; border-color:transparent; }
 .party-room-call-controls button:focus-visible { outline:2px solid var(--accent-2); outline-offset:3px; }
 .party-room-call-controls button:disabled { opacity:.5; cursor:default; }
 @media(max-width:480px) { .party-room-heading { gap:8px; } .party-room-heading .room-row-meta { gap:8px; } }
