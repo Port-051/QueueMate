@@ -23,8 +23,10 @@ Lua 가 `status == 'PENDING'` 만 보고 있어 그 새 제안을 옛 것으로 
 스위퍼가 하나여도 거절 · 취소 → 재충원이 그 사이에 끼면 생기고, 둘이면 같은 목록을 둘 다 들고 있어 창이 넓다.
 **고친 것** — `now` 를 ARGV[2] 로 넘기고 `expiresAt > now` 면 빈 결과(목록에서도 안 뺀다 — 새 제안의 점수가 이미 미래다). `ProposalExpiryService#expire` 한 줄.
 회귀 테스트 `proposal/ProposalExpiryTest`(3건). `concurrency.*` 30 · `ProposalIdempotencyTest` 16 · `RequestAliveTest` 6 통과(`REDIS_PORT=6390`).
-**같은 점검에서 남은 것(아직 안 고쳤다 — 소유자가 짠다)** — ① `RequestAliveExpiryService#expire` 가 `ZREM` 결과를 안 봐, A 가 취소한 직후 다시 접수한 새 요청을
-B 가 또 취소할 수 있다("score ≤ now 일 때만 ZREM" 을 Lua 로, 0 이면 중단) ② `AsyncConfig` 의 배정 풀에 종료 대기가 없어 SIGTERM 때 201 받은 요청의 배정이 버려진다
+**같은 점검에서 남은 것(아직 안 고쳤다 — 소유자가 짠다)** — ① ~~`RequestAliveExpiryService#expire` 가 `ZREM` 결과를 안 봐, A 가 취소한 직후 다시 접수한 새 요청을
+B 가 또 취소할 수 있다~~ → **고치지 않는다(소유자 판단 2026-10-02).** 이 창은 "취소된 사람이 그 ms 안에 다시 접수" 해야 열리는데, 회수된 사람은 90초 동안 heartbeat 가 없던 —
+페이지를 떠난 — 사람이라 그 자리에 없다. 프런트는 `MATCH_CANCELLED` 에 자동 재접수하지 않는다. **클라이언트가 취소 알림에 자동으로 다시 접수하는 날이 오면** 그때 다시 본다
+("score ≤ now 일 때만 ZREM + 그 순간의 requestId 반환" 을 Lua 하나로). ② `AsyncConfig` 의 배정 풀에 종료 대기가 없어 SIGTERM 때 201 받은 요청의 배정이 버려진다
 (`setWaitForTasksToCompleteOnShutdown(true)` · `setAwaitTerminationSeconds(20)`) ③ 장애 조치 때 비동기 복제로 락이 사라지면 정원 초과 가능(드묾 — `join-party*.lua` 에 `count >= target` 거절 분기 없음).
 
 ### 0-9. 2026-10-01 — `app:platform` 이 제안 중에도 파티 HASH 를 읽는다 (문서만 — docs/11 D-56)
