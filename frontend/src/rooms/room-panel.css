@@ -99,8 +99,8 @@
 .party-room-call-controls .room-mic-toggle.is-off { color:#ff9daa; border-color:#f36b7b50; background:#f36b7b12; }
 .party-room-call-controls .room-mic-toggle.is-on { color:#83e8ba; border-color:#5fe3a850; background:#5fe3a812; }
 .party-room-call-controls .room-mic-toggle:hover:not(:disabled) { filter:brightness(1.15); }
-.party-room-call-controls .party-room-leave { width:40px; padding:0; border-radius:50%; color:#f1c4cb; border-color:#ad737d50; background:#74434e; }
-.party-room-call-controls .party-room-leave:hover:not(:disabled) { background:#86515d; border-color:#ad737d80; }
+.party-room-call-controls .party-room-leave { width:40px; padding:0; border-radius:50%; color:#ffe1e6; border-color:#cf738360; background:#93404e; }
+.party-room-call-controls .party-room-leave:hover:not(:disabled) { background:#a84a5a; border-color:#cf738390; }
 .party-room-call-controls button:focus-visible { outline:2px solid var(--accent-2); outline-offset:3px; }
 .party-room-call-controls button:disabled { opacity:.5; cursor:default; }
 @media(max-width:480px) { .party-room-heading { gap:8px; } .party-room-heading .room-row-meta { gap:8px; } }
