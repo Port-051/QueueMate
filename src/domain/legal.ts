@@ -11,7 +11,7 @@ export const LEGAL = {
   /** 개인정보 보호책임자 = 담당자 실명 */
   officerName: '김동연',
   /** 문의 · 권리 행사 · 삭제 요청을 받는 이메일 */
-  contactEmail: 'findkim22@gmail.com',
+  contactEmail: 'team.port.051@gmail.com',
   /** 두 문서의 시행일(같은 날 — 2026-10-02) */
   effectiveDate: '2026년 10월 2일',
 } as const;
