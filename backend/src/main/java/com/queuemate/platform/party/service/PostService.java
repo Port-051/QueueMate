@@ -39,8 +39,7 @@ import java.util.stream.Collectors;
 /**
  * 파티 모집 게시판 — 글 · 실시간 목록 · 방장 확정 ({@code contracts/platform-api.md} "모집 글 · 목록").
  *
- * <p><b>글은 고칠 수 없다</b>(2026-10-01 소유자 결정 — {@code PATCH /api/v1/posts/{postId}} 를 없앴다). 조건을 바꾸려면 지우고 다시 쓴다 —
- * 그래서 글 쓰기가 방에 적은 방장 포지션 · 찾는 포지션이 글과 어긋날 일이 없다.
+ * <p>방 설정 수정은 PostStore의 행 잠금과 방 스크립트로 DB 조건 및 남은 포지션을 함께 갱신한다.
  *
  * <p><b>글 한 줄은 여기서 전부 조립한다</b>(docs/11 D-20) — 글(DB) + 방 안에 누가 있나({@code room} 의 창구 {@link RoomService#states}) +
  * 그 사람들의 게임 프로필({@code account} 의 창구) + 차단 거르기({@code social} 의 창구).
@@ -106,6 +105,19 @@ public class PostService {
         // 방금 만든 방이다 — 방장 혼자 들어 있고 멤버 HASH 의 방장 값이 글의 방장 포지션인 것을 안다(create-room.lua). 방 키를 다시 읽지 않는다
         return renderAll(me, List.of(post), Map.of(post.getId(), List.of(new Seat(me, true, post.getHostPosition()))), Set.of(), false)
                 .getFirst();
+    }
+
+    public PostResponse update(Long me, Long postId, PostCreateRequest request) {
+        Game game = PostValidation.game(request.game());
+        PostValidation.mode(gameConfig, game, request.mode());
+        ModePositions positions = PostValidation.modePositions(gameConfig, game, request.mode());
+        OptionalInt capacity = knownCapacityOf(game, request.mode());
+        // Updating an existing roster must not guess its capacity or position rules.
+        if (capacity.isEmpty() || positions == ModePositions.UNKNOWN) throw com.queuemate.platform.room.RoomErrors.stateUnavailable();
+        PostValidation.enoughWantedPositions(game, positions,
+                PostValidation.wantedPositions(game, request.wantedPositions()), capacity);
+        postStore.update(me, postId, request, positions, capacity.getAsInt(), now());
+        return get(me, postId);
     }
 
     /**

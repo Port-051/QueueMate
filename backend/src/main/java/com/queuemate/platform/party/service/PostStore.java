@@ -63,6 +63,42 @@ public class PostStore {
     /** 방장의 칸에서 {@code users(id)} 로 가는 FK 의 이름이다(V1__schema.sql) */
     static final String HOST_FKEY = "recruit_posts_host_id_fkey";
 
+    /** 입장과 수정이 같은 행 잠금을 사용해 이전 조건으로 입장하는 경합을 막는다. */
+    @Transactional
+    public java.util.Optional<RecruitPost> findForEntry(Long postId) {
+        return postRepository.findByIdForUpdate(postId);
+    }
+
+    @Transactional
+    public void update(Long me, Long postId, PostCreateRequest request, ModePositions positions, int capacity, Instant now) {
+        RecruitPost post = postRepository.findByIdForUpdate(postId).orElseThrow(PostStore::postNotFound);
+        if (post.getStatus() == PostStatus.EXPIRED) throw postNotRecruiting();
+        Game game = PostValidation.game(request.game());
+        if (game != post.getGame()) throw ApiException.validationFailed("game", "방의 게임은 변경할 수 없습니다");
+        String title = PostValidation.title(request.title());
+        String description = PostValidation.blankToNull(request.description());
+        VoicePreference voice = PostValidation.voice(request.voice());
+        String conditions = PostValidation.conditions(game, request.conditions());
+        Set<String> wanted = PostValidation.wantedPositionsForMode(game, positions,
+                PostValidation.wantedPositions(game, request.wantedPositions()));
+        String hostPosition = PostValidation.hostPosition(game, positions, request.hostPosition(), wanted);
+        boolean metadataOnly = post.getStatus() == PostStatus.CONFIRMED;
+        if (metadataOnly && (!java.util.Objects.equals(post.getMode(), request.mode())
+                || !java.util.Objects.equals(post.getDescription(), description)
+                || !java.util.Objects.equals(post.getHostPosition(), hostPosition)
+                || !post.getWantedPositions().equals(wanted) || capacity != post.getCapacity()
+                || !post.getConditions().equals(conditions) || request.allowAutoJoin() != post.isAllowAutoJoin())) {
+            throw ApiException.validationFailed("mode", "모집이 마감된 방은 제목과 마이크만 변경할 수 있습니다");
+        }
+        // Flush DB constraints before Lua. A Lua rejection rolls the database transaction back.
+        post.updateSettings(request.mode(), title, description, voice, conditions, wanted, hostPosition, capacity, request.allowAutoJoin(), now);
+        postRepository.flush();
+        Map<Long, String> members = roomSettingsService.update(String.valueOf(postId), String.valueOf(me),
+                capacity, hostPosition, wanted, metadataOnly);
+        if (!metadataOnly && members.size() >= capacity) confirmRoom(me, postId, now);
+        boardSignal.changed();
+    }
+
     /** 입장 검사({@link PostEntryGate})의 두 거절 코드 — 게시판 방 먼저 합류({@code AutoJoinService})가 "다음 방으로 넘어갈 거절" 을 가르는 데 쓴다 */
     static final String POST_NOT_FOUND = "POST_NOT_FOUND";
     static final String POST_NOT_RECRUITING = "POST_NOT_RECRUITING";
@@ -71,6 +107,7 @@ public class PostStore {
     private final PartyRecordRepository partyRecordRepository;
     private final BoardSignalPublisher boardSignal;
     private final RoomService roomService;
+    private final com.queuemate.platform.room.service.RoomSettingsService roomSettingsService;
     private final PostLifecycle postLifecycle;
     private final RecruitmentTiming recruitmentTiming;
 

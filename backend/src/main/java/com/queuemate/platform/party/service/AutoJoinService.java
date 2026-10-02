@@ -147,7 +147,7 @@ public class AutoJoinService {
                 continue;
             }
             tried++;
-            if(tryEnter(post.getId(), me, entryPosition))
+            if(tryEnter(post, me, entryPosition))
             {
                 log.info("게시판 방 먼저 합류 userId={} game={} mode={} postId={} candidates={} tried={}", me, game, modeKey,
                         post.getId(), candidates.size(), tried);
@@ -382,12 +382,12 @@ public class AutoJoinService {
      *
      * @param position 고를 포지션 — 찾는 포지션이 빈 글이면 {@code null}(P-44)
      */
-    private boolean tryEnter(Long postId, Long me, String position)
+    private boolean tryEnter(RecruitPost post, Long me, String position)
     {
         EnterResult result;
         try
         {
-            result = roomMemberService.enter(String.valueOf(postId), String.valueOf(me), position);
+            result = roomMemberService.enter(String.valueOf(post.getId()), String.valueOf(me), position, post.getUpdatedAt());
         }
         catch(ApiException e)
         {

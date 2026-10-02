@@ -49,6 +49,12 @@ public class RoomScriptConfig {
         }
     }
 
+    @Bean
+    @SuppressWarnings("rawtypes")
+    public RedisScript<List> updateRoomSettingsScript() {
+        return RedisScript.of(readScript("lua/update-room-settings.lua"), List.class);
+    }
+
     /**
      * 방 만들기. 확인(활성 요청 키 · 방장 키 · 입장 표시 키)과 쓰기를 한 번에 한다. 만든 사람이 방장이다.
      * 반환값의 뜻은 스크립트 머리의 주석이 원본이다.
