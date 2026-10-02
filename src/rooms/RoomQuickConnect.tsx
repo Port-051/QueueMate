@@ -4,7 +4,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { CreatePostRequest, GameKey, MatchCondition } from '../api/types';
 import { Avatar, Button, Modal, useToast } from '../components/ui';
 import { IconMatch, IconPaperPlane } from '../components/icons';
-import { GameBadge } from '../components/GameSymbol';
 import { VerificationBadge } from '../components/VerificationBadge';
 import { useAuth } from '../state/AuthContext';
 import { useMatch } from '../state/MatchContext';
@@ -170,7 +169,6 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, roomPane
         <Button type="submit" form={formId} variant="primary" disabled={starting || Boolean(startBlocked)}><IconMatch size={18} />{starting ? '시작하는 중…' : '빠른매치 시작'}</Button>
       </>}>
       {waiting ? status : <>
-        <p className="room-form-caption"><GameBadge game={game} size={20} />{gameFullLabel(game)}</p>
         {user ? <div className="room-match-account">
           <Avatar userId={user.userId} name={user.nickname} size={36} />
           <div><strong>{user.nickname}<VerificationBadge verified={gameAccount?.verified} /></strong><span>{gameAccount?.gameNickname ?? '연결된 게임 계정 없음'}</span></div>

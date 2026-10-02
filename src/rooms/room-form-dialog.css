@@ -1,6 +1,5 @@
 /* 방 만들기 · 빠른매치: 참가/나가기와 같은 모달 틀 안의 공통 입력 컨트롤. */
 .modal.room-action-dialog.room-form-dialog { width:min(520px,100%); }
-.room-form-dialog .room-form-caption { display:flex; align-items:center; gap:7px; margin:0 0 18px; color:#b8b2c6; font-size:13px; line-height:20px; }
 .room-form-dialog .room-form-fieldset { min-width:0; margin:0; padding:0; border:0; }
 .room-form-dialog .introduction-fields { display:grid; grid-template-columns:minmax(0,1fr); gap:14px; }
 .room-form-dialog .introduction-choice legend,
