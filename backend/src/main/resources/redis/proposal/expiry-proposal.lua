@@ -12,11 +12,14 @@
 -- KEYS[1]   = qm:party:{partyId}              HASH. 파티 아이디 키 값
 -- KEYS[2] = qm:proposal:accepts:{partyId}   SET.  수락한 userId 만 담는다
 -- KEYS[3] = qm:proposal:pending ZSET. 아직 남아있는 것들
+-- ARGV[1] = partyId
+-- ARGV[2] = now (epoch millis). 시한이 아직 안 지난 제안을 지우지 않으려고 본다 (아래)
 
 local partyKey   = KEYS[1]
 local acceptsKey = KEYS[2]
 local pendingKey = KEYS[3]
 local partyId    = ARGV[1]
+local now        = tonumber(ARGV[2])
 
 -- 진행 중인 제안인가. **읽고 판단하는 자리가 스크립트 안이어야 한다.**
 -- 스위퍼는 Redis 를 두 번 부른다 — ZSET 에서 꺼낼 때와 이 스크립트를 실행할 때다.
@@ -29,6 +32,19 @@ local partyId    = ARGV[1]
 local status = redis.call('HGET', partyKey, 'status')
 if status ~= 'PENDING' then
     redis.call('ZREM', pendingKey, partyId)
+    return {}
+end
+
+-- 같은 partyId 의 **새 제안**인가. 스위퍼가 목록에서 꺼낸 뒤 이 스크립트가 돌기 전에
+-- 그 제안이 만료 · 거절로 깨지고(남은 사람은 파티에 그대로다) 빈자리가 다시 차면
+-- join-party*.lua 가 같은 파티에 status=PENDING 과 새 expiresAt 을 적는다.
+-- status 만 보면 그 새 제안이 방금 꺼낸 옛 제안과 구별되지 않아 — 아직 아무도 수락하지
+-- 않았으니 — 멤버 전원이 무응답자로 나와 통째로 큐에서 빠진다. 스위퍼가 둘 이상(태스크 둘)이면
+-- 같은 목록을 둘 다 들고 있어 이 창이 넓어진다(2026-10-02 배포 점검에서 찾았다).
+-- 시한이 안 지났으면 손대지 않는다. 목록에서도 빼지 않는다 — 새 제안의 점수(expiresAt)가
+-- 이미 미래로 덮어써져 있어서, 빼면 그 제안은 영영 만료되지 않는다.
+local expiresAt = tonumber(redis.call('HGET', partyKey, 'expiresAt'))
+if now ~= nil and expiresAt ~= nil and expiresAt > now then
     return {}
 end
 
