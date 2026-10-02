@@ -24,6 +24,12 @@ public final class RoomMemberIds {
     {
     }
 
+    public static Map<Long, String> parsePairs(String roomId, java.util.List<?> reply, int start) {
+        Map<Object, Object> raw = new LinkedHashMap<>();
+        for (int i = start; i + 1 < reply.size(); i += 2) raw.put(reply.get(i), reply.get(i + 1));
+        return parsePositions(roomId, raw);
+    }
+
     /** 값 자체는 로그에 남기지 않는다 — 무엇이 들어 있을지 모른다 */
     public static Set<Long> parse(String roomId, Collection<?> raw)
     {

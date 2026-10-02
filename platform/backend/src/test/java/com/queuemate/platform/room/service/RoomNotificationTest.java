@@ -57,13 +57,13 @@ class RoomNotificationTest extends RoomTestSupport {
             {
                 roomMemberService.enter(r("r1"), u("u" + i));
             }
-            take(subscriber, 1 + 2 + 3 + 4);
+            take(subscriber, 1 + 2 + 3 + 4 + 5);
 
-            assertThat(roomMemberService.enter(r("r1"), u("u5"))).isEqualTo(EnterResult.FULL);
+            assertThat(enterOutcome(r("r1"), u("u5"))).isEqualTo(EnterResult.ROOM_CONFIRMED);
             assertThat(roomMemberService.enter(r("r1"), u("u1"))).isEqualTo(EnterResult.ALREADY_ENTERED);
             assertThat(roomMemberService.enter(r("r9"), u("u6"))).isEqualTo(EnterResult.ROOM_NOT_FOUND);
             redisTemplate.opsForHash().put(key("qm:user:active-request:u7"), "requestId", "req-1");
-            assertThat(roomMemberService.enter(r("r1"), u("u7"))).isEqualTo(EnterResult.ACTIVE_REQUEST_EXISTS);
+            assertThat(enterOutcome(r("r1"), u("u7"))).isEqualTo(EnterResult.ROOM_CONFIRMED);
 
             assertThat(subscriber.nothingMore()).isTrue();
         }

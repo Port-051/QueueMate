@@ -153,8 +153,8 @@ class RoomPositionTest extends RoomTestSupport {
     @DisplayName("다 골라 Redis 가 지운 찾는 포지션 SET 도 나가면 다시 생기고 방과 같은 수명이 걸린다 — 수명 없는 키가 남지 않는다")
     void leavingRefillsAnEmptiedNeedsWithATtl()
     {
-        createPositionRoom("r1", "host", WANTED);
-        List<String> positions = List.of("TOP", "MID", "ADC", "SUPPORT");
+        createPositionRoom("r1", "host", Set.of("TOP", "MID", "ADC"));
+        List<String> positions = List.of("TOP", "MID", "ADC");
         for(int i = 0; i < positions.size(); i++)
         {
             assertThat(roomMemberService.enter(r("r1"), u("u" + i), positions.get(i))).isEqualTo(EnterResult.ENTERED);
@@ -214,8 +214,8 @@ class RoomPositionTest extends RoomTestSupport {
     @DisplayName("방장의 접속 확인이 유령을 빼면 그 사람이 고른 포지션이 남은 찾는 포지션 SET 에 돌아온다 — 다 골라 지워졌던 SET 이면 다시 생기고 수명이 걸린다(2026-10-01)")
     void ghostRemovalReturnsThePosition()
     {
-        createPositionRoom("r1", "host", WANTED);
-        List<String> positions = List.of("TOP", "MID", "ADC", "SUPPORT");
+        createPositionRoom("r1", "host", Set.of("TOP", "MID", "ADC"));
+        List<String> positions = List.of("TOP", "MID", "ADC");
         for(int i = 0; i < positions.size(); i++)
         {
             roomMemberService.enter(r("r1"), u("u" + i), positions.get(i));
@@ -319,17 +319,17 @@ class RoomPositionTest extends RoomTestSupport {
     // ── 순서 ────────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("정원 · 확정을 포지션보다 먼저 본다 — 가득 찬 방은 ROOM_FULL, 확정된 방은 ROOM_CONFIRMED 다(포지션을 안 줬어도)")
+    @DisplayName("정원 · 확정을 포지션보다 먼저 본다 — 정원이 차면 자동 확정돼 포지션과 무관하게 거절된다(포지션을 안 줬어도)")
     void fullAndConfirmedComeBeforePosition()
     {
         createPositionRoom("r1", "host", WANTED);
         List<String> positions = List.of("TOP", "MID", "ADC", "SUPPORT");
         for(int i = 0; i < positions.size(); i++)
         {
-            assertThat(roomMemberService.enter(r("r1"), u("u" + i), positions.get(i))).isEqualTo(EnterResult.ENTERED);
+            assertThat(roomMemberService.enter(r("r1"), u("u" + i), positions.get(i))).isEqualTo(i == 3 ? EnterResult.ENTERED_AND_CONFIRMED : EnterResult.ENTERED);
         }
-        assertThat(roomMemberService.enter(r("r1"), u("late"), null)).isEqualTo(EnterResult.FULL);
-        assertThat(roomMemberService.enter(r("r1"), u("late"), "MID")).isEqualTo(EnterResult.FULL);
+        assertThat(enterOutcome(r("r1"), u("late"), (String) null)).isEqualTo(EnterResult.ROOM_CONFIRMED);
+        assertThat(enterOutcome(r("r1"), u("late"), "MID")).isEqualTo(EnterResult.ROOM_CONFIRMED);
 
         createPositionRoom("r2", "host2", WANTED);
         roomMemberService.enter(r("r2"), u("m1"), "MID");
@@ -415,9 +415,11 @@ class RoomPositionTest extends RoomTestSupport {
         List<String> positions = List.of("TOP", "MID", "ADC", "SUPPORT");
         Map<EnterResult, AtomicInteger> counts = new ConcurrentHashMap<>();
 
-        runConcurrently(100, i -> count(counts, roomMemberService.enter(r("r1"), u("u" + i), positions.get(i % positions.size()))));
+        runConcurrently(100, i -> count(counts, enterOutcome(r("r1"), u("u" + i), positions.get(i % positions.size()))));
 
-        assertThat(counts.get(EnterResult.ENTERED)).hasValue(4);
+        assertThat(counts.get(EnterResult.ENTERED)).hasValue(3);
+        assertThat(counts.get(EnterResult.ENTERED_AND_CONFIRMED)).hasValue(1);
+        assertThat(counts.values().stream().mapToInt(AtomicInteger::get).sum()).isEqualTo(100);
         assertThat(members("r1")).hasSize(5);
         Set<String> taken = new HashSet<>();
         for(String member : members("r1"))

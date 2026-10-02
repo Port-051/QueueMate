@@ -72,6 +72,64 @@ public class PostStore {
     private final BoardSignalPublisher boardSignal;
     private final RoomService roomService;
     private final PostLifecycle postLifecycle;
+    private final RecruitmentTiming recruitmentTiming;
+
+    /** 명단 변경마다 대기 시간을 다시 시작한다. 한 명뿐이면 자동 확정하지 않는다. */
+    @Transactional
+    public boolean rosterChanged(Long postId, Map<Long, String> fullSnapshot, Instant now) {
+        RecruitPost post = postRepository.findByIdForUpdate(postId).orElse(null);
+        if (post == null || post.getStatus() != PostStatus.RECRUITING) return false;
+        if (fullSnapshot != null) {
+            return recordConfirmed(post, fullSnapshot.keySet(), now, fullSnapshot);
+        }
+        RoomState state = roomService.states(List.of(postId)).get(postId);
+        if (state.confirmed()) {
+            return recordConfirmed(post, state.members(), now, state.positions());
+        } else if (state.hostKeyExists()) {
+            post.setAutoConfirmAt(state.members().size() >= 2 ? recruitmentTiming.deadline(now) : null);
+            boardSignal.changed();
+            return true;
+        }
+        return false;
+    }
+
+    @Transactional
+    public void checkAutomaticConfirmation(Long postId, Instant now) {
+        RecruitPost post = postRepository.findByIdForUpdate(postId).orElse(null);
+        if (post == null || post.getStatus() != PostStatus.RECRUITING) return;
+        RoomState state = roomService.states(List.of(postId)).get(postId);
+        if (state.confirmed()) {
+            recordConfirmed(post, state.members(), now, state.positions());
+            return;
+        }
+        if (!state.hostKeyExists()) return;
+        if (state.members().size() < 2) {
+            if (post.getAutoConfirmAt() != null) { post.setAutoConfirmAt(null); boardSignal.changed(); }
+            return;
+        }
+        if (post.getAutoConfirmAt() == null) {
+            post.setAutoConfirmAt(recruitmentTiming.deadline(now));
+            boardSignal.changed();
+        } else if (!post.getAutoConfirmAt().isAfter(now)) {
+            confirmRoom(post.getHostId(), postId, now);
+        }
+    }
+
+    /** 안내 중인 방장만 연장할 수 있다. 스케줄러와 같은 행 잠금으로 만료 경합을 처리한다. */
+    @Transactional
+    public void extendRecruitment(Long me, Long postId, Instant now) {
+        RecruitPost post = postRepository.findByIdForUpdate(postId).orElseThrow(RoomErrors::roomNotFound);
+        if (!post.isHost(me)) throw notPostHost();
+        if (post.getStatus() != PostStatus.RECRUITING) throw postNotRecruiting();
+        Instant deadline = post.getAutoConfirmAt();
+        if (deadline == null || !deadline.isAfter(now) || recruitmentTiming.warningAt(deadline).isAfter(now)) {
+            throw new ApiException(HttpStatus.CONFLICT, "RECRUITMENT_NOT_EXPIRING", "연장할 수 있는 안내 시간이 아닙니다");
+        }
+        RoomState state = roomService.states(List.of(postId)).get(postId);
+        if (!state.hostKeyExists() || state.confirmed()) throw postNotRecruiting();
+        post.setAutoConfirmAt(recruitmentTiming.deadline(now));
+        boardSignal.changed();
+    }
 
     /**
      * 글을 쓰고 <b>그 글의 방을 만든다</b>(2026-09-25 2단계 — 소유자 결정 C: 방을 못 만들면 글도 되돌린다). 쓴 사람이 방장이고 곧바로 방에 들어와 있다.
@@ -312,7 +370,7 @@ public class PostStore {
             // 파티원이 한 명도 없는 파티는 LEFT JOIN 의 빈 줄 하나다(탈퇴로 전원이 지워졌다 등)
             if(row[2] != null)
             {
-                of.add(BoardParty.Seat.partyMember(((Number) row[2]).longValue(), Boolean.TRUE.equals(row[3])));
+                of.add(new BoardParty.Seat(((Number) row[2]).longValue(), Boolean.TRUE.equals(row[3]), (String) row[4]));
             }
         }
         Map<Long, BoardParty> parties = new LinkedHashMap<>();
@@ -384,7 +442,7 @@ public class PostStore {
         Confirmation confirmation = roomService.confirm(String.valueOf(postId), String.valueOf(me));
         if(confirmation.result() == ConfirmResult.CONFIRMED)
         {
-            recordConfirmed(post, RoomMemberIds.parse(String.valueOf(postId), confirmation.members()), now);
+            recordConfirmed(post, RoomMemberIds.parse(String.valueOf(postId), confirmation.members()), now, confirmation.positions());
         }
         else if(confirmation.result() == ConfirmResult.ALREADY_CONFIRMED && post.getStatus() == PostStatus.RECRUITING)
         {
@@ -426,6 +484,12 @@ public class PostStore {
     @Transactional
     public boolean recordConfirmed(RecruitPost post, Set<Long> members, Instant now)
     {
+        Map<Long, String> positions = roomService.states(List.of(post.getId())).get(post.getId()).positions();
+        return recordConfirmed(post, members, now, positions);
+    }
+
+    private boolean recordConfirmed(RecruitPost post, Set<Long> members, Instant now, Map<Long, String> positions)
+    {
         Long postId = post.getId();
         if(postRepository.confirmIfRecruiting(postId, now) == 0)
         {
@@ -445,6 +509,8 @@ public class PostStore {
         for(Long member : partyMembers)
         {
             partyRecordRepository.insertMemberIfAbsent(partyId, member, member.equals(post.getHostId()), now);
+            String position = positions.get(member);
+            if (position != null && !position.isBlank()) partyRecordRepository.rememberPosition(partyId, member, position);
         }
         boardSignal.changed();
         log.info("방장 확정 기록 postId={} partyId={} members={}", postId, partyId, partyMembers.size());

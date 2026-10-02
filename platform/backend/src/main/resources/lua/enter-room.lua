@@ -106,5 +106,11 @@ redis.call('HSET', roomMemberKey, userId, position)
 if positionRoom then
     redis.call('SREM', roomNeedsKey, position)
 end
+-- 마지막 자리와 확정을 원자적으로 묶는다. 누군가 바로 나가도 모집을 다시 열지 않는다.
+-- 코드 3 뒤에는 확정 순간의 HGETALL(userId, position 쌍)이 온다.
+if #members + 1 >= capacity then
+    redis.call('SET', roomConfirmedKey, roomId, 'EX', ttl)
+    return { 3, unpack(redis.call('HGETALL', roomMemberKey)) }
+end
 -- unpack 은 테이블을 낱개 값으로 푼다 — { 1, unpack({"host","u2"}) } 는 { 1, "host", "u2" } 다
 return { 1, unpack(members) }

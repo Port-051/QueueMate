@@ -19,6 +19,10 @@ import java.util.Optional;
  * 같은 트랜잭션에서 글의 상태도 바꾸므로 위반 없이 지나가야 한다.
  */
 public interface PartyRecordRepository extends JpaRepository<PartyMember, PartyMember.Key> {
+    @Modifying
+    @Query(nativeQuery = true, value = "UPDATE party_members SET position = :position WHERE party_id = :partyId AND user_id = :userId AND position IS NULL")
+    int rememberPosition(@Param("partyId") Long partyId, @Param("userId") Long userId, @Param("position") String position);
+
 
     /**
      * 게시판 파티 — {@code post_id} 가 글의 id(= roomId)이고 {@code id} 는 DB 가 매긴다(identity). <b>"한 글에 파티 하나"는 {@code UNIQUE (post_id)} 가
@@ -104,7 +108,7 @@ public interface PartyRecordRepository extends JpaRepository<PartyMember, PartyM
      * ({@code findActivePartyPostIds}) — 둘을 합쳐 목록의 SQL 문장 수가 늘지 않게 했다.
      */
     @Query(nativeQuery = true, value = """
-            SELECT p.post_id, p.status, m.user_id, m.is_host
+            SELECT p.post_id, p.status, m.user_id, m.is_host, m.position
               FROM parties p
               LEFT JOIN party_members m ON m.party_id = p.id
              WHERE p.post_id IN (:postIds)

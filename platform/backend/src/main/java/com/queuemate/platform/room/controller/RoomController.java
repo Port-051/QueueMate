@@ -31,6 +31,14 @@ public class RoomController {
 
     private final RoomService roomService;
     private final PostService postService;
+    private final com.queuemate.platform.party.service.PostStore postStore;
+
+    @PostMapping("/{roomId}/recruitment/extend")
+    public ResponseEntity<Void> extend(@CurrentUserId Long userId, @PathVariable String roomId) {
+        try { postStore.extendRecruitment(userId, postIdOf(roomId), java.time.Instant.now()); }
+        catch (com.queuemate.platform.room.domain.RoomStateUnavailableException error) { throw RoomErrors.stateUnavailable(); }
+        return ResponseEntity.noContent().build();
+    }
 
     /**
      * 방장이 파티를 확정한다. 그 순간 방에 있는 전원이 파티원이 되고, 이제 새 사람이 못 들어온다. <b>되돌릴 수 없다</b> —

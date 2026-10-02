@@ -529,8 +529,8 @@ class AutoJoinTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("풀리는 시각이 지난 방은 다시 후보다 — score 를 과거로 두면 그 방으로 들어간다")
-    void rejoinsAfterBanExpires() throws Exception
+    @DisplayName("정원으로 자동 확정된 방은 입장 금지가 풀려도 다시 모집하지 않는다")
+    void confirmedRoomDoesNotReopenAfterBanExpires() throws Exception
     {
         String nickname = newNickname();
         Cookie me = login(nickname);
@@ -543,7 +543,8 @@ class AutoJoinTest extends PostTestSupport {
         // 10분을 기다리지 않는다 — 풀리는 시각(score)을 과거로
         redisTemplate.opsForZSet().add("qm:room:no-auto-join:" + meId, String.valueOf(left), 1);
 
-        assertJoined(autoJoin(me, rankedBody("GOLD_4", "MID")), left, meId);
+        expectNoMatchingPost(autoJoin(me, rankedBody("GOLD_4", "MID")));
+        assertThat(statusOf(left)).isEqualTo("CONFIRMED");
     }
 
     // ---- ⑫ playPurpose ----

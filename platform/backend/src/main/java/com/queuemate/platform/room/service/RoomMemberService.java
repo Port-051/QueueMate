@@ -57,6 +57,7 @@ public class RoomMemberService {
     private final PostLifecycle postLifecycle;
     private final MatchPartyStore matchPartyStore;
     private final RoomService roomService;
+    private final com.queuemate.platform.party.service.PostStore postStore;
 
     /**
      * 방에 들어온다. 들어왔으면 방에 이미 있던 사람들에게 알린다.
@@ -110,11 +111,18 @@ public class RoomMemberService {
         EnterResult result = EnterResult.fromCode(codeOf(reply));
 
         // 발행은 예외를 밖으로 내보내지 않는다 — 알림이 실패해도 이미 성립한 입장은 그대로다 (CLAUDE.md §3.2)
-        if (result == EnterResult.ENTERED)
+        if (result == EnterResult.ENTERED || result == EnterResult.ENTERED_AND_CONFIRMED)
         {
-            roomNotifier.toEach(othersIn(reply, userId), PushEventType.ROOM_MEMBER_ENTERED,
+            Map<Long, String> snapshot = result == EnterResult.ENTERED_AND_CONFIRMED
+                    ? com.queuemate.platform.room.domain.RoomMemberIds.parsePairs(roomId, reply, 1) : null;
+            boolean signaled = changedRoster(roomId, snapshot);
+            List<String> recipients = snapshot == null ? othersIn(reply, userId)
+                    : snapshot.keySet().stream().map(String::valueOf).toList();
+            roomNotifier.toEach(recipients.stream().filter(id -> !id.equals(userId)).toList(), PushEventType.ROOM_MEMBER_ENTERED,
                     Map.of("roomId", roomId, "userId", userId));
-            roomNotifier.boardChanged();
+            if (snapshot != null) roomNotifier.toEach(recipients, PushEventType.ROOM_CONFIRMED,
+                    Map.of("roomId", roomId, "members", recipients));
+            if (!signaled) roomNotifier.boardChanged();
         }
         return result;
     }
@@ -133,7 +141,7 @@ public class RoomMemberService {
      */
     public LeaveResult leave(String roomId, String userId)
     {
-        return roomService.leave(roomId, userId, () -> endPostOf(roomId));
+        return roomService.leave(roomId, userId, () -> endPostOf(roomId), () -> changedRoster(roomId, null));
     }
 
     /**
@@ -194,13 +202,14 @@ public class RoomMemberService {
 
         if (result == KickResult.KICKED)
         {
+            boolean signaled = changedRoster(roomId, null);
             // 방에 남은 사람들(방장 포함)에 강퇴된 본인을 더한다. 본인은 자기가 부른 요청이 아니라서 알림이 아니면 알 길이 없다.
             // 방장도 받는다 — 다른 알림과 모양을 맞춰 남은 사람 전원에게 보낸다
             List<String> recipients = new ArrayList<>(reply.stream().skip(1).map(String::valueOf).toList());
             recipients.add(targetUserId);
             roomNotifier.toEach(recipients, PushEventType.ROOM_MEMBER_KICKED,
                     Map.of("roomId", roomId, "userId", targetUserId));
-            roomNotifier.boardChanged();
+            if (!signaled) roomNotifier.boardChanged();
         }
         return result;
     }
@@ -277,6 +286,7 @@ public class RoomMemberService {
         if(result == HeartbeatResult.ALIVE && reply.size() > 2)
         {
             int removedCount = ((Long) reply.get(1)).intValue();
+            boolean signaled = removedCount > 0 && changedRoster(roomId, null);
             List<String> removed = reply.subList(2, 2 + removedCount).stream().map(String::valueOf).toList();
             // 신호를 보낸 방장도 받는다. 방장의 응답(204)에는 누가 빠졌는지가 없어서, 알림이 아니면 방장만 모르게 된다
             List<String> remaining = reply.subList(2 + removedCount, reply.size()).stream().map(String::valueOf).toList();
@@ -286,7 +296,7 @@ public class RoomMemberService {
                         Map.of("roomId", roomId, "userId", leftUserId));
             }
             // 유령을 뺐으면 방의 인원이 바뀐 것이다. 몇 명을 뺐든 게시판 신호는 한 번이면 된다 — "다시 받아라"일 뿐이다
-            if (!removed.isEmpty())
+            if (!removed.isEmpty() && !signaled)
             {
                 roomNotifier.boardChanged();
             }
@@ -306,6 +316,19 @@ public class RoomMemberService {
     }
 
     /** 스크립트가 돌려준 목록의 첫 칸. 비어 있으면 {@code null} 이고 {@code fromCode} 가 예외로 알린다 */
+    private boolean changedRoster(String roomId, Map<Long, String> snapshot) {
+        try {
+            long postId = Long.parseLong(roomId);
+            return postStore.rosterChanged(postId, snapshot, java.time.Instant.now());
+        } catch (NumberFormatException ignored) {
+            // 자동 매칭 방은 게시판 모집 시간이 없다.
+        } catch (RuntimeException error) {
+            // Lua로 성립한 입장을 실패로 보고 재시도하게 하지 않는다. 스케줄러가 복구한다.
+            log.warn("명단 변경 기록 재시도 roomId={}: {}", roomId, error.toString());
+        }
+        return false;
+    }
+
     private static Long codeOf(List<?> reply)
     {
         return reply == null || reply.isEmpty() ? null : (Long) reply.get(0);

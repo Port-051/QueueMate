@@ -68,6 +68,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @EnableConfigurationProperties(BoardProperties.class)
 public class PostService {
+    private final RecruitmentTiming recruitmentTiming;
 
     private final PostStore postStore;
     private final MatchPartyStore matchPartyStore;
@@ -366,8 +367,8 @@ public class PostService {
      * 글마다 카드로 보여 줄 사람 — 모집 중인 글은 <b>방 안에 지금 있는 사람</b>(방 키를 못 읽었으면 없다), 확정된 글은 <b>확정 순간의 파티원 전원</b>
      * (2026-09-30 — P-40. 파티 기록이 없으면 없다), 만료된 글은 없다(P-20 그대로).
      *
-     * <p><b>포지션은 모집 중인 글에만 싣는다</b>(2026-10-01 소유자 결정) — 방 키를 읽을 때 같이 온 멤버 HASH 의 값({@link RoomState#positions})이라 Redis 를 더 부르지 않는다.
-     * 방장의 값은 방장 포지션이다. {@code ""}(고르지 않았다)는 {@code null} 로 내보낸다. 확정된 글의 파티원은 포지션이 없다({@link Seat#partyMember}).
+     * <p><b>모집 중 포지션은 Redis, 확정 뒤 포지션은 파티 기록에서 읽는다</b>(P-52) — 방 키를 읽을 때 같이 온 멤버 HASH 의 값({@link RoomState#positions})이라 Redis 를 더 부르지 않는다.
+     * 방장의 값은 방장 포지션이다. {@code ""}(고르지 않았다)는 {@code null} 로 내보낸다. 마이그레이션 전의 파티 기록에는 포지션이 없어 null일 수 있다.
      */
     private static Map<Long, List<Seat>> seatsOf(List<RecruitPost> posts, Map<Long, RoomState> states, Map<Long, BoardParty> parties)
     {
@@ -634,12 +635,12 @@ public class PostService {
      * <b>{@code capacity} 는 그 글의 방 정원</b>(2026-09-30 — P-41. 그 모드의 인원 — 옛 글은 5)이다.
      * <b>{@code full} 은 모집 중인 글에서만 참이 될 수 있다</b>(Claude 가 정한 세부) — "빈자리가 없어 못 들어간다" 는 뜻이라 확정된 글은 정원이 찬 파티여도 {@code false} 다
      * (들어갈 수 없는 까닭은 {@code status} 가 말한다). 만료된 글은 전부터 카드가 없어 {@code false} 였다.
-     * <b>{@code host} 카드의 {@code position}</b> 은 {@code members} 에 있는 방장 카드의 것과 같다(Claude 가 정한 세부) — 모집 중이면 방장 포지션, 확정 · 만료면 {@code null}.
+     * <b>{@code host} 카드의 {@code position}</b> 은 {@code members} 에 있는 방장 카드의 것과 같다(Claude 가 정한 세부) — 모집 중이면 방장 포지션, 확정 뒤에는 확정 당시 값, 만료면 {@code null}.
      * <b>{@code closed} 는 확정된 글의 파티가 닫혔는가</b>(2026-10-01 소유자 결정) — 부르는 쪽이 파티 기록을 읽어 넘긴다({@link Observed#closed}).
      * <b>방장이 탈퇴한 확정된 글은 {@code hostId} · {@code host} 가 {@code null}</b> 이다(2026-10-02 · P-48 — 그릴 사람이 없다. 빈 카드를 지어내지 않는다).
      * {@code members} 에도 그 사람이 없다 — 그 사람의 파티원 줄은 탈퇴가 지웠다.
      */
-    private static PostResponse render(RecruitPost post, List<Seat> seats, boolean closed, Map<Long, UserGameProfile> profiles)
+    private PostResponse render(RecruitPost post, List<Seat> seats, boolean closed, Map<Long, UserGameProfile> profiles)
     {
         List<MemberCard> cards = seats.stream()
                 .map(seat -> card(seat.userId(), seat.host(), seat.position(), profiles))
@@ -657,6 +658,8 @@ public class PostService {
         return new PostResponse(post.getId(), post.getHostId(), post.getGame().name(), post.getMode(), post.getTitle(),
                 post.getDescription(), post.getVoice().name(), post.getConditions(),
                 wanted, post.getHostPosition(), post.isAllowAutoJoin(), post.getStatus().name(), post.getCreatedAt(),
+                post.getStatus() == PostStatus.RECRUITING ? post.getAutoConfirmAt() : null,
+                post.getStatus() == PostStatus.RECRUITING ? recruitmentTiming.warningAt(post.getAutoConfirmAt()) : null,
                 cards.size(), post.getCapacity(), full, closed,
                 post.getHostId() == null ? null : card(post.getHostId(), true, hostCardPosition, profiles), cards);
     }
