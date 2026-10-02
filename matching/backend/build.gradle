@@ -24,7 +24,8 @@ dependencies {
 	testAnnotationProcessor 'org.projectlombok:lombok'
 
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
-	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	// DB 의존성(data-jpa · h2 · postgresql)은 없다 — 2026-10-02 에 뺐다(docs/11 D-57). 이 앱이 DB 를 치던 유일한 자리(차단 조회)가
+	// 합류 Lua 의 Redis 집합 qm:user:block-rel:{userId} 읽기로 바뀌었다. 진행 중인 매칭 상태와 마찬가지로 차단도 Redis 에서 읽는다
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	// 분산 락 전용. 데이터 접근은 계속 StringRedisTemplate 과 Lua 로 한다.
 	// spring-boot-starter 가 아니라 코어만 쓴다 - 자동 설정이 자기 커넥션 설정을
@@ -42,10 +43,6 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server-test'
-	// 지금은 H2 인메모리로 띄운다. 운영 대상은 PostgreSQL 이므로 드라이버는 둘 다 둔다.
-	// 무엇으로 붙을지는 DB_URL 이 정한다 (application.yaml 참고).
-	runtimeOnly 'com.h2database:h2'
-	runtimeOnly 'org.postgresql:postgresql'
 
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

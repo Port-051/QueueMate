@@ -16,55 +16,14 @@ spring:
       #
       #   ./gradlew bootRun --args='--spring.profiles.active=sentinel'
 
-  # 이 앱이 DB를 치는 곳은 INV-6 검증(blocks 조회) 하나뿐이다 (docs/11 D-1 · D-34 — 스키마는 public 하나다).
-  # 진행 중인 매칭 상태는 여전히 Redis가 원본이고 DB로 옮기지 않는다 (CLAUDE.md §3).
-  #
-  # 기본값은 H2 인메모리다. 외부 DB 없이 앱이 뜬다.
-  #   MODE=PostgreSQL     운영 대상이 Postgres 라 SQL 방언을 최대한 맞춘다
-  #   DB_CLOSE_DELAY=-1   커넥션이 전부 닫혀도 DB 를 유지한다. 없으면 유휴 시 통째로 사라진다
-  #   DATABASE_TO_LOWER   Postgres 처럼 식별자를 소문자로 다룬다
-  #
-  # 기본 실행(H2)에는 blocks 테이블을 src/main/resources/schema.sql 이 흉내 낸다 — 아래 sql.init 참고.
-  #
-  # 진짜 테이블(platform 의 Flyway 가 만든 public.blocks)로 붙을 때는 DB_URL 을 통째로 바꾼다.
-  # platform 의 로컬 Postgres 는 5433 이다 (../platform 의 docker compose).
-  #   DB_URL=jdbc:postgresql://localhost:5433/queuemate DB_USER=postgres DB_PASSWORD=postgres
-  #   (스키마별 롤 · GRANT 는 없다 — D-34. 앱 하나가 계정 하나로 붙는다. 운영 계정은 미정이다)
-  datasource:
-    url: ${DB_URL:jdbc:h2:mem:queuemate;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE}
-    username: ${DB_USER:sa}
-    password: ${DB_PASSWORD:}
-    hikari:
-      # 커넥션을 기다리는 시간. 기본 30초는 매칭에 쓸 수 없는 값이다 —
-      # 사용자는 대기 화면을 보고 있고, 풀이 마르면 30초 동안 요청 스레드가 통째로 묶인다.
-      # 확인을 못 한 요청은 붙잡고 있는 것보다 빨리 거절하는 편이 낫다 (INV-10 fail-closed).
-      connection-timeout: 300
-  # schema.sql 을 임베디드(H2 인메모리) 데이터소스에서만 실행한다. embedded 가 Spring Boot 기본값이지만
-  # 여기 못 박아 두는 이유가 있다 — always 로 바꾸면 Postgres 에 붙었을 때 이 앱이 blocks 를 만들어 버린다.
-  # 그 테이블은 app:platform 의 것이고 그쪽 Flyway 가 만든다. 이 앱은 Flyway 도 스키마도 두지 않는다 (CLAUDE.md §3).
-  sql:
-    init:
-      mode: embedded
-  jpa:
-    # 스키마는 platform 의 Flyway 가 만든다(H2 는 위 schema.sql). Hibernate가 테이블을 건드리지 않게 한다.
-    hibernate:
-      ddl-auto: none
-    # 컨트롤러까지 커넥션을 붙잡고 있지 않게 한다. 매칭은 커넥션을 오래 쥐면 안 된다.
-    open-in-view: false
-    properties:
-      jakarta:
-        persistence:
-          query:
-            # 쿼리 하나가 매달릴 수 있는 시간. 기본값은 상한이 아예 없다.
-            # 차단 조회는 후보 풀 락 밖에서 하지만, 그래도 응답이 늦으면 배정 자체가 늦어진다.
-            # 인덱스를 탄 단건 조회라 정상이면 한 자릿수 ms 다. 500ms 면 장애로 본다.
-            timeout: 500
+  # DB(spring.datasource · jpa)는 없다 — 이 앱은 Redis 만 쓴다 (2026-10-02, docs/11 D-57). DB 를 치던 유일한 자리(차단 조회)가
+  # 합류 Lua 의 qm:user:block-rel:{userId} 읽기로 바뀌었다. 환경변수 DB_URL · DB_USER · DB_PASSWORD 도 없어졌다.
 
 server:
   port: ${SERVER_PORT:8080}
 
 # 헬스 체크 — platform · notification 의 application.yaml 과 같은 모양이다(2026-10-02 에 /actuator 아래에서 옮겼다).
-# 다른 것은 둘 — ready 그룹이 redis 와 db 를 둘 다 보는 것, 노출 목록에 metrics 가 있는 것(부하 테스트가 읽는다)
+# 다른 것은 둘 — ready 그룹이 db 를 보지 않는 것(DB 가 없다 — docs/11 D-57), 노출 목록에 metrics 가 있는 것(부하 테스트가 읽는다)
 management:
   endpoints:
     web:
@@ -81,20 +40,21 @@ management:
     health:
       # 컨테이너가 살아 있는지(liveness)와 요청을 받을 준비가 됐는지(readiness)를 따로 본다.
       # 이것이 livenessState · readinessState 를 켠다. /health/liveness · /health/readiness 로도 답한다.
-      # show-details 는 기본값(never)이다 — 상태(UP · DOWN)만 내보낸다. 2026-10-02 까지는 always 라 Redis 버전 · DB 종류가 보였다
+      # show-details 는 기본값(never)이다 — 상태(UP · DOWN)만 내보낸다. 2026-10-02 까지는 always 라 Redis 버전 · DB 종류(그때는 DB 가 있었다)가 보였다
       probes:
         enabled: true
       group:
         # /health/live · /health/ready.
-        # readiness 에 Redis 와 DB 를 넣는다 — 매칭 상태의 원본이 Redis 이고(못 읽으면 fail-closed — INV-10) 배정이 blocks 를 읽으니
-        # 둘 중 하나라도 없으면 요청을 받을 준비가 안 된 것이다.
-        # 그래도 ALB 헬스 체크는 /health/live 에 건다. /health/ready 에 걸면 Redis · RDS 장애 조치 동안 태스크가 전부 unhealthy 로 보여
+        # readiness 에 Redis 를 넣는다 — 매칭 상태와 차단 관계(qm:user:block-rel:*)의 원본 · 사본이 전부 Redis 라(못 읽으면 fail-closed — INV-10)
+        # Redis 가 없으면 요청을 받을 준비가 안 된 것이다. db 는 넣지 않는다 — DB 가 없다(2026-10-02, docs/11 D-57).
+        # 그룹에 없는 기여자 이름을 적으면 기동이 실패하므로 db 를 남겨 둘 수도 없다(platform · notification 에서 확인한 것이다).
+        # 그래도 ALB 헬스 체크는 /health/live 에 건다. /health/ready 에 걸면 Redis 장애 조치 동안 태스크가 전부 unhealthy 로 보여
         # ECS 가 태스크를 통째로 갈아치운다 — 그래 봐야 낫지 않는다.
-        # liveness 에는 아무것도 더하지 않는다 — Redis · DB 가 죽었다고 컨테이너를 다시 띄워 봐야 낫지 않는다
+        # liveness 에는 아무것도 더하지 않는다 — Redis 가 죽었다고 컨테이너를 다시 띄워 봐야 낫지 않는다
         live:
           include: livenessState
         ready:
-          include: readinessState,redis,db
+          include: readinessState,redis
 
 queuemate:
   # access 토큰 검증 (2026-09-27 — 임시 식별 ?userId= 를 대신했다. docs/11 D-24 의 적용).

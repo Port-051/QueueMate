@@ -64,12 +64,14 @@ public class LolTieredAssigner {
      * 색인(ZSET)을 바꾼다. 그러면 같은 인덱스가 다른 파티를 가리켜 어떤 파티는 건너뛰고
      * 어떤 파티는 두 번 보게 된다.
      *
-     * <p>그래서 이 안에서는 Redis 명령만 실행한다. 차단 조회는 호출부가 이미 끝냈다.
+     * <p>그래서 이 안에서는 Redis 명령만 실행한다. 최근 거절 상대는 호출부가 이미 읽었다.
+     * 차단(INV-6)은 합류 스크립트가 같은 원자 실행 안에서 본다(docs/11 D-57) — 걸리면 {@code BLOCKED} 가 온다.
      */
-    public void assign(CreateMatchRequestCommand command, LolModeConfig config, Set<String> blockedUserIds) {
+    public void assign(CreateMatchRequestCommand command, LolModeConfig config, Set<String> declinedUserIds) {
         String newPartyId = UUID.randomUUID().toString();
         long now = System.currentTimeMillis();
         List<String> scriptKeys = scriptKeys(command, config, newPartyId);
+        List<String> joinKeys = joinKeys(scriptKeys, command);
 
         for (int start = 0; start < MAX_CANDIDATE_SCAN; start++) {
             List<Object> found = execute(redis, lolCreateOrCheckPartyTieredScript, scriptKeys,
@@ -92,30 +94,36 @@ public class LolTieredAssigner {
             }
             String partyId = (String) found.get(2);
             List<String> memberIds = memberIds(found);
-            if (blockedWith(memberIds, blockedUserIds)) {
-                continue;   // 차단 관계다. 다음 후보를 본다
+            if (declinedWith(memberIds, declinedUserIds)) {
+                continue;   // 최근 거절한(거절당한) 상대가 있다(docs/11 D-45). 다음 후보를 본다
             }
-            joinParty(command, config, scriptKeys, partyId, now, memberIds);
+            if (joinParty(command, config, joinKeys, partyId, now, memberIds) == BLOCKED) {
+                continue;   // 차단 관계다 — 합류 스크립트가 아무것도 쓰지 않고 거절했다(INV-6, D-57). 다음 후보를 본다
+            }
             return;
         }
 
-        // 상한까지 봤는데 전부 차단이었다. 여기서 그냥 끝내면 이 사용자는 파티도 없고
+        // 상한까지 봤는데 전부 차단 · 거절 상대였다. 여기서 그냥 끝내면 이 사용자는 파티도 없고
         // 색인에도 안 올라간 채 활성 요청만 남아 영영 매칭되지 않는다.
         createNewParty(command, config, scriptKeys, newPartyId, now);
     }
 
-    /** 찾아 둔 후보 파티에 들어간다. */
-    private void joinParty(CreateMatchRequestCommand command, LolModeConfig config,
-                           List<String> scriptKeys, String partyId, long now,
+    /**
+     * 찾아 둔 후보 파티에 들어간다. 합류 스크립트의 반환 코드를 돌려준다 — {@code BLOCKED}(-3)면 차단 관계라 들어가지 않았고
+     * 호출부가 다음 후보를 본다. 그 밖의 값이면 이 후보로 배정이 끝났다(들어갔거나, 음수라 그만뒀다).
+     */
+    private long joinParty(CreateMatchRequestCommand command, LolModeConfig config,
+                           List<String> joinKeys, String partyId, long now,
                            List<String> memberIds) {
-        List<Object> result = execute(redis, lolJoinPartyTieredScript, scriptKeys,
+        List<Object> result = execute(redis, lolJoinPartyTieredScript, joinKeys,
                 joinArgs(command, config, partyId, now));
         long code = code(result);
 
         // 음수면 들어가지 못했다. 아래는 들어간 것을 전제로 크기를 읽으므로 여기서 끝낸다
+        //   -3 = 차단 관계 (BLOCKED — 아무것도 쓰지 않았다. 호출부가 다음 후보를 본다)
         if (code < 0) {
             log.debug("join 거절 code={} partyId={} userId={}", code, partyId, command.getUserId());
-            return;
+            return code;
         }
 
         // 스크립트가 나를 넣은 뒤 센 값이다. 들어가기 전 목록을 세면 하나 모자란다
@@ -143,6 +151,7 @@ public class LolTieredAssigner {
                     PushEventType.MATCH_QUEUE_UPDATED,
                     Map.of("memberNumber", size));
         }
+        return code;
     }
 
     /**
@@ -178,7 +187,7 @@ public class LolTieredAssigner {
                 createOrCheckArgs(command, config, newPartyId, now, pastTheEnd));
         long code = code(result);
 
-        log.debug("후보 {}개가 전부 차단이라 새 파티를 만든다 code={} partyId={} userId={}",
+        log.debug("후보 {}개가 전부 차단 · 거절 상대라 새 파티를 만든다 code={} partyId={} userId={}",
                 MAX_CANDIDATE_SCAN, code, newPartyId, command.getUserId());
 
         if (code != CREATED_NEW_PARTY) {
@@ -191,7 +200,19 @@ public class LolTieredAssigner {
         }
     }
 
-    /** 두 스크립트가 같은 KEYS 를 쓴다. join 쪽은 KEYS[1] 을 보지 않는다. */
+    /**
+     * 합류 스크립트의 KEYS — {@link #scriptKeys} 끝에 <b>내 차단 집합</b> {@code qm:user:block-rel:{나}} 를 하나 더 붙인다
+     * (INV-6, docs/11 D-57). 합류 Lua 가 {@code KEYS[#KEYS]} 로 읽어 파티원마다 {@code SISMEMBER} 하고, 걸리면 아무것도
+     * 쓰지 않고 {@code BLOCKED}(-3)를 돌려준다. 찾기 스크립트에는 넘기지 않는다 — 혼자 새 파티를 만드는 자리라 견줄 상대가 없다.
+     * 끝에 붙이므로 앞자리(KEYS[1..]) 배치는 찾기 스크립트와 그대로 같다.
+     */
+    private List<String> joinKeys(List<String> scriptKeys, CreateMatchRequestCommand command) {
+        List<String> joinKeys = new ArrayList<>(scriptKeys);
+        joinKeys.add(SharedKeys.blockRelKey(command.getUserId()));   // KEYS[#KEYS] 내 차단 집합 (app:platform 이 쓴다)
+        return joinKeys;
+    }
+
+    /** 두 스크립트가 같은 KEYS 를 쓴다. join 쪽은 KEYS[1] 을 보지 않는다. 합류 쪽은 끝에 내 차단 집합 키가 하나 더 붙는다({@link #joinKeys}). */
     private List<String> scriptKeys(CreateMatchRequestCommand command, LolModeConfig config, String newPartyId) {
         List<String> scriptKeys = new ArrayList<>();
         scriptKeys.add(keys.partyKey(newPartyId));                          // KEYS[1]

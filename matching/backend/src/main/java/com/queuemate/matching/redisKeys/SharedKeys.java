@@ -67,7 +67,9 @@ import com.queuemate.matching.domain.GameKey;
  *   <li>{@link #ACTIVE_REQUEST_PREFIX} — {@code EXISTS} 로만 본다. 매칭 대기 중이면 방 입장 · 글 쓰기를 거절한다
  *       (docs/11 D-19 · D-33).
  * </ul>
- * <p>반대로 {@link #ACTIVE_ROOM_PREFIX} 는 platform 이 정하고 이 앱이 {@code EXISTS} 로만 보는 키다(아래 참고).
+ * <p>반대로 {@link #ACTIVE_ROOM_PREFIX} 는 platform 이 정하고 이 앱이 {@code EXISTS} 로만 보는 키이고,
+ * {@link #BLOCK_REL_PREFIX} 는 platform 이 정하고 이 앱이 합류 Lua 에서 {@code SISMEMBER} 로만 보는 키다(아래 참고).
+ * 둘 다 Lua 에 리터럴로 없고 KEYS 로 넘어간다 — 그래서 위 "Lua 안에도 있다" 목록에 없다.
  *
  * <p>인스턴스가 필요 없어 {@code @Component} 가 아니라 정적 유틸리티다. 게임별
  * {@code *PartyKeys} 는 요청 DTO/활성 요청에서 조건을 읽어 조립하므로 빈이지만,
@@ -161,6 +163,18 @@ public final class SharedKeys {
     public static final String ACTIVE_ROOM_PREFIX = "qm:user:active-room:";
 
     /**
+     * 차단 관계 SET 접두사. <b>이 앱이 정하는 값이 아니다</b> — 원본은 app:platform 의
+     * {@code social/redisKeys/BlockKeys.java} {@code BLOCK_REL_PREFIX} 다(docs/11 D-57, 2026-10-02).
+     * 값(member)은 그 사용자와 <b>어느 방향으로든</b> 차단 관계인 사용자 번호의 십진 문자열 — A 가 B 를 차단하면
+     * platform 이 {@code A} 의 집합에 {@code B} 를, {@code B} 의 집합에 {@code A} 를 같이 넣는다(대칭). 원본은 platform 의
+     * {@code blocks} 표이고 이 집합은 그 사본이다 — platform 이 부팅할 때 표에서 다시 만든다.
+     * 이 앱은 합류 스크립트({@code join-party*.lua})에서 들어오려는 사람의 집합을 KEYS 로 받아 파티원마다
+     * {@code SISMEMBER} 로 <b>읽기만 한다</b>(INV-6). 그래서 이 앱은 DB 를 쓰지 않는다 — D-34 · D-41 의 {@code blocks} 읽기를 대신한다.
+     * <pre>{@code "qm:user:block-rel:"  →  qm:user:block-rel:42   (SET: "7", "19")}</pre>
+     */
+    public static final String BLOCK_REL_PREFIX = "qm:user:block-rel:";
+
+    /**
      * 거절한 상대 ZSET 접두사 — member 는 상대 userId, score 는 <b>그 기록이 풀리는 시각</b>(epoch ms).
      * 제안을 거절한 사람이 바로 다시 큐에 들어오면 방금 거절한 사람들과 또 같은 파티가 될 수 있다 — 거절한 이유가
      * 그 사람들이라면 같은 제안이 되풀이된다. 그래서 거절 때 <b>양쪽에</b> 적는다(내 키에 상대들, 상대 키마다 나) —
@@ -235,6 +249,15 @@ public final class SharedKeys {
      */
     public static String activeRoomKey(String userId) {
         return ACTIVE_ROOM_PREFIX + userId;
+    }
+
+    /**
+     * 이 사용자와 어느 방향으로든 차단 관계인 사용자들의 SET — app:platform 이 쓰고 이 앱은 읽기만 한다 (docs/11 D-57).
+     * 세 게임의 {@code join-party*.lua} 가 KEYS 의 마지막으로 받아 파티원마다 {@code SISMEMBER} 한다(INV-6).
+     * <pre>{@code qm:user:block-rel:42}</pre>
+     */
+    public static String blockRelKey(String userId) {
+        return BLOCK_REL_PREFIX + userId;
     }
 
     /**

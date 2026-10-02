@@ -139,18 +139,18 @@ class AuthenticationApiTest extends ConcurrencyTestSupport {
         mockMvc.perform(get("/health/live"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"))
-                // show-details 는 기본값(never)이다 — 상태만 내보내고 기여자 목록(Redis 버전 · DB 종류)은 싣지 않는다
+                // show-details 는 기본값(never)이다 — 상태만 내보내고 기여자 목록(Redis 버전 등)은 싣지 않는다
                 .andExpect(jsonPath("$.components").doesNotExist())
                 .andExpect(jsonPath("$.details").doesNotExist());
     }
 
     /**
-     * ready 그룹은 readinessState · redis · db 를 본다 — 테스트에는 Redis(DB 15)와 H2 가 있으니 UP 이다.
-     * 그룹에 없는 기여자 이름을 적으면 컨텍스트가 뜨지 않으므로(platform · notification 에서 확인한 것이다) 이 테스트가 뜬다는 것이
-     * redis · db 가 그룹에 들어 있다는 확인이다.
+     * ready 그룹은 readinessState · redis 를 본다 — 테스트에는 Redis(DB 15)가 있으니 UP 이다.
+     * <b>db 는 없다</b>(2026-10-02, docs/11 D-57 — DB 의존성을 뺐다). 그룹에 없는 기여자 이름을 적으면 컨텍스트가 뜨지 않으므로
+     * (platform · notification 에서 확인한 것이다) 이 테스트가 뜬다는 것이 redis 가 그룹에 있고 사라진 db 가 남아 있지 않다는 확인이다.
      */
     @Test
-    void health_ready_는_Redis_와_DB_가_있으면_UP() throws Exception {
+    void health_ready_는_Redis_가_있으면_UP_이고_DB_는_보지_않는다() throws Exception {
         mockMvc.perform(get("/health/ready"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"))
