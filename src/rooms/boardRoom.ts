@@ -148,7 +148,7 @@ export function roomEntryError(room: BoardRoom, selfId: string, activeRoomId: st
   if (room.status === 'EXPIRED') return '모집이 끝났어요';
   if (room.full || room.memberCount >= room.capacity) return `가득 찬 방이에요(정원 ${room.capacity}명)`;
   if (activeRoomId === room.id || room.members.some(member => member.id === selfId)) return '이미 참여 중인 방이에요';
-  if (activeRoomId) return '다른 방에 참여 중이에요. 나온 뒤 참여할 수 있어요';
+  // 다른 방 참여는 차단 조건이 아니다. 확인창에서 동의를 받은 뒤 기존 방을 나가고 입장한다.
   // 포지션 방인데 남은 포지션이 없다 — 찾는 포지션이 정원보다 적던 옛 글에서 생긴다(2026-10-01 부터 새 글은 정원 − 1 개 이상이라 자리와 함께 찬다).
   if (isPositionRoom(room) && !remainingPositions(room).length) return '남은 포지션이 없어 참여할 수 없어요';
   return null;

@@ -92,9 +92,9 @@ export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity
         const color = colors.get(member.id);
         // 카드가 없는 사람 — 얼굴 · 이름(아직 모르면 자리표시 막대 — 번호를 그리지 않는다) · 음성만.
         const body = card && seatRoom
-          ? <RoomSeatBody room={seatRoom} member={card} me={self} color={color} showDetails voiceMark={<VoiceMark state={state} />} />
+          ? <RoomSeatBody room={seatRoom} member={card} me={self} color={color} showDetails />
           : <>
-            <span className="room-voice-identity"><span className="room-seat-face"><span className="room-member-avatar"><Avatar userId={member.id} name={member.nickname} color={color} size={36} /></span></span><span className="room-voice-indicators"><VoiceMark state={state} /></span></span>
+            <span className="room-seat-face"><span className="room-member-avatar"><Avatar userId={member.id} name={member.nickname} color={color} size={36} /></span></span>
             <span className="room-seat-text"><span className="room-seat-name">
               {member.nickname !== null ? <strong>{member.nickname}</strong> : <span className="room-seat-name-pending" aria-hidden="true" />}
               {self ? <span className="room-seat-me">(나)</span> : null}
@@ -102,7 +102,7 @@ export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity
           </>;
         return <li key={member.id} data-seat-id={member.id} className={`room-seat is-filled room-voice-seat${host ? ' is-host' : ''}${self ? ' is-self' : ''}${state === 'speaking' ? ' is-speaking' : ''}`}>
           <button type="button" className="room-seat-button" aria-label={`${label} — 상세 정보`} aria-haspopup="dialog" aria-expanded={menuOpen} disabled={!card || !seatRoom}
-            onClick={event => { event.currentTarget.focus(); setOpenId(menuOpen ? null : member.id); }}>{host ? <RoomHostCrown /> : null}{body}</button>
+            onClick={event => { event.currentTarget.focus(); setOpenId(menuOpen ? null : member.id); }}>{host ? <RoomHostCrown /> : null}{body}<VoiceMark state={state} /></button>
           {menuOpen && card && seatRoom ? <RoomMemberProfile room={seatRoom} member={card} onClose={() => setOpenId(null)} actions={self ? [] : menuFor(member).actions} /> : null}
         </li>;
       })}

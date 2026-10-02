@@ -12,8 +12,7 @@ import type { BoardRoom } from './types';
 import './room-create-preview.css';
 
 /**
- * "참여" 를 누른 뒤의 확인 창. 원본의 `RoomSeatJoin`(자리 = 포지션 선택 · 다른 방에서 옮겨 오기)은 우리 계약에 없어 2026-09-29 에 이것으로 줄였다.
- * 다른 방에 있으면 서버가 409 `IN_OTHER_ROOM` 이라 먼저 나와야 한다(옮겨 오기는 여전히 없다).
+ * 참가 전 포지션 선택과 확인. 다른 방에 있으면 나가기 경고를 보여 주고, 확인한 뒤 기존 방 퇴장 → 새 방 입장을 순서대로 실행한다.
  *
  * - **포지션 방(글의 `wantedPositions` 가 비지 않았다)이면 남은 포지션 하나를 고른다**(2026-09-30 ~ 10-01 소유자 결정 — platform P-44). 남은 것 = 글의 찾는 포지션 − 방 안 사람(카드)의 포지션
  *   (`remainingPositions`). 고르기 전에는 "참여하기" 가 눌리지 않고, 고른 것을 `?position=` 으로 싣는다. 들어간 뒤에는 바꿀 수 없다(서버 — 바꾸는 길은 나중에).
@@ -22,8 +21,8 @@ import './room-create-preview.css';
  * - **포지션이 없는 방**(칼바람 · PUBG · 찾는 포지션이 빈 옛 글)은 전처럼 고를 것 없이 "참여하기" 하나다 — `position` 을 싣지 않는다(서버가 400).
  * - 고르는 칸은 글 쓰기 팝업의 "내 포지션" 과 같은 부품 · 같은 이름이다(`SingleRolePicker` — 남은 것만 `only`. VALORANT 는 "내 역할"). 판의 CSS 를 받으려고 글 쓰기 팝업처럼 `room-home room-preview-scope` 로 감쌌다.
  */
-export function RoomJoinConfirm({ room, entryError, cancelsMatch = false, onClose, onJoin }: {
-  room: BoardRoom; entryError: string | null; cancelsMatch?: boolean; onClose: () => void; onJoin: (position?: string) => void | Promise<void>;
+export function RoomJoinConfirm({ room, entryError, cancelsMatch = false, switchesRoom = false, closesHostedRoom = false, onClose, onJoin }: {
+  room: BoardRoom; entryError: string | null; cancelsMatch?: boolean; switchesRoom?: boolean; closesHostedRoom?: boolean; onClose: () => void; onJoin: (position?: string) => void | Promise<void>;
 }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -45,8 +44,9 @@ export function RoomJoinConfirm({ room, entryError, cancelsMatch = false, onClos
       else setError(roomErrorMessage(cause, '참여하지 못했어요. 다시 시도해 주세요.'));
     }
   };
-  return <Modal title="이 방에 참여할까요?" closeLabel="참여 창 닫기" className="room-create-preview room-join-preview" onClose={() => { if (!submitting.current) onClose(); }}
-    foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || Boolean(entryError) || needsPick} onClick={confirm}>{busy ? '참여 중…' : cancelsMatch ? '빠른매치 취소 후 참여하기' : '참여하기'}</Button></>}>
+  return <Modal title={switchesRoom ? '다른 방에 참가할까요?' : '이 방에 참여할까요?'} closeLabel="참여 창 닫기" className="room-create-preview room-join-preview" onClose={() => { if (!submitting.current) onClose(); }}
+    foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || Boolean(entryError) || needsPick} onClick={confirm}>{busy ? '참여 중…' : switchesRoom ? '나가고 참가하기' : cancelsMatch ? '빠른매치 취소 후 참여하기' : '참여하기'}</Button></>}>
+    {switchesRoom ? <div className="banner warn" role="alert">현재 참여 중인 방에서 나가게 됩니다.{closesHostedRoom ? ' 방장으로 모집 중인 방은 닫힙니다.' : ''}<br />그래도 참가하시겠습니까?</div> : null}
     {cancelsMatch ? <p className="banner warn" role="status">이 방에 입장하면 현재 진행 중인 빠른매치가 취소됩니다.</p> : null}
     <div className="room-preview-title"><h3>{room.title}</h3></div>
     <dl className="room-preview-conditions">
