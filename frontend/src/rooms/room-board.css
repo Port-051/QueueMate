@@ -372,8 +372,6 @@
    두 줄째의 숫자(승률 · KDA)와 방장 포지션 글자를 빼고, 더 좁으면 얼굴 위 · 닉네임 아래로 선다(`room-seat`) — 숫자는 마우스를 올린 작은 창 · 프로필 창에 남는다. */
 .room-deck.room-row { --room-bubble-bg:color-mix(in srgb, var(--app-background) 92%, white); container:room-card / inline-size; padding:14px 18px 16px; border:1px solid transparent; border-radius:24px; background:var(--room-bubble-bg); overflow:visible; }
 .room-deck.room-row.is-own { --room-bubble-bg:#2d2242; }
-/* 마우스를 올린 카드를 위로 — 좌석의 작은 창이 아래 카드에 가리지 않게(카드마다 `isolation` 이 있다). */
-.room-deck.room-row:is(:hover,:focus-within) { z-index:3; }
 .room-home .room-deck-grid { gap:18px; }
 .room-row-head { display:flex; flex-wrap:wrap; align-items:center; gap:2px 16px; min-width:0; }
 .room-row-head h3 { flex:1 1 auto; min-width:0; max-width:100%; margin:0; font-size:16px; font-weight:650; line-height:1.5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
