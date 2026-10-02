@@ -172,7 +172,6 @@
 .room-home.board-home .room-filters .intro-voice-options.is-single>.filter-mode[aria-pressed=true] { background:var(--accent); border-color:var(--accent); color:#fff; }
 .room-home.board-home .room-filters .room-filter-secondary button.filter-reset { background:var(--accent); border-color:var(--accent); color:#fff; }
 .room-home.board-home .room-filters .room-filter-secondary button.filter-reset:hover { background:var(--accent-2); border-color:var(--accent-2); }
-.room-home .room-deck.room-row:is(:hover,:focus-within) { background:var(--room-bubble-bg); }
 .room-deck.room-row .room-seat-button:hover { background:color-mix(in srgb, var(--app-background) 82%, white); }
 .room-seat-kda { display:flex; align-items:center; justify-content:center; gap:4px; white-space:nowrap; }
 .room-seat-stat-label { font-size:10px; color:#aaa3b6; }
