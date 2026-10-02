@@ -1,18 +1,20 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
 import { IconPaperPlane } from '../components/icons';
 import { Avatar } from '../components/ui';
+import { VerificationBadge } from '../components/VerificationBadge';
 import { formatTime } from '../domain/time';
 import type { PartyChatMessage } from '../webrtc/types';
 import './room-conversation-chat.css';
 
 /** 7ee7177의 방 채팅 UI. 전송과 연결 상태는 현재 WebRTC 세션을 그대로 사용한다. */
-export function RoomConversationChat({ messages, canSend, connectionHint, nameOf, colorOf, canOpenProfile, onProfile, onSend }: {
+export function RoomConversationChat({ messages, canSend, connectionHint, nameOf, colorOf, canOpenProfile, isVerified, onProfile, onSend }: {
   messages: PartyChatMessage[];
   canSend: boolean;
   connectionHint?: string;
   nameOf(id: string, sent: string): string;
   colorOf(id: string): number | undefined;
   canOpenProfile(id: string): boolean;
+  isVerified(id: string): boolean;
   onProfile(id: string): void;
   onSend(text: string): boolean;
 }) {
@@ -58,7 +60,7 @@ export function RoomConversationChat({ messages, canSend, connectionHint, nameOf
             {message.system ? <p className="room-conversation-system">{message.text}</p> : <div className={`room-conversation-message${grouped ? ' is-grouped' : ''}`}>
               <button className="room-profile-avatar-button" type="button" disabled={!profile} aria-label={`${name} 상세 정보`} onClick={event => { event.currentTarget.focus(); onProfile(message.userId); }}><Avatar userId={message.userId} name={name} color={colorOf(message.userId)} size={36} /></button>
               <div><div className="room-conversation-message-meta">
-                <button className="room-profile-name-button" type="button" disabled={!profile} onClick={event => { event.currentTarget.focus(); onProfile(message.userId); }}>{name}</button>
+                <button className="room-profile-name-button" type="button" disabled={!profile} onClick={event => { event.currentTarget.focus(); onProfile(message.userId); }}>{name}<VerificationBadge verified={isVerified(message.userId)} /></button>
                 <time dateTime={message.at}>{formatTime(message.at)}</time>
               </div><p>{message.text}</p></div>
             </div>}

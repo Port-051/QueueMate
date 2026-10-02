@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { tierColor } from '../domain/rankAssets';
 import type { GameKey, GameStats, LolMostChampion } from '../api/types';
 import { Avatar } from '../components/ui';
+import { VerificationBadge } from '../components/VerificationBadge';
 import { FilterModeIcon, FilterRoleIcon, FilterTierIcon, VoiceIcon } from '../components/FilterSymbols';
 import { PerformanceValue, PreferredChampions } from '../components/IntroductionVisuals';
 import { KdaStat, kdaLine, KdStat, kdLine } from '../components/KdaStat';
@@ -146,12 +147,6 @@ function seatNumbers(game: GameKey, member: BoardMember): { label: string; text:
 export const seatPosition = (room: BoardRoom, member: BoardMember): string | null =>
   hasPositions(room.game, room.modeKey) ? member.position : null;
 
-function VerifiedMark() {
-  return <span className="room-seat-verified" role="img" aria-label="인증됨" title="인증됨">
-    <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m12 1.5 2.6 1.9 3.2-.1 1 3 2.6 1.9-1 3.1 1 3.1-2.6 1.9-1 3-3.2-.1L12 22.5l-2.6-1.9-3.2.1-1-3-2.6-1.9 1-3.1-1-3.1 2.6-1.9 1-3 3.2.1L12 1.5Z" fill="currentColor" /><path d="m8 12.2 2.8 2.8L16.3 9.4" fill="none" stroke="#10121c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-  </span>;
-}
-
 function ChampionFace({ id }: { id: string }) {
   const name = championName(id) ?? id;
   const src = championPortrait(id);
@@ -221,13 +216,13 @@ export function SeatPopover({ room, member, embedded = false, color }: { room: B
     {embedded ? <span className="room-pop-identity">
       <RoomMemberAvatar member={member} size={40} color={color} showHost={false} />
       <span className="room-pop-identity-text">
-        <span className="room-pop-head"><b title={member.nickname}>{member.nickname}</b>{profile?.verified ? <VerifiedMark /> : null}{member.host ? <em>방장</em> : null}</span>
+        <span className="room-pop-head"><b title={member.nickname}>{member.nickname}</b><VerificationBadge verified={profile?.verified} />{member.host ? <em>방장</em> : null}</span>
         <span className="room-pop-meta">
           {position ? <span className="room-pop-position"><FilterRoleIcon game={room.game} value={position} size={14} /><span>{roleLabel(room.game, position)}</span></span> : null}
           <span className="room-pop-sub" title={accountLabel}>{accountLabel}</span>
         </span>
       </span>
-    </span> : <span className="room-pop-head"><b>{member.nickname}</b>{role ? <em>{role}</em> : null}</span>}
+    </span> : <span className="room-pop-head"><b>{member.nickname}</b><VerificationBadge verified={profile?.verified} />{role ? <em>{role}</em> : null}</span>}
     {!embedded ? <span className="room-pop-sub">{profile
       ? [profile.gameNickname, profile.verified ? '인증됨' : null, pubg && profile.server ? SERVER_LABEL[profile.server] : null].filter(Boolean).join(' · ')
       : '이 게임의 계정을 아직 연결하지 않았어요'}</span> : null}
@@ -294,7 +289,7 @@ export function RoomSeatBody({ room, member, me = false, color, table = false, s
         {position && !showDetails ? <span className="room-seat-position-icon"><FilterRoleIcon game={room.game} value={position} size={12} /></span> : null}
         <strong>{member.nickname}</strong>
         {me ? <span className="room-seat-me">(나)</span> : null}
-        {member.profile?.verified ? <VerifiedMark /> : null}
+        <VerificationBadge verified={member.profile?.verified} />
         {!table && !showDetails ? positionLabel : null}
       </span>
       {table ? positionLabel ?? <span className="room-seat-position">—</span> : null}

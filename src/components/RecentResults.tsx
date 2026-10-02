@@ -6,7 +6,7 @@ export type RecentResult = 'W' | 'L';
 export interface RecentRecord { results: RecentResult[]; wins: number; losses: number; }
 export type RecentResultsSize = 'sm' | 'lg';
 
-/** 한 줄에 놓는 칸 수의 상한 — 20판이면 10칸 두 줄이 된다(좌석 작은 창의 폭 222px 에 20px 칸 10개 + 2px 틈 = 218px). */
+/** 최근 경기 표시는 최대 10판, 한 줄이다. 옛 20판 스냅숏도 최신 10판만 표시한다. */
 const TILES_PER_ROW = 10;
 
 /**
@@ -17,7 +17,7 @@ const TILES_PER_ROW = 10;
 export function recentRecord(stats: GameStats | null | undefined): RecentRecord | null {
   const raw = stats?.detail?.recentResults;
   if (!Array.isArray(raw)) return null;
-  const results = raw.filter((value): value is RecentResult => value === 'W' || value === 'L').slice(0, 20);
+  const results = raw.filter((value): value is RecentResult => value === 'W' || value === 'L').slice(0, 10);
   const wins = results.filter(result => result === 'W').length;
   return { results, wins, losses: results.length - wins };
 }
