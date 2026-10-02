@@ -1,40 +1,65 @@
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../state/AuthContext';
-import { Modal } from '../components/ui';
-import { PreferredChampions } from '../components/IntroductionVisuals';
-import { recentRecord } from '../components/RecentResults';
-import { gameConfig } from '../domain/gameConfig';
-import { modeChoiceLabel } from '../domain/modeChoice';
-import { gamesText, RoomMemberAvatar, RoomMemberFacts } from './RoomDeck';
-import { boardRoomColors } from './roomColors';
+import { SeatPopover } from './RoomDeck';
 import type { BoardMember, BoardRoom } from './types';
 import './room-member-profile.css';
 
-/**
- * 카드를 눌렀을 때의 프로필 — 게임 프로필(`profile`)이 전부다. 원본의 자기소개(`bio`)는 서버에 없어 게임 닉네임을 대신 보여 준다.
- * 맨 아래 한 줄의 판 수(`최근 10판`)는 LoL 최근 경기의 승 · 패 칸 줄(`RoomMemberFacts` — P-43)이 있으면 뺀다(같은 판을 두 번 말하지 않게). 그날 전의 스냅숏은 전처럼 싣는다.
- * 빠른매치 제안의 팀원 좌석(`RoomTeamSeats` — 2026-10-01)도 이 창을 연다. 모드를 모르는 빠른매치 파티(`modeKey` 가 빈 값)는 게임 이름만 쓴다.
- * 방 화면 좌석 메뉴의 "프로필 보기"(2026-10-01 소유자 — 게시판 방 · 빠른매치 방)도 이 창이다 — 그때는 방 화면의 얼굴 색(`color` — 지금 방 안 사람으로 정한 표)을 넘긴다.
- */
-export function RoomMemberProfile({ room, member, color: roomColor, onClose }: {
-  room: BoardRoom; member: BoardMember; color?: number; onClose: () => void;
+export interface MemberDetailAction {
+  key: string;
+  label: ReactNode;
+  onSelect(): void;
+  tone?: 'danger';
+  disabled?: boolean;
+}
+
+/** 예전 호버 카드의 내용을 클릭으로 연다. 포털을 사용해 흑백 카드와 패널 스크롤에 잘리지 않는다. */
+export function RoomMemberProfile({ room, member, onClose, actions }: {
+  room: BoardRoom; member: BoardMember; color?: number; onClose: () => void; actions?: MemberDetailAction[];
 }) {
   const { userId } = useAuth();
-  const stats = member.profile?.stats;
-  const recentShown = room.game === 'LOL' && recentRecord(stats) !== null;
-  // 얼굴 색은 눌렀던 좌석과 같다 — 넘겨받은 방 화면의 색, 없으면 그 카드의 방 색(`boardRoomColors`).
-  const color = roomColor ?? boardRoomColors(room).get(member.id);
-  return <Modal title={`${member.nickname} 프로필`} titleContent="프로필" closeLabel="프로필 닫기" className="room-member-profile" onClose={onClose}>
-    <div className="room-profile-identity">
-      <RoomMemberAvatar member={member} size={72} color={color} />
-      <h3>{member.nickname}</h3>
-      <p>{[gameConfig(room.game).name, room.modeKey ? modeChoiceLabel(room.game, room.modeKey, room.perspective) : null].filter(Boolean).join(' · ')}</p>
-    </div>
-    <RoomMemberFacts room={room} member={member} iconSize={32} opgg />
-    {member.champions.length ? <section className="room-profile-champions" aria-label={room.game === 'LOL' ? '주 챔피언' : '선호 캐릭터와 장비'}><PreferredChampions game={room.game} names={member.champions} /></section> : null}
-    <p className="room-profile-bio">{member.profile
-      ? `${member.profile.gameNickname}${member.profile.verified ? ' · 인증됨' : ''}${stats ? recentShown ? '' : ` · ${gamesText(room.game, stats)}` : ' · 전적 정보 없음'}`
-      : '이 게임의 계정을 아직 연결하지 않았어요'}</p>
-    {member.id !== userId ? <Link className="btn btn-primary" to={`/app/messages/${member.id}`} onClick={onClose}>메시지 보내기</Link> : null}
-  </Modal>;
+  const [anchor] = useState(() => document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  const [position, setPosition] = useState({ left: 8, top: 8 });
+  const panel = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+  useLayoutEffect(() => {
+    const place = () => {
+      const element = panel.current;
+      if (!element) return;
+      const rect = anchor?.getBoundingClientRect();
+      const width = element.offsetWidth, height = element.offsetHeight;
+      const below = rect ? rect.bottom + 8 : (window.innerHeight - height) / 2;
+      const top = below + height <= window.innerHeight - 8 ? below : (rect?.top ?? window.innerHeight) - height - 8;
+      setPosition({ left: Math.max(8, Math.min(rect?.left ?? 8, window.innerWidth - width - 8)), top: Math.max(8, Math.min(top, window.innerHeight - height - 8)) });
+    };
+    place();
+    panel.current?.focus({ preventScroll: true });
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true); };
+  }, [anchor]);
+  useEffect(() => {
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !panel.current?.contains(event.target) && !anchor?.contains(event.target)) close.current();
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close.current(); anchor?.focus({ preventScroll: true }); }
+    };
+    const focusOut = (event: FocusEvent) => {
+      if (event.target instanceof Node && event.target !== anchor && !panel.current?.contains(event.target)) close.current();
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    document.addEventListener('focusin', focusOut);
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); document.removeEventListener('focusin', focusOut); };
+  }, [anchor]);
+  const dismiss = () => { onClose(); anchor?.focus({ preventScroll: true }); };
+  return createPortal(<div ref={panel} className="room-member-detail" style={position} role="dialog" aria-label={`${member.nickname} 상세 정보`} tabIndex={-1}>
+    <button type="button" className="room-detail-close" aria-label="상세 정보 닫기" onClick={dismiss}>×</button>
+    <SeatPopover room={room} member={member} embedded />
+    {actions ? actions.length ? <div className="room-detail-actions">{actions.map(action => <button key={action.key} type="button" disabled={action.disabled} className={action.tone === 'danger' ? 'is-danger' : undefined} onClick={() => { onClose(); action.onSelect(); }}>{action.label}</button>)}</div> : null
+      : member.id !== userId ? <div className="room-detail-actions"><Link to={`/app/messages/${member.id}`} onClick={onClose}>메시지 보내기</Link></div> : null}
+  </div>, document.body);
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { placeSeatPopover, RoomSeatBody, SeatPopover, seatPopoverShown, seatSummary } from './RoomDeck';
+import { RoomSeatBody, seatSummary } from './RoomDeck';
 import { RoomMemberProfile } from './RoomMemberProfile';
 import { boardRoomColors } from './roomColors';
 import type { BoardMember, BoardRoom } from './types';
@@ -20,17 +20,15 @@ import './room-team-seats.css';
 export function RoomTeamSeats({ room, selfId }: { room: BoardRoom; selfId: string | null }) {
   const [profile, setProfile] = useState<BoardMember | null>(null);
   const colors = boardRoomColors(room);
-  const popover = seatPopoverShown(room.game);
   return <div className="room-team-seats-wrap">
     <ul className="room-seats room-team-seats" aria-label={`팀원 ${room.members.length}명`}>
       {room.members.map((member, index) => {
         const self = member.id === selfId;
         return <li key={member.id} className={`room-seat is-filled${self ? ' is-self' : ''}${index >= 3 ? ' pop-end' : ''}`}
-          onMouseEnter={popover ? event => placeSeatPopover(event.currentTarget) : undefined} onFocus={popover ? event => placeSeatPopover(event.currentTarget) : undefined}>
-          <button type="button" className="room-seat-button" aria-label={`${seatSummary(room, member, selfId ?? '')} — 프로필 보기`} onClick={() => setProfile(member)}>
+          >
+          <button type="button" className="room-seat-button" aria-label={`${seatSummary(room, member, selfId ?? '')} — 상세 정보`} aria-haspopup="dialog" onClick={event => { event.currentTarget.focus(); setProfile(member); }}>
             <RoomSeatBody room={room} member={member} me={self} color={colors.get(member.id)} />
           </button>
-          {popover ? <SeatPopover room={room} member={member} /> : null}
         </li>;
       })}
     </ul>

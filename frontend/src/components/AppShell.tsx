@@ -10,7 +10,7 @@ import { GameBadge } from './GameSymbol';
 import { availableGames } from '../domain/gameConfig';
 import type { GameKey } from '../api/types';
 import { Avatar, Modal } from './ui';
-import { IconHome, IconParty, IconSend } from './icons';
+import { IconHome, IconParty, IconPaperPlane } from './icons';
 import { SiteFooter } from './SiteFooter';
 import { ROOM_SPLIT_QUERY } from '../rooms/roomPanel';
 
@@ -25,7 +25,7 @@ const isBoardRoute = (pathname: string) => pathname === '/app/home' || isPanelRo
 const NAV: NavItem[] = [
   { to: '/app/home', label: '홈', icon: IconHome },
   { to: '/app/friends', label: '친구', icon: IconParty },
-  { to: '/app/messages', label: '메시지', icon: IconSend },
+  { to: '/app/messages', label: '메시지', icon: IconPaperPlane },
 ];
 
 export function AppShell() {
