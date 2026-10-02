@@ -155,37 +155,13 @@ ul { margin: 0; padding: 0; list-style: none; }
 .avatar { flex: none; display: grid; place-items: center; border-radius: 50%; line-height: 1; user-select: none; color: #fff; background: #535c69; }
 .avatar-glyph { display: block; width: auto; height: 60%; pointer-events: none; }
 /* span은 기본이 inline이라 width/height가 먹지 않는다. flex 자식일 때는 blockify돼서
-   우연히 맞았고, 버튼 안(.avatar-edit)처럼 block 컨테이너에 놓이면 inline으로 남아
+   우연히 맞았고, 버튼 안처럼 block 컨테이너에 놓이면 inline으로 남아
    .avatar-status의 containing block이 무너진다. 배치를 부모에 기대지 않는다. */
 .avatar-wrap { position: relative; flex: none; display: inline-block; }
 .avatar-status { position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 999px; border: 2px solid var(--panel); background: var(--muted); }
 .avatar-status.online { background: var(--ok); }
 .avatar-status.away { background: var(--warn); }
 
-/* 프로필 헤더의 아바타 자체를 변경 트리거로 쓴다. 호버/포커스에서만 '변경'을 덮어 그린다. */
-.avatar-edit { position: relative; padding: 0; border: 0; background: transparent; line-height: 0; border-radius: 50%; overflow: hidden; cursor: pointer; }
-.avatar-edit::after {
-  content: '변경'; position: absolute; left: 0; right: 0; bottom: 0; height: 38%;
-  display: grid; place-items: center; font-size: 10.5px; font-weight: 700; color: #fff;
-  background: rgba(3, 4, 10, 0.74); opacity: 0; transition: opacity 0.14s ease;
-}
-.avatar-edit:hover::after, .avatar-edit:focus-visible::after { opacity: 1; }
-
-.avatar-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.avatar-opt {
-  position: relative; display: grid; justify-items: center; align-content: center; gap: 8px;
-  min-height: 118px; padding: 16px 10px; border-radius: var(--r-lg); border: 1px solid var(--line);
-  background: var(--panel); color: var(--text-dim); font-size: 12.5px; font-weight: 600; cursor: pointer;
-}
-.avatar-opt:hover:not(:disabled) { border-color: var(--accent-line); color: var(--text); }
-.avatar-opt:disabled { opacity: 0.55; cursor: default; }
-.avatar-opt[aria-pressed='true'] { border-color: var(--accent-2); background: var(--accent-soft); color: var(--text); box-shadow: var(--glow); }
-.avatar-upload { border-style: dashed; gap: 10px; }
-.avatar-upload .au-mark {
-  width: 44px; height: 44px; display: grid; place-items: center;
-  border-radius: 50%; background: var(--accent-soft); color: var(--accent-2);
-}
-.avatar-opt .ap-check { position: absolute; top: 8px; right: 8px; width: 20px; height: 20px; border-radius: 999px; background: var(--accent); color: #fff; display: grid; place-items: center; }
 .modal .hint { font-size: 12.5px; color: var(--muted); }
 
 .field { display: grid; gap: 8px; }

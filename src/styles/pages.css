@@ -45,9 +45,8 @@
 .feature b { font-size: 15px; }
 .feature p { margin-top: 8px; font-size: 13px; color: var(--muted); line-height: 1.65; }
 
-/* 로그인과 개인정보 · 영어 요약(2026-10-02 — 구글 · Riot 심사가 보는 홈의 설명). 아래 끝은 `components/SiteFooter`(`styles/legal.css`)다. */
+/* 로그인과 개인정보(2026-10-02 — 구글 · Riot 심사가 보는 홈의 설명). 아래 끝은 `components/SiteFooter`(`styles/legal.css`)다. */
 .landing-info { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 1440px; margin: 16px auto 0; }
-.landing-info.landing-en { grid-template-columns: minmax(0, 1fr); }
 .landing-info-card { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 22px; background: var(--panel); color: var(--text-dim); font-size: 13.5px; line-height: 1.75; word-break: keep-all; overflow-wrap: anywhere; }
 .landing-info-card h2 { color: var(--text); font-size: 16px; font-weight: 700; margin-bottom: 8px; }
 .landing-info-card p + p, .landing-info-card ul + p { margin-top: 10px; }

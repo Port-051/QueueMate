@@ -2,13 +2,13 @@ import { FilterTierIcon } from '../components/FilterSymbols';
 import '../styles/introduction.css';
 import { GameBadge } from '../components/GameSymbol';
 import { SocialProviderIcon } from '../components/SocialProviderIcon';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { isApiError } from '../api/error';
 import type { GameKey, GameProfile, LolMostChampion, SocialProvider } from '../api/types';
 import { GameAccountForm, STATS_SOURCE, statsFromApi } from '../components/GameAccountForm';
-import { IconCheck, IconLogout, IconPencil, IconPlus, IconShield } from '../components/icons';
+import { IconLogout, IconPencil, IconPlus, IconShield } from '../components/icons';
 import { Avatar, Button, ConfirmDialog, Field, Modal, Tag, useToast } from '../components/ui';
 import { GAMES } from '../domain/gameConfig';
 import { GAME_CATALOG, TIER_LADDER_LABEL } from '../domain/gameCatalog';
@@ -22,9 +22,6 @@ import { PROVIDER_LABEL, settingsNoticeMessage, takeSettingsNotice } from '../st
 
 /** 소셜 계정 절의 줄 순서 — 로그인 화면의 버튼 순서와 같다(`GOOGLE` 은 2026-09-29 소유자 결정). */
 const SOCIAL_PROVIDERS: SocialProvider[] = ['KAKAO', 'DISCORD', 'GOOGLE'];
-
-const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
-const AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
 const SERVER_LABEL = { STEAM: '스팀', KAKAO: '카카오' } as const;
 
@@ -114,7 +111,7 @@ function GameProfileCard({ game, profile, onEdit, onUnlink }: {
 }
 
 export function MyInfoPage() {
-  const { user, gameAccounts, updateProfile, uploadAvatar, removeGameAccount, refreshSession, logout, deleteAccount } = useAuth();
+  const { user, gameAccounts, updateProfile, removeGameAccount, refreshSession, logout, deleteAccount } = useAuth();
   const { blocks } = useSocial();
   const toast = useToast();
   const navigate = useNavigate();
@@ -123,11 +120,8 @@ export function MyInfoPage() {
   const [linkGame, setLinkGame] = useState<GameKey | null>(null);
   const [busy, setBusy] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [avatarOpen, setAvatarOpen] = useState(false);
   const [nicknameOpen, setNicknameOpen] = useState(false);
   const [unlinkTarget, setUnlinkTarget] = useState<GameKey | null>(null);
-  const [savingAvatar, setSavingAvatar] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
   const [unlinkSocialTarget, setUnlinkSocialTarget] = useState<SocialProvider | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -166,32 +160,6 @@ export function MyInfoPage() {
     } finally {
       setBusy(false);
     }
-  };
-
-  const openAvatarPicker = () => setAvatarOpen(true);
-
-  const pickFile = async (file: File | undefined) => {
-    // Clear immediately so the same file can be selected again after a failed upload.
-    if (fileInput.current) fileInput.current.value = '';
-    if (!file || savingAvatar) return;
-    if (file.size > AVATAR_MAX_BYTES) { toast('사진은 5MB까지 올릴 수 있습니다', 'error'); return; }
-    if (!AVATAR_TYPES.includes(file.type)) { toast('PNG, JPEG, WebP 사진을 선택해 주세요', 'error'); return; }
-    setSavingAvatar(true);
-    try {
-      await uploadAvatar(file);
-      setAvatarOpen(false);
-      toast('프로필 사진을 변경했습니다', 'ok');
-    } catch (err) {
-      toast(isApiError(err) ? err.message : '사진을 올리지 못했습니다', 'error');
-    } finally {
-      setSavingAvatar(false);
-    }
-  };
-
-  const saveAvatar = async () => {
-    // 우리 백엔드에 아바타(`avatarUrl`)가 없다 — `PATCH /users/me` 는 닉네임만 받는다(platform-api.md "계정"). 화면의 처지는 미정(START_HERE.md §5).
-    setAvatarOpen(false);
-    toast('프로필 사진은 아직 지원하지 않습니다', 'info');
   };
 
   /** `DELETE …/game-accounts/{game}` — 없어도 204. 목록에서 그 자리에서 뺀다. */
@@ -233,10 +201,10 @@ export function MyInfoPage() {
   return (
     <section className="page profile-page" aria-label="프로필">
       <header className="profile-identity">
-        <button type="button" className="profile-photo" aria-label="프로필 사진 변경" onClick={openAvatarPicker}>
+        {/* 얼굴은 보이기만 한다 — 로고 아이콘 + 내 색(`Avatar`). 프로필 사진 올리기 · 고르기 창은 2026-10-02 에 걷었다(소유자 결정 — 서버에 `POST /users/me/avatar` 가 없다 · `CLAUDE.md` §3-42). */}
+        <div className="profile-photo">
           <Avatar userId={user?.userId} name={user?.nickname ?? '?'} size={88} />
-          <span className="profile-photo-edit" aria-hidden="true"><IconPencil size={14} /></span>
-        </button>
+        </div>
         <div className="profile-identity-info">
           <h1>{user?.nickname}</h1>
           <nav className="profile-activity" aria-label="내 활동">
@@ -331,34 +299,6 @@ export function MyInfoPage() {
       ) : null}
       {unlinkSocialTarget ? <ConfirmDialog title={`${PROVIDER_LABEL[unlinkSocialTarget]} 계정 연결을 끊을까요?`} description="이 계정으로는 더 이상 로그인할 수 없습니다. 마지막 하나는 끊을 수 없습니다." confirmLabel="연결 끊기" onConfirm={() => unlinkSocial(unlinkSocialTarget)} onClose={() => setUnlinkSocialTarget(null)} /> : null}
       {unlinkTarget ? <ConfirmDialog title={`${gameFullLabel(unlinkTarget)} 연결을 해제할까요?`} description="이 게임의 닉네임 · 티어 · 전적이 파티원에게 표시되지 않습니다. 나중에 다시 연결할 수 있습니다." confirmLabel="연결 해제" onConfirm={() => unlink(unlinkTarget)} onClose={() => setUnlinkTarget(null)} /> : null}
-
-      {avatarOpen ? (
-        <Modal
-          title="프로필 사진"
-          onClose={() => { if (!savingAvatar) setAvatarOpen(false); }}
-          foot={(
-            <>
-              <Button variant="primary" disabled={savingAvatar} onClick={() => void saveAvatar()}>저장</Button>
-              <Button variant="ghost" disabled={savingAvatar} onClick={() => setAvatarOpen(false)}>취소</Button>
-            </>
-          )}
-        >
-          <div className="avatar-picker">
-            <button type="button" className="avatar-opt avatar-upload" disabled={savingAvatar} onClick={() => fileInput.current?.click()}>
-              <span className="au-mark" aria-hidden="true"><IconPencil size={16} /></span>
-              <span>{savingAvatar ? '저장 중…' : '내 사진 올리기'}</span>
-            </button>
-            <input ref={fileInput} type="file" accept={AVATAR_TYPES.join(',')} aria-label="프로필 사진 파일" hidden disabled={savingAvatar} onChange={event => void pickFile(event.target.files?.[0])} />
-            {/* 고를 수 있던 캐릭터 그림 8종은 2026-09-30 에 걷었다(소유자 지시). 남은 것은 "기본"(로고 아이콘 + 내 색 — 같은 날 소유자 결정) 하나다. */}
-            <button type="button" className="avatar-opt" aria-pressed="true" disabled={savingAvatar}>
-              <Avatar userId={user?.userId} name={user?.nickname ?? '?'} size={64} />
-              <span>기본</span>
-              <span className="ap-check" aria-hidden="true"><IconCheck size={12} /></span>
-            </button>
-          </div>
-          <p className="hint" style={{ marginTop: 14 }}>PNG·JPEG·WebP · 최대 5MB · 정사각형으로 저장</p>
-        </Modal>
-      ) : null}
     </section>
   );
 }

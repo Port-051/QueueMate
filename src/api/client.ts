@@ -41,21 +41,17 @@ export const devLogin = (nickname: string) =>
 export const getMe = () => request<UserProfile>('/users/me');
 export const updateMe = (body: UpdateUserRequest) => request<UserProfile>('/users/me', { method: 'PATCH', body });
 /**
- * 회원 탈퇴(2026-10-02 소유자 결정 — platform P-48 · "계정" 의 "회원 탈퇴"). 본문 없음 · **204 + 로그인 쿠키 둘 제거**(로그아웃과 같은 `Set-Cookie`).
+ * 회원 탈퇴 **`DELETE /api/v1/auth/account`**(2026-10-02 소유자 결정 — platform P-48 · "계정" 의 "회원 탈퇴"). 처음엔 `DELETE /users/me` 였다 — refresh 쿠키(`Path=/api/v1/auth`)가
+ * 실려 오게 `/auth` 아래로 옮겼고 서버가 이 브라우저의 refresh 줄도 지운다. `/auth/**` 가운데 이것만 access 가 있어야 해서 `http.ts` 가 401 이면 재발급 뒤 다시 보낸다(`ACCOUNT_PATH`).
+ * 본문 없음 · **204 + 로그인 쿠키 둘 제거**(로그아웃과 같은 `Set-Cookie`).
  * 그 사람의 데이터가 전부 지워지고 **다른 사람과 확정한 글만 작성자 칸이 빈 채 남는다**(글 응답의 `hostId` · `host` 가 `null`). 방 안이면 서버가 평소 나가기처럼 내보낸 뒤 지운다.
  * **409 `ALREADY_QUEUED`** — 매칭 대기 중(확정 직후 60초의 파티 상태도) · **503 `ROOM_STATE_UNAVAILABLE`** + `Retry-After: 5` — 아무것도 지우지 않았다 ·
  * 401 `UNAUTHENTICATED` — 이미 없는 사용자(재발급도 실패해 `onAuthLost` 가 먼저 불린다).
  */
-export const deleteMe = () => request<void>('/users/me', { method: 'DELETE' });
+export const deleteMe = () => request<void>('/auth/account', { method: 'DELETE' });
 /** 소셜 계정 끊기. 내 것이 아니어도 204(멱등). 마지막 하나면 409 `LAST_SOCIAL_IDENTITY`. 잇기는 `oauthStartPath` 로의 이동이다. */
 export const unlinkSocial = (provider: SocialProvider) =>
   request<void>(`/users/me/social/${provider}`, { method: 'DELETE' });
-/**
- * 아바타 업로드 — **우리 백엔드에 없다**(원본 `POST /users/me/avatar`). 부르면 404 다. 아바타 화면의 처지는 미정(START_HERE.md §5)이라
- * 화면이 컴파일되게만 남겼다.
- */
-export const uploadAvatar = (file: File) =>
-  request<UserProfile>('/users/me/avatar', { method: 'POST', file });
 /* ---------- game accounts (platform-api.md "계정" · "게임 프로필" · "전적을 긁는 것") — 목록은 `users/me.gameAccounts` 다(따로 받는 요청이 없다) ---------- */
 /**
  * 게임 계정 연결 · 수정 — 없으면 만들고 있으면 바꾼다. 본문은 게임마다 다르다(`GameAccountRequest`). 200 게임 프로필.

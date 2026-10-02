@@ -31,14 +31,12 @@ interface AuthValue {
   refreshSession(): Promise<UserProfile | null>;
   logout(): Promise<void>;
   /**
-   * 회원 탈퇴(2026-10-02 소유자 결정 — platform P-48 · `DELETE /users/me`). 끝나면 이 브라우저의 그 사람 키(`state/userStorage.ts`)를 지우고 익명이 된다 —
+   * 회원 탈퇴(2026-10-02 소유자 결정 — platform P-48 · `DELETE /auth/account`). 끝나면 이 브라우저의 그 사람 키(`state/userStorage.ts`)를 지우고 익명이 된다 —
    * 로그아웃과 같은 길이라 빠른매치 · 방 · 친구 상태가 비고 SSE 가 닫힌다(각 상태가 로그인 상태를 보고 정리한다). 서버가 쿠키 둘을 지운다.
    * `'deleted'` — 204 · `'gone'` — 401(이미 없는 사용자 — 로그아웃으로 마무리한다). **409 `ALREADY_QUEUED` · 503 은 던진다**(아무것도 지워지지 않았다 — 화면이 문구를 고른다).
    */
   deleteAccount(): Promise<'deleted' | 'gone'>;
   updateProfile(patch: UpdateUserRequest): Promise<void>;
-  /** 우리 백엔드에 아바타가 없다 — 부르면 404 다(client.ts 주석). 화면이 컴파일되게 남겼다. */
-  uploadAvatar(file: File): Promise<void>;
   /** 게임 계정 목록은 `users/me` 안에 있다 — 다시 읽는 것은 `refreshSession` 과 같다. */
   refreshGameAccounts(): Promise<UserProfile | null>;
   /**
@@ -123,10 +121,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(await api.updateMe(patch));
   }, []);
 
-  const uploadAvatar = useCallback(async (file: File) => {
-    setUser(await api.uploadAvatar(file));
-  }, []);
-
   const applyGameAccount = useCallback((profile: GameProfile) => {
     setUser((current) => current && {
       ...current,
@@ -144,9 +138,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const gameAccounts = useMemo(() => user?.gameAccounts ?? [], [user]);
 
   const value = useMemo<AuthValue>(() => ({
-    status, user, userId, gameAccounts, refreshSession: load, logout, deleteAccount, updateProfile, uploadAvatar, refreshGameAccounts: load,
+    status, user, userId, gameAccounts, refreshSession: load, logout, deleteAccount, updateProfile, refreshGameAccounts: load,
     applyGameAccount, removeGameAccount,
-  }), [status, user, userId, gameAccounts, load, logout, deleteAccount, updateProfile, uploadAvatar, applyGameAccount, removeGameAccount]);
+  }), [status, user, userId, gameAccounts, load, logout, deleteAccount, updateProfile, applyGameAccount, removeGameAccount]);
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }

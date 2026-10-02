@@ -4,14 +4,14 @@ import { Link, Navigate } from 'react-router-dom';
 import { IconBolt, IconMic, IconShield, IconTarget } from '../components/icons';
 import { SiteFooter } from '../components/SiteFooter';
 import { GAMES } from '../domain/gameConfig';
-import { LEGAL, isPlaceholder } from '../domain/legal';
+import { LEGAL } from '../domain/legal';
 import { useAuth } from '../state/AuthContext';
 import { landingPath } from '../state/onboarding';
 
 /**
  * `/` — 공개 홈. **로그인하지 않은 사람에게는 리디렉트 없이 이 화면이 보인다**(구글 OAuth 브랜드 인증 · Riot 운영 키 심사의 "홈페이지" — 2026-10-02 소유자 결정).
  * 심사가 보는 것 — 서비스가 무엇을 하는지 · 소셜 로그인으로 무엇을 왜 받는지(구글 `sub` · `name`) · 개인정보 처리방침 · 약관 링크 · 연락처 · Riot 고지문(푸터).
- * 기능 설명은 지금 실제로 되는 것만 적는다(예약 매칭은 백엔드가 없어 뺐다). 영어 요약은 해외 심사자용이다.
+ * 기능 설명은 지금 실제로 되는 것만 적는다(예약 매칭은 백엔드가 없어 뺐다). 영어 요약(About QueueMate)은 2026-10-02 소유자 결정으로 없앴다(영어 서비스를 하지 않는다).
  */
 const FEATURES = [
   { icon: <IconBolt />, title: '빠른매치', desc: '게임 · 모드 · 포지션 · 음성 · 플레이 목적을 고르면 조건이 맞는 팀원을 시스템이 찾아 파티를 제안해요.' },
@@ -24,9 +24,7 @@ export function LandingPage() {
   const { status, user } = useAuth();
   // 소셜 로그인의 콜백이 성공을 `/` 로 돌려보낸다 — 로그인돼 있으면 곧장 홈이다(게임 계정이 없고 온보딩을 지나간 적이 없으면 한 번 온보딩 — `state/onboarding.ts`).
   if (status === 'authenticated') return <Navigate to={landingPath(user)} replace />;
-  const contact = isPlaceholder(LEGAL.contactEmail)
-    ? <span className="legal-ph">{LEGAL.contactEmail}</span>
-    : <a href={`mailto:${LEGAL.contactEmail}`}>{LEGAL.contactEmail}</a>;
+  const contact = <a href={`mailto:${LEGAL.contactEmail}`}>{LEGAL.contactEmail}</a>;
   return (
     <main className="landing">
       <header className="landing-header">
@@ -90,25 +88,6 @@ export function LandingPage() {
           <p>게임 계정 연결은 선택이에요. 연결하면 리그 오브 레전드는 Riot Games API, 배틀그라운드는 PUBG API 에서 티어와 전적을 가져와 게시판 카드에 보여 줘요. 발로란트 티어는 직접 입력해요.</p>
           <p>파티의 음성 · 채팅은 브라우저끼리 직접 연결되고 서버에 저장되지 않아요. 같은 방 사람에게는 연결에 필요한 IP 주소가 전달돼요.</p>
           <p className="landing-info-contact">문의 {contact}</p>
-        </div>
-      </section>
-
-      <section className="landing-info landing-en" lang="en" aria-label="About QueueMate in English">
-        <div className="landing-info-card">
-          <h2>About QueueMate</h2>
-          <p>
-            QueueMate is a teammate-finder web service for League of Legends, VALORANT and PUBG: BATTLEGROUNDS. <b>Quick Match</b> automatically groups players whose chosen conditions
-            (game, mode, position, voice, play purpose) fit and proposes a party, and the <b>Party Board</b> lets players open a room and recruit teammates. Voice and text chat in a party
-            connect browser-to-browser and are not stored on our servers.
-          </p>
-          <p>
-            <b>Sign-in data.</b> We offer only Kakao, Discord and Google sign-in and never receive your email address or password. With Google we request the <code>openid</code> and{' '}
-            <code>profile</code> scopes: your Google account ID (<code>sub</code>) is stored to identify your QueueMate account, and your name (<code>name</code>) is used only to suggest
-            a nickname during sign-up and is not stored. Google user data is not used for advertising, sold or shared.
-          </p>
-          <p>
-            <Link to="/privacy?lang=en">Privacy Policy</Link> · <Link to="/terms?lang=en">Terms of Service</Link> · Contact {contact}
-          </p>
         </div>
       </section>
 

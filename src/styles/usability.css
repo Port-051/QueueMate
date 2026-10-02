@@ -199,8 +199,6 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
   .modal-scrim { padding: 16px; }
   .modal { padding: 22px 18px; max-height: calc(100dvh - 32px); border-radius: 18px; }
   .modal h2 { font-size: 20px; }
-  .avatar-picker { gap: 8px; }
-  .avatar-opt { min-height: 104px; padding: 12px 6px; }
   .toast-host { left: 16px; right: 16px; bottom: 16px; }
   .toast { min-width: 0; }
   .banner { flex-wrap: wrap; }

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { LEGAL, RIOT_NOTICE_EN, RIOT_NOTICE_KO, isPlaceholder } from '../domain/legal';
+import { LEGAL, RIOT_NOTICE_EN, RIOT_NOTICE_KO } from '../domain/legal';
 import '../styles/legal.css';
 
 /**
@@ -20,13 +20,11 @@ export function SiteFooter({ variant = 'page', newTab = false }: { variant?: 'pa
       <nav className="site-footer-links" aria-label="약관과 정책">
         <Link className="site-footer-privacy" to="/privacy" {...target}>개인정보 처리방침</Link>
         <Link to="/terms" {...target}>이용약관</Link>
-        {compact ? null : <span className="site-footer-contact">문의 {isPlaceholder(LEGAL.contactEmail)
-          ? <span className="legal-ph">{LEGAL.contactEmail}</span>
-          : <a href={`mailto:${LEGAL.contactEmail}`}>{LEGAL.contactEmail}</a>}</span>}
+        {compact ? null : <span className="site-footer-contact">문의 <a href={`mailto:${LEGAL.contactEmail}`}>{LEGAL.contactEmail}</a></span>}
       </nav>
       <p className="site-footer-riot" lang="en">{RIOT_NOTICE_EN}</p>
       {compact ? null : <p className="site-footer-riot-ko">{RIOT_NOTICE_KO}</p>}
-      {compact ? null : <p className="site-footer-copy">© 2026 QueueMate · {isPlaceholder(LEGAL.teamName) ? <span className="legal-ph">{LEGAL.teamName}</span> : LEGAL.teamName}</p>}
+      {compact ? null : <p className="site-footer-copy">© 2026 QueueMate · {LEGAL.teamName}</p>}
     </footer>
   );
 }

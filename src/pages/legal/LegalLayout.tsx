@@ -1,53 +1,35 @@
 import { useEffect, type MouseEvent, type ReactNode } from 'react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Logo } from '../../components/Logo';
 import { SiteFooter } from '../../components/SiteFooter';
-import { isPlaceholder } from '../../domain/legal';
 import '../../styles/legal.css';
-
-export type LegalLang = 'ko' | 'en';
 
 /**
  * 개인정보 처리방침 · 이용약관의 틀(2026-10-02 소유자 결정). **로그인 없이 열리고 로그인돼 있어도 그대로 보인다**(리디렉트 없음 — 구글 · Riot 심사자가 본다).
- * 한국어가 본문이고 영어판은 같은 경로의 `?lang=en` 이다(심사자용 — 링크 하나로 열 수 있게). 언어를 고르는 것 말고 다른 상태는 없다.
+ * 한국어만이다 — 영어판(`?lang=en` · 한국어/English 전환)은 같은 날 소유자 결정으로 없앴다(영어 서비스를 하지 않는다). 상태는 없다.
  */
-export function useLegalLang(): LegalLang {
-  const [params] = useSearchParams();
-  return params.get('lang') === 'en' ? 'en' : 'ko';
-}
-
-export function LegalLayout({ lang, title, children }: { lang: LegalLang; title: string; children: ReactNode }) {
+export function LegalLayout({ title, children }: { title: string; children: ReactNode }) {
   const { pathname } = useLocation();
   useEffect(() => {
     const previous = document.title;
     document.title = `${title} — QueueMate`;
     return () => { document.title = previous; };
   }, [title]);
-  const ko = lang === 'ko';
   return (
     <div className="legal">
       <header className="legal-header">
-        <Link to="/" aria-label={ko ? 'QueueMate 홈' : 'QueueMate home'}><Logo /></Link>
-        <nav className="legal-nav" aria-label={ko ? '문서' : 'Documents'}>
-          <Link to={ko ? '/privacy' : '/privacy?lang=en'} aria-current={pathname === '/privacy' ? 'page' : undefined}>{ko ? '개인정보 처리방침' : 'Privacy Policy'}</Link>
-          <Link to={ko ? '/terms' : '/terms?lang=en'} aria-current={pathname === '/terms' ? 'page' : undefined}>{ko ? '이용약관' : 'Terms of Service'}</Link>
+        <Link to="/" aria-label="QueueMate 홈"><Logo /></Link>
+        <nav className="legal-nav" aria-label="문서">
+          <Link to="/privacy" aria-current={pathname === '/privacy' ? 'page' : undefined}>개인정보 처리방침</Link>
+          <Link to="/terms" aria-current={pathname === '/terms' ? 'page' : undefined}>이용약관</Link>
         </nav>
-        <div className="legal-lang" role="group" aria-label="Language">
-          <Link to={pathname} lang="ko" aria-current={ko ? 'true' : undefined}>한국어</Link>
-          <Link to={`${pathname}?lang=en`} lang="en" aria-current={ko ? undefined : 'true'}>English</Link>
-        </div>
       </header>
       <main className="legal-main">
-        <article className="legal-doc" lang={lang}>{children}</article>
+        <article className="legal-doc">{children}</article>
       </main>
       <SiteFooter />
     </div>
   );
-}
-
-/** 아직 정해지지 않은 값(`[팀 이름]` 등 — `domain/legal.ts`)은 눈에 띄게 그린다. 정해진 값은 그냥 글자다. */
-export function Ph({ value }: { value: string }) {
-  return isPlaceholder(value) ? <span className="legal-ph">{value}</span> : <>{value}</>;
 }
 
 export interface TocItem { id: string; title: string; }

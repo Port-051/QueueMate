@@ -8,10 +8,7 @@
 .legal-nav a { padding: 8px 12px; border-radius: var(--r-sm); color: var(--text-dim); font-size: 14px; font-weight: 600; }
 .legal-nav a:hover { color: var(--text); background: var(--panel-2); }
 .legal-nav a[aria-current="page"] { color: var(--text); background: var(--panel-3); }
-.legal-lang { margin-left: auto; display: inline-flex; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); }
-.legal-lang a { padding: 6px 12px; border-radius: 999px; color: var(--muted); font-size: 13px; font-weight: 600; }
-.legal-lang a[aria-current="true"] { background: var(--accent-soft); color: var(--accent-2); }
-.legal-nav a:focus-visible, .legal-lang a:focus-visible, .legal-toc a:focus-visible, .legal-doc a:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.legal-nav a:focus-visible, .legal-toc a:focus-visible, .legal-doc a:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
 
 .legal-main { max-width: 960px; margin: 0 auto; }
 .legal-doc { max-width: 860px; padding: 24px 0 8px; color: var(--text-dim); font-size: 15px; line-height: 1.8; word-break: keep-all; overflow-wrap: anywhere; }
@@ -56,9 +53,6 @@
 .legal-table tbody th { color: var(--text); font-weight: 600; width: 22%; }
 .legal-table ul { margin-top: 0; }
 
-/* 아직 정해지지 않은 값(`domain/legal.ts` — `[팀 이름]` 등). 배포 전에 모두 채운다. */
-.legal-ph { padding: 0 5px; border-radius: 5px; background: rgba(255, 180, 84, 0.14); color: var(--warn); font-weight: 600; white-space: normal; }
-
 /* ---------- 푸터 ---------- */
 .site-footer { max-width: 1440px; margin: 56px auto 0; padding: 24px 0 8px; border-top: 1px solid var(--line-soft); color: var(--muted); font-size: 12.5px; line-height: 1.7; display: grid; gap: 8px; }
 .legal .site-footer { max-width: 960px; }
@@ -83,7 +77,6 @@
 @media (max-width: 767px) {
   .legal { padding: 0 16px 40px; }
   .legal-header { gap: 10px 12px; }
-  .legal-lang { margin-left: 0; }
   .legal-doc { font-size: 14.5px; }
   .legal-doc h1 { font-size: 26px; }
   .legal-toc ol { columns: 1; }

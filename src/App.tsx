@@ -40,7 +40,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
-      {/* 개인정보 처리방침 · 이용약관 — 로그인과 상관없이 열리고 리디렉트하지 않는다(구글 · Riot 심사자가 본다 · 2026-10-02 소유자 결정). 영어판은 `?lang=en`. */}
+      {/* 개인정보 처리방침 · 이용약관 — 로그인과 상관없이 열리고 리디렉트하지 않는다(구글 · Riot 심사자가 본다 · 2026-10-02 소유자 결정). 한국어만 — 영어판은 같은 날 없앴다. */}
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/terms" element={<TermsPage />} />
       {/* 소셜 콜백은 백엔드가 받아 이 네 경로로 302 한다 — `/`(로그인됨) · `/signup/social`(처음 온 사람) · `/login?error=` · `/settings?linked=|error=`(잇기).

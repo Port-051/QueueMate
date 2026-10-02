@@ -1,35 +1,32 @@
 import { Link } from 'react-router-dom';
 import { LEGAL, RIOT_NOTICE_EN, RIOT_NOTICE_KO } from '../../domain/legal';
-import { LegalLayout, LegalSection, LegalToc, Ph, useLegalLang } from './LegalLayout';
+import { LegalLayout, LegalSection, LegalToc } from './LegalLayout';
 
 /**
- * `/terms` — 이용약관(2026-10-02 소유자 결정 · 한국어 본문 + `?lang=en` 영어판).
+ * `/terms` — 이용약관(2026-10-02 소유자 결정 · 한국어만 — 영어판은 같은 날 소유자 결정으로 없앴다. 제13조의 Riot 고지는 영어 원문 + 번역 그대로).
  * 목차는 흔히 쓰는 서비스 약관의 꼴이다(법정 목록이 아니다). 이용 제한 조항(제11조)은 일반적인 문구이고, **지금 앱에는 운영자가 제재하는 기능이 없다**(신고는 접수만 — platform P-9).
  * 공지 기간(7일 · 불리한 변경 30일) · 서비스 종료 공지(30일)는 흔한 값을 적은 것이라 소유자 · 법률 검토 항목이다.
  */
 export function TermsPage() {
-  const lang = useLegalLang();
-  return lang === 'en'
-    ? <LegalLayout lang="en" title="Terms of Service"><TermsEn /></LegalLayout>
-    : <LegalLayout lang="ko" title="이용약관"><TermsKo /></LegalLayout>;
+  return <LegalLayout title="이용약관"><TermsBody /></LegalLayout>;
 }
 
-const Mail = () => <Ph value={LEGAL.contactEmail} />;
+const Mail = () => <a href={`mailto:${LEGAL.contactEmail}`}>{LEGAL.contactEmail}</a>;
 
-const KO_TOC = [
+const TOC = [
   '목적', '정의', '약관의 게시와 변경', '회원 가입', '계정의 관리', '서비스의 내용', '서비스의 변경과 중단', '게임 계정과 전적 정보',
   '회원의 의무와 금지행위', '게시물', '차단 · 신고와 이용 제한', '회원 탈퇴', '외부 서비스', '책임의 제한', '손해배상', '분쟁 해결과 준거법',
 ].map((title, index) => ({ id: `tko-${index + 1}`, title: `제${index + 1}조 ${title}` }));
 
-function TermsKo() {
+function TermsBody() {
   return <>
     <h1>이용약관</h1>
-    <p className="legal-meta">시행일 <Ph value={LEGAL.effectiveDate} /> · 운영자 <Ph value={LEGAL.teamName} /> · <Link to="/terms?lang=en" lang="en">English</Link></p>
+    <p className="legal-meta">시행일 {LEGAL.effectiveDate} · 운영자 {LEGAL.teamName}</p>
 
-    <LegalToc items={KO_TOC} label="목차" />
+    <LegalToc items={TOC} label="목차" />
 
     <LegalSection id="tko-1" title="제1조 (목적)">
-      <p>이 약관은 <Ph value={LEGAL.teamName} />(이하 “운영자”)이 제공하는 QueueMate(이하 “서비스”)의 이용과 관련해 운영자와 회원의 권리 · 의무와 책임, 그 밖에 필요한 사항을 정합니다.</p>
+      <p>이 약관은 {LEGAL.teamName}(이하 “운영자”)이 제공하는 QueueMate(이하 “서비스”)의 이용과 관련해 운영자와 회원의 권리 · 의무와 책임, 그 밖에 필요한 사항을 정합니다.</p>
     </LegalSection>
 
     <LegalSection id="tko-2" title="제2조 (정의)">
@@ -164,160 +161,7 @@ function TermsKo() {
 
     <section className="legal-section" aria-label="부칙">
       <h2>부칙</h2>
-      <p>이 약관은 <Ph value={LEGAL.effectiveDate} />부터 시행합니다.</p>
-    </section>
-  </>;
-}
-
-const EN_TOC = [
-  'Purpose', 'Definitions', 'Posting and changing these terms', 'Sign-up', 'Account management', 'The Service', 'Changes to and suspension of the Service', 'Game accounts and stats',
-  'Member obligations and prohibited conduct', 'Posts', 'Blocking, reports and restrictions', 'Deleting your account', 'External services', 'Limitation of liability', 'Damages', 'Disputes and governing law',
-].map((title, index) => ({ id: `ten-${index + 1}`, title: `Article ${index + 1}. ${title}` }));
-
-function TermsEn() {
-  return <>
-    <h1>Terms of Service</h1>
-    <p className="legal-meta">Effective <Ph value={LEGAL.effectiveDate} /> · Operator <Ph value={LEGAL.teamName} /> · <Link to="/terms" lang="ko">한국어</Link></p>
-    <p className="legal-note">This English version is provided for convenience, including for platform reviewers. If it differs from the Korean version, the Korean version prevails.</p>
-
-    <LegalToc items={EN_TOC} label="Contents" />
-
-    <LegalSection id="ten-1" title="Article 1 (Purpose)">
-      <p>These terms set out the rights, obligations and responsibilities of <Ph value={LEGAL.teamName} /> (the “Operator”) and members, and other necessary matters, regarding the use of QueueMate (the “Service”).</p>
-    </LegalSection>
-
-    <LegalSection id="ten-2" title="Article 2 (Definitions)">
-      <ol className="legal-list">
-        <li>“Service” means QueueMate, the web service for finding game teammates provided by the Operator, and its related features.</li>
-        <li>“Member” means a person who has signed up with a social account under these terms and uses the Service.</li>
-        <li>“Quick Match” means the feature in which the system automatically groups members whose chosen conditions (game, mode, position, tier, voice, play purpose, etc.) fit, and proposes a party.</li>
-        <li>“Party Board” means the feature in which a member posts a recruitment post to open a room and other members join it.</li>
-        <li>“Room” means the space of a party created from a post or Quick Match, where participants can talk by voice and text chat.</li>
-        <li>“Posts” means recruitment posts and other information members put on the Service.</li>
-      </ol>
-    </LegalSection>
-
-    <LegalSection id="ten-3" title="Article 3 (Posting and changing these terms)">
-      <ol className="legal-list">
-        <li>The Operator posts these terms on a page linked from the Service’s front page.</li>
-        <li>The Operator may change these terms to the extent permitted by applicable law.</li>
-        <li>When the terms change, the Operator announces the effective date, the changes and the reasons in the Service from 7 days before the effective date. Changes unfavorable to members are announced from 30 days before the effective date and also notified separately, for example on the Service’s screens.</li>
-        <li>A member who does not agree to the changed terms may end the agreement by deleting their account. If the Operator announced that members who do not object by the effective date will be deemed to agree, and a member does not object by then, the member is deemed to have agreed to the changed terms.</li>
-      </ol>
-    </LegalSection>
-
-    <LegalSection id="ten-4" title="Article 4 (Sign-up)">
-      <ol className="legal-list">
-        <li>Sign-up is complete when you sign in with a Kakao, Discord or Google account, choose a nickname, agree to these terms and confirm that you have read the <Link to="/privacy?lang=en">Privacy Policy</Link>.</li>
-        <li>Children under 14 cannot sign up. You are asked to confirm that you are 14 or older when you sign up.</li>
-        <li>The Operator may refuse a sign-up, or later terminate the agreement, if someone else’s social account was used, the person is under 14, a member restricted under these terms tries to sign up again, or the law or these terms are otherwise violated.</li>
-        <li>Nicknames must be unique, and nicknames that impersonate others or contain profanity or hate speech may not be used.</li>
-      </ol>
-    </LegalSection>
-
-    <LegalSection id="ten-5" title="Article 5 (Account management)">
-      <ol className="legal-list">
-        <li>Members are responsible for managing their own social accounts. The Operator is not liable for damage caused by misuse of a member’s social account unless the Operator is at fault.</li>
-        <li>Members may link more social accounts or unlink them on their profile, but the last remaining one cannot be unlinked.</li>
-        <li>Members may not transfer or lend their account to anyone else.</li>
-      </ol>
-    </LegalSection>
-
-    <LegalSection id="ten-6" title="Article 6 (The Service)">
-      <ol className="legal-list">
-        <li>The Operator provides Quick Match, the Party Board and rooms, voice and text chat in rooms (connected directly between browsers), game account linking with tiers and stats, and friends, blocking, reports and recent players.</li>
-        <li>Supported games are League of Legends, VALORANT and PUBG: BATTLEGROUNDS.</li>
-        <li>The Service is free of charge.</li>
-      </ol>
-    </LegalSection>
-
-    <LegalSection id="ten-7" title="Article 7 (Changes to and suspension of the Service)">
-      <ol className="legal-list">
-        <li>The Operator may change the Service or suspend part of it, and announces changes important to members in advance.</li>
-        <li>The Service may stop temporarily, or some features (for example, stats) may be unavailable, due to maintenance, failures, network or cloud problems, or outages or policy changes of game publishers’ APIs or sign-in providers.</li>
-        <li>If the Operator ends the Service, it announces this 30 days in advance and deletes members’ personal information under the Privacy Policy when the Service ends.</li>
-      </ol>
-    </LegalSection>
-
-    <LegalSection id="ten-8" title="Article 8 (Game accounts and stats)">
-      <ol className="legal-list">
-        <li>Members may link only their own game accounts, and must not link anyone else’s.</li>
-        <li>League of Legends and PUBG tiers and stats are fetched from the APIs provided by each game publisher; the Operator does not guarantee that they are accurate or up to date. VALORANT tiers are entered by members themselves.</li>
-        <li>The nickname, tier and stats of a linked game account are visible to other members on the Party Board and in parties.</li>
-      </ol>
-    </LegalSection>
-
-    <LegalSection id="ten-9" title="Article 9 (Member obligations and prohibited conduct)">
-      <p>Members must not:</p>
-      <ol className="legal-list">
-        <li>insult, demean, harass or sexually harass other members, or use hate speech against them;</li>
-        <li>fail to show up without reason, or deliberately give up a game, after a party is confirmed;</li>
-        <li>encourage or take part in conduct that breaks game publishers’ policies, such as cheating, boosting or account trading;</li>
-        <li>spam, advertise or promote, or lure members to other services;</li>
-        <li>impersonate others or use someone else’s social or game account;</li>
-        <li>record, collect or disclose other members’ personal information (including voice and chat content) without consent;</li>
-        <li>interfere with the normal operation of the Service, or access it or collect information from it by automated means;</li>
-        <li>act against the law, public order or morals.</li>
-      </ol>
-    </LegalSection>
-
-    <LegalSection id="ten-10" title="Article 10 (Posts)">
-      <ol className="legal-list">
-        <li>Rights in and responsibility for a post belong to the member who wrote it.</li>
-        <li>The Operator may use posts to the extent needed to operate the Service and display them.</li>
-        <li>If a post violates the law, infringes someone’s rights or falls under Article 9, the Operator may hide or delete it.</li>
-        <li>Anyone who believes a post infringes their rights may request its removal by emailing <Mail />.</li>
-        <li>When a member deletes a recruitment post, it is marked as ended; the post is deleted when the member deletes their account. However, a recruitment post confirmed together with other members stays with only its author removed, under Article 12(2).</li>
-      </ol>
-    </LegalSection>
-
-    <LegalSection id="ten-11" title="Article 11 (Blocking, reports and restrictions)">
-      <ol className="legal-list">
-        <li>Members may block other members. If either member blocks the other, they are not grouped into the same party in Quick Match, and rooms with the other member in them are hidden.</li>
-        <li>Members may report members who violate Article 9. The Operator reviews reports received, and the reported member is not told that they were reported.</li>
-        <li>If a member violates these terms, the Operator may restrict their use according to the severity, by a warning, a suspension for a period, termination of the agreement, or similar measures. The Operator notifies the member of the reason, and the member may object by emailing <Mail />.</li>
-      </ol>
-    </LegalSection>
-
-    <LegalSection id="ten-12" title="Article 12 (Deleting your account)">
-      <ol className="legal-list">
-        <li>Members may delete their account at any time in Settings &gt; Delete account.</li>
-        <li>When an account is deleted, the member’s information, game accounts and stats, posts, party records, friends, blocks and reports are deleted without delay and cannot be restored. However, a recruitment post confirmed together with other members is part of the other party members’ records, so it stays with its author removed — its title, description and party member records remain (the deleted member’s party membership is removed).</li>
-        <li>An account cannot be deleted while a Quick Match is in progress (including about a minute right after a party is confirmed). If the member is in a room, they leave it before the account is deleted.</li>
-      </ol>
-    </LegalSection>
-
-    <LegalSection id="ten-13" title="Article 13 (External services)">
-      <ol className="legal-list">
-        <li>The Service uses Kakao, Discord and Google sign-in and game data provided by Riot Games and KRAFTON. The terms and policies of those companies also apply when you use their services.</li>
-        <li>The names and trademarks of each game belong to their respective owners.</li>
-      </ol>
-      <p>{RIOT_NOTICE_EN}</p>
-    </LegalSection>
-
-    <LegalSection id="ten-14" title="Article 14 (Limitation of liability)">
-      <ol className="legal-list">
-        <li>The Operator is not liable for damage caused by reasons for which it is not at fault, such as natural disasters, causes attributable to members, or failures of external services (game publishers, sign-in providers, network operators, etc.).</li>
-        <li>The Operator has no obligation to intervene in disputes arising through the Service between members, or between members and third parties (including what happens in games), and is not liable for resulting damage unless it is at fault.</li>
-        <li>The Operator is not responsible for the accuracy of tier and stats information provided by game publishers.</li>
-      </ol>
-    </LegalSection>
-
-    <LegalSection id="ten-15" title="Article 15 (Damages)">
-      <p>If the Operator or a member causes damage to the other by violating these terms, they must compensate for it, unless they are not at fault.</p>
-    </LegalSection>
-
-    <LegalSection id="ten-16" title="Article 16 (Disputes and governing law)">
-      <ol className="legal-list">
-        <li>The Operator receives members’ opinions and complaints at <Mail /> and handles them without delay.</li>
-        <li>These terms and the use of the Service are governed by the laws of the Republic of Korea.</li>
-        <li>Lawsuits relating to the use of the Service are brought before the court with jurisdiction under the Civil Procedure Act of Korea.</li>
-      </ol>
-    </LegalSection>
-
-    <section className="legal-section" aria-label="Addendum">
-      <h2>Addendum</h2>
-      <p>These terms take effect on <Ph value={LEGAL.effectiveDate} />.</p>
+      <p>이 약관은 {LEGAL.effectiveDate}부터 시행합니다.</p>
     </section>
   </>;
 }

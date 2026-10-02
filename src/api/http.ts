@@ -9,11 +9,16 @@ export type { ErrorCode, ErrorResponse } from './error';
  * 인증은 쿠키다 (platform-api.md "공통" · "access 토큰" · "refresh 토큰" · D-24 · D-26).
  *
  * - access 는 `qm_access`(HttpOnly · RS256 JWT · 15분), refresh 는 `qm_refresh`(HttpOnly · 불투명 UUID · 7일 ·
- *   `Path=/api/v1/auth/refresh`). **프런트는 토큰을 보지도 저장하지도 않는다** — `Authorization` 헤더 · localStorage 가 없다.
+ *   `Path=/api/v1/auth` — 2026-10-02 에 `/api/v1/auth/refresh` 에서 넓어졌다). **프런트는 토큰을 보지도 저장하지도 않는다** — `Authorization` 헤더 · localStorage 가 없다.
  * - 브라우저가 같은 출처(프록시 · 운영은 한 도메인)라 쿠키가 저절로 붙는다. `credentials: 'include'` 는 base 가 절대 URL 일 때를 위한 보험이다.
  * - 401 이면 `POST /api/v1/auth/refresh`(본문 없음 · 쿠키만)를 **한 번** 부르고 같은 요청을 다시 보낸다. 재발급이 401 `INVALID_REFRESH_TOKEN` 이면
- *   로그아웃 상태다 — `onAuthLost` 로 AuthContext 에 알린다. `/api/v1/auth/**` 는 인증이 필요 없는 경로라 재시도하지 않는다.
+ *   로그아웃 상태다 — `onAuthLost` 로 AuthContext 에 알린다. `/api/v1/auth/**` 는 인증이 필요 없는 경로라 재시도하지 않는다 —
+ *   **회원 탈퇴 `DELETE /api/v1/auth/account` 하나만 예외다**(`ACCOUNT_PATH` — access 가 있어야 하는 요청이라 401 이면 재발급 뒤 다시 보낸다 ·
+ *   platform 의 `CookieBearerTokenResolver#ACCOUNT_PATH` · `SecurityConfig` 와 같은 금 — 2026-10-02 · P-48).
  */
+
+/** `/auth/**` 가운데 access 가 있어야 하는 하나 — 회원 탈퇴(`api/client.ts` `deleteMe`). 401 이면 다른 요청처럼 재발급을 한 번 해 본다. */
+const ACCOUNT_PATH = '/auth/account';
 
 /** access 가 살아나지 못했을 때 앱에 알린다. AuthContext 가 익명 상태로 되돌린다. */
 type AuthLostHandler = () => void;
@@ -26,12 +31,6 @@ export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   query?: Record<string, string | number | undefined>;
-  /**
-   * multipart로 보낼 파일. `body`와 함께 쓰지 않는다.
-   * Content-Type을 직접 정하지 않는다 — FormData를 fetch에 넘기면 브라우저가 boundary까지 붙여서 채워 준다.
-   * (우리 백엔드에 파일을 받는 요청은 아직 없다 — 아바타 업로드는 대응물이 없다, START_HERE.md §3.)
-   */
-  file?: File;
   /** 401을 만나도 재발급을 시도하지 않는다. 재발급 호출 자신과 `/auth/**` 가 쓴다. */
   noRetry?: boolean;
 }
@@ -88,8 +87,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const res = await send(method, fullPath, options);
 
   // 401이면 한 번만 재발급하고 같은 요청을 다시 보낸다. 실패하면 그대로 던진다.
-  // `/auth/**` 는 인증이 필요 없는 경로라 401 이 "토큰이 없다"가 아니다(예: 가입 대기 토큰이 없다 · 재발급 실패).
-  if (res.status === 401 && !options.noRetry && !fullPath.startsWith('/auth/')) {
+  // `/auth/**` 는 인증이 필요 없는 경로라 401 이 "토큰이 없다"가 아니다(예: 가입 대기 토큰이 없다 · 재발급 실패). 회원 탈퇴(`ACCOUNT_PATH`)만 예외다.
+  if (res.status === 401 && !options.noRetry && (!fullPath.startsWith('/auth/') || fullPath === ACCOUNT_PATH)) {
     const session = await refreshSession();
     if (session) {
       const retried = await send(method, fullPath, options);
@@ -100,20 +99,14 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 }
 
 function send(method: string, fullPath: string, options: RequestOptions): Promise<Response> {
-  let form: FormData | undefined;
-  if (options.file) {
-    form = new FormData();
-    form.append('file', options.file);
-  }
   return fetch(`${API_BASE}${fullPath}`, {
     method,
     credentials: 'include',
     headers: {
       Accept: 'application/json',
-      // multipart는 Content-Type 을 비워 둔다 — boundary를 붙일 수 있는 것은 브라우저뿐이다.
-      ...(options.body === undefined || form ? {} : { 'Content-Type': 'application/json;charset=UTF-8' }),
+      ...(options.body === undefined ? {} : { 'Content-Type': 'application/json;charset=UTF-8' }),
     },
-    body: form ?? (options.body === undefined ? undefined : JSON.stringify(options.body)),
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
 }
 
