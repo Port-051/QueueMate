@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1
 # notification 이미지 — 빌드는 JDK, 실행은 JRE 로 나눠 실행 이미지를 작게 둔다. 두 베이스 모두 amd64 · arm64 멀티아치다.
-# 운영(Graviton ARM)용은 CI 에서: docker buildx build --platform linux/arm64 -t <레지스트리>/qm-notification:<태그> .
 
-FROM eclipse-temurin:21-jdk AS build
+# 빌드 단계는 빌드하는 쪽 CPU(네이티브)에서 돈다 — Gradle 컴파일을 에뮬레이션으로 돌리면 몇 배 느리다.
+# 결과물(jar · 추출한 계층)은 CPU 를 안 가리므로 실행 단계만 타깃(운영 Graviton — arm64)으로 만들어진다. CI 에서: docker buildx build --platform linux/arm64 -t <레지스트리>/qm-notification:<태그> .
+FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk AS build
 WORKDIR /workspace
 
 # 빌드 스크립트만 먼저 넣는다 — 소스가 바뀌어도 의존성 레이어가 그대로 산다
