@@ -196,12 +196,14 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
   };
 
   // 좌석을 누르면 뜨는 작은 메뉴 — 옛 파티원 카드의 버튼 줄(친구 추가 · 방장의 내보내기 · "···" 의 차단 · 신고)과 같은 일이다. 내 좌석은 메뉴가 없다(`RoomVoiceSeats`).
-  // 이미 보낸 친구 요청이면 누를 수 없는 "친구 요청 보냄", 친구면 줄 대신 머리에 "친구"(Claude 가 정한 세부).
+  // 친구 상태도 같은 버튼 자리에 남겨 친구 추가가 없는 이유를 보여준다.
   const menuFor = (member: VoiceSeatMember): { note?: string; actions: SeatMenuAction[] } => {
     const friend = isFriend(member.id);
     const name = seatName(member);
     const actions: SeatMenuAction[] = [{ key: 'message', label: '메시지 보내기', onSelect: () => navigate(`/app/messages/${member.id}`) }];
-    if (!friend) actions.push(requestTo(member.id)
+    actions.push(friend
+      ? { key: 'friend-added', label: '친구', disabled: true, onSelect: () => {} }
+      : requestTo(member.id)
       ? { key: 'friend', label: '친구 요청 보냄', disabled: true, onSelect: () => {} }
       : { key: 'friend', label: '친구 추가', disabled: isBlocked(member.id), onSelect: () => void onFriendRequest(member.id, name) });
     if (isHost) actions.push({ key: 'kick', label: '내보내기', tone: 'danger', onSelect: () => setDialog({ kind: 'kick', userId: member.id, nickname: name }) });
