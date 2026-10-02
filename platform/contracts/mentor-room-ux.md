@@ -7,7 +7,7 @@
 - 마지막 빈자리에 입장하는 Redis Lua 연산이 정원 검사·입장·확정을 원자적으로 처리한다. 마지막 입장은 종전대로 HTTP 201이다. `ROOM_MEMBER_ENTERED`와 `ROOM_CONFIRMED`가 전달되고 PostgreSQL에 확정 순간의 파티원·포지션을 저장한다.
 - 확정된 글은 게시판에 남는다. 새 사람의 입장은 409 `POST_NOT_RECRUITING`(동시 요청이 이미 Lua에 들어갔다면 `ROOM_CONFIRMED`)이다. 기존 멤버의 재입장은 200이며, 자동 합류로 마지막 자리를 채운 요청도 재시도 시 현재 방을 반환한다.
 - 두 명 이상인 모집 방의 인원 구성이 바뀌지 않으면 기본 10분 뒤 방장에게 안내 팝업과 연장·현재 인원 확정 버튼을 표시하고, 추가 60초 뒤 현재 인원으로 자동 확정한다. 한 명으로 줄면 타이머를 취소한다. 입장·퇴장·강퇴·접속 만료로 명단이 바뀌면 다시 계산한다. 수동 확정은 그대로 가능하다.
-- 시간은 멘토가 숫자로 지정하지 않은 구현 기본값이다. `platform.room.auto-confirm-idle-seconds`(600), `auto-confirm-warning-seconds`(60), `auto-confirm-poll-ms`(1000)로 설정한다. `auto-confirm-enabled=false`로 스케줄러를 끌 수 있다. 타이머는 서버가 관리하므로 탭을 닫아도 진행하며, 로컬 화면은 서버 시각을 표시한다.
+- 시간은 멘토가 숫자로 지정하지 않은 구현 기본값이다. `platform.room.auto-confirm-idle-seconds`(600), `auto-confirm-warning-seconds`(60), `auto-confirm-poll-ms`(1000)로 설정한다. `auto-confirm-enabled=false`로 스케줄러를 끌 수 있다. 타이머는 브라우저 대신 서버 스케줄러가 관리하며 화면은 서버의 마감 시각을 표시한다. 기존 방의 접속 만료 규칙도 적용되므로 모든 사람이 접속을 끊어 방이 먼저 만료되면 자동 확정 대상에서 제외한다.
 - 글 응답에 nullable ISO-8601 UTC `autoConfirmAt`, `autoConfirmWarningAt`을 추가한다. 한 명이거나 확정·만료 상태면 null이다.
 - `POST /api/v1/rooms/{roomId}/recruitment/extend`: 인증 쿠키, 본문 없음. 현재 방장만 경고가 시작된 뒤 마감 전에 연장할 수 있다. 성공 204. 다른 사용자 403 `NOT_POST_HOST`, 모집 종료 409 `POST_NOT_RECRUITING`, 안내 시간 밖 409 `RECRUITMENT_NOT_EXPIRING`, 없는 글 404 `ROOM_NOT_FOUND`. 연장 시 타이머를 처음부터 다시 계산하고 `BOARD_CHANGED {}`를 발행한다.
 - 확인 작업은 글 행 잠금과 조건부 상태 변경으로 중복 실행을 막는다. Redis 확정 후 DB 기록이 실패하면 다음 주기에 복구를 시도한다. 외부 저장소의 동시 장애까지 원자적 분산 트랜잭션을 보장하지는 않는다.
