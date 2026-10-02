@@ -239,7 +239,7 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
         <Button className="party-room-leave" variant="danger" aria-label="방 나가기" title="방 나가기" disabled={busy} onClick={() => setDialog({ kind: 'leave' })}><IconLogout size={20} /></Button>
       </div>
       <RoomConversationChat key={roomId} messages={messages} canSend={canChat} connectionHint={connectionHint} nameOf={chatName}
-        colorOf={id => faceColors.get(id)} canOpenProfile={id => cards.has(id)} onProfile={setProfileId} onSend={send} />
+        colorOf={id => faceColors.get(id)} canOpenProfile={id => cards.has(id)} onProfile={id => setProfileId(current => current === id ? null : id)} onSend={send} />
 
       {dialog?.kind === 'leave' ? <ConfirmDialog title="방에서 나갈까요?" confirmLabel="나가기" onClose={() => setDialog(null)} onConfirm={leave}
         description={isHost && !confirmed ? '방장이 나가면 방이 닫히고 글은 만료돼요.' : isHost ? '확정된 방은 남은 사람에게 방장이 넘어가요.' : confirmed ? '확정된 파티라 나가면 게시판에서 다시 들어올 수 없어요.' : '언제든 게시판에서 다시 참여할 수 있어요.'} /> : null}
