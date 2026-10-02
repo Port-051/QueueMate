@@ -430,6 +430,16 @@
 - **남긴 것** — **Riot 고지문 영어 원문 `RIOT_NOTICE_EN`**(영어판이 아니라 Riot General Policies 가 "다음 문구를 게시하라" 고 정한 글자 그대로의 문구) — 푸터(원문 + 한국어 번역 `RIOT_NOTICE_KO`)와 약관 제13조(원문 + 번역) 그대로이고 `lang="en"` 은 그 문단에만 남았다. `?lang=en` 으로 와도 이제 한국어 문서가 그대로 보인다(쿼리를 읽지 않는다).
 - **확인** — WSL 에서 `typecheck` · `npx tsc -p e2e` · `build` 통과(JS 435 → 397 kB) · 안 쓰는 import 없음(`PrivacyPage` 의 `Link` 를 지웠다) · 줄바꿈 LF. 화면은 보지 않았다(지시).
 
+### 방 만들기의 빠른매치 입장 허용 · 금지(2026-10-02) — 소유자 결정(`CLAUDE.md` §3-44)
+
+- **결정** — 방을 만들 때 빠른매치로 들어오는 사람을 받을지(허용) 안 받을지(금지) **반드시 골라야 만들 수 있다** · 기본값은 둘 다 안 고른 상태. 금지하면 빠른매치(게시판 방 먼저 합류 — `POST /posts/auto-join`)가 그 방에 사람을 넣지 않고, 게시판에서 직접 들어오는 것은 그대로다. platform 계약(같은 날 만드는 중) — `POST /posts` 본문의 **`allowAutoJoin: boolean`**(필수 · 없으면 400 `VALIDATION_FAILED` `"allowAutoJoin: 필요합니다"`) · 글 응답에 같은 칸.
+- **창**(`rooms/RoomCreatePreview.tsx` — 게시판 필터 줄의 [방 만들기]가 여는 "방 만들기" 팝업) — 칸 순서는 게임 모드 → (포지션 모드면) 내 포지션 · 찾는 포지션 → 음성 → **빠른매치 입장** → 한마디. 줄 이름 "빠른매치 입장" 아래에 두 칸 **"허용" · "금지"**(음성 칸과 같은 두 칸 선택 — `AutoJoinOptions` 가 `intro-voice-options is-binary` 클래스를 받아 `room-board.css` 의 모양을 그대로 쓴다 · 그룹 이름 "빠른매치 입장" · 칸마다 `aria-pressed` · 마우스를 올리면 "빠른매치로 들어오는 사람도 받아요" / "빠른매치로는 받지 않아요") · 그 아래 흐린 한 줄 **"금지하면 빠른매치로는 이 방에 사람이 들어오지 않아요. 게시판에서 직접 참가하는 것은 그대로 돼요."**(`aria-describedby` 로 두 칸에 묶었다 · `room-create-preview.css` `.room-auto-join-note`).
+- **안 고르면** — 상태가 `null` 로 시작해 두 칸 다 안 눌린 채다. 버튼 위 빈 칸 줄에 "빠른매치 입장" 이 들고(음성 다음 · 한마디 앞) "방 만들기" 가 잠긴다. `confirm` 도 `allowAutoJoin === null` 이면 보내지 않는다(제출에서 한 번 더 — 가입 확인 칸과 같은 방식). 브라우저에 기억하지 않는다(다른 칸처럼 창을 열 때마다 빈 채로 — 2026-09-30 소유자 지시 "매번 다를 수도 있는데").
+- **요청 · 에러** — 본문에 `allowAutoJoin`(`api/types.ts` `CreatePostRequest` — 필수 칸). 서버의 400 `allowAutoJoin: …` 은 창 안의 빨간 문구가 칸 이름으로 "빠른매치 입장: …"(`rooms/errors.ts` `POST_FIELD_LABELS`). `PostResponse.allowAutoJoin` 은 타입에만 더했고 **화면에는 그리지 않는다**(카드 · 방 화면 그대로 — 소유자 지시).
+- **e2e**(돌리지 않았다 — `npx tsc -p e2e` 까지) — `e2e/support/domain.ts` 의 `PostBody` 에 `allowAutoJoin` · `lolPost` · `aramPost` 의 기본값 `true`(그 전의 글은 모두 빠른매치를 받았다 — 시나리오 2 · 6 이 그 방에 빠른매치로 들어간다) · 시나리오 1 의 PUBG 400 두 사례에 `allowAutoJoin: true`(그 사례가 보던 줄이 바뀌지 않게) + **새 400 사례 "빠른매치 입장(allowAutoJoin) 없음" → `allowAutoJoin: 필요합니다`** · 시나리오 10(화면으로 방 만들기)에 "허용" 누르기 + 보낸 본문의 `allowAutoJoin: true` 확인. 새 사례는 platform 이 그 칸을 만든 뒤에야 통과한다.
+- **Claude 가 정한 세부(소유자 검토 항목)** — 자리(음성 아래 · 한마디 위) · 칸 글자 "허용" · "금지" · 안내 한 줄과 마우스 올림 글귀 · 음성과 같은 두 칸 모양 · 빈 칸 줄의 자리 · e2e 도우미의 기본값 `true`.
+- **확인** — WSL 에서 `typecheck` · `npx tsc -p e2e` · `build` 통과 · 안 쓰는 import 없음 · 줄바꿈 LF. 화면은 보지 않았다(지시).
+
 ### 원본 프런트의 모양(가져온 그대로 — 1단계 조사. 2단계에서 바뀐 것은 아래 "2단계 뒤의 모양")
 
 - 라우트(`src/App.tsx`) — 공개 `/`(랜딩) · `/login` · `/signup` · `/auth/callback`(OAuth code 교환) · 인증 뒤 `/onboarding`(게임 계정 연결) · `/app`(`AppShell` — `RequireAuth` > `RequireOnboarding` > `RequireGameCatalog`) 아래 `home` · `match` · `match/waiting/:requestId` · `reservations` · `reservations/new`(넷은 홈으로 redirect) · `proposals/:proposalId` · `party` · `party/:partyId` · `messages` · `friends` · `recent` · `me` · `settings`.
