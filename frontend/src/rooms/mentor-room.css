@@ -1,4 +1,6 @@
 /* 게시판은 얇은 멤버 행과 모집 인원 한 칸, 방 패널은 다섯 좌석 한 줄. 상세는 클릭으로 연다. */
+/* 패널을 닫아도 카드 폭은 720px까지 유지한다. 양옆 여백 16px을 포함한 게시판 폭이다. */
+.board-split .room-home.board-home { max-width:752px; margin-inline:0; padding-inline:16px; }
 .room-home.board-home .room-deck-grid,.room-home.board-home.has-active-room .room-deck-grid { gap:12px; }
 .room-home .room-deck.room-row { padding:10px 14px; border-radius:10px; border-color:#ffffff14; }
 .room-deck.room-row .room-row-intro { display:flex; align-items:center; gap:12px; margin-bottom:8px; }
