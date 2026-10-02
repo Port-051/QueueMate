@@ -12,6 +12,7 @@ package com.queuemate.platform.common.push;
  * 게시판 채널의 신호({@code BOARD_CHANGED})는 개인 알림이 아니라서 {@code party.board.BoardEventType} 에 있다.
  */
 public enum PushEventType {
+    DIRECT_MESSAGE_RECEIVED,
 
     /** 친구 요청을 받았다. 받는 사람 = 요청을 받은 사람. {@code payload} 는 {@code {requestId, fromUserId}} */
     FRIEND_REQUEST_RECEIVED,
