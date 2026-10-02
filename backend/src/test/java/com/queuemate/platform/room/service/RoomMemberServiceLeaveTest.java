@@ -61,11 +61,10 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
     void canEnterAgainAfterLeaving()
     {
         roomService.create(r("r1"), u("host"), Set.of());
-        for (int i = 1; i <= 4; i++)
+        for (int i = 1; i <= 3; i++)
         {
             roomMemberService.enter(r("r1"), u("u" + i));
         }
-        assertThat(roomMemberService.enter(r("r1"), u("u5"))).isEqualTo(EnterResult.FULL);
 
         roomMemberService.leave(r("r1"), u("u1"));
 
@@ -109,7 +108,7 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
         // 확정은 글의 기록을 거치지 않고 방에만 했다 — 글이 모집 중으로 남아 있어도 승계면 만료시키지 않는다는 것을 본다
         assertThat(roomMemberService.leave(r("r1"), u("host"))).isEqualTo(LeaveResult.LEFT);
         assertThat(host("r1")).isEqualTo("u1");
-        assertThat(postStatus("r1")).isEqualTo("RECRUITING");
+        assertThat(postStatus("r1")).isEqualTo("CONFIRMED");
     }
 
     @Test

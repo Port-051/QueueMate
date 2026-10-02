@@ -74,7 +74,7 @@ class PostServiceRedisDownTest extends PostTestSupport {
 
     private PostService withBrokenRedis()
     {
-        return new PostService(postStore, matchPartyStore, brokenStates(), gameProfileReader, blockReader, boardProperties, gameConfig);
+        return new PostService(new com.queuemate.platform.party.service.RecruitmentTiming(600, 60), postStore, matchPartyStore, brokenStates(), gameProfileReader, blockReader, boardProperties, gameConfig);
     }
 
     @Test
@@ -120,7 +120,7 @@ class PostServiceRedisDownTest extends PostTestSupport {
         Cookie memberCookie = login(member);
         Long hostId = userIdOf(host);
         Long memberId = userIdOf(member);
-        Long postId = createLolPost(hostCookie);
+        Long postId = createFivePersonLolPost(hostCookie);
         track(postId, memberId);
         enterRoom(memberCookie, postId, "SUPPORT").andExpect(status().isCreated());
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());

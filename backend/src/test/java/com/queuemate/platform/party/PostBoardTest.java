@@ -495,7 +495,7 @@ class PostBoardTest extends PostTestSupport {
         Cookie guestCookie = login(guest);
         Long hostId = userIdOf(host);
         Cookie viewer = login(newNickname());
-        Long postId = createLolPost(hostCookie);
+        Long postId = createFivePersonLolPost(hostCookie);
         track(postId, userIdOf(guest));
         enterRoom(guestCookie, postId, "SUPPORT").andExpect(status().isCreated());
         mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(hostCookie)).andExpect(status().isNoContent());
@@ -522,7 +522,7 @@ class PostBoardTest extends PostTestSupport {
         Cookie bystander = login(newNickname());
         Long hostId = userIdOf(host);
         Long memberId = userIdOf(member);
-        Long postId = createLolPost(hostCookie);
+        Long postId = createFivePersonLolPost(hostCookie);
         track(postId, memberId);
         enterRoom(memberCookie, postId, "SUPPORT").andExpect(status().isCreated());
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());

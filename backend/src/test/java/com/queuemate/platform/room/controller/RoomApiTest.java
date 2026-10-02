@@ -70,6 +70,9 @@ class RoomApiTest extends RoomTestSupport {
     @Autowired
     private PostService postService;
 
+    @Autowired
+    private com.queuemate.platform.party.service.PostStore postStore;
+
     @Test
     @DisplayName("쿠키가 없으면 방의 요청은 전부 401 UNAUTHENTICATED 다 — /api/v1/rooms/** 는 인증이 필요한 경로다")
     void requiresLogin() throws Exception
@@ -245,7 +248,7 @@ class RoomApiTest extends RoomTestSupport {
             RoomService broken = new RoomService(new StringRedisTemplate(dead), createRoomScript, roomProperties,
                     confirmRoomScript, roomNotifier, leaveRoomScript, enterMatchRoomScript);
             // 방만의 예외 처리기는 없어졌다 — 이 앱의 처리기 하나로 503 이 나와야 한다(500 이면 Redis 오류가 새어 나온 것이다)
-            MockMvc standalone = MockMvcBuilders.standaloneSetup(new RoomController(broken, postService))
+            MockMvc standalone = MockMvcBuilders.standaloneSetup(new RoomController(broken, postService, postStore))
                     .setControllerAdvice(new GlobalExceptionHandler())
                     .setCustomArgumentResolvers(new CurrentUserIdArgumentResolver())
                     .build();

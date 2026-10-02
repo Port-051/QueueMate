@@ -40,6 +40,8 @@ public record PostResponse(
         boolean allowAutoJoin,
         String status,
         Instant createdAt,
+        Instant autoConfirmAt,
+        Instant autoConfirmWarningAt,
         int memberCount,
         int capacity,
         boolean full,

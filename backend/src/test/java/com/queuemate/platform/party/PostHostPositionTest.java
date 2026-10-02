@@ -257,7 +257,7 @@ class PostHostPositionTest extends PostTestSupport {
     {
         for(StringRedisTemplate gameConfigRedis : List.of(emptyRedis(), deadRedis()))
         {
-            PostService service = new PostService(postStore, matchPartyStore, roomService, gameProfileReader, blockReader, boardProperties,
+            PostService service = new PostService(new com.queuemate.platform.party.service.RecruitmentTiming(600, 60), postStore, matchPartyStore, roomService, gameProfileReader, blockReader, boardProperties,
                     new GameConfigReader(gameConfigRedis));
 
             // 포지션이 있는 모드인데 없어도 된다

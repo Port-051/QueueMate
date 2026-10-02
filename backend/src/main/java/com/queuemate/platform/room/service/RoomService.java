@@ -189,17 +189,19 @@ public class RoomService {
         // 첫 칸이 코드다. Redis 의 숫자는 Long 으로 온다
         ConfirmResult result = ConfirmResult.fromCode((Long) reply.get(0));
 
+        Map<Long, String> positions = Map.of();
         List<String> members = List.of();
         // 방장도 받는다 — 방장의 응답(204)에는 누가 파티원이 됐는지가 없다.
         // 발행은 예외를 밖으로 내보내지 않는다. 알림이 실패해도 이미 성립한 확정은 그대로다
         if(result == ConfirmResult.CONFIRMED)
         {
-            members = reply.stream().skip(1).map(String::valueOf).toList();
+            positions = RoomMemberIds.parsePairs(roomId, reply, 1);
+            members = positions.keySet().stream().map(String::valueOf).toList();
             roomNotifier.toEach(members, PushEventType.ROOM_CONFIRMED,
                     Map.of("roomId", roomId, "members", members));
             roomNotifier.boardChanged();
         }
-        return new Confirmation(result, members);
+        return new Confirmation(result, members, positions);
     }
 
     /**
@@ -218,6 +220,11 @@ public class RoomService {
      *                   예외를 던지지 않아야 한다 — 방은 이미 닫혔고 알림은 나가야 한다
      */
     public LeaveResult leave(String roomId, String userId, BooleanSupplier whenClosed)
+    {
+        return leave(roomId, userId, whenClosed, () -> false);
+    }
+
+    public LeaveResult leave(String roomId, String userId, BooleanSupplier whenClosed, BooleanSupplier whenLeft)
     {
         List<String> keys = new ArrayList<>();
         keys.add(RoomKeys.activeRoomKey(userId));
@@ -238,9 +245,10 @@ public class RoomService {
         {
             case LEFT ->
             {
+                boolean signaled = whenLeft.getAsBoolean();
                 roomNotifier.toEach(othersIn(reply, userId), PushEventType.ROOM_MEMBER_LEFT,
                         Map.of("roomId", roomId, "userId", userId));
-                roomNotifier.boardChanged();
+                if (!signaled) roomNotifier.boardChanged();
             }
             // 방이 없어진 뒤에는 멤버 HASH 도 없다. 누구에게 알릴지는 스크립트가 지우기 전에 읽어 돌려준 것이 전부다
             case ROOM_CLOSED ->

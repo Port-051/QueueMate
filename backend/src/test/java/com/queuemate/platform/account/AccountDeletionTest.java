@@ -206,7 +206,7 @@ class AccountDeletionTest extends PostTestSupport {
         Cookie blockerCookie = login(blocker);
         Long hostId = userIdOf(host);
         Long guestId = userIdOf(guest);
-        Long postId = createLolPost(hostCookie);
+        Long postId = createFivePersonLolPost(hostCookie);
         enterRoom(guestCookie, postId, "SUPPORT").andExpect(status().isCreated());
         track(postId, hostId, guestId);
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
@@ -275,7 +275,7 @@ class AccountDeletionTest extends PostTestSupport {
         Cookie guestCookie = login(guest);
         Long hostId = userIdOf(host);
         Long guestId = userIdOf(guest);
-        Long postId = createLolPost(hostCookie);
+        Long postId = createFivePersonLolPost(hostCookie);
         enterRoom(guestCookie, postId, "SUPPORT").andExpect(status().isCreated());
         track(postId, hostId, guestId);
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
@@ -309,7 +309,7 @@ class AccountDeletionTest extends PostTestSupport {
         Cookie guestCookie = login(guest);
         Long hostId = userIdOf(host);
         Long guestId = userIdOf(guest);
-        Long postId = createLolPost(hostCookie);
+        Long postId = createFivePersonLolPost(hostCookie);
         enterRoom(guestCookie, postId, "SUPPORT").andExpect(status().isCreated());
         track(postId, hostId, guestId);
 
@@ -331,7 +331,7 @@ class AccountDeletionTest extends PostTestSupport {
         assertThat(redisTemplate.hasKey(needsKey(postId))).isFalse();
         assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + hostId)).isNull();
         assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + guestId)).isNull();
-        createLolPost(guestCookie);
+        createFivePersonLolPost(guestCookie);
     }
 
     @Test
@@ -344,7 +344,7 @@ class AccountDeletionTest extends PostTestSupport {
         Cookie guestCookie = login(guest);
         Long hostId = userIdOf(host);
         Long guestId = userIdOf(guest);
-        Long postId = createLolPost(hostCookie);
+        Long postId = createFivePersonLolPost(hostCookie);
         enterRoom(guestCookie, postId, "SUPPORT").andExpect(status().isCreated());
         track(postId, hostId, guestId);
         // 방장의 입장 표시 키만 먼저 사라진 모양 — 탈퇴의 ② 가 방을 찾지 못한다

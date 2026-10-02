@@ -51,7 +51,7 @@ public class RoomMemberController {
         boolean chosen = position != null && !position.isBlank();
 
         return switch (result) {
-            case ENTERED -> ResponseEntity.status(HttpStatus.CREATED).build();
+            case ENTERED, ENTERED_AND_CONFIRMED -> ResponseEntity.status(HttpStatus.CREATED).build();
             // 새로고침이나 재시도다. 성공이지만 새로 만든 것은 없다
             case ALREADY_ENTERED -> ResponseEntity.ok().build();
             case ACTIVE_REQUEST_EXISTS -> throw RoomErrors.alreadyQueued("자동 매칭을 돌리는 동안에는 파티방에 들어갈 수 없습니다");

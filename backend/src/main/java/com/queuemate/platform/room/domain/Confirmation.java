@@ -8,10 +8,13 @@ import java.util.List;
  *
  * @param members {@code confirm-room.lua} 가 돌려준 멤버(문자열 그대로 — 알림의 {@code payload} 가 이 모양이다). 확정하지 않았으면 비어 있다
  */
-public record Confirmation(ConfirmResult result, List<String> members) {
+public record Confirmation(ConfirmResult result, List<String> members, java.util.Map<Long, String> positions) {
+    public Confirmation(ConfirmResult result, List<String> members) { this(result, members, java.util.Map.of()); }
+
 
     public Confirmation
     {
         members = (members == null) ? List.of() : List.copyOf(members);
+        positions = java.util.Map.copyOf(positions);
     }
 }

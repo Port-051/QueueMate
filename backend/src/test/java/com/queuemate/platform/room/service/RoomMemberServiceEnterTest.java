@@ -141,16 +141,16 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
     }
 
     @Test
-    @DisplayName("D-11 10번: 정원 5명에 방장이 포함된다. 여섯 번째는 FULL 이고, 거절된 사용자에게 입장 표시 키가 남지 않는다")
+    @DisplayName("D-11 10번: 정원 5명에 방장이 포함된다. 마지막 입장에 자동 확정되고 여섯 번째는 거절된다., 거절된 사용자에게 입장 표시 키가 남지 않는다")
     void sixthIsFull()
     {
         roomService.create(r("r1"), u("host"), Set.of());
         for (int i = 1; i <= 4; i++)
         {
-            assertThat(roomMemberService.enter(r("r1"), u("u" + i))).isEqualTo(EnterResult.ENTERED);
+            assertThat(roomMemberService.enter(r("r1"), u("u" + i))).isEqualTo(i == 4 ? EnterResult.ENTERED_AND_CONFIRMED : EnterResult.ENTERED);
         }
 
-        assertThat(roomMemberService.enter(r("r1"), u("u5"))).isEqualTo(EnterResult.FULL);
+        assertThat(enterOutcome(r("r1"), u("u5"))).isEqualTo(EnterResult.ROOM_CONFIRMED);
 
         assertThat(members("r1")).hasSize(5).doesNotContain("u5");
         // 남으면 그 사용자는 방에도 없으면서 다른 방 입장도 매칭도 못 하게 된다
@@ -180,10 +180,11 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
         Map<EnterResult, AtomicInteger> counts = new ConcurrentHashMap<>();
         users("u", 100);
 
-        runConcurrently(100, i -> count(counts, roomMemberService.enter(r("r1"), u("u" + i))));
+        runConcurrently(100, i -> count(counts, enterOutcome(r("r1"), u("u" + i))));
 
-        assertThat(counts.get(EnterResult.ENTERED)).hasValue(4);
-        assertThat(counts.get(EnterResult.FULL)).hasValue(96);
+        assertThat(counts.get(EnterResult.ENTERED)).hasValue(3);
+        assertThat(counts.get(EnterResult.ROOM_CONFIRMED)).hasValue(96);
+        assertThat(counts.get(EnterResult.ENTERED_AND_CONFIRMED)).hasValue(1);
         assertThat(members("r1")).hasSize(5);
         // 방 멤버와 입장 표시 키가 어긋나지 않는다 — 들어온 사람에게만, 그 사람 전원에게 있다
         assertThat(ownKeys("qm:user:active-room:")).hasSize(5);

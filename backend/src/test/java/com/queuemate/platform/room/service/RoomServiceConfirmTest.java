@@ -150,12 +150,12 @@ class RoomServiceConfirmTest extends RoomTestSupport {
         roomMemberService.enter(r("r1"), u("u2"));
         roomService.confirm(r("r1"), u("host"));
 
-        assertThat(roomMemberService.enter(r("r1"), u("newcomer"))).isEqualTo(EnterResult.ROOM_CONFIRMED);
+        assertThat(enterOutcome(r("r1"), u("newcomer"))).isEqualTo(EnterResult.ROOM_CONFIRMED);
 
         roomMemberService.leave(r("r1"), u("u2"));
-        assertThat(roomMemberService.enter(r("r1"), u("newcomer"))).isEqualTo(EnterResult.ROOM_CONFIRMED);
+        assertThat(enterOutcome(r("r1"), u("newcomer"))).isEqualTo(EnterResult.ROOM_CONFIRMED);
         // 나간 파티원도 새 사람이다 — 되돌아올 수 없다
-        assertThat(roomMemberService.enter(r("r1"), u("u2"))).isEqualTo(EnterResult.ROOM_CONFIRMED);
+        assertThat(enterOutcome(r("r1"), u("u2"))).isEqualTo(EnterResult.ROOM_CONFIRMED);
 
         assertThat(members("r1")).containsExactlyInAnyOrder("host", "u1");
         assertThat(redisTemplate.hasKey(key("qm:user:active-room:newcomer"))).isFalse();
@@ -190,7 +190,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
 
         // 수명(2초)을 훌쩍 넘긴 3.6초 뒤다. 확정 표시가 만료됐다면 새 사람이 들어온다
         assertThat(redisTemplate.hasKey(key("qm:room:r1:confirmed"))).isTrue();
-        assertThat(roomMemberService.enter(r("r1"), u("newcomer"))).isEqualTo(EnterResult.ROOM_CONFIRMED);
+        assertThat(enterOutcome(r("r1"), u("newcomer"))).isEqualTo(EnterResult.ROOM_CONFIRMED);
     }
 
     @Test
@@ -225,7 +225,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
         // 방장 키에 수명이 남아 있어야 한다. 수명 없는 키가 되면 방이 영원히 남는다
         assertThat(redisTemplate.getExpire(key("qm:room:r1:host"))).isPositive();
         // 확정한 방이므로 빈자리가 생겨도 새 사람은 못 들어온다
-        assertThat(roomMemberService.enter(r("r1"), u("u9"))).isEqualTo(EnterResult.ROOM_CONFIRMED);
+        assertThat(enterOutcome(r("r1"), u("u9"))).isEqualTo(EnterResult.ROOM_CONFIRMED);
     }
 
     @Test
@@ -261,7 +261,7 @@ class RoomServiceConfirmTest extends RoomTestSupport {
         assertThat(ownKeys()).containsExactly("qm:room:no-auto-join:u1");
         // 이 테스트는 확정을 방에만 했다(글의 기록 없이) — 그래서 방이 닫힐 때 글이 모집 중이었고 나가기가 그 글을 만료시켰다(2026-09-25 — 확정 전에는 방과 글이 같이 끝난다).
         // 여기서 보려는 것은 "다시 만든 방이 확정돼 있지 않다" 하나라 글을 되살려 입장이 글에서 막히지 않게 한다
-        jdbcTemplate.update("update recruit_posts set status = 'RECRUITING', expired_at = null where id = ?", Long.parseLong(r("r1")));
+        jdbcTemplate.update("update recruit_posts set status = 'RECRUITING', expired_at = null, confirmed_at = null where id = ?", Long.parseLong(r("r1")));
         assertThat(roomService.create(r("r1"), u("u1"), Set.of())).isEqualTo(CreateResult.CREATED);
         assertThat(roomMemberService.enter(r("r1"), u("host"))).isEqualTo(EnterResult.ENTERED);
     }

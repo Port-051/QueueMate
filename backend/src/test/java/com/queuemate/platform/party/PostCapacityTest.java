@@ -84,7 +84,7 @@ class PostCapacityTest extends PostTestSupport {
         track(postId, userId);
         enterRoom(cookie, postId, null)
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("ROOM_FULL"));
+                .andExpect(jsonPath("$.code").value("POST_NOT_RECRUITING"));
         assertThat(memberIds(postId)).doesNotContain(String.valueOf(userId));
         assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + userId)).isNull();
     }
@@ -97,7 +97,7 @@ class PostCapacityTest extends PostTestSupport {
     // ---- 모드의 인원 ----
 
     @Test
-    @DisplayName("솔로 랭크(targetPartySize 2) 글의 정원은 2 다 — 두 번째 사람이 들어오면 full 이고 세 번째는 409 ROOM_FULL 이다")
+    @DisplayName("솔로 랭크(targetPartySize 2) 글의 정원은 2 다 — 두 번째 사람이 들어오면 자동 확정되고 세 번째는 409 POST_NOT_RECRUITING 이다")
     void soloRankIsTwo() throws Exception
     {
         Cookie hostCookie = login(newNickname());
@@ -115,7 +115,8 @@ class PostCapacityTest extends PostTestSupport {
         JsonNode line = find(list(viewer, "LOL"), postId);
         assertThat(line.get("memberCount").asInt()).isEqualTo(2);
         assertThat(line.get("capacity").asInt()).isEqualTo(2);
-        assertThat(line.get("full").asBoolean()).isTrue();
+        assertThat(line.get("full").asBoolean()).isFalse();
+        assertThat(line.get("status").asString()).isEqualTo("CONFIRMED");
 
         // 전에는 정원이 늘 5 라 여기서 들어와 "3/5" 가 됐다
         expectFullFor(postId);
@@ -123,7 +124,7 @@ class PostCapacityTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("3인 모드(NORMAL_3)의 정원은 3 이다 — 두 사람이 더 들어오고 네 번째는 409 ROOM_FULL")
+    @DisplayName("3인 모드(NORMAL_3)의 정원은 3 이다 — 두 사람이 더 들어오고 네 번째는 409 POST_NOT_RECRUITING")
     void normalThreeIsThree() throws Exception
     {
         seedIfAbsent("qm:gameconfig:LOL:" + LOL_NORMAL_3, key -> redisTemplate.opsForHash()
@@ -177,7 +178,7 @@ class PostCapacityTest extends PostTestSupport {
             String host = newNickname();
             login(host);
             Long hostId = userIdOf(host);
-            PostService service = new PostService(postStore, matchPartyStore, roomService, gameProfileReader, blockReader, boardProperties,
+            PostService service = new PostService(new com.queuemate.platform.party.service.RecruitmentTiming(600, 60), postStore, matchPartyStore, roomService, gameProfileReader, blockReader, boardProperties,
                     new GameConfigReader(gameConfigRedis));
 
             PostResponse created = service.create(hostId, new PostCreateRequest("LOL", LOL_MODE, "모르는 인원", null, "REQUIRED",

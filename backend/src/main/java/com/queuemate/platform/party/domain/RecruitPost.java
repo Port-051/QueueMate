@@ -105,6 +105,11 @@ public class RecruitPost {
     @Column(name = "expired_at", updatable = false)
     private Instant expiredAt;
 
+    @Column(name = "auto_confirm_at")
+    private Instant autoConfirmAt;
+
+    public void setAutoConfirmAt(Instant deadline) { this.autoConfirmAt = deadline; }
+
     /**
      * 찾는 포지션. 줄에 순서가 없다 — 내려 줄 때 그 게임의 포지션 순서로 세운다.
      *

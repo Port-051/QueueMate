@@ -69,16 +69,15 @@ class RoomMemberServiceKickTest extends RoomTestSupport {
     void kickFreesASeat()
     {
         roomService.create(r("r1"), u("host"), Set.of());
-        for (int i = 1; i <= 4; i++)
+        for (int i = 1; i <= 3; i++)
         {
             roomMemberService.enter(r("r1"), u("u" + i));
         }
-        assertThat(roomMemberService.enter(r("r1"), u("u5"))).isEqualTo(EnterResult.FULL);
 
         roomMemberService.kick(r("r1"), u("host"), u("u1"));
 
         assertThat(roomMemberService.enter(r("r1"), u("u5"))).isEqualTo(EnterResult.ENTERED);
-        assertThat(members("r1")).containsExactlyInAnyOrder("host", "u2", "u3", "u4", "u5");
+        assertThat(members("r1")).containsExactlyInAnyOrder("host", "u2", "u3", "u5");
     }
 
     @Test

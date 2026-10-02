@@ -55,4 +55,4 @@ end
 --  스크립트 안은 어차피 원자적이라 EXISTS 로 보고 나중에 써도 그 사이에 아무도 끼어들지 못한다)
 redis.call('SET', roomConfirmedKey, roomId, 'EX', ttl)
 
-return {1, unpack(members)}
+return {1, unpack(redis.call('HGETALL', roomMemberKey)) }

@@ -93,6 +93,15 @@ public abstract class RoomTestSupport extends ApiTestSupport {
         }
     }
 
+    /** 확정과 입장이 경합하면 DB 입장 검사 또는 Lua가 먼저 거절할 수 있다. */
+    protected com.queuemate.platform.room.domain.EnterResult enterOutcome(String room, String user, String... position) {
+        try { return roomMemberService.enter(room, user, position.length == 0 ? null : position[0]); }
+        catch (com.queuemate.platform.common.error.ApiException e) {
+            if ("POST_NOT_RECRUITING".equals(e.getCode())) return com.queuemate.platform.room.domain.EnterResult.ROOM_CONFIRMED;
+            throw e;
+        }
+    }
+
     /**
      * 이름표의 방 번호. 이 앱에서 {@code roomId} 는 글의 번호라 숫자다 — 글 번호가 닿지 않을 만큼 큰 무작위 값으로 짓는다.
      *
