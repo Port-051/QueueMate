@@ -1,5 +1,5 @@
 import './mentor-room.css';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { tierColor } from '../domain/rankAssets';
 import type { GameKey, GameStats, LolMostChampion } from '../api/types';
 import { Avatar } from '../components/ui';
@@ -268,16 +268,19 @@ export function seatSummary(room: BoardRoom, member: BoardMember, selfId: string
 }
 
 /** 게시판은 고정 열 표(table), 음성/제안 좌석은 작은 요약을 사용한다. 상세 정보는 공통 팝오버에서 읽는다. */
-export function RoomSeatBody({ room, member, me = false, color, table = false, showDetails = false }: { room: BoardRoom; member: BoardMember; me?: boolean; color?: number; table?: boolean; showDetails?: boolean }) {
+export function RoomSeatBody({ room, member, me = false, color, table = false, showDetails = false, voiceMark }: { room: BoardRoom; member: BoardMember; me?: boolean; color?: number; table?: boolean; showDetails?: boolean; voiceMark?: ReactNode }) {
   const position = seatPosition(room, member);
   const record = room.game === 'LOL' ? winLossRecord(member.profile?.stats) : null;
   const positionLabel = position ? <span className="room-seat-position" title={roleLabel(room.game, position)}><FilterRoleIcon game={room.game} value={position} size={15} /><b>{roleLabel(room.game, position)}</b></span> : null;
-  return <>
-    {showDetails && position ? <span className="room-voice-position" role="img" aria-label={roleLabel(room.game, position)} title={roleLabel(room.game, position)}><FilterRoleIcon game={room.game} value={position} size={16} /></span> : null}
-    <span className="room-seat-face">
+  const face = <span className="room-seat-face">
       <RoomMemberAvatar member={member} size={showDetails ? 36 : 34} color={color} showHost={!showDetails} />
       {!showDetails ? <span className="room-seat-tier-badge"><FilterTierIcon game={room.game} tier={member.tier} size={16} /></span> : null}
-    </span>
+    </span>;
+  return <>
+    {showDetails ? <span className="room-voice-identity">{face}<span className="room-voice-indicators">
+      {voiceMark}
+      {position ? <span className="room-voice-position" role="img" aria-label={roleLabel(room.game, position)} title={roleLabel(room.game, position)}><FilterRoleIcon game={room.game} value={position} size={16} /></span> : null}
+    </span></span> : face}
     <span className="room-seat-text">
       <span className="room-seat-name">
         {position && !showDetails ? <span className="room-seat-position-icon"><FilterRoleIcon game={room.game} value={position} size={12} /></span> : null}
