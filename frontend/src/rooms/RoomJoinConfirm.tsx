@@ -8,6 +8,7 @@ import { RoomConditions, RoomMemberAvatar } from './RoomDeck';
 import { boardRoomColors } from './roomColors';
 import type { BoardRoom } from './types';
 import './room-create-preview.css';
+import './room-action-dialog.css';
 import './room-join-confirm.css';
 
 /**
@@ -44,9 +45,9 @@ export function RoomJoinConfirm({ room, entryError, cancelsMatch = false, switch
       else setError(roomErrorMessage(cause, '참여하지 못했어요. 다시 시도해 주세요.'));
     }
   };
-  return <Modal title={switchesRoom ? '다른 방에 참가할까요?' : '방에 참가하기'} closeLabel="참여 창 닫기" className="room-create-preview room-join-preview" onClose={() => { if (!submitting.current) onClose(); }}
+  return <Modal title={switchesRoom ? '다른 방에 참가할까요?' : '방에 참가하기'} closeLabel="참여 창 닫기" className="room-action-dialog room-join-preview" onClose={() => { if (!submitting.current) onClose(); }}
     foot={<><Button disabled={busy} onClick={onClose}>취소</Button><Button variant="primary" disabled={busy || closed || Boolean(entryError) || needsPick} onClick={confirm}>{busy ? '참가 중…' : closed ? '마감' : switchesRoom ? '나가고 참가하기' : cancelsMatch ? '빠른매치 취소 후 참가' : '참가하기'}</Button></>}>
-    <div className="room-join-summary">
+    <div className="room-dialog-summary room-join-summary">
       <h3>{room.title}</h3>
       <p className="room-row-meta" aria-label="방 조건"><RoomConditions room={room} /></p>
       <div className="room-join-summary-bottom">

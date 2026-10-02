@@ -1,0 +1,18 @@
+/* 참가와 나가기 창은 같은 틀, 제목, 닫기 버튼, 하단 버튼 간격을 사용한다. */
+.modal.room-action-dialog { width:min(440px,100%); padding:22px; border:1px solid #ffffff24; border-radius:20px; background:#1d1b27; }
+.room-action-dialog .modal-heading { gap:12px; }
+.room-action-dialog .modal-heading h2 { margin:0; font-size:19px; font-weight:650; line-height:28px; }
+.room-action-dialog .modal-close { display:grid; place-items:center; width:30px; height:30px; min-width:30px; min-height:30px; padding:0; border:1px solid #ffffff26; border-radius:50%; background:#ffffff07; color:#b8b2c6; }
+.room-action-dialog .modal-close>svg { display:block; width:16px; height:16px; }
+.room-action-dialog .modal-close:hover { border-color:#ffffff40; background:#ffffff12; color:var(--text); }
+.room-dialog-summary { padding:14px; border:1px solid #ffffff12; border-radius:12px; background:#ffffff04; }
+.room-dialog-summary h3 { margin:0 0 9px; color:var(--text); font-size:15px; font-weight:650; line-height:1.5; overflow-wrap:anywhere; }
+.room-dialog-summary .room-row-meta { gap:6px; margin:0; }
+.room-dialog-summary .room-row-meta>span+span::before { content:none; }
+.modal.room-action-dialog .modal-foot { display:flex; flex-wrap:nowrap; gap:8px; margin-top:20px; padding-top:16px; border-top:1px solid #ffffff12; }
+.room-action-dialog .modal-foot>.btn { min-height:40px; padding:9px 16px; border:1px solid #ffffff26; border-radius:999px; background:#ffffff07; box-shadow:none; color:#ddd7e8; font-size:13px; line-height:20px; }
+.room-action-dialog .modal-foot>.btn:hover:not(:disabled) { border-color:#ffffff40; background:#ffffff12; }
+@media(max-width:480px) {
+  .modal.room-action-dialog { padding:18px; }
+  .room-dialog-summary { padding:12px; }
+}

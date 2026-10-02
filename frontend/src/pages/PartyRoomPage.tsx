@@ -14,6 +14,7 @@ import { roomErrorMessage } from '../rooms/errors';
 import { RoomConditions } from '../rooms/RoomDeck';
 import { RoomConversationChat } from '../rooms/RoomConversationChat';
 import { RoomMemberProfile } from '../rooms/RoomMemberProfile';
+import { RoomLeaveConfirm } from '../rooms/RoomLeaveConfirm';
 import { boardRoomColors } from '../rooms/roomColors';
 import { RoomVoiceSeats, seatName, type SeatMenuAction, type VoiceSeatMember } from '../rooms/RoomVoiceSeats';
 import type { BoardMember, BoardRoom } from '../rooms/types';
@@ -246,8 +247,8 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
       <RoomConversationChat key={roomId} messages={messages} canSend={canChat} connectionHint={connectionHint} nameOf={chatName}
         colorOf={id => faceColors.get(id)} canOpenProfile={id => cards.has(id)} isVerified={id => cards.get(id)?.profile?.verified === true} onProfile={id => setProfileId(current => current === id ? null : id)} onSend={send} />
 
-      {dialog?.kind === 'leave' ? <ConfirmDialog title="방에서 나갈까요?" confirmLabel="나가기" onClose={() => setDialog(null)} onConfirm={leave}
-        description={isHost && !confirmed ? '방장이 나가면 방이 닫히고 글은 만료돼요.' : isHost ? '확정된 방은 남은 사람에게 방장이 넘어가요.' : confirmed ? '확정된 파티라 나가면 게시판에서 다시 들어올 수 없어요.' : '언제든 게시판에서 다시 참여할 수 있어요.'} /> : null}
+      {dialog?.kind === 'leave' ? <RoomLeaveConfirm room={seatRoom} isHost={isHost} confirmed={Boolean(confirmed)} memberCount={session.members.length}
+        onClose={() => setDialog(null)} onConfirm={leave} /> : null}
       {/* 강퇴 뒤 10분 동안 그 방에 다시 못 들어온다(P-32 — 게시판 방만. 자동 매칭 방은 서버가 막지 않아 그 말을 하지 않는다 — 미정). 확정된 게시판 방은 애초에 새 입장이 없다. */}
       {dialog?.kind === 'kick' ? <ConfirmDialog title={`${dialog.nickname}님을 내보낼까요?`} confirmLabel="내보내기" onClose={() => setDialog(null)} onConfirm={() => session.kick(dialog.userId)}
         description={postId === null ? '내보낸 사람은 이 방에서 나가게 돼요.' : confirmed ? '확정된 방이라 내보낸 사람은 다시 들어올 수 없어요.' : '내보낸 사람은 10분 동안 이 방에 다시 들어올 수 없어요.'} /> : null}

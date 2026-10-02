@@ -218,8 +218,9 @@ export function ActionMenu({ label, children }: { label: string; children: React
   </details>;
 }
 
-export function ConfirmDialog({ title, description, confirmLabel, onConfirm, onClose }: {
+export function ConfirmDialog({ title, description, confirmLabel, onConfirm, onClose, className, closeLabel, cancelLabel = '돌아가기', busyLabel = '처리 중…' }: {
   title: string; description: ReactNode; confirmLabel: string; onConfirm: () => Promise<void>; onClose: () => void;
+  className?: string; closeLabel?: string; cancelLabel?: string; busyLabel?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const toast = useToast();
@@ -229,9 +230,9 @@ export function ConfirmDialog({ title, description, confirmLabel, onConfirm, onC
     catch (error) { toast(isApiError(error) ? error.message : '처리하지 못했습니다. 다시 시도해주세요.', 'error'); }
     finally { setBusy(false); }
   };
-  return <Modal title={title} onClose={() => { if (!busy) onClose(); }} foot={<>
-    <Button disabled={busy} onClick={onClose}>돌아가기</Button>
-    <Button variant="danger" disabled={busy} onClick={() => void confirm()}>{busy ? '처리 중…' : confirmLabel}</Button>
+  return <Modal title={title} className={className} closeLabel={closeLabel} onClose={() => { if (!busy) onClose(); }} foot={<>
+    <Button disabled={busy} onClick={onClose}>{cancelLabel}</Button>
+    <Button variant="danger" disabled={busy} onClick={() => void confirm()}>{busy ? busyLabel : confirmLabel}</Button>
   </>}><div className="confirm-description">{description}</div></Modal>;
 }
 
