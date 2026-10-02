@@ -9,8 +9,8 @@
 > **출처 표기.** `docs/…` · `contracts/…` · `HANDOFF.md` 처럼 폴더 없이 적은 것은 옆 폴더 **`matching` 기준**이다(절대 경로는 §10). **`contracts/platform-api.md` 만은 이 폴더의 것이다.** **출처가 안 붙은 사실은 정해지지 않은 것이다** — §7 로 보낸다.
 
 > **지위 — 누가 정했나.** 소유자가 "네가 platform 을 만들어 봐라"고 맡겨 Claude 가 정해 구현한 것이 많고, 그 원본은 `contracts/platform-api.md` 의 **P-항목**(맨 아래 "원본에 올려야 할 것")이다.
-> - **Claude 가 정했고 소유자가 항목별로 검토하지 않았다** — P-1 ~ P-10(P-3 · P-5 · P-6 · P-10 은 걷어냈다), **P-30**(자동 매칭 파티의 방 — D-42 위의 세부), 그리고 소유자 결정 안의 "Claude 가 정한 세부" — **P-14 · P-15 · P-16 · P-17 · P-19 · P-22 · P-23 · P-28 · P-32 ~ P-36 · P-38 ~ P-44 · P-48 · P-49 · P-50 · P-51** 의 세부가 그렇다(계약의 그 P-행에 가려 적었다. 이 파일은 "(Claude 세부)"로 표시한다 — 표시가 빠졌더라도 계약의 행이 원본이다).
-> - **소유자가 직접 정했다** — P-11 ~ P-29 · P-31 ~ P-36 · P-38 ~ P-49(**P-44** 참가할 때 고르는 포지션 · **P-45** 글 고치기 없앰 — §3.3 · §7.1 · **P-48** 회원 탈퇴 — §2 · §3.5 · **P-49** LoL 전적에서 커스텀 게임 빼기 — §7 "게임 계정 연동") · P-50(빠른매치 입장 허용 / 금지 — §7 · §7.1) · P-51(JWT 키가 없으면 기동 거부 — §5.1). docs/11 D-항목 대응: P-2 → D-24 · P-11 → D-25 · P-15 → D-26 · P-12 · P-13 → D-27 · P-14 · P-20 · P-21 → D-28 · P-16 → D-29 · P-17 → D-30 · P-18 → D-31 · P-19 → D-32 · P-22 → D-33 · P-23 → D-34 · P-24 → D-35 · P-25 → D-36 · P-26 → D-37 · P-27 → D-38 · P-29 → D-39 · P-28 → D-40 · P-31 → D-44 · P-32 → D-46 · P-35 → D-47 · P-36 → D-48 · P-38 → D-50 · P-39 → D-51 · P-40 → D-52 · P-41 → D-53 · P-42 → D-54 · P-47 → D-56. **아직 D-항목이 없다 — P-33 · P-34 · P-43 ~ P-46 · P-48 · P-49 · P-50 · P-51**(docs/11 에 올리는 것은 `matching` 폴더의 일이다).
+> - **Claude 가 정했고 소유자가 항목별로 검토하지 않았다** — P-1 ~ P-10(P-3 · P-5 · P-6 · P-10 은 걷어냈다), **P-30**(자동 매칭 파티의 방 — D-42 위의 세부), 그리고 소유자 결정 안의 "Claude 가 정한 세부" — **P-14 · P-15 · P-16 · P-17 · P-19 · P-22 · P-23 · P-28 · P-32 ~ P-36 · P-38 ~ P-44 · P-48 · P-49 · P-50 · P-51 · P-52** 의 세부가 그렇다(계약의 그 P-행에 가려 적었다. 이 파일은 "(Claude 세부)"로 표시한다 — 표시가 빠졌더라도 계약의 행이 원본이다).
+> - **소유자가 직접 정했다** — P-11 ~ P-29 · P-31 ~ P-36 · P-38 ~ P-49(**P-44** 참가할 때 고르는 포지션 · **P-45** 글 고치기 없앰 — §3.3 · §7.1 · **P-48** 회원 탈퇴 — §2 · §3.5 · **P-49** LoL 전적에서 커스텀 게임 빼기 — §7 "게임 계정 연동") · P-50(빠른매치 입장 허용 / 금지 — §7 · §7.1) · P-51(JWT 키가 없으면 기동 거부 — §5.1) · P-52(차단 관계를 Redis 집합에도 적는다 — §3.7). docs/11 D-항목 대응: P-2 → D-24 · P-11 → D-25 · P-15 → D-26 · P-12 · P-13 → D-27 · P-14 · P-20 · P-21 → D-28 · P-16 → D-29 · P-17 → D-30 · P-18 → D-31 · P-19 → D-32 · P-22 → D-33 · P-23 → D-34 · P-24 → D-35 · P-25 → D-36 · P-26 → D-37 · P-27 → D-38 · P-29 → D-39 · P-28 → D-40 · P-31 → D-44 · P-32 → D-46 · P-35 → D-47 · P-36 → D-48 · P-38 → D-50 · P-39 → D-51 · P-40 → D-52 · P-41 → D-53 · P-42 → D-54 · P-47 → D-56 · P-52 → D-57. **아직 D-항목이 없다 — P-33 · P-34 · P-43 ~ P-46 · P-48 · P-49 · P-50 · P-51**(docs/11 에 올리는 것은 `matching` 폴더의 일이다).
 > - 이 파일에서 출처가 `contracts/platform-api.md` 인 것은 **소유자가 검토하며 뒤집을 수 있다.** 뒤집으면 코드 · 계약 · 이 파일을 같이 고친다.
 > - **"미정이니 묻고 정하라"는 남은 미정(§7 · §7.1)에 그대로 유효하다** — 한 번 맡긴 것이 다음에도 임의로 정해도 된다는 뜻이 아니다.
 
@@ -30,6 +30,7 @@ QueueMate 는 **조건 기반 팀원 자동 랜덤 매칭**이다 — "조건은
                                  ├──── PUBLISH qm:pubsub:board (BOARD_CHANGED · {}) ──▶ Redis ──▶ notification ──SSE──▶ 모든 연결
                                  ├──── Lua 로 쓰고 읽는다 ──▶ Redis qm:room:* · qm:user:active-room:{userId}   (방 안의 일 — §3.3)
                                  ├──── EXISTS 만 ◀── Redis qm:user:active-request:{userId}   (matching 이 쓴다 — D-19)
+                                 ├──── 쓴다 ──▶ Redis qm:user:block-rel:{userId} ──▶ matching 이 읽기만 (차단 관계 사본 — §3.7 · P-52)
                                  ├──── 읽기만 ◀── Redis qm:gameconfig:*                       (운영자가 seed 로 심는 공유 설정 — §3.6)
                                  └──── 인가 코드 흐름 ──▶ 카카오 · 디스코드 · 구글              (소셜 로그인 — 회원 번호와 닉네임만)
 ```
@@ -49,14 +50,14 @@ QueueMate 는 **조건 기반 팀원 자동 랜덤 매칭**이다 — "조건은
 | **파티** — 확정된 파티와 파티원의 기록 · **빠른매치 파티의 팀원 카드** `GET /api/v1/match-parties/{partyId}/members`(P-47 — 파티원끼리만 · 번호 조회 없음). **게시판 파티**(`source='BOARD'`)는 방장 확정이 만든다. **자동 매칭 파티**(`source='MATCH'` · `match_party_id = partyId`)는 **`POST /api/v1/match-parties/{partyId}/room`** 이 `matching` 의 파티 HASH 를 읽어 만든다(D-42 · P-30). **파티가 닫히면 파티원끼리 `recent_players` 에 적는다**(P-25 — §3.3 "파티 닫힘"). 큐 · outbox 없음(§3.4) | #21 · D-13 · **D-42** · 계약 "방장 확정의 기록" · "파티 닫힘" · "자동 매칭 파티의 방" |
 | **파티 모집 게시판** — 글 쓰기(**방을 같이 만든다** · 고치기는 없다 — P-45) · 지우기(만료로 바꾸고 방도 닫는다) · 목록 · 단건 · 입장의 글 검사 · 방장 확정의 기록 · **차단 거르기(방 안의 누구와든 — D-20)** · 목록의 한 줄 조립(방 안 인원 · 카드 · 게임별 정보) · **게시판 방 먼저 합류** `POST /api/v1/posts/auto-join`(P-28). 규칙은 §3.3 · §7.1 | D-11 · D-16 · D-20 · D-21 · 계약 "모집 글 · 목록" · P-22 |
 | **방 안의 일**(`room` 패키지) — 입장 · 나가기 · 강퇴(10분 재입장 금지 — P-32) · 방장 확정 · 접속 확인 · 방장 이탈 감지 · 방장 승계(확정한 방 — D-23) · 방 안 사람 목록 · 내 방 찾기 · 정원 검사 · **참가할 때 고르는 포지션**(P-44) · 입장 표시 키 · 방 알림(`ROOM_*`) · 시그널(`WEBRTC_SIGNAL`). Redis 에만 있고 **Lua 를 부르는 서비스로만 바꾼다**(§3.3) | D-9 · D-19 ~ D-23(D-33 이 개정) · 계약 "방" |
-| **소셜** — 친구(요청 · 수락 · 거절 · 거두기 · 목록 · 끊기) · 차단/해제 · 신고(접수만) · 최근 함께한 사람(읽기 — 파티 닫힘이 채운다). **`blocks` 의 주인.** 차단은 DB 에 저장하는 것으로 끝(`BlockChanged.fifo` 없음). 친구 요청은 상대의 사용자 번호를 알아야 한다 — **검색 API 없음** | docs/00 §5 · D-1 · D-2 · D-12 · 계약 "차단" · "친구 · 신고 · 최근 함께한 사람" |
+| **소셜** — 친구(요청 · 수락 · 거절 · 거두기 · 목록 · 끊기) · 차단/해제 · 신고(접수만) · 최근 함께한 사람(읽기 — 파티 닫힘이 채운다). **`blocks` 의 주인.** 차단은 DB 에 저장하고 **같은 트랜잭션에서 Redis 의 차단 관계 사본 `qm:user:block-rel:{userId}` 에도 적는다**(2026-10-02 소유자 결정 · P-52 · D-57 — `matching` 이 그것을 읽고 DB 는 읽지 않는다 · §3.7). `BlockChanged.fifo` 는 없다. 친구 요청은 상대의 사용자 번호를 알아야 한다 — **검색 API 없음** | docs/00 §5 · D-1 · D-2 · D-12 · 계약 "차단" · "친구 · 신고 · 최근 함께한 사람" |
 | **알림 발행** — `FRIEND_REQUEST_RECEIVED` · `FRIEND_REQUEST_ACCEPTED`(§3.2) · `ROOM_*` 5종 · `WEBRTC_SIGNAL` · 게시판 채널 `BOARD_CHANGED`. **`PARTY_*` 는 두지 않는다**(P-31 · D-44) | events.md · D-20 ~ D-22 · 계약 "이 앱이 내는 알림" · "방" 의 "알림" |
 
 platform 소관 자원(openapi.yaml 머리말): `auth` `users` `parties` `friends` `blocks` `recent-players` `reports`. 경로와 스키마는 `contracts/platform-api.md` 에 있다(글은 `posts`, 친구 요청은 `friend-requests`. 확정된 파티를 조회하는 `parties` 경로는 두지 않는다 — P-31). 머리말의 `reservations` 는 D-15 로 `app:reservation` 의 것이다.
 
 | 안 한다 | 왜 / 누가 |
 |---|---|
-| 매칭 · 제안 · 수락 · 확정, 매칭 Redis 키(`qm:party:*` `qm:user:*` `qm:proposal:*` `qm:lock:*`) 접근. **"한 번에 하나만"은 키 둘로 지킨다** — 활성 요청 키 `qm:user:active-request:{userId}` 는 `matching` 만 쓰고 이 앱은 `EXISTS` 만, 입장 표시 키 `qm:user:active-room:{userId}` 는 이 앱만 쓰고 `matching` 은 `EXISTS` 만(D-19). **예외는 둘** — ① `qm:gameconfig:*` 읽기(D-29 — §3.6) ② `qm:party:{partyId}` 읽기(`HGETALL` · `HEXISTS` 만 · 제안 중에도 — P-47 · 쓰지도 지우지도 `EXPIRE` 도 안 한다 — D-42). `qm:user:*` · `qm:proposal:*` · `qm:lock:*` 에는 예외가 없다 | `matching` 의 일(#27) |
+| 매칭 · 제안 · 수락 · 확정, 매칭 Redis 키(`qm:party:*` `qm:user:*` `qm:proposal:*` `qm:lock:*`) 접근. **"한 번에 하나만"은 키 둘로 지킨다** — 활성 요청 키 `qm:user:active-request:{userId}` 는 `matching` 만 쓰고 이 앱은 `EXISTS` 만, 입장 표시 키 `qm:user:active-room:{userId}` 는 이 앱만 쓰고 `matching` 은 `EXISTS` 만(D-19). **예외는 둘** — ① `qm:gameconfig:*` 읽기(D-29 — §3.6) ② `qm:party:{partyId}` 읽기(`HGETALL` · `HEXISTS` 만 · 제안 중에도 — P-47 · 쓰지도 지우지도 `EXPIRE` 도 안 한다 — D-42). `qm:user:*` · `qm:proposal:*` · `qm:lock:*` 에는 예외가 없다(**`qm:user:block-rel:*` 는 `matching` 의 키가 아니라 이 앱의 키다** — 이 앱이 쓰고 `matching` 이 읽기만 한다 · §3.7 · P-52) | `matching` 의 일(#27) |
 | 브라우저 연결 보유 — `SseEmitter` / WebSocket | `notification` 의 일. 이 앱은 stateless REST(#15). WebSocket 은 어디에도 없다(D-9) |
 | **예약 전부** — 예약 REST · 짝 찾기 · `RESERVATION_*` | `app:reservation`(Lambda — D-15) |
 | TURN credential 발급, 음성 · 텍스트 중계/저장 | TURN 은 `app:realtime`(#25). 음성 · 텍스트는 브라우저 직결(#6) |
@@ -154,7 +155,7 @@ Redis `PUBLISH qm:pubsub:push:{userId}` 에 **JSON 문자열 하나**. `notifica
 |---|---|---|
 | ~~`ProposalConfirmed.fifo`~~ | 만들지 않는다(D-42) | 이 앱이 `qm:party:{partyId}` 를 읽는다. 파티당 한 번 나가는 이벤트라 지킬 순서가 없다 |
 | ~~`PartyClosed.fifo`~~ | 만들지 않는다(D-36 · D-42) | 게시판 · 자동 매칭 파티 모두 같은 앱 안에서 닫는다(§3.3) |
-| ~~`BlockChanged.fifo`~~ | 만들지 않는다(D-12) | `matching` 이 배정 때 `blocks` 를 직접 읽는다(D-1 · D-2 · D-41) |
+| ~~`BlockChanged.fifo`~~ | 만들지 않는다(D-12) | ~~`matching` 이 배정 때 `blocks` 를 직접 읽는다(D-1 · D-2 · D-41)~~ → 2026-10-02 부터 이 앱이 차단 · 해제의 트랜잭션에서 적는 **Redis 차단 관계 사본**을 `matching` 의 합류 스크립트가 읽는다(D-57 · P-52 · §3.7) — 큐가 아니다 |
 
 - **outbox · relay · AWS SDK 를 들이지 않는다.** Kafka/RabbitMQ/Redis Streams 로 바꾸지 마라(#21 · #26). `backend/build.gradle` 의 "SQS 를 넣을 자리" 주석은 낡았다.
 - 다른 앱에 시킬 일이 **새로** 생기면 원안은 transactional outbox → SQS FIFO(at-least-once · 멱등 소비 · DLQ)이고, **먼저 묻는다.** 동기 HTTP 로 잇지 않는다.
@@ -169,7 +170,7 @@ Redis `PUBLISH qm:pubsub:push:{userId}` 에 **JSON 문자열 하나**. `notifica
 - **패키지 나누기는 그대로다**(§4). 창구는 JOIN 이 대신 못 하는 것만 남는다(예 — Redis 에서 온 id 목록으로 묻는 `BlockReader`).
 - **롤 · `GRANT` 없음** — 앱 하나가 DB 계정 하나(`DB_USER` · `DB_PASSWORD`). 뷰(`shared_read.blocked_pairs`)도 만들지 않는다. 운영 계정은 미정(§7).
 - `reservation` 테이블은 이 앱의 것이 아니다(D-15).
-- **`matching` 이 읽는 테이블은 `blocks` 하나 — 늘리지 않는다.** `blocks(id bigint identity PK, blocker_id bigint, blocked_id bigint)` · `(blocker_id, blocked_id)` UNIQUE 는 이 앱이 건다. 방향이 있는 한 줄이고 `matching` 이 양방향으로 조회한다. 바꾸면 `matching` 이 런타임에 깨진다(`block/Block.java` — `Long` · `public.blocks`).
+- **`matching` 은 2026-10-02 부터 DB 를 읽지 않는다**(D-57 · P-52 — 그 전에는 `blocks` 하나를 읽었다). 차단 관계는 이 앱이 적는 Redis 사본으로 본다(§3.7). `blocks(id bigint identity PK, blocker_id bigint, blocked_id bigint)` · `(blocker_id, blocked_id)` UNIQUE 는 이 앱이 건다. 방향이 있는 한 줄이고 **사본의 원본이다** — 재구성(§3.7)이 이 모양을 읽는다.
 - **모든 PK 는 `bigint GENERATED ALWAYS AS IDENTITY`**(`@GeneratedValue(strategy = IDENTITY)`). **`users.id` 가 `userId`** — JWT `sub`(`"42"`) · 알림 채널 · 방 키 · URL · 본문의 `userId` · 다른 테이블의 `*_id` 가 전부 이것. 닉네임(`users_nickname_key`)은 보여 주는 이름이고 사람을 가리키는 값으로 쓰지 않는다. 제공자의 회원 번호는 `social_identities` 에만 있다(P-11 · P-24). docs/WHY_POSTGRESQL 의 `uuid` 서술은 이 앱의 모양이 아니다(bigint).
 - **원본은 마이그레이션** `backend/src/main/resources/db/migration/` — `V1__schema.sql`(스키마 · FK — 옛 V1~V8 을 합친 것) + **V2** `parties.match_party_id varchar(36) UNIQUE` + `CHECK ((source='MATCH') = (match_party_id IS NOT NULL))`(P-30) · **V3** `provider` CHECK 에 `GOOGLE` · `provider_user_id` 255(P-33) · **V4** `game_accounts.main_position` 삭제(P-35) · **V5** `game_accounts.tiers jsonb NOT NULL DEFAULT '{}'` + `jsonb_typeof = 'object'` CHECK, 옛 `tier` 를 옮기고(PUBG 는 버림) 삭제(P-36) · **V6** `recruit_posts.host_position varchar(20)`(P-38) · **V7** LoL 스냅숏 `detail.mostChampions` 를 숙련도만의 모양으로 옮긴다(데이터만 — P-39) · **V8** `recruit_posts.capacity smallint`(NULL 허용 · `2..5` CHECK — P-41) · **V9** `recruit_posts.host_id` NULL 허용 + FK `recruit_posts_host_id_fkey` 를 `ON DELETE SET NULL` 로 다시 건다 + CHECK `recruit_posts_host_id_check`(P-48 — 회원 탈퇴) · **V10** `recruit_posts.allow_auto_join boolean NOT NULL DEFAULT true`(P-50 — 빠른매치 입장 허용 / 금지 · 옛 글은 `true`). ERD(§10)가 어긋나면 마이그레이션이 맞다.
 - **"이미 적용된 파일은 고치지 않는다"는 운영 DB 가 생긴 뒤부터 걸린다** — 그 뒤는 새 버전으로. 운영 전에 V1 을 또 갈아 끼울지는 그때 묻는다.
@@ -196,6 +197,15 @@ Redis `PUBLISH qm:pubsub:push:{userId}` 에 **JSON 문자열 하나**. `notifica
 - **`mode` 는 필수**, `tier` 는 값이 있을 때만. 거절은 400 `VALIDATION_FAILED` + `"mode: …"` · `"tier: …"`(글귀 · 안 심긴 Redis 통과는 Claude 세부). `tier` 의 `@Pattern(^[A-Z0-9_]{1,20}$)` 은 남긴다.
 - **미정** — `recruit_posts.mode` 를 `NOT NULL` 로 조일지 · 옛 글의 빈 `mode`(응답에 `mode: null` 이 나갈 수 있다). **지어내지 마라.**
 
+### 3.7 차단 관계 사본 — Redis `qm:user:block-rel:{userId}` (2026-10-02 소유자 결정 · P-52 · D-57 · 계약 "차단" 의 "차단 관계 사본")
+
+소유자 결정 "차단 관계를 Redis 로 — matching 이 DB 를 안 쓰게". **SET 이고 member 는 그 사용자와 어느 방향으로든 차단 관계인 사용자 번호의 십진 문자열 · 대칭(A 가 B 를 차단하면 둘 다) · 수명 없음.** 쓰는 앱은 이 앱뿐이고 `matching` 은 합류 스크립트에서 `SISMEMBER` 로 읽기만 한다(INV-6). **원본은 `blocks` 표 — 어긋나면 DB 가 맞다.** 키 원본 상수는 `social/redisKeys/BlockKeys`(`matching` 의 `SharedKeys.BLOCK_REL_PREFIX` 가 따라 적었다 — `SharedPrefixTest` 다섯째). 아래는 전부 Claude 세부(P-52 행).
+- **쓰는 순서** — 차단 · 해제(`BlockService`)의 `@Transactional` 안에서 **DB 먼저 · Redis 다음 · 커밋.** Redis 를 못 고치면 **503 `BLOCK_STATE_UNAVAILABLE`**(+ `Retry-After: 5`) · 롤백 — "DB 에는 있는데 사본에는 없다"(덜 막기 — 위험한 쪽)가 생기지 않는다. 해제는 **반대 방향 줄이 없을 때만** 빼고, 커밋되지 않으면 사본에 되돌려 넣는다. 두 집합은 한 스크립트로 같이 고친다(`add-block-rel.lua` · `remove-block-rel.lua`).
+- **한 줄로 선다** — 차단 · 해제 · 재구성이 트랜잭션 맨 앞에서 advisory lock 을 잡는다(`BlockRepository#lockRelationCopy`). 재구성의 옛 계산 · 반대 방향의 경쟁이 덜 막기를 만들지 않게.
+- **회원 탈퇴** — 사용자 줄을 잠근 뒤 지우기 전에 상대 목록을 읽고(`BlockReader#counterpartsOf`) 커밋 뒤 그 사람의 키 `DEL` + 상대마다 `SREM`(`BlockRelationRedis#removeUser`). **실패해도 탈퇴는 끝난다**(남는 것은 없는 사람을 향한 더 막기 — 재구성이 치운다).
+- **재구성** — **뜰 때마다 한 번**(`ApplicationRunner` — 못 하면 WARN · 기동을 막지 않는다) + **주기**(`platform.block.redis-sync-interval` ← `BLOCK_REDIS_SYNC_INTERVAL` · 기본 `PT5M` · `PT0S` 면 끈다 — `BlockRelationSync` · `@EnableScheduling` 은 `social/BlockRelationConfig`). 표 전체를 읽어 키마다 `DEL` + `SADD` 한 스크립트(`replace-block-rel.lua`) → `SCAN` 으로 표에 없는 사용자의 키 `DEL`. 멱등 · 수천 줄 전제. 5분은 장애 조치 때 마지막 ms 를 잃는 창(덜 막기)의 상한이다.
+- 차단 목록 · 게시판 · 입장의 차단 거르기(`BlockReader`)는 **DB 를 그대로 읽는다** — 사본은 `matching` 을 위한 것이다. **사본을 쓰는 곳은 `social/service/BlockRelationRedis` 하나**(맨손 `SADD` · `SREM` 금지).
+
 ## 4. 기술 스택 (결정됨)
 
 | 항목 | 값 |
@@ -203,7 +213,7 @@ Redis `PUBLISH qm:pubsub:push:{userId}` 에 **JSON 문자열 하나**. `notifica
 | 언어 | **Java 21** |
 | 프레임워크 | **Spring Boot 4.1.1**(MVC) — `matching` · `notification` 과 같은 버전 |
 | 빌드 | Gradle(`io.spring.dependency-management` 1.1.7) · 단일 모듈 · 앱은 `backend/` |
-| 저장소 | **PostgreSQL** + Flyway(#4). **Redis 용도** — 알림 발행 · refresh(`qm:auth:refresh:{uuid}`) · 방 안의 일(`qm:room:*` · `qm:user:active-room:*`) · 활성 요청 키 `EXISTS` · 전적 락 `qm:riot:sync:{gameAccountId}`(60초 — 연결 · 로그인 때 다시 받기가 같이 · PUBG 도 같은 키) · PUBG 시즌 캐시 `qm:pubg:season:{shard}`(30일) · gameconfig 읽기 · 파티 HASH 읽기. 이 앱의 접두사는 `qm:room:*` · `qm:auth:*` · `qm:riot:*` · `qm:pubg:*`. (`qm:riot:refresh:*` 는 없어졌다 — P-42.) 그 밖의 용도는 §7 |
+| 저장소 | **PostgreSQL** + Flyway(#4). **Redis 용도** — 알림 발행 · refresh(`qm:auth:refresh:{uuid}`) · 방 안의 일(`qm:room:*` · `qm:user:active-room:*`) · 활성 요청 키 `EXISTS` · 전적 락 `qm:riot:sync:{gameAccountId}`(60초 — 연결 · 로그인 때 다시 받기가 같이 · PUBG 도 같은 키) · PUBG 시즌 캐시 `qm:pubg:season:{shard}`(30일) · gameconfig 읽기 · 파티 HASH 읽기 · **차단 관계 사본 `qm:user:block-rel:{userId}`**(쓴다 — §3.7). 이 앱의 접두사는 `qm:room:*` · `qm:auth:*` · `qm:riot:*` · `qm:pubg:*` · `qm:user:block-rel:*`(2026-10-02 — 접두사가 `qm:user:` 로 시작하지만 이 앱의 키다). (`qm:riot:refresh:*` 는 없어졌다 — P-42.) 그 밖의 용도는 §7 |
 | 인증 | **Spring Security `oauth2-resource-server`(Nimbus)** — Boot 4 스타터 `spring-boot-starter-security-oauth2-resource-server` · RS256 · `NimbusJwtEncoder`. jjwt 등 금지. **소셜 로그인에 `oauth2-client` 를 쓰지 않는다**(세션을 쓴다) — `RestClient` 로 직접 짰다 |
 | 포트 | **8082**(`SERVER_PORT`). `matching` 8080 · `notification` 8081. Redirect URI 기본 `OAUTH_REDIRECT_BASE_URL=http://localhost:8082` |
 | 패키지 | 도메인 먼저 — `common`(`error` · `web` · `security` · `push` · `gameconfig`) · `account` · `social` · `party` · `room`(Redis 만 · Lua 는 `resources/lua/`). 안은 `controller` · `service` · `domain` · `repository` · `dto`. **도메인 사이는 창구로 잇고 남의 리포지토리를 직접 쓰지 않는다**(`package-info.java`). JOIN 은 된다(P-23) |
@@ -274,7 +284,7 @@ Redis `PUBLISH qm:pubsub:push:{userId}` 에 **JSON 문자열 하나**. `notifica
 
 | 항목 | 상황 |
 |---|---|
-| **소유자의 검토 — `contracts/platform-api.md` P-1 ~ P-51** | 미정은 아니지만 확정도 아니다. **Claude 가 정한 것** — P-1 ~ P-10(남은 것: 엔드포인트 · 토큰 · `roomId` · 만석 표시 · 소셜 흐름 · 게임 프로필과 글의 칸 · 친구/신고/알림 둘) · **P-30**(자동 매칭 파티의 방 — 경로 · 응답 · 에러 코드 · `roomId = partyId` · V2 · DB 먼저 Lua 뒤 · fail-closed · 입장 표시 키가 부른 사람에게만) · 소유자 결정마다 붙은 "Claude 가 정한 세부"(P-22 의 창구 · 순서 · 자가 치유 · P-28 · P-32 ~ P-34 · P-36 · P-38 ~ P-44 · P-48 ~ P-51 의 세부 — 계약의 각 행). 목록 GET 의 옮겨 적기와 §5.1 (다)의 관계(§3.3)도 검토 항목. 소유자가 뒤집으면 코드 · 계약 · 이 파일을 같이 고친다. 계약 원본에 platform 엔드포인트가 있으면 맞춘다(P-1) |
+| **소유자의 검토 — `contracts/platform-api.md` P-1 ~ P-52** | 미정은 아니지만 확정도 아니다. **Claude 가 정한 것** — P-1 ~ P-10(남은 것: 엔드포인트 · 토큰 · `roomId` · 만석 표시 · 소셜 흐름 · 게임 프로필과 글의 칸 · 친구/신고/알림 둘) · **P-30**(자동 매칭 파티의 방 — 경로 · 응답 · 에러 코드 · `roomId = partyId` · V2 · DB 먼저 Lua 뒤 · fail-closed · 입장 표시 키가 부른 사람에게만) · 소유자 결정마다 붙은 "Claude 가 정한 세부"(P-22 의 창구 · 순서 · 자가 치유 · P-28 · P-32 ~ P-34 · P-36 · P-38 ~ P-44 · P-48 ~ P-52 의 세부 — 계약의 각 행). 목록 GET 의 옮겨 적기와 §5.1 (다)의 관계(§3.3)도 검토 항목. 소유자가 뒤집으면 코드 · 계약 · 이 파일을 같이 고친다. 계약 원본에 platform 엔드포인트가 있으면 맞춘다(P-1) |
 | **자동 매칭이 게시판 방에 합류하는 길** — 정해졌고 구현됐다(`POST /api/v1/posts/auto-join` · P-28 · D-40 · 계약 그 절) | 두 경로를 다 둔다 — 맞는 열린 방이 있으면 넣고(200 `{postId, roomId}`), 없으면 404 `NO_MATCHING_POST` → **프런트가** `matching` 을 부른다. 조건: `game` · `mode` · `voice` · PUBG `perspective` 가 같고 · 내 티어가 **방장 티어의 줄**로 본 `tier-range` 안이고 · 글의 `wantedPositions` 에 내 포지션이 있어야 한다(빈 배열은 통과 — 옛 글). `purpose` 는 보지 않는다. **찾는 포지션이 있는 글에는 요청의 포지션으로 들어가고 누가 이미 고른 방은 건너뛴다**(방 키 · 스크립트의 -6 — P-44 · Claude 세부). 가장 오래된 방부터 · 만석/확정이면 다음 · 내 글 · 음성 불일치는 SQL 에서 거른다 · `no-auto-join` 목록의 방은 건너뛴다 · 정원은 글의 `capacity` · 활성 요청 키를 만들지 않는다(한 번만 본다) · `IN_OTHER_ROOM` · `ALREADY_QUEUED` 는 409 · Redis 를 못 읽으면 503 · ~~"자동 합류 허용" 칸 없음~~ → **2026-10-02 소유자가 뒤집었다 — 글의 `allowAutoJoin`(빠른매치 입장 허용 / 금지 · 글을 쓸 때 필수)이 `false` 면 후보에서 뺀다**(후보 SQL 에서 · 직접 입장은 된다 · V10 · P-50). 본문은 `matching` 의 `CreateMatchRequestCommand` 모양(`playPurpose` 는 받되 무시) — **티어 · 포지션은 프로필이 아니라 본문의 자기신고**다 · 티어의 400 은 `matching` 과 같은 순서 · 티어가 없는 사람은 `EXIST` 모드면 400 · 포지션이 `NONE` 이거나 없으면 빈 `wantedPositions` 글만 맞는다. **남은 미정 — PUBG `PLATFORM` 값을 방장 `server` 와 대조할지.** 후보 상한 `platform.board.auto-join-scan` 50 등은 Claude 세부 |
 | **파티 모집 게시판에 남은 세부** | 확정된 방의 기능(Ready 등) · 게시판 채널 이름의 원본을 둘 곳 · 차단에 남은 경쟁 · 목록의 필터(지금은 필수 `game` 하나 · `status` 필터는 두지 않는다) · 도배 대응 · 자동 매칭 방의 강퇴 재입장. 자세한 것은 §7.1 "정할 것" |
 | **운영의 DB 롤** | 테이블 컬럼은 정해졌다(§3.5). 롤 · `GRANT` 는 없다. **남은 것** — 운영에서 붙는 DB 계정의 이름과 권한(로컬은 `postgres`), 마이그레이션 계정과 앱 계정을 나눌지 |
@@ -341,7 +351,7 @@ queuemate/
             ├── main/java/com/queuemate/platform/   PlatformApplication · package-info(먼저 읽는다)
             │   ├── common/   error · web(Origin) · security(토큰 · TokenClaims · RefreshTokens · SessionCookies) · push · gameconfig(읽기만)
             │   ├── account/  재발급 · 로그아웃 · 프로필 · 게임 계정 · oauth/(소셜 로그인) · stats/(Riot · PUBG 긁기 · 락 · 로그인 때 다시 받기 · 시즌 캐시 · LolChampionNames)
-            │   ├── social/   차단 · 친구 · 신고 · 최근 함께한 사람
+            │   ├── social/   차단 · 친구 · 신고 · 최근 함께한 사람 · 차단 관계 Redis 사본(redisKeys/BlockKeys · BlockRelationRedis · BlockRelationSync — §3.7)
             │   ├── party/    모집 글 · 목록 · PostEntryGate · 확정 기록 · 자동 합류 · board/(채널 신호) · match/(파티 HASH 읽기 · 자동 매칭 파티의 방)
             │   └── room/     방 안의 일 — RoomService · RoomMemberService · RoomRedis · redisKeys/RoomKeys · RoomErrors (Lua 는 resources/lua/)
             ├── main/resources/application.yaml       환경변수 + 기본값 (8082 · PostgreSQL 5433 · Redis 6380 …)
@@ -382,14 +392,14 @@ queuemate/
 | 무엇 | 경로 |
 |---|---|
 | 시작 안내 — 상태 · 순서 · 물을 것 · 로컬 띄우기 | `START_HERE.md` |
-| 이 폴더의 계약 + P-1 ~ P-51 | `contracts/platform-api.md` |
+| 이 폴더의 계약 + P-1 ~ P-52 | `contracts/platform-api.md` |
 | **줄이기 전의 이 파일(날짜별 결정 · 옛 규칙 · 이유)** | `docs/CLAUDE_HISTORY.md` |
 | ERD(어긋나면 마이그레이션이 맞다) | <https://claude.ai/artifact/LBngVYThyCjipLUkatC6Bq> |
 | 로컬 환경 함정 | `docs/LOCAL_ENV_LESSONS.md` |
 | 매칭 엔진 규칙 | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/CLAUDE.md` |
 | 알림 배달 규칙 | `…/queuemate/notification/CLAUDE.md` |
 | 옛 `room` 앱의 규칙 · 계약 · 결정(참고만 — 근거로 쓰지 마라) | `git show origin/room:CLAUDE.md` · `origin/room:contracts/room-api.md` · `origin/room:docs/DECISIONS.md` |
-| 결정 로그 — #13 ~ #27 · D-1 ~ D-56(D-16 · D-19 ~ D-23 은 두 앱 전제 — D-33 이 개정. D-42 가 #18 · #21 · D-13 을 개정) | `…/queuemate/matching/docs/11_DECISION_LOG.md` |
+| 결정 로그 — #13 ~ #27 · D-1 ~ D-57(D-16 · D-19 ~ D-23 은 두 앱 전제 — D-33 이 개정. D-42 가 #18 · #21 · D-13 을 개정) | `…/queuemate/matching/docs/11_DECISION_LOG.md` |
 | 알림 계약(SQS 절은 기록) | `…/queuemate/matching/contracts/events.md` |
 | 계약 사본의 지위 · 자원 목록 | `…/queuemate/matching/contracts/README.md` · `openapi.yaml` |
 | 봉투 · 채널 접두사 원본 | `…/matching/backend/src/main/java/com/queuemate/matching/notification/PushPublisher.java` · `…/redisKeys/SharedKeys.java` |
@@ -401,7 +411,7 @@ queuemate/
 
 ## 11. 이 저장소에서 하지 말 것 (요약)
 
-- **매칭 로직 · 매칭 Redis 키 접근**(예외 둘 — `qm:gameconfig:*` 읽기 · `qm:party:{partyId}` 의 `HGETALL` · `HEXISTS` — 제안 중 포함). **`qm:party:*` 에 쓰기 · 지우기 · `EXPIRE`.** 활성 요청 키에 `EXISTS` 말고 무엇이든. `SseEmitter` / WebSocket / 연결 보유.
+- **매칭 로직 · 매칭 Redis 키 접근**(예외 둘 — `qm:gameconfig:*` 읽기 · `qm:party:{partyId}` 의 `HGETALL` · `HEXISTS` — 제안 중 포함. `qm:user:block-rel:*` 는 이 앱의 키다 — §3.7). **`qm:party:*` 에 쓰기 · 지우기 · `EXPIRE`.** 활성 요청 키에 `EXISTS` 말고 무엇이든. `SseEmitter` / WebSocket / 연결 보유.
 - **방을 Lua 서비스 밖에서 바꾸기**(맨손 `HSET` · `SET`) · **`party` 가 방 키를 직접 읽고 쓰기** · 글 쓰기 · 방장 확정 밖에서 트랜잭션 안에 Redis 호출 · 게시판 방(글 쓰기) · 자동 매칭 방(`POST /api/v1/match-parties/{partyId}/room`) 밖의 방 만들기 요청 · 자동 매칭 방에 `POST /rooms/{roomId}/members` 나 방장 확정을 쓰기 · **자동 매칭 방의 Lua 가 활성 요청 키를 보게 하기** · 자동 매칭 방을 만들 때 DB 와 Lua 를 한 트랜잭션에 묶기 · **확정된 글을 방장 키가 없다고 만료시키기** · **방 키를 못 읽은 것을 "방이 없다"로 읽기**.
 - **입장 금지 · 자동 합류 건너뛰기 목록을 Lua 밖에서 쓰기** · `party` 가 그 목록을 직접 읽기(`RoomService#noAutoJoinRooms`) · 스스로 나간 사람의 직접 입장 막기 · 자동 매칭 방이 금지 목록을 보게 만들기(미정).
 - 예약 · TURN credential · **gameconfig 모듈**(정하고 · 심고 · 해석하기 — 이 앱은 §3.6 의 필드를 읽기만).
@@ -418,7 +428,8 @@ queuemate/
 - 글 고치기(`PATCH /api/v1/posts/{postId}`) 되살리기(P-45) · 글의 `purpose` 되살리기(`matching` 의 `PlayPurpose` 는 그쪽 것이라 건드리지 않는다) · `parties` 에 `playPurpose` 칸 두기 · 게시판 방 먼저 합류에 활성 요청 키를 만들거나 `matching` 을 부르기 · **빠른매치 입장을 금지한 글(`allowAutoJoin = false` — P-50)을 자동 합류에 넣기 · 그것을 자바에서 거르기(후보 SQL 에서 거른다) · 글 쓰기에서 `allowAutoJoin` 에 기본값을 주기(필수다)** · 그 요청의 gameconfig 읽기를 fail-open 으로 바꾸기 · PUBG `PLATFORM` ↔ 방장 `server` 대조를 지어내기 · 소셜 계정을 이메일 등으로 자동으로 합치기.
 - `filledPositions` 나 그 대안을 지어내기.
 - 파티 닫힘을 SQS 로 돌리기 · 방장 키만 없다고 파티를 닫기 · `PARTY_*` 알림 지어내기 · **outbox · SQS · AWS SDK · Kafka/RabbitMQ/Redis Streams 들이기.**
-- `blocks` 모양을 한쪽만 바꾸기 · 스키마를 다시 나누거나 DB 롤 · `GRANT` 두기 · `matching` 이 읽는 테이블을 `blocks` 밖으로 늘리기.
+- `blocks` 모양을 한쪽만 바꾸기 · 스키마를 다시 나누거나 DB 롤 · `GRANT` 두기 · `matching` 이 DB 를 다시 읽게 만들기(D-57).
+- **차단 관계 사본**(§3.7 · P-52) — `BlockRelationRedis` 밖에서 쓰기(맨손 `SADD` · `SREM`) · Redis 를 못 고쳤는데 차단 · 해제를 커밋하기 · 해제에서 반대 방향 줄을 안 보고 빼기 · 한쪽 집합만 고치기 · 사본을 원본으로 읽기(차단 목록 · 게시판 거르기는 DB) · 재구성 실패로 기동을 막기 · `BLOCK_REL_PREFIX` 를 한쪽만 바꾸기 · 차단 · 해제 · 재구성에서 줄 서기(`lockRelationCopy`)를 빼기.
 - **회원 탈퇴**(P-48 · `DELETE /api/v1/auth/account`) — 확정된 글 · 파티 · 남의 파티원 줄을 지우기 · 방장이 빈 비확정 글을 남기기(비확정 글을 `users` 와 다른 트랜잭션에서 지우기) · 탈퇴에서 `matching` 의 활성 요청 키를 지우기 · Redis 를 못 읽었는데 지우기 · 방에 있는 사람을 평소 나가기 없이 지우기 · refresh 를 `KEYS`/`SCAN` 으로 찾아 지우기 · refresh 를 못 지웠다고 탈퇴를 실패시키기 · 탈퇴를 access 토큰 없이 받기(`/api/v1/auth/**` 의 `permitAll` 에 묻히게 두기) · refresh 쿠키의 `Path` 를 `/api/v1/auth` 보다 넓히기 · 방장이 빈 글의 `host` 에 빈 카드를 지어내기 · 제공자 unlink 를 지어내기.
 - 사용자 번호 말고 다른 것을 식별자로 쓰기 · **직접 가입 · 비밀번호 · `loginId` · 로그인 실패 제한 되살리기** · 새 테이블 PK 를 `bigint identity` 말고 두기 · 숫자가 아닌 id 를 400 으로 갈라 주기(없는 사용자와 같은 404).
 - `조회 → 판단 → 삽입` · H2 로 제약 검증했다고 치기 · 경계를 넘는 새 동기 호출.
