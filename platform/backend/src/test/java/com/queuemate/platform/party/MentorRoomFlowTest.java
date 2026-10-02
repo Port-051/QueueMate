@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@org.springframework.test.context.TestPropertySource(properties = {"platform.room.auto-confirm-enabled=true", "platform.room.auto-confirm-poll-ms=3600000"})
 class MentorRoomFlowTest extends PostTestSupport {
     @Autowired PostStore store;
 

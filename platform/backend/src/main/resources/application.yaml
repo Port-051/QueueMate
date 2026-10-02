@@ -111,6 +111,8 @@ platform:
     auto-join-scan: 50
   # 방 안의 일 (contracts/platform-api.md "방"). 2026-09-25 에 room 앱을 합쳤다 — 환경변수 이름은 그쪽의 것 그대로다(계약이다)
   room:
+    # 시간 경과 자동 마감은 일시 비활성화. 정원 충원 및 방장의 수동 마감은 유지한다.
+    auto-confirm-enabled: ${ROOM_AUTO_CONFIRM_ENABLED:false}
     # 방 키(방장 키 · 멤버 HASH · 찾는 포지션 SET · 확정 표시 키)와 입장 표시 키의 수명(초). 접속 확인이 올 때마다 다시 건다. 브라우저는 1분마다 신호를 보낸다
     ttl-seconds: ${ROOM_TTL_SECONDS:600}
   # 게임 전적 동기화 (Riot API — LoL. 아래 두 수치는 PUBG 도 같이 쓴다). 환경변수의 이름은 contracts/platform-api.md "게임 프로필" 이 원본이다.
