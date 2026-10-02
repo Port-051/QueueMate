@@ -5,7 +5,7 @@ import * as api from '../api/client';
 import { hasErrorCode } from '../api/error';
 import type { MatchPartyMember } from '../api/types';
 import { ReportModal } from '../components/ReportModal';
-import { IconLogout, IconMic, IconMicOff, IconSettings } from '../components/icons';
+import { IconCheck, IconLogout, IconMic, IconMicOff, IconSettings } from '../components/icons';
 import { Button, ConfirmDialog, EmptyState, useToast } from '../components/ui';
 import { roomColors } from '../domain/avatarColor';
 import { socialErrorMessage } from '../domain/socialErrors';
@@ -65,7 +65,7 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
   const [room, setRoom] = useState<BoardRoom | null>(null);
   const [postError, setPostError] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [dialog, setDialog] = useState<{ kind: 'leave' } | { kind: 'settings' } | { kind: 'kick'; userId: string; nickname: string } | null>(null);
+  const [dialog, setDialog] = useState<{ kind: 'leave' } | { kind: 'settings' } | { kind: 'closeRecruitment' } | { kind: 'kick'; userId: string; nickname: string } | null>(null);
   const [reportTarget, setReportTarget] = useState<{ userId: string; nickname: string } | null>(null);
   /** 채팅의 아바타·닉네임으로 연 사람 — 그 사람이 방에서 나가면 창도 닫힌다. */
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -244,6 +244,9 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
           {voice === 'connected' && !muted ? <><IconMic size={20} /><span>음소거</span></> : <><IconMicOff size={20} /><span>음소거 해제</span></>}
         </button>
         {isHost && room ? <button type="button" className="room-settings-toggle" aria-haspopup="dialog" onClick={() => setDialog({ kind: 'settings' })}><IconSettings size={18} /><span>방 설정</span></button> : null}
+        {isHost && room && !confirmed ? <button type="button" className="room-settings-toggle room-close-recruitment" aria-haspopup="dialog"
+          disabled={session.members.length < 2} title={session.members.length < 2 ? '2명 이상 모이면 모집을 마감할 수 있어요.' : undefined}
+          onClick={() => setDialog({ kind: 'closeRecruitment' })}><IconCheck size={18} /><span>모집 마감</span></button> : null}
         <Button className="party-room-leave" variant="danger" aria-label="방 나가기" title="방 나가기" disabled={busy} onClick={() => setDialog({ kind: 'leave' })}><IconLogout size={20} /></Button>
       </div>
       <RoomConversationChat key={roomId} messages={messages} canSend={canChat} connectionHint={connectionHint} nameOf={chatName}
@@ -260,6 +263,16 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
         }} /> : null}
       {dialog?.kind === 'leave' ? <RoomLeaveConfirm room={seatRoom} isHost={isHost} confirmed={Boolean(confirmed)} memberCount={session.members.length}
         onClose={() => setDialog(null)} onConfirm={leave} /> : null}
+      {dialog?.kind === 'closeRecruitment' && isHost && room && !confirmed ? <ConfirmDialog title="모집을 마감할까요?" confirmLabel="모집 마감" cancelLabel="취소" busyLabel="마감 중…"
+        className="room-action-dialog room-leave-confirm" closeLabel="모집 마감 창 닫기" onClose={() => setDialog(null)} onConfirm={async () => {
+          await session.confirm();
+          setDialog(null);
+          toast('모집을 마감했어요. 음성과 채팅은 계속 사용할 수 있어요.', 'ok');
+          void loadPost();
+        }} description={<>
+          <div className="room-dialog-summary"><h3>{room.title}</h3><p className="room-row-meta" aria-label="방 조건"><RoomConditions room={room} /></p></div>
+          <div className="room-leave-notice is-warning"><strong>현재 멤버로 파티가 확정돼요.</strong><p>새로운 팀원이 참가할 수 없고, 다시 모집할 수 없어요. 방에 있는 멤버와 음성·채팅은 계속 사용할 수 있어요.</p></div>
+        </>} /> : null}
       {/* 강퇴 뒤 10분 동안 그 방에 다시 못 들어온다(P-32 — 게시판 방만. 자동 매칭 방은 서버가 막지 않아 그 말을 하지 않는다 — 미정). 확정된 게시판 방은 애초에 새 입장이 없다. */}
       {dialog?.kind === 'kick' ? <ConfirmDialog title={`${dialog.nickname}님을 내보낼까요?`} confirmLabel="내보내기" onClose={() => setDialog(null)} onConfirm={() => session.kick(dialog.userId)}
         description={postId === null ? '내보낸 사람은 이 방에서 나가게 돼요.' : confirmed ? '확정된 방이라 내보낸 사람은 다시 들어올 수 없어요.' : '내보낸 사람은 10분 동안 이 방에 다시 들어올 수 없어요.'} /> : null}
