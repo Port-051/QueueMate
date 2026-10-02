@@ -14,7 +14,7 @@ const MATCHING = 'http://localhost:8080';     // 매칭 요청 · heartbeat · �
 const NOTIFICATION = 'http://localhost:8081'; // SSE
 
 export default defineConfig(({ mode }) => {
-  const { QUEUEMATE_PREVIEW_HOST } = loadEnv(mode, process.cwd(), 'QUEUEMATE_');
+  const { QUEUEMATE_PREVIEW_HOST, QUEUEMATE_MATCHING_URL } = loadEnv(mode, process.cwd(), 'QUEUEMATE_');
   return {
     plugins: [react()],
     server: {
@@ -23,8 +23,8 @@ export default defineConfig(({ mode }) => {
       allowedHosts: QUEUEMATE_PREVIEW_HOST ? [QUEUEMATE_PREVIEW_HOST] : [],
       proxy: {
         '/api/v1/events': NOTIFICATION,
-        '/api/v1/match-requests': MATCHING,
-        '/api/v1/proposals': MATCHING,
+        '/api/v1/match-requests': QUEUEMATE_MATCHING_URL || MATCHING,
+        '/api/v1/proposals': QUEUEMATE_MATCHING_URL || MATCHING,
         '/api': PLATFORM,
       },
     },

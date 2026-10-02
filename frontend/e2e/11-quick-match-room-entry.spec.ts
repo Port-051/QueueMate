@@ -15,8 +15,8 @@ test('빠른매치 중 방 참여 — 확인 취소 · 서버 오류 · 취소 �
   expect(queued.status).toBe(201);
   const page = await crew.appPage('b', '/app/home');
   const card = page.locator('.room-deck').filter({ hasText: post.title });
-  const dialog = page.getByRole('dialog', { name: '이 방에 참여할까요?' });
-  const confirm = dialog.getByRole('button', { name: '빠른매치 취소 후 참여하기' });
+  const dialog = page.getByRole('dialog', { name: '방에 참가하기' });
+  const confirm = dialog.getByRole('button', { name: '빠른매치 취소 후 참가' });
   const cancelPath = `**/api/v1/match-requests/${queued.body.requestId}`;
   let joins = 0;
   const order: string[] = [];
@@ -27,7 +27,7 @@ test('빠른매치 중 방 참여 — 확인 취소 · 서버 오류 · 취소 �
 
   await expect(page.getByRole('button', { name: '빠른매치 현황 열기' })).toBeVisible();
   await card.getByRole('button', { name: '참가', exact: true }).click();
-  await expect(dialog.getByText('이 방에 입장하면 현재 진행 중인 빠른매치가 취소됩니다.')).toBeVisible();
+  await expect(dialog.getByText('진행 중인 매칭을 취소한 뒤 이 방에 참가합니다.')).toBeVisible();
   await dialog.getByRole('button', { name: '취소', exact: true }).click();
   expect(order).toEqual([]);
   expect((await guest.get('/match-requests')).body.status).toBe('QUEUED');
@@ -51,7 +51,7 @@ test('빠른매치 중 방 참여 — 확인 취소 · 서버 오류 · 취소 �
   await cancelling;
   await page.keyboard.press('Escape');
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole('button', { name: '참여 중…' })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: '참가 중…' })).toBeDisabled();
   expect(joins).toBe(0);
   release();
   await page.waitForURL(`**/app/party/${post.postId}`);
@@ -70,13 +70,13 @@ test('빠른매치 취소 뒤 입장 실패 — 취소 상태 안내와 입장 �
   const entryPath = `**/api/v1/rooms/${post.postId}/members`;
   await page.route(entryPath, route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'ROOM_STATE_UNAVAILABLE', message: 'unavailable', details: [] }) }));
   await page.locator('.room-deck').filter({ hasText: post.title }).getByRole('button', { name: '참가', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: '이 방에 참여할까요?' });
-  await dialog.getByRole('button', { name: '빠른매치 취소 후 참여하기' }).click();
+  const dialog = page.getByRole('dialog', { name: '방에 참가하기' });
+  await dialog.getByRole('button', { name: '빠른매치 취소 후 참가' }).click();
   await expect(dialog.getByRole('alert')).toContainText('빠른매치는 취소됐지만 방에 입장하지 못했어요.');
   expect((await guest.get('/match-requests')).body.status).toBe('IDLE');
   expect(await myRoom(guest)).toBeNull();
   await page.unroute(entryPath);
-  await dialog.getByRole('button', { name: '참여하기', exact: true }).click();
+  await dialog.getByRole('button', { name: '참가하기', exact: true }).click();
   await page.waitForURL(`**/app/party/${post.postId}`);
   expect(await myRoom(guest)).toBe(String(post.postId));
 });

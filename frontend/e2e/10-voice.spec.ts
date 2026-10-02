@@ -107,10 +107,10 @@ test('시나리오 10 — 두 사람이 화면으로 같은 방 · 마이크 켜
     await dialog.getByRole('group', { name: '음성' }).getByRole('button', { name: '마이크 사용' }).click();
     // 빠른매치 입장은 기본값이 없어 골라야 올라간다(2026-10-02 소유자 결정) — 이 방은 B · C 가 게시판에서 직접 들어오니 어느 쪽이든 되고, 그 전의 글과 같은 허용으로.
     await dialog.getByRole('group', { name: '빠른매치 입장' }).getByRole('button', { name: '허용' }).click();
-    await dialog.getByRole('textbox', { name: '한마디' }).fill(title);
+    await dialog.getByRole('textbox', { name: '방 제목' }).fill(title);
     // 찾는 포지션은 정원 − 1 개 이상(2026-10-01) — 5인에 하나뿐이면 올릴 수 없고 빈 칸 줄이 그 수를 말한다.
     await expect(dialog.getByRole('button', { name: '방 만들기', exact: true })).toBeDisabled();
-    await expect(dialog.getByText('채워야 할 칸 — 찾는 포지션(4개 이상)')).toBeVisible();
+    await expect(dialog.getByText('선택·입력해 주세요: 찾는 포지션(4개 이상)')).toBeVisible();
     for (const role of ['정글', '원딜', '서포터']) await wanted.getByRole('button', { name: role }).click();
 
     const request = pageA.waitForRequest((r) => r.url().endsWith('/api/v1/posts') && r.method() === 'POST');
@@ -133,14 +133,14 @@ test('시나리오 10 — 두 사람이 화면으로 같은 방 · 마이크 켜
     const card = page.locator(`article[aria-label="${title} 방 정보"]`);
     await expect(card).toBeVisible({ timeout: 20_000 });
     await card.getByRole('button', { name: '참가', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: '이 방에 참여할까요?' });
+    const dialog = page.getByRole('dialog', { name: '방에 참가하기' });
     const pick = dialog.getByRole('radiogroup', { name: '내 포지션' });
-    await expect(dialog.getByRole('button', { name: '참여하기' })).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: '참가하기' })).toBeDisabled();
     await expect(pick.getByRole('radio', { name: '미드' })).toHaveCount(0);
     for (const role of taken) await expect(pick.getByRole('radio', { name: role })).toHaveCount(0);
     const request = page.waitForRequest((r) => /\/api\/v1\/rooms\/[^/]+\/members/.test(r.url()) && r.method() === 'POST');
     await pick.getByRole('radio', { name: position }).check({ force: true });
-    await dialog.getByRole('button', { name: '참여하기' }).click();
+    await dialog.getByRole('button', { name: '참가하기' }).click();
     expect(new URL((await request).url()).searchParams.get('position')).toBe(({ 탑: 'TOP', 정글: 'JUNGLE', 원딜: 'ADC', 서포터: 'SUPPORT' } as Record<string, string>)[position]);
     await page.waitForURL(new RegExp(`/app/party/${roomId}$`));
     await expect(page.getByRole('region', { name: '방', exact: true }).getByRole('heading', { level: 1, name: title })).toBeVisible();
@@ -148,8 +148,8 @@ test('시나리오 10 — 두 사람이 화면으로 같은 방 · 마이크 켜
     return page;
   };
   const pressMic = async (page: Page) => {
-    await page.getByRole('button', { name: '마이크 켜기' }).click({ timeout: 20_000 });
-    await expect(page.getByText('마이크 켜짐')).toBeVisible({ timeout: 20_000 });
+    await page.getByRole('button', { name: '음소거 해제' }).click({ timeout: 20_000 });
+    await expect(page.getByRole('button', { name: '음소거', exact: true })).toBeVisible({ timeout: 20_000 });
   };
 
   let pageB: Page | undefined;
@@ -163,14 +163,14 @@ test('시나리오 10 — 두 사람이 화면으로 같은 방 · 마이크 켜
     for (const page of [pageA, pageB!]) await pressMic(page);
   });
 
-  await test.step('파티원은 음성 칸의 좌석 줄 — 정원 다섯 자리에 둘(빈자리 셋) · B 의 좌석은 "음성 연결됨" 이고 누르면 메뉴 · 내 좌석은 누를 수 없다', async () => {
+  await test.step('파티원 다섯 자리에 둘과 빈자리 셋 · 상대와 내 좌석 모두 상세 정보 버튼', async () => {
     // 2026-09-30 — 옛 오른쪽 "파티원 (n/정원)" 카드 대신(`rooms/RoomVoiceSeats.tsx`). 좌석 이름은 그 좌석의 요약 + 음성 상태다.
     const seats = pageA.getByRole('region', { name: '방', exact: true }).getByRole('list', { name: '파티원 2 / 5' });
     await expect(seats).toBeVisible();
     await expect(seats.getByText('빈자리')).toHaveCount(3);
     // 좌석 이름에 B 가 고른 포지션(탑)이 실린다(2026-10-01 — `seatSummary`: 닉네임 · 포지션 · …).
-    await expect(seats.getByRole('button', { name: new RegExp(`^${b.nickname} · 탑 · .*(음성 연결됨|마이크 켜짐|말하는 중) — 메뉴$`) })).toBeVisible({ timeout: 20_000 });
-    await expect(seats.getByRole('button', { name: new RegExp(`^${a.nickname} · `) })).toHaveCount(0);
+    await expect(seats.getByRole('button', { name: new RegExp(`^${b.nickname} · 탑 · .*(음성 연결됨|마이크 켜짐|말하는 중) — 상세 정보$`) })).toBeVisible({ timeout: 20_000 });
+    await expect(seats.getByRole('button', { name: new RegExp(`^${a.nickname} · `) })).toHaveCount(1);
   });
 
   const sideA: Side = { name: 'A', page: pageA };
