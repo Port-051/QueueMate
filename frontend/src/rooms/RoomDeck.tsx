@@ -1,5 +1,5 @@
 import './mentor-room.css';
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { tierColor } from '../domain/rankAssets';
 import type { GameKey, GameStats, LolMostChampion } from '../api/types';
 import { Avatar } from '../components/ui';
@@ -268,19 +268,16 @@ export function seatSummary(room: BoardRoom, member: BoardMember, selfId: string
 }
 
 /** 게시판은 고정 열 표(table), 음성/제안 좌석은 작은 요약을 사용한다. 상세 정보는 공통 팝오버에서 읽는다. */
-export function RoomSeatBody({ room, member, me = false, color, table = false, showDetails = false, voiceMark }: { room: BoardRoom; member: BoardMember; me?: boolean; color?: number; table?: boolean; showDetails?: boolean; voiceMark?: ReactNode }) {
+export function RoomSeatBody({ room, member, me = false, color, table = false, showDetails = false }: { room: BoardRoom; member: BoardMember; me?: boolean; color?: number; table?: boolean; showDetails?: boolean }) {
   const position = seatPosition(room, member);
   const record = room.game === 'LOL' ? winLossRecord(member.profile?.stats) : null;
   const positionLabel = position ? <span className="room-seat-position" title={roleLabel(room.game, position)}><FilterRoleIcon game={room.game} value={position} size={15} /><b>{roleLabel(room.game, position)}</b></span> : null;
-  const face = <span className="room-seat-face">
+  return <>
+    <span className="room-seat-face">
       <RoomMemberAvatar member={member} size={showDetails ? 36 : 34} color={color} showHost={!showDetails} />
       {!showDetails ? <span className="room-seat-tier-badge"><FilterTierIcon game={room.game} tier={member.tier} size={16} /></span> : null}
-    </span>;
-  return <>
-    {showDetails ? <span className="room-voice-identity">{face}<span className="room-voice-indicators">
-      {voiceMark}
-      {position ? <span className="room-voice-position" role="img" aria-label={roleLabel(room.game, position)} title={roleLabel(room.game, position)}><FilterRoleIcon game={room.game} value={position} size={16} /></span> : null}
-    </span></span> : face}
+      {showDetails && position ? <span className="room-voice-position" role="img" aria-label={roleLabel(room.game, position)} title={roleLabel(room.game, position)}><FilterRoleIcon game={room.game} value={position} size={12} /></span> : null}
+    </span>
     <span className="room-seat-text">
       <span className="room-seat-name">
         {position && !showDetails ? <span className="room-seat-position-icon"><FilterRoleIcon game={room.game} value={position} size={12} /></span> : null}
@@ -328,7 +325,7 @@ export function RoomConditions({ room }: { room: BoardRoom }) {
 }
 
 /** 방 목록은 상태 문구 대신 입장 가능 여부로 구분한다. 실제 빈자리와 참가 버튼은 모든 카드에서 같은 위치에 둔다. */
-export function RoomDeck({ room, selfId, entering = false, onEntered, reveal = false, onRevealed, entryError, onSeat, onMember }: { room: BoardRoom; selfId: string; entering?: boolean; onEntered?: () => void; reveal?: boolean; onRevealed?: () => void; entryError: string | null; onSeat: (room: BoardRoom) => void; onMember: (room: BoardRoom, member: BoardMember) => void }) {
+export function RoomDeck({ room, selfId, current = false, entering = false, onEntered, reveal = false, onRevealed, entryError, onSeat, onMember }: { room: BoardRoom; selfId: string; current?: boolean; entering?: boolean; onEntered?: () => void; reveal?: boolean; onRevealed?: () => void; entryError: string | null; onSeat: (room: BoardRoom) => void; onMember: (room: BoardRoom, member: BoardMember) => void }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const card = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
@@ -356,25 +353,29 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, reveal = f
   // 얼굴 색 — 한 방(카드 한 장)의 사람은 모두 다른 색이다(2026-09-30 소유자). 방장 먼저 · 나머지는 사용자 번호 순으로 집 색을 잡고 겹치면 다음 빈 색(`roomColors.ts`).
   const colors = boardRoomColors(room);
   const vacancies = room.status !== 'EXPIRED' && !room.closed ? Math.max(0, room.capacity - room.memberCount) : 0;
-  const canJoin = recruiting && !entryError && vacancies > 0;
-  return <article ref={card} className={`room-deck room-row${room.hostId === selfId ? ' is-own' : ''}${canJoin ? ' is-joinable' : ' is-unavailable'}${entering ? ' is-entering' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`}>
-    <div className="room-row-head">
-      <h3 ref={heading} tabIndex={-1} title={room.title}>{room.title}</h3>
-      <p className="room-row-state"><time dateTime={room.createdAt}>{relativeTime(room.createdAt)}</time></p>
-        <button type="button" className="room-join-button" disabled={!canJoin} title={entryError ?? undefined}
-          aria-label={`참가${entryError ? ` · ${entryError}` : ''}`} onClick={() => { if (canJoin) onSeat(room); }}>참가</button>
+  const canJoin = !current && recruiting && !entryError && vacancies > 0;
+  return <article ref={card} className={`room-deck room-row${room.hostId === selfId ? ' is-own' : ''}${current ? ' is-current-room' : canJoin ? ' is-joinable' : ' is-unavailable'}${entering ? ' is-entering' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`}>
+    <div className="room-row-intro">
+      <div className="room-row-summary">
+        <div className="room-row-head">
+          <h3 ref={heading} tabIndex={-1} title={room.title}>{room.title}</h3>
+          <p className="room-row-state"><time dateTime={room.createdAt}>{relativeTime(room.createdAt)}</time></p>
+        </div>
+        <p className="room-row-meta" aria-label="방 조건">
+          <RoomConditions room={room} />
+          {positions && recruiting && remainingPositions(room).length ? <span className="room-row-wanted"><span className="room-row-wanted-label">찾는 포지션</span><RoomWantedPositions room={room} /></span> : null}
+        </p>
+      </div>
+      <button type="button" className="room-join-button" disabled={!canJoin} title={current ? '현재 참가 중인 방이에요' : entryError ?? undefined}
+        aria-label={current ? '참가 중' : `참가${entryError ? ` · ${entryError}` : ''}`} onClick={() => { if (canJoin) onSeat(room); }}>{current ? '참가 중' : '참가'}</button>
     </div>
-    <p className="room-row-meta" aria-label="방 조건">
-      <RoomConditions room={room} />
-      {positions && recruiting && remainingPositions(room).length ? <span className="room-row-wanted"><span className="room-row-wanted-label">찾는 포지션</span><RoomWantedPositions room={room} /></span> : null}
-    </p>
 
     <div className="room-seat-row">
       <ul className="room-seats" aria-label={recruiting ? `자리 ${room.memberCount} / ${room.capacity}` : `파티원 ${members.length}명`}>
         {members.map(member => <RoomSeat key={member.id} room={room} member={member} color={colors.get(member.id)} selfId={selfId} onMember={onMember} />)}
-        {Array.from({ length: vacancies }, (_, index) => <li className="room-seat is-empty" key={`seat-${index}`}>
-          <span className="room-seat-hole room-seat-vacancy" aria-label={`빈자리 ${index + 1}`} />
-        </li>)}
+        {recruiting && vacancies > 0 ? <li className="room-seat is-empty">
+          <span className="room-seat-hole room-seat-vacancy">{vacancies}명 더 모집 중!</span>
+        </li> : null}
       </ul>
 
     </div>
