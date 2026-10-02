@@ -5,14 +5,14 @@ import {renderSite} from '../src/render.mjs';
 const c=JSON.parse(await readFile(new URL('../site.config.json',import.meta.url),'utf8'));
 const body=html=>{const match=html.match(/<body>[\s\S]*<\/body>/);assert.ok(match);return match[0];};
 
-test('approved production landing is indexable before the matching app launches',()=>{
+test('approved production landing is indexable and links to the app login',()=>{
   const r=renderSite(c,{VERCEL_ENV:'production'});
-  assert.equal(c.allowIndexing,true);assert.equal(c.appReady,false);
+  assert.equal(c.allowIndexing,true);assert.equal(c.appReady,true);
   assert.equal(r.mode.indexable,true);
   assert.match(r.html,/<meta name="robots" content="index, follow, max-image-preview:large">/);
-  assert.match(r.html,/서비스 준비 중/);
-  assert.match(r.html,/href="#preview" data-cta="explore-preview"/);
-  assert.doesNotMatch(r.html,/href="https:\/\/app\.queue-mate\.com/);
+  assert.match(r.html,/팀원 찾기 시작하기/);
+  assert.match(r.html,/href="https:\/\/app\.queue-mate\.com\/login" data-cta="start-matching"/);
+  
 });
 test('published sitemap contains only the canonical introduction page',()=>{
   const r=renderSite(c,{VERCEL_ENV:'production'});
@@ -43,5 +43,5 @@ test('the production deployment still excludes every noncanonical Vercel host',a
 test('switching publication off remains a working rollback without touching the app',()=>{
   const r=renderSite({...c,allowIndexing:false},{VERCEL_ENV:'production'});
   assert.equal(r.mode.indexable,false);assert.equal(r.sitemap,null);
-  assert.match(r.html,/noindex, nofollow/);assert.match(r.html,/서비스 준비 중/);
+  assert.match(r.html,/noindex, nofollow/);assert.match(r.html,/팀원 찾기 시작하기/);
 });
