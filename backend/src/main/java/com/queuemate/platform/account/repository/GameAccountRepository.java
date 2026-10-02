@@ -86,22 +86,27 @@ public interface GameAccountRepository extends JpaRepository<GameAccount, Long> 
      * (2026-09-27 소유자 결정 — LoL 은 티어를 요청으로 받지 않고 Riot 에서 채운다. 2026-09-29 — 사다리마다 따로다, P-36. {@code account.stats}).
      * {@code tiers} 는 통째로 갈아 끼운다 — 긁어 온 사다리 전부다({@code account.domain.GameTiers#write} 의 글자).
      * <b>{@code verified} 는 건드리지 않는다</b> — 식별자를 알아낸 것은 본인 확인이 아니다(켜는 길은 아직 없다 — CLAUDE.md §7).
-     * <b>{@code game_nickname} 도 건드리지 않는다</b> — 사용자가 적은 값이다.
-     * 둘이 다 그대로면 UPDATE 를 내지 않는다({@code where} 절이 가른다 — jsonb 의 같음은 키 순서 · 공백과 무관하다) — 전적만 갱신되는 흔한 경우에
+     * <b>{@code game_nickname} 은 {@code gameNickname} 에 값이 있을 때만 그것으로 덮어쓴다</b> — LoL 의 로그인 · 재발급 때 다시 받기가 저장된 {@code puuid} 로
+     * 읽은 지금의 Riot ID 다(2026-10-03 소유자 결정 · Riot 정책 "historic Riot IDs" · P-53). {@code null} 이면(연결 · PUBG) 건드리지 않는다.
+     * 셋이 다 그대로면 UPDATE 를 내지 않는다({@code where} 절이 가른다 — jsonb 의 같음은 키 순서 · 공백과 무관하다) — 전적만 갱신되는 흔한 경우에
      * {@code updated_at} 이 흔들리지 않게.
+     *
+     * @return 바꾼 줄 수(0 · 1)
      */
     @Modifying
     @Query(nativeQuery = true, value = """
             UPDATE game_accounts
                SET external_id   = CAST(:externalId AS varchar),
                    tiers         = CAST(:tiers AS jsonb),
+                   game_nickname = COALESCE(CAST(:gameNickname AS varchar), game_nickname),
                    updated_at    = :now
              WHERE id = :id
                AND (external_id   IS DISTINCT FROM CAST(:externalId AS varchar)
-                 OR tiers         IS DISTINCT FROM CAST(:tiers AS jsonb))
+                 OR tiers         IS DISTINCT FROM CAST(:tiers AS jsonb)
+                 OR game_nickname IS DISTINCT FROM COALESCE(CAST(:gameNickname AS varchar), game_nickname))
             """)
     int applyFetchedProfile(@Param("id") Long id, @Param("externalId") String externalId, @Param("tiers") String tiers,
-                            @Param("now") Instant now);
+                            @Param("gameNickname") String gameNickname, @Param("now") Instant now);
 
     /** 없어도 에러가 아니다 — 지운 줄 수를 돌려준다. 엔티티를 읽어 와서 지우지 않는다(SELECT 없이 DELETE 한 번) */
     @Modifying

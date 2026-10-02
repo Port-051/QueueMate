@@ -17,7 +17,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 테스트용 <b>가짜 Riot API</b> — {@code account-v1} · {@code league-v4}({@code entries/by-puuid}) · {@code match-v5} · {@code champion-mastery-v4} 의 다섯 주소를 흉내 낸다.
+ * 테스트용 <b>가짜 Riot API</b> — {@code account-v1}({@code by-riot-id} · {@code by-puuid} — 2026-10-03, P-53) · {@code league-v4}({@code entries/by-puuid}) · {@code match-v5} ·
+ * {@code champion-mastery-v4} 의 여섯 주소를 흉내 낸다. 두 계정 주소는 같은 표({@code 이름#태그} ↔ {@code puuid})를 앞뒤로 읽고 각자 센다
+ * ({@link #byRiotIdCalls()} · {@link #byPuuidCalls()}). 이름을 바꾼 계정은 {@link #renameAccount}, Riot 에서 사라진 계정은 {@link #removeAccount} 로 만든다.
  * {@code summoner-v4} 는 <b>앱이 부르지 않는지 세기만 한다</b>({@link #summonerCalls()} — 2026-09-29 실제 키로 보니 소환사 응답에 {@code id} 가 없어
  * 리그를 {@code puuid} 로 부르게 바꿨다. 응답은 실제처럼 {@code id} 가 없는 모양이다).
  * JDK 의 {@link HttpServer} 를 임의 포트로 띄운다({@code FakeOAuthProvider} 와 같은 방식 — WireMock 같은 새 의존성을 들이지 않는다).
@@ -53,6 +55,9 @@ final class FakeRiotApi {
     private final Map<String, String> leagues = new ConcurrentHashMap<>();
     /** 앱이 {@code summoner-v4} 를 부른 수 — 0 이어야 한다 */
     private final AtomicInteger summonerCalls = new AtomicInteger();
+    /** 앱이 {@code account-v1 by-riot-id} · {@code by-puuid} 를 부른 수({@link #calls()} 에도 든다) */
+    private final AtomicInteger byRiotIdCalls = new AtomicInteger();
+    private final AtomicInteger byPuuidCalls = new AtomicInteger();
     /** {@code puuid} → 경기 id 목록(새 경기가 먼저) */
     private final Map<String, List<String>> matchIds = new ConcurrentHashMap<>();
     /** 경기 id → 경기 응답의 JSON */
@@ -78,6 +83,7 @@ final class FakeRiotApi {
             throw new UncheckedIOException(e);
         }
         server.createContext("/riot/account/v1/accounts/by-riot-id/", this::account);
+        server.createContext("/riot/account/v1/accounts/by-puuid/", this::accountByPuuid);
         server.createContext("/lol/summoner/v4/summoners/by-puuid/", this::summoner);
         server.createContext("/lol/league/v4/entries/by-puuid/", this::league);
         // 더 긴 접두사가 이긴다 — by-puuid 의 요청이 경기 하나를 주는 핸들러로 가지 않는다
@@ -105,6 +111,19 @@ final class FakeRiotApi {
     void stubAccount(String riotId, String puuid)
     {
         accounts.put(riotId, puuid);
+    }
+
+    /** 그 {@code puuid} 의 계정이 이름을 바꿨다 — 옛 {@code 이름#태그} 는 {@code by-riot-id} 에서 404 이고, {@code by-puuid} 는 새 이름을 준다 */
+    void renameAccount(String puuid, String newRiotId)
+    {
+        removeAccount(puuid);
+        accounts.put(newRiotId, puuid);
+    }
+
+    /** 그 {@code puuid} 의 계정이 Riot 에서 사라졌다 — 두 계정 주소가 다 404 다. 리그 · 경기는 그대로 둔다(부르면 안 되는지 보려고) */
+    void removeAccount(String puuid)
+    {
+        accounts.values().removeIf(puuid::equals);
     }
 
     /**
@@ -316,6 +335,18 @@ final class FakeRiotApi {
         return lastMasteryRequest;
     }
 
+    /** 앱이 {@code account-v1 by-riot-id} 를 부른 수 */
+    int byRiotIdCalls()
+    {
+        return byRiotIdCalls.get();
+    }
+
+    /** 앱이 {@code account-v1 by-puuid} 를 부른 수(P-53) */
+    int byPuuidCalls()
+    {
+        return byPuuidCalls.get();
+    }
+
     void reset()
     {
         failStatus = 0;
@@ -324,12 +355,15 @@ final class FakeRiotApi {
         delay = Duration.ZERO;
         calls.set(0);
         summonerCalls.set(0);
+        byRiotIdCalls.set(0);
+        byPuuidCalls.set(0);
     }
 
     // ---- 주소 ----
 
     private void account(HttpExchange exchange) throws IOException
     {
+        byRiotIdCalls.incrementAndGet();
         if(!accept(exchange))
         {
             return;
@@ -349,6 +383,30 @@ final class FakeRiotApi {
         }
         respond(exchange, 200, "{\"puuid\":\"" + puuid + "\",\"gameName\":\"" + segments[0]
                 + "\",\"tagLine\":\"" + segments[1] + "\"}");
+    }
+
+    /** …/by-puuid/{puuid} — 그 {@code puuid} 의 <b>지금</b> {@code 이름#태그}. 없으면(사라진 계정) 404 */
+    private void accountByPuuid(HttpExchange exchange) throws IOException
+    {
+        byPuuidCalls.incrementAndGet();
+        if(!accept(exchange))
+        {
+            return;
+        }
+        String puuid = tail(exchange, "/riot/account/v1/accounts/by-puuid/");
+        String riotId = accounts.entrySet().stream()
+                .filter(entry -> entry.getValue().equals(puuid))
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse(null);
+        if(riotId == null)
+        {
+            respond(exchange, 404, "{\"status\":{\"status_code\":404,\"message\":\"Data not found - No results found for player with riot id\"}}");
+            return;
+        }
+        int hash = riotId.lastIndexOf('#');
+        respond(exchange, 200, "{\"puuid\":\"" + puuid + "\",\"gameName\":\"" + riotId.substring(0, hash)
+                + "\",\"tagLine\":\"" + riotId.substring(hash + 1) + "\"}");
     }
 
     /** 앱이 부르면 안 된다 — 세고 실제처럼 {@code id} 가 없는 응답을 준다 */

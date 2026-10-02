@@ -27,6 +27,9 @@ import java.util.Map;
  *                   LoL 은 {@code SOLO} · {@code FLEX} 둘이다. 언랭이거나 사다리에 없는 이름이면 그 값이 {@code null} 이다(키를 빼도 같다 —
  *                   {@code account.domain.GameTiers#write} 가 {@code null} 을 적지 않는다). {@code null} 이 아니다.
  *                   <b>주 포지션은 여기 없다</b> — 게임사 API 에서 뽑지 않는다(2026-09-27 소유자 결정. 2026-09-29 부터는 게임 계정에 그 칸 자체가 없다 — P-35)
+ * @param gameNickname <b>게임사가 지금 알려 준 게임 닉네임</b> — 값이 있으면 {@code game_accounts.game_nickname} 을 이것으로 덮어쓴다(전적과 한 트랜잭션).
+ *                   LoL 의 로그인 · 재발급 때 다시 받기가 저장된 {@code puuid} 로 {@code account-v1 by-puuid} 를 불러 채운다(2026-10-03 소유자 결정 ·
+ *                   Riot 정책 "historic Riot IDs" · P-53). 그 밖(연결 · PUBG · 응답에 이름이 없을 때)은 {@code null} — 이름을 건드리지 않는다
  */
 public record StatsSnapshot(
         String externalId,
@@ -38,6 +41,21 @@ public record StatsSnapshot(
         Integer losses,
         Integer winStreak,
         String detail,
-        Map<String, String> tiers
+        Map<String, String> tiers,
+        String gameNickname
 ) {
+
+    /** 이름을 건드리지 않는 스냅숏 — 연결 · PUBG 의 길이다({@code gameNickname} 이 {@code null}) */
+    public StatsSnapshot(String externalId, int games, BigDecimal avgKills, BigDecimal avgDeaths, BigDecimal avgAssists,
+                         Integer wins, Integer losses, Integer winStreak, String detail, Map<String, String> tiers)
+    {
+        this(externalId, games, avgKills, avgDeaths, avgAssists, wins, losses, winStreak, detail, tiers, null);
+    }
+
+    /** 같은 전적에 게임사가 지금 알려 준 이름을 싣는다(P-53) */
+    public StatsSnapshot withGameNickname(String currentGameNickname)
+    {
+        return new StatsSnapshot(externalId, games, avgKills, avgDeaths, avgAssists, wins, losses, winStreak, detail, tiers,
+                currentGameNickname);
+    }
 }

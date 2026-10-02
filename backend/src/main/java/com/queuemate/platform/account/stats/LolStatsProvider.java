@@ -58,6 +58,9 @@ import java.util.function.ToIntFunction;
  *
  * <p><b>Riot ID 가 없으면({@code account-v1} 404) {@link RiotIdNotFoundException}</b> 이다 — 게임 계정 연결이 404 {@code RIOT_ID_NOT_FOUND} 로 옮긴다.
  *
+ * <p><b>로그인 · 재발급 때 다시 받기는 2걸음이 다르다</b>({@link #refetch} — 2026-10-03 소유자 결정 · P-53) — 저장된 {@code puuid} 로 {@code account-v1 by-puuid} 를 불러
+ * 지금의 Riot ID 를 읽고 게임 닉네임을 그것으로 덮어쓴다(Riot 정책 "historic Riot IDs"). 이름#태그로 부르는 것은 연결뿐이다.
+ *
  * <p><b>없는 칸에 터지지 않는다</b> — 못 읽은 칸은 {@code null} 이거나 그 경기를 건너뛴다({@code JsonText} 의 방식).
  * 지식이 낡아 실제 응답이 다를 수 있으므로, 칸 하나가 사라져도 나머지로 스냅숏이 만들어진다. 다만 {@code puuid} 를 못 읽으면 아무것도 할 수 없어 끝낸다.
  *
@@ -71,6 +74,9 @@ public class LolStatsProvider implements GameStatsProvider {
 
     // ---- Riot 응답의 칸 이름. 이 목록이 이 클래스에 있는 이유는 위 주석에 있다 ----
     private static final String FIELD_PUUID = "puuid";
+    /** {@code account-v1} 응답의 Riot ID 두 조각 — {@code by-puuid} 로 지금의 이름을 읽는다(P-53) */
+    private static final String FIELD_GAME_NAME = "gameName";
+    private static final String FIELD_TAG_LINE = "tagLine";
     private static final String FIELD_QUEUE_TYPE = "queueType";
     private static final String FIELD_TIER = "tier";
     private static final String FIELD_RANK = "rank";
@@ -135,6 +141,9 @@ public class LolStatsProvider implements GameStatsProvider {
     /** Riot 의 단(로마 숫자) → 사다리 이름의 숫자. 사다리는 {@code GOLD_4} … {@code GOLD_1} 이다 */
     private static final Map<String, String> DIVISIONS = Map.of("I", "1", "II", "2", "III", "3", "IV", "4");
 
+    /** {@code game_accounts.game_nickname} 의 길이({@code varchar(40)} — 연결의 {@code @Size(max = 40)} 과 같다). 이보다 긴 Riot ID 로 덮어쓰지 않는다 */
+    private static final int GAME_NICKNAME_MAX = 40;
+
     private final RiotApiClient riot;
     private final RiotProperties properties;
     private final ObjectMapper objectMapper;
@@ -171,7 +180,37 @@ public class LolStatsProvider implements GameStatsProvider {
             log.warn("Riot 의 계정 응답에 {} 가 없다 — 전적을 긁지 않는다", FIELD_PUUID);
             return null;
         }
+        return scrape(puuid);
+    }
 
+    /**
+     * <b>이미 저장된 게임 계정을 다시 긁는다</b>(로그인 · 재발급 때 뒤에서 — P-42). 저장된 {@code puuid} 가 있으면 <b>이름#태그가 아니라 {@code puuid} 로</b>
+     * {@code account-v1 by-puuid} 를 불러 <b>지금의 Riot ID</b> 를 스냅숏의 {@code gameNickname} 에 싣는다 — 이름을 바꾼 사람의 옛 Riot ID 를
+     * 계속 보여 주지 않게(2026-10-03 소유자 결정 · Riot 정책 "Products may not expose a player's historic Riot IDs" · P-53).
+     * 그 전에는 저장된 이름#태그로 {@code by-riot-id} 를 다시 불러, 이름을 바꾼 사람은 404 로 끝나 옛 이름 · 옛 전적이 그대로 남았다.
+     * Riot 호출 수는 그대로다({@code by-riot-id} 한 번이 {@code by-puuid} 한 번으로 바뀐다).
+     *
+     * <ul>
+     *   <li>{@code puuid} 가 없다(전적을 한 번도 못 받은 옛 줄) — {@link #fetch} 와 같다(이름#태그로)</li>
+     *   <li>{@code by-puuid} 가 404 — 그 계정이 Riot 에 없다. {@link RiotIdNotFoundException} — 부르는 쪽이 WARN 하고 옛 전적을 그대로 둔다</li>
+     *   <li>응답에 {@code gameName} · {@code tagLine} 이 없거나 40자를 넘는다 — WARN 하고 이름은 건드리지 않은 채 전적만 받는다(Claude 세부)</li>
+     * </ul>
+     */
+    @Override
+    public StatsSnapshot refetch(String gameNickname, String server, String externalId)
+    {
+        if(externalId == null || externalId.isBlank())
+        {
+            return fetch(gameNickname, server);
+        }
+        String currentRiotId = riotIdOf(accountByPuuid(externalId));
+        StatsSnapshot snapshot = scrape(externalId);
+        return currentRiotId == null ? snapshot : snapshot.withGameNickname(currentRiotId);
+    }
+
+    /** {@code puuid} 로 리그 · 경기 · 숙련도를 긁어 스냅숏을 만든다 — 연결({@link #fetch})과 다시 받기({@link #refetch})가 같이 쓴다 */
+    private StatsSnapshot scrape(String puuid)
+    {
         Ranks ranks = ranks(puuid);
         Matches matches = recentMatches(puuid);
         List<Played> played = matches.played();
@@ -215,6 +254,45 @@ public class LolStatsProvider implements GameStatsProvider {
             }
             throw e;
         }
+    }
+
+    /** {@code account-v1 by-puuid}(P-53). 404 는 그 계정이 Riot 에 없다는 뜻이다 — 이름#태그의 404 와 같은 예외로 보낸다 */
+    private JsonNode accountByPuuid(String puuid)
+    {
+        try
+        {
+            return riot.accountByPuuid(puuid);
+        }
+        catch(RiotApiException e)
+        {
+            if(e.status() == 404)
+            {
+                throw new RiotIdNotFoundException("Riot 에 그 puuid 의 계정이 없다", e);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * 계정 응답의 {@code gameName#tagLine}. 둘 가운데 하나라도 없거나 · 게임 닉네임 칸(40자 — {@code game_accounts.game_nickname})을 넘으면
+     * WARN 하고 {@code null} — 이름을 건드리지 않는다. 닉네임은 로그에 찍지 않는다
+     */
+    private static String riotIdOf(JsonNode account)
+    {
+        String gameName = text(account.path(FIELD_GAME_NAME));
+        String tagLine = text(account.path(FIELD_TAG_LINE));
+        if(gameName == null || tagLine == null)
+        {
+            log.warn("Riot 의 계정 응답에 {} · {} 가 없다 — 게임 닉네임을 그대로 두고 전적만 받는다", FIELD_GAME_NAME, FIELD_TAG_LINE);
+            return null;
+        }
+        String riotId = gameName + "#" + tagLine;
+        if(riotId.length() > GAME_NICKNAME_MAX)
+        {
+            log.warn("Riot 의 지금 Riot ID 가 {}자를 넘는다 — 게임 닉네임을 그대로 두고 전적만 받는다", GAME_NICKNAME_MAX);
+            return null;
+        }
+        return riotId;
     }
 
     // ---- 3걸음: 솔로랭크의 시즌 누적 승/패와 티어 · 자유랭크의 티어 ----

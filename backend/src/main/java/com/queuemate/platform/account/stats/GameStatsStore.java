@@ -51,8 +51,9 @@ public class GameStatsStore {
 
     /**
      * 긁어 온 것을 적는다 — 전적 스냅숏 upsert 와 게임 계정 줄의 {@code external_id} · 사다리별 티어를 <b>한 트랜잭션</b>으로.
-     * 스냅숏이 바뀌었는데 식별자만 남는(또는 그 반대) 일이 없게 한다. 로그인 · 재발급 때 뒤에서 다시 받기({@link GameStatsSyncWorker#syncIfStale} — P-42)의 길이다 —
-     * {@code game_nickname} 은 건드리지 않는다(사용자가 적은 값이다).
+     * 스냅숏이 바뀌었는데 식별자만 남는(또는 그 반대) 일이 없게 한다. 로그인 · 재발급 때 뒤에서 다시 받기({@link GameStatsSyncWorker#syncIfStale} — P-42)의 길이다.
+     * <b>스냅숏에 {@code gameNickname} 이 있으면</b>(LoL — 저장된 {@code puuid} 로 읽은 지금의 Riot ID) {@code game_nickname} 도 같은 트랜잭션에서 그것으로 덮어쓴다
+     * (2026-10-03 소유자 결정 · P-53). 없으면 건드리지 않는다.
      */
     @Transactional
     public void save(Long gameAccountId, Game game, StatsSnapshot snapshot, Instant now)
@@ -83,7 +84,7 @@ public class GameStatsStore {
         statsRepository.upsert(gameAccountId, snapshot.games(), snapshot.avgKills(), snapshot.avgDeaths(),
                 snapshot.avgAssists(), snapshot.wins(), snapshot.losses(), snapshot.winStreak(),
                 snapshot.detail(), SOURCE_API, now);
-        gameAccountRepository.applyFetchedProfile(gameAccountId, snapshot.externalId(), tiers, now);
+        gameAccountRepository.applyFetchedProfile(gameAccountId, snapshot.externalId(), tiers, snapshot.gameNickname(), now);
         log.info("전적 스냅숏 저장 gameAccountId={} games={} wins={} losses={} winStreak={} tiers={}",
                 gameAccountId, snapshot.games(), snapshot.wins(), snapshot.losses(), snapshot.winStreak(), tiers);
     }

@@ -729,6 +729,8 @@ class GameStatsSyncTest extends ApiTestSupport {
         // Riot 을 느리게 — 한 번에 0.3초 · 모두 7번(계정 · 리그 · 경기 id · 경기 3 · 숙련도)이면 2초가 넘는다
         FAKE.respondAfter(Duration.ofMillis(300));
         int callsBefore = FAKE.calls();
+        int byRiotIdBefore = FAKE.byRiotIdCalls();
+        int byPuuidBefore = FAKE.byPuuidCalls();
 
         MvcResult reissued = reissue(nickname);
 
@@ -739,6 +741,9 @@ class GameStatsSyncTest extends ApiTestSupport {
         awaitLoginRefreshIdle();
         FAKE.respondAfter(Duration.ZERO);
         assertThat(FAKE.calls() - callsBefore).isEqualTo(7);
+        // 계정은 저장된 puuid 로 읽는다(by-puuid) — 저장된 이름#태그로 다시 찾지 않는다(2026-10-03 · P-53). 호출 수는 그대로 7번이다
+        assertThat(FAKE.byPuuidCalls() - byPuuidBefore).isEqualTo(1);
+        assertThat(FAKE.byRiotIdCalls() - byRiotIdBefore).isZero();
         assertThat(syncedAt(gameAccountId)).isAfter(Instant.now().minus(Duration.ofMinutes(1)));
         JsonNode profile = profile(cookie, "LOL");
         assertThat(profile.get("gameNickname").asString()).isEqualTo("다시받기#KR1");
@@ -751,6 +756,103 @@ class GameStatsSyncTest extends ApiTestSupport {
         // 끝나면 자물쇠를 푼다. 쿨타임 키는 없다(전적 갱신과 함께 없앴다)
         assertThat(redisTemplate.hasKey(GameStatsSyncLock.SYNC_LOCK_PREFIX + gameAccountId)).isFalse();
         assertThat(redisTemplate.hasKey("qm:riot:refresh:" + gameAccountId)).isFalse();
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    @DisplayName("Riot ID 를 바꾼 사람은 뒤에서 다시 받을 때 저장된 puuid 로 지금의 이름#태그를 읽어 게임 닉네임을 덮어쓴다 — 옛 Riot ID 를 보여 주지 않는다 (2026-10-03 · P-53)")
+    void renamedRiotIdIsOverwrittenOnRefetch(CapturedOutput output) throws Exception
+    {
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
+        Long userId = userIdOf(nickname);
+        String puuid = stubLol("옛이름#KR1", 4, 6, List.of(play("Ahri", 2, 2, 2, true)));
+        putGameAccount(cookie, "LOL", json("gameNickname", "옛이름#KR1")).andExpect(status().isOk());
+        Long gameAccountId = gameAccountId(userId, "LOL");
+        Instant old = Instant.now().minus(Duration.ofHours(2)).truncatedTo(ChronoUnit.MILLIS);
+        touchSyncedAt(gameAccountId, old);
+
+        // 그 사이에 Riot ID 를 바꿨고 한 판 더 이겼다 — 옛 이름#태그는 이제 Riot 에 없다(by-riot-id 404)
+        FAKE.renameAccount(puuid, "새 이름#NEW9");
+        FAKE.stubSoloRank(puuid, 5, 6);
+        FAKE.stubMatches(puuid, List.of(play("Lulu", 3, 1, 3, true, "UTILITY"), play("Ahri", 2, 2, 2, true)));
+        int byRiotIdBefore = FAKE.byRiotIdCalls();
+        int byPuuidBefore = FAKE.byPuuidCalls();
+
+        reissue(nickname);
+        awaitLoginRefreshIdle();
+
+        assertThat(FAKE.byPuuidCalls() - byPuuidBefore).isEqualTo(1);
+        assertThat(FAKE.byRiotIdCalls() - byRiotIdBefore).as("옛 이름#태그로 찾지 않는다").isZero();
+        // 이름과 전적이 같이 바뀌었다 — 한 트랜잭션이다
+        assertThat(gameAccountColumn(gameAccountId, "game_nickname")).isEqualTo("새 이름#NEW9");
+        assertThat(syncedAt(gameAccountId)).isAfter(old);
+        JsonNode profile = profile(cookie, "LOL");
+        assertThat(profile.get("gameNickname").asString()).isEqualTo("새 이름#NEW9");
+        assertThat(profile.get("stats").get("games").asInt()).isEqualTo(2);
+        assertThat(profile.get("stats").get("wins").asInt()).isEqualTo(5);
+        assertThat(gameAccountColumn(gameAccountId, "external_id")).isEqualTo(puuid);
+        // 바뀐 것은 INFO 한 줄로 남긴다 — 사용자 번호는 찍고 이름은 옛것 · 새것 둘 다 찍지 않는다
+        assertThat(output.getAll()).contains("게임 닉네임을 덮어썼다 userId=" + userId + " gameAccountId=" + gameAccountId);
+        assertThat(output.getAll()).doesNotContain("새 이름#NEW9").doesNotContain("옛이름#KR1");
+        assertThat(redisTemplate.hasKey(GameStatsSyncLock.SYNC_LOCK_PREFIX + gameAccountId)).as("락을 풀었다").isFalse();
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    @DisplayName("저장된 puuid 의 계정이 Riot 에 없으면(by-puuid 404) 재발급은 200 이고 옛 이름 · 옛 전적이 그대로다 — 리그 · 경기를 부르지 않고 WARN 한 줄 (P-53)")
+    void vanishedPuuidKeepsOldSnapshot(CapturedOutput output) throws Exception
+    {
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
+        String puuid = stubLol("사라짐#KR1", 4, 6, List.of(play("Ahri", 2, 2, 2, true)));
+        putGameAccount(cookie, "LOL", json("gameNickname", "사라짐#KR1")).andExpect(status().isOk());
+        Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
+        Instant old = Instant.now().minus(Duration.ofHours(2)).truncatedTo(ChronoUnit.MILLIS);
+        touchSyncedAt(gameAccountId, old);
+
+        FAKE.removeAccount(puuid);
+        int callsBefore = FAKE.calls();
+        int byPuuidBefore = FAKE.byPuuidCalls();
+        MvcResult reissued = reissue(nickname);
+        assertThat(reissued.getResponse().getCookie("qm_access")).isNotNull();
+        awaitLoginRefreshIdle();
+
+        // by-puuid 한 번에 끝났다 — 리그 · 경기 · 숙련도를 부르지 않았고 되풀이하지 않았다
+        assertThat(FAKE.calls() - callsBefore).isEqualTo(1);
+        assertThat(FAKE.byPuuidCalls() - byPuuidBefore).isEqualTo(1);
+        assertThat(syncedAt(gameAccountId)).as("옛 전적 그대로다").isEqualTo(old);
+        assertThat(gameAccountColumn(gameAccountId, "game_nickname")).isEqualTo("사라짐#KR1");
+        JsonNode profile = profile(cookie, "LOL");
+        assertThat(profile.get("gameNickname").asString()).isEqualTo("사라짐#KR1");
+        assertThat(profile.get("stats").get("games").asInt()).isEqualTo(1);
+        assertThat(output.getAll()).contains("로그인 뒤 전적 다시 받기에 실패했다").contains("Riot 에 그 puuid 의 계정이 없다");
+        assertThat(redisTemplate.hasKey(GameStatsSyncLock.SYNC_LOCK_PREFIX + gameAccountId)).as("락을 풀었다").isFalse();
+    }
+
+    @Test
+    @DisplayName("puuid 가 아직 없는 옛 줄은 뒤에서 다시 받을 때 예전처럼 이름#태그로 찾는다 — 찾으면 external_id 가 채워진다 (P-53)")
+    void refetchWithoutPuuidFallsBackToRiotId() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie cookie = login(nickname);
+        String puuid = stubLol("옛줄#KR1", 4, 6, List.of(play("Ahri", 2, 2, 2, true)));
+        putGameAccount(cookie, "LOL", json("gameNickname", "옛줄#KR1")).andExpect(status().isOk());
+        Long gameAccountId = gameAccountId(userIdOf(nickname), "LOL");
+        jdbcTemplate.update("update game_accounts set external_id = null where id = ?", gameAccountId);
+        Instant old = Instant.now().minus(Duration.ofHours(2)).truncatedTo(ChronoUnit.MILLIS);
+        touchSyncedAt(gameAccountId, old);
+        int byRiotIdBefore = FAKE.byRiotIdCalls();
+        int byPuuidBefore = FAKE.byPuuidCalls();
+
+        reissue(nickname);
+        awaitLoginRefreshIdle();
+
+        assertThat(FAKE.byRiotIdCalls() - byRiotIdBefore).isEqualTo(1);
+        assertThat(FAKE.byPuuidCalls() - byPuuidBefore).isZero();
+        assertThat(syncedAt(gameAccountId)).isAfter(old);
+        assertThat(gameAccountColumn(gameAccountId, "external_id")).isEqualTo(puuid);
+        assertThat(gameAccountColumn(gameAccountId, "game_nickname")).isEqualTo("옛줄#KR1");
     }
 
     @Test
