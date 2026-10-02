@@ -274,7 +274,7 @@ export function RoomSeatBody({ room, member, me = false, color, table = false, s
   const positionLabel = position ? <span className="room-seat-position" title={roleLabel(room.game, position)}><FilterRoleIcon game={room.game} value={position} size={15} /><b>{roleLabel(room.game, position)}</b></span> : null;
   return <>
     <span className="room-seat-face">
-      <RoomMemberAvatar member={member} size={34} color={color} />
+      <RoomMemberAvatar member={member} size={showDetails ? 36 : 34} color={color} />
       {!showDetails ? <span className="room-seat-tier-badge"><FilterTierIcon game={room.game} tier={member.tier} size={16} /></span> : null}
     </span>
     <span className="room-seat-text">
@@ -320,7 +320,7 @@ export function RoomConditions({ room }: { room: BoardRoom }) {
   const group = modeChoice(room.game, room.modeKey)?.group ?? room.modeKey;
   return <>
     <span className="room-row-mode"><FilterModeIcon mode={group} size={16} />{modeChoiceLabel(room.game, room.modeKey, room.perspective)}</span>
-    <span className={`room-row-voice ${voice === 'REQUIRED' ? 'is-on' : 'is-off'}`}><VoiceIcon preference={voice} size={16} />{voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용'}</span>
+    <span className="room-row-voice"><VoiceIcon preference={voice} size={16} />{voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용'}</span>
   </>;
 }
 
