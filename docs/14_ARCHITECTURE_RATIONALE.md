@@ -253,5 +253,6 @@
 > **이 저장소에서 바뀐 부분.** 위 본문의 `shared_read.blocked_pairs` 뷰 조회는
 > 폐기됐다. 지금은 `social.blocks`를 직접 SELECT 하고, Redis 선필터는 보류했다.
 > (2026-09-26 — 그 테이블은 `app:platform` 의 스키마가 `public` 하나로 합쳐져 **`public.blocks`** 가 됐고 두 칸은 bigint 다. 스키마별 롤도 없다 — docs/11 **D-34 · D-25**.)
+> (2026-10-02 — **D-57 로 그 직접 SELECT 도 없어졌다.** `app:matching` 은 DB 를 쓰지 않고, 합류 Lua 가 `app:platform` 이 쓰는 Redis 집합 `qm:user:block-rel:{userId}` 를 `SISMEMBER` 로 읽는다 — docs/11 **D-57**.)
 > 근거와 대가는 `docs/11_DECISION_LOG.md`의 **D-1 / D-2**에 있다.
 > 본문은 queueMate 원문이라 고치지 않는다 — 어긋나면 D-1이 우선한다.

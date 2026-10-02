@@ -1,6 +1,6 @@
 # HANDOFF — 다음 세션 인계
 
-**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-17 (목) · 2026-09-19 (§0 의 ①·③·④ 에 docs/11 D-11·D-12·D-13 반영, §0-0 · ① 에 D-19 반영) · 2026-09-24 (§0-4 신설 — `platform` 쪽에서 넘어온 일. §0-1 ① 에 참조 한 줄) · 2026-09-24 두 번째 (§0-4 (나) 에 같은 날 늦게 결정된 넷을 더했다 — P-13 의 개정 · P-17 · P-14 의 개정 · P-18) · 2026-09-27 (§0-5 신설 — 임시 식별 `?userId=` 를 쿠키 `qm_access` 검증으로 바꿨다) · 2026-09-27 두 번째 (§0-4 (나) 에 ⑯ ~ ⑱ — D-38 ~ D-40. (다) 가 D-40 으로 세부가 정해졌다) · **2026-09-27 세 번째 (§0-6 신설 — D-41 · D-42 로 오늘 닫힌 것과 남은 것. §0-1 ① · ② · ③ · ⑥ · ⑦ 이 닫혔다)** · 2026-09-29 (§0-7 신설 — 플레이 목적 `NORMAL` → `TRYHARD`, D-49) · 2026-10-01 (§0-8 신설 — 제안 수락 시한 20초 → 5분, D-55) · 2026-10-01 두 번째 (§0-9 신설 — platform 이 제안 중에도 파티 HASH 를 읽는다, D-56) · 2026-10-02 (§0-10 · §0-11 신설 — 제안 만료 Lua · 헬스 경로 `/health/live` · `/health/ready`)
+**작성:** 2026-09-15 (화) 12:29 KST · **갱신:** 2026-09-17 (목) · 2026-09-19 (§0 의 ①·③·④ 에 docs/11 D-11·D-12·D-13 반영, §0-0 · ① 에 D-19 반영) · 2026-09-24 (§0-4 신설 — `platform` 쪽에서 넘어온 일. §0-1 ① 에 참조 한 줄) · 2026-09-24 두 번째 (§0-4 (나) 에 같은 날 늦게 결정된 넷을 더했다 — P-13 의 개정 · P-17 · P-14 의 개정 · P-18) · 2026-09-27 (§0-5 신설 — 임시 식별 `?userId=` 를 쿠키 `qm_access` 검증으로 바꿨다) · 2026-09-27 두 번째 (§0-4 (나) 에 ⑯ ~ ⑱ — D-38 ~ D-40. (다) 가 D-40 으로 세부가 정해졌다) · **2026-09-27 세 번째 (§0-6 신설 — D-41 · D-42 로 오늘 닫힌 것과 남은 것. §0-1 ① · ② · ③ · ⑥ · ⑦ 이 닫혔다)** · 2026-09-29 (§0-7 신설 — 플레이 목적 `NORMAL` → `TRYHARD`, D-49) · 2026-10-01 (§0-8 신설 — 제안 수락 시한 20초 → 5분, D-55) · 2026-10-01 두 번째 (§0-9 신설 — platform 이 제안 중에도 파티 HASH 를 읽는다, D-56) · 2026-10-02 (§0-10 · §0-11 신설 — 제안 만료 Lua · 헬스 경로 `/health/live` · `/health/ready`) · 2026-10-02 두 번째 (§0-12 신설 — 차단을 합류 Lua 로 · DB 를 뗐다, D-57)
 **읽는 순서:** `CLAUDE.md` → `START_HERE.md` → **이 파일의 §0 부터**
 
 이 파일은 "지금 어디까지 왔고 무엇이 열려 있는가"만 담는다. 규칙은 `CLAUDE.md`,
@@ -15,10 +15,24 @@
 
 아래 §1~§5 는 그날그날의 기록이라 겹치는 곳이 있다. **겹치면 이 절이 우선한다.**
 
+### 0-12. 2026-10-02 — 차단 판정을 합류 Lua 로 옮기고 DB 를 뗐다 (했다 — `2b90277` · docs/11 D-57 · 소유자 결정)
+
+소유자 결정("지금 하자 · platform 하고 matching 도 니가 고치고 테스트 돌려서 확인해"). 배포 점검에서 이 앱의 DB 가 `blocks` 한 번 읽기뿐이라는 것이 나왔다.
+**계약** — 차단 관계는 Redis SET **`qm:user:block-rel:{userId}`**(member = 어느 방향으로든 차단 관계인 사용자 번호). **`app:platform` 이 쓴다** — 차단 · 해제 때 양쪽 집합에 대칭으로,
+부팅할 때와 5분마다 `blocks` 표에서 다시 만든다(`../platform` P-52 — 같은 날 그 폴더에서 따로 작업했다. 이 절을 쓸 때 그쪽 커밋은 확인하지 않았다). **이 앱은 `SISMEMBER` 로 읽기만 한다.**
+**바뀐 것** — 세 게임의 합류 스크립트 6개(`join-party.lua` · `join-party-tiered.lua`)가 들어오는 사람의 집합을 `KEYS[#KEYS]` 로 받아 쓰기 전에 파티원마다 `SISMEMBER`,
+걸리면 아무것도 안 쓰고 **`-3`**(`ScriptSupport.BLOCKED`). `*Assigner` 는 `-3` 이면 다음 후보 · 상한이면 새 파티(옛 선필터와 같은 흐름), `joinKeys()` 가 찾기 판 KEYS 끝에 그 키를 붙인다.
+`create-or-check-party-*.lua` 는 로직을 건드리지 않았다(주석만). `block/` 패키지 · `ScriptSupport#blockedWith` · `schema.sql` · JPA · H2 · PostgreSQL · `spring.datasource` · `spring.jpa` · `spring.sql.init` 삭제,
+readiness 그룹은 `readinessState,redis`. 환경변수 `DB_URL` · `DB_USER` · `DB_PASSWORD` 는 없어졌다. 최근 거절(D-45)은 자바에 남았다 — `ScriptSupport#declinedWith`.
+**테스트** — `concurrency/BlockRelationTest` 16건(여섯 합류 스크립트 · 다음 후보 · 동시 20명 · "들어오는 사람 쪽 키만 본다"). Lua 의 확인을 끄면 차단 쪽 10건이 실패하는 것을 확인했다.
+전체 122건 통과(`MatchingApplicationTests` 포함 — 의존성을 뺐으니 돌렸다. `REDIS_PORT=6390`).
+**남은 것** — ① platform 이 집합을 채우는 것(P-52)과 **배포 순서 — platform 먼저**(이 앱이 먼저 나가면 키가 없어 그 사이 차단이 꺼진다) ② `WAIT` 로 레플리카 확인을 받을지(D-57 미정 — 장애 조치 때 마지막 쓰기 유실 창)
+③ 루트 `START_HERE.md` §3 · §4 표(matching 의 DB 칸 · 읽는 Redis 키 · 앱 사이 약속) — 루트 파일은 버전 관리 밖이다.
+
 ### 0-11. 2026-10-02 — 헬스 경로를 `/health/live` · `/health/ready` 로 옮겼다 (했다 — `c307840` · `b14cf03` · 소유자 승인)
 
 actuator 를 `/actuator` 아래에서 **루트로** 옮겨 `platform` · `notification` 과 같은 모양이 됐다(docs/11 D-18 의 "`/health/live` · `/health/ready` 분리").
-`application.yaml` 의 `management` — `base-path: /` · `probes.enabled` · 그룹 `live`(livenessState) · `ready`(readinessState · **redis · db**) · `show-details` 는 기본값 never 로(그 전에는 always 라 Redis 버전 · DB 종류가 보였다).
+`application.yaml` 의 `management` — `base-path: /` · `probes.enabled` · 그룹 `live`(livenessState) · `ready`(readinessState · **redis · db** — 같은 날 §0-12 로 `db` 가 빠졌다) · `show-details` 는 기본값 never 로(그 전에는 always 라 Redis 버전 · DB 종류가 보였다).
 노출은 그대로 `health,info,metrics` — `/metrics` 는 `load-test/run_final.sh` 가 읽고 밖(CloudFront · ALB 는 `/api/**` 만)에서는 닿지 않는다. **ALB 헬스 체크는 `/health/live` 에 건다**(ready 에 걸면 Redis · RDS 장애 조치 동안 태스크가 전부 교체된다).
 `SecurityConfig` 가 `/health/**` · `/health` · `/info` · `/metrics/**` · `/metrics` 를 연다. **옛 `/actuator/health` 는 이제 401** 이다(인증이 필요한 모르는 경로 — 쿠키가 있어도 같다. 테스트로 확인).
 테스트 `web/AuthenticationApiTest` 24건(헬스 5건 — live 에 세부 없음 · ready UP · `/health` · `/info` · `/metrics` · 옛 주소 401). `concurrency.*` · 제안 · alive · push · `web.*` 89건 통과(`REDIS_PORT=6390`).
