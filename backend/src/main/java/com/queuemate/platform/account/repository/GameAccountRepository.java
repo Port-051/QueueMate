@@ -15,6 +15,9 @@ import java.util.Optional;
 
 public interface GameAccountRepository extends JpaRepository<GameAccount, Long> {
 
+    @Query("select distinct a.userId from GameAccount a where a.userId in :userIds and a.verified = true")
+    List<Long> findVerifiedUserIds(@Param("userIds") Collection<Long> userIds);
+
     /**
      * 한 사용자의 게임 계정 전부를 전적과 함께 — <b>쿼리 한 번이다</b>(전적은 LEFT JOIN. 없으면 {@code null}). 게임 이름순으로 온다.
      */
