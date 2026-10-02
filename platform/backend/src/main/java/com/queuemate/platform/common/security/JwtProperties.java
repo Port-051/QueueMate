@@ -16,8 +16,11 @@ import java.time.Duration;
  * @param refreshTokenTtl refresh 토큰의 수명 — Redis 의 줄({@code qm:auth:refresh:{uuid}})과 쿠키의 {@code Max-Age} 가 같이 쓴다
  *                        (환경변수 {@code REFRESH_TOKEN_TTL}). <b>refresh 는 JWT 가 아니지만</b> 토큰의 수명이라 같은 묶음에 둔다
  *                        ({@link RefreshTokens})
- * @param devKeyDir      두 키가 다 비어 있을 때 개발용 키를 만들어 두는 폴더. 작업 디렉터리 기준이다 —
+ * @param devKeyDir      두 키가 다 비어 있을 때 개발용 키를 읽는(없으면 만들어 두는) 폴더. 작업 디렉터리 기준이다 —
  *                       {@code backend/} 에서 띄우면 {@code backend/.dev-keys/} 다. git 에 올리지 않는다
+ * @param generateDevKeys 두 키가 다 비고 {@code devKeyDir} 에 파일도 없을 때 개발용 키를 새로 만드는가(환경변수
+ *                        {@code JWT_GENERATE_DEV_KEYS}, 기본 {@code false}). 끄면 기동을 거부한다 — 파일이 있으면 이 값과 상관없이 읽는다
+ *                        (2026-10-02 소유자 결정 · {@code contracts/platform-api.md} P-51 · {@link JwtKeys})
  */
 @ConfigurationProperties(prefix = "platform.jwt")
 public record JwtProperties(
@@ -26,10 +29,11 @@ public record JwtProperties(
         @DefaultValue("dev-1") String keyId,
         @DefaultValue("PT15M") Duration accessTokenTtl,
         @DefaultValue("P7D") Duration refreshTokenTtl,
-        @DefaultValue(".dev-keys") String devKeyDir
+        @DefaultValue(".dev-keys") String devKeyDir,
+        @DefaultValue("false") boolean generateDevKeys
 ) {
 
-    /** 환경변수로 키를 받았는가 — 아니면 개발용 키를 만들어 쓴다({@link JwtKeys#load}) */
+    /** 환경변수로 키를 받았는가 — 아니면 개발용 키 파일을 읽는다(없으면 {@code generateDevKeys} 일 때만 만든다 — {@link JwtKeys#load}) */
     public boolean configured()
     {
         return privateKey != null && !privateKey.isBlank() && publicKey != null && !publicKey.isBlank();
@@ -44,6 +48,6 @@ public record JwtProperties(
     {
         return "JwtProperties[configured=" + configured() + ", keyId=" + keyId
                 + ", accessTokenTtl=" + accessTokenTtl + ", refreshTokenTtl=" + refreshTokenTtl
-                + ", devKeyDir=" + devKeyDir + "]";
+                + ", devKeyDir=" + devKeyDir + ", generateDevKeys=" + generateDevKeys + "]";
     }
 }
