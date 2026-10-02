@@ -14,7 +14,6 @@ const ROOM_ERROR_MESSAGES: Record<string, string> = {
   POST_NOT_RECRUITING: '모집이 끝난 글이에요',
   POST_CONFIRMED: '확정된 글은 지울 수 없어요',
   NOT_POST_HOST: '방장만 할 수 있어요',
-  ROOM_HAS_OTHER_MEMBERS: '방에 다른 사람이 있어 글을 고칠 수 없어요',
   ROOM_NOT_FOUND: '방이 없어요. 이미 닫혔을 수 있어요',
   ROOM_FULL: '방이 가득 찼어요. 정원만큼 사람이 모였어요',
   ROOM_CONFIRMED: '이미 확정된 방이라 들어갈 수 없어요',
@@ -32,7 +31,7 @@ const ROOM_ERROR_MESSAGES: Record<string, string> = {
  * 글 쓰기 팝업의 칸 이름과 같다(2026-09-30 — 내 포지션이 생기며 붙였다). 모르는 필드는 받은 줄 그대로다. 사유는 서버의 글귀 그대로다.
  */
 const POST_FIELD_LABELS: Record<string, string> = {
-  hostPosition: '내 포지션', wantedPositions: '찾는 포지션', title: '한마디', mode: '게임 모드', voice: '음성', 'conditions.perspective': '시점', description: '소개',
+  hostPosition: '내 포지션', wantedPositions: '찾는 포지션', title: '한마디', mode: '게임 모드', voice: '음성', 'conditions.perspective': '시점', position: '포지션', allowAutoJoin: '빠른매치 입장',
 };
 
 function readableDetail(detail: string): string {
@@ -40,6 +39,13 @@ function readableDetail(detail: string): string {
   const label = match ? POST_FIELD_LABELS[match[1]] : undefined;
   return label && match ? `${label}: ${match[2]}` : detail;
 }
+
+/**
+ * 입장의 포지션 거절인가 — 400 `VALIDATION_FAILED` 의 `details` 가 `"position: …"`(안 골랐다 · 남지 않은 포지션이다 — 남이 먼저 골랐어도 이것이다 · 포지션 없는 방에 줬다 — 2026-10-01 · platform P-44).
+ * 참여 창이 목록을 다시 받고 남은 포지션에서 다시 고르게 하는 갈래다(`RoomJoinConfirm` · `useRoomData#join`).
+ */
+export const isPositionError = (error: unknown): boolean =>
+  isApiError(error) && error.code === 'VALIDATION_FAILED' && error.details.some(detail => /^position:/.test(detail));
 
 export function roomErrorMessage(error: unknown, fallback = '요청을 처리하지 못했어요'): string {
   if (isApiError(error)) {

@@ -9,6 +9,8 @@
 .room-member-profile .room-member-facts .room-rank strong,.room-member-profile .room-member-facts .room-role-icons b { font-size:15px; }
 .room-member-profile .room-member-facts .room-rank img,.room-member-profile .room-member-facts .room-rank svg,.room-member-profile .room-member-facts .room-role-icons svg { width:32px; height:32px; }
 .room-member-profile .room-member-facts .performance-value,.room-member-profile .room-member-facts .room-unknown-stat { font-size:23px; }
+/* 최근 경기의 승 · 패 칸 줄(RecentResults · P-43) — 다른 칸처럼 가운데로(머리 줄과 칸 줄이 서로 가운데). */
+.room-member-profile .room-member-facts .recent-wl { justify-items:center; }
 .room-profile-champions { padding:24px 0 10px; text-align:center; }
 .room-profile-champions .preferred-champions { justify-content:center; flex-wrap:wrap; gap:12px; }
 .room-profile-champions .preferred-champion-portrait { width:42px; height:42px; }

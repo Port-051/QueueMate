@@ -38,7 +38,7 @@ export function IntroductionBioField({ value, onChange, describedBy, invalid = f
 
 /**
  * "음성" 의 두 버튼(사용 · 안 씀). `binary` 는 마이크 그림 중심의 모양, `compact` 는 자동 매칭 판의 모양(미끄러지는 선택 표시 · 글자 "사용 · 미사용")이다.
- * `value` 가 `null` 이면 아무것도 눌리지 않는다 — "글 쓰고 파티 찾기" 팝업이 처음에 그렇다(2026-09-30 소유자 지시). 판(`SelfIntroductionFields`)과 팝업이 같은 부품을 쓴다.
+ * `value` 가 `null` 이면 아무것도 눌리지 않는다 — "방 만들기" 팝업이 처음에 그렇다(2026-09-30 소유자 지시). 판(`SelfIntroductionFields`)과 팝업이 같은 부품을 쓴다.
  */
 export function VoiceOptions({ value, onChange, binary = false, compact = false }: {
   value: VoicePreference | null; onChange: (voice: VoicePreference) => void; binary?: boolean; compact?: boolean;
@@ -52,7 +52,7 @@ export function SelfIntroductionFields({ game, value, onChange, modeLocked = fal
   game: GameKey; value: SelfIntroduction; onChange: (value: SelfIntroduction) => void; modeLocked?: boolean; binaryVoice?: boolean; showTierRange?: boolean; compact?: boolean; singleRole?: boolean; afterMode?: ReactNode; disabledDesiredRoles?: string[];
   /**
    * 글에만 쓰이는 칸 — "찾는 포지션" · "한마디" 를 그리지 않는다. 게시판 맨 위 자동 매칭 판(`rooms/RoomQuickConnect.tsx`)이 켠다 —
-   * 2026-09-29 소유자 지시로 두 칸은 "글 쓰고 파티 찾기" 의 팝업(`rooms/RoomCreatePreview.tsx`)에만 있다. 옛 모집 폼(legacy)은 그대로 그린다.
+   * 2026-09-29 소유자 지시로 두 칸은 "방 만들기" 의 팝업(`rooms/RoomCreatePreview.tsx`)에만 있다. 옛 모집 폼(legacy)은 그대로 그린다.
    */
   hidePostFields?: boolean;
   /**

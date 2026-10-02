@@ -1,4 +1,4 @@
-import type { GameKey, GameProfile, MemberCard, PostResponse, PostStatus, PubgPerspective, TierLadder, VoicePreference } from '../api/types';
+import type { GameKey, GameProfile, MemberCard, PostStatus, PubgPerspective, TierLadder, VoicePreference } from '../api/types';
 
 /**
  * 방 카드 보드가 그리는 모양 — 서버의 `PostResponse`(글이 곧 방)를 카드가 읽기 좋게 편 것이다(`boardRoom.ts` `toBoardRoom`).
@@ -8,12 +8,18 @@ import type { GameKey, GameProfile, MemberCard, PostResponse, PostStatus, PubgPe
  * - 사람의 id 도 십진 문자열이다(방 응답 · 알림 `payload` 와 같은 글자) — `AuthContext.userId` 와 바로 비교한다.
  * - 티어 · 승률 · KDA · 챔피언은 `profile`(그 글의 게임에 연결한 게임 프로필)에서 온다. **티어는 그 글의 모드의 사다리 티어**이고 사다리가 없는 모드면 가장 높은 티어다(2026-09-29 — `domain/profileTier.ts`).
  *   PUBG 는 승률 · KDA 자리에 치킨률 · K/D 가 온다(2026-09-29 PUBG 연동). VALORANT 의 `stats` 는 아직 늘 `null` 이라 `—` 로 그린다.
- * - **사람별 포지션은 없다**(2026-09-29 소유자 결정 — 게임 계정에서 주 포지션 · 주 역할군을 없앴다). 포지션은 글의 `wantedPositions`(찾는 포지션) 하나다.
+ * - **게임 계정의 포지션은 없다**(2026-09-29 소유자 결정 — 게임 계정에서 주 포지션 · 주 역할군을 없앴다). 사람의 포지션은 **그 방에서의 값**이다 — 방장은 글의 `hostPosition`,
+ *   멤버는 참가할 때 고른 것(`position` — 2026-10-01 소유자 결정 — platform P-44 ⑨ · 카드의 `position`).
  */
 export interface BoardMember {
   id: string;
   nickname: string;
   host: boolean;
+  /**
+   * 이 방에서의 포지션(2026-10-01) — 카드의 `position`(방장은 글의 `hostPosition` · 멤버는 참가할 때 고른 것). 안 골랐으면 · 이 게임에 없는 이름이면 · 확정된 글이면(서버가 `null`) `null`.
+   * 칸을 안 보내는 옛 서버면 방장만 글의 `hostPosition` 으로 채운다(`toBoardMember`). 그릴지는 `RoomDeck` `seatPosition` 이 정한다(확정된 방에서는 그리지 않는다).
+   */
+  position: string | null;
   /** 그 글의 모드의 사다리 티어(`GOLD_4` → `GOLD` · `4`). 언랭 · 미연결은 `null`. */
   tier: string | null;
   division: number | null;
@@ -39,11 +45,14 @@ export interface BoardRoom {
   modeKey: string;
   title: string;
   description: string;
-  hostId: string;
+  /** 방장의 사용자 번호(십진 문자열). **방장이 탈퇴한 확정된 글은 `null`**(2026-10-02 — platform P-48). 빠른매치 파티는 그 방의 방장이고 모르면 `null`(`toMatchPartyRoom`). */
+  hostId: string | null;
   /** 방의 정원 = 좌석 수 — 그 글의 모드의 인원(솔로 랭크 2 · 많아야 5 · 그 전에 쓴 글은 5 — P-41, 2026-09-30). */
   capacity: number;
   memberCount: number;
   full: boolean;
+  /** 확정된 파티가 끝났다(platform P-46 — `CONFIRMED` 이고 파티가 닫혔을 때만 `true` · 옛 서버는 `false`). 카드의 머리가 "끝남" 이다(`RoomDeck`). */
+  closed: boolean;
   status: PostStatus;
   voice: VoicePreference;
   /** PUBG 만. `conditions.perspective`. */
@@ -56,9 +65,13 @@ export interface BoardRoom {
   hostPosition: string | null;
   /** ISO-8601. */
   createdAt: string;
-  host: BoardMember;
+  /** 방장 카드. **방장이 탈퇴한 확정된 글은 `null`**(P-48) — 방장 표시 없이 `members`(파티원)만 그린다 · 빈 카드를 지어내지 않는다. */
+  host: BoardMember | null;
   /** 모집 중인 글은 지금 방 안에 있는 사람(방장 먼저), **확정된 글은 확정 순간의 파티원 전원**(P-40 — 방이 없어져도 남는다), 만료된 글은 비어 있다. */
   members: BoardMember[];
-  /** 원본 응답 — 고치기 폼이 기본값으로 쓴다. */
-  post: PostResponse;
+  /**
+   * 빠른매치 파티를 좌석이 그리게 편 것이다(2026-10-01 — `boardRoom.ts` `toMatchPartyRoom` · platform P-47). 글이 아니라 제목 · 글 번호 · 상태 같은 글의 칸은 뜻이 없다.
+   * 참이면 좌석 · 작은 창 · 프로필 창이 **고른 포지션을 늘 붙인다**(파티는 처음부터 확정이지만 고른 포지션이 곧 그 파티를 짠 조건이다 — `RoomDeck` `seatPosition`). 게시판 글은 칸이 없다.
+   */
+  quickMatch?: boolean;
 }

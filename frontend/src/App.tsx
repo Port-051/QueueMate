@@ -5,7 +5,7 @@ import { AuthPage } from './pages/AuthPage';
 import { HomePage } from './pages/HomePage';
 import { MatchConditionPage } from './pages/MatchConditionPage';
 import { MatchWaitingPage } from './pages/MatchWaitingPage';
-import { DirectMessagesPage } from './pages/DirectMessagesPage';
+import { FriendsPage } from './pages/FriendsPage';
 import { MyInfoPage } from './pages/MyInfoPage';
 import { PartyRoomPage } from './pages/PartyRoomPage';
 import { ProposalPage } from './pages/ProposalPage';
@@ -15,6 +15,8 @@ import { LandingPage } from './pages/LandingPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { SettingsRedirectPage } from './pages/SettingsRedirectPage';
 import { SocialSignupPage } from './pages/SocialSignupPage';
+import { PrivacyPage } from './pages/legal/PrivacyPage';
+import { TermsPage } from './pages/legal/TermsPage';
 import { useRoomSession } from './state/RoomSessionContext';
 
 /** `/app/party` — 내 방(입장 표시 키)이 있으면 그 방으로, 없으면 홈으로. */
@@ -23,17 +25,24 @@ function MyRoomRedirect() {
   return <Navigate to={roomId ? `/app/party/${roomId}` : '/app/home'} replace />;
 }
 
-function LegacyFriendsRedirect() {
+/**
+ * 옛 메시지 화면 `/app/messages` → 친구 화면(2026-10-02 소유자 결정 — 메시지 · 알림을 걷고 "친구" 하나로). 옛 친구 관리 패널의 `?manage=` 탭은 `?tab=` 으로 옮긴다
+ * (`friends` 는 쿼리 없음 · 대화 상대 `?user=` 는 버린다 — 대화 화면이 없다).
+ */
+function LegacyMessagesRedirect() {
   const { search } = useLocation();
-  const tab = new URLSearchParams(search).get('tab');
-  const manage = tab === 'blocks' || tab === 'sent' || tab === 'received' ? tab : 'friends';
-  return <Navigate to={`/app/messages?manage=${manage}`} replace />;
+  const manage = new URLSearchParams(search).get('manage');
+  const tab = manage === 'received' || manage === 'sent' || manage === 'blocks' || manage === 'recent' ? manage : null;
+  return <Navigate to={tab ? `/app/friends?tab=${tab}` : '/app/friends'} replace />;
 }
 
 export function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      {/* 개인정보 처리방침 · 이용약관 — 로그인과 상관없이 열리고 리디렉트하지 않는다(구글 · Riot 심사자가 본다 · 2026-10-02 소유자 결정). 한국어만 — 영어판은 같은 날 없앴다. */}
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
       {/* 소셜 콜백은 백엔드가 받아 이 네 경로로 302 한다 — `/`(로그인됨) · `/signup/social`(처음 온 사람) · `/login?error=` · `/settings?linked=|error=`(잇기).
           경로는 백엔드의 것이고 프런트가 맞춘다(2026-09-28 소유자 결정). 직접 가입 · 원본의 `/auth/callback` 코드 교환은 없다. */}
       <Route path="/login" element={<AuthPage />} />
@@ -61,10 +70,11 @@ export function App() {
         <Route path="reservations" element={<ReservationsPage />} />
         <Route path="reservations/new" element={<ReservationNewPage />} />
         <Route path="party" element={<MyRoomRedirect />} />
-        <Route path="messages" element={<DirectMessagesPage />} />
-        <Route path="friends" element={<LegacyFriendsRedirect />} />
-        {/* 친구 · 차단 · 최근 함께한 사람은 메시지 화면의 친구 관리 패널(`?manage=`)이다(5단계). `pages/FriendsPage` · `RecentPlayersPage` 는 라우트 밖이다. */}
-        <Route path="recent" element={<Navigate to="/app/messages?manage=recent" replace />} />
+        {/* 친구 · 받은/보낸 요청 · 차단 · 최근 함께한 사람은 한 페이지(`?tab=`)다 — 2026-10-02 소유자 결정으로 왼쪽 레일의 "메시지"(DM) · "알림" 을 걷고 "친구" 하나로 합쳤다.
+            옛 메시지 화면 · 옛 최근 함께한 사람 주소는 그 탭으로 돌린다. */}
+        <Route path="friends" element={<FriendsPage />} />
+        <Route path="messages" element={<LegacyMessagesRedirect />} />
+        <Route path="recent" element={<Navigate to="/app/friends?tab=recent" replace />} />
         <Route path="me" element={<MyInfoPage />} />
         <Route path="settings" element={<Navigate to="/app/me#settings" replace />} />
       </Route>

@@ -1,6 +1,6 @@
 import { expect, test } from './support/fixtures';
 import { show, type QmUser } from './support/api';
-import { createPost, lolPost, myRoom, roomMembers, uniqueTitle, type Post } from './support/domain';
+import { createPost, enter, lolPost, myRoom, roomMembers, uniqueTitle, type Post } from './support/domain';
 import { expectNoEvent, waitForEvent } from './support/sse';
 
 interface RecentPlayer { userId: number; nickname: string; lastPartyId: number | null; lastPlayedAt: string }
@@ -15,6 +15,7 @@ async function recentOf(user: QmUser, other: QmUser): Promise<RecentPlayer | und
  * 시나리오 4 — 방장 확정 → 파티 → 닫힘 → 최근 함께한 사람(D-21 · P-25).
  * 확정은 방장만 · 2명 이상 · 되돌릴 수 없다. 확정 뒤 새 입장은 막히고 글은 `CONFIRMED` 로 고정된다.
  * 확정한 방은 방장이 나가도 이어지고(D-23 승계), 마지막 사람이 나가 방이 없어지면 파티가 닫히며 그 순간의 파티원끼리 서로를 `recent_players` 에 적는다.
+ * 포지션(P-44 ⑨) — 모집 중에는 카드에 사람마다 포지션이 실리고(방장 미드 · B 가 고른 탑), **확정 뒤 카드의 포지션은 전부 `null`** 이다.
  */
 test('시나리오 4 — 확정 · 파티 · 닫힘 · 최근 함께한 사람', async ({ crew }) => {
   const a = await crew.user('a', { sse: true });
@@ -26,13 +27,16 @@ test('시나리오 4 — 확정 · 파티 · 닫힘 · 최근 함께한 사람',
   const post = await createPost(a, lolPost(uniqueTitle('s4')));
   const roomId = String(post.postId);
 
-  await test.step('혼자서는 확정 불가 · B 입장 · 방장이 아니면 확정 불가', async () => {
+  await test.step('혼자서는 확정 불가 · B 가 탑으로 입장 · 카드에 포지션 · 방장이 아니면 확정 불가', async () => {
     // 혼자서는 확정할 수 없다(409 NOT_ENOUGH_MEMBERS)
     const alone = await a.post(`/rooms/${roomId}/confirm`);
     expect(alone.status, show(alone)).toBe(409);
     expect(alone.body.code).toBe('NOT_ENOUGH_MEMBERS');
-    const r = await b.post(`/rooms/${roomId}/members`);
+    const r = await enter(b, roomId, 'TOP');
     expect(r.status, show(r)).toBe(201);
+    // 모집 중인 글의 카드 — 방장은 글의 방장 포지션 · B 는 고른 것(P-44 ⑨)
+    const recruiting = (await a.get<Post>(`/posts/${post.postId}`)).body;
+    expect(Object.fromEntries(recruiting.members.map((m) => [m.userId, m.position]))).toEqual({ [a.id]: 'MID', [b.id]: 'TOP' });
     // 방장이 아니면 확정할 수 없다
     const notHost = await b.post(`/rooms/${roomId}/confirm`);
     expect(notHost.status, show(notHost)).toBe(403);
@@ -54,10 +58,17 @@ test('시나리오 4 — 확정 · 파티 · 닫힘 · 최근 함께한 사람',
     expect(again.status, show(again)).toBe(200);
   });
 
-  await test.step('글은 CONFIRMED · C 의 입장은 409', async () => {
+  await test.step('글은 CONFIRMED · 카드의 포지션은 전부 null · C 의 입장은 409', async () => {
     const r = await a.get<Post>(`/posts/${post.postId}`);
     expect(r.body.status).toBe('CONFIRMED');
-    const entered = await c.post(`/rooms/${roomId}/members`);
+    // 확정됐지만 방에 아직 사람이 있다 — 파티는 ACTIVE 라 끝나지 않았다(P-46)
+    expect(r.body.closed).toBe(false);
+    // 확정된 글의 카드(파티원 전원 — P-40)는 포지션을 싣지 않는다(P-44 ⑨ — 확정 · 만료 = null). 방장 카드도 같다
+    expect(r.body.members.map((m) => m.userId).sort()).toEqual([a.id, b.id].sort());
+    expect(r.body.members.map((m) => m.position)).toEqual([null, null]);
+    expect(r.body.host?.position ?? null).toBeNull();
+    // 남은 포지션(정글)을 줘도 글 검사(PostEntryGate)가 먼저라 포지션 때문에 막힌 것이 아니다
+    const entered = await enter(c, roomId, 'JUNGLE');
     expect(entered.status, show(entered)).toBe(409);
     // 계약(platform-api.md "입장" 의 에러 표 · §3.3 검사 순서)은 글 검사가 먼저라 POST_NOT_RECRUITING 이다. 방의 Lua 까지 가면 ROOM_CONFIRMED.
     expect(['POST_NOT_RECRUITING', 'ROOM_CONFIRMED']).toContain(entered.body.code);
@@ -90,6 +101,9 @@ test('시나리오 4 — 확정 · 파티 · 닫힘 · 최근 함께한 사람',
       if (old) expect(now.lastPartyId).not.toBe(old.lastPartyId);
     }
     expect(afterA!.lastPartyId).toBe(afterB!.lastPartyId);
-    expect((await a.get<Post>(`/posts/${post.postId}`)).body.status).toBe('CONFIRMED');
+    // 마지막 사람이 나가 파티가 닫혔다 — 글은 CONFIRMED 그대로이고 closed 가 true 다(P-46 — 게시판 카드의 "끝남")
+    const closedPost = (await a.get<Post>(`/posts/${post.postId}`)).body;
+    expect(closedPost.status).toBe('CONFIRMED');
+    expect(closedPost.closed).toBe(true);
   });
 });

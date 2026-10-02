@@ -15,6 +15,8 @@
 @media(max-width:480px) { .room-preview-conditions>div { grid-template-columns:76px minmax(0,1fr); gap:8px; } }
 
 .room-join-preview .room-preview-title h3 { margin:0; }
+/* 참여 창의 "내 포지션"(포지션 방 — 남은 것만 · 2026-10-01). 칸의 모양은 글 쓰기 팝업과 같다(아래 `room-preview-scope`). */
+.room-join-position { margin-top:24px; }
 .room-seat-role-picker { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
 .room-seat-role-picker button { display:flex; align-items:center; gap:6px; padding:9px 11px; border:1px solid var(--line); border-radius:999px; background:var(--panel-2); color:var(--text-dim); font:inherit; cursor:pointer; }
 .room-seat-role-picker button[aria-pressed=true] { background:#493267; border-color:#aa86df; color:#fff; }
@@ -44,3 +46,5 @@
 .room-create-preview input[aria-label="한마디"][aria-invalid=true] { border-color:var(--danger); }
 .room-preview-title-field { min-width:0; }
 .room-preview-title-field>:is(.room-create-hint,.room-create-error) { margin:8px 0 0; }
+/* 빠른매치 입장(허용 · 금지 — 2026-10-02) 칸 아래 한 줄. 칸 사이 간격(`.room-setting-row` 의 gap)이 이미 있어 위 여백은 없다. */
+.room-setting-row>.room-auto-join-note { margin:0; }

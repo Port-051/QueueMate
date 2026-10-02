@@ -18,7 +18,7 @@ export function HomeProfileRail({ user, game, gameAccount, children, below }: Ho
   return <aside className={`home-profile${hasWorkflow ? ' has-workflow' : ''}`} aria-label="내 정보">
     <div className="home-profile-stack"><div className="home-profile-content">
       <div className="home-profile-account">
-        <Avatar name={user.nickname} size={44} />
+        <Avatar userId={user.userId} name={user.nickname} size={44} />
         <div className="home-profile-identity">
           <strong>{user.nickname}</strong>
           {gameAccount?.game === game ? <span>{gameAccount.gameNickname}</span> : null}

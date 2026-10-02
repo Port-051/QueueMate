@@ -2,9 +2,9 @@ import { request } from './http';
 import type {
   AutoJoinResponse, BlockListResponse, BlockView, CreateBlockRequest, CreateFriendRequest, CreateMatchRequest, CreatePostRequest,
   CreateReportRequest, CreateReservationRequest, FriendListResponse, FriendRequestDirection, FriendRequestListResponse, FriendRequestView, FriendView,
-  GameAccountRequest, GameKey, GameProfile, MatchRequestView, MatchRoomResponse, MyRoomResponse,
+  GameAccountRequest, GameKey, GameProfile, MatchPartyMembersResponse, MatchRequestView, MatchRoomResponse, MyRoomResponse,
   PostListResponse, PostResponse, RecentPlayerListResponse, ReportResponse, ReservationView, RoomMembersResponse, SessionUser, SocialProvider, SocialSignupPending,
-  SendRoomSignalRequest, SocialSignupRequest, UpdatePostRequest, UpdateUserRequest, UserProfile,
+  SendRoomSignalRequest, SocialSignupRequest, UpdateUserRequest, UserProfile,
 } from './types';
 
 /**
@@ -40,15 +40,18 @@ export const devLogin = (nickname: string) =>
 /* ---------- user ---------- */
 export const getMe = () => request<UserProfile>('/users/me');
 export const updateMe = (body: UpdateUserRequest) => request<UserProfile>('/users/me', { method: 'PATCH', body });
+/**
+ * 회원 탈퇴 **`DELETE /api/v1/auth/account`**(2026-10-02 소유자 결정 — platform P-48 · "계정" 의 "회원 탈퇴"). 처음엔 `DELETE /users/me` 였다 — refresh 쿠키(`Path=/api/v1/auth`)가
+ * 실려 오게 `/auth` 아래로 옮겼고 서버가 이 브라우저의 refresh 줄도 지운다. `/auth/**` 가운데 이것만 access 가 있어야 해서 `http.ts` 가 401 이면 재발급 뒤 다시 보낸다(`ACCOUNT_PATH`).
+ * 본문 없음 · **204 + 로그인 쿠키 둘 제거**(로그아웃과 같은 `Set-Cookie`).
+ * 그 사람의 데이터가 전부 지워지고 **다른 사람과 확정한 글만 작성자 칸이 빈 채 남는다**(글 응답의 `hostId` · `host` 가 `null`). 방 안이면 서버가 평소 나가기처럼 내보낸 뒤 지운다.
+ * **409 `ALREADY_QUEUED`** — 매칭 대기 중(확정 직후 60초의 파티 상태도) · **503 `ROOM_STATE_UNAVAILABLE`** + `Retry-After: 5` — 아무것도 지우지 않았다 ·
+ * 401 `UNAUTHENTICATED` — 이미 없는 사용자(재발급도 실패해 `onAuthLost` 가 먼저 불린다).
+ */
+export const deleteMe = () => request<void>('/auth/account', { method: 'DELETE' });
 /** 소셜 계정 끊기. 내 것이 아니어도 204(멱등). 마지막 하나면 409 `LAST_SOCIAL_IDENTITY`. 잇기는 `oauthStartPath` 로의 이동이다. */
 export const unlinkSocial = (provider: SocialProvider) =>
   request<void>(`/users/me/social/${provider}`, { method: 'DELETE' });
-/**
- * 아바타 업로드 — **우리 백엔드에 없다**(원본 `POST /users/me/avatar`). 부르면 404 다. 아바타 화면의 처지는 미정(START_HERE.md §5)이라
- * 화면이 컴파일되게만 남겼다.
- */
-export const uploadAvatar = (file: File) =>
-  request<UserProfile>('/users/me/avatar', { method: 'POST', file });
 /* ---------- game accounts (platform-api.md "계정" · "게임 프로필" · "전적을 긁는 것") — 목록은 `users/me.gameAccounts` 다(따로 받는 요청이 없다) ---------- */
 /**
  * 게임 계정 연결 · 수정 — 없으면 만들고 있으면 바꾼다. 본문은 게임마다 다르다(`GameAccountRequest`). 200 게임 프로필.
@@ -104,6 +107,13 @@ export const declineProposal = (partyId: string) => request<void>(`/proposals/${
  */
 export const enterMatchPartyRoom = (partyId: string) =>
   request<MatchRoomResponse>(`/match-parties/${encodeURIComponent(partyId)}/room`, { method: 'POST' });
+/**
+ * 빠른매치 파티의 팀원 카드(2026-10-01 소유자 결정 — platform P-47) — 닉네임 · 고른 포지션 · 그 게임의 게임 프로필. 제안 화면과 빠른매치 방이 같은 요청을 쓴다. 읽기만 한다.
+ * **`game` — 제안 중에는 필수다**(서버가 아직 게임을 모른다 · 없으면 400 `VALIDATION_FAILED` `"game: …"`). 확정된 파티는 서버가 게임을 알아 쿼리를 보지 않는다 — 모르면 싣지 않는다.
+ * 403 `NOT_PARTY_MEMBER`(내가 그 파티원이 아니다) · 404 `MATCH_PARTY_NOT_FOUND` · 503 `ROOM_STATE_UNAVAILABLE`.
+ */
+export const getMatchPartyMembers = (partyId: string, game?: GameKey) =>
+  request<MatchPartyMembersResponse>(`/match-parties/${encodeURIComponent(partyId)}/members`, { query: { game } });
 
 /* ---------- reservation — **우리 백엔드에 없다**(`app:reservation` Lambda · 미착수). 부르면 404 다. 화면이 컴파일되게 남겼다 ---------- */
 export const createReservation = (body: CreateReservationRequest) =>
@@ -131,8 +141,10 @@ export const getPost = (postId: number) => request<PostResponse>(`/posts/${postI
  * 409 `ALREADY_RECRUITING`(모집 중인 내 글이 있다) · `ALREADY_QUEUED`(자동 매칭 중) · `IN_OTHER_ROOM`(이미 방에 있다) · 503 `ROOM_STATE_UNAVAILABLE`(+`Retry-After: 5`) · 400 `VALIDATION_FAILED`(`details[0]` = "필드: 사유").
  */
 export const createPost = (body: CreatePostRequest) => request<PostResponse>('/posts', { method: 'POST', body });
-/** 방장만 · 모집 중일 때만 · **방에 방장 말고 누가 있으면 409 `ROOM_HAS_OTHER_MEMBERS`**(P-19). 403 `NOT_POST_HOST` · 409 `POST_NOT_RECRUITING` · 503(방 안을 못 읽음). */
-export const updatePost = (postId: number, body: UpdatePostRequest) => request<PostResponse>(`/posts/${postId}`, { method: 'PATCH', body });
+/*
+ * 글 고치기(`PATCH /posts/{postId}`)는 **없다** — 보내면 405 `METHOD_NOT_ALLOWED`(2026-10-01 소유자 결정 — platform P-45.
+ * 에러 코드 `ROOM_HAS_OTHER_MEMBERS` 도 같이 없어졌다). 글은 쓰고 지우기만 한다.
+ */
 /** 지우지 않고 만료로 바꾸고 **방도 닫는다**(`ROOM_CLOSED` — 있던 전원의 입장 표시 키가 지워진다). 204. 확정된 글은 409 `POST_CONFIRMED` · 403 `NOT_POST_HOST`. */
 export const deletePost = (postId: number) => request<void>(`/posts/${postId}`, { method: 'DELETE' });
 
@@ -141,9 +153,13 @@ const room = (roomId: string) => `/rooms/${encodeURIComponent(roomId)}`;
 /**
  * 게시판 방 입장 — 본문 없음 · **201 들어감 / 200 이미 있음**(둘 다 본문 없음). 자동 매칭 방에는 쓰지 않는다(그쪽은 `enterMatchPartyRoom`).
  * 글의 검사가 먼저다 — 404 `POST_NOT_FOUND`(없거나 차단으로 숨김) → 409 `POST_NOT_RECRUITING` → 503 → 방의 Lua(409 `ALREADY_QUEUED` · `ROOM_FULL` · `IN_OTHER_ROOM` · `ROOM_CONFIRMED` · 404 `ROOM_NOT_FOUND`).
+ * **`position` — 참가할 때 고르는 포지션**(쿼리 `?position=JUNGLE` · 2026-09-30 ~ 10-01 소유자 결정 — platform P-44). 포지션 방(글의 `wantedPositions` 가 비지 않았다)은 남은 포지션 하나가 필수이고
+ * 포지션이 없는 방(빈 `wantedPositions` — 칼바람 · PUBG · 옛 글)에는 **주지 않는다**(주면 400). 안 줬거나 남지 않은 것이면 400 `VALIDATION_FAILED` `"position: …"`(`rooms/errors.ts` `isPositionError`).
+ * 이미 들어와 있으면(200) 포지션을 보지 않는다. 값이 있을 때만 쿼리를 붙인다(`withQuery` 가 `undefined` 를 버리고 값을 인코딩한다).
  */
-export const enterRoom = (roomId: string) => request<void>(`${room(roomId)}/members`, { method: 'POST' });
-/** 방 안 사람 — 방 안의 사람만(밖이면 403 `NOT_IN_ROOM` — 방 화면을 닫는다). `hostId` 가 바뀌면 승계다(D-23). */
+export const enterRoom = (roomId: string, position?: string) =>
+  request<void>(`${room(roomId)}/members`, { method: 'POST', query: { position } });
+/** 방 안 사람 — 방 안의 사람만(밖이면 403 `NOT_IN_ROOM` — 방 화면을 닫는다). `hostId` 가 바뀌면 승계다(D-23). 2026-10-01 부터 사람마다 `{userId, position}`(platform P-44 ⑩). */
 export const getRoomMembers = (roomId: string) => request<RoomMembersResponse>(`${room(roomId)}/members`);
 /** 나가기 — **늘 204**(없는 방 · 안 들어간 방도). 미확정 방의 방장이 나가면 방이 닫히고 글이 만료된다 · 확정한 방은 승계된다. */
 export const leaveRoom = (roomId: string) => request<void>(`${room(roomId)}/members/me`, { method: 'DELETE' });

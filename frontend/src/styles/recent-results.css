@@ -1,0 +1,15 @@
+/* 최근 경기의 승 · 패 칸(components/RecentResults.tsx) — duo.gg 의 "15승 5패 (20 게임)" + 승/패 칸 줄. 왼쪽 칸이 가장 최근이다.
+   칸의 색은 앱 토큰을 어둡게 섞은 것 — 승 --ok 60% · 패 --danger 78%(승 · 패 막대의 패 칸과 같은 색). 흰 글자 대비는 둘 다 4.6 쯤이다(#25845b 4.64 · #c74954 4.66).
+   이름이 `recent-wl` 인 까닭 — `.recent-results` 는 옛 소개 화면(styles/introduction.css)이 전역으로 쓰는 이름이라 겹치면 칸 줄이 무너졌다(2026-09-30 확인). */
+.recent-wl { --rr-tile:20px; --rr-gap:2px; --rr-font:11px; --rr-head:12.5px; display:grid; justify-items:start; gap:5px; min-width:0; max-width:100%; }
+.recent-wl[data-size="lg"] { --rr-tile:26px; --rr-gap:3px; --rr-font:12.5px; --rr-head:15px; gap:8px; }
+.recent-wl-head { display:flex; align-items:baseline; flex-wrap:wrap; gap:0 7px; min-width:0; color:var(--text); font-size:var(--rr-head); line-height:1.35; font-variant-numeric:tabular-nums; }
+.recent-wl-label { color:#8f8aa0; font-size:11px; font-weight:400; }
+.recent-wl-sum b { font-weight:650; }
+.recent-wl-count { color:var(--muted); }
+.recent-wl-none { color:var(--muted); }
+/* 한 줄에 10칸까지(--rr-cols = min(판 수, 10)) — 넘치면 다음 줄 · 자리가 모자라면 칸이 정사각형 그대로 줄어든다. */
+.recent-wl-tiles { display:grid; grid-template-columns:repeat(var(--rr-cols, 10), minmax(0, var(--rr-tile))); gap:var(--rr-gap); max-width:100%; }
+.recent-wl-tile { display:grid; place-items:center; min-width:0; aspect-ratio:1; overflow:hidden; border-radius:4px; color:#fff; font-size:var(--rr-font); font-weight:700; line-height:1; }
+.recent-wl-tile.is-win { background:color-mix(in srgb, var(--ok) 60%, #000); }
+.recent-wl-tile.is-loss { background:color-mix(in srgb, var(--danger) 78%, #000); }

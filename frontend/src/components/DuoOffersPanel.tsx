@@ -34,7 +34,7 @@ export function DuoOffersPanel({ source }: { source: BoardRow }) {
       const introduction = introductionForRow(offer.peer);
       return <article className="duo-offer" key={offer.id} aria-label={`${offer.peer.nickname} 매칭 제안`}>
         <div className="duo-offer-label"><span className="discovery-dot" />{offer.status === 'RECEIVED' ? '먼저 오케이를 보냈어요' : '상대 발견'}</div>
-        <div className="duo-offer-person"><Avatar name={offer.peer.nickname} size={32} /><strong>{offer.peer.nickname}</strong><RankBadge game={offer.peer.condition.game} tier={offer.peer.preferences.ownTier} division={introduction.rankDivision} /></div>
+        <div className="duo-offer-person"><Avatar userId={offer.peer.userId} name={offer.peer.nickname} size={32} /><strong>{offer.peer.nickname}</strong><RankBadge game={offer.peer.condition.game} tier={offer.peer.preferences.ownTier} division={introduction.rankDivision} /></div>
         <MatchConditionSummary record={offer.peer} />
         <div className="duo-offer-bottom">
           <div className="duo-offer-copy">
@@ -48,6 +48,6 @@ export function DuoOffersPanel({ source }: { source: BoardRow }) {
         </div>
       </article>;
     })}
-    {sent.length ? <section className="duo-sent" aria-label="보낸 오케이"><h3>응답 대기 <span>{sent.length}</span></h3>{sent.map(offer => <div className="duo-sent-person" key={offer.id}><Avatar name={offer.peer.nickname} size={28} /><div><strong>{offer.peer.nickname}</strong></div><Button size="sm" variant="ghost" disabled={Boolean(busy)} aria-label={`${offer.peer.nickname} 오케이 취소`} title="오케이 취소" onClick={() => void act(offer.id)}><IconX size={16} /></Button></div>)}</section> : null}
+    {sent.length ? <section className="duo-sent" aria-label="보낸 오케이"><h3>응답 대기 <span>{sent.length}</span></h3>{sent.map(offer => <div className="duo-sent-person" key={offer.id}><Avatar userId={offer.peer.userId} name={offer.peer.nickname} size={28} /><div><strong>{offer.peer.nickname}</strong></div><Button size="sm" variant="ghost" disabled={Boolean(busy)} aria-label={`${offer.peer.nickname} 오케이 취소`} title="오케이 취소" onClick={() => void act(offer.id)}><IconX size={16} /></Button></div>)}</section> : null}
   </section>;
 }

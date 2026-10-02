@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import type { GameKey } from '../api/types';
 import { GameAccountForm } from '../components/GameAccountForm';
 import { GameBadge } from '../components/GameSymbol';
+import { SiteFooter } from '../components/SiteFooter';
 import { Button, Tag, useToast } from '../components/ui';
 import { GAMES } from '../domain/gameConfig';
 import { TIER_LADDER_LABEL } from '../domain/gameCatalog';
@@ -75,6 +76,7 @@ export function OnboardingPage() {
           {gameAccounts.length === 0 ? <Button variant="ghost" size="lg" onClick={() => leave('skipped')}>나중에 할게요</Button> : null}
         </div>
       </div>
+      <SiteFooter variant="compact" />
     </div>
   );
 }

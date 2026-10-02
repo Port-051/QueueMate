@@ -5,7 +5,8 @@ import emptyNoMatch from '../assets/empty-no-match.webp';
 import emptyNoSocial from '../assets/empty-no-social.webp';
 import emptyNoReservation from '../assets/empty-no-reservation.webp';
 import { isApiError } from '../api/error';
-import { LogoMark } from './Logo';
+import { AVATAR_PALETTE, homeColor, nameColor } from '../domain/avatarColor';
+import { LogoGlyph } from './Logo';
 
 export function Card({ children, className = '', ...rest }: { children: ReactNode; className?: string } & HTMLAttributes<HTMLDivElement>) {
   return <div className={`card ${className}`} {...rest}>{children}</div>;
@@ -44,32 +45,31 @@ export function Tag({ children, tone = 'default' }: { children: ReactNode; tone?
   return <span className={`tag${tone === 'default' ? '' : ` ${tone}`}`}>{children}</span>;
 }
 
-/** 같은 닉네임은 화면 이동 · 새로고침 뒤에도 같은 색을 쓴다. */
-function avatarHue(label: string): number {
-  let hash = 2166136261;
-  for (const char of label) hash = Math.imul(hash ^ char.codePointAt(0)!, 16777619) >>> 0;
-  return hash % 360;
-}
-
 /**
- * 기본 프로필은 QueueMate 심볼이다. 사람마다 심볼과 배경의 색상을 달리한다.
- * 스크린 리더에는 숨긴다 — 이름은 옆 닉네임 · 버튼 이름이 말한다(그림도 `alt=""` 였다).
+ * 사람의 얼굴 자리 — **Discord 식 기본 아바타**: 모두 같은 흰 로고 실루엣(`LogoGlyph`)이 색 원 가운데에 있고 **배경색만 사람마다 다르다**
+ * (2026-09-30 소유자 결정 — 안 A. 그 전에는 닉네임 이니셜 원이었다 — 데모 계정이 전부 "DE" · 거의 같은 보라라 구별이 안 됐다).
+ *
+ * - 색은 팔레트 10색(`domain/avatarColor.ts`) 가운데 하나다. **`color`(방 색 — 팔레트 번호)를 주면 그것**, 아니면 **`userId` 의 집 색**(번호 mod 10),
+ *   번호도 모르면 마지막 수단으로 `name` 의 해시다(지금은 로그인 정보가 아직 없는 자리뿐).
+ * - **한 방 · 한 파티의 사람을 같이 그리는 곳은 `roomColors` 로 구한 `color` 를 넘긴다** — 같은 방 안의 색은 모두 다르다(소유자 — "색깔이 다 달라야지 구별이 가능하니까").
+ *   게시판 카드 · 프로필 창(`rooms/RoomDeck.tsx` · `RoomMemberProfile`) · 방 화면의 음성 칸 좌석 · 방 채팅(`pages/PartyRoomPage.tsx` · `RoomVoiceSeats`)이 그렇다.
+ * - 스크린 리더에는 숨긴다 — 이름은 옆 닉네임 · 버튼 이름이 말한다.
  */
-export function Avatar({ name, size = 38, status }: {
+export function Avatar({ userId, name, color, size = 38, status }: {
+  /** 사용자 번호 — 방 밖의 색(집 색)을 정한다. */
+  userId?: string | number | null;
+  /** 번호를 모를 때만 색의 열쇠가 된다(그리지는 않는다). */
   name?: string | null;
+  /** 방 색 — `roomColors` 가 준 팔레트 번호. 주면 이것이 이긴다. */
+  color?: number;
   size?: number;
   status?: 'online' | 'away' | 'offline';
 }) {
-  // 서버가 이름을 빼먹어도 화면 전체가 죽지는 않게 한다. 빈 칸 하나가 흰 화면보다 낫다.
-  const label = (name ?? '').trim();
-  const hue = avatarHue(label);
+  const index = color ?? (userId !== null && userId !== undefined && String(userId).trim() ? homeColor(userId) : nameColor((name ?? '').trim()));
   return (
     <span className="avatar-wrap" style={{ width: size, height: size }} aria-hidden="true">
-      <span
-        className="avatar"
-        style={{ width: size, height: size, filter: `hue-rotate(${hue}deg)` }}
-      >
-        <LogoMark size={Math.round(size * 0.78)} />
+      <span className="avatar" style={{ width: size, height: size, backgroundColor: AVATAR_PALETTE[index] ?? AVATAR_PALETTE[0] }}>
+        <LogoGlyph className="avatar-glyph" />
       </span>
       {status ? <i className={`avatar-status ${status}`} /> : null}
     </span>

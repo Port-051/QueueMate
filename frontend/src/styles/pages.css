@@ -45,7 +45,18 @@
 .feature b { font-size: 15px; }
 .feature p { margin-top: 8px; font-size: 13px; color: var(--muted); line-height: 1.65; }
 
-.landing-foot { max-width: 1440px; margin: 56px auto 0; padding-top: 24px; border-top: 1px solid var(--line-soft); color: var(--muted); font-size: 12.5px; display: flex; gap: 18px; }
+/* 로그인과 개인정보(2026-10-02 — 구글 · Riot 심사가 보는 홈의 설명). 아래 끝은 `components/SiteFooter`(`styles/legal.css`)다. */
+.landing-info { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 1440px; margin: 16px auto 0; }
+.landing-info-card { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 22px; background: var(--panel); color: var(--text-dim); font-size: 13.5px; line-height: 1.75; word-break: keep-all; overflow-wrap: anywhere; }
+.landing-info-card h2 { color: var(--text); font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+.landing-info-card p + p, .landing-info-card ul + p { margin-top: 10px; }
+.landing-info-card ul { margin-top: 10px; padding-left: 1.2em; list-style: disc; }
+.landing-info-card li + li { margin-top: 4px; }
+.landing-info-card b { color: var(--text); font-weight: 600; }
+.landing-info-card a { color: var(--accent-2); text-decoration: underline; text-underline-offset: 3px; }
+.landing-info-card a:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.landing-info-contact { color: var(--muted); }
+@media (max-width: 767px) { .landing-info { grid-template-columns: minmax(0, 1fr); } }
 
 /* ---------- auth ---------- */
 .auth { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; }
@@ -63,6 +74,15 @@
 .auth-card h1 { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
 .auth-card .sub { color: var(--muted); font-size: 13.5px; margin-bottom: 22px; }
 .auth-form { display: grid; gap: 16px; margin-top: 20px; }
+/* 가입 화면의 확인 두 칸(2026-10-02 소유자 결정 — 만 14세 이상 · 약관과 처리방침). 둘 다 체크해야 "시작하기" 가 눌린다. */
+.signup-consents { display: grid; gap: 10px; min-width: 0; margin: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-md); background: rgba(9, 11, 24, 0.55); }
+.signup-consent { display: flex; align-items: flex-start; gap: 10px; color: var(--text-dim); font-size: 13.5px; line-height: 1.55; cursor: pointer; word-break: keep-all; }
+.signup-consent input { flex: none; width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--accent); cursor: pointer; }
+.signup-consent input:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.signup-consent input:disabled { cursor: not-allowed; }
+.signup-consent a { color: var(--accent-2); text-decoration: underline; text-underline-offset: 3px; }
+.signup-consent a:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.signup-consents-hint { color: var(--muted); font-size: 12px; }
 .auth-alt { margin-top: 18px; text-align: center; font-size: 13px; color: var(--muted); }
 .auth-alt button { border: 0; background: none; color: var(--accent-2); font-weight: 600; cursor: pointer; }
 /*

@@ -12,7 +12,8 @@ import { useMatch } from './MatchContext';
  * - 목록은 서버 응답 그대로 든다(`userId` · `requestId` 는 **숫자**). 화면 · 방 응답 · `AuthContext` 의 id 는 십진 문자열이라 비교는 `isFriend(id)` · `isBlocked(id)` 로 한다(`String()` 으로 맞춘다).
  * - 바꾸는 요청(친구 요청 · 수락 · 거절 · 거두기 · 끊기 · 차단 · 해제)은 성공하면 **관련 목록을 다시 받는다** — 응답을 그 자리에 끼우지 않는다(요청 목록 · 친구 목록 · 최근 함께한 사람이 같이 바뀐다).
  * - `FRIEND_REQUEST_RECEIVED {requestId, fromUserId}` → 받은 요청 재조회, `FRIEND_REQUEST_ACCEPTED {requestId, userId}` → 보낸 요청 · 친구 재조회. 알림은 "다시 조회하라" 는 신호다 — payload 의 id 로 화면을 그리지 않는다.
- *   SSE 재연결 직후에도 친구 쪽을 다시 받는다(놓친 알림은 다시 오지 않는다). 토스트 한 줄은 프런트가 정했다(소유자 검토 항목).
+ *   SSE 재연결 직후 · 숨은 탭이 다시 보일 때도 친구 쪽을 다시 받는다(놓친 알림은 다시 오지 않는다). 토스트 한 줄은 프런트가 정했다(소유자 검토 항목).
+ *   **받은 요청 수가 왼쪽 레일 "친구" 의 배지다**(2026-10-02 소유자 결정 — `AppShell`). 타이머로 묻지 않는다.
  * - 최근 함께한 사람은 알림이 없다 — 화면을 열 때 `refresh()` 로 다시 받는다.
  * - 신고는 목록이 없어 여기 없다 — `ReportModal` 이 `api.reportUser` 를 바로 부른다.
  */
@@ -115,6 +116,14 @@ function SocialSession({ children }: { children: ReactNode }) {
     return () => { off(); offStatus(); };
   }, [stream, status, loadFriends, toast]);
 
+  // 숨은 탭에서 돌아왔을 때 — 친구 · 요청을 한 번 다시 받는다(왼쪽 레일 "친구" 배지 = 받은 요청 수 · 2026-10-02). 숨은 동안 놓친 알림을 메운다. 타이머로는 묻지 않는다.
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    const onVisible = () => { if (document.visibilityState === 'visible') void loadFriends().catch(() => {}); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [status, loadFriends]);
+
   const isFriend = useCallback((id: string | number) => friends.some(f => key(f.userId) === key(id)), [friends]);
   const isBlocked = useCallback((id: string | number) => blocks.some(b => key(b.userId) === key(id)), [blocks]);
   const requestFrom = useCallback((id: string | number) => receivedRequests.find(r => key(r.requester.userId) === key(id)), [receivedRequests]);
@@ -124,9 +133,10 @@ function SocialSession({ children }: { children: ReactNode }) {
     await api.sendFriendRequest({ userId: key(id) });
     await loadFriends();
   }, [loadFriends]);
-  const acceptRequest = useCallback(async (requestId: number) => { await api.acceptFriendRequest(requestId); await loadFriends(); }, [loadFriends]);
-  const declineRequest = useCallback(async (requestId: number) => { await api.declineFriendRequest(requestId); await loadFriends(); }, [loadFriends]);
-  const cancelRequest = useCallback(async (requestId: number) => { await api.cancelFriendRequest(requestId); await loadFriends(); }, [loadFriends]);
+  // 수락 · 거절 · 거두기는 실패해도(404 — 상대가 먼저 거뒀다 등) 목록을 다시 받는다 — 받은 요청 수(레일 배지)가 서버와 어긋나지 않게(2026-10-02).
+  const acceptRequest = useCallback(async (requestId: number) => { try { await api.acceptFriendRequest(requestId); } finally { await loadFriends().catch(() => {}); } }, [loadFriends]);
+  const declineRequest = useCallback(async (requestId: number) => { try { await api.declineFriendRequest(requestId); } finally { await loadFriends().catch(() => {}); } }, [loadFriends]);
+  const cancelRequest = useCallback(async (requestId: number) => { try { await api.cancelFriendRequest(requestId); } finally { await loadFriends().catch(() => {}); } }, [loadFriends]);
   const removeFriend = useCallback(async (id: string | number) => { await api.removeFriend(key(id)); await loadFriends(); }, [loadFriends]);
   // 차단하면 그 사람이 최근 함께한 사람 목록에서도 빠진다(서버가 뺀다) — 둘 다 다시 받는다. 친구 관계는 서버가 건드리지 않는다(미정 그대로).
   const block = useCallback(async (id: string | number) => { await api.blockUser({ userId: key(id) }); await Promise.all([loadBlocks(), loadRecent()]); }, [loadBlocks, loadRecent]);
