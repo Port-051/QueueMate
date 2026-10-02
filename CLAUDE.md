@@ -44,7 +44,7 @@ QueueMate 는 **조건 기반 팀원 자동 랜덤 매칭**이다 — "조건은
 
 | 한다 | 출처 |
 |---|---|
-| **계정** — 가입 · 로그인은 **소셜로만**(카카오 · 디스코드 · 구글 — P-24 · P-33. 직접 가입 · 비밀번호 · `loginId` 없음). 처음 온 사람은 **닉네임만** 정한다(`/social/pending` → `POST /social/signup {nickname}`). **소셜 계정 잇기 · 끊기**(로그인한 채 다른 제공자로 오면 같은 사용자에 잇는다 · `DELETE /api/v1/users/me/social/{provider}` · 마지막 하나는 409 `LAST_SOCIAL_IDENTITY` — P-27). 로그아웃 · 기본 프로필. **회원 탈퇴** `DELETE /api/v1/users/me`(2026-10-02 소유자 결정 · P-48 — 그 사람의 데이터를 지체 없이 전부 지우고 **확정된 파티 기록만 남긴다**(작성자 칸이 빈다 — §3.5 V9) · 방 안이면 평소 나가기로 먼저 나간다 · 매칭 대기 중이면 409 `ALREADY_QUEUED` · Redis 를 못 읽으면 503 · 204 + 쿠키 둘 제거 · 제공자 쪽 unlink 없음 · 순서와 감수는 Claude 세부 — `account/service/AccountDeletionService`). **토큰 발급** — access 는 쿠키의 RS256 JWT(15분), refresh 는 Redis 의 불투명 UUID(7일). 개인 키는 이 앱만(§5.1). **식별자는 사용자 번호 `userId`(bigint) 하나**, 보여 주는 이름은 닉네임 하나(§3.5). **개발용 로그인**(임시 — §5.1 끝 · P-34) | docs/00 §5 · #16 · D-14 · 계약 "계정" · "소셜 로그인" |
+| **계정** — 가입 · 로그인은 **소셜로만**(카카오 · 디스코드 · 구글 — P-24 · P-33. 직접 가입 · 비밀번호 · `loginId` 없음). 처음 온 사람은 **닉네임만** 정한다(`/social/pending` → `POST /social/signup {nickname}`). **소셜 계정 잇기 · 끊기**(로그인한 채 다른 제공자로 오면 같은 사용자에 잇는다 · `DELETE /api/v1/users/me/social/{provider}` · 마지막 하나는 409 `LAST_SOCIAL_IDENTITY` — P-27). 로그아웃 · 기본 프로필. **회원 탈퇴** `DELETE /api/v1/auth/account`(2026-10-02 소유자 결정 · P-48 — 그 사람의 데이터를 지체 없이 전부 지우고 **확정된 파티 기록만 남긴다**(작성자 칸이 빈다 — §3.5 V9) · 방 안이면 평소 나가기로 먼저 나간다 · 매칭 대기 중이면 409 `ALREADY_QUEUED` · Redis 를 못 읽으면 503 · 204 + 쿠키 둘 제거 · **실려 온 refresh 를 Redis 에서 지운다**(그래서 `/api/v1/auth` 아래다 — 처음의 `DELETE /api/v1/users/me` 는 405 · `/api/v1/auth/**` 가운데 이것만 access 쿠키 필수 — §5) · 제공자 쪽 unlink 없음 · 순서와 감수는 Claude 세부 — `account/service/AccountDeletionService`). **토큰 발급** — access 는 쿠키의 RS256 JWT(15분), refresh 는 Redis 의 불투명 UUID(7일). 개인 키는 이 앱만(§5.1). **식별자는 사용자 번호 `userId`(bigint) 하나**, 보여 주는 이름은 닉네임 하나(§3.5). **개발용 로그인**(임시 — §5.1 끝 · P-34) | docs/00 §5 · #16 · D-14 · 계약 "계정" · "소셜 로그인" |
 | **게임 프로필** — 게임 계정 + 읽기 전용 `verified` · `stats`(전적 스냅숏). 받는 칸이 게임마다 다르다 — **LoL `{gameNickname}`**(이름#태그 · 티어 · 전적은 Riot 에서 · `tier` · `server` 를 보내면 400 — P-26) · **VALORANT `{gameNickname, tier?}`**(자기신고) · **PUBG `{gameNickname, server}`**(`server` 필수 · `tier` 를 보내면 400 · 티어 · 전적은 PUBG API 에서 — P-36). **티어는 사다리마다 따로 — 응답 `tiers`**(LoL `SOLO` · `FLEX` / VALORANT `COMPETITIVE` / PUBG `RANKED` — P-36). **주 포지션은 어느 게임에도 없다**(`mainPosition` 에 값이 있으면 400 `VALIDATION_FAILED` — `@Null` 이라 `null` 은 통과 · 조용히 버리지 않는다 — P-35). LoL · PUBG 는 저장 전에 **동기로** 긁고 실패하면 저장하지 않는다. **로그인 · 재발급 때 뒤에서 다시 받는다** — 마지막으로 받은 뒤 1시간이 지난 LoL · PUBG 계정만 · 응답은 기다리지 않고 실패시키지도 않는다(P-42 — 사용자가 누르던 **전적 갱신** `POST …/game-accounts/{game}/refresh`(P-17)는 없어졌다 · 그 경로는 404). 세부는 §7 "게임 계정 연동". `tier` 는 gameconfig 사다리에 있는 이름이어야 한다(§3.6) | 계약 "게임 프로필" · "전적을 긁는 것" |
 | **파티** — 확정된 파티와 파티원의 기록 · **빠른매치 파티의 팀원 카드** `GET /api/v1/match-parties/{partyId}/members`(P-47 — 파티원끼리만 · 번호 조회 없음). **게시판 파티**(`source='BOARD'`)는 방장 확정이 만든다. **자동 매칭 파티**(`source='MATCH'` · `match_party_id = partyId`)는 **`POST /api/v1/match-parties/{partyId}/room`** 이 `matching` 의 파티 HASH 를 읽어 만든다(D-42 · P-30). **파티가 닫히면 파티원끼리 `recent_players` 에 적는다**(P-25 — §3.3 "파티 닫힘"). 큐 · outbox 없음(§3.4) | #21 · D-13 · **D-42** · 계약 "방장 확정의 기록" · "파티 닫힘" · "자동 매칭 파티의 방" |
 | **파티 모집 게시판** — 글 쓰기(**방을 같이 만든다** · 고치기는 없다 — P-45) · 지우기(만료로 바꾸고 방도 닫는다) · 목록 · 단건 · 입장의 글 검사 · 방장 확정의 기록 · **차단 거르기(방 안의 누구와든 — D-20)** · 목록의 한 줄 조립(방 안 인원 · 카드 · 게임별 정보) · **게시판 방 먼저 합류** `POST /api/v1/posts/auto-join`(P-28). 규칙은 §3.3 · §7.1 | D-11 · D-16 · D-20 · D-21 · 계약 "모집 글 · 목록" · P-22 |
@@ -213,7 +213,7 @@ Redis `PUBLISH qm:pubsub:push:{userId}` 에 **JSON 문자열 하나**. `notifica
 - **stateless** — 프로세스 로컬 상태 금지. 환경변수 + 기본값, `/health/live` · `/health/ready`(readiness 에 `db` 만 — Redis 는 넣지 않았다), SIGTERM graceful shutdown. JSON 로그는 운영에서 `LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs`(형식은 미정 — §7).
 - **경계를 넘는 동기 호출을 새로 만들지 않는다.** 놓치면 데이터가 어긋나는 것은 outbox → SQS, 놓쳐도 조회로 복구되는 것은 Pub/Sub(docs/14 §7). 지금 이 앱의 큐는 0개(§3.4).
 - **불변식은 DB 가 강제한다** — `조회 → 판단 →삽입` 금지. 중복 가입 · 중복 차단 · 모집 중인 글 하나 · 파티 기록의 멱등 · 있는 사용자인가(FK)가 전부 제약이다(위반을 409/404 로 옮긴다). 그래서 Hibernate 제약 위반 WARN 로거(`org.hibernate.orm.jdbc.error`)를 껐다. **H2 로 PostgreSQL 제약을 검증했다고 치지 마라**(D-3).
-- **Spring Security** — `STATELESS` · Spring CSRF 필터 끔(CSRF 는 `Origin` 필터). **인증 없이 되는 요청은 `/api/v1/auth/**` · `/health/**` · `/info` 뿐** — 로그인 안 한 채 모르는 경로는 401 `UNAUTHENTICATED`.
+- **Spring Security** — `STATELESS` · Spring CSRF 필터 끔(CSRF 는 `Origin` 필터). **인증 없이 되는 요청은 `/api/v1/auth/**` · `/health/**` · `/info` 뿐** — 로그인 안 한 채 모르는 경로는 401 `UNAUTHENTICATED`. **예외 — `DELETE /api/v1/auth/account`(회원 탈퇴)는 access 쿠키가 있어야 한다**(2026-10-02 · P-48 — `SecurityConfig` 의 `authenticated()` 와 `CookieBearerTokenResolver.ACCOUNT_PATH` 가 같은 금이다).
 
 ### 5.1 인증 세부 (소유자 확정 · 구현됐다 — D-24 · D-26)
 
@@ -226,7 +226,7 @@ Redis `PUBLISH qm:pubsub:push:{userId}` 에 **JSON 문자열 하나**. `notifica
 - **검증하는 쪽은 서명 · `iss` · `exp` 에 더해 `token_use` 를 반드시 본다**(같은 키로 서명하므로). JOSE `typ` 을 쓰지 않은 이유는 Spring 기본 디코더가 `typ≠JWT` 를 거절해서다.
 - **`sub` 가 `^[0-9]{1,19}$` 인지도 본다**(`TokenClaims.SUBJECT_PATTERN` · `JwtConfig#jwtDecoder`).
 
-**(나) 쿠키.** `HttpOnly` · `Secure` 는 환경변수(`COOKIE_SECURE`, 운영 `true`) · **`SameSite=Lax`** · `Path=/` · **`Domain` 없음**(host-only). access 쿠키 수명 = 토큰 수명. refresh 쿠키 `qm_refresh` 는 `Path=/api/v1/auth/refresh` · `Max-Age` 7일.
+**(나) 쿠키.** `HttpOnly` · `Secure` 는 환경변수(`COOKIE_SECURE`, 운영 `true`) · **`SameSite=Lax`** · `Path=/` · **`Domain` 없음**(host-only). access 쿠키 수명 = 토큰 수명. refresh 쿠키 `qm_refresh` 는 **`Path=/api/v1/auth`** · `Max-Age` 7일(2026-10-02 소유자 결정 — 그 전의 `Path=/api/v1/auth/refresh` 는 브라우저가 로그아웃에 싣지 않아 로그아웃이 Redis 의 줄을 못 지웠다 · P-15). **임시(2026-10-02)** — 쿠키를 줄 때 · 지울 때 옛 `Path`(`/api/v1/auth/refresh`)의 `qm_refresh` 를 `Max-Age=0` 으로 같이 지우고, 재발급 · 로그아웃은 실린 `qm_refresh` 를 **전부** 읽는다(옛 쿠키가 남은 브라우저는 재발급에 같은 이름을 둘 싣는다 — `RefreshTokens#valuesIn` · `#consume(List)`). 운영 전 · 옛 쿠키가 다 사라지면(7일) 옛 `Path` 를 지우는 것을 걷어낸다(`RefreshTokens.LEGACY_COOKIE_PATH`).
 
 **(다) CSRF — `SameSite=Lax` + `Origin` 검사.** POST/PUT/PATCH/DELETE 에서 `Origin` 검사(허용 목록 밖이면 403 `ORIGIN_NOT_ALLOWED` · `Origin` 없는 요청은 통과). CSRF 토큰 없음. **전제 — 상태를 바꾸는 GET 을 만들지 않는다**(예외: OAuth 콜백 — `state` 검증이 지킨다. 목록의 옮겨 적기는 §3.3).
 
@@ -237,7 +237,7 @@ Redis `PUBLISH qm:pubsub:push:{userId}` 에 **JSON 문자열 하나**. `notifica
 - rotation 은 **`GETDEL` 한 번**. 기기 수 제한 없음.
 - 재발급 **`POST /api/v1/auth/refresh`** — 쿠키로만 받고, 성공하면 `{userId, nickname}` + 새 쿠키 둘. **실패는 전부 같은 401 `INVALID_REFRESH_TOKEN`**(본문이 글자까지 같다) · 실패해도 refresh 쿠키를 지운다(access 는 건드리지 않는다) · 탈취 감지 없음.
 - (경로 이름 · 실패를 401 하나로 합친 것 · 실패에도 쿠키를 지우는 것 · 아래 Redis 장애 때의 갈림은 Claude 세부 — P-15.)
-- 로그아웃은 Redis 의 줄과 쿠키 둘을 지운다 — 쿠키가 없어도 · Redis 가 죽어도 204.
+- 로그아웃은 Redis 의 줄과 쿠키 둘을 지운다 — 쿠키가 없어도 · Redis 가 죽어도 204. **refresh 쿠키가 실제로 로그아웃에 실려 온다**(2026-10-02 에 `Path` 를 `/api/v1/auth` 로 넓혔다 — 그 전에는 실리지 않아 로그아웃 전의 값으로 재발급이 200 이었다).
 - **Redis 가 죽으면** — 소셜 로그인 · 가입은 성공하고 access 만 나간다 · 재발급은 401(fail-closed) · 로그아웃 204.
 - "로그인시킨다 = 쿠키 둘"은 **`common/security/SessionCookies`** 한 곳(소셜 로그인 · 가입 · 재발급 · 개발용 로그인). refresh 저장이 실패하면 access 만.
 - **로그인시킨 뒤(그 넷 — 성공한 재발급 포함) 낡은 전적을 뒤에서 다시 받게 한다**(P-42 — `account/stats/GameStatsLoginRefresher#refreshStale` · 각 컨트롤러가 쿠키를 만든 뒤 부른다. 곧바로 돌아오고 예외를 내지 않는다 — 응답과 무관하다. 잇기는 로그인이 아니라 부르지 않는다. §7 "게임 계정 연동"). `SessionCookies`(`common`)에 넣지 않은 것은 `common` 이 `account` 를 부르지 않게 하려는 것이다(Claude 세부).
@@ -419,7 +419,7 @@ queuemate/
 - `filledPositions` 나 그 대안을 지어내기.
 - 파티 닫힘을 SQS 로 돌리기 · 방장 키만 없다고 파티를 닫기 · `PARTY_*` 알림 지어내기 · **outbox · SQS · AWS SDK · Kafka/RabbitMQ/Redis Streams 들이기.**
 - `blocks` 모양을 한쪽만 바꾸기 · 스키마를 다시 나누거나 DB 롤 · `GRANT` 두기 · `matching` 이 읽는 테이블을 `blocks` 밖으로 늘리기.
-- **회원 탈퇴**(P-48) — 확정된 글 · 파티 · 남의 파티원 줄을 지우기 · 방장이 빈 비확정 글을 남기기(비확정 글을 `users` 와 다른 트랜잭션에서 지우기) · 탈퇴에서 `matching` 의 활성 요청 키를 지우기 · Redis 를 못 읽었는데 지우기 · 방에 있는 사람을 평소 나가기 없이 지우기 · refresh 를 `KEYS`/`SCAN` 으로 찾아 지우기 · 방장이 빈 글의 `host` 에 빈 카드를 지어내기 · 제공자 unlink 를 지어내기.
+- **회원 탈퇴**(P-48 · `DELETE /api/v1/auth/account`) — 확정된 글 · 파티 · 남의 파티원 줄을 지우기 · 방장이 빈 비확정 글을 남기기(비확정 글을 `users` 와 다른 트랜잭션에서 지우기) · 탈퇴에서 `matching` 의 활성 요청 키를 지우기 · Redis 를 못 읽었는데 지우기 · 방에 있는 사람을 평소 나가기 없이 지우기 · refresh 를 `KEYS`/`SCAN` 으로 찾아 지우기 · refresh 를 못 지웠다고 탈퇴를 실패시키기 · 탈퇴를 access 토큰 없이 받기(`/api/v1/auth/**` 의 `permitAll` 에 묻히게 두기) · refresh 쿠키의 `Path` 를 `/api/v1/auth` 보다 넓히기 · 방장이 빈 글의 `host` 에 빈 카드를 지어내기 · 제공자 unlink 를 지어내기.
 - 사용자 번호 말고 다른 것을 식별자로 쓰기 · **직접 가입 · 비밀번호 · `loginId` · 로그인 실패 제한 되살리기** · 새 테이블 PK 를 `bigint identity` 말고 두기 · 숫자가 아닌 id 를 400 으로 갈라 주기(없는 사용자와 같은 404).
 - `조회 → 판단 → 삽입` · H2 로 제약 검증했다고 치기 · 경계를 넘는 새 동기 호출.
 - 인증 — HS256 · JWKS · access denylist · CSRF 토큰 · 서비스에 CORS · **상태를 바꾸는 GET** · 토큰에 바뀌는 값 · jjwt 등 · `oauth2-client` · **`token_use` 를 안 보고 받기** · `TokenClaims` 값을 한쪽만 바꾸기 · `.dev-keys/` 커밋 · refresh 를 JWT 로 · `KEYS`/`SCAN` 으로 refresh 훑기 · 재발급 실패를 이유별로 갈라 알려 주기.
