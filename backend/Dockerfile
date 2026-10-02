@@ -1,9 +1,10 @@
 # syntax=docker/dockerfile:1
-# platform 앱 이미지. 빌드는 backend/ 에서 — docker build -t qm-platform .
-# 운영은 Graviton(ARM)이라 CI 에서 docker buildx build --platform linux/arm64 로 만든다(두 베이스 이미지 모두 멀티아치).
+# platform 앱 이미지. 빌드는 backend/ 에서 — docker build -t qm-platform . (두 베이스 이미지 모두 멀티아치)
 
 # ---- 빌드 ----
-FROM eclipse-temurin:21-jdk AS build
+# 빌드 단계는 빌드하는 쪽 CPU(네이티브)에서 돈다 — Gradle 컴파일을 에뮬레이션으로 돌리면 몇 배 느리다.
+# 결과물(jar · 추출한 계층)은 CPU 를 안 가리므로 실행 단계만 타깃(운영 Graviton — arm64)으로 만들어진다. CI 에서: docker buildx build --platform linux/arm64 -t qm-platform .
+FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk AS build
 WORKDIR /workspace
 
 # 빌드 스크립트만 먼저 넣는다 — src 만 바뀐 빌드는 의존성 받기를 다시 하지 않는다
