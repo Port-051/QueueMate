@@ -26,8 +26,10 @@ Lua 가 `status == 'PENDING'` 만 보고 있어 그 새 제안을 옛 것으로 
 **같은 점검에서 남은 것(아직 안 고쳤다 — 소유자가 짠다)** — ① ~~`RequestAliveExpiryService#expire` 가 `ZREM` 결과를 안 봐, A 가 취소한 직후 다시 접수한 새 요청을
 B 가 또 취소할 수 있다~~ → **고치지 않는다(소유자 판단 2026-10-02).** 이 창은 "취소된 사람이 그 ms 안에 다시 접수" 해야 열리는데, 회수된 사람은 90초 동안 heartbeat 가 없던 —
 페이지를 떠난 — 사람이라 그 자리에 없다. 프런트는 `MATCH_CANCELLED` 에 자동 재접수하지 않는다. **클라이언트가 취소 알림에 자동으로 다시 접수하는 날이 오면** 그때 다시 본다
-("score ≤ now 일 때만 ZREM + 그 순간의 requestId 반환" 을 Lua 하나로). ② `AsyncConfig` 의 배정 풀에 종료 대기가 없어 SIGTERM 때 201 받은 요청의 배정이 버려진다
-(`setWaitForTasksToCompleteOnShutdown(true)` · `setAwaitTerminationSeconds(20)`) ③ 장애 조치 때 비동기 복제로 락이 사라지면 정원 초과 가능(드묾 — `join-party*.lua` 에 `count >= target` 거절 분기 없음).
+("score ≤ now 일 때만 ZREM + 그 순간의 requestId 반환" 을 Lua 하나로). ② ~~`AsyncConfig` 의 배정 풀에 종료 대기가 없어 SIGTERM 때 201 받은 요청의 배정이 버려진다~~
+→ **고치지 않는다(소유자 판단 2026-10-02).** ECS 는 ALB 에서 태스크를 뺀 뒤 등록 해제 지연(기본 300초)이 지나야 SIGTERM 을 보내므로, 그때는 새 신청이 끊긴 지 오래라 풀이 비어 있다.
+닿는 경우는 앱이 그냥 죽을 때뿐이고 그건 `claim-request.lua` 의 60초 만료가 처리한다(설계대로). ALB 없이 돌리거나 등록 해제 지연을 0 ~ 3초로 잡으면 다시 본다
+(`setWaitForTasksToCompleteOnShutdown(true)` · `setAwaitTerminationSeconds(20)` 두 줄). ③ 장애 조치 때 비동기 복제로 락이 사라지면 정원 초과 가능(드묾 — `join-party*.lua` 에 `count >= target` 거절 분기 없음 — 감수).
 
 ### 0-9. 2026-10-01 — `app:platform` 이 제안 중에도 파티 HASH 를 읽는다 (문서만 — docs/11 D-56)
 
