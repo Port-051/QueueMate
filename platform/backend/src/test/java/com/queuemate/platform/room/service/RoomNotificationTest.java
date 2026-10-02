@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 
@@ -25,7 +26,7 @@ class RoomNotificationTest extends RoomTestSupport {
     @DisplayName("누가 들어오면 방에 이미 있던 사람들이 ROOM_MEMBER_ENTERED 를 받는다. 들어온 본인은 받지 않는다")
     void entered() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
 
         try (PushSubscriber subscriber = new PushSubscriber(connectionFactory, objectMapper, this::labelOf))
@@ -49,7 +50,7 @@ class RoomNotificationTest extends RoomTestSupport {
     {
         try (PushSubscriber subscriber = new PushSubscriber(connectionFactory, objectMapper, this::labelOf))
         {
-            roomService.create(r("r1"), u("host"));
+            roomService.create(r("r1"), u("host"), Set.of());
             assertThat(subscriber.nothingMore()).isTrue();
 
             for (int i = 1; i <= 4; i++)
@@ -72,7 +73,7 @@ class RoomNotificationTest extends RoomTestSupport {
     @DisplayName("누가 나가면 방에 남은 사람들이 ROOM_MEMBER_LEFT 를 받는다. 나간 본인은 받지 않는다")
     void left() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
 
@@ -92,10 +93,10 @@ class RoomNotificationTest extends RoomTestSupport {
     }
 
     @Test
-    @DisplayName("방장이 나가면 방에 있던 사람들이 ROOM_CLOSED 를 받는다 — 멤버 SET 이 이미 지워졌어도. 방장 본인은 받지 않는다")
+    @DisplayName("방장이 나가면 방에 있던 사람들이 ROOM_CLOSED 를 받는다 — 멤버 HASH 가 이미 지워졌어도. 방장 본인은 받지 않는다")
     void closed() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
 
@@ -118,7 +119,7 @@ class RoomNotificationTest extends RoomTestSupport {
     @DisplayName("이 방에 없는 사람의 나가기는 아무에게도 알리지 않는다")
     void nothingWhenNobodyLeft() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
 
         try (PushSubscriber subscriber = new PushSubscriber(connectionFactory, objectMapper, this::labelOf))
         {
@@ -132,7 +133,7 @@ class RoomNotificationTest extends RoomTestSupport {
     @DisplayName("강퇴하면 방에 남은 사람들(방장 포함)과 강퇴된 본인이 ROOM_MEMBER_KICKED 를 받는다")
     void kicked() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
 
@@ -157,7 +158,7 @@ class RoomNotificationTest extends RoomTestSupport {
     @DisplayName("거절된 강퇴는 아무에게도 알리지 않는다 — 방장이 아니다 · 자기 자신 · 방에 없는 대상 · 없는 방")
     void nothingWhenNobodyWasKicked() throws Exception
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
 

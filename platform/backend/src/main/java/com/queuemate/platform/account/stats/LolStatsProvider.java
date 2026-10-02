@@ -26,7 +26,8 @@ import java.util.function.ToIntFunction;
  *
  * <p>순서는 여섯 걸음이다 — Riot 호출은 경기 10판(기본 — {@code match-count}, 2026-09-29 소유자 결정으로 20판에서 줄였다)이면
  * <b>14번</b>(계정 · 리그 · 경기 id · 경기 10 · 숙련도 — 대륙 주소 12 · 플랫폼 주소 2). 경기가 하나도 없으면 4번이다(숙련도는 경기와 무관하게 부른다).
- * 평균 K/D/A · 연승은 그 경기들로 내고, 승/패는 경기 수와 무관한 솔로랭크 시즌 누적, 모스트 챔피언은 경기와 무관한 통산 숙련도 상위 셋이다.
+ * 평균 K/D/A · 연승 · 최근 경기의 승 · 패 줄({@code detail.recentResults} — 2026-09-30, P-43)은 그 경기들로 내고, 승/패는 경기 수와 무관한 솔로랭크 시즌 누적,
+ * 모스트 챔피언은 경기와 무관한 통산 숙련도 상위 셋이다.
  * <ol>
  *   <li>게임 닉네임을 {@code 이름#태그} 로 가른다 — <b>태그가 없으면 긁지 않는다</b>({@code null} 을 돌려준다)</li>
  *   <li>{@code account-v1} → {@code puuid}</li>
@@ -34,7 +35,10 @@ import java.util.function.ToIntFunction;
  *       (2026-09-29 까지는 {@code summoner-v4} 로 소환사 {@code id} 를 받아 {@code entries/by-summoner} 를 불렀다 — 실제 소환사 응답에 {@code id} 가 없어 늘 비었다.
  *       그 호출을 없애 25번이 24번이 됐다 — 경기 20판일 때의 수다)</li>
  *   <li>{@code match-v5} → 최근 경기 id 목록(새 경기가 먼저)</li>
- *   <li>경기마다 참가자 가운데 <b>그 {@code puuid} 인 사람</b>의 K/D/A · 승패. 참가자 전원의 챔피언 번호 → 이름도 모아 둔다(6걸음의 이름표에 없는 새 챔피언을 메운다)</li>
+ *   <li>경기마다 참가자 가운데 <b>그 {@code puuid} 인 사람</b>의 K/D/A · 승패. 참가자 전원의 챔피언 번호 → 이름도 모아 둔다(6걸음의 이름표에 없는 새 챔피언을 메운다).
+ *       승패는 경기마다 {@code detail.recentResults} 에도 한 칸씩 싣는다 — <b>Riot 을 더 부르지 않는다</b>(이미 읽은 경기다 · {@link #detail}).
+ *       <b>커스텀 게임은 통째로 뺀다</b>(2026-10-02 소유자 지시 — Riot 정책이 커스텀의 전적을 공개로 보여 주지 못하게 한다 · {@link #customOrUnknown}).
+ *       대신 더 받지 않는다 — 최근 10판 가운데 커스텀이 있으면 그만큼 적게 나온다</li>
  *   <li>{@code champion-mastery-v4} {@code top?count=3} → <b>모스트 챔피언 = 숙련도 점수 상위 셋</b>(2026-09-30 소유자 결정 — P-39).
  *       칸은 챔피언 · 레벨 · 점수 셋뿐이다 — 최근 경기의 판 수 · 승률을 섞지 않는다({@link #detail}).
  *       <b>이 걸음만은 실패해도 전적을 살린다</b>(WARN 하고 모스트 챔피언을 빈 배열로 — 전적의 본체가 아니다)</li>
@@ -73,6 +77,8 @@ public class LolStatsProvider implements GameStatsProvider {
     private static final String FIELD_WINS = "wins";
     private static final String FIELD_LOSSES = "losses";
     private static final String FIELD_INFO = "info";
+    private static final String FIELD_QUEUE_ID = "queueId";
+    private static final String FIELD_GAME_TYPE = "gameType";
     private static final String FIELD_PARTICIPANTS = "participants";
     private static final String FIELD_CHAMPION_NAME = "championName";
     private static final String FIELD_KILLS = "kills";
@@ -89,12 +95,27 @@ public class LolStatsProvider implements GameStatsProvider {
     /** 자유랭크 줄을 가르는 값. <b>티어만</b> 읽는다(2026-09-29 — P-36) */
     private static final String FLEX_QUEUE = "RANKED_FLEX_SR";
 
+    /**
+     * 커스텀 게임을 가르는 두 값 — 경기의 {@code info.queueId} · {@code info.gameType}. 2026-10-02 실제 키로 본 커스텀 경기 여섯이 전부
+     * {@code queueId 0} · {@code gameType "CUSTOM_GAME"} 이었다(랭크 · 일반은 {@code "MATCHED_GAME"}). 어느 한쪽만 맞아도 커스텀으로 본다
+     */
+    private static final int CUSTOM_QUEUE_ID = 0;
+    private static final String CUSTOM_GAME_TYPE = "CUSTOM_GAME";
+
     /** 사다리 키 — {@code Game.LOL.tierLadders()} 의 둘이다. 솔로랭크 줄 → {@code SOLO}, 자유랭크 줄 → {@code FLEX} */
     static final String LADDER_SOLO = "SOLO";
     static final String LADDER_FLEX = "FLEX";
 
     /** {@code detail} 의 모스트 챔피언은 셋까지다 ({@code contracts/platform-api.md} "게임 프로필") — 숙련도 {@code top?count=} 에 그대로 싣는다 */
     static final int MOST_CHAMPIONS = 3;
+
+    /**
+     * {@code detail} 의 최근 경기 승 · 패 줄의 칸 이름과 두 값(2026-09-30 소유자 요청 — duo.gg 식 "15승 5패 (20 게임)" + 승/패 칸 줄 · P-43).
+     * 칸 이름 · 글자 둘 · 순서(새 경기가 먼저)는 Claude 가 정한 세부다({@link #detail})
+     */
+    static final String RECENT_RESULTS = "recentResults";
+    static final String RESULT_WIN = "W";
+    static final String RESULT_LOSS = "L";
 
     /**
      * 모스트 챔피언의 순서 — 점수 내림차순 → 같으면 레벨 내림차순 → 같으면 {@code championId}(이름의 글자) 오름차순(Claude 가 정한 세부 — P-39).
@@ -166,7 +187,7 @@ public class LolStatsProvider implements GameStatsProvider {
                 ranks.solo() == null ? null : ranks.solo().wins(),
                 ranks.solo() == null ? null : ranks.solo().losses(),
                 games == 0 ? null : winStreak(played),
-                detail(puuid, matches.championNames()),
+                detail(puuid, matches.championNames(), played),
                 tiers);
     }
 
@@ -235,7 +256,10 @@ public class LolStatsProvider implements GameStatsProvider {
 
     // ---- 4 · 5걸음: 최근 경기 ----
 
-    /** 새 경기가 먼저인 순서를 지킨다 — 연승을 그 순서로 센다. 읽지 못한 경기는 빠진다 */
+    /**
+     * 새 경기가 먼저인 순서를 지킨다 — 연승을 그 순서로 센다. 읽지 못한 경기와 <b>커스텀 게임</b>({@link #customOrUnknown})은 빠진다.
+     * 커스텀을 빼고 모자란 만큼 더 받지 않는다 — 경기 상세를 부르는 수는 늘 {@code match-count} 까지다(P-43 의 "호출을 늘리지 않는다")
+     */
     private Matches recentMatches(String puuid)
     {
         JsonNode matchIds = riot.matchIds(puuid, properties.matchCount());
@@ -247,6 +271,7 @@ public class LolStatsProvider implements GameStatsProvider {
             return new Matches(played, championNames);
         }
         int calls = 0;
+        int customs = 0;
         for(JsonNode matchIdNode : matchIds)
         {
             if(calls >= properties.matchCount())
@@ -260,6 +285,12 @@ public class LolStatsProvider implements GameStatsProvider {
             }
             calls++;
             JsonNode match = riot.match(matchId);
+            if(customOrUnknown(match))
+            {
+                // 그 경기에서는 아무것도 읽지 않는다 — 챔피언 이름표를 메우는 데도 쓰지 않는다
+                customs++;
+                continue;
+            }
             collectChampionNames(match, championNames);
             Played one = participation(match, puuid);
             if(one != null)
@@ -267,7 +298,34 @@ public class LolStatsProvider implements GameStatsProvider {
                 played.add(one);
             }
         }
+        if(customs > 0)
+        {
+            log.info("최근 경기 {}판 가운데 커스텀(또는 큐를 못 읽은) {}판을 뺐다 — Riot 정책상 공개로 보여 주지 않는다", calls, customs);
+        }
         return new Matches(played, championNames);
+    }
+
+    /**
+     * 커스텀 게임이거나 커스텀이 아님을 알 수 없는 경기 — <b>전적에 넣지 않는다</b>(2026-10-02 소유자 지시).
+     * Riot 의 LoL 개발자 정책이 "선수가 따로 동의하지 않으면 커스텀 큐의 전적을 공개로 보여 주지 마라"고 하고, 게시판 카드는 로그인한 누구에게나 보인다.
+     *
+     * <p>{@code info.queueId == 0} 이거나 {@code info.gameType == "CUSTOM_GAME"} 이면 커스텀이다. API 키로 받는 커스텀은 <b>토너먼트 코드로 연 경기</b>뿐이었다
+     * (2026-10-02 실제 키로 확인 — 큐를 지정하지 않은 경기 id 목록에 그 경기가 섞여 나왔고, 상세는 {@code queueId 0} · {@code "CUSTOM_GAME"} · {@code tournamentCode} 있음.
+     * 그냥 만든 커스텀 방은 Riot 이 RSO 로만 준다). 토너먼트 경기도 커스텀 큐라 뺀다.
+     *
+     * <p>{@code queueId} 를 정수로 못 읽은 경기도 뺀다 — 커스텀이 아님을 확인할 수 없고, 공개로 보여 주면 안 되는 것이라 모를 때는 빼는 쪽이다(Claude 가 정한 세부).
+     * 실제 경기 상세에는 늘 있는 칸이라 모양이 바뀐 경기를 건너뛰는 것과 같다. 음수도 그대로 읽는다({@link #integer} 처럼 0 으로 깎으면 커스텀으로 잘못 본다)
+     */
+    static boolean customOrUnknown(JsonNode match)
+    {
+        JsonNode info = match.path(FIELD_INFO);
+        Long queueId = longValue(info.path(FIELD_QUEUE_ID));
+        if(queueId == null)
+        {
+            log.warn("Riot 의 경기 응답에 {} 가 없다 — 커스텀이 아님을 알 수 없어 그 경기를 뺀다", FIELD_QUEUE_ID);
+            return true;
+        }
+        return queueId == CUSTOM_QUEUE_ID || CUSTOM_GAME_TYPE.equals(text(info.path(FIELD_GAME_TYPE)));
     }
 
     /** 그 경기 참가자 전원의 챔피언 번호 → {@code championName}. 이름표({@link LolChampionNames})에 없는 새 챔피언을 메우는 데만 쓴다. 모양이 다르면 건너뛴다 */
@@ -384,7 +442,8 @@ public class LolStatsProvider implements GameStatsProvider {
     }
 
     /**
-     * {@code {"mostChampions": [{"championId", "masteryLevel", "masteryPoints"}]}} — <b>숙련도 점수 상위 셋</b>(2026-09-30 소유자 결정 — P-39).
+     * {@code {"mostChampions": [{"championId", "masteryLevel", "masteryPoints"}], "recentResults": ["W", "L", …]}}.
+     * {@code mostChampions} 는 <b>숙련도 점수 상위 셋</b>(2026-09-30 소유자 결정 — P-39).
      * 순서는 {@link #MOST_CHAMPION_ORDER}. <b>최근 경기의 판 수 · 승률은 싣지 않는다</b>(그 둘이 통산 숙련도와 한 줄에 섞였던 것을 걷어냈다).
      *
      * <p>{@code championId} 의 값은 챔피언 <b>이름</b>({@code "Kaisa"} — Data Dragon ID)이다. 숙련도 응답에는 숫자만 있어 {@link LolChampionNames} 로 옮긴다.
@@ -393,8 +452,14 @@ public class LolStatsProvider implements GameStatsProvider {
      *
      * <p>{@code masteryLevel} · {@code masteryPoints} 는 늘 값이 있다 — 번호 · 레벨 · 점수 가운데 하나라도 못 읽은 줄은 건너뛴다.
      * 숙련도를 못 받았거나 하나도 없으면 빈 배열이다 — {@code detail} 은 {@code null} 이 될 수 없다(컬럼이 {@code NOT NULL}).
+     *
+     * <p><b>{@code recentResults}</b>(2026-09-30 — P-43) — 읽은 최근 경기의 승 · 패를 <b>새 경기가 먼저</b>인 순서로 {@code "W"} · {@code "L"} 한 칸씩.
+     * {@code games} · 평균 K/D/A · 연승과 <b>같은 경기 목록</b>이다 — 그래서 길이가 늘 {@code games} 이고, 참가자를 못 찾은 경기 · 커스텀 게임(2026-10-02 —
+     * {@link #customOrUnknown})은 여기서도 빠진다.
+     * 경기가 하나도 없으면 빈 배열이다(칸을 빼지 않는다 — {@code mostChampions} 와 같다). 승패를 못 읽은 경기({@code win} 이 불린이 아니다)는
+     * 연승과 같이 {@code "L"} 이다. 다시하기(remake)를 따로 가르지 않는다 — 연승 · 평균도 가르지 않는다.
      */
-    private String detail(String puuid, Map<Long, String> namesFromMatches)
+    private String detail(String puuid, Map<Long, String> namesFromMatches, List<Played> played)
     {
         List<MostChampion> most = new ArrayList<>();
         for(JsonNode mastery : topMasteries(puuid))
@@ -420,6 +485,11 @@ public class LolStatsProvider implements GameStatsProvider {
             champion.put("championId", one.championId());
             champion.put("masteryLevel", one.masteryLevel());
             champion.put("masteryPoints", one.masteryPoints());
+        }
+        ArrayNode results = root.putArray(RECENT_RESULTS);
+        for(Played one : played)
+        {
+            results.add(one.win() ? RESULT_WIN : RESULT_LOSS);
         }
         return root.toString();
     }
@@ -535,7 +605,7 @@ public class LolStatsProvider implements GameStatsProvider {
         static final Ranks NONE = new Ranks(null, null);
     }
 
-    /** 경기 하나에서 이 사람의 기록. 챔피언은 담지 않는다 — 모스트 챔피언은 경기가 아니라 숙련도에서 온다(2026-09-30 — P-39) */
+    /** 경기 하나에서 이 사람의 기록. 챔피언은 담지 않는다 — 모스트 챔피언은 경기가 아니라 숙련도에서 온다(2026-09-30 — P-39). {@code win} 은 연승과 {@code recentResults}(P-43)가 쓴다 */
     record Played(int kills, int deaths, int assists, boolean win) {
     }
 

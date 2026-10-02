@@ -1,5 +1,6 @@
 package com.queuemate.platform.party.service;
 
+import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.party.match.MatchParty;
 import com.queuemate.platform.party.repository.PartyRecordRepository;
 import com.queuemate.platform.social.service.RecentPlayerRecorder;
@@ -9,6 +10,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * <b>자동 매칭 파티의 DB 쪽</b> — 기록과 닫기(2026-09-27 소유자 결정 — docs/11 D-42. 클래스의 이름 · 자리 · {@code is_host} 규칙은 Claude 가 정한 세부다).
@@ -25,6 +29,45 @@ public class MatchPartyStore {
 
     private final PartyRecordRepository partyRecordRepository;
     private final RecentPlayerRecorder recentPlayerRecorder;
+
+    /**
+     * DB 에 기록된 자동 매칭 파티 — 게임과 파티원({@link #findRecorded}).
+     *
+     * @param memberIds 가입한 사용자만이다({@code party_members} 의 FK). 사용자 번호순
+     */
+    record Recorded(Game game, List<Long> memberIds) {
+    }
+
+    /**
+     * 기록된 자동 매칭 파티(2026-10-01 — 퀵 매칭 파티의 팀원 카드가 파티 HASH 가 사라진 뒤에 쓴다, {@link MatchPartyService#members}). 쿼리 한 번이다.
+     *
+     * @return 그 {@code match_party_id} 의 파티가 없으면 비어 있다. {@code parties.game} 을 이 앱의 {@link Game} 으로 팔 수 없어도 비어 있다(WARN)
+     */
+    @Transactional(readOnly = true)
+    public Optional<Recorded> findRecorded(String matchPartyId)
+    {
+        List<Object[]> rows = partyRecordRepository.findMatchPartyMembers(matchPartyId);
+        if(rows.isEmpty())
+        {
+            return Optional.empty();
+        }
+        Optional<Game> game = Game.fromName(String.valueOf(rows.getFirst()[0]));
+        if(game.isEmpty())
+        {
+            log.warn("기록된 자동 매칭 파티의 게임을 모른다 — 없는 파티로 다룬다 matchPartyId={}", matchPartyId);
+            return Optional.empty();
+        }
+        List<Long> members = new ArrayList<>();
+        for(Object[] row : rows)
+        {
+            // 파티원이 한 명도 없는 파티는 LEFT JOIN 의 빈 줄 하나다
+            if(row[1] != null)
+            {
+                members.add(((Number) row[1]).longValue());
+            }
+        }
+        return Optional.of(new Recorded(game.get(), List.copyOf(members)));
+    }
 
     /**
      * 확정된 자동 매칭 파티를 {@code parties} · {@code party_members} 에 적는다. <b>멱등이다</b> — 파티는 {@code UNIQUE (match_party_id)} 위의

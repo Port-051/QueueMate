@@ -37,10 +37,15 @@ import java.util.regex.Pattern;
  * <b>서버가 {@code matching} 을 부르지 않고 활성 요청 키를 만들지 않는다</b>(누른 순간 한 번만 게시판을 본다 — D-19 그대로).
  *
  * <p><b>흐름</b> — ① 본문 검증(게임 · 음성 · 조건의 종류와 값 — 400) → ② gameconfig 로 모드 · 티어 규칙 검증({@code matching} 의 validator 와 같은 순서 — 400) →
- * ③ 후보 글 조회(그 게임 · 그 모드 · 그 음성 · 모집 중 · 내 글 제외 · 오래된 순 · 많아야 {@code platform.board.auto-join-scan} 개) →
+ * ③ 후보 글 조회(그 게임 · 그 모드 · 그 음성 · 모집 중 · 내 글 제외 · <b>빠른매치 입장을 허용한 글만</b>(2026-10-02 소유자 결정 — P-50) · 오래된 순 · 많아야 {@code platform.board.auto-join-scan} 개) →
  * ④ 자바 필터(10분 안에 나갔거나 강퇴당한 방 — {@code RoomService#noAutoJoinRooms} · PUBG 시점 · 포지션 · 방장 티어) →
- * ⑤ 방 키를 파이프라인 한 번으로 읽어 사라진 방 · 확정된 방 · 정원이 찬 방 제외 → ⑥ 남은 순서대로 입장({@link RoomMemberService#enter} — 안에서 {@link PostEntryGate} 가
+ * ⑤ 방 키를 파이프라인 한 번으로 읽어 사라진 방 · 확정된 방 · 정원이 찬 방 · 내 포지션을 이미 누가 고른 방 제외 → ⑥ 남은 순서대로 입장({@link RoomMemberService#enter} — 안에서 {@link PostEntryGate} 가
  * 차단 · 상태를 본다). 들어갔으면 200, 다음 방으로 넘어갈 수 없는 거절({@code IN_OTHER_ROOM} · {@code ALREADY_QUEUED})은 그 코드로 409, 다 돌아도 없으면 404.
+ *
+ * <p><b>포지션을 골라 들어간다</b>(2026-09-30 소유자 결정 — P-44: 참가할 때 남은 찾는 포지션 가운데 하나를 고른다). 찾는 포지션이 있는 글이면 <b>요청의 포지션</b>
+ * ({@code keyCondition} 의 값 — 필터가 이미 그 글의 찾는 포지션에 든 것만 남겼다)으로 들어가 멤버 HASH 에 그 포지션이 적힌다. 찾는 포지션이 빈 글(포지션이 없는 모드 · 옛 글)은
+ * 포지션 없이 들어간다. 그 포지션을 방 안의 누가 이미 골랐으면 그 방은 맞지 않는 방이다 — ⑤ 에서 빼고, 그 사이에 누가 골라 스크립트가
+ * {@code INVALID_POSITION} 으로 거절해도(고른 포지션은 남은 찾는 포지션 SET 에서 빠진다) 다음 방으로 넘어간다(만석 · 확정과 같은 쪽 — Claude 가 정한 세부).
  *
  * <p><b>트랜잭션이 없다</b> — {@code PostService} 와 같은 자리다. DB 는 {@link PostStore} · {@link GameProfileReader} 가 짧게 끝내고, Redis(gameconfig · 방 키 · 스크립트)는 그 밖에서 읽는다.
  * <b>Redis 를 못 읽으면 503 {@code ROOM_STATE_UNAVAILABLE}(fail-closed)</b> — 방에 넣는 일이라 gameconfig 의 fail-open 과 다르다(어차피 방 키 없이는 끝낼 수 없다).
@@ -124,8 +129,14 @@ public class AutoJoinService {
             {
                 continue;
             }
+            // 포지션을 골라 들어가는 방이면 내 포지션으로 들어간다(P-44). 이미 누가 고른 포지션이면 맞지 않는 방이다 — 이미 내가 들어 있는 방은 위와 같이 스크립트에 보낸다(200)
+            String entryPosition = post.getWantedPositions().isEmpty() ? null : myPosition;
+            if(!state.members().contains(me) && state.positionTaken(entryPosition))
+            {
+                continue;
+            }
             tried++;
-            if(tryEnter(post.getId(), me))
+            if(tryEnter(post.getId(), me, entryPosition))
             {
                 log.info("게시판 방 먼저 합류 userId={} game={} mode={} postId={} candidates={} tried={}", me, game, modeKey,
                         post.getId(), candidates.size(), tried);
@@ -355,15 +366,17 @@ public class AutoJoinService {
     // ---- 입장 ----
 
     /**
-     * 그 방에 들어가 본다. 들어갔거나 이미 들어와 있으면 {@code true}. 다음 방으로 넘어갈 수 있는 거절(만석 · 확정 · 사라진 방 · 입장 검사의 404 · 409)은 {@code false},
+     * 그 방에 들어가 본다. 들어갔거나 이미 들어와 있으면 {@code true}. 다음 방으로 넘어갈 수 있는 거절(만석 · 확정 · 사라진 방 · 포지션이 찼다 · 입장 검사의 404 · 409)은 {@code false},
      * 넘어갈 수 없는 거절(다른 방에 있다 · 자동 매칭 중)은 그 코드 그대로 409 로 던진다. 그 밖의 {@link ApiException}(503 등)도 그대로 던진다.
+     *
+     * @param position 고를 포지션 — 찾는 포지션이 빈 글이면 {@code null}(P-44)
      */
-    private boolean tryEnter(Long postId, Long me)
+    private boolean tryEnter(Long postId, Long me, String position)
     {
         EnterResult result;
         try
         {
-            result = roomMemberService.enter(String.valueOf(postId), String.valueOf(me));
+            result = roomMemberService.enter(String.valueOf(postId), String.valueOf(me), position);
         }
         catch(ApiException e)
         {
@@ -380,6 +393,10 @@ public class AutoJoinService {
             // 강퇴당한 지 10분이 안 된 방은 다음 방으로 — 후보 거르기가 no-auto-join 목록으로 먼저 빼지만, 그 목록에 없고 no-entry 에만 있는 경우는 없다(강퇴는 둘 다 쓴다).
             // 그래도 스크립트가 거절하면 넘어간다(두 목록의 수명이 어긋난 창)
             case FULL, ROOM_CONFIRMED, ROOM_NOT_FOUND, KICKED_RECENTLY -> false;
+            // 포지션(P-44) — INVALID_POSITION 은 그 사이에 누가 내 포지션을 골라 남은 찾는 포지션 SET 에서 빠졌다(글은 고칠 수 없다 — 2026-10-01 소유자 결정).
+            // 이 방은 맞지 않는 방이라 다음 방으로 간다.
+            // POSITION_TAKEN 은 지금 스크립트가 돌려주지 않는다 — switch 가 enum 을 다 덮어야 해서 같이 둔다
+            case POSITION_TAKEN, INVALID_POSITION -> false;
             case IN_OTHER_ROOM -> throw RoomErrors.inOtherRoom();
             case ACTIVE_REQUEST_EXISTS -> throw RoomErrors.alreadyQueued("자동 매칭을 돌리는 동안에는 게시판 방에 들어갈 수 없습니다");
         };

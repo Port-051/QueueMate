@@ -1,0 +1,14 @@
+-- 모집 글에 "빠른매치 입장 허용 / 금지" 칸을 더한다 — 2026-10-02 소유자 결정(contracts/platform-api.md P-50).
+-- 글을 쓸 때(방을 만들 때) 빠른매치로 들어오는 것을 허용할지 금지할지 반드시 고른다. 금지한 글의 방은 게시판 방 먼저 합류
+-- (POST /api/v1/posts/auto-join — 화면의 "빠른매치" 를 누르면 먼저 부르는 요청 · P-28)가 넣지 않는다. 직접 입장(POST /api/v1/rooms/{roomId}/members)은 그대로 된다.
+-- CLAUDE.md §7 · §11 의 "'자동 합류 허용' 칸 없음 · 두지 않는다" 를 소유자가 뒤집은 것이다.
+--
+-- allow_auto_join : true 면 빠른매치가 이 글의 방에 넣을 수 있다 · false 면 넣지 않는다. 앱은 글을 쓸 때 늘 값을 적는다(요청의 allowAutoJoin 이 필수다).
+--                   글 고치기가 없어(2026-10-01 · P-45) 만든 뒤 바뀌지 않는다.
+--
+-- 이미 있는 글은 true 로 채운다 — 지금까지 모든 모집 중인 글이 합류 대상이었다.
+-- DEFAULT true 는 남긴다 — 앱은 늘 값을 적어 기본값에 기대지 않는다(엔티티의 칸이 primitive boolean 이라 INSERT 에 늘 실린다).
+-- 남기는 것은 손으로 넣는 SQL(운영 · 테스트)이 이 칸을 몰라도 지금까지와 같은 글(합류 대상)이 되게 하려는 것이다.
+--
+-- V1 ~ V9 는 고치지 않는다 — 이미 적용된 파일은 체크섬이 달라져 기동이 막힌다(V1 머리의 약속).
+ALTER TABLE recruit_posts ADD COLUMN allow_auto_join boolean NOT NULL DEFAULT true;

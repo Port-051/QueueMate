@@ -81,6 +81,8 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
      * <b>음성과 내 글 제외를 여기서 보는 이유</b>(2026-09-29 — 그 전에는 자바가 봤다) — 컬럼 등호 조건이라 DB 가 보는 것이 싸고, 무엇보다 {@code limit} 이 <b>쓸 만한 글</b>을 세게 된다.
      * 자바에서 거르면 음성이 안 맞는 글이 상한 {@code limit} 을 잡아먹어 뒤에 맞는 글이 있어도 404 가 났다.
      * 나머지 조건(PUBG 시점 — jsonb 안 · 포지션 — 별도 표 · 방장 티어 · 방 안 인원 — Redis)은 여전히 자바가 본다.
+     * <b>빠른매치 입장을 금지한 글({@code allowAutoJoin = false})도 여기서 뺀다</b>(2026-10-02 소유자 결정 — P-50) — 음성 · 내 글과 같은 까닭으로 SQL 에서 거른다
+     * (자바에서 거르면 금지한 글이 상한을 잡아먹는다).
      */
     @Query("""
             select p
@@ -90,6 +92,7 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
                and p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING
                and p.voice = :voice
                and p.hostId <> :me
+               and p.allowAutoJoin = true
              order by p.id asc
             """)
     List<RecruitPost> findAutoJoinCandidates(@Param("game") Game game, @Param("mode") String mode, @Param("voice") VoicePreference voice,
@@ -112,6 +115,33 @@ public interface RecruitPostRepository extends JpaRepository<RecruitPost, Long> 
                and p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING
             """)
     int expireIfRecruiting(@Param("id") Long id, @Param("now") Instant now);
+
+    /**
+     * 그 사람의 <b>모집 중인</b> 글의 번호 — 많아야 하나다(부분 UNIQUE 인덱스 {@code recruit_posts_one_recruiting_per_host}).
+     * 회원 탈퇴가 남은 모집 중인 글을 글 지우기와 같은 길로 끝낼 때 쓴다({@code PostStore#findRecruitingOf} — 2026-10-02 · P-48)
+     */
+    @Query("""
+            select p.id
+              from RecruitPost p
+             where p.hostId = :hostId
+               and p.status = com.queuemate.platform.party.domain.PostStatus.RECRUITING
+            """)
+    Optional<Long> findRecruitingIdByHostId(@Param("hostId") Long hostId);
+
+    /** 그 사람이 쓴 글이 하나라도 있는가(상태를 가리지 않는다) — 회원 탈퇴가 게시판 신호를 낼지 가른다({@code PostStore#deleteUnconfirmedOf}) */
+    boolean existsByHostId(Long hostId);
+
+    /**
+     * <b>회원 탈퇴</b> — 그 사람이 쓴 글 가운데 <b>확정되지 않은 것</b>(모집 중 · 만료)을 지운다(2026-10-02 소유자 결정 · P-48). 찾는 포지션의 줄은 FK 의
+     * {@code ON DELETE CASCADE} 가 같이 지운다(확정되지 않은 글에는 파티가 없다). <b>확정된 글은 남는다</b> — 방장의 칸은 이어서 {@code users} 를 지울 때
+     * FK 의 {@code ON DELETE SET NULL} 이 비운다(V9). 이것을 건너뛰고 {@code users} 를 지우면 그 SET NULL 이 CHECK {@code recruit_posts_host_id_check} 에 걸린다.
+     * SQL 그대로 쓴다 — 찾는 포지션({@code @ElementCollection})의 줄은 DB 의 CASCADE 에 맡긴다.
+     *
+     * @return 지운 글의 수
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(nativeQuery = true, value = "DELETE FROM recruit_posts WHERE host_id = :hostId AND status <> 'CONFIRMED'")
+    int deleteUnconfirmedByHostId(@Param("hostId") Long hostId);
 
     /** 모집 중일 때만 확정으로 바꾼다. 돌려주는 값이 1 이면 이 호출이 바꾼 것이다 — 그 트랜잭션이 파티와 파티원을 기록한다 */
     @Modifying(flushAutomatically = true, clearAutomatically = true)

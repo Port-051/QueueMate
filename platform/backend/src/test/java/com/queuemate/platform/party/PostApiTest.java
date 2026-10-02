@@ -5,7 +5,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.ResultActions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,12 +19,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 모집 글 쓰기 · 고치기 · 지우기 — {@code contracts/platform-api.md} "모집 글 · 목록" 의 앞 세 요청. 방의 상태가 걸리는 것은 {@link PostBoardTest},
+ * 모집 글 쓰기 · 지우기 — {@code contracts/platform-api.md} "모집 글 · 목록" 의 앞 요청들. 글 고치기({@code PATCH})는 2026-10-01 소유자 결정으로 없어졌다 —
+ * 그 경로가 405 인 것을 여기서 본다. 방의 상태가 걸리는 것은 {@link PostBoardTest},
  * 글과 방이 맞물리는 것(글 쓰기 = 방 만들기 · 입장의 검사 · 확정 한 길)은 {@link PostRoomFlowTest} 다.
  */
 class PostApiTest extends PostTestSupport {
@@ -210,80 +211,82 @@ class PostApiTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("고치기는 준 것만 바꾼다. 빈 문자열은 description 을 비운다 — 포지션이 있는 모드의 찾는 포지션은 비울 수 없다. mode 는 gameconfig 에 있는 다른 모드로만 바꾼다")
-    void edit() throws Exception
+    @DisplayName("글은 고칠 수 없다(2026-10-01 소유자 결정) — PATCH 는 방장이 보내도 405 METHOD_NOT_ALLOWED 이고 글 · 방이 그대로다")
+    void editIsGone() throws Exception
     {
-        Cookie cookie = login(newNickname());
+        String host = newNickname();
+        Cookie cookie = login(host);
+        Long hostId = userIdOf(host);
         Long postId = createLolPost(cookie, "MID", "SUPPORT");
 
-        editPost(cookie, postId, "{\"title\":\"제목만 바꾼다\"}")
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.title").value("제목만 바꾼다"))
-                .andExpect(jsonPath("$.mode").value(LOL_MODE))
-                .andExpect(jsonPath("$.description").value("즐겁게"))
-                .andExpect(jsonPath("$.voice").value("REQUIRED"))
-                .andExpect(jsonPath("$.wantedPositions.length()").value(2));
+        // 고치기가 있던 때 200 이던 본문 그대로다 — 그 경로에는 GET · DELETE 만 남았다
+        mockMvc.perform(patch("/api/v1/posts/" + postId).cookie(cookie).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"제목을 바꾼다\",\"voice\":\"NO_VOICE\",\"hostPosition\":\"TOP\"}"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"));
 
-        editPost(cookie, postId, "{\"mode\":\"" + LOL_MODE_2 + "\",\"description\":\"\",\"voice\":\"NO_VOICE\","
-                + "\"wantedPositions\":[\"TOP\",\"MID\"]}")
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.title").value("제목만 바꾼다"))
-                .andExpect(jsonPath("$.mode").value(LOL_MODE_2))
-                .andExpect(jsonPath("$.description").isEmpty())
-                .andExpect(jsonPath("$.voice").value("NO_VOICE"))
-                .andExpect(jsonPath("$.wantedPositions[0]").value("TOP"))
-                .andExpect(jsonPath("$.wantedPositions[1]").value("MID"));
-        // 포지션이 있는 모드는 찾는 포지션이 하나 이상 필수다(2026-09-30 — P-38). 비우는 것은 포지션이 없는 모드에서만 된다(PostHostPositionTest)
-        editPost(cookie, postId, "{\"wantedPositions\":[]}")
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.details", org.hamcrest.Matchers.hasItem("wantedPositions: 하나 이상 필요합니다")));
-        // 없앤 purpose 를 보내면 다른 모르는 칸처럼 무시된다(2026-09-27 — P-29). 따로 거절하지 않는다
-        editPost(cookie, postId, "{\"purpose\":\"WIN\"}")
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.purpose").doesNotExist());
-
-        // 다시 읽어도 같다 — 응답을 요청에서 되짚어 만든 것이 아니다
         mockMvc.perform(get("/api/v1/posts/" + postId).cookie(cookie))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.title").value("제목만 바꾼다"))
-                .andExpect(jsonPath("$.voice").value("NO_VOICE"))
-                .andExpect(jsonPath("$.wantedPositions[0]").value("TOP"))
-                .andExpect(jsonPath("$.wantedPositions[1]").value("MID"));
-
-        editPost(cookie, postId, "{\"title\":\"\"}").andExpect(status().isBadRequest()).andExpect(detailFor("title"));
-        // mode 는 비울 수 없고(빈 문자열은 400) gameconfig 에 없는 이름도 400 이다 (2026-09-24). 안 주면 그대로다
-        editPost(cookie, postId, "{\"mode\":\"\"}").andExpect(status().isBadRequest()).andExpect(detailFor("mode"));
-        editPost(cookie, postId, "{\"mode\":\"" + UNKNOWN_MODE + "\"}")
-                .andExpect(status().isBadRequest()).andExpect(detailFor("mode"));
-        editPost(cookie, postId, "{\"mode\":\"" + PUBG_MODE + "\"}")
-                .andExpect(status().isBadRequest()).andExpect(detailFor("mode"));
-        editPost(cookie, postId, "{\"title\":\"모드는 안 준다\"}")
-                .andExpect(status().isOk()).andExpect(jsonPath("$.mode").value(LOL_MODE_2));
-        editPost(cookie, postId, "{\"wantedPositions\":[\"SENTINEL\"]}")
-                .andExpect(status().isBadRequest()).andExpect(detailFor("wantedPositions"));
-        editPost(cookie, postId, "{\"conditions\":{\"perspective\":\"TPP\"}}")
-                .andExpect(status().isBadRequest()).andExpect(detailFor("conditions"));
+                .andExpect(jsonPath("$.title").value("같이 하실 분"))
+                .andExpect(jsonPath("$.voice").value("REQUIRED"))
+                .andExpect(jsonPath("$.hostPosition").value("JUNGLE"))
+                .andExpect(jsonPath("$.wantedPositions.length()").value(2));
+        // 방의 방장 값 · 찾는 포지션도 글을 쓸 때 그대로다
+        assertThat(positionOf(postId, hostId)).isEqualTo("JUNGLE");
+        assertThat(redisTemplate.opsForSet().members(needsKey(postId))).containsExactlyInAnyOrder("MID", "SUPPORT");
     }
 
     @Test
-    @DisplayName("남의 글은 고치지도 지우지도 못한다(403 NOT_POST_HOST). 없는 글은 404 POST_NOT_FOUND 다")
-    void onlyHostCanEditOrDelete() throws Exception
+    @DisplayName("빠른매치 입장 허용 / 금지(allowAutoJoin)는 글을 쓸 때 필수다 — 없거나 null 이면 400 \"allowAutoJoin: 필요합니다\" 이고 글도 방도 안 생긴다. "
+            + "고른 값이 쓰기 · 단건 · 목록의 글 한 줄에 실린다(2026-10-02 — P-50)")
+    void allowAutoJoinIsRequiredAndEchoed() throws Exception
+    {
+        String host = newNickname();
+        Cookie cookie = login(host);
+        Long hostId = userIdOf(host);
+        String body = lolPostBody("빠른매치 고르기");
+
+        createPost(cookie, body.replace(",\"allowAutoJoin\":true", ""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.details[0]").value("allowAutoJoin: 필요합니다"))
+                .andExpect(jsonPath("$.details.length()").value(1));
+        createPost(cookie, body.replace("\"allowAutoJoin\":true", "\"allowAutoJoin\":null"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[0]").value("allowAutoJoin: 필요합니다"));
+        assertThat(jdbcTemplate.queryForObject("select count(*) from recruit_posts where host_id = ?", Integer.class, hostId)).isZero();
+        assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + hostId)).isNull();
+
+        Long forbidden = createdId(createPost(cookie, forbidAutoJoin(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.allowAutoJoin").value(false)));
+        mockMvc.perform(get("/api/v1/posts/" + forbidden).cookie(cookie))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.allowAutoJoin").value(false));
+        assertThat(find(list(cookie, "LOL"), forbidden).get("allowAutoJoin").asBoolean()).isFalse();
+        assertThat(jdbcTemplate.queryForObject("select allow_auto_join from recruit_posts where id = ?", Boolean.class, forbidden)).isFalse();
+
+        // 허용한 글 — 지우고 다시 쓴다(모집 중인 글은 한 사람에 하나다)
+        mockMvc.perform(delete("/api/v1/posts/" + forbidden).cookie(cookie)).andExpect(status().isNoContent());
+        Long allowed = createdId(createPost(cookie, body)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.allowAutoJoin").value(true)));
+        assertThat(find(list(cookie, "LOL"), allowed).get("allowAutoJoin").asBoolean()).isTrue();
+    }
+
+    @Test
+    @DisplayName("남의 글은 지우지 못한다(403 NOT_POST_HOST). 없는 글은 404 POST_NOT_FOUND 다")
+    void onlyHostCanDelete() throws Exception
     {
         Cookie hostCookie = login(newNickname());
         Cookie otherCookie = login(newNickname());
         Long postId = createLolPost(hostCookie);
 
-        editPost(otherCookie, postId, "{\"title\":\"내 것처럼\"}")
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("NOT_POST_HOST"));
         mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(otherCookie))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("NOT_POST_HOST"));
         assertThat(statusOf(postId)).isEqualTo("RECRUITING");
 
         long nowhere = NO_SUCH_POST;
-        editPost(hostCookie, nowhere, "{\"title\":\"x\"}")
-                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
         mockMvc.perform(delete("/api/v1/posts/" + nowhere).cookie(hostCookie))
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
         mockMvc.perform(get("/api/v1/posts/" + nowhere).cookie(hostCookie))
@@ -291,7 +294,7 @@ class PostApiTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("지우면 줄은 남고 만료가 된다. 두 번 지워도 204 다. 만료된 글은 고칠 수 없다(409 POST_NOT_RECRUITING)")
+    @DisplayName("지우면 줄은 남고 만료가 된다. 두 번 지워도 204 다")
     void deleteExpires() throws Exception
     {
         Cookie cookie = login(newNickname());
@@ -307,9 +310,6 @@ class PostApiTest extends PostTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("EXPIRED"))
                 .andExpect(jsonPath("$.host.host").value(true));
-        editPost(cookie, postId, "{\"title\":\"늦었다\"}")
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("POST_NOT_RECRUITING"));
     }
 
     @Test

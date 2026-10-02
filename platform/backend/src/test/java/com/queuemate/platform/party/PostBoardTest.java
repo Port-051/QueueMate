@@ -62,7 +62,8 @@ class PostBoardTest extends PostTestSupport {
         Cookie viewer = login(newNickname());
 
         // 5인 모드의 글이다 — 정원은 그 모드의 인원이다(2026-09-30 — P-41). 네 사람을 넣고 한 명 더로 만석을 본다
-        Long postId = createFivePersonLolPost(hostCookie, "TOP", "MID", "SUPPORT");
+        // 찾는 포지션은 정원 − 1 개 이상이다(2026-09-30 — 5인이면 넷). 방장 포지션은 남은 JUNGLE 이다
+        Long postId = createFivePersonLolPost(hostCookie, "TOP", "MID", "ADC", "SUPPORT");
         openRoom(postId, hostId, supportId, noAccountId, stranger);
 
         JsonNode line = find(list(viewer, "LOL"), postId);
@@ -71,7 +72,7 @@ class PostBoardTest extends PostTestSupport {
         assertThat(line.get("memberCount").asInt()).isEqualTo(4);
         assertThat(line.get("capacity").asInt()).isEqualTo(5);
         assertThat(line.get("full").asBoolean()).isFalse();
-        assertThat(texts(line.get("wantedPositions"), null)).containsExactly("TOP", "MID", "SUPPORT");
+        assertThat(texts(line.get("wantedPositions"), null)).containsExactly("TOP", "MID", "ADC", "SUPPORT");
 
         JsonNode members = line.get("members");
         List<String> expectedOrder = new ArrayList<>(List.of(support, noAccount));
@@ -221,70 +222,6 @@ class PostBoardTest extends PostTestSupport {
                 .andExpect(jsonPath("$.status").value("EXPIRED"));
     }
 
-    // ---- 글 고치기와 방 안 사람 (2026-09-24 소유자 결정) ----
-
-    @Test
-    @DisplayName("방에 방장 말고 누가 있으면 글을 고칠 수 없다(409 ROOM_HAS_OTHER_MEMBERS) — 방장 혼자거나 방이 사라졌으면 고쳐지고, 그 사람이 나가면 다시 고쳐진다")
-    void noEditWhileOthersInRoom() throws Exception
-    {
-        String host = newNickname();
-        String guest = newNickname();
-        Cookie hostCookie = login(host);
-        login(guest);
-        Long hostId = userIdOf(host);
-        Long guestId = userIdOf(guest);
-        Long postId = createLolPost(hostCookie);
-
-        // 글을 쓰면서 방이 생겼다 — 방장 혼자다
-        editPost(hostCookie, postId, "{\"title\":\"혼자 있다\"}")
-                .andExpect(status().isOk()).andExpect(jsonPath("$.title").value("혼자 있다"));
-
-        // 누가 들어왔다 — 이제 어느 칸도 고칠 수 없다(NO_VOICE 를 보고 들어온 사람에게 알려 줄 길이 없다)
-        openRoom(postId, hostId, guestId);
-        editPost(hostCookie, postId, "{\"title\":\"제목만 바꾼다\"}")
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("ROOM_HAS_OTHER_MEMBERS"));
-        editPost(hostCookie, postId, "{\"voice\":\"NO_VOICE\"}")
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("ROOM_HAS_OTHER_MEMBERS"));
-        // 아무 칸도 바뀌지 않았다 — DB 를 다시 읽어 본다
-        assertThat(columnOf(postId, "title")).isEqualTo("혼자 있다");
-        assertThat(columnOf(postId, "voice")).isEqualTo("REQUIRED");
-
-        redisTemplate.opsForSet().remove(membersKey(postId), String.valueOf(guestId));
-        editPost(hostCookie, postId, "{\"title\":\"다 나갔다\"}")
-                .andExpect(status().isOk()).andExpect(jsonPath("$.title").value("다 나갔다"));
-        // 방이 통째로 사라진 글 — 멤버가 없어 이 검사는 통과하고, 잠금 안의 판정은 아직 모집 중이라 고쳐진다(만료로 옮겨 적는 것은 목록 · 단건의 일이다)
-        redisTemplate.delete(List.of(hostKey(postId), membersKey(postId)));
-        editPost(hostCookie, postId, "{\"title\":\"방이 없다\"}")
-                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("EXPIRED"));
-    }
-
-    @Test
-    @DisplayName("방장 · 상태 검사가 방 안 사람 검사보다 먼저다 — 방에 사람이 있어도 남의 글은 403, 만료된 글은 409 POST_NOT_RECRUITING 이다")
-    void hostAndStatusCheckedBeforeRoom() throws Exception
-    {
-        String host = newNickname();
-        String guest = newNickname();
-        Cookie hostCookie = login(host);
-        Cookie guestCookie = login(guest);
-        Long hostId = userIdOf(host);
-        Long guestId = userIdOf(guest);
-        Long postId = createLolPost(hostCookie);
-        openRoom(postId, hostId, guestId);
-
-        // 남의 글에 대고 "방에 사람이 있다"를 알려 주면 그 자체가 새는 정보다
-        editPost(guestCookie, postId, "{\"title\":\"내 것처럼\"}")
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("NOT_POST_HOST"));
-
-        // 방장이 글을 지운다(만료) — 방도 같이 닫힌다(2026-09-25 소유자 결정). 끝난 글은 방에 누가 있었든 고칠 수 없다
-        mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(hostCookie)).andExpect(status().isNoContent());
-        editPost(hostCookie, postId, "{\"title\":\"늦었다\"}")
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("POST_NOT_RECRUITING"));
-    }
-
     // ---- 차단 ----
 
     @Test
@@ -330,7 +267,8 @@ class PostBoardTest extends PostTestSupport {
         // 차단을 풀면 다시 보인다
         mockMvc.perform(delete("/api/v1/blocks/" + memberId).cookie(iBlockMemberCookie)).andExpect(status().isNoContent());
         assertThat(find(list(iBlockMemberCookie, "LOL"), postId)).isNotNull();
-        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(iBlockMemberCookie)).andExpect(status().isCreated());
+        // 참가할 때 남은 찾는 포지션 하나를 고른다(2026-09-30 — P-44. 이 글의 찾는 포지션은 TOP · MID · ADC · SUPPORT)
+        enterRoom(iBlockMemberCookie, postId, "TOP").andExpect(status().isCreated());
         track(postId, userIdOf(iBlockMember));
     }
 
@@ -400,7 +338,7 @@ class PostBoardTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("자가 치유 — 확정 표시 키는 있는데 멤버 SET 이 비어 있으면(이미 다 나갔다) 방장만 파티원으로 기록한다")
+    @DisplayName("자가 치유 — 확정 표시 키는 있는데 멤버 HASH 가 비어 있으면(이미 다 나갔다) 방장만 파티원으로 기록한다")
     void healWithEmptyMembers() throws Exception
     {
         String host = newNickname();
@@ -499,10 +437,11 @@ class PostBoardTest extends PostTestSupport {
         // 셋이 들어가는 방이라 5인 모드의 글이다(정원은 모드의 인원 — P-41)
         Long postId = createFivePersonLolPost(hostCookie);
         track(postId, aId, bId);
-        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(aCookie)).andExpect(status().isCreated());
-        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(bCookie)).andExpect(status().isCreated());
-        // 가입하지 않은 번호가 멤버 SET 에 있었다 — 파티원으로 적히지 않으니(FK) 확정된 글의 카드에도 없다
-        redisTemplate.opsForSet().add(membersKey(postId), String.valueOf(unknownUserId()));
+        // 참가할 때 남은 찾는 포지션 하나씩을 고른다(P-44 — 이 글의 찾는 포지션은 TOP · MID · ADC · SUPPORT)
+        enterRoom(aCookie, postId, "TOP").andExpect(status().isCreated());
+        enterRoom(bCookie, postId, "MID").andExpect(status().isCreated());
+        // 가입하지 않은 번호가 멤버 HASH 에 있었다 — 파티원으로 적히지 않으니(FK) 확정된 글의 카드에도 없다
+        addMember(postId, unknownUserId());
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
 
         List<String> others = new ArrayList<>(List.of(a, b));
@@ -558,7 +497,7 @@ class PostBoardTest extends PostTestSupport {
         Cookie viewer = login(newNickname());
         Long postId = createLolPost(hostCookie);
         track(postId, userIdOf(guest));
-        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(guestCookie)).andExpect(status().isCreated());
+        enterRoom(guestCookie, postId, "SUPPORT").andExpect(status().isCreated());
         mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(hostCookie)).andExpect(status().isNoContent());
 
         JsonNode line = find(list(viewer, "LOL"), postId);
@@ -585,11 +524,11 @@ class PostBoardTest extends PostTestSupport {
         Long memberId = userIdOf(member);
         Long postId = createLolPost(hostCookie);
         track(postId, memberId);
-        mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(memberCookie)).andExpect(status().isCreated());
+        enterRoom(memberCookie, postId, "SUPPORT").andExpect(status().isCreated());
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
         // 멤버가 방에서 나갔다 — 방에는 방장만 남았지만 그 사람은 파티원이라 카드에 남는다
         mockMvc.perform(delete("/api/v1/rooms/" + postId + "/members/me").cookie(memberCookie)).andExpect(status().isNoContent());
-        assertThat(redisTemplate.opsForSet().members(membersKey(postId))).containsExactly(String.valueOf(hostId));
+        assertThat(memberIds(postId)).containsExactly(String.valueOf(hostId));
 
         block(blocksMember, memberId);
         block(memberCookie, userIdOf(blockedByMemberName));
@@ -616,7 +555,7 @@ class PostBoardTest extends PostTestSupport {
     // ---- 읽기만 한다 · N+1 ----
 
     @Test
-    @DisplayName("글의 읽기는 방 키에 쓰지 않는다 — 목록 · 단건 · 거절된 고치기를 돈 뒤에도 qm:room:* · qm:user:* · qm:party:* 키가 그대로이고 값 · 수명도 그대로다")
+    @DisplayName("글의 읽기는 방 키에 쓰지 않는다 — 목록 · 단건을 돈 뒤에도 qm:room:* · qm:user:* · qm:party:* 키가 그대로이고 값 · 수명도 그대로다")
     void readsNeverWriteRoomKeys() throws Exception
     {
         String host = newNickname();
@@ -637,13 +576,12 @@ class PostBoardTest extends PostTestSupport {
         list(hostCookie, "LOL");
         mockMvc.perform(get("/api/v1/posts/" + postId).cookie(memberCookie)).andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/posts/" + other).cookie(hostCookie)).andExpect(status().isOk());
-        editPost(hostCookie, postId, "{\"title\":\"사람이 있다\"}").andExpect(status().isConflict());
         // 지우기는 여기 없다 — 2026-09-25 소유자 결정으로 글을 지우면 방도 닫는다(방 키를 지운다). 그쪽은 PostRoomFlowTest 가 본다
 
         assertThat(foreignKeys()).isEqualTo(before);
         // 방 키의 값은 전부 문자열이다 — 사용자 번호 · 글 번호를 십진 문자열로 적은 것이다
         assertThat(redisTemplate.opsForValue().get(hostKey(postId))).isEqualTo(Long.toString(hostId));
-        assertThat(redisTemplate.opsForSet().members(membersKey(postId)))
+        assertThat(memberIds(postId))
                 .containsExactlyInAnyOrder(Long.toString(hostId), Long.toString(memberId));
         assertThat(redisTemplate.getExpire(hostKey(postId))).isBetween(ttlBefore - 60, ttlBefore);
     }
@@ -708,12 +646,6 @@ class PostBoardTest extends PostTestSupport {
     }
 
     // ---- 도우미 ----
-
-    /** 글의 어느 칸이 정말 안 바뀌었는지 볼 때 쓴다 — 응답이 아니라 DB 를 읽는다 */
-    private String columnOf(Long postId, String column)
-    {
-        return jdbcTemplate.queryForObject("select " + column + " from recruit_posts where id = ?", String.class, postId);
-    }
 
     /** 그 글로 기록된 파티의 파티원. 파티의 id 는 DB 가 매긴 번호라 글의 번호로 찾는다({@code parties.post_id}) */
     private List<Long> partyMembers(Long postId)

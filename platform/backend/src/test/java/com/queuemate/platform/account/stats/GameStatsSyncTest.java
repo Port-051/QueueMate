@@ -184,7 +184,11 @@ class GameStatsSyncTest extends ApiTestSupport {
         assertMostChampion(champions.get(1), "Samira", 7, 123_456);
         assertMostChampion(champions.get(2), "Teemo", 3, 12_345);
         assertThat(FAKE.lastMasteryRequest()).isEqualTo("/top?count=3");
-        // 계정 · 리그 · 경기 id · 경기 7 · 숙련도 1 — 숙련도는 챔피언마다 부르지 않고 상위 셋을 한 번에 받는다. 소환사(summoner-v4)는 부르지 않는다 —
+        // 최근 경기의 승 · 패(2026-09-30 — P-43) — games · 평균 · 연승과 같은 7판, 새 경기가 먼저. detail 의 칸은 이 둘뿐이다
+        assertThat(stats.get("detail").propertyNames()).containsExactly("mostChampions", "recentResults");
+        assertThat(recentResults(stats)).containsExactly("W", "W", "L", "W", "L", "L", "W")
+                .hasSize(stats.get("games").asInt());
+        // 계정 · 리그 · 경기 id · 경기 7 · 숙련도 1 — 승 · 패 줄을 위해 더 부르지 않는다 — 숙련도는 챔피언마다 부르지 않고 상위 셋을 한 번에 받는다. 소환사(summoner-v4)는 부르지 않는다 —
         // 실제 응답에 id 가 없어 리그를 puuid 로 부른다(2026-09-29)
         assertThat(FAKE.calls() - callsBefore).isEqualTo(11);
         assertThat(FAKE.summonerCalls()).isZero();
@@ -331,7 +335,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("연승은 가장 최근 경기부터 센다 — 최근 경기가 패면 0 이다. 경기를 하나도 못 읽으면 games 0 · 평균 · 연승이 null 이다")
+    @DisplayName("연승은 가장 최근 경기부터 센다 — 최근 경기가 패면 0 이다. 경기를 하나도 못 읽으면 games 0 · 평균 · 연승이 null 이고 recentResults 는 빈 배열이다")
     void winStreakAndNoMatches() throws Exception
     {
         Cookie cookie = login(newNickname());
@@ -339,9 +343,11 @@ class GameStatsSyncTest extends ApiTestSupport {
                 play("Ahri", 1, 1, 1, false),
                 play("Ahri", 1, 1, 1, true),
                 play("Ahri", 1, 1, 1, true)));
-        putGameAccount(cookie, "LOL", json("gameNickname", "연승#KR1"))
+        JsonNode first = readBody(putGameAccount(cookie, "LOL", json("gameNickname", "연승#KR1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.stats.winStreak").value(0));
+                .andExpect(jsonPath("$.stats.winStreak").value(0))).get("stats");
+        // 최근 경기가 패라 연승 0 — 승 · 패 줄의 첫 칸도 L 이다(같은 순서)
+        assertThat(recentResults(first)).containsExactly("L", "W", "W");
 
         // 경기가 하나도 없는 계정으로 바꿔 다시 연결한다(연결은 무조건 긁는다)
         FAKE.stubAccount("무경기#KR1", puuid);
@@ -356,6 +362,80 @@ class GameStatsSyncTest extends ApiTestSupport {
         assertThat(stats.get("winStreak").isNull()).isTrue();
         assertThat(stats.get("kda").isNull()).isTrue();
         assertThat(stats.get("detail").get("mostChampions")).isEmpty();
+        // 경기가 없으면 칸을 빼지 않고 빈 배열이다(P-43 — mostChampions 와 같은 규칙)
+        assertThat(stats.get("detail").has("recentResults")).isTrue();
+        assertThat(stats.get("detail").get("recentResults").isArray()).isTrue();
+        assertThat(stats.get("detail").get("recentResults")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("참가자에서 그 사람을 못 찾은 경기는 games · 평균 · 연승과 함께 recentResults 에서도 빠진다 — 나머지 경기의 순서는 그대로다 (P-43)")
+    void unreadableMatchIsSkippedInRecentResults() throws Exception
+    {
+        Cookie cookie = login(newNickname());
+        // 둘째 경기(null)는 그 사람이 참가자에 없다 — 앱이 읽지 못해 건너뛴다. Riot 은 그 경기도 불렀다(경기 4번)
+        stubLol("빠진경기#KR1", 5, 5, java.util.Arrays.asList(
+                play("Ahri", 3, 1, 3, true),
+                null,
+                play("Ahri", 1, 3, 1, false),
+                play("Ahri", 2, 2, 2, true)));
+        int callsBefore = FAKE.calls();
+
+        JsonNode stats = readBody(putGameAccount(cookie, "LOL", json("gameNickname", "빠진경기#KR1"))
+                .andExpect(status().isOk())).get("stats");
+
+        assertThat(stats.get("games").asInt()).isEqualTo(3);
+        assertThat(recentResults(stats)).containsExactly("W", "L", "W");
+        assertThat(stats.get("winStreak").asInt()).isEqualTo(1);
+        assertThat(number(stats, "avgKills")).isEqualTo(2.0);
+        // 계정 · 리그 · 경기 id · 경기 4 · 숙련도 1 — 못 읽은 경기도 부르기는 했다. 승 · 패 줄이 호출을 늘리지 않는다
+        assertThat(FAKE.calls() - callsBefore).isEqualTo(8);
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    @DisplayName("커스텀 게임(queueId 0 또는 gameType CUSTOM_GAME)과 큐를 못 읽은 경기는 games · 평균 · 연승 · recentResults 에서 통째로 빠진다 — 더 받지 않아 그만큼 적게 나오고, 칼바람 등 다른 큐는 그대로다 (2026-10-02)")
+    void customGamesAreExcluded(CapturedOutput output) throws Exception
+    {
+        Cookie cookie = login(newNickname());
+        String puuid = "puuid-" + newTag();
+        FAKE.stubAccount("내전러#KR1", puuid);
+        FAKE.stubSoloRank(puuid, 5, 5);
+        // 새 경기가 먼저다. 빠져야 하는 넷은 전부 패 · 킬 99 다 — 하나라도 섞이면 연승 · 평균 · 승 · 패 줄이 틀린다.
+        // 가운데 둘은 가상의 조합이다 — queueId 와 gameType 가운데 어느 한쪽만 커스텀이어도 뺀다. 넷째는 queueId 칸이 없다(모를 때는 뺀다)
+        FAKE.stubQueuedMatches(puuid, List.of(
+                queued(play("Customonly", 99, 0, 99, false), FakeRiotApi.Queue.CUSTOM),
+                queued(play("Ahri", 2, 2, 2, true), FakeRiotApi.Queue.SOLO_RANKED),
+                queued(play("Yasuo", 99, 0, 99, false), new FakeRiotApi.Queue(0, null, null)),
+                queued(play("Ahri", 4, 2, 4, true), FakeRiotApi.Queue.ARAM),
+                queued(play("Yasuo", 99, 0, 99, false), new FakeRiotApi.Queue(400, "CUSTOM_GAME", "")),
+                queued(play("Yasuo", 99, 0, 99, false), new FakeRiotApi.Queue(null, "MATCHED_GAME", "")),
+                queued(play("Ahri", 0, 2, 0, false), FakeRiotApi.Queue.SOLO_RANKED)));
+        // 커스텀에서만 한 "새 챔피언"(이름표에 없는 번호)이 숙련도 1위다 — 커스텀 경기의 championName 으로 메우지 않고 번호의 글자로 나가야 한다
+        FAKE.stubMastery(puuid, Map.of("Customonly", new int[]{10, 500_000}));
+        int callsBefore = FAKE.calls();
+
+        JsonNode stats = readBody(putGameAccount(cookie, "LOL", json("gameNickname", "내전러#KR1"))
+                .andExpect(status().isOk())).get("stats");
+
+        // 남는 것은 솔로랭크 둘과 칼바람 하나 — 7판 가운데 3판이다
+        assertThat(stats.get("games").asInt()).isEqualTo(3);
+        assertThat(recentResults(stats)).containsExactly("W", "W", "L");
+        // 맨 앞의 커스텀 패가 빠져 연승이 솔로랭크 승 · 칼바람 승의 2 다
+        assertThat(stats.get("winStreak").asInt()).isEqualTo(2);
+        assertThat(number(stats, "avgKills")).isEqualTo(2.0);
+        assertThat(number(stats, "avgDeaths")).isEqualTo(2.0);
+        assertThat(number(stats, "avgAssists")).isEqualTo(2.0);
+        // 승/패는 그대로 솔로랭크 시즌 누적이다
+        assertThat(stats.get("wins").asInt()).isEqualTo(5);
+        JsonNode champions = stats.get("detail").get("mostChampions");
+        assertThat(champions.get(0).get("championId").asString())
+                .isEqualTo(String.valueOf(FakeRiotApi.championKey("Customonly")));
+        // 계정 · 리그 · 경기 id · 경기 7 · 숙련도 1 — 커스텀을 뺀 만큼 더 받지 않는다(P-43 의 "호출을 늘리지 않는다")
+        assertThat(FAKE.calls() - callsBefore).isEqualTo(11);
+        assertThat(output.getAll())
+                .contains("최근 경기 7판 가운데 커스텀(또는 큐를 못 읽은) 4판을 뺐다")
+                .contains("queueId 가 없다");
     }
 
     @Test
@@ -424,6 +504,8 @@ class GameStatsSyncTest extends ApiTestSupport {
         assertThat(FAKE.calls() - callsBefore).isEqualTo(14);
         assertThat(stats.get("games").asInt()).isEqualTo(10);
         assertThat(number(stats, "avgKills")).isEqualTo(4.0);
+        // 승 · 패 줄도 읽은 10판만이다(P-43) — 짝수 번째가 이긴 판
+        assertThat(recentResults(stats)).containsExactly("W", "L", "W", "L", "W", "L", "W", "L", "W", "L");
         // 승/패는 읽은 경기 수와 무관한 솔로랭크 시즌 누적이다
         assertThat(stats.get("wins").asInt()).isEqualTo(30);
         assertThat(stats.get("losses").asInt()).isEqualTo(20);
@@ -853,6 +935,23 @@ class GameStatsSyncTest extends ApiTestSupport {
         assertThat(champion.get("masteryPoints").asLong()).isEqualTo(points);
     }
 
+    /** {@code stats.detail.recentResults} 를 글자 목록으로(P-43). 칸이 없거나 배열이 아니면 테스트를 깬다 */
+    private static List<String> recentResults(JsonNode stats)
+    {
+        JsonNode results = stats.get("detail").get("recentResults");
+        assertThat(results).as("detail.recentResults").isNotNull();
+        assertThat(results.isArray()).as("detail.recentResults 는 배열이다").isTrue();
+        List<String> values = new java.util.ArrayList<>();
+        results.forEach(one -> values.add(one.asString()));
+        return values;
+    }
+
+    /** 큐를 붙인 한 판 — 커스텀을 섞을 때 쓴다({@link FakeRiotApi#stubQueuedMatches}) */
+    private static FakeRiotApi.QueuedPlay queued(FakeRiotApi.Play play, FakeRiotApi.Queue queue)
+    {
+        return new FakeRiotApi.QueuedPlay(play, queue);
+    }
+
     /** 미드로 한 판 */
     private static FakeRiotApi.Play play(String champion, int kills, int deaths, int assists, boolean win)
     {
@@ -886,7 +985,7 @@ class GameStatsSyncTest extends ApiTestSupport {
     {
         // mode 는 gameconfig 에 있는 이름이어야 한다(2026-09-24) — ApiTestSupport 가 심어 둔다. 포지션이 있는 모드라 방장 포지션이 필수다(2026-09-30 — P-38)
         String body = "{\"game\":\"LOL\",\"mode\":\"" + LOL_MODE + "\",\"title\":\"같이 하실 분\",\"description\":\"즐겁게\","
-                + "\"voice\":\"REQUIRED\",\"conditions\":{},\"wantedPositions\":[\"MID\"],\"hostPosition\":\"JUNGLE\"}";
+                + "\"voice\":\"REQUIRED\",\"conditions\":{},\"wantedPositions\":[\"MID\"],\"hostPosition\":\"JUNGLE\",\"allowAutoJoin\":true}";
         ResultActions created = mockMvc.perform(post("/api/v1/posts").cookie(cookie)
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated());
         return readBody(created).get("postId").asLong();

@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 /**
  * <b>{@code account} 밖에서 게임 프로필을 읽는 창구</b> — 모집 글 목록이 방 안 사람들의 카드를 그릴 때 쓴다
  * ({@code contracts/platform-api.md} "글 한 줄"의 {@code host} · {@code members[].profile}).
- * 2026-09-26 부터 테이블을 패키지 너머로 JOIN 해도 되지만 이것은 남긴다 — 묻는 사용자 번호가 DB 가 아니라 <b>Redis 의 멤버 SET</b> 에서 오므로
+ * 2026-09-26 부터 테이블을 패키지 너머로 JOIN 해도 되지만 이것은 남긴다 — 묻는 사용자 번호가 DB 가 아니라 <b>Redis 의 멤버 HASH</b> 에서 오므로
  * JOIN 할 짝이 없고, 어차피 {@code IN} 한 번이다.
  *
  * <p><b>게임사 API 를 부르지 않는다</b> — DB 의 스냅숏({@code game_account_stats})만 읽는다. 그 스냅숏을 채우는 것은

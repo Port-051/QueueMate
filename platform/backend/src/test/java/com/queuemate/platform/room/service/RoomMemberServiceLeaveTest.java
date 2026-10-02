@@ -8,6 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -29,7 +30,7 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
     @DisplayName("멤버가 나가면 그 사람만 빠진다. 방과 나머지 사람은 그대로다")
     void memberLeaves()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
 
@@ -45,7 +46,7 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
     @DisplayName("스스로 나간 사람은 그 방을 10분 동안 자동 합류에서 건너뛴다(no-auto-join) — 직접 입장은 막지 않는다(no-entry 에 없다) (2026-09-29 소유자 결정)")
     void leavingWritesOnlyAutoJoinBan()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
 
         assertThat(roomMemberService.leave(r("r1"), u("u1"))).isEqualTo(LeaveResult.LEFT);
@@ -59,7 +60,7 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
     @DisplayName("나갔다가 다시 들어올 수 있고, 나간 자리에 다른 사람이 들어올 수 있다")
     void canEnterAgainAfterLeaving()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         for (int i = 1; i <= 4; i++)
         {
             roomMemberService.enter(r("r1"), u("u" + i));
@@ -70,7 +71,7 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
 
         assertThat(roomMemberService.enter(r("r1"), u("u5"))).isEqualTo(EnterResult.ENTERED);
         // 나간 사람은 다른 방에도 갈 수 있다
-        roomService.create(r("r2"), u("host2"));
+        roomService.create(r("r2"), u("host2"), Set.of());
         assertThat(roomMemberService.enter(r("r2"), u("u1"))).isEqualTo(EnterResult.ENTERED);
     }
 
@@ -78,7 +79,7 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
     @DisplayName("D-11 11번: 방장이 나가면 방이 없어지고, 남아 있던 전원의 입장 표시 키가 함께 지워진다. 그 글도 그 자리에서 만료된다(2026-09-25 — 확정 전에는 방과 글이 같이 끝난다)")
     void hostLeavesAndTheRoomIsClosed()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
 
@@ -97,7 +98,7 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
     @DisplayName("멤버가 나가는 것과 확정한 방의 방장이 나가는 것(승계)은 글을 건드리지 않는다")
     void onlyClosingExpiresThePost()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
 
@@ -115,11 +116,11 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
     @DisplayName("방이 없어진 뒤, 있던 사람들은 곧바로 다른 방에 들어가거나 새 방을 만들 수 있다")
     void everyoneIsFreeAfterTheRoomIsClosed()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.leave(r("r1"), u("host"));
 
-        assertThat(roomService.create(r("r2"), u("u1")).name()).isEqualTo("CREATED");
+        assertThat(roomService.create(r("r2"), u("u1"), Set.of()).name()).isEqualTo("CREATED");
         assertThat(roomMemberService.enter(r("r2"), u("host"))).isEqualTo(EnterResult.ENTERED);
     }
 
@@ -127,7 +128,7 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
     @DisplayName("이 방에 없는 사람 · 이미 나간 사람 · 없는 방은 NOT_IN_ROOM 이고 아무것도 지우지 않는다")
     void notInRoom()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
 
         assertThat(roomMemberService.leave(r("r1"), u("stranger"))).isEqualTo(LeaveResult.NOT_IN_ROOM);
@@ -143,8 +144,8 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
     @DisplayName("늦게 도착한 나가기: 그 사이 다른 방에 들어간 사람의 입장 표시를 지우지 않는다")
     void lateLeaveDoesNotTouchTheOtherRoom()
     {
-        roomService.create(r("r1"), u("host1"));
-        roomService.create(r("r2"), u("host2"));
+        roomService.create(r("r1"), u("host1"), Set.of());
+        roomService.create(r("r2"), u("host2"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.leave(r("r1"), u("u1"));
         roomMemberService.enter(r("r2"), u("u1"));
@@ -160,9 +161,9 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
     @DisplayName("방을 없앨 때도 남의 표시는 지우지 않는다 — 입장 표시가 다른 방을 가리키는 멤버가 섞여 있어도")
     void closingTheRoomOnlyClearsMarkersThatPointToIt()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         // 정상 흐름에서는 생기지 않는 어긋남이다. 생겼다고 해도 남의 방 표시를 지우면 안 된다
-        redisTemplate.opsForSet().add(key("qm:room:r1:members"), u("ghost"));
+        addMember("r1", "ghost");
         redisTemplate.opsForValue().set(key("qm:user:active-room:ghost"), r("r2"));
 
         roomMemberService.leave(r("r1"), u("host"));
@@ -183,7 +184,7 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
             deleteOwnKeys();
             // 방장이 나가면 글이 만료된다(2026-09-25) — 되살려 두지 않으면 둘째 판부터 입장이 전부 글에서 409 로 막혀 경쟁이 일어나지 않는다
             jdbcTemplate.update("update recruit_posts set status = 'RECRUITING', expired_at = null where id = ?", Long.parseLong(r("r1")));
-            roomService.create(r("r1"), u("host"));
+            roomService.create(r("r1"), u("host"), Set.of());
 
             runConcurrently(101, i -> {
                 if (i == 50)
@@ -205,7 +206,7 @@ class RoomMemberServiceLeaveTest extends RoomTestSupport {
     @DisplayName("같은 사람이 나가기를 동시에 100번 눌러도 한 번만 나가고 나머지는 NOT_IN_ROOM 이다")
     void sameUserLeavesOnce() throws InterruptedException
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         Map<LeaveResult, AtomicInteger> counts = new ConcurrentHashMap<>();
 

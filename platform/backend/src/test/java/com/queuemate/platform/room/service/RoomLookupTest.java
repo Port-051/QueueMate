@@ -6,6 +6,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * 조회 둘 — 방 안 사람 목록({@code lua/members-room.lua})과 내 방 찾기.
@@ -19,10 +23,10 @@ class RoomLookupTest extends RoomTestSupport {
     // ── 방 안 사람 목록 ─────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("방 안의 사람은 방장과 멤버 전원을 본다. 멤버에는 방장도 들어 있다")
+    @DisplayName("방 안의 사람은 방장과 멤버 전원을 본다. 멤버에는 방장도 들어 있다 — 포지션이 없는 방이라 사람마다의 포지션은 null 이다")
     void membersSeeEveryone()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
 
@@ -32,20 +36,38 @@ class RoomLookupTest extends RoomTestSupport {
 
             assertThat(result.status()).isEqualTo(RoomMembersResult.Status.FOUND);
             assertThat(labelOf(result.hostId())).isEqualTo("host");
-            assertThat(result.members().stream().map(this::labelOf).toList()).containsExactlyInAnyOrder("host", "u1", "u2");
+            assertThat(labelsOf(result)).containsExactlyInAnyOrder("host", "u1", "u2");
+            // 멤버 HASH 의 값이 "" 다 — 내보낼 때 null 이다
+            assertThat(result.members()).extracting(RoomMembersResult.Member::position).containsOnlyNulls();
         }
+    }
+
+    @Test
+    @DisplayName("포지션을 골라 들어오는 방이면 사람마다 고른 포지션이 같이 온다 — 방장은 방장 포지션이다(2026-10-01 소유자 결정)")
+    void membersCarryChosenPositions()
+    {
+        createPositionRoom("r1", "host", Set.of("TOP", "MID"), "JUNGLE");
+        roomMemberService.enter(r("r1"), u("u1"), "MID");
+
+        RoomMembersResult result = roomMemberService.members(r("r1"), u("u1"));
+
+        assertThat(result.status()).isEqualTo(RoomMembersResult.Status.FOUND);
+        assertThat(labelOf(result.hostId())).isEqualTo("host");
+        Map<String, String> positions = new HashMap<>();
+        result.members().forEach(member -> positions.put(labelOf(member.userId()), member.position()));
+        assertThat(positions).containsExactlyInAnyOrderEntriesOf(Map.of("host", "JUNGLE", "u1", "MID"));
     }
 
     @Test
     @DisplayName("나간 사람은 목록에서 빠지고, 나간 본인은 더 이상 목록을 볼 수 없다")
     void afterSomeoneLeft()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
         roomMemberService.leave(r("r1"), u("u1"));
 
-        assertThat(roomMemberService.members(r("r1"), u("host")).members().stream().map(this::labelOf).toList()).containsExactlyInAnyOrder("host", "u2");
+        assertThat(labelsOf(roomMemberService.members(r("r1"), u("host")))).containsExactlyInAnyOrder("host", "u2");
         assertThat(roomMemberService.members(r("r1"), u("u1")).status()).isEqualTo(RoomMembersResult.Status.NOT_IN_ROOM);
     }
 
@@ -53,8 +75,8 @@ class RoomLookupTest extends RoomTestSupport {
     @DisplayName("방 밖의 사람 — 아무 방에도 없는 사람, 다른 방에 있는 사람 — 은 NOT_IN_ROOM 이고 아무것도 보지 못한다")
     void outsidersSeeNothing()
     {
-        roomService.create(r("r1"), u("host1"));
-        roomService.create(r("r2"), u("host2"));
+        roomService.create(r("r1"), u("host1"), Set.of());
+        roomService.create(r("r2"), u("host2"), Set.of());
 
         for (String outsider : new String[]{"stranger", "host2"})
         {
@@ -62,7 +84,7 @@ class RoomLookupTest extends RoomTestSupport {
 
             assertThat(result.status()).isEqualTo(RoomMembersResult.Status.NOT_IN_ROOM);
             assertThat(labelOf(result.hostId())).isNull();
-            assertThat(result.members().stream().map(this::labelOf).toList()).isEmpty();
+            assertThat(result.members()).isEmpty();
         }
     }
 
@@ -72,7 +94,7 @@ class RoomLookupTest extends RoomTestSupport {
     {
         assertThat(roomMemberService.members(r("r9"), u("u1")).status()).isEqualTo(RoomMembersResult.Status.NOT_IN_ROOM);
 
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.leave(r("r1"), u("host"));
 
@@ -83,7 +105,7 @@ class RoomLookupTest extends RoomTestSupport {
     @DisplayName("조회는 아무것도 쓰지 않는다")
     void readOnly()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         var before = ownKeys();
 
@@ -101,7 +123,7 @@ class RoomLookupTest extends RoomTestSupport {
     @DisplayName("방에 있으면 그 방의 roomId 를, 아무 방에도 없으면 null 을 돌려준다. 방장도 자기 방에 있는 사람이다")
     void myRoom()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
 
         assertThat(labelOf(roomService.myRoom(u("host")))).isEqualTo("r1");
@@ -113,7 +135,7 @@ class RoomLookupTest extends RoomTestSupport {
     @DisplayName("나간 뒤, 그리고 방장이 나가 방이 없어진 뒤에는 null 이다 — 없는 방에 갇힌 사람이 없다")
     void myRoomAfterLeaving()
     {
-        roomService.create(r("r1"), u("host"));
+        roomService.create(r("r1"), u("host"), Set.of());
         roomMemberService.enter(r("r1"), u("u1"));
         roomMemberService.enter(r("r1"), u("u2"));
 
@@ -123,5 +145,11 @@ class RoomLookupTest extends RoomTestSupport {
         roomMemberService.leave(r("r1"), u("host"));
         assertThat(labelOf(roomService.myRoom(u("u2")))).isNull();
         assertThat(labelOf(roomService.myRoom(u("host")))).isNull();
+    }
+
+    /** 목록에 든 사람들을 이름표로 */
+    private List<String> labelsOf(RoomMembersResult result)
+    {
+        return result.members().stream().map(member -> labelOf(member.userId())).toList();
     }
 }

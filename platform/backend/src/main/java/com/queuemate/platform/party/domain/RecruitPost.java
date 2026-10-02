@@ -29,7 +29,9 @@ import java.util.Set;
  * 모집 글. <b>{@code id} 가 곧 {@code roomId} 다</b> — DB 가 매기고(bigint identity), 글을 쓰는 그 트랜잭션에서 그 값(숫자를 문자열로)으로 방이 만들어진다({@code PostStore#create} — 2026-09-25 2단계)
  * ({@code contracts/platform-api.md} "모집 글 · 목록").
  *
- * <p>{@code hostId} 는 사용자 번호({@code users.id})이고 FK 가 걸려 있다(방장을 지우면 글이 딸려 지워진다). 엔티티 연관은 두지 않고 숫자로만 든다.
+ * <p>{@code hostId} 는 사용자 번호({@code users.id})이고 FK 가 걸려 있다. 엔티티 연관은 두지 않고 숫자로만 든다.
+ * <b>방장이 탈퇴하면 확정된 글은 남고 이 칸만 빈다</b>(2026-10-02 소유자 결정 — "확정된 파티 기록은 남긴다", V9 의 {@code ON DELETE SET NULL}).
+ * 모집 중 · 만료된 글은 탈퇴가 먼저 지우므로 <b>{@code null} 인 글은 늘 {@code CONFIRMED}</b> 다(DB 의 CHECK {@code recruit_posts_host_id_check}).
  * {@link Game} 은 {@code account} 의 <b>도메인 enum</b> 이다 — 테이블을 JOIN 하는 것이 아니라 이름의 목록을 같이 쓰는 것이다.
  *
  * <p><b>상태는 엔티티로 바꾸지 않는다</b> — {@code RecruitPostRepository} 의 조건부 UPDATE({@code … WHERE status = 'RECRUITING'})로만 바꾼다.
@@ -56,8 +58,11 @@ public class RecruitPost {
     @Column(name = "id")
     private Long id;
 
-    /** 글을 쓴 사람(사용자 번호) — 방장. 바뀌지 않는다(확정한 방에서 {@code room} 의 방장 키의 값이 바뀌어도 이 값은 그대로다 — D-23) */
-    @Column(name = "host_id", nullable = false, updatable = false)
+    /**
+     * 글을 쓴 사람(사용자 번호) — 방장. 바뀌지 않는다(확정한 방에서 {@code room} 의 방장 키의 값이 바뀌어도 이 값은 그대로다 — D-23).
+     * <b>방장이 탈퇴한 확정된 글은 {@code null}</b> 이다(2026-10-02 — V9 · P-48) — 읽는 쪽은 {@code null} 을 견뎌야 한다({@link #isHost} 는 견딘다)
+     */
+    @Column(name = "host_id", updatable = false)
     private Long hostId;
 
     @Enumerated(EnumType.STRING)
@@ -121,15 +126,22 @@ public class RecruitPost {
 
     /**
      * 방의 정원(2026-09-30 소유자 결정 — P-41) — 그 모드의 인원(gameconfig 모드 HASH 의 {@code targetPartySize})이고 방장을 포함한다.
-     * 글을 쓸 때 · 모드를 고칠 때 {@code PostService} 가 트랜잭션 밖에서 읽어 넘긴다. <b>V8 전에 쓴 글은 {@code NULL}</b> 이고 {@link #getCapacity()} 가 5 로 읽는다
+     * 글을 쓸 때 {@code PostService} 가 트랜잭션 밖에서 읽어 넘긴다(글은 고칠 수 없다 — 2026-10-01 소유자 결정). <b>V8 전에 쓴 글은 {@code NULL}</b> 이고 {@link #getCapacity()} 가 5 로 읽는다
      */
     @JdbcTypeCode(SqlTypes.SMALLINT)
     @Column(name = "capacity")
     private Integer capacity;
 
+    /**
+     * 빠른매치로 들어오는 것을 허용하는가(2026-10-02 소유자 결정 — P-50). {@code false} 면 게시판 방 먼저 합류의 후보에서 빠진다({@code RecruitPostRepository#findAutoJoinCandidates}) —
+     * 직접 입장은 그대로 된다. 글을 쓸 때 반드시 고르고(요청의 필수 칸) 글은 고칠 수 없어 바뀌지 않는다. V10 전에 쓴 글은 {@code true} 다(그때까지 모두 합류 대상이었다)
+     */
+    @Column(name = "allow_auto_join", nullable = false, updatable = false)
+    private boolean allowAutoJoin;
+
     public RecruitPost(Long hostId, Game game, String mode, String title, String description,
                        VoicePreference voice, String conditions, Set<String> wantedPositions,
-                       String hostPosition, int capacity, Instant now)
+                       String hostPosition, int capacity, boolean allowAutoJoin, Instant now)
     {
         this.hostId = hostId;
         this.game = game;
@@ -141,34 +153,9 @@ public class RecruitPost {
         this.wantedPositions = new LinkedHashSet<>(wantedPositions);
         this.hostPosition = hostPosition;
         this.capacity = capacity;
+        this.allowAutoJoin = allowAutoJoin;
         this.status = PostStatus.RECRUITING;
         this.createdAt = now;
-        this.updatedAt = now;
-    }
-
-    /**
-     * 글의 내용을 고친다. 상태 · 방장 · 게임은 바뀌지 않는다. 부르는 쪽이 "준 것만" 골라 넘긴다 — 여기는 받은 대로 적는다.
-     * {@code capacity} 는 모드를 줬을 때만 다시 정해진다({@code PostService#edit} — 2026-09-30, P-41). {@code null} 이면 그대로다(옛 글의 {@code NULL} 도 그대로 남는다)
-     */
-    public void edit(String mode, String title, String description, VoicePreference voice,
-                     String conditions, Set<String> wantedPositions, String hostPosition, Integer capacity, Instant now)
-    {
-        this.mode = mode;
-        this.title = title;
-        this.description = description;
-        this.voice = voice;
-        this.conditions = conditions;
-        if(!this.wantedPositions.equals(wantedPositions))
-        {
-            // 같은 컬렉션을 비우고 다시 채운다 — 새 컬렉션으로 갈아 끼우면 Hibernate 가 줄을 전부 지우고 다시 넣는다
-            this.wantedPositions.retainAll(wantedPositions);
-            this.wantedPositions.addAll(wantedPositions);
-        }
-        this.hostPosition = hostPosition;
-        if(capacity != null)
-        {
-            this.capacity = capacity;
-        }
         this.updatedAt = now;
     }
 
@@ -181,8 +168,9 @@ public class RecruitPost {
         return capacity == null ? MAX_CAPACITY : capacity;
     }
 
+    /** 이 사람이 글을 쓴 사람인가. 방장이 탈퇴한 글({@code hostId} 가 {@code null} — 2026-10-02 · P-48)은 누구의 글도 아니다 */
     public boolean isHost(Long userId)
     {
-        return hostId.equals(userId);
+        return hostId != null && hostId.equals(userId);
     }
 }

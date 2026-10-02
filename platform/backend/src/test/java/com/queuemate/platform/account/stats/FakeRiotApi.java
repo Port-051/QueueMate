@@ -34,6 +34,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <li>숙련도는 실제처럼 {@code …/by-puuid/{puuid}/top?count=N} 이면 <b>점수 내림차순으로 N 개</b>(없으면 3 — Riot 의 기본값)를 준다.
  *       같은 점수는 넣은 순서 그대로다 — 앱이 다시 줄 세우는지 본다. 앱이 부른 꼴은 {@link #lastMasteryRequest()} 다</li>
  *   <li>{@link #failMasteryWith(int)} 로 숙련도 주소 하나만 실패시킨다</li>
+ *   <li>경기는 기본이 솔로랭크({@code queueId 420} · {@code "MATCHED_GAME"})다. 커스텀 등 다른 큐는 {@link #stubQueuedMatches} 로 섞는다(2026-10-02).
+ *       경기 id 목록은 실제처럼 큐를 가리지 않고 다 준다</li>
  * </ul>
  */
 final class FakeRiotApi {
@@ -146,15 +148,32 @@ final class FakeRiotApi {
                 + ",\"veteran\":false,\"inactive\":false,\"freshBlood\":false,\"hotStreak\":false}";
     }
 
-    /** 최근 경기. <b>적은 순서가 곧 새 경기부터의 순서다</b> — 연승을 그 순서로 센다 */
+    /**
+     * 최근 경기. <b>적은 순서가 곧 새 경기부터의 순서다</b> — 연승 · {@code recentResults} 를 그 순서로 센다.
+     * <b>{@code null} 원소는 "그 사람이 참가자에 없는 경기"</b>다(앱이 읽지 못해 건너뛰어야 한다 — {@code List.of} 는 {@code null} 을 못 담으니 {@code Arrays.asList} 로 넣는다)
+     */
     void stubMatches(String puuid, List<Play> plays)
     {
-        List<String> ids = new ArrayList<>();
+        List<QueuedPlay> queued = new ArrayList<>();
         for(Play play : plays)
+        {
+            queued.add(new QueuedPlay(play, Queue.SOLO_RANKED));
+        }
+        stubQueuedMatches(puuid, queued);
+    }
+
+    /**
+     * 최근 경기를 큐와 함께 넣는다 — 커스텀 게임을 섞어 앱이 빼는지 본다(2026-10-02). 순서 · {@code null} 경기의 뜻은 {@link #stubMatches} 와 같다.
+     * {@link #stubMatches} 는 전부 솔로랭크({@link Queue#SOLO_RANKED})로 넣는다
+     */
+    void stubQueuedMatches(String puuid, List<QueuedPlay> plays)
+    {
+        List<String> ids = new ArrayList<>();
+        for(QueuedPlay queued : plays)
         {
             String matchId = "KR_" + matchSequence.incrementAndGet();
             ids.add(matchId);
-            matches.put(matchId, matchJson(matchId, puuid, play));
+            matches.put(matchId, matchJson(matchId, puuid, queued.play(), queued.queue()));
         }
         matchIds.put(puuid, ids);
     }
@@ -202,13 +221,55 @@ final class FakeRiotApi {
     record Play(String champion, int kills, int deaths, int assists, boolean win, String position) {
     }
 
-    private static String matchJson(String matchId, String puuid, Play play)
+    /**
+     * 경기의 큐 — 상세의 {@code info.queueId} · {@code info.gameType} · {@code info.tournamentCode}. {@code null} 인 칸은 응답에서 뺀다.
+     * 상수는 2026-10-02 실제 키로 본 값이다 — 커스텀은 토너먼트 코드로 연 경기였다(API 키로는 그것만 온다)
+     */
+    record Queue(Integer queueId, String gameType, String tournamentCode) {
+
+        static final Queue SOLO_RANKED = new Queue(420, "MATCHED_GAME", "");
+        static final Queue ARAM = new Queue(450, "MATCHED_GAME", "");
+        static final Queue CUSTOM = new Queue(0, "CUSTOM_GAME", "KR04f27-a3713dba-03f4-4810-9dba-cc995c6586b1");
+    }
+
+    /** 큐가 붙은 경기 하나. {@code play} 가 {@code null} 이면 그 사람이 참가자에 없는 경기다 */
+    record QueuedPlay(Play play, Queue queue) {
+    }
+
+    private static String matchJson(String matchId, String puuid, Play play, Queue queue)
     {
+        if(play == null)
+        {
+            // 그 사람이 없는 경기 — 참가자는 엉뚱한 사람 하나뿐이다
+            return "{\"metadata\":{\"matchId\":\"" + matchId + "\",\"participants\":[\"other-puuid\"]},"
+                    + "\"info\":{\"gameId\":1," + queueFields(queue) + "\"participants\":["
+                    + participant("other-puuid", new Play("Teemo", 99, 0, 99, true, "TOP"))
+                    + "]}}";
+        }
         return "{\"metadata\":{\"matchId\":\"" + matchId + "\",\"participants\":[\"" + puuid + "\",\"other-puuid\"]},"
-                + "\"info\":{\"gameId\":1,\"queueId\":420,\"participants\":["
+                + "\"info\":{\"gameId\":1," + queueFields(queue) + "\"participants\":["
                 + participant("other-puuid", new Play("Teemo", 99, 0, 99, !play.win(), "TOP")) + ","
                 + participant(puuid, play)
                 + "]}}";
+    }
+
+    /** {@code "queueId":420,"gameType":"MATCHED_GAME","tournamentCode":"",} 꼴(끝에 쉼표). {@code null} 인 칸은 넣지 않는다 */
+    private static String queueFields(Queue queue)
+    {
+        StringBuilder fields = new StringBuilder();
+        if(queue.queueId() != null)
+        {
+            fields.append("\"queueId\":").append(queue.queueId()).append(',');
+        }
+        if(queue.gameType() != null)
+        {
+            fields.append("\"gameType\":\"").append(queue.gameType()).append("\",");
+        }
+        if(queue.tournamentCode() != null)
+        {
+            fields.append("\"tournamentCode\":\"").append(queue.tournamentCode()).append("\",");
+        }
+        return fields.toString();
     }
 
     private static String participant(String puuid, Play play)

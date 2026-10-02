@@ -37,7 +37,7 @@ public interface PartyRecordRepository extends JpaRepository<PartyMember, PartyM
     Optional<Long> findPartyIdByPostId(@Param("postId") Long postId);
 
     /**
-     * 파티원 한 명. <b>가입한 사용자만 적는다</b> — {@code party_members.user_id} 에 {@code users(id)} 로 가는 FK 가 있어(2026-09-26) 멤버 SET 에 손으로 넣은
+     * 파티원 한 명. <b>가입한 사용자만 적는다</b> — {@code party_members.user_id} 에 {@code users(id)} 로 가는 FK 가 있어(2026-09-26) 멤버 HASH 에 손으로 넣은
      * 가입하지 않은 번호를 그대로 넣으면 위반이 나고 PostgreSQL 이 그 트랜잭션(글의 확정까지)을 통째로 못 쓰게 만든다. 그래서 {@code WHERE EXISTS} 로 걸러
      * 위반 없이 지나간다 — 돌려주는 값이 0 이면 이미 있었거나 가입하지 않은 번호다.
      */
@@ -127,6 +127,30 @@ public interface PartyRecordRepository extends JpaRepository<PartyMember, PartyM
             """)
     List<String> findActiveMatchPartyIds(@Param("game") String game);
 
+    /**
+     * 그 사람이 <b>게시판 파티</b>({@code source = 'BOARD'})의 파티원인가 — 회원 탈퇴가 게시판 신호를 낼지 가른다. 그 사람의 파티원 줄은 {@code users} 를 지울 때
+     * FK 의 {@code ON DELETE CASCADE} 로 지워져 확정된 글의 카드(P-40)에서 빠진다 — 글 한 줄이 바뀐다({@code PostStore#deleteUnconfirmedOf} — 2026-10-02 · P-48)
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT EXISTS (SELECT 1 FROM party_members m JOIN parties p ON p.id = m.party_id
+                            WHERE m.user_id = :userId AND p.source = 'BOARD')
+            """)
+    boolean isBoardPartyMember(@Param("userId") Long userId);
+
     @Query("select m from PartyMember m where m.key.partyId = :partyId")
     List<PartyMember> findByPartyId(@Param("partyId") Long partyId);
+
+    /**
+     * 기록된 <b>자동 매칭 파티와 그 파티원</b> — 한 줄이 {@code [game, user_id]} 다(파티원이 없는 파티는 {@code user_id} 가 {@code NULL} 인 한 줄 · 그런 파티가 없으면 빈 목록).
+     * <b>쿼리 한 번이다.</b> 퀵 매칭 파티의 팀원 카드가 파티 HASH 가 수명으로 사라진 뒤에 쓴다({@code MatchPartyService#members} — 2026-10-01 소유자 결정).
+     * {@code party_members} 에는 가입한 사용자만 있다({@link #insertMemberIfAbsent}).
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT p.game, m.user_id
+              FROM parties p
+              LEFT JOIN party_members m ON m.party_id = p.id
+             WHERE p.source = 'MATCH' AND p.match_party_id = :matchPartyId
+             ORDER BY m.user_id
+            """)
+    List<Object[]> findMatchPartyMembers(@Param("matchPartyId") String matchPartyId);
 }

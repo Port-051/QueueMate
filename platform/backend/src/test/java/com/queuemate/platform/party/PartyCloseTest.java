@@ -5,6 +5,7 @@ import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import tools.jackson.databind.JsonNode;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -27,21 +28,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * <b>파티 닫힘</b>(2026-09-26 소유자 결정) — 확정된 방이 없어질 때 파티가 닫히고({@code parties.status = 'CLOSED'} · {@code closed_at}),
  * 그 순간 파티원끼리 서로를 최근 함께한 사람에 적는다. 길이 둘이다 — ① 마지막 사람의 나가기(나가기 스크립트가 방 키를 지운다) · 그 뒤 남은 사람의 접속 확인
- * ② 전원이 말없이 사라져 키가 수명으로 없어졌으면 목록 · 단건이 방 키를 읽다 발견한다. 글은 {@code CONFIRMED} 그대로다.
+ * ② 전원이 말없이 사라져 키가 수명으로 없어졌으면 목록 · 단건이 방 키를 읽다 발견한다. 글은 {@code CONFIRMED} 그대로다 —
+ * 그래서 글 응답의 {@code closed} 가 "확정(진행 중)" 과 "끝남" 을 가른다(2026-10-01 소유자 결정).
  */
 class PartyCloseTest extends PostTestSupport {
 
     @Autowired
     private PostLifecycle postLifecycle;
 
-    /** 방장과 멤버들로 방을 채우고 확정한다. 돌려주는 것은 글 번호 = 방 번호. 셋이 들어가는 테스트가 있어 5인 모드의 글이다(정원은 모드의 인원 — P-41) */
+    /**
+     * 방장과 멤버들로 방을 채우고 확정한다. 돌려주는 것은 글 번호 = 방 번호. 셋이 들어가는 테스트가 있어 5인 모드의 글이다(정원은 모드의 인원 — P-41).
+     * 멤버는 들어온 순서대로 찾는 포지션({@link #FIVE_PERSON_LOL_WANTED})을 하나씩 고른다(2026-09-30 — P-44. 참가할 때 남은 찾는 포지션 가운데 하나를 고른다)
+     */
     private Long confirmedRoom(Cookie hostCookie, Cookie... memberCookies) throws Exception
     {
         Long postId = createFivePersonLolPost(hostCookie);
         track(postId);
-        for(Cookie memberCookie : memberCookies)
+        for(int i = 0; i < memberCookies.length; i++)
         {
-            mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(memberCookie)).andExpect(status().isCreated());
+            enterRoom(memberCookies[i], postId, FIVE_PERSON_LOL_WANTED[i]).andExpect(status().isCreated());
         }
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
         return postId;
@@ -63,6 +68,85 @@ class PartyCloseTest extends PostTestSupport {
     {
         return jdbcTemplate.queryForObject("select count(*) from recent_players where user_id = ? or other_user_id = ?",
                 Integer.class, userId, userId);
+    }
+
+    /** 단건 조회의 응답 본문 */
+    private JsonNode single(Cookie cookie, Long postId) throws Exception
+    {
+        return body(mockMvc.perform(get("/api/v1/posts/" + postId).cookie(cookie)).andExpect(status().isOk()));
+    }
+
+    // ---- 응답의 closed (2026-10-01 소유자 결정) ----
+
+    @Test
+    @DisplayName("글 응답의 closed 는 확정된 글의 파티가 닫혔을 때만 참이다 — 모집 중(글 쓰기의 응답부터) · 만료 · 확정 직후(파티가 열려 있다)는 false, 전원이 나가 파티가 닫히면 목록 · 단건이 true")
+    void closedFlagFollowsTheParty() throws Exception
+    {
+        String host = newNickname();
+        String member = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie memberCookie = login(member);
+        Long hostId = userIdOf(host);
+        Long memberId = userIdOf(member);
+        Cookie viewer = login(newNickname());
+
+        JsonNode created = body(createPost(hostCookie, lolPostBody("모집 중")).andExpect(status().isCreated()));
+        Long recruiting = created.get("postId").asLong();
+        assertThat(created.get("closed").asBoolean()).isFalse();
+        assertThat(single(viewer, recruiting).get("closed").asBoolean()).isFalse();
+        // 지운 글(만료)도 false 다 — 파티가 없다
+        mockMvc.perform(delete("/api/v1/posts/" + recruiting).cookie(hostCookie)).andExpect(status().isNoContent());
+        JsonNode expired = single(viewer, recruiting);
+        assertThat(expired.get("status").asString()).isEqualTo("EXPIRED");
+        assertThat(expired.get("closed").asBoolean()).isFalse();
+
+        Long postId = confirmedRoom(hostCookie, memberCookie);
+        track(postId, hostId, memberId);
+        JsonNode open = find(list(viewer, "LOL"), postId);
+        assertThat(open.get("status").asString()).isEqualTo("CONFIRMED");
+        assertThat(open.get("closed").asBoolean()).isFalse();
+
+        // 전원이 나가 파티가 닫힌다(길 ①) — 글은 CONFIRMED 그대로이고 closed 가 그것을 가른다
+        mockMvc.perform(delete("/api/v1/rooms/" + postId + "/members/me").cookie(memberCookie)).andExpect(status().isNoContent());
+        assertThat(single(viewer, postId).get("closed").asBoolean()).isFalse();
+        mockMvc.perform(delete("/api/v1/rooms/" + postId + "/members/me").cookie(hostCookie)).andExpect(status().isNoContent());
+        assertThat(partyOf(postId)).containsEntry("status", "CLOSED");
+
+        JsonNode closed = find(list(viewer, "LOL"), postId);
+        assertThat(closed.get("status").asString()).isEqualTo("CONFIRMED");
+        assertThat(closed.get("closed").asBoolean()).isTrue();
+        assertThat(single(viewer, postId).get("closed").asBoolean()).isTrue();
+    }
+
+    @Test
+    @DisplayName("단건 · 목록이 사라진 방을 보고 그 자리에서 파티를 닫으면(길 ②) 그 응답부터 closed 가 참이다 — 닫기 전에 읽은 ACTIVE 를 내보내지 않는다")
+    void closedOnTheResponseThatClosesIt() throws Exception
+    {
+        Cookie viewer = login(newNickname());
+        String host1 = newNickname();
+        String member1 = newNickname();
+        String host2 = newNickname();
+        String member2 = newNickname();
+        Cookie host1Cookie = login(host1);
+        Cookie member1Cookie = login(member1);
+        Cookie host2Cookie = login(host2);
+        Cookie member2Cookie = login(member2);
+
+        // 단건이 처음 본다 — 전원이 말없이 사라져 방 키가 수명으로 없어졌다(손으로 지운다)
+        Long byGet = confirmedRoom(host1Cookie, member1Cookie);
+        track(byGet, userIdOf(host1), userIdOf(member1));
+        closeRoom(byGet);
+        assertThat(partyOf(byGet)).containsEntry("status", "ACTIVE");
+        assertThat(single(viewer, byGet).get("closed").asBoolean()).isTrue();
+        assertThat(partyOf(byGet)).containsEntry("status", "CLOSED");
+
+        // 목록이 처음 본다
+        Long byList = confirmedRoom(host2Cookie, member2Cookie);
+        track(byList, userIdOf(host2), userIdOf(member2));
+        closeRoom(byList);
+        assertThat(partyOf(byList)).containsEntry("status", "ACTIVE");
+        assertThat(find(list(viewer, "LOL"), byList).get("closed").asBoolean()).isTrue();
+        assertThat(partyOf(byList)).containsEntry("status", "CLOSED");
     }
 
     // ---- 길 ①: 마지막 사람의 나가기 ----
@@ -162,7 +246,7 @@ class PartyCloseTest extends PostTestSupport {
         Long postId = createLolPost(hostCookie);
         track(postId, hostId);
         // 가입하지 않은 번호 — 스크립트는 2명으로 세지만 파티원으로 적히지 않는다
-        redisTemplate.opsForSet().add(membersKey(postId), Long.toString(unknownUserId()));
+        addMember(postId, unknownUserId());
         mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
 
         // 남은 번호는 입장 표시 키가 없어 넘겨받지 못한다 — 방이 없어진다
@@ -259,7 +343,7 @@ class PartyCloseTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("확정한 방에서 방장 키만 없고 멤버 SET · 확정 표시 키가 남아 있으면(승계를 기다리는 중 — D-23) 닫지 않는다. 확정 키만 남아도 닫지 않는다")
+    @DisplayName("확정한 방에서 방장 키만 없고 멤버 HASH · 확정 표시 키가 남아 있으면(승계를 기다리는 중 — D-23) 닫지 않는다. 확정 키만 남아도 닫지 않는다")
     void hostKeyAloneMissingDoesNotClose() throws Exception
     {
         Cookie hostCookie = login(newNickname());

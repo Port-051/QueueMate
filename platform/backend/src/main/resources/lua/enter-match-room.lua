@@ -6,12 +6,12 @@
 -- KEYS[1] = qm:party:{partyId}                matching 의 파티 HASH. **읽기만 한다 — HGET · HEXISTS 뿐이고 쓰지도 지우지도 수명을 걸지도 않는다**
 -- KEYS[2] = qm:user:active-room:{userId}      입장 표시 키. STRING, 값은 roomId
 -- KEYS[3] = qm:room:{roomId}:host             방장 키. STRING, 값은 방장의 userId. 이 키가 있다 = 방이 있다
--- KEYS[4] = qm:room:{roomId}:members          방에 있는 사람들. SET
+-- KEYS[4] = qm:room:{roomId}:members          방에 있는 사람들. HASH — 필드는 userId, 값은 포지션인데 자동 매칭 파티의 방은 포지션을 고르지 않아 늘 "" 다(P-44)
 -- KEYS[5] = qm:room:{roomId}:confirmed        확정 표시 키. STRING, 값은 roomId — 자동 매칭 파티의 방은 태어날 때부터 확정된 방이다
 --
 -- ARGV[1] = userId
 -- ARGV[2] = roomId (= partyId — matching 의 UUID 문자열 그대로)
--- ARGV[3] = 수명(초). 만들 때 세 키(방장 키 · 멤버 SET · 확정 표시 키)와 입장 표시 키에 건다. 접속 확인(heartbeat-room.lua)이 늘린다
+-- ARGV[3] = 수명(초). 만들 때 세 키(방장 키 · 멤버 HASH · 확정 표시 키)와 입장 표시 키에 건다. 접속 확인(heartbeat-room.lua)이 늘린다
 --
 -- 반환 — 목록이다. 첫 칸이 코드이고 MatchRoomResult 의 code 와 짝이다(한쪽을 고치면 다른 쪽도 고친다).
 -- 들어왔을 때(3)만 뒤에 "내가 들어오기 전부터 방에 있던 사람들"이 붙는다 — 서비스가 그 사람들에게 입장을 알린다.
@@ -82,21 +82,21 @@ if not host then
     -- SETEX 는 인자 순서가 (키, 초, 값)이라 헷갈린다. SET 키 값 EX 초 로 쓴다
     redis.call('SET', roomHostKey, userId, 'EX', ttl)
     redis.call('SET', roomConfirmedKey, roomId, 'EX', ttl)
-    redis.call('SADD', roomMemberKey, userId)
+    redis.call('HSET', roomMemberKey, userId, '')
     redis.call('EXPIRE', roomMemberKey, ttl)
     redis.call('SET', activeRoomKey, roomId, 'EX', ttl)
     return { 1 }
 end
 
 -- 들어가기 전의 사람들이다. 이미 정원만큼 있으면 자리가 없다 — 파티원이 아닌 사람은 위에서 걸렸으니 정상이면 나지 않는다
-local members = redis.call('SMEMBERS', roomMemberKey)
+local members = redis.call('HKEYS', roomMemberKey)
 if #members >= capacity then
     return { -2 }
 end
 
 -- 방의 수명은 건드리지 않는다 — 그것은 접속 확인이 늘린다 (enter-room.lua 와 같다)
 redis.call('SET', activeRoomKey, roomId, 'EX', ttl)
-redis.call('SADD', roomMemberKey, userId)
+redis.call('HSET', roomMemberKey, userId, '')
 
 -- unpack 은 테이블을 낱개 값으로 푼다 — { 3, unpack({"u1","u2"}) } 는 { 3, "u1", "u2" } 다
 return { 3, unpack(members) }

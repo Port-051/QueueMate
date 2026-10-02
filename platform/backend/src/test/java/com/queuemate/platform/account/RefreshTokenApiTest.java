@@ -102,7 +102,8 @@ class RefreshTokenApiTest extends ApiTestSupport {
         assertThat(newAccess.getValue()).isNotEqualTo(oldAccess.getValue());
         assertThat(newAccess.getMaxAge()).isEqualTo(Duration.ofMinutes(15).toSeconds());
         assertThat(newRefresh.getMaxAge()).isEqualTo(Duration.ofDays(7).toSeconds());
-        assertThat(newRefresh.getPath()).isEqualTo("/api/v1/auth/refresh");
+        // 인증 경로 전부다 — 재발급 · 로그아웃이 둘 다 받는다(2026-10-02 소유자 결정 — 그 전에는 /api/v1/auth/refresh)
+        assertThat(newRefresh.getPath()).isEqualTo("/api/v1/auth");
         assertThat(newRefresh.isHttpOnly()).isTrue();
         assertThat(newRefresh.getAttribute("SameSite")).isEqualTo("Lax");
 
@@ -165,10 +166,15 @@ class RefreshTokenApiTest extends ApiTestSupport {
             }
             // 무엇이 틀렸는지 알려 주지 않는다 — 다섯 갈래가 글자까지 같다
             assertThat(content).isEqualTo(body);
-            // 못 쓰는 값을 계속 들고 있게 두지 않는다. access 쿠키는 건드리지 않는다(아직 살아 있을 수 있다)
-            String setCookie = failure.getResponse().getHeader(HttpHeaders.SET_COOKIE);
-            assertThat(setCookie).startsWith("qm_refresh=;")
-                    .contains("Max-Age=0").contains("Path=/api/v1/auth/refresh")
+            // 못 쓰는 값을 계속 들고 있게 두지 않는다. access 쿠키는 건드리지 않는다(아직 살아 있을 수 있다).
+            // 지금의 Path(/api/v1/auth — 2026-10-02) 의 것이 먼저이고 옛 Path 의 것도 같이 지운다(임시 — 옛 쿠키가 다 사라지면 걷어낸다)
+            List<String> setCookies = failure.getResponse().getHeaders(HttpHeaders.SET_COOKIE);
+            assertThat(setCookies).hasSize(2);
+            assertThat(setCookies.get(0)).startsWith("qm_refresh=;")
+                    .contains("Max-Age=0").contains("Path=/api/v1/auth;")
+                    .contains("HttpOnly").contains("SameSite=Lax");
+            assertThat(setCookies.get(1)).startsWith("qm_refresh=;")
+                    .contains("Max-Age=0").contains("Path=/api/v1/auth/refresh;")
                     .contains("HttpOnly").contains("SameSite=Lax");
             assertThat(failure.getResponse().getCookie("qm_access")).isNull();
         }
@@ -190,6 +196,89 @@ class RefreshTokenApiTest extends ApiTestSupport {
         expectInvalidRefresh(refresh(refreshCookie));
         // 다시 로그인하면 새 값이 나온다 — 계정이 잠긴 것이 아니다
         assertThat(refreshCookieFor(nickname).getValue()).isNotEqualTo(refreshCookie.getValue());
+    }
+
+    @Test
+    @DisplayName("refresh 쿠키의 Path 는 /api/v1/auth 다 — 브라우저가 재발급 · 로그아웃에 둘 다 싣고 다른 요청에는 싣지 않는다. 로그아웃이 그 값으로 Redis 의 줄을 지워 그 값의 재발급은 401 이다(2026-10-02)")
+    void logoutReceivesTheIssuedCookie() throws Exception
+    {
+        // 진짜 응답이 준 쿠키다 — 재발급의 성공 응답에서 받는다
+        Cookie issued = refreshCookieOf(refresh(refreshCookieFor(newNickname())).andExpect(status().isOk()).andReturn());
+        // MockMvc 는 Path 를 보지 않고 준 쿠키를 그대로 싣는다 — 브라우저의 Path 맞추기(RFC 6265 §5.1.4)로 어느 요청에 실리는지 따로 본다
+        assertThat(pathMatches("/api/v1/auth/logout", issued.getPath())).isTrue();
+        assertThat(pathMatches("/api/v1/auth/refresh", issued.getPath())).isTrue();
+        assertThat(pathMatches("/api/v1/users/me", issued.getPath())).isFalse();
+        assertThat(pathMatches("/api/v1/posts", issued.getPath())).isFalse();
+        assertThat(pathMatches("/api/v1/authority", issued.getPath())).isFalse();
+        // 옛 Path 로는 로그아웃에 실리지 않았다 — 로그아웃이 Redis 의 줄을 못 지우고 그 값으로 재발급이 200 이던 까닭이다
+        assertThat(pathMatches("/api/v1/auth/logout", "/api/v1/auth/refresh")).isFalse();
+
+        mockMvc.perform(post("/api/v1/auth/logout").cookie(issued)).andExpect(status().isNoContent());
+
+        assertThat(refreshTokenStored(issued.getValue())).isFalse();
+        expectInvalidRefresh(refresh(issued));
+    }
+
+    @Test
+    @DisplayName("옛 Path 의 쿠키가 남아 같은 이름이 둘 실려도(옛 것이 앞) 앞의 옛 값이 이미 회전된 값이면 뒤의 새 값으로 200 이다 — 둘 다 버려지고, 응답은 새 쿠키를 주며 옛 Path 의 것을 지운다(임시 — 2026-10-02)")
+    void staleLegacyCookieDoesNotBlockTheNewOne() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie legacy = refreshCookieFor(nickname);
+        Long userId = userIdOf(nickname);
+        // 옛 값으로 한 번 재발급해 둔다 — 옛 값은 이제 회전돼 못 쓴다(그런데 브라우저에는 옛 Path 로 남아 있다)
+        Cookie current = refreshCookieOf(refresh(legacy).andExpect(status().isOk()).andReturn());
+
+        // 브라우저는 Path 가 긴 옛 쿠키를 앞에 싣는다(RFC 6265 §5.4)
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/refresh").cookie(legacy, current))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(org.hamcrest.Matchers.equalTo(userId), Long.class))
+                .andReturn();
+
+        Cookie next = refreshCookieOf(result);
+        assertThat(next.getPath()).isEqualTo("/api/v1/auth");
+        assertThat(next.getValue()).isNotEqualTo(current.getValue()).isNotEqualTo(legacy.getValue());
+        assertThat(refreshTokenStored(current.getValue())).isFalse();
+        assertThat(refreshTokenStored(next.getValue())).isTrue();
+        // 새 refresh 쿠키가 먼저 · 옛 Path 의 것을 지우는 쿠키가 뒤다
+        List<String> refreshCookies = result.getResponse().getHeaders(HttpHeaders.SET_COOKIE).stream()
+                .filter(value -> value.startsWith("qm_refresh=")).toList();
+        assertThat(refreshCookies).hasSize(2);
+        assertThat(refreshCookies.get(0)).startsWith("qm_refresh=" + next.getValue() + ";").contains("Path=/api/v1/auth;");
+        assertThat(refreshCookies.get(1)).startsWith("qm_refresh=;").contains("Path=/api/v1/auth/refresh;").contains("Max-Age=0");
+    }
+
+    @Test
+    @DisplayName("같은 이름의 쿠키가 둘일 때 — 둘 다 유효하면 하나로 200 이고 둘 다 버려진다 · 앞의 것만 유효해도 200 · 둘 다 못 쓰면 401 이고 두 Path 의 쿠키를 다 지운다(임시 — 2026-10-02)")
+    void twoCookiesAreAllConsumed() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie first = refreshCookieFor(nickname);
+        Long userId = userIdOf(nickname);
+        Cookie second = refreshCookieFor(nickname);
+
+        // 둘 다 유효하다 — 하나로 재발급되고 둘 다 버려진다(이 브라우저의 값이고 곧 새 값으로 바뀐다)
+        refreshCookieOf(mockMvc.perform(post("/api/v1/auth/refresh").cookie(first, second))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(org.hamcrest.Matchers.equalTo(userId), Long.class))
+                .andReturn());
+        assertThat(refreshTokenStored(first.getValue())).isFalse();
+        assertThat(refreshTokenStored(second.getValue())).isFalse();
+
+        // 앞의 것(옛 Path)만 유효하다 — 뒤의 값이 못 쓰는 값이어도 200 이다
+        Cookie valid = refreshCookieFor(nickname);
+        Cookie bogus = new Cookie("qm_refresh", UUID.randomUUID().toString());
+        refreshCookieOf(mockMvc.perform(post("/api/v1/auth/refresh").cookie(valid, bogus))
+                .andExpect(status().isOk())
+                .andReturn());
+        assertThat(refreshTokenStored(valid.getValue())).isFalse();
+
+        // 둘 다 못 쓴다 — 401 이고 두 Path 의 쿠키를 다 지운다
+        MvcResult rejected = mockMvc.perform(post("/api/v1/auth/refresh").cookie(first, bogus)).andReturn();
+        assertThat(rejected.getResponse().getStatus()).isEqualTo(401);
+        assertThat(rejected.getResponse().getHeaders(HttpHeaders.SET_COOKIE))
+                .anySatisfy(value -> assertThat(value).startsWith("qm_refresh=;").contains("Path=/api/v1/auth;"))
+                .anySatisfy(value -> assertThat(value).startsWith("qm_refresh=;").contains("Path=/api/v1/auth/refresh;"));
     }
 
     @Test
@@ -224,11 +313,11 @@ class RefreshTokenApiTest extends ApiTestSupport {
 
         // 확인할 방법이 없는 값을 통과시키지 않는다. 멀쩡한 값이어도 거절한다
         AuthService service = new AuthService(userRepository, broken);
-        assertThat(service.refresh(realRefresh.getValue())).isEmpty();
+        assertThat(service.refresh(List.of(realRefresh.getValue()))).isEmpty();
         assertThat(broken.consume(realRefresh.getValue())).isEmpty();
         // 못 읽었을 뿐이므로 값은 그대로 살아 있다 — Redis 가 돌아오면 그 refresh 로 다시 재발급할 수 있다
         assertThat(refreshTokenStored(realRefresh.getValue())).isTrue();
-        Optional<AuthResponse> healthy = new AuthService(userRepository, refreshTokens).refresh(realRefresh.getValue());
+        Optional<AuthResponse> healthy = new AuthService(userRepository, refreshTokens).refresh(List.of(realRefresh.getValue()));
         assertThat(healthy).isPresent();
 
         // 로그아웃은 Redis 가 죽어도 조용히 지나간다
@@ -251,6 +340,17 @@ class RefreshTokenApiTest extends ApiTestSupport {
                 throw new RedisConnectionFailureException("테스트 — Redis 가 죽었다");
             }
         };
+    }
+
+    /** 브라우저가 이 요청 경로에 이 {@code Path} 의 쿠키를 싣는가 — RFC 6265 §5.1.4 "path-match" 그대로다 */
+    private static boolean pathMatches(String requestPath, String cookiePath)
+    {
+        if(requestPath.equals(cookiePath))
+        {
+            return true;
+        }
+        return requestPath.startsWith(cookiePath)
+                && (cookiePath.endsWith("/") || requestPath.charAt(cookiePath.length()) == '/');
     }
 
     private ResultActions refresh(Cookie refreshCookie) throws Exception

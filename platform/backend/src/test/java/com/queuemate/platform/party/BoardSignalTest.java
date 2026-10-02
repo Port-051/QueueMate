@@ -99,7 +99,7 @@ class BoardSignalTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("글 쓰기(방까지 만든다) · 고치기 · 방장 확정 · 방장이 지우기에 신호가 한 번씩 온다. 거절된 요청 · 그냥 읽기에는 오지 않는다")
+    @DisplayName("글 쓰기(방까지 만든다) · 방장 확정 · 방장이 지우기에 신호가 한 번씩 온다. 거절된 요청(없어진 고치기의 405 포함) · 그냥 읽기에는 오지 않는다")
     void signalsOnChangesOnly() throws Exception
     {
         String host = newNickname();
@@ -111,11 +111,9 @@ class BoardSignalTest extends PostTestSupport {
         // 글과 방이 한 트랜잭션에서 생긴다 — 방 만들기의 신호와 글의 신호가 합쳐져 커밋 뒤에 한 번이다
         assertThat(drain()).isEqualTo(1);
 
+        // 거절 — 롤백된 것도, 아무것도 안 바뀐 것도 알리지 않는다. 글은 고칠 수 없다(2026-10-01 소유자 결정 — PATCH 는 405)
         mockMvc.perform(patch("/api/v1/posts/" + postId).cookie(cookie)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"바꿨다\"}")).andExpect(status().isOk());
-        assertThat(drain()).isEqualTo(1);
-
-        // 거절 — 롤백된 것도, 아무것도 안 바뀐 것도 알리지 않는다
+                .contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"바꿨다\"}")).andExpect(status().isMethodNotAllowed());
         createPost(cookie, lolPostBody("또 쓴다")).andExpect(status().isConflict());
         mockMvc.perform(delete("/api/v1/posts/" + postId).cookie(other)).andExpect(status().isForbidden());
         mockMvc.perform(get("/api/v1/posts/" + postId).cookie(other)).andExpect(status().isOk());
@@ -167,6 +165,112 @@ class BoardSignalTest extends PostTestSupport {
         // 다시 그려도 더 만료시킬 것이 없다
         list(viewer, "LOL");
         assertThat(drain()).isZero();
+    }
+
+    // ---- 파티가 닫히면 (2026-10-02 소유자 결정 — 글 응답의 closed 가 바뀐다) ----
+
+    /** 방장과 멤버 한 명으로 5인 글의 방을 채우고 확정한다 — 글 번호 = 방 번호. 그동안 나간 신호는 비운다 */
+    private Long confirmedRoom(Cookie hostCookie, Cookie memberCookie, Long memberId) throws Exception
+    {
+        Long postId = createFivePersonLolPost(hostCookie);
+        track(postId, memberId);
+        enterRoom(memberCookie, postId, "TOP").andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
+        drain();
+        return postId;
+    }
+
+    private String partyStatusOf(Long postId)
+    {
+        return jdbcTemplate.queryForObject("select status from parties where post_id = ?", String.class, postId);
+    }
+
+    @Test
+    @DisplayName("전원이 말없이 사라진 방을 단건이 보고 파티를 닫으면 신호가 한 번 온다 — 이미 닫힌 뒤의 단건 · 목록은 다시 내지 않는다(고리가 없다)")
+    void closingAVanishedPartySignalsOnce() throws Exception
+    {
+        Cookie viewer = login(newNickname());
+        String member = newNickname();
+        Cookie memberCookie = login(member);
+        Long postId = confirmedRoom(login(newNickname()), memberCookie, userIdOf(member));
+        // 같은 DB 를 다른 테스트가 쓴다 — 이 페이지에서 옮겨 적을 남의 줄을 먼저 정리해 둔다
+        list(viewer, "LOL");
+        drain();
+
+        closeRoom(postId);
+        mockMvc.perform(get("/api/v1/posts/" + postId).cookie(viewer)).andExpect(status().isOk());
+        assertThat(partyStatusOf(postId)).isEqualTo("CLOSED");
+        assertThat(drain()).isEqualTo(1);
+
+        // 신호를 받은 프런트가 다시 받는다 — 이미 닫힌 파티라 또 닫지 않고 신호도 없다
+        mockMvc.perform(get("/api/v1/posts/" + postId).cookie(viewer)).andExpect(status().isOk());
+        list(viewer, "LOL");
+        assertThat(drain()).isZero();
+    }
+
+    @Test
+    @DisplayName("목록이 사라진 방을 보고 파티를 닫아도 신호가 한 번이다 — 두 번째 목록은 0")
+    void listClosingAPartySignalsOnce() throws Exception
+    {
+        Cookie viewer = login(newNickname());
+        String member = newNickname();
+        Cookie memberCookie = login(member);
+        Long postId = confirmedRoom(login(newNickname()), memberCookie, userIdOf(member));
+        list(viewer, "LOL");
+        drain();
+
+        closeRoom(postId);
+        list(viewer, "LOL");
+        assertThat(partyStatusOf(postId)).isEqualTo("CLOSED");
+        assertThat(drain()).isEqualTo(1);
+
+        list(viewer, "LOL");
+        assertThat(drain()).isZero();
+    }
+
+    @Test
+    @DisplayName("마지막 사람이 나가 파티가 닫히면 신호가 한 번 온다 — 방이 닫힌 신호와 파티가 닫힌 신호가 따로 나가지 않는다")
+    void lastLeaveClosingThePartySignalsOnce() throws Exception
+    {
+        String member = newNickname();
+        Cookie hostCookie = login(newNickname());
+        Cookie memberCookie = login(member);
+        Long postId = confirmedRoom(hostCookie, memberCookie, userIdOf(member));
+
+        // 한 사람이 나간다 — 방의 인원이 바뀐 신호다. 파티는 열려 있다
+        mockMvc.perform(delete("/api/v1/rooms/" + postId + "/members/me").cookie(memberCookie)).andExpect(status().isNoContent());
+        assertThat(partyStatusOf(postId)).isEqualTo("ACTIVE");
+        assertThat(drain()).isEqualTo(1);
+
+        // 마지막 사람(방장)이 나가 방이 없어지고 파티가 닫힌다 — 파티를 닫은 트랜잭션의 신호 하나가 방의 신호를 겸한다
+        mockMvc.perform(delete("/api/v1/rooms/" + postId + "/members/me").cookie(hostCookie)).andExpect(status().isNoContent());
+        assertThat(partyStatusOf(postId)).isEqualTo("CLOSED");
+        assertThat(drain()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("자동 매칭 파티를 목록이 닫아도 게시판 신호는 없다 — 게시판에 글이 없다")
+    void closingAMatchPartySendsNoSignal() throws Exception
+    {
+        Cookie viewer = login(newNickname());
+        list(viewer, "LOL");
+        drain();
+        // 방 키가 하나도 없는 열린 자동 매칭 파티 — 전원이 말없이 사라졌다
+        String matchPartyId = UUID.randomUUID().toString();
+        jdbcTemplate.update("insert into parties (source, match_party_id, game, status, created_at) values ('MATCH', ?, 'LOL', 'ACTIVE', now())",
+                matchPartyId);
+        try
+        {
+            list(viewer, "LOL");
+
+            assertThat(jdbcTemplate.queryForObject("select status from parties where match_party_id = ?", String.class, matchPartyId))
+                    .isEqualTo("CLOSED");
+            assertThat(drain()).isZero();
+        }
+        finally
+        {
+            jdbcTemplate.update("delete from parties where match_party_id = ?", matchPartyId);
+        }
     }
 
     /** 잠깐 기다렸다가 그동안 온 신호의 수를 돌려주고 비운다. 발행은 커밋 직후라 요청이 끝났을 때 이미 나가 있다 — 도착만 기다린다 */

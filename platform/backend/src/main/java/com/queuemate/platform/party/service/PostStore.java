@@ -10,7 +10,6 @@ import com.queuemate.platform.party.domain.PostStatus;
 import com.queuemate.platform.party.domain.RecruitPost;
 import com.queuemate.platform.party.domain.VoicePreference;
 import com.queuemate.platform.party.dto.PostCreateRequest;
-import com.queuemate.platform.party.dto.PostUpdateRequest;
 import com.queuemate.platform.party.repository.PartyRecordRepository;
 import com.queuemate.platform.party.repository.RecruitPostRepository;
 import com.queuemate.platform.room.RoomErrors;
@@ -50,7 +49,8 @@ import java.util.Set;
  * 방장 확정이 방을 확정하고({@link #confirmRoom}), 글 지우기가 방을 닫는다({@link #expireByHost} — 2026-09-25 소유자 결정 "확정 전에는 방과 글이 같이 끝난다").
  * 셋 다 <b>스크립트 호출 하나(밀리초)</b>이고, 방과 글이 한쪽만 남지 않게 하려는 것이라 커넥션을 그만큼 더 붙잡는 것을 받아들인다. 목록처럼 되풀이되는 읽기는 여전히 트랜잭션 밖에서 한다.
  *
- * <p><b>게시판 신호는 여기서 예약한다</b> — 글이 생기거나 · 고쳐지거나 · 만료되거나 · 확정된 트랜잭션이 <b>커밋된 뒤에</b> 한 번 나간다
+ * <p><b>게시판 신호는 여기서 예약한다</b> — 글이 생기거나 · 만료되거나 · 확정되거나 · 파티가 닫힌({@link PostLifecycle#closeParty} — 2026-10-02) 트랜잭션이 <b>커밋된 뒤에</b>
+ * 한 번 나간다(글은 고칠 수 없다 — 2026-10-01 소유자 결정)
  * ({@link BoardSignalPublisher#changed()}). 되돌려진 변경은 알리지 않는다.
  */
 @Slf4j
@@ -83,7 +83,7 @@ public class PostStore {
      * 스크립트가 거절하면(자동 매칭 중 · 이미 다른 방에 있다 · 그 번호의 방이 이미 있다) 그 코드로 409 를 던져 <b>글이 되돌려진다</b> —
      * 그래서 <b>이미 방에 들어가 있는 사람은 글을 쓸 수 없다</b>. Redis 에 닿지 못해도 503 으로 던져 되돌린다.
      *
-     * <p><b>스크립트는 성공했는데 커밋이 실패하면</b>(드물다) 방이 Redis 에 고아로 남는다 — 방장 키 · 멤버 SET · 쓴 사람의 입장 표시 키. <b>감수한다</b>:
+     * <p><b>스크립트는 성공했는데 커밋이 실패하면</b>(드물다) 방이 Redis 에 고아로 남는다 — 방장 키 · 멤버 HASH · 쓴 사람의 입장 표시 키. <b>감수한다</b>:
      * 수명(600초)이 다하면 저절로 사라지고, 그동안 그 사람은 나가기({@code DELETE …/members/me})로 풀 수 있다. 글이 없으니 목록에도 입장에도 걸리지 않는다
      * (입장은 글부터 본다 — {@link PostEntryGate}).
      *
@@ -104,8 +104,9 @@ public class PostStore {
                 PostValidation.wantedPositions(game, request.wantedPositions()));
         // 방장 포지션은 찾는 포지션과 겹치면 안 된다 — 찾는 포지션을 검증한 뒤에 본다
         String hostPosition = PostValidation.hostPosition(game, modePositions, request.hostPosition(), wanted);
+        // 빠른매치 입장 허용 / 금지는 필수 칸이라(@NotNull — 2026-10-02 · P-50) 여기서는 늘 값이 있다
         RecruitPost post = new RecruitPost(hostId, game, request.mode(), title, description, voice, conditions, wanted,
-                hostPosition, capacity, now);
+                hostPosition, capacity, request.allowAutoJoin(), now);
         try
         {
             // id 가 null 인 새 엔티티라 persist 다 — 반드시 INSERT 가 나가고 그때 id(= roomId)를 받는다. flush 로 위반을 지금 드러낸다
@@ -125,16 +126,17 @@ public class PostStore {
             }
             throw e;
         }
-        openRoom(post.getId(), hostId);
+        openRoom(post.getId(), hostId, wanted, request.hostPosition());
         boardSignal.changed();
-        log.info("모집 글 작성 postId={} hostId={} game={} capacity={}", post.getId(), hostId, game, capacity);
+        log.info("모집 글 작성 postId={} hostId={} game={} capacity={} allowAutoJoin={}", post.getId(), hostId, game, capacity,
+                post.isAllowAutoJoin());
         return post;
     }
 
     /** 글의 방을 만든다 — 결과가 {@code CREATED} 가 아니면 던져서 글을 되돌린다({@link #create}) */
-    private void openRoom(Long postId, Long hostId)
+    private void openRoom(Long postId, Long hostId, Set<String> wanted,  String hostPosition)
     {
-        CreateResult result = roomService.create(String.valueOf(postId), String.valueOf(hostId));
+        CreateResult result = roomService.create(String.valueOf(postId), String.valueOf(hostId), wanted, hostPosition);
         switch(result)
         {
             case CREATED ->
@@ -150,52 +152,11 @@ public class PostStore {
     }
 
     /**
-     * 글을 고친다 — 준 것만 바꾼다. <b>줄을 잠그고 읽는다</b> — "모집 중인가"를 보고 저장하는 사이에 만료 · 확정이 끼어들지 못한다.
-     * 글의 게임은 읽어 봐야 알아서 포지션과 {@code conditions} 의 검증이 이 안에 있다.
-     *
-     * <p><b>"방에 방장 말고 누가 있으면 고칠 수 없다"는 검사는 여기 없다</b>(2026-09-24 소유자 결정) — 방 키(Redis)를 읽어야 해서
-     * {@link PostService#edit} 이 트랜잭션 밖에서 한다. 여기 있는 방장 · 상태 검사는 그쪽에서도 한 번 하지만 <b>잠금 안의 이 판정이 최종</b>이다.
-     *
-     * @param capacity 고친 뒤의 방 정원 — 모드를 줬을 때만 값이 있다(2026-09-30 — P-41. {@link PostService#edit} 이 트랜잭션 밖에서 읽었다). {@code null} 이면 그대로다
-     */
-    @Transactional
-    public RecruitPost edit(Long me, Long postId, PostUpdateRequest request, ModePositions modePositions, Integer capacity, Instant now)
-    {
-        RecruitPost post = postRepository.findByIdForUpdate(postId).orElseThrow(PostStore::postNotFound);
-        if(!post.isHost(me))
-        {
-            throw notPostHost();
-        }
-        if(post.getStatus() != PostStatus.RECRUITING)
-        {
-            throw postNotRecruiting();
-        }
-        Game game = post.getGame();
-        String mode = request.mode() == null ? post.getMode() : request.mode();
-        String title = request.title() == null ? post.getTitle() : PostValidation.title(request.title());
-        String description = request.description() == null ? post.getDescription() : PostValidation.blankToNull(request.description());
-        VoicePreference voice = request.voice() == null ? post.getVoice() : PostValidation.voice(request.voice());
-        String conditions = request.conditions() == null ? post.getConditions() : PostValidation.conditions(game, request.conditions());
-        Set<String> wanted = request.wantedPositions() == null ? new LinkedHashSet<>(post.getWantedPositions())
-                : PostValidation.wantedPositions(game, request.wantedPositions());
-        // 고친 뒤의 모양을 본다(2026-09-30 — P-38). modePositions 는 고친 뒤의 모드의 것이다(PostService#edit 이 트랜잭션 밖에서 읽었다).
-        // 찾는 포지션이 먼저다 — 포지션이 없는 모드로 바꾸면 둘 다 비워지고, 방장 포지션은 고친 뒤의 찾는 포지션과 겹치는지 본다
-        wanted = PostValidation.editedWantedPositions(game, modePositions, request, wanted);
-        String hostPosition = PostValidation.editedHostPosition(game, modePositions, request, post.getHostPosition(), wanted);
-        // 준 mode 는 부르는 쪽이 이미 검증했다(트랜잭션 밖 — PostService#edit). 빈 문자열로 비우는 길은 없어졌다
-        post.edit(mode, title, description, voice, conditions, wanted, hostPosition, capacity, now);
-        postRepository.saveAndFlush(post);
-        boardSignal.changed();
-        log.info("모집 글 수정 postId={}", postId);
-        return post;
-    }
-
-    /**
      * 방장이 글을 지운다 — <b>지우지 않고 만료로 바꾸고, 그 글의 방도 닫는다</b>(CLAUDE.md §7.1 · 2026-09-25 소유자 결정 — "확정 전에는 방과 글이 같이 끝난다").
      * 이미 만료면 그대로 성공이고, 확정된 글은 409 다(확정은 되돌릴 수 없다 — 방도 건드리지 않는다).
      * 방장인지는 읽어서 본다 — {@code hostId} 는 바뀌지 않는 값이라 읽은 뒤에 달라질 수 없다. 상태는 조건부 UPDATE 가 가른다.
      *
-     * <p><b>방 닫기는 방장 나가기와 같은 길이다</b> — 방장으로서 나가기 스크립트를 부른다({@link RoomService#leave}). 방장 키 · 멤버 SET · 전원의 입장 표시 키가
+     * <p><b>방 닫기는 방장 나가기와 같은 길이다</b> — 방장으로서 나가기 스크립트를 부른다({@link RoomService#leave}). 방장 키 · 멤버 HASH · 전원의 입장 표시 키가
      * 한 스크립트 안에서 지워지고 방에 있던 사람들이 {@code ROOM_CLOSED} 를 받는다. 전에는 글만 만료되고 방이 남아, 방장이 새 글을 쓰려면
      * 먼저 방에서 나와야 했다(409 {@code IN_OTHER_ROOM}).
      *
@@ -237,7 +198,7 @@ public class PostStore {
      * 그래서 닫힌 뒤의 일({@code whenClosed})은 "신호를 따로 내지 않았다"({@code false})다. 방의 신호는 이 트랜잭션의 신호와 합쳐진다.
      *
      * <p>확정 전의 방은 방장 키의 값이 늘 글의 {@code hostId} 라 이 스크립트가 방을 닫는다. 방장 키가 다른 값이면(누가 손으로 넣었다) 스크립트는
-     * 방장을 일반 멤버로 보고 멤버 SET 에서만 뺀다 — 방을 억지로 닫지 않는다.
+     * 방장을 일반 멤버로 보고 멤버 HASH 에서만 뺀다 — 방을 억지로 닫지 않는다.
      */
     private void closeRoomAsHost(Long postId, Long hostId)
     {
@@ -249,6 +210,39 @@ public class PostStore {
         {
             log.warn("글은 만료됐는데 방을 닫지 못했다 — 수명이 다하거나 방장이 나가면 닫힌다 postId={}: {}", postId, e.toString());
         }
+    }
+
+    /** 그 사람의 모집 중인 글의 번호 — 많아야 하나다. 회원 탈퇴가 그 글을 {@link #expireByHost} 로 끝낸다({@code PostService#expireRecruitingOf}) */
+    @Transactional(readOnly = true)
+    public Optional<Long> findRecruitingOf(Long hostId)
+    {
+        return postRepository.findRecruitingIdByHostId(hostId);
+    }
+
+    /**
+     * <b>회원 탈퇴의 글 쪽 정리</b>(2026-10-02 소유자 결정 · P-48) — 그 사람이 쓴 글 가운데 <b>확정되지 않은 것(모집 중 · 만료)을 지운다.</b>
+     * <b>확정된 글은 남긴다</b>("확정된 파티 기록은 남긴다") — 방장의 칸은 부르는 쪽이 이어서 {@code users} 를 지울 때 FK 의 {@code ON DELETE SET NULL} 이 비우고(V9),
+     * 그 사람의 파티원 줄은 {@code ON DELETE CASCADE} 가 지운다. 다른 파티원의 줄과 파티는 그대로다.
+     *
+     * <p><b>부르는 쪽의 트랜잭션에 합류한다</b> — {@code users} 를 지우는 바로 그 트랜잭션 안에서, 그 사용자의 줄을 잠근 뒤({@code FOR UPDATE}) 지우기 직전에 불러야 한다.
+     * 따로 커밋하면 그 사이에 생긴 모집 중인 글 때문에 SET NULL 이 CHECK {@code recruit_posts_host_id_check} 에 걸린다(그러면 탈퇴가 통째로 되돌려진다 — 방장 없는 모집 중인 글은 생기지 않는다).
+     * 사용자 줄의 잠금이 그 사이의 글 쓰기를 막는다 — 글 쓰기의 INSERT 가 FK 검사({@code FOR KEY SHARE})에서 기다렸다가 사용자가 지워진 뒤 401 이 된다.
+     *
+     * <p><b>게시판 신호</b> — 그 사람의 글이 하나라도 있었거나(지운 글은 목록에서 빠지고 확정된 글은 {@code host} 가 빈다) 게시판 파티의 파티원이었으면(확정된 글의 카드에서 빠진다)
+     * 커밋 뒤에 한 번 낸다({@link BoardSignalPublisher#changed()}). 되돌려지면 나가지 않는다.
+     *
+     * @return 지운 글의 수
+     */
+    @Transactional
+    public int deleteUnconfirmedOf(Long hostId)
+    {
+        boolean onBoard = postRepository.existsByHostId(hostId) || partyRecordRepository.isBoardPartyMember(hostId);
+        int deleted = postRepository.deleteUnconfirmedByHostId(hostId);
+        if(onBoard)
+        {
+            boardSignal.changed();
+        }
+        return deleted;
     }
 
     @Transactional(readOnly = true)
@@ -284,7 +278,7 @@ public class PostStore {
     }
 
     /**
-     * 게시판 방 먼저 합류의 후보 글 — 그 게임 · 그 모드 · 그 음성의 모집 중인 글에서 <b>내 글을 뺀 것</b>을 오래된 순으로 많아야 {@code limit} 개
+     * 게시판 방 먼저 합류의 후보 글 — 그 게임 · 그 모드 · 그 음성의 모집 중인 글에서 <b>내 글과 빠른매치 입장을 금지한 글(P-50)을 뺀 것</b>을 오래된 순으로 많아야 {@code limit} 개
      * ({@link RecruitPostRepository#findAutoJoinCandidates}. 2026-09-28 · P-28. 음성 · 내 글 제외는 2026-09-29 에 자바에서 쿼리로 옮겼다 — 그 이유는 리포지토리 주석).
      * 찾는 포지션까지 쿼리 둘이다. 부르는 쪽({@code AutoJoinService})은 트랜잭션 밖에서 방 키를 읽고 스크립트를 부른다
      */
@@ -318,7 +312,7 @@ public class PostStore {
             // 파티원이 한 명도 없는 파티는 LEFT JOIN 의 빈 줄 하나다(탈퇴로 전원이 지워졌다 등)
             if(row[2] != null)
             {
-                of.add(new BoardParty.Seat(((Number) row[2]).longValue(), Boolean.TRUE.equals(row[3])));
+                of.add(BoardParty.Seat.partyMember(((Number) row[2]).longValue(), Boolean.TRUE.equals(row[3])));
             }
         }
         Map<Long, BoardParty> parties = new LinkedHashMap<>();
@@ -400,7 +394,7 @@ public class PostStore {
     }
 
     /**
-     * "이미 확정" 인데 글은 모집 중이다 — 앞선 확정의 커밋이 실패했다. 지금의 멤버 SET 으로 기록한다(확정 순간의 것과 다를 수 있다 — 감수한다).
+     * "이미 확정" 인데 글은 모집 중이다 — 앞선 확정의 커밋이 실패했다. 지금의 멤버 HASH 로 기록한다(확정 순간의 것과 다를 수 있다 — 감수한다).
      * 방 키를 못 읽으면 넘어간다 — 확정은 이미 성립했고, 다음 목록 · 단건이 같은 일을 한다.
      */
     private void healConfirmed(RecruitPost post, Instant now)
@@ -424,7 +418,7 @@ public class PostStore {
      * 조용히 끝낸다. 동시에 온 호출은 그 UPDATE 의 줄 잠금에서 기다렸다가 0줄을 받는다. 파티 · 파티원의 INSERT 도 {@code ON CONFLICT DO NOTHING} 이다 —
      * 파티는 {@code UNIQUE (post_id)} 가 "한 글에 하나"를 지킨다(파티의 id 는 DB 가 매긴다).
      *
-     * @param members 그 순간 멤버 SET 의 전원(사용자 번호 — 숫자가 아닌 값은 방 키를 읽을 때 이미 걸러졌다). 비어 있으면(이미 다 나갔다) 방장만 기록한다.
+     * @param members 그 순간 멤버 HASH 의 전원(사용자 번호 — 숫자가 아닌 값은 방 키를 읽을 때 이미 걸러졌다). 비어 있으면(이미 다 나갔다) 방장만 기록한다.
      *                <b>가입하지 않은 번호는 적지 않는다</b> — {@code party_members.user_id} 의 FK 때문이다({@link PartyRecordRepository#insertMemberIfAbsent}).
      *                {@code is_host} 는 {@code room} 의 방장 키의 값이 아니라 <b>글의 {@code hostId}</b> 로 정한다 — 확정한 방은 방장이 바뀔 수 있다(D-23)
      * @return 이 호출이 기록했으면 {@code true}
@@ -476,8 +470,7 @@ public class PostStore {
         return new ApiException(HttpStatus.CONFLICT, POST_NOT_RECRUITING, "모집 중인 글이 아닙니다");
     }
 
-    /** {@link PostService#edit} 도 쓴다 — 방 안을 보기 전에 방장인지 먼저 갈라야 해서다(그쪽 주석) */
-    static ApiException notPostHost()
+    private static ApiException notPostHost()
     {
         return new ApiException(HttpStatus.FORBIDDEN, "NOT_POST_HOST", "글을 쓴 사람만 할 수 있습니다");
     }

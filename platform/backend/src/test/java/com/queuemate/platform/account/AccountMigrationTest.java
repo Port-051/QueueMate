@@ -46,7 +46,8 @@ class AccountMigrationTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("사용자를 지우면 딸린 줄이 전부 같이 지워진다 — 차단 · 친구 요청 · 친구 · 신고 · 최근 함께한 사람 · 글 · 파티 · 파티원(ON DELETE CASCADE)")
+    @DisplayName("사용자를 지우면 딸린 줄이 같이 지워진다 — 차단 · 친구 요청 · 친구 · 신고 · 최근 함께한 사람 · 그 사람의 파티원 줄(CASCADE). "
+            + "확정된 글은 남고 방장 칸만 빈다(SET NULL — V9)")
     void deletingUserCascades()
     {
         Long gone = insertUser();
@@ -72,19 +73,29 @@ class AccountMigrationTest extends ApiTestSupport {
         jdbcTemplate.update("insert into recent_players (user_id, other_user_id, last_party_id, last_played_at) "
                 + "values (?, ?, ?, now()), (?, ?, ?, now())", other, gone, partyId, gone, other, partyId);
 
-        jdbcTemplate.update("delete from users where id = ?", gone);
+        try
+        {
+            jdbcTemplate.update("delete from users where id = ?", gone);
 
-        assertThat(count("select count(*) from blocks where blocker_id = ? or blocked_id = ?", gone, gone)).isZero();
-        assertThat(count("select count(*) from friend_requests where requester_id = ? or receiver_id = ?", gone, gone)).isZero();
-        assertThat(count("select count(*) from friendships where user_low_id = ? and user_high_id = ?", low, high)).isZero();
-        assertThat(count("select count(*) from reports where reporter_id = ? or target_user_id = ?", gone, gone)).isZero();
-        assertThat(count("select count(*) from recent_players where user_id = ? or other_user_id = ?", gone, gone)).isZero();
-        assertThat(count("select count(*) from recruit_posts where id = ?", postId)).isZero();
-        // 글이 지워지면 그 글의 파티와 파티원(남는 사람 것까지)도 딸려 지워진다
-        assertThat(count("select count(*) from parties where id = ?", partyId)).isZero();
-        assertThat(count("select count(*) from party_members where party_id = ?", partyId)).isZero();
-        // 남는 사람은 그대로다
-        assertThat(count("select count(*) from users where id = ?", other)).isEqualTo(1);
+            assertThat(count("select count(*) from blocks where blocker_id = ? or blocked_id = ?", gone, gone)).isZero();
+            assertThat(count("select count(*) from friend_requests where requester_id = ? or receiver_id = ?", gone, gone)).isZero();
+            assertThat(count("select count(*) from friendships where user_low_id = ? and user_high_id = ?", low, high)).isZero();
+            assertThat(count("select count(*) from reports where reporter_id = ? or target_user_id = ?", gone, gone)).isZero();
+            assertThat(count("select count(*) from recent_players where user_id = ? or other_user_id = ?", gone, gone)).isZero();
+            // 확정된 글은 남고 방장 칸만 빈다 — 2026-10-02 소유자 결정 "확정된 파티 기록은 남긴다"(V9 · P-48). 그 전에는 글 · 파티 · 남의 파티원 줄까지 딸려 지워졌다
+            assertThat(jdbcTemplate.queryForObject("select host_id from recruit_posts where id = ?", Long.class, postId)).isNull();
+            assertThat(count("select count(*) from parties where id = ?", partyId)).isEqualTo(1);
+            // 지워진 사람의 파티원 줄만 빠지고 남는 사람의 줄은 그대로다
+            assertThat(jdbcTemplate.queryForList("select user_id from party_members where party_id = ?", Long.class, partyId))
+                    .containsExactly(other);
+            // 남는 사람은 그대로다
+            assertThat(count("select count(*) from users where id = ?", other)).isEqualTo(1);
+        }
+        finally
+        {
+            // 방장이 빈 글은 뒷정리(사용자의 글을 지운다)가 찾지 못한다 — 직접 지운다(파티 · 파티원은 글의 CASCADE 가 지운다)
+            jdbcTemplate.update("delete from recruit_posts where id = ?", postId);
+        }
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.queuemate.platform.party.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -20,6 +21,9 @@ import java.util.Map;
  * @param hostPosition    <b>방장 자신의 포지션</b>(2026-09-30 소유자 결정 — P-38). 그 게임의 포지션 이름 하나. <b>포지션이 있는 모드면 필수</b>이고
  *                        (gameconfig 모드 HASH 의 {@code positionUniqueness} 가 {@code true}), 포지션이 없는 모드 · PUBG 면 보내면 400 이다.
  *                        {@code wantedPositions} 에 들어 있으면 400 이다. 검증은 서비스가 한다({@code PostValidation#hostPosition})
+ * @param allowAutoJoin   <b>빠른매치로 들어오는 것을 허용하는가</b>(2026-10-02 소유자 결정 — P-50). <b>필수다</b> — 프런트는 기본값 없이 둘 중 하나를 골라야 글을 쓸 수 있다.
+ *                        없거나 {@code null} 이면 400 {@code "allowAutoJoin: 필요합니다"}. {@code false} 면 게시판 방 먼저 합류({@code AutoJoinService})가 이 방에 넣지 않는다 —
+ *                        직접 입장은 그대로 된다. 글 고치기가 없어(P-45) 만든 뒤 바꿀 수 없다
  */
 public record PostCreateRequest(
         @NotBlank(message = "필요합니다") String game,
@@ -40,6 +44,8 @@ public record PostCreateRequest(
 
         List<String> wantedPositions,
 
-        String hostPosition
+        String hostPosition,
+
+        @NotNull(message = "필요합니다") Boolean allowAutoJoin
 ) {
 }

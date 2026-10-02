@@ -18,7 +18,7 @@ import java.util.Map;
  * <p><b>여기만 따로 있는 이유 — 받는 사람의 {@code userId} 가 문자열로 온다.</b> Lua 스크립트가 돌려주는 멤버와 방 키의 값은 전부 문자열이고
  * {@link PushPublisher} 는 사용자 번호({@code Long})를 받는다. 이 앱의 요청으로 방에 들어온 사람은 전부 사용자 번호라 못 파는 값이 있을 수 없지만,
  * 누가 Redis 에 손으로 넣은 값이 섞여도 <b>이미 성립한 입장 · 나가기를 500 으로 뒤집지 않도록</b> 건너뛰고 WARN 을 남긴다 —
- * 게시판이 멤버 SET 을 읽을 때({@code room.domain.RoomMemberIds})와 같은 처리다.
+ * 게시판이 멤버 HASH 를 읽을 때({@code room.domain.RoomMemberIds})와 같은 처리다.
  *
  * <p>방 안의 일에는 트랜잭션이 없다 — 그래서 두 발행기 모두 부르는 그 자리에서 곧바로 발행한다. 어떤 예외도 밖으로 내보내지 않는 것도 두 발행기 그대로다.
  */

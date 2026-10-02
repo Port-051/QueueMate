@@ -106,9 +106,12 @@ class MatchPartyRoomTest extends RoomTestSupport {
                 (rs, i) -> List.of(rs.getLong(1), rs.getLong(2)), partyId);
     }
 
+    /** 멤버 HASH 의 필드(2026-09-30 부터 HASH 다 — P-44). 자동 매칭 파티의 방은 포지션을 고르지 않아 값이 늘 {@code ""} 다 */
     private Set<String> roomMembers(String partyId)
     {
-        return redisTemplate.opsForSet().members("qm:room:" + partyId + ":members");
+        Set<String> members = new java.util.TreeSet<>();
+        redisTemplate.opsForHash().keys("qm:room:" + partyId + ":members").forEach(field -> members.add(String.valueOf(field)));
+        return members;
     }
 
     /** UUID 방의 방장 키 값(사용자 번호). {@link RoomTestSupport#host} 는 이름표의 방(숫자)을 위한 것이라 여기서는 쓰지 않는다 */
@@ -120,7 +123,7 @@ class MatchPartyRoomTest extends RoomTestSupport {
     // ---- 만들기 · 들어가기 ----
 
     @Test
-    @DisplayName("첫 파티원이 부르면 201 이고 roomId 는 partyId 다 — 방장 키 · 확정 표시 키 · 멤버 SET · 입장 표시 키가 서고, parties 에 MATCH 한 줄 · party_members 에 셋(is_host 는 첫 사람만)")
+    @DisplayName("첫 파티원이 부르면 201 이고 roomId 는 partyId 다 — 방장 키 · 확정 표시 키 · 멤버 HASH · 입장 표시 키가 서고, parties 에 MATCH 한 줄 · party_members 에 셋(is_host 는 첫 사람만)")
     void firstCallerCreatesTheRoom() throws Exception
     {
         Cookie u1 = member("u1");
@@ -195,7 +198,7 @@ class MatchPartyRoomTest extends RoomTestSupport {
     // ---- 파티 HASH 가 수명(600초)으로 사라진 뒤 — 방에 있는 사람은 방 키로, 방에 없는 사람만 HASH 로 판정한다 (2026-09-28) ----
 
     @Test
-    @DisplayName("방에 들어와 있는 사람은 파티 HASH 가 사라진 뒤에 다시 불러도(새로고침) 200 이고 방 키 · 멤버 SET 이 그대로다")
+    @DisplayName("방에 들어와 있는 사람은 파티 HASH 가 사라진 뒤에 다시 불러도(새로고침) 200 이고 방 키 · 멤버 HASH 가 그대로다")
     void refreshAfterPartyHashExpiredIsStillOk() throws Exception
     {
         Cookie u1 = member("u1");
@@ -306,7 +309,7 @@ class MatchPartyRoomTest extends RoomTestSupport {
     {
         Cookie u1 = member("u1");
         member("u2");
-        roomService.create(r("board"), u("u1"));
+        roomService.create(r("board"), u("u1"), Set.of());
         String partyId = seedConfirmedParty("CONFIRMED", "u1", "u2");
 
         mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u1))
@@ -343,7 +346,7 @@ class MatchPartyRoomTest extends RoomTestSupport {
     }
 
     @Test
-    @DisplayName("파티원 셋이 동시에 불러도 파티는 한 줄 · 멤버 SET 은 셋 · 방장은 한 명 · 201 은 한 번이다")
+    @DisplayName("파티원 셋이 동시에 불러도 파티는 한 줄 · 멤버 HASH 는 셋 · 방장은 한 명 · 201 은 한 번이다")
     void concurrentCallsMakeOneRoom() throws Exception
     {
         Cookie[] cookies = { member("u0"), member("u1"), member("u2") };
@@ -383,14 +386,14 @@ class MatchPartyRoomTest extends RoomTestSupport {
     }
 
     @Test
-    @DisplayName("정원(target)이 차면 파티원이라도 409 ROOM_FULL 이다 — 누가 손으로 멤버 SET 을 채운 경우. 확정된 방이라 enter-room 으로도 못 들어온다")
+    @DisplayName("정원(target)이 차면 파티원이라도 409 ROOM_FULL 이다 — 누가 손으로 멤버 HASH 를 채운 경우. 확정된 방이라 enter-room 으로도 못 들어온다")
     void fullRoomIsRejected() throws Exception
     {
         Cookie u1 = member("u1");
         Cookie u2 = member("u2");
         String partyId = seedConfirmedParty("CONFIRMED", "u1", "u2");
         mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u1)).andExpect(status().isCreated());
-        redisTemplate.opsForSet().add("qm:room:" + partyId + ":members", Long.toString(unknownUserId()));
+        redisTemplate.opsForHash().put("qm:room:" + partyId + ":members", Long.toString(unknownUserId()), "");
 
         mockMvc.perform(post("/api/v1/match-parties/" + partyId + "/room").cookie(u2))
                 .andExpect(status().isConflict())

@@ -12,7 +12,8 @@ import tools.jackson.databind.ObjectMapper;
 import java.util.Map;
 
 /**
- * 게시판 채널에 "바뀌었다" 신호를 발행한다 — 글이 생기거나 · 고쳐지거나 · 만료되거나 · 확정될 때다 (CLAUDE.md §3.2 "게시판 채널").
+ * 게시판 채널에 "바뀌었다" 신호를 발행한다 — 글이 생기거나 · 만료되거나 · 확정되거나 · 확정된 글의 파티가 닫힐 때다(글 응답의 {@code closed} — 2026-10-02 소유자 결정)
+ * (CLAUDE.md §3.2 "게시판 채널". 글은 고칠 수 없다 — 2026-10-01 소유자 결정).
  * <b>이 앱의 몫은 PUBLISH 까지다</b> — 구독해서 SSE 로 흘려보내는 것은 {@code notification} 이다.
  *
  * <pre>

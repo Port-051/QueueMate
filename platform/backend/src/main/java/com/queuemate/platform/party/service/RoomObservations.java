@@ -16,7 +16,7 @@ import java.util.Set;
  */
 final class RoomObservations {
 
-    /** 확정 표시 키가 있는 글과, 그 순간의 멤버 SET */
+    /** 확정 표시 키가 있는 글과, 그 순간의 멤버 HASH */
     record Confirmed(RecruitPost post, Set<Long> members) {
     }
 
@@ -37,7 +37,7 @@ final class RoomObservations {
     }
 
     /**
-     * 확정된 글인데 방이 없다 — 방장 키 · 멤버 SET · 확정 표시 키가 <b>셋 다</b> 없다. 파티를 닫는다. 글의 상태는 바뀌지 않는다({@code CONFIRMED} 그대로)
+     * 확정된 글인데 방이 없다 — 방장 키 · 멤버 HASH · 확정 표시 키가 <b>셋 다</b> 없다. 파티를 닫는다. 글의 상태는 바뀌지 않는다({@code CONFIRMED} 그대로)
      */
     void partyGone(Long postId)
     {

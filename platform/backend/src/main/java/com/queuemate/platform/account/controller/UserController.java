@@ -24,6 +24,9 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 내 프로필과 게임 계정. <b>"나"는 경로가 아니라 access 토큰에서 온다</b>({@link CurrentUserId}) — 경로에 사용자 번호를 받지 않으므로
  * 남의 것을 건드릴 길이 없다. 원본은 {@code contracts/platform-api.md} "계정" 이다.
+ *
+ * <p><b>회원 탈퇴는 여기 없다</b> — {@code DELETE /api/v1/auth/account}({@link AuthController#deleteAccount}). refresh 쿠키({@code Path=/api/v1/auth})가 실려 오게
+ * 그 아래로 옮겼다(2026-10-02 소유자 지시 · P-48). 옛 {@code DELETE /api/v1/users/me} 는 같은 경로에 {@code GET} · {@code PATCH} 가 있어 405 {@code METHOD_NOT_ALLOWED} 다.
  */
 @RestController
 @RequestMapping("/api/v1/users/me")

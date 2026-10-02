@@ -20,7 +20,8 @@ import java.util.Map;
  * @param wins       <b>시즌 누적 승</b>(솔로랭크) — 읽은 최근 경기(기본 10판 — {@code match-count})의 승패가 아니다. 솔로랭크 줄이 없으면(언랭) {@code null}
  * @param losses     시즌 누적 패. {@code wins} 와 같이 있거나 같이 없다
  * @param winStreak  가장 최근 경기부터 이어지는 연승. 최근 경기가 패면 0 이고, 경기를 하나도 못 읽었으면 {@code null}
- * @param detail     게임마다 다른 나머지를 담은 <b>JSON 객체의 글자</b>(jsonb 로 들어간다). LoL 은 {@code {"mostChampions": […]}} 다
+ * @param detail     게임마다 다른 나머지를 담은 <b>JSON 객체의 글자</b>(jsonb 로 들어간다). LoL 은 {@code {"mostChampions": […], "recentResults": ["W", "L", …]}} 다
+ *                   ({@code recentResults} 는 {@code games} 와 같은 경기의 승 · 패 · 새 경기가 먼저 — 2026-09-30, P-43)
  * @param tiers      <b>{@code game_accounts.tiers} 에 통째로 적는다</b>(2026-09-27 소유자 결정 — 게임사 API 로 채우는 게임은 티어를 요청으로 받지 않는다.
  *                   2026-09-29 — 사다리마다 따로다, P-36). 사다리 키({@code Game#tierLadders()}) → gameconfig 티어 사다리의 이름({@code GOLD_2} · {@code MASTER}).
  *                   LoL 은 {@code SOLO} · {@code FLEX} 둘이다. 언랭이거나 사다리에 없는 이름이면 그 값이 {@code null} 이다(키를 빼도 같다 —

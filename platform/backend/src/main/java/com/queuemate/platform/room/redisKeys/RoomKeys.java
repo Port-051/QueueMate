@@ -1,9 +1,9 @@
 package com.queuemate.platform.room.redisKeys;
 
 /**
- * 방의 Redis 키 — 방장 키 · 멤버 SET · 확정 표시 키와 입장 표시 키. <b>방을 바꾸려면 Lua 스크립트를 부르는 서비스({@code RoomService} ·
- * {@code RoomMemberService})를 거친다</b> — 정원 검사 · 입장 표시 키 · 활성 요청 키의 {@code EXISTS} 가 한 스크립트 안에 있어서, 맨손으로
- * {@code SADD} 하면 그 불변식이 깨진다.
+ * 방의 Redis 키 — 방장 키 · 멤버 HASH · 찾는 포지션 SET · 확정 표시 키와 입장 표시 키. <b>방을 바꾸려면 Lua 스크립트를 부르는 서비스({@code RoomService} ·
+ * {@code RoomMemberService})를 거친다</b> — 정원 검사 · 포지션 검사 · 입장 표시 키 · 활성 요청 키의 {@code EXISTS} 가 한 스크립트 안에 있어서, 맨손으로
+ * {@code HSET} 하면 그 불변식이 깨진다.
  */
 public final class RoomKeys {
 
@@ -22,12 +22,28 @@ public final class RoomKeys {
     }
 
     /**
-     * 멤버 SET. 원소는 방에 있는 사람의 {@code userId}(사용자 번호의 십진 문자열 — 방장 포함)이고 크기가 현재 인원이다.
-     * <pre>{@code qm:room:123:members}</pre>
+     * 멤버 HASH(2026-09-30 소유자 결정 — P-44. 그 전에는 SET 이었다). <b>필드는 방에 있는 사람의 {@code userId}</b>(사용자 번호의 십진 문자열 — 방장 포함)이고
+     * 필드 수({@code HLEN})가 현재 인원이다. <b>값은 참가할 때 고른 포지션</b>이다 — 방장의 값은 글의 방장 포지션({@code host_position} — 글은 고칠 수 없다,
+     * 2026-10-01 소유자 결정), 고르지 않았으면 빈 문자열(포지션이 없는 모드 · 자동 매칭 파티의 방). 들어온 뒤에는 바꿀 수 없고,
+     * 나가거나 강퇴되면 필드째 빠지고 그 포지션은 남은 찾는 포지션 SET({@link #roomNeedsKey})에 돌아간다.
+     * <pre>{@code qm:room:123:members  →  { "42": "MID", "43": "JUNGLE" }}</pre>
      */
     public static String roomMemberKey(String roomId)
     {
         return prefix + roomId + ":members";
+    }
+
+    /**
+     * <b>남은</b> 찾는 포지션 SET(2026-09-30 소유자 결정 — P-44). 글 쓰기가 방을 만들 때 글의 {@code wantedPositions} 로 채우고({@code create-room.lua} — 포지션이 없는 모드면 만들지 않는다),
+     * 입장이 고른 포지션을 뺀다({@code enter-room.lua} — {@code SREM}). 나가기 · 강퇴가 그 사람의 포지션을 돌려놓고({@code leave-room.lua} · {@code kick-room.lua}),
+     * 글은 고칠 수 없어(2026-10-01 소유자 결정) 그 밖에 SET 을 바꾸는 길은 없다. 방장의 접속 확인이 수명을 늘리고, 방이 없어질 때 같이 지운다.
+     * 다 고르면 Redis 가 빈 SET 을 지워 키가 없어진다 — 그래서 <b>포지션 방인가는 이 키가 있는지로 가르지 않는다</b>. 입장은 글의 찾는 포지션이 비지 않았는지를
+     * {@code PostEntryGate#check} 에서 받아 스크립트에 넘긴다(2026-10-01 소유자 결정).
+     * <pre>{@code qm:room:123:needs}</pre>
+     */
+    public static String roomNeedsKey(String roomId)
+    {
+        return prefix + roomId + ":needs";
     }
 
     /**

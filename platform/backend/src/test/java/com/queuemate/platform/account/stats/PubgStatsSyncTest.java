@@ -150,6 +150,8 @@ class PubgStatsSyncTest extends ApiTestSupport {
         assertThat(number(detail, "avgDamage")).isEqualTo(408.9);
         assertThat(number(detail, "kd")).isEqualTo(3.52);
         assertThat(number(detail, "top1Rate")).isEqualTo(32.8);
+        // PUBG 는 시즌 합산이라 경기별 승 · 패 줄이 없다(P-43 — LoL 만이다)
+        assertThat(detail.has("recentResults")).isFalse();
 
         Long gameAccountId = gameAccountId(userIdOf(nickname));
         assertThat(jdbcTemplate.queryForObject("select external_id from game_accounts where id = ?", String.class, gameAccountId))

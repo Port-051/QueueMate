@@ -24,14 +24,13 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * <b>게시판 방의 정원 = 그 모드의 인원</b>(2026-09-30 소유자 결정 — {@code contracts/platform-api.md} P-41. 소유자의 말 — "솔랭은 2인밖에 안 되는데 왜 5인이 있는 거야?").
  * 글을 쓸 때 gameconfig 모드 HASH 의 {@code targetPartySize} 를 읽어 글에 적고({@code recruit_posts.capacity} — V8), 입장 스크립트 · 응답의 {@code capacity} · {@code full} ·
- * 게시판 방 먼저 합류가 그 값 하나를 본다. 모드를 고치면({@code PATCH}) 다시 정한다. V8 전에 쓴 글(칸이 비었다)과 gameconfig 를 못 읽은 채 쓴 글은 5 다.
+ * 게시판 방 먼저 합류가 그 값 하나를 본다. 글은 고칠 수 없어(2026-10-01 소유자 결정) 정원은 글을 쓸 때 한 번 정해진다. V8 전에 쓴 글(칸이 비었다)과 gameconfig 를 못 읽은 채 쓴 글은 5 다.
  *
  * <p>입장은 <b>진짜로</b> 거친다(HTTP → {@code PostEntryGate} → {@code enter-room.lua}). gameconfig 는 {@code ApiTestSupport} 가 심은 것({@code RANKED_SOLO} 2 ·
  * {@code RANKED_FLEX_5} 5)에 {@code NORMAL_3} 을 보탠다 — 있던 키는 건드리지 않고 없어서 심은 것만 끝나고 지운다.
@@ -61,31 +60,32 @@ class PostCapacityTest extends PostTestSupport {
 
     // ---- 도우미 ----
 
-    private org.springframework.test.web.servlet.ResultActions enter(Cookie cookie, Long postId) throws Exception
-    {
-        return mockMvc.perform(post("/api/v1/rooms/" + postId + "/members").cookie(cookie));
-    }
-
-    /** 새 사람 하나를 만들어 그 방에 들여보낸다 — 201 을 기대한다. 끝나면 입장 표시 키를 지우게 적어 둔다 */
-    private void enterNewcomer(Long postId) throws Exception
+    /**
+     * 새 사람 하나를 만들어 그 방에 들여보낸다 — 201 을 기대한다. 끝나면 입장 표시 키를 지우게 적어 둔다.
+     * {@code position} 은 참가할 때 고르는 찾는 포지션이다(2026-09-30 — P-44. 찾는 포지션이 있는 글이면 필수 · 남이 고른 것이면 400). SQL 로 넣은 옛 글(찾는 포지션이 없다 — 포지션을 주면 400)은 {@code null}
+     */
+    private void enterNewcomer(Long postId, String position) throws Exception
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
         track(postId, userIdOf(nickname));
-        enter(cookie, postId).andExpect(status().isCreated());
+        enterRoom(cookie, postId, position).andExpect(status().isCreated());
     }
 
-    /** 새 사람 하나가 들어가려다 409 {@code ROOM_FULL} 로 거절당한다 — 멤버 SET 에도 입장 표시 키에도 남지 않는다 */
+    /**
+     * 새 사람 하나가 들어가려다 409 {@code ROOM_FULL} 로 거절당한다 — 멤버 HASH 에도 입장 표시 키에도 남지 않는다.
+     * 포지션 없이 부른다 — 정원을 포지션보다 먼저 보므로(P-44 · {@code enter-room.lua} 의 순서) 가득 찬 방은 포지션과 상관없이 {@code ROOM_FULL} 이다
+     */
     private void expectFullFor(Long postId) throws Exception
     {
         String nickname = newNickname();
         Cookie cookie = login(nickname);
         Long userId = userIdOf(nickname);
         track(postId, userId);
-        enter(cookie, postId)
+        enterRoom(cookie, postId, null)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("ROOM_FULL"));
-        assertThat(redisTemplate.opsForSet().members(membersKey(postId))).doesNotContain(String.valueOf(userId));
+        assertThat(memberIds(postId)).doesNotContain(String.valueOf(userId));
         assertThat(redisTemplate.opsForValue().get("qm:user:active-room:" + userId)).isNull();
     }
 
@@ -111,7 +111,7 @@ class PostCapacityTest extends PostTestSupport {
         Long postId = created.get("postId").asLong();
         assertThat(storedCapacity(postId)).isEqualTo(2);
 
-        enterNewcomer(postId);
+        enterNewcomer(postId, "SUPPORT");
         JsonNode line = find(list(viewer, "LOL"), postId);
         assertThat(line.get("memberCount").asInt()).isEqualTo(2);
         assertThat(line.get("capacity").asInt()).isEqualTo(2);
@@ -119,7 +119,7 @@ class PostCapacityTest extends PostTestSupport {
 
         // 전에는 정원이 늘 5 라 여기서 들어와 "3/5" 가 됐다
         expectFullFor(postId);
-        assertThat(redisTemplate.opsForSet().size(membersKey(postId))).isEqualTo(2);
+        assertThat(memberIds(postId)).hasSize(2);
     }
 
     @Test
@@ -129,48 +129,17 @@ class PostCapacityTest extends PostTestSupport {
         seedIfAbsent("qm:gameconfig:LOL:" + LOL_NORMAL_3, key -> redisTemplate.opsForHash()
                 .putAll(key, Map.of("targetPartySize", "3", "positionUniqueness", "true", "tierRule", "NONE")));
         Cookie hostCookie = login(newNickname());
-        Long postId = createdId(createPost(hostCookie, postBodyWithHostPosition("LOL", LOL_NORMAL_3, "3인 일반", "{}", "JUNGLE", "MID"))
+        // 3인이라 찾는 포지션은 둘 이상이다(2026-09-30 소유자 결정 — 정원 − 1)
+        Long postId = createdId(createPost(hostCookie, postBodyWithHostPosition("LOL", LOL_NORMAL_3, "3인 일반", "{}", "JUNGLE",
+                "MID", "SUPPORT"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.capacity").value(3)));
         assertThat(storedCapacity(postId)).isEqualTo(3);
 
-        enterNewcomer(postId);
-        enterNewcomer(postId);
+        enterNewcomer(postId, "MID");
+        enterNewcomer(postId, "SUPPORT");
         expectFullFor(postId);
-        assertThat(redisTemplate.opsForSet().size(membersKey(postId))).isEqualTo(3);
-    }
-
-    // ---- 모드를 고치면 정원도 ----
-
-    @Test
-    @DisplayName("PATCH 로 모드를 바꾸면 정원을 다시 정한다(2 → 5 → 2) — 모드를 주지 않은 고치기는 정원을 건드리지 않는다. 바뀐 정원으로 입장을 가른다")
-    void patchModeRecomputesCapacity() throws Exception
-    {
-        Cookie hostCookie = login(newNickname());
-        Long postId = createLolPost(hostCookie);
-        assertThat(storedCapacity(postId)).isEqualTo(2);
-
-        editPost(hostCookie, postId, json("mode", LOL_MODE_2))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.mode").value(LOL_MODE_2))
-                .andExpect(jsonPath("$.capacity").value(5));
-        assertThat(storedCapacity(postId)).isEqualTo(5);
-
-        editPost(hostCookie, postId, json("title", "제목만 고친다"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.capacity").value(5));
-        assertThat(storedCapacity(postId)).isEqualTo(5);
-
-        editPost(hostCookie, postId, json("mode", LOL_MODE))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.capacity").value(2));
-        assertThat(storedCapacity(postId)).isEqualTo(2);
-
-        // 다시 5 인 모드로 바꾼 뒤에는 세 번째 사람도 들어온다 — 입장 스크립트가 글의 새 정원을 받는다
-        editPost(hostCookie, postId, json("mode", LOL_MODE_2)).andExpect(status().isOk());
-        enterNewcomer(postId);
-        enterNewcomer(postId);
-        assertThat(redisTemplate.opsForSet().size(membersKey(postId))).isEqualTo(3);
+        assertThat(memberIds(postId)).hasSize(3);
     }
 
     // ---- 모를 때는 5 ----
@@ -191,10 +160,11 @@ class PostCapacityTest extends PostTestSupport {
         assertThat(line.get("capacity").asInt()).isEqualTo(5);
         assertThat(line.get("full").asBoolean()).isFalse();
 
-        enterNewcomer(postId);
-        enterNewcomer(postId);
-        assertThat(redisTemplate.opsForSet().size(membersKey(postId))).isEqualTo(3);
-        // 입장은 글에 쓰지 않는다 — 칸은 비어 있는 그대로다(모드를 주는 고치기만 채운다)
+        // SQL 로 넣은 옛 글이라 찾는 포지션 SET 이 없다 — 포지션 없이 들어온다(P-44)
+        enterNewcomer(postId, null);
+        enterNewcomer(postId, null);
+        assertThat(memberIds(postId)).hasSize(3);
+        // 입장은 글에 쓰지 않는다 — 칸은 비어 있는 그대로다(글은 고칠 수 없어 채우는 길이 없다 — 2026-10-01)
         assertThat(storedCapacity(postId)).isNull();
     }
 
@@ -211,7 +181,7 @@ class PostCapacityTest extends PostTestSupport {
                     new GameConfigReader(gameConfigRedis));
 
             PostResponse created = service.create(hostId, new PostCreateRequest("LOL", LOL_MODE, "모르는 인원", null, "REQUIRED",
-                    Map.of(), List.of("SUPPORT"), "JUNGLE"));
+                    Map.of(), List.of("SUPPORT"), "JUNGLE", true));
             track(created.postId(), hostId);
 
             assertThat(created.capacity()).isEqualTo(5);

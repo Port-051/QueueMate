@@ -2,7 +2,7 @@
 --
 -- KEYS[1] = qm:room:{roomId}:confirmed        확정 표시 키. STRING, 값은 roomId. 이 키가 있다 = 확정된 방이다
 -- KEYS[2] = qm:room:{roomId}:host             방장 키. STRING, 값은 방장의 userId
--- KEYS[3] = qm:room:{roomId}:members          방에 있는 사람들. SET
+-- KEYS[3] = qm:room:{roomId}:members          방에 있는 사람들. HASH — 필드는 userId(값은 고른 포지션 — 여기서는 읽지 않는다, P-44)
 --
 -- ARGV[1] = userId (부른 사람)
 -- ARGV[2] = roomId (확정 표시 키의 값으로 쓴다)
@@ -44,7 +44,7 @@ if redis.call('EXISTS', roomConfirmedKey) == 1 then
     return {2}
 end
 
-local members = redis.call('SMEMBERS', roomMemberKey)
+local members = redis.call('HKEYS', roomMemberKey)
 
 if #members < 2 then
     return {-7}

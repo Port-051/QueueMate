@@ -226,11 +226,11 @@ class GameProfileTest extends ApiTestSupport {
         Long withStats = userIdOf(withStatsNickname);
         Long withoutStats = userIdOf(withoutStatsNickname);
         Long otherGameOnly = userIdOf(otherGameOnlyNickname);
-        // 아무도 아닌 번호 — 멤버 SET 에 남은 유령처럼 있을 수 없는 사용자가 섞여 들어올 수 있다
+        // 아무도 아닌 번호 — 멤버 HASH 에 남은 유령처럼 있을 수 없는 사용자가 섞여 들어올 수 있다
         Long nobody = unknownUserId();
         insertStats(gameAccountId(withStats, "LOL"), 10, 6, 4, "5.0", "2.5", "5.0", 1, "{}");
 
-        // 같은 번호가 두 번 들어와도 된다 — 멤버 SET 에서 온 값을 그대로 넘길 수 있어야 한다
+        // 같은 번호가 두 번 들어와도 된다 — 멤버 HASH 에서 온 값을 그대로 넘길 수 있어야 한다
         Map<Long, UserGameProfile> profiles = gameProfileReader.findProfiles(
                 List.of(withStats, withoutStats, otherGameOnly, nobody, withStats), Game.LOL);
 

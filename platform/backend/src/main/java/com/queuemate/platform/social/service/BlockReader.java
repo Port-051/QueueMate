@@ -11,7 +11,7 @@ import java.util.Set;
 
 /**
  * <b>{@code social} 밖에서 차단 관계를 읽는 창구</b> — 모집 글 목록과 방의 입장({@code party.service.PostEntryGate})이 "방 안의 누구와든 차단 관계인가"를 볼 때 쓴다
- * (CLAUDE.md §7.1 · docs/11 D-20). 묻는 사용자 번호가 DB 가 아니라 <b>Redis 의 멤버 SET</b> 에서 오므로 JOIN 할 짝이 없어 창구로 남긴다 — 어차피 {@code IN} 한 번이다.
+ * (CLAUDE.md §7.1 · docs/11 D-20). 묻는 사용자 번호가 DB 가 아니라 <b>Redis 의 멤버 HASH</b> 에서 오므로 JOIN 할 짝이 없어 창구로 남긴다 — 어차피 {@code IN} 한 번이다.
  * 다른 패키지는 {@code BlockRepository} 를 직접 쓰지 않고 여기를 부른다.
  */
 @Component
