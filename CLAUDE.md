@@ -84,6 +84,7 @@ SSE 이고 보내는 쪽은 `app:room`의 REST `POST`였다(`matching` docs/11 D
 | SSE | `SseEmitter` |
 | 구독 | Spring Data Redis `RedisMessageListenerContainer` (Pub/Sub) |
 | 인증 | **Spring Security `oauth2-resource-server`(Nimbus)** — `NimbusJwtDecoder.withPublicKey()`로 **검증만** 한다(2026-09-27 — §5.1). 개인 키 · 서명 · jjwt · `oauth2-client` · JWKS는 없다 |
+| 헬스 체크 | **`spring-boot-starter-actuator`** — `/health/live` · `/health/ready`(2026-10-02 — §6) |
 
 `matching`과 버전을 맞추는 이유는 한 사람이 두 서비스를 같이 다루므로 의존성·설정 감각을 한 벌로
 유지하기 위해서다. WebFlux가 아니라 MVC인 이유는 서블릿 비동기(§5)로 유휴 연결 문제가 풀리기
@@ -132,7 +133,7 @@ SSE 이고 보내는 쪽은 `app:room`의 REST `POST`였다(`matching` docs/11 D
 - **실패는 전부 같은 401이다** — `{"code":"UNAUTHENTICATED","message":"로그인이 필요합니다","details":[]}`(`platform`과 같은 본문 — `security/ApiAuthenticationEntryPoint`). 쿠키가 없든 · 만료됐든 · 서명이 틀리든 · `token_use`가 다르든 같다. **거절되면 구독도 연결도 생기지 않는다.**
 - **연결할 때만 검증한다** — 열린 연결은 토큰이 만료돼도 끊지 않는다. 재접속이 401로 멈추면(`EventSource`는 200이 아닌 응답에 재접속을 멈춘다) 프런트가 재발급(`platform`의 `POST /api/v1/auth/refresh`)한 뒤 `EventSource`를 새로 만든다 — 서버 쪽 장치는 없다(`../platform/CLAUDE.md` §5.1 (바)).
 - **stateless** — 세션을 만들지 않고 Spring의 CSRF 필터 · 폼 로그인 · 기본 로그아웃을 끈다(`security/SecurityConfig`). **ASYNC · ERROR 디스패치는 열어 두었다** — SSE는 서블릿 비동기라 연결이 끝날 때 ASYNC 디스패치가 한 번 더 도는데, 이미 인증을 통과한 요청의 뒷부분이다.
-  **`/health/**` · `/info`는 인증 없이 열려 있다 — 다만 이 서비스에는 아직 actuator가 없어 그 경로는 404다**(자리만 둔 것이다).
+  **`/health/**` · `/health` · `/info`는 인증 없이 열려 있다 — actuator의 자리다**(2026-10-02 부터 `/health/live` · `/health/ready`가 답한다 — §6).
 - **`Origin` 검사도 넣었다**(`web/OriginCheckFilter` — `platform`과 같은 모양 · 설정 `ALLOWED_ORIGINS` 기본값 `http://localhost:5173,http://localhost:3000`). POST/PUT/PATCH/DELETE에 허용 목록에 없는 `Origin`이면 403 `ORIGIN_NOT_ALLOWED`이고 `Origin`이 없으면 통과한다.
   **지금은 걸릴 요청이 없다** — 엔드포인트가 GET 하나다. 나중에 상태를 바꾸는 요청이 생겨도 빠뜨리지 않게 미리 넣어 두었다. **CORS 설정은 넣지 않는다**(프런트 개발 서버의 프록시 — `../platform/CLAUDE.md` §5.1 (사)).
 - **테스트** — 테스트가 도는 동안만 있는 키 쌍을 만들어 공개 키를 `@DynamicPropertySource`로 넣고 개인 키로 토큰을 찍는다(`test/…/security/TestTokens`). 개인 키는 저장소에 없다. **새 `@SpringBootTest`에는 `TestTokens.register`를 부르는 `@DynamicPropertySource`를 꼭 붙인다** — 없으면 공개 키가 없어 컨텍스트가 뜨지 않는다.
@@ -141,6 +142,11 @@ SSE 이고 보내는 쪽은 `app:room`의 REST `POST`였다(`matching` docs/11 D
 
 배포 기준은 **Stage 2(ECS Fargate)**다. Stage 1(단일 EC2 + Docker Compose)은 적용하지 않는다
 (`matching` docs/11 D-18). **k8s / HPA / sticky session을 전제한 구현 금지**는 그대로다.
+
+- **헬스 체크**(2026-10-02 소유자 지시) — actuator를 `platform`과 같은 모양으로 루트에 둔다(`application.yaml`의 `management` — `/actuator/…`는 없다).
+  `GET /health/live`는 livenessState만, `GET /health/ready`는 readinessState + **Redis**를 본다 — 이 앱의 일이 Redis 구독뿐이라서다(`platform`은 `db`).
+  **ALB 헬스 체크는 `/health/live`에 건다** — `/health/ready`에 걸면 Redis 장애 조치(몇 초) 동안 태스크가 전부 unhealthy로 보여 ECS가 통째로 갈아치운다.
+  응답은 상태만(`{"status":"UP"}`)이고 인증 없이 열린다(§5.1). 테스트는 `health/HealthEndpointTest` — Redis가 있어야 뜬다(다른 `@SpringBootTest`도 같다. 구독 컨테이너가 기동 때 붙는다).
 
 ## 7. 미정 사항
 
