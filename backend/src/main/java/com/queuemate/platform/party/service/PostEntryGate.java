@@ -95,7 +95,11 @@ public class PostEntryGate {
             }
         }
         Set<Long> others = new HashSet<>(shown);
-        others.add(post.getHostId());
+        // 방장이 탈퇴한 확정된 글은 방장 번호가 없다(2026-10-02 · P-48) — 남은 파티원과만 본다
+        if(post.getHostId() != null)
+        {
+            others.add(post.getHostId());
+        }
         others.remove(me);
         if(PostService.isHidden(me, post, shown, blockReader.findBlockedEitherWay(me, others)))
         {

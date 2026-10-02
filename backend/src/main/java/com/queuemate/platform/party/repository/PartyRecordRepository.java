@@ -127,6 +127,16 @@ public interface PartyRecordRepository extends JpaRepository<PartyMember, PartyM
             """)
     List<String> findActiveMatchPartyIds(@Param("game") String game);
 
+    /**
+     * 그 사람이 <b>게시판 파티</b>({@code source = 'BOARD'})의 파티원인가 — 회원 탈퇴가 게시판 신호를 낼지 가른다. 그 사람의 파티원 줄은 {@code users} 를 지울 때
+     * FK 의 {@code ON DELETE CASCADE} 로 지워져 확정된 글의 카드(P-40)에서 빠진다 — 글 한 줄이 바뀐다({@code PostStore#deleteUnconfirmedOf} — 2026-10-02 · P-48)
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT EXISTS (SELECT 1 FROM party_members m JOIN parties p ON p.id = m.party_id
+                            WHERE m.user_id = :userId AND p.source = 'BOARD')
+            """)
+    boolean isBoardPartyMember(@Param("userId") Long userId);
+
     @Query("select m from PartyMember m where m.key.partyId = :partyId")
     List<PartyMember> findByPartyId(@Param("partyId") Long partyId);
 

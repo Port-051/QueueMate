@@ -210,6 +210,39 @@ public class PostStore {
         }
     }
 
+    /** 그 사람의 모집 중인 글의 번호 — 많아야 하나다. 회원 탈퇴가 그 글을 {@link #expireByHost} 로 끝낸다({@code PostService#expireRecruitingOf}) */
+    @Transactional(readOnly = true)
+    public Optional<Long> findRecruitingOf(Long hostId)
+    {
+        return postRepository.findRecruitingIdByHostId(hostId);
+    }
+
+    /**
+     * <b>회원 탈퇴의 글 쪽 정리</b>(2026-10-02 소유자 결정 · P-48) — 그 사람이 쓴 글 가운데 <b>확정되지 않은 것(모집 중 · 만료)을 지운다.</b>
+     * <b>확정된 글은 남긴다</b>("확정된 파티 기록은 남긴다") — 방장의 칸은 부르는 쪽이 이어서 {@code users} 를 지울 때 FK 의 {@code ON DELETE SET NULL} 이 비우고(V9),
+     * 그 사람의 파티원 줄은 {@code ON DELETE CASCADE} 가 지운다. 다른 파티원의 줄과 파티는 그대로다.
+     *
+     * <p><b>부르는 쪽의 트랜잭션에 합류한다</b> — {@code users} 를 지우는 바로 그 트랜잭션 안에서, 그 사용자의 줄을 잠근 뒤({@code FOR UPDATE}) 지우기 직전에 불러야 한다.
+     * 따로 커밋하면 그 사이에 생긴 모집 중인 글 때문에 SET NULL 이 CHECK {@code recruit_posts_host_id_check} 에 걸린다(그러면 탈퇴가 통째로 되돌려진다 — 방장 없는 모집 중인 글은 생기지 않는다).
+     * 사용자 줄의 잠금이 그 사이의 글 쓰기를 막는다 — 글 쓰기의 INSERT 가 FK 검사({@code FOR KEY SHARE})에서 기다렸다가 사용자가 지워진 뒤 401 이 된다.
+     *
+     * <p><b>게시판 신호</b> — 그 사람의 글이 하나라도 있었거나(지운 글은 목록에서 빠지고 확정된 글은 {@code host} 가 빈다) 게시판 파티의 파티원이었으면(확정된 글의 카드에서 빠진다)
+     * 커밋 뒤에 한 번 낸다({@link BoardSignalPublisher#changed()}). 되돌려지면 나가지 않는다.
+     *
+     * @return 지운 글의 수
+     */
+    @Transactional
+    public int deleteUnconfirmedOf(Long hostId)
+    {
+        boolean onBoard = postRepository.existsByHostId(hostId) || partyRecordRepository.isBoardPartyMember(hostId);
+        int deleted = postRepository.deleteUnconfirmedByHostId(hostId);
+        if(onBoard)
+        {
+            boardSignal.changed();
+        }
+        return deleted;
+    }
+
     @Transactional(readOnly = true)
     public Optional<RecruitPost> find(Long postId)
     {

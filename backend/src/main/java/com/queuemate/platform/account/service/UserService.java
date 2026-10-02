@@ -220,8 +220,8 @@ public class UserService {
     }
 
     /**
-     * 토큰의 사용자가 DB 에 없으면 401 이다 — 지금은 탈퇴가 없어 일어나지 않지만, access 토큰은 스스로 검증되는 것이라
-     * (denylist 가 없다 — CLAUDE.md §5.1 (라)) 계정이 없어진 뒤에도 만료까지 서명은 유효하다.
+     * 토큰의 사용자가 DB 에 없으면 401 이다 — 탈퇴한 사람(2026-10-02 — {@link AccountDeletionService})의 남은 access 토큰이다. access 토큰은 스스로 검증되는 것이라
+     * (denylist 가 없다 — CLAUDE.md §5.1 (라)) 계정이 없어진 뒤에도 만료(최대 15분)까지 서명은 유효하다.
      */
     private User requireUser(Long userId)
     {

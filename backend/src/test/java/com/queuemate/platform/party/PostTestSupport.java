@@ -31,8 +31,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 키 이름을 main 의 상수에서 가져오지 않고 <b>글자로 적었다</b> — 상수에 오타가 나면 이 테스트들이 깨져야 한다({@code room.redisKeys.RoomKeys} 가 원본이다).
  *
  * <p>끝나면 자기가 쓴 키만 지운다 — 방 키 넷(찾는 포지션 SET 포함)과, 그 방에 들어 있던 사람들의 입장 표시 키. <b>{@code FLUSHDB} 금지</b> — 같은 Redis 를 다른 테스트 · 앱이 쓴다.
+ *
+ * <p>{@code public} 인 것은 회원 탈퇴의 테스트({@code account.AccountDeletionTest} — 2026-10-02)가 글 · 방을 같은 법으로 만들려고 패키지 밖에서 물려받아서다.
  */
-abstract class PostTestSupport extends ApiTestSupport {
+public abstract class PostTestSupport extends ApiTestSupport {
 
     /** 어느 글의 번호도 아닌 값 — identity 가 닿지 않을 만큼 크다. "없는 글" 을 부를 때 쓴다 */
     protected static final long NO_SUCH_POST = 9_999_999_999L;

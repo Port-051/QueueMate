@@ -29,7 +29,9 @@ import java.util.Set;
  * 모집 글. <b>{@code id} 가 곧 {@code roomId} 다</b> — DB 가 매기고(bigint identity), 글을 쓰는 그 트랜잭션에서 그 값(숫자를 문자열로)으로 방이 만들어진다({@code PostStore#create} — 2026-09-25 2단계)
  * ({@code contracts/platform-api.md} "모집 글 · 목록").
  *
- * <p>{@code hostId} 는 사용자 번호({@code users.id})이고 FK 가 걸려 있다(방장을 지우면 글이 딸려 지워진다). 엔티티 연관은 두지 않고 숫자로만 든다.
+ * <p>{@code hostId} 는 사용자 번호({@code users.id})이고 FK 가 걸려 있다. 엔티티 연관은 두지 않고 숫자로만 든다.
+ * <b>방장이 탈퇴하면 확정된 글은 남고 이 칸만 빈다</b>(2026-10-02 소유자 결정 — "확정된 파티 기록은 남긴다", V9 의 {@code ON DELETE SET NULL}).
+ * 모집 중 · 만료된 글은 탈퇴가 먼저 지우므로 <b>{@code null} 인 글은 늘 {@code CONFIRMED}</b> 다(DB 의 CHECK {@code recruit_posts_host_id_check}).
  * {@link Game} 은 {@code account} 의 <b>도메인 enum</b> 이다 — 테이블을 JOIN 하는 것이 아니라 이름의 목록을 같이 쓰는 것이다.
  *
  * <p><b>상태는 엔티티로 바꾸지 않는다</b> — {@code RecruitPostRepository} 의 조건부 UPDATE({@code … WHERE status = 'RECRUITING'})로만 바꾼다.
@@ -56,8 +58,11 @@ public class RecruitPost {
     @Column(name = "id")
     private Long id;
 
-    /** 글을 쓴 사람(사용자 번호) — 방장. 바뀌지 않는다(확정한 방에서 {@code room} 의 방장 키의 값이 바뀌어도 이 값은 그대로다 — D-23) */
-    @Column(name = "host_id", nullable = false, updatable = false)
+    /**
+     * 글을 쓴 사람(사용자 번호) — 방장. 바뀌지 않는다(확정한 방에서 {@code room} 의 방장 키의 값이 바뀌어도 이 값은 그대로다 — D-23).
+     * <b>방장이 탈퇴한 확정된 글은 {@code null}</b> 이다(2026-10-02 — V9 · P-48) — 읽는 쪽은 {@code null} 을 견뎌야 한다({@link #isHost} 는 견딘다)
+     */
+    @Column(name = "host_id", updatable = false)
     private Long hostId;
 
     @Enumerated(EnumType.STRING)
@@ -155,8 +160,9 @@ public class RecruitPost {
         return capacity == null ? MAX_CAPACITY : capacity;
     }
 
+    /** 이 사람이 글을 쓴 사람인가. 방장이 탈퇴한 글({@code hostId} 가 {@code null} — 2026-10-02 · P-48)은 누구의 글도 아니다 */
     public boolean isHost(Long userId)
     {
-        return hostId.equals(userId);
+        return hostId != null && hostId.equals(userId);
     }
 }

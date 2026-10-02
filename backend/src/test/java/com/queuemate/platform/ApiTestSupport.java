@@ -46,7 +46,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p><b>DB 는 테스트 사이에 남는다.</b> 그래서 닉네임은 매번 새로 짓고, 만든 계정은 테스트가 끝나면 지운다
  * (사용자 번호를 담는 칸이 전부 {@code users(id)} 로 FK({@code ON DELETE CASCADE})라 <b>{@code users} 의 줄만 지우면</b> 게임 계정 · 전적 ·
- * 소셜 연결 · 차단 · 친구 요청 · 친구 · 신고 · 최근 함께한 사람 · 글 · 파티 · 파티원이 딸려 지워진다 — 2026-09-26). 받은 refresh 토큰(Redis)도 지운다 —
+ * 소셜 연결 · 차단 · 친구 요청 · 친구 · 신고 · 최근 함께한 사람 · 파티원이 딸려 지워진다 — 2026-09-26. <b>글만은 먼저 지운다</b> — 2026-10-02 부터 글의 방장 칸은
+ * {@code ON DELETE SET NULL} 이고(V9 — 탈퇴해도 확정된 파티 기록은 남긴다) 비확정 글이 남으면 그 SET NULL 이 CHECK 에 걸린다. 글을 지우면 그 글의 파티 · 파티원이 딸려 지워진다).
+ * 받은 refresh 토큰(Redis)도 지운다 —
  * <b>Redis 는 자기 키만 지운다</b>({@code FLUSHDB} 금지 — 같은 Redis 를 {@code room} 이 쓸 수 있다). 트랜잭션 롤백에 기대지 않는다 — MockMvc 의 요청은
  * 서비스의 트랜잭션에서 실제로 커밋되고, 동시성 테스트는 여러 스레드(여러 커넥션)를 쓴다.
  *
@@ -214,7 +216,9 @@ public abstract class ApiTestSupport {
         }
         for(Long userId : userIdsByNickname.values())
         {
-            // 딸린 줄(차단 · 친구 · 신고 · 글 · 파티 …)은 FK 의 ON DELETE CASCADE 가 같이 지운다
+            // 글을 먼저 지운다 — 방장 칸이 SET NULL 이라(V9) 사용자만 지우면 확정된 글이 방장 없이 남고, 비확정 글은 CHECK 에 걸린다.
+            // 글의 파티 · 파티원은 글의 CASCADE 가, 나머지 딸린 줄(차단 · 친구 · 신고 · 파티원 …)은 사용자의 CASCADE 가 같이 지운다
+            jdbcTemplate.update("delete from recruit_posts where host_id = ?", userId);
             jdbcTemplate.update("delete from users where id = ?", userId);
         }
         for(String refreshToken : receivedRefreshTokens)

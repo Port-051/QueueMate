@@ -151,6 +151,30 @@ public class PostService {
         postStore.expireByHost(me, postId, now());
     }
 
+    // ---- 회원 탈퇴의 창구 (2026-10-02 소유자 결정 · P-48 — account.service.AccountDeletionService 가 부른다) ----
+
+    /**
+     * 탈퇴하는 사람의 <b>모집 중인 글이 남아 있으면 글 지우기({@link #delete})와 같은 효과</b>를 낸다 — 글을 만료시키고 방장으로서 그 방을 닫는다
+     * (방에 있던 사람에게 {@code ROOM_CLOSED} · 게시판 신호). 보통은 이미 없다 — 탈퇴가 먼저 그 사람을 방에서 내보내고(평소 나가기), 확정 전의 방장이 나가면
+     * 글이 그 자리에서 만료된다. 남는 것은 방 키가 수명으로 사라졌는데 아직 아무 목록도 만료로 옮겨 적지 않은 글 같은 드문 경우다. 방 닫기가 실패해도 던지지 않는다
+     * ({@link PostStore#expireByHost} 의 "순서" — 글은 곧 지워진다).
+     */
+    public void expireRecruitingOf(Long hostId)
+    {
+        postStore.findRecruitingOf(hostId).ifPresent(postId -> postStore.expireByHost(hostId, postId, now()));
+    }
+
+    /**
+     * 탈퇴하는 사람의 <b>확정되지 않은 글을 지운다</b> — 확정된 글은 남고 방장의 칸만 빈다({@link PostStore#deleteUnconfirmedOf}).
+     * <b>트랜잭션이 없는 이 클래스지만 부르는 쪽의 트랜잭션에 합류한다</b> — {@code users} 를 지우는 트랜잭션 안에서 불러야 한다(그 이유는 {@link PostStore#deleteUnconfirmedOf}).
+     *
+     * @return 지운 글의 수
+     */
+    public int deleteUnconfirmedOf(Long hostId)
+    {
+        return postStore.deleteUnconfirmedOf(hostId);
+    }
+
     /**
      * 게시판 목록 <b>한 페이지</b>. 차단 관계로 숨겨진 글은 빠져 있다 — 빠졌다는 흔적도 없다.
      *
@@ -526,7 +550,11 @@ public class PostService {
         for(RecruitPost post : visible)
         {
             Set<Long> ids = idsByGame.computeIfAbsent(post.getGame(), game -> new HashSet<>());
-            ids.add(post.getHostId());
+            // 방장이 탈퇴한 확정된 글은 방장 번호가 없다(2026-10-02 · P-48) — IN 절에 null 을 싣지 않는다
+            if(post.getHostId() != null)
+            {
+                ids.add(post.getHostId());
+            }
             ids.addAll(idsOf(seats.get(post.getId())));
         }
         Map<Game, Map<Long, UserGameProfile>> profiles = new EnumMap<>(Game.class);
@@ -572,7 +600,10 @@ public class PostService {
         Set<Long> others = new HashSet<>();
         for(RecruitPost post : posts)
         {
-            others.add(post.getHostId());
+            if(post.getHostId() != null)
+            {
+                others.add(post.getHostId());
+            }
             others.addAll(idsOf(seats.get(post.getId())));
         }
         others.remove(me);
@@ -585,6 +616,7 @@ public class PostService {
      * 차단 관계인 사람의 카드가 나에게 보이는 일이 없게 하려는 것이다(방에서 나간 파티원이라도 카드에는 남는다).
      * <b>내가 쓴 글은 숨기지 않는다</b> — 내 방에 나와 차단 관계인 사람이 들어와 있어도 내 글은 내 것이다(내보내는 것은 강퇴다).
      * 입장 검사({@link PostEntryGate})도 이 판정을 쓴다 — 목록에서 숨긴 글에 들어갈 수 있으면 의미가 없다.
+     * <b>방장이 탈퇴한 확정된 글</b>(방장 번호가 {@code null} — 2026-10-02 · P-48)은 남은 파티원과만 본다.
      *
      * @param members 카드에 오를 사람 — 모집 중이면 방 안 사람, 확정이면 파티원(입장 검사는 둘을 합친 것)
      */
@@ -594,7 +626,7 @@ public class PostService {
         {
             return false;
         }
-        return blocked.contains(post.getHostId()) || members.stream().anyMatch(blocked::contains);
+        return (post.getHostId() != null && blocked.contains(post.getHostId())) || members.stream().anyMatch(blocked::contains);
     }
 
     /**
@@ -604,6 +636,8 @@ public class PostService {
      * (들어갈 수 없는 까닭은 {@code status} 가 말한다). 만료된 글은 전부터 카드가 없어 {@code false} 였다.
      * <b>{@code host} 카드의 {@code position}</b> 은 {@code members} 에 있는 방장 카드의 것과 같다(Claude 가 정한 세부) — 모집 중이면 방장 포지션, 확정 · 만료면 {@code null}.
      * <b>{@code closed} 는 확정된 글의 파티가 닫혔는가</b>(2026-10-01 소유자 결정) — 부르는 쪽이 파티 기록을 읽어 넘긴다({@link Observed#closed}).
+     * <b>방장이 탈퇴한 확정된 글은 {@code hostId} · {@code host} 가 {@code null}</b> 이다(2026-10-02 · P-48 — 그릴 사람이 없다. 빈 카드를 지어내지 않는다).
+     * {@code members} 에도 그 사람이 없다 — 그 사람의 파티원 줄은 탈퇴가 지웠다.
      */
     private static PostResponse render(RecruitPost post, List<Seat> seats, boolean closed, Map<Long, UserGameProfile> profiles)
     {
@@ -624,7 +658,7 @@ public class PostService {
                 post.getDescription(), post.getVoice().name(), post.getConditions(),
                 wanted, post.getHostPosition(), post.getStatus().name(), post.getCreatedAt(),
                 cards.size(), post.getCapacity(), full, closed,
-                card(post.getHostId(), true, hostCardPosition, profiles), cards);
+                post.getHostId() == null ? null : card(post.getHostId(), true, hostCardPosition, profiles), cards);
     }
 
     /**

@@ -54,10 +54,10 @@ class PartyMigrationTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("방장 · 파티원의 칸에서 users 로 FK 가 있고 ON DELETE CASCADE 다 — 없는 사용자는 넣을 수 없다(2026-09-26)")
+    @DisplayName("방장 · 파티원의 칸에서 users 로 FK 가 있다 — 파티원은 ON DELETE CASCADE, 방장은 ON DELETE SET NULL(V9 · 2026-10-02). 없는 사용자는 넣을 수 없다")
     void userForeignKeysCascade()
     {
-        // 칸 → (가리키는 테이블.칸, 지울 때의 동작 — c 는 CASCADE)
+        // 칸 → (가리키는 테이블.칸, 지울 때의 동작 — c 는 CASCADE · n 은 SET NULL). 방장 칸은 2026-10-02 에 SET NULL 이 됐다 — 탈퇴해도 확정된 파티 기록은 남긴다(P-48)
         List<String> foreignKeys = jdbcTemplate.queryForList(
                 "select c.conname || ' ' || target.relname || '.' || a.attname || ' ' || c.confdeltype::text "
                         + "from pg_constraint c "
@@ -67,11 +67,53 @@ class PartyMigrationTest extends ApiTestSupport {
                 String.class);
 
         assertThat(foreignKeys).containsExactlyInAnyOrder(
-                "recruit_posts_host_id_fkey users.id c",
+                "recruit_posts_host_id_fkey users.id n",
                 "party_members_user_id_fkey users.id c");
         assertThatThrownBy(() -> insertPost(unknownUserId(), "RECRUITING"))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("recruit_posts_host_id_fkey");
+    }
+
+    @Test
+    @DisplayName("V9 — 방장이 비는 글은 확정된 글뿐이다(recruit_posts_host_id_check). 비확정 글을 남긴 채 방장을 지우면 SET NULL 이 거절되고 아무것도 지워지지 않는다")
+    void onlyConfirmedPostsLoseTheirHost()
+    {
+        Long host = insertUser();
+        Long confirmed = insertPost(host, "CONFIRMED");
+        Long partyId = insertBoardParty(confirmed);
+        jdbcTemplate.update("insert into party_members (party_id, user_id, is_host, joined_at) values (?, ?, true, now())",
+                partyId, host);
+        try
+        {
+            // 방장 칸을 손으로 비울 수 있는 것도 확정된 글뿐이다
+            assertThatThrownBy(() -> jdbcTemplate.update(insertPostSql("'RECRUITING'", "null", "null"), (Object) null))
+                    .isInstanceOf(DataIntegrityViolationException.class)
+                    .hasMessageContaining("recruit_posts_host_id_check");
+            assertThatThrownBy(() -> jdbcTemplate.update(insertPostSql("'EXPIRED'", "null", "now()"), (Object) null))
+                    .isInstanceOf(DataIntegrityViolationException.class)
+                    .hasMessageContaining("recruit_posts_host_id_check");
+
+            // 만료된 글이 남아 있으면 방장을 지울 수 없다 — 탈퇴는 비확정 글을 먼저 지운다(PostStore#deleteUnconfirmedOf)
+            Long expired = insertPost(host, "EXPIRED");
+            assertThatThrownBy(() -> jdbcTemplate.update("delete from users where id = ?", host))
+                    .isInstanceOf(DataIntegrityViolationException.class)
+                    .hasMessageContaining("recruit_posts_host_id_check");
+            assertThat(jdbcTemplate.queryForObject("select count(*) from users where id = ?", Integer.class, host)).isEqualTo(1);
+            assertThat(jdbcTemplate.queryForObject("select host_id from recruit_posts where id = ?", Long.class, confirmed)).isEqualTo(host);
+
+            jdbcTemplate.update("delete from recruit_posts where id = ?", expired);
+            jdbcTemplate.update("delete from users where id = ?", host);
+
+            // 확정된 글 · 파티는 남고 방장 칸만 빈다. 방장의 파티원 줄은 CASCADE 로 빠진다
+            assertThat(jdbcTemplate.queryForObject("select host_id from recruit_posts where id = ?", Long.class, confirmed)).isNull();
+            assertThat(jdbcTemplate.queryForObject("select count(*) from parties where id = ?", Integer.class, partyId)).isEqualTo(1);
+            assertThat(jdbcTemplate.queryForObject("select count(*) from party_members where party_id = ?", Integer.class, partyId)).isZero();
+        }
+        finally
+        {
+            // 방장이 빈 글은 뒷정리(사용자의 글을 지운다)가 찾지 못한다
+            jdbcTemplate.update("delete from recruit_posts where id = ?", confirmed);
+        }
     }
 
     @Test

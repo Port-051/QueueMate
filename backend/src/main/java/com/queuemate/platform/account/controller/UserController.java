@@ -6,11 +6,14 @@ import com.queuemate.platform.account.dto.GameProfileResponse;
 import com.queuemate.platform.account.dto.NicknameChangeRequest;
 import com.queuemate.platform.account.dto.UserResponse;
 import com.queuemate.platform.account.domain.SocialProvider;
+import com.queuemate.platform.account.service.AccountDeletionService;
 import com.queuemate.platform.account.service.SocialLoginService;
 import com.queuemate.platform.account.service.UserService;
 import com.queuemate.platform.common.security.CurrentUserId;
+import com.queuemate.platform.common.security.SessionCookies;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,7 +25,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 내 프로필과 게임 계정. <b>"나"는 경로가 아니라 access 토큰에서 온다</b>({@link CurrentUserId}) — 경로에 사용자 번호를 받지 않으므로
+ * 내 프로필과 게임 계정 · 회원 탈퇴. <b>"나"는 경로가 아니라 access 토큰에서 온다</b>({@link CurrentUserId}) — 경로에 사용자 번호를 받지 않으므로
  * 남의 것을 건드릴 길이 없다. 원본은 {@code contracts/platform-api.md} "계정" 이다.
  */
 @RestController
@@ -32,6 +35,8 @@ public class UserController {
 
     private final UserService userService;
     private final SocialLoginService socialLoginService;
+    private final AccountDeletionService accountDeletionService;
+    private final SessionCookies sessionCookies;
 
     @GetMapping
     public UserResponse me(@CurrentUserId Long userId)
@@ -43,6 +48,21 @@ public class UserController {
     public UserResponse changeNickname(@CurrentUserId Long userId, @Valid @RequestBody NicknameChangeRequest request)
     {
         return userService.changeNickname(userId, request.nickname());
+    }
+
+    /**
+     * <b>회원 탈퇴</b>(2026-10-02 소유자 결정 · P-48) — 그 사람의 데이터를 지체 없이 전부 지운다(확정된 파티 기록만 남는다 — 작성자 칸이 빈다).
+     * 순서 · 거절 · 감수는 {@link AccountDeletionService}. 성공하면 204 에 <b>로그아웃과 같은 쿠키 둘을 지우는 {@code Set-Cookie}</b> 를 싣는다 —
+     * refresh 쿠키는 {@code Path=/api/v1/auth/refresh} 라 이 요청에 실려 오지 않지만 지우는 {@code Set-Cookie} 는 그 {@code Path} 로 보낼 수 있다.
+     * 카카오 · 디스코드 · 구글 쪽 연결 끊기(unlink)는 하지 않는다 — 제공자의 토큰을 저장하지 않는다(소유자 결정).
+     */
+    @DeleteMapping
+    public ResponseEntity<Void> delete(@CurrentUserId Long userId)
+    {
+        accountDeletionService.delete(userId);
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, SessionCookies.array(sessionCookies.logout()))
+                .build();
     }
 
     /**

@@ -50,6 +50,10 @@
  *           {@code BlockReader} 만). 그래서 고리가 없다: {@code RoomMemberService → PostEntryGate → PostStore → RoomService}</li>
  *     </ul>
  *   </li>
+ *   <li><b>회원 탈퇴</b>({@code account.service.AccountDeletionService} — 2026-10-02 소유자 결정 · P-48)는 {@code account} 에서 <b>{@code room} 과 {@code party} 를 부른다</b> —
+ *       {@code room.service.RoomService} 의 {@code queued}(활성 요청 키 {@code EXISTS}) · {@code myRoom}, {@code room.service.RoomMemberService#leave}(평소 나가기 그대로),
+ *       {@code party.service.PostService} 의 {@code expireRecruitingOf} · {@code deleteUnconfirmedOf}(부르는 쪽 트랜잭션에 합류한다). 나머지 테이블은 FK 가 지운다 — 남의 리포지토리를 부르지 않는다.
+ *       그쪽에서 이것을 부르는 빈이 없어 고리가 없다</li>
  * </ul>
  *
  * <p>여기 만들지 않는 것 — 매칭 로직, SSE 연결 보유, 예약(CLAUDE.md §2 · §11).

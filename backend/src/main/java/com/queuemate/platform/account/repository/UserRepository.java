@@ -4,6 +4,7 @@ import com.queuemate.platform.account.domain.Game;
 import com.queuemate.platform.account.domain.User;
 import com.queuemate.platform.account.domain.UserGameProfileRow;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -23,6 +24,18 @@ public interface UserRepository extends JpaRepository<User, Long> {
      */
     @Query(value = "select id from users where id = :userId for update", nativeQuery = true)
     Optional<Long> lockById(@Param("userId") Long userId);
+
+    /**
+     * <b>회원 탈퇴</b> — 사용자 줄을 지운다(2026-10-02 소유자 결정 · P-48). 딸린 줄은 DB 의 FK 가 정리한다 — 사용자 번호의 칸은 전부 {@code ON DELETE CASCADE}
+     * (소셜 연결 · 게임 계정과 전적 · 차단 양방향 · 친구 요청과 친구 · 신고(낸 것 · 받은 것) · 최근 함께한 사람 · 파티원 줄)이고,
+     * <b>글의 방장 칸만 {@code ON DELETE SET NULL}</b> 이다(V9 — 확정된 글은 남긴다). 확정되지 않은 글은 같은 트랜잭션에서 먼저 지웠어야 한다
+     * ({@code AccountDeletionService}). 엔티티를 읽지 않고 한 문장으로 지운다.
+     *
+     * @return 지운 줄의 수(0 또는 1)
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = "delete from users where id = :userId", nativeQuery = true)
+    int deleteUserRow(@Param("userId") Long userId);
 
     /**
      * 여러 사용자의 닉네임과, <b>어느 한 게임</b>에 연결한 게임 계정 · 전적을 <b>쿼리 한 번으로</b> 읽는다 — 목록의 카드가 쓴다

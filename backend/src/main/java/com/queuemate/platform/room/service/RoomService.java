@@ -148,6 +148,19 @@ public class RoomService {
     }
 
     /**
+     * 이 사용자가 지금 자동 매칭을 기다리는가 — {@code matching} 의 활성 요청 키를 <b>{@code EXISTS} 로만</b> 본다(docs/11 D-19 — 쓰지도 지우지도 값을 읽지도 않는다).
+     * 회원 탈퇴가 부른다(2026-10-02 소유자 결정 · P-48 — 매칭 대기 중이면 409 {@code ALREADY_QUEUED}. 이 앱은 그 키를 지울 수 없어 사용자가 먼저 취소해야 한다).
+     * 글 쓰기 · 입장은 같은 검사를 방의 스크립트 안에서 한다({@code create-room.lua} · {@code enter-room.lua}) — 탈퇴는 방을 바꾸는 일이 아니라 따로 묻는다.
+     * 묻고 난 뒤에 매칭을 거는 밀리초 경쟁은 감수한다(계약 P-48).
+     *
+     * <p>Redis 에 닿지 못하면 503 {@code ROOM_STATE_UNAVAILABLE} 이다({@link RoomRedis}) — 모르는 채 "기다리지 않는다" 로 읽지 않는다.
+     */
+    public boolean queued(String userId)
+    {
+        return Boolean.TRUE.equals(RoomRedis.call("queued", () -> redis.hasKey(SharedKeys.activeRequestKey(userId))));
+    }
+
+    /**
      * 이 사용자가 지금 들어가 있는 방. <b>방에 없으면 {@code null} 이다.</b>
      * 앱을 새로 연 클라이언트는 roomId 를 모른다 — 입장 표시 키의 값이 그 답이다.
      */
