@@ -31,7 +31,7 @@ const ROOM_ERROR_MESSAGES: Record<string, string> = {
  * 글 쓰기 팝업의 칸 이름과 같다(2026-09-30 — 내 포지션이 생기며 붙였다). 모르는 필드는 받은 줄 그대로다. 사유는 서버의 글귀 그대로다.
  */
 const POST_FIELD_LABELS: Record<string, string> = {
-  hostPosition: '내 포지션', wantedPositions: '찾는 포지션', title: '한마디', mode: '게임 모드', voice: '음성', 'conditions.perspective': '시점', position: '포지션', allowAutoJoin: '빠른매치 입장',
+  hostPosition: '내 포지션', wantedPositions: '찾는 포지션', title: '방 제목', mode: '게임 모드', voice: '마이크', 'conditions.perspective': '시점', position: '포지션', allowAutoJoin: '빠른매치 입장',
 };
 
 function readableDetail(detail: string): string {

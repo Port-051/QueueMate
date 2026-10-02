@@ -69,6 +69,7 @@ export function toBoardRoom(post: PostResponse): BoardRoom {
     voice: post.voice,
     perspective: perspectiveOf(post.game, post),
     wantedPositions: post.wantedPositions ?? [],
+    allowAutoJoin: post.allowAutoJoin ?? true,
     // 옛 서버는 칸을 안 보낸다(`undefined`) — `null` 로. 이 게임의 포지션 이름이 아니면 그리지 않는다(`FilterRoleIcon` 은 모르는 이름을 "전체" 그림으로 그린다).
     hostPosition: knownPosition(post.game, post.hostPosition),
     createdAt: post.createdAt,
@@ -108,6 +109,7 @@ export function toMatchPartyRoom({ partyId, game, modeKey, voice, capacity, host
     voice: voice ?? 'NO_VOICE',
     perspective: perspectiveFromMode(game, mode),
     wantedPositions: [],
+    allowAutoJoin: false,
     hostPosition: null,
     createdAt: '',
     // 방장을 모르면(제안 중) `null` — 남의 카드를 방장 자리에 세우지 않는다(게시판 글의 `host` 와 같은 뜻 · P-48 뒤 `null` 을 허락한다).
