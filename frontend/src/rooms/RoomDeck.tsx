@@ -359,11 +359,11 @@ export function RoomDeck({ room, selfId, current = false, entering = false, onEn
       <div className="room-row-summary">
         <div className="room-row-head">
           <h3 ref={heading} tabIndex={-1} title={room.title}>{room.title}</h3>
+          <time className="room-row-time" dateTime={room.createdAt}>{relativeTime(room.createdAt)}</time>
         </div>
         <p className="room-row-meta" aria-label="방 조건">
           <RoomConditions room={room} />
           {positions && recruiting && remainingPositions(room).length ? <span className="room-row-wanted"><span className="room-row-wanted-label">찾는 포지션</span><RoomWantedPositions room={room} /></span> : null}
-          <time className="room-row-time" dateTime={room.createdAt}>{relativeTime(room.createdAt)}</time>
         </p>
       </div>
       <button type="button" className="room-join-button" disabled={!canJoin} title={current ? '현재 참가 중인 방이에요' : entryError ?? undefined}
