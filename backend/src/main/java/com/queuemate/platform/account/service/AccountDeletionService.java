@@ -2,6 +2,7 @@ package com.queuemate.platform.account.service;
 
 import com.queuemate.platform.account.repository.UserRepository;
 import com.queuemate.platform.common.error.ApiException;
+import com.queuemate.platform.common.security.RefreshTokens;
 import com.queuemate.platform.party.service.PostService;
 import com.queuemate.platform.room.RoomErrors;
 import com.queuemate.platform.room.service.RoomMemberService;
@@ -11,8 +12,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.List;
+
 /**
- * <b>회원 탈퇴</b>({@code DELETE /api/v1/users/me} — 2026-10-02 소유자 결정 · {@code contracts/platform-api.md} P-48). 카카오 운영정책 · 디스코드 Developer Terms ·
+ * <b>회원 탈퇴</b>({@code DELETE /api/v1/auth/account} — 2026-10-02 소유자 결정 · {@code contracts/platform-api.md} P-48. 처음에는 {@code DELETE /api/v1/users/me} 였다 —
+ * refresh 쿠키가 실려 오게 같은 날 {@code /api/v1/auth} 아래로 옮겼다). 카카오 운영정책 · 디스코드 Developer Terms ·
  * 개인정보 보호법이 탈퇴(전부 파기) 수단을 요구한다. <b>그 사람의 데이터를 지체 없이 전부 지우고, 확정된 파티 기록만 남긴다</b> — 확정된 글은 작성자 칸만 비고
  * 다른 파티원의 줄과 파티는 그대로다(V9 의 {@code ON DELETE SET NULL}). 지우는 범위는 {@link UserRepository#deleteUserRow} 의 주석이다.
  *
@@ -24,8 +28,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  *       확정한 방이면 승계, 마지막 사람이면 파티가 닫힌다(최근 함께한 사람도 그때 적힌다 — 곧 그 사람의 줄은 지워진다)</li>
  *   <li>모집 중인 글이 남아 있으면 글 지우기와 같은 효과(만료 · 방 닫기 · {@code ROOM_CLOSED}) — {@link PostService#expireRecruitingOf}</li>
  *   <li><b>한 트랜잭션</b> — 사용자 줄을 잠그고({@code FOR UPDATE}) → 확정되지 않은 글을 지우고 → 사용자 줄을 지운다(나머지는 FK 가 정리한다)</li>
+ *   <li><b>요청에 실려 온 refresh 를 Redis 에서 지운다</b>(2026-10-02 소유자 지시 "탈퇴 요청에도 refresh 토큰 실어서 버려") — 로그아웃과 같은 코드
+ *       ({@link RefreshTokens#revoke(List)}). 쿠키가 없거나 Redis 가 죽었으면 넘어간다 — 탈퇴는 이미 끝났으니 실패시키지 않는다(로그아웃이 Redis 장애에도 204 인 것과 같다)</li>
  * </ol>
- * 쿠키를 지우는 것은 컨트롤러다({@code UserController#delete} — 로그아웃과 같은 {@code Set-Cookie}).
+ * 쿠키를 지우는 것은 컨트롤러다({@code AuthController#deleteAccount} — 로그아웃과 같은 {@code Set-Cookie}).
  *
  * <p><b>Redis 를 먼저, DB 를 나중에</b> 한다. 방을 먼저 정리하고 DB 가 실패하면 "방에서 나왔지만 탈퇴는 안 됐다" 가 남는데, 다시 누르면 된다. 거꾸로면 지워진 사람이
  * 방의 멤버 HASH 에 남는다. <b>Redis 를 못 읽으면 503 {@code ROOM_STATE_UNAVAILABLE}</b>(①②) — 매칭 중인지 · 어느 방에 있는지 모르는 채 지우지 않는다.
@@ -36,8 +42,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p><b>감수하는 것</b>(새 장치를 만들지 않는다 — 소유자 지시) — ① 매칭 대기를 확인한 뒤 · 방을 나간 뒤 탈퇴가 끝나기 전의 밀리초에 같은 사람이 매칭을 걸거나 방에 들어가는 경쟁
  * ② 탈퇴 뒤 남는 access 토큰(최대 15분)으로 Redis 만 쓰는 요청(방 입장 · {@code matching} 의 매칭 요청)은 통한다 — 나를 적는 요청(글 · 친구 요청 · 차단 · 신고 · 게임 계정)은 FK 위반이, 내 정보는 사용자 조회가 401 로 막는다
- * ③ refresh 의 Redis 줄은 지우지 못한다 — 쿠키가 {@code Path=/api/v1/auth/refresh} 라 이 요청에 실려 오지 않고, 한 사용자의 refresh 를 찾는 길이 없다
- * ({@code KEYS}/{@code SCAN} 을 쓰지 않는다). 그 값으로 재발급을 부르면 사용자가 없어 401 {@code INVALID_REFRESH_TOKEN} 이고 그때 그 줄도 지워진다. 남은 줄도 수명(7일)이 다하면 사라진다.
+ * ③ <b>다른 기기</b>의 refresh 의 Redis 줄은 지우지 못한다 — 이 요청에 실려 온 이 브라우저의 값만 지운다(5). 한 사용자의 refresh 를 찾는 길이 없다
+ * ({@code KEYS}/{@code SCAN} 을 쓰지 않는다 · 모든 기기 로그아웃은 미정). 그 값으로 재발급을 부르면 사용자가 없어 401 {@code INVALID_REFRESH_TOKEN} 이고 그때 그 줄도 지워진다.
+ * 남은 줄도 수명(7일)이 다하면 사라진다.
  */
 @Slf4j
 @Service
@@ -49,6 +56,7 @@ public class AccountDeletionService {
     private final RoomMemberService roomMemberService;
     private final PostService postService;
     private final TransactionTemplate transactionTemplate;
+    private final RefreshTokens refreshTokens;
 
     /**
      * 탈퇴시킨다. 성공하면 그 사용자 번호의 줄이 DB 에 없다.
@@ -56,9 +64,10 @@ public class AccountDeletionService {
      * <p><b>{@code @Transactional} 이 없다 — 붙이면 안 된다.</b> 앞의 셋(매칭 확인 · 나가기 · 남은 글)은 Redis 를 부르고 저마다 짧은 트랜잭션으로 끝난다 —
      * 나가기의 콜백이 글을 만료시키거나 파티를 닫는 것도 그 자리에서 커밋돼야 알림 · 신호가 나간다. DB 를 지우는 마지막 토막만 한 트랜잭션이다.
      *
+     * @param refreshTokens 요청에 실려 온 {@code qm_refresh} 쿠키의 값들({@link RefreshTokens#valuesIn}) — DB 를 지운 뒤 Redis 에서 지운다. 없으면 빈 목록
      * @throws ApiException 401 {@code UNAUTHENTICATED}(이미 없는 사용자) · 409 {@code ALREADY_QUEUED}(매칭 대기 중) · 503 {@code ROOM_STATE_UNAVAILABLE}(Redis)
      */
-    public void delete(Long userId)
+    public void delete(Long userId, List<String> refreshTokens)
     {
         if(!userRepository.existsById(userId))
         {
@@ -85,6 +94,8 @@ public class AccountDeletionService {
             postService.deleteUnconfirmedOf(userId);
             userRepository.deleteUserRow(userId);
         });
+        // 탈퇴는 끝났다 — 이 브라우저의 refresh 를 버린다. 예외를 내지 않는다(Redis 가 죽었으면 그 줄은 수명까지 남고, 쓰면 사용자가 없어 401 이다)
+        this.refreshTokens.revoke(refreshTokens);
         log.info("회원 탈퇴 userId={}", userId);
     }
 }

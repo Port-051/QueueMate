@@ -73,10 +73,14 @@ class AuthApiTest extends ApiTestSupport {
         // refresh 쿠키도 같이 온다 — Path 와 Max-Age 만 다르다
         String refreshCookie = refreshed.getResponse().getHeaders(HttpHeaders.SET_COOKIE).stream()
                 .filter(value -> value.startsWith("qm_refresh=")).findFirst().orElseThrow();
+        // Path 는 인증 경로 전부다 — 재발급 · 로그아웃이 둘 다 받는다(2026-10-02 소유자 결정 — 그 전에는 /api/v1/auth/refresh)
         assertThat(refreshCookie).contains("HttpOnly").contains("SameSite=Lax")
-                .contains("Path=/api/v1/auth/refresh")
+                .contains("Path=/api/v1/auth;")
                 .contains("Max-Age=" + Duration.ofDays(7).toSeconds());
         assertThat(refreshCookie).doesNotContain("Secure").doesNotContain("Domain");
+        // 옛 Path 의 refresh 쿠키를 같이 지운다 — 같은 이름의 쿠키가 둘 남지 않게(임시 — 2026-10-02 · 옛 쿠키가 다 사라지면 걷어낸다)
+        assertThat(refreshed.getResponse().getHeaders(HttpHeaders.SET_COOKIE))
+                .anySatisfy(value -> assertThat(value).startsWith("qm_refresh=;").contains("Path=/api/v1/auth/refresh;").contains("Max-Age=0"));
         refreshCookieOf(refreshed);
 
         Cookie cookie = refreshed.getResponse().getCookie("qm_access");
@@ -132,8 +136,11 @@ class AuthApiTest extends ApiTestSupport {
             assertThat(refresh).startsWith("qm_refresh=;");
             // 발급 때와 속성이 같아야 브라우저가 같은 쿠키로 보고 지운다 — Path 가 특히 그렇다
             assertThat(access).contains("Max-Age=0").contains("Path=/").contains("HttpOnly").contains("SameSite=Lax");
-            assertThat(refresh).contains("Max-Age=0").contains("Path=/api/v1/auth/refresh")
+            assertThat(refresh).contains("Max-Age=0").contains("Path=/api/v1/auth;")
                     .contains("HttpOnly").contains("SameSite=Lax");
+            // 옛 Path(/api/v1/auth/refresh) 의 refresh 쿠키도 지운다(임시 — 2026-10-02)
+            assertThat(setCookies).anySatisfy(value -> assertThat(value).startsWith("qm_refresh=;")
+                    .contains("Path=/api/v1/auth/refresh;").contains("Max-Age=0"));
         }
     }
 }

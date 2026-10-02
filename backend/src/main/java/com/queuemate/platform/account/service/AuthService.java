@@ -12,6 +12,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
 
@@ -37,16 +38,17 @@ public class AuthService {
      * 2026-09-23 소유자 결정이고 계약은 {@code contracts/platform-api.md} "refresh 토큰" 이다.
      *
      * <p><b>쓴 값은 그 자리에서 버린다(rotation)</b> — {@link RefreshTokens#consume} 가 {@code GETDEL} 한 번으로 한다.
-     * 그래서 같은 값으로 두 번째 재발급은 통하지 않는다.
+     * 그래서 같은 값으로 두 번째 재발급은 통하지 않는다. 요청에 실린 값이 둘이면(옛 {@code Path} 의 쿠키가 남았다 — 임시 · 2026-10-02) <b>둘 다</b> 버리고
+     * 그 가운데 유효한 값의 주인으로 재발급한다({@link RefreshTokens#consume(List)}).
      *
      * <p><b>실패의 이유를 가르지 않는다</b> — 쿠키가 없든 · 꼴이 아니든 · 이미 쓴 값이든 · 그 사용자가 사라졌든 · Redis 에 묻지 못했든
      * 전부 빈 값이고, 컨트롤러가 <b>글자까지 같은 401 {@code INVALID_REFRESH_TOKEN}</b> 으로 답한다. 어느 쪽인지 알려 주면 값이 살아 있는지가 새어 나간다.
      *
      * <p><b>트랜잭션이 없다</b> — Redis 한 번과 사용자 한 줄을 읽을 뿐이고 아무것도 쓰지 않는다(지우는 것은 Redis 쪽이다).
      */
-    public Optional<AuthResponse> refresh(String refreshToken)
+    public Optional<AuthResponse> refresh(List<String> tokens)
     {
-        OptionalLong userId = refreshTokens.consume(refreshToken);
+        OptionalLong userId = refreshTokens.consume(tokens);
         if(userId.isEmpty())
         {
             // 토큰 값은 남기지 않는다 — 로그를 보는 사람이 남의 세션을 이을 수 있다

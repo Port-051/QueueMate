@@ -31,6 +31,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 에러 디스패치(/error)까지 인증을 요구하면 원래의 상태 코드가 401 로 가려진다
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        // 회원 탈퇴 — /api/v1/auth 아래지만 access 토큰이 있어야 한다(2026-10-02 · P-48 — refresh 쿠키가 실려 오게 그 아래로 옮겼다).
+                        // 아래의 permitAll 보다 먼저 와야 한다. CookieBearerTokenResolver 도 이 경로에서는 쿠키를 집는다(같은 상수)
+                        .requestMatchers(CookieBearerTokenResolver.ACCOUNT_PATH).authenticated()
                         // 소셜 로그인 · 재발급 · 로그아웃. 계약의 "인증이 필요 없는 요청은 /api/v1/auth/**" 그대로다 —
                         // CookieBearerTokenResolver 도 같은 접두사 아래에서는 쿠키를 집지 않는다(둘이 같은 금이어야 한다)
                         .requestMatchers("/api/v1/auth/**").permitAll()

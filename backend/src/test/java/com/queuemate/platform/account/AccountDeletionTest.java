@@ -3,6 +3,9 @@ package com.queuemate.platform.account;
 import com.queuemate.platform.account.repository.UserRepository;
 import com.queuemate.platform.account.service.AccountDeletionService;
 import com.queuemate.platform.common.error.ApiException;
+import com.queuemate.platform.common.security.JwtProperties;
+import com.queuemate.platform.common.security.RefreshTokens;
+import com.queuemate.platform.common.web.WebSecurityProperties;
 import com.queuemate.platform.party.PostTestSupport;
 import com.queuemate.platform.party.service.PostService;
 import com.queuemate.platform.room.RoomProperties;
@@ -16,6 +19,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -44,7 +48,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * <b>회원 탈퇴</b> — {@code DELETE /api/v1/users/me}(2026-10-02 소유자 결정 · {@code contracts/platform-api.md} P-48). 카카오 · 디스코드 · 개인정보 보호법이 요구하는
+ * <b>회원 탈퇴</b> — {@code DELETE /api/v1/auth/account}(2026-10-02 소유자 결정 · {@code contracts/platform-api.md} P-48. 처음의 {@code DELETE /api/v1/users/me} 에서
+ * 같은 날 옮겼다 — refresh 쿠키({@code Path=/api/v1/auth})가 실려 와 그 자리에서 지워지게). 카카오 · 디스코드 · 개인정보 보호법이 요구하는
  * "전부 파기" 를 HTTP 로 본다. 소유자가 정한 것 — ① 그 사람의 데이터를 지체 없이 전부 지운다 ② <b>확정된 파티 기록은 남긴다</b>(작성자 칸만 빈다 — V9)
  * ③ 방 안이면 평소 나가기와 같은 규칙으로 나간 뒤 탈퇴한다 ④ 매칭 대기 중이면 409 {@code ALREADY_QUEUED} ⑤ 제공자 쪽 연결 끊기는 하지 않는다.
  *
@@ -66,6 +71,18 @@ class AccountDeletionTest extends PostTestSupport {
 
     @Autowired
     private TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private RefreshTokens refreshTokens;
+
+    @Autowired
+    private RoomService roomService;
+
+    @Autowired
+    private JwtProperties jwtProperties;
+
+    @Autowired
+    private WebSecurityProperties webSecurityProperties;
 
     @Autowired
     private RoomProperties roomProperties;
@@ -138,9 +155,11 @@ class AccountDeletionTest extends PostTestSupport {
         List<String> setCookies = result.getResponse().getHeaders(HttpHeaders.SET_COOKIE);
         String access = setCookies.stream().filter(value -> value.startsWith("qm_access=")).findFirst().orElseThrow();
         String refresh = setCookies.stream().filter(value -> value.startsWith("qm_refresh=")).findFirst().orElseThrow();
-        // 로그아웃과 같은 쿠키다 — refresh 는 요청에 실려 오지 않지만 지우는 Set-Cookie 는 그 Path 로 보낸다
+        // 로그아웃과 같은 쿠키다 — refresh 는 요청에 실려 오지 않지만(Path=/api/v1/auth — 2026-10-02) 지우는 Set-Cookie 는 그 Path 로 보낸다. 옛 Path 의 것도(임시)
         assertThat(access).startsWith("qm_access=;").contains("Max-Age=0").contains("Path=/");
-        assertThat(refresh).startsWith("qm_refresh=;").contains("Max-Age=0").contains("Path=/api/v1/auth/refresh");
+        assertThat(refresh).startsWith("qm_refresh=;").contains("Max-Age=0").contains("Path=/api/v1/auth;");
+        assertThat(setCookies).anySatisfy(value -> assertThat(value).startsWith("qm_refresh=;")
+                .contains("Max-Age=0").contains("Path=/api/v1/auth/refresh;"));
 
         assertThat(count("select count(*) from users where id = ?", gone)).isZero();
         assertThat(count("select count(*) from social_identities where user_id = ?", gone)).isZero();
@@ -411,9 +430,9 @@ class AccountDeletionTest extends PostTestSupport {
             RoomService broken = new RoomService(new StringRedisTemplate(dead), createRoomScript, roomProperties,
                     confirmRoomScript, roomNotifier, leaveRoomScript, enterMatchRoomScript);
             AccountDeletionService service = new AccountDeletionService(userRepository, broken, roomMemberService, postService,
-                    transactionTemplate);
+                    transactionTemplate, refreshTokens);
 
-            assertThatThrownBy(() -> service.delete(userId))
+            assertThatThrownBy(() -> service.delete(userId, List.of()))
                     .isInstanceOfSatisfying(ApiException.class, e -> {
                         assertThat(e.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
                         assertThat(e.getCode()).isEqualTo("ROOM_STATE_UNAVAILABLE");
@@ -430,20 +449,94 @@ class AccountDeletionTest extends PostTestSupport {
     // ---- 탈퇴 뒤에 남는 토큰 ----
 
     @Test
-    @DisplayName("refresh 의 Redis 줄은 탈퇴가 지우지 못한다(쿠키가 이 요청에 실려 오지 않는다) — 그 값으로 재발급을 부르면 401 INVALID_REFRESH_TOKEN 이고 그때 줄이 지워진다")
-    void leftoverRefreshIsRejected() throws Exception
+    @DisplayName("탈퇴 요청에 실려 온 refresh 는 탈퇴가 그 자리에서 Redis 에서 지운다(재발급의 GETDEL 이 아니다) — 그 값의 재발급은 401. "
+            + "실려 오지 않은 다른 기기의 refresh 는 남지만 쓰면 사용자가 없어 401 이다")
+    void carriedRefreshIsRevokedAtDeletion() throws Exception
     {
         String nickname = newNickname();
         Cookie access = login(nickname);
         Cookie refresh = refreshCookieFor(nickname);
+        Cookie otherDevice = refreshCookieFor(nickname);
 
-        deleteMe(access).andExpect(status().isNoContent());
-        assertThat(refreshTokenStored(refresh.getValue())).isTrue();
+        mockMvc.perform(delete("/api/v1/auth/account").cookie(access, refresh)).andExpect(status().isNoContent());
+
+        // 재발급을 부르기 전 — 탈퇴가 지웠다(2026-10-02 소유자 지시 "탈퇴 요청에도 refresh 토큰 실어서 버려")
+        assertThat(refreshTokenStored(refresh.getValue())).isFalse();
+        // 다른 기기의 값은 이 요청에 없다 — 한 사용자의 refresh 를 찾는 길이 없다(KEYS/SCAN 금지 · 모든 기기 로그아웃은 미정)
+        assertThat(refreshTokenStored(otherDevice.getValue())).isTrue();
 
         mockMvc.perform(post("/api/v1/auth/refresh").cookie(refresh))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
-        assertThat(refreshTokenStored(refresh.getValue())).isFalse();
+        mockMvc.perform(post("/api/v1/auth/refresh").cookie(otherDevice))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+        assertThat(refreshTokenStored(otherDevice.getValue())).isFalse();
+    }
+
+    @Test
+    @DisplayName("refresh 를 지우지 못해도(Redis 장애) 탈퇴는 끝난다 — 탈퇴는 이미 됐으니 실패시키지 않는다(로그아웃과 같다)")
+    void refreshRevokeFailureDoesNotFailDeletion()
+    {
+        String nickname = newNickname();
+        login(nickname);
+        Long userId = userIdOf(nickname);
+        Cookie refresh = refreshCookieFor(nickname);
+        StringRedisTemplate brokenDelete = new StringRedisTemplate(connectionFactory) {
+            @Override
+            public Boolean delete(String key)
+            {
+                throw new RedisConnectionFailureException("테스트 — Redis 가 죽었다");
+            }
+        };
+        brokenDelete.afterPropertiesSet();
+        RefreshTokens broken = new RefreshTokens(brokenDelete, jwtProperties, webSecurityProperties);
+        AccountDeletionService service = new AccountDeletionService(userRepository, roomService, roomMemberService, postService,
+                transactionTemplate, broken);
+
+        service.delete(userId, List.of(refresh.getValue()));
+
+        assertThat(count("select count(*) from users where id = ?", userId)).isZero();
+        // 못 지운 값은 수명까지 남는다 — 쓰면 사용자가 없어 401 이다(carriedRefreshIsRevokedAtDeletion 의 다른 기기와 같다)
+        assertThat(refreshTokenStored(refresh.getValue())).isTrue();
+    }
+
+    @Test
+    @DisplayName("/api/v1/auth/** 가운데 탈퇴만 access 토큰이 있어야 한다 — 없거나 깨졌으면 401 UNAUTHENTICATED 이고 아무것도 지우지 않는다(refresh 쿠키만으로는 안 된다)")
+    void deletionRequiresAccessToken() throws Exception
+    {
+        String nickname = newNickname();
+        login(nickname);
+        Long userId = userIdOf(nickname);
+        Cookie refresh = refreshCookieFor(nickname);
+
+        mockMvc.perform(delete("/api/v1/auth/account"))
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+        mockMvc.perform(delete("/api/v1/auth/account").cookie(refresh))
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+        mockMvc.perform(delete("/api/v1/auth/account").cookie(new Cookie("qm_access", "not-a-jwt"), refresh))
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+
+        assertThat(count("select count(*) from users where id = ?", userId)).isEqualTo(1);
+        assertThat(refreshTokenStored(refresh.getValue())).isTrue();
+        // 같은 접두사의 다른 요청은 그대로 인증 없이 열려 있다 — 깨진 access 쿠키가 있어도
+        mockMvc.perform(post("/api/v1/auth/logout").cookie(new Cookie("qm_access", "not-a-jwt")))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("옛 경로 DELETE /api/v1/users/me 는 없어졌다 — 같은 경로에 GET · PATCH 가 있어 405 METHOD_NOT_ALLOWED 이고 아무것도 지우지 않는다")
+    void oldPathIsGone() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie access = login(nickname);
+        Long userId = userIdOf(nickname);
+
+        mockMvc.perform(delete("/api/v1/users/me").cookie(access))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"));
+
+        assertThat(count("select count(*) from users where id = ?", userId)).isEqualTo(1);
     }
 
     @Test
@@ -474,7 +567,7 @@ class AccountDeletionTest extends PostTestSupport {
 
     private ResultActions deleteMe(Cookie cookie) throws Exception
     {
-        return mockMvc.perform(delete("/api/v1/users/me").cookie(cookie));
+        return mockMvc.perform(delete("/api/v1/auth/account").cookie(cookie));
     }
 
     private JsonNode single(Cookie cookie, Long postId) throws Exception

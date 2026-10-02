@@ -21,24 +21,28 @@ public class SessionCookies {
     private final RefreshTokens refreshTokens;
 
     /**
-     * 이 사용자를 로그인시키는 {@code Set-Cookie} 값들 — access 하나와 refresh 하나. refresh 를 저장하지 못했으면 <b>access 하나만</b>이다
-     * (그 사용자는 access 가 만료되면 다시 로그인해야 한다).
+     * 이 사용자를 로그인시키는 {@code Set-Cookie} 값들 — access 하나와 refresh 하나(와 옛 {@code Path} 의 refresh 를 지우는 것 하나 — 임시 · 2026-10-02 ·
+     * {@link RefreshTokens#cookies}). refresh 를 저장하지 못했으면 <b>access 하나만</b>이다(그 사용자는 access 가 만료되면 다시 로그인해야 한다 —
+     * 그때는 옛 쿠키도 건드리지 않는다. 새 쿠키가 없으니 둘이 될 일이 없다).
      */
     public List<String> login(long userId)
     {
-        List<String> cookies = new ArrayList<>(2);
+        List<String> cookies = new ArrayList<>(3);
         cookies.add(accessTokenIssuer.cookie(accessTokenIssuer.issue(userId)).toString());
-        refreshTokens.issue(userId).ifPresent(token -> cookies.add(refreshTokens.cookie(token).toString()));
+        refreshTokens.issue(userId).ifPresent(token -> refreshTokens.cookies(token).forEach(cookie -> cookies.add(cookie.toString())));
         return List.copyOf(cookies);
     }
 
     /**
-     * 로그아웃에 싣는, <b>두 쿠키를 지우는</b> {@code Set-Cookie} 값들. Redis 의 줄을 지우는 것은 {@link RefreshTokens#revoke} 다 —
-     * 쿠키만 지우면 그 값이 여전히 재발급에 통한다.
+     * 로그아웃 · 회원 탈퇴에 싣는, <b>두 쿠키를 지우는</b> {@code Set-Cookie} 값들(refresh 는 옛 {@code Path} 의 것까지 — 임시 · 2026-10-02 · {@link RefreshTokens#expiredCookies}).
+     * Redis 의 줄을 지우는 것은 {@link RefreshTokens#revoke} 다 — 쿠키만 지우면 그 값이 여전히 재발급에 통한다.
      */
     public List<String> logout()
     {
-        return List.of(accessTokenIssuer.expiredCookie().toString(), refreshTokens.expiredCookie().toString());
+        List<String> cookies = new ArrayList<>(3);
+        cookies.add(accessTokenIssuer.expiredCookie().toString());
+        refreshTokens.expiredCookies().forEach(cookie -> cookies.add(cookie.toString()));
+        return List.copyOf(cookies);
     }
 
     /** {@code Set-Cookie} 헤더에 그대로 넘길 배열 — {@code ResponseEntity} 의 {@code header(name, values…)} 가 가변인자다 */

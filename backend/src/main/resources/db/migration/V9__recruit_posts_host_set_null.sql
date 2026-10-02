@@ -1,5 +1,5 @@
 -- 회원 탈퇴가 확정된 파티 기록을 지우지 않게 한다 — 2026-10-02 소유자 결정(contracts/platform-api.md P-48).
--- 탈퇴(DELETE /api/v1/users/me)는 users 의 줄을 지우고 딸린 줄은 FK 의 ON DELETE CASCADE 가 지운다. 그런데 V1 의 recruit_posts.host_id 가
+-- 탈퇴(DELETE /api/v1/auth/account)는 users 의 줄을 지우고 딸린 줄은 FK 의 ON DELETE CASCADE 가 지운다. 그런데 V1 의 recruit_posts.host_id 가
 -- CASCADE 라 방장이 탈퇴하면 글이 지워지고, 글의 CASCADE(parties.post_id · recruit_post_positions.post_id)를 타고 그 글의 파티와 남의 파티원 줄까지
 -- 지워졌다. 소유자 결정 — "확정된 파티 기록은 남긴다". 그래서 방장의 칸만 비우고 글 · 파티 · 다른 파티원은 남긴다.
 --

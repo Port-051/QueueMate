@@ -62,7 +62,7 @@ class DevLoginApiTest extends ApiTestSupport {
         assertThat(access.getPath()).isEqualTo("/");
         Cookie refresh = refreshCookieOf(result);
         assertThat(refresh).isNotNull();
-        assertThat(refresh.getPath()).isEqualTo("/api/v1/auth/refresh");
+        assertThat(refresh.getPath()).isEqualTo("/api/v1/auth");
 
         mockMvc.perform(get("/api/v1/users/me").cookie(access))
                 .andExpect(status().isOk())

@@ -219,7 +219,7 @@ class SocialLoginApiTest extends ApiTestSupport {
         // 쿠키 둘이다 — refresh 도 같이 온다 (2026-09-23)
         Cookie refresh = refreshCookieOf(signup);
         assertThat(refresh).isNotNull();
-        assertThat(refresh.getPath()).isEqualTo("/api/v1/auth/refresh");
+        assertThat(refresh.getPath()).isEqualTo("/api/v1/auth");
         assertThat(refresh.getMaxAge()).isEqualTo(604800);
         assertThat(signup.getResponse().getCookie("qm_social_signup").getMaxAge()).isZero();
 
@@ -251,7 +251,7 @@ class SocialLoginApiTest extends ApiTestSupport {
         Cookie refreshAgain = refreshCookieOf(again);
         assertThat(refreshAgain).isNotNull();
         assertThat(refreshAgain.getValue()).isNotBlank().isNotEqualTo(refresh.getValue());
-        assertThat(refreshAgain.getPath()).isEqualTo("/api/v1/auth/refresh");
+        assertThat(refreshAgain.getPath()).isEqualTo("/api/v1/auth");
         mockMvc.perform(get("/api/v1/users/me").cookie(accessAgain))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(equalTo(userId), Long.class));
