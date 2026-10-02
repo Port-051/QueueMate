@@ -21,9 +21,9 @@ test('verification does not modify the approved body, crawler files or app state
   const withoutTags=renderSite({...c,verification:{google:'',naver:'',bing:''}},{VERCEL_ENV:'production'});
   assert.equal(body(withTags.html),body(withoutTags.html));
   for(const key of ['robots','sitemap','llms'])assert.equal(withTags[key],withoutTags[key]);
-  assert.equal(c.allowIndexing,true);assert.equal(c.appReady,false);
+  assert.equal(c.allowIndexing,true);assert.equal(c.appReady,true);
   assert.match(withTags.html,/content="index, follow, max-image-preview:large"/);
-  assert.doesNotMatch(withTags.html,/href="https:\/\/app\.queue-mate\.com/);
+  assert.match(withTags.html,/href="https:\/\/app\.queue-mate\.com\/login"/);
 });
 test('adding verification does not expose preview deployments to indexing',()=>{
   const r=renderSite(c,{VERCEL_ENV:'preview'});
