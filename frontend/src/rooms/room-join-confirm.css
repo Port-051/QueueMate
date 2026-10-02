@@ -1,0 +1,41 @@
+.modal.room-join-preview { width:min(440px,100%); padding:22px; border:1px solid #ffffff24; border-radius:20px; background:#1d1b27; }
+.room-join-preview .modal-heading { gap:12px; }
+.room-join-preview .modal-heading h2 { margin:0; font-size:19px; font-weight:650; line-height:28px; }
+.room-join-preview .modal-close { display:grid; place-items:center; width:30px; height:30px; min-width:30px; min-height:30px; padding:0; border:1px solid #ffffff26; border-radius:50%; background:#ffffff07; color:#b8b2c6; }
+.room-join-preview .modal-close>svg { display:block; width:16px; height:16px; }
+.room-join-preview .modal-close:hover { border-color:#ffffff40; background:#ffffff12; color:var(--text); }
+.room-join-summary { padding:14px; border:1px solid #ffffff12; border-radius:12px; background:#ffffff04; }
+.room-join-summary h3 { margin:0 0 9px; color:var(--text); font-size:15px; font-weight:650; line-height:1.5; overflow-wrap:anywhere; }
+.room-join-summary .room-row-meta { gap:6px; margin:0; }
+.room-join-summary .room-row-meta>span+span::before { content:none; }
+.room-join-summary-bottom { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-top:14px; }
+.room-join-host { display:flex; align-items:center; gap:6px; min-width:0; max-width:100%; font-size:13px; }
+.room-join-host .room-member-avatar { display:flex; flex:none; margin-right:2px; }
+.room-join-host-label { flex:none; color:#aaa5b9; font-size:12px; }
+.room-join-host>strong { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:550; }
+.room-join-vacancies { flex:none; color:#aaa5b9; font-size:12px; white-space:nowrap; }
+.room-join-vacancies strong { color:#83e8ba; font-weight:650; }
+.room-join-description { margin:12px 0 0; padding-top:12px; border-top:1px solid #ffffff10; color:#b8b2c6; font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
+.room-join-warning { margin-top:14px; padding:12px 14px; border:1px solid #d9b26a30; border-radius:10px; background:#d9b26a09; color:#dcc9a4; font-size:13px; line-height:1.5; }
+.room-join-warning>strong { display:block; font-weight:600; }
+.room-join-warning p { margin:4px 0 0; color:#bcb2a1; }
+.room-join-preview .room-join-position { margin:20px 0 0; }
+.room-join-position .room-preview-fieldset>legend { margin:0; padding:0; color:var(--text); font-size:14px; font-weight:600; line-height:1.5; }
+.room-join-pick-hint { margin:4px 0 10px; color:#aaa5b9; font-size:13px; }
+.modal.room-join-preview .room-join-position .single-role-picker { gap:6px; padding:0; border:0; border-radius:0; background:none; box-shadow:none; }
+.modal.room-join-preview .room-join-position .single-role-picker>.single-role-option { height:64px; padding:8px 4px; gap:6px; border:1px solid #ffffff1a; border-radius:12px; background:#ffffff04; color:#b8b2c6; font-size:13px; }
+.room-join-preview .room-join-position .single-role-picker::before { content:none; }
+.room-join-preview .room-join-position .single-role-picker>.single-role-option:has(input:checked) { border-color:#5fe3a870; background:#5fe3a814; color:#9aebc4; }
+.room-join-preview .single-role-option:hover:not(:has(input:checked)) { border-color:#ffffff30; background:#ffffff09; }
+.room-join-preview .single-role-option:has(input:focus-visible) { outline:2px solid #83e8ba; outline-offset:2px; }
+.room-join-note { margin:10px 0 0; color:#aaa5b9; font-size:12px; line-height:1.5; }
+.modal.room-join-preview .modal-foot { display:flex; flex-wrap:nowrap; gap:8px; margin-top:20px; padding-top:16px; border-top:1px solid #ffffff12; }
+.room-join-preview .modal-foot>.btn { min-height:40px; padding:9px 16px; border:1px solid #ffffff26; border-radius:999px; background:#ffffff07; box-shadow:none; color:#ddd7e8; font-size:13px; line-height:20px; }
+.room-join-preview .modal-foot>.btn:hover:not(:disabled) { border-color:#ffffff40; background:#ffffff12; }
+.room-join-preview .modal-foot>.btn-primary { flex:1; min-width:0; border-color:#5fe3a850; background:#5fe3a812; color:#83e8ba; }
+.room-join-preview .modal-foot>.btn-primary:hover:not(:disabled) { border-color:#5fe3a870; background:#5fe3a820; color:#9aebc4; }
+.room-join-preview .modal-foot>.btn-primary:disabled { border-color:#ffffff18; background:#ffffff05; color:#85808f; opacity:1; cursor:not-allowed; }
+@media(max-width:480px) {
+  .modal.room-join-preview { padding:18px; }
+  .room-join-summary { padding:12px; }
+}

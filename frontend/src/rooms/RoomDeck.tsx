@@ -227,18 +227,18 @@ export function SeatPopover({ room, member, embedded = false, color }: { room: B
       ? [profile.gameNickname, profile.verified ? '인증됨' : null, pubg && profile.server ? SERVER_LABEL[profile.server] : null].filter(Boolean).join(' · ')
       : '이 게임의 계정을 아직 연결하지 않았어요'}</span> : null}
     {profile ? pubg ? <span className="room-pop-facts">
-      <span><small>{ladderLabel}</small><RoomRank game={room.game} tier={member.tier} division={member.division} size={18} /></span>
-      <span><small>K/D</small>{kdDetail ? <KdStat line={kdDetail} /> : <Stat kind="kda" value={member.kda} />}</span>
-      <span><small>치킨률</small><Stat kind="winRate" value={member.winRate} plain /></span>
-      {avgDamage !== null ? <span><small>평균 딜</small><strong className="performance-value">{Math.round(avgDamage)}</strong></span> : null}
-      {games ? <span><small>{games.label}</small><strong className="performance-value">{games.value}</strong></span> : null}
+      <span className="room-pop-stat"><small>{ladderLabel}</small><RoomRank game={room.game} tier={member.tier} division={member.division} size={18} /></span>
+      <span className="room-pop-stat"><small>K/D</small>{kdDetail ? <KdStat line={kdDetail} /> : <Stat kind="kda" value={member.kda} />}</span>
+      <span className="room-pop-stat"><small>치킨률</small><Stat kind="winRate" value={member.winRate} plain /></span>
+      {avgDamage !== null ? <span className="room-pop-stat"><small>평균 딜</small><strong className="performance-value">{Math.round(avgDamage)}</strong></span> : null}
+      {games ? <span className="room-pop-stat"><small>{games.label}</small><strong className="performance-value">{games.value}</strong></span> : null}
     </span> : <span className="room-pop-facts">
-      <span><small>{ladderLabel}</small><RoomRank game={room.game} tier={member.tier} division={member.division} size={18} /></span>
-      {record ? null : <span><small>승률</small><Stat kind="winRate" value={member.winRate} /></span>}
-      <span><small>KDA</small>{kdaDetail ? <KdaStat line={kdaDetail} /> : <Stat kind="kda" value={member.kda} />}</span>
-      {record ? <span style={{ gridColumn: '1 / -1' }}><small>승률</small><WinLossBar record={record} rate={member.winRate} size="sm" /></span> : null}
+      <span className="room-pop-stat"><small>{ladderLabel}</small><RoomRank game={room.game} tier={member.tier} division={member.division} size={18} /></span>
+      {record ? null : <span className="room-pop-stat"><small>승률</small><Stat kind="winRate" value={member.winRate} /></span>}
+      <span className="room-pop-stat"><small>KDA</small>{kdaDetail ? <KdaStat line={kdaDetail} /> : <Stat kind="kda" value={member.kda} />}</span>
+      {record ? <span className="room-pop-record" style={{ gridColumn: '1 / -1' }}><small>승률</small><WinLossBar record={record} rate={member.winRate} size="sm" /></span> : null}
       {recent ? <span className="room-pop-recent" style={{ gridColumn: '1 / -1' }}><RecentResults record={recent} label="최근 경기" /></span> : null}
-      {games ? <span><small>{games.label}</small><strong className="performance-value">{games.value}</strong></span> : null}
+      {games ? <span className="room-pop-stat"><small>{games.label}</small><strong className="performance-value">{games.value}</strong></span> : null}
     </span> : null}
     {champions.length ? <span className="room-pop-champions">
       <small>숙련도 높은 챔피언</small>
@@ -360,6 +360,8 @@ export function RoomDeck({ room, selfId, current = false, entering = false, onEn
   const colors = boardRoomColors(room);
   const vacancies = room.status !== 'EXPIRED' && !room.closed ? Math.max(0, room.capacity - room.memberCount) : 0;
   const canJoin = !current && recruiting && !entryError && vacancies > 0;
+  const closed = !recruiting || room.closed || room.full || vacancies === 0;
+  const joinLabel = current ? '참가 중' : closed ? '마감' : '참가';
   return <article ref={card} className={`room-deck room-row${room.hostId === selfId ? ' is-own' : ''}${current ? ' is-current-room' : canJoin ? ' is-joinable' : ' is-unavailable'}${entering ? ' is-entering' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`}>
     <div className="room-row-intro">
       <div className="room-row-summary">
@@ -373,7 +375,7 @@ export function RoomDeck({ room, selfId, current = false, entering = false, onEn
         </p>
       </div>
       <button type="button" className="room-join-button" disabled={!canJoin} title={current ? '현재 참가 중인 방이에요' : entryError ?? undefined}
-        aria-label={current ? '참가 중' : `참가${entryError ? ` · ${entryError}` : ''}`} onClick={() => { if (canJoin) onSeat(room); }}>{current ? '참가 중' : '참가'}</button>
+        aria-label={current ? joinLabel : `${joinLabel}${entryError ? ` · ${entryError}` : ''}`} onClick={() => { if (canJoin) onSeat(room); }}>{joinLabel}</button>
     </div>
 
     <div className="room-seat-row">
