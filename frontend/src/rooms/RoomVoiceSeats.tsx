@@ -103,7 +103,7 @@ export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity
         return <li key={member.id} data-seat-id={member.id} className={`room-seat is-filled room-voice-seat${host ? ' is-host' : ''}${self ? ' is-self' : ''}${state === 'speaking' ? ' is-speaking' : ''}`}>
           <button type="button" className="room-seat-button" aria-label={`${label} — 상세 정보`} aria-haspopup="dialog" aria-expanded={menuOpen} disabled={!card || !seatRoom}
             onClick={event => { event.currentTarget.focus(); setOpenId(menuOpen ? null : member.id); }}>{host ? <RoomHostCrown /> : null}{body}<VoiceMark state={state} /></button>
-          {menuOpen && card && seatRoom ? <RoomMemberProfile room={seatRoom} member={card} onClose={() => setOpenId(null)} actions={self ? [] : menuFor(member).actions} /> : null}
+          {menuOpen && card && seatRoom ? <RoomMemberProfile room={seatRoom} member={card} color={color} onClose={() => setOpenId(null)} actions={self ? [] : menuFor(member).actions} /> : null}
         </li>;
       })}
       {Array.from({ length: vacancies }, (_, index) => <li className="room-seat is-empty" key={`seat-${index}`}>
