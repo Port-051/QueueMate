@@ -33,7 +33,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * SSE 연결의 인증 — 쿠키 {@code qm_access} 에서 꺼내는지, 무엇을 거절하는지. 거절은 전부 같은 401 {@code UNAUTHENTICATED} 이고
- * <b>거절되면 구독이 걸리지 않는다.</b> Redis 없이 돈다({@link UserChannelSubscriber} 를 mock 으로 바꾼다 — {@code EventStreamControllerTest} 와 같은 컨텍스트).
+ * <b>거절되면 구독이 걸리지 않는다.</b> <b>Redis 가 있어야 뜬다</b> — 구독 컨테이너가 기동 때 Redis 에 붙는다(2026-10-02 확인. 포트는 {@code REDIS_PORT}로 넘긴다).
+ * 이 테스트가 Redis 에 무엇을 쓰지는 않는다({@link UserChannelSubscriber} 를 mock 으로 바꾼다 — {@code EventStreamControllerTest} 와 같은 컨텍스트).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -139,14 +140,14 @@ class AuthenticationTest {
     }
 
     @Test
-    @DisplayName("/health 는 인증을 요구하지 않는다 — actuator 가 없어 404 지만 401 이 아니다")
+    @DisplayName("/health 는 인증을 요구하지 않는다 — 401 이 아니라 200 이다(경로 자체는 HealthEndpointTest 가 본다)")
     void health_는_인증_없이_열려_있다() throws Exception {
-        mockMvc.perform(get("/health/live")).andExpect(status().isNotFound());
+        mockMvc.perform(get("/health/live")).andExpect(status().isOk());
         // 만료된 쿠키를 들고 와도 API 가 아닌 경로에서는 집지 않는다
         Instant past = Instant.now().minusSeconds(3600);
         String expired = TestTokens.token(claims -> claims.issuedAt(past).expiresAt(past.plusSeconds(900)));
         mockMvc.perform(get("/health/live").cookie(new Cookie(TokenClaims.ACCESS_COOKIE, expired)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk());
     }
 
     private static MockHttpServletRequestBuilder events() {

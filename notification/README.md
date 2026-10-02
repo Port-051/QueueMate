@@ -92,3 +92,8 @@ queuemate/
 - 상세는 `CLAUDE.md` §5.1, 원본 규칙은 `../platform/CLAUDE.md` §5.1.
 
 엔드포인트 경로는 `GET /api/v1/events` 로 정했다. 계약 원본의 `contracts/openapi.yaml` 에는 이 경로가 아직 없다.
+
+## 헬스 체크 (2026-10-02)
+
+- `GET /health/live` — 살아 있나(ALB 헬스 체크는 여기에 건다). `GET /health/ready` — Redis 까지 붙었나. 둘 다 인증 없이 `{"status":"UP"}` 만 준다(`platform` 과 같은 모양).
+- 떠 있나 확인 — `curl -s localhost:8081/health/live` 가 `{"status":"UP"}` 이면 떠 있다(`/api/v1/events` 는 쿠키 없이 401 이다). 상세는 `CLAUDE.md` §6.

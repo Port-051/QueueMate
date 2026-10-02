@@ -31,7 +31,7 @@ public class SecurityConfig {
                         // SSE 는 서블릿 비동기다 — 연결이 끝날 때의 ASYNC 디스패치는 이미 인증을 통과한 요청의 뒷부분이다.
                         // 여기서 다시 막으면 이미 흘려보내던 응답 위에 401 을 쓰려 든다. 에러 디스패치(/error)도 원래 상태 코드를 가리지 않게 연다
                         .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
-                        // 헬스체크 자리. 이 서비스에는 아직 actuator 가 없어 이 경로들은 404 다 — 생겨도 인증 없이 열리게 미리 둔다
+                        // actuator 의 자리 — 인증 없이 연다. /health/live(ALB 가 본다) · /health/ready(Redis 까지 본다) · /info (application.yaml 의 management)
                         .requestMatchers("/health/**", "/health", "/info").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
