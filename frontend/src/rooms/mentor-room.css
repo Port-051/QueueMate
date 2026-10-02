@@ -177,9 +177,10 @@
 .room-seat-kda { display:flex; align-items:center; justify-content:center; gap:4px; white-space:nowrap; }
 .room-seat-stat-label { font-size:10px; color:#aaa3b6; }
 
-/* 목록 조건은 포지션과 같은 캡슐 표면, 마이크는 초록색 아이콘만 표시한다. */
+/* 목록과 방 내부 조건은 포지션과 같은 캡슐 표면을 사용한다. */
 .room-deck.room-row .room-row-meta { gap:4px 6px; }
-.room-deck.room-row .room-row-meta>:is(.room-row-mode,.room-row-voice) { min-height:20px; padding:1px 8px 1px 5px; border-radius:999px; background:#ffffff0b; }
+.room-deck.room-row .room-row-meta>:is(.room-row-mode,.room-row-voice),
+.party-room-heading .room-row-meta>:is(.room-row-mode,.room-row-voice) { min-height:20px; padding:1px 8px 1px 5px; border-radius:999px; background:#ffffff0b; }
 .room-deck.room-row .room-row-meta>.room-row-voice { gap:4px; color:inherit; }
 .room-deck.room-row .room-row-meta>span+span::before { content:none; }
 .room-deck.room-row .room-row-meta .room-row-voice .voice-symbol { color:#7fe3ad; }
