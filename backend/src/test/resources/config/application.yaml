@@ -4,6 +4,8 @@ platform:
   jwt:
     # 개발용 키를 저장소(backend/.dev-keys/)가 아니라 임시 폴더에 만든다 — 테스트가 작업 폴더를 어지럽히지 않게 한다
     dev-key-dir: ${java.io.tmpdir}/qm-platform-test-keys
+    # 그 임시 폴더는 처음엔 비어 있다 — 만들게 한다(main 의 기본값 false 면 키가 없어 컨텍스트가 뜨지 않는다 · P-51)
+    generate-dev-keys: true
   # TEMP-DEV-LOGIN — 테스트에서는 개발용 로그인을 켠다(DevLoginApiTest 가 다른 API 테스트와 컨텍스트를 같이 쓴다).
   # 꺼졌을 때(운영의 기본값)는 DevLoginDisabledTest 가 @TestPropertySource 로 따로 띄워 본다
   auth:
