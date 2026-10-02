@@ -94,13 +94,13 @@
 
 
 /* 좌석 아래의 통화 제어: 실제 마이크 상태의 색과 은은한 배경을 함께 쓴다. */
-.party-room-call-controls { display:flex; justify-content:center; align-items:center; gap:8px; margin:0 0 18px; }
+.party-room-call-controls { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 0 18px; }
 .party-room-call-controls .room-mic-toggle,.party-room-call-controls .party-room-leave { display:inline-flex; align-items:center; justify-content:center; flex:none; gap:6px; height:40px; min-height:40px; padding:0 16px 0 12px; border:1px solid; border-radius:999px; font:inherit; font-size:13px; font-weight:600; white-space:nowrap; box-shadow:none; cursor:pointer; }
 .party-room-call-controls .room-mic-toggle.is-off { color:#ff9daa; border-color:#f36b7b50; background:#f36b7b12; }
 .party-room-call-controls .room-mic-toggle.is-on { color:#83e8ba; border-color:#5fe3a850; background:#5fe3a812; }
 .party-room-call-controls .room-mic-toggle:hover:not(:disabled) { filter:brightness(1.15); }
-.party-room-call-controls .party-room-leave { width:40px; padding:0; border-radius:50%; color:#fff; border-color:transparent; background:#df3148; }
-.party-room-call-controls .party-room-leave:hover:not(:disabled) { background:#ed4057; border-color:transparent; }
+.party-room-call-controls .party-room-leave { width:40px; padding:0; border-radius:50%; color:#f1c4cb; border-color:#ad737d50; background:#74434e; }
+.party-room-call-controls .party-room-leave:hover:not(:disabled) { background:#86515d; border-color:#ad737d80; }
 .party-room-call-controls button:focus-visible { outline:2px solid var(--accent-2); outline-offset:3px; }
 .party-room-call-controls button:disabled { opacity:.5; cursor:default; }
 @media(max-width:480px) { .party-room-heading { gap:8px; } .party-room-heading .room-row-meta { gap:8px; } }

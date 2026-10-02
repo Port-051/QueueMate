@@ -114,22 +114,24 @@
 
 /* 닉네임 아래에는 티어, 오른쪽 마이크 아래에는 포지션 아이콘을 배치한다. */
 .party-page .room-voice-seats .room-seat-line { display:flex; align-items:center; justify-content:center; width:100%; font-size:12px; line-height:1.35; }
-.party-page .room-voice-seats .room-voice-position { position:absolute; top:32px; right:7px; display:grid; place-items:center; width:20px; height:20px; color:#c1c7d8; }
-.party-page .room-voice-seats .room-seat-rank { justify-content:center; gap:3px; max-width:100%; overflow:visible; }
+.party-page .room-voice-seats .room-voice-identity { display:grid; grid-template-columns:36px 16px; align-items:center; column-gap:8px; height:36px; flex:none; }
+.party-page .room-voice-seats .room-voice-indicators { display:grid; grid-template-rows:16px 16px; gap:4px; width:16px; height:36px; }
+.party-page .room-voice-seats .room-voice-position { display:grid; place-items:center; width:16px; height:16px; color:#c1c7d8; }
+.party-page .room-voice-seats .room-seat-rank { justify-content:center; gap:4px; max-width:100%; min-height:26px; padding:3px 4px; border:1px solid #ffffff0e; border-radius:7px; background:#ffffff08; overflow:visible; }
 .party-page .room-voice-seats .room-seat-rank>span:last-child { white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; text-align:left; font-weight:500; }
 .party-page .room-voice-seats .room-seat-numbers { display:none; }
-.party-page .room-voice-seats .room-voice-mark { width:20px; height:20px; top:5px; right:5px; }
+.party-page .room-voice-seats .room-voice-mark { position:static; width:16px; height:16px; margin:0; }
 .party-page .room-voice-seats .room-voice-mark svg { width:14px; height:14px; }
 .party-page .room-voice-mark:is([data-voice=off],[data-voice=muted],[data-voice=waiting],[data-voice=linked]) { color:#f36b7b; background:#f36b7b18; opacity:1; }
 
 @container room-voice (max-width:459px) {
-  .party-page .room-voice-seats .room-seat-rank { display:grid; grid-template-columns:minmax(0,1fr); justify-items:center; gap:1px; }
-  .party-page .room-voice-seats .room-seat-rank>span:last-child { text-align:center; }
+  .party-page .room-voice-seats .room-seat-rank { display:grid; grid-template-columns:minmax(0,1fr); justify-items:center; gap:1px; width:100%; height:38px; padding:2px 1px; }
+  .party-page .room-voice-seats .room-seat-rank>span:last-child { text-align:center; font-size:11px; white-space:nowrap; }
 }
 
 /* 참여한 멤버 카드는 어두운 표면·일정한 간격·차분한 정보색으로 통일한다. */
 .party-page .room-voice-seats.room-seats { gap:8px; }
-.party-page .room-voice-seats.room-seats .room-seat .room-seat-button { height:144px; min-height:144px; padding:12px 5px; gap:9px; border:1px solid #ffffff10; border-radius:14px; background:linear-gradient(160deg,#ffffff08,#ffffff03); box-shadow:inset 0 1px #ffffff04; }
+.party-page .room-voice-seats.room-seats .room-seat .room-seat-button { height:144px; min-height:144px; justify-content:flex-start; padding:26px 5px 10px; gap:8px; border:1px solid #ffffff10; border-radius:14px; background:linear-gradient(160deg,#ffffff08,#ffffff03); box-shadow:inset 0 1px #ffffff04; }
 .party-page .room-voice-seats.room-seats .room-seat .room-seat-button:hover { border-color:#ffffff2c; background:linear-gradient(160deg,#ffffff0e,#ffffff06); }
 .party-page .room-voice-seats.room-seats .room-seat.is-self .room-seat-button { border-color:#ae94ed50; background:linear-gradient(160deg,#a887e829,#a887e811); }
 .party-page .room-voice-seats.room-seats .room-seat.is-self .room-seat-button:hover { border-color:#b69cf078; background:linear-gradient(160deg,#a887e835,#a887e81c); }
@@ -137,19 +139,13 @@
 .party-page .room-voice-seats .room-seat-name { font-size:13px; line-height:18px; }
 .party-page .room-voice-seats .room-seat-name strong { font-weight:600; color:#e6e8f0; }
 .party-page .room-voice-seats .room-seat-rank>span:last-child { color:#aeb6cb !important; }
-.party-page .room-voice-seats .room-seat-rank { gap:4px; }
 .party-page .room-voice-seats .room-seat.is-self .avatar-wrap { outline:1px solid #b7a1ff80; outline-offset:3px; }
 .party-page .room-voice-seats .room-seat-hole { border:1px dashed #ffffff16; border-radius:14px; background:#ffffff02; }
-.party-page .room-voice-seats .room-voice-mark { top:7px; right:7px; width:20px; height:20px; }
 .party-page .room-voice-seats.room-seats .room-seat.is-speaking .room-seat-button { border-color:#5fe3a870; box-shadow:inset 0 0 0 1px #5fe3a814; }
 @container room-voice (max-width:459px) {
   .party-page .room-voice-seats.room-seats { gap:5px; }
-  .party-page .room-voice-seats.room-seats .room-seat .room-seat-button { padding:8px 3px; gap:7px; }
-  .party-page .room-voice-seats .room-seat-face { transform:translateX(-6px); }
-  .party-page .room-voice-seats .room-seat-face .avatar-wrap,.party-page .room-voice-seats .room-seat-face .avatar { width:32px !important; height:32px !important; }
-  .party-page .room-voice-seats .room-voice-mark { right:3px; top:4px; }
-  .party-page .room-voice-seats .room-voice-position { top:29px; right:3px; }
-  .party-page .room-voice-seats .room-voice-position .filter-role-symbol { width:14px; height:14px; }
+  .party-page .room-voice-seats.room-seats .room-seat .room-seat-button { padding:26px 3px 8px; }
+  .party-page .room-voice-seats .room-voice-identity { column-gap:6px; }
   .room-voice-seats .room-seat-button>.room-host-crown { top:4px; left:3px; }
 }
 /* 방의 음성 사용 조건은 실제 사용자의 마이크 상태와 구별하는 중립색이다. */
