@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -35,8 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p><b>{@code POST /api/v1/posts/auto-join}</b>(2026-09-28)은 {@code /{postId}} 와 겹치지 않는다 — {@code POST} 가 걸린 경로 변수 매핑이 없고, 있더라도 스프링은
  * 글자 그대로의 경로를 경로 변수보다 먼저 고른다.
  *
- * <p><b>글은 고칠 수 없다</b>(2026-10-01 소유자 결정 — {@code PATCH /api/v1/posts/{postId}} 를 없앴다). 그 경로는 {@code GET} · {@code DELETE} 만 매핑돼 있어
- * {@code PATCH} 는 405 {@code METHOD_NOT_ALLOWED} 다({@code GlobalExceptionHandler#handleMvcClientError}).
+ * <p>2026-10-03 방 설정 요청: 현재 방장이 PATCH로 조건을 수정한다. 게임은 고정이며, 마감 뒤에는 제목과 마이크만 수정한다.
  */
 @RestController
 @RequestMapping("/api/v1/posts")
@@ -54,6 +54,12 @@ public class PostController {
     public ResponseEntity<PostResponse> create(@CurrentUserId Long userId, @Valid @RequestBody PostCreateRequest request)
     {
         return ResponseEntity.status(HttpStatus.CREATED).body(postService.create(userId, request));
+    }
+
+    @PatchMapping("/{postId}")
+    public PostResponse update(@CurrentUserId Long userId, @PathVariable("postId") Long postId,
+                               @Valid @RequestBody PostCreateRequest request) {
+        return postService.update(userId, postId, request);
     }
 
     /**
