@@ -211,19 +211,19 @@ class PostApiTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("글은 고칠 수 없다(2026-10-01 소유자 결정) — PATCH 는 방장이 보내도 405 METHOD_NOT_ALLOWED 이고 글 · 방이 그대로다")
-    void editIsGone() throws Exception
+    @DisplayName("방 설정 PATCH는 전체 필수 설정을 요구하며 불완전한 요청으로 기존 값을 바꾸지 않는다")
+    void incompleteSettingsAreRejected() throws Exception
     {
         String host = newNickname();
         Cookie cookie = login(host);
         Long hostId = userIdOf(host);
         Long postId = createLolPost(cookie, "MID", "SUPPORT");
 
-        // 고치기가 있던 때 200 이던 본문 그대로다 — 그 경로에는 GET · DELETE 만 남았다
+        // 부분 본문으로 필수 조건을 지우지 않는다.
         mockMvc.perform(patch("/api/v1/posts/" + postId).cookie(cookie).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"제목을 바꾼다\",\"voice\":\"NO_VOICE\",\"hostPosition\":\"TOP\"}"))
-                .andExpect(status().isMethodNotAllowed())
-                .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"));
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
 
         mockMvc.perform(get("/api/v1/posts/" + postId).cookie(cookie))
                 .andExpect(status().isOk())

@@ -73,6 +73,7 @@ public class RoomMemberService {
      *
      * @throws com.queuemate.platform.common.error.ApiException ① 의 거절. 스크립트의 거절은 결과 enum 으로 돌려준다
      */
+    @org.springframework.transaction.annotation.Transactional
     public EnterResult enter(String roomId, String userId)
     {
         return enter(roomId, userId, null);
@@ -88,15 +89,22 @@ public class RoomMemberService {
      * 들어오면 고른 것을 SET 에서 뺀다. 남이 이미 고른 포지션은 SET 에 없으므로 이것도 {@link EnterResult#INVALID_POSITION} 이다.
      * 포지션이 없는 방(포지션이 없는 모드 · 옛 글)에 포지션을 주면 {@link EnterResult#INVALID_POSITION} 이다 — 조용히 버리지 않는다.
      * 자바가 먼저 읽어 보고 판단하지 않는다 — "남았나 보고 빼기" 가 한 스크립트 안이어야 같은 포지션을 동시에 고른 두 사람 가운데 한 명만 들어온다.
-     * 글은 고칠 수 없어(2026-10-01 소유자 결정) ① 에서 읽은 정원 · 포지션 방인가가 ② 에서 달라질 일이 없다.
+     * 입장과 설정 수정이 같은 DB 행 잠금을 사용해 ①의 정원 · 포지션 조건이 ②까지 유지된다.
      * 순서는 정원(-2) 뒤다 — 재입장(이미 들어와 있다 — 200)은 포지션을 보지 않는다(들어온 뒤에는 바꿀 수 없다).
      *
      * @param position 고른 포지션. 없으면 {@code null} — 빈 문자열 · 공백도 없는 것으로 본다(스크립트에는 {@code ""} 로 넘긴다. {@code StringRedisTemplate} 은 {@code null} 을 넘기지 못한다)
      */
-    public EnterResult enter(String roomId, String userId, String position)
+    @org.springframework.transaction.annotation.Transactional
+    public EnterResult enter(String roomId, String userId, String position) {
+        return enter(roomId, userId, position, null);
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public EnterResult enter(String roomId, String userId, String position, java.time.Instant expectedUpdatedAt)
     {
         String chosen = (position == null || position.isBlank()) ? "" : position;
-        PostEntryGate.Entry entry = postEntryGate.check(roomId, Long.parseLong(userId));
+        PostEntryGate.Entry entry = expectedUpdatedAt == null ? postEntryGate.check(roomId, Long.parseLong(userId))
+                : postEntryGate.check(roomId, Long.parseLong(userId), expectedUpdatedAt);
         List<String> keys = new ArrayList<String>();
         keys.add(SharedKeys.activeRequestKey(userId));
         keys.add(RoomKeys.activeRoomKey(userId));

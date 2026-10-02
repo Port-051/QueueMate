@@ -28,7 +28,7 @@ import java.util.Set;
  *
  * <p><b>글에 옮겨 적지 않는다</b> — 입장권 발급은 방 키를 읽다 "방이 사라졌다 · 확정됐다"를 보면 글을 만료 · 확정으로 옮겨 적었다. 여기서는 하지 않는다:
  * 방장 키가 없으면 곧이어 스크립트가 404 {@code ROOM_NOT_FOUND} 로, 확정 표시 키가 있으면 409 {@code ROOM_CONFIRMED} 로 거절한다 — 거절의 결과가 같고,
- * 옮겨 적기는 목록 · 단건이 한다({@code PostService}). 입장이 DB 에 쓰는 일이 없어 입장은 트랜잭션 없이 돈다.
+ * 옮겨 적기는 목록 · 단건이 한다({@code PostService}). 입장은 설정 수정과 같은 행 잠금을 잡는 트랜잭션 안에서 검사를 수행한다.
  */
 @Component
 @RequiredArgsConstructor
@@ -66,10 +66,13 @@ public class PostEntryGate {
      * @throws com.queuemate.platform.common.error.ApiException 404 {@code POST_NOT_FOUND} · 409 {@code POST_NOT_RECRUITING} ·
      *                                                          503 {@code ROOM_STATE_UNAVAILABLE}(방 안을 못 읽었다 — 차단 대조를 못 했는데 들여보낼 수 없다)
      */
-    public Entry check(String roomId, Long me)
+    public Entry check(String roomId, Long me) { return check(roomId, me, null); }
+
+    public Entry check(String roomId, Long me, java.time.Instant expectedUpdatedAt)
     {
         Long postId = postIdOf(roomId);
-        RecruitPost post = postStore.find(postId).orElseThrow(PostStore::postNotFound);
+        RecruitPost post = postStore.findForEntry(postId).orElseThrow(PostStore::postNotFound);
+        if (expectedUpdatedAt != null && !expectedUpdatedAt.equals(post.getUpdatedAt())) throw PostStore.postNotRecruiting();
         RoomState state;
         try
         {
