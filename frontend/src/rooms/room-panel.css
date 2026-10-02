@@ -94,11 +94,11 @@
 
 /* 좌석 아래의 통화 제어: 실제 마이크 상태의 색과 은은한 배경을 함께 쓴다. */
 .party-room-call-controls { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 0 18px; }
-.party-room-call-controls .room-mic-toggle,.party-room-call-controls .party-room-leave { display:inline-flex; align-items:center; justify-content:center; flex:none; gap:6px; height:40px; min-height:40px; padding:0 16px 0 12px; border:1px solid; border-radius:999px; font:inherit; font-size:13px; font-weight:600; white-space:nowrap; box-shadow:none; cursor:pointer; }
+.party-room-call-controls .room-mic-toggle,.party-room-call-controls .party-room-leave,.party-room-call-controls .room-settings-toggle { display:inline-flex; align-items:center; justify-content:center; flex:none; gap:6px; height:40px; min-height:40px; padding:0 16px 0 12px; border:1px solid; border-radius:999px; font:inherit; font-size:13px; font-weight:600; white-space:nowrap; box-shadow:none; cursor:pointer; }
 .party-room-call-controls .room-mic-toggle.is-off { color:#ff9daa; border-color:#f36b7b50; background:#f36b7b12; }
 .party-room-call-controls .room-mic-toggle.is-on { color:#83e8ba; border-color:#5fe3a850; background:#5fe3a812; }
 .party-room-call-controls :is(.room-mic-toggle,.party-room-leave):hover:not(:disabled) { filter:brightness(1.15); }
-.party-room-call-controls .party-room-leave { width:40px; padding:0; border-radius:50%; color:#ff9b9b; border-color:#743b40; background:#26181a; }
+.party-room-call-controls .party-room-leave { margin-left:auto; width:40px; padding:0; border-radius:50%; color:#ff9b9b; border-color:#743b40; background:#26181a; }
 .party-room-call-controls .party-room-leave:hover:not(:disabled) { border-color:#743b40; }
 .party-room-call-controls .party-room-leave:focus-visible { outline-color:#ee6a6a; }
 .party-room-call-controls button:focus-visible { outline:2px solid var(--accent-2); outline-offset:3px; }
@@ -112,3 +112,7 @@
 .room-panel-resizer:focus-visible::before { outline:1px solid #fff; outline-offset:3px; }
 .board-split.is-resizing { cursor:col-resize; user-select:none; }
 @media(max-width:1099.98px) { .room-panel-resizer { display:none; } }
+
+.party-room-call-controls { justify-content:flex-start; flex-wrap:wrap; }
+.party-room-call-controls .room-settings-toggle { color:#c8c1d5; border-color:#ffffff26; background:#ffffff07; }
+.party-room-call-controls .room-settings-toggle:hover:not(:disabled) { border-color:#ffffff40; background:#ffffff12; color:var(--text); }
