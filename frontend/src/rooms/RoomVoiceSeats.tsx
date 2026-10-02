@@ -90,7 +90,7 @@ export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity
         const color = colors.get(member.id);
         // 카드가 없는 사람 — 얼굴 · 이름(아직 모르면 자리표시 막대 — 번호를 그리지 않는다) · 음성만.
         const body = card && seatRoom
-          ? <RoomSeatBody room={seatRoom} member={card} me={self} color={color} />
+          ? <RoomSeatBody room={seatRoom} member={card} me={self} color={color} showDetails />
           : <>
             <span className="room-seat-face"><span className="room-member-avatar"><Avatar userId={member.id} name={member.nickname} color={color} size={34} />{host ? <RoomHostCrown /> : null}</span></span>
             <span className="room-seat-text"><span className="room-seat-name">

@@ -268,26 +268,27 @@ export function seatSummary(room: BoardRoom, member: BoardMember, selfId: string
 }
 
 /** 게시판은 고정 열 표(table), 음성/제안 좌석은 작은 요약을 사용한다. 상세 정보는 공통 팝오버에서 읽는다. */
-export function RoomSeatBody({ room, member, me = false, color, table = false }: { room: BoardRoom; member: BoardMember; me?: boolean; color?: number; table?: boolean }) {
+export function RoomSeatBody({ room, member, me = false, color, table = false, showDetails = false }: { room: BoardRoom; member: BoardMember; me?: boolean; color?: number; table?: boolean; showDetails?: boolean }) {
   const position = seatPosition(room, member);
   const record = room.game === 'LOL' ? winLossRecord(member.profile?.stats) : null;
   const positionLabel = position ? <span className="room-seat-position" title={roleLabel(room.game, position)}><FilterRoleIcon game={room.game} value={position} size={15} /><b>{roleLabel(room.game, position)}</b></span> : null;
   return <>
     <span className="room-seat-face">
       <RoomMemberAvatar member={member} size={34} color={color} />
-      <span className="room-seat-tier-badge"><FilterTierIcon game={room.game} tier={member.tier} size={16} /></span>
+      {!showDetails ? <span className="room-seat-tier-badge"><FilterTierIcon game={room.game} tier={member.tier} size={16} /></span> : null}
     </span>
     <span className="room-seat-text">
       <span className="room-seat-name">
-        {position ? <span className="room-seat-position-icon"><FilterRoleIcon game={room.game} value={position} size={12} /></span> : null}
+        {position && !showDetails ? <span className="room-seat-position-icon"><FilterRoleIcon game={room.game} value={position} size={12} /></span> : null}
         <strong>{member.nickname}</strong>
         {me ? <span className="room-seat-me">(나)</span> : null}
         {member.profile?.verified ? <VerifiedMark /> : null}
-        {!table ? positionLabel : null}
+        {!table && !showDetails ? positionLabel : null}
       </span>
+      {showDetails ? positionLabel : null}
       {table ? positionLabel ?? <span className="room-seat-position">—</span> : null}
       <span className="room-seat-line">
-        <span className="room-seat-rank"><FilterTierIcon game={room.game} tier={member.tier} size={16} /><span style={member.tier ? { color: tierColor(member.tier) } : undefined}>{member.profile ? rankText(room.game, member.tier, member.division, true) : '—'}</span></span>
+        <span className="room-seat-rank"><FilterTierIcon game={room.game} tier={member.tier} size={16} /><span style={member.tier ? { color: tierColor(member.tier) } : undefined}>{member.profile ? rankText(room.game, member.tier, member.division, !showDetails) : '—'}</span></span>
         {table ? <><span className="room-seat-record" aria-label={room.game === 'PUBG' ? '치킨율' : '승패와 승률'}>
           {record ? <WinLossBar record={record} rate={member.winRate} size="sm" /> : member.winRate !== null ? <PerformanceValue kind="winRate" value={member.winRate} /> : <span className="room-seat-no-stats">—</span>}
         </span>
