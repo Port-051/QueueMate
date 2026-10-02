@@ -139,14 +139,14 @@ class AuthenticationTest {
     }
 
     @Test
-    @DisplayName("/health 는 인증을 요구하지 않는다 — actuator 가 없어 404 지만 401 이 아니다")
+    @DisplayName("/health 는 인증을 요구하지 않는다 — 401 이 아니라 200 이다(경로 자체는 HealthEndpointTest 가 본다)")
     void health_는_인증_없이_열려_있다() throws Exception {
-        mockMvc.perform(get("/health/live")).andExpect(status().isNotFound());
+        mockMvc.perform(get("/health/live")).andExpect(status().isOk());
         // 만료된 쿠키를 들고 와도 API 가 아닌 경로에서는 집지 않는다
         Instant past = Instant.now().minusSeconds(3600);
         String expired = TestTokens.token(claims -> claims.issuedAt(past).expiresAt(past.plusSeconds(900)));
         mockMvc.perform(get("/health/live").cookie(new Cookie(TokenClaims.ACCESS_COOKIE, expired)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk());
     }
 
     private static MockHttpServletRequestBuilder events() {
