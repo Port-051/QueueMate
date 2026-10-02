@@ -75,10 +75,12 @@ export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity
   const [openId, setOpenId] = useState<string | null>(null);
   const open = openId && members.some(member => member.id === openId) ? openId : null;
   const vacancies = capacity ? Math.max(0, capacity - members.length) : 0;
+  // 방장 변경 시에도 맨 왼쪽을 유지하고 나머지 멤버의 순서는 보존한다.
+  const orderedMembers = [...members].sort((a, b) => Number(b.id === hostId) - Number(a.id === hostId));
   // 바깥 틀이 폭을 재는 컨테이너(`room-voice`)이고 안쪽 줄이 좌석을 늘어놓는다 — 컨테이너 질의는 컨테이너 자신이 아니라 그 안만 바꾼다.
   return <div className="room-voice-seats-wrap"><div className="room-voice-seats-row">
     <ul className="room-seats room-voice-seats" aria-label={capacity ? `파티원 ${members.length} / ${capacity}` : `파티원 ${members.length}명`}>
-      {members.map(member => {
+      {orderedMembers.map(member => {
         const self = member.id === selfId;
         const host = member.id === hostId;
         const state = seatVoice(member.id, selfId, voice, muted, connectedPeers, voiceActivity[member.id]);
@@ -92,7 +94,7 @@ export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity
         const body = card && seatRoom
           ? <RoomSeatBody room={seatRoom} member={card} me={self} color={color} showDetails />
           : <>
-            <span className="room-seat-face"><span className="room-member-avatar"><Avatar userId={member.id} name={member.nickname} color={color} size={34} />{host ? <RoomHostCrown /> : null}</span></span>
+            <span className="room-seat-face"><span className="room-member-avatar"><Avatar userId={member.id} name={member.nickname} color={color} size={34} /></span></span>
             <span className="room-seat-text"><span className="room-seat-name">
               {member.nickname !== null ? <strong>{member.nickname}</strong> : <span className="room-seat-name-pending" aria-hidden="true" />}
               {self ? <span className="room-seat-me">(나)</span> : null}
@@ -100,7 +102,7 @@ export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity
           </>;
         return <li key={member.id} data-seat-id={member.id} className={`room-seat is-filled room-voice-seat${host ? ' is-host' : ''}${self ? ' is-self' : ''}${state === 'speaking' ? ' is-speaking' : ''}`}>
           <button type="button" className="room-seat-button" aria-label={`${label} — 상세 정보`} aria-haspopup="dialog" aria-expanded={menuOpen} disabled={!card || !seatRoom}
-            onClick={event => { event.currentTarget.focus(); setOpenId(menuOpen ? null : member.id); }}>{body}<VoiceMark state={state} /></button>
+            onClick={event => { event.currentTarget.focus(); setOpenId(menuOpen ? null : member.id); }}>{host ? <RoomHostCrown /> : null}{body}<VoiceMark state={state} /></button>
           {menuOpen && card && seatRoom ? <RoomMemberProfile room={seatRoom} member={card} onClose={() => setOpenId(null)} actions={self ? [] : menuFor(member).actions} /> : null}
         </li>;
       })}
