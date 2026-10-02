@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import type { CreatePostRequest, GameKey, MatchCondition } from '../api/types';
-import { Button, Modal, useToast } from '../components/ui';
+import { Avatar, Button, Modal, useToast } from '../components/ui';
 import { IconMatch, IconPaperPlane } from '../components/icons';
-import { HomeProfileRail } from '../components/HomeProfileRail';
+import { GameBadge } from '../components/GameSymbol';
+import { VerificationBadge } from '../components/VerificationBadge';
 import { useAuth } from '../state/AuthContext';
 import { useMatch } from '../state/MatchContext';
 import { SelfIntroductionFields } from '../components/SelfIntroductionFields';
@@ -17,6 +18,8 @@ import { emptyIntroduction, introductionInputError, readIntroduction, saveIntrod
 import { RoomCreatePreview } from './RoomCreatePreview';
 import { roomVoice } from './voice';
 import './room-quick-connect.css';
+import './room-action-dialog.css';
+import './room-form-dialog.css';
 
 function CreateRoomIcon() {
   return <span className="room-create-icon"><IconPaperPlane size={22} /></span>;
@@ -38,6 +41,7 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, roomPane
   onCreate: (body: CreatePostRequest) => void | Promise<void>;
 }) {
   const toast = useToast();
+  const formId = useId();
   const navigate = useNavigate();
   const { user, gameAccounts } = useAuth();
   const { request, condition: queuedCondition, proposal, start: startMatch, cancel } = useMatch();
@@ -141,18 +145,13 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, roomPane
   };
 
   // 대기 · 제안 — 버튼을 눌러 여는 현황 카드. 매칭 데이터는 MatchContext(상태 조회 + 알림), 내 방은 RoomSessionContext(`GET /rooms/me` + ROOM_*)에서 온다.
-  const status = request ? <section className="duo-offers" aria-label="빠른매치 진행"><article className="duo-offer quick-connect-result" aria-live="polite" aria-atomic="true">
-      <div className="quick-result-top"><span>{request.status === 'PROPOSED' ? '제안 도착' : '팀원을 찾는 중'}</span>{request.queuedAt ? <strong>{formatDuration((now - request.queuedAt) / 1000)}</strong> : null}</div>
+  const status = request ? <section className="quick-connect-result" aria-label="빠른매치 진행">
+      <div className="quick-result-top"><span><IconMatch size={18} />{request.status === 'PROPOSED' ? '제안이 도착했어요' : '함께할 팀원을 찾고 있어요'}</span>{request.queuedAt ? <strong aria-label="경과 시간">{formatDuration(Math.max(0, (now - request.queuedAt) / 1000))}</strong> : null}</div>
       <h3>{queuedCondition ? `${gameFullLabel(queuedCondition.game)} · ${modeLabel(queuedCondition.game, queuedCondition.modeKey)}` : '빠른매치 진행 중'}</h3>
-      <p className="quick-result-reasons">
-        {queuedCondition ? conditionSummary(queuedCondition).join(' · ') : null}
-        {request.target ? <><br />{request.memberCount ?? 1} / {request.target}명 모임</> : null}
-      </p>
-      <div className="quick-result-actions">
-        <Button disabled={cancelling} onClick={() => void cancelMatching()}>{cancelling ? '취소 중…' : '빠른매치 취소'}</Button>
-        {request.status === 'PROPOSED' && proposal ? <Button variant="primary" onClick={() => navigate(`/app/proposals/${proposal.partyId}`)}>제안 확인</Button> : null}
-      </div>
-    </article></section> : null;
+      <p className="quick-result-reasons">{queuedCondition ? conditionSummary(queuedCondition).join(' · ') : null}</p>
+      {request.target ? <p className="quick-result-count"><strong>{request.memberCount ?? 1}</strong> / {request.target}명 모였어요</p> : null}
+      <p className="room-form-note">창을 닫아도 빠른매치는 계속 진행돼요.</p>
+    </section> : null;
 
   const elapsed = formatDuration(Math.max(0, (now - (request?.queuedAt ?? now)) / 1000));
   const openMatching = () => {
@@ -162,25 +161,31 @@ export function RoomQuickConnect({ game, modeKey, selfId, activeRoomId, roomPane
   };
 
   return <>
-    {opened && !roomPanelOpen && !activeRoomId ? <Modal title={waiting ? '빠른매치 현황' : '빠른매치 조건 설정'} closeLabel="빠른매치 창 닫기" className="room-match-dialog" onClose={() => { if (!starting && !cancelling) setOpened(false); }}>
+    {opened && !roomPanelOpen && !activeRoomId ? <Modal title={waiting ? '빠른매치 현황' : '빠른매치'} closeLabel="빠른매치 창 닫기" className="room-action-dialog room-form-dialog room-match-dialog" onClose={() => { if (!starting && !cancelling) setOpened(false); }}
+      foot={waiting ? <>
+        <Button disabled={cancelling} onClick={() => void cancelMatching()}>{cancelling ? '취소 중…' : '매칭 취소'}</Button>
+        {request?.status === 'PROPOSED' && proposal ? <Button variant="primary" disabled={cancelling} onClick={() => navigate(`/app/proposals/${proposal.partyId}`)}>제안 확인</Button> : <Button disabled={cancelling} onClick={() => setOpened(false)}>닫기</Button>}
+      </> : <>
+        <Button disabled={starting} onClick={() => setOpened(false)}>취소</Button>
+        <Button type="submit" form={formId} variant="primary" disabled={starting || Boolean(startBlocked)}><IconMatch size={18} />{starting ? '시작하는 중…' : '빠른매치 시작'}</Button>
+      </>}>
       {waiting ? status : <>
-      <p className="room-match-description">{gameFullLabel(game)} · 조건을 고르면 함께할 팀원을 찾아드려요.</p>
-      <div className="room-home board-home room-match-settings"><HomeProfileRail user={user} game={game} gameAccount={gameAccount}><section className="matching-rail-panel room-matching-form" aria-label="빠른매치">
-    <form noValidate onSubmit={event => { event.preventDefault(); if (!starting && !waiting) void startMatching(); }}>
-      <fieldset className="recruitment-composer" disabled={starting}>
-        {error ? <div className="banner warn" role="alert">{error}</div> : null}
-        <SelfIntroductionFields binaryVoice compact singleRole showPurpose hidePostFields game={game} value={value} onChange={update} />
-      </fieldset>
-      {/* 막는 문구 · 링크는 "빠른매치 시작" 옆(넓은 화면) · 위(좁은 화면)에 선다. "방 만들기" 를 막은 문구(매칭 대기 중 등)도 여기다 — 한마디의 문구는 팝업에 있다. */}
-      <div className="matching-rail-footer room-rail-actions room-match-actions">
-        <div className="room-match-message">
-          {createError ? <p className="room-create-error" role="alert">{createError}</p> : startBlocked ? <p className="room-create-hint">{startBlocked}</p> : null}
-          {!createError && accountFix ? <Link className="room-create-fix" to="/app/me#games">{accountFix === 'MISSING' ? '게임 계정 연결하기' : '내 정보에서 게임 계정 보기'}<span aria-hidden="true">→</span></Link> : null}
-        </div>
-        <Button block type="submit" variant="primary" className="room-match-start" disabled={starting || waiting || Boolean(startBlocked) || Boolean(activeRoomId)}><IconMatch size={22}/>{starting ? '찾는 중…' : waiting ? '빠른매치 진행 중' : '빠른매치 시작'}</Button>
-      </div>
-    </form>
-  </section></HomeProfileRail></div>
+        <p className="room-form-caption"><GameBadge game={game} size={20} />{gameFullLabel(game)}</p>
+        {user ? <div className="room-match-account">
+          <Avatar userId={user.userId} name={user.nickname} size={36} />
+          <div><strong>{user.nickname}<VerificationBadge verified={gameAccount?.verified} /></strong><span>{gameAccount?.gameNickname ?? '연결된 게임 계정 없음'}</span></div>
+          <Link to="/app/me#games">내 정보</Link>
+        </div> : null}
+        <form id={formId} className="room-form-fields" noValidate onSubmit={event => { event.preventDefault(); if (!starting && !waiting) void startMatching(); }}>
+          <fieldset className="room-form-fieldset" disabled={starting}>
+            <SelfIntroductionFields binaryVoice compact singleRole showPurpose hidePostFields voiceLabel="마이크" game={game} value={value} onChange={update} />
+          </fieldset>
+          <p className="room-form-notice">조건에 맞는 방에 참가하거나 함께할 팀원을 찾아드려요.</p>
+          <div className="room-match-message" aria-live="polite">
+            {createError ? <p className="room-form-error" role="alert">{createError}</p> : startBlocked ? <p className="room-form-note">{startBlocked}</p> : null}
+            {!createError && accountFix ? <Link className="room-create-fix" to="/app/me#games">{accountFix === 'MISSING' ? '게임 계정 연결하기' : '내 정보에서 게임 계정 보기'}<span aria-hidden="true">→</span></Link> : null}
+          </div>
+        </form>
       </>}
     </Modal> : null}
     {createSlot && !activeRoomId ? createPortal(<>

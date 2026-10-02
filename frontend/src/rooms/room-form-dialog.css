@@ -1,0 +1,55 @@
+/* 방 만들기 · 빠른매치: 참가/나가기와 같은 모달 틀 안의 공통 입력 컨트롤. */
+.modal.room-action-dialog.room-form-dialog { width:min(520px,100%); }
+.room-form-dialog .room-form-caption { display:flex; align-items:center; gap:7px; margin:0 0 18px; color:#b8b2c6; font-size:13px; line-height:20px; }
+.room-form-dialog .room-form-fieldset { min-width:0; margin:0; padding:0; border:0; }
+.room-form-dialog .introduction-fields { display:grid; grid-template-columns:minmax(0,1fr); gap:14px; }
+.room-form-dialog .introduction-choice legend,
+.room-form-dialog .room-setting-row>span,
+.room-form-dialog .room-form-title-field>label { color:#ddd7e8; font-size:13px; font-weight:500; line-height:20px; }
+.room-form-dialog .introduction-choice legend { margin-bottom:8px; }
+.room-form-dialog .room-setting-row { display:flex; flex-direction:column; gap:8px; min-width:0; }
+.room-form-dialog .room-form-settings-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.room-form-dialog .room-form-fields :is(.intro-mode-options,.single-role-picker,.intro-role-options,.intro-voice-options) { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); grid-template-columns:none; gap:6px; width:100%; height:auto; padding:0; border:0; background:none; }
+.room-form-dialog .room-form-fields .sliding-selector::before { content:none; }
+.room-form-dialog .room-form-fields :is(.filter-mode,.filter-role,.single-role-option) { position:relative; display:flex; flex-direction:row; align-items:center; justify-content:center; gap:6px; width:100%; min-width:0; min-height:40px; height:auto; margin:0; padding:8px 7px; border:1px solid #ffffff26; border-radius:999px; background:#ffffff04; color:#b8b2c6; font:inherit; font-size:13px; line-height:20px; cursor:pointer; transition:background .15s,border-color .15s,color .15s; }
+.room-form-dialog .room-form-fields :is(.filter-mode,.filter-role,.single-role-option)>svg { flex:none; width:18px; height:18px; }
+.room-form-dialog .room-form-fields :is(.filter-mode,.filter-role,.single-role-option)>span { font-size:inherit; white-space:nowrap; }
+.room-form-dialog .room-form-fields :is(.intro-role-options,.single-role-picker:not(.purpose-picker))>:is(.filter-role,.single-role-option) { flex-direction:row; gap:5px; padding:8px 4px; border-radius:999px; }
+.room-form-dialog .room-form-fields :is(.intro-role-options,.single-role-picker:not(.purpose-picker)) svg { width:21px; height:21px; }
+.room-form-dialog .room-form-fields .room-setting-row .intro-voice-options>.filter-mode { flex-direction:row; min-height:40px; height:auto; gap:6px; padding:8px 7px; font-size:13px; line-height:20px; }
+.room-form-dialog .room-form-fields .single-role-option>input { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
+.room-form-dialog .room-form-fields :is(button,.single-role-option):hover:not(:disabled):not(:has(input:disabled)) { border-color:#ffffff40; background:#ffffff0c; color:var(--text); }
+.room-form-dialog .room-form-fields :is(button[aria-pressed=true],.single-role-option:has(input:checked)) { border-color:#5fe3a861; background:#5fe3a817; color:#bcebd3; }
+.room-form-dialog .room-form-fields :is(button[aria-pressed=true],.single-role-option:has(input:checked)):hover:not(:disabled):not(:has(input:disabled)) { border-color:#5fe3a889; background:#5fe3a824; color:#d7f5e6; }
+.room-form-dialog .room-form-fields :is(button:disabled,.single-role-option:has(input:disabled)) { opacity:.4; cursor:default; }
+.room-form-dialog .room-form-fields :is(button:focus-visible,.single-role-option:has(input:focus-visible)) { outline:2px solid #a1d9bf; outline-offset:2px; }
+.room-form-dialog .room-form-fields .mode-picker { display:grid; gap:10px; }
+.room-form-dialog .room-form-fields .mode-sub-row { display:flex; align-items:center; gap:10px; }
+.room-form-dialog .room-form-fields .mode-sub-label { color:#9e97ad; font-size:12px; }
+.room-form-dialog .room-form-fields .mode-sub-options { display:flex; flex-wrap:wrap; gap:6px; width:auto; height:auto; padding:0; border:0; background:none; }
+.room-form-dialog .room-form-fields .mode-sub-options>button { display:flex; align-items:center; justify-content:center; min-width:34px; height:34px; padding:0 10px; border:1px solid #ffffff26; border-radius:999px; background:#ffffff04; color:#b8b2c6; font:inherit; font-size:13px; line-height:20px; cursor:pointer; }
+.room-form-dialog .room-form-fields .mode-sub-options>button[aria-pressed=true] { border-color:#5fe3a861; background:#5fe3a817; color:#bcebd3; opacity:1; }
+.room-form-dialog .room-form-title-field { position:relative; }
+.room-form-dialog .room-form-title-field>label { display:grid; gap:8px; }
+.room-form-dialog .room-form-title-field input { width:100%; min-width:0; min-height:42px; padding:10px 12px; border:1px solid #ffffff26; border-radius:10px; background:#ffffff04; color:var(--text); font:inherit; font-size:13px; line-height:20px; }
+.room-form-dialog .room-form-title-field input::placeholder { color:#8f879f; opacity:1; }
+.room-form-dialog .room-form-title-field input:focus { outline:2px solid #a1d9bf; outline-offset:2px; }
+.room-form-dialog .room-form-title-field input[aria-invalid=true] { border-color:var(--danger); }
+.room-form-dialog .room-form-note { margin:8px 0 0; color:#a49db3; font-size:12px; line-height:18px; overflow-wrap:anywhere; }
+.room-form-dialog .room-form-counter { position:absolute; top:0; right:0; margin:0; text-align:right; font-variant-numeric:tabular-nums; }
+.room-form-dialog .room-form-auto-join-note { margin-top:-6px; }
+.room-form-dialog .room-form-notice { margin:18px 0 0; padding:11px 12px; border:1px solid #ffffff12; border-radius:10px; background:#ffffff04; color:#b8b2c6; font-size:12px; line-height:19px; word-break:keep-all; overflow-wrap:anywhere; }
+.room-form-dialog .room-form-missing { margin-top:10px; }
+.room-form-dialog .room-form-missing:empty { display:none; }
+.room-form-dialog .room-form-error { margin:10px 0 0; color:var(--danger); font-size:13px; line-height:20px; }
+.room-form-dialog .modal-foot { justify-content:flex-end; }
+.room-form-dialog .modal-foot>.btn-primary { min-width:132px; border-color:#5fe3a861; background:#5fe3a817; color:#bcebd3; }
+.room-form-dialog .modal-foot>.btn-primary:hover:not(:disabled) { border-color:#5fe3a889; background:#5fe3a824; color:#d7f5e6; }
+.room-form-dialog .modal-foot>.btn:focus-visible { outline:2px solid #a1d9bf; outline-offset:2px; }
+.room-form-dialog .modal-foot>.btn>svg { flex:none; }
+@media(max-width:480px) {
+  .room-form-dialog .room-form-fields .intro-mode-options>.filter-mode { flex-direction:column; gap:3px; padding:7px 2px; border-radius:14px; }
+  .room-form-dialog .room-form-settings-pair { gap:10px; }
+  .room-form-dialog .room-form-fields :is(.intro-role-options,.single-role-picker:not(.purpose-picker))>:is(.filter-role,.single-role-option) { flex-direction:column; padding:7px 3px; border-radius:14px; }
+  .room-form-dialog .room-form-fields :is(.filter-mode,.filter-role,.single-role-option) { padding-inline:5px; }
+}
