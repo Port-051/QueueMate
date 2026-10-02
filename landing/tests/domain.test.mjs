@@ -8,7 +8,7 @@ const approved={...structuredClone(config),contentApproved:true,uiApproved:true,
 
 test('purchased domain and planned app address are exact',()=>{
   assert.equal(config.origin,'https://queue-mate.com');
-  assert.equal(config.appUrl,'https://app.queue-mate.com/');
+  assert.equal(config.appUrl,'https://app.queue-mate.com/login');
 });
 test('domain settings alone never bypass an explicit indexing refusal',()=>{
   assert.equal(draft.allowIndexing,false);
