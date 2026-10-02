@@ -6,7 +6,7 @@ import { hasErrorCode } from '../api/error';
 import type { MatchPartyMember } from '../api/types';
 import { ReportModal } from '../components/ReportModal';
 import { IconLogout, IconMic, IconMicOff, IconShield } from '../components/icons';
-import { ActionMenu, Button, ConfirmDialog, EmptyState, useToast } from '../components/ui';
+import { Button, ConfirmDialog, EmptyState, useToast } from '../components/ui';
 import { roomColors } from '../domain/avatarColor';
 import { socialErrorMessage } from '../domain/socialErrors';
 import { knownPosition, toBoardRoom, toMatchPartyRoom, UNKNOWN_NICKNAME } from '../rooms/boardRoom';
@@ -49,7 +49,7 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
   const roomId = activeRoomId ?? params.roomId;
   const { user, userId } = useAuth();
   const session = useRoomSession();
-  const { messages, voiceActivity, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef, setConnectionAttempt } = usePartySession();
+  const { messages, voiceActivity, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef } = usePartySession();
   const { isFriend, requestTo, addFriend, block } = useSocial();
   const { activePartyInfo, stream } = useMatch();
   const navigate = useNavigate();
@@ -63,7 +63,7 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
   const [room, setRoom] = useState<BoardRoom | null>(null);
   const [postError, setPostError] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [dialog, setDialog] = useState<{ kind: 'leave' } | { kind: 'kick'; userId: string; nickname: string } | { kind: 'confirm' } | { kind: 'delete' } | null>(null);
+  const [dialog, setDialog] = useState<{ kind: 'leave' } | { kind: 'kick'; userId: string; nickname: string } | null>(null);
   const [reportTarget, setReportTarget] = useState<{ userId: string; nickname: string } | null>(null);
   /** 채팅의 아바타·닉네임으로 연 사람 — 그 사람이 방에서 나가면 창도 닫힌다. */
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -154,7 +154,6 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
   const canChat = connectedPeers.length > 0;
   const needsReconnect = connectedPeers.length < peerCount;
   const connectionHint = needsReconnect ? (canChat ? '일부 팀원 연결 대기 중 · 연결된 팀원에게만 전송됩니다.' : peerCount ? '팀원 연결 대기 중' : '아직 다른 사람이 없어요') : undefined;
-  const canDeletePost = Boolean(room && isHost && room.status === 'RECRUITING');
   const nicknameOf = (id: string) => seatName(members.find(m => m.id === id) ?? { nickname: null });
   // 채팅의 이름 — 서버가 아는 닉네임이 먼저다(좌석과 같은 출처 — 전에는 좌석은 번호 · 채팅은 보낸 브라우저가 실어 온 닉네임이라 어긋났다). 모르면 실어 온 이름.
   const chatName = (id: string, sent: string) => serverName(id) ?? sent;
@@ -167,14 +166,6 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
     try { await session.leave(); toast('방에서 나왔어요'); }
     catch (err) { toast(roomErrorMessage(err, '방에서 나가지 못했어요'), 'error'); }
     finally { setBusy(false); }
-  };
-
-  const deletePost = async () => {
-    if (!room) return;
-    await api.deletePost(room.postId).catch(err => { throw new Error(roomErrorMessage(err, '글을 지우지 못했어요')); });
-    toast('글을 지우고 방을 닫았어요');
-    // 서버가 방을 닫으며 ROOM_CLOSED 를 보내지만, 놓쳐도 되게 나가기(늘 204)로 내 방을 정리한다.
-    await session.leave();
   };
 
   const toggleMute = () => {
@@ -224,16 +215,10 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
     <section className="page party-page">
       <div className="party-room-header">
         <div className="party-room-heading">
-          <h1>{room ? room.title : postId !== null ? `게시판 방 #${roomId}` : '빠른매치 파티'}</h1>
+          <h1 title={room?.title}>{room ? room.title : postId !== null ? `게시판 방 #${roomId}` : '빠른매치 파티'}</h1>
           {seatRoom ? <p className="room-row-meta" aria-label="방 조건"><RoomConditions room={seatRoom} /></p> : null}
         </div>
-        <div className="party-room-controls">
-          {needsReconnect && peerCount || canDeletePost || room && isHost && !confirmed ? <ActionMenu label="방 메뉴">
-            {needsReconnect && peerCount ? <button type="button" title={connectionHint} onClick={() => setConnectionAttempt(n => n + 1)}>연결 다시 시도</button> : null}
-            {room && isHost && !confirmed ? <button type="button" disabled={busy || session.members.length < 2} onClick={() => setDialog({ kind: 'confirm' })}>파티 확정</button> : null}
-            {canDeletePost ? <button type="button" disabled={busy} onClick={() => setDialog({ kind: 'delete' })}>글 지우기</button> : null}
-          </ActionMenu> : null}
-        </div>
+
       </div>
 
       {room && !confirmed ? <RecruitmentNotice room={room} isHost={isHost} onChanged={loadPost} onConfirm={session.confirm} /> : null}
@@ -261,10 +246,6 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
       {/* 강퇴 뒤 10분 동안 그 방에 다시 못 들어온다(P-32 — 게시판 방만. 자동 매칭 방은 서버가 막지 않아 그 말을 하지 않는다 — 미정). 확정된 게시판 방은 애초에 새 입장이 없다. */}
       {dialog?.kind === 'kick' ? <ConfirmDialog title={`${dialog.nickname}님을 내보낼까요?`} confirmLabel="내보내기" onClose={() => setDialog(null)} onConfirm={() => session.kick(dialog.userId)}
         description={postId === null ? '내보낸 사람은 이 방에서 나가게 돼요.' : confirmed ? '확정된 방이라 내보낸 사람은 다시 들어올 수 없어요.' : '내보낸 사람은 10분 동안 이 방에 다시 들어올 수 없어요.'} /> : null}
-      {dialog?.kind === 'confirm' ? <ConfirmDialog title="이 멤버로 파티를 확정할까요?" confirmLabel="확정하기" onClose={() => setDialog(null)} onConfirm={async () => { await session.confirm(); toast('파티를 확정했어요', 'ok'); }}
-        description={<>지금 방에 있는 {session.members.length}명 전원이 파티원이 돼요. <b>확정은 되돌릴 수 없어요</b> — 그 뒤로는 새 사람이 들어올 수 없고, 빈자리가 생겨도 다시 모집할 수 없어요.</>} /> : null}
-      {dialog?.kind === 'delete' ? <ConfirmDialog title="글을 지우고 방을 닫을까요?" confirmLabel="지우기" onClose={() => setDialog(null)} onConfirm={deletePost}
-        description="글은 만료로 바뀌어 게시판에 남고, 방은 닫혀 안에 있던 사람이 모두 나가게 돼요." /> : null}
       {profileMember && seatRoom ? <RoomMemberProfile room={seatRoom} member={profileMember} color={faceColors.get(profileMember.id)} onClose={() => setProfileId(null)} /> : null}
       {reportTarget ? <ReportModal targetUserId={reportTarget.userId} targetNickname={nicknameOf(reportTarget.userId)} contextId={postId !== null ? roomId : null} onClose={() => setReportTarget(null)} /> : null}
     </section>

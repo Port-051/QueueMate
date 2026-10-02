@@ -18,7 +18,7 @@ test('멘토 UI — 남은 포지션 · 3인 자동 확정 · 확정 후 카드�
   const host = await crew.appPage('a', `/app/party/${room.postId}`);
   const boardBox = await host.locator('.board-split-board').boundingBox();
   expect(boardBox!.width).toBeGreaterThan(600);
-  await expect(host.getByRole('region', { name: '방', exact: true }).getByText('👋 인사를 건네보세요!', { exact: true })).toBeVisible();
+  await expect(host.getByRole('region', { name: '방', exact: true }).getByText('인사를 건네보세요!', { exact: true })).toBeVisible();
   expect((await enter(c, String(room.postId), 'JUNGLE')).status).toBe(201);
   await expect.poll(async () => (await a.get<Post>(`/posts/${room.postId}`)).body.status).toBe('CONFIRMED');
   await expect(card).toHaveAttribute('data-status', 'CONFIRMED');

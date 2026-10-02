@@ -46,7 +46,7 @@ export function RoomConversationChat({ messages, canSend, connectionHint, nameOf
         stickToBottom.current = log.current.scrollHeight - log.current.scrollTop - log.current.clientHeight < 40;
         if (stickToBottom.current) setUnread(false);
       }}>
-        {!messages.length ? <div className="room-conversation-no-messages"><p>👋 인사를 건네보세요!</p></div> : messages.map((message, index) => {
+        {!messages.length ? <div className="room-conversation-no-messages"><span className="room-conversation-wave" role="img" aria-label="손 흔들기">👋</span><p>인사를 건네보세요!</p></div> : messages.map((message, index) => {
           const previous = messages[index - 1];
           const day = new Date(message.at);
           const startsDay = !previous || new Date(previous.at).toDateString() !== day.toDateString();
