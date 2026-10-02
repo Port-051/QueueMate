@@ -1,0 +1,10 @@
+# 이미지 안에서 새로 빌드한다 — 로컬 산출물 · IDE 파일은 보내지 않는다(OneDrive 위라 컨텍스트 복사가 느리다)
+build/
+.gradle/
+out/
+.idea/
+**/*.log
+# 개발용 JWT 키 — 개인 키가 들어 있다. 이미지에 들어가면 안 된다
+.dev-keys/
+# bootJar 에 테스트 소스는 필요 없다
+src/test/
