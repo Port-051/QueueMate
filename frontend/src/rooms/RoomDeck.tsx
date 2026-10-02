@@ -315,12 +315,12 @@ function RoomSeat({ room, member, color, selfId, onMember }: { room: BoardRoom; 
 }
 
 /** 방 목록과 참여한 방 패널이 같은 모드·마이크 표시를 쓴다. */
-export function RoomConditions({ room }: { room: BoardRoom }) {
+export function RoomConditions({ room, compact = false }: { room: BoardRoom; compact?: boolean }) {
   const voice = roomVoice(room.voice);
   const group = modeChoice(room.game, room.modeKey)?.group ?? room.modeKey;
   return <>
     <span className="room-row-mode"><FilterModeIcon mode={group} size={16} />{modeChoiceLabel(room.game, room.modeKey, room.perspective)}</span>
-    {voice === 'REQUIRED' ? <span className="room-row-voice"><VoiceIcon preference={voice} size={16} />마이크 사용</span> : null}
+    {voice === 'REQUIRED' ? <span className="room-row-voice" aria-label={compact ? '마이크 사용' : undefined} title={compact ? '마이크 사용' : undefined}><VoiceIcon preference={voice} size={16} />{!compact ? '마이크 사용' : null}</span> : null}
   </>;
 }
 
@@ -362,7 +362,7 @@ export function RoomDeck({ room, selfId, current = false, entering = false, onEn
           <time className="room-row-time" dateTime={room.createdAt}>{relativeTime(room.createdAt)}</time>
         </div>
         <p className="room-row-meta" aria-label="방 조건">
-          <RoomConditions room={room} />
+          <RoomConditions room={room} compact />
           {positions && recruiting && remainingPositions(room).length ? <span className="room-row-wanted"><span className="room-row-wanted-label">찾는 포지션</span><RoomWantedPositions room={room} /></span> : null}
         </p>
       </div>
