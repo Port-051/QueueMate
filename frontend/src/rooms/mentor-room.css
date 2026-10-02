@@ -34,7 +34,7 @@
 .room-seat-record .win-loss-bar { min-width:0; }
 .room-seat-record .win-loss-rate { width:32px; }
 .room-seat-champions,.room-seat-champions .preferred-champions { display:flex; flex-wrap:nowrap; align-items:center; justify-content:center; gap:4px; min-width:0; }
-.room-seat-champions .preferred-champion-portrait { width:20px; height:20px; border-radius:4px; }
+.room-seat-champions .preferred-champion-portrait { width:20px; height:20px; }
 .room-seat-champions .preferred-champion-name { display:none; }
 .room-seat-no-stats { color:#b2abba; font-size:12px; white-space:nowrap; }
 .room-deck.room-row .room-seat.is-empty { display:flex; height:34px; min-height:34px; padding:0; }
