@@ -4,7 +4,7 @@
 .board-split-board { flex:1 1 0; min-width:0; }
 .room-panel {
   /* 1440px에서 게시판 약 734px · 방 약 626px. 양쪽 카드의 정보를 함께 읽을 폭을 확보한다. */
-  --room-panel-w:clamp(480px, calc((100vw - var(--sidebar-rail-w)) * .46), 680px);
+  --room-panel-w:var(--room-panel-width, clamp(480px, calc((100vw - var(--sidebar-rail-w)) * .46), 680px));
   position:sticky; top:0; flex:0 0 var(--room-panel-w); min-width:0; height:100vh; height:100dvh; overflow:hidden;
   border-left:1px solid #ffffff14; background:#0d0f19; box-shadow:-18px 0 40px #0005;
   animation:room-panel-open .32s cubic-bezier(.22,.8,.25,1);
@@ -104,3 +104,11 @@
 .party-room-call-controls button:focus-visible { outline:2px solid var(--accent-2); outline-offset:3px; }
 .party-room-call-controls button:disabled { opacity:.5; cursor:default; }
 @media(max-width:480px) { .party-room-heading { gap:8px; } .party-room-heading .room-row-meta { gap:8px; } }
+
+/* A visible, keyboard-accessible divider between the board and current room. */
+.room-panel-resizer { position:sticky; top:0; z-index:26; flex:0 0 8px; height:100vh; height:100dvh; cursor:col-resize; touch-action:none; outline:none; background:#ffffff04; }
+.room-panel-resizer::before { content:''; position:absolute; top:50%; left:2px; width:4px; height:40px; border-radius:999px; background:#ffffff32; transform:translateY(-50%); transition:background .15s; }
+.room-panel-resizer:is(:hover,:focus-visible),.board-split.is-resizing .room-panel-resizer { background:#9b78e916; }
+.room-panel-resizer:is(:hover,:focus-visible)::before,.board-split.is-resizing .room-panel-resizer::before { background:#bda4ff; }
+.board-split.is-resizing { cursor:col-resize; user-select:none; }
+@media(max-width:1099.98px) { .room-panel-resizer { display:none; } }
