@@ -72,6 +72,8 @@ export function toBoardRoom(post: PostResponse): BoardRoom {
     // 옛 서버는 칸을 안 보낸다(`undefined`) — `null` 로. 이 게임의 포지션 이름이 아니면 그리지 않는다(`FilterRoleIcon` 은 모르는 이름을 "전체" 그림으로 그린다).
     hostPosition: knownPosition(post.game, post.hostPosition),
     createdAt: post.createdAt,
+    autoConfirmAt: post.autoConfirmAt,
+    autoConfirmWarningAt: post.autoConfirmWarningAt,
     host: post.host ? toBoardMember(post.host, post.game, post.mode ?? '', post.hostPosition) : null,
     members: (post.members ?? []).map(card => toBoardMember(card, post.game, post.mode ?? '', card.host ? post.hostPosition : null)),
   };

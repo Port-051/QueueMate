@@ -15,7 +15,7 @@ async function recentOf(user: QmUser, other: QmUser): Promise<RecentPlayer | und
  * 시나리오 4 — 방장 확정 → 파티 → 닫힘 → 최근 함께한 사람(D-21 · P-25).
  * 확정은 방장만 · 2명 이상 · 되돌릴 수 없다. 확정 뒤 새 입장은 막히고 글은 `CONFIRMED` 로 고정된다.
  * 확정한 방은 방장이 나가도 이어지고(D-23 승계), 마지막 사람이 나가 방이 없어지면 파티가 닫히며 그 순간의 파티원끼리 서로를 `recent_players` 에 적는다.
- * 포지션(P-44 ⑨) — 모집 중에는 카드에 사람마다 포지션이 실리고(방장 미드 · B 가 고른 탑), **확정 뒤 카드의 포지션은 전부 `null`** 이다.
+ * 포지션(P-44 ⑨) — 모집 중에는 카드에 사람마다 포지션이 실리고(방장 미드 · B 가 고른 탑), **확정 뒤에도 그 순간의 포지션을 보존**한다.
  */
 test('시나리오 4 — 확정 · 파티 · 닫힘 · 최근 함께한 사람', async ({ crew }) => {
   const a = await crew.user('a', { sse: true });
@@ -58,15 +58,15 @@ test('시나리오 4 — 확정 · 파티 · 닫힘 · 최근 함께한 사람',
     expect(again.status, show(again)).toBe(200);
   });
 
-  await test.step('글은 CONFIRMED · 카드의 포지션은 전부 null · C 의 입장은 409', async () => {
+  await test.step('글은 CONFIRMED · 카드의 포지션을 보존 · C 의 입장은 409', async () => {
     const r = await a.get<Post>(`/posts/${post.postId}`);
     expect(r.body.status).toBe('CONFIRMED');
     // 확정됐지만 방에 아직 사람이 있다 — 파티는 ACTIVE 라 끝나지 않았다(P-46)
     expect(r.body.closed).toBe(false);
-    // 확정된 글의 카드(파티원 전원 — P-40)는 포지션을 싣지 않는다(P-44 ⑨ — 확정 · 만료 = null). 방장 카드도 같다
+    // 확정 당시의 파티원과 포지션은 파티 기록으로 보존한다(P-52).
     expect(r.body.members.map((m) => m.userId).sort()).toEqual([a.id, b.id].sort());
-    expect(r.body.members.map((m) => m.position)).toEqual([null, null]);
-    expect(r.body.host?.position ?? null).toBeNull();
+    expect(Object.fromEntries(r.body.members.map((m) => [m.userId, m.position]))).toEqual({ [a.id]: 'MID', [b.id]: 'TOP' });
+    expect(r.body.host?.position).toBe('MID');
     // 남은 포지션(정글)을 줘도 글 검사(PostEntryGate)가 먼저라 포지션 때문에 막힌 것이 아니다
     const entered = await enter(c, roomId, 'JUNGLE');
     expect(entered.status, show(entered)).toBe(409);

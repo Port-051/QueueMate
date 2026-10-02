@@ -1,4 +1,4 @@
-const SYMBOL = `${import.meta.env.BASE_URL}brand/queuemate-symbol.svg`;
+const SYMBOL = `${import.meta.env.BASE_URL}brand/queuemate-mark.svg`;
 const WORDMARK = `${import.meta.env.BASE_URL}brand/queuemate-wordmark.svg`;
 
 export function LogoMark({ size = 34, className = '' }: { size?: number; className?: string }) {

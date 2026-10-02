@@ -1,4 +1,5 @@
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { MessagesPage } from './pages/MessagesPage';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { RequireAuth } from './components/RequireAuth';
 import { AuthPage } from './pages/AuthPage';
@@ -23,17 +24,6 @@ import { useRoomSession } from './state/RoomSessionContext';
 function MyRoomRedirect() {
   const { roomId } = useRoomSession();
   return <Navigate to={roomId ? `/app/party/${roomId}` : '/app/home'} replace />;
-}
-
-/**
- * 옛 메시지 화면 `/app/messages` → 친구 화면(2026-10-02 소유자 결정 — 메시지 · 알림을 걷고 "친구" 하나로). 옛 친구 관리 패널의 `?manage=` 탭은 `?tab=` 으로 옮긴다
- * (`friends` 는 쿼리 없음 · 대화 상대 `?user=` 는 버린다 — 대화 화면이 없다).
- */
-function LegacyMessagesRedirect() {
-  const { search } = useLocation();
-  const manage = new URLSearchParams(search).get('manage');
-  const tab = manage === 'received' || manage === 'sent' || manage === 'blocks' || manage === 'recent' ? manage : null;
-  return <Navigate to={tab ? `/app/friends?tab=${tab}` : '/app/friends'} replace />;
 }
 
 export function App() {
@@ -70,10 +60,9 @@ export function App() {
         <Route path="reservations" element={<ReservationsPage />} />
         <Route path="reservations/new" element={<ReservationNewPage />} />
         <Route path="party" element={<MyRoomRedirect />} />
-        {/* 친구 · 받은/보낸 요청 · 차단 · 최근 함께한 사람은 한 페이지(`?tab=`)다 — 2026-10-02 소유자 결정으로 왼쪽 레일의 "메시지"(DM) · "알림" 을 걷고 "친구" 하나로 합쳤다.
-            옛 메시지 화면 · 옛 최근 함께한 사람 주소는 그 탭으로 돌린다. */}
+        {/* 친구 관리와 서버에 보관하는 개인 메시지는 별도 화면이다(P-53). */}
         <Route path="friends" element={<FriendsPage />} />
-        <Route path="messages" element={<LegacyMessagesRedirect />} />
+        <Route path="messages/:userId?" element={<MessagesPage />} />
         <Route path="recent" element={<Navigate to="/app/friends?tab=recent" replace />} />
         <Route path="me" element={<MyInfoPage />} />
         <Route path="settings" element={<Navigate to="/app/me#settings" replace />} />

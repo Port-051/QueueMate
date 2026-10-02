@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+import { useAuth } from '../state/AuthContext';
 import { Modal } from '../components/ui';
 import { PreferredChampions } from '../components/IntroductionVisuals';
 import { recentRecord } from '../components/RecentResults';
@@ -17,6 +19,7 @@ import './room-member-profile.css';
 export function RoomMemberProfile({ room, member, color: roomColor, onClose }: {
   room: BoardRoom; member: BoardMember; color?: number; onClose: () => void;
 }) {
+  const { userId } = useAuth();
   const stats = member.profile?.stats;
   const recentShown = room.game === 'LOL' && recentRecord(stats) !== null;
   // 얼굴 색은 눌렀던 좌석과 같다 — 넘겨받은 방 화면의 색, 없으면 그 카드의 방 색(`boardRoomColors`).
@@ -32,5 +35,6 @@ export function RoomMemberProfile({ room, member, color: roomColor, onClose }: {
     <p className="room-profile-bio">{member.profile
       ? `${member.profile.gameNickname}${member.profile.verified ? ' · 인증됨' : ''}${stats ? recentShown ? '' : ` · ${gamesText(room.game, stats)}` : ' · 전적 정보 없음'}`
       : '이 게임의 계정을 아직 연결하지 않았어요'}</p>
+    {member.id !== userId ? <Link className="btn btn-primary" to={`/app/messages/${member.id}`} onClick={onClose}>메시지 보내기</Link> : null}
   </Modal>;
 }

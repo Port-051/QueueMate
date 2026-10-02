@@ -169,7 +169,7 @@ test('시나리오 10 — 두 사람이 화면으로 같은 방 · 마이크 켜
     await expect(seats).toBeVisible();
     await expect(seats.getByText('빈자리')).toHaveCount(3);
     // 좌석 이름에 B 가 고른 포지션(탑)이 실린다(2026-10-01 — `seatSummary`: 닉네임 · 포지션 · …).
-    await expect(seats.getByRole('button', { name: new RegExp(`^${b.nickname} · 탑 · .*음성 연결됨 — 메뉴$`) })).toBeVisible({ timeout: 20_000 });
+    await expect(seats.getByRole('button', { name: new RegExp(`^${b.nickname} · 탑 · .*(음성 연결됨|마이크 켜짐|말하는 중) — 메뉴$`) })).toBeVisible({ timeout: 20_000 });
     await expect(seats.getByRole('button', { name: new RegExp(`^${a.nickname} · `) })).toHaveCount(0);
   });
 
@@ -223,10 +223,15 @@ test('시나리오 10 — 두 사람이 화면으로 같은 방 · 마이크 켜
 
   for (const [speaker, listener] of [[sideA, sideB], [sideB, sideA]] as const) {
     await test.step(`${speaker.name} 음소거 → ${listener.name} 에게 소리가 멈춘다 · 음소거 해제 → 다시 흐른다`, async () => {
+      const speakerName = speaker.name === 'A' ? a.nickname : b.nickname;
+      const remoteSeat = listener.page.getByRole('region', { name: '방', exact: true }).getByRole('button', { name: new RegExp(`^${speakerName} · `) });
+      await expect(remoteSeat).toHaveAttribute('aria-label', /말하는 중/);
       const on = await energyGain(listener);
       await speaker.page.getByRole('button', { name: '음소거', exact: true }).click();
       await expect(speaker.page.getByRole('button', { name: '음소거 해제' })).toBeVisible();
       await listener.page.waitForTimeout(1_000);
+      await expect(remoteSeat).toHaveAttribute('aria-label', /음소거/);
+      await expect(remoteSeat.locator('..')).not.toHaveClass(/is-speaking/);
       const muted = await energyGain(listener);
       await speaker.page.getByRole('button', { name: '음소거 해제' }).click();
       await expect(speaker.page.getByRole('button', { name: '음소거', exact: true })).toBeVisible();

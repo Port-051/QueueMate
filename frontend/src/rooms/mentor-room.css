@@ -1,0 +1,54 @@
+/* 7ee7177의 구성원 카드: 입장 판단에 필요한 정보를 추가 동작 없이 읽는다. */
+.room-deck.room-row .room-seat-row { flex-direction:column; align-items:stretch; }
+.room-deck.room-row .room-seats,
+.room-voice-seats.room-seats { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); align-items:stretch; width:100%; gap:10px; }
+.room-deck.room-row .room-seat,
+.room-voice-seats .room-seat { width:auto; min-width:0; flex:none; container-type:normal; }
+.room-deck.room-row .room-seat-button,
+.room-voice-seats .room-seat-button { flex-direction:row; align-items:flex-start; justify-content:flex-start; gap:10px; height:100%; min-height:112px; padding:14px 12px; text-align:left; border-radius:14px; }
+.room-deck.room-row .room-seat-text,
+.room-voice-seats .room-seat-text { display:flex; flex:1; flex-direction:column; align-items:stretch; gap:8px; min-width:0; width:auto; }
+.room-deck.room-row .room-seat-name,
+.room-voice-seats .room-seat-name { display:flex; flex-wrap:wrap; justify-content:flex-start; gap:4px 6px; width:100%; font-size:13px; }
+.room-deck.room-row .room-seat-name strong,
+.room-voice-seats .room-seat-name strong { max-width:100%; overflow-wrap:anywhere; white-space:normal; }
+.room-deck.room-row .room-seat-position,
+.room-voice-seats .room-seat-position { display:inline-flex; gap:3px; align-items:center; color:#ddd1f7; font-size:12px; }
+.room-deck.room-row .room-seat-position-icon,
+.room-voice-seats .room-seat-position-icon,
+.room-deck.room-row .room-seat-tier-badge,
+.room-voice-seats .room-seat-tier-badge { display:none; }
+.room-deck.room-row .room-seat-line,
+.room-voice-seats .room-seat-line { display:flex; flex-wrap:wrap; gap:6px 12px; color:#c3bed0; white-space:normal; }
+.room-deck.room-row .room-seat-numbers,
+.room-voice-seats .room-seat-numbers { display:flex; flex-wrap:wrap; gap:10px; }
+.room-seat-numbers>span { display:inline-flex; gap:4px; align-items:baseline; }
+.room-seat-numbers>span::before { content:none; }
+.room-seat-numbers small { font-size:11px; color:#c3bed0; }
+.room-seat-numbers b { color:#f0eafa; font-size:12px; }
+.room-seat-champions { display:flex; flex-wrap:wrap; gap:5px 8px; }
+.room-seat-champions>span { display:inline-flex; align-items:center; gap:4px; font-size:11px; color:#d9d2e8; }
+.room-seat-champions img { flex:none; border-radius:6px; object-fit:cover; background:#242335; }
+.room-seat-no-stats { color:#b2abba; font-size:11px; }
+.room-deck.room-row .room-seat.is-empty { display:flex; min-height:72px; }
+.room-deck.room-row .room-seat-hole.room-seat-join { width:100%; height:100%; min-height:72px; border-radius:14px; padding:12px; gap:8px; color:#c7b9e0; }
+.room-deck.room-row .room-seat-join-full { display:inline; }
+.room-deck.room-row .room-seat-join-short { display:none; }
+.room-deck.room-row .room-seats-tail { display:flex; flex-direction:row; justify-content:flex-end; align-items:center; gap:12px; width:100%; }
+.room-deck.room-row .room-row-wanted-label { display:inline; color:#c3bed0; }
+.room-deck.room-row .room-row-meta .room-role-icons b { display:inline; }
+.room-voice-seats-row { flex-direction:column; align-items:stretch; }
+.room-voice-seats-row>.room-seat-count { align-self:flex-end; }
+.room-voice-seats .room-seat.is-empty { min-height:40px; }
+.room-voice-seats .room-seat-hole { width:100%; height:40px; border-radius:12px; }
+.room-voice-seats .room-voice-mark { position:absolute; right:6px; top:6px; width:20px; height:20px; margin:0; }
+.room-voice-seats .room-seat-button { padding-right:26px; }
+.room-voice-seat.is-speaking .room-seat-button { border-color:#64e5ad; box-shadow:0 0 0 2px #64e5ad44; }
+.room-voice-mark[data-voice=speaking] { color:#64e5ad; background:#173a2e; }
+.recruitment-hint { margin:0 0 16px; font-size:12px; line-height:1.6; color:#c3bed0; }
+.recruitment-notice { margin-bottom:18px; padding:16px; border:1px solid #d9b26a; border-radius:14px; background:#332b20; color:#fff0cf; }
+.recruitment-notice p { margin:8px 0 12px; font-size:13px; line-height:1.6; }
+.recruitment-notice-actions { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; font-size:13px; }
+@media (max-width:480px) {
+  .room-deck.room-row .room-seats,.room-voice-seats.room-seats { grid-template-columns:minmax(0,1fr); }
+}

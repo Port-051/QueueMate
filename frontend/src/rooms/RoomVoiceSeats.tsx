@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Avatar } from '../components/ui';
 import { IconMic, IconMicOff } from '../components/icons';
-import type { VoiceStatus } from '../webrtc/types';
+import type { VoiceStatus, VoiceActivity } from '../webrtc/types';
 import { placeSeatPopover, RoomHostCrown, RoomSeatBody, SeatPopover, seatPopoverShown, seatSummary } from './RoomDeck';
 import type { BoardMember, BoardRoom } from './types';
 // 좌석 · 빈 원 · 작은 창 · n/정원의 모양은 게시판의 것 — 그 CSS 를 먼저 싣고 방 화면에만 있는 것을 뒤에 싣는다.
 import './room-board.css';
 import './room-voice-seats.css';
+import './mentor-room.css';
 
 /**
  * 방 화면의 한 사람 — 게시판 방이면 글의 카드, 빠른매치 방이면 팀원 카드(2026-10-01 — platform P-47 · `card` — 티어 · 전적 · 작은 창).
@@ -41,12 +42,15 @@ export interface SeatMenuAction {
 
 /**
  * 좌석의 음성 상태 — 오늘의 음성 칩이 보이던 것 그대로다. 나는 마이크(켜짐 · 음소거 · 꺼짐), 다른 사람은 **브라우저끼리 이어졌는가**(`connectedPeers` — DataChannel 이 열렸다)다.
- * 상대의 마이크가 켜졌는지 · 말하고 있는지는 알 길이 없다(WebRTC 클라이언트가 소리 크기를 재지 않는다) — 그래서 "말하는 중" 표시는 없다.
+ * 상대의 마이크·음소거 상태는 DataChannel로 받고, 말하는 중 표시는 WebRTC 음량 통계로 계산한다(P-52).
  */
-type SeatVoice = 'on' | 'muted' | 'off' | 'linked' | 'waiting';
-const SEAT_VOICE_LABEL: Record<SeatVoice, string> = { on: '마이크 켜짐', muted: '음소거 중', off: '마이크 꺼짐', linked: '음성 연결됨', waiting: '연결 대기 중' };
+type SeatVoice = 'speaking' | 'on' | 'muted' | 'off' | 'linked' | 'waiting';
+const SEAT_VOICE_LABEL: Record<SeatVoice, string> = { speaking: '말하는 중', on: '마이크 켜짐', muted: '음소거 중', off: '마이크 꺼짐', linked: '음성 연결됨', waiting: '연결 대기 중' };
 
-function seatVoice(id: string, selfId: string | null, voice: VoiceStatus, muted: boolean, connectedPeers: string[]): SeatVoice {
+function seatVoice(id: string, selfId: string | null, voice: VoiceStatus, muted: boolean, connectedPeers: string[], activity?: VoiceActivity): SeatVoice {
+  if (activity?.speaking) return 'speaking';
+  if (activity?.muted) return 'muted';
+  if (activity && !activity.enabled && connectedPeers.includes(id)) return 'off';
   if (id === selfId) return voice === 'connected' ? muted ? 'muted' : 'on' : 'off';
   return connectedPeers.includes(id) ? 'linked' : 'waiting';
 }
@@ -96,14 +100,14 @@ function SeatMenu({ nickname, note, actions, onClose }: { nickname: string; note
  *   카드가 없는 사람(카드를 아직 못 받았다 · 빠른매치 방인데 게임을 모른다)은 얼굴 · 닉네임 · 음성만이다. 빈 자리는 게시판과 같은 글자 없는 점선 원이다(방 안에서는 누를 것이 없다).
  *   **빠른매치 방은 2026-10-01 부터 팀원 카드(platform P-47)를 편 방(`room` — `boardRoom.ts` `toMatchPartyRoom`)이 와서 게시판 방과 같은 좌석 · 작은 창이다** — 그 전에는 사용자 번호뿐이었다.
  * - **방장 왕관은 방의 방장**(`hostId` — 확정한 방은 승계로 바뀐다, D-23). **포지션은 사람마다 방 안 사람 목록의 값**(`position` — 방장은 글의 방장 포지션 · 멤버는 참가할 때 고른 것, 2026-10-01)이고
- *   확정된 방에서는 붙이지 않는다(방 화면이 `null` 로 넣는다 — 그래서 승계로 바뀐 방장에게 글쓴이의 포지션이 붙는 일도 없다. 그 전에는 글쓴이가 지금 방장일 때만 글의 `hostPosition` 을 붙였다).
+ *   확정 뒤에도 그 사람의 포지션을 유지한다.
  *   빠른매치 방은 팀원 카드의 고른 포지션이고 늘 붙는다(`room.quickMatch`).
  * - 마우스를 올리면 게시판과 같은 작은 창(`SeatPopover` — 카드가 있을 때만)이고 페이지 끝 너머면 위로 연다(`placeSeatPopover` — 흔들림, `CLAUDE.md` §7).
  *   **VALORANT 방은 작은 창이 없다**(2026-09-30 소유자 결정 — 게시판 좌석과 같은 규칙 `seatPopoverShown`). 누르면 뜨는 메뉴는 VALORANT 에서도 그대로다.
  * - **좌석을 누르면 작은 메뉴**(`SeatMenu` — 방 화면이 준 `menuFor`). **내 좌석은 누를 수 없다**(나에게 할 일이 없다). 메뉴가 열린 좌석은 작은 창을 숨긴다.
  * - **얼굴 색은 방 안에서 모두 다르다**(2026-09-30 소유자 — `colors`). 게시판 방이면 왼쪽 게시판 카드의 좌석과 같은 색이다(`rooms/roomColors.ts`).
  */
-export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity, voice, muted, connectedPeers, menuFor }: {
+export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity, voice, muted, connectedPeers, voiceActivity, menuFor }: {
   room: BoardRoom | null;
   /** 얼굴 색(사람 번호 → 팔레트 번호) — 방 화면이 구한 그 방의 색이다(한 방은 모두 다른 색 · 채팅의 얼굴과 같은 표 — `PartyRoomPage`). */
   colors: Map<string, number>;
@@ -114,6 +118,7 @@ export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity
   voice: VoiceStatus;
   muted: boolean;
   connectedPeers: string[];
+  voiceActivity: Record<string, VoiceActivity>;
   menuFor: (member: VoiceSeatMember) => { note?: string; actions: SeatMenuAction[] };
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -142,8 +147,8 @@ export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity
       {members.map((member, index) => {
         const self = member.id === selfId;
         const host = member.id === hostId;
-        const state = seatVoice(member.id, selfId, voice, muted, connectedPeers);
-        // 방장 왕관은 방의 방장(확정한 방은 방장이 넘어갈 수 있다 — D-23), 포지션은 방 안 사람 목록의 그 사람 값(확정이면 방 화면이 비워 넣는다).
+        const state = seatVoice(member.id, selfId, voice, muted, connectedPeers, voiceActivity[member.id]);
+        // 방장 왕관은 방의 방장(확정한 방은 방장이 넘어갈 수 있다 — D-23), 포지션은 방 안 사람 목록의 그 사람 값이다.
         const card = member.card ? { ...member.card, host, position: member.position } : null;
         const seatRoom = room && card ? room : null;
         const label = [card && seatRoom ? seatSummary(seatRoom, card, selfId ?? '') : [member.nickname ?? '이름을 불러오는 중', self ? '나' : null, host ? '방장' : null].filter(Boolean).join(' · '), SEAT_VOICE_LABEL[state]].join(' · ');
@@ -161,7 +166,7 @@ export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity
             </span></span>
           </>;
         return <li key={member.id} data-seat-id={member.id} data-voice={state}
-          className={`room-seat is-filled room-voice-seat${host ? ' is-host' : ''}${self ? ' is-self' : ''}${index >= 3 ? ' pop-end' : ''}${menuOpen ? ' is-menu-open' : ''}`}
+          className={`room-seat is-filled room-voice-seat${state === 'speaking' ? ' is-speaking' : ''}${host ? ' is-host' : ''}${self ? ' is-self' : ''}${index >= 3 ? ' pop-end' : ''}${menuOpen ? ' is-menu-open' : ''}`}
           onMouseEnter={popover ? event => placeSeatPopover(event.currentTarget) : undefined} onFocus={popover ? event => placeSeatPopover(event.currentTarget) : undefined}>
           {self
             ? <div className="room-seat-button is-static" role="group" aria-label={label}>{body}<VoiceMark state={state} /></div>

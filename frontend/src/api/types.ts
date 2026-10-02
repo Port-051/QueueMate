@@ -263,6 +263,8 @@ export interface PostResponse {
   hostPosition: string | null;
   status: PostStatus;
   createdAt: string;
+  autoConfirmAt: string | null;
+  autoConfirmWarningAt: string | null;
   memberCount: number;
   capacity: number;
   full: boolean;
@@ -365,7 +367,7 @@ export type ServerEventType =
   | 'FRIEND_REQUEST_RECEIVED' | 'FRIEND_REQUEST_ACCEPTED'
   | 'ROOM_MEMBER_ENTERED' | 'ROOM_MEMBER_LEFT' | 'ROOM_CLOSED' | 'ROOM_MEMBER_KICKED' | 'ROOM_CONFIRMED'
   | 'WEBRTC_SIGNAL'
-  | 'BOARD_CHANGED';
+  | 'BOARD_CHANGED' | 'DIRECT_MESSAGE_RECEIVED';
 
 
 export interface ServerEvent<T = Record<string, unknown>> {
@@ -426,3 +428,8 @@ export type RoomSignal =
   | ({ kind: 'candidate'; candidate: RTCIceCandidateInit } & RoomSignalRouting);
 export interface SendRoomSignalRequest { toUserId: string; signal: RoomSignal; }
 export interface WebRtcSignalPayload { roomId: string; fromUserId: string; signal: RoomSignal; }
+
+export interface DirectMessage { id: number; senderId: number; recipientId: number; text: string; sentAt: string }
+export interface DirectPerson { userId: number; nickname: string }
+export interface DirectThread { user: DirectPerson; lastMessage: DirectMessage }
+export interface DirectConversation { user: DirectPerson; messages: DirectMessage[]; nextCursor: number | null }
