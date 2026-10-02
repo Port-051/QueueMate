@@ -274,7 +274,7 @@ Redis `PUBLISH qm:pubsub:push:{userId}` 에 **JSON 문자열 하나**. `notifica
 
 | 항목 | 상황 |
 |---|---|
-| **소유자의 검토 — `contracts/platform-api.md` P-1 ~ P-44** | 미정은 아니지만 확정도 아니다. **Claude 가 정한 것** — P-1 ~ P-10(남은 것: 엔드포인트 · 토큰 · `roomId` · 만석 표시 · 소셜 흐름 · 게임 프로필과 글의 칸 · 친구/신고/알림 둘) · **P-30**(자동 매칭 파티의 방 — 경로 · 응답 · 에러 코드 · `roomId = partyId` · V2 · DB 먼저 Lua 뒤 · fail-closed · 입장 표시 키가 부른 사람에게만) · 소유자 결정마다 붙은 "Claude 가 정한 세부"(P-22 의 창구 · 순서 · 자가 치유 · P-28 · P-32 ~ P-34 · P-36 · P-38 ~ P-44 의 세부 — 계약의 각 행). 목록 GET 의 옮겨 적기와 §5.1 (다)의 관계(§3.3)도 검토 항목. 소유자가 뒤집으면 코드 · 계약 · 이 파일을 같이 고친다. 계약 원본에 platform 엔드포인트가 있으면 맞춘다(P-1) |
+| **소유자의 검토 — `contracts/platform-api.md` P-1 ~ P-50** | 미정은 아니지만 확정도 아니다. **Claude 가 정한 것** — P-1 ~ P-10(남은 것: 엔드포인트 · 토큰 · `roomId` · 만석 표시 · 소셜 흐름 · 게임 프로필과 글의 칸 · 친구/신고/알림 둘) · **P-30**(자동 매칭 파티의 방 — 경로 · 응답 · 에러 코드 · `roomId = partyId` · V2 · DB 먼저 Lua 뒤 · fail-closed · 입장 표시 키가 부른 사람에게만) · 소유자 결정마다 붙은 "Claude 가 정한 세부"(P-22 의 창구 · 순서 · 자가 치유 · P-28 · P-32 ~ P-34 · P-36 · P-38 ~ P-44 · P-48 ~ P-50 의 세부 — 계약의 각 행). 목록 GET 의 옮겨 적기와 §5.1 (다)의 관계(§3.3)도 검토 항목. 소유자가 뒤집으면 코드 · 계약 · 이 파일을 같이 고친다. 계약 원본에 platform 엔드포인트가 있으면 맞춘다(P-1) |
 | **자동 매칭이 게시판 방에 합류하는 길** — 정해졌고 구현됐다(`POST /api/v1/posts/auto-join` · P-28 · D-40 · 계약 그 절) | 두 경로를 다 둔다 — 맞는 열린 방이 있으면 넣고(200 `{postId, roomId}`), 없으면 404 `NO_MATCHING_POST` → **프런트가** `matching` 을 부른다. 조건: `game` · `mode` · `voice` · PUBG `perspective` 가 같고 · 내 티어가 **방장 티어의 줄**로 본 `tier-range` 안이고 · 글의 `wantedPositions` 에 내 포지션이 있어야 한다(빈 배열은 통과 — 옛 글). `purpose` 는 보지 않는다. **찾는 포지션이 있는 글에는 요청의 포지션으로 들어가고 누가 이미 고른 방은 건너뛴다**(방 키 · 스크립트의 -6 — P-44 · Claude 세부). 가장 오래된 방부터 · 만석/확정이면 다음 · 내 글 · 음성 불일치는 SQL 에서 거른다 · `no-auto-join` 목록의 방은 건너뛴다 · 정원은 글의 `capacity` · 활성 요청 키를 만들지 않는다(한 번만 본다) · `IN_OTHER_ROOM` · `ALREADY_QUEUED` 는 409 · Redis 를 못 읽으면 503 · ~~"자동 합류 허용" 칸 없음~~ → **2026-10-02 소유자가 뒤집었다 — 글의 `allowAutoJoin`(빠른매치 입장 허용 / 금지 · 글을 쓸 때 필수)이 `false` 면 후보에서 뺀다**(후보 SQL 에서 · 직접 입장은 된다 · V10 · P-50). 본문은 `matching` 의 `CreateMatchRequestCommand` 모양(`playPurpose` 는 받되 무시) — **티어 · 포지션은 프로필이 아니라 본문의 자기신고**다 · 티어의 400 은 `matching` 과 같은 순서 · 티어가 없는 사람은 `EXIST` 모드면 400 · 포지션이 `NONE` 이거나 없으면 빈 `wantedPositions` 글만 맞는다. **남은 미정 — PUBG `PLATFORM` 값을 방장 `server` 와 대조할지.** 후보 상한 `platform.board.auto-join-scan` 50 등은 Claude 세부 |
 | **파티 모집 게시판에 남은 세부** | 확정된 방의 기능(Ready 등) · 게시판 채널 이름의 원본을 둘 곳 · 차단에 남은 경쟁 · 목록의 필터(지금은 필수 `game` 하나 · `status` 필터는 두지 않는다) · 도배 대응 · 자동 매칭 방의 강퇴 재입장. 자세한 것은 §7.1 "정할 것" |
 | **운영의 DB 롤** | 테이블 컬럼은 정해졌다(§3.5). 롤 · `GRANT` 는 없다. **남은 것** — 운영에서 붙는 DB 계정의 이름과 권한(로컬은 `postgres`), 마이그레이션 계정과 앱 계정을 나눌지 |
@@ -345,7 +345,7 @@ queuemate/
             │   ├── party/    모집 글 · 목록 · PostEntryGate · 확정 기록 · 자동 합류 · board/(채널 신호) · match/(파티 HASH 읽기 · 자동 매칭 파티의 방)
             │   └── room/     방 안의 일 — RoomService · RoomMemberService · RoomRedis · redisKeys/RoomKeys · RoomErrors (Lua 는 resources/lua/)
             ├── main/resources/application.yaml       환경변수 + 기본값 (8082 · PostgreSQL 5433 · Redis 6380 …)
-            ├── main/resources/db/migration/          V1__schema.sql + V2 ~ V8 (§3.5)
+            ├── main/resources/db/migration/          V1__schema.sql + V2 ~ V10 (§3.5)
             ├── test/java/…                           ApiTestSupport · 도메인별 테스트 · account/oauth/FakeOAuthProvider
             └── test/resources/config/application.yaml
 ```
@@ -382,14 +382,14 @@ queuemate/
 | 무엇 | 경로 |
 |---|---|
 | 시작 안내 — 상태 · 순서 · 물을 것 · 로컬 띄우기 | `START_HERE.md` |
-| 이 폴더의 계약 + P-1 ~ P-44 | `contracts/platform-api.md` |
+| 이 폴더의 계약 + P-1 ~ P-50 | `contracts/platform-api.md` |
 | **줄이기 전의 이 파일(날짜별 결정 · 옛 규칙 · 이유)** | `docs/CLAUDE_HISTORY.md` |
 | ERD(어긋나면 마이그레이션이 맞다) | <https://claude.ai/artifact/LBngVYThyCjipLUkatC6Bq> |
 | 로컬 환경 함정 | `docs/LOCAL_ENV_LESSONS.md` |
 | 매칭 엔진 규칙 | `/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/CLAUDE.md` |
 | 알림 배달 규칙 | `…/queuemate/notification/CLAUDE.md` |
 | 옛 `room` 앱의 규칙 · 계약 · 결정(참고만 — 근거로 쓰지 마라) | `git show origin/room:CLAUDE.md` · `origin/room:contracts/room-api.md` · `origin/room:docs/DECISIONS.md` |
-| 결정 로그 — #13 ~ #27 · D-1 ~ D-54(D-16 · D-19 ~ D-23 은 두 앱 전제 — D-33 이 개정. D-42 가 #18 · #21 · D-13 을 개정) | `…/queuemate/matching/docs/11_DECISION_LOG.md` |
+| 결정 로그 — #13 ~ #27 · D-1 ~ D-56(D-16 · D-19 ~ D-23 은 두 앱 전제 — D-33 이 개정. D-42 가 #18 · #21 · D-13 을 개정) | `…/queuemate/matching/docs/11_DECISION_LOG.md` |
 | 알림 계약(SQS 절은 기록) | `…/queuemate/matching/contracts/events.md` |
 | 계약 사본의 지위 · 자원 목록 | `…/queuemate/matching/contracts/README.md` · `openapi.yaml` |
 | 봉투 · 채널 접두사 원본 | `…/matching/backend/src/main/java/com/queuemate/matching/notification/PushPublisher.java` · `…/redisKeys/SharedKeys.java` |
