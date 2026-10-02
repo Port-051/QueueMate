@@ -67,7 +67,7 @@
 - **§0-1 ⑤ 메트릭** — 여전히 0건.
 - **3-2 확정 뒤 취소 가드** — D-42 로 **별도 가드를 두지 않는다.** TTL 60초 안에서만 취소가 뜻이 있고, 그 뒤엔 방 나가기가 곧 파티 나가기다.
 - **platform 쪽** — 진입점은 됐다(`POST /api/v1/match-parties/{partyId}/room`, P-30). 2026-09-28 에 둘이 정해졌다 — 말없이 사라진 자동 매칭
-  파티는 그 게임의 게시판 목록 GET 이 닫고, `playPurpose` 는 `parties` 에 담지 않는다. `PARTY_*` 알림도 2026-09-28 에 두지 않기로 했다(D-44). platform 몫의 미정은 P-30 의 소유자 검토만 남는다.
+  파티는 그 게임의 게시판 목록 GET 이 닫고, `playPurpose` 는 `parties` 에 담지 않는다. `PARTY_*` 알림도 2026-09-28 에 두지 않기로 했다(D-44). platform 몫의 미정은 P-30 의 소유자 검토와 강퇴당한 파티원의 재입장(게시판 방은 2026-09-29 P-32 로 막았지만 이 방은 아니다 — P-30 "미정")이 남는다.
 - **계약 이름 결정** — `MatchRequestView` 의 `requestId` vs `id` · `partyId` vs `proposalId` · epoch millis vs `date-time`(README #4), 조회 경로를
   `/match-requests/me` 로 옮길지(#5). 원본(queueMate 본 저장소)과 같이 정한다.
 - **untiered `join-party.lua` 의 파티 존재 가드 없음** — 찾기와 합류 사이에 마지막 멤버가 취소하면 `HSET` 이 파티를 되살린다. 확률이 극히 낮아 그대로 둔다(§3-D).
