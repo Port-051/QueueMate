@@ -9,7 +9,7 @@
   border-left:1px solid #ffffff14; background:#0d0f19; box-shadow:-18px 0 40px #0005;
   animation:room-panel-open .32s cubic-bezier(.22,.8,.25,1);
 }
-.room-panel-inner { container:room-panel / inline-size; width:var(--room-panel-w); height:100%; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#3b3f52 transparent; animation:room-panel-slide .32s cubic-bezier(.22,.8,.25,1); }
+.room-panel-inner { container:room-panel / inline-size; display:flex; flex-direction:column; width:var(--room-panel-w); height:100%; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#3b3f52 transparent; animation:room-panel-slide .32s cubic-bezier(.22,.8,.25,1); }
 .room-panel.is-closing { animation:room-panel-close .26s cubic-bezier(.4,0,.6,1) forwards; }
 @keyframes room-panel-open { from { flex-basis:0; } }
 @keyframes room-panel-close { from { flex-basis:var(--room-panel-w); } to { flex-basis:0; } }
@@ -51,11 +51,10 @@
 .room-panel .page-head h1 { font-size:22px; overflow-wrap:anywhere; }
 .room-panel .page > .page-head h1 { min-height:0; padding-right:0; }
 .room-panel .page-head.row-between { flex-wrap:wrap; align-items:flex-start; }
-.room-panel .party-page .chat-card { min-height:320px; }
+
 /* 넓은 패널(760px 이상 — 1440 이면 1020px) — 제안은 두 열(왼쪽 제안 · 오른쪽 조건), 방은 채팅을 높인다. */
 @container room-panel (min-width:760px) {
   .room-panel .proposal-page .page-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,300px); align-items:start; gap:20px; }
-  .room-panel .party-page .chat-card { min-height:420px; }
 }
 
 @media (max-width:1099.98px) {
@@ -79,19 +78,23 @@
 }
 
 /* 한 줄 좌석이 채팅을 밀어내지 않도록 방 패널의 여백과 안내를 줄인다. */
-.room-panel .page.party-page { padding:16px 18px 24px; }
+.room-panel .page.party-page { display:flex; flex-direction:column; flex:1; min-height:0; padding:16px 18px 12px; }
+.room-panel .party-page > :not(.stack) { flex-shrink:0; }
+.room-panel-bar { flex-shrink:0; }
 .room-panel .party-page .page-head { gap:10px; margin-bottom:10px; }
 .room-panel .party-page .page-head h1 { font-size:17px; line-height:1.4; }
 .room-panel .party-page .page-head .btn,.room-panel .party-page .room-voice-foot>.btn { min-height:32px; padding:5px 12px; font-size:12px; }
 .room-panel .party-page>.room-open-positions { margin:0 0 10px; font-size:11px; }
-.room-panel .party-page>.stack { gap:12px; }
+.room-panel .party-page>.stack { display:flex; flex-direction:column; flex:1; min-height:300px; gap:12px; }
+.room-panel .party-page .voice-card { flex-shrink:0; }
 .room-panel .party-page .card { padding:12px; border-radius:14px; }
 .room-panel .party-page .card-head { margin-bottom:10px; }
 .room-panel .party-page .card-head .card-title { font-size:14px; }
-.room-panel .party-page .chat-card { min-height:260px; }
-.room-panel .party-page .chat-log { min-height:140px; max-height:38dvh; gap:10px; }
+.room-panel .party-page .chat-card { flex:1; min-height:160px; }
+.room-panel .party-page .chat-card .card-head,.room-panel .party-page .chat-input { flex-shrink:0; }
+.room-panel .party-page .chat-log { flex:1; min-height:0; max-height:none; overflow-y:auto; gap:10px; }
 .room-panel .party-page .chat-input { margin-top:10px; }
 @media(max-width:480px) {
-  .room-panel .page.party-page { padding:12px 10px 20px; }
+  .room-panel .page.party-page { padding:12px 10px; }
   .room-panel .party-page .card { padding:10px; }
 }
