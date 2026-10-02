@@ -274,9 +274,9 @@ export function RoomSeatBody({ room, member, me = false, color, table = false, s
   const positionLabel = position ? <span className="room-seat-position" title={roleLabel(room.game, position)}><FilterRoleIcon game={room.game} value={position} size={15} /><b>{roleLabel(room.game, position)}</b></span> : null;
   return <>
     <span className="room-seat-face">
-      <RoomMemberAvatar member={member} size={showDetails ? 36 : 34} color={color} showHost={!showDetails} />
+      <RoomMemberAvatar member={member} size={showDetails ? 48 : 34} color={color} showHost={!showDetails} />
       {!showDetails ? <span className="room-seat-tier-badge"><FilterTierIcon game={room.game} tier={member.tier} size={16} /></span> : null}
-      {showDetails && position ? <span className="room-voice-position" role="img" aria-label={roleLabel(room.game, position)} title={roleLabel(room.game, position)}><FilterRoleIcon game={room.game} value={position} size={12} /></span> : null}
+      {showDetails && position ? <span className="room-voice-position" role="img" aria-label={roleLabel(room.game, position)} title={roleLabel(room.game, position)}><FilterRoleIcon game={room.game} value={position} size={16} /></span> : null}
     </span>
     <span className="room-seat-text">
       <span className="room-seat-name">
@@ -320,7 +320,7 @@ export function RoomConditions({ room }: { room: BoardRoom }) {
   const group = modeChoice(room.game, room.modeKey)?.group ?? room.modeKey;
   return <>
     <span className="room-row-mode"><FilterModeIcon mode={group} size={16} />{modeChoiceLabel(room.game, room.modeKey, room.perspective)}</span>
-    <span className="room-row-voice"><VoiceIcon preference={voice} size={16} />{voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용'}</span>
+    {voice === 'REQUIRED' ? <span className="room-row-voice"><VoiceIcon preference={voice} size={16} />마이크 사용</span> : null}
   </>;
 }
 
@@ -359,11 +359,11 @@ export function RoomDeck({ room, selfId, current = false, entering = false, onEn
       <div className="room-row-summary">
         <div className="room-row-head">
           <h3 ref={heading} tabIndex={-1} title={room.title}>{room.title}</h3>
-          <p className="room-row-state"><time dateTime={room.createdAt}>{relativeTime(room.createdAt)}</time></p>
         </div>
         <p className="room-row-meta" aria-label="방 조건">
           <RoomConditions room={room} />
           {positions && recruiting && remainingPositions(room).length ? <span className="room-row-wanted"><span className="room-row-wanted-label">찾는 포지션</span><RoomWantedPositions room={room} /></span> : null}
+          <time className="room-row-time" dateTime={room.createdAt}>{relativeTime(room.createdAt)}</time>
         </p>
       </div>
       <button type="button" className="room-join-button" disabled={!canJoin} title={current ? '현재 참가 중인 방이에요' : entryError ?? undefined}
@@ -374,7 +374,7 @@ export function RoomDeck({ room, selfId, current = false, entering = false, onEn
       <ul className="room-seats" aria-label={recruiting ? `자리 ${room.memberCount} / ${room.capacity}` : `파티원 ${members.length}명`}>
         {members.map(member => <RoomSeat key={member.id} room={room} member={member} color={colors.get(member.id)} selfId={selfId} onMember={onMember} />)}
         {recruiting && vacancies > 0 ? <li className="room-seat is-empty">
-          <span className="room-seat-hole room-seat-vacancy">{vacancies}명 더 모집 중!</span>
+          <span className="room-seat-hole room-seat-vacancy"><strong>{vacancies}명</strong>{' '}<span>더 모집 중!</span></span>
         </li> : null}
       </ul>
 
