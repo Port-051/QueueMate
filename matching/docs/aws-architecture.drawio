@@ -1,0 +1,424 @@
+<mxfile host="app.diagrams.net" modified="2026-08-31T00:00:00.000Z" agent="claude-code" version="24.7.17" type="device">
+  <diagram id="queuemate-aws-stage2" name="QueueMate AWS · Stage 2 (ECS Fargate)">
+    <mxGraphModel dx="2400" dy="1700" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2500" pageHeight="1700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="cClient" value="Client Environment" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6C86;dashed=0;verticalAlign=top;align=left;spacingLeft=12;fontColor=#5A6C86;fontStyle=1;fontSize=13;container=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="140" width="300" height="760" as="geometry" />
+        </mxCell>
+        <mxCell id="cExt" value="External Services" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6C86;dashed=1;dashPattern=8 6;verticalAlign=top;align=left;spacingLeft=12;fontColor=#5A6C86;fontStyle=1;fontSize=13;container=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="2180" y="140" width="280" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="cAws" value="AWS Cloud" style="sketch=0;points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_cloud_alt;strokeColor=#232F3E;fillColor=none;verticalAlign=top;align=left;spacingLeft=34;fontColor=#232F3E;dashed=0;fontSize=15;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="380" y="140" width="1780" height="1240" as="geometry" />
+        </mxCell>
+        <mxCell id="cVpc" value="VPC · ap-northeast-2" style="sketch=0;points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_vpc2;strokeColor=#8C4FFF;fillColor=none;verticalAlign=top;align=left;spacingLeft=34;fontColor=#8C4FFF;dashed=0;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="630" y="210" width="1490" height="910" as="geometry" />
+        </mxCell>
+        <mxCell id="cAz" value="가용 영역 A · ap-northeast-2a" style="fillColor=none;strokeColor=#147EBA;dashed=1;dashPattern=8 6;verticalAlign=top;fontStyle=1;fontColor=#147EBA;whiteSpace=wrap;html=1;align=left;spacingLeft=12;container=1;collapsible=0;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="790" y="270" width="1310" height="810" as="geometry" />
+        </mxCell>
+        <mxCell id="cPub" value="Public Subnet" style="sketch=0;points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_security_group;grStroke=0;strokeColor=#7AA116;fillColor=#F2F6E8;verticalAlign=top;align=left;spacingLeft=32;fontColor=#248814;dashed=0;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="820" y="330" width="200" height="700" as="geometry" />
+        </mxCell>
+        <mxCell id="cApp" value="App Private Subnet" style="sketch=0;points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_security_group;grStroke=0;strokeColor=#00A4A6;fillColor=#E6F6F7;verticalAlign=top;align=left;spacingLeft=32;fontColor=#147EBA;dashed=0;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="330" width="640" height="700" as="geometry" />
+        </mxCell>
+        <mxCell id="cData" value="Data Private Subnet" style="sketch=0;points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_security_group;grStroke=0;strokeColor=#00A4A6;fillColor=#E6F6F7;verticalAlign=top;align=left;spacingLeft=32;fontColor=#147EBA;dashed=0;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1750" y="330" width="300" height="700" as="geometry" />
+        </mxCell>
+        <mxCell id="cEcs" value="ECS Cluster · Fargate" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#ED7100;dashed=1;dashPattern=8 4;verticalAlign=top;align=left;spacingLeft=12;fontColor=#ED7100;fontStyle=1;fontSize=12;container=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="1075" y="395" width="590" height="595" as="geometry" />
+        </mxCell>
+        <mxCell id="hiRt" value="" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFF3E6;strokeColor=#ED7100;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="716" width="280" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="tTitle" value="Cloud Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=28;fontStyle=1;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="40" y="18" width="460" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="tRule" value="" style="line;strokeWidth=3;html=1;strokeColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="38" y="54" width="300" height="10" as="geometry" />
+        </mxCell>
+        <mxCell id="tSub" value="QueueMate — 게임 팀원 자동 매칭 · AWS ap-northeast-2 | ECS Fargate · SQS FIFO · SSE · WebRTC" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=12;fontColor=#5A6C86;" vertex="1" parent="1">
+          <mxGeometry x="40" y="70" width="1500" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="iCliA" value="" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#232F3D;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.client;" vertex="1" parent="1">
+          <mxGeometry x="155" y="200" width="70" height="68" as="geometry" />
+        </mxCell>
+        <mxCell id="lCliA" value="&lt;b&gt;웹 클라이언트 A&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;React SPA&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="110" y="278" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="iCliB" value="" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#232F3D;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.client;" vertex="1" parent="1">
+          <mxGeometry x="155" y="600" width="70" height="68" as="geometry" />
+        </mxCell>
+        <mxCell id="lCliB" value="&lt;b&gt;웹 클라이언트 B&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;React SPA&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="110" y="678" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="tRtcNote" value="Opus 음성 + 텍스트 DataChannel&lt;br&gt;서버 경유 없음" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=middle;strokeColor=none;fillColor=none;fontSize=10;fontColor=#8C4FFF;" vertex="1" parent="1">
+          <mxGeometry x="50" y="430" width="250" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="iTurn" value="" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#5A6C86;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.traditional_server;" vertex="1" parent="1">
+          <mxGeometry x="2268" y="220" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lTurn" value="&lt;b&gt;Cloudflare TURN&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;직결 실패 시 중계 (15~25%) · 관리형&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="2200" y="298" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="iR53" value="" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#8C4FFF;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.route_53;" vertex="1" parent="1">
+          <mxGeometry x="473" y="210" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lR53" value="&lt;b&gt;Amazon Route 53&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;DNS&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="400" y="280" width="210" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="iCF" value="" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#8C4FFF;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudfront;" vertex="1" parent="1">
+          <mxGeometry x="473" y="340" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lCF" value="&lt;b&gt;Amazon CloudFront&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;웹 정적 + API 오리진&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="400" y="410" width="210" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="iS3" value="" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#7AA116;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.s3;" vertex="1" parent="1">
+          <mxGeometry x="473" y="470" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lS3" value="&lt;b&gt;Amazon S3&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;React SPA 호스팅 · OAC&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="400" y="540" width="210" height="46" as="geometry" />
+        </mxCell>
+        <mxCell id="iEcr" value="" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#ED7100;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ecr;" vertex="1" parent="1">
+          <mxGeometry x="473" y="600" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lEcr" value="&lt;b&gt;Amazon ECR&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;Fargate 태스크 이미지&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="400" y="670" width="210" height="46" as="geometry" />
+        </mxCell>
+        <mxCell id="iAcm" value="" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#DD344C;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.certificate_manager_3;" vertex="1" parent="1">
+          <mxGeometry x="473" y="730" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lAcm" value="&lt;b&gt;AWS Certificate Manager&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;us-east-1(CF) / ap-northeast-2(ALB)&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="400" y="800" width="210" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="iIgw" value="" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#8C4FFF;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.internet_gateway;" vertex="1" parent="1">
+          <mxGeometry x="700" y="270" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lIgw" value="&lt;b&gt;Internet Gateway&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="655" y="340" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="iAlb" value="" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#8C4FFF;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.application_load_balancer;" vertex="1" parent="1">
+          <mxGeometry x="700" y="470" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lAlb" value="&lt;b&gt;Amazon ALB&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;경로 라우팅 · idle timeout 300초&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="633" y="545" width="155" height="62" as="geometry" />
+        </mxCell>
+        <mxCell id="tPub" value="ALB 서브넷" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=middle;strokeColor=none;fillColor=none;fontSize=11;fontColor=#248814;" vertex="1" parent="1">
+          <mxGeometry x="830" y="640" width="180" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="iPlat" value="" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#ED7100;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.fargate;" vertex="1" parent="1">
+          <mxGeometry x="1188" y="460" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lPlat" value="&lt;b&gt;app:platform · Fargate&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;account · party · social / REST 전용 · stateless&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="530" width="260" height="46" as="geometry" />
+        </mxCell>
+        <mxCell id="iMatch" value="" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#ED7100;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.fargate;" vertex="1" parent="1">
+          <mxGeometry x="1488" y="460" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lMatch" value="&lt;b&gt;app:matching · Fargate&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;matching · gameconfig / 매칭 루프 · Lua atomic claim&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1390" y="530" width="260" height="46" as="geometry" />
+        </mxCell>
+        <mxCell id="iRt" value="" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#ED7100;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.fargate;" vertex="1" parent="1">
+          <mxGeometry x="1188" y="730" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lRt" value="&lt;b&gt;★ app:realtime · Fargate&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;연결 전담 / SSE 14종 + WS(WEBRTC_SIGNAL)&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="800" width="260" height="46" as="geometry" />
+        </mxCell>
+        <mxCell id="iResv" value="" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#ED7100;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.fargate;" vertex="1" parent="1">
+          <mxGeometry x="1488" y="730" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lResv" value="&lt;b&gt;app:reservation-batch · Fargate&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;예약 매칭 배치 / 상시 1개 · 내부 1분 주기&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1390" y="800" width="260" height="46" as="geometry" />
+        </mxCell>
+        <mxCell id="iRds" value="" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#C925D1;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.rds;" vertex="1" parent="1">
+          <mxGeometry x="1868" y="460" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lRds" value="&lt;b&gt;Amazon RDS · PostgreSQL&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;Primary (Writer) / 단일 인스턴스 · 7스키마 · 스키마별 롤&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1790" y="530" width="220" height="46" as="geometry" />
+        </mxCell>
+        <mxCell id="iRedis" value="" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#C925D1;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.elasticache;" vertex="1" parent="1">
+          <mxGeometry x="1868" y="730" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lRedis" value="&lt;b&gt;ElastiCache for Redis&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;Primary / 매칭 큐 · Lua · presence · block read model · Pub/Sub&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1780" y="800" width="240" height="62" as="geometry" />
+        </mxCell>
+        <mxCell id="iCw" value="" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#E7157B;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cloudwatch_2;" vertex="1" parent="1">
+          <mxGeometry x="528" y="1200" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lCw" value="&lt;b&gt;Amazon CloudWatch&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;로그 · 지표 · 알람&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="405" y="1274" width="310" height="62" as="geometry" />
+        </mxCell>
+        <mxCell id="iSm" value="" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#DD344C;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.secrets_manager;" vertex="1" parent="1">
+          <mxGeometry x="858" y="1200" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lSm" value="&lt;b&gt;AWS Secrets Manager&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;DB 자격증명 · TURN secret&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="735" y="1274" width="310" height="62" as="geometry" />
+        </mxCell>
+        <mxCell id="iQpc" value="" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#E7157B;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sqs;" vertex="1" parent="1">
+          <mxGeometry x="1188" y="1200" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lQpc" value="&lt;b&gt;Amazon SQS · ProposalConfirmed.fifo&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;matching → platform (파티 생성) / GroupId=proposalId · DLQ&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1065" y="1274" width="310" height="62" as="geometry" />
+        </mxCell>
+        <mxCell id="iQpx" value="" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#E7157B;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sqs;" vertex="1" parent="1">
+          <mxGeometry x="1518" y="1200" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lQpx" value="&lt;b&gt;Amazon SQS · PartyClosed.fifo&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;platform → platform (recent_players) / GroupId=partyId · DLQ&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1395" y="1274" width="310" height="62" as="geometry" />
+        </mxCell>
+        <mxCell id="iQbc" value="" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;fillColor=#E7157B;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sqs;" vertex="1" parent="1">
+          <mxGeometry x="1848" y="1200" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="lQbc" value="&lt;b&gt;Amazon SQS · BlockChanged.fifo&lt;/b&gt;&lt;br&gt;&lt;span style='font-size:9px;color:#5A6C86'&gt;platform → matching (차단 갱신) / GroupId=차단 쌍 · 순서 보장 · DLQ&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=11;fontColor=#232F3E;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1725" y="1274" width="310" height="62" as="geometry" />
+        </mxCell>
+        <mxCell id="cLeg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#AAB7B8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1460" width="520" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="legT" value="Legend" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=13;fontStyle=1;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="56" y="1468" width="200" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="legL0" value="" style="line;strokeWidth=2;html=1;strokeColor=#232F3E;dashed=0;dashPattern=6 4;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1507" width="64" height="10" as="geometry" />
+        </mxCell>
+        <mxCell id="legX0" value="동기 요청" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=11;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="136" y="1500" width="410" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="legL1" value="" style="line;strokeWidth=2;html=1;strokeColor=#E7157B;dashed=1;dashPattern=6 4;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1537" width="64" height="10" as="geometry" />
+        </mxCell>
+        <mxCell id="legX1" value="SQS FIFO (서버 간 작업 지시)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=11;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="136" y="1530" width="410" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="legL2" value="" style="line;strokeWidth=2;html=1;strokeColor=#ED7100;dashed=1;dashPattern=6 4;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1567" width="64" height="10" as="geometry" />
+        </mxCell>
+        <mxCell id="legX2" value="Redis Pub/Sub → SSE (사용자 알림)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=11;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="136" y="1560" width="410" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="legL3" value="" style="line;strokeWidth=2;html=1;strokeColor=#8C4FFF;dashed=1;dashPattern=6 4;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1597" width="64" height="10" as="geometry" />
+        </mxCell>
+        <mxCell id="legX3" value="WebRTC 미디어 (브라우저 직결)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=11;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="136" y="1590" width="410" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="fn0" value="① 배포 단위 4개. app:realtime만 장수명 연결(SSE + WebSocket)을 보유하고 나머지 셋은 stateless다." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=10;fontColor=#5A6C86;" vertex="1" parent="1">
+          <mxGeometry x="600" y="1462" width="1560" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="fn1" value="② 서버 간 작업 지시는 transactional outbox + SQS FIFO(유실 시 데이터가 어긋난다), 사용자 알림은 Redis Pub/Sub → SSE(놓쳐도 새로고침으로 복구). 성격이 달라 도구를 나눴다." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=10;fontColor=#5A6C86;" vertex="1" parent="1">
+          <mxGeometry x="600" y="1490" width="1560" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="fn2" value="③ Redis Streams는 컨슈머 그룹으로 읽으면 순서가 깨져 BlockCreated / BlockRemoved 역전이 가능하다. SQS FIFO는 MessageGroupId 단위로 순서를 보장한다." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=10;fontColor=#5A6C86;" vertex="1" parent="1">
+          <mxGeometry x="600" y="1518" width="1560" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="fn3" value="④ INV-6은 2단계로 보증한다. 후보 필터링은 Redis O(1), 최종 claim 직전에는 shared_read.blocked_pairs를 동기 SELECT 한다(proposal 저장과 같은 트랜잭션 → TOCTOU 창 없음)." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=10;fontColor=#5A6C86;" vertex="1" parent="1">
+          <mxGeometry x="600" y="1546" width="1560" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="fn4" value="⑤ 음성·텍스트는 브라우저 직결이라 서버를 거치지 않는다. Fargate는 host network가 없어 coturn을 올릴 수 없으므로 Cloudflare 관리형 TURN을 쓴다." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=10;fontColor=#5A6C86;" vertex="1" parent="1">
+          <mxGeometry x="600" y="1574" width="1560" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="fn5" value="⑥ 실제로는 2개 가용영역에 분산한다. NAT Gateway는 월 $43이라 쓰지 않고 public subnet + 보안그룹 인바운드 차단으로 대체한다. RDS Multi-AZ와 ElastiCache Replica는 비용 2배라 도입하지 않았다." style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;strokeColor=none;fillColor=none;fontSize=10;fontColor=#5A6C86;" vertex="1" parent="1">
+          <mxGeometry x="600" y="1602" width="1560" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="s1" value="도메인 조회" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#232F3E;strokeWidth=1.5;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=1;exitY=0.2;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="iCliA" target="iR53">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="320" y="214" />
+              <mxPoint x="320" y="242" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s2" value="HTTPS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#232F3E;strokeWidth=1.5;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" edge="1" parent="1" source="iCliA" target="iCF">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="350" y="234" />
+              <mxPoint x="350" y="359" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s3" value="웹 정적 요청 · OAC" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#232F3E;strokeWidth=1.5;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="iCF" target="iS3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="590" y="372" />
+              <mxPoint x="590" y="502" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s4" value="/api/** · /events · /ws" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#232F3E;strokeWidth=1.5;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=1;exitY=0.2;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" edge="1" parent="1" source="iCF" target="iAlb">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="620" y="353" />
+              <mxPoint x="620" y="489" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s5" value="/api/v1/**" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#232F3E;strokeWidth=1.5;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="iAlb" target="iPlat">
+          <mxGeometry relative="1" as="geometry"></mxGeometry>
+        </mxCell>
+        <mxCell id="s6" value="매칭 · 예약 CRUD" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#232F3E;strokeWidth=1.5;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="iAlb" target="iMatch">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="645" y="502" />
+              <mxPoint x="645" y="310" />
+              <mxPoint x="1520" y="310" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s7" value="/events(SSE) · /ws" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#232F3E;strokeWidth=1.5;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=1;exitY=0.8;exitDx=0;exitDy=0;entryX=0;entryY=0.15;entryDx=0;entryDy=0;" edge="1" parent="1" source="iAlb" target="iRt">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="800" y="521" />
+              <mxPoint x="800" y="740" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s8" value="account · party · social" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#232F3E;strokeWidth=1.5;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="iPlat" target="iRds">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1220" y="425" />
+              <mxPoint x="1900" y="425" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s9" value="동기 SELECT shared_read.blocked_pairs (INV-6)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#8C4FFF;strokeWidth=3;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#8C4FFF;fontStyle=1;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="iMatch" target="iRds">
+          <mxGeometry relative="1" as="geometry"></mxGeometry>
+        </mxCell>
+        <mxCell id="s10" value="대기열 · Lua 선점" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#232F3E;strokeWidth=1.5;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=1;exitY=0.6;exitDx=0;exitDy=0;entryX=0;entryY=0.15;entryDx=0;entryDy=0;" edge="1" parent="1" source="iMatch" target="iRedis">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1680" y="498" />
+              <mxPoint x="1680" y="740" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="s11" value="예약 조회 · 제안 저장" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#232F3E;strokeWidth=1.5;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.9;entryDx=0;entryDy=0;" edge="1" parent="1" source="iResv" target="iRds">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1740" y="749" />
+              <mxPoint x="1740" y="518" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="q1" value="outbox 발행" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#E7157B;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#E7157B;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=0.8;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="iPlat" target="iQbc">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1239" y="440" />
+              <mxPoint x="2075" y="440" />
+              <mxPoint x="2075" y="1232" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="q2" value="차단 목록 갱신" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#E7157B;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#E7157B;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.1;entryDx=0;entryDy=0;" edge="1" parent="1" source="iQbc" target="iMatch">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1745" y="1232" />
+              <mxPoint x="1745" y="466" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="q3" value="outbox 발행" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#E7157B;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#E7157B;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=1;exitY=0.35;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="iMatch" target="iQpc">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1670" y="482" />
+              <mxPoint x="1670" y="1175" />
+              <mxPoint x="1284" y="1175" />
+              <mxPoint x="1284" y="1232" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="q4" value="파티 생성" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#E7157B;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#E7157B;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" edge="1" parent="1" source="iQpc" target="iPlat">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1035" y="1232" />
+              <mxPoint x="1035" y="479" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="q5" value="outbox 발행" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#E7157B;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#E7157B;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="iPlat" target="iQpx">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1370" y="492" />
+              <mxPoint x="1370" y="1160" />
+              <mxPoint x="1550" y="1160" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="q6" value="recent_players 구축" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#E7157B;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#E7157B;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.85;entryDx=0;entryDy=0;" edge="1" parent="1" source="iQpx" target="iPlat">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1550" y="1350" />
+              <mxPoint x="1055" y="1350" />
+              <mxPoint x="1055" y="514" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n1" value="publish MATCH_* 5종" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#ED7100;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#ED7100;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=1;exitY=0.85;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="iMatch" target="iRedis">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1700" y="514" />
+              <mxPoint x="1700" y="762" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n2" value="publish RESERVATION_* 2종" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#ED7100;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#ED7100;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=1;exitY=0.85;exitDx=0;exitDy=0;entryX=0;entryY=0.85;entryDx=0;entryDy=0;" edge="1" parent="1" source="iResv" target="iRedis">
+          <mxGeometry relative="1" as="geometry"></mxGeometry>
+        </mxCell>
+        <mxCell id="n3" value="publish PARTY_·FRIEND_* 7종" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#ED7100;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#ED7100;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=0.2;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="iPlat" target="iRedis">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1201" y="410" />
+              <mxPoint x="2035" y="410" />
+              <mxPoint x="2035" y="762" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n4" value="subscribe" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#ED7100;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#ED7100;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="iRedis" target="iRt">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1900" y="940" />
+              <mxPoint x="1220" y="940" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n5" value="SSE 14종 (heartbeat 15~30초)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#ED7100;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#ED7100;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="iRt" target="iCliA">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1000" y="762" />
+              <mxPoint x="1000" y="880" />
+              <mxPoint x="295" y="880" />
+              <mxPoint x="295" y="234" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="r1" value="WebRTC 직결 · Opus 음성 + 텍스트" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#8C4FFF;strokeWidth=2;dashed=1;dashPattern=4 3;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#8C4FFF;labelBackgroundColor=#FFFFFF;jettySize=12;startArrow=blockThin;startFill=1;exitX=1;exitY=0.8;exitDx=0;exitDy=0;entryX=1;entryY=0.6;entryDx=0;entryDy=0;" edge="1" parent="1" source="iCliA" target="iCliB">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="320" y="254" />
+              <mxPoint x="320" y="641" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="r2" value="TURN relay" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#8C4FFF;strokeWidth=2;dashed=1;dashPattern=4 3;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#8C4FFF;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="iCliA" target="iTurn">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="190" y="112" />
+              <mxPoint x="2300" y="112" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="r3" value="TURN relay" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#8C4FFF;strokeWidth=2;dashed=1;dashPattern=4 3;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#8C4FFF;labelBackgroundColor=#FFFFFF;jettySize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="iCliB" target="iTurn">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="190" y="1420" />
+              <mxPoint x="2430" y="1420" />
+              <mxPoint x="2430" y="252" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

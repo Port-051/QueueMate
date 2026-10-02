@@ -27,8 +27,7 @@ function uniqueRows(rows: api.BoardRow[]) {
 
 export function useRecruitmentBoard(query: api.BoardSearch) {
   const { stream } = useMatch();
-  const { user } = useAuth();
-  const userId = user?.id ?? null;
+  const { userId } = useAuth();
   const [page, setPage] = useState<api.BoardPage | null>(null);
   const [mine, setMine] = useState<api.BoardRow[]>([]);
   const [error, setError] = useState('');
@@ -161,7 +160,8 @@ export function useRecruitmentBoard(query: api.BoardSearch) {
     if (!stream) return;
     let timer = 0;
     const off = stream.subscribe(e => {
-      if (e.type === 'RECRUITMENT_UPDATED' || e.type === 'SESSION_SNAPSHOT' || e.type.startsWith('MATCH_')) {
+      // `RECRUITMENT_UPDATED` · `SESSION_SNAPSHOT` 은 우리 백엔드가 보내지 않는다(2단계) — 매칭 알림에만 다시 받는다. legacy 홈 전용이다(라우트 밖).
+      if (e.type.startsWith('MATCH_')) {
         window.clearTimeout(timer); timer = window.setTimeout(() => { void refresh(); }, 250);
       }
     });

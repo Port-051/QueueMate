@@ -5,7 +5,6 @@ import { defaultCondition, targetPartySize } from '../domain/gameConfig';
 import { PLAY_AMOUNT_LABEL, conditionSummary, gameFullLabel } from '../domain/labels';
 import { addDays, defaultReservationWindow, formatRange, formatTime, nextDays, slotTimes, toDateKey, toIso } from '../domain/time';
 import { useMatch } from '../state/MatchContext';
-import { readPreferences } from '../state/preferences';
 import { ConditionForm } from './ConditionForm';
 import { GameWordmark } from './GameSymbol';
 import { IconBolt, IconCalendar } from './icons';
@@ -19,10 +18,7 @@ export function MatchComposer({ condition: initial, mode: initialMode = 'REALTIM
   const toast = useToast();
   const panelId = useId();
   const [mode, setMode] = useState<MatchMode>(editing ? 'RESERVATION' : initialMode);
-  const [condition, setCondition] = useState(() => {
-    const prefs = readPreferences();
-    return editing?.condition ?? initial ?? { ...defaultCondition('LOL'), voicePreference: prefs.defaultVoice, playPurpose: prefs.defaultPurpose };
-  });
+  const [condition, setCondition] = useState(() => editing?.condition ?? initial ?? defaultCondition('LOL'));
   const initialWindow = useMemo(() => defaultReservationWindow(), []);
   const times = useMemo(() => slotTimes(), []);
   const [now, setNow] = useState(Date.now());

@@ -14,7 +14,7 @@ export function BoardFilters({ value, onChange, onReset }: { value: BoardSearch;
   const selectedRoles = value.preferences.desiredKeys.length ? value.preferences.desiredKeys : value.condition.keyCondition.value !== 'ANY' ? [value.condition.keyCondition.value] : [];
 
   const chooseMode = (modeKey: string) => onChange({ ...value, condition: conditionForMode(value.condition, modeKey), preferences: { ...value.preferences, desiredKeys: usesKeyCondition(game, modeKey) ? selectedRoles : [], ownKeys: usesKeyCondition(game, modeKey) ? value.preferences.ownKeys : [] }, page: 0 });
-  const filtered = value.condition.modeKey !== visibleModes(game)[0].key || selectedRoles.length > 0 || Boolean(value.preferences.ownKeys?.length) || value.condition.voicePreference !== 'OPTIONAL' || Boolean(value.preferences.minTier);
+  const filtered = value.condition.modeKey !== visibleModes(game)[0].key || selectedRoles.length > 0 || Boolean(value.preferences.ownKeys?.length) || Boolean(value.preferences.minTier);
   return <div className="board-filter-bar">
     <div className="board-filter-line" role="group" aria-label="상대 검색 필터">
       <div className="filter-mode-options" role="group" aria-label="찾는 큐 타입">
@@ -30,8 +30,7 @@ export function BoardFilters({ value, onChange, onReset }: { value: BoardSearch;
       {usesKeyCondition(game, value.condition.modeKey) ? <div className="filter-role-options" role="group" aria-label="포지션">
         {keyConditionOptions(game).filter(role => role.value !== 'ANY').map(role => <button type="button" className="filter-role" key={role.value} aria-label={role.label} title={role.label} aria-pressed={selectedRoles.includes(role.value)} onClick={() => onChange({ ...value, page: 0, condition: { ...value.condition, keyCondition: { ...value.condition.keyCondition, value: 'ANY' } }, preferences: { ...value.preferences, ownKeys: [], desiredKeys: selectedRoles.includes(role.value) ? selectedRoles.filter(item => item !== role.value) : [...selectedRoles, role.value] } })}><FilterRoleIcon game={game} value={role.value} /></button>)}
       </div> : null}
-      <FilterSelect label="마이크" className={value.condition.voicePreference !== 'OPTIONAL' ? 'is-filtered' : ''} value={value.condition.voicePreference} options={[
-        { value: 'OPTIONAL', label: '무관', icon: <VoiceIcon preference="OPTIONAL" /> },
+      <FilterSelect label="마이크" className="is-filtered" value={value.condition.voicePreference} options={[
         { value: 'REQUIRED', label: '사용', icon: <VoiceIcon preference="REQUIRED" /> },
         { value: 'NO_VOICE', label: '미사용', icon: <VoiceIcon preference="NO_VOICE" /> },
       ]} onChange={voice => condition({ voicePreference: voice as BoardSearch['condition']['voicePreference'] })} />

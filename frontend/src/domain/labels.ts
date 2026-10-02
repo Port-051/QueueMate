@@ -1,5 +1,5 @@
 import type {
-  Acceptance, GameKey, MatchCondition, PartyStatus, PlayAmount, PlayPurpose,
+  GameKey, MatchCondition, PlayAmount, PlayPurpose,
   ReportReason, ReservationStatus, VoicePreference,
 } from '../api/types';
 import { gameConfig, modeConfig, usesKeyCondition } from './gameConfig';
@@ -21,13 +21,12 @@ export const keyConditionTitle = (game: GameKey) => gameConfig(game).keyConditio
 
 export const VOICE_LABEL: Record<VoicePreference, string> = {
   REQUIRED: '음성 사용',
-  OPTIONAL: '음성 선택',
   NO_VOICE: '음성 사용 안 함',
 };
 
 export const PURPOSE_LABEL: Record<PlayPurpose, string> = {
   RANK_UP: '랭크 상승',
-  NORMAL: '일반 플레이',
+  TRYHARD: '빡겜',
   FUN: '즐겜',
 };
 
@@ -45,26 +44,13 @@ export const RESERVATION_STATUS_LABEL: Record<ReservationStatus, string> = {
   COMPLETED: '완료됨',
 };
 
-export const PARTY_STATUS_LABEL: Record<PartyStatus, string> = {
-  OPEN: '매칭 완료',
-  READY: '준비 완료',
-  PLAYING: '전원 준비 확인됨',
-  CLOSED: '종료됨',
-};
-
-export const ACCEPTANCE_LABEL: Record<Acceptance, string> = {
-  PENDING: '응답 대기',
-  ACCEPTED: '수락',
-  DECLINED: '거절',
-};
-
+/** 신고 사유 — platform-api.md "친구 · 신고 · 최근 함께한 사람" 의 다섯(원본의 여섯 이름은 우리 백엔드에 없다). `OTHER` 는 `detail` 이 필수다. */
 export const REPORT_REASONS: { value: ReportReason; label: string }[] = [
-  { value: 'ABUSIVE_LANGUAGE', label: '욕설/비속어' },
-  { value: 'HARASSMENT', label: '괴롭힘' },
-  { value: 'CHEATING', label: '핵/불법 프로그램' },
-  { value: 'TROLLING_OR_AFK', label: '트롤링/잠수' },
-  { value: 'INAPPROPRIATE_PROFILE', label: '부적절한 프로필' },
-  { value: 'OTHER', label: '기타' },
+  { value: 'ABUSE', label: '욕설 · 비매너' },
+  { value: 'CHEATING', label: '핵 · 대리' },
+  { value: 'SPAM', label: '도배 · 광고' },
+  { value: 'NO_SHOW', label: '잠수 · 탈주' },
+  { value: 'OTHER', label: '기타 (설명 필수)' },
 ];
 
 /** 조건 한 줄 요약. 카드/리스트에서 재사용한다. */
@@ -73,13 +59,13 @@ export function conditionSummary(c: MatchCondition): string[] {
 }
 
 /**
- * `rankCode`는 서버가 Riot에서 읽어 채우는 파생 값이다 (contracts GameAccountView).
- * 형식은 `GOLD_2`이고, 마스터 위로는 단계가 없어 티어 이름만 온다.
+ * 게임 프로필 `tiers` 의 값은 gameconfig 티어 이름이다(`matching/seed/gameconfig.redis` — 사본 `domain/gameCatalog.ts` `tierNames`). 형식은 `GOLD_4` 이고
+ * 단이 없는 티어(`MASTER` · `RADIANT` · `UNRANKED` …)는 이름 그대로다. LoL · PUBG 는 게임사 API 가 채우고 VALORANT 는 자기신고다(2026-09-29 — 사다리마다 하나씩).
  *
- * 여기 없는 티어가 와도 화면은 깨지지 않아야 한다. Riot이 티어를 추가한 전례가 있다
- * (2023년 EMERALD). 모르는 값은 받은 그대로 보여준다.
+ * 여기 없는 티어가 와도 화면은 깨지지 않아야 한다 — seed 에 티어가 더해질 수 있다. 모르는 값은 받은 그대로 보여준다.
  */
 const TIER_LABEL: Record<string, string> = {
+  UNRANKED: '언랭크',
   IRON: '아이언',
   BRONZE: '브론즈',
   SILVER: '실버',
@@ -90,11 +76,17 @@ const TIER_LABEL: Record<string, string> = {
   MASTER: '마스터',
   GRANDMASTER: '그랜드마스터',
   CHALLENGER: '챌린저',
+  ASCENDANT: '초월자',
+  IMMORTAL: '불멸',
+  RADIANT: '레디언트',
+  CRYSTAL: '크리스탈',
+  SURVIVOR: '서바이버',
 };
 
-export function rankLabel(rankCode: string | null): string | null {
-  if (!rankCode) return null;
-  const [tier, division] = rankCode.split('_');
-  const label = TIER_LABEL[tier] ?? tier;
+/** `GOLD_4` → `골드 4`. `null`(언랭 · 모름 · 자기신고 안 함)이면 `null`. */
+export function rankLabel(tier: string | null | undefined): string | null {
+  if (!tier) return null;
+  const [name, division] = tier.split('_');
+  const label = TIER_LABEL[name] ?? name;
   return division ? `${label} ${division}` : label;
 }

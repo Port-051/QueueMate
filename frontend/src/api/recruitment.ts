@@ -1,5 +1,10 @@
 import { request } from './http';
 import type { MatchCondition, PlayAmount } from './types';
+/**
+ * **대응물 없음** — 원본 프런트의 모집 게시판 API(`/recruitments/*` · 신청 · 승인 · BUMP · 추천 · 노출 기록). 우리 백엔드에는 없어 부르면 404 다.
+ * `LegacyRecruitmentHome`(라우트 밖)과 그 부품(`Recruitment*` · `BoardFilters` · `useRecruitmentBoard`)만 쓴다 — 컴파일되게 남겼다(4단계 · START_HERE.md §5).
+ * 우리 게시판은 `client.ts` 의 `listPosts` · `createPost` … 다.
+ */
 export interface BoardPreferences {
   ownKeys?: string[];
   ownTier: string | null;

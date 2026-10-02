@@ -2,6 +2,8 @@ User-agent: *
 Allow: /$
 Allow: /login
 Allow: /signup
+Allow: /privacy
+Allow: /terms
 Disallow: /app/
 
-# TODO: 배포 도메인 확정 시 Sitemap 줄 추가
+# sitemap 은 아직 없다 — 만들면 Sitemap: https://queue-mate.com/sitemap.xml

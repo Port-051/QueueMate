@@ -19,7 +19,7 @@ export function ActiveMatchCard() {
     if (!request) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [request?.id]);
+  }, [request?.requestId]);
   const cancelMatching = async () => {
     setBusy(true);
     try { await cancel(); toast('매칭을 취소했습니다'); }
@@ -33,8 +33,8 @@ export function ActiveMatchCard() {
       {condition ? <HomeMatchConditions condition={condition} /> : null}
       {connection !== 'connected' ? <p className="match-card-connection" role="status">서버와 다시 연결 중입니다. 매칭 상태는 자동으로 확인합니다.</p> : null}
       <div className="match-card-footer">
-        <div className="match-live-timer"><IconClock size={22} /><div><span>대기 시간</span><b>{formatDuration((now - new Date(request.queuedAt).getTime()) / 1000)}</b></div></div>
-        {request.status === 'PROPOSED' && proposal ? <Button variant="primary" onClick={() => navigate(`/app/proposals/${proposal.id}`)}>제안 확인</Button> : <Button variant="ghost" disabled={busy} onClick={() => void cancelMatching()}>{busy ? '취소 중…' : '매칭 취소'}</Button>}
+        <div className="match-live-timer"><IconClock size={22} /><div><span>대기 시간</span><b>{formatDuration((now - (request.queuedAt ?? now)) / 1000)}</b></div></div>
+        {request.status === 'PROPOSED' && proposal ? <Button variant="primary" onClick={() => navigate(`/app/proposals/${proposal.partyId}`)}>제안 확인</Button> : <Button variant="ghost" disabled={busy} onClick={() => void cancelMatching()}>{busy ? '취소 중…' : '매칭 취소'}</Button>}
       </div>
     </div> : activePartyId ? <div className="home-current home-party-card">
       <IconParty size={32} filled />

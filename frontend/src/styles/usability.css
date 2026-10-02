@@ -135,11 +135,6 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
   .condition-page .opt-row { grid-template-columns: 150px minmax(0, 1fr); }
   .social-toolbar { flex-wrap: wrap; }
   .social-toolbar .input { max-width: 100%; }
-  .party-page .page-grid { display: flex; flex-direction: column; }
-  .party-page .page-grid > * { width: 100%; }
-  .party-page .rail { order: -1; display: grid; grid-template-columns: 1fr; }
-  .party-page .rail > .card:last-child { display: none; }
-  .party-page .rail .list-item { display: flex; }
   .party-page .chat-card { min-height: 320px; }
   .home-game-library { gap: 12px; }
   .home-game-tile { padding: 18px; aspect-ratio: 1.25; }
@@ -204,9 +199,6 @@ summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px;
   .modal-scrim { padding: 16px; }
   .modal { padding: 22px 18px; max-height: calc(100dvh - 32px); border-radius: 18px; }
   .modal h2 { font-size: 20px; }
-  .avatar-picker { gap: 8px; }
-  .avatar-opt { min-height: 104px; padding: 12px 6px; }
-  .avatar-opt .ap-img { width: 56px; height: 56px; }
   .toast-host { left: 16px; right: 16px; bottom: 16px; }
   .toast { min-width: 0; }
   .banner { flex-wrap: wrap; }

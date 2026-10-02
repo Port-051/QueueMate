@@ -1,0 +1,87 @@
+package com.queuemate.platform.account.controller;
+
+import com.queuemate.platform.account.domain.Game;
+import com.queuemate.platform.account.dto.GameAccountRequest;
+import com.queuemate.platform.account.dto.GameProfileResponse;
+import com.queuemate.platform.account.dto.NicknameChangeRequest;
+import com.queuemate.platform.account.dto.UserResponse;
+import com.queuemate.platform.account.domain.SocialProvider;
+import com.queuemate.platform.account.service.SocialLoginService;
+import com.queuemate.platform.account.service.UserService;
+import com.queuemate.platform.common.security.CurrentUserId;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * 내 프로필과 게임 계정. <b>"나"는 경로가 아니라 access 토큰에서 온다</b>({@link CurrentUserId}) — 경로에 사용자 번호를 받지 않으므로
+ * 남의 것을 건드릴 길이 없다. 원본은 {@code contracts/platform-api.md} "계정" 이다.
+ *
+ * <p><b>회원 탈퇴는 여기 없다</b> — {@code DELETE /api/v1/auth/account}({@link AuthController#deleteAccount}). refresh 쿠키({@code Path=/api/v1/auth})가 실려 오게
+ * 그 아래로 옮겼다(2026-10-02 소유자 지시 · P-48). 옛 {@code DELETE /api/v1/users/me} 는 같은 경로에 {@code GET} · {@code PATCH} 가 있어 405 {@code METHOD_NOT_ALLOWED} 다.
+ */
+@RestController
+@RequestMapping("/api/v1/users/me")
+@RequiredArgsConstructor
+public class UserController {
+
+    private final UserService userService;
+    private final SocialLoginService socialLoginService;
+
+    @GetMapping
+    public UserResponse me(@CurrentUserId Long userId)
+    {
+        return userService.me(userId);
+    }
+
+    @PatchMapping
+    public UserResponse changeNickname(@CurrentUserId Long userId, @Valid @RequestBody NicknameChangeRequest request)
+    {
+        return userService.changeNickname(userId, request.nickname());
+    }
+
+    /**
+     * {@code game} 은 경로에서 enum 으로 받는다 — 모르는 이름 · 소문자는 스프링의 형 변환이 400 {@code VALIDATION_FAILED} 로 거절한다
+     * (게시판 목록의 {@code game} 과 같은 본문. 2026-09-27 소유자 지시 — 문자열로 받아 서비스가 파던 것을 없앴다).
+     * 응답은 <b>게임 프로필</b>이다({@code verified} · {@code stats} 포함 — 둘은 요청으로 바꿀 수 없다).
+     *
+     * <p><b>LoL 은 본문이 {@code gameNickname}(이름#태그) 하나이고 저장하기 전에 Riot 을 긁는다</b>(최대 30초 — 2026-09-27 소유자 결정).
+     * <b>어느 게임이든 {@code mainPosition} 을 보내면 400 이다</b>(2026-09-29 소유자 결정 — 게임 계정에 주 포지션이 없다. {@code GameAccountRequest}).
+     * 티어 · 전적이 Riot 에서 채워져 응답에 바로 들어 있다. VALORANT · PUBG 는 자기신고 그대로다. 갈래는 {@code UserService#putGameAccount}.
+     */
+    @PutMapping("/game-accounts/{game}")
+    public GameProfileResponse putGameAccount(@CurrentUserId Long userId, @PathVariable Game game,
+                                              @Valid @RequestBody GameAccountRequest request)
+    {
+        return userService.putGameAccount(userId, game, request);
+    }
+
+    // (전적 갱신 POST /game-accounts/{game}/refresh 는 2026-09-30 소유자 결정으로 없앴다 — 전적은 로그인 · 재발급 때 뒤에서 다시 받는다.
+    //  stats.GameStatsLoginRefresher · contracts/platform-api.md P-42. 그 경로는 이제 없는 경로와 같은 404 NOT_FOUND 다)
+
+    @DeleteMapping("/game-accounts/{game}")
+    public ResponseEntity<Void> deleteGameAccount(@CurrentUserId Long userId, @PathVariable Game game)
+    {
+        userService.deleteGameAccount(userId, game);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 소셜 연결 하나를 끊는다(2026-09-27 소유자 결정 · P-27). {@code provider} 는 대문자 enum 이다 — 모르는 이름 · 소문자는 400.
+     * 그 제공자가 나한테 없으면 204(멱등), <b>하나뿐이면 409 {@code LAST_SOCIAL_IDENTITY}</b>. 잇기는 소셜 로그인 콜백이 한다.
+     */
+    @DeleteMapping("/social/{provider}")
+    public ResponseEntity<Void> unlinkSocial(@CurrentUserId Long userId, @PathVariable SocialProvider provider)
+    {
+        socialLoginService.unlink(userId, provider);
+        return ResponseEntity.noContent().build();
+    }
+}

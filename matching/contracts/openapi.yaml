@@ -1,0 +1,431 @@
+# 출처: queueMate 저장소 / 브랜치 feature/frontend / 경로 contracts/openapi.yaml (662줄)
+# 커밋: 825d673
+#
+# ★ 발췌본이다. app:matching 이 노출하는 엔드포인트와 그에 필요한 스키마만 옮겼다.
+#   auth / users / reservations / parties / friends / blocks / recent-players / reports 는
+#   app:platform 소관이라 뺐다. 전문이 필요하면 원본을 봐라.
+#
+# ★ 이 파일은 "계약"이고 현재 코드가 아니다. 다만 이 사본은 원본보다 앞서간 자리가 있다 —
+#   결정이 난 것을 contracts/README.md "이 사본이 원본보다 앞서간 변경" 표(A-1 … A-13)에 따라
+#   먼저 적었고, 각 자리에 "> 개정 이력:" 을 남겼다. 원본에 반영되기 전까지는 그 표가 원본과의
+#   차이 목록이다. 아직 어느 쪽이 맞는지 정해지지 않은 지점(MatchRequestView 의 필드 이름·타입,
+#   상태 조회의 /me 경로, GET /games)은 그 README 의 불일치 표에 있다. 임의로 어느 한쪽에 맞추지 마라.
+
+openapi: 3.0.3
+info:
+  title: QueueMate API — app:matching 발췌
+  version: 1.0.0
+  description: |
+    공통 응답 규칙 (이 사본이 원본보다 앞서 적은 것 — contracts/README.md A-12 · A-13):
+
+    - 모든 엔드포인트는 쿠키 `qm_access` 가 없거나 검증에 실패하면 `401 UNAUTHENTICATED` 다. 이유는 가르지 않는다.
+    - 상태를 바꾸는 요청(POST/DELETE)은 `Origin` 이 허용 목록 밖이면 `403 ORIGIN_NOT_ALLOWED` 다. `Origin` 이 없으면 통과한다.
+    - 모든 엔드포인트는 Redis 장애(또는 후보 풀 락 획득 실패) 시 `503 MATCHING_UNAVAILABLE` 이고 **`Retry-After: 5` 헤더**가
+      함께 간다 (INV-10 fail-closed — 이미 성립한 파티는 건드리지 않고 새 요청만 거절한다). 아래 각 엔드포인트의 `503` 은 전부 이것이다.
+    - 실패 응답의 본문은 전부 `ErrorResponse` 다.
+servers:
+  - url: /api/v1
+
+# > 개정 이력: 2026-09-27 — 이 사본이 원본보다 앞서간 변경이다 (contracts/README.md A-12).
+#   인증은 쿠키 qm_access 의 access 토큰(RS256 JWT)이다. app:platform 이 발급하고 이 앱은 공개 키로 검증만 한다
+#   (서명 · exp · iss=queuemate-platform · token_use=access · sub 가 숫자 문자열). "나"는 sub 다 —
+#   요청 바디의 userId 와 쿼리 파라미터 ?userId= 는 없어졌다 (docs/11 D-14 · D-24 · D-25).
+#   실패는 401 UNAUTHENTICATED 하나. 상태를 바꾸는 요청은 Origin 이 허용 목록 밖이면 403 ORIGIN_NOT_ALLOWED.
+security:
+  - cookieAuth: []
+
+paths:
+  # ── gameconfig ────────────────────────────────────────────────
+  /games:
+    get:
+      summary: Supported games
+      description: |
+        app:matching 이 gameconfig 모듈을 포함하므로 이 앱 소관이다.
+        [미구현] 이 저장소에 해당 컨트롤러가 없다. gameconfig 는 seed/gameconfig.redis 로만 다뤄진다
+        (contracts/README.md #7 — 계약이 맞고 구현이 없는 쪽이다).
+      responses:
+        '200':
+          description: OK
+        '401': { description: Missing or invalid qm_access cookie (UNAUTHENTICATED) }
+        '503': { description: Matching unavailable — Retry-After 5 (MATCHING_UNAVAILABLE) }
+
+  # ── 실시간 매칭 ────────────────────────────────────────────────
+  /match-requests:
+    post:
+      summary: Start realtime matching
+      description: |
+        [구현됨] MatchingController#createMatchRequest
+        요청한 사람은 쿠키의 sub 다. 조건은 CreateMatchRequest — 게임당 4개(CLAUDE.md §2)에 자격 조건 tier 가 붙는다.
+        접수되면 201 이고 본문은 MatchRequestView 의 QUEUED 갈래다 — `{status: QUEUED, requestId, queuedAt}`.
+        requestId 는 취소(DELETE /match-requests/{id})가 쓰는 값이라 접수 응답이 반드시 돌려준다.
+        INV-1 위반(이미 활성 요청이 있다)은 409 ALREADY_QUEUED, 게시판 방에 들어가 있으면 409 IN_ROOM 이다.
+        배정은 비동기다 — 201 은 "큐에 들어갔다"이고 파티 배정 결과는 알림(MATCH_QUEUE_UPDATED 등)과 상태 조회가 말한다.
+
+        > 개정 이력: 2026-09-27 — 201 본문을 MatchRequestView 로 맞췄다(구현이 문자열 "CREATED" 를 내던 것을 고쳤다 —
+        > contracts/README.md #5-1 해소). 계약의 모양은 원래대로다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateMatchRequest' }
+      responses:
+        '201':
+          description: Queued — MatchRequestView 의 QUEUED 갈래 (status, requestId, queuedAt)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MatchRequestView' }
+        '400':
+          description: |
+            INVALID_REQUEST(@Valid 실패 — details 에 필드별 메시지) /
+            BAD_REQUEST(지원하는 규칙이 없는 게임) /
+            INVALID_MATCH_CONDITION(없는 modeKey, 모드에 안 맞는 keyCondition 값, tierRule 에 안 맞는 tier)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401': { description: Missing or invalid qm_access cookie (UNAUTHENTICATED) }
+        '403': { description: Origin not allowed (ORIGIN_NOT_ALLOWED) }
+        '409':
+          description: User already has active request (ALREADY_QUEUED) or is in a board room (IN_ROOM)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503': { description: Matching unavailable — Retry-After 5 (MATCHING_UNAVAILABLE) }
+
+    get:
+      summary: My match request status
+      description: |
+        [구현됨] MatchingController#getMatchRequest → service/MatchQueryService
+        "나"(쿠키의 sub)의 매칭 요청이 지금 어떤 상태인지 답한다. 경로 변수도 쿼리 파라미터도 없다.
+        활성 요청은 사용자 단위로 저장되므로(qm:user:active-request:{userId}, INV-1) requestId 는 찾는 열쇠가 아니고,
+        이 조회가 가장 필요한 순간(페이지를 새로 열었을 때)에 클라이언트는 requestId 를 잃은 상태다.
+
+        **항상 200 이다.** 활성 요청이 없어도 404 가 아니라 `{"status":"IDLE"}` 이다 — "큐에 없음"은 오류가 아니라
+        답의 한 갈래다. 취소·만료로 빠진 경우도 IDLE 로 나간다(활성 요청 키를 지우므로 "원래 없었다"와 구분되지 않는다).
+        갈래별로 채워지는 필드는 MatchRequestView 참고. 나갈 수 있는 실패는 401 과 503 뿐이다.
+        알림(SSE)을 놓친 클라이언트가 재연결 직후 상태를 맞추는 곳이 이것이다 (contracts/events.md "재연결").
+
+        > 개정 이력: 2026-09-27 — 원본은 `GET /match-requests/{requestId}`(경로 변수)다. 이 사본은 구현대로
+        > 경로 변수 없는 `GET /match-requests` 로 적는다 (contracts/README.md #5 · A-13). 2026-09-17 ~ 09-27 사이에는
+        > `?userId=` 를 받았고 지금은 쿠키의 sub 다. **`GET /match-requests/me` 로 옮길지는 미정이고 원본 계약과 같이 정한다.**
+      responses:
+        '200':
+          description: OK — 갈래는 status 로 가른다 (IDLE / QUEUED / PROPOSED / MATCHED)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MatchRequestView' }
+        '401': { description: Missing or invalid qm_access cookie (UNAUTHENTICATED) }
+        '503': { description: Matching unavailable — Retry-After 5 (MATCHING_UNAVAILABLE) }
+
+  /match-requests/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: requestId — 접수 응답(201)이나 상태 조회가 돌려준 값
+        schema: { type: string, format: uuid }
+    delete:
+      summary: Cancel realtime matching
+      description: |
+        [구현됨] MatchingController#cancelMatchRequest
+        compare-and-delete — 저장된 requestId 와 경로 id 가 같을 때만 지운다. 늦게 도착한 취소가 그 사이 새로 만든
+        요청을 지우면 안 되기 때문이다. 누구의 요청인지는 쿠키의 sub 다.
+        PENDING 제안 도중에 취소하면 제안 자체가 깨진다 (INV-5 cancelled).
+      responses:
+        '204': { description: Cancelled }
+        '401': { description: Missing or invalid qm_access cookie (UNAUTHENTICATED) }
+        '403': { description: Origin not allowed (ORIGIN_NOT_ALLOWED) }
+        '404':
+          description: No active request (MATCH_REQUEST_NOT_FOUND), or requestId mismatch (MATCH_REQUEST_MISMATCH)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503': { description: Matching unavailable — Retry-After 5 (MATCHING_UNAVAILABLE) }
+
+  /match-requests/heartbeat:
+    post:
+      summary: Heartbeat for the active realtime matching request
+      description: |
+        [구현됨] MatchingController#heartbeat (2026-09-28)
+        > 개정 이력: 2026-09-28 (A-16) — 이 사본이 원본보다 앞서간 변경이다. 원본에는 이 엔드포인트가 없다 (docs/11 D-43).
+        왜 — 대기 화면을 열어 둔 채 창을 닫거나 브라우저가 죽은 사람의 요청이 그대로 남아 파티 자리를 붙들고 제안을 만료시킨다.
+        배정 전의 claim TTL(60초)은 배정되면 풀리므로 배정 뒤에는 이것이 유일한 거두는 길이다.
+        클라이언트 규약 — 대기 화면(QUEUED · PROPOSED)이 열려 있는 동안 **30초마다** 보낸다. 본문 없음. 누구의 요청인지는 쿠키의 sub 다.
+        서버는 마지막 신호로부터 **90초**(queuemate.alive.grace-ms) 안에 다음 신호가 없으면 그 요청을 취소한다 — 신호 세 번을 놓치면 빠진다.
+        취소되면 남은 파티원에게 MATCH_CANCELLED 가 가고 본인에게는 아무 알림도 없다(창이 닫힌 사람이다) — 살아 있는데 신호를 못 보낸 클라이언트는
+        다음 heartbeat 의 404 로 안다. 확정된 요청(MATCHED)에는 보내지 않아도 된다 — 서버가 취소하지 않는다(그 뒤 접속 확인은 platform 의 방 몫이다).
+        닫기 신호(pagehide 의 keepalive DELETE)는 두지 않는다 — 새로고침도 취소돼 버린다. 새로고침은 신호가 몇 초 끊길 뿐 유예 안이다.
+        응답 본문은 없다. 접수 · 조회 응답에 "다음 신호까지" 를 싣지 않는다 — 주기는 이 규약(30초)이다.
+      responses:
+        '204': { description: Alive — 활성 요청이 있어 시한을 뒤로 밀었다 }
+        '401': { description: Missing or invalid qm_access cookie (UNAUTHENTICATED) }
+        '403': { description: Origin not allowed (ORIGIN_NOT_ALLOWED) }
+        '404':
+          description: No active request (MATCH_REQUEST_NOT_FOUND) — 이미 큐에서 빠졌다(취소 · 유예 만료 · 확정 뒤 60초 경과). GET /match-requests 로 상태를 다시 조회한다
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503': { description: Matching unavailable — Retry-After 5 (MATCHING_UNAVAILABLE) }
+
+  # ── proposal ─────────────────────────────────────────────────
+  # > 개정 이력: 2026-09-27 — 이 사본이 원본보다 앞서간 변경이다 (contracts/README.md A-13, 불일치 표 #6 · #6-1 · #6-2).
+  #   원본은 accept 가 200 + ProposalView, decline 이 200(본문 없음)이었다. 구현(controller/ProposalController.java)에 맞춰
+  #   둘 다 204 로 적고 ProposalView · ProposalMember 스키마는 지웠다 — 참조하는 곳이 없어졌고, 본문에 실을 값도 없다
+  #   (수락 진행상황 "5명 중 3명"을 싣지 않는 이유는 그 숫자가 바뀔 때 알려 주는 이벤트가 계약에 없어서다 —
+  #   contracts/events.md "미해결 계약 구멍"). 내 응답이 반영됐다는 사실은 응답 코드가, 제안이 확정됐는지는
+  #   MATCH_CONFIRMED 알림과 상태 조회가 말한다. 401 · 403 · 404 · 409 · 503 갈래를 적었다. 거절은 쿼리 파라미터를 받지 않는다 —
+  #   구현이 한때 받던 ?requestId= 는 2026-09-27 에 없앴다(본인 요청 id 는 서버가 활성 요청 HASH 에서 읽는다).
+  #   {id} 는 proposalId = partyId 다 — proposal 하나는 언제나 하나의 party 다 (CLAUDE.md §1).
+  #   MATCH_PROPOSAL_CREATED 알림의 payload.partyId 와 상태 조회의 partyId 가 그 값이다.
+  /proposals/{id}/accept:
+    post:
+      summary: Accept proposal
+      description: |
+        [구현됨] ProposalController#accept → ProposalService → redis/proposal/accept-proposal.lua
+        수락하는 사람은 쿠키의 sub 다. 성공은 204 이고 본문이 없다.
+        내 수락으로 전원이 찼으면 확정되고(INV-4) 파티 전원에게 MATCH_CONFIRMED 가 나간다 — 이 응답은 그래도 204 다.
+
+        **멱등이다.** 이미 확정된 제안에 수락을 다시 보내도 204 다(같은 명령을 두 번 보내 결과가 같으면 성공이다 —
+        응답이 유실돼 자동 재시도한 클라이언트에게 오류를 보이지 않는다). 확정 알림은 확정을 만든 그 한 번만 나간다.
+        시한이 지난 제안(expiresAt <= now)은 스위퍼가 걷어가기 전이라도 404 다.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: proposalId (= partyId)
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Accepted (or confirmed, or already accepted — idempotent) }
+        '401': { description: Missing or invalid qm_access cookie (UNAUTHENTICATED) }
+        '403':
+          description: Origin not allowed (ORIGIN_NOT_ALLOWED), or not a member of this proposal (NOT_PROPOSAL_MEMBER)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: No pending proposal (PROPOSAL_NOT_FOUND) — 만료됐거나, 누가 거절해 깨졌거나, 애초에 없다. 클라이언트는 대기 화면으로 돌아간다
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Another member declined this proposal (PROPOSAL_CONFLICT) — 현재 구현에서는 거절이 제안 흔적을 지우므로 대개 404 로 떨어진다
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503': { description: Matching unavailable — Retry-After 5 (MATCHING_UNAVAILABLE) }
+
+  /proposals/{id}/decline:
+    post:
+      summary: Decline proposal
+      description: |
+        [구현됨] ProposalController#decline → ProposalService → redis/proposal/decline-proposal.lua
+        거절하는 사람은 쿠키의 sub 다. 성공은 204 이고 본문이 없다.
+        거절하면 이 제안은 깨지고(파티 HASH 의 제안 흔적과 수락자 집합을 지운다) 거절한 본인만 큐에서 빠진다 —
+        수락해 놓고 기다리던 나머지는 파티에 남아 다시 기다린다.
+
+        쿼리 파라미터는 없다. 본인을 큐에서 빼는 데 쓰는 요청 id 는 서버가 활성 요청 HASH 에서 직접 읽는다 —
+        스크립트가 "이 제안의 멤버인가"를 먼저 확인하므로 취소(DELETE)와 달리 옛 요청이 끼어들 틈이 없다.
+        (구현이 한때 ?requestId= 를 필수로 받았으나 2026-09-27 에 없앴다.)
+
+        **멱등이 아니다.** 첫 거절만 204 이고 같은 거절을 다시 보내면 404 다 — 거절이 제안 흔적을 지우기 때문이다.
+        클라이언트가 할 일은 두 경우 같다(대기 화면 복귀).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: proposalId (= partyId)
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Declined — 제안이 깨졌고 본인은 큐에서 빠졌다 }
+        '401': { description: Missing or invalid qm_access cookie (UNAUTHENTICATED) }
+        '403':
+          description: Origin not allowed (ORIGIN_NOT_ALLOWED), or not a member of this proposal (NOT_PROPOSAL_MEMBER)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: No pending proposal (PROPOSAL_NOT_FOUND) — 이미 깨졌거나 만료됐다. 같은 거절의 재시도도 여기다
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: PROPOSAL_CONFLICT — 이미 확정된 제안이라 깰 수 없다(INV-5), 또는 내가 수락해 놓고 거절을 눌렀다
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503': { description: Matching unavailable — Retry-After 5 (MATCHING_UNAVAILABLE) }
+
+components:
+  securitySchemes:
+    # 2026-09-27 — contracts/README.md A-12. 발급은 app:platform (Set-Cookie: qm_access; HttpOnly; SameSite=Lax; Path=/)
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: qm_access
+
+  schemas:
+    GameKey:
+      type: string
+      enum: [LOL, VALORANT, PUBG]
+
+    VoicePreference:
+      type: string
+      # > 개정 이력: 2026-09-27 — 원본은 [REQUIRED, OPTIONAL, NO_VOICE] 세 값이다. OPTIONAL 을 뺐다
+      #   (contracts/README.md #1 해소 · A-13). "음성 여부 무관"은 매칭 시점에는 제약이 아니지만 파티가 성립한 뒤
+      #   켤지 말지를 팀원끼리 협상하게 만든다 — 매칭 전에 답이 정해지지 않는 조건은 조건이 아니다
+      #   (domain/condition/VoicePreference.java 클래스 주석, docs/11 #31). 되돌리지 마라.
+      enum: [REQUIRED, NO_VOICE]
+
+    PlayPurpose:
+      type: string
+      # > 개정 이력: 2026-09-29 — 원본은 [RANK_UP, NORMAL, FUN] 이다. NORMAL(일반 플레이)을 TRYHARD(빡겜)로 바꿨다
+      #   (contracts/README.md A-19 · docs/11 D-49 — 소유자 결정. 값 이름은 Claude 가 정했다). 뜻도 바뀌었다 —
+      #   "평범하게" 가 아니라 "진지하게(빡세게)" 다. 옛 이름 NORMAL 을 보내면 400 이다.
+      description: |
+        RANK_UP = 랭크 상승 · TRYHARD = 빡겜(진지하게 한다) · FUN = 즐겜.
+      enum: [RANK_UP, TRYHARD, FUN]
+
+    KeyCondition:
+      description: |
+        게임마다 이름만 다른 핵심 조건(게임당 4개 중 2번 줄). type 은 게임이 정한다 —
+        LoL = POSITION (TOP / JUNGLE / MID / ADC / SUPPORT / NONE), VALORANT = ROLE, PUBG = PLATFORM (STEAM / KAKAO).
+        value 가 String 인 것은 허용 값이 게임마다 달라서다.
+
+        > 개정 이력: 2026-09-27 — PUBG 의 type 을 PLAY_STYLE 에서 PLATFORM 으로 바꿨다 (contracts/README.md #14 해소 · A-13).
+        > 스팀과 카카오는 서버가 분리돼 서로 파티를 맺을 수 없으므로, 취향(플레이 스타일)이 아니라 플랫폼이 hard 조건이다.
+        > 조건 개수는 4개 그대로다 — 추가가 아니라 교체다 (domain/condition/KeyConditionType.java 클래스 주석).
+      type: object
+      required: [type, value]
+      properties:
+        type:
+          type: string
+          enum: [POSITION, ROLE, PLATFORM]
+        value: { type: string }
+
+    MatchCondition:
+      type: object
+      required: [game, modeKey, keyCondition, voicePreference, playPurpose]
+      properties:
+        game: { $ref: '#/components/schemas/GameKey' }
+        modeKey: { type: string }
+        keyCondition: { $ref: '#/components/schemas/KeyCondition' }
+        voicePreference: { $ref: '#/components/schemas/VoicePreference' }
+        playPurpose: { $ref: '#/components/schemas/PlayPurpose' }
+
+    CreateMatchRequest:
+      # 바디에 userId 는 없다 — 요청한 사람은 쿠키 qm_access 의 sub 다 (2026-09-27, A-12). 보내도 무시된다.
+      #
+      # > 개정 이력: 2026-09-27 — tier 를 추가했다 (contracts/README.md #13 해소 · A-13). 원본에는 없다.
+      #   조건 5번째가 아니다 — 사용자가 고르는 조건이 아니라 연동 계정에서 가져올 derived 조건이자 자격 조건이다
+      #   (docs/02 §6 · §3 "rank eligibility = hard", CLAUDE.md §2). 랭크 모드에서 티어 차이가 크면 게임에서 큐를
+      #   같이 돌 수 없으므로, 안 보면 애초에 같이 들어갈 수 없는 파티가 만들어진다.
+      # > 개정 이력: 2026-09-29 — tier 가 "그 모드의 사다리(gameconfig 모드 HASH 의 tierLadder)의 티어" 임을 적고,
+      #   "연동이 붙으면 바디에서 사라진다" 를 고쳤다 (docs/11 D-48 · contracts/README.md A-18). 원본에는 없다.
+      allOf:
+        - $ref: '#/components/schemas/MatchCondition'
+        - type: object
+          properties:
+            tier:
+              type: string
+              description: |
+                랭크 티어. 선택 필드이지만 **modeKey 의 tierRule 이 NONE 이 아닌(= EXIST 인) 모드에서는 사실상 필수**이고
+                빠지면 400 INVALID_MATCH_CONDITION 이다. 티어를 보지 않는 모드(LoL 일반 · 칼바람 등)에서는 보내지 않는다.
+                어느 모드가 티어를 보는지는 gameconfig 가 정한다 (docs/GAME_CONFIG.md, seed/gameconfig.redis).
+
+                **값은 단(division)까지 적는다** — `GOLD` 가 아니라 `GOLD_2` 다. 단이 없는 티어(`UNRANKED` / `MASTER` /
+                `GRANDMASTER` / `CHALLENGER`)는 이름 그대로다. 허용되는 이름의 원본은 자바 enum 이 아니라 Redis ZSET
+                `qm:gameconfig:{GAME}:tier` 다 (LoL 은 32개). 어느 사다리의 티어인지는 modeKey 가 정한다(솔랭과 자랭은 별개다).
+                그 답은 gameconfig 모드 HASH 의 `tierLadder`(사다리 키 — LoL `SOLO` · `FLEX` / VALORANT `COMPETITIVE` /
+                PUBG `RANKED` — 시즌 36 통합이라 하나)다 — **클라이언트는 그 사다리의 티어를 보낸다**
+                (2026-09-29, docs/11 D-48). 이 앱은 `tierLadder` 를 읽지 않고 받은 `tier` 를 그 모드의 티어로 쓴다.
+
+                **임시 필드다.** 지금은 사용자 자기신고이고, 게임 계정 연동이 붙으면 요청 바디에서 사라진다 —
+                받는 값이 아니라 연동 계정에서 가져오는 값이 된다.
+                → **2026-09-29 (docs/11 D-48) — 바디에 남는다.** app:platform 이 게임 계정의 티어를 사다리마다 저장하고,
+                클라이언트가 그 가운데 이 모드의 `tierLadder` 것을 골라 여기에 싣는다. 이 앱은 app:platform 을 부르지 않는다.
+              example: GOLD_2
+
+    MatchRequestView:
+      description: |
+        "이 사람의 매칭 요청이 지금 어떤 상태인가". 요청 접수(201)와 상태 조회(200)가 같은 모양을 쓴다.
+        **status 만 항상 있고 나머지는 그 갈래에서 뜻이 있을 때만 있다** — 뜻이 없는 필드는 응답에 아예 나타나지
+        않는다(구현은 `@JsonInclude(NON_NULL)`). 클라이언트는 status 로 갈래를 정하고 있는 필드만 읽는다.
+
+        | status | 있는 필드 | 뜻 |
+        |---|---|---|
+        | `IDLE` | (없음) | 활성 요청이 없다. 취소·만료로 빠진 경우도 여기다 — `{"status":"IDLE"}` 하나뿐 |
+        | `QUEUED` | `requestId` `queuedAt` (+ 파티가 잡혔으면 `partyId` `target` `memberCount`) | 기다리는 중. "3/5명" 은 memberCount/target |
+        | `PROPOSED` | `requestId` `queuedAt` `partyId` `expiresAt` `isAccepted` | 제안이 떠 있다. 남은 시간은 expiresAt - now, 내가 이미 눌렀는지는 isAccepted |
+        | `MATCHED` | `requestId` `queuedAt` `partyId` | 확정됐다. 파티 상세(누가 같이 있는지)는 app:platform 이 답한다 |
+
+        `CANCELLED` / `EXPIRED` 는 구현의 enum(domain/MatchRequestStatus.java)에 자리만 있고 **조회가 절대 돌려주지
+        않는다** — 취소·만료는 활성 요청 키를 지우므로 서버에 근거가 남지 않아 IDLE 과 구분되지 않는다.
+        "왜 큐에서 빠졌는지"는 알림(MATCH_CANCELLED / MATCH_PROPOSAL_EXPIRED)이 말한다.
+
+        > 개정 이력: 2026-09-27 — 원본은 `{ id, status, queuedAt(date-time), proposalId }` 4개 필드 · status 5값
+        > `[QUEUED, PROPOSED, MATCHED, CANCELLED, EXPIRED]` 다. 이 사본은 **구현(dto/MatchRequestResponse.java)이 지금
+        > 돌려주는 필드 집합**을 적는다 (contracts/README.md #4 · #4-1 · A-13) — status 에 IDLE 이 붙고, 화면을 그리는 데
+        > 필요한 target / memberCount / expiresAt / isAccepted 가 있다.
+        > **이름과 타입은 정해진 것이 아니다** — `id` vs `requestId`, `proposalId` vs `partyId`(확정되면 같은 값이다 —
+        > proposal = party), `queuedAt` 의 date-time 문자열 vs epoch millis. 원본 계약과 같이 정하고, 그때까지 코드도
+        > 이 사본도 이름을 바꾸지 않는다. CANCELLED / EXPIRED 를 계약에 남길지도 그때 정한다.
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [IDLE, QUEUED, PROPOSED, MATCHED]
+        requestId:
+          type: string
+          format: uuid
+          description: 취소(DELETE /match-requests/{id})에 넘기는 값. IDLE 에는 없다
+        queuedAt:
+          type: integer
+          format: int64
+          description: 줄 선 시각 — epoch millis. 대기 시간은 클라이언트가 이 값으로 구한다. 나중에 추가된 필드라 없을 수 있다
+        partyId:
+          type: string
+          format: uuid
+          description: 배정된 파티. proposalId 와 같은 값이다 — POST /proposals/{id}/accept|decline 의 {id} 가 이것이다. 대기 중에도 대개 있다(혼자짜리 파티가 먼저 만들어진다)
+        target:
+          type: integer
+          description: QUEUED 에서 파티 정원
+        memberCount:
+          type: integer
+          description: QUEUED 에서 지금 인원
+        expiresAt:
+          type: integer
+          format: int64
+          description: PROPOSED 의 시한 — epoch millis. 남은 시간은 클라이언트가 구한다
+        isAccepted:
+          type: boolean
+          description: PROPOSED 에서 내가 이미 수락했는지. 돌아온 사람이 볼 화면이 이것으로 갈린다
+
+    # ⚠ 원본 계약에는 ErrorResponse 스키마가 없다 (원본 contracts/events.md 의
+    #   "미해결 계약 구멍"이 직접 지적한다). 아래는 구현
+    #   common/error/ErrorResponse.java 에서 역으로 적은 것이며, 계약으로 승격하려면
+    #   queueMate 본 저장소에서 contract 변경 커밋을 먼저 만들어야 한다 (contracts/README.md #8).
+    ErrorResponse:
+      type: object
+      required: [code, message, details]
+      properties:
+        code:
+          type: string
+          # 이 저장소가 실제로 내는 값 (contracts/README.md "계약에는 없지만 구현이 실제로 내는 에러 코드")
+          enum:
+            - INVALID_REQUEST          # 400 — @Valid 실패. details 에 필드별 메시지
+            - BAD_REQUEST              # 400 — IllegalArgumentException. 지원하는 규칙이 없는 게임 등
+            - INVALID_MATCH_CONDITION  # 400 — 게임별 조건 검증 실패 (없는 modeKey, 모드에 안 맞는 keyCondition 값, tierRule 에 안 맞는 tier)
+            - ALREADY_QUEUED           # 409 — INV-1
+            - IN_ROOM                  # 409 — 게시판 방에 들어가 있다 (docs/11 D-11 15번) — contracts/README.md A-10
+            - MATCH_REQUEST_NOT_FOUND  # 404 — 취소할 활성 요청이 없다. heartbeat 도 같은 코드다 (2026-09-28, A-16)
+            - MATCH_REQUEST_MISMATCH   # 404 — 저장된 requestId 와 다르다 (늦게 도착한 취소)
+            - PROPOSAL_NOT_FOUND       # 404 — 진행 중인 제안이 없다 (만료 · 누가 거절함 · 거절 재시도) (2026-09-27, A-13)
+            - PROPOSAL_CONFLICT        # 409 — 이미 확정됐다 / 수락해 놓고 거절했다 / 다른 참가자가 거절했다 (2026-09-27, A-13)
+            - NOT_PROPOSAL_MEMBER      # 403 — 이 제안의 참가자가 아니다 (2026-09-27, A-13)
+            - MATCHING_UNAVAILABLE     # 503 — INV-10 fail-closed. Retry-After: 5
+            - UNAUTHENTICATED          # 401 — 쿠키 qm_access 가 없거나 검증 실패 (2026-09-27, A-12)
+            - ORIGIN_NOT_ALLOWED       # 403 — 상태 변경 요청의 Origin 이 허용 목록 밖 (2026-09-27, A-12)
+        message: { type: string }
+        details:
+          type: array
+          items: { type: string }

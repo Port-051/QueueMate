@@ -39,42 +39,20 @@
   .room-match-start:is(:hover,:focus-visible):not(:disabled)>svg { transform:none; }
 }
 
-.room-match-floating { position:fixed; right:28px; bottom:28px; z-index:35; display:flex; flex-direction:column; align-items:flex-end; gap:12px; }
-.room-home .room-match-fab { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; width:76px; height:76px; padding:0; border:1px solid #ba95ff; border-radius:50%; background:#8658dc; color:#fff; box-shadow:0 6px 28px #0008,0 0 22px #8b5cdb30; cursor:pointer; font-size:13px; font-weight:650; font-variant-numeric:tabular-nums; }
-.room-match-fab:hover { background:#996ced; }
-.room-match-fab:focus-visible { outline:3px solid #e0ceff; outline-offset:4px; }
-.room-home .room-match-fab.is-searching { background:#292038; border:2px solid #ac83f2; }
-.room-match-fab { position:relative; }
-.room-match-found { position:absolute; top:-12px; left:50%; transform:translateX(-50%); padding:3px 9px; border-radius:999px; background:#b99aec; color:#20162f; font-size:11px; white-space:nowrap; }
-.room-match-progress { width:340px; max-width:calc(100vw - 32px); max-height:calc(100dvh - 150px); overflow:auto; padding:18px; border:1px solid #665080; border-radius:20px; background:#161522; box-shadow:0 12px 48px #0009; }
-.room-match-progress-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:14px; }
-.room-match-progress-heading .icon-btn { width:28px; height:28px; font-size:22px; }
-.room-match-elapsed { display:flex; align-items:center; gap:10px; margin:8px 0 16px; color:#aaa5ba; font-size:12px; }
-.room-match-elapsed time { color:#d5bdff; font-size:18px; font-variant-numeric:tabular-nums; }
-.room-match-progress .duo-offers { margin:0; }
-.room-match-progress .quick-connect-result { margin:0; padding:14px; }
-.room-match-progress-actions { display:flex; justify-content:space-between; gap:8px; margin-top:14px; }
-.room-match-progress-actions .btn { font-size:12px; }
+.room-match-clock { font-variant-numeric:tabular-nums; }
 .modal-scrim:has(.room-match-dialog) { padding:16px; }
 .room-match-dialog.modal { width:min(760px,100%); max-width:calc(100vw - 32px); }
 .room-match-description { color:var(--muted); margin:0 0 18px; font-size:14px; }
-.room-home.board-home.room-match-settings { padding:0; margin:0; --room-control-height:56px; --room-option-height:44px; }
+.room-match-dialog .room-home.board-home.room-match-settings { padding:0; margin:0; --room-control-height:56px; --room-option-height:44px; }
 .room-match-settings .home-profile-stack { position:static; max-height:none; overflow:visible; padding:0; margin:0; }
-.room-match-settings .home-profile-content { padding:0; background:transparent; border:0; }
+.room-match-settings.board-home .home-profile-content { padding:0; background:transparent; border:0; }
 .room-match-settings .home-profile-account { margin-bottom:20px; }
-.room-match-settings .room-matching-form { max-width:none; }
-.room-match-settings .introduction-fields { grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 24px; }
-.room-match-settings .intro-role-options { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); }
-.room-match-settings .room-settings-pair { gap:12px; }
-.room-match-settings .introduction-wide { grid-column:auto; }
-.room-match-settings .room-rail-actions { position:static; padding-top:8px; background:transparent; }
-@media(min-width:1101px) {
-  /* Keep the floating control clear of the conversation's send button. */
-  .room-home:not(.is-exploring) .room-match-floating { right:calc(max(0px, (100vw - 1424px) / 2) + 468px); }
-}
+.room-match-settings .home-profile .room-matching-form { max-width:none; margin:0; }
+.room-match-settings .self-introduction .introduction-fields { grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px 24px; align-items:start; }
+.room-match-settings.room-home .room-settings-pair { grid-template-columns:minmax(0,1fr); gap:12px; }
+.room-match-settings .matching-rail-footer.room-rail-actions { position:static; background:transparent; }
+.room-match-dialog .quick-connect-result { margin:0; }
 @media(max-width:600px) {
-  .room-match-floating { right:16px; bottom:max(16px,env(safe-area-inset-bottom)); }
-  .room-home .room-match-fab { width:64px; height:64px; font-size:12px; }
   .room-match-dialog.modal { padding:20px 16px; }
-  .room-match-settings .introduction-fields { grid-template-columns:minmax(0,1fr); gap:16px; }
+  .room-match-settings .self-introduction .introduction-fields { grid-template-columns:minmax(0,1fr); gap:16px; }
 }

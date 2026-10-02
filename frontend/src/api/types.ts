@@ -1,13 +1,17 @@
 /**
- * contracts/openapi.yaml v2.0.0 + contracts/events.md 1:1 매핑.
+ * 백엔드 계약의 타입 — `platform/contracts/platform-api.md` · `matching/contracts/openapi.yaml` · `events.md` 1:1 매핑.
  * 계약에 없는 필드를 임의로 추가하지 않는다. 계약이 정본이고 구현이 따라간다.
+ * 원본 프런트의 모양이 남은 절은 예약 하나다(대응물이 없다 — 그 절의 주석 참조). 게임 계정 · 매칭 · 제안은 3단계, 모집 글 · 방은 4단계, 친구 · 차단 · 신고 · 최근 함께한 사람은 5단계에서 우리 모양이 됐다.
  */
 
 export type GameKey = 'LOL' | 'VALORANT' | 'PUBG';
-export type VoicePreference = 'REQUIRED' | 'OPTIONAL' | 'NO_VOICE';
-export type PlayPurpose = 'RANK_UP' | 'NORMAL' | 'FUN';
+/** `OPTIONAL` 은 없다(openapi `VoicePreference` 개정 이력 · docs/11 #31) — 매칭 전에 답이 정해지지 않는 조건은 조건이 아니다. */
+export type VoicePreference = 'REQUIRED' | 'NO_VOICE';
+/** 랭크 상승 · 빡겜 · 즐겜. `TRYHARD`(빡겜)는 옛 `NORMAL`(일반 플레이)을 바꾼 것이다 — 2026-09-29 소유자 결정(matching D-49 · A-19 — 옛 이름은 400). */
+export type PlayPurpose = 'RANK_UP' | 'TRYHARD' | 'FUN';
 export type PlayAmount = 'ONE_GAME' | 'TWO_PLUS';
-export type KeyConditionType = 'POSITION' | 'ROLE' | 'PLAY_STYLE';
+/** LoL = POSITION · VALORANT = ROLE · PUBG = PLATFORM(STEAM/KAKAO — 원본의 PLAY_STYLE 이 아니다, A-13). */
+export type KeyConditionType = 'POSITION' | 'ROLE' | 'PLATFORM';
 
 export interface KeyCondition {
   type: KeyConditionType;
@@ -22,100 +26,178 @@ export interface MatchCondition {
   playPurpose: PlayPurpose;
 }
 
-/* ---------- auth / user ---------- */
-export interface SignupRequest { email: string; password: string; nickname: string; }
-export interface LoginRequest { email: string; password: string; }
-export interface TokenResponse { accessToken: string; refreshToken: string; tokenType: 'Bearer'; expiresIn: number; }
-export interface RefreshRequest { refreshToken: string; }
-
-/** 소셜 로그인. DEV는 로컬 개발용 가짜 제공자라 운영에는 뜨지 않는다. */
-export type OAuthProviderKey = 'KAKAO' | 'NAVER' | 'DEV';
-export interface OAuthProviderView {
-  provider: OAuthProviderKey;
-  displayName: string;
-  /** 브라우저를 이동시킬 경로. 프론트엔드가 직접 조립하지 않는다. */
-  authorizeUrl: string;
-}
-export interface OAuthExchangeRequest { code: string; }
-export interface UserProfile { id: string; nickname: string; avatarUrl: string | null; }
+/* ---------- auth / user (platform-api.md "계정" · "소셜 로그인" · "게임 프로필") ---------- */
 
 /**
- * 부분 수정이다. **키를 생략한 항목은 건드리지 않는다.**
- * `avatarUrl: null`을 명시하면 아바타를 지운다. `nickname: null`은 400이다 (openapi UpdateUserRequest).
+ * 소셜 제공자 — 대문자 enum. 가입 · 로그인은 이것뿐이다(D-35).
+ * `GOOGLE` 은 2026-09-29 소유자 결정으로 더했다 — 백엔드가 같은 경로(`/auth/oauth/GOOGLE/start`) · 같은 콜백 갈래로 받는다(platform 에서 구현 중).
  */
-export interface UpdateUserRequest { nickname?: string; avatarUrl?: string | null; }
+export type SocialProvider = 'KAKAO' | 'DISCORD' | 'GOOGLE';
 
-export interface GameAccountView {
-  id: string;
-  game: GameKey;
-  externalGameId: string;
-  region: string | null;
-  /** 솔로/듀오 랭크. 서버가 채우는 파생 값이다 */
-  rankCode: string | null;
-  /** 자유 랭크. 솔로와 독립이라 한쪽만 있을 수 있다 */
-  flexRankCode: string | null;
-  verifiedAt: string | null;
-}
-export interface CreateGameAccountRequest { game: GameKey; externalGameId: string; region?: string | null; }
+/**
+ * 소셜 가입 · 재발급이 돌려주는 본문. `userId` 는 **사용자 번호**(bigint → JSON 숫자)다 — 로그인 아이디 · 이메일은 없다.
+ * `POST /auth/social/signup` 201 · `POST /auth/refresh` 200 이 같은 모양이다.
+ */
+export interface SessionUser { userId: number; nickname: string; }
 
-/* ---------- game config ---------- */
-export interface GameView {
-  game: GameKey;
-  keyConditionType: KeyConditionType;
-}
+/** `GET /auth/social/pending`. `suggestedNickname` 은 `null` 일 수 있다(16자로 자른 값). */
+export interface SocialSignupPending { provider: SocialProvider; suggestedNickname: string | null; }
+export interface SocialSignupRequest { nickname: string; }
 
-/** targetPartySize는 서버가 정한다. 클라이언트는 파티 정원을 보내지 않는다 (docs/03 §9). */
-export interface GameModeView {
-  modeKey: string;
-  targetPartySize: number;
-  /** true면 파티 안에서 keyCondition 값이 겹칠 수 없다 (LoL POSITION hard rule). */
-  roleUniqueness: boolean;
-}
-
-/** 프론트가 조건 폼을 그리는 근거 (docs/14 §3.3). */
-export interface MatchSchemaView {
-  game: GameKey;
-  modes: GameModeView[];
-  keyCondition: { type: KeyConditionType; values: string[] };
-  voicePreferences: VoicePreference[];
-  playPurposes: PlayPurpose[];
-}
-
-/* ---------- realtime matching ---------- */
-export type CreateMatchRequest = MatchCondition;
-export type MatchRequestStatus = 'QUEUED' | 'PROPOSED' | 'MATCHED' | 'CANCELLED' | 'EXPIRED';
-
-export interface MatchRequestView {
-  id: string;
-  status: MatchRequestStatus;
-  /** 최초 대기 시작 시각. 제안을 거절하고 큐로 돌아와도 유지된다. */
-  queuedAt: string;
-  proposalId: string | null;
-}
-
-export interface MatchHistoryView extends Omit<MatchRequestView, 'status'> {
-  status: 'MATCHED' | 'CANCELLED' | 'EXPIRED';
-  condition: MatchCondition;
-}
-
-export type ProposalStatus = 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'EXPIRED' | 'CANCELLED';
-export type Acceptance = 'PENDING' | 'ACCEPTED' | 'DECLINED';
-
-export interface ProposalMember {
-  userId: string;
-  /** 서버가 null을 줄 수 있다. `client.ts`가 정규화해서 넘긴다. */
+/**
+ * `GET /users/me`. 식별자는 `userId`(사용자 번호 · 숫자) 하나, 보여 주는 이름은 `nickname` 하나다(D-25).
+ * 방 응답 · 알림 `payload` 의 id 는 **십진 문자열**(`"42"`)이라 비교할 때는 `String(userId)` 다 — `AuthContext` 의 `userId` 가 그것이다.
+ * 아바타(`avatarUrl`) · 로그인 아이디 · 이메일은 우리 백엔드에 없다.
+ */
+export interface UserProfile {
+  userId: number;
   nickname: string;
-  acceptance: Acceptance;
+  createdAt: string;
+  /** 연결된 소셜 제공자. 화면은 이것으로 제공자마다 "연결됨 / 연결하기" 를 그린다(P-27). */
+  socialProviders: SocialProvider[];
+  /** 게임 계정(게임마다 하나) — 게임 프로필 그대로. 목록을 따로 받는 요청은 없다(`GET …/game-accounts` 없음). **빈 배열일 수 있다** — 게임 계정은 선택이다(2026-09-29 소유자 결정 · 로그인 직후 한 번 온보딩을 권하는 판정 `state/onboarding.ts` 가 개수를 본다). */
+  gameAccounts: GameProfile[];
 }
 
-export interface ProposalView {
-  id: string;
-  status: ProposalStatus;
-  /** 절대 시각이다. 남은 초는 클라이언트가 계산한다. */
-  expiresAt: string;
-  members: ProposalMember[];
-  /** 확정 전에는 null이고 CONFIRMED 이후에만 채워진다. */
-  partyId: string | null;
+/** `PATCH /users/me`. 닉네임 하나다(2~16자 · 유일 · 409 `NICKNAME_TAKEN`). */
+export interface UpdateUserRequest { nickname: string; }
+
+/**
+ * 티어 사다리의 키 — 한 게임 안에서 랭크 큐마다 티어가 따로다(2026-09-29 소유자 결정 "모드별 티어를 무조건 저장한다").
+ * LoL `SOLO`(솔로랭크) · `FLEX`(자유랭크) / VALORANT `COMPETITIVE`(경쟁전) / PUBG `RANKED`(랭크 — 하나다. 시즌 36(2025-06-05)부터 티어/RP 가 듀오 · 스쿼드와 FPP · TPP 에 걸쳐
+ * 통합됐다 — `matching/WORKLOG_2026-09-14.md` §1. 처음에 넷(`DUO_TPP` …)으로 두었던 것은 틀린 전제였다).
+ * 어느 모드가 어느 사다리를 보는지는 gameconfig 모드 HASH 의 `tierLadder` 다 — 사본은 `domain/gameCatalog.ts` 의 모드. 사다리 **안의** 티어 이름(`GOLD_4` …)은 게임마다 하나(`qm:gameconfig:{GAME}:tier`)를 같이 쓴다.
+ */
+export type LolTierLadder = 'SOLO' | 'FLEX';
+export type ValorantTierLadder = 'COMPETITIVE';
+export type PubgTierLadder = 'RANKED';
+export type TierLadder = LolTierLadder | ValorantTierLadder | PubgTierLadder;
+
+/**
+ * 게임 프로필 — 게임 계정 하나를 밖에 보여 주는 모양(`users/me.gameAccounts[]` · 게시판 카드의 `host.profile` · `members[].profile`). 세 게임이 같은 모양이다(platform-api.md "게임 프로필").
+ * **`tier` 칸은 없다 — `tiers` 가 사다리마다의 티어다**(2026-09-29 소유자 결정). 그 게임의 사다리 키가 **전부** 들어 있고 값은 사다리 이름(`GOLD_4` 꼴) 또는 `null`(언랭 · 모름) —
+ * 예 LoL `{"SOLO":"GOLD_4","FLEX":null}` · VALORANT `{"COMPETITIVE":"GOLD_2"}` · PUBG `{"RANKED":"DIAMOND_3"}`. LoL · PUBG 는 게임사 API 가 채우고 VALORANT 는 자기신고다.
+ * 타입이 `Partial` 인 것은 게임마다 키가 다르기 때문이다 — 읽는 것은 `domain/profileTier.ts` 한 곳에서(없는 키 · 옛 응답도 `null` 로 읽는다).
+ * `server` 는 PUBG 만(`STEAM` · `KAKAO`). `verified` · `stats` 는 읽기 전용이다. 언제 긁은 것인지는 `stats.syncedAt` 이다.
+ * **주 포지션 · 주 역할군(`mainPosition`)은 없다**(2026-09-29 소유자 결정 — 포지션은 글을 쓸 때(`wantedPositions`) · 매칭을 시작할 때(`keyCondition`) 고르는 것이다).
+ */
+export interface GameProfile {
+  game: GameKey;
+  gameNickname: string;
+  verified: boolean;
+  tiers: Partial<Record<TierLadder, string | null>>;
+  server: PubgServer | null;
+  stats: GameStats | null;
+}
+
+export type PubgServer = 'STEAM' | 'KAKAO';
+
+/** 전적 스냅숏. 비는 칸은 빠지지 않고 `null` 이다 — PUBG 는 `wins` · `losses` · `winStreak` · `avgAssists` · `kda` 가 늘 `null`. */
+export interface GameStats {
+  games: number;
+  wins: number | null;
+  losses: number | null;
+  winRate: number | null;
+  winStreak: number | null;
+  avgKills: number | null;
+  avgDeaths: number | null;
+  avgAssists: number | null;
+  kda: number | null;
+  /**
+   * 게임마다 다르다 — LOL `{mostChampions}` · VALORANT `{mostAgents, mainWeapon, …}` · PUBG `{seasonMode, avgDamage, kd, top1Rate}`(이번 시즌 랭크 전 모드 합산 · 랭크 판이 없으면 일반 시즌 합산 — 2026-09-29).
+   * jsonb 그대로라 `null` 일 수 있다.
+   */
+  detail: GameStatsDetail | null;
+  syncedAt: string;
+}
+
+/**
+ * LoL `stats.detail.mostChampions[]` — **숙련도 점수 높은 순 셋까지**(서버가 계정 전체 숙련도 `champion-mastery-v4` 에서 고른다 — 2026-09-30 소유자 결정).
+ * 판 수 · 승률(`games` · `winRate`)은 그날 칸째 없어졌다 — 옛 응답이 아직 싣고 와도 읽지 않는다. `championId` 는 Riot 의 `championName`(`"Samira"`).
+ * 숙련도 둘은 못 받으면 `null` 이다(jsonb 그대로라 화면은 숫자인지 보고 읽는다).
+ */
+export interface LolMostChampion {
+  championId: string;
+  masteryLevel: number | null;
+  masteryPoints: number | null;
+}
+/**
+ * `stats.detail`. PUBG 의 넷은 platform-api.md "게임 프로필" 의 PUBG 칸 그대로다 — 단위는 계약에 없어 프런트가 이렇게 읽는다(Claude 가 정한 세부):
+ * `top1Rate` 는 퍼센트 숫자(`winRate` 처럼 — `5.2` = 5.2%) · `kd` 는 킬 / 데스 · `avgDamage` 는 판당 평균 딜량 · `seasonMode` 는 합산의 출처(값 목록은 계약에 없다 — 받은 그대로 보여 준다).
+ */
+export interface GameStatsDetail {
+  mostChampions?: LolMostChampion[] | null;
+  /**
+   * LoL 최근 경기마다의 승 · 패 — `"W"` · `"L"` 한 칸씩 · **새 경기가 먼저** · 길이 = `games` · 경기가 없으면 빈 배열(platform P-43 · 2026-09-30).
+   * **그날 전에 적힌 스냅숏에는 칸이 없다** — 화면은 전처럼 판 수(`최근 10판`)를 그린다. `wins` · `losses`(솔로랭크 시즌 누적)와 다른 숫자다.
+   * jsonb 그대로라 화면은 배열인지 · 값이 두 글자인지 보고 읽는다(`components/RecentResults.tsx` `recentRecord`).
+   */
+  recentResults?: unknown;
+  seasonMode?: string | null;
+  avgDamage?: number | null;
+  kd?: number | null;
+  top1Rate?: number | null;
+  [key: string]: unknown;
+}
+
+/**
+ * `PUT /api/v1/users/me/game-accounts/{game}` 의 본문 — **게임마다 다르다**(P-26 · 2026-09-29 소유자 결정).
+ * LOL 은 `gameNickname`(`이름#태그`) 하나 — 티어(솔로 · 자유)는 Riot 이 채운다 ·
+ * VALORANT 는 `gameNickname` + `tier`(선택 · `COMPETITIVE` 사다리로 저장된다 — 자기신고) ·
+ * **PUBG 는 `gameNickname` + `server` — `tier` 를 보내면 400 이다**(`RANKED` 사다리를 PUBG API 가 채운다). **`mainPosition` 을 보내면 400 이다**(2026-09-29 소유자 결정).
+ * LOL · PUBG 는 저장하기 전에 서버가 게임사 API 를 **동기로** 긁는다(상한 30초) — 응답에 `tiers` · `stats` 가 바로 있다.
+ * `tier` 는 그 게임의 사다리 이름이어야 하고(400 `VALIDATION_FAILED`), 없으면 보내지 않는다(`undefined` — JSON 에서 빠진다).
+ */
+export interface LolGameAccountRequest { gameNickname: string; }
+export interface ValorantGameAccountRequest { gameNickname: string; tier?: string; }
+export interface PubgGameAccountRequest { gameNickname: string; server: PubgServer; }
+export type GameAccountRequest = LolGameAccountRequest | ValorantGameAccountRequest | PubgGameAccountRequest;
+
+/* game config(GET /games · match-schema)는 없다 — 정적 상수 `domain/gameCatalog.ts`(원본 seed 의 사본) */
+
+/* ---------- realtime matching (matching/contracts/openapi.yaml · platform-api.md "자동 매칭이 게시판 방에 먼저 합류하는 길") ---------- */
+
+/**
+ * `POST /api/v1/match-requests`(matching) 와 `POST /api/v1/posts/auto-join`(platform) 의 **같은 본문** — `CreateMatchRequestCommand` 와 필드 이름이 글자까지 같다.
+ * `MatchCondition` 은 화면의 값이고 이것은 서버에 보내는 값이다 — 둘을 잇는 것은 `domain/matchRequest.ts` `buildMatchRequest` 다:
+ * `keyCondition.value` 의 화면 사본 `ANY` 는 `NONE` 으로 · `tier` 는 내 게임 계정의 **그 모드의 사다리(`tierLadder`) 티어**를 **`tierRule=EXIST` 모드에서만** 싣는다(`NONE` 모드에 실으면 400).
+ * `userId` 는 없다 — 쿠키의 사용자다.
+ */
+export interface CreateMatchRequest extends MatchCondition { tier?: string; }
+
+/** `POST /posts/auto-join` 200 — 들어간 글과 방. 둘은 같은 숫자다(게시판 방의 `roomId` 는 글의 번호). 방 화면 경로에는 `String(roomId)`. */
+export interface AutoJoinResponse { postId: number; roomId: number; }
+
+/** `POST /match-parties/{partyId}/room` 201/200 — `roomId` 는 `partyId` 와 같은 UUID 문자열이다(P-30). */
+export interface MatchRoomResponse { roomId: string; }
+
+/**
+ * `GET /match-parties/{partyId}/members?game=` 200 — 빠른매치 파티의 팀원 카드(2026-10-01 소유자 결정 — platform P-47). **파티원 전원(나 포함)**이고 내가 그 파티원일 때만 준다.
+ * 제안(`PROPOSED`) 중에도 확정 뒤에도 같은 모양이다. `userId` 는 JSON 숫자 · `nickname` 은 가입하지 않은 번호면 `null` · `profile` 은 게시판 카드(`MemberCard.profile`)와 같은 모양(그 파티의 게임 · 없으면 `null`).
+ * `position` 은 빠른매치에서 고른 포지션(LoL) · 역할(VALORANT) — 그 밖(PUBG · 포지션 없는 모드 · 확정 600초 뒤 서버가 DB 로 답할 때)은 `null`.
+ * 방장(`host`) 칸은 없다(빠른매치에는 방장이 없다 — 방의 방장은 `GET /rooms/{roomId}/members` 의 `hostId`) · 차단은 거르지 않는다 · 순서는 닉네임순.
+ */
+export interface MatchPartyMember { userId: number; nickname: string | null; position: string | null; profile: GameProfile | null }
+export interface MatchPartyMembersResponse { partyId: string; members: MatchPartyMember[] }
+
+export type MatchRequestStatus = 'IDLE' | 'QUEUED' | 'PROPOSED' | 'MATCHED';
+
+/**
+ * `MatchRequestView` — 접수(201)와 상태 조회(`GET /match-requests` · 늘 200)가 같은 모양이다. **`status` 만 항상 있고 나머지는 그 갈래에서만 온다**(`@JsonInclude(NON_NULL)`).
+ * `IDLE` 은 `{status}` 뿐(취소 · 만료로 빠진 경우도 여기) · `QUEUED` 는 `requestId` `queuedAt`(+ 파티가 잡혔으면 `partyId` `target` `memberCount`) ·
+ * `PROPOSED` 는 `requestId` `queuedAt` `partyId` `expiresAt` `isAccepted` · `MATCHED` 는 `requestId` `queuedAt` `partyId`. 시각은 전부 **epoch ms**.
+ * 이름 · 타입은 원본 계약과 열려 있다(`matching/contracts/README.md` #4 · #5) — 코드(`MatchRequestResponse.java`)가 답하는 모양을 따랐다.
+ */
+export interface MatchRequestView {
+  status: MatchRequestStatus;
+  requestId?: string;
+  queuedAt?: number;
+  /** 배정된 파티 = `proposalId`. `POST /proposals/{id}/accept|decline` 의 `{id}` 이고 확정 뒤 `POST /match-parties/{id}/room` 의 `{partyId}` 다. */
+  partyId?: string;
+  target?: number;
+  memberCount?: number;
+  expiresAt?: number;
+  isAccepted?: boolean;
 }
 
 /* ---------- reservation ---------- */
@@ -128,11 +210,7 @@ export interface CreateReservationRequest {
   playAmount: PlayAmount;
 }
 
-/**
- * v2에서 `partyId`가 제거됐다 (docs/14 §11-13).
- * 파티에 가려면 `proposalId`로 `GET /proposals/{id}`를 불러 `partyId`를 읽는다.
- * 실시간 매칭(MatchRequestView)과 같은 규칙이다.
- */
+/** 원본 프런트의 예약 — **우리 백엔드에 없다**(`app:reservation` Lambda · 미착수). 화면이 컴파일되게만 남겼다(START_HERE.md §5). */
 export interface ReservationView {
   id: string;
   status: ReservationStatus;
@@ -146,124 +224,205 @@ export interface ReservationView {
   proposalId: string | null;
 }
 
-/* ---------- party ---------- */
-export type PartyStatus = 'OPEN' | 'READY' | 'PLAYING' | 'CLOSED';
+/* ---------- 모집 글 · 방 (platform-api.md "모집 글 · 목록" · "방" · "자동 매칭 파티의 방") ---------- */
 
-export interface PartyMemberView {
-  userId: string;
-  /** 서버가 null을 줄 수 있다 (docs/14 §7.1). `client.ts`가 정규화해서 넘긴다. */
-  nickname: string;
-  ready: boolean;
-  gameIds?: string[];
-}
-
-export interface PartyView {
-  id: string;
-  game: GameKey;
-  modeKey: string;
-  targetSize: number;
-  status: PartyStatus;
-  members: PartyMemberView[];
-}
-
-/* ---------- social ---------- */
-export interface FriendView { userId: string; nickname: string; avatarUrl: string | null; friendedAt: string; }
-export type FriendRequestDirection = 'RECEIVED' | 'SENT';
-export type FriendRequestStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELLED';
-export interface FriendRequestView {
-  id: string;
-  direction: FriendRequestDirection;
-  counterpartUserId: string;
-  counterpartNickname: string;
-  status: FriendRequestStatus;
-  createdAt: string;
-}
-export interface CreateFriendRequest { targetUserId: string; }
-export interface BlockView { userId: string; nickname: string; blockedAt: string; }
-export interface CreateBlockRequest { targetUserId: string; }
-
-export interface RecentPlayerView {
-  userId: string;
-  nickname: string;
-  avatarUrl: string | null;
-  lastPlayedAt: string;
-  playCount: number;
-  friend: boolean;
-}
-
-export type ReportReason = 'ABUSIVE_LANGUAGE' | 'HARASSMENT' | 'CHEATING' | 'TROLLING_OR_AFK' | 'INAPPROPRIATE_PROFILE' | 'OTHER';
-export interface CreateReportRequest {
-  targetUserId: string;
-  reason: ReportReason;
-  description?: string | null;
-  partyId?: string | null;
-}
-
-/* ---------- websocket (contracts/events.md) ---------- */
+/** 글의 상태. 목록은 셋을 `id` 내림차순으로 섞어 내려 준다(끝난 글도 남는다 — P-20). 화면은 `RECRUITING` 이 아닌 글을 흐리게 그린다. */
+export type PostStatus = 'RECRUITING' | 'CONFIRMED' | 'EXPIRED';
+export type PubgPerspective = 'TPP' | 'FPP';
+/** 게임별 조건 — PUBG 는 `{perspective}` 가 필수이고 LoL · VALORANT 는 `{}` 다(모르는 키는 400). `@JsonRawValue` 라 JSON **객체**로 온다. */
+export interface PostConditions { perspective?: PubgPerspective; [key: string]: unknown }
 
 /**
- * Server → Client. **백엔드가 실제로 발행하는 것만 둔다.**
- *
- * 계약에는 17종이 적혀 있지만 `MATCH_QUEUE_UPDATED` `RESERVATION_UPDATED`
- * `PARTY_MEMBER_JOINED` `FRIEND_REQUEST_RECEIVED` `FRIEND_REQUEST_UPDATED`
- * `PARTY_INVITE_RECEIVED` 6종은 enum 선언만 있고 발행 지점이 0건이다. 영영 오지 않는
- * 이벤트를 기다리는 화면은 멈춘 것처럼 보이므로 타입에서 지우고 REST 조회로 대체했다.
- *
- * `SESSION_SNAPSHOT`은 연결 직후 한 번, `PARTY_PLAYING`은 게임 시작 판정이다.
+ * 목록 · 단건의 사람 카드(`host` · `members[]`). `userId` 는 JSON **숫자**(방 응답의 문자열 id 와 비교할 때는 `String()`).
+ * `nickname` · `profile` 은 가입하지 않은 번호면 `null` 이다(방 키에 손으로 넣은 값). `profile` 은 그 글의 게임에 연결한 게임 프로필 전체다 — 없으면 `null`.
+ * `position`(2026-10-01 소유자 결정 — platform P-44 ⑨) — 모집 중인 글이면 그 사람의 포지션(방장은 글의 `hostPosition`, 멤버는 참가할 때 고른 것), 안 골랐으면 `null`.
+ * **확정된 글의 카드는 늘 `null`** 이다. 그날 platform 이 붙이는 중이라 옛 서버는 칸을 안 보낼 수 있다 — 읽는 쪽(`toBoardMember`)이 없는 값을 받는다.
+ */
+export interface MemberCard { userId: number; nickname: string | null; host: boolean; position: string | null; profile: GameProfile | null }
+
+/**
+ * 모집 글 한 줄 — `GET /posts?game=` 의 `posts[]` · `GET /posts/{postId}` · `POST /posts` 201 이 같은 모양이다.
+ * **`postId` 가 곧 `roomId` 다**(방 키에는 십진 문자열로 — 방 요청의 경로에는 `String(postId)`). `capacity` 는 그 글의 모드의 인원(솔로 랭크 2 · 많아야 5 · 그 전에 쓴 글은 5 — P-41, 2026-09-30), `full` 은 모집 중이고 `memberCount >= capacity`, `memberCount` 는 만료된 글이면 0, `members` 는 방장 먼저다.
+ * 시각은 ISO-8601 문자열. `mode` 는 옛 글이면 `null` 일 수 있다(P-16 미정).
+ */
+export interface PostResponse {
+  postId: number;
+  /** 방장(글쓴이)의 사용자 번호. **방장이 탈퇴한 확정된 글은 `null`**(2026-10-02 — platform P-48 · 그 글의 `host` 도 `null` 이고 `members` 에서 그 사람이 빠진다). */
+  hostId: number | null;
+  game: GameKey;
+  mode: string | null;
+  title: string;
+  description: string | null;
+  voice: VoicePreference;
+  conditions: PostConditions;
+  wantedPositions: string[];
+  /**
+   * 방장(글쓴이)의 포지션 — `wantedPositions` 와 같은 이름(LoL `MID` · VALORANT `DUELIST` …). 포지션이 없는 모드(PUBG · 칼바람)와 옛 글은 `null`(2026-09-30 소유자 결정).
+   * 그날 platform 이 붙이는 중이라 옛 서버는 이 칸을 아예 안 보낼 수 있다 — 읽는 쪽(`toBoardRoom`)이 없는 값을 `null` 로 받는다.
+   */
+  hostPosition: string | null;
+  status: PostStatus;
+  createdAt: string;
+  memberCount: number;
+  capacity: number;
+  full: boolean;
+  /**
+   * 확정된 파티가 끝났는가(2026-10-01 소유자 결정 — platform P-46). **확정된 글(`CONFIRMED`)이고 그 파티가 닫혔을(방이 완전히 비었다) 때만 `true`** —
+   * 모집 중 · 만료 · 진행 중인 확정은 `false`. 칸이 없는 옛 서버면 `false` 로 본다(`toBoardRoom`). 게시판 카드가 "확정" 대신 "끝남" 으로 그린다.
+   */
+  closed: boolean;
+  /**
+   * 빠른매치(게시판 방 먼저 합류 — `POST /posts/auto-join`)가 이 방에 사람을 넣어도 되는가 — 글을 쓸 때 방장이 고른 값(2026-10-02 소유자 결정).
+   * `false` 면 빠른매치가 이 방을 건너뛴다(게시판에서 직접 들어오는 것은 그대로). 화면에 따로 그리지 않는다(카드 그대로) · 칸이 없는 옛 서버는 `undefined`.
+   */
+  allowAutoJoin: boolean;
+  /** 방장 카드. **방장이 탈퇴한 확정된 글은 `null`**(P-48 — 서버가 빈 카드를 지어내지 않는다 · 화면도 방장 표시 없이 파티원만 그린다). */
+  host: MemberCard | null;
+  members: MemberCard[];
+}
+/** `nextCursor` 는 마지막으로 **읽은** 글의 번호(숫자) — 더 볼 것이 없으면 `null`. 다음 페이지는 `?cursor=` 에 그대로 넣는다(P-14). */
+export interface PostListResponse { posts: PostResponse[]; nextCursor: number | null }
+/**
+ * `POST /posts`. `mode` 는 그 게임의 gameconfig 모드(필수 · ≤30) · `title` 1~60 · `description` ≤300(없으면 보내지 않는다) ·
+ * `conditions` 는 PUBG 만 `{perspective}` · `wantedPositions` 는 그 게임의 포지션 이름(PUBG 는 빈 배열). 방이 같이 생기고 응답의 `members` 에 방장이 있다.
+ * 포지션이 있는 모드면 `wantedPositions` 는 **하나 이상**이다(2026-09-30 소유자 결정 — 빈 글 "누구든" 은 없어졌다 · 400 `wantedPositions: …`. 옛 글은 빈 채로 남아 있다).
+ * 2026-10-01 부터는 **정원 − 1 개 이상**이다(2026-09-30 소유자 결정 — platform P-44 "찾는 포지션 수" — 참가하는 사람마다 남은 포지션 하나를 고르니 자리마다 포지션이 있어야 한다 · 아니면 400 `"wantedPositions: 정원이 N명이면 M개 이상 필요합니다"`).
+ * `hostPosition`(내 포지션 — 2026-09-30 소유자 결정)은 포지션이 있는 모드에서 **필수**이고 `wantedPositions` 에 들 수 없다. 포지션이 없는 모드(PUBG · 칼바람)면
+ * **싣지 않는다**(`description` 처럼 — 서버는 없는 칸을 `null` 로 읽는다). 맞지 않으면 400 `VALIDATION_FAILED` 의 `details` 가 `"hostPosition: …"` 이다.
+ * `allowAutoJoin`(빠른매치 입장 허용 · 금지 — 2026-10-02 소유자 결정)은 **필수**다 — 없으면 400 `"allowAutoJoin: 필요합니다"`.
+ */
+export interface CreatePostRequest {
+  game: GameKey;
+  mode: string;
+  title: string;
+  description?: string;
+  voice: VoicePreference;
+  conditions: PostConditions;
+  wantedPositions: string[];
+  hostPosition?: string;
+  /** 빠른매치로 들어오는 사람을 받는가. 방 만들기 창에서 둘 중 하나를 꼭 고른다(기본값이 없다 — `RoomCreatePreview`). */
+  allowAutoJoin: boolean;
+}
+
+/**
+ * `GET /rooms/{roomId}/members` — 방 안의 사람만 볼 수 있다(밖이면 403 `NOT_IN_ROOM`). id 는 전부 **십진 문자열**(방 키의 글자 그대로) · `members` 에 방장이 들어 있고 순서는 없다.
+ * 확정한 방은 `hostId` 가 바뀔 수 있다(승계 — D-23). 닉네임 · 프로필은 여기 없다 — 게시판 방이면 `GET /posts/{postId}` 의 카드로 붙인다.
+ * 2026-10-01 부터 `members` 가 id 문자열이 아니라 **`{userId, position}`** 이다(소유자 결정 — platform P-44 ⑩ · 참가할 때 고른 포지션 · 방장은 글의 `hostPosition` · 안 골랐으면 `null`).
+ * 확정한 방에도 포지션이 올 수 있다 — **확정된 방에서는 화면이 그리지 않는다**(소유자: "확정 뒤 굳이 보여줄 필요 없다").
+ */
+export interface RoomMembersResponse { roomId: string; hostId: string; members: RoomMemberEntry[] }
+export interface RoomMemberEntry { userId: string; position: string | null }
+/** `GET /rooms/me` — 내 입장 표시 키. 없으면 `{roomId: null}`(404 가 아니다). 게시판 방은 글 번호 문자열 · 자동 매칭 방은 UUID. */
+export interface MyRoomResponse { roomId: string | null }
+
+/* ---------- social (platform-api.md "차단" · "친구 · 신고 · 최근 함께한 사람") — 5단계(2026-09-29)에 우리 모양이 됐다 ---------- */
+
+/**
+ * **id 표기** — 응답의 `userId` · `requestId` · `lastPartyId` · `reportId` 는 JSON **숫자**(사용자 번호 · bigint)다. 요청 본문의 `userId` · `targetUserId` · `contextId` 는
+ * **문자열**로 보낸다(서버가 `String` 으로 받아 `Long` 으로 판다 — 숫자가 아니면 없는 사용자와 같은 404 `USER_NOT_FOUND`). `AuthContext.userId` · 방 응답 · `ROOM_*` 의 id 는
+ * 십진 문자열이라 비교할 때는 `String(userId)` 다. **사람 검색 API 는 없다** — 상대의 번호는 방 안 카드 · 최근 함께한 사람 · 요청 목록에서 오거나 사용자가 직접 넣는다.
+ */
+export interface SocialUser { userId: number; nickname: string; }
+/** `GET /friends` 의 `friends[]` · `POST /friend-requests/{id}/accept` 200. `since` 는 친구가 된 시각(ISO). */
+export interface FriendView { userId: number; nickname: string; since: string; }
+export interface FriendListResponse { friends: FriendView[]; }
+/** `GET /friend-requests?direction=` — **대문자 그대로**(소문자는 400). 기본 `RECEIVED`. */
+export type FriendRequestDirection = 'RECEIVED' | 'SENT';
+/** 친구 요청 한 줄 — 대기 중인 것만 온다(`status` 칸이 없다). 상대는 `RECEIVED` 면 `requester`, `SENT` 면 `receiver` 다. */
+export interface FriendRequestView { requestId: number; requester: SocialUser; receiver: SocialUser; createdAt: string; }
+export interface FriendRequestListResponse { requests: FriendRequestView[]; }
+/** `POST /friend-requests` — 상대의 사용자 번호(문자열). 409 `ALREADY_FRIENDS` · `FRIEND_REQUEST_ALREADY_SENT` · `FRIEND_REQUEST_ALREADY_RECEIVED` · 400 `CANNOT_FRIEND_SELF` · 404 `USER_NOT_FOUND`(차단 관계도). */
+export interface CreateFriendRequest { userId: string; }
+/** `GET /blocks` 의 `blocks[]` · `POST /blocks` 201 — 내가 차단한 사람만. */
+export interface BlockView { userId: number; nickname: string; createdAt: string; }
+export interface BlockListResponse { blocks: BlockView[]; }
+/** `POST /blocks` — 차단할 사람의 사용자 번호(문자열). 409 `ALREADY_BLOCKED` · 400 `CANNOT_BLOCK_SELF` · 404 `USER_NOT_FOUND`. */
+export interface CreateBlockRequest { userId: string; }
+/**
+ * `GET /recent-players` 의 `players[]` — 확정된 파티가 닫힐 때 채워진다(P-25 · P-30). 최근순 · 50명 · 차단 관계는 뺀다. `?limit` 은 없다.
+ * `lastPartyId` 는 `parties.id`(조회 경로가 없다 — P-31). 원본의 `avatarUrl` · `playCount` · `friend` 는 없다 — "친구" 표시는 친구 목록과 대조해 프런트가 만든다.
+ */
+export interface RecentPlayerView { userId: number; nickname: string; lastPartyId: number | null; lastPlayedAt: string; }
+export interface RecentPlayerListResponse { players: RecentPlayerView[]; }
+
+/** 신고 사유 — `ABUSE`(욕설 · 비매너) · `CHEATING`(핵 · 대리) · `SPAM`(도배 · 광고) · `NO_SHOW`(잠수 · 탈주) · `OTHER`(`detail` 필수). 대문자 그대로. */
+export type ReportReason = 'ABUSE' | 'CHEATING' | 'SPAM' | 'NO_SHOW' | 'OTHER';
+/**
+ * `POST /reports`. `detail` 은 1000자까지(없으면 보내지 않는다 · `OTHER` 면 필수 — 400 `VALIDATION_FAILED`). `contextId` 는 **글의 id 를 문자열로**(게시판 방의 `roomId` 가 그것이다 ·
+ * 자동 매칭 방은 글이 없어 보내지 않는다 · 숫자가 아니면 400). 접수만 받는다 — 차단 관계도 신고할 수 있다. 400 `CANNOT_REPORT_SELF` · 404 `USER_NOT_FOUND`.
+ */
+export interface CreateReportRequest { targetUserId: string; reason: ReportReason; detail?: string; contextId?: string; }
+export interface ReportResponse { reportId: number; createdAt: string; }
+
+/* ---------- SSE (matching/contracts/events.md · platform-api.md "알림" · notification/CLAUDE.md §5) ---------- */
+
+/**
+ * Server → Client `type`. **우리 세 백엔드가 실제로 발행하는 14종만 둔다** — matching 5 · platform 9. 봉투는 `ServerEvent`.
+ * 알림은 "다시 조회하라"는 신호다 — 순서 · 재전송 보장이 없으니 핸들러는 멱등해야 하고 데이터는 REST 로 다시 받는다(events.md "순서 보장 범위").
  */
 export type ServerEventType =
-  | 'SESSION_SNAPSHOT'
-  | 'ROOMS_UPDATED'
-  | 'ROOM_MESSAGES_UPDATED'
-  | 'RECRUITMENT_UPDATED'
-  | 'MATCH_PROPOSAL_CREATED'
-  | 'MATCH_PROPOSAL_EXPIRED'
-  | 'MATCH_CONFIRMED'
-  | 'MATCH_CANCELLED'
-  | 'RESERVATION_PROPOSAL_CREATED'
-  | 'PARTY_MEMBER_LEFT'
-  | 'PARTY_READY_CHANGED'
-  | 'PARTY_PLAYING'
-  | 'PARTY_CLOSED'
-  | 'WEBRTC_SIGNAL';
+  | 'MATCH_QUEUE_UPDATED' | 'MATCH_PROPOSAL_CREATED' | 'MATCH_PROPOSAL_EXPIRED' | 'MATCH_CONFIRMED' | 'MATCH_CANCELLED'
+  | 'FRIEND_REQUEST_RECEIVED' | 'FRIEND_REQUEST_ACCEPTED'
+  | 'ROOM_MEMBER_ENTERED' | 'ROOM_MEMBER_LEFT' | 'ROOM_CLOSED' | 'ROOM_MEMBER_KICKED' | 'ROOM_CONFIRMED'
+  | 'WEBRTC_SIGNAL'
+  | 'BOARD_CHANGED';
+
 
 export interface ServerEvent<T = Record<string, unknown>> {
   type: ServerEventType;
-  /** 재연결 직후 같은 이벤트를 다시 받을 수 있다. 클라이언트가 멱등해야 한다. */
+  /** SSE `id:` 와 같다. 재연결 직후 같은 이벤트를 다시 받을 수 있다 — 클라이언트가 멱등해야 한다. */
   eventId: string;
+  /** ISO-8601 UTC · 밀리초 */
   occurredAt: string;
   payload: T;
 }
 
-export type SignalType = 'OFFER' | 'ANSWER' | 'ICE';
+/* payload — matching 5종 (events.md "구현 상태" 표. 계약이 정한 것이 아니라 구현이 먼저 정한 것이다) */
 
-/** Client → Server는 이것 하나뿐이다. */
-export interface WebRtcSignalMessage {
-  type: 'WEBRTC_SIGNAL';
-  partyId: string;
-  targetUserId: string;
-  signalType: SignalType;
-  data: Record<string, unknown>;
+/** 대기 상태가 바뀌었다(새 파티 · 정원 미달 합류). 상태는 `GET /match-requests` 로 다시 받는다. */
+export interface MatchQueueUpdatedPayload { memberNumber: number; }
+/** 정원이 차서 제안이 떴다. `partyId` 가 `POST /proposals/{id}/accept|decline` 의 `{id}` 다. 남은 시간 · 내 수락 여부는 `GET /match-requests`. */
+export interface MatchProposalCreatedPayload { memberNumber: number; target: number; partyId: string; }
+/** 제안 시한 만료 — 그 제안에 있던 전원이 받는다(수락한 사람 포함). */
+export interface MatchProposalExpiredPayload { partyId: string; }
+/** 전원 수락으로 확정. **받으면 조작 없이 바로 `POST /match-parties/{partyId}/room`** 을 부른다(D-42 · P-30) — `roomId = partyId`. */
+export interface MatchConfirmedPayload { partyId: string; }
+/** 파티원 누가 취소했다 — 남은 파티원에게만. */
+export interface MatchCancelledPayload { memberNumber: number; }
+
+/* payload — platform 9종 (platform-api.md "방" 의 "알림" · "이 앱이 내는 알림" · "게시판 채널 신호") */
+
+/** `FRIEND_*` 의 id 는 JSON **숫자**다(방 알림의 문자열 id 와 다르다). 친구 목록 · 요청 목록을 다시 받는다. */
+export interface FriendRequestReceivedPayload { requestId: number; fromUserId: number; }
+export interface FriendRequestAcceptedPayload { requestId: number; userId: number; }
+/** 방 알림의 id 는 **십진 문자열**(방 키에 적힌 글자 그대로). `ROOM_MEMBER_ENTERED` · `ROOM_MEMBER_LEFT` · `ROOM_MEMBER_KICKED` 가 같은 모양이다. */
+export interface RoomMemberPayload { roomId: string; userId: string; }
+export interface RoomClosedPayload { roomId: string; }
+/** 방장이 확정했다 — `members` 가 파티원이다(방장 포함). */
+export interface RoomConfirmedPayload { roomId: string; members: string[]; }
+/** 게시판이 바뀌었다 — 데이터가 없다(`{}`). 게시판 페이지를 보고 있을 때만 · 묶어서 · 커서 없이 맨 위부터 `limit` 으로 다시 받는다. */
+export type BoardChangedPayload = Record<string, never>;
+
+/**
+ * WebRTC 시그널 — 받기는 SSE `WEBRTC_SIGNAL`, 보내기는 `POST /rooms/{roomId}/signals {toUserId, signal}`(202). 서버는 `signal` 을 열어 보지 않는다.
+ * 모양은 클라이언트끼리의 약속이고 platform-api.md "`signal` 의 권장 모양" 을 따른다 — 브라우저의 WebRTC API 가 내주는 객체 그대로에 `kind` 만 씌운다.
+ * 자동 매칭 파티의 방은 `roomId = partyId`(UUID), 게시판 방은 글 번호의 십진 문자열이다.
+ *
+ * 2026-09-30 — 협상을 가르는 칸을 더했다(계약이 "재협상을 구분할 번호가 필요해지면 `signal` 안에 칸을 더한다 · 서버는 고칠 것이 없다" 고 적은 자리 —
+ * `webrtc/WebRtcPartyClient.ts` 머리 주석). 전부 선택 칸이라 옛 모양도 그대로 받는다.
+ */
+export interface RoomSignalRouting {
+  /** 보낸 쪽 `RTCPeerConnection` 의 번호(연결마다 새 UUID) — 상대가 새로 고쳤는지 · 연결을 새로 만들었는지를 이것으로 안다. */
+  from?: string;
+  /** 받을 쪽 연결의 번호(보낸 쪽이 아는 경우) — 버린 연결 · 닫힌 탭에 가던 시그널을 받는 쪽이 버린다. */
+  to?: string;
 }
-
-/* payload shapes — 서버 발행 지점과 맞춘 것이다 */
-
-/** 연결 직후 한 번. payload는 영역이 늘면 키가 추가되므로 모르는 키는 무시한다. */
-export interface SessionSnapshotPayload { parties: PartyView[] }
-
-/** MATCH_PROPOSAL_CREATED / RESERVATION_PROPOSAL_CREATED. proposal 하나만 실린다. */
-export interface ProposalCreatedPayload { proposal: ProposalView; }
-
-/** MATCH_PROPOSAL_EXPIRED / MATCH_CANCELLED. proposalId만 실린다. */
-export interface ProposalSettledPayload { proposalId: string; }
-
-/** MATCH_CONFIRMED. 클라이언트는 partyId로 파티룸에 들어간다. */
-export interface MatchConfirmedPayload { proposalId: string; partyId: string; }
-
-export interface PartyReadyChangedPayload { partyId: string; userId: string; ready: boolean; status: PartyStatus; }
-export interface PartyMemberLeftPayload { partyId: string; userId: string; status: PartyStatus; }
-export interface PartyPlayingPayload { partyId: string; status: 'PLAYING'; }
-export type PartyClosedReason = 'MEMBER_LEFT' | 'PLAY_TIMEOUT';
-export interface PartyClosedPayload { partyId: string; reason: PartyClosedReason; }
-
-export interface WebRtcSignalPayload { partyId: string; fromUserId: string; signalType: SignalType; data: Record<string, unknown>; }
+export type RoomSignal =
+  | ({ kind: 'description'; description: RTCSessionDescriptionInit;
+      /** offer 의 번호 — 같은 offer 를 다시 보내도 같다(받는 쪽이 되풀이를 알아본다). */
+      id?: string;
+      /** answer 가 답하는 offer 의 번호. */
+      re?: string } & RoomSignalRouting)
+  | ({ kind: 'candidate'; candidate: RTCIceCandidateInit } & RoomSignalRouting);
+export interface SendRoomSignalRequest { toUserId: string; signal: RoomSignal; }
+export interface WebRtcSignalPayload { roomId: string; fromUserId: string; signal: RoomSignal; }

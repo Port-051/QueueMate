@@ -1,15 +1,21 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import * as api from '../api/client';
-import type { PartyView } from '../api/types';
 import { createPartyClient } from '../webrtc/createPartyClient';
 import type { PartyChatMessage, PartyClient, VoiceStatus } from '../webrtc/types';
 import { useAuth } from './AuthContext';
 import { useMatch } from './MatchContext';
+import { useRoomSession } from './RoomSessionContext';
 
+/**
+ * 방의 음성 · 채팅 세션 — 브라우저끼리 직결하는 WebRTC(audio track + DataChannel · D-9 · #6). 서버는 시그널만 나른다
+ * (`POST /rooms/{roomId}/signals` ↔ `WEBRTC_SIGNAL` — `webrtc/WebRtcPartyClient.ts`). 텍스트 채팅은 서버에 남지 않는다.
+ *
+ * 어느 방인가 · 누가 있는가는 `RoomSessionContext`(`roomId` · `members`)가 원본이다 — 여기는 그것을 받아 peer 연결을 맞출 뿐이다(옛 `GET /parties/{id}` 는 4단계에서 없어졌다).
+ * 방 화면 밖으로 나가도 방에 있는 동안 연결은 유지된다(앱 전체에 걸린 provider). 방을 잃으면(`roomId = null`) 닫힌다.
+ */
 function usePersistentSession() {
-  const { user } = useAuth();
-  const { activePartyId, stream } = useMatch();
-  const [party, setParty] = useState<PartyView | null>(null);
+  const { user, userId } = useAuth();
+  const { stream } = useMatch();
+  const { roomId, members } = useRoomSession();
   const [messages, setMessages] = useState<PartyChatMessage[]>([]);
   const [voice, setVoice] = useState<VoiceStatus>('idle');
   const [voiceDetail, setVoiceDetail] = useState<string | null>(null);
@@ -17,30 +23,18 @@ function usePersistentSession() {
   const [muted, setMuted] = useState(false);
   const [connectionAttempt, setConnectionAttempt] = useState(0);
   const clientRef = useRef<PartyClient | null>(null);
-  const membersRef = useRef(party?.members ?? []);
-  membersRef.current = party?.members ?? [];
-  useEffect(() => {
-    let live = true;
-    setParty(null); setMessages([]); setVoice('idle'); setVoiceDetail(null);
-    const load = async () => {
-      if (!activePartyId || !user) return;
-      try { const view = await api.getParty(activePartyId); if (live) setParty(view); }
-      catch { /* 연결 상태는 공유 스트림에서 알리고 다음 조회로 복구한다. */ }
-    };
-    void load();
-    const off = stream?.subscribe(event => { if (event.type.startsWith('PARTY_')) void load(); });
-    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 15_000);
-    window.addEventListener('focus', load);
-    return () => { live = false; off?.(); window.clearInterval(timer); window.removeEventListener('focus', load); };
-  }, [activePartyId, user?.id, stream]);
-  const connectionId = party?.status !== 'CLOSED' && party?.id === activePartyId ? party?.id : null;
-  const selfId = user?.id;
+  const membersRef = useRef(members);
+  membersRef.current = members;
+  const selfId = userId;
   const nickname = user?.nickname;
   useEffect(() => {
-    if (!connectionId || !selfId || !stream) return;
+    setMessages([]); setVoice('idle'); setVoiceDetail(null);
+  }, [roomId]);
+  useEffect(() => {
+    if (!roomId || !selfId || !stream) return;
     let live = true;
     setConnectedPeers([]); setMuted(false);
-    const client = createPartyClient({ partyId: connectionId, selfUserId: selfId, selfNickname: nickname ?? '플레이어', members: membersRef.current, stream,
+    const client = createPartyClient({ roomId, selfUserId: selfId, selfNickname: nickname ?? '플레이어', members: membersRef.current.map(id => ({ userId: id, nickname: id })), stream,
       handlers: {
         onChat: message => { if (live) setMessages(prev => [...prev.slice(-499), message]); },
         onStatus: (status, detail) => { if (live) { setVoice(status); setVoiceDetail(detail ?? null); } },
@@ -48,10 +42,10 @@ function usePersistentSession() {
       },
     });
     clientRef.current = client;
-    void client.connect().then(() => { if (live) client.syncMembers(membersRef.current.map(m => m.userId)); }).catch(() => { if (live) { setVoice('error'); setVoiceDetail('파티에 연결하지 못했습니다. 연결 다시 시도를 눌러 주세요.'); } });
+    void client.connect().then(() => { if (live) client.syncMembers(membersRef.current); }).catch(() => { if (live) { setVoice('error'); setVoiceDetail('방에 연결하지 못했습니다. 연결 다시 시도를 눌러 주세요.'); } });
     return () => { live = false; client.close(); clientRef.current = null; setConnectedPeers([]); };
-  }, [connectionId, selfId, nickname, stream, connectionAttempt]);
-  const memberIds = party?.members.map(m => m.userId).join(',') ?? '';
+  }, [roomId, selfId, nickname, stream, connectionAttempt]);
+  const memberIds = members.join(',');
   useEffect(() => { if (memberIds) clientRef.current?.syncMembers(memberIds.split(',')); }, [memberIds]);
   return { messages, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef, setConnectionAttempt };
 }

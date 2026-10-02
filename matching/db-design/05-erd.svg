@@ -1,0 +1,636 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1650 1270" style="background:#fff" font-family="DejaVu Sans Mono, monospace" role="img" aria-label="파티 매칭 서비스 PostgreSQL ERD">
+<defs>
+<marker id="one" viewBox="0 0 12 12" refX="3" refY="6" markerWidth="10" markerHeight="10" orient="auto"><path d="M6,1 V11" fill="none" stroke="#131A24" stroke-width="1.5"/></marker>
+<marker id="crow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="11" markerHeight="11" orient="auto"><path d="M0,6 L11,1 M0,6 L11,6 M0,6 L11,11" fill="none" stroke="#131A24" stroke-width="1.2"/></marker>
+<marker id="zone" viewBox="0 0 16 12" refX="15" refY="6" markerWidth="13" markerHeight="13" orient="auto"><circle cx="4" cy="6" r="2.6" fill="none" stroke="#131A24" stroke-width="1.2"/><path d="M11,1 V11" fill="none" stroke="#131A24" stroke-width="1.5"/></marker>
+</defs>
+<g fill="none" stroke="#131A24" stroke-width="1.3">
+<path d="M185,368 V398" marker-start="url(#one)" marker-end="url(#zone)"/>
+<path d="M50,270 H26 V793 H50" marker-start="url(#one)" marker-end="url(#crow)"/>
+<path d="M50,300 H14 V919 H50" marker-start="url(#one)" marker-end="url(#crow)"/>
+<path d="M320,240 H370" marker-start="url(#one)" marker-end="url(#crow)"/>
+<path d="M505,589 V620" marker-start="url(#one)" marker-end="url(#crow)"/>
+<path d="M640,470 H650 V945 H690" marker-start="url(#one)" marker-end="url(#crow)"/>
+<path d="M640,430 H680 V660 H690" marker-start="url(#one)" marker-end="url(#crow)"/>
+<path d="M640,510 H665 V845 H1145 V545" marker-start="url(#one)" marker-end="url(#zone)"/>
+<path d="M825,385 V430" marker-start="url(#one)" marker-end="url(#crow)"/>
+<path d="M825,577 V610" marker-start="url(#one)" marker-end="url(#crow)"/>
+<path d="M960,240 H1010" marker-start="url(#one)" marker-end="url(#zone)"/>
+<path d="M1145,368 V398" marker-start="url(#one)" marker-end="url(#crow)"/>
+<path d="M1010,300 H985 V945 H960" marker-start="url(#one)" marker-end="url(#crow)"/>
+<path d="M1280,240 H1330" marker-start="url(#one)" marker-end="url(#zone)"/>
+<path d="M1280,290 H1310 V446 H1330" marker-start="url(#one)" marker-end="url(#crow)"/>
+<path d="M1280,320 H1292 V648 H1330" marker-start="url(#one)" marker-end="url(#crow)"/>
+<path d="M1465,756 V786" marker-start="url(#one)" marker-end="url(#crow)"/>
+<path d="M185,984 V1205 H1318 V860 H1330" marker-start="url(#one)" marker-end="url(#crow)"/>
+</g>
+<g fill="none" stroke="#6B7887" stroke-width="1.1" stroke-dasharray="6 5"><path d="M320,78 H1145"/><path d="M505,78 V170"/><path d="M825,78 V170"/><path d="M1145,78 V170"/></g>
+<rect x="50" y="30" width="270" height="96" rx="4" fill="#fff" stroke="#4A57C4" stroke-width="1.4"/>
+<path d="M50,34a4,4 0 0 1 4,-4H316a4,4 0 0 1 4,4V58H50Z" fill="#4A57C4" opacity=".11"/>
+<rect x="51.5" y="75" width="267" height="17" fill="#F9FBFC"/>
+<rect x="51.5" y="109" width="267" height="17" fill="#F9FBFC"/>
+<line x1="50" y1="58" x2="320" y2="58" stroke="#4A57C4" stroke-width="1.4"/>
+<rect x="50" y="30" width="270" height="96" rx="4" fill="none" stroke="#4A57C4" stroke-width="1.4"/>
+<text x="61" y="49" font-size="12.5" font-weight="700" fill="#4A57C4">game</text>
+<text x="59" y="70" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="100" y="70" font-size="10.5" fill="#131A24">id</text>
+<text x="311" y="70" text-anchor="end" font-size="8.6" fill="#6B7887">smallint</text>
+<text x="59" y="87" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="100" y="87" font-size="10.5" fill="#131A24">code</text>
+<text x="311" y="87" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="100" y="104" font-size="10.5" fill="#131A24">name</text>
+<text x="311" y="104" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="100" y="121" font-size="10.5" fill="#131A24">is_active</text>
+<text x="311" y="121" text-anchor="end" font-size="8.6" fill="#6B7887">bool</text>
+<rect x="50" y="170" width="270" height="198" rx="4" fill="#fff" stroke="#2F6DA8" stroke-width="1.4"/>
+<path d="M50,174a4,4 0 0 1 4,-4H316a4,4 0 0 1 4,4V198H50Z" fill="#2F6DA8" opacity=".11"/>
+<rect x="51.5" y="215" width="267" height="17" fill="#F9FBFC"/>
+<rect x="51.5" y="249" width="267" height="17" fill="#F9FBFC"/>
+<rect x="51.5" y="283" width="267" height="17" fill="#F9FBFC"/>
+<rect x="51.5" y="317" width="267" height="17" fill="#F9FBFC"/>
+<rect x="51.5" y="351" width="267" height="17" fill="#F9FBFC"/>
+<line x1="50" y1="198" x2="320" y2="198" stroke="#2F6DA8" stroke-width="1.4"/>
+<rect x="50" y="170" width="270" height="198" rx="4" fill="none" stroke="#2F6DA8" stroke-width="1.4"/>
+<text x="61" y="189" font-size="12.5" font-weight="700" fill="#2F6DA8">app_user</text>
+<text x="59" y="210" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="100" y="210" font-size="10.5" fill="#131A24">id</text>
+<text x="311" y="210" text-anchor="end" font-size="8.6" fill="#6B7887">bigserial</text>
+<text x="59" y="227" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="100" y="227" font-size="10.5" fill="#131A24">discord_id</text>
+<text x="311" y="227" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="100" y="244" font-size="10.5" fill="#131A24">discord_username</text>
+<text x="311" y="244" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="100" y="261" font-size="10.5" fill="#131A24">nickname</text>
+<text x="311" y="261" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="100" y="278" font-size="10.5" fill="#131A24">voice_mode</text>
+<text x="311" y="278" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="100" y="295" font-size="10.5" fill="#131A24">purpose</text>
+<text x="311" y="295" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="100" y="312" font-size="10.5" fill="#131A24">mood</text>
+<text x="311" y="312" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="100" y="329" font-size="10.5" fill="#131A24">primary_position</text>
+<text x="311" y="329" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="100" y="346" font-size="10.5" fill="#131A24">discord_dm_enabled</text>
+<text x="311" y="346" text-anchor="end" font-size="8.6" fill="#6B7887">bool</text>
+<text x="100" y="363" font-size="10.5" fill="#131A24">created_at</text>
+<text x="311" y="363" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<rect x="50" y="398" width="270" height="351" rx="4" fill="#fff" stroke="#2F6DA8" stroke-width="1.4"/>
+<path d="M50,402a4,4 0 0 1 4,-4H316a4,4 0 0 1 4,4V426H50Z" fill="#2F6DA8" opacity=".11"/>
+<rect x="51.5" y="443" width="267" height="17" fill="#F9FBFC"/>
+<rect x="51.5" y="477" width="267" height="17" fill="#F9FBFC"/>
+<rect x="51.5" y="511" width="267" height="17" fill="#F9FBFC"/>
+<rect x="51.5" y="545" width="267" height="17" fill="#F9FBFC"/>
+<rect x="51.5" y="579" width="267" height="17" fill="#F9FBFC"/>
+<rect x="51.5" y="613" width="267" height="17" fill="#F9FBFC"/>
+<rect x="51.5" y="647" width="267" height="17" fill="#F9FBFC"/>
+<rect x="51.5" y="681" width="267" height="17" fill="#F9FBFC"/>
+<rect x="51.5" y="715" width="267" height="17" fill="#F9FBFC"/>
+<line x1="50" y1="426" x2="320" y2="426" stroke="#2F6DA8" stroke-width="1.4"/>
+<rect x="50" y="398" width="270" height="351" rx="4" fill="none" stroke="#2F6DA8" stroke-width="1.4"/>
+<text x="61" y="417" font-size="12.5" font-weight="700" fill="#2F6DA8">riot_account</text>
+<text x="59" y="438" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="72" y="438" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="100" y="438" font-size="10.5" fill="#131A24">user_id</text>
+<text x="311" y="438" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="59" y="455" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="100" y="455" font-size="10.5" fill="#131A24">game_name</text>
+<text x="311" y="455" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="59" y="472" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="100" y="472" font-size="10.5" fill="#131A24">tag_line</text>
+<text x="311" y="472" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="59" y="489" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="100" y="489" font-size="10.5" fill="#131A24">puuid</text>
+<text x="311" y="489" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="100" y="506" font-size="10.5" fill="#131A24">solo_tier</text>
+<text x="311" y="506" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="100" y="523" font-size="10.5" fill="#131A24">solo_tier_order</text>
+<text x="311" y="523" text-anchor="end" font-size="8.6" fill="#6B7887">smallint</text>
+<text x="100" y="540" font-size="10.5" fill="#131A24">solo_division</text>
+<text x="311" y="540" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="100" y="557" font-size="10.5" fill="#131A24">solo_lp</text>
+<text x="311" y="557" text-anchor="end" font-size="8.6" fill="#6B7887">int</text>
+<text x="100" y="574" font-size="10.5" fill="#131A24">solo_wins</text>
+<text x="311" y="574" text-anchor="end" font-size="8.6" fill="#6B7887">int</text>
+<text x="100" y="591" font-size="10.5" fill="#131A24">solo_losses</text>
+<text x="311" y="591" text-anchor="end" font-size="8.6" fill="#6B7887">int</text>
+<text x="100" y="608" font-size="10.5" fill="#131A24">solo_in_placement</text>
+<text x="311" y="608" text-anchor="end" font-size="8.6" fill="#6B7887">bool</text>
+<text x="100" y="625" font-size="10.5" fill="#131A24">flex_tier</text>
+<text x="311" y="625" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="100" y="642" font-size="10.5" fill="#131A24">flex_tier_order</text>
+<text x="311" y="642" text-anchor="end" font-size="8.6" fill="#6B7887">smallint</text>
+<text x="100" y="659" font-size="10.5" fill="#131A24">flex_division</text>
+<text x="311" y="659" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="100" y="676" font-size="10.5" fill="#131A24">flex_lp</text>
+<text x="311" y="676" text-anchor="end" font-size="8.6" fill="#6B7887">int</text>
+<text x="100" y="693" font-size="10.5" fill="#131A24">flex_wins / losses</text>
+<text x="311" y="693" text-anchor="end" font-size="8.6" fill="#6B7887">int</text>
+<text x="100" y="710" font-size="10.5" fill="#131A24">flex_in_placement</text>
+<text x="311" y="710" text-anchor="end" font-size="8.6" fill="#6B7887">bool</text>
+<text x="100" y="727" font-size="10.5" fill="#131A24">link_status</text>
+<text x="311" y="727" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="100" y="744" font-size="10.5" fill="#131A24">refreshed_at</text>
+<text x="311" y="744" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<rect x="50" y="762" width="270" height="62" rx="4" fill="#fff" stroke="#2F6DA8" stroke-width="1.4"/>
+<path d="M50,766a4,4 0 0 1 4,-4H316a4,4 0 0 1 4,4V790H50Z" fill="#2F6DA8" opacity=".11"/>
+<rect x="51.5" y="807" width="267" height="17" fill="#F9FBFC"/>
+<line x1="50" y1="790" x2="320" y2="790" stroke="#2F6DA8" stroke-width="1.4"/>
+<rect x="50" y="762" width="270" height="62" rx="4" fill="none" stroke="#2F6DA8" stroke-width="1.4"/>
+<text x="61" y="781" font-size="12.5" font-weight="700" fill="#2F6DA8">user_sub_position</text>
+<text x="59" y="802" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="72" y="802" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="100" y="802" font-size="10.5" fill="#131A24">user_id</text>
+<text x="311" y="802" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="59" y="819" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="100" y="819" font-size="10.5" fill="#131A24">position</text>
+<text x="311" y="819" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<rect x="50" y="854" width="270" height="130" rx="4" fill="#fff" stroke="#2F6DA8" stroke-width="1.4"/>
+<path d="M50,858a4,4 0 0 1 4,-4H316a4,4 0 0 1 4,4V882H50Z" fill="#2F6DA8" opacity=".11"/>
+<rect x="51.5" y="899" width="267" height="17" fill="#F9FBFC"/>
+<rect x="51.5" y="933" width="267" height="17" fill="#F9FBFC"/>
+<rect x="51.5" y="967" width="267" height="17" fill="#F9FBFC"/>
+<line x1="50" y1="882" x2="320" y2="882" stroke="#2F6DA8" stroke-width="1.4"/>
+<rect x="50" y="854" width="270" height="130" rx="4" fill="none" stroke="#2F6DA8" stroke-width="1.4"/>
+<text x="61" y="873" font-size="12.5" font-weight="700" fill="#2F6DA8">push_subscription</text>
+<text x="59" y="894" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="100" y="894" font-size="10.5" fill="#131A24">id</text>
+<text x="311" y="894" text-anchor="end" font-size="8.6" fill="#6B7887">bigserial</text>
+<text x="59" y="911" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="100" y="911" font-size="10.5" fill="#131A24">user_id</text>
+<text x="311" y="911" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="59" y="928" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="100" y="928" font-size="10.5" fill="#131A24">endpoint</text>
+<text x="311" y="928" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="100" y="945" font-size="10.5" fill="#131A24">p256dh</text>
+<text x="311" y="945" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="100" y="962" font-size="10.5" fill="#131A24">auth</text>
+<text x="311" y="962" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="100" y="979" font-size="10.5" fill="#131A24">revoked_at</text>
+<text x="311" y="979" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<rect x="370" y="170" width="270" height="419" rx="4" fill="#fff" stroke="#12786A" stroke-width="1.4"/>
+<path d="M370,174a4,4 0 0 1 4,-4H636a4,4 0 0 1 4,4V198H370Z" fill="#12786A" opacity=".11"/>
+<rect x="371.5" y="215" width="267" height="17" fill="#F9FBFC"/>
+<rect x="371.5" y="249" width="267" height="17" fill="#F9FBFC"/>
+<rect x="371.5" y="283" width="267" height="17" fill="#F9FBFC"/>
+<rect x="371.5" y="317" width="267" height="17" fill="#F9FBFC"/>
+<rect x="371.5" y="351" width="267" height="17" fill="#F9FBFC"/>
+<rect x="371.5" y="385" width="267" height="17" fill="#F9FBFC"/>
+<rect x="371.5" y="419" width="267" height="17" fill="#F9FBFC"/>
+<rect x="371.5" y="453" width="267" height="17" fill="#F9FBFC"/>
+<rect x="371.5" y="487" width="267" height="17" fill="#F9FBFC"/>
+<rect x="371.5" y="521" width="267" height="17" fill="#F9FBFC"/>
+<rect x="371.5" y="555" width="267" height="17" fill="#F9FBFC"/>
+<line x1="370" y1="198" x2="640" y2="198" stroke="#12786A" stroke-width="1.4"/>
+<rect x="370" y="170" width="270" height="419" rx="4" fill="none" stroke="#12786A" stroke-width="1.4"/>
+<text x="381" y="189" font-size="12.5" font-weight="700" fill="#12786A">match_request</text>
+<text x="379" y="210" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="420" y="210" font-size="10.5" fill="#131A24">id</text>
+<text x="631" y="210" text-anchor="end" font-size="8.6" fill="#6B7887">bigserial</text>
+<text x="379" y="227" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="420" y="227" font-size="10.5" fill="#131A24">user_id</text>
+<text x="631" y="227" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="379" y="244" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="420" y="244" font-size="10.5" fill="#131A24">game_id</text>
+<text x="631" y="244" text-anchor="end" font-size="8.6" fill="#6B7887">smallint</text>
+<text x="420" y="261" font-size="10.5" fill="#131A24">kind</text>
+<text x="631" y="261" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="420" y="278" font-size="10.5" fill="#131A24">queue</text>
+<text x="631" y="278" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="379" y="295" font-size="7.8" font-weight="700" fill="#B0472B">CK</text>
+<text x="420" y="295" font-size="10.5" fill="#131A24">target_size</text>
+<text x="631" y="295" text-anchor="end" font-size="8.6" fill="#6B7887">smallint</text>
+<text x="379" y="312" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="420" y="312" font-size="10.5" fill="#131A24">status</text>
+<text x="631" y="312" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="420" y="329" font-size="10.5" fill="#131A24">requested_at</text>
+<text x="631" y="329" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="420" y="346" font-size="10.5" fill="#131A24">play_minutes</text>
+<text x="631" y="346" text-anchor="end" font-size="8.6" fill="#6B7887">int</text>
+<text x="420" y="363" font-size="10.5" fill="#131A24">max_wait_minutes</text>
+<text x="631" y="363" text-anchor="end" font-size="8.6" fill="#6B7887">int</text>
+<text x="420" y="380" font-size="10.5" fill="#131A24">play_date</text>
+<text x="631" y="380" text-anchor="end" font-size="8.6" fill="#6B7887">date</text>
+<text x="420" y="397" font-size="10.5" fill="#131A24">window_start</text>
+<text x="631" y="397" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="420" y="414" font-size="10.5" fill="#131A24">window_end</text>
+<text x="631" y="414" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="420" y="431" font-size="10.5" fill="#131A24">tier_snapshot</text>
+<text x="631" y="431" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="420" y="448" font-size="10.5" fill="#131A24">tier_snapshot_order</text>
+<text x="631" y="448" text-anchor="end" font-size="8.6" fill="#6B7887">smallint</text>
+<text x="420" y="465" font-size="10.5" fill="#131A24">tier_snapshot_at</text>
+<text x="631" y="465" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="379" y="482" font-size="7.8" font-weight="700" fill="#B0472B">CK</text>
+<text x="420" y="482" font-size="10.5" fill="#131A24">allowed_tier_min_order</text>
+<text x="631" y="482" text-anchor="end" font-size="8.6" fill="#6B7887">smallint</text>
+<text x="379" y="499" font-size="7.8" font-weight="700" fill="#B0472B">CK</text>
+<text x="420" y="499" font-size="10.5" fill="#131A24">allowed_tier_max_order</text>
+<text x="631" y="499" text-anchor="end" font-size="8.6" fill="#6B7887">smallint</text>
+<text x="420" y="516" font-size="10.5" fill="#131A24">primary_position</text>
+<text x="631" y="516" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="420" y="533" font-size="10.5" fill="#131A24">purpose</text>
+<text x="631" y="533" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="420" y="550" font-size="10.5" fill="#131A24">voice_mode</text>
+<text x="631" y="550" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="420" y="567" font-size="10.5" fill="#131A24">conditions</text>
+<text x="631" y="567" text-anchor="end" font-size="8.6" fill="#6B7887">jsonb</text>
+<text x="420" y="584" font-size="10.5" fill="#131A24">version</text>
+<text x="631" y="584" text-anchor="end" font-size="8.6" fill="#6B7887">int</text>
+<rect x="370" y="620" width="270" height="62" rx="4" fill="#fff" stroke="#12786A" stroke-width="1.4"/>
+<path d="M370,624a4,4 0 0 1 4,-4H636a4,4 0 0 1 4,4V648H370Z" fill="#12786A" opacity=".11"/>
+<rect x="371.5" y="665" width="267" height="17" fill="#F9FBFC"/>
+<line x1="370" y1="648" x2="640" y2="648" stroke="#12786A" stroke-width="1.4"/>
+<rect x="370" y="620" width="270" height="62" rx="4" fill="none" stroke="#12786A" stroke-width="1.4"/>
+<text x="381" y="639" font-size="12.5" font-weight="700" fill="#12786A">request_sub_position</text>
+<text x="379" y="660" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="392" y="660" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="420" y="660" font-size="10.5" fill="#131A24">request_id</text>
+<text x="631" y="660" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="379" y="677" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="420" y="677" font-size="10.5" fill="#131A24">position</text>
+<text x="631" y="677" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<rect x="690" y="170" width="270" height="215" rx="4" fill="#fff" stroke="#AE5F26" stroke-width="1.4"/>
+<path d="M690,174a4,4 0 0 1 4,-4H956a4,4 0 0 1 4,4V198H690Z" fill="#AE5F26" opacity=".11"/>
+<rect x="691.5" y="215" width="267" height="17" fill="#F9FBFC"/>
+<rect x="691.5" y="249" width="267" height="17" fill="#F9FBFC"/>
+<rect x="691.5" y="283" width="267" height="17" fill="#F9FBFC"/>
+<rect x="691.5" y="317" width="267" height="17" fill="#F9FBFC"/>
+<rect x="691.5" y="351" width="267" height="17" fill="#F9FBFC"/>
+<line x1="690" y1="198" x2="960" y2="198" stroke="#AE5F26" stroke-width="1.4"/>
+<rect x="690" y="170" width="270" height="215" rx="4" fill="none" stroke="#AE5F26" stroke-width="1.4"/>
+<text x="701" y="189" font-size="12.5" font-weight="700" fill="#AE5F26">match_offer</text>
+<text x="699" y="210" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="740" y="210" font-size="10.5" fill="#131A24">id</text>
+<text x="951" y="210" text-anchor="end" font-size="8.6" fill="#6B7887">bigserial</text>
+<text x="699" y="227" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="740" y="227" font-size="10.5" fill="#131A24">game_id</text>
+<text x="951" y="227" text-anchor="end" font-size="8.6" fill="#6B7887">smallint</text>
+<text x="740" y="244" font-size="10.5" fill="#131A24">queue</text>
+<text x="951" y="244" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="740" y="261" font-size="10.5" fill="#131A24">target_size</text>
+<text x="951" y="261" text-anchor="end" font-size="8.6" fill="#6B7887">smallint</text>
+<text x="740" y="278" font-size="10.5" fill="#131A24">purpose</text>
+<text x="951" y="278" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="740" y="295" font-size="10.5" fill="#131A24">voice_party</text>
+<text x="951" y="295" text-anchor="end" font-size="8.6" fill="#6B7887">bool</text>
+<text x="699" y="312" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="740" y="312" font-size="10.5" fill="#131A24">combo_hash</text>
+<text x="951" y="312" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="740" y="329" font-size="10.5" fill="#131A24">status</text>
+<text x="951" y="329" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="740" y="346" font-size="10.5" fill="#131A24">respond_by</text>
+<text x="951" y="346" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="699" y="363" font-size="7.8" font-weight="700" fill="#B0472B">CK</text>
+<text x="740" y="363" font-size="10.5" fill="#131A24">refill_by</text>
+<text x="951" y="363" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="740" y="380" font-size="10.5" fill="#131A24">closed_at</text>
+<text x="951" y="380" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<rect x="690" y="430" width="270" height="147" rx="4" fill="#fff" stroke="#AE5F26" stroke-width="1.4"/>
+<path d="M690,434a4,4 0 0 1 4,-4H956a4,4 0 0 1 4,4V458H690Z" fill="#AE5F26" opacity=".11"/>
+<rect x="691.5" y="475" width="267" height="17" fill="#F9FBFC"/>
+<rect x="691.5" y="509" width="267" height="17" fill="#F9FBFC"/>
+<rect x="691.5" y="543" width="267" height="17" fill="#F9FBFC"/>
+<line x1="690" y1="458" x2="960" y2="458" stroke="#AE5F26" stroke-width="1.4"/>
+<rect x="690" y="430" width="270" height="147" rx="4" fill="none" stroke="#AE5F26" stroke-width="1.4"/>
+<text x="701" y="449" font-size="12.5" font-weight="700" fill="#AE5F26">offer_seat</text>
+<text x="699" y="470" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="740" y="470" font-size="10.5" fill="#131A24">id</text>
+<text x="951" y="470" text-anchor="end" font-size="8.6" fill="#6B7887">bigserial</text>
+<text x="699" y="487" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="712" y="487" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="740" y="487" font-size="10.5" fill="#131A24">offer_id</text>
+<text x="951" y="487" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="699" y="504" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="740" y="504" font-size="10.5" fill="#131A24">position</text>
+<text x="951" y="504" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="740" y="521" font-size="10.5" fill="#131A24">status</text>
+<text x="951" y="521" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="699" y="538" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="712" y="538" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="740" y="538" font-size="10.5" fill="#131A24">filled_by_request_id</text>
+<text x="951" y="538" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="740" y="555" font-size="10.5" fill="#131A24">opened_at</text>
+<text x="951" y="555" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="740" y="572" font-size="10.5" fill="#131A24">closed_at</text>
+<text x="951" y="572" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<rect x="690" y="610" width="270" height="198" rx="4" fill="#fff" stroke="#AE5F26" stroke-width="1.4"/>
+<path d="M690,614a4,4 0 0 1 4,-4H956a4,4 0 0 1 4,4V638H690Z" fill="#AE5F26" opacity=".11"/>
+<rect x="691.5" y="655" width="267" height="17" fill="#F9FBFC"/>
+<rect x="691.5" y="689" width="267" height="17" fill="#F9FBFC"/>
+<rect x="691.5" y="723" width="267" height="17" fill="#F9FBFC"/>
+<rect x="691.5" y="757" width="267" height="17" fill="#F9FBFC"/>
+<rect x="691.5" y="791" width="267" height="17" fill="#F9FBFC"/>
+<line x1="690" y1="638" x2="960" y2="638" stroke="#AE5F26" stroke-width="1.4"/>
+<rect x="690" y="610" width="270" height="198" rx="4" fill="none" stroke="#AE5F26" stroke-width="1.4"/>
+<text x="701" y="629" font-size="12.5" font-weight="700" fill="#AE5F26">offer_participant</text>
+<text x="699" y="650" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="740" y="650" font-size="10.5" fill="#131A24">id</text>
+<text x="951" y="650" text-anchor="end" font-size="8.6" fill="#6B7887">bigserial</text>
+<text x="699" y="667" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="712" y="667" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="740" y="667" font-size="10.5" fill="#131A24">offer_id</text>
+<text x="951" y="667" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="699" y="684" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="712" y="684" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="740" y="684" font-size="10.5" fill="#131A24">seat_id</text>
+<text x="951" y="684" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="699" y="701" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="712" y="701" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="740" y="701" font-size="10.5" fill="#131A24">request_id</text>
+<text x="951" y="701" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="699" y="718" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="740" y="718" font-size="10.5" fill="#131A24">user_id</text>
+<text x="951" y="718" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="699" y="735" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="740" y="735" font-size="10.5" fill="#131A24">round</text>
+<text x="951" y="735" text-anchor="end" font-size="8.6" fill="#6B7887">smallint</text>
+<text x="740" y="752" font-size="10.5" fill="#131A24">response</text>
+<text x="951" y="752" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="740" y="769" font-size="10.5" fill="#131A24">offered_at</text>
+<text x="951" y="769" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="740" y="786" font-size="10.5" fill="#131A24">expires_at</text>
+<text x="951" y="786" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="740" y="803" font-size="10.5" fill="#131A24">responded_at</text>
+<text x="951" y="803" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<rect x="1010" y="170" width="270" height="198" rx="4" fill="#fff" stroke="#9E3A61" stroke-width="1.4"/>
+<path d="M1010,174a4,4 0 0 1 4,-4H1276a4,4 0 0 1 4,4V198H1010Z" fill="#9E3A61" opacity=".11"/>
+<rect x="1011.5" y="215" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1011.5" y="249" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1011.5" y="283" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1011.5" y="317" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1011.5" y="351" width="267" height="17" fill="#F9FBFC"/>
+<line x1="1010" y1="198" x2="1280" y2="198" stroke="#9E3A61" stroke-width="1.4"/>
+<rect x="1010" y="170" width="270" height="198" rx="4" fill="none" stroke="#9E3A61" stroke-width="1.4"/>
+<text x="1021" y="189" font-size="12.5" font-weight="700" fill="#9E3A61">party</text>
+<text x="1019" y="210" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="1060" y="210" font-size="10.5" fill="#131A24">id</text>
+<text x="1271" y="210" text-anchor="end" font-size="8.6" fill="#6B7887">bigserial</text>
+<text x="1019" y="227" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="1060" y="227" font-size="10.5" fill="#131A24">game_id</text>
+<text x="1271" y="227" text-anchor="end" font-size="8.6" fill="#6B7887">smallint</text>
+<text x="1019" y="244" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="1032" y="244" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="1060" y="244" font-size="10.5" fill="#131A24">offer_id</text>
+<text x="1271" y="244" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="1060" y="261" font-size="10.5" fill="#131A24">queue</text>
+<text x="1271" y="261" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="1060" y="278" font-size="10.5" fill="#131A24">target_size</text>
+<text x="1271" y="278" text-anchor="end" font-size="8.6" fill="#6B7887">smallint</text>
+<text x="1060" y="295" font-size="10.5" fill="#131A24">purpose</text>
+<text x="1271" y="295" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="1060" y="312" font-size="10.5" fill="#131A24">voice_party</text>
+<text x="1271" y="312" text-anchor="end" font-size="8.6" fill="#6B7887">bool</text>
+<text x="1019" y="329" font-size="7.8" font-weight="700" fill="#B0472B">CK</text>
+<text x="1060" y="329" font-size="10.5" fill="#131A24">start_at</text>
+<text x="1271" y="329" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="1019" y="346" font-size="7.8" font-weight="700" fill="#B0472B">CK</text>
+<text x="1060" y="346" font-size="10.5" fill="#131A24">end_at</text>
+<text x="1271" y="346" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="1060" y="363" font-size="10.5" fill="#131A24">confirmed_at</text>
+<text x="1271" y="363" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<rect x="1010" y="398" width="270" height="147" rx="4" fill="#fff" stroke="#9E3A61" stroke-width="1.4"/>
+<path d="M1010,402a4,4 0 0 1 4,-4H1276a4,4 0 0 1 4,4V426H1010Z" fill="#9E3A61" opacity=".11"/>
+<rect x="1011.5" y="443" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1011.5" y="477" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1011.5" y="511" width="267" height="17" fill="#F9FBFC"/>
+<line x1="1010" y1="426" x2="1280" y2="426" stroke="#9E3A61" stroke-width="1.4"/>
+<rect x="1010" y="398" width="270" height="147" rx="4" fill="none" stroke="#9E3A61" stroke-width="1.4"/>
+<text x="1021" y="417" font-size="12.5" font-weight="700" fill="#9E3A61">party_member</text>
+<text x="1019" y="438" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="1032" y="438" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="1060" y="438" font-size="10.5" fill="#131A24">request_id</text>
+<text x="1271" y="438" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="1019" y="455" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="1032" y="455" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="1060" y="455" font-size="10.5" fill="#131A24">party_id</text>
+<text x="1271" y="455" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="1019" y="472" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="1032" y="472" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="1060" y="472" font-size="10.5" fill="#131A24">user_id</text>
+<text x="1271" y="472" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="1019" y="489" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="1060" y="489" font-size="10.5" fill="#131A24">position</text>
+<text x="1271" y="489" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="1060" y="506" font-size="10.5" fill="#131A24">ready_state</text>
+<text x="1271" y="506" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="1060" y="523" font-size="10.5" fill="#131A24">ready_at</text>
+<text x="1271" y="523" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="1060" y="540" font-size="10.5" fill="#131A24">joined_at</text>
+<text x="1271" y="540" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<rect x="690" y="880" width="270" height="130" rx="4" fill="#fff" stroke="#12786A" stroke-width="1.4"/>
+<path d="M690,884a4,4 0 0 1 4,-4H956a4,4 0 0 1 4,4V908H690Z" fill="#12786A" opacity=".11"/>
+<rect x="691.5" y="925" width="267" height="17" fill="#F9FBFC"/>
+<rect x="691.5" y="959" width="267" height="17" fill="#F9FBFC"/>
+<rect x="691.5" y="993" width="267" height="17" fill="#F9FBFC"/>
+<line x1="690" y1="908" x2="960" y2="908" stroke="#12786A" stroke-width="1.4"/>
+<rect x="690" y="880" width="270" height="130" rx="4" fill="none" stroke="#12786A" stroke-width="1.4"/>
+<text x="701" y="899" font-size="12.5" font-weight="700" fill="#12786A">user_busy_interval</text>
+<text x="699" y="920" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="740" y="920" font-size="10.5" fill="#131A24">id</text>
+<text x="951" y="920" text-anchor="end" font-size="8.6" fill="#6B7887">bigserial</text>
+<text x="699" y="937" font-size="7.8" font-weight="700" fill="#B0472B">EX</text>
+<text x="712" y="937" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="740" y="937" font-size="10.5" fill="#131A24">user_id</text>
+<text x="951" y="937" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="699" y="954" font-size="7.8" font-weight="700" fill="#B0472B">EX</text>
+<text x="740" y="954" font-size="10.5" fill="#131A24">during</text>
+<text x="951" y="954" text-anchor="end" font-size="8.6" fill="#6B7887">tstzrange</text>
+<text x="740" y="971" font-size="10.5" fill="#131A24">source_type</text>
+<text x="951" y="971" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="699" y="988" font-size="7.8" font-weight="700" fill="#B0472B">CK</text>
+<text x="712" y="988" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="740" y="988" font-size="10.5" fill="#131A24">request_id</text>
+<text x="951" y="988" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="699" y="1005" font-size="7.8" font-weight="700" fill="#B0472B">CK</text>
+<text x="712" y="1005" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="740" y="1005" font-size="10.5" fill="#131A24">party_id</text>
+<text x="951" y="1005" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<rect x="1330" y="170" width="270" height="181" rx="4" fill="#fff" stroke="#4A57C4" stroke-width="1.4"/>
+<path d="M1330,174a4,4 0 0 1 4,-4H1596a4,4 0 0 1 4,4V198H1330Z" fill="#4A57C4" opacity=".11"/>
+<rect x="1331.5" y="215" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1331.5" y="249" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1331.5" y="283" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1331.5" y="317" width="267" height="17" fill="#F9FBFC"/>
+<line x1="1330" y1="198" x2="1600" y2="198" stroke="#4A57C4" stroke-width="1.4"/>
+<rect x="1330" y="170" width="270" height="181" rx="4" fill="none" stroke="#4A57C4" stroke-width="1.4"/>
+<text x="1341" y="189" font-size="12.5" font-weight="700" fill="#4A57C4">party_discord_channel</text>
+<text x="1339" y="210" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="1352" y="210" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="1380" y="210" font-size="10.5" fill="#131A24">party_id</text>
+<text x="1591" y="210" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="1380" y="227" font-size="10.5" fill="#131A24">guild_id</text>
+<text x="1591" y="227" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="1380" y="244" font-size="10.5" fill="#131A24">category_id</text>
+<text x="1591" y="244" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="1339" y="261" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="1380" y="261" font-size="10.5" fill="#131A24">channel_id</text>
+<text x="1591" y="261" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="1380" y="278" font-size="10.5" fill="#131A24">status</text>
+<text x="1591" y="278" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="1380" y="295" font-size="10.5" fill="#131A24">fail_reason</text>
+<text x="1591" y="295" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="1380" y="312" font-size="10.5" fill="#131A24">created_at</text>
+<text x="1591" y="312" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="1380" y="329" font-size="10.5" fill="#131A24">delete_after</text>
+<text x="1591" y="329" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="1380" y="346" font-size="10.5" fill="#131A24">deleted_at</text>
+<text x="1591" y="346" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<rect x="1330" y="381" width="270" height="130" rx="4" fill="#fff" stroke="#4A57C4" stroke-width="1.4"/>
+<path d="M1330,385a4,4 0 0 1 4,-4H1596a4,4 0 0 1 4,4V409H1330Z" fill="#4A57C4" opacity=".11"/>
+<rect x="1331.5" y="426" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1331.5" y="460" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1331.5" y="494" width="267" height="17" fill="#F9FBFC"/>
+<line x1="1330" y1="409" x2="1600" y2="409" stroke="#4A57C4" stroke-width="1.4"/>
+<rect x="1330" y="381" width="270" height="130" rx="4" fill="none" stroke="#4A57C4" stroke-width="1.4"/>
+<text x="1341" y="400" font-size="12.5" font-weight="700" fill="#4A57C4">party_discord_member</text>
+<text x="1339" y="421" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="1352" y="421" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="1380" y="421" font-size="10.5" fill="#131A24">party_id</text>
+<text x="1591" y="421" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="1339" y="438" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="1352" y="438" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="1380" y="438" font-size="10.5" fill="#131A24">user_id</text>
+<text x="1591" y="438" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="1380" y="455" font-size="10.5" fill="#131A24">status</text>
+<text x="1591" y="455" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="1380" y="472" font-size="10.5" fill="#131A24">granted_at</text>
+<text x="1591" y="472" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="1380" y="489" font-size="10.5" fill="#131A24">fail_reason</text>
+<text x="1591" y="489" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="1380" y="506" font-size="10.5" fill="#131A24">updated_at</text>
+<text x="1591" y="506" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<rect x="1330" y="541" width="270" height="215" rx="4" fill="#fff" stroke="#4A57C4" stroke-width="1.4"/>
+<path d="M1330,545a4,4 0 0 1 4,-4H1596a4,4 0 0 1 4,4V569H1330Z" fill="#4A57C4" opacity=".11"/>
+<rect x="1331.5" y="586" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1331.5" y="620" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1331.5" y="654" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1331.5" y="688" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1331.5" y="722" width="267" height="17" fill="#F9FBFC"/>
+<line x1="1330" y1="569" x2="1600" y2="569" stroke="#4A57C4" stroke-width="1.4"/>
+<rect x="1330" y="541" width="270" height="215" rx="4" fill="none" stroke="#4A57C4" stroke-width="1.4"/>
+<text x="1341" y="560" font-size="12.5" font-weight="700" fill="#4A57C4">outbox_event</text>
+<text x="1339" y="581" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="1380" y="581" font-size="10.5" fill="#131A24">id</text>
+<text x="1591" y="581" text-anchor="end" font-size="8.6" fill="#6B7887">bigserial</text>
+<text x="1339" y="598" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="1380" y="598" font-size="10.5" fill="#131A24">event_id</text>
+<text x="1591" y="598" text-anchor="end" font-size="8.6" fill="#6B7887">uuid</text>
+<text x="1380" y="615" font-size="10.5" fill="#131A24">topic</text>
+<text x="1591" y="615" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="1380" y="632" font-size="10.5" fill="#131A24">event_type</text>
+<text x="1591" y="632" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="1339" y="649" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="1380" y="649" font-size="10.5" fill="#131A24">party_id</text>
+<text x="1591" y="649" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="1339" y="666" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="1380" y="666" font-size="10.5" fill="#131A24">user_id</text>
+<text x="1591" y="666" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="1380" y="683" font-size="10.5" fill="#131A24">payload</text>
+<text x="1591" y="683" text-anchor="end" font-size="8.6" fill="#6B7887">jsonb</text>
+<text x="1380" y="700" font-size="10.5" fill="#131A24">available_at</text>
+<text x="1591" y="700" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="1380" y="717" font-size="10.5" fill="#131A24">published_at</text>
+<text x="1591" y="717" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="1380" y="734" font-size="10.5" fill="#131A24">attempts</text>
+<text x="1591" y="734" text-anchor="end" font-size="8.6" fill="#6B7887">smallint</text>
+<text x="1380" y="751" font-size="10.5" fill="#131A24">last_error</text>
+<text x="1591" y="751" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<rect x="1330" y="786" width="270" height="147" rx="4" fill="#fff" stroke="#4A57C4" stroke-width="1.4"/>
+<path d="M1330,790a4,4 0 0 1 4,-4H1596a4,4 0 0 1 4,4V814H1330Z" fill="#4A57C4" opacity=".11"/>
+<rect x="1331.5" y="831" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1331.5" y="865" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1331.5" y="899" width="267" height="17" fill="#F9FBFC"/>
+<line x1="1330" y1="814" x2="1600" y2="814" stroke="#4A57C4" stroke-width="1.4"/>
+<rect x="1330" y="786" width="270" height="147" rx="4" fill="none" stroke="#4A57C4" stroke-width="1.4"/>
+<text x="1341" y="805" font-size="12.5" font-weight="700" fill="#4A57C4">push_delivery</text>
+<text x="1339" y="826" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="1380" y="826" font-size="10.5" fill="#131A24">id</text>
+<text x="1591" y="826" text-anchor="end" font-size="8.6" fill="#6B7887">bigserial</text>
+<text x="1339" y="843" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="1352" y="843" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="1380" y="843" font-size="10.5" fill="#131A24">event_id</text>
+<text x="1591" y="843" text-anchor="end" font-size="8.6" fill="#6B7887">uuid</text>
+<text x="1339" y="860" font-size="7.8" font-weight="700" fill="#12786A">UK</text>
+<text x="1352" y="860" font-size="7.8" font-weight="700" fill="#2F6DA8">FK</text>
+<text x="1380" y="860" font-size="10.5" fill="#131A24">subscription_id</text>
+<text x="1591" y="860" text-anchor="end" font-size="8.6" fill="#6B7887">bigint</text>
+<text x="1380" y="877" font-size="10.5" fill="#131A24">status</text>
+<text x="1591" y="877" text-anchor="end" font-size="8.6" fill="#6B7887">enum</text>
+<text x="1380" y="894" font-size="10.5" fill="#131A24">http_status</text>
+<text x="1591" y="894" text-anchor="end" font-size="8.6" fill="#6B7887">smallint</text>
+<text x="1380" y="911" font-size="10.5" fill="#131A24">error</text>
+<text x="1591" y="911" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<text x="1380" y="928" font-size="10.5" fill="#131A24">sent_at</text>
+<text x="1591" y="928" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<rect x="1330" y="963" width="270" height="164" rx="4" fill="#fff" stroke="#4A57C4" stroke-width="1.4" stroke-dasharray="5 4"/>
+<path d="M1330,967a4,4 0 0 1 4,-4H1596a4,4 0 0 1 4,4V991H1330Z" fill="#4A57C4" opacity=".11"/>
+<rect x="1331.5" y="1008" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1331.5" y="1042" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1331.5" y="1076" width="267" height="17" fill="#F9FBFC"/>
+<rect x="1331.5" y="1110" width="267" height="17" fill="#F9FBFC"/>
+<line x1="1330" y1="991" x2="1600" y2="991" stroke="#4A57C4" stroke-width="1.4"/>
+<rect x="1330" y="963" width="270" height="164" rx="4" fill="none" stroke="#4A57C4" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="1341" y="982" font-size="12.5" font-weight="700" fill="#4A57C4">reservation_batch_run</text>
+<text x="1339" y="1003" font-size="7.8" font-weight="700" fill="#9E3A61">PK</text>
+<text x="1380" y="1003" font-size="10.5" fill="#131A24">play_date</text>
+<text x="1591" y="1003" text-anchor="end" font-size="8.6" fill="#6B7887">date</text>
+<text x="1380" y="1020" font-size="10.5" fill="#131A24">started_at</text>
+<text x="1591" y="1020" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="1380" y="1037" font-size="10.5" fill="#131A24">cutoff_at</text>
+<text x="1591" y="1037" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="1380" y="1054" font-size="10.5" fill="#131A24">finished_at</text>
+<text x="1591" y="1054" text-anchor="end" font-size="8.6" fill="#6B7887">timestamptz</text>
+<text x="1380" y="1071" font-size="10.5" fill="#131A24">processed_count</text>
+<text x="1591" y="1071" text-anchor="end" font-size="8.6" fill="#6B7887">int</text>
+<text x="1380" y="1088" font-size="10.5" fill="#131A24">party_count</text>
+<text x="1591" y="1088" text-anchor="end" font-size="8.6" fill="#6B7887">int</text>
+<text x="1380" y="1105" font-size="10.5" fill="#131A24">failed_count</text>
+<text x="1591" y="1105" text-anchor="end" font-size="8.6" fill="#6B7887">int</text>
+<text x="1380" y="1122" font-size="10.5" fill="#131A24">error</text>
+<text x="1591" y="1122" text-anchor="end" font-size="8.6" fill="#6B7887">text</text>
+<g font-family="Malgun Gothic, Apple SD Gothic Neo, sans-serif" font-size="10.5" fill="#6B7887">
+<text x="345" y="233" text-anchor="middle">신청</text>
+<text x="694" y="873" text-anchor="start">요청 점유</text>
+<text x="956" y="873" text-anchor="end">파티 점유</text>
+<text x="905" y="838" text-anchor="middle">확정 시 1건</text>
+<text x="833" y="413" text-anchor="start">정원만큼</text>
+<text x="833" y="592" text-anchor="start">좌석당 1명</text>
+<text x="985" y="233" text-anchor="middle">전원수락</text>
+<text x="1153" y="381" text-anchor="start">정원만큼</text>
+<text x="1305" y="233" text-anchor="middle">1:1</text>
+<text x="1328" y="376" text-anchor="end">권한 부여</text>
+<text x="1334" y="533" text-anchor="start">이벤트 발행</text>
+<text x="1473" y="769" text-anchor="start">구독별 1행</text>
+<text x="760" y="1199" text-anchor="middle">발송 결과 기록</text>
+<text x="732" y="70" text-anchor="middle">game_id 참조</text>
+</g>
+<g font-size="9.5" font-weight="700" fill="#B0472B">
+<text x="905" y="851" text-anchor="middle">INV-3</text>
+<text x="833" y="604" text-anchor="start">INV-7</text>
+<text x="985" y="221" text-anchor="middle">INV-6</text>
+<text x="1153" y="393" text-anchor="start">INV-4</text>
+<text x="1473" y="781" text-anchor="start">INV-12</text>
+<text x="825" y="1028" text-anchor="middle">INV-2</text>
+</g>
+<rect x="370" y="1020" width="450" height="92" rx="4" fill="#fff" stroke="#D3DAE2"/>
+<text x="384" y="1040" font-size="9.5" letter-spacing="1" fill="#6B7887">NOTATION</text>
+<g font-size="9.5" font-weight="700">
+<text x="386" y="1060" fill="#9E3A61">PK</text>
+<text x="406" y="1060" font-family="Malgun Gothic,sans-serif" font-size="10" font-weight="400" fill="#6B7887">기본키</text>
+<text x="474" y="1060" fill="#2F6DA8">FK</text>
+<text x="494" y="1060" font-family="Malgun Gothic,sans-serif" font-size="10" font-weight="400" fill="#6B7887">외래키</text>
+<text x="562" y="1060" fill="#12786A">UK</text>
+<text x="582" y="1060" font-family="Malgun Gothic,sans-serif" font-size="10" font-weight="400" fill="#6B7887">유니크</text>
+<text x="650" y="1060" fill="#B0472B">CK</text>
+<text x="670" y="1060" font-family="Malgun Gothic,sans-serif" font-size="10" font-weight="400" fill="#6B7887">CHECK</text>
+<text x="738" y="1060" fill="#B0472B">EX</text>
+<text x="758" y="1060" font-family="Malgun Gothic,sans-serif" font-size="10" font-weight="400" fill="#6B7887">EXCLUDE</text>
+</g>
+<g fill="none" stroke="#131A24" stroke-width="1.3">
+<path d="M386,1082 H426" marker-start="url(#one)"/><path d="M530,1082 H570" marker-end="url(#crow)"/><path d="M674,1082 H714" marker-end="url(#zone)"/></g>
+<g font-family="Malgun Gothic,sans-serif" font-size="10.5" fill="#6B7887">
+<text x="434" y="1086">정확히 1건</text><text x="578" y="1086">0건 이상 (N)</text><text x="722" y="1086">0 또는 1건</text>
+<text x="386" y="1104">점선 테두리 = FK 없는 독립 테이블 · 점선 연결 = 마스터 참조</text></g>
+<text x="50" y="1155" font-family="Malgun Gothic,sans-serif" font-size="15" font-weight="700" fill="#131A24">파티 매칭 서비스 · PostgreSQL 16 · 18 tables</text>
+<text x="50" y="1178" font-family="Malgun Gothic,sans-serif" font-size="11" fill="#6B7887">기능 명세서 대주제 1–5 기준</text>
+</svg>

@@ -1,57 +1,69 @@
-import { Logo } from '../components/Logo';
 import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { isApiError } from '../api/error';
-import { SocialLoginButtons } from '../components/SocialLoginButtons';
-import { Button, Field } from '../components/ui';
-import { USE_MOCK } from '../config';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { DevLoginPanel } from '../components/DevLoginPanel'; // TEMP-DEV-LOGIN
+import { Logo } from '../components/Logo';
+import { SiteFooter } from '../components/SiteFooter';
+import { SocialProviderIcon } from '../components/SocialProviderIcon';
+import { oauthStartPath } from '../api/client';
+import type { SocialProvider } from '../api/types';
 import { useAuth } from '../state/AuthContext';
+import { landingPath } from '../state/onboarding';
 
-export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
-  const { login, signup, status } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const from = (location.state as { from?: string } | null)?.from ?? '/app/home';
+/**
+ * 로그인 — 소셜만이다(카카오 · Discord · Google — D-35 · Google 은 2026-09-29 소유자 결정). 이메일 · 비밀번호 · 직접 가입은 백엔드에 없다.
+ * 버튼은 XHR 이 아니라 **브라우저 이동**이다(`GET /api/v1/auth/oauth/{PROVIDER}/start` → 302 → 제공자 → 백엔드 콜백 → 프런트로 302).
+ * 상대 경로라 프록시(로컬) · 같은 출처(운영)를 그대로 탄다.
+ *
+ * 화면은 원본 프런트의 로그인 카드(어두운 카드 · 제목 · 가운데 글자 구분선 · 점선 박스)에 우리 버튼 셋만 넣은 것이다(2026-09-29 소유자 지시).
+ * 원본의 이메일 · 비밀번호 칸 · 로그인 버튼 · 회원가입 링크 · 네이버는 없다. 마지막으로 누른 제공자에 "최근 사용" 배지가 붙는다.
+ *
+ * Google 버튼의 글자는 **"Google로 계속하기"** 다(2026-10-02) — Google 브랜딩 가이드가 허용하는 문구는 "Sign in with Google" · "Sign up with Google" ·
+ * "Continue with Google" 셋(과 그 번역)뿐이라 "시작하기"(Start with) 를 "계속하기"(Continue with) 로 바꿨다(https://developers.google.com/identity/branding-guidelines).
+ * 카카오 · Discord 의 글자는 각자의 가이드로 따로 볼 일이라 그대로다.
+ */
+const PROVIDERS: { provider: SocialProvider; label: string }[] = [
+  { provider: 'KAKAO', label: '카카오로 시작하기' },
+  { provider: 'DISCORD', label: 'Discord로 시작하기' },
+  { provider: 'GOOGLE', label: 'Google로 계속하기' },
+];
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [nickname, setNickname] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+/**
+ * 마지막으로 누른 제공자. 로그인이 끝났는지는 모른다 — "누른 것" 을 적는다(콜백은 백엔드가 받아 이 화면으로 돌아오지 않을 수 있다).
+ * 이 브라우저의 편의일 뿐이라 서버에 보내지 않고, 저장이 막힌 브라우저(사생활 보호 창 등)에서는 배지 없이 그린다.
+ */
+const LAST_PROVIDER_KEY = 'qm.lastProvider';
 
-  const isSignup = mode === 'signup';
-  const roomDemo = import.meta.env.DEV && import.meta.env.VITE_ROOM_DEMO === 'true';
-  const loginDemo = async (account: 'a' | 'b') => {
-    setBusy(true); setError(null);
-    try {
-      await login(`demo-${account}@queuemate.local`, 'QueueMate123!');
-      navigate('/app/home', { replace: true });
-    } catch (cause) { setError(cause instanceof Error ? cause.message : '데모 서버에 연결하지 못했어요.'); }
-    finally { setBusy(false); }
-  };
-
-  const validate = (): string | null => {
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return '이메일 형식을 확인해주세요';
-    if (password.length < 8) return '비밀번호는 8자 이상이어야 합니다';
-    if (isSignup && (nickname.trim().length < 2 || nickname.trim().length > 16)) return '닉네임은 2~16자로 입력해주세요';
+function readLastProvider(): SocialProvider | null {
+  try {
+    const value = localStorage.getItem(LAST_PROVIDER_KEY);
+    return PROVIDERS.find((p) => p.provider === value)?.provider ?? null;
+  } catch {
     return null;
-  };
+  }
+}
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const invalid = validate();
-    if (invalid) { setError(invalid); return; }
-    setBusy(true);
-    setError(null);
-    try {
-      if (isSignup) await signup(email, password, nickname.trim());
-      else await login(email, password);
-      navigate(from, { replace: true });
-    } catch (err) {
-      setError(isApiError(err) ? err.message : '요청을 처리하지 못했습니다');
-    } finally {
-      setBusy(false);
-    }
+function rememberProvider(provider: SocialProvider): void {
+  try { localStorage.setItem(LAST_PROVIDER_KEY, provider); } catch { /* 저장 공간이 막혀도 로그인은 간다 — 배지만 잃는다 */ }
+}
+
+/** 백엔드 콜백이 실패를 `/login?error=…` 로 알린다. 지금 값은 `OAUTH_FAILED` 하나다(state 불일치 · 사용자가 거절 · 제공자 오류를 가르지 않는다). */
+const ERROR_MESSAGES: Record<string, string> = {
+  OAUTH_FAILED: '소셜 로그인에 실패했습니다. 다시 시도해주세요',
+};
+
+export function AuthPage() {
+  const { status, user } = useAuth();
+  const [params] = useSearchParams();
+  const [lastProvider] = useState(readLastProvider);
+  const failure = params.get('error');
+  const message = failure ? ERROR_MESSAGES[failure] ?? `소셜 로그인에 실패했습니다 (${failure})` : null;
+
+  // 이미 로그인돼 있으면 홈이다 — 콜백이 로그인 성공을 `/` 로 돌려보내므로 랜딩도 같은 판정을 한다(목적지는 `state/onboarding.ts` `landingPath`).
+  if (status === 'authenticated') return <Navigate to={landingPath(user)} replace />;
+
+  const start = (provider: SocialProvider) => {
+    rememberProvider(provider);
+    window.location.assign(oauthStartPath(provider));
   };
 
   return (
@@ -66,51 +78,26 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
 
       <main className="auth-main">
         <div className="auth-card">
-          <h1>{isSignup ? '회원가입' : '로그인'}</h1>
-
-          {roomDemo && !isSignup ? <div className="room-demo-login">
-            <p>공유 방 · 두 계정 테스트</p>
-            <div style={{ display: 'flex', gap: 12, margin: '12px 0 20px' }}>
-              <Button disabled={busy} onClick={() => void loginDemo('a')}>데모 A로 시작</Button>
-              <Button disabled={busy} onClick={() => void loginDemo('b')}>데모 B로 시작</Button>
-            </div>
-          </div> : null}
-
-          <SocialLoginButtons redirectTo={from} onError={setError} />
-
-          <form className="auth-form" onSubmit={submit}>
-            <Field label="이메일">
-              <input className="input" disabled={status === 'loading' || busy} type="email" autoComplete="email" placeholder="이메일 주소를 입력하세요"
-                value={email} onChange={(e) => setEmail(e.target.value)} />
-            </Field>
-            {isSignup ? (
-              <Field label="닉네임" hint="2~16자">
-                <input className="input" disabled={status === 'loading' || busy} type="text" placeholder="닉네임을 입력하세요"
-                  value={nickname} onChange={(e) => setNickname(e.target.value)} />
-              </Field>
-            ) : null}
-            <Field label="비밀번호" hint={isSignup ? '8자 이상' : undefined} error={error ?? undefined}>
-              <input className="input" disabled={status === 'loading' || busy} type="password" autoComplete={isSignup ? 'new-password' : 'current-password'}
-                placeholder="비밀번호를 입력하세요" value={password} onChange={(e) => setPassword(e.target.value)} />
-            </Field>
-            <Button type="submit" variant="primary" size="lg" block disabled={busy || status === 'loading'}>
-              {busy ? '처리 중...' : isSignup ? '회원가입' : '로그인'}
-            </Button>
-          </form>
-
-          <div className="auth-alt">
-            {isSignup ? '이미 계정이 있으신가요? ' : '계정이 없으신가요? '}
-            <button type="button" onClick={() => navigate(isSignup ? '/login' : '/signup')}>
-              {isSignup ? '로그인하기' : '회원가입하기'}
-            </button>
+          <h1>로그인</h1>
+          {message ? <p className="login-error" role="alert">{message}</p> : null}
+          <div className="social-login">
+            <div className="social-divider"><span>소셜 계정으로 계속하기</span></div>
+            {PROVIDERS.map(({ provider, label }) => {
+              const recent = provider === lastProvider;
+              return (
+                <button key={provider} type="button" className={`social-btn s-${provider}${recent ? ' is-recent' : ''}`}
+                  aria-label={recent ? `${label} (최근 사용)` : label} onClick={() => start(provider)}>
+                  <SocialProviderIcon provider={provider} size={20} />
+                  <span>{label}</span>
+                  {recent ? <span className="social-recent" aria-hidden="true">최근 사용</span> : null}
+                </button>
+              );
+            })}
           </div>
-
-          {USE_MOCK ? (
-            <div className="auth-hint">
-              데모 계정: <b>demo@queuemate.gg</b> / <b>queuemate1</b>
-            </div>
-          ) : null}
+          {/* TEMP-DEV-LOGIN — 개발 서버에서만 그린다(원본의 점선 "데모 계정" 박스 자리). 운영 빌드에서는 `import.meta.env.DEV` 가 `false` 로 바뀌어 이 줄과 DevLoginPanel 모듈이 빠진다. */}
+          {import.meta.env.DEV ? <DevLoginPanel /> : null}
         </div>
+        <SiteFooter variant="compact" />
       </main>
     </div>
   );
