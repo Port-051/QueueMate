@@ -17,7 +17,6 @@
 .legal-lead { margin-top: 20px; }
 .legal-doc a { color: var(--accent-2); text-decoration: underline; text-underline-offset: 3px; }
 .legal-doc strong { color: var(--text); font-weight: 700; }
-.legal-doc code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.86em; padding: 1px 5px; border-radius: 5px; background: var(--panel-3); color: var(--text); word-break: break-all; }
 .legal-doc ul, .legal-doc ol.legal-list { margin: 10px 0 0; padding-left: 1.3em; list-style: disc; }
 .legal-doc ol.legal-list { list-style: decimal; }
 .legal-doc li + li { margin-top: 4px; }

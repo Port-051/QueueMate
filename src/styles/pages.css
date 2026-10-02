@@ -55,7 +55,6 @@
 .landing-info-card b { color: var(--text); font-weight: 600; }
 .landing-info-card a { color: var(--accent-2); text-decoration: underline; text-underline-offset: 3px; }
 .landing-info-card a:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
-.landing-info-card code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em; padding: 1px 5px; border-radius: 5px; background: var(--panel-3); color: var(--text); }
 .landing-info-contact { color: var(--muted); }
 @media (max-width: 767px) { .landing-info { grid-template-columns: minmax(0, 1fr); } }
 
