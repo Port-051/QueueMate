@@ -100,6 +100,8 @@
 .party-room-call-controls .room-mic-toggle.is-on { color:#83e8ba; border-color:#5fe3a850; background:#5fe3a812; }
 .party-room-call-controls :is(.room-mic-toggle,.party-room-leave):hover:not(:disabled) { filter:brightness(1.15); }
 .party-room-call-controls .party-room-leave { width:40px; padding:0; border-radius:50%; color:#ff9daa; border-color:#f36b7b50; background:#f36b7b12; }
+.party-room-call-controls .party-room-leave:hover:not(:disabled) { border-color:#f36b7b50; }
+.party-room-call-controls .party-room-leave:focus-visible { outline-color:#f36b7b; }
 .party-room-call-controls button:focus-visible { outline:2px solid var(--accent-2); outline-offset:3px; }
 .party-room-call-controls button:disabled { opacity:.5; cursor:default; }
 @media(max-width:480px) { .party-room-heading { gap:8px; } .party-room-heading .room-row-meta { gap:8px; } }
