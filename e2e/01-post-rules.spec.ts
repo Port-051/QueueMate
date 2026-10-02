@@ -34,8 +34,10 @@ test('시나리오 1 — 글 쓰기 · 방장 포지션 규칙(P-38) · 찾는 �
     { name: '방장 포지션이 찾는 포지션과 겹침', body: lolPost(title, { hostPosition: 'MID', wantedPositions: ['TOP', 'JUNGLE', 'MID', 'ADC'] }), detail: /^hostPosition: / },
     { name: '칼바람 · 찾는 포지션', body: lolPost(title, { mode: 'ARAM_5', hostPosition: undefined, wantedPositions: ['TOP'] }), detail: /^wantedPositions: / },
     { name: '칼바람 · 방장 포지션', body: lolPost(title, { mode: 'ARAM_5', hostPosition: 'MID', wantedPositions: [] }), detail: /^hostPosition: / },
-    { name: 'PUBG · 찾는 포지션', body: { game: 'PUBG', mode: 'NORMAL_SQUAD_TPP', title, voice: 'NO_VOICE', conditions: { perspective: 'TPP' }, wantedPositions: ['TOP'] }, detail: /^wantedPositions: / },
-    { name: 'PUBG · 방장 포지션', body: { game: 'PUBG', mode: 'NORMAL_SQUAD_TPP', title, voice: 'NO_VOICE', conditions: { perspective: 'TPP' }, wantedPositions: [], hostPosition: 'TOP' }, detail: /^hostPosition: / },
+    { name: 'PUBG · 찾는 포지션', body: { game: 'PUBG', mode: 'NORMAL_SQUAD_TPP', title, voice: 'NO_VOICE', conditions: { perspective: 'TPP' }, wantedPositions: ['TOP'], allowAutoJoin: true }, detail: /^wantedPositions: / },
+    { name: 'PUBG · 방장 포지션', body: { game: 'PUBG', mode: 'NORMAL_SQUAD_TPP', title, voice: 'NO_VOICE', conditions: { perspective: 'TPP' }, wantedPositions: [], hostPosition: 'TOP', allowAutoJoin: true }, detail: /^hostPosition: / },
+    // 빠른매치 입장 허용 · 금지는 필수다(2026-10-02 소유자 결정) — 다른 칸은 맞는 글에서 그 칸만 뺐다(`undefined` 는 JSON 에서 빠진다).
+    { name: '빠른매치 입장(allowAutoJoin) 없음', body: lolPost(title, { allowAutoJoin: undefined }), detail: 'allowAutoJoin: 필요합니다' },
   ];
   for (const { name, body, detail } of rejected) {
     await test.step(`400 — ${name}`, async () => {

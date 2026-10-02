@@ -271,6 +271,11 @@ export interface PostResponse {
    * 모집 중 · 만료 · 진행 중인 확정은 `false`. 칸이 없는 옛 서버면 `false` 로 본다(`toBoardRoom`). 게시판 카드가 "확정" 대신 "끝남" 으로 그린다.
    */
   closed: boolean;
+  /**
+   * 빠른매치(게시판 방 먼저 합류 — `POST /posts/auto-join`)가 이 방에 사람을 넣어도 되는가 — 글을 쓸 때 방장이 고른 값(2026-10-02 소유자 결정).
+   * `false` 면 빠른매치가 이 방을 건너뛴다(게시판에서 직접 들어오는 것은 그대로). 화면에 따로 그리지 않는다(카드 그대로) · 칸이 없는 옛 서버는 `undefined`.
+   */
+  allowAutoJoin: boolean;
   /** 방장 카드. **방장이 탈퇴한 확정된 글은 `null`**(P-48 — 서버가 빈 카드를 지어내지 않는다 · 화면도 방장 표시 없이 파티원만 그린다). */
   host: MemberCard | null;
   members: MemberCard[];
@@ -284,6 +289,7 @@ export interface PostListResponse { posts: PostResponse[]; nextCursor: number | 
  * 2026-10-01 부터는 **정원 − 1 개 이상**이다(2026-09-30 소유자 결정 — platform P-44 "찾는 포지션 수" — 참가하는 사람마다 남은 포지션 하나를 고르니 자리마다 포지션이 있어야 한다 · 아니면 400 `"wantedPositions: 정원이 N명이면 M개 이상 필요합니다"`).
  * `hostPosition`(내 포지션 — 2026-09-30 소유자 결정)은 포지션이 있는 모드에서 **필수**이고 `wantedPositions` 에 들 수 없다. 포지션이 없는 모드(PUBG · 칼바람)면
  * **싣지 않는다**(`description` 처럼 — 서버는 없는 칸을 `null` 로 읽는다). 맞지 않으면 400 `VALIDATION_FAILED` 의 `details` 가 `"hostPosition: …"` 이다.
+ * `allowAutoJoin`(빠른매치 입장 허용 · 금지 — 2026-10-02 소유자 결정)은 **필수**다 — 없으면 400 `"allowAutoJoin: 필요합니다"`.
  */
 export interface CreatePostRequest {
   game: GameKey;
@@ -294,6 +300,8 @@ export interface CreatePostRequest {
   conditions: PostConditions;
   wantedPositions: string[];
   hostPosition?: string;
+  /** 빠른매치로 들어오는 사람을 받는가. 방 만들기 창에서 둘 중 하나를 꼭 고른다(기본값이 없다 — `RoomCreatePreview`). */
+  allowAutoJoin: boolean;
 }
 
 /**

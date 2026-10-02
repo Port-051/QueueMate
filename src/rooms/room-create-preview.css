@@ -46,3 +46,5 @@
 .room-create-preview input[aria-label="한마디"][aria-invalid=true] { border-color:var(--danger); }
 .room-preview-title-field { min-width:0; }
 .room-preview-title-field>:is(.room-create-hint,.room-create-error) { margin:8px 0 0; }
+/* 빠른매치 입장(허용 · 금지 — 2026-10-02) 칸 아래 한 줄. 칸 사이 간격(`.room-setting-row` 의 gap)이 이미 있어 위 여백은 없다. */
+.room-setting-row>.room-auto-join-note { margin:0; }

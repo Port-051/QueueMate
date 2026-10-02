@@ -36,6 +36,8 @@ export interface PostBody {
   wantedPositions: string[];
   hostPosition?: string;
   description?: string;
+  /** 빠른매치 입장 허용 · 금지(2026-10-02 소유자 결정 — 필수 · 없으면 400 `allowAutoJoin: 필요합니다`). 도우미는 `true`(그 전의 글은 모두 빠른매치를 받았다 — 시나리오 2 · 6 이 그 방에 빠른매치로 들어간다). */
+  allowAutoJoin: boolean;
 }
 
 /** 겹치지 않는 글 제목(60자 안) — 게시판 화면에서 카드를 찾는 열쇠도 된다. */
@@ -49,12 +51,12 @@ export function uniqueTitle(scenario: string): string {
  * 5인이면 넷이라 방장 포지션(미드)을 뺀 전부다. 모드를 덮을 때는 찾는 포지션도 그 정원에 맞춰 덮는다(3인이면 둘 이상).
  */
 export function lolPost(title: string, over: Partial<PostBody> = {}): PostBody {
-  return { game: 'LOL', mode: 'NORMAL_5', title, voice: 'NO_VOICE', conditions: {}, wantedPositions: ['TOP', 'JUNGLE', 'ADC', 'SUPPORT'], hostPosition: 'MID', ...over };
+  return { game: 'LOL', mode: 'NORMAL_5', title, voice: 'NO_VOICE', conditions: {}, wantedPositions: ['TOP', 'JUNGLE', 'ADC', 'SUPPORT'], hostPosition: 'MID', allowAutoJoin: true, ...over };
 }
 
 /** LoL 칼바람 5인 — 포지션이 없는 모드(`positionUniqueness=false`)라 방장 포지션 · 찾는 포지션이 없다. 이 글의 방은 **포지션 없는 방**이다(입장에 `position` 을 주면 400). */
 export function aramPost(title: string, over: Partial<PostBody> = {}): PostBody {
-  return { game: 'LOL', mode: 'ARAM_5', title, voice: 'NO_VOICE', conditions: {}, wantedPositions: [], ...over };
+  return { game: 'LOL', mode: 'ARAM_5', title, voice: 'NO_VOICE', conditions: {}, wantedPositions: [], allowAutoJoin: true, ...over };
 }
 
 /**
