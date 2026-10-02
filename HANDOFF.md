@@ -15,6 +15,18 @@
 
 아래 §1~§5 는 그날그날의 기록이라 겹치는 곳이 있다. **겹치면 이 절이 우선한다.**
 
+### 0-10. 2026-10-02 — 제안 만료 Lua 가 시한을 다시 본다 (했다 — `b617c6f` · 배포 점검에서 찾은 버그)
+
+ECS 배포 점검(태스크 둘이 같이 도는 경우)에서 찾았다. `ProposalSweeper` 는 Redis 를 두 번 부른다 — 목록에서 시한 지난 partyId 를 꺼낼 때와
+`expiry-proposal.lua` 를 돌릴 때. 그 사이에 옛 제안이 깨지고(남은 사람은 파티에 그대로) 빈자리가 다시 차면 같은 partyId 에 **새 제안**이 열리는데,
+Lua 가 `status == 'PENDING'` 만 보고 있어 그 새 제안을 옛 것으로 알고 깼다 — 아직 아무도 수락하지 않았으니 **전원이 무응답자로 나와 통째로 큐에서 빠졌다.**
+스위퍼가 하나여도 거절 · 취소 → 재충원이 그 사이에 끼면 생기고, 둘이면 같은 목록을 둘 다 들고 있어 창이 넓다.
+**고친 것** — `now` 를 ARGV[2] 로 넘기고 `expiresAt > now` 면 빈 결과(목록에서도 안 뺀다 — 새 제안의 점수가 이미 미래다). `ProposalExpiryService#expire` 한 줄.
+회귀 테스트 `proposal/ProposalExpiryTest`(3건). `concurrency.*` 30 · `ProposalIdempotencyTest` 16 · `RequestAliveTest` 6 통과(`REDIS_PORT=6390`).
+**같은 점검에서 남은 것(아직 안 고쳤다 — 소유자가 짠다)** — ① `RequestAliveExpiryService#expire` 가 `ZREM` 결과를 안 봐, A 가 취소한 직후 다시 접수한 새 요청을
+B 가 또 취소할 수 있다("score ≤ now 일 때만 ZREM" 을 Lua 로, 0 이면 중단) ② `AsyncConfig` 의 배정 풀에 종료 대기가 없어 SIGTERM 때 201 받은 요청의 배정이 버려진다
+(`setWaitForTasksToCompleteOnShutdown(true)` · `setAwaitTerminationSeconds(20)`) ③ 장애 조치 때 비동기 복제로 락이 사라지면 정원 초과 가능(드묾 — `join-party*.lua` 에 `count >= target` 거절 분기 없음).
+
 ### 0-9. 2026-10-01 — `app:platform` 이 제안 중에도 파티 HASH 를 읽는다 (문서만 — docs/11 D-56)
 
 소유자 결정 — 제안 화면부터 팀원 정보(닉네임 · 게임 프로필 — 게시판 카드 수준)를 보여 준다. platform 이 `GET /api/v1/match-parties/{partyId}/members?game=`

@@ -106,7 +106,7 @@ cd "/mnt/c/Users/kimye/OneDrive/바탕 화면/queuemate/matching/backend"
 ### Redis가 필요한 것 (이 환경에서는 실행 못 함) ⚠️
 
 동시성 테스트 4종(LoL 3 + `ValorantPartyJoinConcurrencyTest`), `PushNotificationTest`(6건), `ProposalIdempotencyTest`(16건,
-`backend/src/test/java/com/queuemate/matching/proposal/ProposalIdempotencyTest.java`)는
+`backend/src/test/java/com/queuemate/matching/proposal/ProposalIdempotencyTest.java`), `ProposalExpiryTest`(3건)는
 `localhost:6379`의 Redis **DB 15번**을 쓰고 매 테스트마다 `FLUSHDB` 한다
 (`ConcurrencyTestSupport`. 알림·제안 테스트도 그것을 상속한다).
 이 문서를 처음 쓴 환경에는 `docker`도 `redis-cli`도 없어 실행을 확인하지 못했다.
@@ -350,8 +350,8 @@ backend/src/main/resources/redis/         ★ 불변식이 실제로 지켜지�
 ├── proposal/accept-proposal.lua        INV-4     수락 집계. 전원이 차면 확정까지.
 │                                                 확정 시 qm:proposal:pending 에서 뺀다
 ├── proposal/decline-proposal.lua       INV-5     거절. 제안 흔적과 수락자 집합을 지운다
-├── proposal/expiry-proposal.lua        INV-5     만료. status 가 PENDING 일 때만 깨고,
-│                                                 무응답자 / 수락자 목록을 돌려준다
+├── proposal/expiry-proposal.lua        INV-5     만료. status 가 PENDING 이고 expiresAt <= now 일 때만 깨고,
+│                                                 무응답자 / 수락자 목록을 돌려준다 (시한 전이면 아무것도 안 함 — 2026-10-02)
 └── proposal/cleanup-confirmed.lua                확정 뒷정리. 파티 HASH 에 game/modeKey/voice/purpose/
                                                   confirmedAt 을 채우고(platform 이 읽는 계약 — D-42), 활성 요청에
                                                   status=PARTY 를 찍은 뒤 TTL — 파티 600초 · 활성 요청 · 수락자 SET 60초
@@ -365,7 +365,8 @@ backend/src/test/java/com/queuemate/matching/
 │   ├── ValorantPartyJoinConcurrencyTest.java  같은 것을 VALORANT 경로로
 │   └── NaiveVsLuaComparisonTest.java     순진한 방식이 깨짐을 대조로 증명
 ├── notification/PushNotificationTest.java  알림 6건. 실제로 구독해서 받아 본다
-└── proposal/ProposalIdempotencyTest.java   수락/거절 멱등성 16건
+├── proposal/ProposalIdempotencyTest.java   수락/거절 멱등성 16건
+└── proposal/ProposalExpiryTest.java        만료 3건 — 시한 전 · 같은 partyId 의 새 제안은 건드리지 않는다 (2026-10-02)
 
 backend/src/test/resources/schema.sql     테스트용 H2 에만 만드는 social.blocks (운영은 public.blocks · bigint — 맞춰야 한다, D-25 · D-34)
 seed/gameconfig.redis                     모드 설정 원본. LoL(12모드 + 티어 사다리 32 + tier-range 표 4모드)
@@ -433,8 +434,9 @@ POST /api/v1/proposals/{partyId}/decline?requestId=   ("나" = 쿠키의 sub)
  └ ProposalSweeper.sweep()  @Scheduled(fixedDelay = queuemate.sweep.interval-ms, 기본 1초)
     ├ ZRANGEBYSCORE qm:proposal:pending 0 now LIMIT 0 100   (한 회차 100건, 파티별 try/catch)
     └ ProposalExpiryService.expire(partyId)
-         ├ expiry-proposal.lua  status 가 PENDING 일 때만 status/expiresAt HDEL +
+         ├ expiry-proposal.lua  status 가 PENDING 이고 expiresAt <= now(ARGV[2]) 일 때만 status/expiresAt HDEL +
          │                      수락자 SET DEL + pending ZREM.
+         │                      시한 전이면(꺼낸 뒤 같은 파티에 새 제안이 열렸다) 아무것도 안 한다 — 2026-10-02.
          │                      PENDING 이 아니면(이미 확정·거절됐다) pending 에서만 빼고
          │                      빈 목록 → 만료가 확정을 뒤집지 못한다 (INV-5)
          ├ 무응답자만 MatchCancelService.cancel()  — 수락한 사람은 파티에 남는다
