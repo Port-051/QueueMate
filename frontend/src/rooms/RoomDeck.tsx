@@ -214,17 +214,23 @@ export function SeatPopover({ room, member, embedded = false, color }: { room: B
   const kdDetail = pubg ? kdLine(stats) : null;
   const recent = room.game === 'LOL' ? recentRecord(stats) : null;
   const games = stats && !recent ? gamesFact(room.game, stats) : null;
+  const accountLabel = profile
+    ? [profile.gameNickname, pubg && profile.server ? SERVER_LABEL[profile.server] : null].filter(Boolean).join(' · ')
+    : '이 게임의 계정을 아직 연결하지 않았어요';
   return <span className="room-seat-popover" aria-hidden={embedded ? undefined : true}>
     {embedded ? <span className="room-pop-identity">
-      <RoomMemberAvatar member={member} size={48} color={color} showHost={false} />
+      <RoomMemberAvatar member={member} size={40} color={color} showHost={false} />
       <span className="room-pop-identity-text">
-        <span className="room-pop-head"><b>{member.nickname}</b>{member.host ? <em>방장</em> : null}</span>
-        {position ? <span className="room-pop-position"><FilterRoleIcon game={room.game} value={position} size={16} /><span>{roleLabel(room.game, position)}</span></span> : null}
+        <span className="room-pop-head"><b title={member.nickname}>{member.nickname}</b>{profile?.verified ? <VerifiedMark /> : null}{member.host ? <em>방장</em> : null}</span>
+        <span className="room-pop-meta">
+          {position ? <span className="room-pop-position"><FilterRoleIcon game={room.game} value={position} size={14} /><span>{roleLabel(room.game, position)}</span></span> : null}
+          <span className="room-pop-sub" title={accountLabel}>{accountLabel}</span>
+        </span>
       </span>
     </span> : <span className="room-pop-head"><b>{member.nickname}</b>{role ? <em>{role}</em> : null}</span>}
-    <span className="room-pop-sub">{profile
+    {!embedded ? <span className="room-pop-sub">{profile
       ? [profile.gameNickname, profile.verified ? '인증됨' : null, pubg && profile.server ? SERVER_LABEL[profile.server] : null].filter(Boolean).join(' · ')
-      : '이 게임의 계정을 아직 연결하지 않았어요'}</span>
+      : '이 게임의 계정을 아직 연결하지 않았어요'}</span> : null}
     {profile ? pubg ? <span className="room-pop-facts">
       <span><small>{ladderLabel}</small><RoomRank game={room.game} tier={member.tier} division={member.division} size={18} /></span>
       <span><small>K/D</small>{kdDetail ? <KdStat line={kdDetail} /> : <Stat kind="kda" value={member.kda} />}</span>
@@ -243,10 +249,12 @@ export function SeatPopover({ room, member, embedded = false, color }: { room: B
       <small>숙련도 높은 챔피언</small>
       {champions.map(champion => {
         const level = finite(champion.masteryLevel);
-        return <span className="room-pop-champion" key={champion.championId}>
+        const name = championName(champion.championId) ?? champion.championId;
+        const description = [name, level !== null ? `숙련도 ${level}` : null].filter(Boolean).join(' · ');
+        return <span className="room-pop-champion" key={champion.championId} title={description} role={embedded ? 'img' : undefined} aria-label={embedded ? description : undefined}>
           <ChampionFace id={champion.championId} />
-          <span>{championName(champion.championId) ?? champion.championId}</span>
-          {level !== null ? <small>숙련도 {level}</small> : null}
+          <span className="room-pop-champion-name">{name}</span>
+          {level !== null ? <small>{embedded ? `Lv. ${level}` : `숙련도 ${level}`}</small> : null}
         </span>;
       })}
     </span> : null}
