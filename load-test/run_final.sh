@@ -11,7 +11,7 @@ run() { # label conc procs warmup dur sleep prefillN
   [ "$N" != "0" ] && python3 prefill.py $N >> $OUT
   LABEL=$L CONC=$C PROCS=$P ROUNDS=999999 WARMUP=$W DURATION=$D POLL_SLEEP=$S \
     RAW=raw_$L.tsv timeout 900 python3 match_latency.py >> $OUT 2>&1
-  echo "   exec: queued=$(curl -s -m3 localhost:8080/actuator/metrics/executor.queued | grep -oP '"VALUE","value":\K[0-9.]+')" >> $OUT
+  echo "   exec: queued=$(curl -s -m3 localhost:8080/metrics/executor.queued | grep -oP '"VALUE","value":\K[0-9.]+')" >> $OUT
   echo "" >> $OUT
 }
 runbg() { # 배경부하 100VU 로 앱을 천장까지 밀어놓고 프로브 1쌍 측정
