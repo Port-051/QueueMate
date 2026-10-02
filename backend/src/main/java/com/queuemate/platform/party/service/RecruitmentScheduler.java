@@ -15,7 +15,7 @@ import java.time.Instant;
 @Configuration
 @EnableScheduling
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "platform.room.auto-confirm-enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "platform.room.auto-confirm-enabled", havingValue = "true")
 public class RecruitmentScheduler {
     private final RecruitPostRepository posts;
     private final PostStore store;

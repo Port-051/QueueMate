@@ -132,6 +132,7 @@ public class PostStore {
 
     @Transactional
     public void checkAutomaticConfirmation(Long postId, Instant now) {
+        if (!recruitmentTiming.enabled()) return;
         RecruitPost post = postRepository.findByIdForUpdate(postId).orElse(null);
         if (post == null || post.getStatus() != PostStatus.RECRUITING) return;
         RoomState state = roomService.states(List.of(postId)).get(postId);
@@ -159,7 +160,7 @@ public class PostStore {
         if (!post.isHost(me)) throw notPostHost();
         if (post.getStatus() != PostStatus.RECRUITING) throw postNotRecruiting();
         Instant deadline = post.getAutoConfirmAt();
-        if (deadline == null || !deadline.isAfter(now) || recruitmentTiming.warningAt(deadline).isAfter(now)) {
+        if (!recruitmentTiming.enabled() || deadline == null || !deadline.isAfter(now) || recruitmentTiming.warningAt(deadline).isAfter(now)) {
             throw new ApiException(HttpStatus.CONFLICT, "RECRUITMENT_NOT_EXPIRING", "연장할 수 있는 안내 시간이 아닙니다");
         }
         RoomState state = roomService.states(List.of(postId)).get(postId);
