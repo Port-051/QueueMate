@@ -1,10 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useState } from 'react';
 import { Avatar } from '../components/ui';
 import { IconMic, IconMicOff } from '../components/icons';
 import type { VoiceStatus, VoiceActivity } from '../webrtc/types';
-import { placeSeatPopover, RoomHostCrown, RoomSeatBody, SeatPopover, seatSummary } from './RoomDeck';
+import { RoomHostCrown, RoomSeatBody, seatSummary } from './RoomDeck';
+import { RoomMemberProfile, type MemberDetailAction } from './RoomMemberProfile';
 import type { BoardMember, BoardRoom } from './types';
-// 좌석 · 빈 원 · 작은 창 · n/정원의 모양은 게시판의 것 — 그 CSS 를 먼저 싣고 방 화면에만 있는 것을 뒤에 싣는다.
+// 게시판의 공통 좌석 몸통과 클릭 상세를 쓰고, 방 안 좌석은 한 줄로 배치한다.
 import './room-board.css';
 import './room-voice-seats.css';
 import './mentor-room.css';
@@ -22,7 +23,7 @@ export interface VoiceSeatMember {
   nickname: string | null;
   card: BoardMember | null;
   /**
-   * 이 방에서 고른 포지션 — 게시판 방은 방 안 사람 목록(`GET …/members`)의 값(2026-10-01 — platform P-44 ⑩)이고 **확정된 방이면 방 화면이 `null` 로 넣는다**(그리지 않는다 — 소유자).
+   * 이 방에서 고른 포지션 — 게시판 방은 방 안 사람 목록(`GET …/members`)의 값(2026-10-01 — platform P-44 ⑩)이며 확정 후에도 보존한다(P-52).
    * 빠른매치 방은 팀원 카드의 고른 포지션(P-47 — 처음부터 확정인 방이지만 그린다).
    */
   position: string | null;
@@ -32,13 +33,7 @@ export interface VoiceSeatMember {
 export const seatName = (member: Pick<VoiceSeatMember, 'nickname'>): string => member.nickname ?? '파티원';
 
 /** 좌석을 누르면 뜨는 작은 메뉴의 한 줄(방 화면이 정한다 — 프로필 보기(2026-10-01) · 친구 추가 · 내보내기 · 차단 · 신고). */
-export interface SeatMenuAction {
-  key: string;
-  label: ReactNode;
-  onSelect(): void;
-  tone?: 'danger';
-  disabled?: boolean;
-}
+export type SeatMenuAction = MemberDetailAction;
 
 /**
  * 좌석의 음성 상태 — 오늘의 음성 칩이 보이던 것 그대로다. 나는 마이크(켜짐 · 음소거 · 꺼짐), 다른 사람은 **브라우저끼리 이어졌는가**(`connectedPeers` — DataChannel 이 열렸다)다.
@@ -50,6 +45,7 @@ const SEAT_VOICE_LABEL: Record<SeatVoice, string> = { speaking: '말하는 중',
 function seatVoice(id: string, selfId: string | null, voice: VoiceStatus, muted: boolean, connectedPeers: string[], activity?: VoiceActivity): SeatVoice {
   if (activity?.speaking) return 'speaking';
   if (activity?.muted) return 'muted';
+  if (activity?.enabled) return 'on';
   if (activity && !activity.enabled && connectedPeers.includes(id)) return 'off';
   if (id === selfId) return voice === 'connected' ? muted ? 'muted' : 'on' : 'off';
   return connectedPeers.includes(id) ? 'linked' : 'waiting';
@@ -57,56 +53,11 @@ function seatVoice(id: string, selfId: string | null, voice: VoiceStatus, muted:
 
 function VoiceMark({ state }: { state: SeatVoice }) {
   return <span className="room-voice-mark" data-voice={state} title={SEAT_VOICE_LABEL[state]} aria-hidden="true">
-    {state === 'muted' || state === 'off' ? <IconMicOff size={13} /> : <IconMic size={13} />}
+    {state !== 'on' && state !== 'speaking' ? <IconMicOff size={13} /> : <IconMic size={13} />}
   </span>;
 }
 
-/**
- * 좌석을 누르면 뜨는 작은 메뉴 — 옛 파티원 카드(큰 프로필 · 버튼 줄)가 하던 일(친구 추가 · 방장의 내보내기 · 차단 · 신고)을 여기로 옮겼다(2026-09-30 소유자 지시 "그 프로필은 그냥 없애").
- * 2026-10-01 부터 맨 위 줄이 "프로필 보기"(게시판 좌석과 같은 큰 프로필 창을 연다 — 소유자 · 휴대폰은 마우스를 올린 작은 창이 없다 · 줄은 방 화면의 `menuFor` 가 정한다).
- * 좌석 밑에 열고, 음성 칸 밖으로 삐지면 좌석 오른쪽 끝에 맞춰 연다(재서 — 폰 폭 격자의 오른쪽 칸). 첫 줄에 초점 · ↑↓ 로 옮기고 Esc · 바깥을 누르면 닫힌다(Esc 는 좌석으로 초점을 돌려준다).
- */
-function SeatMenu({ nickname, note, actions, onClose }: { nickname: string; note?: string; actions: SeatMenuAction[]; onClose: (refocus: boolean) => void }) {
-  const menu = useRef<HTMLDivElement>(null);
-  const [end, setEnd] = useState(false);
-  useLayoutEffect(() => {
-    const element = menu.current;
-    const box = element?.closest('.room-voice-seats-wrap')?.getBoundingClientRect();
-    if (element && box && element.getBoundingClientRect().right > box.right + 1) setEnd(true);
-    element?.querySelector<HTMLElement>('[role=menuitem]:not(:disabled)')?.focus({ preventScroll: true });
-  }, []);
-  const move = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Escape') { event.stopPropagation(); onClose(true); return; }
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-    event.preventDefault();
-    const items = [...(menu.current?.querySelectorAll<HTMLElement>('[role=menuitem]:not(:disabled)') ?? [])];
-    const at = items.indexOf(document.activeElement as HTMLElement);
-    items[(at + (event.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
-  };
-  return <div ref={menu} className={`room-seat-menu${end ? ' is-end' : ''}`} role="menu" aria-label={`${nickname} 메뉴`} onKeyDown={move}>
-    <p className="room-seat-menu-head" aria-hidden="true"><b>{nickname}</b>{note ? <em>{note}</em> : null}</p>
-    {actions.map(action => <button key={action.key} type="button" role="menuitem" className={action.tone === 'danger' ? 'is-danger' : undefined} disabled={action.disabled}
-      onClick={() => { onClose(false); action.onSelect(); }}>{action.label}</button>)}
-  </div>;
-}
-
-/**
- * 방 화면의 **음성 칸 좌석 줄**(2026-09-30 소유자 지시 — "파티원을 오른쪽 카드에 하지 말고 음성 채널 칸에, 게시판과 같이 전체 인원 수만큼 빈 칸 · 있는 사람은 채워져 있고 없는 사람은 안 채워져 있게.
- * 그 프로필은 그냥 없애"). 옛 오른쪽 "파티원 (n/정원)" 카드와 큰 프로필(티어 · 승률 · KDA 칸)을 걷고 게시판 카드의 좌석(`RoomDeck` — 결정 22)을 그대로 쓴다.
- *
- * - **좌석 수 = 정원**(`capacity` — 게시판 방은 글의 정원(P-41), 자동 매칭 방은 확정 때 이 브라우저가 적어 둔 파티의 정원). **정원을 모르면**(다른 브라우저에서 들어온 자동 매칭 방)
- *   빈 칸 없이 지금 있는 사람만큼만 그리고 `n/정원` 도 없다 — 몇 자리인지 지어내지 않는다.
- * - 채워진 좌석은 게시판 좌석과 같은 몸통(`RoomSeatBody` — 얼굴 · 방장 왕관 · 닉네임 · 인증 · 포지션 · 사다리 티어와 승률 · KDA)에 **"(나)"** 와 **음성 상태**(`VoiceMark` — 오른쪽 끝의 작은 마이크)를 더했다.
- *   카드가 없는 사람(카드를 아직 못 받았다 · 빠른매치 방인데 게임을 모른다)은 얼굴 · 닉네임 · 음성만이다. 빈 자리는 게시판과 같은 글자 없는 점선 원이다(방 안에서는 누를 것이 없다).
- *   **빠른매치 방은 2026-10-01 부터 팀원 카드(platform P-47)를 편 방(`room` — `boardRoom.ts` `toMatchPartyRoom`)이 와서 게시판 방과 같은 좌석 · 작은 창이다** — 그 전에는 사용자 번호뿐이었다.
- * - **방장 왕관은 방의 방장**(`hostId` — 확정한 방은 승계로 바뀐다, D-23). **포지션은 사람마다 방 안 사람 목록의 값**(`position` — 방장은 글의 방장 포지션 · 멤버는 참가할 때 고른 것, 2026-10-01)이고
- *   확정 뒤에도 그 사람의 포지션을 유지한다.
- *   빠른매치 방은 팀원 카드의 고른 포지션이고 늘 붙는다(`room.quickMatch`).
- * - 마우스를 올리면 게시판과 같은 작은 창(`SeatPopover` — 카드가 있을 때만)이고 페이지 끝 너머면 위로 연다(`placeSeatPopover` — 흔들림, `CLAUDE.md` §7).
- *   방 패널은 모든 게임에서 상세 팝오버를 쓴다(2026-10-02 사용자 요청). 클릭 메뉴는 그대로다.
- * - **좌석을 누르면 작은 메뉴**(`SeatMenu` — 방 화면이 준 `menuFor`). **내 좌석은 누를 수 없다**(나에게 할 일이 없다). 메뉴가 열린 좌석은 작은 창을 숨긴다.
- * - **얼굴 색은 방 안에서 모두 다르다**(2026-09-30 소유자 — `colors`). 게시판 방이면 왼쪽 게시판 카드의 좌석과 같은 색이다(`rooms/roomColors.ts`).
- */
+/** 음성 좌석을 누르면 전적 카드와 멤버별 동작을 함께 연다. 내 좌석도 상세를 읽을 수 있다. */
 export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity, voice, muted, connectedPeers, voiceActivity, menuFor }: {
   room: BoardRoom | null;
   /** 얼굴 색(사람 번호 → 팔레트 번호) — 방 화면이 구한 그 방의 색이다(한 방은 모두 다른 색 · 채팅의 얼굴과 같은 표 — `PartyRoomPage`). */
@@ -122,29 +73,12 @@ export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity
   menuFor: (member: VoiceSeatMember) => { note?: string; actions: SeatMenuAction[] };
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
-  const list = useRef<HTMLUListElement>(null);
-  // 메뉴가 열린 사람이 방에서 나가면 닫는다.
   const open = openId && members.some(member => member.id === openId) ? openId : null;
-  const close = (refocus: boolean) => {
-    const id = open;
-    setOpenId(null);
-    if (refocus && id) list.current?.querySelector<HTMLElement>(`[data-seat-id="${id}"] .room-seat-button`)?.focus();
-  };
-  // 바깥을 누르면 닫는다(좌석 자신은 onClick 이 여닫는다).
-  useEffect(() => {
-    if (!open) return;
-    const down = (event: PointerEvent) => {
-      if (!(event.target as Element | null)?.closest?.(`[data-seat-id="${open}"]`)) setOpenId(null);
-    };
-    document.addEventListener('pointerdown', down);
-    return () => document.removeEventListener('pointerdown', down);
-  }, [open]);
-
   const vacancies = capacity ? Math.max(0, capacity - members.length) : 0;
-  // 바깥 틀이 폭을 재는 컨테이너(`room-voice`)이고 안쪽 줄이 좌석 · n/정원을 늘어놓는다 — 컨테이너 질의는 컨테이너 자신이 아니라 그 안만 바꾼다.
+  // 바깥 틀이 폭을 재는 컨테이너(`room-voice`)이고 안쪽 줄이 좌석을 늘어놓는다 — 컨테이너 질의는 컨테이너 자신이 아니라 그 안만 바꾼다.
   return <div className="room-voice-seats-wrap"><div className="room-voice-seats-row">
-    <ul ref={list} className="room-seats room-voice-seats" aria-label={capacity ? `파티원 ${members.length} / ${capacity}` : `파티원 ${members.length}명`}>
-      {members.map((member, index) => {
+    <ul className="room-seats room-voice-seats" aria-label={capacity ? `파티원 ${members.length} / ${capacity}` : `파티원 ${members.length}명`}>
+      {members.map(member => {
         const self = member.id === selfId;
         const host = member.id === hostId;
         const state = seatVoice(member.id, selfId, voice, muted, connectedPeers, voiceActivity[member.id]);
@@ -153,7 +87,6 @@ export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity
         const seatRoom = room && card ? room : null;
         const label = [card && seatRoom ? seatSummary(seatRoom, card, selfId ?? '') : [member.nickname ?? '이름을 불러오는 중', self ? '나' : null, host ? '방장' : null].filter(Boolean).join(' · '), SEAT_VOICE_LABEL[state]].join(' · ');
         const menuOpen = open === member.id;
-        const popover = Boolean(card && seatRoom);
         const color = colors.get(member.id);
         // 카드가 없는 사람 — 얼굴 · 이름(아직 모르면 자리표시 막대 — 번호를 그리지 않는다) · 음성만.
         const body = card && seatRoom
@@ -165,15 +98,10 @@ export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity
               {self ? <span className="room-seat-me">(나)</span> : null}
             </span></span>
           </>;
-        return <li key={member.id} data-seat-id={member.id} data-voice={state}
-          className={`room-seat is-filled room-voice-seat${state === 'speaking' ? ' is-speaking' : ''}${host ? ' is-host' : ''}${self ? ' is-self' : ''}${index >= 3 ? ' pop-end' : ''}${menuOpen ? ' is-menu-open' : ''}`}
-          onMouseEnter={popover ? event => placeSeatPopover(event.currentTarget) : undefined} onFocus={popover ? event => placeSeatPopover(event.currentTarget) : undefined}>
-          {self
-            ? <div className="room-seat-button is-static" role="group" tabIndex={0} aria-label={label}>{body}<VoiceMark state={state} /></div>
-            : <button type="button" className="room-seat-button" aria-label={`${label} — 메뉴`} aria-haspopup="menu" aria-expanded={menuOpen}
-              onClick={() => setOpenId(menuOpen ? null : member.id)}>{body}<VoiceMark state={state} /></button>}
-          {popover && card && seatRoom ? <SeatPopover room={seatRoom} member={card} /> : null}
-          {menuOpen ? <SeatMenu nickname={seatName(member)} {...menuFor(member)} onClose={close} /> : null}
+        return <li key={member.id} data-seat-id={member.id} className={`room-seat is-filled room-voice-seat${host ? ' is-host' : ''}${self ? ' is-self' : ''}${state === 'speaking' ? ' is-speaking' : ''}`}>
+          <button type="button" className="room-seat-button" aria-label={`${label} — 상세 정보`} aria-haspopup="dialog" aria-expanded={menuOpen} disabled={!card || !seatRoom}
+            onClick={event => { event.currentTarget.focus(); setOpenId(menuOpen ? null : member.id); }}>{body}<VoiceMark state={state} /></button>
+          {menuOpen && card && seatRoom ? <RoomMemberProfile room={seatRoom} member={card} onClose={() => setOpenId(null)} actions={self ? [] : menuFor(member).actions} /> : null}
         </li>;
       })}
       {Array.from({ length: vacancies }, (_, index) => <li className="room-seat is-empty" key={`seat-${index}`}>
@@ -181,6 +109,5 @@ export function RoomVoiceSeats({ room, members, colors, hostId, selfId, capacity
         <span className="sr-only">빈자리</span>
       </li>)}
     </ul>
-    {capacity ? <span className="room-seat-count" aria-hidden="true">{members.length}/{capacity}</span> : null}
   </div></div>;
 }

@@ -4,6 +4,5 @@
 .kda-stat-avg { color:var(--text); font-size:var(--kda-avg); font-weight:600; white-space:nowrap; }
 .kda-stat-avg i { margin:0 .28em; color:var(--muted); font-style:normal; font-weight:400; }
 .kda-stat-ratio { font-size:var(--kda-ratio); font-weight:700; line-height:1.2; }
-.kda-stat-ratio[data-tone="base"] { color:var(--text-dim); }
-.kda-stat-ratio[data-tone="high"] { color:var(--accent-2); }
-.kda-stat-ratio[data-tone="top"] { color:var(--warn); }
+
+.kda-stat-ratio { color:var(--text); }

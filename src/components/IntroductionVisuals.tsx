@@ -5,14 +5,10 @@ import { championName, championPortrait } from '../domain/champions';
 import '../styles/introduction-visuals.css';
 
 type StatKind = 'winRate' | 'kda';
-const STAT_THRESHOLDS: Record<StatKind, number[]> = { winRate: [45, 49, 53, 60], kda: [1, 2, 3, 4] };
-const STAT_TONES = ['red', 'orange', 'yellow', 'green', 'blue'] as const;
-
-/** 전체 매칭에 같은 고정 구간을 사용한다. 매칭 글 목록의 구성에 따라 색이 달라지지 않는다. */
+/** 전적은 공통 형식과 중립 텍스트 색으로 표시한다. */
 export function PerformanceValue({ kind, value }: { kind: StatKind; value: number | null }) {
   const valid = value !== null && Number.isFinite(value) && value >= 0 && (kind !== 'winRate' || value <= 100);
-  const band = valid ? STAT_THRESHOLDS[kind].filter(threshold => value >= threshold).length : undefined;
-  return <strong className="performance-value" data-tone={band === undefined ? undefined : STAT_TONES[band]}>
+  return <strong className="performance-value">
     {valid ? kind === 'winRate' ? `${value}%` : value.toFixed(2) : '미입력'}
   </strong>;
 }

@@ -31,6 +31,7 @@
   --glow: 0 0 0 1px var(--accent-line);
 
   --sidebar-w: 248px;
+  --sidebar-rail-w: 64px;
   --page-top: 70px;
   --rail-w: 340px;
 

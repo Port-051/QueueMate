@@ -197,9 +197,9 @@ export function gamesText(game: GameKey, stats: GameStats): string {
  * 승 · 패 수는 그 배열에서 세고(막대의 시즌 누적 `wins` · `losses` 가 아니다) 그날 전의 스냅숏(칸이 없다)이면 전처럼 `최근` · `10판` 이다.
  * **PUBG 도 같은 모양이다**(같은 날 소유자) — 사다리 티어 | **K/D 두 줄**(`KdStat` — 평균 킬 / 데스 `1.8 / 1.1` 위 · K/D `1.64` 아래) → 치킨률 | 평균 딜 → 이번 시즌 판 수. 승 · 패가 없어 막대는 없다.
  * 좌석을 누르면 여는 프로필 창(`RoomMemberProfile`)과 같은 사실이라 읽어 주지 않는다(`aria-hidden`) — 좌석 버튼의 이름이 요약을 싣는다.
- * 방 화면의 음성 칸 좌석(`RoomVoiceSeats`)도 같은 창을 쓴다. 게시판만 `seatPopoverShown`을 따르고, 방 패널은 모든 게임에서 상세를 호버로 연다.
+ * 방 화면의 음성 좌석도 클릭 상세에서 같은 내용을 쓴다.
  */
-export function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMember }) {
+export function SeatPopover({ room, member, embedded = false }: { room: BoardRoom; member: BoardMember; embedded?: boolean }) {
   const profile = member.profile;
   const stats = profile?.stats ?? null;
   const pubg = room.game === 'PUBG';
@@ -214,7 +214,7 @@ export function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMe
   const kdDetail = pubg ? kdLine(stats) : null;
   const recent = room.game === 'LOL' ? recentRecord(stats) : null;
   const games = stats && !recent ? gamesFact(room.game, stats) : null;
-  return <span className="room-seat-popover" aria-hidden="true">
+  return <span className="room-seat-popover" aria-hidden={embedded ? undefined : true}>
     <span className="room-pop-head">
       <b>{member.nickname}</b>
       {role ? <em>{role}</em> : null}
@@ -250,49 +250,6 @@ export function SeatPopover({ room, member }: { room: BoardRoom; member: BoardMe
     {profile && !stats ? <span className="room-pop-note">전적 정보 없음</span> : null}
   </span>;
 }
-
-/** 작은 창이 보이는 화면(뷰포트)의 위 · 아래 끝에서 띄울 여백(px). */
-const SEAT_POP_SCREEN_MARGIN = 8;
-
-/**
- * 작은 창(`SeatPopover`)을 좌석 아래로 열지 위로 열지(`data-pop-up`) — 마우스를 올릴 때 · 키보드로 들어올 때 한 번 잰다(열려 있는 동안 스크롤 · 창 크기로 다시 뒤집지 않는다).
- * ① **아래로 열면 페이지 끝을 넘으면 늘 위로**(2026-09-30 — "맨 밑줄 · 두 번째 줄의 프로필을 누르면 화면 전체가 흔들린다"). 아래로 열린 작은 창은 문서의 스크롤 길이를 늘린다(방 패널이 열린 1440×709 에서 맨 아래 줄 1448 → 1699px ·
- * 그 위 줄 1539px). 맨 아래까지 내린 채 좌석에 마우스가 있을 때 휠 한 칸이 그 늘어난 자리로 내려가면 좌석이 커서에서 벗어나 창이 닫히고 → 길이가 줄어 스크롤이 당겨지고 →
- * 좌석이 다시 커서 밑에 와 창이 열리면 → Chrome 의 스크롤 앵커링이 당겨진 만큼을 되돌린다. Windows Chrome 에서 잰 값 — **매 프레임 scrollY 가 739 ↔ 859 로 오갔다**(61프레임에 60번).
- * 문서에 `overflow-anchor: none` 을 걸면 멈췄다(원인 확인용으로만 — 목록이 바뀔 때 화면을 붙잡아 주는 앵커링을 통째로 끌 수는 없다). 위로 열면 창이 문서 끝을 넘지 않아
- * 마우스를 올려도 스크롤 길이가 그대로다. 위로도 모자라면(아주 낮은 창) 위쪽이 잘린다 — 문서 위쪽 너머는 스크롤 길이를 늘리지 않는다.
- * ② **아래로 열면 보이는 화면 아래 끝을 넘고 위로 열면 들어가면 위로**(같은 날 소유자 — 페이지가 아래로 더 이어지는 만료 카드에서 창이 화면 아래로 잘려 숙련도 챔피언 셋째가 안 보였다).
- * 위로도 화면 위 끝을 넘으면 덜 넘는 쪽(공간이 큰 쪽)이다. 아래로 열어도 페이지 끝 안이면 문서 길이가 그대로라 ①의 흔들림은 생기지 않는다.
- * 잴 때 창이 숨어 있으면(`display:none`) 보이지 않게 잠깐 펼친다 — 같은 작업 안이라 그려지지 않는다. 높이 · 간격은 CSS 가 정한 그대로 잰다(값을 여기에 베끼지 않는다).
- * React 상태가 아니라 속성을 바로 건다 — 창이 한 프레임이라도 반대쪽으로 그려지기 전에 방향이 정해져야 해서다(스크롤로 hover 가 옮겨 갈 때도 `mouseenter` 가 온다 — 확인했다).
- */
-export function placeSeatPopover(seat: HTMLElement) {
-  const popover = seat.querySelector<HTMLElement>('.room-seat-popover');
-  if (!popover) return;
-  const hidden = !popover.offsetHeight;
-  if (hidden) popover.style.cssText = 'display:grid;visibility:hidden';
-  // 레이아웃 값(`offsetTop` — 좌석 기준)으로 잰다 — 나타나는 움직임(transform)이 끼면 몇 px 모자라게 읽힌다.
-  const seatTop = seat.getBoundingClientRect().top;
-  seat.removeAttribute('data-pop-up');
-  const downBottom = seatTop + popover.offsetTop + popover.offsetHeight;
-  seat.setAttribute('data-pop-up', '');
-  const upTop = seatTop + popover.offsetTop;
-  if (hidden) popover.removeAttribute('style');
-  const page = document.documentElement;
-  const pageEnd = Math.max(page.getBoundingClientRect().bottom, page.clientHeight);
-  const screenTop = SEAT_POP_SCREEN_MARGIN;
-  const screenBottom = window.innerHeight - SEAT_POP_SCREEN_MARGIN;
-  const up = downBottom > pageEnd
-    || (downBottom > screenBottom && (upTop >= screenTop || screenTop - upTop < downBottom - screenBottom));
-  seat.toggleAttribute('data-pop-up', up);
-}
-
-/**
- * 좌석에 마우스를 올린 작은 창을 띄우는가 — **VALORANT 글의 좌석에는 띄우지 않는다**(2026-09-30 소유자 결정 — "발로란트 그거는 일단 작은 창 안 뜨게 해"). 운영 키가 없어 VALORANT 의 `stats` 가 늘 `null` 이라
- * 창에 실을 것이 게임 닉네임 · 티어뿐이었다. 창을 그리지 않아 마우스 · 키보드 포커스 어느 쪽으로도 열리지 않는다(좌석 · 닉네임 · 누르면 여는 것은 그대로).
- * 게시판 좌석(`RoomSeat`)에만 적용한다. 방 패널은 2026-10-02 사용자 요청에 따라 모든 게임에서 상세 팝오버를 쓴다.
- */
-export const seatPopoverShown = (game: GameKey) => game !== 'VALORANT';
 
 /** 좌석 버튼의 이름(읽어 주는 요약) — 닉네임 · 나 · 방장 · 포지션 · 인증 · 사다리 티어 · 숫자. 작은 창은 읽어 주지 않아 이것이 요약을 싣는다. */
 export function seatSummary(room: BoardRoom, member: BoardMember, selfId: string): string {
@@ -346,34 +303,27 @@ export function RoomSeatBody({ room, member, me = false, color, table = false }:
 /**
  * 채워진 좌석 하나(게시판 카드) — 몸통은 `RoomSeatBody` 다.
  * 정보를 숨기지 않고 충분한 폭의 카드로 줄바꿈한다(mentor-room.css).
- * 누르면 프로필 창이다(전파를 끊는다 — 참가로 번지지 않게). 마우스를 올린 작은 창의 위 · 아래는 `placeSeatPopover` 가 정하고, VALORANT 글이면 창이 없다(`seatPopoverShown`).
+ * 누르면 상세 창을 연다(전파를 끊어 참가로 번지지 않게 한다).
  */
-function RoomSeat({ room, member, color, selfId, popEnd, onMember }: { room: BoardRoom; member: BoardMember; color?: number; selfId: string; popEnd: boolean; onMember: (room: BoardRoom, member: BoardMember) => void }) {
-  const popover = seatPopoverShown(room.game);
-  return <li className={`room-seat is-filled${member.host ? ' is-host' : ''}${member.id === selfId ? ' is-self' : ''}${popEnd ? ' pop-end' : ''}`}
-    onMouseEnter={popover ? event => placeSeatPopover(event.currentTarget) : undefined} onFocus={popover ? event => placeSeatPopover(event.currentTarget) : undefined}>
-    <button type="button" className="room-seat-button" aria-label={`${seatSummary(room, member, selfId)} — 프로필 보기`} onClick={event => { event.stopPropagation(); onMember(room, member); }}>
+function RoomSeat({ room, member, color, selfId, onMember }: { room: BoardRoom; member: BoardMember; color?: number; selfId: string; onMember: (room: BoardRoom, member: BoardMember) => void }) {
+  return <li className={`room-seat is-filled${member.host ? ' is-host' : ''}${member.id === selfId ? ' is-self' : ''}`}>
+    <button type="button" className="room-seat-button" aria-haspopup="dialog" aria-label={`${seatSummary(room, member, selfId)} — 상세 정보`} onClick={event => { event.stopPropagation(); event.currentTarget.focus(); onMember(room, member); }}>
       <RoomSeatBody room={room} member={member} color={color} table />
     </button>
-    {popover ? <SeatPopover room={room} member={member} /> : null}
   </li>;
 }
 
-/**
- * 방 카드 한 장 = 모집 글 하나(`BoardRoom`) — **좌석 줄**(2026-09-30 소유자 승인 — 사람마다 큰 카드 · 빈 자리마다 같은 조건을 되풀이하던 큰 점선 카드를 걷었다).
- *
- * - **머리 한 줄** — 제목 · 상태 점과 글자(모집 중 / 확정 · n명 / 만료) · 몇 분 전. **조건은 그 아래 한 줄에 한 번만** — 모드 · 인원 · 마이크 · 찾는 포지션(포지션이 있는 모드만).
- * - **좌석 줄** — 채워진 좌석(`RoomSeat` — 서버 순서 그대로 · 방장 먼저)이 같은 폭으로 서서 카드끼리 줄이 맞는다.
- *   빈 자리는 + 아이콘과 참여하기가 있는 점선 버튼이며 좁은 카드에서는 참여로 줄여 쓴다.
- *   그 뒤 `n/정원` 한 번과 **[참가]** — 누르면 참여 확인 창(`RoomJoinConfirm` — 포지션 방이면 거기서 남은 포지션 하나를 고른다, 2026-10-01)이다. 들어갈 수 없으면(`entryError` — 정원 · 이미 참여 · 다른 방 · 남은 포지션 없음 등) 버튼이 잠기고 이유가 풍선말 · 이름에 붙는다.
- *   채워진 좌석에는 그 사람이 고른 포지션이 붙는다(`seatPosition` — 확정된 글에는 없다).
- *   **좌석 수 = 그 글의 정원**(`capacity` — 그 모드의 인원: 솔로 랭크 2 · 자유 랭크 2/3/5 · 일반 · 칼바람 2~5, 그 전에 쓴 글 5 — P-41, 2026-09-30). 찬 방은 버튼이 **"가득 참"** 이다.
- *   빈자리 버튼도 같은 확인창을 열며 마우스 · 터치 · 키보드로 참여할 수 있다.
- * - **확정된 글**은 확정 순간의 파티원 전원(P-40 — `members` = 파티원 · `memberCount` = 파티 인원)이 좌석이고 빈 원 · [참가] 가 없다(머리는 `확정 · n명` — **그 파티가 닫혔으면 `끝남 · n명`**, platform P-46 `closed` · 2026-10-01 소유자 결정. 흐림 · 참가 없음은 같다).
- *   **만료된 글**은 방장 좌석만(서버가 `members` 를 비워 보낸다). 둘 다 흐리게 그린다.
- * - 카드가 460px 보다 좁으면(폰 폭) 좌석이 원 다섯 칸(얼굴 원 + 티어 배지 + 아래 닉네임)이 되고 `n/정원` · [참가] 는 그 아래 줄로 간다 —
- *   숫자 · 챔피언은 프로필 창(눌러서)에만 있다. 그보다 넓은데 좌석이 좁으면(분할 화면 · 사람이 많은 방) 좌석이 스스로 줄인다(`RoomSeat` · CSS 컨테이너 질의 — `room-board.css` "좌석 줄").
- */
+/** 방 목록과 참여한 방 패널이 같은 모드·마이크 표시를 쓴다. */
+export function RoomConditions({ room }: { room: BoardRoom }) {
+  const voice = roomVoice(room.voice);
+  const group = modeChoice(room.game, room.modeKey)?.group ?? room.modeKey;
+  return <>
+    <span className="room-row-mode"><FilterModeIcon mode={group} size={16} />{modeChoiceLabel(room.game, room.modeKey, room.perspective)}</span>
+    <span className={`room-row-voice ${voice === 'REQUIRED' ? 'is-on' : 'is-off'}`}><VoiceIcon preference={voice} size={16} />{voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용'}</span>
+  </>;
+}
+
+/** 방 목록은 상태 문구 대신 입장 가능 여부로 구분한다. 실제 빈자리와 참가 버튼은 모든 카드에서 같은 위치에 둔다. */
 export function RoomDeck({ room, selfId, entering = false, onEntered, reveal = false, onRevealed, entryError, onSeat, onMember }: { room: BoardRoom; selfId: string; entering?: boolean; onEntered?: () => void; reveal?: boolean; onRevealed?: () => void; entryError: string | null; onSeat: (room: BoardRoom) => void; onMember: (room: BoardRoom, member: BoardMember) => void }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const card = useRef<HTMLElement>(null);
@@ -401,42 +351,28 @@ export function RoomDeck({ room, selfId, entering = false, onEntered, reveal = f
   const members = room.members.length ? room.members : room.host ? [room.host] : [];
   // 얼굴 색 — 한 방(카드 한 장)의 사람은 모두 다른 색이다(2026-09-30 소유자). 방장 먼저 · 나머지는 사용자 번호 순으로 집 색을 잡고 겹치면 다음 빈 색(`roomColors.ts`).
   const colors = boardRoomColors(room);
-  const vacancies = recruiting ? Math.max(0, room.capacity - room.memberCount) : 0;
-  const voice = roomVoice(room.voice);
-  const group = modeChoice(room.game, room.modeKey)?.group ?? room.modeKey;
-  const status = room.status === 'CONFIRMED' ? `${room.closed ? POST_ENDED_LABEL : POST_STATUS_LABEL.CONFIRMED} · ${room.memberCount || members.length}명` : POST_STATUS_LABEL[room.status];
-  const openSeat = entryError ? undefined : () => onSeat(room);
-  // 내가 이미 들어가 있는 방이면 잠긴 버튼의 글자를 "참여 중" 으로, 정원이 찼으면 "가득 참" 으로(이유는 `boardRoom.ts` `roomEntryError`).
-  const inside = recruiting && members.some(member => member.id === selfId);
-  const full = recruiting && (room.full || room.memberCount >= room.capacity);
-  const joinText = inside ? '참여 중' : full ? '가득 참' : '참가';
-  return <article ref={card} className={`room-deck room-row${room.hostId === selfId ? ' is-own' : ''}${recruiting ? '' : ' is-closed'}${entering ? ' is-entering' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`}>
+  const vacancies = room.status !== 'EXPIRED' && !room.closed ? Math.max(0, room.capacity - room.memberCount) : 0;
+  const canJoin = recruiting && !entryError && vacancies > 0;
+  return <article ref={card} className={`room-deck room-row${room.hostId === selfId ? ' is-own' : ''}${canJoin ? ' is-joinable' : ' is-unavailable'}${entering ? ' is-entering' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`}>
     <div className="room-row-head">
       <h3 ref={heading} tabIndex={-1} title={room.title}>{room.title}</h3>
-      <p className="room-row-state"><span className="room-row-status" data-status={room.status}><i aria-hidden="true" />{status}</span><time dateTime={room.createdAt}>{relativeTime(room.createdAt)}</time></p>
+      <p className="room-row-state"><time dateTime={room.createdAt}>{relativeTime(room.createdAt)}</time></p>
+        <button type="button" className="room-join-button" disabled={!canJoin} title={entryError ?? undefined}
+          aria-label={`참가${entryError ? ` · ${entryError}` : ''}`} onClick={() => { if (canJoin) onSeat(room); }}>참가</button>
     </div>
     <p className="room-row-meta" aria-label="방 조건">
-      <span className="room-row-mode"><FilterModeIcon mode={group} size={16} />{modeChoiceLabel(room.game, room.modeKey, room.perspective)}</span>
-      <span className={`room-row-voice ${voice === 'REQUIRED' ? 'is-on' : 'is-off'}`}><VoiceIcon preference={voice} size={16} />{voice === 'REQUIRED' ? '마이크 사용' : '마이크 미사용'}</span>
-      {positions ? <span className="room-row-wanted"><span className="room-row-wanted-label">찾는 포지션</span><RoomWantedPositions room={room} /></span> : null}
+      <RoomConditions room={room} />
+      {positions && recruiting && remainingPositions(room).length ? <span className="room-row-wanted"><span className="room-row-wanted-label">찾는 포지션</span><RoomWantedPositions room={room} /></span> : null}
     </p>
-    <div className="room-member-columns" aria-hidden="true"><span>닉네임</span><span>포지션</span><span>티어</span><span>{room.game === 'PUBG' ? '치킨율' : '승패 · 승률'}</span><span>{room.game === 'PUBG' ? 'K/D' : 'KDA'}</span><span>{room.game === 'LOL' ? '선호 챔피언' : ''}</span></div>
+
     <div className="room-seat-row">
       <ul className="room-seats" aria-label={recruiting ? `자리 ${room.memberCount} / ${room.capacity}` : `파티원 ${members.length}명`}>
-        {members.map((member, index) => <RoomSeat key={member.id} room={room} member={member} color={colors.get(member.id)} selfId={selfId} popEnd={index >= 3} onMember={onMember} />)}
+        {members.map(member => <RoomSeat key={member.id} room={room} member={member} color={colors.get(member.id)} selfId={selfId} onMember={onMember} />)}
         {Array.from({ length: vacancies }, (_, index) => <li className="room-seat is-empty" key={`seat-${index}`}>
-          <button type="button" className="room-seat-hole room-seat-join" disabled={Boolean(entryError)}
-            aria-label={`빈자리 ${room.memberCount + index + 1}${entryError ? ` · ${entryError}` : ' 참여하기'}`} title={entryError ?? '이 방에 참여하기'} onClick={openSeat}>
-            <svg className="room-seat-join-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-            {entryError ? <span>빈자리</span> : <span><span className="room-seat-join-full">참여하기</span><span className="room-seat-join-short">참여</span></span>}
-          </button>
+          <span className="room-seat-hole room-seat-vacancy" aria-label={`빈자리 ${index + 1}`} />
         </li>)}
       </ul>
-      {recruiting ? <div className="room-seats-tail">
-        <span className="room-seat-count" aria-hidden="true">{room.memberCount}/{room.capacity}</span>
-        <button type="button" className="room-join-button" disabled={Boolean(entryError)} title={entryError ?? undefined}
-          aria-label={inside || full ? joinText : `참가${entryError ? ` · ${entryError}` : ''}`} onClick={() => onSeat(room)}>{joinText}</button>
-      </div> : null}
+
     </div>
   </article>;
 }

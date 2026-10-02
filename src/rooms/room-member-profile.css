@@ -1,17 +1,14 @@
-.modal.room-member-profile { width:min(440px,100%); border-radius:26px; background:var(--panel); }
-.room-profile-identity { display:flex; flex-direction:column; align-items:center; gap:13px; padding:8px 0 24px; }
-.room-profile-identity .room-host-crown { top:-11px; width:23px; height:20px; }
-.room-profile-identity .room-host-crown svg { width:20px; height:20px; }
-.room-profile-identity h3 { margin:0; max-width:100%; font-size:23px; font-weight:650; line-height:1.4; text-align:center; overflow-wrap:anywhere; }
-.room-profile-identity p { margin:0; color:var(--muted); font-size:13px; }
-.room-member-profile .room-member-facts { min-height:165px; gap:22px 16px; padding:18px 0; }
-.room-member-profile .room-member-facts dt { font-size:13px; }
-.room-member-profile .room-member-facts .room-rank strong,.room-member-profile .room-member-facts .room-role-icons b { font-size:15px; }
-.room-member-profile .room-member-facts .room-rank img,.room-member-profile .room-member-facts .room-rank svg,.room-member-profile .room-member-facts .room-role-icons svg { width:32px; height:32px; }
-.room-member-profile .room-member-facts .performance-value,.room-member-profile .room-member-facts .room-unknown-stat { font-size:23px; }
-/* 최근 경기의 승 · 패 칸 줄(RecentResults · P-43) — 다른 칸처럼 가운데로(머리 줄과 칸 줄이 서로 가운데). */
-.room-member-profile .room-member-facts .recent-wl { justify-items:center; }
-.room-profile-champions { padding:24px 0 10px; text-align:center; }
-.room-profile-champions .preferred-champions { justify-content:center; flex-wrap:wrap; gap:12px; }
-.room-profile-champions .preferred-champion-portrait { width:42px; height:42px; }
-.room-profile-bio { padding:16px 18px; margin:20px 0 0; border-radius:16px; background:#252033; color:var(--text-dim); font-size:15px; line-height:1.7; overflow-wrap:anywhere; white-space:pre-wrap; }
+/* 클릭 상세: 호버 카드와 같은 내용, 작은 고정 레이어에서 스크롤과 키보드로 읽는다. */
+.room-member-detail { position:fixed; z-index:150; width:min(292px,calc(100vw - 16px)); max-height:calc(100dvh - 16px); overflow-y:auto; padding:14px; border:1px solid #ffffff25; border-radius:12px; background:#1d1b27; box-shadow:0 14px 36px #0009; color:var(--text); font-size:12px; outline:none; }
+.room-member-detail>.room-seat-popover { display:grid; position:static; width:auto; padding:0; border:0; border-radius:0; box-shadow:none; background:transparent; pointer-events:auto; animation:none; font-size:12px; }
+.room-member-detail .room-pop-head { padding-right:24px; }
+.room-member-detail .room-pop-sub,.room-member-detail .room-pop-facts small,.room-member-detail .room-pop-champions small { font-size:12px; }
+.room-member-detail .performance-value,.room-member-detail .kda-stat-ratio { color:var(--text); font-size:12px; }
+.room-detail-close { position:absolute; right:8px; top:7px; display:grid; place-items:center; width:28px; height:28px; border:0; border-radius:6px; background:transparent; color:var(--muted); font:inherit; font-size:20px; cursor:pointer; }
+.room-detail-close:hover { background:#ffffff12; color:var(--text); }
+.room-detail-close:focus-visible,.room-detail-actions :focus-visible { outline:2px solid var(--accent-2); outline-offset:2px; }
+.room-detail-actions { display:grid; gap:4px; padding-top:10px; margin-top:12px; border-top:1px solid #ffffff15; }
+.room-detail-actions>a,.room-detail-actions>button { display:flex; align-items:center; gap:6px; padding:8px; border:0; border-radius:6px; background:transparent; color:var(--text); font:inherit; text-align:left; cursor:pointer; }
+.room-detail-actions>:hover { background:#ffffff0a; }
+.room-detail-actions>.is-danger { color:var(--danger); }
+.room-detail-actions>:disabled { color:var(--muted); cursor:not-allowed; }
