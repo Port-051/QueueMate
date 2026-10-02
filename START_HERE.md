@@ -524,6 +524,9 @@ ss -ltnp | grep :8082      # → kill <PID> → ./gradlew --stop → docker.exe 
   **테스트는 심지 않아도 된다** — `ApiTestSupport` 가 **없는 키만** 스스로 심고 끝나면 그것만 지운다(있던 키는 건드리지 않는다).
 - **테스트와 `bootRun` 은 같은 DB · 같은 Redis 를 쓴다.** 테스트는 자기가 만든 사용자와 그에 딸린 줄 · 키만 지운다(`ApiTestSupport` — 2026-09-26 전에는 로그인 아이디 `t_…` 로 가렸다. 로그인 아이디가 없어진 뒤 무엇으로 가리는지는 코드 참조) — 손으로 넣은 데이터는 건드리지 않는다. 컨테이너가 `--rm` 이라 멈추면 전부 사라진다.
 - Claude 가 파일을 고친 뒤에는 IntelliJ 에서 `Ctrl+Alt+Y`. 그 밖의 함정은 `CLAUDE.md` §9 "운영 규칙"과 `docs/LOCAL_ENV_LESSONS.md`.
+- **컨테이너 이미지**(2026-10-02 — `backend/Dockerfile` · 위 두 컨테이너가 떠 있어야 한다 · `.dev-keys/` 는 이미지에 안 들어가 읽기 전용으로 붙인다 · 호스트 18082):
+  `cd backend && docker.exe build -t qm-platform:local .`
+  `docker.exe run -d --rm --name qm-platform-img -p 18082:8082 -e DB_HOST=host.docker.internal -e DB_PORT=5433 -e REDIS_HOST=host.docker.internal -e REDIS_PORT=6380 -v "$(wslpath -w .dev-keys):/app/.dev-keys:ro" qm-platform:local`
 
 ### 손으로 해 보기 — 소셜 로그인 → 글 쓰기 → 목록
 
