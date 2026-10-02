@@ -190,6 +190,8 @@ export const sendSignal = (roomId: string, body: SendRoomSignalRequest) =>
 /* ---------- social (platform-api.md "차단" · "친구 · 신고 · 최근 함께한 사람" — 5단계 · 2026-09-29) — 경로의 `{userId}` · `{requestId}` 는 숫자여야 한다(아니면 400) ---------- */
 /** 친구 목록 — 닉네임순. 응답은 `{friends: […]}` 로 감싸여 있다. */
 export const listFriends = () => request<FriendListResponse>('/friends');
+/** Public badge status only; no game nicknames or profiles are disclosed. */
+export const getUserVerifications = (userIds: string[]) => request<{ userId: number; verified: boolean }[]>('/users/verification', { query: { userIds: userIds.join(',') } });
 /** 친구 끊기 — 친구가 아니어도 204(멱등). 상대에게 알리지 않는다. */
 export const removeFriend = (userId: string) => request<void>(`/friends/${encodeURIComponent(userId)}`, { method: 'DELETE' });
 /** 대기 중인 친구 요청 — `direction` 은 **대문자 그대로**(`RECEIVED` 기본 · `SENT`). 새것이 먼저. `{requests: […]}`. */

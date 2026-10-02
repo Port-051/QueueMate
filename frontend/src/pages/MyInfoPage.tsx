@@ -1,3 +1,4 @@
+import { VerificationBadge } from '../components/VerificationBadge';
 import { FilterTierIcon } from '../components/FilterSymbols';
 import '../styles/introduction.css';
 import { GameBadge } from '../components/GameSymbol';
@@ -68,7 +69,7 @@ function GameProfileCard({ game, profile, onEdit, onUnlink }: {
       <GameBadge game={game} />
       <div className="profile-game-detail">
         <h3>{name}</h3>
-        {profile ? <p className="profile-game-id">{profile.gameNickname}</p> : <p className="profile-game-unregistered">연결된 계정이 없습니다</p>}
+        {profile ? <p className="profile-game-id">{profile.gameNickname}<VerificationBadge verified={profile.verified} /></p> : <p className="profile-game-unregistered">연결된 계정이 없습니다</p>}
       </div>
       <div className="profile-game-head-actions">
         {profile ? <>
@@ -81,7 +82,7 @@ function GameProfileCard({ game, profile, onEdit, onUnlink }: {
       <div className="profile-game-facts">
         <LadderTiers game={game} profile={profile} />
         {profile.server ? <span>서버 · {SERVER_LABEL[profile.server]}</span> : null}
-        {profile.verified ? <Tag tone="ok">인증됨</Tag> : <Tag>{fromApi ? `${STATS_SOURCE[game]} 조회` : '자기신고'}</Tag>}
+        {!profile.verified ? <Tag>{fromApi ? `${STATS_SOURCE[game]} 조회` : '자기신고'}</Tag> : null}
       </div>
       {stats ? <>
         {pubg ? <dl className="profile-game-stats">
@@ -206,7 +207,7 @@ export function MyInfoPage() {
           <Avatar userId={user?.userId} name={user?.nickname ?? '?'} size={88} />
         </div>
         <div className="profile-identity-info">
-          <h1>{user?.nickname}</h1>
+          <h1>{user?.nickname}<VerificationBadge verified={user?.gameAccounts.some(account => account.verified)} /></h1>
           <nav className="profile-activity" aria-label="내 활동">
             <Link to="/app/friends">친구</Link>
           </nav>

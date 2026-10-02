@@ -1,0 +1,3 @@
+.verification-badge[role="img"] { display:inline-flex; flex:none; width:13px; height:13px; margin:0 0 0 4px; vertical-align:-1px; color:#6fb6ff; line-height:1; }
+.verification-badge svg { display:block; width:13px; height:13px; flex:none; }
+.room-seat-name .verification-badge,.room-pop-head .verification-badge { margin-left:0; }

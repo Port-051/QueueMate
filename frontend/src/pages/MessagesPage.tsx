@@ -1,3 +1,5 @@
+import { VerificationBadge } from '../components/VerificationBadge';
+import { useUserVerifications } from '../state/useUserVerifications';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import * as api from '../api/client';
@@ -90,6 +92,7 @@ export function MessagesPage() {
   [...social.recentPlayers, ...social.friends].forEach(person => contactMap.set(person.userId, person));
   if (active) contactMap.set(active.user.userId, active.user);
   const contacts = [...contactMap.values()].filter(person => String(person.userId) !== me && !social.isBlocked(person.userId));
+  const isVerified = useUserVerifications([...contacts.map(person => person.userId), ...(me ? [me] : [])]);
   const threadMap = new Map(threads.map(thread => [thread.user.userId, thread]));
   const relationship = (person: DirectPerson) => social.isFriend(person.userId) ? '친구' : social.recentPlayers.some(p => p.userId === person.userId) ? '최근 함께한 사람' : '팀원';
   const term = query.trim().toLocaleLowerCase();
@@ -118,7 +121,7 @@ export function MessagesPage() {
             return <li key={person.userId} className={`dm-contact${String(person.userId) === other ? ' is-selected' : ''}`}>
               <Link to={`/app/messages/${person.userId}`} className="dm-contact-select" aria-label={`${person.nickname} 대화`} aria-current={String(person.userId) === other ? 'page' : undefined}>
                 <Avatar userId={String(person.userId)} name={person.nickname} size={44} />
-                <span className="dm-contact-text"><span className="dm-contact-top"><b>{person.nickname}</b></span>
+                <span className="dm-contact-text"><span className="dm-contact-top"><b>{person.nickname}<VerificationBadge verified={isVerified(person.userId)} /></b></span>
                   <span className="dm-contact-preview"><span>{savedDraft ? <><em>작성 중</em> {savedDraft}</> : thread ? `${String(thread.lastMessage.senderId) === me ? '나: ' : ''}${thread.lastMessage.text}` : relationship(person)}</span>{!savedDraft && thread ? <time dateTime={thread.lastMessage.sentAt}> · {relativeTime(thread.lastMessage.sentAt)}</time> : null}</span>
                 </span>
               </Link>
@@ -131,7 +134,7 @@ export function MessagesPage() {
           <header className="dm-thread-header">
             <Link to="/app/messages" className="dm-icon-btn dm-back" aria-label="대화 목록으로"><BackArrow /></Link>
             <Avatar userId={String(active.user.userId)} name={active.user.nickname} size={40} />
-            <div className="dm-thread-person"><h2 ref={heading} tabIndex={-1}>{active.user.nickname}</h2><span>{relationship(active.user)}</span></div>
+            <div className="dm-thread-person"><h2 ref={heading} tabIndex={-1}>{active.user.nickname}<VerificationBadge verified={isVerified(active.user.userId)} /></h2><span>{relationship(active.user)}</span></div>
           </header>
           <div className="dm-messages" role="log" aria-label="개인 메시지 내역" aria-live="polite">
             {active.nextCursor ? <Button disabled={loadingOlder} onClick={() => void older()}>이전 메시지</Button> : null}
@@ -144,7 +147,7 @@ export function MessagesPage() {
               return <div key={message.id} className={`dm-message-entry${grouped ? ' is-grouped' : ''}`}>
                 {newDay ? <div className="dm-date"><span>{new Date(message.sentAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}</span></div> : null}
                 <div className="dm-message"><Avatar userId={String(message.senderId)} name={name} size={36} />
-                  <div className="dm-message-body"><div className="dm-message-meta"><b>{name}</b><time dateTime={message.sentAt}>{new Date(message.sentAt).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' })}</time></div><p>{message.text}</p></div>
+                  <div className="dm-message-body"><div className="dm-message-meta"><b>{name}<VerificationBadge verified={isVerified(message.senderId)} /></b><time dateTime={message.sentAt}>{new Date(message.sentAt).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' })}</time></div><p>{message.text}</p></div>
                 </div>
               </div>;
             })}<div ref={end} />
@@ -165,7 +168,7 @@ export function MessagesPage() {
     </div>
     {newConversation ? <Modal title="새 대화" closeLabel="새 대화 닫기" className="dm-new-modal" onClose={() => setNewConversation(false)}>
       <div className="dm-search"><IconSearch size={17} /><input type="search" autoFocus placeholder="이름 검색" aria-label="대화 상대 검색" value={newQuery} onChange={event => setNewQuery(event.target.value)} /></div>
-      <ul className="dm-new-contacts">{newContacts.map(person => <li key={person.userId}><button type="button" onClick={() => choose(person)}><Avatar userId={String(person.userId)} name={person.nickname} size={40} /><span><b>{person.nickname}</b><small>{relationship(person)}</small></span><span aria-hidden="true">›</span></button></li>)}</ul>
+      <ul className="dm-new-contacts">{newContacts.map(person => <li key={person.userId}><button type="button" onClick={() => choose(person)}><Avatar userId={String(person.userId)} name={person.nickname} size={40} /><span><b>{person.nickname}<VerificationBadge verified={isVerified(person.userId)} /></b><small>{relationship(person)}</small></span><span aria-hidden="true">›</span></button></li>)}</ul>
       {!newContacts.length ? <p className="dm-list-empty">{newQuery ? '검색 결과가 없습니다' : '친구나 함께한 팀원이 여기에 표시됩니다.'}</p> : null}
     </Modal> : null}
   </section>;
