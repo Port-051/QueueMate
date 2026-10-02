@@ -236,7 +236,7 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
           onClick={() => voice === 'connected' ? toggleMute() : void clientRef.current?.startVoice()}>
           {voice === 'connected' && !muted ? <><IconMic size={20} /><span>음소거</span></> : <><IconMicOff size={20} /><span>음소거 해제</span></>}
         </button>
-        <Button className="party-room-leave" variant="danger" disabled={busy} onClick={() => setDialog({ kind: 'leave' })}><IconLogout size={20} /> 방 나가기</Button>
+        <Button className="party-room-leave" variant="danger" aria-label="방 나가기" title="방 나가기" disabled={busy} onClick={() => setDialog({ kind: 'leave' })}><IconLogout size={20} /></Button>
       </div>
       <RoomConversationChat key={roomId} messages={messages} canSend={canChat} connectionHint={connectionHint} nameOf={chatName}
         colorOf={id => faceColors.get(id)} canOpenProfile={id => cards.has(id)} onProfile={setProfileId} onSend={send} />
