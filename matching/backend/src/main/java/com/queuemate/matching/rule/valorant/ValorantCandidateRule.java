@@ -1,7 +1,5 @@
 package com.queuemate.matching.rule.valorant;
 
-import com.queuemate.matching.block.BlockRepository;
-import com.queuemate.matching.block.BlockedUsers;
 import com.queuemate.matching.domain.ActiveRequest;
 import com.queuemate.matching.domain.CancelResult;
 import com.queuemate.matching.domain.GameKey;
@@ -14,16 +12,17 @@ import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 /**
  * VALORANT 의 {@link CandidateRule} 구현체. <b>일을 어디에 맡길지만 정한다.</b>
  *
- * <p>배정도 취소도 직접 하지 않는다. 모드 설정을 읽고, 차단 목록을 (락 밖에서) 가져오고,
+ * <p>배정도 취소도 직접 하지 않는다. 모드 설정을 읽고, 최근 거절 상대를 (락 밖에서) 가져오고,
  * 티어 유무로 assigner 를 골라 후보 풀 락 안에서 부르는 데까지가 배정에 대한 몫이다. 실제 인자
  * 조립과 스크립트 호출은 {@link ValorantUntieredAssigner} / {@link ValorantTieredAssigner} 가 한다.
+ * <b>차단(INV-6)은 여기서 읽지 않는다</b> — 합류 Lua 가 Redis 집합 {@code qm:user:block-rel:{나}} 를 직접 본다
+ * (docs/11 D-57, 2026-10-02. 그 전에는 여기서 DB 의 {@code blocks} 를 한 번 읽었다).
  *
  * <p>취소도 같은 모양이다. {@link ValorantPartyLeaver} 가 통째로 맡는다 — 배정과 달리 고를 것이
  * 없어(스크립트가 한 벌이다) 여기서는 넘기기만 한다.
@@ -34,7 +33,6 @@ public class ValorantCandidateRule implements CandidateRule {
 
     private final StringRedisTemplate redis;
     private final PoolLock poolLock;
-    private final BlockRepository blockRepository;
     private final ValorantPartyKeys keys;
     private final ValorantUntieredAssigner untieredAssigner;
     private final ValorantTieredAssigner tieredAssigner;
@@ -49,25 +47,23 @@ public class ValorantCandidateRule implements CandidateRule {
     public void canJoin(CreateMatchRequestCommand command) {
         ValorantModeConfig config = loadModeConfig(command);
 
-        // 내 차단 목록은 어느 후보를 보든 같다. 후보마다 다시 물을 이유가 없으므로 락을 잡기 전에
-        // 한 번만 가져온다. 락 안에서 DB 를 치면 응답이 늦을 때 유지 시간을 넘겨 락이 저 혼자
-        // 풀린다 (PoolLock 클래스 주석).
-        // 차단(DB)에 더해 최근 거절 기록(Redis qm:user:declined:{me}, score = 풀리는 시각)도 같이 거른다 —
-        // 거절 때 양쪽에 적으므로 내 키 하나로 충분하다(ProposalService#recordDeclined).
-        // BlockedUsers.of 는 고칠 수 없는 집합을 주므로 복사해서 합친다
-        Set<String> blockedUserIds = new HashSet<>(BlockedUsers.of(blockRepository, command.getUserId()));
-        blockedUserIds.addAll(redis.opsForZSet().rangeByScore(
-                SharedKeys.declinedKey(command.getUserId()), System.currentTimeMillis(), Double.POSITIVE_INFINITY));
+        // 최근 거절 기록(Redis qm:user:declined:{me}, score = 풀리는 시각 — docs/11 D-45)은 어느 후보를 보든 같다.
+        // 후보마다 다시 물을 이유가 없으므로 락을 잡기 전에 한 번만 가져온다. 거절 때 양쪽에 적으므로 내 키 하나로
+        // 충분하다(ProposalService#recordDeclined).
+        // 차단(INV-6)은 여기서 읽지 않는다 — 합류 스크립트가 qm:user:block-rel:{me} 를 KEYS 로 받아 같은 원자 실행 안에서
+        // 본다(docs/11 D-57). 2026-10-02 까지는 여기서 DB 의 blocks 를 읽어 이 집합에 합쳤다
+        Set<String> declinedUserIds = redis.opsForZSet().rangeByScore(
+                SharedKeys.declinedKey(command.getUserId()), System.currentTimeMillis(), Double.POSITIVE_INFINITY);
 
         // 티어 유무는 모드 이름이 아니라 요청에 tier 가 있는지로 가른다. 값 검증은
         // ValorantConditionValidator 가 이미 끝냈다 — tierRule 이 NONE 인 모드에 tier 가
         // 붙어 있거나 그 반대면 여기까지 오지 못한다.
         if (command.getTier() == null) {
             poolLock.run(keys.poolKey(command),
-                    () -> untieredAssigner.assign(command, config, blockedUserIds));
+                    () -> untieredAssigner.assign(command, config, declinedUserIds));
         } else {
             poolLock.run(keys.poolKey(command),
-                    () -> tieredAssigner.assign(command, config, blockedUserIds));
+                    () -> tieredAssigner.assign(command, config, declinedUserIds));
         }
     }
 

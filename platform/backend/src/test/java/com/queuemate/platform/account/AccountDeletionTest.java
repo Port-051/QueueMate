@@ -14,6 +14,8 @@ import com.queuemate.platform.room.notification.PushSubscriber;
 import com.queuemate.platform.room.service.RoomMemberService;
 import com.queuemate.platform.room.service.RoomNotifier;
 import com.queuemate.platform.room.service.RoomService;
+import com.queuemate.platform.social.service.BlockReader;
+import com.queuemate.platform.social.service.BlockRelationRedis;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -77,6 +79,13 @@ class AccountDeletionTest extends PostTestSupport {
 
     @Autowired
     private RoomService roomService;
+
+    /** 탈퇴가 차단 관계 사본에서 그 사람을 지울 때 쓴다(2026-10-02 · P-52) — 손으로 만든 서비스에도 진짜를 넣는다 */
+    @Autowired
+    private BlockReader blockReader;
+
+    @Autowired
+    private BlockRelationRedis blockRelationRedis;
 
     @Autowired
     private JwtProperties jwtProperties;
@@ -430,7 +439,7 @@ class AccountDeletionTest extends PostTestSupport {
             RoomService broken = new RoomService(new StringRedisTemplate(dead), createRoomScript, roomProperties,
                     confirmRoomScript, roomNotifier, leaveRoomScript, enterMatchRoomScript);
             AccountDeletionService service = new AccountDeletionService(userRepository, broken, roomMemberService, postService,
-                    transactionTemplate, refreshTokens);
+                    transactionTemplate, refreshTokens, blockReader, blockRelationRedis);
 
             assertThatThrownBy(() -> service.delete(userId, List.of()))
                     .isInstanceOfSatisfying(ApiException.class, e -> {
@@ -492,7 +501,7 @@ class AccountDeletionTest extends PostTestSupport {
         brokenDelete.afterPropertiesSet();
         RefreshTokens broken = new RefreshTokens(brokenDelete, jwtProperties, webSecurityProperties);
         AccountDeletionService service = new AccountDeletionService(userRepository, roomService, roomMemberService, postService,
-                transactionTemplate, broken);
+                transactionTemplate, broken, blockReader, blockRelationRedis);
 
         service.delete(userId, List.of(refresh.getValue()));
 

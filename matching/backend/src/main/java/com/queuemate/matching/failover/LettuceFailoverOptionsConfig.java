@@ -62,8 +62,8 @@ public class LettuceFailoverOptionsConfig {
             // (1) 끊긴 동안 명령을 어떻게 할지.
             //     기본값(DEFAULT)은 명령을 큐에 쌓는다 - 요청 스레드가 묶이고
             //     톰캣 스레드 풀이 마르면서 장애가 매칭 밖으로 번진다.
-            //     REJECT_COMMANDS 는 즉시 실패시킨다. HikariCP connection-timeout: 300 이나
-            //     PoolLock 의 짧은 대기와 같은 판단이다 - 확인 못 한 요청은 붙잡지 않는다.
+            //     REJECT_COMMANDS 는 즉시 실패시킨다. PoolLock 의 짧은 대기(그리고 2026-10-02 에 DB 와 함께
+            //     없어진 HikariCP connection-timeout: 300)와 같은 판단이다 - 확인 못 한 요청은 붙잡지 않는다.
             if (reject) {
                 builder.disconnectedBehavior(ClientOptions.DisconnectedBehavior.REJECT_COMMANDS);
             }

@@ -1,5 +1,10 @@
 # 왜 PostgreSQL(관계형 DB)인가
 
+> **[2026-10-02] `app:matching` 은 PostgreSQL 에 붙지 않는다 — 이 앱의 DB 의존성(JPA · H2 · PostgreSQL 드라이버 · `spring.datasource`)을 뺐다**
+> (docs/11 **D-57**). 차단 관계는 `app:platform` 이 Redis SET `qm:user:block-rel:{userId}` 에 쓰고 합류 Lua 가 읽는다. 아래의 "이 저장소가 읽는 테이블은 `blocks` 하나" 와
+> 이 앱의 DB 설정 서술은 그날까지의 기록이고, 아래 1번(취소선 — "이 저장소는 DB 를 쓰지 않는다")이 다시 사실이 됐다.
+> PostgreSQL 을 고른 이유(시스템 전체 — `app:platform` 의 DB)는 그대로다.
+>
 > **이 문서를 먼저 어떻게 읽어야 하는지.**
 >
 >    ⚠ **1번은 2026-09-11 에 사실이 아니게 됐다. 아래 갱신본을 읽어라.**

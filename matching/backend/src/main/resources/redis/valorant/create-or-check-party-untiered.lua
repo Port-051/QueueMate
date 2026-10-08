@@ -102,7 +102,7 @@ if #found == 0 then
     return { 1, newPartyId, 1 }
 end
 
--- 3. 있으니 그 파티 인원들을 반환한다. 넣는 것은 차단 검증 뒤 자바가 join 으로 한다
+-- 3. 있으니 그 파티 인원들을 반환한다. 넣는 것은 최근 거절 검증 뒤 자바가 join 으로 한다(차단은 join 안에서 — D-57)
 local partyId  = found[1]
 local partyKey = prefix .. partyId
 

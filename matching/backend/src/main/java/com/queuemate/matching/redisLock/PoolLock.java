@@ -30,7 +30,8 @@ import java.util.function.Supplier;
  *
  * <p><b>이 락은 Lua 를 대체하지 않고 두 Lua 사이의 틈을 막는다.</b> 배정은 후보 찾기
  * ({@code create-or-check-party-*.lua})와 합류({@code join-party*.lua})의 두 스크립트로
- * 나뉘어 있고, 그 사이에 자바의 차단 검증이 낀다. 각 스크립트 안의 확인+쓰기는 여전히
+ * 나뉘어 있고, 그 사이에 자바의 최근 거절 검증이 낀다(차단은 2026-10-02 부터 합류 스크립트 안에서 본다 —
+ * docs/11 D-57). 각 스크립트 안의 확인+쓰기는 여전히
  * Lua 한 덩어리가 원자적으로 하고(CLAUDE.md §4 원자성 규칙), 두 호출 사이에 다른 요청이
  * 같은 파티에 끼어드는 것만 이 락이 막는다. 호출부는 {@code LolCandidateRule#canJoin()} 이다.
  *

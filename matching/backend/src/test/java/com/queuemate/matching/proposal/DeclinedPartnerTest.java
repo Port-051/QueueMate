@@ -29,8 +29,9 @@ import static org.assertj.core.api.Assertions.within;
  * {@code qm:user:declined:{userId}} ZSET 에 적는다 — 내 키에 상대들, 상대 키마다 나.
  * score 는 풀리는 시각(now + {@code queuemate.proposal.decline-avoid-seconds}, 기본 600초)이고
  * 키 TTL 도 그 값으로 매번 다시 건다. 배정 선필터({@code *CandidateRule#canJoin})가 락 밖에서
- * {@code ZRANGEBYSCORE declined:{me} now +inf} 를 한 번 읽어 차단 목록에 합치므로, 그 사람이 든
- * 후보 파티는 {@code ScriptSupport#blockedWith} 에서 걸러진다.
+ * {@code ZRANGEBYSCORE declined:{me} now +inf} 를 한 번 읽으므로, 그 사람이 든
+ * 후보 파티는 {@code ScriptSupport#declinedWith} 에서 걸러진다(2026-10-02 까지는 DB 의 차단 목록에 합쳐
+ * {@code blockedWith} 로 걸렀다 — 차단은 이제 합류 Lua 가 본다, docs/11 D-57 · {@code BlockRelationTest}).
  *
  * <p><b>양방향을 둘 다 본다.</b> 선필터는 "내가 들어가려는 파티에 내 집합의 사람이 있나"만 보므로
  * 한쪽만 적으면 누가 먼저 큐에 들어오느냐에 따라 절반은 못 막는다 — 거절한 사람이 다시 들어오는 경우(1번)와

@@ -53,7 +53,12 @@
  *   <li><b>회원 탈퇴</b>({@code account.service.AccountDeletionService} — 2026-10-02 소유자 결정 · P-48)는 {@code account} 에서 <b>{@code room} 과 {@code party} 를 부른다</b> —
  *       {@code room.service.RoomService} 의 {@code queued}(활성 요청 키 {@code EXISTS}) · {@code myRoom}, {@code room.service.RoomMemberService#leave}(평소 나가기 그대로),
  *       {@code party.service.PostService} 의 {@code expireRecruitingOf} · {@code deleteUnconfirmedOf}(부르는 쪽 트랜잭션에 합류한다). 나머지 테이블은 FK 가 지운다 — 남의 리포지토리를 부르지 않는다.
+ *       <b>{@code social} 도 부른다</b>(2026-10-02 · P-52) — {@code social.service.BlockReader#counterpartsOf}(지우기 전에 차단 관계인 상대를 읽는다) ·
+ *       {@code social.service.BlockRelationRedis#removeUser}(커밋 뒤 Redis 의 차단 관계 사본에서 그 사람을 지운다).
  *       그쪽에서 이것을 부르는 빈이 없어 고리가 없다</li>
+ *   <li><b>차단 관계 사본</b>(Redis {@code qm:user:block-rel:*} — 2026-10-02 소유자 결정 · docs/11 D-57 · P-52)은 {@code social} 이 쓴다 — 키 원본
+ *       {@code social.redisKeys.BlockKeys} · 쓰는 곳 {@code social.service.BlockRelationRedis}(차단 · 해제 · 탈퇴 · 재구성) · 재구성의 시점 {@code social.service.BlockRelationSync}
+ *       (기동 때 · 주기 — 이 앱의 유일한 스케줄). {@code matching} 이 읽기만 한다</li>
  * </ul>
  *
  * <p>여기 만들지 않는 것 — 매칭 로직, SSE 연결 보유, 예약(CLAUDE.md §2 · §11).

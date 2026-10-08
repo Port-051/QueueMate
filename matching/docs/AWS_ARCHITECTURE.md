@@ -48,6 +48,11 @@
 > 스키마는 `public` 하나이며 JOIN · FK 가 허용된다(2026-09-26). `app:matching` 이 읽는 것은 `blocks`(옛 `social.blocks` — 지금 `public.blocks`)
 > 하나 그대로다. 결정 D-24 로 **access denylist 는 없다**(그래서 서비스들이 인증 때문에 Redis 를 치지 않는다 — 공개 키로 스스로 검증한다).
 > **그림과 아래 표에는 반영되지 않았다.** 아래에서 "7스키마 · 스키마별 롤" · "`matching` 롤" · "크로스 스키마 예외" · `social.blocks` 를 만나면 이 문단을 함께 봐라.
+>
+> **[2026-10-02 추가] 결정 D-57 로 `app:matching` 은 RDS 에 붙지 않는다.** 차단 관계는 `app:platform` 이 ElastiCache Redis 의 SET `qm:user:block-rel:{userId}` 에
+> 대칭으로 쓰고(부팅 · 5분마다 `blocks` 표에서 다시 만든다), `app:matching` 은 합류 Lua 에서 `SISMEMBER` 로 읽기만 한다. 그림의 `app:matching ≫ RDS`(동기 SELECT `social.blocks`)
+> 간선, 아래 한 줄 요약의 "RDS에 차단 검증만 읽으러 가고", §2 · §3 표의 RDS 행은 **없어졌다** — `app:matching` 태스크에는 DB 자격 증명 · RDS 보안 그룹 규칙이 필요 없다.
+> **그림은 고치지 않았다.**
 
 ---
 
@@ -134,7 +139,8 @@ SQS FIFO 3개.
 | app:matching ≫ | **대기열 · Lua 선점** | ElastiCache Redis |
 | app:reservation-batch | 예약 조회 · 제안 저장 | RDS |
 
-`app:matching`이 RDS를 치는 것은 **INV-6 차단 검증 SELECT 하나뿐**이다.
+`app:matching`이 RDS를 치는 것은 **INV-6 차단 검증 SELECT 하나뿐**이다. **(2026-10-02 — D-57 로 그것도 없어져 `app:matching` 은 RDS 를 치지 않는다.
+차단은 ElastiCache Redis 의 `qm:user:block-rel:{userId}` 를 합류 Lua 가 읽는다.)**
 ~~`matching` 롤은 `social` 스키마를 못 읽고, 승인된 유일한 크로스 스키마 예외인
 `social.blocks`만 SELECT 할 수 있다~~ (docs/11 D-1 — 뷰를 두는 원안은 폐기했다).
 **바뀌었다 (docs/11 D-34, 2026-09-22 · 09-26).** 롤은 없고 스키마는 `public` 하나다 — `app:matching` 이 `blocks` 하나만 읽는다는 것은
@@ -183,11 +189,11 @@ SQS FIFO 3개.
 | ElastiCache Redis | 읽기·쓰기 | gameconfig 읽기, 활성 요청 선점, 파티 색인, Lua atomic claim | **구현됨** (`backend/src/main/resources/redis/*.lua`) |
 | ElastiCache Redis | 분산 락 | 후보 풀 락 (`qm:lock:pool:*`, Redisson) | **구현됨** (`redisLock/PoolLock.java`, `config/redis/RedissonConfig.java`) |
 | ElastiCache Redis | publish | `MATCH_*` 5종 알림 | **구현됨 (2026-09-16 갱신)** — `notification/PushPublisher.java` 가 `qm:pubsub:push:{userId}` 로 **5종 전부** 발행한다. `MATCH_PROPOSAL_EXPIRED` 는 `service/ProposalExpiryService`(만료 스위퍼), `MATCH_CONFIRMED` 는 `service/ProposalService#accept()`(확정 뒷정리)가 낸다 |
-| RDS `social.blocks`(**2026-09-26 부터 `public.blocks`** — D-34) | 읽기 | INV-6 검증 | **미구현** — 부르는 코드는 있다 (`LolCandidateRule#canJoin` 의 차단 선필터). 그런데 Flyway 미도입이라 스키마가 없어 기본 실행에서는 그 조회가 실패한다. **운영 DB 에 붙어도 `Block.java` 가 옛 모양(`schema = "social"` · `String`)이라 깨진다 — 고쳐야 한다(D-25 · D-34)** |
+| RDS `social.blocks`(**2026-09-26 부터 `public.blocks`** — D-34) | 읽기 | INV-6 검증 | **없어졌다 (2026-10-02, docs/11 D-57)** — `app:matching` 은 RDS 에 붙지 않는다. 차단은 ElastiCache Redis 의 SET `qm:user:block-rel:{userId}`(`app:platform` 이 쓴다)를 세 게임의 `join-party*.lua` 가 `SISMEMBER` 로 읽는다. `block/` · JPA · JDBC 드라이버 · `spring.datasource` 를 뺐다 |
 | SQS `ProposalConfirmed.fifo` | 발행 | 확정된 제안 → 파티 생성 | **미구현** — AWS SDK 의존성이 없다. 확정과 Redis 쪽 뒷정리(`proposal/cleanup-confirmed.lua`)·`MATCH_CONFIRMED` 알림까지는 붙었고, `matching.outbox` 기록과 발행만 남았다 |
 | SQS `BlockChanged.fifo` | 소비 | 차단 목록 갱신 | **미구현** |
 | CloudWatch | 송신 | 로그·지표 | 부분 — actuator 노출은 켜져 있다 (`application.yaml` — `/health/live` · `/health/ready` · `/info` · `/metrics`. 2026-10-02 에 `/actuator` 아래에서 루트로 옮겼다) |
-| Secrets Manager | 읽기 | DB 자격증명 | 아직 없음 — `application.yaml` 이 `DB_URL`/`DB_USER`/`DB_PASSWORD` 환경변수로 받는다 (기본값은 H2 인메모리) |
+| Secrets Manager | 읽기 | DB 자격증명 | **DB 자격 증명은 필요 없다 (2026-10-02, D-57)** — DB 를 쓰지 않는다. `DB_URL` · `DB_USER` · `DB_PASSWORD` 는 없어졌다. 운영에서 읽을 값은 `JWT_PUBLIC_KEY`(공개 키, CLAUDE.md §3) 정도다 |
 | ECR | — | 태스크 이미지 | 해당 없음 (Dockerfile 없음) |
 
 **`app:matching`이 절대 하지 않는 것** (그림상 다른 상자의 책임):

@@ -31,7 +31,7 @@ public class SecurityConfig {
                         // 에러 디스패치(/error)까지 인증을 요구하면 원래의 상태 코드가 401 로 가려진다
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         // actuator 의 자리 — 루트에 뒀다(application.yaml 의 management.endpoints.web.base-path · 2026-10-02 — 그 전에는 /actuator/**).
-                        // /health/live(ALB 가 본다) · /health/ready(Redis · DB 까지 본다) · /info · /metrics(load-test 가 읽는다).
+                        // /health/live(ALB 가 본다) · /health/ready(Redis 까지 본다 — DB 는 없다, docs/11 D-57) · /info · /metrics(load-test 가 읽는다).
                         // 사용자 인증과 무관한 운영 경로다. 노출 목록은 management 가 정한다
                         .requestMatchers("/health/**", "/health", "/info", "/metrics/**", "/metrics").permitAll()
                         .anyRequest().authenticated())

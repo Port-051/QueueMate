@@ -12,3 +12,7 @@ platform:
   # 꺼졌을 때(운영의 기본값)는 DevLoginDisabledTest 가 @TestPropertySource 로 따로 띄워 본다
   auth:
     dev-login-enabled: true
+  # 차단 관계 사본의 주기적 재구성을 끈다(2026-10-02 · P-52) — 테스트 도중 뒤에서 표와 Redis 를 훑지 않게. 재구성은 BlockRelationRedisTest 가 직접 부르고,
+  # 기동 때 한 번은 컨텍스트마다 그대로 돈다
+  block:
+    redis-sync-interval: PT0S

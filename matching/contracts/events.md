@@ -1,7 +1,7 @@
 <!-- 출처: queueMate 저장소 / 브랜치 feature/frontend / 경로 contracts/events.md (110줄) -->
 <!-- 커밋: 825d673 -->
 <!-- ★ 발췌본이다. app:matching 이 발행하는 이벤트와 그 전달 규약만 옮겼다. -->
-<!-- ★ 이 사본이 원본보다 앞서 개정된 부분이 있다 — "재연결"(2026-09-18), 전송 표와 WEBRTC_SIGNAL(2026-09-19), heartbeat 와 retry(2026-09-19), SQS 큐 표의 BlockChanged 폐기(2026-09-19), RESERVATION_* 발행 주체(2026-09-19), WEBRTC_SIGNAL 발행 주체 app:room(2026-09-19) → app:platform(2026-09-25 합침, docs/11 D-33), "재연결"의 상태 조회 경로에서 ?userId= 제거(2026-09-27), SQS 절 — 이 앱이 걸린 큐 0개 · ProposalConfirmed.fifo 는 만들지 않고 app:platform 이 파티 HASH 를 읽는다(2026-09-27, docs/11 D-42, A-15). 각 자리의 "개정 이력"과 contracts/README.md 를 봐라. -->
+<!-- ★ 이 사본이 원본보다 앞서 개정된 부분이 있다 — "재연결"(2026-09-18), 전송 표와 WEBRTC_SIGNAL(2026-09-19), heartbeat 와 retry(2026-09-19), SQS 큐 표의 BlockChanged 폐기(2026-09-19), RESERVATION_* 발행 주체(2026-09-19), WEBRTC_SIGNAL 발행 주체 app:room(2026-09-19) → app:platform(2026-09-25 합침, docs/11 D-33), "재연결"의 상태 조회 경로에서 ?userId= 제거(2026-09-27), SQS 절 — 이 앱이 걸린 큐 0개 · ProposalConfirmed.fifo 는 만들지 않고 app:platform 이 파티 HASH 를 읽는다(2026-09-27, docs/11 D-42, A-15), BlockChanged 행 비고 — 이 앱은 blocks 를 읽지 않고 Redis SET qm:user:block-rel:{userId} 를 읽는다(2026-10-02, docs/11 D-57, A-21). 각 자리의 "개정 이력"과 contracts/README.md 를 봐라. -->
 
 # Server Event Contract — app:matching 발췌
 
@@ -205,7 +205,7 @@ payload 필드는 계약이 정한 것이 아니다 — 아래 "미해결 계약
 | 큐 | 이 앱의 역할 | MessageGroupId | 비고 |
 |---|---|---|---|
 | ~~`ProposalConfirmed.fifo`~~ | ~~**생산자** — 확정된 제안을 내보내면 `app:platform` 이 소비해 파티를 만든다~~ | — | **만들지 않는다** (docs/11 D-42). 확정된 파티는 `app:platform` 이 이 앱의 파티 HASH `qm:party:{partyId}` 를 **직접 읽어** 만든다 — 아래 개정 이력 |
-| ~~`BlockChanged.fifo`~~ | ~~**소비자** — 차단 목록 갱신을 받아 `qm:block:{userId}` read model 을 고친다~~ | — | **폐기됐다 — 만들지 않는다** (docs/11 D-12). 차단은 `app:platform` 이 `social.blocks`(2026-09-26 부터 `public.blocks` — D-34)에 저장하면 끝이고, 이 앱은 배정 때 그 테이블을 직접 조회해 INV-6 을 지킨다 (D-1 · D-41) |
+| ~~`BlockChanged.fifo`~~ | ~~**소비자** — 차단 목록 갱신을 받아 `qm:block:{userId}` read model 을 고친다~~ | — | **폐기됐다 — 만들지 않는다** (docs/11 D-12). 차단은 `app:platform` 이 `social.blocks`(2026-09-26 부터 `public.blocks` — D-34)에 저장하면 끝이고, ~~이 앱은 배정 때 그 테이블을 직접 조회해 INV-6 을 지킨다 (D-1 · D-41)~~ **2026-10-02 부터 이 앱은 DB 를 읽지 않는다 — platform 이 같은 트랜잭션에서 Redis SET `qm:user:block-rel:{userId}` 에도 대칭으로 쓰고, 이 앱의 합류 Lua 가 그것을 `SISMEMBER` 로 읽는다**(docs/11 D-57 · platform P-52 · `contracts/README.md` A-21). 큐는 여전히 없다 |
 
 > 개정 이력: 예전 판은 "`app:matching` 이 걸린 큐는 2개다"라고 적고 `BlockChanged.fifo` 를 이 앱이
 > **소비**하는 큐로 두었다(차단 쌍 단위 순서 보장 필수). 2026-09-19 에 1개로 바꿨다 (docs/11 D-12) —

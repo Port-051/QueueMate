@@ -156,6 +156,14 @@
 > - **모집 글의 내용(D-11 · D-28 · D-32)** — 글에서 `purpose` 가 **D-39** 로 없어졌다. **이 저장소의 `PlayPurpose` 는 그대로다.**
 > - **gameconfig(D-29)** — "`app:platform` 이 읽는 키는 둘 · `:tier-range:` 는 읽지 않는다" 는 **D-40**(자동 매칭이 게시판 방에 먼저 합류하는 길 — 결정만이고 소유자가 구현한다)이 구현되면 셋이 된다. D-29 "아직 미정" 의 그 대목은 D-40 으로 세부가 정해졌다.
 
+> **낡은 항목 주의 (2026-10-02 추가).** **D-34 결정 5 의 "`app:matching` 이 읽는 테이블은 `blocks` 하나" 와 D-41 의 "INV-6 은 배정 때의 선필터
+> (`*CandidateRule#canJoin` → `BlockRepository#findBlockedUserIds` → `ScriptSupport#blockedWith`) 한 겹" 은 D-57 로 개정됐다 — 이 앱은 DB 를 쓰지 않는다.**
+> 차단 관계는 `app:platform` 이 Redis SET `qm:user:block-rel:{userId}` 에 대칭으로 쓰고(platform P-52), 세 게임의 합류 스크립트(`join-party*.lua`)가 들어오는
+> 사람의 집합을 `SISMEMBER` 로 읽어 같은 원자 실행 안에서 거절한다(반환 `-3`). D-41 의 결정 자체("확정 직전 최종 검증은 두지 않는다")와 그 감수는 그대로다.
+> 같은 이유로 D-1 · D-3 · D-4 · D-25 · D-34 의 `blocks` · `Block.java` · H2 · `schema.sql` · DB 계정 서술, #30 의 "차단 검증"(합류 Lua 가 실제로 도는 것으로 충족된다)도
+> 걸러 읽는다. 그 항목들의 본문은 고치지 않았고 D-34 · D-41 머리에 한 줄만 달았다. D-57 은
+> [이 저장소에서 내린 결정](#이-저장소에서-내린-결정-2026-09-07) 절에 있고, 겹치면 D-57 이 우선한다.
+
 변경 시 날짜/근거/영향을 추가한다.
 
 ## Fixed decisions
@@ -3352,6 +3360,8 @@ access 가 살아 있는 창이 24시간에서 15분으로 준다. (경로 이�
 
 ### D-34. DB 스키마를 `public` 하나로 합치고 테이블 사이의 JOIN · FK 를 허용한다. 스키마별 DB 롤은 없다 — `app:matching` 이 읽는 테이블은 `blocks` 하나 그대로다 (#17 개정 · D-1 개정, 2026-09-22 · 2026-09-26)
 
+> **일부 낡음 — D-57 이 개정(2026-10-02 표시).** 결정 5 의 "`app:matching` 이 읽는 테이블은 `blocks` 하나" 가 낡았다 — 이 앱은 DB 를 쓰지 않는다. 차단 관계는 platform 이 쓰는 Redis SET `qm:user:block-rel:{userId}` 를 합류 Lua 가 읽는다. "영향" 의 `Block.java` · `schema.sql` 도 지워졌다. 스키마 하나 · JOIN · FK · 롤 없음(결정 1 ~ 4 · 6)은 그대로다.
+
 > **이 결정은 이 저장소에 직접 걸린다** — `block/Block.java` 가 읽는 테이블의 이름이 바뀌었다. 프로젝트 소유자가 정했다.
 > **사실의 원본은 `../platform/CLAUDE.md` §3.5 · `../platform/contracts/platform-api.md` P-23 과 `../platform/backend/src/main/resources/db/migration/V1__schema.sql` 이다.**
 > 2026-09-22 의 "스키마별 DB 롤을 두지 않는다"(소유자 결정)를 이 항목에 접었다 — 2026-09-26 에 스키마가 하나가 되며 그 물음이 여기에 흡수됐다(`app:platform` 도 "P-23 하나로 올리면 된다"고 적었다).
@@ -3523,6 +3533,8 @@ D-25 는 사용자의 식별자를 **사용자 번호(`userId`)와 로그인 아
 **아직 미정 — 소유자가 구현하며 정한다.** 경로 이름 · 에러 코드 · 요청 본문 · 티어가 없는 사람(언랭 · 자기신고 안 함) · 주 포지션이 없는 사람 · 글에 "자동 합류 허용" 칸을 둘지.
 
 ### D-41. INV-6 은 배정 때의 선필터 한 겹으로 지킨다 — "확정 직전 동기 SELECT" 는 두지 않는다 (D-1 개정, 2026-09-27)
+
+> **일부 낡음 — D-57 이 개정(2026-10-02 표시).** 선필터(`*CandidateRule#canJoin` → `BlockRepository#findBlockedUserIds` → `ScriptSupport#blockedWith`)와 `schema.sql` 이 없어졌다 — INV-6 은 합류 Lua 가 Redis 집합을 읽어 같은 원자 실행 안에서 지킨다(반환 `-3`). "확정 직전 동기 SELECT 는 두지 않는다" 와 그 근거 · 감수(같은 파티에 들어온 뒤의 차단)는 그대로다.
 
 > **프로젝트 소유자가 정했다.** 같은 날 오전에 확정 직전 검증(`block/PartyBlockCheck` — 수락마다 파티원 사이의 차단을
 > `blocks` 에 한 번 묻고, 있으면 그 쌍의 양쪽을 빼고 제안을 깨는 것)을 구현해 커밋 `e888cc1` 로 올렸다가, 소유자 판단으로
@@ -4442,6 +4454,88 @@ D-34 로 이 앱이 읽는 테이블은 `blocks` 하나다). 그래서 이 앱�
 - 이 로그 — D-42 결정 2 · 4 에 "→ D-56" 만 달았다 — 본문은 고치지 않았다.
 - 다른 폴더 — `../platform/contracts/platform-api.md` "파티 HASH 의 계약" 의 `member:{userId}` 행이 같은 잘못("플랫폼")을 적고 있고, `../platform/CLAUDE.md` §2 · §11 의
   "`qm:party:{partyId}` 의 `HGETALL` · `HEXISTS` 만" 은 P-47 과 같이 그 폴더에서 고친다.
+
+### D-57. 차단 관계를 Redis 집합으로 — platform 이 쓰고 matching 이 합류 Lua 에서 읽는다 · matching 은 DB 를 쓰지 않는다 (D-34 · D-41 개정, 2026-10-02)
+
+> **프로젝트 소유자가 정했다**(2026-10-02 — "지금 하자 · platform 하고 matching 도 니가 고치고 테스트 돌려서 확인해"). 쓰는 쪽(`app:platform`)과
+> 읽는 쪽(이 앱)을 같은 날 각자의 폴더에서 따로 고쳤다 — 이 항목은 읽는 쪽의 기록이고, 이 항목을 적을 때 platform 쪽 커밋은 확인하지 않았다.
+> **쓰는 쪽 사실의 원본은 `../platform/contracts/platform-api.md` 의 P-52 다**(쓰는 때 · 재구성 주기). 이 앱 쪽 원본은 `redisKeys/SharedKeys.BLOCK_REL_PREFIX` 와
+> 세 게임의 `join-party*.lua` 다. 코드는 커밋 `2b90277`.
+> **D-34 · D-41 의 본문은 고치지 않았다** (이 파일은 기록이다) — 머리에 한 줄만 달았다.
+
+**원안(D-34 · D-41).** 이 앱은 DB 에서 `public.blocks` 하나를 읽는다(D-34 결정 5 — 권한이 아니라 약속). INV-6 은 배정 때의 **선필터 한 겹**이다 —
+`*CandidateRule#canJoin()` 이 락을 잡기 전에 `BlockRepository#findBlockedUserIds` 로 내 차단 목록을 한 번 읽고, 찾기 스크립트가 돌려준 후보 파티의 멤버를
+`ScriptSupport#blockedWith` 로 자바에서 거른 뒤 합류 스크립트를 부른다(D-41). 그 하나 때문에 JPA · H2 · PostgreSQL 드라이버 · `spring.datasource`(Hikari) ·
+`spring.jpa` · `schema.sql`(로컬 H2 에 `blocks` 를 흉내 내는 파일) · readiness 그룹의 `db` 가 있었다.
+
+**결정.**
+
+1. **키 `qm:user:block-rel:{userId}` — Redis SET.** member 는 그 사용자와 **어느 방향으로든** 차단 관계인 사용자 번호(십진 문자열). 원본은 여전히 platform 의
+   `blocks` 표이고 이 집합은 그 사본이다.
+2. **쓰는 것은 `app:platform` 하나다**(P-52) — 차단할 때 양쪽 집합에 넣고(대칭 — A 의 집합에 B, B 의 집합에 A), 해제할 때 뺀다. 쓰는 순서는 DB → Redis 이고
+   DB 트랜잭션 안에서 한다. 부팅할 때와 5분마다 `blocks` 표에서 다시 만들어 어긋남을 거둔다.
+3. **이 앱은 읽기만 한다 — `SISMEMBER` 하나.** 세 게임의 합류 스크립트 6개(`{lol,pubg,valorant}/join-party.lua` · `join-party-tiered.lua`)가 **들어오려는 사람의**
+   집합 키를 KEYS 의 마지막(`KEYS[#KEYS]`)으로 받아, 멤버를 `HSET` 하기 **전에** 파티 HASH 의 `member:*` 필드마다 `SISMEMBER` 하고 하나라도 1 이면
+   **아무것도 쓰지 않고 `{ -3, '', 0 }`** 을 돌려준다(세 게임 같은 번호 — 기존 `1` · `2` · `-1` · `-2` 와 겹치지 않는다). 키가 없으면 "관계 없음" 이다.
+   내가 이미 그 파티의 멤버면(페일오버 뒤 재실행) 보지 않는다 — 이미 들어간 나를 돌려보내면 자바가 다음 후보에 또 넣는다.
+   찾기 스크립트(`create-or-check-party-*.lua`)에는 그 키를 넘기지 않는다 — 혼자 새 파티를 만들거나 후보를 돌려주기만 하는 자리라 견줄 상대가 없다
+   (그 파일들은 "차단 검증은 자바가" 라는 주석만 고쳤다).
+4. **자바는 `-3` 을 옛 선필터가 거르던 것과 같게 다룬다** — 그 파티는 색인에 그대로 있으니 다음 후보(`start + 1`)를 보고, `MAX_CANDIDATE_SCAN`(20)을 다 보면
+   새 파티를 만든다. `ScriptSupport.BLOCKED = -3`, 각 `*Assigner#joinParty` 가 반환 코드를 돌려주고 `joinKeys()` 가 찾기 판 KEYS 끝에 `SharedKeys.blockRelKey(나)` 를 붙인다.
+5. **이 앱은 DB 를 쓰지 않는다.** `block/` 패키지(`Block` · `BlockRepository` · `BlockedUsers`) · `ScriptSupport#blockedWith` · `backend/src/main/resources/schema.sql` 을
+   지웠고, `build.gradle` 에서 `spring-boot-starter-data-jpa` · `h2` · `postgresql`, `application.yaml` 에서 `spring.datasource`(Hikari 포함) · `spring.sql.init` ·
+   `spring.jpa` 를 뺐다. readiness 그룹은 `readinessState,redis` 다 — 없는 기여자 `db` 를 남기면 기동이 실패한다. 환경변수 `DB_URL` · `DB_USER` · `DB_PASSWORD` 는 없어졌다.
+6. **최근 거절 기록(D-45)은 자바에 남는다** — `*CandidateRule#canJoin` 이 락 밖에서 `qm:user:declined:{나}` 를 한 번 읽고 `ScriptSupport#declinedWith`(옛 `blockedWith` 의 자리)로
+   거른다. 불변식이 아니고 풀리는 시각(score)을 지금과 견줘야 해서 이번에 옮기지 않았다. 그래서 찾기와 합류가 두 스크립트로 나뉜 채이고 그 틈은 여전히 후보 풀 락이 막는다.
+7. **"확정 직전 최종 검증은 두지 않는다"(D-41 의 결정)는 그대로다** — 같은 파티에 들어온 뒤 생긴 차단은 여전히 잡지 않는다(D-41 · D-55 의 창).
+
+**근거.**
+
+- **배포 점검(2026-10-02) — 이 앱의 DB 는 `blocks` 한 번 읽기뿐이었다.** 그 하나 때문에 RDS 자격 증명(Secrets Manager) · 보안 그룹 규칙 · Hikari 풀 · JPA 기동 비용 ·
+  H2 흉내(`schema.sql`) · readiness 의 `db` 가 따라왔고, 로컬에서 `blocks` 가 없으면 배정이 조용히 실패하는 함정(옛 `START_HERE.md` §2 "주의")도 있었다.
+  이제 이 앱은 Redis 하나만 본다 — ECS 태스크 정의에서 DB 환경변수 · 시크릿이 통째로 빠진다.
+- **선필터 한 겹이던 INV-6 이 원자적이 됐다.** 옛 방식은 "DB 에서 목록 읽기 → (락) → 찾기 Lua → 자바 판단 → 합류 Lua" 라 확인과 쓰기가 다른 실행이었다
+  (`GET → 판단 → SET` 꼴이고 그 틈을 후보 풀 락이 막았다). 지금은 확인과 `HSET` 이 한 Lua 실행 안이다(CLAUDE.md §4 원자성 규칙).
+  락 밖의 DB 왕복(정상이면 한 자릿수 ms, 최악이면 Hikari 대기 300ms + 쿼리 상한 500ms)도 없어졌다.
+- **"Lua 안에 후보 순회 루프 금지"(#33)에 걸리지 않는다** — 도는 것은 후보 풀이 아니라 이미 고른 파티 하나의 필드(정원 ≤ 5 명 + 메타 몇 개)다.
+- **키 모양은 이미 있던 관례를 따른다** — 사용자 단위 키는 `qm:user:*`(`active-request` · `active-room` · `declined`)이고, 남이 쓰고 이 앱이 보기만 하는 키는
+  `ACTIVE_ROOM_PREFIX` 처럼 `SharedKeys` 에 두고 원본을 적는다. Lua 에는 리터럴로 없고 KEYS 로 넘어간다.
+
+**감수하는 것.**
+
+- **Redis 의 집합은 사본이다.** platform 이 DB 에 쓰고 Redis 에 쓰기 전에 죽거나, Redis 가 장애 조치로 마지막 ms 의 쓰기를 잃으면(비동기 복제) 그 차단이 집합에 없다 —
+  platform 의 다음 재구성(부팅 또는 5분 주기)까지가 창이다. 그 사이 두 사람이 같은 파티가 될 수 있다. D-41 이 이미 감수한 "같은 파티에 들어온 뒤의 차단" 과 같은 종류의
+  분 단위 창이다.
+- **outbox 는 두지 않는다.** 쓰는 순서를 DB → Redis(트랜잭션 안)로 하고 부팅 · 주기 재구성으로 거두는 것으로 충분하다고 봤다 — D-42 가 이 시스템에 outbox · 큐를
+  두지 않기로 한 것과도 맞다.
+- **대칭은 platform 이 지킨다.** 이 앱은 들어오는 사람의 집합만 본다 — platform 이 한쪽에만 넣으면 누가 먼저 큐에 들어오느냐에 따라 절반을 못 막는다
+  (`concurrency/BlockRelationTest` 가 그 사실을 테스트 이름으로 적었다). 한쪽만 고치면 컴파일도 테스트도 통과한 채 조용히 깨지는 앱 사이의 약속이 하나 늘었다 —
+  키 이름 · 대칭 · member 가 사용자 번호의 십진 문자열이라는 것. 대조 테스트는 없다.
+- **platform 이 집합을 채우지 않으면 차단이 조용히 꺼진다**(키가 없으면 "관계 없음"). 배포는 쓰는 쪽(platform)이 먼저다 — 이 앱이 먼저 나가면 그 사이 INV-6 이 꺼져 있다.
+- Redis 를 못 읽으면 배정이 실패한다 — 매칭 상태가 원래 Redis 라 새로 생기는 장애점은 아니다(INV-10 fail-closed).
+
+**고르지 않은 대안.**
+
+- **프런트가 차단 목록을 매칭 요청에 실어 보낸다** — 클라이언트가 보낸 값을 믿게 된다. 빼고 보내면 INV-6 이 그냥 꺼진다(서버가 지키는 불변식을 클라이언트 손에 맡기는 꼴이다).
+  그리고 "나를 차단한 사람" 은 클라이언트에게 줄 수 없다 — 주면 누가 나를 차단했는지가 샌다.
+- **앱 사이 HTTP(배정 때 matching 이 platform 에 묻는다)** — 앱 사이 동기 호출 금지(루트 `CLAUDE.md` §3 공통)에 걸리고, 배정마다 platform 의 가용성과 지연에 묶인다.
+- **Pub/Sub 으로 차단 변경을 알려 matching 이 자기 사본을 갖는다** — at-most-once 라 놓친 변경을 거둘 길이 따로 필요하고(결국 재구성), 사본이 앱마다 생긴다.
+  platform 이 Redis 에 직접 쓰고 읽는 쪽이 그것을 보면 사본이 하나다 — D-12 가 `BlockChanged.fifo` 를 폐기할 때와 같은 판단이다(큐 없이 저장하면 끝).
+  (옛 D-2 의 Redis 선필터 `qm:block:{userId}` 는 matching 이 쓰고 큐로 갱신하는 모양이었다. 이번에는 원본을 가진 platform 이 쓴다.)
+
+**아직 미정.** 장애 조치 때의 유실 창을 줄이려고 platform 이 차단 쓰기 뒤 `WAIT 1 <ms>` 로 레플리카 확인을 받을지 — 운영 Redis(ElastiCache)의 복제 구성과 같이 정한다.
+이 앱 쪽 미정은 없다.
+
+**영향.**
+
+- **platform** — P-52(쓰는 때 · 대칭 · 부팅 · 5분 재구성). 그 폴더에서 따로 고친다.
+- **루트 `START_HERE.md` §3 · §4 표** — matching 의 DB 칸("`blocks` 읽기 하나")이 "없음" 이 되고, matching 이 읽기만 하는 Redis 키에 `qm:user:block-rel:*`(`SISMEMBER`),
+  platform 이 쓰는 키에 같은 것, 앱 사이의 약속에 그 키 이름 · 대칭이 더해진다(루트 파일은 버전 관리 밖이라 그 자리에서 고친다).
+- **이 앱** — 코드는 `2b90277`(Lua 6 · `create-or-check` 6 의 주석 · `claim-request.lua` 의 60초 근거 주석 · 자바 · `application.yaml` · `build.gradle` ·
+  테스트 `concurrency/BlockRelationTest` 16건 · `AuthenticationApiTest` 의 ready 테스트 이름). 문서는 `CLAUDE.md` §1 · §3 · §4(INV-6 행 · Lua 표 · 회귀 테스트 표) ·
+  `START_HERE.md` · `HANDOFF.md` §0-12 · `docs/AWS_ARCHITECTURE.md` 등의 "지금" DB 서술 · `contracts/README.md` A-21.
+- **#30 "차단 검증 없이 배포하지 않는다"** — 합류 Lua 가 실제로 도는 것과 platform 이 집합을 채우는 것(P-52)으로 충족된다.
+- 이 로그 — D-34 · D-41 머리에 한 줄, 파일 머리의 "낡은 항목 주의" 에 한 덩어리를 달았다. 본문은 고치지 않았다.
 
 ---
 
