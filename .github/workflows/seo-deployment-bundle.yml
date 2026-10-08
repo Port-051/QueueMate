@@ -1,0 +1,68 @@
+name: Export SEO preview deployment
+on:
+  push:
+    branches: [feat/seo-landing]
+    paths: ['.github/workflows/seo-deployment-bundle.yml']
+permissions:
+  contents: write
+concurrency:
+  group: seo-deployment-bundle
+  cancel-in-progress: false
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify reviewed source
+        working-directory: landing
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm test
+          npm run build
+          npm run export:preview
+      - name: Publish isolated static bundle for Vercel import
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          BUNDLE="$RUNNER_TEMP/qmate-static"
+          mkdir -p "$BUNDLE"
+          cp -R landing/dist/. "$BUNDLE/"
+          cp landing/preview.html "$BUNDLE/index.html"
+          export BUNDLE
+          node --input-type=module <<'NODE'
+          import {readFile, writeFile} from 'node:fs/promises';
+          import {createHash} from 'node:crypto';
+          const directory = process.env.BUNDLE;
+          const html = await readFile(`${directory}/index.html`, 'utf8');
+          if (!html.includes('content="noindex, nofollow"')) throw Error('Preview must stay noindex');
+          if (html.includes('href="https://app.q-mate.com')) throw Error('App connection must stay off');
+          if (html.includes('rel="stylesheet"') || /<img[^>]+src="\//.test(html)) throw Error('Import HTML must be self-contained');
+          const config = {headers: [{source: '/(.*)', headers: [
+            {key: 'X-Robots-Tag', value: 'noindex, nofollow'},
+            {key: 'X-Content-Type-Options', value: 'nosniff'},
+            {key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin'}
+          ]}]};
+          await writeFile(`${directory}/vercel.json`, JSON.stringify(config, null, 2) + '\n');
+          await writeFile(`${directory}/DEPLOYMENT_SOURCE.json`, JSON.stringify({
+            repository: process.env.GITHUB_REPOSITORY,
+            sourceCommit: process.env.SOURCE_SHA,
+            indexSha256: createHash('sha256').update(html).digest('hex'),
+            purpose: 'Unindexed preview; custom domain and app connection are not enabled'
+          }, null, 2) + '\n');
+          NODE
+          BRANCH="deploy/seo-landing-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git switch --orphan "$BRANCH"
+          cp -R "$BUNDLE"/. .
+          git add index.html 404.html robots.txt llms.txt assets vercel.json DEPLOYMENT_SOURCE.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'build(frontend): 검증된 랜딩의 미리보기 배포 파일 생성'
+          git push origin "HEAD:refs/heads/$BRANCH"
+          echo "Deployment branch: $BRANCH" >> "$GITHUB_STEP_SUMMARY"
+          echo "Source commit: $SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Import URL: https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${BRANCH}/index.html" >> "$GITHUB_STEP_SUMMARY"

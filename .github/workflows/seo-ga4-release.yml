@@ -1,0 +1,72 @@
+name: Deploy GA4 on the existing lobby landing
+on:
+  push:
+    branches: [feat/seo-landing]
+    paths: ['.github/workflows/seo-ga4-release.yml']
+permissions:
+  contents: read
+  statuses: write
+concurrency:
+  group: seo-domain-setup
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.repository == 'Port-051/QueueMate' && github.actor == 'shj5771' && github.triggering_actor == 'shj5771'
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: b9f49db14b875ef58f8cabe39adfa6a6a6242bf8
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Test analytics with the preserved lobby design
+        working-directory: landing
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm test
+          BUILD_TARGET=production npm run build
+      - name: Prepare reviewed deployment with live HTML and CSS guards
+        run: |
+          python3 - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          source = Path('.github/workflows/seo-ga4-release.yml').read_bytes()
+          assert hashlib.sha1(f'blob {len(source)}\0'.encode() + source).hexdigest() == 'b089dea410ab6104cf19275b38a7c28b38596bfd', 'Release template changed'
+          lines = source.decode().splitlines()
+          start = next(i for i,l in enumerate(lines) if 'cat > "$RUNNER_TEMP/ga4-release.mjs"' in l) + 1
+          end = next(i for i in range(start,len(lines)) if lines[i] == '          NODE')
+          script = '\n'.join(l[10:] for l in lines[start:end]) + '\n'
+          old = "source:'a59a427f5618f1de0a02a91ec610daf90b4480cd'"
+          assert script.count(old) == 1
+          script = script.replace(old, "source:'b9f49db14b875ef58f8cabe39adfa6a6a6242bf8'")
+          old = "assert.equal(body(root.text),body(local),'LIVE_BODY_DIFFERS: preserve live design; no deployment');"
+          new = "assert.ok(body(root.text)===body(local),'LIVE_BODY_DIFFERS: preserve live design; no deployment');\nfor(const file of ['assets/site.css','assets/concise.css']){const live=await page(T.origin+file);assert.equal(live.status,200);assert.ok(live.text===await readFile('landing/dist/'+file,'utf8'),'LIVE_CSS_DIFFERS: preserve live design; no deployment');}"
+          assert script.count(old) == 1
+          script = script.replace(old,new)
+          Path(os.environ['RUNNER_TEMP'],'ga4-release.mjs').write_text(script)
+          PY
+          node --check "$RUNNER_TEMP/ga4-release.mjs"
+          QMATE_TEST_ONLY=1 node "$RUNNER_TEMP/ga4-release.mjs"
+      - name: Install official Vercel CLI
+        run: npm install --prefix "$RUNNER_TEMP/ga4-cli" --no-audit --no-fund vercel@latest
+      - name: Check live design, request approval and deploy GA4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node "$RUNNER_TEMP/ga4-release.mjs"
+      - name: Clear temporary Vercel authorization
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/ga4-auth/auth.json" ]; then
+            timeout 20 "$RUNNER_TEMP/ga4-cli/node_modules/.bin/vercel" logout --global-config "$RUNNER_TEMP/ga4-auth" --no-color >/dev/null 2>&1 || true
+          fi
+          rm -rf "$RUNNER_TEMP/ga4-auth"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: seo-ga4-deployment
+          path: ${{ runner.temp }}/ga4-audit/
+          if-no-files-found: ignore
+          retention-days: 7
