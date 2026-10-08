@@ -1,0 +1,14 @@
+/* 승 · 패 막대(components/WinLossBar.tsx) — OP.GG 의 "201승 | 216패  48%". 승은 파랑, 패는 빨강, 승률은 공통 PerformanceValue 색상 구간이다. */
+.win-loss { --wl-h:20px; --wl-font:11px; --wl-rate:13px; --wl-pad:7px; display:flex; align-items:center; gap:8px; width:100%; max-width:300px; min-width:0; }
+.win-loss[data-size="sm"] { --wl-h:18px; --wl-font:11px; --wl-rate:13px; --wl-pad:6px; gap:7px; }
+.win-loss[data-size="lg"] { --wl-h:24px; --wl-font:12.5px; --wl-rate:17px; --wl-pad:9px; gap:10px; }
+.win-loss-bar { position:relative; display:flex; flex:1; min-width:96px; height:var(--wl-h); overflow:hidden; border-radius:5px; background:#e84057; }
+/* 칸의 폭은 승 : 패(flex-grow 가 그 수다). 최소 폭은 글자(max-content) — 한쪽이 아주 적어도 글자가 잘리지 않는다. */
+.win-loss-seg { display:flex; align-items:center; flex:0 1 0px; min-width:max-content; padding:0 var(--wl-pad); color:#fff; font-size:var(--wl-font); font-weight:650; line-height:1; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.win-loss-seg.is-win { justify-content:flex-start; background:#5383e8; }
+/* 흰 글자가 읽히게 위험색을 조금 어둡게(#ff5d6c 그대로면 흰 글자 대비가 3 에 못 미친다). */
+.win-loss-seg.is-loss { justify-content:flex-end; background:#e84057; }
+.win-loss-zero { position:absolute; top:0; bottom:0; display:flex; align-items:center; color:#ffffffc4; font-size:var(--wl-font); font-weight:650; line-height:1; font-variant-numeric:tabular-nums; white-space:nowrap; pointer-events:none; }
+.win-loss-zero.is-win { left:var(--wl-pad); }
+.win-loss-zero.is-loss { right:var(--wl-pad); }
+.win-loss-rate { flex:none; min-width:3ch; font-size:var(--wl-rate); font-weight:700; line-height:1.2; font-variant-numeric:tabular-nums; text-align:right; }

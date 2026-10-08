@@ -1,0 +1,118 @@
+/* 데스크톱(1100px 이상)은 게시판과 우측 방 패널을 함께 표시한다.
+   좁은 화면은 방이 본문을 덮고 "게시판으로"로 돌아간다. 방 안의 다섯 좌석과 클릭 상세는 mentor-room.css에서 정한다. */
+.board-split { display:flex; align-items:flex-start; min-width:0; }
+.board-split-board { flex:1 1 0; min-width:0; }
+.room-panel {
+  /* 1440px에서 게시판 약 734px · 방 약 626px. 양쪽 카드의 정보를 함께 읽을 폭을 확보한다. */
+  --room-panel-w:var(--room-panel-width, clamp(480px, calc((100vw - var(--sidebar-rail-w)) * .46), 680px));
+  position:sticky; top:0; flex:0 0 var(--room-panel-w); min-width:0; height:100vh; height:100dvh; overflow:hidden;
+  border-left:1px solid #ffffff14; background:#0d0f19; box-shadow:none;
+  animation:room-panel-open .32s cubic-bezier(.22,.8,.25,1);
+}
+.room-panel-inner { container:room-panel / inline-size; display:flex; flex-direction:column; width:var(--room-panel-w); height:100%; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#3b3f52 transparent; animation:room-panel-slide .32s cubic-bezier(.22,.8,.25,1); }
+.room-panel.is-closing { animation:room-panel-close .26s cubic-bezier(.4,0,.6,1) forwards; }
+@keyframes room-panel-open { from { flex-basis:0; } }
+@keyframes room-panel-close { from { flex-basis:var(--room-panel-w); } to { flex-basis:0; } }
+@keyframes room-panel-slide { from { transform:translateX(40px); opacity:0; } }
+@keyframes room-panel-sheet-in { from { transform:translateX(100%); } }
+@keyframes room-panel-sheet-out { to { transform:translateX(100%); } }
+/* 방에 있는 동안은 자동 매칭을 시작할 수 없다 — 넓은 화면에서 게시판이 좁아지면 맨 위 자동 매칭 판을 접는다(판의 상태는 남는다 — 가리기만).
+   게시판은 340 ~ 480px 이라 카드가 폰 폭 모양(좌석 원 다섯 칸 — `room-board.css` "좌석 줄")이 된다 — 여백을 줄여 카드에 폭을 준다. */
+@media (min-width:1100px) {
+  .board-split.has-room .room-match-top { display:none; }
+  .board-split.has-room .room-home.board-home { padding-inline:16px; }
+  /* 게시판 폭을 보는 질의(`board`) — 넓은 화면의 방 패널이 열렸을 때만 건다(컨테이너는 고정 위치 자식의 기준이 돼 좁은 화면의 떠 있는 "방으로 돌아가기" 를 붙잡는다).
+     게시판이 420px 이하(1760 아래 전부)면 폰 폭과 같이 모드 필터의 그림을 뺀다 — 그림이 있으면 "일반" 이 잘려 옆으로 밀어야 보였다. */
+  .board-split.has-room .board-split-board { container:board / inline-size; }
+}
+@container board (max-width:420px) {
+  .room-home .room-filters .board-mode-options .filter-mode-symbol { display:none; }
+}
+/* 좁은 게시판(340 ~ 480px)의 카드는 늘 폰 폭 모양(좌석 원 다섯 칸)이다 — 카드 · 좌석의 옆 여백을 줄여 칸에 폭을 준다(카드 18 → 12px · 폰 폭 카드와 같은 값 · 좌석 4 → 0px(틀은 투명한 1px 뿐이다).
+   340 에서 닉네임 칸 41 → 52px — 일곱 글자 "demo-10" 까지 잘리지 않는다. 그보다 긴 닉네임은 전처럼 말줄임). 좁은 화면(1100 아래 · 폰)의 카드는 이 질의가 없어 그대로다. */
+@container board (max-width:480px) {
+  .board-split .room-deck.room-row { padding-inline:12px; }
+  .board-split .room-seat-button { padding-inline:0; }
+}
+
+/* "게시판으로" — 좁은 화면에서만(넓은 화면은 게시판이 옆에 보인다). 패널 맨 위에 붙어 있다. */
+.room-panel-bar { position:sticky; top:0; z-index:2; display:none; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid #ffffff10; background:#0d0f19f0; backdrop-filter:blur(6px); }
+.room-panel-back { display:inline-flex; align-items:center; gap:6px; min-height:40px; padding:0 16px 0 10px; border:1px solid #ffffff24; border-radius:999px; background:#1b1d29; color:#ece8f6; font:inherit; font-size:14px; font-weight:650; cursor:pointer; }
+.room-panel-back:hover { background:#252838; }
+.room-panel-back:focus-visible { outline:2px solid #c5a5ff; outline-offset:2px; }
+.room-panel-bar-note { color:#8f8aa0; font-size:12px; }
+
+/* 패널 안의 화면(방 `PartyRoomPage` · 자동 매칭의 제안 `ProposalPage`). 방은 늘 한 열(음성 칸 — 좌석 줄 · 채팅)이고 제안은 좁으면 한 열이다. */
+.room-panel .page { max-width:none; margin:0; padding:22px 24px 40px; }
+.room-panel .proposal-page .page-grid { display:flex; flex-direction:column; gap:16px; }
+.room-panel .proposal-page .page-grid > * { width:100%; }
+.room-panel .proposal-page .rail { position:static; display:grid; grid-template-columns:minmax(0,1fr); }
+.room-panel .page-head { margin-bottom:16px; }
+.room-panel .page-head h1 { font-size:22px; overflow-wrap:anywhere; }
+.room-panel .page > .page-head h1 { min-height:0; padding-right:0; }
+.room-panel .page-head.row-between { flex-wrap:wrap; align-items:flex-start; }
+
+/* 넓은 패널(760px 이상 — 1440 이면 1020px) — 제안은 두 열(왼쪽 제안 · 오른쪽 조건), 방은 채팅을 높인다. */
+@container room-panel (min-width:760px) {
+  .room-panel .proposal-page .page-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,300px); align-items:start; gap:20px; }
+}
+
+@media (max-width:1099.98px) {
+  .room-panel { position:fixed; inset:0; z-index:25; flex:none; width:auto; height:auto; border-left:0; box-shadow:none; animation:room-panel-sheet-in .3s cubic-bezier(.22,.8,.25,1); }
+  .room-panel-inner { width:auto; animation:none; }
+  .room-panel.is-closing { animation:room-panel-sheet-out .24s cubic-bezier(.4,0,.6,1) forwards; }
+  .room-panel-bar { display:flex; }
+  .room-panel .page { padding:18px 16px 36px; }
+  /* 게시판에서 방으로 돌아가는 길 — 아래에 떠 있는 한 줄(방 패널이 닫혀 있을 때만 있다 — `RoomBoardHome`). */
+  .room-home .room-return-banner { position:fixed; left:16px; right:16px; bottom:16px; z-index:20; justify-content:center; margin:0; padding:12px 16px; border:1px solid #7955d9; border-radius:999px; background:#2d2242; box-shadow:0 10px 30px #000a; }
+  .room-home:has(.room-return-banner) { padding-bottom:88px; }
+}
+/* 사이드바가 보이는 폭 — 덮는 패널 · 떠 있는 줄은 사이드바를 비켜 선다(사이드바를 펼치면 그 위로 온다). */
+@media (min-width:768px) and (max-width:1099.98px) {
+  .room-panel { left:var(--sidebar-rail-w); }
+  .room-home .room-return-banner { left:calc(var(--sidebar-rail-w) + 16px); }
+}
+@media (prefers-reduced-motion:reduce) {
+  .room-panel,.room-panel-inner { animation:none; }
+  .room-panel.is-closing { display:none; }
+}
+
+/* 상단 조건·좌석 한 줄 아래의 남은 공간은 방 채팅이 채운다. */
+.room-panel .page.party-page { display:flex; flex-direction:column; flex:1; min-height:0; padding:16px 18px 12px; }
+.room-panel .party-page > :not(.room-conversation-chat) { flex-shrink:0; }
+.room-panel-bar { flex-shrink:0; }
+.party-room-header { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:14px; }
+.party-room-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; flex:1; min-width:0; }
+.party-room-heading h1 { flex:1; min-width:0; font-size:16px; line-height:1.5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.party-room-heading .room-row-meta { flex:none; justify-content:flex-end; flex-wrap:nowrap; gap:12px; margin:0; font-size:12px; white-space:nowrap; }
+.party-room-heading .room-row-meta>span+span::before { content:none; }
+.party-room-description { margin-bottom:10px; font-size:12px; }
+@media(max-width:480px) {
+  .room-panel .page.party-page { padding:12px 10px; }
+}
+
+
+/* 좌석 아래의 통화 제어: 실제 마이크 상태의 색과 은은한 배경을 함께 쓴다. */
+.party-room-call-controls { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 0 18px; }
+.party-room-call-controls .room-mic-toggle,.party-room-call-controls .party-room-leave,.party-room-call-controls .room-settings-toggle { display:inline-flex; align-items:center; justify-content:center; flex:none; gap:6px; height:40px; min-height:40px; padding:0 16px 0 12px; border:1px solid; border-radius:999px; font:inherit; font-size:13px; font-weight:600; white-space:nowrap; box-shadow:none; cursor:pointer; }
+.party-room-call-controls .room-mic-toggle.is-off { color:#ff9daa; border-color:#f36b7b50; background:#f36b7b12; }
+.party-room-call-controls .room-mic-toggle.is-on { color:#83e8ba; border-color:#5fe3a850; background:#5fe3a812; }
+.party-room-call-controls :is(.room-mic-toggle,.party-room-leave):hover:not(:disabled) { filter:brightness(1.15); }
+.party-room-call-controls .party-room-leave { margin-left:auto; width:40px; padding:0; border-radius:50%; color:#ff9b9b; border-color:#743b40; background:#26181a; }
+.party-room-call-controls .party-room-leave:hover:not(:disabled) { border-color:#743b40; }
+.party-room-call-controls .party-room-leave:focus-visible { outline-color:#ee6a6a; }
+.party-room-call-controls button:focus-visible { outline:2px solid var(--accent-2); outline-offset:3px; }
+.party-room-call-controls button:disabled { opacity:.5; cursor:default; }
+@media(max-width:480px) { .party-room-heading { gap:8px; } .party-room-heading .room-row-meta { gap:8px; } }
+
+/* The transparent hit area overlaps the boundary without consuming layout space. */
+.room-panel-resizer { position:sticky; top:0; z-index:26; flex:0 0 12px; margin-inline:-6px; height:100vh; height:100dvh; cursor:col-resize; touch-action:none; outline:none; background:transparent; }
+.room-panel-resizer::before { content:''; position:absolute; top:50%; left:50%; width:4px; height:40px; border-radius:999px; background:#ffffff32; transform:translate(-50%,-50%); transition:background .15s; }
+.room-panel-resizer:is(:hover,:focus-visible)::before,.board-split.is-resizing .room-panel-resizer::before { background:#fff; }
+.room-panel-resizer:focus-visible::before { outline:1px solid #fff; outline-offset:3px; }
+.board-split.is-resizing { cursor:col-resize; user-select:none; }
+@media(max-width:1099.98px) { .room-panel-resizer { display:none; } }
+
+.party-room-call-controls { justify-content:flex-start; flex-wrap:wrap; }
+.party-room-call-controls .room-settings-toggle { color:#c8c1d5; border-color:#ffffff26; background:#ffffff07; }
+.party-room-call-controls .room-settings-toggle:hover:not(:disabled) { border-color:#ffffff40; background:#ffffff12; color:var(--text); }

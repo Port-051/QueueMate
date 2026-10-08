@@ -1,0 +1,209 @@
+spring:
+  application:
+    name: platform
+
+  # 설정은 전부 환경변수 + 기본값이다 (CLAUDE.md §5).
+  #
+  # 기본 포트가 5433 · 6380 인 이유 — 이 컴퓨터의 5432 · 6379 는 다른 프로젝트(queuemate-v2-*)의 것이다 (CLAUDE.md §9).
+  # 기본값은 로컬 테스트용 컨테이너에 맞춰 두었다 (START_HERE.md §6). 배포 환경에서는 환경변수로 덮는다.
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:queuemate}
+    # 로컬 테스트용 컨테이너의 계정이다. 운영에서 이 앱이 붙는 DB 계정은 환경변수로 넣는다 — 앱 하나가 롤 하나로 붙고 스키마별 롤은 두지 않는다 (CLAUDE.md §3.5).
+    # 그 계정의 이름과 권한, 마이그레이션 계정과 나눌지는 아직 미정이다 (CLAUDE.md §7 "운영의 DB 롤")
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+
+  jpa:
+    hibernate:
+      # 스키마는 Flyway 가 만든다. Hibernate 는 엔티티와 테이블이 맞는지 검증만 한다
+      ddl-auto: validate
+    # 컨트롤러 · 뷰까지 커넥션을 붙잡고 있지 않게 한다
+    open-in-view: false
+
+  flyway:
+    # 테이블은 전부 public 스키마 하나에 있다 (2026-09-26 소유자 결정 — 스키마 하나 · JOIN · FK 허용). 옛 V1~V8 을 V1__schema.sql 하나로 합쳤다.
+    # 이미 적용된 파일은 고치지 않는다(체크섬) — 바꿀 것은 새 버전(V2 …)으로 쓴다.
+    locations: classpath:db/migration
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6380}
+      timeout: 2s
+
+server:
+  # matching 8080, notification 8081 다음이다. 로컬에서 같이 띄우려면 달라야 한다 (8082 확정 — 2026-09-21).
+  # room(8083)은 2026-09-25 에 이 앱에 합쳤다 — 방의 요청(/api/v1/rooms/**)도 이 포트가 받는다
+  port: ${SERVER_PORT:8082}
+  # 종료 신호를 받으면 처리 중인 요청을 끝내고 내려간다 (docs/11 #20 "단계가 바뀌어도 안 바뀌는 것")
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      # actuator 를 /actuator 아래가 아니라 루트에 둔다 — CLAUDE.md §5 가 적은 주소 /health/live · /health/ready 를 맞추려는 것이다.
+      # (health 그룹의 additional-path 는 /livez 처럼 한 마디짜리 주소만 받아서 /health/live 를 만들 수 없었다.)
+      # 이 앱에는 /actuator/… 주소가 없다
+      base-path: /
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      # 컨테이너가 살아 있는지(liveness)와 요청을 받을 준비가 됐는지(readiness)를 따로 본다.
+      # 이것이 livenessState · readinessState 를 켠다. /health/liveness · /health/readiness 로도 답한다
+      probes:
+        enabled: true
+      group:
+        # /health/live · /health/ready.
+        # readiness 에 DB 를 넣는다 — DB 에 못 붙으면 가입도 로그인도 안 되니 요청을 받을 준비가 안 된 것이다.
+        # Redis 는 넣지 않는다 — Redis 가 죽어도 로그인은 된다(알림 발행은 실패해도 본 작업을 뒤집지 않는다 — CLAUDE.md §3.2).
+        # liveness 에는 아무것도 더하지 않는다 — DB 가 죽었다고 컨테이너를 다시 띄워 봐야 낫지 않는다
+        live:
+          include: livenessState
+        ready:
+          include: readinessState,db
+
+# 인증과 브라우저 쪽 설정. 환경변수의 이름과 기본값은 contracts/platform-api.md "공통" · "access 토큰" 이 원본이다
+platform:
+  jwt:
+    # RS256. 개인 키(PKCS#8 PEM)는 이 앱만 갖고, 공개 키(X.509 PEM)는 옆 서비스도 받는다 (CLAUDE.md §5.1 (가)).
+    # 둘 다 비어 있으면 dev-key-dir 의 개발용 키를 읽는다(경고 로그 — 파일이 없으면 아래 generate-dev-keys 가 true 일 때만 만든다).
+    # 하나만 주면 기동하지 않는다. 운영에서는 반드시 둘 다 넣는다 (Secrets Manager)
+    private-key: ${JWT_PRIVATE_KEY:}
+    public-key: ${JWT_PUBLIC_KEY:}
+    # JWT 헤더의 kid. 키를 바꿀 때 값을 올린다
+    key-id: ${JWT_KEY_ID:dev-1}
+    # access 의 수명이자 쿠키 qm_access 의 Max-Age 다. 짧다 — denylist 를 두지 않아(CLAUDE.md §5.1 (라)) 이미 나간 access 를
+    # 서버가 무효화할 수 없고, 짧은 수명이 그 창이다. 이어 주는 것은 refresh 다 (2026-09-23 소유자 결정)
+    access-token-ttl: ${ACCESS_TOKEN_TTL:PT15M}
+    # refresh 의 수명이자 쿠키 qm_refresh 의 Max-Age 다 — 7일. JWT 가 아니라 불투명 UUID 이고 Redis(qm:auth:refresh:{uuid})에 둔다.
+    # 재발급(POST /api/v1/auth/refresh)이 쓴 값을 즉시 버리고 새것을 준다(rotation) — 그래서 이 값이 곧 "다시 로그인하지 않고 버티는 기간"이다
+    refresh-token-ttl: ${REFRESH_TOKEN_TTL:P7D}
+    # 작업 디렉터리 기준이다 — backend/ 에서 띄우면 backend/.dev-keys/ (.gitignore 에 있다).
+    # 옆 서비스는 그 폴더의 public.pem 으로 검증한다. 테스트는 임시 폴더를 쓴다 (src/test/resources/config/application.yaml)
+    dev-key-dir: .dev-keys
+    # 키도 dev-key-dir 의 파일도 없을 때 개발용 키를 새로 만드는가 (2026-10-02 소유자 결정 · contracts/platform-api.md P-51).
+    # 기본 false — 컨테이너에는 파일이 없어 키를 빠뜨리면 재시작마다 · 태스크마다 다른 키가 생긴다. 그래서 만들지 않고 기동을 거부한다.
+    # 로컬에서 처음 한 번(또는 .dev-keys/ 를 지운 뒤)만 true 로 띄운다. 파일이 있으면 이 값과 상관없이 읽는다. 운영에서는 두지 않는다
+    generate-dev-keys: ${JWT_GENERATE_DEV_KEYS:false}
+  web:
+    # 상태를 바꾸는 요청(POST/PUT/PATCH/DELETE)에 허용하는 Origin. 쉼표로 구분한다. 운영은 CloudFront 도메인 하나다.
+    # CORS 설정이 아니다 — CORS 는 넣지 않는다(프런트 개발 서버의 프록시가 같은 출처로 만든다 — CLAUDE.md §5.1 (사))
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+    # access 쿠키의 Secure. 운영은 true. 로컬은 http 라서 켜면 브라우저가 쿠키를 버린다
+    cookie-secure: ${COOKIE_SECURE:false}
+  # TEMP-DEV-LOGIN — 개발용 로그인(POST /api/v1/auth/dev-login — 2026-09-29 소유자 결정 · contracts/platform-api.md P-34).
+  # 소셜 앱 키가 없어 로그인할 수 없는 동안 임시로 연다. 켜면 누구든 아무 닉네임의 사용자로 진짜 쿠키(access · refresh)를 받는다 —
+  # 운영에서는 두지 마라. 기본 false 이고 꺼져 있으면 그 경로는 없는 경로와 같은 404 다. 걷어낼 때는 grep -rn TEMP-DEV-LOGIN 이 가리키는 것을 전부 지운다
+  auth:
+    dev-login-enabled: ${DEV_LOGIN_ENABLED:false}
+  # 파티 모집 게시판 (contracts/platform-api.md "모집 글 · 목록")
+  # 2026-09-25 2단계로 둘이 빠졌다 — room-ticket-ttl(ROOM_TICKET_TTL — 입장권이 없어졌다) · room-grace(글 쓰기가 방을 같이 만들어 기다려 줄 방이 없다)
+  board:
+    # 차단으로 숨겨진 글 때문에 한 페이지가 limit 에 모자랄 때 그 뒤를 더 읽어 채우는 횟수의 상한이다 (2026-09-23 소유자 결정).
+    # 차단 거르기는 방 안에 누가 있는지를 Redis 에서 읽은 뒤에야 할 수 있어 "읽은 수"와 "보이는 수"가 다르다.
+    # 채우기 한 번이 목록 조립 한 벌(글 쿼리 · Redis 파이프라인 · 프로필 · 차단)이라 무한정 할 수 없다 — 다 써도 모자라면 있는 만큼 내려 준다.
+    # 페이지 크기의 기본값 20 · 상한 100 은 코드의 상수다 (BoardProperties)
+    max-refills: 3
+    # 게시판 방 먼저 합류(POST /api/v1/posts/auto-join — 2026-09-28 · P-28)가 한 번에 보는 후보 글의 상한. 그 게임 · 그 모드의 모집 중인 글을
+    # 오래된 순으로 이만큼만 읽고 그 안에서 고른다 — 다 돌아도 맞는 방이 없으면 404 다. 후보 하나가 방 키 읽기와 입장 스크립트 한 번이라 상한이 없으면
+    # 한 요청이 게시판을 끝까지 훑는다. 이름과 기본값은 Claude 가 정했다
+    auto-join-scan: 50
+  # 차단 (contracts/platform-api.md "차단" · P-52). 2026-10-02 소유자 결정 "차단 관계를 Redis 로 — matching 이 DB 를 안 쓰게" (docs/11 D-57)
+  block:
+    # 차단 관계 사본(Redis SET qm:user:block-rel:{userId})을 blocks 표에서 다시 만드는 주기. 기동 때 한 번은 이 값과 상관없이 한다.
+    # 왜 사본인가 — matching 이 합류 스크립트에서 SISMEMBER 로 읽어 차단한 사람끼리 파티를 만들지 않는다(INV-6). 그래서 matching 은 DB 를 읽지 않는다.
+    #   원본은 blocks 표다 — 차단 · 해제가 같은 트랜잭션에서 사본을 고치고(DB 먼저 · Redis 다음 · 못 고치면 503 으로 되돌린다), 어긋나면 DB 가 맞다.
+    # 왜 5분인가 — 그때그때 고치는 길로 못 맞추는 어긋남(Redis 장애 조치 때 복제가 비동기라 마지막 몇 ms 의 쓰기를 잃는다 · 비어서 뜬 Redis ·
+    #   탈퇴의 정리 실패)이 길어야 이만큼 남는다. 한 번이 표 전체 읽기 + 사용자마다 스크립트 한 번이라(수천 줄 전제) 더 자주 돌릴 까닭이 없다.
+    # PT0S 면 주기적 재구성을 끈다(기동 때 한 번은 그대로). 이름과 기본값은 Claude 가 정했다
+    redis-sync-interval: ${BLOCK_REDIS_SYNC_INTERVAL:PT5M}
+  # 방 안의 일 (contracts/platform-api.md "방"). 2026-09-25 에 room 앱을 합쳤다 — 환경변수 이름은 그쪽의 것 그대로다(계약이다)
+  room:
+    # 시간 경과 자동 마감은 일시 비활성화. 정원 충원 및 방장의 수동 마감은 유지한다.
+    auto-confirm-enabled: ${ROOM_AUTO_CONFIRM_ENABLED:false}
+    # 방 키(방장 키 · 멤버 HASH · 찾는 포지션 SET · 확정 표시 키)와 입장 표시 키의 수명(초). 접속 확인이 올 때마다 다시 건다. 브라우저는 1분마다 신호를 보낸다
+    ttl-seconds: ${ROOM_TTL_SECONDS:600}
+  # 게임 전적 동기화 (Riot API — LoL. 아래 두 수치는 PUBG 도 같이 쓴다). 환경변수의 이름은 contracts/platform-api.md "게임 프로필" 이 원본이다.
+  # 긁는 시점은 둘이다 — ① 게임 계정을 연결 · 수정할 때(저장하기 전에 동기로 — 2026-09-27. 실패하면 저장하지 않는다. PUBG 도 같다 — 2026-09-29)
+  # ② 로그인 · 재발급 때 뒤에서(2026-09-30 소유자 결정 · P-42 — 마지막으로 받은 뒤 stale-after 가 지난 계정만. 응답은 기다리지 않는다).
+  # 사용자가 누르던 전적 갱신(POST …/game-accounts/{game}/refresh — 2026-09-24)과 그 쿨타임(refresh-cooldown · qm:riot:refresh:*)은 ② 로 바꾸며 없앴다.
+  # 모집 글을 쓸 때도 긁던 것은 2026-09-24 에 없앴다(비동기라 글 쓰기 응답에 반영되지 않는데 Riot 호출 20여 번을 쓴다 — 신선도 설정도 함께 없앴다).
+  riot:
+    # 비어 있으면 긁는 일 자체를 하지 않는다 — 기동은 정상이지만 LoL 게임 계정 연결이 503 이고 로그인 때 다시 받지도 않는다(시작할 때 INFO 한 줄을 남긴다).
+    # 운영에서는 Secrets Manager 로 넣는다. 로그에 찍지 않는다 — RiotProperties#toString 이 이 칸을 뺀다
+    api-key: ${RIOT_API_KEY:}
+    # Riot 의 주소는 둘로 갈린다 — 계정(account-v1) · 경기(match-v5)는 대륙 주소, 리그(league-v4 — puuid 로 부른다) · 숙련도는 플랫폼 주소다.
+    # 테스트는 둘 다 가짜 서버로 덮는다
+    regional-base-url: ${RIOT_REGIONAL_BASE_URL:https://asia.api.riotgames.com}
+    platform-base-url: ${RIOT_PLATFORM_BASE_URL:https://kr.api.riotgames.com}
+    # 최근 몇 경기로 평균 · 연승을 낼지. 경기 하나가 요청 하나다 — 기본 10판(2026-09-29 소유자 결정 — 20판에서 줄였다).
+    # 개발용 키의 한도가 지역마다 2분에 100회인데 20판이면 한 번에 24번(대륙 22 · 플랫폼 2)이라 2분에 4명이 한계였다. 10판이면 14번(대륙 12 · 플랫폼 2) — 8명.
+    # 승/패(솔로랭크 시즌 누적 — league-v4)와 모스트 챔피언(통산 숙련도 상위 셋 — 2026-09-30, P-39)은 이 수와 무관하다. 따로 지은 환경변수는 없다 — 바꾸려면 PLATFORM_RIOT_MATCH_COUNT(스프링의 느슨한 바인딩)
+    match-count: 10
+    # Riot 이 느려지면 전용 풀(작다 — GameStatsAsyncConfig)이 묶인다. 짧게 끊는다
+    connect-timeout: PT3S
+    read-timeout: PT3S
+    # 제한 시간: LoL · PUBG 게임 계정 연결(PUT …/game-accounts/{game})이 다 긁기를 기다리는 상한(30초 — 소유자가 정했다).
+    #   넘으면 요청만 503 으로 끊고 늦게 끝난 긁기는 저장하지 않는다. 이름의 refresh 는 옛 전적 갱신 요청(2026-09-24 ~ 09-30)의 흔적이다
+    refresh-timeout: PT30S
+    # 로그인 · 재발급 때 뒤에서 다시 받는 기준(2026-09-30 소유자 결정 — 1시간 · P-42). 마지막으로 받은 때(game_account_stats.synced_at)가
+    #   이보다 오래된 게임 계정만 다시 받는다(전적 줄이 없는 계정도). 게임사 키의 한도를 지키는 바닥이다 — LoL 한 번이 Riot 호출 14번(개발용 키는
+    #   지역마다 2분에 100회) · PUBG 는 키 하나에 분당 10회이고, 재발급은 15분마다 온다. LoL · PUBG 가 같이 쓴다. 이름과 환경변수는 Claude 가 정했다
+    stale-after: ${GAME_STATS_STALE_AFTER:PT1H}
+  # PUBG 전적 · 티어 동기화(PUBG API — 2026-09-29 소유자 결정 "PUBG 티어는 API 로 채우고 LoL 처럼 동기로" · contracts/platform-api.md P-36).
+  # 환경변수의 이름은 contracts/platform-api.md "전적을 긁는 것" 의 PUBG 절이 원본이다. 연결의 상한(30초) · 로그인 때 다시 받는 기준(1시간)은 위 riot 의 두 값을 같이 쓴다(게임을 가리지 않는다).
+  pubg:
+    # 비어 있으면 긁는 일 자체를 하지 않는다 — 기동은 정상이지만 PUBG 게임 계정 연결이 503 이고 로그인 때 다시 받지도 않는다(시작할 때 INFO 한 줄을 남긴다).
+    # 운영에서는 Secrets Manager 로 넣는다. 로그에 찍지 않는다 — PubgProperties#toString 이 이 칸을 뺀다.
+    # 개발용 키의 한도는 분당 10회다(없는 닉네임의 404 도 센다). 올리려면 developer.pubg.com 의 MY APPS → I NEED A HIGHER LIMIT
+    api-key: ${PUBG_API_KEY:}
+    # 테스트는 가짜 서버로 덮는다
+    base-url: ${PUBG_BASE_URL:https://api.pubg.com}
+    connect-timeout: PT3S
+    read-timeout: PT3S
+    # 현재 시즌 번호를 Redis(qm:pubg:season:{shard})에 두는 수명. 문서가 "시즌 목록은 한 달에 한 번보다 자주 부르지 마라" 고 한다 —
+    # 대가로 시즌이 바뀐 뒤 최대 이만큼 지난 시즌을 긁는다(급하면 그 키를 지운다)
+    season-cache-ttl: P30D
+  # 소셜 로그인(카카오 · 디스코드 · 구글 — 구글은 2026-09-29 소유자 결정 · P-33). 환경변수의 이름과 기본값은 contracts/platform-api.md "소셜 로그인" 이 원본이다.
+  # Spring 의 oauth2-client 를 쓰지 않는다(세션을 쓴다) — 인가 코드 흐름을 직접 짰다 (account.oauth.OAuthClient)
+  oauth:
+    # 제공자에 등록하는 Redirect URI 는 이 값 + /api/v1/auth/oauth/{provider}/callback 이다. 운영은 CloudFront 도메인이다
+    redirect-base-url: ${OAUTH_REDIRECT_BASE_URL:http://localhost:8082}
+    # 콜백이 끝나고 브라우저를 돌려보내는 곳 — / · /signup/social · /login?error=OAUTH_FAILED
+    front-base-url: ${FRONT_BASE_URL:http://localhost:5173}
+    # 제공자를 부를 때의 타임아웃. 제공자가 느려지면 콜백을 붙잡은 요청 스레드가 같이 묶인다
+    connect-timeout: PT3S
+    read-timeout: PT3S
+    # client-id 가 비어 있으면 그 제공자는 꺼진 것이다 — start 가 404 OAUTH_PROVIDER_NOT_CONFIGURED 로 답한다.
+    # 주소 셋은 실제 주소가 기본값이다. 테스트는 가짜 제공자 서버로 돌린다
+    kakao:
+      client-id: ${KAKAO_CLIENT_ID:}
+      # 카카오는 없어도 된다(콘솔에서 client secret 을 켠 앱만 넣는다). 있을 때만 토큰 요청에 싣는다
+      client-secret: ${KAKAO_CLIENT_SECRET:}
+      authorize-uri: https://kauth.kakao.com/oauth/authorize
+      token-uri: https://kauth.kakao.com/oauth/token
+      user-info-uri: https://kapi.kakao.com/v2/user/me
+    discord:
+      client-id: ${DISCORD_CLIENT_ID:}
+      client-secret: ${DISCORD_CLIENT_SECRET:}
+      authorize-uri: https://discord.com/oauth2/authorize
+      token-uri: https://discord.com/api/oauth2/token
+      user-info-uri: https://discord.com/api/users/@me
+    # 구글 — scope 는 openid profile(이메일은 청하지 않는다). 사용자 정보는 OpenID Connect 의 userinfo 이고 회원 번호는 sub(문자열)다
+    google:
+      client-id: ${GOOGLE_CLIENT_ID:}
+      client-secret: ${GOOGLE_CLIENT_SECRET:}
+      authorize-uri: https://accounts.google.com/o/oauth2/v2/auth
+      token-uri: https://oauth2.googleapis.com/token
+      user-info-uri: https://openidconnect.googleapis.com/v1/userinfo
+
+# 로그는 stdout 으로 나간다 (파일로 쓰지 않는다). CLAUDE.md §5 는 "stdout JSON 로그"를 적는다 —
+# 여기서는 켜지 않는다(로컬에서 읽기 어렵다). 운영에서 환경변수 LOGGING_STRUCTURED_FORMAT_CONSOLE=ecs 로 켠다
+logging:
+  level:
+    com.queuemate: INFO
+    # 이 앱은 중복을 DB 의 제약 위반으로 안다(중복 가입 · 중복 차단 · 모집 중인 글이 이미 있다 — CLAUDE.md §5). 그것이 정상 경로라서
+    # Hibernate 가 그때마다 WARN 두 줄(SQLState 23505 와 위반 메시지)을 찍는다 — 409 한 번에 경고 두 줄이면 진짜 경고가 묻힌다. ERROR 로 올려 끈다.
+    # 진짜 SQL 오류는 묻히지 않는다 — 아는 제약이 아니면 예외가 그대로 올라가 GlobalExceptionHandler 가 "처리하지 못한 예외다"로 스택째 남긴다(500)
+    org.hibernate.orm.jdbc.error: ERROR

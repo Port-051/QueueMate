@@ -1,0 +1,72 @@
+import { expect, test } from './support/fixtures';
+import { createPost, enter, lolPost, uniqueTitle, type Post } from './support/domain';
+
+test('멘토 UI — 남은 포지션 · 3인 자동 확정 · 확정 후 카드와 입장 제한', async ({ crew }) => {
+  const a = await crew.user('a'); const b = await crew.user('b'); const c = await crew.user('c');
+  const title = uniqueTitle('mentor');
+  const room = await createPost(a, { ...lolPost(title), mode: 'NORMAL_3', wantedPositions: ['TOP', 'JUNGLE'] });
+  expect((await enter(b, String(room.postId), 'TOP')).status).toBe(201);
+  const viewer = await crew.appPage('c', '/app/home');
+  const card = viewer.getByRole('article', { name: `${title} 방 정보`, exact: true });
+  await expect(card).toBeVisible();
+  const wanted = card.locator('.room-row-meta .room-role-icons');
+  await expect(wanted).toContainText('정글');
+  await expect(wanted).not.toContainText('탑');
+  const filter = viewer.getByRole('group', { name: '찾는 포지션', exact: true }).getByRole('button', { name: '탑', exact: true });
+  await filter.click(); await expect(card).toHaveCount(0);
+  await filter.click(); await expect(card).toBeVisible();
+  const host = await crew.appPage('a', `/app/party/${room.postId}`);
+  const boardBox = await host.locator('.board-split-board').boundingBox();
+  expect(boardBox!.width).toBeGreaterThan(600);
+  await expect(host.getByRole('region', { name: '방', exact: true }).getByText('인사를 건네보세요!', { exact: true })).toBeVisible();
+  expect((await enter(c, String(room.postId), 'JUNGLE')).status).toBe(201);
+  await expect.poll(async () => (await a.get<Post>(`/posts/${room.postId}`)).body.status).toBe('CONFIRMED');
+  await expect(card).toHaveAttribute('data-status', 'CONFIRMED');
+  const confirmed = (await a.get<Post>(`/posts/${room.postId}`)).body;
+  expect(confirmed.members.map(member => member.position).sort()).toEqual(['JUNGLE', 'MID', 'TOP']);
+  await a.del(`/rooms/${room.postId}/members/me`);
+  expect((await enter(a, String(room.postId), 'MID')).status).toBe(409);
+  await expect(card).toHaveClass(/is-unavailable/);
+  await expect(card.getByRole('button', { name: /^마감/ })).toBeDisabled();
+});
+
+test('멘토 개인 메시지 — 파티원 카드에서 전송 · 상대 수신 · 새로고침 후 보존', async ({ crew }) => {
+  const a = await crew.user('a'); const b = await crew.user('b'); const c = await crew.user('c');
+  const room = await createPost(a, lolPost(uniqueTitle('mentor-dm')));
+  expect((await enter(b, String(room.postId), 'TOP')).status).toBe(201);
+  const host = await crew.appPage('a', `/app/party/${room.postId}`);
+  const other = await crew.appPage('b', `/app/party/${room.postId}`);
+  const errors: string[] = [];
+  host.on('pageerror', error => errors.push(error.message));
+  other.on('pageerror', error => errors.push(error.message));
+  await host.getByRole('region', { name: '방', exact: true }).getByRole('button', { name: new RegExp(`^${b.nickname} · `) }).click();
+  await host.getByRole('dialog', { name: `${b.nickname} 상세 정보` }).getByRole('button', { name: '메시지 보내기', exact: true }).click();
+  await expect(host).toHaveURL(new RegExp(`/app/messages/${b.id}$`));
+  await other.goto(`/app/messages/${a.id}`);
+  await expect(other.getByRole('textbox', { name: '개인 메시지', exact: true })).toBeVisible();
+  const text = uniqueTitle('다음 판 같이 해요');
+  await host.getByRole('textbox', { name: '개인 메시지', exact: true }).fill(text);
+  await host.route(`**/api/v1/messages/${b.id}`, async route => {
+    if (route.request().method() === 'POST') await route.abort('failed'); else await route.continue();
+  });
+  await host.getByRole('button', { name: '보내기', exact: true }).click();
+  await expect(host.getByText('전송하지 못했어요. 입력한 메시지를 보관했으니 다시 보내 주세요.', { exact: true })).toBeVisible();
+  await expect(host.getByRole('textbox', { name: '개인 메시지', exact: true })).toHaveValue(text);
+  await host.unroute(`**/api/v1/messages/${b.id}`);
+  await host.getByRole('button', { name: '보내기', exact: true }).click();
+  await expect(host.getByRole('log', { name: '개인 메시지 내역' }).getByText(text, { exact: true })).toBeVisible();
+  const received = other.getByRole('log', { name: '개인 메시지 내역' }).getByText(text, { exact: true });
+  await expect(received).toBeVisible({ timeout: 3000 }); await other.reload(); await expect(received).toBeVisible();
+  const reply = uniqueTitle('좋아요 같이 해요');
+  await other.getByRole('textbox', { name: '개인 메시지', exact: true }).fill(reply);
+  await other.getByRole('button', { name: '보내기', exact: true }).click();
+  await expect(host.getByRole('log', { name: '개인 메시지 내역' }).getByText(reply, { exact: true })).toBeVisible({ timeout: 3000 });
+  const outsider = await c.get<{ messages: { text: string }[] }>(`/messages/${a.id}`);
+  expect(outsider.body.messages.some(message => message.text === text)).toBe(false);
+  // 이동 후에도 파티 세션은 그대로 유지된다.
+  expect((await a.get<{ roomId: string }>('/rooms/me')).body.roomId).toBe(String(room.postId));
+  await other.setViewportSize({ width: 390, height: 844 });
+  await expect(received).toBeVisible();
+  expect(await other.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  expect(errors).toEqual([]);
+});

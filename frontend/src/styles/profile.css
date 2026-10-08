@@ -1,8 +1,6 @@
 .profile-identity { display: flex; align-items: center; gap: 24px; padding: 30px; border: 1px solid var(--line-soft); border-radius: 20px; background: linear-gradient(110deg, rgba(124,77,255,.09), rgba(255,255,255,.015) 65%); }
-.profile-photo { position: relative; display: grid; flex: none; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
+.profile-photo { position: relative; display: grid; flex: none; border-radius: 50%; }
 .profile-photo .avatar { box-shadow: 0 0 0 5px rgba(162,116,255,.08); }
-.profile-photo-edit { position: absolute; right: -2px; bottom: -2px; display: grid; place-items: center; width: 28px; height: 28px; border: 2px solid var(--bg); border-radius: 50%; background: #292338; color: var(--text-dim); transition: background .15s; }
-.profile-photo:hover .profile-photo-edit { background: var(--accent); color: white; }
 .profile-identity-info { flex: 1; min-width: 0; }
 .profile-identity h1 { font-size: 30px; line-height: 1.35; letter-spacing: -.025em; overflow-wrap: anywhere; }
 .profile-activity { display: flex; flex-wrap: wrap; gap: 4px 20px; margin-top: 10px; }
@@ -26,14 +24,6 @@
 .profile-game-account .btn { font-size: 12px; padding-inline: 12px; }
 .profile-game-account .profile-unlink { border-color: transparent; color: var(--muted); }
 .profile-game-account .profile-unlink:hover { color: var(--danger); background: rgba(255,93,108,.06); border-color: transparent; }
-.profile-preferences { min-width: 0; }
-.profile-preferences .opt-row { grid-template-columns: 100px minmax(0, 1fr); align-items: center; gap: 20px; padding: 0 0 18px; border: 0; }
-.profile-preferences .opt-row + .opt-row { padding-top: 4px; }
-.profile-preferences .opt-label b { font-size: 14px; font-weight: 500; }
-.profile-preferences .opt-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 12px; background: rgba(255,255,255,.035); }
-.profile-preferences .opt { min-width: 0; padding: 10px 8px; border: 1px solid transparent; border-radius: 9px; background: none; font-size: 13px; }
-.profile-preferences .opt.on { background: var(--accent-soft); border-color: var(--accent-line); box-shadow: none; color: var(--text); }
-.profile-auto-save { display: block; text-align: right; color: var(--muted); font-size: 12px; }
 .profile-privacy { min-width: 0; }
 .profile-blocks { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 12px 16px; border-radius: 12px; background: rgba(255,255,255,.025); font-size: 14px; transition: background .15s; }
 .profile-blocks:hover { background: rgba(255,255,255,.06); }
@@ -43,15 +33,27 @@
 .profile-privacy-details { margin-top: 8px; color: var(--muted); font-size: 13px; }
 .profile-privacy-details > summary { width: fit-content; padding: 14px 0; cursor: pointer; }
 .profile-privacy-details ul { display: grid; gap: 8px; padding: 0 0 8px 18px; list-style: disc; line-height: 1.7; }
-.profile-signout { padding-top: 22px; border-top: 1px solid var(--line-soft); }
+.profile-privacy-details a { color: var(--accent-2); text-decoration: underline; text-underline-offset: 3px; }
+.profile-privacy-details a:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.profile-signout { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding-top: 22px; border-top: 1px solid var(--line-soft); }
 .profile-signout .btn { color: var(--muted); border-color: transparent; padding-inline: 0; }
 .profile-signout .btn:hover { color: var(--danger); border-color: transparent; }
+/* 회원 탈퇴 — 로그아웃 줄의 오른쪽 끝 · 빨간 글자(위험 동작이라 늘 빨갛다 — 테두리 · 바탕은 없다). */
+.profile-signout .btn.profile-delete-account { color: var(--danger); font-size: 13.5px; }
+.profile-signout .btn.profile-delete-account:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
+/* 탈퇴 확인 창의 "지워지는 것" 목록. */
+.delete-account-list { margin: 6px 0 0; padding-left: 18px; list-style: disc; }
+.delete-account-list + p { margin-top: 12px; }
 .profile-edit-modal { width: min(460px, 100%); }
 .profile-edit-form { display: grid; gap: 24px; }
 .profile-edit-actions { display: flex; justify-content: flex-end; gap: 8px; }
+/* VALORANT 경쟁전 티어 — 넓은 칸(티어) + 좁은 칸(단계). 360px 에서도 한 줄이다. */
+.tier-split { display: flex; gap: 8px; min-width: 0; }
+.tier-split .select { flex: 1 1 auto; min-width: 0; }
+.tier-split .tier-split-division { flex: 0 0 84px; width: 84px; }
+.tier-split .select:disabled { opacity: .5; cursor: not-allowed; }
 @media (max-width: 1100px) {
   .profile-section { grid-template-columns: 160px minmax(0, 1fr); gap: 24px; }
-  .profile-preferences .opt-row { grid-template-columns: minmax(0, 1fr); gap: 10px; }
 }
 @media (max-width: 900px) {
   .profile-section { grid-template-columns: minmax(0, 1fr); gap: 18px; }
@@ -76,4 +78,23 @@
   .profile-game-unregistered { font-size: 13px; }
 }
 
-.profile-section > .linked-game-record { border: 0; margin: 0; padding: 0; }
+/* 게임 프로필 카드 — 게임마다 하나(3단계). 머리 줄은 옛 계정 줄과 같은 격자이고 그 아래 티어 · 포지션 · 전적이 붙는다. */
+.profile-game-card { display: grid; gap: 0; padding-block: 20px; border-bottom: 1px solid var(--line-soft); }
+.profile-game-card:last-child { border-bottom: 0; }
+.profile-game-card .profile-game-account { padding-block: 0; border-bottom: 0; }
+.profile-game-head-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.profile-game-body { display: grid; gap: 12px; margin-top: 14px; padding-left: 56px; }
+.profile-game-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: 13px; color: var(--text-dim); }
+.profile-game-facts .row-tier { display: inline-flex; align-items: center; gap: 6px; }
+.profile-game-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.profile-game-stats > div { padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.03); }
+.profile-game-stats dt { color: var(--muted); font-size: 12px; }
+.profile-game-stats dd { margin: 4px 0 0; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.profile-game-champions { display: flex; flex-wrap: wrap; gap: 8px; }
+.profile-game-champion { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; color: var(--text-dim); }
+.profile-game-champion b { color: var(--text); font-weight: 600; }
+.profile-game-synced { color: var(--muted); font-size: 12px; }
+@media (max-width: 767px) {
+  .profile-game-body { padding-left: 0; }
+  .profile-game-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

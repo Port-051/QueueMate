@@ -1,0 +1,135 @@
+spring:
+  application:
+    name: matching
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+
+      # [실험용] Sentinel 설정은 여기 두지 않는다. application-sentinel.yaml 에 있다.
+      #
+      # Spring Boot 는 spring.data.redis.sentinel 프로퍼티가 존재하기만 하면
+      # nodes 가 비어 있어도 Sentinel 모드로 확정한다
+      # (DataRedisConnectionConfiguration#determineMode). 그래서 여기에 두면
+      # Sentinel 없이 앱이 뜨지 않는다 - "Cannot build a RedisURI" 로 죽는다.
+      #
+      #   ./gradlew bootRun --args='--spring.profiles.active=sentinel'
+
+  # DB(spring.datasource · jpa)는 없다 — 이 앱은 Redis 만 쓴다 (2026-10-02, docs/11 D-57). DB 를 치던 유일한 자리(차단 조회)가
+  # 합류 Lua 의 qm:user:block-rel:{userId} 읽기로 바뀌었다. 환경변수 DB_URL · DB_USER · DB_PASSWORD 도 없어졌다.
+
+server:
+  port: ${SERVER_PORT:8080}
+
+# 헬스 체크 — platform · notification 의 application.yaml 과 같은 모양이다(2026-10-02 에 /actuator 아래에서 옮겼다).
+# 다른 것은 둘 — ready 그룹이 db 를 보지 않는 것(DB 가 없다 — docs/11 D-57), 노출 목록에 metrics 가 있는 것(부하 테스트가 읽는다)
+management:
+  endpoints:
+    web:
+      # actuator 를 /actuator 아래가 아니라 루트에 둔다 — 세 앱의 주소를 /health/live · /health/ready 로 맞추려는 것이다
+      # (docs/11 D-18 의 "/health/live · /health/ready 분리". health 그룹의 additional-path 는 /livez 처럼 한 마디짜리 주소만 받아서
+      # /health/live 를 만들 수 없었다 — platform 에서 확인한 것이다).
+      # 이 앱에는 /actuator/… 주소가 없다. 인증 없이 열리는 것은 SecurityConfig 가 정한다
+      base-path: /
+      exposure:
+        # metrics 는 load-test 가 /metrics/executor.queued 로 읽는다. 밖에서는 닿지 않는다 —
+        # CloudFront · ALB 가 /api/** 만 이 앱으로 보낸다(docs/AWS_ARCHITECTURE.md §2)
+        include: health,info,metrics
+  endpoint:
+    health:
+      # 컨테이너가 살아 있는지(liveness)와 요청을 받을 준비가 됐는지(readiness)를 따로 본다.
+      # 이것이 livenessState · readinessState 를 켠다. /health/liveness · /health/readiness 로도 답한다.
+      # show-details 는 기본값(never)이다 — 상태(UP · DOWN)만 내보낸다. 2026-10-02 까지는 always 라 Redis 버전 · DB 종류(그때는 DB 가 있었다)가 보였다
+      probes:
+        enabled: true
+      group:
+        # /health/live · /health/ready.
+        # readiness 에 Redis 를 넣는다 — 매칭 상태와 차단 관계(qm:user:block-rel:*)의 원본 · 사본이 전부 Redis 라(못 읽으면 fail-closed — INV-10)
+        # Redis 가 없으면 요청을 받을 준비가 안 된 것이다. db 는 넣지 않는다 — DB 가 없다(2026-10-02, docs/11 D-57).
+        # 그룹에 없는 기여자 이름을 적으면 기동이 실패하므로 db 를 남겨 둘 수도 없다(platform · notification 에서 확인한 것이다).
+        # 그래도 ALB 헬스 체크는 /health/live 에 건다. /health/ready 에 걸면 Redis 장애 조치 동안 태스크가 전부 unhealthy 로 보여
+        # ECS 가 태스크를 통째로 갈아치운다 — 그래 봐야 낫지 않는다.
+        # liveness 에는 아무것도 더하지 않는다 — Redis 가 죽었다고 컨테이너를 다시 띄워 봐야 낫지 않는다
+        live:
+          include: livenessState
+        ready:
+          include: readinessState,redis
+
+queuemate:
+  # access 토큰 검증 (2026-09-27 — 임시 식별 ?userId= 를 대신했다. docs/11 D-24 의 적용).
+  # 쿠키 qm_access 의 RS256 JWT 를 platform 의 공개 키로 검증만 한다 — 개인 키 · 서명 · refresh 는 platform 의 것이다.
+  # JWT_PUBLIC_KEY(X.509 PEM)가 있으면 그것을, 없으면 JWT_PUBLIC_KEY_FILE 의 파일을 읽는다. 둘 다 없으면 기동하지 않는다.
+  # 파일 기본값은 backend/ 에서 띄운다는 전제의 로컬 개발용이다 — platform 이 처음 뜰 때 만든다. 운영은 JWT_PUBLIC_KEY(Secrets Manager)
+  jwt:
+    public-key: ${JWT_PUBLIC_KEY:}
+    public-key-file: ${JWT_PUBLIC_KEY_FILE:../../platform/backend/.dev-keys/public.pem}
+  web:
+    # 상태를 바꾸는 요청(POST/PUT/PATCH/DELETE)에 허용하는 Origin. 쉼표로 구분한다. platform 과 같은 값이어야 한다.
+    # CORS 설정이 아니다 — CORS 는 넣지 않는다(프런트 개발 서버의 프록시가 같은 출처로 만든다)
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+  proposal:
+    # 제안(정원이 찬 파티)의 수락 시한(초). 정원이 찬 시각 + 이 값이 파티 HASH 의 expiresAt 이자 qm:proposal:pending 의
+    # score 다 — 지나면 ProposalSweeper 가 깨고 accept-proposal.lua 도 수락을 받지 않는다. 클라이언트는 이 값이 아니라
+    # 서버가 준 expiresAt 으로 남은 시간을 그린다. 2026-10-01 에 20 → 300 (docs/11 D-55 — 제안 화면에서 팀원 정보를 보고 고를 시간)
+    ttl-seconds: ${PROPOSAL_TTL_SECONDS:300}
+    # 확정된 제안의 수락자 집합 **과 파티원의 활성 요청(status=PARTY)** 을 남겨 두는 시간 (docs/11 D-42).
+    # 수락자 집합은 확정 판정에 다 쓰인 값이라 바로 지워도 되지만, 재전송된 수락이 도착하는 창만큼은 남긴다.
+    # 활성 요청은 이 동안 INV-1 선점이 그대로라 새 매칭을 못 걸고 조회는 MATCHED 다. 지나면 그 사용자는
+    # 다시 큐에 들어올 수 있다 — "한 번에 하나"는 platform 의 입장 표시 키(qm:user:active-room:)가 잇는다.
+    # platform 이 이 시간 안에 방을 세우지 못하면 그 사람은 큐에 다시 들어올 수 있다(받아들인 절충)
+    confirmed-retention-seconds: ${PROPOSAL_CONFIRMED_RETENTION_SECONDS:60}
+    # 확정된 파티 HASH(qm:party:{partyId})를 남겨 두는 시간 (docs/11 D-42). app:platform 이 이 안에 Redis 에서
+    # 직접 읽어 파티 · 방을 만든다 — outbox → SQS 대신이다. 지나면 파티가 증발한다(받아들인 절충).
+    # 상태 조회 · 수락 재전송도 이 안에서만 답한다
+    confirmed-party-ttl-seconds: ${PROPOSAL_CONFIRMED_PARTY_TTL_SECONDS:600}
+    # 제안을 거절한 사람과 그 제안에 있던 상대들이 서로 다시 매칭되지 않는 시간. 거절한 사람이 바로 다시 큐에 들어와
+    # 방금 거절한 사람들과 같은 파티가 되는 것을 막는다. 거절 때 양쪽의 qm:user:declined:{userId} 에 적고(score = 풀리는 시각)
+    # 키 TTL 도 이 값으로 다시 건다 — 마지막 거절 기준이다
+    decline-avoid-seconds: ${PROPOSAL_DECLINE_AVOID_SECONDS:600}
+  scan:
+    interval-ms: ${SCAN_INTERVAL_MS:1000}
+  sweep:
+    interval-ms: ${SWEEP_INTERVAL_MS:1000}
+  # 대기 요청의 접속 확인(heartbeat) — docs/11 D-43. 클라이언트가 대기 화면에서 주기적으로 POST /match-requests/heartbeat 를 보내고,
+  # grace-ms 동안 신호가 없으면 RequestAliveSweeper 가 그 요청을 취소한다(창을 닫거나 브라우저가 죽은 사람이 파티 자리를 붙들지 않게).
+  # 30초 주기에 90초 유예 = 신호 세 번을 놓치면 빠진다. 너무 짧으면 새로고침 · 잠깐의 끊김에 억울하게 빠진다
+  alive:
+    grace-ms: ${ALIVE_GRACE_MS:90000}
+    sweep-interval-ms: ${ALIVE_SWEEP_INTERVAL_MS:5000}
+
+  # ------------------------------------------------------------------
+  # [실험용] Redis 페일오버 재시도 - 제거 시 이 failover 블록만 통째로 삭제
+  #
+  # 코드는 com.queuemate.matching.failover 패키지 하나에 전부 들어 있고,
+  # 켜고 끄고 지우는 절차는 redis-ha-lab/docs/failover-retry-guide.md 에 있다.
+  # 모든 값에 자바 기본값이 있으므로 이 블록을 지워도 기동이 깨지지 않는다.
+  # ------------------------------------------------------------------
+  failover:
+    retry:
+      # 이 기능 전체의 on/off. 기본 꺼짐 - 꺼져 있으면 failover 패키지의 빈이
+      # 하나도 안 만들어져 기존 동작과 100% 같다.
+      enabled: ${FAILOVER_RETRY_ENABLED:false}
+      # 재시도 큐 상한. OOM 방지용이라 반드시 유한해야 한다. 넘치면 버린다
+      queue-capacity: ${FAILOVER_QUEUE_CAPACITY:5000}
+      # 한 요청의 재시도 상한. 무한 재시도로 큐가 안 비는 것을 막는다
+      max-attempts: ${FAILOVER_MAX_ATTEMPTS:5}
+      # 연속 실패가 이 횟수면 서킷을 연다 (CLOSED -> OPEN)
+      failure-threshold: ${FAILOVER_FAILURE_THRESHOLD:3}
+      # 한 번에 배출할 건수. 승격 직후 새 master 에 몰리는 것을 막는다
+      drain-batch-size: ${FAILOVER_DRAIN_BATCH_SIZE:20}
+      # 배출 배치 사이 간격(ms). 스케줄러 tick 주기이기도 하다
+      drain-interval-ms: ${FAILOVER_DRAIN_INTERVAL_MS:200}
+      # OPEN 이 이 시간을 넘으면 복구 신호가 없어도 프로브를 던진다 (시간 폴백).
+      # 0 이하면 폴백을 끄고 이벤트만 기다린다 -> EXPERIMENTS.md 실험 6 의 대조군
+      open-timeout-ms: ${FAILOVER_OPEN_TIMEOUT_MS:10000}
+
+    # Lettuce 클라이언트 옵션. 위 retry 와 독립된 축이다 (실험 2 에서 따로 잰다)
+    lettuce:
+      enabled: ${FAILOVER_LETTUCE_ENABLED:false}
+      connect-timeout-ms: ${FAILOVER_LETTUCE_CONNECT_TIMEOUT_MS:500}
+      reject-when-disconnected: ${FAILOVER_LETTUCE_REJECT:true}
+
+logging:
+  level:
+    com.queuemate: INFO

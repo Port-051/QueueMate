@@ -1,0 +1,184 @@
+package com.queuemate.platform.party;
+
+import com.queuemate.platform.account.domain.Game;
+import com.queuemate.platform.account.service.GameProfileReader;
+import com.queuemate.platform.common.error.ApiException;
+import com.queuemate.platform.common.gameconfig.GameConfigReader;
+import com.queuemate.platform.party.dto.MemberCard;
+import com.queuemate.platform.party.dto.PostResponse;
+import com.queuemate.platform.party.service.BoardProperties;
+import com.queuemate.platform.party.service.MatchPartyStore;
+import com.queuemate.platform.party.service.PostEntryGate;
+import com.queuemate.platform.party.service.PostService;
+import com.queuemate.platform.party.service.PostStore;
+import com.queuemate.platform.room.domain.RoomStateUnavailableException;
+import com.queuemate.platform.room.service.RoomService;
+import com.queuemate.platform.social.service.BlockReader;
+import jakarta.servlet.http.Cookie;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+/**
+ * <b>방 키를 못 읽을 때</b> — 방의 상태를 읽는 창구({@link RoomService#states})만 실패하게 만든 {@link RoomService} 를 끼운 {@link PostService} ·
+ * {@link PostEntryGate} 로 본다. 나머지(DB · 프로필 · 차단 · gameconfig)는 앱의 진짜 빈이다. 두 클래스에는 트랜잭션이 없어 손으로 만들어도 똑같이 돈다.
+ *
+ * <p>가장 중요한 것 — <b>방장 키를 "못 읽은 것"을 "방이 없다"로 읽지 않는다.</b> 그러면 Redis 가 흔들릴 때 멀쩡한 글이 전부 만료된다.
+ * 그리고 <b>fail-open 인지 fail-closed 인지는 부르는 쪽이 정한다</b> — 목록 · 단건은 open, 입장 검사는 closed 다(fail-closed 이던 글 고치기는 2026-10-01 에 없어졌다).
+ */
+class PostServiceRedisDownTest extends PostTestSupport {
+
+    @Autowired
+    PostStore postStore;
+
+    @Autowired
+    RoomService roomService;
+
+    @Autowired
+    GameProfileReader gameProfileReader;
+
+    @Autowired
+    BlockReader blockReader;
+
+    @Autowired
+    BoardProperties boardProperties;
+
+    /** gameconfig 는 진짜 빈이다 — 여기서 죽이는 것은 방 키를 읽는 창구뿐이다 */
+    @Autowired
+    GameConfigReader gameConfig;
+
+    /** 자동 매칭 파티를 닫는 창구 — 진짜 빈이다. 목록이 방 키를 못 읽으면 여기까지 오지 않아야 한다(2026-09-28) */
+    @Autowired
+    MatchPartyStore matchPartyStore;
+
+    /** 방의 상태 읽기만 실패한다 — 스크립트(만들기 · 확정)는 진짜다. RoomService 에는 트랜잭션 프록시가 없어 그대로 감쌀 수 있다 */
+    private RoomService brokenStates()
+    {
+        RoomService broken = spy(roomService);
+        doThrow(new RoomStateUnavailableException(new IllegalStateException("테스트 — Redis 가 죽었다")))
+                .when(broken).states(any());
+        // 자동 매칭 파티의 방(UUID)을 읽는 문자열 판도 같이 죽는다 — 목록이 그 파티를 닫는 판정도 하지 않아야 한다
+        doThrow(new RoomStateUnavailableException(new IllegalStateException("테스트 — Redis 가 죽었다")))
+                .when(broken).statesOf(any());
+        return broken;
+    }
+
+    private PostService withBrokenRedis()
+    {
+        return new PostService(new com.queuemate.platform.party.service.RecruitmentTiming(600, 60), postStore, matchPartyStore, brokenStates(), gameProfileReader, blockReader, boardProperties, gameConfig);
+    }
+
+    @Test
+    @DisplayName("목록 · 단건은 500 이 아니라 방 정보를 비운 채 글을 내려 주고, 어떤 글도 만료시키지 않는다 — 방이 사라진 글도")
+    void listDegradesWithoutExpiring() throws Exception
+    {
+        String host = newNickname();
+        String gone = newNickname();
+        String viewer = newNickname();
+        Cookie hostCookie = login(host);
+        login(viewer);
+        Long hostId = userIdOf(host);
+        Long viewerId = userIdOf(viewer);
+        Long seen = createLolPost(hostCookie);
+        openRoom(seen, hostId, viewerId);
+        // 방이 사라진 글 — 방장 키를 "못 읽으면" 만료시키기 딱 좋은 글이다. 멀쩡한 앱이라면 다음 목록에서 만료된다
+        Long vanished = createLolPost(login(gone));
+        closeRoom(vanished);
+
+        PostService service = withBrokenRedis();
+        PostResponse line = service.list(viewerId, Game.LOL, null, null).posts().stream()
+                .filter(post -> post.postId().equals(seen)).findFirst().orElseThrow();
+
+        assertThat(line.status()).isEqualTo("RECRUITING");
+        assertThat(line.members()).isEmpty();
+        assertThat(line.memberCount()).isZero();
+        assertThat(line.full()).isFalse();
+        assertThat(line.host().userId()).isEqualTo(hostId);
+        assertThat(service.list(viewerId, Game.LOL, null, null).posts()).extracting(PostResponse::postId).contains(seen, vanished);
+        assertThat(service.get(viewerId, vanished).status()).isEqualTo("RECRUITING");
+
+        assertThat(statusOf(seen)).isEqualTo("RECRUITING");
+        assertThat(statusOf(vanished)).isEqualTo("RECRUITING");
+    }
+
+    @Test
+    @DisplayName("확정된 글의 카드는 DB 의 파티원이라 방 키를 못 읽어도 그대로 나간다 — 파티를 닫지도 않는다(2026-09-30 — P-40)")
+    void confirmedCardsSurviveRedisDown() throws Exception
+    {
+        String host = newNickname();
+        String member = newNickname();
+        Cookie hostCookie = login(host);
+        Cookie memberCookie = login(member);
+        Long hostId = userIdOf(host);
+        Long memberId = userIdOf(member);
+        Long postId = createFivePersonLolPost(hostCookie);
+        track(postId, memberId);
+        enterRoom(memberCookie, postId, "SUPPORT").andExpect(status().isCreated());
+        mockMvc.perform(post("/api/v1/rooms/" + postId + "/confirm").cookie(hostCookie)).andExpect(status().isNoContent());
+        // 방이 통째로 없어졌다 — 멀쩡한 앱이라면 다음 목록이 파티를 닫는다. 못 읽으면 닫지 않아야 한다
+        closeRoom(postId);
+
+        PostService service = withBrokenRedis();
+        PostResponse line = service.list(hostId, Game.LOL, null, null).posts().stream()
+                .filter(post -> post.postId().equals(postId)).findFirst().orElseThrow();
+
+        assertThat(line.status()).isEqualTo("CONFIRMED");
+        assertThat(line.members()).extracting(MemberCard::userId).containsExactly(hostId, memberId);
+        assertThat(line.memberCount()).isEqualTo(2);
+        assertThat(line.full()).isFalse();
+        assertThat(service.get(memberId, postId).members()).extracting(MemberCard::userId).containsExactly(hostId, memberId);
+        assertThat(jdbcTemplate.queryForObject("select status from parties where post_id = ?", String.class, postId)).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    @DisplayName("입장 검사는 503 ROOM_STATE_UNAVAILABLE(+ Retry-After 5) 이다 — 방 안 사람과 차단 대조를 못 했는데 들여보낼 수 없다(fail-closed)")
+    void entryGateFailsClosed() throws Exception
+    {
+        String host = newNickname();
+        String guest = newNickname();
+        Long postId = createLolPost(login(host));
+        login(guest);
+        Long guestId = userIdOf(guest);
+
+        PostEntryGate gate = new PostEntryGate(postStore, brokenStates(), blockReader);
+
+        assertThatThrownBy(() -> gate.check(String.valueOf(postId), guestId))
+                .isInstanceOfSatisfying(ApiException.class, e -> {
+                    assertThat(e.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                    assertThat(e.getCode()).isEqualTo("ROOM_STATE_UNAVAILABLE");
+                    assertThat(e.getRetryAfterSeconds()).isEqualTo(5L);
+                });
+        // 없는 글은 방 키를 읽기 전에 404 다 — Redis 가 죽어도 그 답은 줄 수 있다
+        assertThatThrownBy(() -> gate.check(String.valueOf(NO_SUCH_POST), guestId))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.getCode()).isEqualTo("POST_NOT_FOUND"));
+        assertThat(statusOf(postId)).isEqualTo("RECRUITING");
+    }
+
+    @Test
+    @DisplayName("방 정보가 없어도 방장과의 차단은 거른다 — Redis 가 죽었다고 숨겨진 글이 드러나지 않는다")
+    void stillFiltersHostBlocks() throws Exception
+    {
+        String host = newNickname();
+        String blocked = newNickname();
+        Cookie hostCookie = login(host);
+        login(blocked);
+        Long hostId = userIdOf(host);
+        Long blockedId = userIdOf(blocked);
+        Long postId = createLolPost(hostCookie);
+        block(hostCookie, blockedId);
+
+        PostService service = withBrokenRedis();
+
+        assertThat(service.list(blockedId, Game.LOL, null, null).posts()).extracting(PostResponse::postId).doesNotContain(postId);
+        assertThat(service.list(hostId, Game.LOL, null, null).posts()).extracting(PostResponse::postId).contains(postId);
+    }
+}

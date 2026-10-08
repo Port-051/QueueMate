@@ -1,0 +1,61 @@
+-- ops before: 100
+@@M@@ LABEL=idle_r1 CONC=1 PROCS=1 ROUNDS=250 PREFILL=0 POLL_SLEEP_ms=0.00 n_ok=250 n_err=0 wall=2.1s
+    MATCH p50=3.56 p95=4.86 p99=5.49 max=5.82 mean=3.67
+    HTTP  p50=2.91 p95=4.13 p99=4.75 max=4.99
+    DELTA(match-http) p50=0.66 p95=1.25 p99=1.54 max=1.74
+    GAP(폴링 불확실구간) p50=0.548 p95=0.742 max=0.821  errs={}
+
+-- ops before: 4623
+@@M@@ LABEL=idle_r2 CONC=1 PROCS=1 ROUNDS=250 PREFILL=0 POLL_SLEEP_ms=0.00 n_ok=250 n_err=0 wall=1.7s
+    MATCH p50=2.39 p95=3.94 p99=4.88 max=5.80 mean=2.63
+    HTTP  p50=1.76 p95=3.32 p99=3.64 max=4.53
+    DELTA(match-http) p50=0.61 p95=1.05 p99=1.55 max=1.60
+    GAP(폴링 불확실구간) p50=0.513 p95=0.659 max=0.804  errs={}
+
+-- ops before: 5481
+@@M@@ LABEL=busy20_r1 CONC=20 PROCS=10 ROUNDS=15 PREFILL=0 POLL_SLEEP_ms=1.00 n_ok=300 n_err=0 wall=0.4s
+    MATCH p50=8.43 p95=47.93 p99=50.70 max=51.96 mean=11.14
+    HTTP  p50=3.65 p95=12.80 p99=46.83 max=47.21
+    DELTA(match-http) p50=4.43 p95=8.03 p99=44.67 max=45.00
+    GAP(폴링 불확실구간) p50=2.393 p95=3.414 max=4.373  errs={}
+
+-- ops before: 8739
+@@M@@ LABEL=busy20_r2 CONC=20 PROCS=10 ROUNDS=15 PREFILL=0 POLL_SLEEP_ms=1.00 n_ok=300 n_err=0 wall=0.3s
+    MATCH p50=8.40 p95=10.32 p99=10.92 max=11.58 mean=8.30
+    HTTP  p50=3.56 p95=4.69 p99=5.26 max=5.71
+    DELTA(match-http) p50=4.74 p95=6.34 p99=6.99 max=8.27
+    GAP(폴링 불확실구간) p50=2.571 p95=3.279 max=4.039  errs={}
+
+needs:JUNGLE depth = 100
+-- ops before: 8460
+@@M@@ LABEL=idle_deep100_r1 CONC=1 PROCS=1 ROUNDS=250 PREFILL=0 POLL_SLEEP_ms=0.00 n_ok=250 n_err=0 wall=1.5s
+    MATCH p50=2.30 p95=2.68 p99=3.15 max=3.24 mean=2.33
+    HTTP  p50=1.67 p95=2.08 p99=2.37 max=2.71
+    DELTA(match-http) p50=0.60 p95=0.81 p99=0.93 max=0.94
+    GAP(폴링 불확실구간) p50=0.507 p95=0.626 max=0.737  errs={}
+
+needs:JUNGLE depth = 100
+-- ops before: 2240
+@@M@@ LABEL=idle_deep100_r2 CONC=1 PROCS=1 ROUNDS=250 PREFILL=0 POLL_SLEEP_ms=0.00 n_ok=250 n_err=0 wall=1.7s
+    MATCH p50=2.55 p95=3.74 p99=5.15 max=5.37 mean=2.70
+    HTTP  p50=1.88 p95=2.81 p99=4.33 max=4.40
+    DELTA(match-http) p50=0.66 p95=1.00 p99=1.26 max=1.46
+    GAP(폴링 불확실구간) p50=0.561 p95=0.808 max=1.180  errs={}
+
+needs:JUNGLE depth = 100
+-- ops before: 2120
+@@M@@ LABEL=busy20_deep100_r1 CONC=20 PROCS=10 ROUNDS=15 PREFILL=0 POLL_SLEEP_ms=1.00 n_ok=300 n_err=0 wall=0.3s
+    MATCH p50=9.34 p95=11.84 p99=12.91 max=13.52 mean=9.35
+    HTTP  p50=3.94 p95=5.63 p99=6.40 max=6.97
+    DELTA(match-http) p50=5.33 p95=7.64 p99=8.77 max=10.67
+    GAP(폴링 불확실구간) p50=2.590 p95=3.567 max=4.172  errs={}
+
+needs:JUNGLE depth = 100
+-- ops before: 7456
+@@M@@ LABEL=busy20_deep100_r2 CONC=20 PROCS=10 ROUNDS=15 PREFILL=0 POLL_SLEEP_ms=1.00 n_ok=300 n_err=0 wall=0.3s
+    MATCH p50=9.11 p95=11.47 p99=13.60 max=16.04 mean=9.08
+    HTTP  p50=3.81 p95=5.12 p99=8.41 max=9.48
+    DELTA(match-http) p50=5.13 p95=7.18 p99=8.11 max=11.34
+    GAP(폴링 불확실구간) p50=2.597 p95=3.475 max=4.892  errs={}
+
+dbsize=16 gameconfig=13

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { IconMic, IconMicOff, IconMicOptional } from './icons';
 import type { GameKey } from '../api/types';
-import { rankEmblem, rankEmblemBounds, RANK_EMBLEM_SOURCE_SIZE } from '../domain/rankAssets';
+import { rankEmblem, rankEmblemBounds, RANK_EMBLEM_SOURCE_SIZE, TIER_COLORS } from '../domain/rankAssets';
 
 type SymbolProps = { size?: number };
 
@@ -69,18 +69,15 @@ const PUBG_STYLES: Record<string, ReactNode> = {
 
 /** Decorative glyphs; the filter button supplies the accessible name. */
 export function FilterRoleIcon({ game, value, size = 20 }: SymbolProps & { game: GameKey; value: string }) {
+  // PUBG 의 핵심 조건은 플랫폼(STEAM · KAKAO)이고 그 그림은 없다 — 글자만 쓴다(2026-09-29 소유자 지시). 아래 `ALL_ROLES` 는 "전체" 의 그림이다.
+  if (game === 'PUBG' && !PUBG_STYLES[value]) return null;
   const roles = game === 'LOL' ? LOL_ROLES : game === 'VALORANT' ? VALORANT_ROLES : PUBG_STYLES;
   return <svg className="filter-role-symbol" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
     {roles[value] ?? ALL_ROLES}
   </svg>;
 }
 
-const TIER_COLORS: Record<string, string> = {
-  IRON: '#8b8584', BRONZE: '#b2866c', SILVER: '#aab6c6', GOLD: '#d0ad68',
-  PLATINUM: '#7bb7b3', EMERALD: '#6eb68e', DIAMOND: '#93abe0', MASTER: '#b889ca',
-  GRANDMASTER: '#cf7e85', CHALLENGER: '#d7bf7e', ASCENDANT: '#83b89a',
-  IMMORTAL: '#cb8496', RADIANT: '#d4ca96',
-};
+
 
 export function FilterTierIcon({ game, tier, size = 20 }: SymbolProps & { game?: GameKey; tier: string | null }) {
   const emblem = game === 'LOL' ? rankEmblem(tier) : null;
@@ -102,13 +99,14 @@ export function FilterTierIcon({ game, tier, size = 20 }: SymbolProps & { game?:
 
 export function FilterModeIcon({ mode, size = 16 }: SymbolProps & { mode: string }) {
   let glyph: ReactNode;
-  if (mode === 'SOLO_DUO_RANKED' || mode === 'COMPETITIVE') {
+  // 모드 선택기의 묶음 키(`gameCatalog.ts` `modeGroups`)도 받는다 — 랭크 묶음(`SOLO_RANKED` · `COMPETITIVE` · PUBG `RANKED`)은 트로피, 자유 랭크는 사람들, 칼바람은 그대로.
+  if (mode === 'SOLO_DUO_RANKED' || mode === 'COMPETITIVE' || mode === 'SOLO_RANKED' || mode === 'RANKED') {
     glyph = <><path d="M7 3h10v5c0 4-2 6-5 6s-5-2-5-6V3Zm0 2H3v3c0 3 2 4 5 4m9-7h4v3c0 3-2 4-5 4M12 14v6m-4 1h8" /></>;
   } else if (mode === 'ARAM') {
     glyph = <path d="M12 2v20M3.3 7l17.4 10M3.3 17 20.7 7M9 4l3 3 3-3M9 20l3-3 3 3M4 10l4-1-1-4m10 14-1-4 4-1M4 14l4 1-1 4M17 5l-1 4 4 1" />;
   } else if (mode === 'SWIFTPLAY') {
     glyph = <path d="m14 2-9 12h6l-1 8 9-12h-6l1-8Z" />;
-  } else if (mode === 'DUO' || mode === 'SQUAD') {
+  } else if (mode === 'DUO' || mode === 'SQUAD' || mode === 'FLEX_RANKED') {
     glyph = <>
       <circle cx="9" cy="8" r="3" /><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6m2 4a5 5 0 0 1 3 4v2" />
       {mode === 'SQUAD' ? <path d="M2 5a3 3 0 0 1 2-2m16 0a3 3 0 0 1 2 2" /> : null}

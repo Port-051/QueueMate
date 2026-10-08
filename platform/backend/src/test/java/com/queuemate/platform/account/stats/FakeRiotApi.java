@@ -1,0 +1,501 @@
+package com.queuemate.platform.account.stats;
+
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * 테스트용 <b>가짜 Riot API</b> — {@code account-v1} · {@code league-v4}({@code entries/by-puuid}) · {@code match-v5} · {@code champion-mastery-v4} 의 다섯 주소를 흉내 낸다.
+ * {@code summoner-v4} 는 <b>앱이 부르지 않는지 세기만 한다</b>({@link #summonerCalls()} — 2026-09-29 실제 키로 보니 소환사 응답에 {@code id} 가 없어
+ * 리그를 {@code puuid} 로 부르게 바꿨다. 응답은 실제처럼 {@code id} 가 없는 모양이다).
+ * JDK 의 {@link HttpServer} 를 임의 포트로 띄운다({@code FakeOAuthProvider} 와 같은 방식 — WireMock 같은 새 의존성을 들이지 않는다).
+ *
+ * <p><b>대륙 주소와 플랫폼 주소를 한 서버가 같이 받는다</b> — 경로가 겹치지 않으므로 테스트가 두 설정을 같은 주소로 돌려도 된다.
+ *
+ * <p>약속 —
+ * <ul>
+ *   <li>키 헤더({@code X-Riot-Token})가 없거나 다르면 <b>403</b> 이다. 실제 Riot 과 같은 자리에서 걸러진다</li>
+ *   <li>{@link #failWith(int)} 로 모든 주소가 그 상태를 주게 한다(500 · 429). {@link #respondAfter(Duration)} 로 늦게 답한다(타임아웃)</li>
+ *   <li>{@link #calls()} 는 <b>받은 요청의 수</b>다 — "아예 부르지 않는지" 를 이것으로 본다</li>
+ *   <li>넣어 두지 않은 Riot ID · 경기는 <b>404</b> 다. 리그 목록 · 숙련도는 넣어 두지 않으면 빈 배열이다</li>
+ *   <li>경기 참가자 · 숙련도의 {@code championId}(숫자)는 {@link #championKey(String)} 가 챔피언 이름으로 정한다 — 아는 이름은 실제 번호다</li>
+ *   <li>숙련도는 실제처럼 {@code …/by-puuid/{puuid}/top?count=N} 이면 <b>점수 내림차순으로 N 개</b>(없으면 3 — Riot 의 기본값)를 준다.
+ *       같은 점수는 넣은 순서 그대로다 — 앱이 다시 줄 세우는지 본다. 앱이 부른 꼴은 {@link #lastMasteryRequest()} 다</li>
+ *   <li>{@link #failMasteryWith(int)} 로 숙련도 주소 하나만 실패시킨다</li>
+ *   <li>경기는 기본이 솔로랭크({@code queueId 420} · {@code "MATCHED_GAME"})다. 커스텀 등 다른 큐는 {@link #stubQueuedMatches} 로 섞는다(2026-10-02).
+ *       경기 id 목록은 실제처럼 큐를 가리지 않고 다 준다</li>
+ * </ul>
+ */
+final class FakeRiotApi {
+
+    /** 테스트가 설정에 넣는 키. 가짜 서버는 이 값만 받는다 */
+    static final String API_KEY = "fake-riot-key";
+
+    private final HttpServer server;
+    private final ExecutorService executor = Executors.newFixedThreadPool(4);
+    private final AtomicInteger calls = new AtomicInteger();
+
+    /** {@code "이름#태그"} → {@code puuid} */
+    private final Map<String, String> accounts = new ConcurrentHashMap<>();
+    /** {@code puuid} → 리그 목록의 JSON(배열) */
+    private final Map<String, String> leagues = new ConcurrentHashMap<>();
+    /** 앱이 {@code summoner-v4} 를 부른 수 — 0 이어야 한다 */
+    private final AtomicInteger summonerCalls = new AtomicInteger();
+    /** {@code puuid} → 경기 id 목록(새 경기가 먼저) */
+    private final Map<String, List<String>> matchIds = new ConcurrentHashMap<>();
+    /** 경기 id → 경기 응답의 JSON */
+    private final Map<String, String> matches = new ConcurrentHashMap<>();
+    /** {@code puuid} → 숙련도 줄(넣은 순서) */
+    private final Map<String, List<MasteryRow>> masteries = new ConcurrentHashMap<>();
+    /** 앱이 마지막으로 부른 숙련도 주소의 {@code puuid} 뒤({@code "/top?count=3"}) — 부르지 않았으면 {@code null} */
+    private volatile String lastMasteryRequest;
+
+    private final AtomicInteger matchSequence = new AtomicInteger();
+    private volatile int failStatus;
+    private volatile int masteryFailStatus;
+    private volatile Duration delay = Duration.ZERO;
+
+    FakeRiotApi()
+    {
+        try
+        {
+            server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        }
+        catch(IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
+        server.createContext("/riot/account/v1/accounts/by-riot-id/", this::account);
+        server.createContext("/lol/summoner/v4/summoners/by-puuid/", this::summoner);
+        server.createContext("/lol/league/v4/entries/by-puuid/", this::league);
+        // 더 긴 접두사가 이긴다 — by-puuid 의 요청이 경기 하나를 주는 핸들러로 가지 않는다
+        server.createContext("/lol/match/v5/matches/by-puuid/", this::matchIdList);
+        server.createContext("/lol/match/v5/matches/", this::match);
+        server.createContext("/lol/champion-mastery/v4/champion-masteries/by-puuid/", this::mastery);
+        server.setExecutor(executor);
+        server.start();
+    }
+
+    String baseUrl()
+    {
+        return "http://localhost:" + server.getAddress().getPort();
+    }
+
+    void stop()
+    {
+        server.stop(0);
+        executor.shutdownNow();
+    }
+
+    // ---- 넣어 두는 것 ----
+
+    /** 게임 닉네임({@code 이름#태그}) → {@code puuid} */
+    void stubAccount(String riotId, String puuid)
+    {
+        accounts.put(riotId, puuid);
+    }
+
+    /**
+     * 솔로랭크 줄(에메랄드 IV)이 있는 리그 목록. 자유랭크 줄(골드 II · 99승 99패)을 같이 넣는다 — 그쪽 승/패를 섞지 않고 티어는 {@code FLEX} 사다리로만
+     * 읽는지 본다(2026-09-29 — P-36)
+     */
+    void stubSoloRank(String puuid, int wins, int losses)
+    {
+        stubSoloRank(puuid, "EMERALD", "IV", wins, losses);
+    }
+
+    /** 티어를 골라 넣는다 — Riot 의 {@code tier} · {@code rank} 그대로({@code "MASTER"} · {@code "I"}). 자유랭크 줄(골드 II)을 같이 넣는다 */
+    void stubSoloRank(String puuid, String tier, String rank, int wins, int losses)
+    {
+        stubRanks(puuid, tier, rank, "GOLD", "II", wins, losses);
+    }
+
+    /** 솔로랭크 줄과 자유랭크 줄을 골라 넣는다. {@code flexTier} 가 {@code null} 이면 자유랭크 줄이 없다(자유랭크 언랭). 자유랭크 줄의 승/패는 99 · 99 다 */
+    void stubRanks(String puuid, String soloTier, String soloRank, String flexTier, String flexRank, int wins, int losses)
+    {
+        List<String> entries = new ArrayList<>();
+        if(flexTier != null)
+        {
+            entries.add(entry(puuid, "RANKED_FLEX_SR", flexTier, flexRank, 99, 99));
+        }
+        entries.add(entry(puuid, "RANKED_SOLO_5x5", soloTier, soloRank, wins, losses));
+        leagues.put(puuid, "[" + String.join(",", entries) + "]");
+    }
+
+    /** 솔로랭크 줄이 없는 리그 목록(언랭 또는 자유랭크만) */
+    void stubNoSoloRank(String puuid)
+    {
+        leagues.put(puuid, "[" + entry(puuid, "RANKED_FLEX_SR", "GOLD", "II", 7, 3) + "]");
+    }
+
+    /** 2026-09-29 실제 응답의 칸 모양이다 — {@code summonerId} 가 없고 {@code puuid} 가 있다 */
+    private static String entry(String puuid, String queueType, String tier, String rank, int wins, int losses)
+    {
+        return "{\"queueType\":\"" + queueType + "\",\"tier\":\"" + tier + "\",\"rank\":\"" + rank
+                + "\",\"puuid\":\"" + puuid + "\",\"leaguePoints\":42,\"wins\":" + wins + ",\"losses\":" + losses
+                + ",\"veteran\":false,\"inactive\":false,\"freshBlood\":false,\"hotStreak\":false}";
+    }
+
+    /**
+     * 최근 경기. <b>적은 순서가 곧 새 경기부터의 순서다</b> — 연승 · {@code recentResults} 를 그 순서로 센다.
+     * <b>{@code null} 원소는 "그 사람이 참가자에 없는 경기"</b>다(앱이 읽지 못해 건너뛰어야 한다 — {@code List.of} 는 {@code null} 을 못 담으니 {@code Arrays.asList} 로 넣는다)
+     */
+    void stubMatches(String puuid, List<Play> plays)
+    {
+        List<QueuedPlay> queued = new ArrayList<>();
+        for(Play play : plays)
+        {
+            queued.add(new QueuedPlay(play, Queue.SOLO_RANKED));
+        }
+        stubQueuedMatches(puuid, queued);
+    }
+
+    /**
+     * 최근 경기를 큐와 함께 넣는다 — 커스텀 게임을 섞어 앱이 빼는지 본다(2026-10-02). 순서 · {@code null} 경기의 뜻은 {@link #stubMatches} 와 같다.
+     * {@link #stubMatches} 는 전부 솔로랭크({@link Queue#SOLO_RANKED})로 넣는다
+     */
+    void stubQueuedMatches(String puuid, List<QueuedPlay> plays)
+    {
+        List<String> ids = new ArrayList<>();
+        for(QueuedPlay queued : plays)
+        {
+            String matchId = "KR_" + matchSequence.incrementAndGet();
+            ids.add(matchId);
+            matches.put(matchId, matchJson(matchId, puuid, queued.play(), queued.queue()));
+        }
+        matchIds.put(puuid, ids);
+    }
+
+    /**
+     * 숙련도. 열쇠는 챔피언 <b>이름</b>이고 값은 {@code {레벨, 점수}} 다 — 응답에는 {@link #championKey(String)} 의 번호로 나간다.
+     * <b>Teemo(레벨 3 · 12,345점)를 맨 앞에 하나 같이 넣는다</b> — 점수가 낮아 상위에 들지 않아야 한다.
+     * 같은 점수의 순서를 보려면 {@link java.util.LinkedHashMap} 으로 넣는다(넣은 순서가 응답의 순서다)
+     */
+    void stubMastery(String puuid, Map<String, int[]> byChampion)
+    {
+        List<MasteryRow> rows = new ArrayList<>();
+        rows.add(new MasteryRow(championKey("Teemo"), 3, 12_345));
+        byChampion.forEach((champion, levelAndPoints) ->
+                rows.add(new MasteryRow(championKey(champion), levelAndPoints[0], levelAndPoints[1])));
+        masteries.put(puuid, rows);
+    }
+
+    /** 2026-09-30 실제 {@code top} 응답의 칸 모양이다 — 이름 칸이 없다 */
+    private static String masteryJson(String puuid, MasteryRow row)
+    {
+        return "{\"puuid\":\"" + puuid + "\",\"championId\":" + row.key() + ",\"championLevel\":" + row.level()
+                + ",\"championPoints\":" + row.points() + ",\"lastPlayTime\":1700000000000,\"championPointsSinceLastLevel\":100"
+                + ",\"championPointsUntilNextLevel\":900,\"markRequiredForNextLevel\":2,\"tokensEarned\":1,\"championSeasonMilestone\":1}";
+    }
+
+    private record MasteryRow(long key, int level, long points) {
+    }
+
+    /** 챔피언 이름 → Riot 의 챔피언 번호. 아는 이름은 실제 번호이고 모르는 이름은 이름에서 만든 값이다(같은 이름이면 늘 같다) */
+    static long championKey(String champion)
+    {
+        return switch(champion)
+        {
+            case "Ahri" -> 103;
+            case "Yasuo" -> 157;
+            case "LeeSin" -> 64;
+            case "Samira" -> 360;
+            case "Teemo" -> 17;
+            default -> 10_000 + Math.floorMod(champion.hashCode(), 10_000);
+        };
+    }
+
+    /** 경기 하나에서 그 사람의 기록. 엉뚱한 참가자를 하나 같이 넣는다 — {@code puuid} 로 골라 읽는지 본다 */
+    record Play(String champion, int kills, int deaths, int assists, boolean win, String position) {
+    }
+
+    /**
+     * 경기의 큐 — 상세의 {@code info.queueId} · {@code info.gameType} · {@code info.tournamentCode}. {@code null} 인 칸은 응답에서 뺀다.
+     * 상수는 2026-10-02 실제 키로 본 값이다 — 커스텀은 토너먼트 코드로 연 경기였다(API 키로는 그것만 온다)
+     */
+    record Queue(Integer queueId, String gameType, String tournamentCode) {
+
+        static final Queue SOLO_RANKED = new Queue(420, "MATCHED_GAME", "");
+        static final Queue ARAM = new Queue(450, "MATCHED_GAME", "");
+        static final Queue CUSTOM = new Queue(0, "CUSTOM_GAME", "KR04f27-a3713dba-03f4-4810-9dba-cc995c6586b1");
+    }
+
+    /** 큐가 붙은 경기 하나. {@code play} 가 {@code null} 이면 그 사람이 참가자에 없는 경기다 */
+    record QueuedPlay(Play play, Queue queue) {
+    }
+
+    private static String matchJson(String matchId, String puuid, Play play, Queue queue)
+    {
+        if(play == null)
+        {
+            // 그 사람이 없는 경기 — 참가자는 엉뚱한 사람 하나뿐이다
+            return "{\"metadata\":{\"matchId\":\"" + matchId + "\",\"participants\":[\"other-puuid\"]},"
+                    + "\"info\":{\"gameId\":1," + queueFields(queue) + "\"participants\":["
+                    + participant("other-puuid", new Play("Teemo", 99, 0, 99, true, "TOP"))
+                    + "]}}";
+        }
+        return "{\"metadata\":{\"matchId\":\"" + matchId + "\",\"participants\":[\"" + puuid + "\",\"other-puuid\"]},"
+                + "\"info\":{\"gameId\":1," + queueFields(queue) + "\"participants\":["
+                + participant("other-puuid", new Play("Teemo", 99, 0, 99, !play.win(), "TOP")) + ","
+                + participant(puuid, play)
+                + "]}}";
+    }
+
+    /** {@code "queueId":420,"gameType":"MATCHED_GAME","tournamentCode":"",} 꼴(끝에 쉼표). {@code null} 인 칸은 넣지 않는다 */
+    private static String queueFields(Queue queue)
+    {
+        StringBuilder fields = new StringBuilder();
+        if(queue.queueId() != null)
+        {
+            fields.append("\"queueId\":").append(queue.queueId()).append(',');
+        }
+        if(queue.gameType() != null)
+        {
+            fields.append("\"gameType\":\"").append(queue.gameType()).append("\",");
+        }
+        if(queue.tournamentCode() != null)
+        {
+            fields.append("\"tournamentCode\":\"").append(queue.tournamentCode()).append("\",");
+        }
+        return fields.toString();
+    }
+
+    private static String participant(String puuid, Play play)
+    {
+        return "{\"puuid\":\"" + puuid + "\",\"championName\":\"" + play.champion() + "\",\"championId\":" + championKey(play.champion()) + ","
+                + "\"kills\":" + play.kills() + ",\"deaths\":" + play.deaths() + ",\"assists\":" + play.assists()
+                + ",\"win\":" + play.win() + ",\"teamPosition\":\"" + play.position() + "\"}";
+    }
+
+    // ---- 흔들어 보는 것 ----
+
+    /** 0 이면 정상. 그 밖의 값이면 모든 주소가 그 상태를 준다 */
+    void failWith(int status)
+    {
+        failStatus = status;
+    }
+
+    /** 숙련도 주소만 이 상태를 준다. 0 이면 정상 */
+    void failMasteryWith(int status)
+    {
+        masteryFailStatus = status;
+    }
+
+    /** 이만큼 늦게 답한다 — 읽기 타임아웃을 본다 */
+    void respondAfter(Duration delay)
+    {
+        this.delay = delay;
+    }
+
+    int calls()
+    {
+        return calls.get();
+    }
+
+    /** 앱이 {@code summoner-v4} 를 부른 수. {@link #calls()} 에는 들지 않는다 */
+    int summonerCalls()
+    {
+        return summonerCalls.get();
+    }
+
+    /** 앱이 마지막으로 부른 숙련도 주소의 {@code puuid} 뒤 — {@code "/top?count=3"} 꼴이다. 부르지 않았으면 {@code null} */
+    String lastMasteryRequest()
+    {
+        return lastMasteryRequest;
+    }
+
+    void reset()
+    {
+        failStatus = 0;
+        masteryFailStatus = 0;
+        lastMasteryRequest = null;
+        delay = Duration.ZERO;
+        calls.set(0);
+        summonerCalls.set(0);
+    }
+
+    // ---- 주소 ----
+
+    private void account(HttpExchange exchange) throws IOException
+    {
+        if(!accept(exchange))
+        {
+            return;
+        }
+        // …/by-riot-id/{gameName}/{tagLine} — URI#getPath 가 퍼센트 인코딩을 풀어 준다(한글 · 공백)
+        String[] segments = tail(exchange, "/riot/account/v1/accounts/by-riot-id/").split("/");
+        if(segments.length != 2)
+        {
+            respond(exchange, 400, "{\"status\":{\"status_code\":400}}");
+            return;
+        }
+        String puuid = accounts.get(segments[0] + "#" + segments[1]);
+        if(puuid == null)
+        {
+            respond(exchange, 404, "{\"status\":{\"status_code\":404,\"message\":\"Data not found\"}}");
+            return;
+        }
+        respond(exchange, 200, "{\"puuid\":\"" + puuid + "\",\"gameName\":\"" + segments[0]
+                + "\",\"tagLine\":\"" + segments[1] + "\"}");
+    }
+
+    /** 앱이 부르면 안 된다 — 세고 실제처럼 {@code id} 가 없는 응답을 준다 */
+    private void summoner(HttpExchange exchange) throws IOException
+    {
+        summonerCalls.incrementAndGet();
+        String puuid = tail(exchange, "/lol/summoner/v4/summoners/by-puuid/");
+        respond(exchange, 200, "{\"puuid\":\"" + puuid + "\",\"profileIconId\":6,\"revisionDate\":1790653053054,\"summonerLevel\":300}");
+    }
+
+    private void league(HttpExchange exchange) throws IOException
+    {
+        if(!accept(exchange))
+        {
+            return;
+        }
+        String entries = leagues.get(tail(exchange, "/lol/league/v4/entries/by-puuid/"));
+        // 리그 목록은 없어도 404 가 아니라 빈 배열이다(언랭)
+        respond(exchange, 200, entries == null ? "[]" : entries);
+    }
+
+    private void matchIdList(HttpExchange exchange) throws IOException
+    {
+        if(!accept(exchange))
+        {
+            return;
+        }
+        // …/by-puuid/{puuid}/ids
+        String tail = tail(exchange, "/lol/match/v5/matches/by-puuid/");
+        String puuid = tail.endsWith("/ids") ? tail.substring(0, tail.length() - "/ids".length()) : tail;
+        List<String> ids = matchIds.get(puuid);
+        if(ids == null)
+        {
+            respond(exchange, 404, "{\"status\":{\"status_code\":404}}");
+            return;
+        }
+        List<String> quoted = new ArrayList<>();
+        for(String id : ids)
+        {
+            quoted.add('"' + id + '"');
+        }
+        respond(exchange, 200, "[" + String.join(",", quoted) + "]");
+    }
+
+    private void match(HttpExchange exchange) throws IOException
+    {
+        if(!accept(exchange))
+        {
+            return;
+        }
+        respondOr404(exchange, matches.get(tail(exchange, "/lol/match/v5/matches/")));
+    }
+
+    private void mastery(HttpExchange exchange) throws IOException
+    {
+        if(!accept(exchange))
+        {
+            return;
+        }
+        int status = masteryFailStatus;
+        if(status != 0)
+        {
+            respond(exchange, status, "{\"status\":{\"status_code\":" + status + "}}");
+            return;
+        }
+        // …/by-puuid/{puuid} (전부) 또는 …/by-puuid/{puuid}/top?count=N (점수 상위 N)
+        String tail = tail(exchange, "/lol/champion-mastery/v4/champion-masteries/by-puuid/");
+        String query = exchange.getRequestURI().getQuery();
+        boolean top = tail.endsWith("/top");
+        String puuid = top ? tail.substring(0, tail.length() - "/top".length()) : tail;
+        lastMasteryRequest = tail.substring(puuid.length()) + (query == null ? "" : "?" + query);
+        List<MasteryRow> rows = new ArrayList<>(masteries.getOrDefault(puuid, List.of()));
+        if(top)
+        {
+            // 안정 정렬 — 같은 점수는 넣은 순서 그대로다
+            rows.sort(java.util.Comparator.comparingLong(MasteryRow::points).reversed());
+            int count = 3;
+            if(query != null && query.startsWith("count="))
+            {
+                count = Integer.parseInt(query.substring("count=".length()));
+            }
+            rows = rows.subList(0, Math.min(count, rows.size()));
+        }
+        List<String> json = new ArrayList<>();
+        for(MasteryRow row : rows)
+        {
+            json.add(masteryJson(puuid, row));
+        }
+        respond(exchange, 200, "[" + String.join(",", json) + "]");
+    }
+
+    // ---- 공통 ----
+
+    /** 세고 · 키를 보고 · 흔들어 보는 설정을 적용한다. {@code false} 면 이미 답한 것이다 */
+    private boolean accept(HttpExchange exchange) throws IOException
+    {
+        calls.incrementAndGet();
+        if(!API_KEY.equals(exchange.getRequestHeaders().getFirst("X-Riot-Token")))
+        {
+            respond(exchange, 403, "{\"status\":{\"status_code\":403,\"message\":\"Forbidden\"}}");
+            return false;
+        }
+        Duration waiting = delay;
+        if(!waiting.isZero())
+        {
+            try
+            {
+                Thread.sleep(waiting.toMillis());
+            }
+            catch(InterruptedException e)
+            {
+                Thread.currentThread().interrupt();
+            }
+        }
+        int status = failStatus;
+        if(status != 0)
+        {
+            respond(exchange, status, "{\"status\":{\"status_code\":" + status + "}}");
+            return false;
+        }
+        return true;
+    }
+
+    private static String tail(HttpExchange exchange, String prefix)
+    {
+        String path = exchange.getRequestURI().getPath();
+        return path.length() <= prefix.length() ? "" : path.substring(prefix.length());
+    }
+
+    private static void respondOr404(HttpExchange exchange, String json) throws IOException
+    {
+        if(json == null)
+        {
+            respond(exchange, 404, "{\"status\":{\"status_code\":404}}");
+            return;
+        }
+        respond(exchange, 200, json);
+    }
+
+    private static void respond(HttpExchange exchange, int status, String json) throws IOException
+    {
+        byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add("Content-Type", "application/json;charset=UTF-8");
+        exchange.sendResponseHeaders(status, bytes.length);
+        try(var out = exchange.getResponseBody())
+        {
+            out.write(bytes);
+        }
+    }
+}

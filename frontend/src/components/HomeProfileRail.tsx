@@ -1,12 +1,14 @@
 import { Children, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import type { GameAccountView, GameKey, UserProfile } from '../api/types';
+import type { GameKey, GameProfile, UserProfile } from '../api/types';
 import { Avatar } from './ui';
+import { VerificationBadge } from './VerificationBadge';
 
 interface HomeProfileRailProps {
   user: UserProfile | null;
   game: GameKey;
-  gameAccount?: GameAccountView;
+  /** 그 게임의 게임 프로필(`users/me.gameAccounts`). 없으면 닉네임만 그린다. */
+  gameAccount?: GameProfile;
   children?: ReactNode;
   below?: ReactNode;
 }
@@ -17,10 +19,10 @@ export function HomeProfileRail({ user, game, gameAccount, children, below }: Ho
   return <aside className={`home-profile${hasWorkflow ? ' has-workflow' : ''}`} aria-label="내 정보">
     <div className="home-profile-stack"><div className="home-profile-content">
       <div className="home-profile-account">
-        <Avatar name={user.nickname} avatarUrl={user.avatarUrl} size={44} />
+        <Avatar userId={user.userId} name={user.nickname} size={44} />
         <div className="home-profile-identity">
-          <strong>{user.nickname}</strong>
-          {gameAccount?.game === game ? <span>{gameAccount.externalGameId}</span> : null}
+          <strong>{user.nickname}<VerificationBadge verified={gameAccount?.game === game && gameAccount.verified} /></strong>
+          {gameAccount?.game === game ? <span>{gameAccount.gameNickname}</span> : null}
         </div>
         <Link className="home-profile-link" to="/app/me">프로필</Link>
       </div>

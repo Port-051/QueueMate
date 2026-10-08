@@ -15,9 +15,17 @@ export interface PeerState {
 }
 
 export interface PartyClientHandlers {
+  onVoice?(state: VoiceActivity): void;
   onChat(message: PartyChatMessage): void;
   onStatus(status: VoiceStatus, detail?: string): void;
   onPeer(peer: PeerState): void;
+}
+
+export interface VoiceActivity {
+  userId: string;
+  enabled: boolean;
+  muted: boolean;
+  speaking: boolean;
 }
 
 export interface PartyClient {

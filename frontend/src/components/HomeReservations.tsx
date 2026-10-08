@@ -18,14 +18,12 @@ export function HomeReservations({ onEdit }: { onEdit: (reservation: Reservation
   const [busyId, setBusyId] = useState<string | null>(null);
   const active = reservations.filter((r) => ['ACTIVE', 'PROPOSED'].includes(r.status) || (r.status === 'MATCHED' && new Date(r.availableTo).getTime() > Date.now())).sort((a, b) => a.availableFrom.localeCompare(b.availableFrom));
 
+  /** 예약은 대응물이 없다(START_HERE.md §5). 제안 조회(`GET /proposals/{id}`)도 없어졌으므로 `proposalId`(= partyId)로 바로 방 화면에 간다 — 컴파일용이다. */
   const openParty = async (reservation: ReservationView) => {
     if (!reservation.proposalId) return;
     setBusyId(reservation.id);
-    try {
-      const proposal = await api.getProposal(reservation.proposalId);
-      if (proposal.partyId) navigate(`/app/party/${proposal.partyId}`);
-      else toast('아직 파티가 만들어지지 않았습니다', 'error');
-    } catch (err) { toast(isApiError(err) ? err.message : '파티를 불러오지 못했습니다', 'error'); }
+    try { navigate(`/app/party/${reservation.proposalId}`); }
+    catch (err) { toast(isApiError(err) ? err.message : '파티를 불러오지 못했습니다', 'error'); }
     finally { setBusyId(null); }
   };
   const cancel = async (reservation: ReservationView) => {

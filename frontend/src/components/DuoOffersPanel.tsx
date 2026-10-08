@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { BoardRow } from '../api/recruitment';
 import { errorMessage } from '../api/error';
 import { useAuth } from '../state/AuthContext';
-import { useDuoOffers } from '../state/duoOffers';
+import { useDuoOffers, writeDuoOffers } from '../state/duoOffers';
 import { Avatar, Button, useToast } from './ui';
 import { MatchConditionSummary } from './MatchConditionSummary';
 import { introductionForRow } from '../domain/introduction';
@@ -11,19 +11,19 @@ import { RankBadge } from './RankBadge';
 import { IconCheck, IconX } from './icons';
 
 export function DuoOffersPanel({ source }: { source: BoardRow }) {
-  const { user } = useAuth();
-  const offers = useDuoOffers(user?.id ?? '').filter(offer => offer.sourceId === source.id);
+  const { user, userId } = useAuth();
+  const offers = useDuoOffers(userId ?? '').filter(offer => offer.sourceId === source.id);
   const [busy, setBusy] = useState<string | null>(null);
   const toast = useToast();
   const found = offers.filter(offer => offer.status === 'FOUND' || offer.status === 'RECEIVED');
   const sent = offers.filter(offer => offer.status === 'SENT');
   const act = async (id: string, peerId?: string) => {
-    if (!user || busy) return;
+    if (!userId || busy) return;
     setBusy(id);
     try {
-      const mock = await import('../mocks/recruitment');
-      if (peerId) mock.sendDuoInterest(source.id, peerId);
-      else mock.dismissDuoOffer(user.id, id);
+      // 듀오 제안은 백엔드 대응물이 없다(mock 전용이었다 — 2026-09-28 에 mock 을 지웠다). 처지는 미정(START_HERE.md §5).
+      if (peerId) toast('듀오 제안은 아직 지원하지 않습니다', 'info');
+      else writeDuoOffers(userId, offers => offers.filter(offer => offer.id !== id));
     } catch (error) { toast(errorMessage(error), 'error'); }
     finally { setBusy(null); }
   };
@@ -34,7 +34,7 @@ export function DuoOffersPanel({ source }: { source: BoardRow }) {
       const introduction = introductionForRow(offer.peer);
       return <article className="duo-offer" key={offer.id} aria-label={`${offer.peer.nickname} 매칭 제안`}>
         <div className="duo-offer-label"><span className="discovery-dot" />{offer.status === 'RECEIVED' ? '먼저 오케이를 보냈어요' : '상대 발견'}</div>
-        <div className="duo-offer-person"><Avatar name={offer.peer.nickname} size={32} /><strong>{offer.peer.nickname}</strong><RankBadge game={offer.peer.condition.game} tier={offer.peer.preferences.ownTier} division={introduction.rankDivision} /></div>
+        <div className="duo-offer-person"><Avatar userId={offer.peer.userId} name={offer.peer.nickname} size={32} /><strong>{offer.peer.nickname}</strong><RankBadge game={offer.peer.condition.game} tier={offer.peer.preferences.ownTier} division={introduction.rankDivision} /></div>
         <MatchConditionSummary record={offer.peer} />
         <div className="duo-offer-bottom">
           <div className="duo-offer-copy">
@@ -48,6 +48,6 @@ export function DuoOffersPanel({ source }: { source: BoardRow }) {
         </div>
       </article>;
     })}
-    {sent.length ? <section className="duo-sent" aria-label="보낸 오케이"><h3>응답 대기 <span>{sent.length}</span></h3>{sent.map(offer => <div className="duo-sent-person" key={offer.id}><Avatar name={offer.peer.nickname} size={28} /><div><strong>{offer.peer.nickname}</strong></div><Button size="sm" variant="ghost" disabled={Boolean(busy)} aria-label={`${offer.peer.nickname} 오케이 취소`} title="오케이 취소" onClick={() => void act(offer.id)}><IconX size={16} /></Button></div>)}</section> : null}
+    {sent.length ? <section className="duo-sent" aria-label="보낸 오케이"><h3>응답 대기 <span>{sent.length}</span></h3>{sent.map(offer => <div className="duo-sent-person" key={offer.id}><Avatar userId={offer.peer.userId} name={offer.peer.nickname} size={28} /><div><strong>{offer.peer.nickname}</strong></div><Button size="sm" variant="ghost" disabled={Boolean(busy)} aria-label={`${offer.peer.nickname} 오케이 취소`} title="오케이 취소" onClick={() => void act(offer.id)}><IconX size={16} /></Button></div>)}</section> : null}
   </section>;
 }

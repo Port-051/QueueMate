@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { ConnectionStatus, EventStream } from '../api/ws';
+import type { ConnectionStatus, EventStream } from '../api/sse';
 
 export function useConnectionStatus(stream: EventStream | null): ConnectionStatus {
   const [status, setStatus] = useState<ConnectionStatus>('connecting');

@@ -1,7 +1,8 @@
+import { normalizeTierRange, type TierRange } from './tierRange';
 import type { BoardRow, BoardWrite } from '../api/recruitment';
-import type { GameKey, VoicePreference } from '../api/types';
-import { USE_MOCK } from '../config';
+import type { GameKey, PlayPurpose, VoicePreference } from '../api/types';
 import { conditionForMode, usesKeyCondition, keyConditionOptions } from './gameConfig';
+import { storedPlayPurpose } from './gameCatalog';
 import { normalizeLolRankDetails, type LolRankDivision } from './lolRank';
 
 export type MatchResult = 'WIN' | 'LOSS' | null;
@@ -10,20 +11,27 @@ export interface SelfIntroduction {
   primaryRole: string;
   primaryRoles?: string[];
   desiredRoles: string[];
+  desiredTierRange?: TierRange;
   ownTier: string | null;
   rankDivision?: LolRankDivision | null;
   champions: string[];
   winRate: number | null;
   kda: number | null;
   queueType: string;
+  roomCapacity?: number;
   recentResults: MatchResult[];
   voice: VoicePreference;
+  /**
+   * 플레이 목적 — 빠른 연결 폼의 "매칭 시작" 에만 쓴다(2026-09-29 소유자 결정 · 글에는 목적이 없다 — platform P-29).
+   * 없으면(옛 저장값 · 고른 적 없음) 부르는 쪽이 기본값 빡겜(`gameConfig.ts` `DEFAULT_PLAY_PURPOSE`)으로 채운다.
+   */
+  playPurpose?: PlayPurpose;
   bio: string;
 }
 
 export const emptyIntroduction = (): SelfIntroduction => ({
   primaryRole: 'ANY', desiredRoles: [], ownTier: null, rankDivision: null, champions: [], winRate: null, kda: null,
-  queueType: 'ANY', recentResults: Array<MatchResult>(20).fill(null), voice: 'OPTIONAL', bio: '',
+  queueType: 'ANY', recentResults: Array<MatchResult>(20).fill(null), voice: 'NO_VOICE', bio: '',
 });
 const storageKey = (userId: string, game: GameKey) => `queuemate:introduction:v1:${encodeURIComponent(userId)}:${game}`;
 const text = (value: unknown, fallback = '') => typeof value === 'string' ? value.slice(0, 120) : fallback;
@@ -41,14 +49,18 @@ function normalize(value: Partial<SelfIntroduction>, game: GameKey): SelfIntrodu
     primaryRole: text(value.primaryRole, defaults.primaryRole) || 'ANY',
     primaryRoles: normalizeDesiredRoles(game, value.primaryRoles ?? (value.primaryRole && value.primaryRole !== 'ANY' ? [value.primaryRole] : [])),
     desiredRoles: normalizeDesiredRoles(game, strings(value.desiredRoles)),
-    ownTier: typeof value.ownTier === 'string' && value.ownTier ? value.ownTier : null,
+    desiredTierRange: normalizeTierRange(game, value.desiredTierRange),
+    ownTier: game === 'LOL' && typeof value.ownTier === 'string' && value.ownTier ? value.ownTier : null,
     ...normalizeLolRankDetails(game === 'LOL' ? value.ownTier : null, value.rankDivision),
-    champions: strings(value.champions).map(name => name.trim()).filter(Boolean),
-    winRate: typeof value.winRate === 'number' && Number.isFinite(value.winRate) && value.winRate >= 0 && value.winRate <= 100 ? value.winRate : null,
-    kda: typeof value.kda === 'number' && Number.isFinite(value.kda) && value.kda >= 0 ? value.kda : null,
+    champions: game === 'LOL' ? strings(value.champions).map(name => name.trim()).filter(Boolean) : [],
+    winRate: game === 'LOL' && typeof value.winRate === 'number' && Number.isFinite(value.winRate) && value.winRate >= 0 && value.winRate <= 100 ? value.winRate : null,
+    kda: game === 'LOL' && typeof value.kda === 'number' && Number.isFinite(value.kda) && value.kda >= 0 ? value.kda : null,
     queueType: text(value.queueType, defaults.queueType) || 'ANY',
-    recentResults: Array.from({ length: 20 }, (_, i) => value.recentResults?.[i] === 'WIN' ? 'WIN' : value.recentResults?.[i] === 'LOSS' ? 'LOSS' : null),
-    voice: ['REQUIRED', 'OPTIONAL', 'NO_VOICE'].includes(value.voice ?? '') ? value.voice! : defaults.voice,
+    roomCapacity: typeof value.roomCapacity === 'number' && Number.isInteger(value.roomCapacity) && value.roomCapacity >= 2 && value.roomCapacity <= 5 ? value.roomCapacity : undefined,
+    recentResults: Array.from({ length: 20 }, (_, i) => game !== 'LOL' ? null : value.recentResults?.[i] === 'WIN' ? 'WIN' : value.recentResults?.[i] === 'LOSS' ? 'LOSS' : null),
+    voice: ['REQUIRED', 'NO_VOICE'].includes(value.voice ?? '') ? value.voice! : defaults.voice,
+    // 옛 저장값의 `NORMAL` 은 `TRYHARD` 로 옮겨 읽는다(2026-09-29 — matching D-49, 옛 이름은 400).
+    playPurpose: storedPlayPurpose(value.playPurpose),
     bio: text(value.bio),
   };
 }
@@ -91,26 +103,9 @@ export function applyIntroduction(value: BoardWrite, introduction: SelfIntroduct
   };
 }
 
-const seedUsers = ['u-gankflow', 'u-playmaker', 'u-supportlife', 'u-lategame', 'u-midtheory', 'u-aimking', 'u-blueocean', 'u-chickendinner', 'u-silentjungle', 'u-healingyou'];
-const seedChampions: Record<GameKey, string[][]> = {
-  LOL: [['리 신', '비에고'], ['아리', '오리아나'], ['쓰레쉬', '룰루'], ['징크스', '카이사'], ['신드라', '아지르']],
-  VALORANT: [['제트', '레이나'], ['소바', '페이드'], ['오멘', '브림스톤'], ['사이퍼', '킬조이'], ['세이지', '스카이']],
-  PUBG: [['M416', '미니14'], ['베릴 M762', 'SLR'], ['AUG', 'Mk12'], ['AKM', 'Kar98k'], ['UMP', 'SKS']],
-};
-
 export function introductionForRow(row: IntroductionRecord): SelfIntroduction {
-  const saved = readIntroduction(row.userId, row.condition.game);
-  if (saved) return introductionFromBoard(row, saved);
-  const modeExample = /^u-lol-(?:normal_draft|swiftplay|aram)-(\d)$/.exec(row.userId);
-  const index = USE_MOCK ? modeExample ? Number(modeExample[1]) : seedUsers.indexOf(row.userId) : -1;
-  const example = index >= 0 ? {
-    ...emptyIntroduction(), champions: seedChampions[row.condition.game][index % 5],
-    ownTier: row.preferences.ownTier,
-    ...normalizeLolRankDetails(row.condition.game === 'LOL' ? row.preferences.ownTier : null, ['II', 'III', 'I', 'IV'][index % 4]),
-    winRate: 48 + index * 2, kda: Number((2.1 + index * 0.19).toFixed(2)),
-    recentResults: Array.from({ length: 20 }, (_, i): MatchResult => (i + index) % 5 < 3 ? 'WIN' : 'LOSS'),
-  } : null;
-  return introductionFromBoard(row, example);
+  // 예시 전적(mock 의 seed 사용자)은 2026-09-28 에 mock 과 함께 지웠다 — 저장된 자기소개가 없으면 빈 값이다.
+  return introductionFromBoard(row, readIntroduction(row.userId, row.condition.game));
 }
 
 export function introductionInputError(value: SelfIntroduction): string {

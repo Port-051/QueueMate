@@ -1,151 +1,117 @@
-import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { isApiError } from '../api/error';
+import { VerificationBadge } from '../components/VerificationBadge';
+import { useUserVerifications } from '../state/useUserVerifications';
+import { Link } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import type { FriendRequestView } from '../api/types';
 import { ReportModal } from '../components/ReportModal';
-import { IconShield, IconTrash } from '../components/icons';
-import { ActionMenu, Avatar, Button, Card, ConfirmDialog, EmptyState, useToast } from '../components/ui';
+import { IconParty, IconSearch, IconShield } from '../components/icons';
+import { Avatar, Button, ConfirmDialog, Tag, useToast } from '../components/ui';
+import { parseUserNumber, socialErrorMessage } from '../domain/socialErrors';
 import { relativeTime } from '../domain/time';
 import { useSocial } from '../state/SocialContext';
+import '../styles/friends.css';
 
-type Tab = 'friends' | 'received' | 'sent' | 'blocks';
+type Tab = 'friends' | 'received' | 'sent' | 'blocks' | 'recent';
+const TABS: readonly Tab[] = ['friends', 'received', 'sent', 'blocks', 'recent'];
+/** 이 화면에서 고르는 사람 — 친구 · 차단 · 최근 함께한 사람 · 요청의 상대. 번호는 본문에 문자열로 보낸다(`SocialContext` 가 맞춘다). */
+interface Person { userId: number; nickname: string }
 
+/**
+ * 친구 화면 `/app/friends`(2026-10-02 소유자 결정 — 왼쪽 레일의 "메시지" · "알림" 을 없애고 "친구" 하나로 합쳤다).
+ * 옛 메시지 화면에 얹혀 있던 "친구 관리" 패널(`FriendManagementPanel` — 5단계 · 2026-09-29)을 한 페이지로 옮겼다 — 우리 API(`SocialContext`) 그대로다.
+ *
+ * - 다섯 탭 — 친구 · 받은 요청 · 보낸 요청 · 차단 목록 · 최근 함께한 사람(파티가 닫히면 채워진다). **탭은 쿼리 `?tab=`**(`received` · `sent` · `blocks` · `recent` — 친구는 쿼리 없음)이라
+ *   옛 주소(`/app/messages?manage=…` · `/app/recent`)와 내 정보의 "차단 목록" 이 바로 그 탭으로 온다(`App.tsx`).
+ * - **사람 검색은 없다** — 친구 요청 · 차단은 상대의 **사용자 번호**를 직접 넣거나(위의 입력칸) 최근 함께한 사람 · 방 안 좌석에서 온다. 이름 입력은 받은 목록을 거르는 것뿐이다.
+ * - **메시지(DM) 행동은 없다** — 우리 서버에 메시지가 없어 옛 "메시지" 버튼은 이 브라우저에만 남는 대화로 갔다(같은 날 걷었다). 친구 삭제 · 차단 · 신고는 그대로다.
+ * - 받은 요청 수는 왼쪽 레일 "친구" 의 배지다(`AppShell` — 같은 목록).
+ */
 export function FriendsPage() {
-  const {
-    friends, receivedRequests, sentRequests, blocks, refresh,
-    acceptRequest, declineRequest, cancelRequest, removeFriend, block, unblock,
-  } = useSocial();
+  const social = useSocial();
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
-  const selectedTab = searchParams.get('tab');
-  const tab: Tab = selectedTab === 'received' || selectedTab === 'sent' || selectedTab === 'blocks' ? selectedTab : 'friends';
-  const setTab = (next: Tab) => setSearchParams(next === 'friends' ? {} : { tab: next });
-  const [confirmTarget, setConfirmTarget] = useState<{ userId: string; nickname: string; action: 'block' | 'remove' } | null>(null);
+  const requested = searchParams.get('tab');
+  const tab: Tab = TABS.find(item => item === requested) ?? 'friends';
+  // 탭을 옮겨도 뒤로 가기에 탭마다 한 칸씩 쌓지 않는다.
+  const setTab = (next: Tab) => setSearchParams(next === 'friends' ? {} : { tab: next }, { replace: true });
   const [query, setQuery] = useState('');
-  const [reportTarget, setReportTarget] = useState<{ userId: string; nickname: string } | null>(null);
-
-  /**
-   * 친구 요청은 알려주는 이벤트가 없다(FRIEND_REQUEST_* 미발행).
-   * 화면을 열 때 다시 읽어야 새 요청이 보인다.
-   */
-  useEffect(() => { void refresh(); }, [refresh]);
-
-  const run = async (action: Promise<void>, message: string) => {
-    try {
-      await action;
-      toast(message, 'ok');
-    } catch (err) {
-      toast(isApiError(err) ? err.message : '요청을 처리하지 못했습니다', 'error');
-    }
+  const [number, setNumber] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [remove, setRemove] = useState<Person | null>(null);
+  const [blockTarget, setBlockTarget] = useState<Person | null>(null);
+  const [reportTarget, setReportTarget] = useState<Person | null>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { heading.current?.focus({ preventScroll: true }); }, []);
+  // 최근 함께한 사람은 알림이 없다 — 탭을 열 때 다시 받는다.
+  useEffect(() => { if (tab === 'recent') void social.refresh().catch(() => {}); }, [tab, social.refresh]);
+  useEffect(() => { setNumber(''); }, [tab]);
+  const run = async (action: () => Promise<void>, success: string) => {
+    if (busy) return;
+    setBusy(true);
+    try { await action(); toast(success, 'ok'); }
+    catch (error) { toast(socialErrorMessage(error), 'error'); }
+    finally { setBusy(false); }
   };
-
-  const shownFriends = friends.filter((f) => f.nickname.toLowerCase().includes(query.trim().toLowerCase()));
-
-  return (
-    <section className="page focus-page list-page social-page">
-      <div className="page-head">
-        <h1>친구</h1>
+  const submitNumber = (event: FormEvent) => {
+    event.preventDefault();
+    const target = parseUserNumber(number);
+    if (!target) { toast('사용자 번호(숫자)를 넣어 주세요', 'error'); return; }
+    void run(async () => {
+      if (tab === 'blocks') await social.block(target); else await social.addFriend(target);
+      setNumber('');
+    }, tab === 'blocks' ? `#${target} 님을 차단했습니다` : `#${target} 님에게 친구 요청을 보냈습니다`);
+  };
+  const tabs = [
+    { key: 'friends', label: '친구', count: social.friends.length },
+    { key: 'received', label: '받은 요청', count: social.receivedRequests.length },
+    { key: 'sent', label: '보낸 요청', count: social.sentRequests.length },
+    { key: 'blocks', label: '차단 목록', count: social.blocks.length },
+    { key: 'recent', label: '최근 함께한 사람', count: social.recentPlayers.length },
+  ] as const;
+  const matches = (name: string) => name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
+  const friends = social.friends.filter(person => matches(person.nickname));
+  const blocks = social.blocks.filter(person => matches(person.nickname));
+  const recent = social.recentPlayers.filter(person => matches(person.nickname));
+  // 상대는 받은 요청이면 보낸 사람(requester), 보낸 요청이면 받는 사람(receiver)이다.
+  const counterpart = (request: FriendRequestView) => tab === 'received' ? request.requester : request.receiver;
+  const requests = (tab === 'received' ? social.receivedRequests : social.sentRequests).filter(request => matches(counterpart(request).nickname));
+  const isVerified = useUserVerifications([...friends, ...blocks, ...recent, ...requests.map(counterpart)].map(person => person.userId));
+  const empty = (text: string) => <p className="friends-empty">{query ? '검색 결과가 없습니다' : text}</p>;
+  const recentRelation = (userId: number) => {
+    if (social.isFriend(userId)) return <Tag tone="accent">친구</Tag>;
+    const from = social.requestFrom(userId);
+    if (from) return <Button size="sm" variant="primary" disabled={busy} onClick={() => void run(() => social.acceptRequest(from.requestId), '친구 요청을 수락했습니다')}>요청 수락</Button>;
+    const to = social.requestTo(userId);
+    if (to) return <Button size="sm" disabled={busy} onClick={() => void run(() => social.cancelRequest(to.requestId), '요청을 취소했습니다')}>요청 취소</Button>;
+    return <Button size="sm" variant="primary" disabled={busy} onClick={() => void run(() => social.addFriend(userId), '친구 요청을 보냈습니다')}>친구 추가</Button>;
+  };
+  return <section className="page friends-page" aria-label="친구">
+    <header className="friends-header"><IconParty size={26} /><h1 ref={heading} tabIndex={-1}>친구</h1></header>
+    <div className="friends-content">
+      <div className="friends-tabs" role="tablist" aria-label="친구 관리" onKeyDown={event => {
+        const index = tabs.findIndex(item => item.key === tab);
+        const next = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : -1;
+        if (next < 0) return;
+        event.preventDefault(); setTab(tabs[next].key);
+        event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
+      }}>{tabs.map(item => <button type="button" key={item.key} role="tab" aria-selected={tab === item.key} tabIndex={tab === item.key ? 0 : -1} onClick={() => setTab(item.key)}>{item.label}{item.count ? <span>{item.count}</span> : null}</button>)}</div>
+      {tab === 'friends' || tab === 'blocks' ? <form className="friends-search" onSubmit={submitNumber} aria-label={tab === 'blocks' ? '사용자 번호로 차단' : '사용자 번호로 친구 요청'}>
+        <span aria-hidden="true">#</span>
+        <input inputMode="numeric" aria-label="사용자 번호" placeholder={tab === 'blocks' ? '차단할 사용자 번호' : '친구 요청을 보낼 사용자 번호'} value={number} onChange={event => setNumber(event.target.value)} />
+        <Button type="submit" size="sm" variant="primary" disabled={busy || !number.trim()}>{tab === 'blocks' ? '차단' : '요청 보내기'}</Button>
+      </form> : null}
+      <div className="friends-search"><IconSearch size={18} /><input type="search" aria-label="이름으로 거르기" placeholder="이름으로 거르기" value={query} onChange={event => setQuery(event.target.value)} /></div>
+      <div className="friends-list" role="tabpanel" aria-label={tabs.find(item => item.key === tab)?.label}>
+        {tab === 'friends' ? friends.length ? friends.map(person => <div className="friends-row" key={person.userId}><Avatar userId={person.userId} name={person.nickname} size={44} /><b>{person.nickname}<VerificationBadge verified={isVerified(person.userId)} /> <small className="hint">#{person.userId} · {relativeTime(person.since)}</small></b><Link className="btn btn-ghost" to={`/app/messages/${person.userId}`}>메시지</Link><Button variant="ghost" size="sm" onClick={() => setReportTarget(person)} aria-label={`${person.nickname} 신고`}><IconShield size={16} />신고</Button><Button variant="ghost" size="sm" onClick={() => setRemove(person)} aria-label={`${person.nickname} 친구 삭제`}>친구 삭제</Button></div>) : empty('아직 친구가 없습니다. 사용자 번호를 넣거나 최근 함께한 사람에서 요청을 보내 보세요')
+          : tab === 'blocks' ? blocks.length ? blocks.map(person => <div className="friends-row" key={person.userId}><Avatar userId={person.userId} name={person.nickname} size={44} /><b>{person.nickname}<VerificationBadge verified={isVerified(person.userId)} /> <small className="hint">#{person.userId} · {relativeTime(person.createdAt)}</small></b><Button size="sm" disabled={busy} onClick={() => void run(() => social.unblock(person.userId), '차단을 해제했습니다')}>차단 해제</Button></div>) : empty('차단한 사용자가 없습니다')
+          : tab === 'recent' ? recent.length ? recent.map(person => <div className="friends-row" key={person.userId}><Avatar userId={person.userId} name={person.nickname} size={44} /><b>{person.nickname}<VerificationBadge verified={isVerified(person.userId)} /> <small className="hint">#{person.userId} · {relativeTime(person.lastPlayedAt)} 함께 플레이</small></b>{recentRelation(person.userId)}<Link className="btn btn-ghost" to={`/app/messages/${person.userId}`}>메시지</Link><Button variant="ghost" size="sm" onClick={() => setBlockTarget(person)}>차단</Button><Button variant="ghost" size="sm" onClick={() => setReportTarget(person)} aria-label={`${person.nickname} 신고`}><IconShield size={16} />신고</Button></div>) : empty('아직 함께한 사람이 없습니다. 확정된 파티가 끝나면 기록됩니다')
+          : requests.length ? requests.map(request => <div className="friends-row" key={request.requestId}><Avatar userId={counterpart(request).userId} name={counterpart(request).nickname} size={44} /><b>{counterpart(request).nickname}<VerificationBadge verified={isVerified(counterpart(request).userId)} /> <small className="hint">#{counterpart(request).userId} · {relativeTime(request.createdAt)}</small></b>{tab === 'received' ? <><Button size="sm" variant="primary" disabled={busy} onClick={() => void run(() => social.acceptRequest(request.requestId), '친구 요청을 수락했습니다')}>수락</Button><Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => social.declineRequest(request.requestId), '친구 요청을 거절했습니다')}>거절</Button></> : <Button size="sm" disabled={busy} onClick={() => void run(() => social.cancelRequest(request.requestId), '요청을 취소했습니다')}>요청 취소</Button>}</div>) : empty(tab === 'received' ? '받은 친구 요청이 없습니다' : '보낸 친구 요청이 없습니다')}
       </div>
-
-      <div className="social-toolbar">
-        <div className="tabs">
-          <button type="button" className={tab === 'friends' ? 'on' : ''} onClick={() => setTab('friends')}>
-            친구 목록<span className="count">{friends.length}</span>
-          </button>
-          <button type="button" className={tab === 'received' ? 'on' : ''} onClick={() => setTab('received')}>
-            받은 요청<span className="count">{receivedRequests.length}</span>
-          </button>
-          <button type="button" className={tab === 'sent' ? 'on' : ''} onClick={() => setTab('sent')}>
-            보낸 요청<span className="count">{sentRequests.length}</span>
-          </button>
-          <button type="button" className={tab === 'blocks' ? 'on' : ''} onClick={() => setTab('blocks')}>
-            차단 목록<span className="count">{blocks.length}</span>
-          </button>
-        </div>
-        {tab === 'friends' ? (
-          <input className="input" aria-label="친구 검색" placeholder="친구 검색"
-            value={query} onChange={(e) => setQuery(e.target.value)} />
-        ) : null}
-      </div>
-
-      <Card className="flat">
-        {tab === 'friends' ? (
-          shownFriends.length === 0
-            ? <EmptyState title={query.trim() ? '검색 결과가 없습니다' : '친구가 없습니다'} desc={query.trim() ? '다른 닉네임으로 검색해보세요.' : '파티룸이나 최근 함께한 사람에서 친구 요청을 보낼 수 있습니다.'} action={query.trim() ? <Button onClick={() => setQuery('')}>검색 지우기</Button> : <Link className="btn" to="/app/recent">최근 함께한 사람 보기</Link>} />
-            : shownFriends.map((f) => (
-              <div key={f.userId} className="list-item">
-                <Avatar name={f.nickname} avatarUrl={f.avatarUrl} size={38} />
-                <div className="li-main">
-                  <b>{f.nickname}</b>
-                  <p>{relativeTime(f.friendedAt)}</p>
-                </div>
-                <ActionMenu label={`${f.nickname} 관리`}>
-                <Button size="sm" onClick={() => setConfirmTarget({ userId: f.userId, nickname: f.nickname, action: 'block' })}>차단</Button>
-                <Button size="sm" variant="ghost" onClick={() => setReportTarget({ userId: f.userId, nickname: f.nickname })}>
-                  <IconShield size={13} /> 신고
-                </Button>
-                <Button size="sm" variant="danger" onClick={() => setConfirmTarget({ userId: f.userId, nickname: f.nickname, action: 'remove' })}>
-                  <IconTrash size={13} /> 삭제
-                </Button>
-                </ActionMenu>
-              </div>
-            ))
-        ) : null}
-
-        {tab === 'received' ? (
-          receivedRequests.length === 0
-            ? <EmptyState title="받은 친구 요청이 없습니다" />
-            : receivedRequests.map((r) => (
-              <div key={r.id} className="list-item">
-                <Avatar name={r.counterpartNickname} size={38} />
-                <div className="li-main">
-                  <b>{r.counterpartNickname}</b>
-                  <p>{relativeTime(r.createdAt)}</p>
-                </div>
-                <Button size="sm" variant="primary" onClick={() => void run(acceptRequest(r.id), '친구 요청을 수락했습니다')}>수락</Button>
-                <Button size="sm" onClick={() => void run(declineRequest(r.id), '친구 요청을 거절했습니다')}>거절</Button>
-              </div>
-            ))
-        ) : null}
-
-        {tab === 'sent' ? (
-          sentRequests.length === 0
-            ? <EmptyState title="보낸 친구 요청이 없습니다" />
-            : sentRequests.map((r) => (
-              <div key={r.id} className="list-item">
-                <Avatar name={r.counterpartNickname} size={38} />
-                <div className="li-main">
-                  <b>{r.counterpartNickname}</b>
-                  <p>{relativeTime(r.createdAt)}</p>
-                </div>
-                <Button size="sm" onClick={() => void run(cancelRequest(r.id), '요청을 취소했습니다')}>요청 취소</Button>
-              </div>
-            ))
-        ) : null}
-
-        {tab === 'blocks' ? (
-          blocks.length === 0
-            ? <EmptyState title="차단한 사용자가 없습니다" desc="차단하면 이후 어떤 매칭에서도 같은 파티가 되지 않습니다." />
-            : blocks.map((b) => (
-              <div key={b.userId} className="list-item">
-                <Avatar name={b.nickname} size={38} />
-                <div className="li-main">
-                  <b>{b.nickname}</b>
-                  <p>{relativeTime(b.blockedAt)}</p>
-                </div>
-                <Button size="sm" onClick={() => void run(unblock(b.userId), '차단을 해제했습니다')}>차단 해제</Button>
-              </div>
-            ))
-        ) : null}
-      </Card>
-
-      {confirmTarget ? <ConfirmDialog title={`${confirmTarget.nickname}님을 ${confirmTarget.action === 'block' ? '차단' : '친구에서 삭제'}할까요?`}
-        description={confirmTarget.action === 'block' ? '친구 목록에서 제외되며, 이후 매칭에서 같은 파티로 만나지 않습니다. 차단 목록에서 해제할 수 있습니다.' : '친구 목록에서 삭제됩니다. 다시 친구가 되려면 새 친구 요청이 필요합니다.'}
-        confirmLabel={confirmTarget.action === 'block' ? '차단하기' : '친구 삭제'}
-        onConfirm={async () => { if (confirmTarget.action === 'block') await block(confirmTarget.userId); else await removeFriend(confirmTarget.userId); toast(confirmTarget.action === 'block' ? '사용자를 차단했습니다' : '친구를 삭제했습니다', 'ok'); }}
-        onClose={() => setConfirmTarget(null)} /> : null}
-      {reportTarget ? (
-        <ReportModal targetUserId={reportTarget.userId} targetNickname={reportTarget.nickname} onClose={() => setReportTarget(null)} />
-      ) : null}
-    </section>
-  );
+    </div>
+    {remove ? <ConfirmDialog title={`${remove.nickname}님을 친구에서 삭제할까요?`} description="상대에게 알리지 않습니다." confirmLabel="친구 삭제" onClose={() => setRemove(null)} onConfirm={async () => { await social.removeFriend(remove.userId); toast('친구를 삭제했습니다', 'ok'); }} /> : null}
+    {blockTarget ? <ConfirmDialog title={`${blockTarget.nickname}님을 차단할까요?`} description="그 사람이 있는 방은 게시판에서 보이지 않고 매칭에서도 만나지 않습니다. 이미 맺은 친구 관계는 그대로입니다. 차단 목록에서 해제할 수 있습니다." confirmLabel="차단하기" onClose={() => setBlockTarget(null)} onConfirm={async () => { await social.block(blockTarget.userId); toast('사용자를 차단했습니다', 'ok'); }} /> : null}
+    {reportTarget ? <ReportModal targetUserId={String(reportTarget.userId)} targetNickname={reportTarget.nickname} onClose={() => setReportTarget(null)} /> : null}
+  </section>;
 }

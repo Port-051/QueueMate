@@ -1,0 +1,38 @@
+@@M@@ LABEL=c40b_r1 CONC=40 PROCS=20 ROUNDS=300 PREFILL=0 POLL_SLEEP_ms=1.00 n_ok=9600 n_err=0 wall=15.0s pairs/s=799 req/s=1598
+    MATCH p50=20.85 p95=24.83 p99=27.55 max=48.14 mean=17.50
+    HTTP  p50=4.04 p95=5.66 p99=6.84 max=16.28
+    DELTA(match-http) p50=16.54 p95=20.14 p99=22.50 max=39.23
+    GAP(폴링 불확실구간) p50=2.874 p95=4.168 max=11.320  errs={}
+
+@@M@@ LABEL=c40b_r2 CONC=40 PROCS=20 ROUNDS=300 PREFILL=0 POLL_SLEEP_ms=1.00 n_ok=9600 n_err=0 wall=21.2s pairs/s=565 req/s=1130
+    MATCH p50=3.88 p95=25.14 p99=27.50 max=39.01 mean=8.20
+    HTTP  p50=2.44 p95=5.34 p99=6.75 max=18.59
+    DELTA(match-http) p50=1.61 p95=20.30 p99=22.40 max=33.65
+    GAP(폴링 불확실구간) p50=2.031 p95=3.772 max=7.389  errs={}
+
+@@M@@ LABEL=c100b_r1 CONC=100 PROCS=20 ROUNDS=150 PREFILL=0 POLL_SLEEP_ms=1.00 n_ok=12000 n_err=0 wall=27.8s pairs/s=541 req/s=1081
+    MATCH p50=83.47 p95=93.34 p99=98.04 max=105.26 mean=59.58
+    HTTP  p50=5.66 p95=8.28 p99=9.74 max=15.92
+    DELTA(match-http) p50=76.97 p95=86.73 p99=91.53 max=98.78
+    GAP(폴링 불확실구간) p50=4.064 p95=6.623 max=11.569  errs={}
+
+@@M@@ LABEL=c100b_r2 CONC=100 PROCS=20 ROUNDS=150 PREFILL=0 POLL_SLEEP_ms=1.00 n_ok=12000 n_err=0 wall=29.7s pairs/s=505 req/s=1010
+    MATCH p50=4.55 p95=93.83 p99=98.95 max=108.19 mean=33.52
+    HTTP  p50=2.57 p95=8.14 p99=9.69 max=19.13
+    DELTA(match-http) p50=1.99 p95=86.93 p99=92.10 max=98.00
+    GAP(폴링 불확실구간) p50=2.142 p95=6.282 max=12.666  errs={}
+
+@@M@@ LABEL=c200b_r1 CONC=200 PROCS=20 ROUNDS=100 PREFILL=0 POLL_SLEEP_ms=2.00 n_ok=16000 n_err=0 wall=47.0s pairs/s=426 req/s=852
+    MATCH p50=219.93 p95=266.83 p99=278.28 max=293.91 mean=134.93
+    HTTP  p50=6.99 p95=12.18 p99=14.31 max=25.25
+    DELTA(match-http) p50=210.64 p95=257.43 p99=268.63 max=283.81
+    GAP(폴링 불확실구간) p50=5.962 p95=10.659 max=16.524  errs={}
+
+@@M@@ LABEL=c200b_r2 CONC=200 PROCS=20 ROUNDS=100 PREFILL=0 POLL_SLEEP_ms=2.00 n_ok=16000 n_err=0 wall=48.1s pairs/s=416 req/s=832
+    MATCH p50=237.12 p95=274.92 p99=288.82 max=312.44 mean=158.28
+    HTTP  p50=7.85 p95=12.54 p99=14.41 max=19.82
+    DELTA(match-http) p50=227.80 p95=265.23 p99=278.99 max=302.14
+    GAP(폴링 불확실구간) p50=6.748 p95=10.889 max=17.167  errs={}
+
+dbsize=16 gameconfig=13
+=== DONE ===

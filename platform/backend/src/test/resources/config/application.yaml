@@ -1,0 +1,18 @@
+# 테스트에서만 읽힌다. classpath:/config/ 의 설정은 main 의 application.yaml(classpath:/) 위에 덮인다 —
+# 같은 이름의 파일을 src/test/resources/ 바로 아래에 두면 main 의 것을 통째로 가려 버리므로 config/ 아래에 뒀다.
+platform:
+  room:
+    auto-confirm-enabled: false
+  jwt:
+    # 개발용 키를 저장소(backend/.dev-keys/)가 아니라 임시 폴더에 만든다 — 테스트가 작업 폴더를 어지럽히지 않게 한다
+    dev-key-dir: ${java.io.tmpdir}/qm-platform-test-keys
+    # 그 임시 폴더는 처음엔 비어 있다 — 만들게 한다(main 의 기본값 false 면 키가 없어 컨텍스트가 뜨지 않는다 · P-51)
+    generate-dev-keys: true
+  # TEMP-DEV-LOGIN — 테스트에서는 개발용 로그인을 켠다(DevLoginApiTest 가 다른 API 테스트와 컨텍스트를 같이 쓴다).
+  # 꺼졌을 때(운영의 기본값)는 DevLoginDisabledTest 가 @TestPropertySource 로 따로 띄워 본다
+  auth:
+    dev-login-enabled: true
+  # 차단 관계 사본의 주기적 재구성을 끈다(2026-10-02 · P-52) — 테스트 도중 뒤에서 표와 Redis 를 훑지 않게. 재구성은 BlockRelationRedisTest 가 직접 부르고,
+  # 기동 때 한 번은 컨텍스트마다 그대로 돈다
+  block:
+    redis-sync-interval: PT0S

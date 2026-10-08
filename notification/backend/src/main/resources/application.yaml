@@ -1,0 +1,66 @@
+spring:
+  application:
+    name: notification
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+
+server:
+  port: ${SERVER_PORT:8081}
+
+# 헬스 체크 — platform 의 application.yaml 과 같은 모양이다. 다른 것은 ready 그룹이 db 대신 redis 를 보는 것 하나다
+management:
+  endpoints:
+    web:
+      # actuator 를 /actuator 아래가 아니라 루트에 둔다 — 주소를 platform 과 같은 /health/live · /health/ready 로 맞추려는 것이다.
+      # (health 그룹의 additional-path 는 /livez 처럼 한 마디짜리 주소만 받아서 /health/live 를 만들 수 없었다 — platform 에서 확인한 것이다.)
+      # 이 앱에는 /actuator/… 주소가 없다. 인증 없이 열리는 것은 SecurityConfig 가 정한다
+      base-path: /
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      # 컨테이너가 살아 있는지(liveness)와 요청을 받을 준비가 됐는지(readiness)를 따로 본다.
+      # 이것이 livenessState · readinessState 를 켠다. /health/liveness · /health/readiness 로도 답한다.
+      # show-details 는 기본값(never)이다 — 상태(UP · DOWN)만 내보낸다
+      probes:
+        enabled: true
+      group:
+        # /health/live · /health/ready.
+        # readiness 에 Redis 를 넣는다 — 이 앱의 일은 Redis 구독을 SSE 로 흘려보내는 것뿐이라 Redis 가 없으면 요청을 받을 준비가 안 된 것이다.
+        # 그래도 ALB 헬스 체크는 /health/live 에 건다. /health/ready 에 걸면 Redis 장애 조치(몇 초) 동안 태스크가 전부 unhealthy 로 보여
+        # ECS 가 태스크를 통째로 갈아치운다 — 그래 봐야 낫지 않는다.
+        # liveness 에는 아무것도 더하지 않는다 — Redis 가 돌아오면 구독 컨테이너가 스스로 다시 붙는다(RedisConfig — 2026-09-19 확인)
+        live:
+          include: livenessState
+        ready:
+          include: readinessState,redis
+
+queuemate:
+  sse:
+    # 15~30초. 프록시/ALB 유휴 타임아웃(300초)보다 짧아야 한다
+    heartbeat-interval-ms: ${SSE_HEARTBEAT_INTERVAL_MS:20000}
+    # 무한(0)으로 두면 죽은 연결이 안 빠진다. 끊기면 EventSource 가 알아서 재접속한다
+    timeout-ms: ${SSE_TIMEOUT_MS:1800000}
+    # 브라우저에 내려 주는 재접속 대기 시간(retry:). 연결마다 이 범위에서 무작위로 뽑아
+    # 재배포 직후 재접속이 한순간에 몰리지 않게 한다.
+    # 짧으면 끊김 뒤 알림 공백이 짧고(제안 수명이 20초다), 길고 넓으면 몰림이 더 잘 흩어진다
+    reconnect-delay-min-ms: ${SSE_RECONNECT_DELAY_MIN_MS:1000}
+    reconnect-delay-max-ms: ${SSE_RECONNECT_DELAY_MAX_MS:2000}
+
+  # 인증 — platform 이 서명한 access 토큰(쿠키 qm_access)을 공개 키로 검증만 한다 (CLAUDE.md §7.2 "인증").
+  # 공개 키는 JWT_PUBLIC_KEY(X.509 PEM — 운영은 이것. Secrets Manager)가 먼저이고, 비어 있으면 JWT_PUBLIC_KEY_FILE 의 파일을 읽는다.
+  # 파일의 기본값은 platform 이 만드는 개발용 공개 키다(backend/ 에서 띄울 때의 상대 경로). 둘 다 없으면 기동하지 않는다 —
+  # 인증 없이 뜨면 아무나 남의 알림을 받는다
+  jwt:
+    public-key: ${JWT_PUBLIC_KEY:}
+    public-key-file: ${JWT_PUBLIC_KEY_FILE:../../platform/backend/.dev-keys/public.pem}
+  web:
+    # 상태를 바꾸는 요청(POST/PUT/PATCH/DELETE)에 허용하는 Origin (쉼표로 구분). 지금은 GET 하나뿐이라 걸릴 요청이 없다 — OriginCheckFilter
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+
+logging:
+  level:
+    com.queuemate: INFO

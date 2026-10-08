@@ -1,0 +1,1 @@
+{"data":{"type":"rankedplayerstats","attributes":{"rankedGameModeStats":{}},"relationships":{"player":{"data":{"type":"player","id":"{{accountId}}"}},"season":{"data":{"type":"season","id":"division.bro.official.pc-2018-43"}}}},"links":{"self":"https://api.pubg.com/shards/steam/players/{{accountId}}/seasons/division.bro.official.pc-2018-43/ranked"},"meta":{}}
