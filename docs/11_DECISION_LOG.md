@@ -164,6 +164,12 @@
 > 걸러 읽는다. 그 항목들의 본문은 고치지 않았고 D-34 · D-41 머리에 한 줄만 달았다. D-57 은
 > [이 저장소에서 내린 결정](#이-저장소에서-내린-결정-2026-09-07) 절에 있고, 겹치면 D-57 이 우선한다.
 
+> **낡은 항목 주의 (2026-10-09 추가).** **#6 의 "텍스트 DataChannel" 과 D-9 의 "채팅은 WebRTC 직결(서버는 시그널만)" 가운데 채팅 부분은 D-58 로 개정됐다.**
+> 네 번째 배포 단위 `chat`(포트 8083 · 고아 브랜치 `chat`)이 생겨 방 채팅은 WebSocket `/ws/chat/rooms/{roomId}` + Redis Pub/Sub(`qm:pubsub:chat:{roomId}` — 저장 없음),
+> 친구 DM 은 Redis Streams `qm:dm:{a}:{b}`(`MAXLEN ~ 200` · 30일)로 간다. 음성(시그널 `POST` · SSE 배달 · WebRTC 직결)은 그대로이고 따로 D-항목(`voice`)을 쓴다.
+> "notification 밖에 WebSocket 금지" · "큐 · Streams 없음"(D-42) 에 각각 `chat` · `qm:dm:*` 하나의 예외가 생겼다. 본문은 고치지 않았고 #6 · D-9 머리에 한 줄만 달았다.
+> D-58 은 [이 저장소에서 내린 결정](#이-저장소에서-내린-결정-2026-09-07) 절에 있고, 겹치면 D-58 이 우선한다.
+
 변경 시 날짜/근거/영향을 추가한다.
 
 ## Fixed decisions
@@ -173,6 +179,7 @@
 4. PostgreSQL을 영속 DB로 사용한다.
 5. Redis를 active matchmaking/lock/index에 사용한다.
 6. WebRTC로 파티 음성 + 텍스트 DataChannel을 처리한다.
+   **채팅 부분 낡음 — D-58(2026-10-09)이 개정.** 음성 부분은 그대로다 — 텍스트 채팅은 DataChannel 이 아니라 `chat` 단위의 WebSocket + Redis Pub/Sub(방) · Redis Streams(친구 DM)다.
 7. ~~Spring WebSocket은 server event + WebRTC signaling에만 사용한다.~~ (2026-08-31)
    **개정됨 → #22.** 서버→클라 이벤트 14종은 SSE(`GET /api/v1/events`)로 보내고,
    Spring WebSocket(`/ws`)은 `WEBRTC_SIGNAL` 전용이다.
@@ -1149,6 +1156,8 @@ INV-1 이 깨진다.
 ---
 
 ### D-9. WebSocket(`/ws`)을 없앤다 — `WEBRTC_SIGNAL` 도 SSE 로 받고, 보내는 쪽은 `app:platform` 의 REST `POST` 다 (#22 개정, 2026-09-19)
+
+> **채팅 부분 낡음 — D-58(2026-10-09)이 개정.** 음성 부분은 그대로다 — 파티 채팅은 WebRTC DataChannel 이 아니라 `chat` 단위(포트 8083)의 WebSocket `/ws/chat/rooms/{roomId}` + Redis Pub/Sub 을 거친다. 시그널 `POST` · SSE 배달 · 음성 직결은 그대로다.
 
 > **다시 맞다 — D-33(2026-09-26 표시).** D-16 이 "시그널 `POST` 를 받는 앱"을 `app:room` 으로 읽게 했으나, D-33 으로 `app:room` 이 `app:platform` 에 합쳐져 원문의 `app:platform` 이 다시 맞다(그 `room` 패키지).
 
@@ -4536,6 +4545,89 @@ D-34 로 이 앱이 읽는 테이블은 `blocks` 하나다). 그래서 이 앱�
   `START_HERE.md` · `HANDOFF.md` §0-12 · `docs/AWS_ARCHITECTURE.md` 등의 "지금" DB 서술 · `contracts/README.md` A-21.
 - **#30 "차단 검증 없이 배포하지 않는다"** — 합류 Lua 가 실제로 도는 것과 platform 이 집합을 채우는 것(P-52)으로 충족된다.
 - 이 로그 — D-34 · D-41 머리에 한 줄, 파일 머리의 "낡은 항목 주의" 에 한 덩어리를 달았다. 본문은 고치지 않았다.
+
+---
+
+### D-58. 네 번째 배포 단위 `chat` — 방 채팅은 서버를 거치는 Redis Pub/Sub, 친구 DM 은 Redis Streams 에 최근 것만 (D-9 · #6 의 "채팅은 WebRTC 직결" 개정, 2026-10-09)
+
+> **프로젝트 소유자가 정했다**(2026-10-08 ~ 09 — "무조건 Java Spring" · "음성도 서버 따로 보이스도 서버 따로" · "방 내부 채팅은 … 알림처럼 pub sub" ·
+> "dm 은 … redis stream" · "최근 것만 남기면 되지 않나"). 이 항목은 **채팅**만이다. 음성(`voice`)은 따로 D-항목을 쓴다.
+> **D-9 · #6 의 본문은 고치지 않았다** (이 파일은 기록이다) — 머리에 한 줄만 달았다. 뼈대 커밋은 `chat` 브랜치 `e1b983d`(2026-10-09). 구현은 소유자가 직접 한다.
+
+**원안(D-9 · #6).** 파티 음성 · 채팅은 파티원 브라우저끼리 WebRTC 로 직접 연결한다. 서버는 시그널(`WEBRTC_SIGNAL`)만 중계하고 내용은 거치지 않는다.
+처리방침 · 랜딩 · 내 정보에 "대화 내용은 서버에 저장되지 않아요 · 같은 방 사람에게 IP 가 전달돼요". 친구 DM 은 없었다.
+
+**결정.**
+
+1. **배포 단위 `chat` — 네 번째 Spring Boot 앱.** 폴더 `chat/backend/`, 같은 레포의 고아 브랜치 `chat` worktree. 포트 **8083**. 커밋 scope `chat` · `docs` · `infra`.
+   의존성은 notification 과 같은 틀 + websocket + validation(Boot 4.1.1 · Java 21 · Lettuce · security + oauth2-resource-server · actuator · lombok). **DB · JPA · Flyway 없음.**
+2. **인증은 notification 과 같다** — 쿠키 `qm_access` JWT 를 공개 키로 **검증만.** WebSocket 핸드셰이크도 같은 필터를 지나 `WebSocketSession.getPrincipal()` 이 "나".
+   `?userId=` · 바디 `userId` 없음. "notification 밖에 WebSocket · `@MessageMapping` 금지" 는 **"chat · voice 는 예외"** 로 고친다. `SseEmitter` 는 여전히 notification 만.
+3. **방 채팅 — 저장하지 않는다. Redis Pub/Sub.** 소켓 `GET /ws/chat/rooms/{roomId}`; 핸드셰이크에서 `qm:room:{roomId}` 를 읽어(platform 의 키 — **읽기만**) 멤버가 아니면 403.
+   보내기 → 검증(빈 글 · 500자 · 초당 5개 · 멤버 재확인) → `PUBLISH qm:pubsub:chat:{roomId} <봉투>`. **보낸 서버도 자기 소켓에 직접 쏘지 않고 구독으로 받아 쏜다**(한 길 · 같은 순서).
+   인스턴스는 자기한테 사람이 붙은 방의 채널만 `SUBSCRIBE` — 패턴 구독 없음; 남은 소켓 0 이면 `UNSUBSCRIBE`.
+   봉투 `{type:"MSG", roomId, from, nick, text, cid, sentAt}`; `nick` 은 보낸 시점 닉네임; `cid` 는 브라우저 UUID. 끊긴 사이 메시지는 없다. 시스템 메시지는 없다(⑤).
+4. **친구 DM — 최근 것만. Redis Streams.** 키 `qm:dm:{작은 userId}:{큰 userId}`(대화 하나에 스트림 하나 · 쓰는 것은 chat 만). `XADD … MAXLEN ~ 200 *` 필드 `from` · `text` · `cid`;
+   **모든 XADD 가 한 메서드를 지나고 MAXLEN 이 빠진 경로는 없다**; XADD 직후 `EXPIRE 30일`.
+   보내기 `POST /api/v1/chat/dm/{otherUserId}`(또는 소켓) — 친구 · 차단 확인 뒤 XADD → ID 응답 → `PUBLISH qm:pubsub:chat:dm:{otherUserId} <ID>`(신호만 — 내용은 스트림에서).
+   읽기 `GET /api/v1/chat/dm/{otherUserId}?since=<ID>&limit=50` → `XRANGE (since +` / 처음이면 `XREVRANGE + - COUNT 50`. 안 읽음 커서 `qm:dm:read:{userId}` HASH(field 상대 userId · value 마지막 읽은 ID).
+   실시간 소켓 `GET /ws/chat/dm` 하나 — 인스턴스는 붙은 사람마다 `qm:pubsub:chat:dm:{userId}` 구독(notification 의 `qm:pubsub:push:{userId}` 와 같은 모양).
+   **"큐 · Streams · Kafka · SQS 없음"(D-42 · 루트 §6)의 예외는 `qm:dm:*` 하나**; 소비자 그룹 · XACK 는 쓰지 않는다.
+   친구 삭제 · 차단 · 탈퇴 때 platform 이 `PUBLISH qm:pubsub:chat:ctl {"type":"DM_DROP","a":…,"b":…}` 를 발행하고 chat 이 `DEL qm:dm:{a}:{b}` + 양쪽 `HDEL`(앱 사이 동기 HTTP 없음). 신호를 놓쳐도 30일 TTL 이 거둔다.
+5. **Redis 쓰기 경계** — chat 이 쓴다: `qm:dm:*` · `qm:dm:read:*` · `qm:pubsub:chat:*` 발행. 읽기만: `qm:room:{roomId}` · `qm:user:block-rel:{userId}`(`SISMEMBER`) · `qm:user:friend-rel:{userId}`(`SISMEMBER`).
+   platform 이 `qm:pubsub:chat:ctl` 을 발행한다.
+6. **프런트** — `PartyRoomPage` 의 채팅을 WebRTC DataChannel 에서 `/ws/chat/rooms/{id}` 로. 음성은 그대로 WebRTC(voice D-항목까지).
+   랜딩 · 내 정보 · 처리방침의 "대화 내용은 서버에 저장되지 않아요" 는 "방 채팅은 서버를 거치지만 저장되지 않아요 · 친구 DM 은 대화별 최근 200개를 30일 보관해요" 로.
+   친구 화면에 DM 진입 + 안 읽음 수. vite proxy `/api/v1/chat` · `/ws/chat` → 8083.
+7. **platform 쪽(P-54)** — ① `qm:user:friend-rel:{userId}` SET: D-57 의 `block-rel` 과 같은 방식(대칭 SADD/SREM · DB 트랜잭션 안 · 부팅 + 5분마다 `friendships` 에서 재구성);
+   원본은 `friendships`; chat 은 `SISMEMBER` 만; **키 없음 = 친구 아님**(fail-closed — `block-rel` 의 "키 없음 = 관계 없음" 과 반대 방향).
+   ② 친구 삭제 · 차단 · 탈퇴에서 `qm:pubsub:chat:ctl` `DM_DROP` 발행.
+   ③ 신고 박제 — DM 신고(`POST /api/v1/reports` · `context: "DM"`)에 `messageIds[]` 를 받고 platform 이 `qm:dm:{a}:{b}` 를 `XRANGE` 로 읽어(**읽기만**) 본문을 `reports` 의 증거 칸(JSON)에 복사한다.
+8. **처리방침(frontend 결정 51)** — 수집 항목 "친구 DM 내용", 보유 "대화별 최근 200개 · 마지막 대화 뒤 30일 · 친구 삭제 · 차단 · 탈퇴 시 즉시 삭제 · 신고된 대화는 신고 처리 기록에 보관",
+   방 채팅 "서버를 거치나 저장하지 않음". 제13조 변경 이력.
+9. **배포(Stage 2)** — ECS 서비스 `chat` 하나 더, ALB 경로 `/api/v1/chat/*` · `/ws/chat/*` → 8083, 서버 ping 20초(ALB 유휴 300초보다 짧게). sticky session 없음(D-18). Redis 는 기존 `queuemate-redis`.
+
+**근거.**
+
+- **방 채팅을 Pub/Sub 으로** — 방이 끝나면 지워질 대화라 저장소가 필요 없고 notification 이 이미 같은 모양(`qm:pubsub:push:*`)이다.
+  WebRTC 직결의 문제(한 명이라도 NAT 를 못 뚫으면 채팅까지 꺼진다 — `frontend/src/webrtc/WebRtcPartyClient.ts` 주석 "끝까지 꺼져 있었다")가 없어진다.
+- **DM 을 Streams 로, 최근만** — 상대가 오프라인일 때 보낸 것이 남아 "마지막 읽은 ID 이후" 로 받는 것이 Pub/Sub 으론 안 되는 유일한 요구이고 Streams 가 정확히 그것이다.
+  영구 보관을 요구하는 법은 없다(통비법의 보관 의무는 통신사실확인자료 — 접속 로그 — 이고 내용이 아니다; 법무 확인 전). 개인정보보호법은 최소 보유를 요구한다.
+  카카오톡이 서버에 2~3일만 두는 선례. 제품에서 DM 은 "다음에 또 할래?" 수준의 짧은 조율. 그래서 DB 를 들이지 않는다 — "DB 는 platform 만"(D-34 · D-57) 그대로.
+- **MAXLEN + EXPIRE 둘 다** — Streams 는 메모리에 산다(200개 × 200B × 대화 수가 상한; 대화 1만 개 ≈ 400MB 는 지금 노드에 과하다 — 숫자는 ⑥ 에서 그대로 두기로 했다). ElastiCache 는 AOF 가 없고 복제만 —
+  장애 조치 때 마지막 ms 유실을 감수한다.
+- **보낸 서버도 Redis 를 거쳐 받는다** — 두 인스턴스의 순서가 같아지고 쏘는 길이 한 곳이다.
+- **친구 관계를 Redis SET 으로 비춘다** — D-57 과 같은 이유(앱 사이 동기 HTTP 없음 · chat 은 DB 없음). 차단은 이미 있는 `block-rel`.
+- **신고 박제를 platform 이 읽기로** — 증거의 주인은 `reports`(platform)이고 읽기만이라 쓰기 경계를 넘지 않는다.
+- **chat 과 voice 를 나눈다** — 소유자 결정. 성질이 다르다(텍스트 · Redis 상태 vs 바이너리 · 고대역 · 상태 없음).
+
+**감수하는 것.**
+
+- **방 채팅은 새로고침 · 끊김 사이의 메시지가 없다.** 필요해지면 방마다 `MAXLEN ~ 100` 스트림을 덧대고 방 삭제와 함께 지운다(그때 D-항목).
+- **DM 은 200개 · 30일을 넘으면 사라진다** — 처리방침과 DM 화면 안내.
+- **`friend-rel` 은 사본** — D-57 과 같은 분 단위 창.
+- **`DM_DROP` 신호를 놓치면 30일 TTL 까지 스트림이 남는다**(주기 정리는 두지 않는다).
+- **exactly-once 는 없다** — 브라우저가 `cid` 로, 받는 쪽이 `cid` · ID 로 중복을 거른다. 서버 측 `SET qm:dm:cid:{cid} NX EX 60` 은 첫 버전에 없다.
+- **인스턴스가 늘면 사람별 · 방별 채널 구독 수가 그만큼 는다** — 수천 방까지는 Pub/Sub 으로 충분(notification 과 같은 한계).
+- **앱 사이 약속이 넷 는다**(한쪽만 고치면 조용히 깨진다) — `qm:user:friend-rel:*` 모양 · `qm:pubsub:chat:ctl` 봉투 · `qm:dm:{a}:{b}` 의 a<b 규칙 · 처리방침 숫자(200 · 30일)와 코드 상수.
+  루트 `START_HERE.md` §4 에 더한다.
+- **배포 순서 — platform(friend-rel · ctl 발행) → chat → frontend.** chat 이 먼저 나가면 `friend-rel` 키가 없어 DM 이 전부 403.
+
+**소유자가 정한 세부(2026-10-09).** 처음 적을 때 미정으로 둔 ①~⑧ 에 소유자가 같은 날 답했다 — "5는 없고 8은 없고 6도 없고".
+⑤ 시스템 메시지 **없음** · ⑧ 메시지 삭제 **없음** · ⑥ 숫자는 **그대로**(200 · 30일 · 500자 · 초당 5개 · 페이지 50).
+① 매 메시지마다 멤버 재확인 · ② DM 은 친구만 · ③ 안 읽음 개수 표시 · ④ 소켓 둘(`/ws/chat/rooms/{roomId}` · `/ws/chat/dm`) · ⑦ platform 이 신고 시점에 `XRANGE` 로 박제 —
+이 다섯은 소유자가 따로 바꾸지 않아 **권장안대로 간다.** 이 항목에 남은 미정은 없다.
+
+**구현 순서(소유자).** 방 채팅(Pub/Sub)부터 소유자가 직접 만든다 → DM(Streams) → platform P-54(friend-rel · `DM_DROP` · 박제) → 프런트는 그 뒤.
+
+**영향.**
+
+- **루트 `CLAUDE.md`** §1(네 worktree → 다섯) · §3 표(열 추가) · §6(WebSocket 금지 예외 · Streams 예외) · **루트 `START_HERE.md`** §2 · §4 · §6(루트 파일은 버전 관리 밖이라 그 자리에서 고친다).
+- **platform** — `contracts/platform-api.md` P-54(friend-rel · `DM_DROP` · DM 신고 박제). 그 폴더에서 따로 고친다.
+- **frontend** — `CLAUDE.md` 결정 51(프런트 구현 때) · 처리방침.
+- **notification** — `CLAUDE.md` §9(WebSocket 금지의 예외).
+- **`docs/AWS_ARCHITECTURE.md`** — 서비스 하나 더(배포 때).
+- 이 로그 — D-9 · #6 머리에 한 줄, 파일 머리의 "낡은 항목 주의" 에 한 덩어리를 달았다. 본문은 고치지 않았다.
 
 ---
 
