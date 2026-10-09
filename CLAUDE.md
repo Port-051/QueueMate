@@ -40,7 +40,8 @@ platform  ──PUBLISH──▶  qm:pubsub:push:{userId}
 |---|---|
 | 사용자의 SSE 연결을 들고 있는다 | **놓친 알림 재전송.** Pub/Sub은 구독자가 없으면 메시지를 버린다. 재접속한 사용자는 `matching`의 `GET /api/v1/match-requests`로 현재 상태를 복구한다(2026-09-27 부터 그쪽도 `?userId=` 가 아니라 쿠키 `qm_access`의 `sub`가 "나"다 — `../matching/HANDOFF.md` §0-5) |
 | `qm:pubsub:push:{userId}`로 들어온 메시지를 **해석하지 않고 그대로** 그 사용자 연결로 흘려보낸다 | **알림 이력 저장.** DB도, Redis List/Stream도 쓰지 않는다 |
-| | **매칭 상태 읽기/쓰기.** 매칭 Redis 키(`qm:party:*`, `qm:user:*`, `qm:proposal:*`, `qm:gameconfig:*`)에 접근하지 않는다(`qm:gameconfig:*`는 2026-09-24 부터 `platform`이 읽지만 — `../platform/CLAUDE.md` §3.6 — 이 서비스와는 무관하다. 여기서는 여전히 접근하지 않는다). Redis에서 만지는 것은 `qm:pubsub:push:{userId}` 구독과 게시판 채널 `qm:pubsub:board` 하나의 구독뿐이다(§7.1) |
+| | **매칭 상태 읽기/쓰기.** 매칭 Redis 키(`qm:party:*`, `qm:user:*`, `qm:proposal:*`, `qm:gameconfig:*`)에 접근하지 않는다(`qm:gameconfig:*`는 2026-09-24 부터 `platform`이 읽지만 — `../platform/CLAUDE.md` §3.6 — 이 서비스와는 무관하다. 여기서는 여전히 접근하지 않는다). Redis에서 만지는 것은 `qm:pubsub:push:{userId}` 구독과 게시판 채널 `qm:pubsub:board` 하나의 구독뿐이다(§7.1). **`chat` 단위의 `qm:pubsub:chat:*`(방 채팅 · DM 신호 · `ctl`)는 이 서비스가 구독하지 않는 채널이다**(D-58, 2026-10-09) |
+| | **WebSocket.** `SseEmitter` 는 여전히 이 서비스만 둔다. WebSocket 은 **`chat`(D-58 · 포트 8083 · `/ws/chat/**`) 과 앞으로의 `voice` 단위**가 쓴다 — "notification 밖에 WebSocket 금지" 의 예외다. **이 서비스는 WebSocket 을 두지 않는다** |
 | | **`type`별 분기·필터링.** 모르는 `type`이 와도 그대로 보낸다. 종류가 늘 때 이 서비스를 재배포하지 않기 위해서다 |
 
 ## 3. 메시지 계약
@@ -289,6 +290,7 @@ queuemate/
 - 게시판 채널의 메시지를 열어 보거나 사람별 · 게임별로 거르기 — `BOARD_CHANGED`도 모든 연결에 그대로 흘려보낸다. 게시판을 보고 있는지는 클라이언트가 거르고(D-22), 차단 거르기는 `platform`의 목록 조회가 한다(D-20)
 - 채널 접두사를 `matching`과 따로 바꾸기
 - Redis 리스너 스레드에서 직접 전송
+- WebSocket · `@MessageMapping` 을 여기에 두기 — 그것은 `chat`(D-58) · 앞으로의 `voice` 단위의 것이다. `SseEmitter` 는 여전히 이 서비스만. `qm:pubsub:chat:*` 구독도 하지 않는다
 - k8s/HPA/sticky session 전제 구현
 - 인증(§5.1)에서 — 개인 키를 들이거나 서명하기, jjwt 등 다른 JWT 라이브러리 · `oauth2-client` · JWKS 엔드포인트, **`token_use`를 안 보고 토큰 받기**, `security/TokenClaims`의 값을 `platform`과 따로 바꾸기, **`?userId=`를 되살리거나 "쿠키가 없으면 `?userId=`" 개발 스위치 두기**, 공개 키 없이 뜨게 하기
 - 포트 6379 / `queuemate-v2-*` 컨테이너 조작, 띄워 놓고 안 끈 `bootRun`
