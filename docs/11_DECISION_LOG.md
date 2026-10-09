@@ -4564,25 +4564,25 @@ D-34 로 이 앱이 읽는 테이블은 `blocks` 하나다). 그래서 이 앱�
 2. **인증은 notification 과 같다** — 쿠키 `qm_access` JWT 를 공개 키로 **검증만.** WebSocket 핸드셰이크도 같은 필터를 지나 `WebSocketSession.getPrincipal()` 이 "나".
    `?userId=` · 바디 `userId` 없음. "notification 밖에 WebSocket · `@MessageMapping` 금지" 는 **"chat · voice 는 예외"** 로 고친다. `SseEmitter` 는 여전히 notification 만.
 3. **방 채팅 — 저장하지 않는다. Redis Pub/Sub.** 소켓 `GET /ws/chat/rooms/{roomId}`; 핸드셰이크에서 `qm:room:{roomId}` 를 읽어(platform 의 키 — **읽기만**) 멤버가 아니면 403.
-   보내기 → 검증(빈 글 · 500자 · 초당 5개 · 멤버 재확인) → `PUBLISH qm:pubsub:chat:{roomId} <봉투>`. **보낸 서버도 자기 소켓에 직접 쏘지 않고 구독으로 받아 쏜다**(한 길 · 같은 순서).
+   보내기 → 검증(빈 글 · 500자 · 초당 5개 · 멤버 재확인 — 주기는 미정 ①, 권장 매 메시지) → `PUBLISH qm:pubsub:chat:{roomId} <봉투>`. **보낸 서버도 자기 소켓에 직접 쏘지 않고 구독으로 받아 쏜다**(한 길 · 같은 순서).
    인스턴스는 자기한테 사람이 붙은 방의 채널만 `SUBSCRIBE` — 패턴 구독 없음; 남은 소켓 0 이면 `UNSUBSCRIBE`.
    봉투 `{type:"MSG", roomId, from, nick, text, cid, sentAt}`; `nick` 은 보낸 시점 닉네임; `cid` 는 브라우저 UUID. 끊긴 사이 메시지는 없다. 시스템 메시지는 없다(⑤).
 4. **친구 DM — 최근 것만. Redis Streams.** 키 `qm:dm:{작은 userId}:{큰 userId}`(대화 하나에 스트림 하나 · 쓰는 것은 chat 만). `XADD … MAXLEN ~ 200 *` 필드 `from` · `text` · `cid`;
    **모든 XADD 가 한 메서드를 지나고 MAXLEN 이 빠진 경로는 없다**; XADD 직후 `EXPIRE 30일`.
-   보내기 `POST /api/v1/chat/dm/{otherUserId}`(또는 소켓) — 친구 · 차단 확인 뒤 XADD → ID 응답 → `PUBLISH qm:pubsub:chat:dm:{otherUserId} <ID>`(신호만 — 내용은 스트림에서).
-   읽기 `GET /api/v1/chat/dm/{otherUserId}?since=<ID>&limit=50` → `XRANGE (since +` / 처음이면 `XREVRANGE + - COUNT 50`. 안 읽음 커서 `qm:dm:read:{userId}` HASH(field 상대 userId · value 마지막 읽은 ID).
-   실시간 소켓 `GET /ws/chat/dm` 하나 — 인스턴스는 붙은 사람마다 `qm:pubsub:chat:dm:{userId}` 구독(notification 의 `qm:pubsub:push:{userId}` 와 같은 모양).
+   보내기 `POST /api/v1/chat/dm/{otherUserId}`(또는 소켓) — 친구(상대 범위는 미정 ②, 권장 친구만) · 차단 확인 뒤 XADD → ID 응답 → `PUBLISH qm:pubsub:chat:dm:{otherUserId} <ID>`(신호만 — 내용은 스트림에서).
+   읽기 `GET /api/v1/chat/dm/{otherUserId}?since=<ID>&limit=50` → `XRANGE (since +` / 처음이면 `XREVRANGE + - COUNT 50`. 안 읽음 커서 `qm:dm:read:{userId}` HASH(field 상대 userId · value 마지막 읽은 ID — 안 읽음 표시는 미정 ③, 권장 표시).
+   실시간 소켓 `GET /ws/chat/dm` 하나(방 소켓과 따로 — 하나/둘은 미정 ④, 권장 둘) — 인스턴스는 붙은 사람마다 `qm:pubsub:chat:dm:{userId}` 구독(notification 의 `qm:pubsub:push:{userId}` 와 같은 모양).
    **"큐 · Streams · Kafka · SQS 없음"(D-42 · 루트 §6)의 예외는 `qm:dm:*` 하나**; 소비자 그룹 · XACK 는 쓰지 않는다.
    친구 삭제 · 차단 · 탈퇴 때 platform 이 `PUBLISH qm:pubsub:chat:ctl {"type":"DM_DROP","a":…,"b":…}` 를 발행하고 chat 이 `DEL qm:dm:{a}:{b}` + 양쪽 `HDEL`(앱 사이 동기 HTTP 없음). 신호를 놓쳐도 30일 TTL 이 거둔다.
 5. **Redis 쓰기 경계** — chat 이 쓴다: `qm:dm:*` · `qm:dm:read:*` · `qm:pubsub:chat:*` 발행. 읽기만: `qm:room:{roomId}` · `qm:user:block-rel:{userId}`(`SISMEMBER`) · `qm:user:friend-rel:{userId}`(`SISMEMBER`).
    platform 이 `qm:pubsub:chat:ctl` 을 발행한다.
 6. **프런트** — `PartyRoomPage` 의 채팅을 WebRTC DataChannel 에서 `/ws/chat/rooms/{id}` 로. 음성은 그대로 WebRTC(voice D-항목까지).
    랜딩 · 내 정보 · 처리방침의 "대화 내용은 서버에 저장되지 않아요" 는 "방 채팅은 서버를 거치지만 저장되지 않아요 · 친구 DM 은 대화별 최근 200개를 30일 보관해요" 로.
-   친구 화면에 DM 진입 + 안 읽음 수. vite proxy `/api/v1/chat` · `/ws/chat` → 8083.
+   친구 화면에 DM 진입 + 안 읽음 수(미정 ③). vite proxy `/api/v1/chat` · `/ws/chat` → 8083.
 7. **platform 쪽(P-54)** — ① `qm:user:friend-rel:{userId}` SET: D-57 의 `block-rel` 과 같은 방식(대칭 SADD/SREM · DB 트랜잭션 안 · 부팅 + 5분마다 `friendships` 에서 재구성);
    원본은 `friendships`; chat 은 `SISMEMBER` 만; **키 없음 = 친구 아님**(fail-closed — `block-rel` 의 "키 없음 = 관계 없음" 과 반대 방향).
    ② 친구 삭제 · 차단 · 탈퇴에서 `qm:pubsub:chat:ctl` `DM_DROP` 발행.
-   ③ 신고 박제 — DM 신고(`POST /api/v1/reports` · `context: "DM"`)에 `messageIds[]` 를 받고 platform 이 `qm:dm:{a}:{b}` 를 `XRANGE` 로 읽어(**읽기만**) 본문을 `reports` 의 증거 칸(JSON)에 복사한다.
+   ③ 신고 박제(방식은 미정 ⑦ — 아래는 권장안) — DM 신고(`POST /api/v1/reports` · `context: "DM"`)에 `messageIds[]` 를 받고 platform 이 `qm:dm:{a}:{b}` 를 `XRANGE` 로 읽어(**읽기만**) 본문을 `reports` 의 증거 칸(JSON)에 복사한다.
 8. **처리방침(frontend 결정 51)** — 수집 항목 "친구 DM 내용", 보유 "대화별 최근 200개 · 마지막 대화 뒤 30일 · 친구 삭제 · 차단 · 탈퇴 시 즉시 삭제 · 신고된 대화는 신고 처리 기록에 보관",
    방 채팅 "서버를 거치나 저장하지 않음". 제13조 변경 이력.
 9. **배포(Stage 2)** — ECS 서비스 `chat` 하나 더, ALB 경로 `/api/v1/chat/*` · `/ws/chat/*` → 8083, 서버 ping 20초(ALB 유휴 300초보다 짧게). sticky session 없음(D-18). Redis 는 기존 `queuemate-redis`.
@@ -4613,10 +4613,11 @@ D-34 로 이 앱이 읽는 테이블은 `blocks` 하나다). 그래서 이 앱�
   루트 `START_HERE.md` §4 에 더한다.
 - **배포 순서 — platform(friend-rel · ctl 발행) → chat → frontend.** chat 이 먼저 나가면 `friend-rel` 키가 없어 DM 이 전부 403.
 
-**소유자가 정한 세부(2026-10-09).** 처음 적을 때 미정으로 둔 ①~⑧ 에 소유자가 같은 날 답했다 — "5는 없고 8은 없고 6도 없고".
+**소유자가 정한 세부(2026-10-09).** 처음 적을 때 미정으로 둔 ①~⑧ 가운데 셋을 소유자가 같은 날 닫았다 — "5는 없고 8은 없고 6도 없고".
 ⑤ 시스템 메시지 **없음** · ⑧ 메시지 삭제 **없음** · ⑥ 숫자는 **그대로**(200 · 30일 · 500자 · 초당 5개 · 페이지 50).
-① 매 메시지마다 멤버 재확인 · ② DM 은 친구만 · ③ 안 읽음 개수 표시 · ④ 소켓 둘(`/ws/chat/rooms/{roomId}` · `/ws/chat/dm`) · ⑦ platform 이 신고 시점에 `XRANGE` 로 박제 —
-이 다섯은 소유자가 따로 바꾸지 않아 **권장안대로 간다.** 이 항목에 남은 미정은 없다.
+
+**아직 미정(소유자 — 방 채팅 뒤에 정한다).** ① 방 채팅 보낼 때 멤버 재확인 주기(권장 매 메시지) ② DM 상대 — 친구만 vs 최근 같이 한 사람도(권장 친구만) ③ 안 읽음 개수 표시(권장 표시)
+④ 소켓 하나 vs 둘(권장 둘) ⑦ 신고 박제 방식 — platform 이 `XRANGE` vs 프런트가 본문을 실어 보냄(권장 platform `XRANGE` — 후자는 위조 가능). 본문 결정 3 · 4 · 6 · 7 에서 이 다섯에 걸리는 문장은 **권장안으로 적은 것**이고 번호를 달아 두었다.
 
 **구현 순서(소유자).** 방 채팅(Pub/Sub)부터 소유자가 직접 만든다 → DM(Streams) → platform P-54(friend-rel · `DM_DROP` · 박제) → 프런트는 그 뒤.
 
