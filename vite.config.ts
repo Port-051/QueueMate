@@ -12,6 +12,7 @@ import react from '@vitejs/plugin-react';
 const PLATFORM = 'http://localhost:8082';     // 계정 · 소셜 로그인 · 토큰 · 게임 프로필 · 게시판 · 방 · 친구 · 차단 · 신고
 const MATCHING = 'http://localhost:8080';     // 매칭 요청 · heartbeat · 제안
 const NOTIFICATION = 'http://localhost:8081'; // SSE
+const CHAT = 'http://localhost:8083';         // 방 채팅 · 친구 DM — WebSocket(/ws/chat) · REST(/api/v1/chat) (D-58 · 2026-10-10)
 
 export default defineConfig(({ mode }) => {
   const { QUEUEMATE_PREVIEW_HOST } = loadEnv(mode, process.cwd(), 'QUEUEMATE_');
@@ -22,6 +23,9 @@ export default defineConfig(({ mode }) => {
       // 원격 미리보기는 지정한 호스트만 허용한다.
       allowedHosts: QUEUEMATE_PREVIEW_HOST ? [QUEUEMATE_PREVIEW_HOST] : [],
       proxy: {
+        // chat 은 `/api` 보다 앞에 — 뒤에 두면 `/api` 가 먼저 맞아 platform 으로 간다. `ws: true` 가 없으면 Upgrade 헤더가 떨어져 400 이다
+        '/api/v1/chat': CHAT,
+        '/ws/chat': { target: CHAT.replace('http', 'ws'), ws: true },
         '/api/v1/events': NOTIFICATION,
         '/api/v1/match-requests': MATCHING,
         '/api/v1/proposals': MATCHING,
