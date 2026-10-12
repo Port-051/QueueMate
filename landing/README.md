@@ -37,3 +37,11 @@ npm run preview
 검색 공개와 앱 연결은 독립 설정이므로 앱을 출시하기 전에도 승인된 소개 페이지를 먼저 공개할 수 있습니다.
 
 [Vercel 배포·도메인·검색 등록 체크리스트](docs/LAUNCH.md)를 따르세요. 기존 서비스 프로젝트를 덮어쓰거나 main에 자동 병합하지 않습니다.
+
+## 2026-10-12 브랜드 배포
+
+앱과 같은 `frontend/public/brand/queuemate-mark.svg`를 원본으로 사용합니다. 이 브랜치의 원본은 main `7b2c928`의 파일과 같습니다. `scripts/brand-assets.mjs`가 빌드할 때 랜딩 심볼, 여백이 있는 SVG favicon, 16·32·48px ICO, 흰 배경 180px Apple 아이콘을 `dist/`에 생성합니다. 생성 파일은 직접 수정하거나 `public/`에 복제하지 않습니다. 파비콘 URL에는 원본 내용의 해시를 붙입니다.
+
+저장소 전체 체크아웃에서 `npm --prefix landing ci` 후 `BUILD_TARGET=production npm --prefix landing run build`로 빌드합니다. Vercel에는 검증한 `landing/dist/`를 기존 프로젝트에 배포합니다. 과거 workflow의 고정 커밋을 재배포하면 이 변경이 반영되지 않습니다.
+
+현재 운영 사이트의 앱 루트 링크, 소개 문구, 지원 게임 안내, 헤더·푸터 심볼 간격을 소스에 복원했습니다. 운영 배포 성공 여부는 별도로 확인해야 합니다.

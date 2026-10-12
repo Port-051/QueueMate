@@ -14,5 +14,8 @@
     "test": "node --test tests/*.test.mjs",
     "export:preview": "node scripts/export-preview.mjs",
     "check:url": "node scripts/check-url.mjs"
+  },
+  "devDependencies": {
+    "sharp": "0.34.5"
   }
 }

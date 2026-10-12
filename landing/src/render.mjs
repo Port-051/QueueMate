@@ -54,7 +54,7 @@ export function icon(name) {
   if (!shapes[name]) throw new Error(`Unknown icon: ${name}`);
   return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${shapes[name]}</svg>`;
 }
-const wordmark = (small = false) => `<img class="brand-wordmark${small ? ' small' : ''}" src="/assets/queuemate-wordmark.svg" width="156" height="24" alt="QueueMate">`;
+const wordmark = (small = false) => `<img class="brand-symbol" src="/assets/queuemate-mark.svg" width="30" height="32" alt=""><img class="brand-wordmark${small ? ' small' : ''}" src="/assets/queuemate-wordmark.svg" width="156" height="24" alt="QueueMate">`;
 
 /** Screenshots from unmodified feature/quick-match-ui @ 904cce4; display data is synthetic. */
 export function renderProductPreview() {
@@ -85,13 +85,14 @@ export function renderSite(c, env = {}) {
   const faqs=[
     ['지금 이용할 수 있나요?',c.appReady?'시작하기를 누르면 매칭 서비스로 이동합니다.':'서비스 준비 중입니다. 지금은 실제 서비스 화면을 확인할 수 있습니다.'],
     ['음성 대화는 어떻게 하나요?','브라우저에서 마이크 권한을 허용하면 참여한 모집방에서 음성 대화를 사용할 수 있습니다. 게임 내 친구 추가·파티 초대는 별도로 진행합니다.'],
-    ['어떤 게임을 지원하나요?','롤·발로란트·배틀그라운드를 대상으로 준비 중입니다. 출시 시 실제 지원 범위를 안내합니다.'],
+    ['어떤 게임을 지원하나요?','롤·발로란트·배틀그라운드 팀원을 찾을 수 있습니다. 이용 가능한 게임 모드는 앱에서 확인하세요.'],
   ];
   const html=`<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${e(c.title)}</title>
 <meta name="description" content="${e(c.description)}"><meta name="robots" content="${mode.indexable?'index, follow, max-image-preview:large':'noindex, nofollow'}"><meta name="theme-color" content="#080a10"><link rel="canonical" href="${e(canonical)}">
 <meta property="og:type" content="website"><meta property="og:locale" content="ko_KR"><meta property="og:site_name" content="${e(c.name)}"><meta property="og:title" content="${e(c.title)}"><meta property="og:description" content="${e(c.description)}"><meta property="og:url" content="${e(canonical)}">
 <meta name="twitter:card" content="${c.media?.ogImage?'summary_large_image':'summary'}"><meta name="twitter:title" content="${e(c.title)}"><meta name="twitter:description" content="${e(c.description)}">${imageMeta}${verification}
+<link rel="icon" href="/favicon.ico?v=${e(env.BRAND_ASSET_VERSION || 'current')}" sizes="16x16 32x32 48x48"><link rel="icon" href="/favicon.svg?v=${e(env.BRAND_ASSET_VERSION || 'current')}" type="image/svg+xml" sizes="any"><link rel="apple-touch-icon" href="/apple-touch-icon.png?v=${e(env.BRAND_ASSET_VERSION || 'current')}" sizes="180x180">
 <script type="application/ld+json">${jsonForHtml(schema)}</script><link rel="stylesheet" href="/assets/site.css"><link rel="stylesheet" href="/assets/concise.css"><link rel="stylesheet" href="/assets/product-ui.css"></head>
 <body><a class="skip-link" href="#main">본문으로 바로가기</a>
 <header class="site-header"><div class="wrap header-inner"><a href="#main" class="brand-link" aria-label="큐메이트 홈">${wordmark()}</a><nav aria-label="주요 메뉴"><a href="#preview">서비스</a><a href="#quick-match">빠른매치</a><a href="#faq">FAQ</a></nav><a class="header-cta" href="${c.appReady?e(c.appUrl):'#preview'}">${c.appReady?'시작하기':'화면 보기'} ${icon('arrow')}</a></div></header>

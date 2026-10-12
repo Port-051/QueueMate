@@ -9,7 +9,7 @@ base.verification={google:'',naver:'',bing:''};
 const draft=()=>({...structuredClone(base),contentApproved:false,uiApproved:false,allowIndexing:false,appReady:false});
 const approved=()=>({...draft(),contentApproved:true,uiApproved:true,allowIndexing:true});
 const live=()=>({...approved(),appReady:true,description:'원하는 조건의 롤 듀오와 파티를 큐메이트에서 찾아보세요.'});
-test('approved production configuration permits search and app login connection',()=>{assert.equal(base.allowIndexing,true);assert.equal(base.appReady,true);});
+test('approved production configuration permits search and app connection',()=>{assert.equal(base.allowIndexing,true);assert.equal(base.appReady,true);});
 test('unapproved production stays noindex with no sitemap',()=>{const r=renderSite(draft(),{VERCEL_ENV:'production'});assert.match(r.html,/content="noindex, nofollow"/);assert.equal(r.sitemap,null);});
 test('approved production has one canonical URL and sitemap entry',()=>{const r=renderSite(approved(),{VERCEL_ENV:'production'});assert.match(r.html,/index, follow, max-image-preview:large/);assert.equal((r.html.match(/rel="canonical"/g)||[]).length,1);assert.match(r.sitemap,/<loc>https:\/\/queue-mate.com\/<\/loc>/);});
 test('VERCEL preview cannot be changed to production by local override',()=>{assert.equal(resolveMode(approved(),{VERCEL_ENV:'preview',BUILD_TARGET:'production'}).indexable,false);});
@@ -18,7 +18,7 @@ test('explicit local production target works after approval',()=>{assert.equal(r
 test('indexing requires independent copy and UI approval',()=>{for(const key of ['contentApproved','uiApproved'])assert.throws(()=>renderSite({...approved(),[key]:false}),/검토/);});
 test('screenshot is not an artificial prerequisite to publish a text-first site',()=>{assert.equal(resolveMode({...approved(),media:{ogImage:''}},{VERCEL_ENV:'production'}).indexable,true);});
 test('preview CTA navigates to the example, not an unlaunched app',()=>{const h=renderSite(draft()).html;assert.match(h,/href="#preview" data-cta="explore-preview"/);assert.doesNotMatch(h,/href="https:\/\/app.queue-mate.com/);});
-test('approved app uses the configured destination',()=>{assert.match(renderSite(live()).html,/href="https:\/\/app.queue-mate.com\/login" data-cta="start-matching"/);});
+test('approved app uses the configured destination',()=>{assert.match(renderSite(live()).html,/href="https:\/\/app.queue-mate.com\/" data-cta="start-matching"/);});
 test('app activation requires copy review',()=>{assert.throws(()=>renderSite({...draft(),appReady:true}),/문구 검토/);});
 test('live configuration description no longer contains preparing metadata',()=>{assert.doesNotMatch(base.description,/준비 중|준비하고 있습니다/);});
 test('initial HTML contains one H1, Korean language, title and description',()=>{const h=renderSite(draft()).html;assert.match(h,/<html lang="ko">/);assert.equal((h.match(/<h1\b/g)||[]).length,1);assert.ok(h.includes(`<title>${escapeHtml(base.title)}</title>`));assert.match(h,/name="description"/);});
@@ -100,9 +100,9 @@ test('metadata-only edits preserve the entire approved body byte for byte',()=>{
 test('keyword copy preserves canonical, preview exclusion and prelaunch CTA',()=>{
   const r=renderSite(base,{VERCEL_ENV:'preview'});
   assert.ok(r.html.includes('<link rel="canonical" href="https://queue-mate.com/">'));
-  assert.equal(base.appUrl,'https://app.queue-mate.com/login');
+  assert.equal(base.appUrl,'https://app.queue-mate.com/');
   assert.match(r.html,/name="robots" content="noindex, nofollow"/);
   assert.equal(r.sitemap,null);
-  assert.match(r.html,/href="https:\/\/app.queue-mate.com\/login" data-cta="start-matching"/);
+  assert.match(r.html,/href="https:\/\/app.queue-mate.com\/" data-cta="start-matching"/);
   assert.doesNotMatch(r.html,/name="google-site-verification"|name="naver-site-verification"|name="msvalidate.01"/);
 });

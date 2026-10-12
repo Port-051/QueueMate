@@ -3,15 +3,19 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {renderSite,render404} from '../src/render.mjs';
 import {addAnalytics} from '../src/analytics.mjs';
+import {buildBrandAssets} from './brand-assets.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 try {
   const c = JSON.parse(await readFile(path.join(root,'site.config.json'),'utf8'));
-  const rendered = renderSite(c, process.env);
   if(c.media?.ogImage) await access(path.join(root,'public',c.media.ogImage));
   const out=path.join(root,'dist');
   // Only generated output inside this package is cleared; the app/repo is untouched.
   await rm(out,{recursive:true,force:true}); await mkdir(out,{recursive:true});
   await cp(path.join(root,'public'),out,{recursive:true});
+  const brandVersion = await buildBrandAssets(out);
+  const rendered = renderSite(c, {...process.env, BRAND_ASSET_VERSION: brandVersion});
+  // Ad review pages are absent from the live site and are not part of this release.
+  if (rendered.mode.production) await rm(path.join(out,'ads'), {recursive:true,force:true});
   await cp(path.join(root,'src/site.css'),path.join(out,'assets/site.css'));
   await writeFile(path.join(out,'index.html'),addAnalytics(rendered.html,c,rendered.mode));
   await writeFile(path.join(out,'404.html'),render404());

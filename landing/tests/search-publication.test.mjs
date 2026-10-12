@@ -5,13 +5,13 @@ import {renderSite} from '../src/render.mjs';
 const c=JSON.parse(await readFile(new URL('../site.config.json',import.meta.url),'utf8'));
 const body=html=>{const match=html.match(/<body>[\s\S]*<\/body>/);assert.ok(match);return match[0];};
 
-test('approved production landing is indexable and links to the app login',()=>{
+test('approved production landing is indexable and links to the app',()=>{
   const r=renderSite(c,{VERCEL_ENV:'production'});
   assert.equal(c.allowIndexing,true);assert.equal(c.appReady,true);
   assert.equal(r.mode.indexable,true);
   assert.match(r.html,/<meta name="robots" content="index, follow, max-image-preview:large">/);
   assert.match(r.html,/팀원 찾기 시작하기/);
-  assert.match(r.html,/href="https:\/\/app\.queue-mate\.com\/login" data-cta="start-matching"/);
+  assert.match(r.html,/href="https:\/\/app\.queue-mate\.com\/" data-cta="start-matching"/);
   
 });
 test('published sitemap contains only the canonical introduction page',()=>{
