@@ -172,19 +172,23 @@ test('시나리오 25 — 방 채팅은 chat 서버로 간다 · 혼자여도 �
     await expect(bubbles(pageB).filter({ hasText: `A1 ${tag}` }).locator('.room-profile-name-button')).toHaveText(a.nickname);
   });
 
-  await test.step('⑤ 501자 — 클라이언트가 500자로 **잘라서** 보낸다(RoomChatSocket.send 의 slice) → 거절 안내 없이 500자가 양쪽에 보인다(서버 상한 500 과 같아 TOO_LONG 이 나지 않는다)', async () => {
+  await test.step('⑤ 501자 — 자르지 않고 보내지 않는다 · 토스트 "메시지는 500자까지" · 초안은 남는다 · 500자 정각은 간다(2026-10-13 소유자 결정 — 조용히 자르던 것을 바꿨다)', async () => {
     const marker = `${uniqueTitle('s25 긴 글')} `;
     const long = marker + 'x'.repeat(501 - marker.length);
     expect(long).toHaveLength(501);
-    await sendByUi(pageA, long);
+    const sentBefore = latest(socketsA).sent.length;
+    await input(pageA).fill(long);
+    await sendButton(pageA).click();
+    await expect(errorToast(pageA, '메시지는 500자까지')).toBeVisible({ timeout: 5_000 });
+    await expect(input(pageA)).toHaveValue(long);                                  // 초안은 그대로
+    expect(latest(socketsA).sent.length, '소켓으로 나간 프레임이 없다').toBe(sentBefore);
+    await expect(bubbles(pageB).filter({ hasText: marker })).toHaveCount(0);
+    const exact = marker + 'y'.repeat(500 - marker.length);
+    await input(pageA).fill(exact);
+    await sendButton(pageA).click();
     const onB = bubbles(pageB).filter({ hasText: marker }).locator('p');
     await expect(onB).toHaveCount(1, { timeout: 10_000 });
-    expect((await onB.first().textContent())?.length, '잘린 글은 정확히 500자').toBe(500);
-    expect((await bubbles(pageA).filter({ hasText: marker }).locator('p').first().textContent())?.length).toBe(500);
-    const sent = latest(socketsA).sent.map(parse).filter(m => m.type === 'SEND' && typeof m.text === 'string' && (m.text as string).startsWith(marker));
-    expect(sent).toHaveLength(1);
-    expect((sent[0].text as string).length, '소켓으로 나간 본문도 500자').toBe(500);
-    await expect(errorToast(pageA, '메시지는 500자까지')).toHaveCount(0);
+    expect((await onB.first().textContent())?.length, '500자 정각은 그대로 간다').toBe(500);
     expect(latest(socketsA).received.map(parse).filter(m => m.type === 'ERROR')).toHaveLength(0);
   });
 
@@ -222,6 +226,11 @@ test('시나리오 25 — 방 채팅은 chat 서버로 간다 · 혼자여도 �
     const rejected = errors.length;
     expect(rejected).toBeGreaterThanOrEqual(1);
     expect(rejected).toBeLessThanOrEqual(count - 5);
+    // 거절된 글은 입력칸으로 되돌아온다(2026-10-13) — 마지막으로 거절된 글이 초안에 남아 있다(비어 있을 때만 넣으니 가장 먼저 돌아온 거절 글이다).
+    const rejectedTexts = errors.map(m => socket.sent.map(parse).find(x => x.cid === m.cid)?.text as string);
+    await expect.poll(async () => input(pageA).inputValue(), { timeout: 5_000 }).toMatch(new RegExp(`^${tag}`));
+    expect(rejectedTexts).toContain(await input(pageA).inputValue());
+    await input(pageA).fill('');
     // 받아들여진 것 = 보낸 수 − 거절 수 · 양쪽에 같은 수가 보낸 차례대로.
     await expect.poll(async () => (await texts(pageA)).filter(t => t.startsWith(tag)).length, { timeout: 10_000 }).toBe(count - rejected);
     await expect.poll(async () => (await texts(pageB)).filter(t => t.startsWith(tag)).length, { timeout: 10_000 }).toBe(count - rejected);

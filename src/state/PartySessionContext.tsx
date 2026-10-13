@@ -22,6 +22,8 @@ function usePersistentSession() {
   const { roomId, members } = useRoomSession();
   const [messages, setMessages] = useState<PartyChatMessage[]>([]);
   const [chatStatus, setChatStatus] = useState<RoomChatStatus>('closed');
+  /** 서버가 거절한 내 글 — 입력칸으로 되돌린다(`key` 는 같은 글이 두 번 거절돼도 effect 가 돌게). */
+  const [rejectedDraft, setRejectedDraft] = useState<{ key: number; text: string } | null>(null);
   const chatRef = useRef<RoomChatSocket | null>(null);
   const [voice, setVoice] = useState<VoiceStatus>('idle');
   const [voiceDetail, setVoiceDetail] = useState<string | null>(null);
@@ -62,8 +64,9 @@ function usePersistentSession() {
       onMessage: message => { if (live) setMessages(prev => [...prev.slice(-499), message]); },
       onStatus: status => { if (live) setChatStatus(status); },
       // 서버가 거절한 내 글 — 그 글만 안 나간다(소켓은 그대로). 코드는 chat/CLAUDE.md §3.1.
-      onError: code => {
+      onError: (code, _cid, rejectedText) => {
         if (!live) return;
+        if (rejectedText) setRejectedDraft({ key: Date.now(), text: rejectedText });
         const text = code === 'TOO_FAST' ? '너무 빨리 보내고 있어요. 잠시 뒤 다시 보내 주세요' : code === 'TOO_LONG' ? '메시지는 500자까지 보낼 수 있어요' : code === 'RETRY' ? '채팅 서버가 잠시 바빠요. 다시 보내 주세요' : code === 'EMPTY' ? null : `메시지를 보내지 못했어요(${code})`;
         if (text) toast(text, 'error');
       },
@@ -74,7 +77,7 @@ function usePersistentSession() {
   }, [roomId, selfId, nickname, toast]);
   const memberIds = members.join(',');
   useEffect(() => { if (memberIds) clientRef.current?.syncMembers(memberIds.split(',')); }, [memberIds]);
-  return { messages, chatStatus, chatRef, voiceActivity, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef, setConnectionAttempt };
+  return { messages, chatStatus, chatRef, rejectedDraft, voiceActivity, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef, setConnectionAttempt };
 }
 const PartySessionContext = createContext<ReturnType<typeof usePersistentSession> | null>(null);
 export function PartySessionProvider({ children }: { children: ReactNode }) {

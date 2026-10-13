@@ -52,7 +52,7 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
   const roomId = activeRoomId ?? params.roomId;
   const { user, userId } = useAuth();
   const session = useRoomSession();
-  const { messages, chatStatus, chatRef, voiceActivity, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef } = usePartySession();
+  const { messages, chatStatus, chatRef, rejectedDraft, voiceActivity, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef } = usePartySession();
   const { isFriend, requestTo, addFriend, block, unblock, isBlocked } = useSocial();
   const { activePartyInfo, stream } = useMatch();
   const navigate = useNavigate();
@@ -182,6 +182,7 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
   const send = (text: string): boolean => {
     if (!text || !canChat) return false;
     const cid = chatRef.current?.send(text) ?? null;
+    if (cid === 'TOO_LONG') { toast('메시지는 500자까지 보낼 수 있어요', 'error'); return false; }
     if (!cid) { toast('전송하지 못했습니다. 채팅 연결을 확인하고 다시 시도하세요.', 'error'); return false; }
     trackAction('chat_send', { length: Math.min(text.length, 500) });
     return true;
@@ -252,7 +253,7 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
           onClick={() => setDialog({ kind: 'closeRecruitment' })}><IconCheck size={18} /><span>모집 마감</span></button> : null}
         <Button className="party-room-leave" variant="danger" aria-label="방 나가기" title="방 나가기" disabled={busy} onClick={() => setDialog({ kind: 'leave' })}><IconLogout size={20} /></Button>
       </div>
-      <RoomConversationChat key={roomId} messages={messages} canSend={canChat} connectionHint={connectionHint} nameOf={chatName}
+      <RoomConversationChat key={roomId} messages={messages} canSend={canChat} connectionHint={connectionHint} restoreDraft={rejectedDraft} nameOf={chatName}
         colorOf={id => faceColors.get(id)} canOpenProfile={id => cards.has(id)} isVerified={id => cards.get(id)?.profile?.verified === true} onProfile={id => setProfileId(current => current === id ? null : id)} onSend={send} />
 
       {dialog?.kind === 'settings' && isHost && room ? <RoomCreatePreview key={`settings:${room.id}`} game={room.game} initialRoom={room}

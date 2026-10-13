@@ -1,4 +1,4 @@
-import { Fragment, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { IconPaperPlane } from '../components/icons';
 import { Avatar } from '../components/ui';
 import { VerificationBadge } from '../components/VerificationBadge';
@@ -7,10 +7,12 @@ import type { PartyChatMessage } from '../webrtc/types';
 import './room-conversation-chat.css';
 
 /** 7ee7177의 방 채팅 UI. 전송과 연결 상태는 현재 WebRTC 세션을 그대로 사용한다. */
-export function RoomConversationChat({ messages, canSend, connectionHint, nameOf, colorOf, canOpenProfile, isVerified, onProfile, onSend }: {
+export function RoomConversationChat({ messages, canSend, connectionHint, restoreDraft, nameOf, colorOf, canOpenProfile, isVerified, onProfile, onSend }: {
   messages: PartyChatMessage[];
   canSend: boolean;
   connectionHint?: string;
+  /** 서버가 거절한 글(TOO_FAST 등) — 입력칸이 비어 있으면 되돌려 넣는다(2026-10-13). */
+  restoreDraft?: { key: number; text: string } | null;
   nameOf(id: string, sent: string): string;
   colorOf(id: string): number | undefined;
   canOpenProfile(id: string): boolean;
@@ -23,6 +25,11 @@ export function RoomConversationChat({ messages, canSend, connectionHint, nameOf
   const log = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const stickToBottom = useRef(true);
+  useEffect(() => {
+    if (!restoreDraft) return;
+    setDraft(current => current.trim() ? current : restoreDraft.text);
+    input.current?.focus();
+  }, [restoreDraft]);
   useLayoutEffect(() => {
     if (stickToBottom.current && log.current) log.current.scrollTop = log.current.scrollHeight;
     else if (messages.length) setUnread(true);

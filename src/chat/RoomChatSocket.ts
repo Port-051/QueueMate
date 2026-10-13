@@ -1,3 +1,4 @@
+import { refreshSession } from '../api/http';
 import type { PartyChatMessage } from '../webrtc/types';
 
 /**
@@ -8,7 +9,8 @@ import type { PartyChatMessage } from '../webrtc/types';
  * - **봉투**(`chat/CLAUDE.md` §3.1) — 보내기 `{type:"SEND", cid, nick, text}` · 받기 `{type:"MSG", roomId, from, nick, text, cid, sentAt}` · 보낸 소켓에만 `{type:"ACK", cid}` ·
  *   `{type:"ERROR", cid, code}`(`EMPTY` · `TOO_LONG` · `TOO_FAST` · `BAD_JSON` · `RETRY`). **내 글도 서버가 뿌린 `MSG` 로 받아 그린다**(C-2 — 보낸 서버도 구독으로 받아 쏜다) — 낙관적으로 먼저 그리지 않는다.
  * - **저장이 없다** — 들어오기 전의 글은 못 보고 새로 고치면 기록이 빈다(D-58 결정 3).
- * - **다시 잇기** — 끊기면(서버 재배포의 1001 · 네트워크) 1 · 2 · 4 · 8 · 15초 간격으로 다시 연다. 방을 나가면(`close()`) 멈춘다. 403 도 같은 간격으로 다시 시도한다(방 세션이 끝나면 어차피 닫힌다).
+ * - **다시 잇기** — 끊기면(서버 재배포의 1001 · 네트워크) 1 · 2 · 4 · 8 · 15초 간격으로 다시 연다. 방을 나가면(`close()`) 멈춘다.
+ *   **한 번도 열리지 못한 채 닫히면(핸드셰이크 실패 — 브라우저엔 401 · 403 이 다 1006)** access 토큰 만료일 수 있어 `refreshSession()` 을 한 번 부른 뒤 다시 연다(2026-10-13 — 방에 15분 넘게 있다가 끊기면 재발급 없이는 계속 실패했다). 구성원이 아니면(403) 방 세션이 곧 닫는다.
  * - 서버가 20초마다 ping 을 보내고 브라우저가 스스로 pong 한다 — 여기서 할 일이 없다.
  */
 export type RoomChatStatus = 'connecting' | 'open' | 'reconnecting' | 'closed';
@@ -16,8 +18,8 @@ export type RoomChatStatus = 'connecting' | 'open' | 'reconnecting' | 'closed';
 export interface RoomChatHandlers {
   onMessage(message: PartyChatMessage): void;
   onStatus(status: RoomChatStatus): void;
-  /** 서버가 거절한 내 글(`ERROR`) — `code` 는 `EMPTY` · `TOO_LONG` · `TOO_FAST` · `BAD_JSON` · `RETRY`. */
-  onError(code: string, cid: string | null): void;
+  /** 서버가 거절한 내 글(`ERROR`) — `code` 는 `EMPTY` · `TOO_LONG` · `TOO_FAST` · `BAD_JSON` · `RETRY`. `text` 는 그 글의 본문(초안으로 되돌리려고 · 모르면 `null`). */
+  onError(code: string, cid: string | null, text: string | null): void;
 }
 
 const BACKOFF_MS = [1_000, 2_000, 4_000, 8_000, 15_000];
@@ -40,6 +42,10 @@ export class RoomChatSocket {
   private closed = false;
   private retries = 0;
   private timer: number | null = null;
+  /** 답(ACK · ERROR)을 기다리는 내 글 — cid → 본문. 거절되면 초안으로 돌려준다. 답이 오면 지운다(상한 100). */
+  private pending = new Map<string, string>();
+  /** 이 소켓이 한 번이라도 열렸는가 — 안 열린 채 닫히면 핸드셰이크 실패다. */
+  private opened = false;
 
   constructor(
     private readonly roomId: string,
@@ -53,8 +59,10 @@ export class RoomChatSocket {
     const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const ws = new WebSocket(`${scheme}://${window.location.host}/ws/chat/rooms/${encodeURIComponent(this.roomId)}`);
     this.ws = ws;
+    this.opened = false;
     ws.onopen = () => {
       if (this.closed || this.ws !== ws) return;
+      this.opened = true;
       this.retries = 0;
       this.handlers.onStatus('open');
     };
@@ -73,26 +81,41 @@ export class RoomChatSocket {
           at: data.sentAt ?? new Date().toISOString(),
         });
       } else if (data.type === 'ERROR') {
-        this.handlers.onError(data.code ?? 'UNKNOWN', data.cid ?? null);
+        const cid = data.cid ?? null;
+        const text = cid ? this.pending.get(cid) ?? null : null;
+        if (cid) this.pending.delete(cid);
+        this.handlers.onError(data.code ?? 'UNKNOWN', cid, text);
+      } else if (data.type === 'ACK') {
+        if (data.cid) this.pending.delete(data.cid);   // 글은 곧 MSG 로 온다
       }
-      // ACK 는 받기만 한다 — 글은 곧 MSG 로 온다.
     };
     ws.onclose = () => {
       if (this.ws !== ws) return;
       this.ws = null;
       if (this.closed) return;
+      if (!this.opened) {
+        // 핸드셰이크에서 거절됐다 — 토큰이 만료됐을 수 있다. 재발급을 한 번 시도한 뒤(실패해도) 간격을 두고 다시 연다.
+        void refreshSession().catch(() => null).finally(() => { if (!this.closed) this.scheduleReconnect(); });
+        return;
+      }
       this.scheduleReconnect();
     };
     ws.onerror = () => { /* onclose 가 뒤따른다 */ };
   }
 
-  /** 보낸다 — 열려 있으면 `cid` 를, 아니면 `null` 을 돌려준다. 빈 글은 보내지 않는다. */
-  send(text: string): string | null {
-    const trimmed = text.trim().slice(0, CHAT_MAX_TEXT_LENGTH);
+  /**
+   * 보낸다 — 열려 있으면 `cid` 를 돌려준다. 빈 글은 보내지 않는다(`null`). **500자를 넘으면 자르지 않고 보내지 않는다**(`'TOO_LONG'` — 2026-10-13: 조용히 잘라 보내면 사용자가
+   * 뒷부분이 사라진 걸 모른다). 열려 있지 않으면 `null`.
+   */
+  send(text: string): string | 'TOO_LONG' | null {
+    const trimmed = text.trim();
     if (!trimmed || this.closed || !this.ws || this.ws.readyState !== WebSocket.OPEN) return null;
+    if (trimmed.length > CHAT_MAX_TEXT_LENGTH) return 'TOO_LONG';
     const cid = crypto.randomUUID();
     try {
       this.ws.send(JSON.stringify({ type: 'SEND', cid, nick: this.selfNickname, text: trimmed }));
+      if (this.pending.size >= 100) this.pending.delete(this.pending.keys().next().value as string);
+      this.pending.set(cid, trimmed);
       return cid;
     } catch {
       return null;
@@ -108,6 +131,7 @@ export class RoomChatSocket {
     if (this.timer !== null) { window.clearTimeout(this.timer); this.timer = null; }
     const ws = this.ws;
     this.ws = null;
+    this.pending.clear();
     try { ws?.close(1000, 'leave'); } catch { /* 이미 닫힘 */ }
     this.handlers.onStatus('closed');
   }
