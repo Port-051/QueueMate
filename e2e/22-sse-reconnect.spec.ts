@@ -10,7 +10,7 @@ import { createPost, enter, lolPost, uniqueTitle } from './support/domain';
  * **2026-10-13 에 실제로 잰 것** — Chromium 의 오프라인 에뮬레이션(`context.setOffline(true)`)은 **이미 열린 SSE 스트림을 끊지 않는다**. 45초 오프라인 동안 하트비트가 3번 그대로
  * 들어왔고(`scratchpad/sse-offline.mjs`) 오류 · 재연결은 없었다. 그래서 여기서는 "SSE 가 끊겼다 다시 붙는" 길(오류 백오프 · 60초 침묵 감시)을 만들 수 없다 — 그 둘은 `[미커버]` 다(CHECKLIST 10.2).
  * 대신 이 에뮬레이션이 정확히 만드는 상황을 본다 — **SSE 는 살아 있어 알림은 오는데, 그 알림이 일으킨 REST 재조회(`GET …/members`)만 실패한다**(순단 · 프록시 502 와 같은 모양).
- * 1) 그동안 화면은 옛 상태로 남고 로그아웃으로 떨어지지 않는다 2) 다음 알림이 오면 그때 메워진다(지금 제품의 동작) 3) 제품이 "다시 온라인이 되면 스스로 메우기" 는 아직 없다 — 아래 둘째 테스트가 `test.fail` 로 적는다.
+ * 1) 그동안 화면은 옛 상태로 남고 로그아웃으로 떨어지지 않는다 2) 다음 알림이 오면 그때 메워진다 3) 다음 알림이 없어도 재시도(3 · 6 · 12초)가 메운다 — 아래 둘째 테스트.
  */
 test('시나리오 22 — SSE 는 살아 있고 REST 만 실패하는 순단 — 그동안 화면은 옛 상태 · 로그아웃 아님 · 다음 알림에 메워진다', async ({ crew }) => {
   const a = await crew.user('a');
@@ -57,12 +57,11 @@ test('시나리오 22 — SSE 는 살아 있고 REST 만 실패하는 순단 —
 });
 
 /**
- * 제품 개선 후보(2026-10-13 관찰 · 소유자 결정 전) — 알림이 일으킨 재조회가 네트워크 오류로 실패하면 `RoomSessionContext.refresh` 는 삼키고 다시 하지 않아, SSE 가 끊기지 않은 채
- * 순단이 끝나도 다음 알림까지 옛 상태로 남는다(받은 친구 요청 배지도 같다 — `SocialContext`). 의도한 동작은 "다시 온라인이 되면 스스로 메운다" 이고 지금은 아니라 `test.fail` 로 적는다.
- * 제품이 고쳐지면 이 테스트가 "뜻밖에 통과" 로 알려 준다 — 그때 `test.fail()` 을 지운다.
+ * 2026-10-13 소유자 결정 — 알림이 일으킨 재조회가 네트워크 오류 · 5xx 로 실패하면 **3 · 6 · 12초 뒤 다시 한다**(`RoomSessionContext.refresh` · `SocialContext.reloadFriends`).
+ * 그 전에는 삼키고 다시 하지 않아 순단이 끝나도 다음 알림까지 옛 상태로 남았다(같은 날 이 스펙으로 찾아 `test.fail` 로 적었다가 고친 뒤 뗐다).
+ * 사용자 조작 · 다음 알림 없이 첫 재시도(3초) 안에 메워져야 한다 — 여유를 두고 20초.
  */
-test('시나리오 22-b — [제품 개선 후보] REST 재조회만 실패한 순단이 끝나면 스스로 메워야 한다(3 / 5 · 배지 1)', async ({ crew }) => {
-  test.fail(true, '재조회 실패를 다시 시도하는 길이 없다 — RoomSessionContext.refresh · SocialContext (2026-10-13 관찰)');
+test('시나리오 22-b — REST 재조회만 실패한 순단이 끝나면 스스로 메운다(3 / 5 · 배지 1 — 재시도 3 · 6 · 12초)', async ({ crew }) => {
   const a = await crew.user('a');
   const b = await crew.user('b');
   const c = await crew.user('c');

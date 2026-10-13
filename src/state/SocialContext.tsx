@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import * as api from '../api/client';
+import { isApiError } from '../api/error';
 import type { BlockView, FriendRequestView, FriendView, RecentPlayerView, ServerEvent } from '../api/types';
 import { useToast } from '../components/ui';
 import { useAuth } from './AuthContext';
@@ -50,6 +51,8 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   return <SocialSession key={`${status}:${userId ?? ''}`} >{children}</SocialSession>;
 }
 
+/** 알림 · 재연결 · 탭 복귀의 친구 재조회가 네트워크 오류 · 5xx 로 실패했을 때 다시 하는 간격(차례로). */
+const RELOAD_RETRY_MS = [3_000, 6_000, 12_000];
 const key = (id: string | number) => String(id);
 
 function SocialSession({ children }: { children: ReactNode }) {
@@ -89,6 +92,22 @@ function SocialSession({ children }: { children: ReactNode }) {
   }, [loadFriends, loadBlocks, loadRecent]);
   const refreshFriends = useCallback(async () => { await loadFriends(); }, [loadFriends]);
 
+  /**
+   * 알림 · 재연결 · 탭 복귀가 부르는 재조회 — 네트워크 오류 · 5xx 면 3 · 6 · 12초 뒤 다시 한다(2026-10-13 e2e 22 — SSE 는 살아 있는데 재조회만 순단으로 실패하면
+   * 다음 알림까지 레일의 "친구" 배지가 옛 값으로 남았다). 새 호출이 오면 예약된 재시도는 버린다.
+   */
+  const reloadTimer = useRef<number | null>(null);
+  const reloadFriends = useCallback((attempt = 0) => {
+    if (reloadTimer.current !== null) { window.clearTimeout(reloadTimer.current); reloadTimer.current = null; }
+    void loadFriends().catch((err: unknown) => {
+      if (!live.current) return;
+      const retryable = !isApiError(err) || err.status >= 500;
+      if (!retryable || attempt >= RELOAD_RETRY_MS.length) return;
+      reloadTimer.current = window.setTimeout(() => { reloadTimer.current = null; reloadFriends(attempt + 1); }, RELOAD_RETRY_MS[attempt]);
+    });
+  }, [loadFriends]);
+  useEffect(() => () => { if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current); }, []);
+
   useEffect(() => {
     setFriends([]); setReceived([]); setSent([]); setBlocks([]); setRecent([]);
     if (status !== 'authenticated' || !ownerId) return;
@@ -101,28 +120,28 @@ function SocialSession({ children }: { children: ReactNode }) {
     const off = stream.subscribe((event: ServerEvent) => {
       if (event.type === 'FRIEND_REQUEST_RECEIVED') {
         toast('새 친구 요청이 왔어요', 'info');
-        void loadFriends().catch(() => {});
+        reloadFriends();
       } else if (event.type === 'FRIEND_REQUEST_ACCEPTED') {
         toast('친구 요청이 수락됐어요', 'ok');
-        void loadFriends().catch(() => {});
+        reloadFriends();
       }
     });
     let first = true;
     const offStatus = stream.subscribeStatus(state => {
       if (state !== 'connected') return;
       if (first) { first = false; return; }
-      void loadFriends().catch(() => {});
+      reloadFriends();
     });
     return () => { off(); offStatus(); };
-  }, [stream, status, loadFriends, toast]);
+  }, [stream, status, reloadFriends, toast]);
 
   // 숨은 탭에서 돌아왔을 때 — 친구 · 요청을 한 번 다시 받는다(왼쪽 레일 "친구" 배지 = 받은 요청 수 · 2026-10-02). 숨은 동안 놓친 알림을 메운다. 타이머로는 묻지 않는다.
   useEffect(() => {
     if (status !== 'authenticated') return;
-    const onVisible = () => { if (document.visibilityState === 'visible') void loadFriends().catch(() => {}); };
+    const onVisible = () => { if (document.visibilityState === 'visible') reloadFriends(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [status, loadFriends]);
+  }, [status, reloadFriends]);
 
   const isFriend = useCallback((id: string | number) => friends.some(f => key(f.userId) === key(id)), [friends]);
   const isBlocked = useCallback((id: string | number) => blocks.some(b => key(b.userId) === key(id)), [blocks]);
