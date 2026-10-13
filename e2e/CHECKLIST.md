@@ -175,7 +175,7 @@
 | 10.1 | 알림이 맞는 사람에게만(`ROOM_*` · `FRIEND_*` · `MATCH_*` · `WEBRTC_SIGNAL` · `BOARD_CHANGED`) | `[기존 01~08]` | 계약 |
 | 10.2 | 네트워크 순단 — SSE 는 살아 있고 알림이 일으킨 REST 재조회만 실패 → 그동안 옛 상태 · 로그아웃 아님 · 다음 알림에 메워짐 | `[신규 22]` | `RoomSessionContext` · 2026-10-13 관찰 |
 | 10.2-a | SSE 가 실제로 끊겼다 다시 붙으면(`connected` 두 번째부터) `GET …/members` · 친구 요청을 다시 받는다 · 하트비트 60초 침묵 감시가 연결을 새로 연다 | `[미커버]` — Chromium 오프라인 에뮬레이션은 이미 열린 SSE 를 끊지 않는다(45초 오프라인에 하트비트 3번 — 2026-10-13 `sse-offline.mjs` 로 잼). 서버 쪽에서 연결을 끊는 수단이 없다 | `src/api/sse.ts` |
-| 10.2-b | **제품 개선 후보** — 재조회가 네트워크 오류로 실패하면 다시 시도하지 않아(`RoomSessionContext.refresh` · `SocialContext`) 순단이 끝나도 다음 알림까지 옛 상태로 남는다 | `[신규 22]` `test.fail` 로 적음 — 소유자 결정 전 | 2026-10-13 관찰 |
+| 10.2-b | 재조회가 네트워크 오류 · 5xx 로 실패하면 3 · 6 · 12초 뒤 다시 해 순단이 끝나면 다음 알림 없이 메워진다(`RoomSessionContext.refresh` · `SocialContext.reloadFriends`) | `[신규 22]` | 2026-10-13 관찰 → 같은 날 소유자 결정으로 넣음 |
 | 10.2a | **관찰** — SSE 는 살아 있는데 알림이 일으킨 REST 재조회만 실패하면(네트워크 순단 · 502) 다음 알림까지 그 상태로 남는다 — `RoomSessionContext.refresh` 가 실패를 삼키고 다시 시도하지 않는다(2026-10-13 관찰 · 제품 개선 후보) | `[미커버]` — 알림과 재조회 사이의 한순간만 끊는 결정적 방법이 없다(`route` 로 `GET …/members` 한 번을 5xx 로 흉내내면 "그대로 남는다" 는 볼 수 있다 — 미작성) | `RoomSessionContext#refresh` |
 | 10.3 | 탭 복귀(`visibilitychange`) 때 매칭 상태 · 친구 · 게시판 재조회 | `[미커버]` — 헤드리스에서 진짜 숨김/복귀를 만들 수 없고 `visibilityState` 를 흉내내도 그 사이 알림을 놓치게 할 수 없다 | §3-36 |
 | 10.4 | heartbeat 침묵 60초 → 새로 열기 · 401 → 재발급 → 새 `EventSource` | `[미커버]` — 서버 heartbeat(20초)를 끊을 수 없다 · access 만료를 만들 수 없다 | `api/sse.ts` |
