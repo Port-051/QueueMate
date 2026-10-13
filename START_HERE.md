@@ -8,6 +8,8 @@
 
 ## 1. 지금 상태
 
+> **2026-10-13** — ① 방 텍스트 채팅을 `chat` 서비스 소켓으로 바꿨다(⑦ — `src/chat/RoomChatSocket.ts` · e2e 19 · 25 · 26 · `e2e/CHAT_CHECKLIST.md`) ② GA4(`src/analytics/ga.ts` · `events.ts` — 퍼널 다섯 + 변경 요청 전부 자동 + 화면 행동) ③ 알림이 일으킨 재조회의 재시도(3 · 6 · 12초) ④ 처리방침 이메일 · 이용 통계 항목 ⑤ 전체 e2e 체크리스트 `e2e/CHECKLIST.md`(24 시나리오) · 운영 배포 `app.queue-mate.com`(S3 `index-BDm2dfjF` · GA ID 포함).
+
 | 무엇 | 상태 |
 |---|---|
 | 원본 | `Port-051/QueueMate` **`codex/room-card-board` 7ee7177**(2026-09-28)의 `frontend/` · 277 파일. `main`(f860ada) 과의 merge-base 는 f860ada — 즉 **main 전부 + 방 카드 보드 90커밋**이다(§4). 커밋 `14946a9` |
@@ -598,7 +600,7 @@
 | 빈 자리에 참여(`RoomSeatJoin` — 역할 선택) | `POST /rooms/{id}/join {profile, role, fromRoomId}` | **`POST /rooms/{roomId}/members`**(본문 없음 · 201/200). 포지션은 **입장 때 고르지 않는다**(프로필의 주 포지션 — D-20 · P-18) · 다른 방에 있으면 409 `IN_OTHER_ROOM`(먼저 나가야 한다 — 옮겨 오기 없음) | **절반** — 입장은 되지만 자리(역할) 선택 · 방 이동은 없다. 자리 버튼은 "참여" 하나로 |
 | 나가기 · 강퇴 | `POST /rooms/{id}/actions {LEAVE\|KICK}` | `DELETE /rooms/{roomId}/members/me` · `DELETE …/members/{userId}` | **대응된다** |
 | 모집 마감 · 마감 취소 토글 | `actions {CONFIRM\|REOPEN}` · 만석 자동 CONFIRM · 이탈 자동 REOPEN | `POST /rooms/{roomId}/confirm` — **되돌릴 수 없다**(REOPEN 없음) · 2명 이상 · 만석이어도 자동 확정 없음(`full: true` 로 목록에 남는다) · 확정 뒤 새 입장 409 `ROOM_CONFIRMED` | **안 맞는다** — 토글이 아니라 한 번뿐인 버튼(확인 한 번 더). 만석 · 자동 마감 · 유휴 마감 없음 |
-| 방 채팅(`RoomConversation`) | `POST /rooms/{id}/messages` · `ROOM_MESSAGES_UPDATED` · `GET /rooms` 의 `messages` | **없음** — 텍스트는 서버에 두지 않는다(#6 · D-9 — WebRTC DataChannel 브라우저 직결). 시그널만 `POST /rooms/{roomId}/signals` ↔ `WEBRTC_SIGNAL` | **안 맞는다** — 살리려면 DataChannel 로 다시 짠다(미정) |
+| 방 채팅(`RoomConversation`) | `POST /rooms/{id}/messages` · `ROOM_MESSAGES_UPDATED` · `GET /rooms` 의 `messages` | **`chat` 서비스 WebSocket `GET /ws/chat/rooms/{roomId}`**(2026-10-13 ⑦ · D-58 — 봉투 SEND/MSG/ACK/ERROR · 저장 없음 · `src/chat/RoomChatSocket.ts`). 그 전엔 서버 없이 WebRTC DataChannel. 음성 시그널은 그대로 `POST /rooms/{roomId}/signals` ↔ `WEBRTC_SIGNAL` | **안 맞는다** — 살리려면 DataChannel 로 다시 짠다(미정) |
 | 예약 시각(`RoomStartTimePicker` · `REALTIME/RESERVATION` · `availableFrom`) | `Settings.type` · `availableFrom` | **없음** — 글에 시각 칸 없음. 예약은 `app:reservation`(Lambda · 미착수) | **안 맞는다** |
 | 자동 마감(`autoClose.ts` — 10분 유휴 + 60초) | 클라이언트 타이머(live 는 빈 함수) | **없음** — 방의 수명은 접속 확인(1분 · 600초)이고 방장이 사라지면 방이 없어지고 글이 만료된다 | **안 맞는다** — 우리 쪽 "만료" 는 다른 개념 |
 | 티어 범위(`desiredTierRange` · 필터 · 카드 배지) | `Settings.desiredTierRange` · `Member.tier/division` | 글에 범위 칸 없음. 카드의 `profile.tier`(`GOLD_4` 꼴 — 디비전 포함 · **2026-09-29 부터 `profile.tiers` 에서 글의 모드의 사다리 티어**, 사다리 없는 모드면 가장 높은 티어). 자동 합류의 티어 판정은 서버가 gameconfig `tier-range` 로 | **절반** — 배지는 그릴 수 있고 범위 선택은 자리가 없다 |
