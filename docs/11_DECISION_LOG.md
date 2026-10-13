@@ -176,6 +176,11 @@
 > `#6` 머리의 "Redis Streams(친구 DM)" 도 낡았다 — 본문은 고치지 않았고 D-58 머리에 한 줄만 달았다.
 > D-59 는 [이 저장소에서 내린 결정](#이-저장소에서-내린-결정-2026-09-07) 절에 있고, 겹치면 D-59 가 우선한다.
 
+> **낡은 항목 주의 (2026-10-13 추가).** **D-59 의 결정 1("친구 사이의 메시지 수단은 이 시스템에 없다") · 결정 5(처리방침은 방 채팅 문구만) · "감수하는 것" 의 "친구에게 말을 걸 길은 없다", 그리고 platform P-45(글 고치기 `PATCH` 없앰 · 405) · P-44 ⑨(확정된 카드의 포지션은 늘 `null`)는 D-60 으로 개정됐다.** 소유자가 2026-10-13 에 팀(Port-051)의 platform · frontend 변경을 통째로 받았다("platform 도 합쳐").
+> **개인 메시지는 platform 이 PostgreSQL `direct_messages`(V12)로 만든다**(팀 P-56) — `chat` 이 DM 을 만들지 않는다(D-59 결정 2 · 3 · 4 · 7)는 **그대로**이고 Redis Streams 도 여전히 없다. 글 고치기는 `PATCH /api/v1/posts/{postId}` 로 돌아왔고(P-57), 확정 당시 포지션은 `party_members.position`(V11)에 남는다(P-55).
+> 팀의 세 계약은 원문 번호 P-52~54 가 우리 P-52~54 와 겹쳐 **P-55 · P-56 · P-57** 로 옮겼다(`platform/contracts/mentor-room-ux.md`). 본문은 고치지 않았고 D-58 · D-59 머리에 한 줄씩만 달았다.
+> D-60 은 [이 저장소에서 내린 결정](#이-저장소에서-내린-결정-2026-09-07) 절에 있고, 겹치면 D-60 이 우선한다.
+
 변경 시 날짜/근거/영향을 추가한다.
 
 ## Fixed decisions
@@ -4558,6 +4563,8 @@ D-34 로 이 앱이 읽는 테이블은 `blocks` 하나다). 그래서 이 앱�
 
 > **결정 4 · 7 · 8 과 Streams 예외 낡음 — D-59(2026-10-11)가 거뒀다.** 방 채팅 부분은 그대로다.
 
+> **결정 8(처리방침의 DM 문구) 낡음 — D-60(2026-10-13).** DM 은 `chat` 이 아니라 platform 의 DB(P-56)로 생겨 처리방침에 "개인 메시지(선택) · 서버 저장 · 탈퇴 시 삭제" 가 들어갔다(팀 `PrivacyPage`). Streams · `qm:dm:*` 는 여전히 없다.
+
 > **프로젝트 소유자가 정했다**(2026-10-08 ~ 09 — "무조건 Java Spring" · "음성도 서버 따로 보이스도 서버 따로" · "방 내부 채팅은 … 알림처럼 pub sub" ·
 > "dm 은 … redis stream" · "최근 것만 남기면 되지 않나"). 이 항목은 **채팅**만이다. 음성(`voice`)은 따로 D-항목을 쓴다.
 > **D-9 · #6 의 본문은 고치지 않았다** (이 파일은 기록이다) — 머리에 한 줄만 달았다. 뼈대 커밋은 `chat` 브랜치 `e1b983d`(2026-10-09). 구현은 소유자가 직접 한다.
@@ -4646,6 +4653,9 @@ D-34 로 이 앱이 읽는 테이블은 `blocks` 하나다). 그래서 이 앱�
 > 보여 주는 것이 겹친다는 판단이다. 이 항목은 **DM 을 거두는 것**만이다 — `chat` 단위 자체와 방 채팅은 그대로고, 음성(`voice`)은 여전히 따로 D-항목을 쓴다.
 > **D-58 의 본문은 고치지 않았다** (이 파일은 기록이다) — 머리에 한 줄만 달았다. 이 항목을 적을 때 방 채팅은 소유자가 구현 중이었다(`chat` 브랜치 `c346368` — 전파 e2e 7/7).
 
+> **DM 부분 낡음 — D-60(2026-10-13)이 platform 의 DB DM 을 받았다.** 결정 1 의 "친구 사이의 메시지 수단은 이 시스템에 없다" · 결정 5 의 "DM 조항은 들어가지 않는다" · 감수하는 것의 "친구에게 말을 걸 길은 없다" 는 더 사실이 아니다 — 개인 메시지는 platform 이 PostgreSQL `direct_messages`(V12 · P-56 · REST + `DIRECT_MESSAGE_RECEIVED` 알림)로 만든다.
+> **`chat` 의 "DM 없음"(결정 2 · 3 · 4 · 7 — `qm:dm:*` · `qm:pubsub:chat:dm:*` · `ctl` · `friend-rel` · Streams 예외 없음)은 그대로다.** 미정 ① 도 그대로.
+
 **원안(D-58).** 결정 4 — 친구 DM 은 Redis Streams `qm:dm:{작은 userId}:{큰 userId}`(`XADD … MAXLEN ~ 200` · `EXPIRE 30일`)에 최근 것만 남기고, 읽음 커서 `qm:dm:read:{userId}` HASH,
 깨우기 `qm:pubsub:chat:dm:{userId}`, 소켓 `/ws/chat/dm` · REST `/api/v1/chat/dm/{otherUserId}`. "큐 · Streams 없음"(D-42)의 예외가 `qm:dm:*` 하나 생겼다.
 결정 7 — platform 이 `qm:user:friend-rel:{userId}` SET 을 비추고(P-54 ①), 친구 끊기 · 차단 · 탈퇴 때 `qm:pubsub:chat:ctl` 에 `DM_DROP` 을 발행하고(②), DM 신고의 본문을 `XRANGE` 로 읽어 `reports` 에 박제한다(③).
@@ -4689,6 +4699,64 @@ D-34 로 이 앱이 읽는 테이블은 `blocks` 하나다). 그래서 이 앱�
 - **frontend** — 결정 51(처리방침)은 방 채팅 문구만. 친구 화면의 DM 진입 · 안 읽음 수는 만들지 않는다. `vite.config` 의 `/api/v1/chat` 프록시(`347c6b4`)는 그대로 둔다(방 채팅의 REST 가 쓸 수 있다).
 - **루트 `CLAUDE.md`** §1 · §3 표(chat 열 · platform 열) · §5 · §6 · **루트 `START_HERE.md`** §2 · §4.1 · §4.2 · §4.6 · §5 · §6 · §11 · **루트 `README.md`**(루트 파일은 버전 관리 밖이라 그 자리에서 고친다).
 - `docs/AWS_ARCHITECTURE.md` — 바뀌지 않는다(서비스 하나 더는 D-58 그대로).
+
+---
+
+### D-60. 팀(Port-051) 의 platform · frontend 변경을 받는다 — PATCH 글 수정 복원 · 확정 뒤 포지션 보존 · 자동 확정(기본 꺼짐) · 개인 메시지는 platform 의 DB 로 (P-45 · P-44 ⑨ · D-59 개정, 2026-10-13)
+
+> **프로젝트 소유자가 정했다**(2026-10-13 — "frontend 는 받고 platform 은 확인해 봐" → 시험 병합(충돌 0)을 보고 "platform 도 합쳐 그럼 가로 해"). 팀 저장소 `Port-051/QueueMate` `main`(`7b2c928`)의
+> 변경을 **작성자 그대로**(`git format-patch` → `git am`) 우리 `frontend` · `platform` 브랜치에 얹고, 그것이 뒤집은 우리 결정을 이 항목으로 개정한다. 팀 변경의 근거는 2026-09-20 강진범 멘토링 피드백이다.
+> **D-59 · P-45 · P-44 의 본문은 고치지 않았다**(이 파일은 기록이다) — 머리에 한 줄씩 달았다. 이 항목을 적을 때 `chat` 의 방 채팅은 소유자가 구현 중이었다(`c346368`).
+
+**원안.** **P-45**(2026-10-01) — 모집 글 고치기 `PATCH /api/v1/posts/{postId}` 를 없앤다("쓸데없이 불편하기만 할 것 같다" · 405 · `PostApiTest#editIsGone`).
+**P-44 ⑨**(2026-10-01) — 게시판 카드의 `position` 은 확정된 글에서 늘 `null`("확정한 이후에 굳이 보여 줄 필요가 있나" · DB 는 바꾸지 않는다).
+**D-59**(2026-10-11) — 친구 DM 을 만들지 않는다 · "친구 사이의 메시지 수단은 이 시스템에 없다" · 처리방침은 방 채팅 문구만.
+**D-21 · P-10 의 흐름** — 모집 마감은 방장의 수동 확정 하나(정원이 차도 방장이 누른다).
+
+**결정.**
+
+1. **팀 패치를 작성자 그대로 얹었다.** `frontend` — 43 패치(`96f8e88` … `62e0be1` · 그 전 HEAD 는 태그 `pre-port051-merge-2` = `347c6b4`). `platform` — 37 패치(`2869688` … `6c5d1f3` · 그 전 HEAD 는 태그 `pre-port051-platform-merge` = `35291d8`).
+   팀 이력에서 `platform/` 사본을 통째로 더한 `6b15021`(313 파일 — 우리 `be9c403` 의 트리와 같다)은 뺐다. `git am -3` 충돌 0(3-way 자동 병합 2건 — `platform-api.md` · `application.yaml`). 우리가 그 사이 넣은 아홉 커밋(by-puuid Riot ID 갱신 P-53 · Dockerfile · P-54 문서)은 그대로 위에 남아 있다.
+2. **P-45 개정 → 글 고치기가 돌아왔다(P-57).** `PATCH /api/v1/posts/{postId}` — 글 쓰기와 같은 전체 본문 · **현재 방장(Redis)만** · 모집 중은 제목 · 모드/인원 · 포지션 · 마이크 · `allowAutoJoin`, 마감 뒤는 제목 · 마이크만 · 게임은 못 바꾼다 · Lua 한 번으로 방장 포지션과 `:needs` 를 갱신 · 커밋 뒤 `BOARD_CHANGED {}` · 200 최신 글.
+   405 는 이력이다. P-19(방에 남이 있으면 못 고친다)는 되살리지 않는다 — 방장이 고치면 방이 따라간다(팀 Lua).
+3. **P-44 ⑨ 개정 → 확정 뒤에도 포지션을 보존한다(P-55).** 확정 순간의 파티원 · 포지션을 `party_members.position`(**V11**)에 저장하고 확정된 카드의 `members[].position` · `host.position` 은 그 값이다. V11 전의 파티는 `null` 일 수 있다.
+4. **마지막 자리 입장이 확정이다 · 유휴 자동 확정은 기본 꺼짐(P-55).** 마지막 빈자리에 들어오는 Lua 가 정원 검사 · 입장 · 확정을 원자로 처리하고 `ROOM_MEMBER_ENTERED` + **`ROOM_CONFIRMED`** 를 낸다(확정이 방장 버튼 밖에서도 난다). 2명 이상이 10분 바뀌지 않으면 방장에게 안내 + 60초 뒤 자동 확정 · `POST /api/v1/rooms/{roomId}/recruitment/extend` 로 연장 — 이것은 **`ROOM_AUTO_CONFIRM_ENABLED=false` 가 기본**이라 꺼져 있다(2026-10-03 팀이 수동 마감 캡슐로 바꿨다). 켜면 1초 폴링 스케줄러가 돈다. 글 응답에 `autoConfirmAt` · `autoConfirmWarningAt`(꺼져 있으면 `null`) · V11 `recruit_posts.auto_confirm_at`.
+5. **DM — D-59 의 "`chat` 은 DM 을 만들지 않는다" 는 그대로다. 개인 메시지는 platform 이 PostgreSQL `direct_messages`(V12)로 만든다(P-56 · 팀).** `GET /api/v1/messages` · `GET /api/v1/messages/{userId}?before=` · `POST /api/v1/messages/{userId} {clientMessageId, text}` · 차단 상대는 404 `USER_NOT_FOUND` · 같은 UUID 재시도는 같은 메시지 · 409 `MESSAGE_RETRY_CONFLICT` · 저장 뒤 두 당사자에게 `DIRECT_MESSAGE_RECEIVED {fromUserId}`(내용은 REST 로 재조회) · 한 명이 탈퇴하면 FK CASCADE 로 양쪽에서 삭제.
+   **`chat` 과 무관하다 · Redis Streams 없음 · `qm:dm:*` · `qm:pubsub:chat:*` 의 DM 채널 없음** — D-59 결정 2 · 3 · 4 · 7 과 D-42 의 "큐 · Streams 없음" 은 예외 없이 그대로다. D-59 결정 1("친구 사이의 메시지 수단은 없다") · 5(처리방침은 방 채팅 문구만) · 감수하는 것("친구에게 말을 걸 길은 없다")만 사실이 아니게 됐다.
+6. **P-번호 — 팀의 P-52 · P-53 · P-54 는 P-55 · P-56 · P-57 이 된다**(각각 모집과 확정 · 개인 메시지 · 방장 설정 수정). 우리 P-52(차단 집합 · D-57) · P-53(by-puuid) · P-54(chat 지원 — D-59 로 취소)는 뜻을 지킨다. 원문 `platform/contracts/mentor-room-ux.md` 의 머리에 옮긴 사실을 적었다.
+7. **인증 배지 조회 `GET /api/v1/users/verification?userIds=1,2`**(팀 · 2026-10-03) — 로그인 필수 · 1~100개 · `[{userId, verified}]` · 게임 계정 하나라도 `verified=true` 면 참. 화면마다 인증 배지를 한 묶음(DB 조회 한 번)으로 받는다. 그리고 LoL 최근 경기 수집은 20 → **10**(`platform.riot.match-count` 기본 10 — 최대 Riot 호출 14회).
+8. **알림 — `ROOM_CONFIRMED` 가 입장 경로에서도 발행되고 `DIRECT_MESSAGE_RECEIVED` 가 새로 생겼다.** notification 은 `type` 을 열어 보지 않으므로(D-9 · D-20 · `notification/CLAUDE.md`) 그대로 흘려보낸다 — notification 에 변경은 없다. `MATCH_*` · `FRIEND_*` · `ROOM_*` 5 · `WEBRTC_SIGNAL` · `BOARD_CHANGED` 는 그대로.
+
+**근거.**
+
+- **멘토 피드백을 반영한 팀의 작업이다**(2026-09-20 멘토링 — 자동 확정 · 포지션 보존 · 개인 메시지 · 방장 설정). 포트폴리오로 보여 줄 제품의 모양을 팀이 멘토와 함께 정했고, 그것을 우리 브랜치가 따로 거부할 이유가 없다.
+- **git 충돌 0** — 시험 병합에서 양쪽이 같이 만진 파일 4개가 전부 자동 병합됐고, 실제 `git am -3` 도 충돌 없이 끝났다. 팀의 변경과 우리의 변경(by-puuid · Dockerfile · 차단 집합)은 겹치지 않는다.
+- **분기를 유지하는 비용이 크다** — frontend 43 · platform 37 패치를 따로 두면 두 저장소가 다른 제품이 된다. 팀 `main` 은 `e921612` 뒤 platform 변경이 없어 지금이 가장 싸게 합칠 때다.
+- **DM 을 platform 의 DB 로 두는 것은 D-59 의 취지와 어긋나지 않는다** — D-59 가 거둔 것은 "`chat` 에 Streams 로 DM 을 하나 더 보여 주는 것" 이었다. platform 의 REST + PostgreSQL + SSE 알림은 이미 있는 길(친구 요청과 같은 모양)이라 새 저장소 · 새 소켓 · 새 약속이 없다.
+- **테스트가 전부 통과했다** — platform 548 건 0 실패(실제 PostgreSQL 16 · Redis 7 — 테스트용 5433 · 6380). 팀 패치 `17cca4d` 가 `PostApiTest#editIsGone` 을 이미 걷어 우리 기대값을 바꿀 테스트는 없었다.
+
+**감수하는 것.**
+
+- **DM 저장 → 처리방침에 개인정보 항목이 하나 더 들어간다** — "개인 메시지(선택) · 보낸 사람 · 받는 사람 · 내용(최대 2,000자) · 전송 시각 · 서버 저장 · 탈퇴 시 삭제". 팀이 `frontend/src/pages/legal/PrivacyPage.tsx` 에 이미 넣었다 — **소유자가 문구를 확인할 것.** D-59 가 반겼던 "처리방침이 단순해진다" 는 일부 되돌아간다. 보유 기간(무기한 — 탈퇴 때까지)과 신고 때 증거로 쓸지는 **미정**이다.
+- **자동 확정 스케줄러(1초 폴링)** — 켜면 ECS 태스크마다 1초에 한 번 `recruit_posts` 를 읽는다(인덱스 `recruit_posts_auto_confirm` · `RECRUITING` 만). 기본은 꺼져 있어 지금은 비용이 없다. 켜는 결정은 소유자가.
+- **글 고치기가 돌아와 P-19 의 물음("방에 남이 있는데 조건이 바뀌면")이 다시 생긴다** — 팀의 답은 "방장이 고치면 Lua 가 방장 포지션 · `:needs` 를 같이 갱신하고 `BOARD_CHANGED` 로 방 안이 재조회한다 · 현재 인원보다 작은 정원 · 남이 쓰는 포지션 제거는 400" 이다. 방 안 사람에게 따로 알리는 알림은 없다.
+- **우리 테스트 기대값 변경 목록 — 없다.** 팀 패치에 테스트가 같이 들어왔고(`PostSettingsTest` · 자동 확정 · DM), 우리 테스트는 그대로 통과했다. `PostRoomFlowTest` 의 "확정 뒤 `position` 이 `null`" 단언은 포지션 없는 흐름이라 그대로 참이다.
+- **frontend 결정 39(DM · 알림 레일을 없애고 "친구" 하나로)는 뒤집혔다** — 팀이 `/messages`(`MessagesPage`)를 서버 DM 으로 되살렸다. **결정 51(처리방침 — 예정이었다)은 팀의 `PrivacyPage` 문구로 대체됐다.** `frontend/CLAUDE.md` 의 그 번호는 그 폴더에서 따로 고친다.
+- 팀 패치 가운데 29 건이 영어 subject("Refine room …")라 우리 커밋 관례(한글 · scope)와 다르다 — 작성자 보존을 택했고 고치지 않는다.
+
+**아직 미정.** ① 자동 확정을 켤지(`ROOM_AUTO_CONFIRM_ENABLED`) ② DM 의 보유 기간 · 신고 증거로 쓸지 ③ 처리방침 DM 문구의 최종 확인 ④ `RoomConversationChat` 을 WebRTC DataChannel 에서 `/ws/chat/rooms/{id}` 로 옮기는 것(D-58 결정 6 — 팀 변경도 아직 WebRTC) ⑤ D-58 미정 ①(방 채팅 멤버 재확인 주기)은 그대로.
+
+**영향.**
+
+- **이 로그** — D-58 · D-59 머리에 한 줄씩, 파일 머리의 "낡은 항목 주의" 에 한 덩어리. 본문은 고치지 않았다.
+- **platform**(팀 37 패치 + 우리 `123cc30`) — 코드: `party/`(PATCH 복원 · `PostSettingsTest` · 자동 확정 `RecruitmentScheduler` · `RecruitmentTiming` · `recruitment/extend`) · `room/`(마지막 입장 Lua 확정 · `party_members.position`) · `social/`(`DirectMessageController` · `DirectMessageService` · `/api/v1/messages`) · `account/`(`VerificationController` · `/users/verification`) · `common/push/PushEventType.DIRECT_MESSAGE_RECEIVED` · Flyway **V11** `room_auto_confirmation_and_positions` · **V12** `direct_messages`(V1~V12 중복 없음). 설정 넷 — `platform.room.auto-confirm-enabled`(`ROOM_AUTO_CONFIRM_ENABLED` · 기본 false · `application.yaml`) · `auto-confirm-idle-seconds`(600) · `auto-confirm-warning-seconds`(60) · `auto-confirm-poll-ms`(1000) · 그리고 `platform.riot.match-count` 10.
+  문서: `contracts/mentor-room-ux.md`(팀 · 번호 P-55~57 로) · `contracts/platform-api.md`(머리 줄 · 경로 표의 `PATCH` 행 200 · P-44 · P-45 행 개정 표시 · P-54 행에 DM 은 DB 한 줄 · P-55~57 행) · `CLAUDE.md` · `START_HERE.md`(머리 줄 · §11 의 PATCH 금지 풀림).
+- **frontend**(팀 43 패치 + 우리 `e55f2e3`) — 방 패널 · 게시판 UI 전면(좌석 · 캡슐 · 리사이즈) · 멤버 상세창 · 인증 배지 · `MessagesPage`(서버 DM) · `PrivacyPage`(DM 조항) · SEO 랜딩 · 방 설정 캡슐 · 수동 마감 캡슐. `vite.config.ts` 의 chat 주석에서 "친구 DM" 을 뺐다(D-59). 결정 39 · 51 은 위 "감수하는 것".
+- **notification** — 변경 없음(`type` 을 보지 않는다). `DIRECT_MESSAGE_RECEIVED` 가 `qm:pubsub:push:{userId}` 로 흘러간다.
+- **chat** — 변경 없음. DM 을 만들지 않는다(D-59).
+- **matching** — 변경 없음(이 로그만). 파티 HASH · gameconfig · 알림 봉투는 그대로.
+- **루트 `CLAUDE.md`** §0 머리 · §2 · §3 표(platform 열 — DB V2~V12 · 알림에 `DIRECT_MESSAGE_RECEIVED`) · §5(D-60 · P-57) · §6(D-59 항목에 "DM 은 platform 의 DB" 한 줄) · **루트 `START_HERE.md`** §4.2 · §4.4 · §4.5 · §5 · §11(항목 12) · **루트 `README.md`**(루트 파일은 버전 관리 밖이라 그 자리에서 고친다).
+- 태그 — `pre-port051-merge-2`(frontend `347c6b4`) · `pre-port051-platform-merge`(platform `35291d8`)로 병합 전 HEAD 를 남겼다. **푸시는 소유자가 한다.**
 
 ---
 
