@@ -8,11 +8,11 @@ package com.queuemate.platform.room.domain;
  */
 public enum EnterResult {
 
-    /** 방에 들어왔다 */
+    /**
+     * 방에 들어왔다. 마지막 자리를 채웠어도 같다 — 스크립트는 만석에 확정하지 않는다(2026-10-13 소유자 결정 "그 사람 다 차면 자동으로 확정해 주는 거 없애" —
+     * P-55 의 코드 3 {@code ENTERED_AND_CONFIRMED} 를 걷어냈다. 확정은 방장의 {@code POST /api/v1/rooms/{roomId}/confirm} 만)
+     */
     ENTERED(1),
-
-    /** 마지막 자리 입장과 같은 Lua에서 모집을 확정했다. 응답에는 포지션 스냅숏이 온다. */
-    ENTERED_AND_CONFIRMED(3),
 
     /** 이미 이 방에 들어와 있다. 새로고침이나 재시도다 — 아무것도 바뀌지 않았다 */
     ALREADY_ENTERED(2),

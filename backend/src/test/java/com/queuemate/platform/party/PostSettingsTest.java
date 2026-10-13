@@ -57,11 +57,17 @@ class PostSettingsTest extends PostTestSupport {
                 .andExpect(jsonPath("$.hostPosition").value("JUNGLE")).andExpect(jsonPath("$.voice").value("REQUIRED"));
         assertThat(redisTemplate.opsForSet().members(needsKey(id))).containsExactlyInAnyOrder("ADC", "SUPPORT");
     }
-    @Test void shrinkingToCurrentCountConfirmsAndAllowsOnlyMetadataAfterwards() throws Exception {
+    /** 정원을 현재 인원까지 줄여도 확정하지 않는다 — 2026-10-13 소유자 결정 "그 사람 다 차면 자동으로 확정해 주는 거 없애"(P-57 의 "정원 축소로 마감" 을 걷어냈다) */
+    @Test void shrinkingToCurrentCountDoesNotConfirmAndHostConfirmsThenOnlyMetadata() throws Exception {
         Cookie host = login(newNickname()); Long id = createFivePersonLolPost(host);
         enterRoom(login(newNickname()), id, "TOP").andExpect(status().isCreated());
         String body = settings(LOL_MODE, "JUNGLE", "TOP");
-        update(host, id, body).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CONFIRMED"));
+        update(host, id, body).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("RECRUITING"))
+                .andExpect(jsonPath("$.capacity").value(2)).andExpect(jsonPath("$.full").value(true));
+        assertThat(redisTemplate.hasKey(confirmedKey(id))).isFalse();
+        enterRoom(login(newNickname()), id, "TOP").andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ROOM_FULL"));
+        mockMvc.perform(post("/api/v1/rooms/" + id + "/confirm").cookie(host)).andExpect(status().isNoContent());
+        assertThat(statusOf(id)).isEqualTo("CONFIRMED");
         update(host, id, body.replace("수정한 방", "마감 후 새 제목").replace("NO_VOICE", "REQUIRED"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.title").value("마감 후 새 제목"));
         update(host, id, settings(LOL_MODE_2, "JUNGLE", FIVE_PERSON_LOL_WANTED)).andExpect(status().isBadRequest());
@@ -71,6 +77,8 @@ class PostSettingsTest extends PostTestSupport {
     @Test void currentHostAfterSuccessionCanEditMetadataButFormerHostCannot() throws Exception {
         Cookie host = login(newNickname()), next = login(newNickname());
         Long id = createLolPost(host, "TOP"); enterRoom(next, id, "TOP").andExpect(status().isCreated());
+        // 승계는 확정된 방에서만 일어난다(P-22 — 확정 전에 방장이 나가면 방이 닫힌다). 만석 자동 확정이 없어져(2026-10-13) 방장이 먼저 확정한다.
+        mockMvc.perform(post("/api/v1/rooms/" + id + "/confirm").cookie(host)).andExpect(status().isNoContent());
         mockMvc.perform(delete("/api/v1/rooms/" + id + "/members/me").cookie(host)).andExpect(status().isNoContent());
         String body = settings(LOL_MODE, "JUNGLE", "TOP").replace("\"allowAutoJoin\":false", "\"allowAutoJoin\":true");
         update(host, id, body).andExpect(status().isForbidden());

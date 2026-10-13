@@ -319,17 +319,19 @@ class RoomPositionTest extends RoomTestSupport {
     // ── 순서 ────────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("정원 · 확정을 포지션보다 먼저 본다 — 정원이 차면 자동 확정돼 포지션과 무관하게 거절된다(포지션을 안 줬어도)")
+    @DisplayName("정원 · 확정을 포지션보다 먼저 본다 — 가득 찬 방은 포지션과 무관하게 FULL 이고(포지션을 안 줬어도) 확정되지는 않는다, 확정된 방은 ROOM_CONFIRMED 다")
     void fullAndConfirmedComeBeforePosition()
     {
         createPositionRoom("r1", "host", WANTED);
         List<String> positions = List.of("TOP", "MID", "ADC", "SUPPORT");
         for(int i = 0; i < positions.size(); i++)
         {
-            assertThat(roomMemberService.enter(r("r1"), u("u" + i), positions.get(i))).isEqualTo(i == 3 ? EnterResult.ENTERED_AND_CONFIRMED : EnterResult.ENTERED);
+            // 마지막 포지션을 채워도 ENTERED 다 — 만석 자동 확정은 없다(2026-10-13 소유자 결정)
+            assertThat(roomMemberService.enter(r("r1"), u("u" + i), positions.get(i))).isEqualTo(EnterResult.ENTERED);
         }
-        assertThat(enterOutcome(r("r1"), u("late"), (String) null)).isEqualTo(EnterResult.ROOM_CONFIRMED);
-        assertThat(enterOutcome(r("r1"), u("late"), "MID")).isEqualTo(EnterResult.ROOM_CONFIRMED);
+        assertThat(roomMemberService.enter(r("r1"), u("late"), (String) null)).isEqualTo(EnterResult.FULL);
+        assertThat(roomMemberService.enter(r("r1"), u("late"), "MID")).isEqualTo(EnterResult.FULL);
+        assertThat(redisTemplate.hasKey(key("qm:room:r1:confirmed"))).isFalse();
 
         createPositionRoom("r2", "host2", WANTED);
         roomMemberService.enter(r("r2"), u("m1"), "MID");
@@ -417,9 +419,12 @@ class RoomPositionTest extends RoomTestSupport {
 
         runConcurrently(100, i -> count(counts, enterOutcome(r("r1"), u("u" + i), positions.get(i % positions.size()))));
 
-        assertThat(counts.get(EnterResult.ENTERED)).hasValue(3);
-        assertThat(counts.get(EnterResult.ENTERED_AND_CONFIRMED)).hasValue(1);
+        // 넷이 들어오고 나머지 96은 FULL(정원이 먼저) 또는 INVALID_POSITION(정원이 차기 전에 이미 고른 포지션)이다 — 확정은 없다
+        assertThat(counts.get(EnterResult.ENTERED)).hasValue(4);
+        assertThat(counts.keySet()).containsAnyOf(EnterResult.FULL, EnterResult.INVALID_POSITION)
+                .isSubsetOf(EnterResult.ENTERED, EnterResult.FULL, EnterResult.INVALID_POSITION);
         assertThat(counts.values().stream().mapToInt(AtomicInteger::get).sum()).isEqualTo(100);
+        assertThat(redisTemplate.hasKey(key("qm:room:r1:confirmed"))).isFalse();
         assertThat(members("r1")).hasSize(5);
         Set<String> taken = new HashSet<>();
         for(String member : members("r1"))

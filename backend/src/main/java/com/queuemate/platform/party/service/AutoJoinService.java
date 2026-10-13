@@ -103,7 +103,8 @@ public class AutoJoinService {
         try
         {
             gate = gate(game, modeKey, request.tier());
-            // 마지막 입장으로 자동 확정된 직후에도 같은 요청의 재시도는 이미 들어간 방을 돌려준다.
+            // 내가 들어간 뒤 방장이 확정한 방(글이 CONFIRMED 라 후보에서 빠진다)에 앉아 있는 채로 같은 요청을 다시 보내면 그 방을 돌려준다(P-55 — 팀).
+            // 만석 자동 확정은 없어졌지만(2026-10-13 소유자 결정) 방장 확정 뒤의 재시도에도 같은 일이라 남겨 둔다
             String currentRoom = roomService.myRoom(String.valueOf(me));
             if (currentRoom != null && currentRoom.matches("[0-9]+")) {
                 RecruitPost current = postStore.find(Long.parseLong(currentRoom)).orElse(null);
@@ -400,7 +401,7 @@ public class AutoJoinService {
         }
         return switch(result)
         {
-            case ENTERED, ENTERED_AND_CONFIRMED, ALREADY_ENTERED -> true;
+            case ENTERED, ALREADY_ENTERED -> true;
             // 강퇴당한 지 10분이 안 된 방은 다음 방으로 — 후보 거르기가 no-auto-join 목록으로 먼저 빼지만, 그 목록에 없고 no-entry 에만 있는 경우는 없다(강퇴는 둘 다 쓴다).
             // 그래도 스크립트가 거절하면 넘어간다(두 목록의 수명이 어긋난 창)
             case FULL, ROOM_CONFIRMED, ROOM_NOT_FOUND, KICKED_RECENTLY -> false;

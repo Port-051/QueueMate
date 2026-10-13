@@ -141,20 +141,47 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
     }
 
     @Test
-    @DisplayName("D-11 10번: 정원 5명에 방장이 포함된다. 마지막 입장에 자동 확정되고 여섯 번째는 거절된다., 거절된 사용자에게 입장 표시 키가 남지 않는다")
+    @DisplayName("D-11 10번: 정원 5명에 방장이 포함된다. 여섯 번째는 FULL 로 거절되고, 거절된 사용자에게 입장 표시 키가 남지 않는다")
     void sixthIsFull()
     {
         roomService.create(r("r1"), u("host"), Set.of());
         for (int i = 1; i <= 4; i++)
         {
-            assertThat(roomMemberService.enter(r("r1"), u("u" + i))).isEqualTo(i == 4 ? EnterResult.ENTERED_AND_CONFIRMED : EnterResult.ENTERED);
+            // 마지막 자리(네 번째)도 그냥 ENTERED 다 — 만석 자동 확정은 없다(2026-10-13 소유자 결정)
+            assertThat(roomMemberService.enter(r("r1"), u("u" + i))).isEqualTo(EnterResult.ENTERED);
         }
 
-        assertThat(enterOutcome(r("r1"), u("u5"))).isEqualTo(EnterResult.ROOM_CONFIRMED);
+        assertThat(roomMemberService.enter(r("r1"), u("u5"))).isEqualTo(EnterResult.FULL);
 
         assertThat(members("r1")).hasSize(5).doesNotContain("u5");
         // 남으면 그 사용자는 방에도 없으면서 다른 방 입장도 매칭도 못 하게 된다
         assertThat(marker("u5")).isNull();
+    }
+
+    @Test
+    @DisplayName("가득 찬 방은 모집 중으로 남는다 — 확정 표시 키도 글의 CONFIRMED 도 없고, 한 명이 나가면 다시 들어올 수 있으며, 확정은 방장의 확정뿐이다 (2026-10-13 소유자 결정 — P-55 의 만석 자동 확정 취소)")
+    void fullRoomStaysRecruitingUntilTheHostConfirms()
+    {
+        roomService.create(r("r1"), u("host"), Set.of());
+        for (int i = 1; i <= 4; i++)
+        {
+            roomMemberService.enter(r("r1"), u("u" + i));
+        }
+        assertThat(members("r1")).hasSize(5);
+        assertThat(redisTemplate.hasKey(key("qm:room:r1:confirmed"))).isFalse();
+        assertThat(jdbcTemplate.queryForObject("select status from recruit_posts where id = ?", String.class, Long.parseLong(r("r1"))))
+                .isEqualTo("RECRUITING");
+
+        // 자리가 나면 새 사람이 들어온다 — 확정된 방이었다면 ROOM_CONFIRMED 로 막혔을 것이다
+        roomMemberService.leave(r("r1"), u("u1"));
+        assertThat(roomMemberService.enter(r("r1"), u("u5"))).isEqualTo(EnterResult.ENTERED);
+        assertThat(roomMemberService.enter(r("r1"), u("u6"))).isEqualTo(EnterResult.FULL);
+
+        // 방장이 확정해야 확정이다 — 그 뒤에는 자리가 나도 새 사람이 못 들어온다
+        assertThat(roomService.confirm(r("r1"), u("host")).result()).isEqualTo(com.queuemate.platform.room.domain.ConfirmResult.CONFIRMED);
+        assertThat(redisTemplate.hasKey(key("qm:room:r1:confirmed"))).isTrue();
+        roomMemberService.leave(r("r1"), u("u5"));
+        assertThat(enterOutcome(r("r1"), u("u6"))).isEqualTo(EnterResult.ROOM_CONFIRMED);
     }
 
     @Test
@@ -173,7 +200,7 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
     // ── 동시성 — Lua 하나로 묶은 이유다 ─────────────────────────────────────
 
     @Test
-    @DisplayName("D-11 10번: 서로 다른 100명이 동시에 눌러도 방장을 뺀 4명만 들어온다")
+    @DisplayName("D-11 10번: 서로 다른 100명이 동시에 눌러도 방장을 뺀 4명만 들어온다 — 나머지는 FULL 이고 방은 확정되지 않는다")
     void capacityHoldsUnderContention() throws InterruptedException
     {
         roomService.create(r("r1"), u("host"), Set.of());
@@ -182,9 +209,9 @@ class RoomMemberServiceEnterTest extends RoomTestSupport {
 
         runConcurrently(100, i -> count(counts, enterOutcome(r("r1"), u("u" + i))));
 
-        assertThat(counts.get(EnterResult.ENTERED)).hasValue(3);
-        assertThat(counts.get(EnterResult.ROOM_CONFIRMED)).hasValue(96);
-        assertThat(counts.get(EnterResult.ENTERED_AND_CONFIRMED)).hasValue(1);
+        assertThat(counts.get(EnterResult.ENTERED)).hasValue(4);
+        assertThat(counts.get(EnterResult.FULL)).hasValue(96);
+        assertThat(redisTemplate.hasKey(key("qm:room:r1:confirmed"))).isFalse();
         assertThat(members("r1")).hasSize(5);
         // 방 멤버와 입장 표시 키가 어긋나지 않는다 — 들어온 사람에게만, 그 사람 전원에게 있다
         assertThat(ownKeys("qm:user:active-room:")).hasSize(5);
