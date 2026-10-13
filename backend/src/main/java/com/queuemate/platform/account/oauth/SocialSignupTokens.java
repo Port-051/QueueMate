@@ -48,6 +48,11 @@ public class SocialSignupTokens {
     static final String CLAIM_PROVIDER = "provider";
     static final String CLAIM_PROVIDER_USER_ID = "provider_user_id";
     static final String CLAIM_SUGGESTED_NICKNAME = "suggested_nickname";
+    /**
+     * 제공자가 준 <b>검증된</b> 이메일(P-58). 가입이 끝날 때 {@code users.email} 에 적는다 — 그때까지 서버가 기억하지 않고 서명해서 쿠키에 둔다
+     * (stateless 그대로). 없으면 클레임을 뺀다. 서명만 있고 암호화는 없다 — 그 브라우저의 주인(본인)만 읽는 {@code HttpOnly} 쿠키라 감수한다
+     */
+    static final String CLAIM_EMAIL = "email";
     /** 닉네임의 길이 제한과 같다({@code SignupRequest}) — 미리 채운 값이 그대로 검증에 걸리지 않게 자른다 */
     static final int NICKNAME_MAX_LENGTH = 16;
 
@@ -72,8 +77,8 @@ public class SocialSignupTokens {
         this.decoder = nimbusDecoder;
     }
 
-    /** 가입을 기다리는 소셜 계정. {@code suggestedNickname} 은 없을 수 있다({@code null}) */
-    public record Pending(SocialProvider provider, String providerUserId, String suggestedNickname) {
+    /** 가입을 기다리는 소셜 계정. {@code suggestedNickname} · {@code email}(검증된 것만 — P-58)은 없을 수 있다({@code null}) */
+    public record Pending(SocialProvider provider, String providerUserId, String suggestedNickname, String email) {
     }
 
     public String issue(SocialProvider provider, OAuthUser user)
@@ -95,6 +100,10 @@ public class SocialSignupTokens {
         if(suggested != null)
         {
             claims.claim(CLAIM_SUGGESTED_NICKNAME, suggested);
+        }
+        if(user.email() != null)
+        {
+            claims.claim(CLAIM_EMAIL, user.email());
         }
         return jwtEncoder.encode(JwtEncoderParameters.from(header, claims.build())).getTokenValue();
     }
@@ -119,7 +128,7 @@ public class SocialSignupTokens {
                 return Optional.empty();
             }
             return Optional.of(new Pending(provider.get(), providerUserId,
-                    jwt.getClaimAsString(CLAIM_SUGGESTED_NICKNAME)));
+                    jwt.getClaimAsString(CLAIM_SUGGESTED_NICKNAME), jwt.getClaimAsString(CLAIM_EMAIL)));
         }
         catch(JwtException e)
         {

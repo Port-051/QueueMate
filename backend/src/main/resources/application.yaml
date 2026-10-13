@@ -190,7 +190,8 @@ platform:
       authorize-uri: https://discord.com/oauth2/authorize
       token-uri: https://discord.com/api/oauth2/token
       user-info-uri: https://discord.com/api/users/@me
-    # 구글 — scope 는 openid profile(이메일은 청하지 않는다). 사용자 정보는 OpenID Connect 의 userinfo 이고 회원 번호는 sub(문자열)다
+    # 구글 — scope 는 openid profile email(이메일은 2026-10-13 P-58 — email_verified 가 true 일 때만 저장한다). 사용자 정보는 OpenID Connect 의 userinfo 이고 회원 번호는 sub(문자열)다
+    # 카카오는 profile_nickname account_email(이메일은 선택 동의 · 소유자가 콘솔에서 "개인 개발자 비즈 앱" 전환 + 동의 항목을 켜야 온다) · 디스코드는 identify email(콘솔 scope 에 email 체크). scope 원본은 account.oauth.*ProviderSpec
     google:
       client-id: ${GOOGLE_CLIENT_ID:}
       client-secret: ${GOOGLE_CLIENT_SECRET:}

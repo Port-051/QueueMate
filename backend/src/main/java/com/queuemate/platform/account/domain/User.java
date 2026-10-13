@@ -34,15 +34,24 @@ public class User {
     @Column(name = "nickname", nullable = false, length = 16)
     private String nickname;
 
+    /**
+     * 소셜 제공자가 <b>검증했다고 말한</b> 이메일(2026-10-13 소유자 결정 — P-58 · V13). 선택이라 {@code null} 일 수 있다 — 동의하지 않았거나 ·
+     * 제공자가 주지 않았거나 · 개발용 로그인이다. <b>식별자가 아니다</b>(UNIQUE 없음) — 이것으로 사용자를 찾거나 합치지 않는다.
+     * 가입 때 적고 로그인 · 잇기 때 검증된 값이 오면 덮어쓴다({@code UserRepository#updateEmail}) — {@code null} 로는 덮어쓰지 않는다.
+     */
+    @Column(name = "email", length = 320)
+    private String email;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    public User(String nickname, Instant now)
+    public User(String nickname, String email, Instant now)
     {
         this.nickname = nickname;
+        this.email = email;
         this.createdAt = now;
         this.updatedAt = now;
     }

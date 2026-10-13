@@ -114,7 +114,8 @@ class SocialLoginApiTest extends ApiTestSupport {
         assertThat(location.getPath()).isEqualTo("/kakao/authorize");
         assertThat(query.get("response_type")).isEqualTo("code");
         assertThat(query.get("client_id")).isEqualTo("kakao-client");
-        assertThat(query.get("scope")).isEqualTo("profile_nickname");
+        // 이메일 동의 항목(선택)을 같이 청한다(2026-10-13 · P-58) — 둘이라 사이의 공백이 %20 으로 나간다
+        assertThat(query.get("scope")).isEqualTo("profile_nickname%20account_email");
         // 값 하나로 읽히게 퍼센트로 바뀌어 있다
         assertThat(query.get("redirect_uri")).isEqualTo("http%3A%2F%2Fapi.test%2Fapi%2Fv1%2Fauth%2Foauth%2FKAKAO%2Fcallback");
 
@@ -135,9 +136,9 @@ class SocialLoginApiTest extends ApiTestSupport {
                 .fromUriString(discord.getResponse().getHeader(HttpHeaders.LOCATION)).build()
                 .getQueryParams().toSingleValueMap();
         assertThat(discordQuery.get("client_id")).isEqualTo("discord-client");
-        assertThat(discordQuery.get("scope")).isEqualTo("identify");
+        assertThat(discordQuery.get("scope")).isEqualTo("identify%20email");
 
-        // 구글 — scope 가 둘이라 사이의 공백이 %20 으로 나간다. email 은 청하지 않는다
+        // 구글 — scope 가 셋이라 사이의 공백이 %20 으로 나간다. email 도 청한다(P-58)
         MvcResult google = mockMvc.perform(get("/api/v1/auth/oauth/GOOGLE/start")).andExpect(status().isFound()).andReturn();
         UriComponents googleLocation = UriComponentsBuilder
                 .fromUriString(google.getResponse().getHeader(HttpHeaders.LOCATION)).build();
@@ -145,7 +146,7 @@ class SocialLoginApiTest extends ApiTestSupport {
         assertThat(googleLocation.getPath()).isEqualTo("/google/authorize");
         assertThat(googleQuery.get("response_type")).isEqualTo("code");
         assertThat(googleQuery.get("client_id")).isEqualTo("google-client");
-        assertThat(googleQuery.get("scope")).isEqualTo("openid%20profile");
+        assertThat(googleQuery.get("scope")).isEqualTo("openid%20profile%20email");
         assertThat(googleQuery.get("redirect_uri")).isEqualTo("http%3A%2F%2Fapi.test%2Fapi%2Fv1%2Fauth%2Foauth%2FGOOGLE%2Fcallback");
         assertThat(googleQuery.get("state")).isEqualTo(google.getResponse().getCookie("qm_oauth_state").getValue());
     }
@@ -228,7 +229,10 @@ class SocialLoginApiTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.userId").value(equalTo(userId), Long.class))
                 .andExpect(jsonPath("$.nickname").value(nickname))
                 .andExpect(jsonPath("$.socialProviders.length()").value(1))
-                .andExpect(jsonPath("$.socialProviders[0]").value("KAKAO"));
+                .andExpect(jsonPath("$.socialProviders[0]").value("KAKAO"))
+                // 카카오가 이메일을 주지 않았다(동의 전 · 비즈 앱 전환 전) — 그래도 가입은 됐고 칸은 null 이다(P-58)
+                .andExpect(jsonPath("$.email").isEmpty());
+        assertThat(emailOf(userId)).isNull();
         // 제공자 쪽 회원 번호는 문자열로 남는다
         assertThat(jdbcTemplate.queryForObject(
                 "select provider_user_id from social_identities where user_id = ? and provider = 'KAKAO'",
@@ -563,6 +567,158 @@ class SocialLoginApiTest extends ApiTestSupport {
                         .content(json("nickname", newNickname())))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ORIGIN_NOT_ALLOWED"));
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // 이메일 (2026-10-13 소유자 결정 — P-58). 제공자가 검증됐다고 말한 값만 · 선택 · 없어도 가입 · 로그인은 된다 · 식별자가 아니다
+    // ------------------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("구글 — email_verified 가 true 면 가입 때 users.email 에 적히고 users/me 에 읽기 전용으로 나온다. 같은 이메일로 둘째 사용자도 생긴다")
+    void googleVerifiedEmailIsStoredOnSignup() throws Exception
+    {
+        String sub = randomGoogleSub();
+        String email = "p58-" + UUID.randomUUID() + "@example.com";
+        String code = newCode();
+        FAKE.stubUser("google", code, "{\"sub\":\"" + sub + "\",\"name\":\"구글 이름\",\"email\":\"" + email + "\",\"email_verified\":true}");
+        Cookie state = startAndGetState("google");
+        Cookie signupCookie = callback("google", code, state.getValue(), state).andExpect(status().isFound()).andReturn()
+                .getResponse().getCookie("qm_social_signup");
+        // pending 응답에는 이메일이 없다 — 가입 화면이 보여 줄 값이 아니다(닉네임만 정한다)
+        mockMvc.perform(get("/api/v1/auth/social/pending").cookie(signupCookie))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+
+        String nickname = newNickname();
+        MvcResult signup = socialSignup(signupCookie, nickname)
+                .andExpect(status().isCreated())
+                // 가입 응답은 그대로 둘이다 — 이메일은 users/me 에서 본다
+                .andExpect(jsonPath("$.length()").value(2))
+                .andReturn();
+        refreshCookieOf(signup);
+        Long userId = userIdOf(nickname);
+        assertThat(emailOf(userId)).isEqualTo(email);
+        mockMvc.perform(get("/api/v1/users/me").cookie(signup.getResponse().getCookie("qm_access")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value(email));
+
+        // 같은 이메일로 다른 소셜 계정이 가입해도 막지 않는다 — 식별자가 아니다(UNIQUE 없음)
+        String secondCode = newCode();
+        FAKE.stubUser("google", secondCode, "{\"sub\":\"" + randomGoogleSub() + "\",\"email\":\"" + email + "\",\"email_verified\":true}");
+        Cookie secondState = startAndGetState("google");
+        Cookie secondSignup = callback("google", secondCode, secondState.getValue(), secondState).andReturn()
+                .getResponse().getCookie("qm_social_signup");
+        String secondNickname = newNickname();
+        refreshCookieOf(socialSignup(secondSignup, secondNickname).andExpect(status().isCreated()).andReturn());
+        assertThat(emailOf(userIdOf(secondNickname))).isEqualTo(email);
+        assertThat(userIdOf(secondNickname)).isNotEqualTo(userId);
+    }
+
+    @Test
+    @DisplayName("디스코드 — verified 가 false 면 이메일이 와도 null 로 가입된다. 가입은 그대로 201")
+    void discordUnverifiedEmailIsDropped() throws Exception
+    {
+        String code = newCode();
+        FAKE.stubUser("discord", code, "{\"id\":\"" + randomDiscordId() + "\",\"username\":\"nelly\",\"email\":\"nelly@example.com\",\"verified\":false}");
+        Cookie state = startAndGetState("discord");
+        Cookie signupCookie = callback("discord", code, state.getValue(), state).andExpect(status().isFound()).andReturn()
+                .getResponse().getCookie("qm_social_signup");
+        String nickname = newNickname();
+        MvcResult signup = socialSignup(signupCookie, nickname).andExpect(status().isCreated()).andReturn();
+        refreshCookieOf(signup);
+        assertThat(emailOf(userIdOf(nickname))).isNull();
+        mockMvc.perform(get("/api/v1/users/me").cookie(signup.getResponse().getCookie("qm_access")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").isEmpty());
+    }
+
+    @Test
+    @DisplayName("카카오 — is_email_verified 가 false 면 null · 나중에 로그인할 때 검증된 이메일이 오면 그때 채워진다 · 그 뒤 이메일 없이 와도 지워지지 않는다")
+    void kakaoEmailArrivesOnALaterLogin() throws Exception
+    {
+        long kakaoId = randomKakaoId();
+        String email = "p58-" + UUID.randomUUID() + "@kakao.example";
+        // ① 가입 — 이메일이 왔지만 검증되지 않았다 → null
+        String code = newCode();
+        FAKE.stubUser("kakao", code, "{\"id\":" + kakaoId + ",\"kakao_account\":{\"profile\":{\"nickname\":\"k\"},"
+                + "\"is_email_valid\":true,\"is_email_verified\":false,\"email\":\"" + email + "\"}}");
+        Cookie state = startAndGetState("kakao");
+        Cookie signupCookie = callback("kakao", code, state.getValue(), state).andExpect(status().isFound()).andReturn()
+                .getResponse().getCookie("qm_social_signup");
+        String nickname = newNickname();
+        refreshCookieOf(socialSignup(signupCookie, nickname).andExpect(status().isCreated()).andReturn());
+        Long userId = userIdOf(nickname);
+        assertThat(emailOf(userId)).isNull();
+
+        // ② 다시 로그인 — 이번엔 둘 다 true(동의 항목을 켠 뒤) → 로그인 응답은 그대로 / 로 302 이고 칸이 채워진다
+        String secondCode = newCode();
+        FAKE.stubUser("kakao", secondCode, "{\"id\":" + kakaoId + ",\"kakao_account\":{"
+                + "\"email_needs_agreement\":false,\"is_email_valid\":true,\"is_email_verified\":true,\"email\":\"" + email + "\"}}");
+        Cookie secondState = startAndGetState("kakao");
+        MvcResult again = callback("kakao", secondCode, secondState.getValue(), secondState).andExpect(status().isFound()).andReturn();
+        assertThat(again.getResponse().getHeader(HttpHeaders.LOCATION)).isEqualTo(FRONT + "/");
+        refreshCookieOf(again);
+        assertThat(emailOf(userId)).isEqualTo(email);
+        mockMvc.perform(get("/api/v1/users/me").cookie(again.getResponse().getCookie("qm_access")))
+                .andExpect(jsonPath("$.email").value(email));
+
+        // ③ 또 로그인 — 이메일 없이(동의를 거뒀거나 칸이 안 왔다) → null 로 덮어쓰지 않는다
+        String thirdCode = newCode();
+        FAKE.stubUser("kakao", thirdCode, "{\"id\":" + kakaoId + "}");
+        Cookie thirdState = startAndGetState("kakao");
+        refreshCookieOf(callback("kakao", thirdCode, thirdState.getValue(), thirdState).andExpect(status().isFound()).andReturn());
+        assertThat(emailOf(userId)).isEqualTo(email);
+
+        // ④ 다른 검증된 값이 오면 그것으로 바뀐다(최신 값)
+        String changed = "p58-changed-" + UUID.randomUUID() + "@kakao.example";
+        String fourthCode = newCode();
+        FAKE.stubUser("kakao", fourthCode, "{\"id\":" + kakaoId + ",\"kakao_account\":{"
+                + "\"is_email_valid\":true,\"is_email_verified\":true,\"email\":\"" + changed + "\"}}");
+        Cookie fourthState = startAndGetState("kakao");
+        refreshCookieOf(callback("kakao", fourthCode, fourthState.getValue(), fourthState).andExpect(status().isFound()).andReturn());
+        assertThat(emailOf(userId)).isEqualTo(changed);
+    }
+
+    @Test
+    @DisplayName("잇기 — 이메일 없이 가입한 사람이 검증된 이메일을 주는 제공자를 이으면 그때 채워진다. 거절된 잇기는 적지 않는다")
+    void linkingFillsInTheEmail() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie access = login(nickname);
+        Long userId = userIdOf(nickname);
+        insertIdentity("KAKAO", Long.toString(randomKakaoId()), userId);
+        assertThat(emailOf(userId)).isNull();
+
+        String email = "p58-link-" + UUID.randomUUID() + "@example.com";
+        String code = newCode();
+        FAKE.stubUser("google", code, "{\"sub\":\"" + randomGoogleSub() + "\",\"email\":\"" + email + "\",\"email_verified\":true}");
+        Cookie state = startAndGetState("google");
+        MvcResult linked = mockMvc.perform(get("/api/v1/auth/oauth/GOOGLE/callback")
+                        .param("code", code).param("state", state.getValue()).cookie(state, access))
+                .andExpect(status().isFound())
+                .andReturn();
+        assertThat(linked.getResponse().getHeader(HttpHeaders.LOCATION)).isEqualTo(FRONT + "/settings?linked=GOOGLE");
+        assertThat(emailOf(userId)).isEqualTo(email);
+
+        // 남의 디스코드를 이으려다 거절됐다 — 그 응답의 이메일은 적지 않는다
+        Long other = insertUser();
+        String othersDiscord = randomDiscordId();
+        insertIdentity("DISCORD", othersDiscord, other);
+        String rejectedCode = newCode();
+        FAKE.stubUser("discord", rejectedCode, "{\"id\":\"" + othersDiscord + "\",\"username\":\"x\",\"verified\":true,\"email\":\"other@example.com\"}");
+        Cookie rejectedState = startAndGetState("discord");
+        MvcResult rejected = mockMvc.perform(get("/api/v1/auth/oauth/DISCORD/callback")
+                        .param("code", rejectedCode).param("state", rejectedState.getValue()).cookie(rejectedState, access))
+                .andExpect(status().isFound())
+                .andReturn();
+        assertThat(rejected.getResponse().getHeader(HttpHeaders.LOCATION)).isEqualTo(FRONT + "/settings?error=SOCIAL_ALREADY_LINKED");
+        assertThat(emailOf(userId)).isEqualTo(email);
+        assertThat(emailOf(other)).isNull();
+    }
+
+    private String emailOf(Long userId)
+    {
+        return jdbcTemplate.queryForObject("select email from users where id = ?", String.class, userId);
     }
 
     // ------------------------------------------------------------------------------------------------

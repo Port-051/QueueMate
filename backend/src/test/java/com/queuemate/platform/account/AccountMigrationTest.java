@@ -99,7 +99,7 @@ class AccountMigrationTest extends ApiTestSupport {
     }
 
     @Test
-    @DisplayName("사용자의 칸은 번호 · 닉네임 · 시각 둘뿐이다 — 번호는 bigint identity 이고 DB 가 매긴다")
+    @DisplayName("사용자의 칸은 번호 · 닉네임 · 이메일(NULL 허용 · UNIQUE 없음 — V13) · 시각 둘이다 — 번호는 bigint identity 이고 DB 가 매긴다")
     void userIdentifierColumns()
     {
         assertThat(dataTypeOf("users", "id")).isEqualTo("bigint");
@@ -108,11 +108,19 @@ class AccountMigrationTest extends ApiTestSupport {
                 "select is_identity::text from information_schema.columns "
                         + "where table_schema = 'public' and table_name = 'users' and column_name = 'id'",
                 String.class)).isEqualTo("YES");
-        // 로그인 아이디의 칸이 없다 — 식별자는 번호 하나, 보여 주는 이름은 닉네임 하나다(2026-09-26)
+        // 로그인 아이디의 칸이 없다 — 식별자는 번호 하나, 보여 주는 이름은 닉네임 하나다(2026-09-26). 이메일은 2026-10-13 에 들어왔다(P-58 · V13)
         assertThat(jdbcTemplate.queryForList(
                 "select column_name from information_schema.columns "
                         + "where table_schema = 'public' and table_name = 'users' order by column_name",
-                String.class)).containsExactly("created_at", "id", "nickname", "updated_at");
+                String.class)).containsExactly("created_at", "email", "id", "nickname", "updated_at");
+        // 이메일은 선택이고 식별자가 아니다 — NULL 허용 · varchar(320) · UNIQUE 없음(같은 이메일로 두 사용자가 생길 수 있다)
+        assertThat(jdbcTemplate.queryForObject(
+                "select is_nullable || ':' || data_type || ':' || character_maximum_length from information_schema.columns "
+                        + "where table_schema = 'public' and table_name = 'users' and column_name = 'email'",
+                String.class)).isEqualTo("YES:character varying:320");
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from pg_indexes where schemaname = 'public' and tablename = 'users' and indexdef like '%email%'",
+                Integer.class)).isZero();
         // 다른 테이블이 사용자 · 게임 계정을 가리키는 칸도 전부 bigint 다
         assertThat(dataTypeOf("social_identities", "user_id")).isEqualTo("bigint");
         assertThat(dataTypeOf("game_accounts", "user_id")).isEqualTo("bigint");
