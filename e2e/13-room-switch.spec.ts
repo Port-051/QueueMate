@@ -69,7 +69,8 @@ test('방 이동 재확인 — 대상 방이 먼저 차면 기존 방을 나가�
     await route.continue();
   }, { times: 1 });
   await dialog.getByRole('button', { name: '나가고 참가하기', exact: true }).click();
-  await expect(dialog.locator('.room-preview-error')).toContainText('확정된 방이에요');
+  // 2026-10-13 — 만석 자동 확정이 없어져 먼저 찬 방은 "확정된 방" 이 아니라 "가득 찬 방" 이다(platform P-55 자동 확정 취소 · 소유자 결정).
+  await expect(dialog.locator('.room-preview-error')).toContainText('가득 찬 방이에요');
   expect((await a.get<{ roomId: string }>('/rooms/me')).body.roomId).toBe(String(original.postId));
   expect((await a.get<Post>(`/posts/${original.postId}`)).body.status).toBe('RECRUITING');
 });

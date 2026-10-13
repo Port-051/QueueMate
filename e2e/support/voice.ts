@@ -88,9 +88,17 @@ export async function expectInboundAudio(side: Side, peers: number, others: Side
     return list.length === peers && list.every((p) => p.connectionState === 'connected' && p.bytesReceived > 0) ? 'flowing' : JSON.stringify(list);
   }, { message: `${side.name} 쪽에 들어오는 음성이 없다`, timeout, intervals: [500] }).toBe('flowing')
     .catch(async (error) => { throw new Error(`${String(error)}${await describeAll()}`); });
-  const first = await peerAudio(side.page);
-  await side.page.waitForTimeout(3_000);
-  const later = await peerAudio(side.page);
+  // 두 표본의 열린 연결 집합이 같아야 비교할 수 있다 — 상대가 새로 고친 직후엔 옛 연결(아직 connected 로 보임)이 첫 표본에 잡혔다가 3초 뒤 새 연결로 갈아 끼워져 어긋난다
+  // (2026-10-13 15-c 에서 한 번 겪었다). 집합이 바뀌면 다시 잰다(최대 4번).
+  let first = await peerAudio(side.page);
+  let later = first;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await side.page.waitForTimeout(3_000);
+    later = await peerAudio(side.page);
+    const same = later.length === first.length && later.every((p) => first.some((f) => f.index === p.index));
+    if (same && later.length === peers) break;
+    first = later;
+  }
   test.info().annotations.push({ type: `${side.name} 가 받은 음성`, description: later.map((p) => `pc#${p.index} ${first.find((f) => f.index === p.index)?.bytesReceived} → ${p.bytesReceived} bytes`).join(' · ') });
   for (const p of later) {
     const before = first.find((f) => f.index === p.index);
