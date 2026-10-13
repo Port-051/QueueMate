@@ -5,6 +5,7 @@ import { Logo } from '../components/Logo';
 import { SiteFooter } from '../components/SiteFooter';
 import { SocialProviderIcon } from '../components/SocialProviderIcon';
 import { oauthStartPath } from '../api/client';
+import { track } from '../analytics/ga';
 import type { SocialProvider } from '../api/types';
 import { useAuth } from '../state/AuthContext';
 import { landingPath } from '../state/onboarding';
@@ -63,6 +64,7 @@ export function AuthPage() {
 
   const start = (provider: SocialProvider) => {
     rememberProvider(provider);
+    track('login_start', { method: provider });
     window.location.assign(oauthStartPath(provider));
   };
 

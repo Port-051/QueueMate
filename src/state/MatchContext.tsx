@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { track } from '../analytics/ga';
 import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
@@ -552,6 +553,7 @@ function MatchSession({ children }: { children: ReactNode }) {
     try {
       const joined = await api.autoJoinPost(body);
       rememberCondition(next);
+      track('match_request', { result: 'ROOM', game: next.game });
       return { kind: 'ROOM', roomId: String(joined.roomId), postId: joined.postId };
     } catch (err) {
       // 404 = 맞는 방이 없다 → 대기열. 503 = platform 이 Redis 를 못 읽었다 → 계약대로 바로 matching 으로. 그 밖(409 · 400)은 멈춘다.
@@ -559,6 +561,7 @@ function MatchSession({ children }: { children: ReactNode }) {
     }
     // ② 대기열 매칭 — 201 은 "큐에 들어갔다" 이고 배정은 알림과 조회가 말한다.
     const created = await api.createMatchRequest(body);
+    track('match_request', { result: 'QUEUED', game: next.game });
     if (!live.current) return { kind: 'QUEUED', request: created };
     rememberCondition(next);
     cancelling.current = false;

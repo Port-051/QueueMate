@@ -1,4 +1,5 @@
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { trackAppEnterOnce } from '../analytics/ga';
 import type { ComponentType } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../state/AuthContext';
@@ -44,6 +45,8 @@ export function AppShell() {
   useEffect(() => {
     setMenuOpen(false);
   }, [location.pathname, proposal?.partyId]);
+  // 퍼널 "실제 서비스 도착" — 로그인한 채 /app 에 처음 들어온 것(브라우저 세션마다 한 번 · analytics/ga.ts).
+  useEffect(() => { trackAppEnterOnce(); }, []);
   // 게시판(`/app/home`)과 방(`/app/party/…`)은 한 화면이다 — 게시판이 왼쪽에 남으니 둘 사이를 오갈 때는 맨 위로 올리지 않는다(2026-09-30 · `pages/HomePage.tsx`).
   const boardRoute = isBoardRoute(location.pathname);
   const previousPath = useRef(location.pathname);

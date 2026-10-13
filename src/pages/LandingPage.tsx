@@ -1,4 +1,5 @@
 import { Logo } from '../components/Logo';
+import { track } from '../analytics/ga';
 import { GameBadge } from '../components/GameSymbol';
 import { Link, Navigate } from 'react-router-dom';
 import { IconBolt, IconMic, IconShield, IconTarget } from '../components/icons';
@@ -42,7 +43,7 @@ export function LandingPage() {
             조건을 고르면 빠른매치가 팀원을 찾아 주고, 파티 모집 게시판에서는 티어 · 포지션 · 전적을 보고 참가해요. 모집 중에도 음성 · 채팅으로 함께 준비할 수 있어요.
           </p>
           <div className="hero-actions">
-            <Link className="btn btn-primary btn-lg" to="/login">시작하기</Link>
+            <Link className="btn btn-primary btn-lg" to="/login" onClick={() => track('start_click')}>시작하기</Link>
           </div>
         </div>
 
