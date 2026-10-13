@@ -12,7 +12,7 @@ import react from '@vitejs/plugin-react';
 const PLATFORM = 'http://localhost:8082';     // 계정 · 소셜 로그인 · 토큰 · 게임 프로필 · 게시판 · 방 · 친구 · 차단 · 신고
 const MATCHING = 'http://localhost:8080';     // 매칭 요청 · heartbeat · 제안
 const NOTIFICATION = 'http://localhost:8081'; // SSE
-const CHAT = 'http://localhost:8083';         // 방 채팅 · 친구 DM — WebSocket(/ws/chat) · REST(/api/v1/chat) (D-58 · 2026-10-10)
+const CHAT = 'http://localhost:8083';         // 방 채팅 — WebSocket(/ws/chat) · REST(/api/v1/chat) (D-58 · 친구 DM 은 없다 D-59 · 2026-10-13)
 
 export default defineConfig(({ mode }) => {
   const { QUEUEMATE_PREVIEW_HOST, QUEUEMATE_MATCHING_URL } = loadEnv(mode, process.cwd(), 'QUEUEMATE_');
