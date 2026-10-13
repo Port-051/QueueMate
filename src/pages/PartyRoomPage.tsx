@@ -155,7 +155,8 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
   const peerCount = members.filter(m => m.id !== userId).length;
   const canChat = connectedPeers.length > 0;
   const needsReconnect = connectedPeers.length < peerCount;
-  const connectionHint = needsReconnect ? (canChat ? '일부 팀원 연결 대기 중 · 연결된 팀원에게만 전송됩니다.' : peerCount ? '팀원 연결 대기 중' : '아직 다른 사람이 없어요') : undefined;
+  // 보낼 수 없는 이유(전송 버튼의 title). 혼자면 "아직 다른 사람이 없어요" — 전에는 needsReconnect(연결 수 < 상대 수) 안에 두어 상대가 0명이면 늘 false 라 이 글귀가 죽은 코드였다(2026-10-13 e2e 19 로 찾았다).
+  const connectionHint = peerCount === 0 ? '아직 다른 사람이 없어요' : needsReconnect ? (canChat ? '일부 팀원 연결 대기 중 · 연결된 팀원에게만 전송됩니다.' : '팀원 연결 대기 중') : undefined;
   const nicknameOf = (id: string) => seatName(members.find(m => m.id === id) ?? { nickname: null });
   // 채팅의 이름 — 서버가 아는 닉네임이 먼저다(좌석과 같은 출처 — 전에는 좌석은 번호 · 채팅은 보낸 브라우저가 실어 온 닉네임이라 어긋났다). 모르면 실어 온 이름.
   const chatName = (id: string, sent: string) => serverName(id) ?? sent;
