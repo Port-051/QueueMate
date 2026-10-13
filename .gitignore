@@ -8,6 +8,8 @@ dist/
 *.log
 .env*
 !.env.example
+# 운영 빌드의 공개 값(GA4 측정 ID)만 — 비밀은 여기 두지 않는다(2026-10-13)
+!.env.production
 .DS_Store
 
 # Playwright e2e 산출물(2026-09-30 — 실제 백엔드 e2e)
