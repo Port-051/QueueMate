@@ -97,3 +97,5 @@ queuemate/
 
 - `GET /health/live` — 살아 있나(ALB 헬스 체크는 여기에 건다). `GET /health/ready` — Redis 까지 붙었나. 둘 다 인증 없이 `{"status":"UP"}` 만 준다(`platform` 과 같은 모양).
 - 떠 있나 확인 — `curl -s localhost:8081/health/live` 가 `{"status":"UP"}` 이면 떠 있다(`/api/v1/events` 는 쿠키 없이 401 이다). 상세는 `CLAUDE.md` §6.
+- 이미지 빌드(2026-10-02) — `backend/` 에서 `docker build -t qm-notification:local .`(`backend/Dockerfile` — JDK 로 빌드 · JRE 로 실행 · Spring Boot 계층 추출 · uid 1000 · 테스트는 `-x test` 로 뺀다).
+- 컨테이너 실행 — `docker run --rm -p 8081:8081 -e REDIS_HOST=host.docker.internal -e REDIS_PORT=<포트> -e JWT_PUBLIC_KEY_FILE=/keys/public.pem -v <platform/backend/.dev-keys/public.pem>:/keys/public.pem:ro qm-notification:local`(운영은 `JWT_PUBLIC_KEY`. 개인 키가 든 `.dev-keys` 폴더째로 마운트하지 않는다).

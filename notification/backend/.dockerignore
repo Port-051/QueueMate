@@ -1,0 +1,7 @@
+# 빌드 컨텍스트에서 뺀다 — 로컬 빌드 산출물 · IDE 파일 · 로그 · 테스트(이미지 빌드는 -x test)
+build/
+.gradle/
+*.log
+.idea/
+out/
+src/test/
