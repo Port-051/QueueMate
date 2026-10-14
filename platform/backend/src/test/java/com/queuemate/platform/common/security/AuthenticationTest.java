@@ -114,7 +114,7 @@ class AuthenticationTest extends ApiTestSupport {
         String nickname = newNickname();
         Cookie access = login(nickname);
         Long userId = userIdOf(nickname);
-        String socialSignupToken = socialSignupTokens.issue(SocialProvider.KAKAO, new OAuthUser("12345", "닉네임"));
+        String socialSignupToken = socialSignupTokens.issue(SocialProvider.KAKAO, new OAuthUser("12345", "닉네임", null));
 
         // 같은 키로 서명했지만 token_use 가 social_signup 이다 — sub 를 억지로 넣어 봐도 마찬가지다
         expectUnauthenticated(me(new Cookie("qm_access", socialSignupToken)));

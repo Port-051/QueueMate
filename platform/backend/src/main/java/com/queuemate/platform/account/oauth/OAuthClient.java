@@ -88,7 +88,7 @@ public class OAuthClient {
     }
 
     /**
-     * {@code code} → 제공자의 토큰 → 회원 번호와 닉네임.
+     * {@code code} → 제공자의 토큰 → 회원 번호 · 닉네임 · 검증된 이메일(없으면 {@code null} — P-58).
      *
      * @throws OAuthException 제공자가 거절했거나 · 응답이 없거나(타임아웃) · 응답을 읽을 수 없다
      */

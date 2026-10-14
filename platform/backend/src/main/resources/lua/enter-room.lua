@@ -24,7 +24,7 @@
 -- 들어왔을 때(1)만 뒤에 "내가 들어오기 전부터 방에 있던 사람들"이 붙는다 — 서비스가 그 사람들에게 입장을 알린다.
 --   { 1, "host", "u2", ... }   /   나머지는 { 코드 } 하나뿐이다
 --
---   1 = 들어왔다
+--   1 = 들어왔다 (마지막 자리를 채웠어도 같다 — 이 스크립트는 확정하지 않는다. 2026-10-13 소유자 결정, 아래 끝)
 --   2 = 이미 이 방에 들어와 있다 (아무것도 쓰지 않는다)
 --  -1 = 자동 매칭을 돌리는 중이다
 --  -2 = 방이 가득 찼다
@@ -106,11 +106,7 @@ redis.call('HSET', roomMemberKey, userId, position)
 if positionRoom then
     redis.call('SREM', roomNeedsKey, position)
 end
--- 마지막 자리와 확정을 원자적으로 묶는다. 누군가 바로 나가도 모집을 다시 열지 않는다.
--- 코드 3 뒤에는 확정 순간의 HGETALL(userId, position 쌍)이 온다.
-if #members + 1 >= capacity then
-    redis.call('SET', roomConfirmedKey, roomId, 'EX', ttl)
-    return { 3, unpack(redis.call('HGETALL', roomMemberKey)) }
-end
+-- 마지막 자리가 차도 확정 표시 키(KEYS[5])는 쓰지 않는다 — 2026-10-13 소유자 결정 "그 사람 다 차면 자동으로 확정해 주는 거 없애"
+-- (P-55 의 만석 자동 확정 · 코드 3 을 걷어냈다). 확정은 방장의 confirm-room.lua 만 쓴다. 가득 찬 방은 모집 중으로 남고 다음 사람은 -2 다
 -- unpack 은 테이블을 낱개 값으로 푼다 — { 1, unpack({"host","u2"}) } 는 { 1, "host", "u2" } 다
 return { 1, unpack(members) }

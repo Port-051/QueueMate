@@ -64,20 +64,21 @@ public class SocialLoginService {
 
     /**
      * 사용자와 소셜 연결을 <b>한 트랜잭션으로</b> 만든다 — 연결이 실패하면 사용자도 남지 않는다(로그인할 길이 없는 계정이 된다).
-     * 정하는 것은 닉네임 하나다(2026-09-26 소유자 결정 — 로그인 아이디 · 비밀번호가 없다).
+     * 정하는 것은 닉네임 하나다(2026-09-26 소유자 결정 — 로그인 아이디 · 비밀번호가 없다). <b>이메일은 요청이 아니라 제공자에게서 온 것</b>
+     * ({@code qm_social_signup} 의 클레임 — 검증된 값만 · 없으면 {@code null} · 2026-10-13 소유자 결정 P-58)이라 그대로 적는다 — 없어도 가입은 된다.
      *
      * <p><b>중복은 DB 가 막는다</b> — 닉네임은 {@code users} 의 UNIQUE 가, 같은 소셜 계정의 두 번째 가입은 {@code social_identities} 의 PK 가 막는다.
-     * 같은 {@code qm_social_signup} 을 든 두 요청이 동시에 와도 하나만 통과한다.
+     * 같은 {@code qm_social_signup} 을 든 두 요청이 동시에 와도 하나만 통과한다. 이메일에는 UNIQUE 가 없다 — 식별자가 아니다.
      */
     @Transactional
-    public AuthResponse signup(SocialProvider provider, String providerUserId, SocialSignupRequest request)
+    public AuthResponse signup(SocialProvider provider, String providerUserId, String email, SocialSignupRequest request)
     {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         User user;
         try
         {
             // id 는 DB 가 매긴다(IDENTITY) — INSERT 가 나가야 번호를 안다. flush 로 위반을 지금 드러낸다
-            user = userRepository.saveAndFlush(new User(request.nickname(), now));
+            user = userRepository.saveAndFlush(new User(request.nickname(), email, now));
             socialIdentityRepository.saveAndFlush(new SocialIdentity(provider, providerUserId, user.getId(), now));
         }
         catch(DataIntegrityViolationException e)
@@ -88,9 +89,29 @@ public class SocialLoginService {
             }
             throw AuthService.translate(e);
         }
-        // 제공자 쪽 회원 번호는 남기지 않는다 — 어느 제공자인지만 남긴다
-        log.info("소셜 가입 userId={} provider={}", user.getId(), provider);
+        // 제공자 쪽 회원 번호 · 이메일 값은 남기지 않는다 — 어느 제공자인지와 이메일이 있었는지만 남긴다
+        log.info("소셜 가입 userId={} provider={} hasEmail={}", user.getId(), provider, email != null);
         return new AuthResponse(user.getId(), user.getNickname());
+    }
+
+    /**
+     * 로그인 · 잇기 때 제공자가 준 <b>검증된</b> 이메일을 사용자에게 적는다(2026-10-13 소유자 결정 — P-58). 가입 때 동의하지 않았다가 나중에 동의한 사람
+     * (카카오 "선택 동의" · 콘솔에서 동의 항목을 뒤에 켠 경우)의 칸이 이것으로 채워진다. <b>{@code null} 로는 덮어쓰지 않는다</b> — 동의를 거둔 사람의 값은 남는다
+     * (지우는 길은 회원 탈퇴다 · 미정 — 계약 P-58). 같은 값이면 아무것도 바꾸지 않는다(조건부 UPDATE 한 문장).
+     *
+     * <p>본 작업(로그인)을 뒤집지 않는다 — 사용자가 그 사이 탈퇴해 0줄이어도 그대로 지나간다. 이메일 값은 로그에 남기지 않는다.
+     */
+    @Transactional
+    public void rememberEmail(Long userId, String email)
+    {
+        if(email == null)
+        {
+            return;
+        }
+        if(userRepository.updateEmail(userId, email, Instant.now().truncatedTo(ChronoUnit.MILLIS)) == 1)
+        {
+            log.info("소셜 로그인 — 이메일을 적었다 userId={}", userId);
+        }
     }
 
     /**

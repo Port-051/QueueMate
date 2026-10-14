@@ -143,13 +143,20 @@ public class GameStatsSyncWorker {
                 return SyncOutcome.FRESH;
             }
             GameAccount account = found.get().account();
-            StatsSnapshot snapshot = provider.fetch(account.getGameNickname(), account.getServer());
+            // LoL 은 저장된 puuid 로 지금의 Riot ID 를 읽어 스냅숏에 싣는다 — 이름을 바꾼 사람의 옛 Riot ID 를 계속 보여 주지 않게(P-53)
+            StatsSnapshot snapshot = provider.refetch(account.getGameNickname(), account.getServer(), account.getExternalId());
             if(snapshot == null)
             {
                 // 물어볼 수 없는 닉네임이다(이유는 구현이 로그에 남겼다). 기존 전적 줄은 건드리지 않는다
                 return SyncOutcome.NOT_FETCHABLE;
             }
             store.save(account.getId(), game, snapshot, Instant.now().truncatedTo(ChronoUnit.MILLIS));
+            if(snapshot.gameNickname() != null && !snapshot.gameNickname().equals(account.getGameNickname()))
+            {
+                // 이름은 찍지 않는다 — 옛 이름 · 새 이름 둘 다
+                log.info("게임사의 지금 이름이 달라 게임 닉네임을 덮어썼다 userId={} gameAccountId={} game={}",
+                        account.getUserId(), account.getId(), game);
+            }
             return SyncOutcome.SAVED;
         }
         finally

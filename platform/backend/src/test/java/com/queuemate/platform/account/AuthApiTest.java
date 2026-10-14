@@ -88,8 +88,9 @@ class AuthApiTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value(equalTo(userId), Long.class))
                 .andExpect(jsonPath("$.nickname").value(nickname))
-                // 칸은 다섯이다 — 로그인 아이디와 비밀번호 유무가 없어졌다(2026-09-26)
-                .andExpect(jsonPath("$.length()").value(5))
+                // 칸은 여섯이다 — 로그인 아이디와 비밀번호 유무가 없어졌고(2026-09-26) 이메일이 들어왔다(2026-10-13 · P-58 — 소셜로 받은 것이 없으면 null)
+                .andExpect(jsonPath("$.length()").value(6))
+                .andExpect(jsonPath("$.email").isEmpty())
                 .andExpect(jsonPath("$.createdAt").isString())
                 .andExpect(jsonPath("$.gameAccounts").isEmpty());
     }

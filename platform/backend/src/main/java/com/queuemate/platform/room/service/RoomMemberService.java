@@ -65,6 +65,7 @@ public class RoomMemberService {
      * <p><b>순서</b>(2026-09-25 2단계) — ① 게시판의 검사({@link PostEntryGate#check}: 없는 글 · 차단으로 숨겨진 글 404 {@code POST_NOT_FOUND},
      * 모집 중이 아닌 글 409 {@code POST_NOT_RECRUITING}) → ② 스크립트({@code ROOM_NOT_FOUND} · {@code ROOM_FULL} · {@code ROOM_CONFIRMED} ·
      * {@code ALREADY_QUEUED} · {@code IN_OTHER_ROOM} · 이미 들어와 있음 · 포지션 — 2026-09-30 P-44). 두 앱이던 때 입장권 발급이 하던 ① 을 같은 요청 안에서 한다.
+     * <b>마지막 자리를 채워도 확정하지 않는다</b>(2026-10-13 소유자 결정 — P-55 의 만석 자동 확정 취소) — 가득 찬 방은 모집 중으로 남고 방장이 확정한다.
      * <b>포지션 없이 들어온다</b> — 포지션을 골라 들어오는 방(찾는 포지션이 있는 글)이면 {@link EnterResult#INVALID_POSITION} 이다(재입장은 그대로 {@link EnterResult#ALREADY_ENTERED}).
      * ① 과 ② 사이는 원자적이지 않다 — 그 사이에 나와 차단 관계인 사람이 먼저 들어오는 경쟁이 남는다(입장권 60초였던 창이 밀리초로 줄었을 뿐이다).
      *
@@ -119,17 +120,13 @@ public class RoomMemberService {
         EnterResult result = EnterResult.fromCode(codeOf(reply));
 
         // 발행은 예외를 밖으로 내보내지 않는다 — 알림이 실패해도 이미 성립한 입장은 그대로다 (CLAUDE.md §3.2)
-        if (result == EnterResult.ENTERED || result == EnterResult.ENTERED_AND_CONFIRMED)
+        // 마지막 자리를 채운 입장도 여기서 끝난다 — ROOM_CONFIRMED 는 내지 않고 글도 CONFIRMED 로 바꾸지 않는다(2026-10-13 소유자 결정
+        // "그 사람 다 차면 자동으로 확정해 주는 거 없애" — P-55 의 만석 자동 확정을 걷어냈다). 확정은 RoomService#confirm(방장)만 한다
+        if (result == EnterResult.ENTERED)
         {
-            Map<Long, String> snapshot = result == EnterResult.ENTERED_AND_CONFIRMED
-                    ? com.queuemate.platform.room.domain.RoomMemberIds.parsePairs(roomId, reply, 1) : null;
-            boolean signaled = changedRoster(roomId, snapshot);
-            List<String> recipients = snapshot == null ? othersIn(reply, userId)
-                    : snapshot.keySet().stream().map(String::valueOf).toList();
-            roomNotifier.toEach(recipients.stream().filter(id -> !id.equals(userId)).toList(), PushEventType.ROOM_MEMBER_ENTERED,
+            boolean signaled = changedRoster(roomId);
+            roomNotifier.toEach(othersIn(reply, userId), PushEventType.ROOM_MEMBER_ENTERED,
                     Map.of("roomId", roomId, "userId", userId));
-            if (snapshot != null) roomNotifier.toEach(recipients, PushEventType.ROOM_CONFIRMED,
-                    Map.of("roomId", roomId, "members", recipients));
             if (!signaled) roomNotifier.boardChanged();
         }
         return result;
@@ -149,7 +146,7 @@ public class RoomMemberService {
      */
     public LeaveResult leave(String roomId, String userId)
     {
-        return roomService.leave(roomId, userId, () -> endPostOf(roomId), () -> changedRoster(roomId, null));
+        return roomService.leave(roomId, userId, () -> endPostOf(roomId), () -> changedRoster(roomId));
     }
 
     /**
@@ -210,7 +207,7 @@ public class RoomMemberService {
 
         if (result == KickResult.KICKED)
         {
-            boolean signaled = changedRoster(roomId, null);
+            boolean signaled = changedRoster(roomId);
             // 방에 남은 사람들(방장 포함)에 강퇴된 본인을 더한다. 본인은 자기가 부른 요청이 아니라서 알림이 아니면 알 길이 없다.
             // 방장도 받는다 — 다른 알림과 모양을 맞춰 남은 사람 전원에게 보낸다
             List<String> recipients = new ArrayList<>(reply.stream().skip(1).map(String::valueOf).toList());
@@ -294,7 +291,7 @@ public class RoomMemberService {
         if(result == HeartbeatResult.ALIVE && reply.size() > 2)
         {
             int removedCount = ((Long) reply.get(1)).intValue();
-            boolean signaled = removedCount > 0 && changedRoster(roomId, null);
+            boolean signaled = removedCount > 0 && changedRoster(roomId);
             List<String> removed = reply.subList(2, 2 + removedCount).stream().map(String::valueOf).toList();
             // 신호를 보낸 방장도 받는다. 방장의 응답(204)에는 누가 빠졌는지가 없어서, 알림이 아니면 방장만 모르게 된다
             List<String> remaining = reply.subList(2 + removedCount, reply.size()).stream().map(String::valueOf).toList();
@@ -323,11 +320,14 @@ public class RoomMemberService {
         return result;
     }
 
-    /** 스크립트가 돌려준 목록의 첫 칸. 비어 있으면 {@code null} 이고 {@code fromCode} 가 예외로 알린다 */
-    private boolean changedRoster(String roomId, Map<Long, String> snapshot) {
+    /**
+     * 명단이 바뀐 것을 게시판 글에 알린다({@code PostStore#rosterChanged} — 유휴 자동 확정 타이머(P-55 · 기본 꺼짐)의 시각을 다시 잡는다).
+     * 글을 확정하지 않는다 — 만석 자동 확정은 2026-10-13 소유자 결정으로 없어졌다. 게시판 신호를 그쪽이 냈으면 {@code true}
+     */
+    private boolean changedRoster(String roomId) {
         try {
             long postId = Long.parseLong(roomId);
-            return postStore.rosterChanged(postId, snapshot, java.time.Instant.now());
+            return postStore.rosterChanged(postId, java.time.Instant.now());
         } catch (NumberFormatException ignored) {
             // 자동 매칭 방은 게시판 모집 시간이 없다.
         } catch (RuntimeException error) {
@@ -337,6 +337,7 @@ public class RoomMemberService {
         return false;
     }
 
+    /** 스크립트가 돌려준 목록의 첫 칸. 비어 있으면 {@code null} 이고 {@code fromCode} 가 예외로 알린다 */
     private static Long codeOf(List<?> reply)
     {
         return reply == null || reply.isEmpty() ? null : (Long) reply.get(0);

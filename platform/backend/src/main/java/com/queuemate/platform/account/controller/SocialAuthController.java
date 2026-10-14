@@ -133,6 +133,8 @@ public class SocialAuthController {
             if(linkedUserId.isPresent())
             {
                 log.info("소셜 로그인 userId={} provider={}", linkedUserId.get(), provider);
+                // 제공자가 검증된 이메일을 줬으면 적는다 — 가입 때 없던 사람도 나중에 동의하면 채워진다(P-58). null 이면 아무것도 안 한다
+                socialLoginService.rememberEmail(linkedUserId.get(), user.email());
                 // 쿠키 둘이다 — access 와 refresh
                 List<String> cookies = sessionCookies.login(linkedUserId.get());
                 // 낡은 전적을 뒤에서 — 곧바로 돌아오고 예외를 내지 않는다(P-42)
@@ -169,7 +171,8 @@ public class SocialAuthController {
             @Valid @RequestBody SocialSignupRequest request)
     {
         SocialSignupTokens.Pending pending = requirePending(signupToken);
-        AuthResponse response = socialLoginService.signup(pending.provider(), pending.providerUserId(), request);
+        // 이메일은 콜백 때 제공자에게서 받아 쿠키에 서명해 둔 것이다(검증된 값만 · 없으면 null — P-58). 요청 본문에는 없다
+        AuthResponse response = socialLoginService.signup(pending.provider(), pending.providerUserId(), pending.email(), request);
         List<String> cookies = new ArrayList<>(sessionCookies.login(response.userId()));
         cookies.add(socialSignupTokens.expiredCookie().toString());
         // 새 사용자라 받을 게임 계정이 아직 없다 — 진짜 로그인의 한 길이라 같이 부른다(P-42)
@@ -194,7 +197,12 @@ public class SocialAuthController {
         SocialLoginService.LinkResult result = socialLoginService.link(provider, user.providerUserId(), userId);
         return switch(result)
         {
-            case LINKED -> redirect(FRONT_SETTINGS + "?linked=" + provider.name(), List.of());
+            case LINKED ->
+            {
+                // 이은 제공자가 검증된 이메일을 줬으면 적는다(P-58 — 카카오만 쓰던 사람이 구글을 이으면 그때 채워진다). null 이면 아무것도 안 한다
+                socialLoginService.rememberEmail(userId, user.email());
+                yield redirect(FRONT_SETTINGS + "?linked=" + provider.name(), List.of());
+            }
             case SOCIAL_ALREADY_LINKED, PROVIDER_ALREADY_LINKED ->
             {
                 log.info("소셜 잇기 거절 userId={} provider={} reason={}", userId, provider, result);

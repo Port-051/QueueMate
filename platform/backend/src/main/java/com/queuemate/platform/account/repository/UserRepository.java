@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -36,6 +37,17 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = "delete from users where id = :userId", nativeQuery = true)
     int deleteUserRow(@Param("userId") Long userId);
+
+    /**
+     * 소셜 로그인 · 잇기 때 제공자가 준 <b>검증된</b> 이메일로 덮어쓴다(2026-10-13 소유자 결정 · P-58). 조건부 UPDATE 한 문장이다 —
+     * 이미 같은 값이면 아무것도 바꾸지 않는다({@code updated_at} 도). <b>{@code null} 로 부르지 마라</b> — 비어 있는 값으로는 덮어쓰지 않는다
+     * (부르는 쪽 {@code SocialLoginService#rememberEmail} 이 거른다). 엔티티를 읽지 않는다.
+     *
+     * @return 바꾼 줄의 수(0 또는 1)
+     */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = "update users set email = :email, updated_at = :now where id = :userId and email is distinct from :email", nativeQuery = true)
+    int updateEmail(@Param("userId") Long userId, @Param("email") String email, @Param("now") Instant now);
 
     /**
      * 여러 사용자의 닉네임과, <b>어느 한 게임</b>에 연결한 게임 계정 · 전적을 <b>쿼리 한 번으로</b> 읽는다 — 목록의 카드가 쓴다

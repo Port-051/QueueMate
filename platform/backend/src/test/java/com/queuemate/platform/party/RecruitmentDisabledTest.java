@@ -32,10 +32,15 @@ class RecruitmentDisabledTest extends PostTestSupport {
         assertThat(statusOf(id)).isEqualTo("CONFIRMED");
     }
 
-    @Test void reachingCapacityStillConfirms() throws Exception {
+    /** 타이머가 꺼져 있고 만석 자동 확정도 없다(2026-10-13 소유자 결정) — 가득 찬 방은 모집 중이고 방장의 확정만 확정이다 */
+    @Test void reachingCapacityDoesNotConfirm() throws Exception {
         var host = login(newNickname());
         Long id = createFivePersonLolPost(host);
         for (String position : FIVE_PERSON_LOL_WANTED) enterRoom(login(newNickname()), id, position).andExpect(status().isCreated());
+        assertThat(statusOf(id)).isEqualTo("RECRUITING");
+        assertThat(redisTemplate.hasKey(confirmedKey(id))).isFalse();
+        enterRoom(login(newNickname()), id, "TOP").andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ROOM_FULL"));
+        mockMvc.perform(post("/api/v1/rooms/" + id + "/confirm").cookie(host)).andExpect(status().isNoContent());
         assertThat(statusOf(id)).isEqualTo("CONFIRMED");
     }
 }

@@ -57,16 +57,44 @@ class RoomNotificationTest extends RoomTestSupport {
             {
                 roomMemberService.enter(r("r1"), u("u" + i));
             }
-            take(subscriber, 1 + 2 + 3 + 4 + 5);
+            // 입장마다 먼저 있던 사람들에게 ROOM_MEMBER_ENTERED 하나씩 — 마지막 자리(네 번째)도 ROOM_CONFIRMED 없이 넷뿐이다(2026-10-13 소유자 결정)
+            take(subscriber, 1 + 2 + 3 + 4);
 
-            assertThat(enterOutcome(r("r1"), u("u5"))).isEqualTo(EnterResult.ROOM_CONFIRMED);
+            assertThat(roomMemberService.enter(r("r1"), u("u5"))).isEqualTo(EnterResult.FULL);
             assertThat(roomMemberService.enter(r("r1"), u("u1"))).isEqualTo(EnterResult.ALREADY_ENTERED);
             assertThat(roomMemberService.enter(r("r9"), u("u6"))).isEqualTo(EnterResult.ROOM_NOT_FOUND);
             redisTemplate.opsForHash().put(key("qm:user:active-request:u7"), "requestId", "req-1");
-            assertThat(enterOutcome(r("r1"), u("u7"))).isEqualTo(EnterResult.ROOM_CONFIRMED);
+            assertThat(roomMemberService.enter(r("r1"), u("u7"))).isEqualTo(EnterResult.ACTIVE_REQUEST_EXISTS);
 
             assertThat(subscriber.nothingMore()).isTrue();
         }
+    }
+
+    @Test
+    @DisplayName("마지막 자리를 채운 입장은 ROOM_MEMBER_ENTERED 만 낸다 — ROOM_CONFIRMED 는 나가지 않고 방은 확정되지 않는다 (2026-10-13 소유자 결정 — P-55 의 만석 자동 확정 취소)")
+    void lastSeatDoesNotConfirm() throws Exception
+    {
+        roomService.create(r("r1"), u("host"), Set.of());
+        roomMemberService.enter(r("r1"), u("u1"));
+        roomMemberService.enter(r("r1"), u("u2"));
+        roomMemberService.enter(r("r1"), u("u3"));
+
+        try (PushSubscriber subscriber = new PushSubscriber(connectionFactory, objectMapper, this::labelOf))
+        {
+            assertThat(roomMemberService.enter(r("r1"), u("u4"))).isEqualTo(EnterResult.ENTERED);
+
+            List<PushSubscriber.Received> received = take(subscriber, 4);
+            assertThat(received).extracting(PushSubscriber.Received::userId).containsExactlyInAnyOrder("host", "u1", "u2", "u3");
+            for (PushSubscriber.Received one : received)
+            {
+                assertThat(one.envelope().get("type").asString()).isEqualTo("ROOM_MEMBER_ENTERED");
+                assertThat(payloadOf(one)).isEqualTo(Map.of("roomId", "r1", "userId", "u4"));
+            }
+            assertThat(subscriber.nothingMore()).isTrue();
+        }
+        assertThat(redisTemplate.hasKey(key("qm:room:r1:confirmed"))).isFalse();
+        assertThat(jdbcTemplate.queryForObject("select status from recruit_posts where id = ?", String.class, Long.parseLong(r("r1"))))
+                .isEqualTo("RECRUITING");
     }
 
     @Test

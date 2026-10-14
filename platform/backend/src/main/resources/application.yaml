@@ -120,7 +120,9 @@ platform:
     redis-sync-interval: ${BLOCK_REDIS_SYNC_INTERVAL:PT5M}
   # 방 안의 일 (contracts/platform-api.md "방"). 2026-09-25 에 room 앱을 합쳤다 — 환경변수 이름은 그쪽의 것 그대로다(계약이다)
   room:
-    # 시간 경과 자동 마감은 일시 비활성화. 정원 충원 및 방장의 수동 마감은 유지한다.
+    # 유휴 자동 확정 타이머(P-55 — 인원 변화 없이 10분 + 안내 60초 뒤 확정 · RecruitmentScheduler)의 스위치. 기본 꺼짐(2026-10-03 팀).
+    # 정원이 찼다고 확정하는 길은 없다 — 2026-10-13 소유자 결정 "그 사람 다 차면 자동으로 확정해 주는 거 없애"(P-55 의 만석 자동 확정 취소).
+    # 확정은 방장의 POST /api/v1/rooms/{roomId}/confirm 만이다 — 이 스위치와 무관하다
     auto-confirm-enabled: ${ROOM_AUTO_CONFIRM_ENABLED:false}
     # 방 키(방장 키 · 멤버 HASH · 찾는 포지션 SET · 확정 표시 키)와 입장 표시 키의 수명(초). 접속 확인이 올 때마다 다시 건다. 브라우저는 1분마다 신호를 보낸다
     ttl-seconds: ${ROOM_TTL_SECONDS:600}
@@ -190,7 +192,8 @@ platform:
       authorize-uri: https://discord.com/oauth2/authorize
       token-uri: https://discord.com/api/oauth2/token
       user-info-uri: https://discord.com/api/users/@me
-    # 구글 — scope 는 openid profile(이메일은 청하지 않는다). 사용자 정보는 OpenID Connect 의 userinfo 이고 회원 번호는 sub(문자열)다
+    # 구글 — scope 는 openid profile email(이메일은 2026-10-13 P-58 — email_verified 가 true 일 때만 저장한다). 사용자 정보는 OpenID Connect 의 userinfo 이고 회원 번호는 sub(문자열)다
+    # 카카오는 profile_nickname account_email(이메일은 선택 동의 · 소유자가 콘솔에서 "개인 개발자 비즈 앱" 전환 + 동의 항목을 켜야 온다) · 디스코드는 identify email(콘솔 scope 에 email 체크). scope 원본은 account.oauth.*ProviderSpec
     google:
       client-id: ${GOOGLE_CLIENT_ID:}
       client-secret: ${GOOGLE_CLIENT_SECRET:}

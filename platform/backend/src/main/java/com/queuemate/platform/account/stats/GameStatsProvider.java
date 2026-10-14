@@ -35,4 +35,18 @@ public interface GameStatsProvider {
      *                                     로그인 때 다시 받기({@link GameStatsLoginRefresher})는 WARN 으로 끝낸다
      */
     StatsSnapshot fetch(String gameNickname, String server);
+
+    /**
+     * <b>이미 저장된 게임 계정</b>의 전적을 다시 긁는다 — 로그인 · 재발급 때 뒤에서 다시 받기({@link GameStatsSyncWorker#syncIfStale} · P-42)의 길이다.
+     * 기본은 {@link #fetch} 와 같다(PUBG). <b>LoL 은 저장된 {@code puuid} 로 지금의 Riot ID 를 읽어 스냅숏의 {@code gameNickname} 에 싣는다</b>
+     * ({@link LolStatsProvider#refetch} — 2026-10-03 소유자 결정 · P-53).
+     *
+     * @param externalId 저장된 게임사 쪽 식별자({@code game_accounts.external_id} — LoL 은 {@code puuid}). 없으면 {@code null}
+     * @return {@link #fetch} 와 같다
+     * @throws RiotIdNotFoundException 그 {@code puuid} 의 계정이 Riot 에 없다(LoL) — 나머지 예외는 {@link #fetch} 와 같다
+     */
+    default StatsSnapshot refetch(String gameNickname, String server, String externalId)
+    {
+        return fetch(gameNickname, server);
+    }
 }

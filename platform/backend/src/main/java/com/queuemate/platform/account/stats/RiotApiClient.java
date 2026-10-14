@@ -19,9 +19,11 @@ import java.net.http.HttpClient;
  * Riot API 를 부르는 <b>전송 쪽</b> — 주소 · 경로 · 키 헤더 · 타임아웃만 안다. 응답의 JSON 을 해석하지 않고 {@link JsonNode} 를 그대로 돌려준다
  * (칸을 읽는 곳은 {@link LolStatsProvider} 한 곳이다). {@link com.queuemate.platform.account.oauth.OAuthClient} 와 같은 방식으로 짰다.
  *
- * <p><b>경로가 이 한 곳에 모여 있다</b> — Riot 이 경로를 바꾸면 여기만 고친다. 지금 부르는 것은 다섯이다.
+ * <p><b>경로가 이 한 곳에 모여 있다</b> — Riot 이 경로를 바꾸면 여기만 고친다. 지금 부르는 것은 여섯이다.
  * <ol>
- *   <li>{@code account-v1} — Riot ID({@code 이름#태그}) → {@code puuid} <b>(대륙 주소)</b></li>
+ *   <li>{@code account-v1} — Riot ID({@code 이름#태그}) → {@code puuid} <b>(대륙 주소)</b>. 게임 계정 연결이 부른다(사용자가 적은 이름이다)</li>
+ *   <li>{@code account-v1} — <b>{@code puuid} → 지금의 Riot ID</b>({@code gameName} · {@code tagLine}) <b>(대륙 주소)</b>. 로그인 · 재발급 때 다시 받기가
+ *       저장된 {@code puuid} 로 부른다 — 이름을 바꾼 사람의 옛 Riot ID 를 계속 보여 주지 않게(2026-10-03 소유자 결정 · Riot 정책 "historic Riot IDs" · P-53)</li>
  *   <li>{@code league-v4} — <b>{@code puuid} 로</b> 리그 목록(솔로랭크의 승/패 · 티어, 자유랭크의 티어) <b>(플랫폼 주소)</b>.
  *       (2026-09-29 까지는 {@code summoner-v4} 로 소환사 {@code id} 를 받아 {@code entries/by-summoner} 를 불렀다 — <b>실제 키로 불러 보니 소환사 응답에 {@code id} 가 없었다</b>
  *       ({@code profileIconId} · {@code puuid} · {@code revisionDate} · {@code summonerLevel} 넷뿐). {@code entries/by-puuid} 는 200 으로 동작해 그리로 바꾸고 소환사 호출을 없앴다)</li>
@@ -49,6 +51,8 @@ public class RiotApiClient {
 
     // ---- 경로. Riot 이 바꾸면 여기만 고친다 ----
     static final String ACCOUNT_BY_RIOT_ID = "/riot/account/v1/accounts/by-riot-id/{gameName}/{tagLine}";
+    /** 응답은 {@code by-riot-id} 와 같은 모양이다 — {@code {puuid, gameName, tagLine}} */
+    static final String ACCOUNT_BY_PUUID = "/riot/account/v1/accounts/by-puuid/{puuid}";
     /** 2026-09-29 실제 키로 확인 — 200 · {@code [{queueType, tier, rank, puuid, leaguePoints, wins, losses, …}]} */
     static final String LEAGUE_ENTRIES_BY_PUUID = "/lol/league/v4/entries/by-puuid/{puuid}";
     static final String MATCH_IDS_BY_PUUID = "/lol/match/v5/matches/by-puuid/{puuid}/ids?start=0&count={count}";
@@ -81,6 +85,12 @@ public class RiotApiClient {
     JsonNode account(String gameName, String tagLine)
     {
         return get(properties.regionalBaseUrl() + ACCOUNT_BY_RIOT_ID, gameName, tagLine);
+    }
+
+    /** {@code puuid} → 계정(<b>지금의</b> {@code gameName} · {@code tagLine} 이 들어 있다 — P-53) */
+    JsonNode accountByPuuid(String puuid)
+    {
+        return get(properties.regionalBaseUrl() + ACCOUNT_BY_PUUID, puuid);
     }
 
     /** 그 {@code puuid} 의 리그 목록(배열) — 솔로랭크 · 자유랭크 줄이 그 안에 있을 수도 있고 없을 수도 있다(언랭) */

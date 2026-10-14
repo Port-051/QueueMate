@@ -4,8 +4,11 @@ import com.queuemate.platform.account.domain.SocialProvider;
 import tools.jackson.databind.JsonNode;
 
 /**
- * 제공자마다 다른 것 — scope 와, 사용자 정보 JSON 에서 회원 번호 · 닉네임을 꺼내는 법. 주소 셋과 클라이언트 id 는 설정에서 온다
+ * 제공자마다 다른 것 — scope 와, 사용자 정보 JSON 에서 회원 번호 · 닉네임 · 이메일을 꺼내는 법. 주소 셋과 클라이언트 id 는 설정에서 온다
  * ({@link OAuthProperties}). 인가 코드 흐름 자체는 제공자와 상관없이 같다({@link OAuthClient}).
+ *
+ * <p><b>이메일은 선택이고, 제공자가 검증됐다고 말한 값만 든다</b>(2026-10-13 소유자 결정 — {@code contracts/platform-api.md} P-58).
+ * 동의하지 않았거나 · 칸이 없거나 · 검증되지 않았으면 {@code null} 이고 그래도 회원 번호만 있으면 성공이다. 전화번호는 받지 않는다.
  *
  * <p>제공자를 더하려면 이것의 구현 하나 · {@link SocialProvider} 의 값 하나 · 설정 한 묶음 · DB 의 CHECK 를 더한다.
  */
@@ -13,11 +16,11 @@ public interface OAuthProviderSpec {
 
     SocialProvider provider();
 
-    /** 인가 요청의 {@code scope}. 회원 번호와 닉네임을 받는 데 필요한 것만 청한다 */
+    /** 인가 요청의 {@code scope}. 회원 번호 · 닉네임 · 이메일을 받는 데 필요한 것만 청한다 */
     String scope();
 
     /**
-     * 사용자 정보 응답에서 회원 번호와 닉네임을 꺼낸다.
+     * 사용자 정보 응답에서 회원 번호 · 닉네임 · 검증된 이메일을 꺼낸다.
      *
      * @throws OAuthException 회원 번호가 없다 — 그 응답으로는 누구인지 알 수 없다
      */

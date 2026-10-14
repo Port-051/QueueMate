@@ -14,8 +14,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class MentorRoomFlowTest extends PostTestSupport {
     @Autowired PostStore store;
 
+    /** 가득 차도 확정하지 않는다(2026-10-13 소유자 결정 — P-55 의 만석 자동 확정 취소). 방장이 확정하면 그 순간의 포지션이 보존된다(P-55 의 남은 부분 — V11) */
     @Test
-    void fullRoomConfirmsAtomicallyAndKeepsPositionsAfterDeparture() throws Exception {
+    void fullRoomStaysRecruitingUntilHostConfirmsAndKeepsPositionsAfterDeparture() throws Exception {
         Cookie host = login(newNickname());
         Long id = createFivePersonLolPost(host);
         var members = new ArrayList<Cookie>();
@@ -24,6 +25,13 @@ class MentorRoomFlowTest extends PostTestSupport {
             track(id, userIdOf(nickname));
             enterRoom(cookie, id, position).andExpect(status().isCreated());
         }
+        var full = body(mockMvc.perform(get("/api/v1/posts/" + id).cookie(host)).andExpect(status().isOk()));
+        assertThat(full.get("status").asString()).isEqualTo("RECRUITING");
+        assertThat(full.get("full").asBoolean()).isTrue();
+        assertThat(redisTemplate.hasKey(confirmedKey(id))).isFalse();
+        enterRoom(login(newNickname()), id, "TOP").andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ROOM_FULL"));
+
+        mockMvc.perform(post("/api/v1/rooms/" + id + "/confirm").cookie(host)).andExpect(status().isNoContent());
         var confirmed = body(mockMvc.perform(get("/api/v1/posts/" + id).cookie(host)).andExpect(status().isOk()));
         assertThat(confirmed.get("status").asString()).isEqualTo("CONFIRMED");
         assertThat(texts(confirmed.get("members"), "position")).containsExactlyInAnyOrder("TOP", "JUNGLE", "MID", "ADC", "SUPPORT");

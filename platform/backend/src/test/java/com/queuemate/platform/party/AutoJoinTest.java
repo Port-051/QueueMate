@@ -529,14 +529,24 @@ class AutoJoinTest extends PostTestSupport {
     }
 
     @Test
-    @DisplayName("정원으로 자동 확정된 방은 입장 금지가 풀려도 다시 모집하지 않는다")
+    @DisplayName("방장이 확정한 방은 내가 나가 자리가 비고 입장 금지가 풀려도 다시 모집하지 않는다 — 가득 찬 것만으로는 확정되지 않는다(2026-10-13 소유자 결정)")
     void confirmedRoomDoesNotReopenAfterBanExpires() throws Exception
     {
+        String hostName = newNickname();
+        Cookie host = login(hostName);
+        Long hostId = userIdOf(hostName);
+        insertGameAccount(hostId, "LOL", "host#KR1", "GOLD_1");
         String nickname = newNickname();
         Cookie me = login(nickname);
         Long meId = userIdOf(nickname);
-        Long left = insertRankedPost(hostWithTier("GOLD_1"), "MID");
+        // 솔로 랭크 — 정원 2. 내가 들어가면 가득 차지만 모집 중 그대로다
+        Long left = insertRankedPost(hostId, "MID");
         assertJoined(autoJoin(me, rankedBody("GOLD_4", "MID")), left, meId);
+        assertThat(statusOf(left)).isEqualTo("RECRUITING");
+
+        // 방장이 확정해야 확정이다
+        mockMvc.perform(post("/api/v1/rooms/{roomId}/confirm", left).cookie(host)).andExpect(status().isNoContent());
+        assertThat(statusOf(left)).isEqualTo("CONFIRMED");
         mockMvc.perform(delete("/api/v1/rooms/{roomId}/members/me", left).cookie(me)).andExpect(status().isNoContent());
         expectNoMatchingPost(autoJoin(me, rankedBody("GOLD_4", "MID")));
 
@@ -545,6 +555,26 @@ class AutoJoinTest extends PostTestSupport {
 
         expectNoMatchingPost(autoJoin(me, rankedBody("GOLD_4", "MID")));
         assertThat(statusOf(left)).isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    @DisplayName("가득 찼다가 자리가 난 방(확정 전)은 입장 금지가 풀리면 다시 들어간다 — 만석 자동 확정이 없어서다(2026-10-13 소유자 결정)")
+    void fullRoomReopensWhenASeatFreesUp() throws Exception
+    {
+        String nickname = newNickname();
+        Cookie me = login(nickname);
+        Long meId = userIdOf(nickname);
+        Long left = insertRankedPost(hostWithTier("GOLD_1"), "MID");
+        assertJoined(autoJoin(me, rankedBody("GOLD_4", "MID")), left, meId);
+        assertThat(statusOf(left)).isEqualTo("RECRUITING");
+        mockMvc.perform(delete("/api/v1/rooms/{roomId}/members/me", left).cookie(me)).andExpect(status().isNoContent());
+        // 스스로 나간 방은 10분 동안 자동 합류가 건너뛴다
+        expectNoMatchingPost(autoJoin(me, rankedBody("GOLD_4", "MID")));
+
+        redisTemplate.opsForZSet().add("qm:room:no-auto-join:" + meId, String.valueOf(left), 1);
+
+        assertJoined(autoJoin(me, rankedBody("GOLD_4", "MID")), left, meId);
+        assertThat(statusOf(left)).isEqualTo("RECRUITING");
     }
 
     // ---- ⑫ playPurpose ----

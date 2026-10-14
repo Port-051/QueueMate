@@ -93,9 +93,9 @@ public class PostStore {
         // Flush DB constraints before Lua. A Lua rejection rolls the database transaction back.
         post.updateSettings(request.mode(), title, description, voice, conditions, wanted, hostPosition, capacity, request.allowAutoJoin(), now);
         postRepository.flush();
-        Map<Long, String> members = roomSettingsService.update(String.valueOf(postId), String.valueOf(me),
-                capacity, hostPosition, wanted, metadataOnly);
-        if (!metadataOnly && members.size() >= capacity) confirmRoom(me, postId, now);
+        roomSettingsService.update(String.valueOf(postId), String.valueOf(me), capacity, hostPosition, wanted, metadataOnly);
+        // 정원을 현재 인원까지 줄여 방이 가득 차도 확정하지 않는다 — 2026-10-13 소유자 결정 "그 사람 다 차면 자동으로 확정해 주는 거 없애"
+        // (P-57 의 "정원을 현재 인원과 같게 줄이면 기존 확정 흐름으로 마감" 을 걷어냈다). 가득 찬 방은 모집 중으로 남고 방장이 확정한다(confirmRoom)
         boardSignal.changed();
     }
 
@@ -111,14 +111,15 @@ public class PostStore {
     private final PostLifecycle postLifecycle;
     private final RecruitmentTiming recruitmentTiming;
 
-    /** 명단 변경마다 대기 시간을 다시 시작한다. 한 명뿐이면 자동 확정하지 않는다. */
+    /**
+     * 명단(입장 · 나가기 · 강퇴 · 유령 정리)이 바뀌었다 — 유휴 자동 확정 타이머(P-55 · {@code platform.room.auto-confirm-enabled} · 기본 꺼짐)의 시각을 다시 잡는다.
+     * 한 명뿐이면 시각을 지운다. <b>만석이 됐다고 확정하지 않는다</b>(2026-10-13 소유자 결정 "그 사람 다 차면 자동으로 확정해 주는 거 없애" — 마지막 입장의 확정 스냅숏을 받던 길을 걷어냈다).
+     * 확정 표시 키가 있는데 글이 모집 중이면(앞선 방장 확정의 커밋 실패) 자가 치유로 기록한다 — {@link #applyObservations} 와 같은 일이다
+     */
     @Transactional
-    public boolean rosterChanged(Long postId, Map<Long, String> fullSnapshot, Instant now) {
+    public boolean rosterChanged(Long postId, Instant now) {
         RecruitPost post = postRepository.findByIdForUpdate(postId).orElse(null);
         if (post == null || post.getStatus() != PostStatus.RECRUITING) return false;
-        if (fullSnapshot != null) {
-            return recordConfirmed(post, fullSnapshot.keySet(), now, fullSnapshot);
-        }
         RoomState state = roomService.states(List.of(postId)).get(postId);
         if (state.confirmed()) {
             return recordConfirmed(post, state.members(), now, state.positions());
