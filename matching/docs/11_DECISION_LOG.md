@@ -164,6 +164,23 @@
 > 걸러 읽는다. 그 항목들의 본문은 고치지 않았고 D-34 · D-41 머리에 한 줄만 달았다. D-57 은
 > [이 저장소에서 내린 결정](#이-저장소에서-내린-결정-2026-09-07) 절에 있고, 겹치면 D-57 이 우선한다.
 
+> **낡은 항목 주의 (2026-10-09 추가).** **#6 의 "텍스트 DataChannel" 과 D-9 의 "채팅은 WebRTC 직결(서버는 시그널만)" 가운데 채팅 부분은 D-58 로 개정됐다.**
+> 네 번째 배포 단위 `chat`(포트 8083 · 고아 브랜치 `chat`)이 생겨 방 채팅은 WebSocket `/ws/chat/rooms/{roomId}` + Redis Pub/Sub(`qm:pubsub:chat:{roomId}` — 저장 없음),
+> 친구 DM 은 Redis Streams `qm:dm:{a}:{b}`(`MAXLEN ~ 200` · 30일)로 간다. 음성(시그널 `POST` · SSE 배달 · WebRTC 직결)은 그대로이고 따로 D-항목(`voice`)을 쓴다.
+> "notification 밖에 WebSocket 금지" · "큐 · Streams 없음"(D-42) 에 각각 `chat` · `qm:dm:*` 하나의 예외가 생겼다. 본문은 고치지 않았고 #6 · D-9 머리에 한 줄만 달았다.
+> D-58 은 [이 저장소에서 내린 결정](#이-저장소에서-내린-결정-2026-09-07) 절에 있고, 겹치면 D-58 이 우선한다.
+
+> **낡은 항목 주의 (2026-10-11 추가).** **D-58 의 결정 4(친구 DM — Redis Streams `qm:dm:*`) · 7(platform 의 P-54 — `friend-rel` · `DM_DROP` · 신고 박제) · 8(처리방침의 DM 문구)과
+> "큐 · Streams 없음"(D-42)의 `qm:dm:*` 예외는 D-59 로 거뒀다** — 친구 DM 은 만들지 않는다(소유자 2026-10-11 "포폴로써 지금 구현하는 거하고 겹치는 거 같아서").
+> 바로 위 덩어리의 "친구 DM 은 Redis Streams `qm:dm:{a}:{b}` 로 간다" · "`qm:dm:*` 하나의 예외" 도 그렇게 걸러 읽는다. D-58 의 방 채팅(결정 1 ~ 3 · 5 의 방 부분 · 6 · 9)은 그대로다.
+> `#6` 머리의 "Redis Streams(친구 DM)" 도 낡았다 — 본문은 고치지 않았고 D-58 머리에 한 줄만 달았다.
+> D-59 는 [이 저장소에서 내린 결정](#이-저장소에서-내린-결정-2026-09-07) 절에 있고, 겹치면 D-59 가 우선한다.
+
+> **낡은 항목 주의 (2026-10-13 추가).** **D-59 의 결정 1("친구 사이의 메시지 수단은 이 시스템에 없다") · 결정 5(처리방침은 방 채팅 문구만) · "감수하는 것" 의 "친구에게 말을 걸 길은 없다", 그리고 platform P-45(글 고치기 `PATCH` 없앰 · 405) · P-44 ⑨(확정된 카드의 포지션은 늘 `null`)는 D-60 으로 개정됐다.** 소유자가 2026-10-13 에 팀(Port-051)의 platform · frontend 변경을 통째로 받았다("platform 도 합쳐").
+> **개인 메시지는 platform 이 PostgreSQL `direct_messages`(V12)로 만든다**(팀 P-56) — `chat` 이 DM 을 만들지 않는다(D-59 결정 2 · 3 · 4 · 7)는 **그대로**이고 Redis Streams 도 여전히 없다. 글 고치기는 `PATCH /api/v1/posts/{postId}` 로 돌아왔고(P-57), 확정 당시 포지션은 `party_members.position`(V11)에 남는다(P-55).
+> 팀의 세 계약은 원문 번호 P-52~54 가 우리 P-52~54 와 겹쳐 **P-55 · P-56 · P-57** 로 옮겼다(`platform/contracts/mentor-room-ux.md`). 본문은 고치지 않았고 D-58 · D-59 머리에 한 줄씩만 달았다.
+> D-60 은 [이 저장소에서 내린 결정](#이-저장소에서-내린-결정-2026-09-07) 절에 있고, 겹치면 D-60 이 우선한다.
+
 변경 시 날짜/근거/영향을 추가한다.
 
 ## Fixed decisions
@@ -173,6 +190,7 @@
 4. PostgreSQL을 영속 DB로 사용한다.
 5. Redis를 active matchmaking/lock/index에 사용한다.
 6. WebRTC로 파티 음성 + 텍스트 DataChannel을 처리한다.
+   **채팅 부분 낡음 — D-58(2026-10-09)이 개정.** 음성 부분은 그대로다 — 텍스트 채팅은 DataChannel 이 아니라 `chat` 단위의 WebSocket + Redis Pub/Sub(방) · Redis Streams(친구 DM)다.
 7. ~~Spring WebSocket은 server event + WebRTC signaling에만 사용한다.~~ (2026-08-31)
    **개정됨 → #22.** 서버→클라 이벤트 14종은 SSE(`GET /api/v1/events`)로 보내고,
    Spring WebSocket(`/ws`)은 `WEBRTC_SIGNAL` 전용이다.
@@ -1149,6 +1167,8 @@ INV-1 이 깨진다.
 ---
 
 ### D-9. WebSocket(`/ws`)을 없앤다 — `WEBRTC_SIGNAL` 도 SSE 로 받고, 보내는 쪽은 `app:platform` 의 REST `POST` 다 (#22 개정, 2026-09-19)
+
+> **채팅 부분 낡음 — D-58(2026-10-09)이 개정.** 음성 부분은 그대로다 — 파티 채팅은 WebRTC DataChannel 이 아니라 `chat` 단위(포트 8083)의 WebSocket `/ws/chat/rooms/{roomId}` + Redis Pub/Sub 을 거친다. 시그널 `POST` · SSE 배달 · 음성 직결은 그대로다.
 
 > **다시 맞다 — D-33(2026-09-26 표시).** D-16 이 "시그널 `POST` 를 받는 앱"을 `app:room` 으로 읽게 했으나, D-33 으로 `app:room` 이 `app:platform` 에 합쳐져 원문의 `app:platform` 이 다시 맞다(그 `room` 패키지).
 
@@ -4536,6 +4556,207 @@ D-34 로 이 앱이 읽는 테이블은 `blocks` 하나다). 그래서 이 앱�
   `START_HERE.md` · `HANDOFF.md` §0-12 · `docs/AWS_ARCHITECTURE.md` 등의 "지금" DB 서술 · `contracts/README.md` A-21.
 - **#30 "차단 검증 없이 배포하지 않는다"** — 합류 Lua 가 실제로 도는 것과 platform 이 집합을 채우는 것(P-52)으로 충족된다.
 - 이 로그 — D-34 · D-41 머리에 한 줄, 파일 머리의 "낡은 항목 주의" 에 한 덩어리를 달았다. 본문은 고치지 않았다.
+
+---
+
+### D-58. 네 번째 배포 단위 `chat` — 방 채팅은 서버를 거치는 Redis Pub/Sub, 친구 DM 은 Redis Streams 에 최근 것만 (D-9 · #6 의 "채팅은 WebRTC 직결" 개정, 2026-10-09)
+
+> **결정 4 · 7 · 8 과 Streams 예외 낡음 — D-59(2026-10-11)가 거뒀다.** 방 채팅 부분은 그대로다.
+
+> **결정 8(처리방침의 DM 문구) 낡음 — D-60(2026-10-13).** DM 은 `chat` 이 아니라 platform 의 DB(P-56)로 생겨 처리방침에 "개인 메시지(선택) · 서버 저장 · 탈퇴 시 삭제" 가 들어갔다(팀 `PrivacyPage`). Streams · `qm:dm:*` 는 여전히 없다.
+
+> **프로젝트 소유자가 정했다**(2026-10-08 ~ 09 — "무조건 Java Spring" · "음성도 서버 따로 보이스도 서버 따로" · "방 내부 채팅은 … 알림처럼 pub sub" ·
+> "dm 은 … redis stream" · "최근 것만 남기면 되지 않나"). 이 항목은 **채팅**만이다. 음성(`voice`)은 따로 D-항목을 쓴다.
+> **D-9 · #6 의 본문은 고치지 않았다** (이 파일은 기록이다) — 머리에 한 줄만 달았다. 뼈대 커밋은 `chat` 브랜치 `e1b983d`(2026-10-09). 구현은 소유자가 직접 한다.
+
+**원안(D-9 · #6).** 파티 음성 · 채팅은 파티원 브라우저끼리 WebRTC 로 직접 연결한다. 서버는 시그널(`WEBRTC_SIGNAL`)만 중계하고 내용은 거치지 않는다.
+처리방침 · 랜딩 · 내 정보에 "대화 내용은 서버에 저장되지 않아요 · 같은 방 사람에게 IP 가 전달돼요". 친구 DM 은 없었다.
+
+**결정.**
+
+1. **배포 단위 `chat` — 네 번째 Spring Boot 앱.** 폴더 `chat/backend/`, 같은 레포의 고아 브랜치 `chat` worktree. 포트 **8083**. 커밋 scope `chat` · `docs` · `infra`.
+   의존성은 notification 과 같은 틀 + websocket + validation(Boot 4.1.1 · Java 21 · Lettuce · security + oauth2-resource-server · actuator · lombok). **DB · JPA · Flyway 없음.**
+2. **인증은 notification 과 같다** — 쿠키 `qm_access` JWT 를 공개 키로 **검증만.** WebSocket 핸드셰이크도 같은 필터를 지나 `WebSocketSession.getPrincipal()` 이 "나".
+   `?userId=` · 바디 `userId` 없음. "notification 밖에 WebSocket · `@MessageMapping` 금지" 는 **"chat · voice 는 예외"** 로 고친다. `SseEmitter` 는 여전히 notification 만.
+3. **방 채팅 — 저장하지 않는다. Redis Pub/Sub.** 소켓 `GET /ws/chat/rooms/{roomId}`; 핸드셰이크에서 `qm:room:{roomId}` 를 읽어(platform 의 키 — **읽기만**) 멤버가 아니면 403.
+   보내기 → 검증(빈 글 · 500자 · 초당 5개 · 멤버 재확인 — 주기는 미정 ①, 권장 매 메시지) → `PUBLISH qm:pubsub:chat:{roomId} <봉투>`. **보낸 서버도 자기 소켓에 직접 쏘지 않고 구독으로 받아 쏜다**(한 길 · 같은 순서).
+   인스턴스는 자기한테 사람이 붙은 방의 채널만 `SUBSCRIBE` — 패턴 구독 없음; 남은 소켓 0 이면 `UNSUBSCRIBE`.
+   봉투 `{type:"MSG", roomId, from, nick, text, cid, sentAt}`; `nick` 은 보낸 시점 닉네임; `cid` 는 브라우저 UUID. 끊긴 사이 메시지는 없다. 시스템 메시지는 없다(⑤).
+4. **친구 DM — 최근 것만. Redis Streams.** 키 `qm:dm:{작은 userId}:{큰 userId}`(대화 하나에 스트림 하나 · 쓰는 것은 chat 만). `XADD … MAXLEN ~ 200 *` 필드 `from` · `text` · `cid`;
+   **모든 XADD 가 한 메서드를 지나고 MAXLEN 이 빠진 경로는 없다**; XADD 직후 `EXPIRE 30일`.
+   보내기 `POST /api/v1/chat/dm/{otherUserId}`(또는 소켓) — 친구(상대 범위는 미정 ②, 권장 친구만) · 차단 확인 뒤 XADD → ID 응답 → `PUBLISH qm:pubsub:chat:dm:{otherUserId} <ID>`(신호만 — 내용은 스트림에서).
+   읽기 `GET /api/v1/chat/dm/{otherUserId}?since=<ID>&limit=50` → `XRANGE (since +` / 처음이면 `XREVRANGE + - COUNT 50`. 안 읽음 커서 `qm:dm:read:{userId}` HASH(field 상대 userId · value 마지막 읽은 ID — 안 읽음 표시는 미정 ③, 권장 표시).
+   실시간 소켓 `GET /ws/chat/dm` 하나(방 소켓과 따로 — 하나/둘은 미정 ④, 권장 둘) — 인스턴스는 붙은 사람마다 `qm:pubsub:chat:dm:{userId}` 구독(notification 의 `qm:pubsub:push:{userId}` 와 같은 모양).
+   **"큐 · Streams · Kafka · SQS 없음"(D-42 · 루트 §6)의 예외는 `qm:dm:*` 하나**; 소비자 그룹 · XACK 는 쓰지 않는다.
+   친구 삭제 · 차단 · 탈퇴 때 platform 이 `PUBLISH qm:pubsub:chat:ctl {"type":"DM_DROP","a":…,"b":…}` 를 발행하고 chat 이 `DEL qm:dm:{a}:{b}` + 양쪽 `HDEL`(앱 사이 동기 HTTP 없음). 신호를 놓쳐도 30일 TTL 이 거둔다.
+5. **Redis 쓰기 경계** — chat 이 쓴다: `qm:dm:*` · `qm:dm:read:*` · `qm:pubsub:chat:*` 발행. 읽기만: `qm:room:{roomId}` · `qm:user:block-rel:{userId}`(`SISMEMBER`) · `qm:user:friend-rel:{userId}`(`SISMEMBER`).
+   platform 이 `qm:pubsub:chat:ctl` 을 발행한다.
+6. **프런트** — `PartyRoomPage` 의 채팅을 WebRTC DataChannel 에서 `/ws/chat/rooms/{id}` 로. 음성은 그대로 WebRTC(voice D-항목까지).
+   랜딩 · 내 정보 · 처리방침의 "대화 내용은 서버에 저장되지 않아요" 는 "방 채팅은 서버를 거치지만 저장되지 않아요 · 친구 DM 은 대화별 최근 200개를 30일 보관해요" 로.
+   친구 화면에 DM 진입 + 안 읽음 수(미정 ③). vite proxy `/api/v1/chat` · `/ws/chat` → 8083.
+7. **platform 쪽(P-54)** — ① `qm:user:friend-rel:{userId}` SET: D-57 의 `block-rel` 과 같은 방식(대칭 SADD/SREM · DB 트랜잭션 안 · 부팅 + 5분마다 `friendships` 에서 재구성);
+   원본은 `friendships`; chat 은 `SISMEMBER` 만; **키 없음 = 친구 아님**(fail-closed — `block-rel` 의 "키 없음 = 관계 없음" 과 반대 방향).
+   ② 친구 삭제 · 차단 · 탈퇴에서 `qm:pubsub:chat:ctl` `DM_DROP` 발행.
+   ③ 신고 박제(방식은 미정 ⑦ — 아래는 권장안) — DM 신고(`POST /api/v1/reports` · `context: "DM"`)에 `messageIds[]` 를 받고 platform 이 `qm:dm:{a}:{b}` 를 `XRANGE` 로 읽어(**읽기만**) 본문을 `reports` 의 증거 칸(JSON)에 복사한다.
+8. **처리방침(frontend 결정 51)** — 수집 항목 "친구 DM 내용", 보유 "대화별 최근 200개 · 마지막 대화 뒤 30일 · 친구 삭제 · 차단 · 탈퇴 시 즉시 삭제 · 신고된 대화는 신고 처리 기록에 보관",
+   방 채팅 "서버를 거치나 저장하지 않음". 제13조 변경 이력.
+9. **배포(Stage 2)** — ECS 서비스 `chat` 하나 더, ALB 경로 `/api/v1/chat/*` · `/ws/chat/*` → 8083, 서버 ping 20초(ALB 유휴 300초보다 짧게). sticky session 없음(D-18). Redis 는 기존 `queuemate-redis`.
+
+**근거.**
+
+- **방 채팅을 Pub/Sub 으로** — 방이 끝나면 지워질 대화라 저장소가 필요 없고 notification 이 이미 같은 모양(`qm:pubsub:push:*`)이다.
+  WebRTC 직결의 문제(한 명이라도 NAT 를 못 뚫으면 채팅까지 꺼진다 — `frontend/src/webrtc/WebRtcPartyClient.ts` 주석 "끝까지 꺼져 있었다")가 없어진다.
+- **DM 을 Streams 로, 최근만** — 상대가 오프라인일 때 보낸 것이 남아 "마지막 읽은 ID 이후" 로 받는 것이 Pub/Sub 으론 안 되는 유일한 요구이고 Streams 가 정확히 그것이다.
+  영구 보관을 요구하는 법은 없다(통비법의 보관 의무는 통신사실확인자료 — 접속 로그 — 이고 내용이 아니다; 법무 확인 전). 개인정보보호법은 최소 보유를 요구한다.
+  카카오톡이 서버에 2~3일만 두는 선례. 제품에서 DM 은 "다음에 또 할래?" 수준의 짧은 조율. 그래서 DB 를 들이지 않는다 — "DB 는 platform 만"(D-34 · D-57) 그대로.
+- **MAXLEN + EXPIRE 둘 다** — Streams 는 메모리에 산다(200개 × 200B × 대화 수가 상한; 대화 1만 개 ≈ 400MB 는 지금 노드에 과하다 — 숫자는 ⑥ 에서 그대로 두기로 했다). ElastiCache 는 AOF 가 없고 복제만 —
+  장애 조치 때 마지막 ms 유실을 감수한다.
+- **보낸 서버도 Redis 를 거쳐 받는다** — 두 인스턴스의 순서가 같아지고 쏘는 길이 한 곳이다.
+- **친구 관계를 Redis SET 으로 비춘다** — D-57 과 같은 이유(앱 사이 동기 HTTP 없음 · chat 은 DB 없음). 차단은 이미 있는 `block-rel`.
+- **신고 박제를 platform 이 읽기로** — 증거의 주인은 `reports`(platform)이고 읽기만이라 쓰기 경계를 넘지 않는다.
+- **chat 과 voice 를 나눈다** — 소유자 결정. 성질이 다르다(텍스트 · Redis 상태 vs 바이너리 · 고대역 · 상태 없음).
+
+**감수하는 것.**
+
+- **방 채팅은 새로고침 · 끊김 사이의 메시지가 없다.** 필요해지면 방마다 `MAXLEN ~ 100` 스트림을 덧대고 방 삭제와 함께 지운다(그때 D-항목).
+- **DM 은 200개 · 30일을 넘으면 사라진다** — 처리방침과 DM 화면 안내.
+- **`friend-rel` 은 사본** — D-57 과 같은 분 단위 창.
+- **`DM_DROP` 신호를 놓치면 30일 TTL 까지 스트림이 남는다**(주기 정리는 두지 않는다).
+- **exactly-once 는 없다** — 브라우저가 `cid` 로, 받는 쪽이 `cid` · ID 로 중복을 거른다. 서버 측 `SET qm:dm:cid:{cid} NX EX 60` 은 첫 버전에 없다.
+- **인스턴스가 늘면 사람별 · 방별 채널 구독 수가 그만큼 는다** — 수천 방까지는 Pub/Sub 으로 충분(notification 과 같은 한계).
+- **앱 사이 약속이 넷 는다**(한쪽만 고치면 조용히 깨진다) — `qm:user:friend-rel:*` 모양 · `qm:pubsub:chat:ctl` 봉투 · `qm:dm:{a}:{b}` 의 a<b 규칙 · 처리방침 숫자(200 · 30일)와 코드 상수.
+  루트 `START_HERE.md` §4 에 더한다.
+- **배포 순서 — platform(friend-rel · ctl 발행) → chat → frontend.** chat 이 먼저 나가면 `friend-rel` 키가 없어 DM 이 전부 403.
+
+**소유자가 정한 세부(2026-10-09).** 처음 적을 때 미정으로 둔 ①~⑧ 가운데 셋을 소유자가 같은 날 닫았다 — "5는 없고 8은 없고 6도 없고".
+⑤ 시스템 메시지 **없음** · ⑧ 메시지 삭제 **없음** · ⑥ 숫자는 **그대로**(200 · 30일 · 500자 · 초당 5개 · 페이지 50).
+
+**아직 미정(소유자 — 방 채팅 뒤에 정한다).** ① 방 채팅 보낼 때 멤버 재확인 주기(권장 매 메시지) ② DM 상대 — 친구만 vs 최근 같이 한 사람도(권장 친구만) ③ 안 읽음 개수 표시(권장 표시)
+④ 소켓 하나 vs 둘(권장 둘) ⑦ 신고 박제 방식 — platform 이 `XRANGE` vs 프런트가 본문을 실어 보냄(권장 platform `XRANGE` — 후자는 위조 가능). 본문 결정 3 · 4 · 6 · 7 에서 이 다섯에 걸리는 문장은 **권장안으로 적은 것**이고 번호를 달아 두었다.
+
+**구현 순서(소유자).** 방 채팅(Pub/Sub)부터 소유자가 직접 만든다 → DM(Streams) → platform P-54(friend-rel · `DM_DROP` · 박제) → 프런트는 그 뒤.
+
+**영향.**
+
+- **루트 `CLAUDE.md`** §1(네 worktree → 다섯) · §3 표(열 추가) · §6(WebSocket 금지 예외 · Streams 예외) · **루트 `START_HERE.md`** §2 · §4 · §6(루트 파일은 버전 관리 밖이라 그 자리에서 고친다).
+- **platform** — `contracts/platform-api.md` P-54(friend-rel · `DM_DROP` · DM 신고 박제). 그 폴더에서 따로 고친다.
+- **frontend** — `CLAUDE.md` 결정 51(프런트 구현 때) · 처리방침.
+- **notification** — `CLAUDE.md` §9(WebSocket 금지의 예외).
+- **`docs/AWS_ARCHITECTURE.md`** — 서비스 하나 더(배포 때).
+- 이 로그 — D-9 · #6 머리에 한 줄, 파일 머리의 "낡은 항목 주의" 에 한 덩어리를 달았다. 본문은 고치지 않았다.
+
+---
+
+### D-59. 친구 DM 을 만들지 않는다 — D-58 의 결정 4 · 7 · 8 과 Streams 예외를 거둔다 (D-58 개정, 2026-10-11)
+
+> **프로젝트 소유자가 정했다**(2026-10-11 — "뭔가 포폴로써 지금 구현하는 거하고 겹치는 거 같아서"). 친구 DM 은 포트폴리오로서 방 채팅(Pub/Sub)과
+> 보여 주는 것이 겹친다는 판단이다. 이 항목은 **DM 을 거두는 것**만이다 — `chat` 단위 자체와 방 채팅은 그대로고, 음성(`voice`)은 여전히 따로 D-항목을 쓴다.
+> **D-58 의 본문은 고치지 않았다** (이 파일은 기록이다) — 머리에 한 줄만 달았다. 이 항목을 적을 때 방 채팅은 소유자가 구현 중이었다(`chat` 브랜치 `c346368` — 전파 e2e 7/7).
+
+> **DM 부분 낡음 — D-60(2026-10-13)이 platform 의 DB DM 을 받았다.** 결정 1 의 "친구 사이의 메시지 수단은 이 시스템에 없다" · 결정 5 의 "DM 조항은 들어가지 않는다" · 감수하는 것의 "친구에게 말을 걸 길은 없다" 는 더 사실이 아니다 — 개인 메시지는 platform 이 PostgreSQL `direct_messages`(V12 · P-56 · REST + `DIRECT_MESSAGE_RECEIVED` 알림)로 만든다.
+> **`chat` 의 "DM 없음"(결정 2 · 3 · 4 · 7 — `qm:dm:*` · `qm:pubsub:chat:dm:*` · `ctl` · `friend-rel` · Streams 예외 없음)은 그대로다.** 미정 ① 도 그대로.
+
+**원안(D-58).** 결정 4 — 친구 DM 은 Redis Streams `qm:dm:{작은 userId}:{큰 userId}`(`XADD … MAXLEN ~ 200` · `EXPIRE 30일`)에 최근 것만 남기고, 읽음 커서 `qm:dm:read:{userId}` HASH,
+깨우기 `qm:pubsub:chat:dm:{userId}`, 소켓 `/ws/chat/dm` · REST `/api/v1/chat/dm/{otherUserId}`. "큐 · Streams 없음"(D-42)의 예외가 `qm:dm:*` 하나 생겼다.
+결정 7 — platform 이 `qm:user:friend-rel:{userId}` SET 을 비추고(P-54 ①), 친구 끊기 · 차단 · 탈퇴 때 `qm:pubsub:chat:ctl` 에 `DM_DROP` 을 발행하고(②), DM 신고의 본문을 `XRANGE` 로 읽어 `reports` 에 박제한다(③).
+결정 8 — 처리방침에 "친구 DM 내용 · 대화별 최근 200개 · 30일" 을 더한다. 미정 ②(DM 상대) · ③(안 읽음) · ④(소켓 둘) · ⑦(신고 박제 방식)이 DM 에 걸려 있었다.
+
+**결정.**
+
+1. **친구 DM 은 만들지 않는다.** 친구 사이의 메시지 수단은 이 시스템에 없다 — 대화는 같은 방 안에서만(방 채팅) 한다.
+2. **DM 의 키 · 채널은 전부 없다** — `qm:dm:*` · `qm:dm:read:*` · `qm:pubsub:chat:dm:*` · `qm:pubsub:chat:ctl`. `chat` 이 Redis 에 쓰는 것은 **`PUBLISH qm:pubsub:chat:{roomId}` 하나**이고,
+   읽는 것은 `qm:room:{roomId}:*`(핸드셰이크 · 멤버 확인)뿐이다. `qm:user:friend-rel:*` · `qm:user:block-rel:*` 를 `chat` 이 읽을 일도 없어졌다.
+3. **"큐 · Streams · Kafka · SQS 없음"(D-42 · 루트 `CLAUDE.md` §6)은 다시 예외가 없다.** Redis Streams 는 어느 앱에도 없다.
+4. **P-54 는 취소다** — `qm:user:friend-rel:{userId}` SET · `DM_DROP` 신호 · DM 신고 증거 박제 셋 다 platform 이 구현하지 않는다(미구현 상태에서 거둔다 — 코드가 없었다).
+   `friend-rel` 의 "키 없음 = 친구 아님(fail-closed)" 과 "platform → chat 배포 순서" 도 함께 없어진다.
+5. **처리방침(frontend 결정 51 예정)의 변경은 방 채팅 문구만이다** — "방 채팅은 서버를 거치지만 저장하지 않는다". DM 조항(수집 항목 · 보유 기간 · 삭제 계기)은 들어가지 않는다.
+6. **D-58 의 미정 ② · ③ · ④ · ⑦ 은 물음 자체가 없어졌다.** ①(방 채팅 보낼 때 멤버 재확인 주기 — 권장 매 메시지)은 **그대로 미정**이고, ⑤(시스템 메시지 없음) · ⑥(숫자 그대로 — 500자 · 초당 5개 · ping 20초) · ⑧(메시지 삭제 없음)은 **정해진 대로**다.
+   ⑥ 의 "200개 · 30일 · 페이지 50" 은 DM 의 숫자였으니 함께 없어진다.
+7. **`chat` 단위 자체는 그대로다** — D-58 결정 1(네 번째 Spring Boot 앱 · 8083 · DB 없음) · 2(쿠키 access 토큰 검증만 · WebSocket 은 chat · voice 만) · 3(방 채팅 — Pub/Sub · 저장 없음 · 보낸 서버도 구독으로 받아 쏜다) ·
+   5 의 방 부분 · 6(프런트 `PartyRoomPage` 채팅을 `/ws/chat/rooms/{id}` 로 · vite proxy 8083) · 9(ECS 서비스 하나 더 · ALB 경로 · ping 20초).
+
+**근거.**
+
+- **포트폴리오로서 겹친다**(소유자) — 방 채팅이 이미 "WebSocket + Redis Pub/Sub 으로 여러 인스턴스에 같은 순서로 뿌린다" 를 보여 준다. DM 은 저장소 하나(Streams)를 더 보여 줄 뿐 제품에서 쓰는 장면("다음에 또 할래?")이 작다.
+- **하나를 운영 품질까지 끌어올리는 쪽이 낫다** — 방 채팅에 남은 것(봉투 검증 · ping · draining · 테스트 · 프런트)에 집중한다.
+- **처리방침이 단순해진다** — "서버를 거치지만 저장하지 않는다" 한 줄이면 된다. 보유 기간 · 삭제 계기 · 신고 증거 보관 조항이 통째로 빠진다.
+- **P-54 의 구현 부담이 없어진다** — `friend-rel` 재구성 · 대칭 유지 · `DM_DROP` 발행 · `reports` 증거 칸(V11) · chat 과의 대조 테스트가 전부 필요 없다. "한쪽만 고치면 조용히 깨지는 약속" 넷이 생기지 않는다.
+- **D-42 의 원칙("이 시스템에 큐를 두지 않는다")으로 돌아간다** — 예외를 하나 두면 다음 예외의 근거가 된다.
+
+**감수하는 것.**
+
+- **친구 사이에 메시지 수단이 없다.** 친구 기능(요청 · 수락 · 목록 · 끊기 — P-9 · `FRIEND_*` 알림)은 "같이 할 사람 찾기" 로만 남고, 대화는 방 안에서만 한다. 친구에게 말을 걸 길은 없다.
+- **나중에 되살리면 D-58 결정 4 · 7 · 8 을 그대로 쓸 수 있다** — 설계는 기록으로 남아 있고(키 모양 · MAXLEN · TTL · `DM_DROP` · 박제 권장안), 그때 새 D-항목으로 되살린다. 그 사이 코드 · 설정에 DM 의 흔적을 남겨 두지는 않는다.
+
+**아직 미정.** D-58 의 ①(방 채팅 보낼 때 멤버 재확인 주기)만 남았다 — 방 채팅이 끝나면 소유자가 정한다.
+
+**영향.**
+
+- **이 로그** — D-58 머리에 한 줄, 파일 머리의 "낡은 항목 주의" 에 한 덩어리를 달았다. 본문은 고치지 않았다.
+- **platform** — `contracts/platform-api.md` P-54 행 · "chat 단위를 위해 이 앱이 하는 것" 소절 · 탈퇴 표의 `friend-rel` 행 · 머리의 2026-10-09 알림 줄, `CLAUDE.md` §3.7 의 `friend-rel` 단락 → **취소(2026-10-11 · D-59)** 표시. 행은 지우지 않는다(번호는 남는다). 그 폴더에서 따로 고친다.
+- **notification** — `CLAUDE.md` §2 의 "chat 단위의 `qm:pubsub:chat:*`(방 채팅 · DM 신호 · `ctl`)" → `qm:pubsub:chat:{roomId}` 하나. 그 폴더에서 따로 고친다.
+- **chat** — `CLAUDE.md` §1 · §2 표 · §3.2(지움) · §4 C-1 · §6 · §7 · §8 · §10 · §11, `README.md`(그림 · 엔드포인트 · 환경변수), `backend/src/main/resources/application.yaml` 의 `queuemate.chat.dm` 블록(`CHAT_DM_MAX_MESSAGES` · `CHAT_DM_TTL` · `CHAT_DM_PAGE_SIZE`). 그 폴더에서 따로 고친다.
+- **frontend** — 결정 51(처리방침)은 방 채팅 문구만. 친구 화면의 DM 진입 · 안 읽음 수는 만들지 않는다. `vite.config` 의 `/api/v1/chat` 프록시(`347c6b4`)는 그대로 둔다(방 채팅의 REST 가 쓸 수 있다).
+- **루트 `CLAUDE.md`** §1 · §3 표(chat 열 · platform 열) · §5 · §6 · **루트 `START_HERE.md`** §2 · §4.1 · §4.2 · §4.6 · §5 · §6 · §11 · **루트 `README.md`**(루트 파일은 버전 관리 밖이라 그 자리에서 고친다).
+- `docs/AWS_ARCHITECTURE.md` — 바뀌지 않는다(서비스 하나 더는 D-58 그대로).
+
+---
+
+### D-60. 팀(Port-051) 의 platform · frontend 변경을 받는다 — PATCH 글 수정 복원 · 확정 뒤 포지션 보존 · 자동 확정(기본 꺼짐) · 개인 메시지는 platform 의 DB 로 (P-45 · P-44 ⑨ · D-59 개정, 2026-10-13)
+
+> **프로젝트 소유자가 정했다**(2026-10-13 — "frontend 는 받고 platform 은 확인해 봐" → 시험 병합(충돌 0)을 보고 "platform 도 합쳐 그럼 가로 해"). 팀 저장소 `Port-051/QueueMate` `main`(`7b2c928`)의
+> 변경을 **작성자 그대로**(`git format-patch` → `git am`) 우리 `frontend` · `platform` 브랜치에 얹고, 그것이 뒤집은 우리 결정을 이 항목으로 개정한다. 팀 변경의 근거는 2026-09-20 강진범 멘토링 피드백이다.
+> **D-59 · P-45 · P-44 의 본문은 고치지 않았다**(이 파일은 기록이다) — 머리에 한 줄씩 달았다. 이 항목을 적을 때 `chat` 의 방 채팅은 소유자가 구현 중이었다(`c346368`).
+
+**원안.** **P-45**(2026-10-01) — 모집 글 고치기 `PATCH /api/v1/posts/{postId}` 를 없앤다("쓸데없이 불편하기만 할 것 같다" · 405 · `PostApiTest#editIsGone`).
+**P-44 ⑨**(2026-10-01) — 게시판 카드의 `position` 은 확정된 글에서 늘 `null`("확정한 이후에 굳이 보여 줄 필요가 있나" · DB 는 바꾸지 않는다).
+**D-59**(2026-10-11) — 친구 DM 을 만들지 않는다 · "친구 사이의 메시지 수단은 이 시스템에 없다" · 처리방침은 방 채팅 문구만.
+**D-21 · P-10 의 흐름** — 모집 마감은 방장의 수동 확정 하나(정원이 차도 방장이 누른다).
+
+**결정.**
+
+1. **팀 패치를 작성자 그대로 얹었다.** `frontend` — 43 패치(`96f8e88` … `62e0be1` · 그 전 HEAD 는 태그 `pre-port051-merge-2` = `347c6b4`). `platform` — 37 패치(`2869688` … `6c5d1f3` · 그 전 HEAD 는 태그 `pre-port051-platform-merge` = `35291d8`).
+   팀 이력에서 `platform/` 사본을 통째로 더한 `6b15021`(313 파일 — 우리 `be9c403` 의 트리와 같다)은 뺐다. `git am -3` 충돌 0(3-way 자동 병합 2건 — `platform-api.md` · `application.yaml`). 우리가 그 사이 넣은 아홉 커밋(by-puuid Riot ID 갱신 P-53 · Dockerfile · P-54 문서)은 그대로 위에 남아 있다.
+2. **P-45 개정 → 글 고치기가 돌아왔다(P-57).** `PATCH /api/v1/posts/{postId}` — 글 쓰기와 같은 전체 본문 · **현재 방장(Redis)만** · 모집 중은 제목 · 모드/인원 · 포지션 · 마이크 · `allowAutoJoin`, 마감 뒤는 제목 · 마이크만 · 게임은 못 바꾼다 · Lua 한 번으로 방장 포지션과 `:needs` 를 갱신 · 커밋 뒤 `BOARD_CHANGED {}` · 200 최신 글.
+   405 는 이력이다. P-19(방에 남이 있으면 못 고친다)는 되살리지 않는다 — 방장이 고치면 방이 따라간다(팀 Lua).
+3. **P-44 ⑨ 개정 → 확정 뒤에도 포지션을 보존한다(P-55).** 확정 순간의 파티원 · 포지션을 `party_members.position`(**V11**)에 저장하고 확정된 카드의 `members[].position` · `host.position` 은 그 값이다. V11 전의 파티는 `null` 일 수 있다.
+4. **마지막 자리 입장이 확정이다 · 유휴 자동 확정은 기본 꺼짐(P-55).** 마지막 빈자리에 들어오는 Lua 가 정원 검사 · 입장 · 확정을 원자로 처리하고 `ROOM_MEMBER_ENTERED` + **`ROOM_CONFIRMED`** 를 낸다(확정이 방장 버튼 밖에서도 난다). 2명 이상이 10분 바뀌지 않으면 방장에게 안내 + 60초 뒤 자동 확정 · `POST /api/v1/rooms/{roomId}/recruitment/extend` 로 연장 — 이것은 **`ROOM_AUTO_CONFIRM_ENABLED=false` 가 기본**이라 꺼져 있다(2026-10-03 팀이 수동 마감 캡슐로 바꿨다). 켜면 1초 폴링 스케줄러가 돈다. 글 응답에 `autoConfirmAt` · `autoConfirmWarningAt`(꺼져 있으면 `null`) · V11 `recruit_posts.auto_confirm_at`.
+5. **DM — D-59 의 "`chat` 은 DM 을 만들지 않는다" 는 그대로다. 개인 메시지는 platform 이 PostgreSQL `direct_messages`(V12)로 만든다(P-56 · 팀).** `GET /api/v1/messages` · `GET /api/v1/messages/{userId}?before=` · `POST /api/v1/messages/{userId} {clientMessageId, text}` · 차단 상대는 404 `USER_NOT_FOUND` · 같은 UUID 재시도는 같은 메시지 · 409 `MESSAGE_RETRY_CONFLICT` · 저장 뒤 두 당사자에게 `DIRECT_MESSAGE_RECEIVED {fromUserId}`(내용은 REST 로 재조회) · 한 명이 탈퇴하면 FK CASCADE 로 양쪽에서 삭제.
+   **`chat` 과 무관하다 · Redis Streams 없음 · `qm:dm:*` · `qm:pubsub:chat:*` 의 DM 채널 없음** — D-59 결정 2 · 3 · 4 · 7 과 D-42 의 "큐 · Streams 없음" 은 예외 없이 그대로다. D-59 결정 1("친구 사이의 메시지 수단은 없다") · 5(처리방침은 방 채팅 문구만) · 감수하는 것("친구에게 말을 걸 길은 없다")만 사실이 아니게 됐다.
+6. **P-번호 — 팀의 P-52 · P-53 · P-54 는 P-55 · P-56 · P-57 이 된다**(각각 모집과 확정 · 개인 메시지 · 방장 설정 수정). 우리 P-52(차단 집합 · D-57) · P-53(by-puuid) · P-54(chat 지원 — D-59 로 취소)는 뜻을 지킨다. 원문 `platform/contracts/mentor-room-ux.md` 의 머리에 옮긴 사실을 적었다.
+7. **인증 배지 조회 `GET /api/v1/users/verification?userIds=1,2`**(팀 · 2026-10-03) — 로그인 필수 · 1~100개 · `[{userId, verified}]` · 게임 계정 하나라도 `verified=true` 면 참. 화면마다 인증 배지를 한 묶음(DB 조회 한 번)으로 받는다. 그리고 LoL 최근 경기 수집은 20 → **10**(`platform.riot.match-count` 기본 10 — 최대 Riot 호출 14회).
+8. **알림 — `ROOM_CONFIRMED` 가 입장 경로에서도 발행되고 `DIRECT_MESSAGE_RECEIVED` 가 새로 생겼다.** notification 은 `type` 을 열어 보지 않으므로(D-9 · D-20 · `notification/CLAUDE.md`) 그대로 흘려보낸다 — notification 에 변경은 없다. `MATCH_*` · `FRIEND_*` · `ROOM_*` 5 · `WEBRTC_SIGNAL` · `BOARD_CHANGED` 는 그대로.
+
+**근거.**
+
+- **멘토 피드백을 반영한 팀의 작업이다**(2026-09-20 멘토링 — 자동 확정 · 포지션 보존 · 개인 메시지 · 방장 설정). 포트폴리오로 보여 줄 제품의 모양을 팀이 멘토와 함께 정했고, 그것을 우리 브랜치가 따로 거부할 이유가 없다.
+- **git 충돌 0** — 시험 병합에서 양쪽이 같이 만진 파일 4개가 전부 자동 병합됐고, 실제 `git am -3` 도 충돌 없이 끝났다. 팀의 변경과 우리의 변경(by-puuid · Dockerfile · 차단 집합)은 겹치지 않는다.
+- **분기를 유지하는 비용이 크다** — frontend 43 · platform 37 패치를 따로 두면 두 저장소가 다른 제품이 된다. 팀 `main` 은 `e921612` 뒤 platform 변경이 없어 지금이 가장 싸게 합칠 때다.
+- **DM 을 platform 의 DB 로 두는 것은 D-59 의 취지와 어긋나지 않는다** — D-59 가 거둔 것은 "`chat` 에 Streams 로 DM 을 하나 더 보여 주는 것" 이었다. platform 의 REST + PostgreSQL + SSE 알림은 이미 있는 길(친구 요청과 같은 모양)이라 새 저장소 · 새 소켓 · 새 약속이 없다.
+- **테스트가 전부 통과했다** — platform 548 건 0 실패(실제 PostgreSQL 16 · Redis 7 — 테스트용 5433 · 6380). 팀 패치 `17cca4d` 가 `PostApiTest#editIsGone` 을 이미 걷어 우리 기대값을 바꿀 테스트는 없었다.
+
+**감수하는 것.**
+
+- **DM 저장 → 처리방침에 개인정보 항목이 하나 더 들어간다** — "개인 메시지(선택) · 보낸 사람 · 받는 사람 · 내용(최대 2,000자) · 전송 시각 · 서버 저장 · 탈퇴 시 삭제". 팀이 `frontend/src/pages/legal/PrivacyPage.tsx` 에 이미 넣었다 — **소유자가 문구를 확인할 것.** D-59 가 반겼던 "처리방침이 단순해진다" 는 일부 되돌아간다. 보유 기간(무기한 — 탈퇴 때까지)과 신고 때 증거로 쓸지는 **미정**이다.
+- **자동 확정 스케줄러(1초 폴링)** — 켜면 ECS 태스크마다 1초에 한 번 `recruit_posts` 를 읽는다(인덱스 `recruit_posts_auto_confirm` · `RECRUITING` 만). 기본은 꺼져 있어 지금은 비용이 없다. 켜는 결정은 소유자가.
+- **글 고치기가 돌아와 P-19 의 물음("방에 남이 있는데 조건이 바뀌면")이 다시 생긴다** — 팀의 답은 "방장이 고치면 Lua 가 방장 포지션 · `:needs` 를 같이 갱신하고 `BOARD_CHANGED` 로 방 안이 재조회한다 · 현재 인원보다 작은 정원 · 남이 쓰는 포지션 제거는 400" 이다. 방 안 사람에게 따로 알리는 알림은 없다.
+- **우리 테스트 기대값 변경 목록 — 없다.** 팀 패치에 테스트가 같이 들어왔고(`PostSettingsTest` · 자동 확정 · DM), 우리 테스트는 그대로 통과했다. `PostRoomFlowTest` 의 "확정 뒤 `position` 이 `null`" 단언은 포지션 없는 흐름이라 그대로 참이다.
+- **frontend 결정 39(DM · 알림 레일을 없애고 "친구" 하나로)는 뒤집혔다** — 팀이 `/messages`(`MessagesPage`)를 서버 DM 으로 되살렸다. **결정 51(처리방침 — 예정이었다)은 팀의 `PrivacyPage` 문구로 대체됐다.** `frontend/CLAUDE.md` 의 그 번호는 그 폴더에서 따로 고친다.
+- 팀 패치 가운데 29 건이 영어 subject("Refine room …")라 우리 커밋 관례(한글 · scope)와 다르다 — 작성자 보존을 택했고 고치지 않는다.
+
+**아직 미정.** ① 자동 확정을 켤지(`ROOM_AUTO_CONFIRM_ENABLED`) ② DM 의 보유 기간 · 신고 증거로 쓸지 ③ 처리방침 DM 문구의 최종 확인 ④ `RoomConversationChat` 을 WebRTC DataChannel 에서 `/ws/chat/rooms/{id}` 로 옮기는 것(D-58 결정 6 — 팀 변경도 아직 WebRTC) ⑤ D-58 미정 ①(방 채팅 멤버 재확인 주기)은 그대로.
+
+**영향.**
+
+- **이 로그** — D-58 · D-59 머리에 한 줄씩, 파일 머리의 "낡은 항목 주의" 에 한 덩어리. 본문은 고치지 않았다.
+- **platform**(팀 37 패치 + 우리 `123cc30`) — 코드: `party/`(PATCH 복원 · `PostSettingsTest` · 자동 확정 `RecruitmentScheduler` · `RecruitmentTiming` · `recruitment/extend`) · `room/`(마지막 입장 Lua 확정 · `party_members.position`) · `social/`(`DirectMessageController` · `DirectMessageService` · `/api/v1/messages`) · `account/`(`VerificationController` · `/users/verification`) · `common/push/PushEventType.DIRECT_MESSAGE_RECEIVED` · Flyway **V11** `room_auto_confirmation_and_positions` · **V12** `direct_messages`(V1~V12 중복 없음). 설정 넷 — `platform.room.auto-confirm-enabled`(`ROOM_AUTO_CONFIRM_ENABLED` · 기본 false · `application.yaml`) · `auto-confirm-idle-seconds`(600) · `auto-confirm-warning-seconds`(60) · `auto-confirm-poll-ms`(1000) · 그리고 `platform.riot.match-count` 10.
+  문서: `contracts/mentor-room-ux.md`(팀 · 번호 P-55~57 로) · `contracts/platform-api.md`(머리 줄 · 경로 표의 `PATCH` 행 200 · P-44 · P-45 행 개정 표시 · P-54 행에 DM 은 DB 한 줄 · P-55~57 행) · `CLAUDE.md` · `START_HERE.md`(머리 줄 · §11 의 PATCH 금지 풀림).
+- **frontend**(팀 43 패치 + 우리 `e55f2e3`) — 방 패널 · 게시판 UI 전면(좌석 · 캡슐 · 리사이즈) · 멤버 상세창 · 인증 배지 · `MessagesPage`(서버 DM) · `PrivacyPage`(DM 조항) · SEO 랜딩 · 방 설정 캡슐 · 수동 마감 캡슐. `vite.config.ts` 의 chat 주석에서 "친구 DM" 을 뺐다(D-59). 결정 39 · 51 은 위 "감수하는 것".
+- **notification** — 변경 없음(`type` 을 보지 않는다). `DIRECT_MESSAGE_RECEIVED` 가 `qm:pubsub:push:{userId}` 로 흘러간다.
+- **chat** — 변경 없음. DM 을 만들지 않는다(D-59).
+- **matching** — 변경 없음(이 로그만). 파티 HASH · gameconfig · 알림 봉투는 그대로.
+- **루트 `CLAUDE.md`** §0 머리 · §2 · §3 표(platform 열 — DB V2~V12 · 알림에 `DIRECT_MESSAGE_RECEIVED`) · §5(D-60 · P-57) · §6(D-59 항목에 "DM 은 platform 의 DB" 한 줄) · **루트 `START_HERE.md`** §4.2 · §4.4 · §4.5 · §5 · §11(항목 12) · **루트 `README.md`**(루트 파일은 버전 관리 밖이라 그 자리에서 고친다).
+- 태그 — `pre-port051-merge-2`(frontend `347c6b4`) · `pre-port051-platform-merge`(platform `35291d8`)로 병합 전 HEAD 를 남겼다. **푸시는 소유자가 한다.**
 
 ---
 

@@ -581,7 +581,7 @@ KEYS 개수가 `4 + 포지션 개수` 로 고정된다. `leave-party.lua` 는 `3
 | **메트릭** | `CLAUDE.md` §6 Definition of done 4번이 요구하는데 `MeterRegistry` / `@Timed` / `Metrics.` 가 `backend/src/main` 에 **0건**이다. `spring-boot-starter-actuator` 는 들어 있고 `/metrics` 도 열려 있어(`application.yaml` — 2026-10-02 까지는 `/actuator/metrics`) JVM·HTTP 기본 지표는 나오지만, 매칭 고유 지표(큐 대기 시간, 배정까지 걸린 시간, 제안 수락률, 만료·취소 건수)는 하나도 없다 |
 | ~~**인증**~~ | **2026-09-27 에 붙었다**(§4.1) — 그 전에는 JWT 가 없고 `userId`를 요청 바디와 쿼리 파라미터로 받는 임시 상태였다. 남은 것 — 조회 경로를 `/match-requests/me` 로 옮길지(계약 #5 와 같이 정한다), `load-test/` 의 스크립트가 아직 바디에 `userId` 를 싣고 쿠키가 없다(6번과 같이 고친다) |
 | **`GET /games`** | 계약에 있으나 컨트롤러가 없다 |
-| **Dockerfile** | 없다 |
+| ~~**Dockerfile**~~ | **2026-10-02 에 생겼다 — `backend/Dockerfile`**(멀티스테이지 · Spring Boot 계층 추출 · 비루트 uid 1000 · 8080). 빌드 `cd backend && docker build -t qm-matching .`, 실행 `docker run -p 8080:8080 -e REDIS_HOST=… -e REDIS_PORT=… -e JWT_PUBLIC_KEY="$(cat public.pem)" qm-matching`(DB 환경변수는 없다 · 헬스는 `/health/live` · `/health/ready`) |
 
 > `SseEmitter` / `WebSocketConfig` / `@MessageMapping` 은 여전히 `backend/src/` 에 0건이고,
 > **그게 맞다** — 이 앱의 몫은 Redis Pub/Sub publish 까지이고 SSE 배달은 `app:realtime` 이 한다
