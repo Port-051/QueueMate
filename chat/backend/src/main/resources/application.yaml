@@ -1,0 +1,72 @@
+spring:
+  application:
+    name: chat
+  lifecycle:
+    # 종료 단계마다 최대 대기(server.shutdown: graceful 과 짝). 소켓을 먼저 닫으니 보통 1초 안에 끝난다. ECS 의 stopTimeout(30초 — 그 뒤 SIGKILL)보다 짧게 둔다
+    timeout-per-shutdown-phase: 10s
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+
+server:
+  port: ${SERVER_PORT:8083}
+  # 종료 신호가 오면 새 요청은 거절하고 진행 중인 것이 끝나길 기다린 뒤 끈다(Boot 4 기본값이지만 명시한다 — RoomSocketShutdown 이 이 전제 위에 있다).
+  # 열린 소켓은 그 대기보다 먼저 RoomSocketShutdown 이 GOING_AWAY(1001)로 닫는다 — 안 닫으면 소켓은 끝나지 않는 요청이라 아래 시한을 꽉 채운다
+  shutdown: graceful
+
+# 헬스 체크 — notification · platform 의 application.yaml 과 같은 모양이다 (/health/live · /health/ready).
+# ready 그룹이 redis 를 보는 것은 notification 과 같다 — 이 앱의 상태(방 채팅 채널)는 전부 Redis 에 있다 (docs/11 D-58 · 친구 DM 은 D-59 로 없다)
+management:
+  endpoints:
+    web:
+      # actuator 를 /actuator 아래가 아니라 루트에 둔다 — 주소를 다른 셋과 같은 /health/live · /health/ready 로 맞추려는 것이다
+      base-path: /
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        # ALB 헬스 체크는 /health/live 에 건다 — /health/ready 에 걸면 Redis 장애 조치(몇 초) 동안 태스크가 통째로 갈아치워진다 (notification 과 같은 이유)
+        live:
+          include: livenessState
+        ready:
+          include: readinessState,redis
+
+queuemate:
+  chat:
+    # ---- 방 채팅 (저장하지 않는다 — Redis Pub/Sub qm:pubsub:chat:{roomId}) ----
+    # 한 메시지의 최대 글자 수. 넘으면 보내는 쪽에 ERROR 로 돌려주고 발행하지 않는다
+    max-text-length: ${CHAT_MAX_TEXT_LENGTH:500}
+    # 한 소켓이 초당 보낼 수 있는 메시지 수. 넘으면 그 메시지만 버리고 ERROR
+    max-messages-per-second: ${CHAT_MAX_MESSAGES_PER_SECOND:5}
+    # 서버 → 브라우저 ping 간격. ALB 유휴 타임아웃(300초)보다 짧아야 한다 (notification 의 SSE heartbeat 와 같은 이유)
+    ping-interval-ms: ${CHAT_PING_INTERVAL_MS:20000}
+    # ---- 전송 줄(stripe) — Redis 리스너 스레드가 아니라 여기서 소켓에 쓴다 (config/AsyncConfig · RoomSendExecutors) ----
+    send:
+      # 줄(스레드) 수. 방은 roomId 해시로 늘 같은 줄에 가서 방 안의 순서가 지켜진다. 느린 브라우저가 막는 범위 = 그 줄의 방들
+      stripes: ${CHAT_SEND_STRIPES:4}
+      # 줄마다 쌓아 둘 수 있는 메시지 수. 유한해야 한다 — 넘치면 그 메시지는 버린다(방 채팅은 저장하지 않는다)
+      queue-capacity: ${CHAT_SEND_QUEUE_CAPACITY:1000}
+      # 소켓 하나에 한 번 쓰기가 이 시간을 넘기거나(느린 브라우저) 기다리는 바이트가 이 상한을 넘으면 그 소켓을 끊는다 — ConcurrentWebSocketSessionDecorator(RoomSockets)
+      time-limit-ms: ${CHAT_SEND_TIME_LIMIT_MS:10000}
+      buffer-size-limit: ${CHAT_SEND_BUFFER_SIZE_LIMIT:65536}
+    # 친구 DM(Redis Streams · queuemate.chat.dm.*)은 두지 않는다 — 2026-10-11 소유자 결정(docs/11 D-59). 이 앱이 Redis 에 쓰는 것은 PUBLISH 뿐이다
+
+  # 인증 — platform 이 서명한 access 토큰(쿠키 qm_access · JWT RS256)을 공개 키로 검증만 한다 (notification 과 같다).
+  # 공개 키는 JWT_PUBLIC_KEY(X.509 PEM — 운영은 이것. Secrets Manager)가 먼저이고, 비어 있으면 JWT_PUBLIC_KEY_FILE 의 파일을 읽는다.
+  # 파일의 기본값은 platform 이 만드는 개발용 공개 키다(backend/ 에서 띄울 때의 상대 경로). 둘 다 없으면 기동하지 않는다 —
+  # 인증 없이 뜨면 아무나 남의 방에 들어간다
+  jwt:
+    public-key: ${JWT_PUBLIC_KEY:}
+    public-key-file: ${JWT_PUBLIC_KEY_FILE:../../platform/backend/.dev-keys/public.pem}
+  web:
+    # 상태를 바꾸는 요청(POST/PUT/PATCH/DELETE)과 WebSocket 핸드셰이크에 허용하는 Origin (쉼표로 구분) — OriginCheckFilter
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+
+logging:
+  level:
+    com.queuemate: INFO
