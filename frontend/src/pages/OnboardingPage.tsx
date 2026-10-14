@@ -1,4 +1,5 @@
 import { VerificationBadge } from '../components/VerificationBadge';
+import { trackAction } from '../analytics/events';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { GameKey } from '../api/types';
@@ -28,6 +29,7 @@ export function OnboardingPage() {
   const linked = gameAccounts.find((account) => account.game === game) ?? null;
   const leave = (exit: OnboardingExit) => {
     if (userId) markOnboardingDone(userId, exit);
+    trackAction(exit === 'skipped' ? 'onboarding_skip' : 'onboarding_done');
     navigate('/app/home', { replace: true });
   };
 

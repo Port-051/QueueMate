@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { track } from '../analytics/ga';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import * as api from '../api/client';
 import { hasErrorCode, isApiError } from '../api/error';
@@ -58,6 +59,7 @@ export function SocialSignupPage() {
     setError(null);
     try {
       await api.socialSignup({ nickname: trimmed });
+      track('sign_up', { method: pending?.provider ?? 'unknown' });
       navigate(landingPath(await refreshSession()), { replace: true });
     } catch (err) {
       if (hasErrorCode(err, 'NICKNAME_TAKEN')) setError('이미 사용 중인 닉네임입니다');

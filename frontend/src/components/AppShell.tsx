@@ -1,4 +1,6 @@
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { trackAction } from '../analytics/events';
+import { trackAppEnterOnce } from '../analytics/ga';
 import type { ComponentType } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../state/AuthContext';
@@ -44,6 +46,8 @@ export function AppShell() {
   useEffect(() => {
     setMenuOpen(false);
   }, [location.pathname, proposal?.partyId]);
+  // 퍼널 "실제 서비스 도착" — 로그인한 채 /app 에 처음 들어온 것(브라우저 세션마다 한 번 · analytics/ga.ts).
+  useEffect(() => { trackAppEnterOnce(); }, []);
   // 게시판(`/app/home`)과 방(`/app/party/…`)은 한 화면이다 — 게시판이 왼쪽에 남으니 둘 사이를 오갈 때는 맨 위로 올리지 않는다(2026-09-30 · `pages/HomePage.tsx`).
   const boardRoute = isBoardRoute(location.pathname);
   const previousPath = useRef(location.pathname);
@@ -61,7 +65,7 @@ export function AppShell() {
 
   const gameNavigation = (mobile = false) => <div className={`sidebar-games${mobile ? ' mobile-games' : ''}`} role="group" aria-label="게임 선택">
     {availableGames().map(game => <button key={game.key} type="button" className={`nav-link game-nav-link${selectedGame === game.key ? ' active' : ''}`} aria-label={`${game.name} 매칭`} aria-pressed={selectedGame === game.key} onClick={() => {
-      setSelectedGame(game.key); setMenuOpen(false); setNavigationPicked(true);
+      setSelectedGame(game.key); setMenuOpen(false); setNavigationPicked(true); trackAction('game_switch', { game: game.key });
       // 넓은 화면에서 방 패널이 열려 있으면 게시판(왼쪽)만 바꾸고 방은 그대로 둔다. 좁은 화면은 방이 게시판을 덮고 있어 게시판으로 간다(방에서 나가지는 않는다).
       const keepRoom = isPanelRoute(location.pathname) && window.matchMedia(ROOM_SPLIT_QUERY).matches;
       if (!keepRoom && (location.pathname !== '/app/home' || location.search)) navigate('/app/home');

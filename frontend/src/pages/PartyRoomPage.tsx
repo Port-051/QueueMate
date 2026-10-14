@@ -1,4 +1,5 @@
 import { RecruitmentNotice } from '../rooms/RecruitmentNotice';
+import { trackAction } from '../analytics/events';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import * as api from '../api/client';
@@ -51,7 +52,7 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
   const roomId = activeRoomId ?? params.roomId;
   const { user, userId } = useAuth();
   const session = useRoomSession();
-  const { messages, voiceActivity, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef } = usePartySession();
+  const { messages, chatStatus, chatRef, rejectedDraft, voiceActivity, voice, voiceDetail, connectedPeers, muted, setMuted, clientRef } = usePartySession();
   const { isFriend, requestTo, addFriend, block, unblock, isBlocked } = useSocial();
   const { activePartyInfo, stream } = useMatch();
   const navigate = useNavigate();
@@ -153,9 +154,10 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
   // 사용자 번호(`#27`)를 이름 자리에 그리지 않는다(2026-10-01 소유자 — 번호가 잠깐 보였다가 닉네임으로 바뀌었다).
   const members: VoiceSeatMember[] = session.members.map(id => ({ id, card: cards.get(id) ?? null, nickname: serverName(id) ?? (id === userId ? user?.nickname ?? null : null), position: positionOf(id) }));
   const peerCount = members.filter(m => m.id !== userId).length;
-  const canChat = connectedPeers.length > 0;
-  const needsReconnect = connectedPeers.length < peerCount;
-  const connectionHint = needsReconnect ? (canChat ? '일부 팀원 연결 대기 중 · 연결된 팀원에게만 전송됩니다.' : peerCount ? '팀원 연결 대기 중' : '아직 다른 사람이 없어요') : undefined;
+  // 텍스트 채팅은 chat 서비스 소켓이다(2026-10-13 ⑦ — `state/PartySessionContext` · `chat/RoomChatSocket`). 소켓이 열려 있으면 혼자여도 보낼 수 있다(서버가 방에 뿌린다).
+  const canChat = chatStatus === 'open';
+  // 보낼 수 없는 이유(전송 버튼의 title) — 소켓 상태.
+  const connectionHint = canChat ? undefined : chatStatus === 'reconnecting' ? '채팅 연결이 끊겨 다시 잇는 중이에요' : '채팅 서버에 연결 중이에요';
   const nicknameOf = (id: string) => seatName(members.find(m => m.id === id) ?? { nickname: null });
   // 채팅의 이름 — 서버가 아는 닉네임이 먼저다(좌석과 같은 출처 — 전에는 좌석은 번호 · 채팅은 보낸 브라우저가 실어 온 닉네임이라 어긋났다). 모르면 실어 온 이름.
   const chatName = (id: string, sent: string) => serverName(id) ?? sent;
@@ -172,15 +174,17 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
 
   const toggleMute = () => {
     const next = !muted;
+    trackAction(next ? 'mic_mute' : 'mic_unmute');
     setMuted(next);
     clientRef.current?.setMuted(next);
   };
 
   const send = (text: string): boolean => {
     if (!text || !canChat) return false;
-    const sent = clientRef.current?.sendChat(text) ?? 0;
-    if (!sent) { toast('전송하지 못했습니다. 파티원 연결을 확인하고 다시 시도하세요.', 'error'); return false; }
-    if (sent < peerCount) toast(`연결된 ${sent}명에게만 전송했습니다. 연결되지 않은 파티원에게는 전달되지 않습니다.`, 'info');
+    const cid = chatRef.current?.send(text) ?? null;
+    if (cid === 'TOO_LONG') { toast('메시지는 500자까지 보낼 수 있어요', 'error'); return false; }
+    if (!cid) { toast('전송하지 못했습니다. 채팅 연결을 확인하고 다시 시도하세요.', 'error'); return false; }
+    trackAction('chat_send', { length: Math.min(text.length, 500) });
     return true;
   };
 
@@ -240,7 +244,7 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
         <button type="button" className={`room-mic-toggle${voice === 'connected' && !muted ? ' is-on' : ' is-off'}`}
           disabled={!clientRef.current || voice === 'connecting'} aria-pressed={voice === 'connected' && !muted}
           title={voiceDetail || (voice === 'connecting' ? '마이크 준비 중' : undefined)}
-          onClick={() => voice === 'connected' ? toggleMute() : void clientRef.current?.startVoice()}>
+          onClick={() => { if (voice === 'connected') toggleMute(); else { trackAction('mic_on'); void clientRef.current?.startVoice(); } }}>
           {voice === 'connected' && !muted ? <><IconMic size={20} /><span>음소거</span></> : <><IconMicOff size={20} /><span>음소거 해제</span></>}
         </button>
         {isHost && room ? <button type="button" className="room-settings-toggle" aria-haspopup="dialog" onClick={() => setDialog({ kind: 'settings' })}><IconSettings size={18} /><span>방 설정</span></button> : null}
@@ -249,7 +253,7 @@ export function PartyRoomPage({ activeRoomId, onRoomGame }: { activeRoomId?: str
           onClick={() => setDialog({ kind: 'closeRecruitment' })}><IconCheck size={18} /><span>모집 마감</span></button> : null}
         <Button className="party-room-leave" variant="danger" aria-label="방 나가기" title="방 나가기" disabled={busy} onClick={() => setDialog({ kind: 'leave' })}><IconLogout size={20} /></Button>
       </div>
-      <RoomConversationChat key={roomId} messages={messages} canSend={canChat} connectionHint={connectionHint} nameOf={chatName}
+      <RoomConversationChat key={roomId} messages={messages} canSend={canChat} connectionHint={connectionHint} restoreDraft={rejectedDraft} nameOf={chatName}
         colorOf={id => faceColors.get(id)} canOpenProfile={id => cards.has(id)} isVerified={id => cards.get(id)?.profile?.verified === true} onProfile={id => setProfileId(current => current === id ? null : id)} onSend={send} />
 
       {dialog?.kind === 'settings' && isHost && room ? <RoomCreatePreview key={`settings:${room.id}`} game={room.game} initialRoom={room}

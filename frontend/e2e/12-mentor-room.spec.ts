@@ -1,7 +1,11 @@
 import { expect, test } from './support/fixtures';
 import { createPost, enter, lolPost, uniqueTitle, type Post } from './support/domain';
 
-test('멘토 UI — 남은 포지션 · 3인 자동 확정 · 확정 후 카드와 입장 제한', async ({ crew }) => {
+/**
+ * 2026-10-13 소유자 결정 — "사람이 다 차면 자동으로 확정" 을 platform 에서 없앴다(팀 P-55 의 자동 확정 부분 취소). 가득 차도 모집 중이고, 확정은 방장의
+ * `POST /rooms/{roomId}/confirm` 만이다. 전에는 셋째가 들어오는 순간 CONFIRMED 였다. 확정 뒤 포지션 보존(P-55 의 남은 부분)은 그대로 본다.
+ */
+test('멘토 UI — 남은 포지션 · 가득 차도 모집 중(자동 확정 없음) · 방장 확정 뒤 카드와 입장 제한', async ({ crew }) => {
   const a = await crew.user('a'); const b = await crew.user('b'); const c = await crew.user('c');
   const title = uniqueTitle('mentor');
   const room = await createPost(a, { ...lolPost(title), mode: 'NORMAL_3', wantedPositions: ['TOP', 'JUNGLE'] });
@@ -20,6 +24,14 @@ test('멘토 UI — 남은 포지션 · 3인 자동 확정 · 확정 후 카드�
   expect(boardBox!.width).toBeGreaterThan(600);
   await expect(host.getByRole('region', { name: '방', exact: true }).getByText('인사를 건네보세요!', { exact: true })).toBeVisible();
   expect((await enter(c, String(room.postId), 'JUNGLE')).status).toBe(201);
+  // 셋이 다 찼지만 확정되지 않는다(2026-10-13) — 글은 모집 중 · full · 게시판 카드도 모집 중인 채 "가득 참" 이다. 잠시 기다려도 그대로다.
+  await viewer.waitForTimeout(2_000);
+  const full = (await a.get<Post>(`/posts/${room.postId}`)).body;
+  expect(full.status).toBe('RECRUITING');
+  expect(full.full).toBe(true);
+  await expect(card).toHaveAttribute('data-status', 'RECRUITING');
+  // 확정은 방장만 — 화면의 확정 버튼 대신 요청으로(화면 쪽은 시나리오 4 · 14 가 본다)
+  expect((await a.post(`/rooms/${room.postId}/confirm`)).status).toBe(204);
   await expect.poll(async () => (await a.get<Post>(`/posts/${room.postId}`)).body.status).toBe('CONFIRMED');
   await expect(card).toHaveAttribute('data-status', 'CONFIRMED');
   const confirmed = (await a.get<Post>(`/posts/${room.postId}`)).body;

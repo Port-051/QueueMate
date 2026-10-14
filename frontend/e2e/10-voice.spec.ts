@@ -1,73 +1,8 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './support/fixtures';
 import { roomPositions, uniqueTitle } from './support/domain';
-
-/** 앱이 만드는 `RTCPeerConnection` 을 전부 모아 둔다 — 페이지의 스크립트보다 먼저 돈다(`addInitScript`). */
-function collectPeerConnections() {
-  const Original = window.RTCPeerConnection;
-  const w = window as unknown as { __pcs: RTCPeerConnection[] };
-  w.__pcs = [];
-  window.RTCPeerConnection = class extends Original {
-    constructor(...args: ConstructorParameters<typeof RTCPeerConnection>) {
-      super(...args);
-      w.__pcs.push(this);
-    }
-  } as typeof RTCPeerConnection;
-}
-
-interface PeerAudio {
-  /** `__pcs` 안의 자리 — 두 번 잰 것을 같은 연결끼리 맞춘다. */
-  index: number;
-  connectionState: string;
-  bytesReceived: number;
-  /** 들어온 음성의 `totalAudioEnergy` — 음소거하면 늘지 않는다(바이트는 무음 패킷으로 계속 는다). */
-  audioEnergy: number;
-  /** 멈추지 않은 음성 transceiver — 연결마다 하나여야 한다(mid 가 있고 sendrecv 로 협상됐고 보내는 트랙이 있다). */
-  audio: { mid: string | null; currentDirection: string | null; sendTrack: string | null }[];
-}
-
-/** 그 페이지의 닫히지 않은 peer 연결마다 상태 · 들어온 음성 · 음성 transceiver. */
-async function peerAudio(page: Page): Promise<PeerAudio[]> {
-  return page.evaluate(async () => {
-    const pcs = (window as unknown as { __pcs?: RTCPeerConnection[] }).__pcs ?? [];
-    const out: PeerAudio[] = [];
-    for (const [index, pc] of pcs.entries()) {
-      if (pc.connectionState === 'closed') continue;
-      let bytesReceived = 0;
-      let audioEnergy = 0;
-      (await pc.getStats()).forEach((report) => {
-        if (report.type === 'inbound-rtp' && report.kind === 'audio') {
-          bytesReceived += report.bytesReceived ?? 0;
-          audioEnergy += report.totalAudioEnergy ?? 0;
-        }
-      });
-      const audio = pc.getTransceivers()
-        .filter((t) => t.receiver.track.kind === 'audio' && t.direction !== 'stopped')
-        .map((t) => ({ mid: t.mid, currentDirection: t.currentDirection, sendTrack: t.sender.track ? t.sender.track.readyState : null }));
-      out.push({ index, connectionState: pc.connectionState, bytesReceived, audioEnergy, audio });
-    }
-    return out;
-  });
-}
-
-/** 실패했을 때 무엇이 어긋났는지 — 페이지의 peer 연결마다 transceiver(mid · 방향 · 보내는 트랙이 있는가)와 들어오고 나간 음성. */
-async function describePeers(page: Page): Promise<string> {
-  return page.evaluate(async () => {
-    const pcs = (window as unknown as { __pcs?: RTCPeerConnection[] }).__pcs ?? [];
-    const lines: string[] = [];
-    for (const [index, pc] of pcs.entries()) {
-      let inbound = 0;
-      let outbound = 0;
-      (await pc.getStats()).forEach((report) => {
-        if (report.type === 'inbound-rtp' && report.kind === 'audio') inbound += report.bytesReceived ?? 0;
-        if (report.type === 'outbound-rtp' && report.kind === 'audio') outbound += report.bytesSent ?? 0;
-      });
-      const transceivers = pc.getTransceivers().map((t) => `mid=${t.mid} dir=${t.direction} cur=${t.currentDirection} sendTrack=${t.sender.track ? t.sender.track.readyState : 'none'}`);
-      lines.push(`pc#${index} ${pc.connectionState} in=${inbound}B out=${outbound}B [${transceivers.join(' | ')}]`);
-    }
-    return lines.join('\n');
-  });
-}
+// 2026-10-13 — peer 연결 수집 · 통계 도우미는 시나리오 15(재입장)와 같이 쓰려고 support/voice.ts 로 옮겼다.
+import { collectPeerConnections, describePeers, peerAudio } from './support/voice';
 
 interface Side { name: string; page: Page }
 

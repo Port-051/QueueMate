@@ -1,4 +1,5 @@
 import { API_BASE } from '../config';
+import { trackRequest } from '../analytics/events';
 import { ApiError, toApiError } from './error';
 import type { SessionUser } from './types';
 
@@ -92,10 +93,15 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     const session = await refreshSession();
     if (session) {
       const retried = await send(method, fullPath, options);
-      return finish<T>(retried);
+      const out = await finish<T>(retried);
+      trackRequest(method, fullPath, retried.status);
+      return out;
     }
   }
-  return finish<T>(res);
+  const out = await finish<T>(res);
+  // 성공한 변경 요청(POST · PUT · PATCH · DELETE)은 전부 GA4 이벤트다(analytics/events.ts — 2026-10-13 소유자 지시). GET · 반복 신호는 세지 않는다.
+  trackRequest(method, fullPath, res.status);
+  return out;
 }
 
 function send(method: string, fullPath: string, options: RequestOptions): Promise<Response> {

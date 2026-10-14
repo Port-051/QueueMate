@@ -8,6 +8,7 @@ import { MatchProvider } from './state/MatchContext';
 import { PartySessionProvider } from './state/PartySessionContext';
 import { RoomSessionProvider } from './state/RoomSessionContext';
 import { SocialProvider } from './state/SocialContext';
+import { initAnalytics } from './analytics/ga';
 import './styles/theme.css';
 import './styles/pages.css';
 import './styles/usability.css';
@@ -18,6 +19,9 @@ import './styles/sidebar.css';
 import './styles/profile.css';
 
 const Router = import.meta.env.VITE_ROUTER_MODE === 'hash' ? HashRouter : BrowserRouter;
+
+// Google Analytics 4 — VITE_GA_MEASUREMENT_ID 가 있을 때만(analytics/ga.ts · 2026-10-13).
+initAnalytics();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

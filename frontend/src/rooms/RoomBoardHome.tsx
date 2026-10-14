@@ -1,4 +1,5 @@
 import { SlidingSelector } from '../components/SlidingSelector';
+import { trackAction } from '../analytics/events';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 import type { GameKey, PubgPerspective } from '../api/types';
@@ -98,7 +99,13 @@ export function RoomBoardHome({ roomPanelOpen = false }: { roomPanelOpen?: boole
   });
   const selected = rooms.find(room => room.id === selectedId) ?? null;
   const canReset = filters.group || filters.roles.length || filters.voice !== '' || filters.openOnly;
-  const resetFilters = () => setFilters(defaults());
+  const resetFilters = () => { setFilters(defaults()); trackAction('board_filter_reset'); };
+  // 필터가 바뀔 때마다 이벤트 하나(처음 값은 빼고) — 어떤 칸을 쓰는지만 보낸다(값은 모드 묶음 · 인원 · 시점 · 마이크 · 모집 중 여부).
+  const filtersTouched = useRef(false);
+  useEffect(() => {
+    if (!filtersTouched.current) { filtersTouched.current = true; return; }
+    trackAction('board_filter', { group: filters.group, size: filters.size, perspective: filters.perspective, voice: filters.voice, openOnly: filters.openOnly, roles: filters.roles.length });
+  }, [filters]);
   const enter = (room: BoardRoom) => { session.adopt(room.id); setRevealId(room.id); navigate(`/app/party/${room.id}`); };
 
   return <div className={`room-home board-home${activeRoomId ? ' has-active-room' : ''} is-exploring`}>

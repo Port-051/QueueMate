@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as api from '../api/client';
-import { hasErrorCode } from '../api/error';
+import { hasErrorCode, isApiError } from '../api/error';
 import type { RoomConfirmedPayload, RoomMemberEntry, RoomMemberPayload, ServerEvent } from '../api/types';
 import { useToast } from '../components/ui';
 import { useAuth } from './AuthContext';
@@ -19,6 +19,11 @@ import { useMatch } from './MatchContext';
  * - 음성 · 채팅(WebRTC — 브라우저 직결)은 방 화면이 `roomId` · `members` 를 받아 붙인다(`PartySessionContext`).
  */
 const HEARTBEAT_MS = 60_000;
+/**
+ * 알림이 일으킨 재조회(`GET …/members`)가 네트워크 오류 · 5xx 로 실패하면 이만큼 뒤에 다시 한다(차례로 · 셋 다 실패하면 다음 알림까지 둔다).
+ * 2026-10-13 e2e 22 로 찾았다 — SSE 는 살아 있어 알림은 왔는데 그 재조회만 순단으로 실패하면 다음 알림까지 좌석이 옛 상태로 남았다. 403 · 404 는 "이 방에 없다" 라 다시 하지 않는다.
+ */
+const REFRESH_RETRY_MS = [3_000, 6_000, 12_000];
 
 export type RoomGoneReason = 'CLOSED' | 'KICKED' | 'NOT_IN_ROOM' | 'LEFT';
 
@@ -114,12 +119,20 @@ export function RoomSessionProvider({ children }: { children: ReactNode }) {
     if (reason !== 'LEFT') void restore(lostRoomId);
   }, [clear, restore, rememberLeftParty, setActivePartyId, toast]);
 
+  const retryTimer = useRef<number | null>(null);
+  const retryCount = useRef(0);
+  const clearRetry = useCallback(() => {
+    if (retryTimer.current !== null) { window.clearTimeout(retryTimer.current); retryTimer.current = null; }
+  }, []);
+
   const refresh = useCallback(async () => {
     const current = roomRef.current;
     if (!current) return;
+    clearRetry();
     try {
       const view = await api.getRoomMembers(current);
       if (!live.current || roomRef.current !== current) return;
+      retryCount.current = 0;
       if (hostRef.current && view.hostId !== hostRef.current) toast(view.hostId === userId ? '방장이 되었어요' : '방장이 바뀌었어요', 'info');
       setHostId(view.hostId);
       const entries = view.members.map(readMember);
@@ -129,10 +142,17 @@ export function RoomSessionProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     } catch (err) {
       if (!live.current || roomRef.current !== current) return;
-      if (hasErrorCode(err, 'NOT_IN_ROOM', 'ROOM_NOT_FOUND')) lose(current, 'NOT_IN_ROOM');
-      else setLoading(false);
+      if (hasErrorCode(err, 'NOT_IN_ROOM', 'ROOM_NOT_FOUND')) { lose(current, 'NOT_IN_ROOM'); return; }
+      setLoading(false);
+      // 네트워크 오류(fetch 가 던진 TypeError) · 5xx — 잠시 뒤 다시 한다. 4xx 는 다시 해도 같다.
+      const retryable = !isApiError(err) || err.status >= 500;
+      const n = retryCount.current;
+      if (retryable && n < REFRESH_RETRY_MS.length) {
+        retryCount.current = n + 1;
+        retryTimer.current = window.setTimeout(() => { retryTimer.current = null; if (live.current && roomRef.current === current) void refresh(); }, REFRESH_RETRY_MS[n]);
+      }
     }
-  }, [lose, toast, userId]);
+  }, [clearRetry, lose, toast, userId]);
 
   const adopt = useCallback((next: string) => {
     if (roomRef.current === next) return;
@@ -161,8 +181,8 @@ export function RoomSessionProvider({ children }: { children: ReactNode }) {
     };
     void beat();
     const timer = window.setInterval(() => { void beat(); }, HEARTBEAT_MS);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, [roomId, refresh, lose]);
+    return () => { cancelled = true; window.clearInterval(timer); clearRetry(); retryCount.current = 0; };
+  }, [roomId, refresh, lose, clearRetry]);
 
   // ROOM_* — 이 방의 것만. 전부 "다시 조회" 이고 CLOSED · 내가 KICKED 만 방을 잃는다.
   useEffect(() => {
