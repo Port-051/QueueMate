@@ -362,11 +362,17 @@ export function RoomDeck({ room, selfId, current = false, entering = false, onEn
   const canJoin = !current && recruiting && !entryError && vacancies > 0;
   const closed = !recruiting || room.closed || room.full || vacancies === 0;
   const joinLabel = current ? '참가 중' : closed ? '마감' : '참가';
-  return <article ref={card} className={`room-deck room-row${room.hostId === selfId ? ' is-own' : ''}${current ? ' is-current-room' : canJoin ? ' is-joinable' : ' is-unavailable'}${entering ? ' is-entering' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`}>
+  // 끝난 글(확정 · 끝남 · 만료)만 한 단계 낮춘다. 자리가 찼거나 나만 못 들어가는 모집 중 글은 아직 살아 있는 글이라 그대로 둔다.
+  const ended = !recruiting || room.closed;
+  const badge = room.status === 'CONFIRMED' ? room.closed ? { tone: 'ended', label: POST_ENDED_LABEL } : { tone: 'confirmed', label: POST_STATUS_LABEL.CONFIRMED }
+    : room.status === 'EXPIRED' ? { tone: 'expired', label: POST_STATUS_LABEL.EXPIRED }
+    : closed && !current ? { tone: 'full', label: '마감' } : null;
+  return <article ref={card} className={`room-deck room-row${room.hostId === selfId ? ' is-own' : ''}${current ? ' is-current-room' : canJoin ? ' is-joinable' : ' is-unavailable'}${ended ? ' is-ended' : ''}${entering ? ' is-entering' : ''}`} data-status={room.status} aria-label={`${room.title} 방 정보`}>
     <div className="room-row-intro">
       <div className="room-row-summary">
         <div className="room-row-head">
           <h3 ref={heading} tabIndex={-1} title={room.title}>{room.title}</h3>
+          {badge ? <span className={`room-row-badge is-${badge.tone}`}>{badge.label}</span> : null}
           <time className="room-row-time" dateTime={room.createdAt}>{relativeTime(room.createdAt)}</time>
         </div>
         <p className="room-row-meta" aria-label="방 조건">
