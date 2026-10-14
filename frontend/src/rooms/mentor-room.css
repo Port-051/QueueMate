@@ -48,7 +48,13 @@
 .room-home .room-deck.room-row.is-current-room .room-join-button:disabled { cursor:default; opacity:1; }
 .room-deck.room-row .room-row-wanted-label { display:inline; color:#c3bed0; }
 .room-deck.room-row .room-row-meta .room-role-icons b { display:inline; font-size:12px; }
-.room-deck.room-row.is-unavailable { filter:grayscale(1); }
+/* 끝난 글 — 흑백으로 지우지 않는다(2026-10-14 소유자 — 티어 · 얼굴 색까지 빠져 "죽은 글"처럼 보였다). 색은 두고 상태 배지로 말하고, 카드 바탕과 제목만 한 단계 낮춰 열린 글이 먼저 눈에 들게 한다.
+   확정 · 끝남은 파티가 성사된 글이라 금색 · 보라로 좋게, 만료 · 마감만 중립 회색이다. */
+.room-deck.room-row.is-ended { --room-bubble-bg:color-mix(in srgb, var(--app-background) 96%, white); }
+.room-deck.room-row.is-ended .room-row-head h3 { color:#c9c4d4; }
+.room-row-badge { flex:none; padding:1px 8px; border:1px solid #ffffff22; border-radius:999px; background:#ffffff08; color:#a8a3b3; font-size:11px; font-weight:600; line-height:1.5; white-space:nowrap; }
+.room-row-badge.is-confirmed { border-color:#edc66c55; background:#edc66c14; color:#edc66c; }
+.room-row-badge.is-ended { border-color:#b3a6db55; background:#b3a6db14; color:#b3a6db; }
 @container room-card (max-width:560px) {
   .room-deck.room-row .room-seat-text { grid-template-columns:minmax(48px,1fr) 24px 58px 130px 62px 62px; column-gap:4px; }
   .room-seat-champions .preferred-champions { gap:2px; }
