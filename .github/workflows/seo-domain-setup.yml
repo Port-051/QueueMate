@@ -1,0 +1,162 @@
+name: Attach QueueMate domain to existing landing
+on:
+  push:
+    branches: [feat/seo-landing]
+    paths: ['.github/workflows/seo-domain-setup.yml']
+permissions:
+  contents: read
+  statuses: write
+concurrency:
+  group: seo-domain-setup
+  cancel-in-progress: false
+jobs:
+  domain:
+    if: github.repository == 'Port-051/QueueMate' && github.ref == 'refs/heads/feat/seo-landing' && github.actor == 'shj5771' && github.triggering_actor == 'shj5771'
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Prepare domain-only operation and test safety guards
+        run: |
+          cat > "$RUNNER_TEMP/qmate-domain-setup.mjs" <<'NODE'
+          import assert from 'node:assert/strict';
+          import {spawn} from 'node:child_process';
+          import {mkdir,readFile,writeFile,rm} from 'node:fs/promises';
+          import {stripVTControlCharacters as clean} from 'node:util';
+          import {Resolver} from 'node:dns/promises';
+          
+          const T=Object.freeze({repo:'Port-051/QueueMate',team:'team_TYonFQEoE1HOMC5bYb5xvQXV',scope:'port-52',project:'prj_twOVEOMaFLLQtgu0n4o5l7pmggiu',name:'queue-mate-landing',host:'queue-mate-landing.vercel.app',domain:'queue-mate.com',source:'c736008ff4e00de7627f5cc774486474b985858a',deployment:'dpl_AEeHZz6u2sssbUZYGLzs46hacLMZ'});
+          const desired=[{name:T.domain},{name:`www.${T.domain}`,redirect:T.domain,redirectStatusCode:308}];
+          const approval=s=>clean(s).match(/https:\/\/vercel\.com\/oauth\/device\?user_code=[A-Z0-9-]+/)?.[0];
+          function guard(p,d){
+           assert.equal(p.id,T.project,'Unexpected project');assert.equal(p.name,T.name);assert.equal(p.accountId,T.team,'Wrong Vercel account');
+           assert.equal(d.projectId,T.project);assert.equal(d.id,T.deployment,'Production changed; stop for review');assert.equal(d.readyState,'READY');assert.equal(d.meta?.githubCommitSha,T.source);
+          }
+          function validateDomain(d,w){
+           assert.equal(d.name,w.name);assert.equal(d.projectId,T.project);assert.ok(!d.gitBranch&&!d.customEnvironmentId,'Domain belongs to a different environment');
+           assert.equal(d.redirect??null,w.redirect??null,'Existing redirect differs; nothing will be overwritten');
+           if(w.redirect)assert.equal(Number(d.redirectStatusCode),w.redirectStatusCode);
+          }
+          function validateWrite(path,body){
+           assert.equal(path,`/v10/projects/${T.project}/domains`,'Only adding a domain to the known landing is allowed');
+           const w=desired.find(x=>x.name===body?.name);assert.ok(w,'Unapproved domain');assert.deepEqual(body,w,'Unexpected write fields');
+          }
+          const project={id:T.project,name:T.name,accountId:T.team};
+          const deployment={id:T.deployment,projectId:T.project,readyState:'READY',meta:{githubCommitSha:T.source}};
+          assert.doesNotThrow(()=>guard(project,deployment));
+          assert.throws(()=>guard({...project,accountId:'wrong'},deployment));
+          assert.throws(()=>guard(project,{...deployment,id:'other'}));
+          assert.throws(()=>guard(project,{...deployment,meta:{githubCommitSha:'other'}}));
+          for(const w of desired){assert.doesNotThrow(()=>validateWrite(`/v10/projects/${T.project}/domains`,w));assert.doesNotThrow(()=>validateDomain({...w,projectId:T.project},w));}
+          assert.throws(()=>validateWrite(`/v9/projects/${T.project}`,{ssoProtection:null}));
+          assert.throws(()=>validateWrite(`/v10/projects/${T.project}/domains`,{name:'q-mate.com'}));
+          assert.throws(()=>validateWrite(`/v10/projects/${T.project}/domains`,{name:T.domain,gitBranch:'main'}));
+          assert.throws(()=>validateDomain({...desired[1],projectId:'other'},desired[1]));
+          assert.throws(()=>validateDomain({...desired[1],projectId:T.project,redirect:'other.com'},desired[1]));
+          assert.equal(approval('https://vercel.com/oauth/device?user_code=ABCD-EFGH'),'https://vercel.com/oauth/device?user_code=ABCD-EFGH');
+          assert.equal(approval('https://vercel.com.evil.test/oauth/device?user_code=ABCD-EFGH'),undefined);
+          if(process.env.QMATE_TEST_ONLY==='1'){console.log('Domain target, existing-state, write-scope and approval guards passed');process.exit(0);}
+          assert.equal(process.env.GITHUB_REPOSITORY,T.repo);assert.equal(process.env.GITHUB_REF,'refs/heads/feat/seo-landing');
+          const temp=process.env.RUNNER_TEMP;assert.ok(temp?.startsWith('/'));
+          const cli=`${temp}/qmate-domain-cli/node_modules/.bin/vercel`,auth=`${temp}/qmate-domain-auth`,audit=`${temp}/qmate-domain-audit`;
+          const sha=process.env.GITHUB_SHA,runUrl=`https://github.com/${T.repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          const env=Object.fromEntries(['PATH','HOME','RUNNER_TEMP','TMPDIR','NODE_EXTRA_CA_CERTS'].filter(k=>process.env[k]).map(k=>[k,process.env[k]]));
+          Object.assign(env,{CI:'1',NO_COLOR:'1',VERCEL_TELEMETRY_DISABLED:'1'});
+          const report={workflowSha:sha,teamSlug:T.scope,projectId:T.project,domain:T.domain,startedAt:new Date().toISOString(),added:[],reused:[],domains:[],dnsChanged:false,nameserversChanged:false,indexingChanged:false,deploymentChanged:false,connected:false};
+          await mkdir(auth,{recursive:true,mode:0o700});await mkdir(audit,{recursive:true});
+          async function status(state,description,target_url=runUrl){
+           const r=await fetch(`https://api.github.com/repos/${T.repo}/statuses/${sha}`,{method:'POST',redirect:'error',signal:AbortSignal.timeout(15000),headers:{Authorization:`Bearer ${process.env.GITHUB_TOKEN}`,Accept:'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify({state,context:'SEO custom domain setup',description:description.slice(0,140),target_url})});
+           assert.ok(r.ok,`Cannot publish status (${r.status})`);await r.body?.cancel();
+          }
+          function vc(args,timeout=60000,onOutput=()=>{}){
+           return new Promise((resolve,reject)=>{
+            const child=spawn(cli,[...args,'--global-config',auth,'--no-color'],{env,stdio:['ignore','pipe','pipe']});let stdout='',stderr='',expired=false;
+            const timer=setTimeout(()=>{expired=true;child.kill('SIGKILL');},timeout);
+            child.stdout.on('data',b=>{stdout+=b;onOutput(clean(stdout+'\n'+stderr));});child.stderr.on('data',b=>{stderr+=b;onOutput(clean(stdout+'\n'+stderr));});
+            child.on('error',()=>{clearTimeout(timer);reject(Error('CLI failed to start'));});
+            child.on('close',code=>{clearTimeout(timer);code===0&&!expired?resolve(clean(stdout)):reject(Error(expired?'Command timed out':`CLI ${args[0]} failed (${code}); raw output withheld`));});
+           });
+          }
+          async function api(path,body){
+           const method=body===undefined?'GET':'POST';if(body!==undefined)validateWrite(path,body);
+           const args=['api',`${path}${path.includes('?')?'&':'?'}teamId=${T.team}`,'-X',method,'--scope',T.scope];
+           if(body!==undefined){const f=`${auth}/request.json`;await writeFile(f,JSON.stringify(body),{mode:0o600});args.push('--input',f);}
+           const result=JSON.parse((await vc(args)).trim());assert.ok(!result.error,`Vercel rejected ${method} ${path}`);return result;
+          }
+          async function dnsSnapshot(){
+           const r=new Resolver({timeout:3000,tries:1});const queries=[[T.domain,'NS'],[T.domain,'A'],[T.domain,'AAAA'],[`www.${T.domain}`,'CNAME'],[`www.${T.domain}`,'A']];
+           return Promise.all(queries.map(async([name,type])=>{try{return {name,type,answers:await r.resolve(name,type)};}catch(e){return {name,type,error:e.code??'DNS_ERROR'};}}));
+          }
+          async function inspectUrl(url){
+           try{const r=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(15000)});const text=await r.text();return {url,status:r.status,location:r.headers.get('location'),html:/text\/html/i.test(r.headers.get('content-type')??''),actualUI:text.includes('/assets/ui/quick-match-board.webp'),canonical:text.includes(`rel="canonical" href="https://${T.domain}/"`),noindex:/name="robots" content="[^"]*noindex/.test(text)};}
+           catch{return {url,error:'DNS_TLS_OR_NETWORK_ERROR'};}
+          }
+          let phase='preflight';
+          try{
+           const config=JSON.parse(await readFile('landing/site.config.json','utf8'));assert.equal(config.origin,`https://${T.domain}`);assert.equal(config.allowIndexing,false);assert.equal(config.appReady,false);
+           report.dnsBefore=await dnsSnapshot();await writeFile(`${audit}/dns-before.json`,JSON.stringify(report.dnsBefore,null,2));
+           phase='authorization';await status('pending','Authorize port-52 to add queue-mate.com; no deploy or DNS changes');
+           let published=false,notice=Promise.resolve();await vc(['login'],600000,out=>{const url=approval(out);if(published||!url)return;published=true;notice=status('pending','Approve port-52 domain setup: queue-mate.com and www only',url);notice.catch(()=>{});});await notice;
+           phase='target verification';await status('pending','Verifying existing landing before adding domains');
+           guard(await api(`/v9/projects/${T.project}`),await api(`/v13/deployments/${T.host}`));
+           const live=await inspectUrl(`https://${T.host}/`);assert.equal(live.status,200);assert.ok(live.html&&live.actualUI&&live.canonical&&live.noindex,'Existing public landing did not pass preflight');report.publicLanding=live;
+           const before=await api(`/v9/projects/${T.project}/domains?limit=100`);assert.ok(Array.isArray(before.domains)&&!before.pagination?.next,'Complete domain list required');
+           // Validate all existing targets before any write. Never transfer or force-overwrite a domain.
+           for(const w of desired){const d=before.domains.find(x=>x.name===w.name);if(d)validateDomain(d,w);}
+           const configs={};for(const w of desired)configs[w.name]=await api(`/v6/domains/${w.name}/config?projectIdOrName=${T.project}`);
+           phase='domain attachment';
+           for(const w of desired){
+            const existing=before.domains.find(x=>x.name===w.name);
+            if(existing){report.reused.push(w.name);continue;}
+            const added=await api(`/v10/projects/${T.project}/domains`,w);report.added.push(w.name);validateDomain(added,w);
+           }
+           phase='domain readback';
+           const after=await api(`/v9/projects/${T.project}/domains?limit=100`);assert.ok(Array.isArray(after.domains)&&!after.pagination?.next,'Complete domain list required');
+           for(const w of desired){
+            const d=after.domains.find(x=>x.name===w.name);assert.ok(d,'Attached domain missing');validateDomain(d,w);
+            let c=configs[w.name];try{c=await api(`/v6/domains/${w.name}/config?projectIdOrName=${T.project}`);}catch{report.configurationRefreshPending=true;}
+            report.domains.push({name:d.name,verified:d.verified,verification:d.verification??[],redirect:d.redirect??null,redirectStatusCode:d.redirectStatusCode??null,configuration:c});
+           }
+           guard(await api(`/v9/projects/${T.project}`),await api(`/v13/deployments/${T.host}`));
+           report.dnsAfter=await dnsSnapshot();report.publicChecks=await Promise.all(desired.map(w=>inspectUrl(`https://${w.name}/`)));
+           const [home,www]=report.publicChecks;
+           report.connected=report.domains.every(d=>d.verified===true&&d.configuration.misconfigured===false)&&home.status===200&&home.html&&home.actualUI&&home.canonical&&[301,308].includes(www.status)&&www.location===`https://${T.domain}/`;
+           report.domainSetupVerified=true;
+           const description=report.connected?'DOMAIN_CONNECTED_VERIFIED; indexing still disabled':'DOMAINS_ADDED; Gabia DNS or domain verification/TLS still pending';
+           await status('success',description,report.connected?`https://${T.domain}/`:runUrl);console.log(description);
+          }catch(error){report.error=`${phase}: ${error.message}`;await status('failure',report.error).catch(()=>{});console.error(report.error);process.exitCode=1;}
+          finally{
+           await vc(['logout'],20000).catch(()=>{});await rm(auth,{recursive:true,force:true});report.finishedAt=new Date().toISOString();
+           await writeFile(`${audit}/report.json`,JSON.stringify(report,null,2)+'\n');
+           await writeFile(process.env.GITHUB_STEP_SUMMARY,`## QueueMate custom domain setup\n\nDomain attachment verified: ${report.domainSetupVerified??false}\nConnected over HTTPS: ${report.connected}\nAdded: ${report.added.join(', ')||'none'}\nReused: ${report.reused.join(', ')||'none'}\n\nDNS recommendations and any TXT verification challenge are in report.json.\nNo deployment, Git integration, nameserver, Gabia DNS, mail records or search-index changes were made.\n`);
+          }
+          NODE
+          QMATE_TEST_ONLY=1 node "$RUNNER_TEMP/qmate-domain-setup.mjs"
+      - name: Install official Vercel CLI
+        run: npm install --prefix "$RUNNER_TEMP/qmate-domain-cli" --no-audit --no-fund vercel@latest
+      - name: Authorize domain attachment and retrieve DNS recommendations
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node "$RUNNER_TEMP/qmate-domain-setup.mjs"
+      - name: Remove temporary authorization
+        if: always()
+        run: |
+          AUTH_DIR="$RUNNER_TEMP/qmate-domain-auth"
+          CLI="$RUNNER_TEMP/qmate-domain-cli/node_modules/.bin/vercel"
+          if [ -f "$AUTH_DIR/auth.json" ] && [ -x "$CLI" ]; then
+            timeout 20 "$CLI" logout --global-config "$AUTH_DIR" --no-color >/dev/null 2>&1 || true
+          fi
+          rm -rf "$AUTH_DIR"
+      - name: Save DNS guidance and nonsecret domain evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: seo-domain-setup
+          path: ${{ runner.temp }}/qmate-domain-audit/
+          if-no-files-found: ignore
+          retention-days: 7

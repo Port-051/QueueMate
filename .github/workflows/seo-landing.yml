@@ -1,0 +1,52 @@
+name: SEO landing verification
+on:
+  push:
+    branches: [main, feat/seo-landing]
+    paths: ['landing/**', '.github/workflows/seo-landing.yml']
+  pull_request:
+    paths: ['landing/**', '.github/workflows/seo-landing.yml']
+permissions:
+  contents: read
+concurrency:
+  group: seo-landing-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: landing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: landing/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm test
+      - run: npm run build
+      - run: npm run export:preview
+      - name: Check preview HTTP behavior
+        run: |
+          node scripts/serve.mjs > /tmp/qmate-preview.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then break; fi
+            sleep 1
+          done
+          npm run check:url -- http://127.0.0.1:4173 preview
+      - name: Archive reviewed source
+        run: |
+          git -C .. archive --format=zip HEAD landing > source.zip
+          unzip -Z1 source.zip | grep -qx 'landing/package.json'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qmate-landing-verified
+          path: |
+            landing/source.zip
+            landing/preview.html
+            landing/dist/
+          retention-days: 7

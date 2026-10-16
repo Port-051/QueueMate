@@ -1,0 +1,115 @@
+name: Deploy Google and Naver ownership tags
+on:
+  push:
+    branches: [feat/seo-landing]
+    paths: ['.github/workflows/seo-benefits-release.yml']
+permissions:
+  contents: read
+  statuses: write
+concurrency:
+  group: seo-domain-setup
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.repository == 'Port-051/QueueMate' && github.ref == 'refs/heads/feat/seo-landing' && github.actor == 'shj5771' && github.triggering_actor == 'shj5771'
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 652624c92d862b299f7e8b71c70e97c739357afe
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 27451ca60608c07f43bf18af1aeef22ee7c9d7c7
+          path: .release-baseline
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Test ownership tags and unchanged landing design
+        working-directory: landing
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm test
+          BUILD_TARGET=production npm run build
+          diff -rq src ../.release-baseline/landing/src
+          diff -rq public ../.release-baseline/landing/public
+          cmp vercel.json ../.release-baseline/landing/vercel.json
+      - name: Prepare pinned deployment and test scope guards
+        run: |
+          python3 - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          source = Path('.release-baseline/.github/workflows/seo-benefits-release.yml').read_bytes()
+          assert hashlib.sha1(f'blob {len(source)}\0'.encode() + source).hexdigest() == 'e3576f24790ba907caa285a9b480e366608f427b', 'Release template changed'
+          lines = source.decode().splitlines()
+          start = next(i for i, line in enumerate(lines) if 'cat > "$RUNNER_TEMP/qmate-search-publish.mjs"' in line) + 1
+          end = next(i for i in range(start, len(lines)) if lines[i] == '          NODE')
+          script = '\n'.join(line[10:] for line in lines[start:end]) + '\n'
+          def replace_once(old, new):
+              global script
+              assert script.count(old) == 1, f'Unexpected release fragment: {old}'
+              script = script.replace(old, new)
+          replace_once("source:'86000b47d6d76ae3aebdb16cc94bfa636b6b1b54'", "source:'652624c92d862b299f7e8b71c70e97c739357afe'")
+          replace_once("previous:'9ed059501d2689e0eddc2856f07fde956918afb4'", "previous:'86000b47d6d76ae3aebdb16cc94bfa636b6b1b54'")
+          replace_once("previousDeployment:'dpl_4ieDbpMAWf5PhxUex6sEc8nZXGT6'", "previousDeployment:'dpl_E3hYaQHsu4U1rW7Gp4djfxb1U8mJ'")
+          checks = r'''
+          const expectedVerification={google:'g6PhcX7ftM9vZGQDFn5XqL0iQIzSfHbwhmUF7HP8kW8',naver:'83c067fdaf3534e3e9a2c0099b48467bad304fba',bing:''};
+          function checkOwnership(html){
+            const head=html.match(/<head>[\s\S]*?<\/head>/)?.[0];assert.ok(head,'HTML head missing');
+            for(const engine of ['google','naver']){
+              const name=`${engine}-site-verification`,tag=`<meta name="${name}" content="${expectedVerification[engine]}">`;
+              assert.ok(head.includes(tag),`${engine} token missing or changed`);
+              assert.equal(html.split(`name="${name}"`).length-1,1,'Duplicate ownership tag');
+            }
+          }
+          const validHead='<head>'+['google','naver'].map(e=>`<meta name="${e}-site-verification" content="${expectedVerification[e]}">`).join('')+'</head>';
+          assert.doesNotThrow(()=>checkOwnership(validHead));
+          assert.throws(()=>checkOwnership('<head></head>'));
+          assert.throws(()=>checkOwnership(validHead.replace(expectedVerification.google,'wrong')));
+          assert.throws(()=>checkOwnership(validHead.replace('<head>','<body>').replace('</head>','</body>')));
+          assert.throws(()=>checkOwnership(validHead+validHead));
+          '''
+          replace_once('const blocked=', checks+'\nconst blocked=')
+          replace_once("assert.deepEqual({...config,allowIndexing:false},baseline,'Unreviewed settings change');", "assert.deepEqual({...config,verification:baseline.verification},baseline,'Unexpected nonverification change');assert.deepEqual(config.verification,expectedVerification);")
+          replace_once("const local=await readFile('landing/dist/index.html','utf8');", "const local=await readFile('landing/dist/index.html','utf8');checkOwnership(local);")
+          # Certificates and DNS are already configured; this operation only deploys tags.
+          begin = script.index('if(root.status!==200){')
+          finish = script.index("assert.equal(root.status,200,'Canonical HTTPS is not ready; no deployment performed');", begin)
+          script = script[:begin] + script[finish:]
+          replace_once("report.indexingVerified=true;", "checkOwnership(root.html);report.verificationTagsPresent=true;report.indexingVerified=true;")
+          script = script.replace('SEO search publication', 'SEO ownership tag deployment')
+          script = script.replace('Approve port-52: verify HTTPS and publish the approved introduction page', 'Approve port-52: deploy the provided Google and Naver ownership tags')
+          script = script.replace('Approve port-52: HTTPS verification and search publication; design unchanged', 'Approve port-52: Google and Naver tags; design unchanged')
+          script = script.replace('Deploying search-enabled introduction page; app stays offline', 'Deploying ownership tags; design and indexing stay unchanged')
+          script = script.replace('SEARCH_PUBLICATION_VERIFIED; canonical HTTPS and sitemap ready; app offline', 'OWNERSHIP_TAGS_DEPLOYED; Google/Naver account verification still required')
+          script = script.replace('SEARCH_PUBLICATION_RESULT=', 'OWNERSHIP_TAG_DEPLOYMENT_RESULT=')
+          script = script.replace('## Search publication', '## Google and Naver ownership tag deployment')
+          Path(os.environ['RUNNER_TEMP'], 'qmate-search-publish.mjs').write_text(script)
+          PY
+          node --check "$RUNNER_TEMP/qmate-search-publish.mjs"
+          QMATE_TEST_ONLY=1 node "$RUNNER_TEMP/qmate-search-publish.mjs"
+      - name: Install official Vercel CLI
+        run: npm install --prefix "$RUNNER_TEMP/qmate-search-cli" --no-audit --no-fund vercel@latest
+      - name: Authorize and deploy only the approved ownership tags
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node "$RUNNER_TEMP/qmate-search-publish.mjs"
+      - name: Remove temporary authorization
+        if: always()
+        run: |
+          AUTH_DIR="$RUNNER_TEMP/qmate-search-auth"
+          CLI="$RUNNER_TEMP/qmate-search-cli/node_modules/.bin/vercel"
+          if [ -f "$AUTH_DIR/auth.json" ] && [ -x "$CLI" ]; then
+            timeout 20 "$CLI" logout --global-config "$AUTH_DIR" --no-color >/dev/null 2>&1 || true
+          fi
+          rm -rf "$AUTH_DIR"
+      - name: Save nonsecret deployment results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: seo-ownership-tag-deployment
+          path: ${{ runner.temp }}/qmate-search-audit/
+          if-no-files-found: ignore
+          retention-days: 7

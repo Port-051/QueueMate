@@ -1,0 +1,147 @@
+name: Deploy approved actual UI to existing landing
+on:
+  push:
+    branches: [feat/seo-landing]
+    paths: ['.github/workflows/seo-vercel-deploy.yml']
+permissions:
+  contents: read
+  statuses: write
+concurrency:
+  group: seo-vercel-first-deployment
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.repository == 'Port-051/QueueMate' && github.ref == 'refs/heads/feat/seo-landing' && github.actor == 'shj5771' && github.triggering_actor == 'shj5771'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_TELEMETRY_DISABLED: '1'
+      NO_COLOR: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: c736008ff4e00de7627f5cc774486474b985858a
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify the approved UI before authorization
+        working-directory: landing
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm test
+          npm run build
+      - name: Install official Vercel CLI
+        run: npm install --prefix "$RUNNER_TEMP/qmate-vercel-cli" --no-audit --no-fund vercel@latest
+      - name: Authorize and replace only the existing landing
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {spawn} from 'node:child_process';
+          import {cp,mkdir,readFile,writeFile,rm} from 'node:fs/promises';
+          import {createHash} from 'node:crypto';
+          import {stripVTControlCharacters as clean} from 'node:util';
+          import {setTimeout as delay} from 'node:timers/promises';
+          const T=Object.freeze({repo:'Port-051/QueueMate',team:'team_TYonFQEoE1HOMC5bYb5xvQXV',scope:'port-52',project:'prj_twOVEOMaFLLQtgu0n4o5l7pmggiu',name:'queue-mate-landing',host:'queue-mate-landing.vercel.app',source:'c736008ff4e00de7627f5cc774486474b985858a',previous:'a0d7f1ec06da3aa467366ed7b5c6727c29e462c5'});
+          const approval=s=>clean(s).match(/https:\/\/vercel\.com\/oauth\/device\?user_code=[A-Z0-9-]+/)?.[0];
+          function guard(p,d){assert.equal(p.id,T.project);assert.equal(p.name,T.name);assert.equal(p.accountId,T.team);assert.equal(d.projectId,T.project);assert.equal(d.readyState,'READY');assert.ok([T.previous,T.source].includes(d.meta?.githubCommitSha),'Unexpected live source; refusing to overwrite');}
+          assert.equal(approval('https://vercel.com/oauth/device?user_code=ABCD-EFGH'),'https://vercel.com/oauth/device?user_code=ABCD-EFGH');
+          assert.equal(approval('https://vercel.com.evil.test/oauth/device?user_code=ABCD-EFGH'),undefined);
+          const p={id:T.project,name:T.name,accountId:T.team},d={projectId:T.project,readyState:'READY',meta:{githubCommitSha:T.previous}};
+          assert.doesNotThrow(()=>guard(p,d));
+          assert.throws(()=>guard({...p,accountId:'other'},d));
+          assert.throws(()=>guard(p,{...d,projectId:'other'}));
+          assert.throws(()=>guard(p,{...d,meta:{githubCommitSha:'unknown'}}));
+          if(process.env.QMATE_TEST_ONLY==='1'){console.log('Release scope guards passed');process.exit(0);}
+          assert.equal(process.env.GITHUB_REPOSITORY,T.repo);
+          assert.equal(process.env.GITHUB_REF,'refs/heads/feat/seo-landing');
+          const temp=process.env.RUNNER_TEMP;assert.ok(temp?.startsWith('/'));
+          const cli=`${temp}/qmate-vercel-cli/node_modules/.bin/vercel`,auth=`${temp}/qmate-release-auth`,audit=`${temp}/qmate-release-audit`,directory=`${temp}/qmate-release-package`;
+          const workflowSha=process.env.GITHUB_SHA,runUrl=`https://github.com/${T.repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          const env=Object.fromEntries(['PATH','HOME','RUNNER_TEMP','TMPDIR','NODE_EXTRA_CA_CERTS'].filter(k=>process.env[k]).map(k=>[k,process.env[k]]));
+          Object.assign(env,{CI:'1',NO_COLOR:'1',VERCEL_TELEMETRY_DISABLED:'1'});
+          const report={sourceSha:T.source,workflowSha,teamId:T.team,teamSlug:T.scope,projectId:T.project,publicUrl:`https://${T.host}/`,startedAt:new Date().toISOString(),verified:false,dnsChanged:false,protectionChanged:false,indexingChanged:false};
+          await mkdir(auth,{recursive:true,mode:0o700});await mkdir(audit,{recursive:true});
+          async function status(state,description,target_url=runUrl){
+           const r=await fetch(`https://api.github.com/repos/${T.repo}/statuses/${workflowSha}`,{method:'POST',redirect:'error',signal:AbortSignal.timeout(15000),headers:{Authorization:`Bearer ${process.env.GITHUB_TOKEN}`,Accept:'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify({state,context:'SEO actual UI deployment',description:description.slice(0,140),target_url})});
+           assert.ok(r.ok,`Cannot record deployment status (${r.status})`);await r.body?.cancel();
+          }
+          function command(executable,args,timeout=60000,onOutput=()=>{}){
+           return new Promise((resolve,reject)=>{
+            const child=spawn(executable,args,{env,stdio:['ignore','pipe','pipe']});let stdout='',stderr='',expired=false;
+            const timer=setTimeout(()=>{expired=true;child.kill('SIGKILL');},timeout);
+            child.stdout.on('data',b=>{stdout+=b;onOutput(clean(stdout+'\n'+stderr));});child.stderr.on('data',b=>{stderr+=b;onOutput(clean(stdout+'\n'+stderr));});
+            child.on('error',e=>{clearTimeout(timer);reject(e);});child.on('close',code=>{clearTimeout(timer);code===0&&!expired?resolve(clean(stdout)):reject(Error(expired?'Command timed out':`Command ${args[0]} failed (${code}); raw output withheld`));});
+           });
+          }
+          const vc=(args,timeout,output)=>command(cli,[...args,'--global-config',auth,'--no-color'],timeout,output);
+          const api=async path=>JSON.parse((await vc(['api',`${path}${path.includes('?')?'&':'?'}teamId=${T.team}`,'-X','GET','--scope',T.scope])).trim());
+          let deployment,previous,phase='preflight';
+          try{
+           const checkedOut=(await command('git',['rev-parse','HEAD'])).trim();assert.equal(checkedOut,T.source,'Checkout must match the approved source');
+           const c=JSON.parse(await readFile('landing/site.config.json','utf8'));
+           assert.equal(c.origin,'https://queue-mate.com');assert.equal(c.allowIndexing,false);assert.equal(c.appReady,false);assert.equal(c.reference.branch,'feature/quick-match-ui');
+           for(const n of ['board','settings','room'])await readFile(`landing/dist/assets/ui/quick-match-${n}.webp`);
+           phase='authorization';await status('pending','Preparing authorization to update the existing QueueMate landing');
+           let published=false,notice=Promise.resolve();
+           await vc(['login'],600000,out=>{const url=approval(out);if(published||!url)return;published=true;notice=status('pending','Approve using port-52 account to deploy the approved actual UI',url);notice.catch(()=>{});});await notice;
+           phase='target verification';await status('pending','Authorized; verifying existing project and current deployment');
+           const project=await api(`/v9/projects/${T.project}`);previous=await api(`/v13/deployments/${T.host}`);guard(project,previous);
+           const domains=await api(`/v9/projects/${T.project}/domains`);
+           assert.ok(Array.isArray(domains.domains)&&!domains.pagination?.next,'Complete domain list required');
+           assert.ok(domains.domains.every(x=>/^[a-z0-9-]+\.vercel\.app$/i.test(x.name)),'Custom domain now connected; review release scope first');
+           report.previousDeploymentId=previous.id;report.previousUrl=`https://${previous.url}/`;
+           if(previous.meta.githubCommitSha!==T.source){
+            phase='deployment';await mkdir(`${directory}/.vercel`,{recursive:true});await mkdir(`${directory}/scripts`,{recursive:true});
+            for(const file of ['package.json','package-lock.json','site.config.json','vercel.json','src','public'])await cp(`landing/${file}`,`${directory}/${file}`,{recursive:true});
+            await cp('landing/scripts/build.mjs',`${directory}/scripts/build.mjs`);
+            await writeFile(`${directory}/.vercel/project.json`,JSON.stringify({projectId:T.project,orgId:T.team,projectName:T.name}));
+            await status('pending','Deploying approved UI to the existing queue-mate-landing project');
+            const output=await vc(['deploy','--cwd',directory,'--yes','--prod','--scope',T.scope,'--meta',`githubCommitSha=${T.source}`,'--meta',`releaseWorkflowSha=${workflowSha}`],300000);
+            const urls=output.match(/https:\/\/[a-z0-9.-]+\.vercel\.app/gi);assert.ok(urls?.length,'No deployment URL returned');
+            deployment=await api(`/v13/deployments/${new URL(urls.at(-1)).hostname}`);
+           }else{deployment=previous;report.alreadyDeployed=true;}
+           guard(project,deployment);assert.equal(deployment.meta.githubCommitSha,T.source);
+           report.deploymentId=deployment.id;report.deploymentUrl=`https://${deployment.url}/`;
+           phase='live verification';await status('pending','Checking public page, actual UI captures, SEO files and 404 response');
+           let live;for(let i=0;i<8;i++){live=await api(`/v13/deployments/${T.host}`);if(live.id===deployment.id)break;await delay(2000);}assert.equal(live.id,deployment.id,'Public alias did not reach the new release');
+           const checks=await command(process.execPath,['landing/scripts/check-url.mjs',report.publicUrl,'preview',`${audit}/http-checks.json`],150000);await writeFile(`${audit}/http-checks.txt`,checks);
+           const home=await fetch(report.publicUrl,{redirect:'manual',signal:AbortSignal.timeout(15000)});assert.equal(home.status,200);const html=await home.text();
+           const assets=[];for(const name of ['board','settings','room']){
+            const path=`/assets/ui/quick-match-${name}.webp`;assert.ok(html.includes(path),`Missing UI capture in HTML: ${name}`);
+            const r=await fetch(new URL(path,report.publicUrl),{redirect:'manual',signal:AbortSignal.timeout(15000)});assert.equal(r.status,200);assert.match(r.headers.get('content-type')??'',/^image\/webp/i);
+            const bytes=Buffer.from(await r.arrayBuffer()),local=await readFile(`landing/dist${path}`),hash=b=>createHash('sha256').update(b).digest('hex');assert.equal(hash(bytes),hash(local),`Deployed UI capture differs: ${name}`);assets.push({path,sha256:hash(bytes),bytes:bytes.length});
+           }
+           const llms=await fetch(new URL('/llms.txt',report.publicUrl),{redirect:'manual',signal:AbortSignal.timeout(15000)});assert.equal(llms.status,200);assert.match(await llms.text(),/queue-mate\.com/);
+           report.assets=assets;report.verified=true;await status('success','ACTUAL_UI_PUBLIC_VERIFIED; 3 captures verified; noindex and DNS unchanged',report.publicUrl);console.log(`Verified actual UI landing: ${report.publicUrl}`);
+          }catch(error){
+           report.error=`${phase}: ${error.message}`;
+           if(deployment&&previous&&deployment.id!==previous.id&&!report.verified){
+            try{const current=await api(`/v13/deployments/${T.host}`);if(current.id===deployment.id){await vc(['rollback',report.previousUrl,'--yes','--scope',T.scope,'--cwd',directory],120000);report.rolledBack=(await api(`/v13/deployments/${T.host}`)).id===previous.id;}else{report.rollbackSkipped='Another deployment owns the alias';}}catch{report.rolledBack=false;}
+           }
+           await status('failure',report.error).catch(()=>{});console.error(report.error);process.exitCode=1;
+          }finally{
+           await vc(['logout'],20000).catch(()=>{});await rm(auth,{recursive:true,force:true});report.finishedAt=new Date().toISOString();
+           await writeFile(`${audit}/report.json`,JSON.stringify(report,null,2)+'\n');
+           await writeFile(process.env.GITHUB_STEP_SUMMARY,`## QueueMate actual UI release\n\nVerified: ${report.verified}\nURL: ${report.publicUrl}\nSource: ${T.source}\nDeployment: ${report.deploymentId??'not created'}\n\nNo DNS, domain, protection, search-index, app connection, or main-branch changes.\n`);
+          }
+          NODE
+      - name: Remove temporary authorization
+        if: always()
+        run: |
+          AUTH_DIR="$RUNNER_TEMP/qmate-release-auth"
+          CLI="$RUNNER_TEMP/qmate-vercel-cli/node_modules/.bin/vercel"
+          if [ -f "$AUTH_DIR/auth.json" ] && [ -x "$CLI" ]; then
+            timeout 20 "$CLI" logout --global-config "$AUTH_DIR" --no-color >/dev/null 2>&1 || true
+          fi
+          rm -rf "$AUTH_DIR"
+      - name: Save nonsecret release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: seo-actual-ui-deployment
+          path: ${{ runner.temp }}/qmate-release-audit/
+          if-no-files-found: ignore
+          retention-days: 7

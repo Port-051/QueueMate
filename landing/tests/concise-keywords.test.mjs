@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';import {renderSite} from '../src/render.mjs';const c=JSON.parse(await readFile(new URL('../site.config.json',import.meta.url),'utf8'));const html=renderSite(c,{VERCEL_ENV:'production'}).html;
+test('visible discovery terms remain natural',()=>{for(const x of ['롤 듀오','파티 찾기','빠른매치','음성·채팅'])assert.ok(html.includes(x),x);assert.doesNotMatch(html,/name="keywords"/);});
+test('quick match stays below core value',()=>{assert.ok(html.indexOf('id="features"')<html.indexOf('id="quick-match"'));assert.match(html,/조건만 정하고,/);});
+test('production search policy remains',()=>{assert.equal(c.appReady,true);assert.equal(c.allowIndexing,true);assert.match(html,/index, follow, max-image-preview:large/);});
