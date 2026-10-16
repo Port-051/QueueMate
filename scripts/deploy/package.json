@@ -1,0 +1,11 @@
+{
+  "name": "queuemate-deployment-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {"test": "node --test tests/*.test.mjs"},
+  "dependencies": {
+    "@vercel/routing-utils": "6.6.0",
+    "playwright": "1.62.1",
+    "vercel": "63.1.2"
+  }
+}
